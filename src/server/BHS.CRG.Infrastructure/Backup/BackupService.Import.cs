@@ -159,6 +159,7 @@ public partial class BackupService
             await tx.CommitAsync(ct);
 
             await WarnAboutModuleFilesAsync(restoredModules, archived, warnings, ct);
+            await WarnAboutDataSetPartsAsync(manifest, archived, warnings, ct);
 
             return new RestoreReport(true, conversionNotice, warnings,
                 stats.DocumentTypesCreated, stats.DocumentTypesUpdated,

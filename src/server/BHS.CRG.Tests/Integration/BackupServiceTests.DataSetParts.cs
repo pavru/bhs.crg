@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
@@ -44,6 +45,9 @@ public partial class BackupServiceTests
         Assert.True(report.Success);
         // Части — в том же счёте, что и сам файл: файл набора плюс два документа.
         Assert.Contains("Файлы: восстановлено 3 из 3.", report.Warnings);
+        // Проверка частей после восстановления у исправной копии молчит — иначе её тревога ничего
+        // бы не значила.
+        Assert.DoesNotContain(report.Warnings, w => w.Contains("вырезанных PDF документов"));
         await AssertPartsReadableAsync(sourceId, parts);
     }
 
@@ -137,6 +141,110 @@ public partial class BackupServiceTests
     }
 
     /// <summary>
+    /// Разбиение чужой формы — читаемое, но не того вида, что пишет нынешний код, — копию не роняет
+    /// (ревью PR #1408). Фильтр исключений по типам пропускал их сквозь себя: <c>Groups: null</c>
+    /// падал на перечислении, группа-null — на её пути, прежний формат с дробным номером листа — на
+    /// чтении номера. Копия ВСЕЙ системы отказывала из-за одного набора. Частей у таких разбиений
+    /// нет, и непрочитанными они не названы: прочитаны, просто пусты.
+    /// </summary>
+    [Theory]
+    [InlineData("""{"Groups":null}""")]
+    [InlineData("""{"Groups":[null]}""")]
+    [InlineData("""{"Documents":[{"PageIndices":[1.5]}]}""")]
+    public async Task OddGrouping_DoesNotFailBackup(string grouping)
+    {
+        var (fileId, sourceId, _) = await SeedSplitDataSetAsync();
+        string filePath;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var file = await db.DataSetFiles.SingleAsync(f => f.Id == fileId);
+            file.SetGrouping(grouping);
+            var source = await db.DataSetSources.SingleAsync(s => s.Id == sourceId);
+            source.UpdateCache(source.CachedSchema, 0, null);
+            await db.SaveChangesAsync();
+            filePath = file.BlobPath;
+        }
+
+        using var zip = new ZipArchive(new MemoryStream(await ExportFullAsync()), ZipArchiveMode.Read);
+        Assert.Contains(zip.Entries, e => e.FullName == $"blobs/{filePath}");
+        Assert.DoesNotContain(SummaryOf(zip).Warnings ?? [], w => w.Contains("не прочитано"));
+    }
+
+    /// <summary>
+    /// В колонке «ФайлПуть» реестра «Документы» копия берёт только путь нашего хранилища (ревью PR
+    /// #1408). У группы, которую не удалось вырезать, проекция оставляет распознанные поля штампа, и
+    /// поле профиля с тем же именем кладёт туда текст из PDF. Взятый «путём», он стал бы запросом за
+    /// чужим объектом или ложным «файлов не оказалось», в котором тонет настоящая потеря.
+    /// </summary>
+    [Fact]
+    public async Task RecognizedText_InFilePathColumn_IsNotTakenForBlob()
+    {
+        var (_, sourceId, _) = await SeedSplitDataSetAsync();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var source = await db.DataSetSources.SingleAsync(s => s.Id == sourceId);
+            var rows = JsonNode.Parse(source.CachedData!)!.AsArray();
+            rows.Add(new JsonObject { ["ФайлПуть"] = "Лист 3, шифр 01-ЭМ/2026.10.17" });
+            source.UpdateCache(source.CachedSchema, rows.Count, rows.ToJsonString());
+            await db.SaveChangesAsync();
+        }
+
+        using var zip = new ZipArchive(new MemoryStream(await ExportFullAsync()), ZipArchiveMode.Read);
+        var summary = SummaryOf(zip);
+        Assert.Equal(3, summary.BlobCount);
+        Assert.DoesNotContain(summary.Warnings ?? [], w => w.Contains("не оказалось в хранилище"));
+    }
+
+    /// <summary>
+    /// Оценка веса считает паспорт С ПРЕДУПРЕЖДЕНИЯМИ, как у настоящей копии (ревью PR #1408). Прежде
+    /// она передавала пустой список, и каждое предупреждение — длинная кириллическая фраза — занижало
+    /// оценку. Предупреждений здесь пять: четыре непрочитанных разбиения и пропавшая часть, — без них
+    /// расхождение выходит за допуск.
+    /// </summary>
+    [Fact]
+    public async Task Estimate_CountsPassportWarnings_LikeTheArchive()
+    {
+        var (fileId, _, parts) = await SeedSplitDataSetAsync();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var blob = scope.ServiceProvider.GetRequiredService<IBlobStorage>();
+            // Пропавшая часть: путь в строках реестра остаётся, файла в хранилище нет.
+            await blob.DeleteAsync(parts.Keys.First());
+            var file = await db.DataSetFiles.SingleAsync(f => f.Id == fileId);
+            file.SetGrouping("[]");
+            // Ещё три набора с непрочитанным разбиением — на том же файле альбома: предупреждение на
+            // каждый, а файл в архиве один.
+            for (var i = 2; i <= 4; i++)
+            {
+                var other = DataSetFile.Create($"Альбом ЭМ-{i}", DataSetFormat.Pdf, file.BlobPath, CatalogScope.System, null);
+                other.SetGrouping("[]");
+                db.DataSetFiles.Add(other);
+            }
+            await db.SaveChangesAsync();
+        }
+
+        BackupSizeEstimate estimate;
+        long actualBytes;
+        BackupSummary summary;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            estimate = await Backup(scope).EstimateSizeAsync(long.MaxValue, BackupScope.Full);
+            var zipBytes = await ExportFullAsync();
+            actualBytes = zipBytes.LongLength;
+            using var zip = new ZipArchive(new MemoryStream(zipBytes), ZipArchiveMode.Read);
+            summary = SummaryOf(zip);
+        }
+
+        Assert.Contains(summary.Warnings ?? [], w => w.Contains("разбиение на документы не прочитано"));
+        Assert.Contains(summary.Warnings ?? [], w => w.Contains("не оказалось в хранилище"));
+        var diff = Math.Abs(estimate.Variant.TotalBytes - actualBytes);
+        Assert.True(diff < 256, $"оценка {estimate.Variant.TotalBytes} против архива {actualBytes} (разница {diff} байт)");
+    }
+
+    /// <summary>
     /// Колонка «ФайлПуть» у ЧУЖОГО источника — текст пользователя, а не путь нашего хранилища: копия
     /// его не берёт. Иначе каждая строка загруженной таблицы стала бы «файлом, которого нет в
     /// хранилище», и настоящее предупреждение о потерянном вложении утонуло бы в них.
@@ -173,6 +281,10 @@ public partial class BackupServiceTests
         await WipeAsync(fileId, parts.Keys);
         var report = await ImportZipAsync(zipBytes);
         Assert.True(report.Success);
+        // Копия без частей восстанавливается не молча (ревью PR #1408): отчёт называет набор, сколько
+        // частей нет и как их вернуть. Счёт «восстановлено N из N» о них ничего не говорит.
+        Assert.Contains(report.Warnings, w =>
+            w.Contains("вырезанных PDF документов") && w.Contains("«Альбом ЭМ» — 2 из 2") && w.Contains("«Разбиение»"));
 
         using (var scope = fixture.Services.CreateScope())
         {

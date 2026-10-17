@@ -1,8 +1,10 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Infrastructure.DataSets;
+using BHS.CRG.Infrastructure.Storage;
 
 namespace BHS.CRG.Infrastructure.Backup;
 
@@ -157,31 +159,37 @@ public partial class BackupService
     }
 
     /// <summary>
-    /// Пути частей из разбиения набора — тем же разбором и тем же извлечением, что у самих наборов
+    /// Пути частей из разбиения набора — тем же классом, что режет и убирает сами части
     /// (<see cref="GostGroupingSerialization" />): где в разбиении лежат части, знает одно место.
+    /// Читаются только пути (<see cref="GostGroupingSerialization.ReadPartPaths" />), а не разбиение
+    /// целиком: у больших альбомов в нём мегабайты распознанных таблиц (ревью PR #1408).
     ///
     /// <para>Непрочитанное разбиение не роняет копию: отказом стала бы копия ВСЕЙ системы из-за одного
-    /// набора. Но и не молчит — набор назван в предупреждениях, с выходом. Сам файл набора уезжает как
-    /// прежде, а части из него вырезаются заново.</para>
+    /// набора. Отказ здесь устроен значением, а не исключением, — фильтр исключений по типам уже раз
+    /// пропустил разбиение чужой формы (<c>Groups: null</c>) сквозь себя и ронял копию целиком. Но и не
+    /// молчит — набор назван в предупреждениях, с выходом. Сам файл набора уезжает как прежде, а части
+    /// из него вырезаются заново.</para>
     /// </summary>
     private static void CollectGroupingParts(BackupDataSetFile file, HashSet<string> paths, List<string> warnings)
     {
-        try
-        {
-            paths.UnionWith(GostGroupingSerialization.PartPaths(GostGroupingSerialization.Parse(file.Grouping)));
-        }
-        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
-        {
+        if (GostGroupingSerialization.ReadPartPaths(file.Grouping) is { } parts)
+            paths.UnionWith(parts);
+        else
             warnings.Add($"Набор данных «{file.Name}»: разбиение на документы не прочитано, и вырезанные " +
                          "из него PDF документов в копию не вошли. Сам файл набора в копии есть: после " +
                          "восстановления сохраните разбиение набора — части вырежутся заново.");
-        }
     }
 
     /// <summary>
     /// Пути из строк реестра «Документы» — значения колонки
     /// <see cref="GostGroupingProjection.FilePathColumn" />. Строка без колонки или с непривычным
     /// значением путей не даёт; непрочитанный кэш назван в предупреждениях, как и разбиение.
+    ///
+    /// <para>Берётся только значение формы пути нашего хранилища (<see cref="BlobPathShape.Pattern" />),
+    /// ревью PR #1408. У группы, которую не удалось вырезать, проекция оставляет распознанные поля
+    /// штампа, и поле профиля с тем же именем кладёт в колонку текст из PDF. Взятый «путём», он
+    /// ушёл бы в хранилище запросом за чужим объектом — или ложным «файлов не оказалось», в котором
+    /// тонет настоящая потеря.</para>
     /// </summary>
     private static void CollectRowFilePaths(BackupDataSetSource source, HashSet<string> paths, List<string> warnings)
     {
@@ -193,7 +201,8 @@ public partial class BackupService
             foreach (var row in doc.RootElement.EnumerateArray())
                 if (row.ValueKind == JsonValueKind.Object &&
                     row.TryGetProperty(GostGroupingProjection.FilePathColumn, out var path) &&
-                    path.ValueKind == JsonValueKind.String && path.GetString() is { Length: > 0 } part)
+                    path.ValueKind == JsonValueKind.String && path.GetString() is { Length: > 0 } part &&
+                    StoragePath().IsMatch(part))
                     paths.Add(part);
         }
         catch (JsonException)
@@ -202,6 +211,9 @@ public partial class BackupService
                          "вложений из них в копию не вошли.");
         }
     }
+
+    [GeneratedRegex(BlobPathShape.Pattern)]
+    private static partial Regex StoragePath();
 
     private static void CollectBlobPaths(JsonElement element, HashSet<string> paths)
     {
