@@ -11,7 +11,10 @@ import { Tooltip } from './Tooltip';
  * Где значение хранится, компонент не знает: это забота `ThemeProvider` (сервер + зеркало,
  * issue #953).
  */
-export function ThemeToggle({ label = 'Тема оформления' }: { label?: string }) {
+export function ThemeToggle({ label }: {
+  /** Имя группы — своё у каждого места: с общим именем проверки находили не тот выбор (ревью PR #1000). */
+  label: string;
+}) {
   const { theme, setTheme } = useTheme();
   return (
     <div role="group" aria-label={label}

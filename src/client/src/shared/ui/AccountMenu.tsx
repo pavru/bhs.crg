@@ -1,10 +1,10 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { LogOut, MessageCircleWarning, UserRound } from 'lucide-react';
 import { formatDateTime } from '@/shared/format/format';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useAccount } from '@/shared/api/account';
-import { useAppVersion } from '@/shared/api/version';
+import { useAppVersion, type AppVersion } from '@/shared/api/version';
 import { useUpdateStatus } from '@/shared/api/updates';
 import { useTheme } from '@/shared/ui/themeContext';
 import { Avatar } from '@/shared/ui/Avatar';
@@ -24,7 +24,9 @@ const item = 'flex items-center gap-3.5 h-11 px-3 rounded-xl text-sm text-fg1 cu
  * Пароль меняется только в профиле: своего окна смены пароля у оболочки больше нет — два входа в одно
  * и то же действие с разных мест расходятся.
  *
- * Клавиатура — у Radix: стрелки по пунктам, Esc закрывает и возвращает фокус на аватар.
+ * Клавиатура — у Radix: стрелки по пунктам, Esc закрывает и возвращает фокус на аватар. Подсказки
+ * у аватара нет: имя уже в его `aria-label`, а подсказка, открытая возвращённым фокусом, забирала бы
+ * себе следующий Esc.
  */
 export function AccountMenu() {
   const { user, logout } = useAuth();
@@ -39,17 +41,28 @@ export function AccountMenu() {
   const roles = account?.roles.map(r => r.title).join(', ');
   const auto = THEME_OPTIONS.find(o => o.hint);
   const autoHint = auto && `${auto.label.toLowerCase()} — ${auto.hint}`;
+  // Версия читается вместе с оболочкой, а не с открытием меню: новость о новой версии — ПАССИВНЫЙ
+  // носитель, видный на каждом экране (issue #813), — точка на аватаре. И меню не подрастает на
+  // глазах, дождавшись ответа.
+  const { data: version } = useAppVersion();
+  const { data: update } = useUpdateStatus(!!user);
+  const newer = update?.updateAvailable ? update.latest : null;
+  // Профиль — страница без раздела рейла: «вы здесь» показывает аватар.
+  const here = useLocation().pathname.startsWith('/profile');
 
   return (
     <DropdownMenu.Root>
-      <Tooltip content={name}>
-        <DropdownMenu.Trigger asChild>
-          <button type="button" data-testid="account-menu" aria-label={`${name} — профиль и оформление`}
-            className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface data-[state=open]:ring-2 data-[state=open]:ring-brand">
-            <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-9 h-9 text-sm" />
-          </button>
-        </DropdownMenu.Trigger>
-      </Tooltip>
+      <DropdownMenu.Trigger asChild>
+        <button type="button" data-testid="account-menu"
+          aria-label={`${name} — профиль и оформление${newer ? `; доступна версия ${newer}` : ''}`}
+          className={'relative shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ' +
+            'focus-visible:ring-offset-2 focus-visible:ring-offset-surface data-[state=open]:ring-2 data-[state=open]:ring-brand ' +
+            (here ? 'ring-2 ring-brand' : '')}>
+          <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-9 h-9 text-sm" />
+          {newer && <span data-testid="update-dot" aria-hidden="true"
+            className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-brand ring-2 ring-surface" />}
+        </button>
+      </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="end" sideOffset={8}
           className="z-50 w-80 max-w-[calc(100vw-1rem)] rounded-2xl border border-stroke bg-surface overflow-hidden focus:outline-none"
@@ -64,8 +77,8 @@ export function AccountMenu() {
           </div>
 
           <div className="px-2 pb-2">
-            <DropdownMenu.Item asChild className={item}>
-              <Link to="/profile" onClick={guardedClick('/profile')}>
+            <DropdownMenu.Item asChild className={item + (here ? ' bg-tonal text-on-tonal' : '')}>
+              <Link to="/profile" onClick={guardedClick('/profile')} aria-current={here ? 'page' : undefined}>
                 <UserRound size={20} className="text-fg3 shrink-0" />Профиль и пароль
               </Link>
             </DropdownMenu.Item>
@@ -107,7 +120,7 @@ export function AccountMenu() {
             </DropdownMenu.Item>
           </div>
 
-          <VersionLine />
+          {version && <VersionLine version={version} newer={newer} />}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
@@ -117,16 +130,15 @@ export function AccountMenu() {
 /**
  * Версия приложения — низ меню профиля. Подробности (сборка, дата) — в подсказке.
  *
- * Здесь же — ПАССИВНЫЙ носитель новости о новой версии (issue #813): никого не дёргает. Уведомлением
+ * Здесь же — подробность новости о новой версии (issue #813; сама новость — точка на аватаре): никого
+ * не дёргает. Уведомлением
  * тревожим только администратора — того, у кого есть путь к действию; остальным знать полезно
  * («мы на свежей?»), но требовать от них нечего.
  */
-function VersionLine() {
-  const { data } = useAppVersion();
-  const { user } = useAuth();
-  const { data: update } = useUpdateStatus(!!user);
-  if (!data) return null;
-  const newer = update?.updateAvailable ? update.latest : null;
+function VersionLine({ version: data, newer }: {
+  version: AppVersion;
+  newer: string | null;
+}) {
   const title = [
     `Версия ${data.version}`,
     data.commit && `сборка ${data.commit}`,

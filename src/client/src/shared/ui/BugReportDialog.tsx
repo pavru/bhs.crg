@@ -21,7 +21,8 @@ export interface BugReportPrefill {
 }
 
 /**
- * Форма «Сообщить об ошибке» (issue #834).
+ * Форма «Сообщить о проблеме» (issue #834; до #1430 — «Сообщить об ошибке»: форма не только про
+ * сбои, «работает не так, как ожидал» — тоже сообщение).
  *
  * Модалка, а не маршрут: сообщают, не уходя с экрана и не теряя несохранённое — а уходить с экрана
  * пришлось бы ровно в тот момент, когда на нём видно то, о чём сообщают.
@@ -127,7 +128,7 @@ export function BugReportDialog({ open, prefill, onClose }: {
     <Modal
       open={open && !capturing}
       onOpenChange={o => { if (!o) onClose(); }}
-      title="Сообщить об ошибке"
+      title="Сообщить о проблеме"
       isDirty={message.trim().length > 0}
       busy={sending}
       footer={

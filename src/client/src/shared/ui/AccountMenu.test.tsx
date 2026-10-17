@@ -21,7 +21,8 @@ vi.mock('@/shared/api/account', () => ({
   useAccount: () => ({ data: { avatar: null, roles: [{ title: 'Инженер ПТО' }, { title: 'Бухгалтер' }] } }),
 }));
 vi.mock('@/shared/api/version', () => ({ useAppVersion: () => ({ data: { version: '2.1.1', commit: 'abc1234' } }) }));
-vi.mock('@/shared/api/updates', () => ({ useUpdateStatus: () => ({ data: { updateAvailable: true, latest: '2.2.0' } }) }));
+let updateAvailable = true;
+vi.mock('@/shared/api/updates', () => ({ useUpdateStatus: () => ({ data: { updateAvailable, latest: '2.2.0' } }) }));
 vi.mock('@/shared/ui/themeContext', () => ({ useTheme: () => ({ theme: 'system', setTheme }) }));
 vi.mock('@/shared/ui/bugReportBus', () => ({ useBugReportDialog: () => ({ open: openBugReport }) }));
 
@@ -29,17 +30,17 @@ beforeAll(() => {
   // Слой меню меряет якорь — в jsdom этого нет.
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
 });
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => { cleanup(); vi.clearAllMocks(); updateAvailable = true; });
 
 function Page({ dirty, asked }: { dirty: boolean; asked: (proceed: () => void) => void }) {
   useLeaveGuard(dirty, asked);
   return <output aria-label="адрес">{useLocation().pathname}</output>;
 }
 
-function shown(dirty = false) {
+function shown(dirty = false, at = '/invoices') {
   const asked = vi.fn<(proceed: () => void) => void>();
   render(
-    <MemoryRouter initialEntries={['/invoices']}>
+    <MemoryRouter initialEntries={[at]}>
       <NavigationGuardProvider>
         <Page dirty={dirty} asked={asked} />
         <AccountMenu />
@@ -61,6 +62,26 @@ describe('меню профиля', () => {
   it('аватар назван именем и объявляет меню', () => {
     shown();
     expect(avatar().getAttribute('aria-haspopup')).toBe('menu');
+  });
+
+  // Новость о новой версии — пассивная и видна без открытия меню (issue #813).
+  it('новая версия отмечена на аватаре точкой и в его имени', () => {
+    shown();
+    expect(screen.getByTestId('update-dot')).toBeTruthy();
+    expect(avatar().getAttribute('aria-label')).toMatch(/доступна версия 2\.2\.0/);
+  });
+
+  it('без новой версии точки нет', () => {
+    updateAvailable = false;
+    shown();
+    expect(screen.queryByTestId('update-dot')).toBeNull();
+    expect(avatar().getAttribute('aria-label')).not.toMatch(/доступна/);
+  });
+
+  it('в профиле пункт «Профиль и пароль» отмечен текущим', () => {
+    shown(false, '/profile');
+    open();
+    expect(screen.getByRole('menuitem', { name: 'Профиль и пароль' }).getAttribute('aria-current')).toBe('page');
   });
 
   it('открывается с клавиатуры: кто я и только своё', () => {
