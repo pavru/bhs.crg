@@ -31,6 +31,16 @@ public partial class BackupServiceTests(IntegrationTestFixture fixture) : IAsync
 
     private static BackupService Backup(IServiceScope scope) => scope.ServiceProvider.GetRequiredService<BackupService>();
 
+    /// <summary>
+    /// Оценка веса сходится с настоящим архивом с точностью до сотен байт. Допуск один на все
+    /// сверки: он и есть обещание экрана настроек, и разъехаться по тестам ему нельзя.
+    /// </summary>
+    private static void AssertEstimateMatchesArchive(long estimatedBytes, long actualBytes)
+    {
+        var diff = Math.Abs(estimatedBytes - actualBytes);
+        Assert.True(diff < 256, $"оценка {estimatedBytes} против архива {actualBytes} (разница {diff} байт)");
+    }
+
     /// <summary>Манифест с одними нужными секциями — остальные пустые.</summary>
     private static BackupManifest ManifestWith(
         BackupDocumentType[] documentTypes,
