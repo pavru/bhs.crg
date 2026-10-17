@@ -33,7 +33,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/limited-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, accountAction } from './harness.mjs';
 
 // Учётная запись с ограниченными правами — та же, что заводит посев (e2e/seed.mjs): роль `User`,
 // она же «Инженер ИД». Отдельной заводить незачем; разойдясь, значения дали бы «не вошёл».
@@ -175,7 +175,7 @@ await check('bug-report-with-an-attachment-goes-through', async () => {
   // так, что падение первой уносит вторую.
   await page.goto(`${BASE}/document-sets`);
   await settled(page);
-  await page.getByRole('button', { name: 'Сообщить об ошибке' }).first().click();
+  await accountAction(page, 'Сообщить о проблеме');
   await page.waitForSelector('[role=dialog]', { timeout: 10000 });
   const dialog = page.locator('[role=dialog]').last();
 

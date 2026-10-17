@@ -16,7 +16,7 @@ export interface BugReportPrefill {
   received?: string;
   /** Стек сбоя интерфейса (из ErrorBoundary): после перезагрузки страницы его уже не собрать. */
   stack?: string;
-  /** Откуда открыли: 'rail' | 'boundary' | 'toast' — попадает в техблок. */
+  /** Откуда открыли: 'account' (меню профиля; до #1430 — 'rail') | 'boundary' | 'toast' — попадает в техблок. */
   origin?: string;
 }
 
