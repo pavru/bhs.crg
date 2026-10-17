@@ -130,6 +130,15 @@ public partial class InvoicePaymentTests
         Assert.Equal(0m, Amount(closing.GetProperty("other")));
         // «Без позиции сейчас» — только во взгляде закрытия (PR 6c): в первом под итогом стоит «из них».
         Assert.Equal(JsonValueKind.Null, corrected.GetProperty("unmatchedNow").ValueKind);
+        // Корректировки закрытых периодов (PR 6d): отмена оплаты легла днём записи, а не днём оплаты — это
+        // −40 000 корректировки под итогом, хотя строки поставщика нет (деньги счёта в ней ноль). В первом взгляде
+        // корректировок нет по устройству.
+        var adjusted = closing.GetProperty("total").GetProperty("corrections");
+        Assert.Equal((1, -40_000m, false),
+            (adjusted.GetProperty("invoices").GetInt32(), Amount(adjusted), adjusted.GetProperty("whole").GetBoolean()));
+        Assert.Equal(JsonValueKind.Null, corrected.GetProperty("total").GetProperty("corrections").ValueKind);
+        // Итог соседа — числом, без его корректировок: полоса называет только его.
+        Assert.Equal(JsonValueKind.Null, corrected.GetProperty("other").GetProperty("corrections").ValueKind);
         // Список «Счета» помечает счёт с книгой исправлений (PR 6c).
         var listed = (await admin.GetFromJsonAsync<JsonElement>("/api/costs/invoices"))
             .EnumerateArray().Single(i => i.GetProperty("id").GetGuid() == invoice);
@@ -145,6 +154,11 @@ public partial class InvoicePaymentTests
         Assert.Equal(40_000m, Amount(closing.GetProperty("total")));
         Assert.True(closing.GetProperty("totalLinked").GetBoolean());
         Assert.All(closing.GetProperty("suppliers").EnumerateArray(), s => Assert.True(s.GetProperty("linked").GetBoolean()));
+        // Новая оплата — не корректировка: учётный день ей назначает правило оплаты, он открыт, и строка книги
+        // легла своим днём. Корректировкой остаётся отмена оплаты: закрытый месяц держит 40 000, а разница
+        // легла днём отмены.
+        adjusted = closing.GetProperty("total").GetProperty("corrections");
+        Assert.Equal((1, -40_000m), (adjusted.GetProperty("invoices").GetInt32(), Amount(adjusted)));
         // Разделы строк книги названы так же, как разделы долей: одни и те же названия в обоих взглядах.
         Assert.Equal(
             corrected.GetProperty("sections").EnumerateArray().Select(s => s.GetProperty("registry").GetString()),
