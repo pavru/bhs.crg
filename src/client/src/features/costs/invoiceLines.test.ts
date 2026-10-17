@@ -91,7 +91,8 @@ describe('итоги по строкам', () => {
  * показывал под строками «в том числе НДС: 0,00» рядом с верным НДС шапки.
  */
 describe('НДС по строкам: не указан ≠ ноль', () => {
-  const format = (value: number) => value.toFixed(2);
+  // Не форматтер, а метка: проверяется, КАКОЕ число подставлено, — формат денег не предмет теста.
+  const format = (value: number) => `#${value}`;
   const silent = { ...emptyDraft(), quantity: '1', price: '1200' };
   const named = { ...emptyDraft(), quantity: '1', price: '1220', vatRate: '22' };
 
@@ -104,24 +105,24 @@ describe('НДС по строкам: не указан ≠ ноль', () => {
   it('указан у части — сумма по указанным и сколько молчит', () => {
     const sums = totals([named, silent]);
     expect(sums).toMatchObject({ vat: 220, vatMissing: 1 });
-    expect(vatCaption(sums, format)).toBe('в том числе НДС: 220.00, у 1 строки не указан');
+    expect(vatCaption(sums, format)).toBe('в том числе НДС: #220, у 1 строки не указан');
     expect(vatCaption({ ...sums, count: 3, vatMissing: 2 }, format)).toContain('у 2 строк не указан');
   });
 
   it('указан у всех — как раньше', () => {
     const sums = totals([named, named]);
     expect(sums).toMatchObject({ vat: 440, vatMissing: 0 });
-    expect(vatCaption(sums, format)).toBe('в том числе НДС: 440.00');
+    expect(vatCaption(sums, format)).toBe('в том числе НДС: #440');
   });
 
   it('ставка 0 («без НДС») — ноль, а не пропуск', () => {
     const sums = totals([{ ...silent, vatRate: '0' }]);
     expect(sums).toMatchObject({ vat: 0, vatMissing: 0 });
-    expect(vatCaption(sums, format)).toBe('в том числе НДС: 0.00');
+    expect(vatCaption(sums, format)).toBe('в том числе НДС: #0');
   });
 
   it('без строк — сверять нечего, «не указан» не говорим', () => {
-    expect(vatCaption(totals([]), format)).toBe('в том числе НДС: 0.00');
+    expect(vatCaption(totals([]), format)).toBe('в том числе НДС: #0');
   });
 });
 
