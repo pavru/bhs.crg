@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Search, Star } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
+import { Checkbox } from '@/shared/ui/Checkbox';
 import { apiError } from '@/shared/utils/apiError';
 import { useSiteFilterState } from './siteFilterContext';
 
@@ -66,9 +67,8 @@ export function FavoritesPicker({ maxHeight = 'max-h-72' }: { maxHeight?: string
             return (
               <li key={s.id}>
                 <label className="flex items-center gap-2 px-1 py-1 rounded hover:bg-base cursor-pointer text-sm text-fg1">
-                  <input type="checkbox" checked={checked} disabled={busy}
-                    onChange={() => run(() => filter.setFavorite(s.id, !checked))}
-                    />
+                  <Checkbox size="sm" checked={checked} disabled={busy}
+                    onChange={() => run(() => filter.setFavorite(s.id, !checked))} />
                   <Star size={13} className={checked ? 'text-brand fill-current' : 'text-fg4'} aria-hidden />
                   <span className="truncate">{s.name}</span>
                 </label>

@@ -2,6 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from './Button';
+import { Checkbox } from './Checkbox';
 import { apiError } from '@/shared/utils/apiError';
 import { DISMISSAL, pointAtExit } from './modalDismissal';
 
@@ -190,12 +191,7 @@ function ConfirmDialogBody({
 
               {requireCheckbox && (
                 <label className="flex items-start gap-2 mb-4 text-xs text-fg2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={e => setChecked(e.target.checked)}
-                    className="mt-0.5"
-                  />
+                  <Checkbox size="sm" checked={checked} onChange={setChecked} />
                   {requireCheckbox}
                 </label>
               )}
