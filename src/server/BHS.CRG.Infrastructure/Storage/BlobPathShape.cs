@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -83,7 +84,7 @@ public static partial class BlobPathShape
     /// </summary>
     public static BlobPathHit? Inspect(string text)
     {
-        if (text.Length < ShortestKey || !MayHoldKey(text.AsSpan())) return null;
+        if (text.Length < ShortestKey || !MayHoldKey(text.AsSpan(), '/', '_', GuidChars)) return null;
 
         var matches = KeyInTextRegex().Matches(text);
         if (matches.Count == 0) return null;
@@ -110,9 +111,10 @@ public static partial class BlobPathShape
         switch (value.ValueKind)
         {
             case JsonValueKind.String:
-                // Сырое значение — без кавычек, но с экранированием; в байтах оно не короче, чем в символах.
+                // Сырое значение — с кавычками и экранированием; в байтах оно не короче, чем в символах.
                 var raw = JsonMarshal.GetRawUtf8Value(value);
-                if (raw.Length >= ShortestKey && MayHoldKey(raw)) found(value.GetString()!);
+                if (raw.Length - 2 >= ShortestKey && MayHoldKey(raw, (byte)'/', (byte)'_', GuidBytes))
+                    found(value.GetString()!);
                 break;
             case JsonValueKind.Array:
                 foreach (var item in value.EnumerateArray()) VisitStrings(item, found);
@@ -127,43 +129,27 @@ public static partial class BlobPathShape
     /// Грубый отбор без выражения: где-то в тексте стоит «/», за ним 36 знаков идентификатора и «_».
     /// Знака «_» в алфавите base64 нет, поэтому картинка в base64 отбор не проходит, сколько бы «/» в
     /// ней ни было. Обратная черта перед «/» (JSON, записанный текстом) отбору не мешает: смотрим
-    /// после «/».
+    /// после «/». Один и тот же для строки и для сырых байтов JSON — разъехаться им нечем.
     /// </summary>
-    private static bool MayHoldKey(ReadOnlySpan<char> text)
+    private static bool MayHoldKey<T>(ReadOnlySpan<T> text, T slash, T underscore, SearchValues<T> guid)
+        where T : IEquatable<T>
     {
-        for (var at = text.IndexOf('/'); at >= 0; at = Next(text, at))
-            if (at + 37 < text.Length && text[at + 37] == '_' && IsGuidRun(text.Slice(at + 1, 36)))
+        for (var from = 0; from < text.Length;)
+        {
+            var at = text[from..].IndexOf(slash);
+            if (at < 0) return false;
+            at += from;
+            if (at + 37 < text.Length && text[at + 37].Equals(underscore) &&
+                text.Slice(at + 1, 36).IndexOfAnyExcept(guid) < 0)
                 return true;
+            from = at + 1;
+        }
         return false;
-
-        static int Next(ReadOnlySpan<char> text, int at) =>
-            text[(at + 1)..].IndexOf('/') is var next and >= 0 ? at + 1 + next : -1;
     }
 
-    private static bool MayHoldKey(ReadOnlySpan<byte> text)
-    {
-        for (var at = text.IndexOf((byte)'/'); at >= 0; at = Next(text, at))
-            if (at + 37 < text.Length && text[at + 37] == '_' && IsGuidRun(text.Slice(at + 1, 36)))
-                return true;
-        return false;
-
-        static int Next(ReadOnlySpan<byte> text, int at) =>
-            text[(at + 1)..].IndexOf((byte)'/') is var next and >= 0 ? at + 1 + next : -1;
-    }
-
-    private static bool IsGuidRun(ReadOnlySpan<char> run)
-    {
-        foreach (var c in run)
-            if (!(char.IsAsciiHexDigit(c) || c == '-')) return false;
-        return true;
-    }
-
-    private static bool IsGuidRun(ReadOnlySpan<byte> run)
-    {
-        foreach (var b in run)
-            if (!(char.IsAsciiHexDigit((char)b) || b == '-')) return false;
-        return true;
-    }
+    private const string GuidAlphabet = "0123456789abcdefABCDEF-";
+    private static readonly SearchValues<char> GuidChars = SearchValues.Create(GuidAlphabet);
+    private static readonly SearchValues<byte> GuidBytes = SearchValues.Create(System.Text.Encoding.ASCII.GetBytes(GuidAlphabet));
 
     /// <summary>
     /// Грубый предварительный отбор строк ДО разбора JSON: ищем «/ГГГГ&lt;разделитель&gt;» где угодно

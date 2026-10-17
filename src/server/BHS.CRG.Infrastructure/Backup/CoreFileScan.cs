@@ -87,6 +87,8 @@ public static class CoreFileScan
     private static readonly ConditionalWeakTable<JsonSerializerOptions, Node> Plans = new();
 
     /// <summary>Строки манифеста, в которых найден ключ пути, — в порядке адресов.</summary>
+    /// <param name="options">Настройки, которыми манифест пишется в архив: их контракт и обходится.
+    /// Сами настройки не меняются — незапертые обход не запирает.</param>
     public static CoreFilesFound Scan(BackupManifest manifest, JsonSerializerOptions options)
     {
         var found = new List<CoreFileHit>();
@@ -133,7 +135,7 @@ public static class CoreFileScan
 
             case CoreFieldKind.Record:
                 if (node.Id?.Get!(value) is Guid id) owner = id;
-                foreach (var member in node.Members)
+                foreach (var member in node.Walked)
                     if (member.Property.Get!(value) is { } child) Walk(child, member.Node, owner, found);
                 break;
 
@@ -149,15 +151,36 @@ public static class CoreFileScan
     private sealed record Member(JsonPropertyInfo Property, Node Node);
 
     private sealed record Node(
-        string Address, CoreFieldKind Kind, Member[] Members, Node? Element, JsonPropertyInfo? Id);
+        string Address, CoreFieldKind Kind, Member[] Members, Node? Element, JsonPropertyInfo? Id)
+    {
+        /// <summary>
+        /// Поля, которые обход читает: без чисел, дат и идентификаторов. Их чтение через контракт
+        /// упаковывает значение в объект — сотни тысяч выделений на каждую копию и каждую оценку веса,
+        /// чтобы ничего с ними не сделать (ревью PR #1423). В перечне полей (<see cref="Fields" />)
+        /// они остаются.
+        /// </summary>
+        public Member[] Walked { get; } = [.. Members.Where(m => m.Node.Kind != CoreFieldKind.Scalar)];
+    }
 
+    /// <summary>
+    /// План обхода по контракту настроек — один раз на экземпляр настроек.
+    ///
+    /// <para>Контракт читается только у неизменяемых настроек. Запертые читаются как есть; незапертые
+    /// НЕ запираются — это была бы скрытая правка чужого объекта, и следующая его настройка отказала
+    /// бы вдали от причины (ревью PR #1423). Запирается их копия с тем же распознавателем по
+    /// умолчанию, что подставил бы сериализатор. План помнит настройки на момент первого вызова.</para>
+    /// </summary>
     private static Node PlanOf(JsonSerializerOptions options)
     {
-        // Контракт читается только у неизменяемых настроек. Сериализатор запирает их сам при первой
-        // записи; обход может прийти раньше — и запирает так же, с тем же распознавателем по умолчанию.
-        if (!options.IsReadOnly) options.MakeReadOnly(populateMissingResolver: true);
-        return Plans.GetValue(options, o =>
+        return Plans.GetValue(options, given =>
         {
+            var o = given;
+            if (!o.IsReadOnly)
+            {
+                o = new JsonSerializerOptions(given);
+                o.MakeReadOnly(populateMissingResolver: true);
+            }
+
             // Исключение, не нашедшее поля, молча перестало бы действовать: имя в контракте иное, чем
             // nameof, — например, после смены политики имён. Тогда журнал снова пошёл бы в обход.
             var names = o.GetTypeInfo(typeof(BackupManifest)).Properties.Select(p => p.Name).ToHashSet();

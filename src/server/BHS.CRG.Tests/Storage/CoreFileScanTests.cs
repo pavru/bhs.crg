@@ -94,6 +94,20 @@ public class CoreFileScanTests
     }
 
     /// <summary>
+    /// Обход не запирает чужие настройки сериализатора: следующая их правка отказала бы вдали от
+    /// причины (ревью PR #1423).
+    /// </summary>
+    [Fact]
+    public void Настройки_вызывающего_не_запираются()
+    {
+        var options = new JsonSerializerOptions();
+
+        CoreFileScan.Scan(Manifest(), options);
+
+        Assert.False(options.IsReadOnly);
+    }
+
+    /// <summary>
     /// Сторож контракта: обход знает вид каждого листа манифеста. Новое поле словарём или типом со
     /// своим конвертером отказывает здесь — а не молча выпадает из обхода в копии у заказчика.
     /// </summary>

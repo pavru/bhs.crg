@@ -28,50 +28,83 @@ public partial class BackupService
     /// кончается имя файла, не понять. Поэтому разбиение набора и строки реестра «Документы» молчат
     /// сами: их ключи взял список, и исключений для них не нужно.</para>
     ///
+    /// <para>«Ключ взят» для точной строки значит «взят ТОЧНЫМ путём». Путь списка иной формы — без
+    /// корзины, с адресом сервера — тоже уходит в архив, но скачать по нему, скорее всего, нечего; точный
+    /// путь к тому же файлу из другого поля поэтому берётся рядом, а не отбрасывается (ревью PR #1423).
+    /// Для ссылок внутри текста годится любой путь списка: о файле, который список пытался взять, копия
+    /// уже скажет сама.</para>
+    ///
     /// <para>Ключ не включает корзину: «ключ совпал, а файл другой» возможно лишь в другой корзине, а
-    /// она на установку одна. Путь, взятый обходом, но в хранилище отсутствующий, называет обычное
-    /// «файлов не оказалось» — реестр блобов в сверке не участвует: пересечение с ним спрятало бы
+    /// она на установку одна. Реестр блобов в сверке не участвует: пересечение с ним спрятало бы
     /// висячую ссылку.</para>
     ///
-    /// <para>Порядок предупреждений — построение манифеста, сбор списка, обход, пропавшие файлы — один у
-    /// копии и у оценки: паспорт — запись архива, и его текст обязан совпасть байт в байт. Журнал
-    /// здесь не пишется: оценку зовёт каждое открытие раздела настроек; пишет его экспорт
-    /// (<see cref="LogScanFindings" />).</para>
+    /// <para>Предупреждения обхода здесь НЕ пишутся: «взяты» можно сказать только после того, как стало
+    /// известно, что файл в хранилище есть (<see cref="WarnAboutScan" />). Журнал не пишется тоже: оценку
+    /// зовёт каждое открытие раздела настроек; пишет его экспорт (<see cref="LogScanFindings" />).</para>
     /// </summary>
+    /// <param name="warnings">Куда сказать о данных, пути из которых список прочесть не смог.</param>
     private static BlobSelection SelectBlobs(BackupManifest manifest, List<string> warnings)
     {
         var paths = ExtractBlobPaths(manifest, warnings);
         var found = CoreFileScan.Scan(manifest, JsonOptions);
 
-        var keys = new HashSet<string>(StringComparer.Ordinal);
+        var exactKeys = new HashSet<string>(StringComparer.Ordinal);
+        var anyKeys = new HashSet<string>(StringComparer.Ordinal);
         foreach (var path in paths)
-            if (BlobPathShape.KeyOf(path) is { } key) keys.Add(key);
+            if (BlobPathShape.Inspect(path) is { } listed)
+            {
+                anyKeys.UnionWith(listed.Keys);
+                if (listed.Exact) exactKeys.Add(listed.Keys[0]);
+            }
 
         var taken = new List<CoreFileHit>();
         foreach (var hit in found.Exact)
-            if (keys.Add(hit.Hit.Keys[0]))
+            if (exactKeys.Add(hit.Hit.Keys[0]))
             {
                 paths.Add(hit.Text);
+                anyKeys.Add(hit.Hit.Keys[0]);
                 taken.Add(hit);
             }
 
-        // Остаются только невзятые ключи: строка разбиения, где взяты все части, кроме одной, говорит
-        // об одной.
+        // Остаются только невзятые ключи, каждый по разу: строка разбиения, где взяты все части, кроме
+        // одной, говорит об одной; путь, повторённый в строке дважды, — об одном файле.
         var left = found.InText
-            .Select(h => h with { Hit = h.Hit with { Keys = [.. h.Hit.Keys.Where(k => !keys.Contains(k))] } })
+            .Select(h => h with { Hit = h.Hit with { Keys = [.. h.Hit.Keys.Where(k => !anyKeys.Contains(k)).Distinct()] } })
             .Where(h => h.Hit.Keys.Count > 0)
             .ToList();
 
-        if (taken.Count > 0)
-            warnings.Add(
-                $"Файлы найдены в полях, о которых копия не знает: {Tally(taken, h => 1)}. Файлы в копию " +
-                "ВЗЯТЫ; сообщите разработчику — место хранения пути нужно вписать в копию.");
-        if (left.Count > 0)
-            warnings.Add(
-                $"Ссылки на файлы записаны внутри текста: {Tally(left, h => h.Hit.Keys.Count)}. " +
-                "Точный путь из такой записи не извлечь, и эти файлы в копию НЕ вошли. Сообщите разработчику.");
-
         return new BlobSelection(paths, taken, left);
+    }
+
+    /// <summary>
+    /// Предупреждения обхода — когда скачивание (у копии) или опрос размеров (у оценки) уже сказали,
+    /// каких файлов нет в хранилище. Копия и оценка зовут это в одном месте — между файлами и фразой о
+    /// пропавших, — и паспорт у них совпадает байт в байт.
+    ///
+    /// <para>«Взяты» — только о тех, что в архиве на самом деле. Прежде фраза писалась до скачивания и
+    /// обещала полную копию и тогда, когда найденного файла в хранилище не было (ревью PR #1423);
+    /// руководство администратора велит такой фразе верить.</para>
+    /// </summary>
+    private static void WarnAboutScan(BlobSelection selection, IReadOnlySet<string> missing, List<string> warnings)
+    {
+        if (selection.TakenByScan is { Count: > 0 } taken)
+        {
+            var absent = taken.Count(h => missing.Contains(h.Text));
+            warnings.Add(
+                $"Файлы найдены в полях, о которых копия не знает: {Tally(taken, h => [h.Text])}. " +
+                (absent == 0
+                    ? "Файлы в копию ВЗЯТЫ"
+                    : $"В копию ВЗЯТЫ {taken.Count - absent} из {taken.Count}; остальных нет в хранилище — " +
+                      "они в числе не оказавшихся там") +
+                "; сообщите разработчику — место хранения пути нужно вписать в копию.");
+        }
+
+        if (selection.LeftInText is { Count: > 0 } left)
+            warnings.Add(
+                $"Ссылки на файлы записаны внутри текста: {Tally(left, h => h.Hit.Keys)}. Точный путь из " +
+                $"такой записи не извлечь, и эти файлы ({Distinct(left)}) в копию НЕ вошли. Сообщите разработчику.");
+
+        static int Distinct(IEnumerable<CoreFileHit> hits) => hits.SelectMany(h => h.Hit.Keys).Distinct().Count();
     }
 
     /// <summary>
@@ -81,9 +114,13 @@ public partial class BackupService
     /// </summary>
     public static IReadOnlyList<CoreFileField> ManifestFields() => CoreFileScan.Fields(JsonOptions);
 
-    /// <summary>«Адрес (число), …» — адреса уже упорядочены обходом.</summary>
-    private static string Tally(IEnumerable<CoreFileHit> hits, Func<CoreFileHit, int> count) =>
-        string.Join(", ", hits.GroupBy(h => h.Address).Select(g => $"{g.Key} ({g.Sum(count)})"));
+    /// <summary>
+    /// «Адрес (число), …» — адреса уже упорядочены обходом. Считаются разные файлы поля, а не строки:
+    /// путь, найденный в поле дважды, — один файл (ревью PR #1423).
+    /// </summary>
+    private static string Tally(IEnumerable<CoreFileHit> hits, Func<CoreFileHit, IEnumerable<string>> files) =>
+        string.Join(", ", hits.GroupBy(h => h.Address)
+            .Select(g => $"{g.Key} ({g.SelectMany(files).Distinct(StringComparer.Ordinal).Count()})"));
 
     /// <summary>
     /// Журнал к предупреждениям обхода — только у экспорта: паспорт говорит «где и сколько», журнал —

@@ -77,6 +77,66 @@ public partial class BackupServiceTests
     }
 
     /// <summary>
+    /// «Взяты» говорится только о файлах, которые в архиве на самом деле (ревью PR #1423). Найденный
+    /// обходом путь, файла по которому в хранилище нет, считается вместе с остальными пропавшими, а
+    /// фраза обхода называет, сколько взято из скольких.
+    /// </summary>
+    [Fact]
+    public async Task UnknownHolder_MissingFile_IsNotCalledTaken()
+    {
+        var gone = "bhs-crg/" + BlobPathShape.NewObjectName("удалённая подпись.png");
+        await SeedRecordWithDataAsync(new { Подпись = gone });
+
+        using var zip = new ZipArchive(new MemoryStream(await ExportAsync(BackupScope.Full)), ZipArchiveMode.Read);
+        var warnings = SummaryOf(zip).Warnings ?? [];
+
+        Assert.Contains(warnings, w => w.Contains(UnknownFields) && w.Contains("ВЗЯТЫ 0 из 1"));
+        Assert.DoesNotContain(warnings, w => w.Contains("Файлы в копию ВЗЯТЫ"));
+        Assert.Contains(warnings, w => w.Contains("не оказалось в хранилище: 1 из 1"));
+    }
+
+    /// <summary>
+    /// Путь списка другой формы — с адресом сервера — не отменяет точного пути к тому же файлу из
+    /// другого поля (ревью PR #1423). Ключ у них один, но скачать по первому нечего: файл приезжает по
+    /// второму.
+    /// </summary>
+    [Fact]
+    public async Task ExactPath_IsTaken_WhenListHoldsOtherSpellingOfSameFile()
+    {
+        var (path, bytes) = await StoreAsync("скан.pdf");
+        await SeedRecordWithDataAsync(new Dictionary<string, object>
+        {
+            ["Скан"] = new Dictionary<string, string> { ["$type"] = "file", ["blobPath"] = "https://files.example/" + path },
+            ["Подпись"] = path,
+        });
+
+        using var zip = new ZipArchive(new MemoryStream(await ExportAsync(BackupScope.Full)), ZipArchiveMode.Read);
+
+        var entry = zip.GetEntry($"blobs/{path}");
+        Assert.NotNull(entry);
+        using var read = new MemoryStream();
+        await using (var from = entry.Open()) await from.CopyToAsync(read);
+        Assert.Equal(bytes, read.ToArray());
+        Assert.Contains(SummaryOf(zip).Warnings ?? [], w => w.Contains(UnknownFields) && w.Contains("Файлы в копию ВЗЯТЫ"));
+    }
+
+    /// <summary>
+    /// Ссылка на один файл, повторённая в поле — в двух строках и дважды в одной, — один файл, а не
+    /// три (ревью PR #1423).
+    /// </summary>
+    [Fact]
+    public async Task PathInsideText_CountsEachFileOnce()
+    {
+        var (path, _) = await StoreAsync("приложение.pdf");
+        await SeedRecordWithDataAsync(new { Первое = $"см. {path}", Второе = $"см. {path} и {path}" });
+
+        using var zip = new ZipArchive(new MemoryStream(await ExportAsync(BackupScope.Full)), ZipArchiveMode.Read);
+
+        Assert.Contains(SummaryOf(zip).Warnings ?? [], w =>
+            w.Contains(InsideText) && w.Contains("CommonDataEntries[].Data (1)") && w.Contains("эти файлы (1)"));
+    }
+
+    /// <summary>
     /// Нет шума: держатели, которые список знает, — вложение с оригиналом картинки, набор с частями
     /// (разбиение, строки реестра, образцы колонок), — и журнал с путём к давно удалённому файлу.
     /// Обход не говорит ни слова, и «не оказалось в хранилище» тоже нет: журнал он не смотрит.
