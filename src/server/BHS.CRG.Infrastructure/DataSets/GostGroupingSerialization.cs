@@ -14,6 +14,16 @@ namespace BHS.CRG.Infrastructure.DataSets;
 /// </summary>
 public static class GostGroupingSerialization
 {
+    /// <summary>
+    /// Пути вырезанных PDF документов — единственное место, которое знает, где в разбиении они
+    /// лежат. Им пользуются и уборка прежних частей при переразрезании, и резервная копия
+    /// (issue #1399): знание, разнесённое по двум местам, разошлось бы при первой смене формы.
+    /// </summary>
+    public static HashSet<string> PartPaths(GostGroupingData? grouping) =>
+        grouping is null
+            ? []
+            : grouping.Groups.Select(g => g.BlobPath).OfType<string>().Where(p => p.Length > 0).ToHashSet(StringComparer.Ordinal);
+
     /// <summary>null, если <paramref name="json"/> null (у источника ещё нет группировки).</summary>
     public static GostGroupingData? Parse(string? json)
     {

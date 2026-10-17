@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
+using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Infrastructure.DataSets;
 
 namespace BHS.CRG.Infrastructure.Backup;
@@ -94,7 +95,13 @@ public partial class BackupService
 
     // ── Blob path extraction ──────────────────────────────────────────────────
 
-    private static HashSet<string> ExtractBlobPaths(BackupManifest manifest)
+    /// <summary>
+    /// Все файлы хранилища, которые уезжают с этим манифестом. Отсюда берут пути архив, оценка веса и
+    /// паспорт копии — поэтому одно место, а не три.
+    /// </summary>
+    /// <param name="warnings">Куда сказать о данных, пути из которых прочесть не удалось. Оценка веса
+    /// передаёт сюда пустой список: предупреждения она не показывает, их скажет сама копия.</param>
+    private static HashSet<string> ExtractBlobPaths(BackupManifest manifest, List<string> warnings)
     {
         var paths = new HashSet<string>(StringComparer.Ordinal);
         foreach (var e in manifest.CommonDataEntries)
@@ -128,14 +135,19 @@ public partial class BackupService
             // путь к нему лежит в разбиении набора. До #1399 копия их не уносила вовсе — отчёт писал
             // «восстановлено N из N», а генерация после восстановления молча выдавала документы без
             // вложений: части в реестре файлов уже не значились.
-            CollectGroupingParts(f.Grouping, paths);
+            CollectGroupingParts(f, paths, warnings);
         }
-        // Те же части глазами реестра «Документы»: строки источника несут путь колонкой ФайлПуть, и
-        // привязка с файловым маппингом читает его именно отсюда, а не из разбиения. Сегодня это
-        // проекция разбиения, и пути совпадают; обходим и её, чтобы путь, которого в разбиении уже
-        // нет, а в строках ещё есть, не оставил вложение без файла.
+        // Те же части глазами реестра «Документы»: генерация берёт путь вложения ИМЕННО отсюда —
+        // колонкой ФайлПуть, через файловый маппинг привязки, — а не из разбиения. Сегодня строки —
+        // проекция разбиения, и пути совпадают. Но наборы, разрезанные до issue #38, несут путь только
+        // в строках, а путь из строк, которого нет в хранилище, — это вложение, которое генерация уже
+        // не найдёт: предупреждение экспорта о нём правдиво, а не ложная тревога.
+        //
+        // Только реестр «Документы»: колонку с тем же именем может нести любой загруженный набор
+        // (Excel, CSV), и его значения — текст пользователя, а не пути нашего хранилища.
         foreach (var s in manifest.DataSetSources ?? [])
-            CollectRowFilePaths(s.CachedData, paths);
+            if (s.SheetOrPath == PdfProfiles.GostDocumentsMarker)
+                CollectRowFilePaths(s, paths, warnings);
         // Файлы модулей (issue #1261): сканы счетов. Перечень собран при снятии строк модуля —
         // IModuleSchemaBackup: колонки модуля ядро не знает, а путь в его строках находит обход. Сюда
         // он приходит готовым, чтобы архив, оценка веса и паспорт брали пути из одного места.
@@ -144,50 +156,51 @@ public partial class BackupService
         return paths;
     }
 
-    /// <summary>Колонка реестра «Документы» с путём к части (<c>GostGroupingProjection</c>).</summary>
-    private const string RowFilePathColumn = "ФайлПуть";
-
     /// <summary>
-    /// Пути частей из разбиения набора: <c>Groups[].BlobPath</c>.
+    /// Пути частей из разбиения набора — тем же разбором и тем же извлечением, что у самих наборов
+    /// (<see cref="GostGroupingSerialization" />): где в разбиении лежат части, знает одно место.
     ///
-    /// <para>Обход JSON, а не разбор в <see cref="GostGroupingData" />: разбиение лежит
-    /// колонкой jsonb, и форму его за годы меняли. Строгий разбор на непривычной форме бросил бы
-    /// исключение — и отказом стала бы копия ВСЕЙ системы из-за одного набора. Здесь непривычная форма
-    /// не даёт путей, а файл самого набора уезжает как прежде. Имя свойства берётся у записи через
-    /// <c>nameof</c>: переименуют — разъедется сборка, а не копия.</para>
+    /// <para>Непрочитанное разбиение не роняет копию: отказом стала бы копия ВСЕЙ системы из-за одного
+    /// набора. Но и не молчит — набор назван в предупреждениях, с выходом. Сам файл набора уезжает как
+    /// прежде, а части из него вырезаются заново.</para>
     /// </summary>
-    private static void CollectGroupingParts(string? grouping, HashSet<string> paths)
+    private static void CollectGroupingParts(BackupDataSetFile file, HashSet<string> paths, List<string> warnings)
     {
-        if (string.IsNullOrEmpty(grouping)) return;
-        using var doc = JsonDocument.Parse(grouping);
-        if (doc.RootElement.ValueKind != JsonValueKind.Object ||
-            !doc.RootElement.TryGetProperty(nameof(GostGroupingData.Groups), out var groups) ||
-            groups.ValueKind != JsonValueKind.Array)
-            return;
-        foreach (var group in groups.EnumerateArray())
-            if (group.ValueKind == JsonValueKind.Object &&
-                group.TryGetProperty(nameof(GostGroupingGroup.BlobPath), out var path) &&
-                path.ValueKind == JsonValueKind.String && path.GetString() is { Length: > 0 } part)
-                paths.Add(part);
+        try
+        {
+            paths.UnionWith(GostGroupingSerialization.PartPaths(GostGroupingSerialization.Parse(file.Grouping)));
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            warnings.Add($"Набор данных «{file.Name}»: разбиение на документы не прочитано, и вырезанные " +
+                         "из него PDF документов в копию не вошли. Сам файл набора в копии есть: после " +
+                         "восстановления сохраните разбиение набора — части вырежутся заново.");
+        }
     }
 
     /// <summary>
-    /// Пути из кэша строк источника — значения колонки <see cref="RowFilePathColumn" />.
-    ///
-    /// <para>Кэш бывает в мегабайты (распознанные таблицы), а путь в нём есть только у реестра
-    /// «Документы». Поэтому сначала дешёвая проверка подстроки и разбор лишь тех, где колонка есть
-    /// вовсе.</para>
+    /// Пути из строк реестра «Документы» — значения колонки
+    /// <see cref="GostGroupingProjection.FilePathColumn" />. Строка без колонки или с непривычным
+    /// значением путей не даёт; непрочитанный кэш назван в предупреждениях, как и разбиение.
     /// </summary>
-    private static void CollectRowFilePaths(string? cachedData, HashSet<string> paths)
+    private static void CollectRowFilePaths(BackupDataSetSource source, HashSet<string> paths, List<string> warnings)
     {
-        if (string.IsNullOrEmpty(cachedData) || !cachedData.Contains(RowFilePathColumn, StringComparison.Ordinal)) return;
-        using var doc = JsonDocument.Parse(cachedData);
-        if (doc.RootElement.ValueKind != JsonValueKind.Array) return;
-        foreach (var row in doc.RootElement.EnumerateArray())
-            if (row.ValueKind == JsonValueKind.Object &&
-                row.TryGetProperty(RowFilePathColumn, out var path) &&
-                path.ValueKind == JsonValueKind.String && path.GetString() is { Length: > 0 } part)
-                paths.Add(part);
+        if (string.IsNullOrEmpty(source.CachedData)) return;
+        try
+        {
+            using var doc = JsonDocument.Parse(source.CachedData);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array) return;
+            foreach (var row in doc.RootElement.EnumerateArray())
+                if (row.ValueKind == JsonValueKind.Object &&
+                    row.TryGetProperty(GostGroupingProjection.FilePathColumn, out var path) &&
+                    path.ValueKind == JsonValueKind.String && path.GetString() is { Length: > 0 } part)
+                    paths.Add(part);
+        }
+        catch (JsonException)
+        {
+            warnings.Add($"Источник «{source.Name}»: строки реестра документов не прочитаны, и пути " +
+                         "вложений из них в копию не вошли.");
+        }
     }
 
     private static void CollectBlobPaths(JsonElement element, HashSet<string> paths)

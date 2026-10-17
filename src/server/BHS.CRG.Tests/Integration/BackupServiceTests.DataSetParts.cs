@@ -69,8 +69,7 @@ public partial class BackupServiceTests
         Assert.All(registered, path => Assert.Contains($"blobs/{path}", archived));
 
         // Паспорт копии и оценка веса берут пути из того же обхода — и считают части тоже.
-        await using (var entry = zip.GetEntry(BackupFileStore.SummaryEntryName)!.Open())
-            Assert.Equal(3, JsonSerializer.Deserialize<BackupSummary>(entry, new JsonSerializerOptions(JsonSerializerDefaults.Web))!.BlobCount);
+        Assert.Equal(3, SummaryOf(zip).BlobCount);
         using var scope2 = fixture.Services.CreateScope();
         var estimate = await Backup(scope2).EstimateSizeAsync(long.MaxValue, BackupScope.Full);
         Assert.Equal(3, estimate.Variant.BlobCount);
@@ -112,7 +111,57 @@ public partial class BackupServiceTests
     }
 
     /// <summary>
-    /// Обход для копий, снятых до #1399: части в них нет, а сам файл набора есть. Повторное
+    /// Разбиение, которое не читается, не роняет копию всей системы, но и не молчит: набор назван в
+    /// предупреждениях копии, а сам файл набора уезжает как прежде.
+    /// </summary>
+    [Fact]
+    public async Task UnreadableGrouping_DoesNotFailBackup_AndIsNamed()
+    {
+        var (fileId, sourceId, _) = await SeedSplitDataSetAsync();
+        string filePath;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var file = await db.DataSetFiles.SingleAsync(f => f.Id == fileId);
+            // Корень — массив: колонка jsonb такое принимает, разбор разбиения — нет.
+            file.SetGrouping("[]");
+            var source = await db.DataSetSources.SingleAsync(s => s.Id == sourceId);
+            source.UpdateCache(source.CachedSchema, 0, null);
+            await db.SaveChangesAsync();
+            filePath = file.BlobPath;
+        }
+
+        using var zip = new ZipArchive(new MemoryStream(await ExportFullAsync()), ZipArchiveMode.Read);
+        Assert.Contains(zip.Entries, e => e.FullName == $"blobs/{filePath}");
+        Assert.Contains(SummaryOf(zip).Warnings ?? [], w => w.Contains("«Альбом ЭМ»") && w.Contains("разбиение на документы не прочитано"));
+    }
+
+    /// <summary>
+    /// Колонка «ФайлПуть» у ЧУЖОГО источника — текст пользователя, а не путь нашего хранилища: копия
+    /// его не берёт. Иначе каждая строка загруженной таблицы стала бы «файлом, которого нет в
+    /// хранилище», и настоящее предупреждение о потерянном вложении утонуло бы в них.
+    /// </summary>
+    [Fact]
+    public async Task FilePathColumn_OfOtherSource_IsNotTakenForBlob()
+    {
+        var (fileId, _, _) = await SeedSplitDataSetAsync();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var file = await db.DataSetFiles.SingleAsync(f => f.Id == fileId);
+            db.DataSetSources.Add(file.AddSource("Чужой лист", "Лист1", "[]", 1,
+                cachedData: JsonSerializer.Serialize(new[] { new Dictionary<string, string> { ["ФайлПуть"] = @"C:\Проект.pdf" } })));
+            await db.SaveChangesAsync();
+        }
+
+        using var zip = new ZipArchive(new MemoryStream(await ExportFullAsync()), ZipArchiveMode.Read);
+        var summary = SummaryOf(zip);
+        Assert.Equal(3, summary.BlobCount);
+        Assert.DoesNotContain(summary.Warnings ?? [], w => w.Contains("не оказалось в хранилище"));
+    }
+
+    /// <summary>
+    /// Обход для копий, снятых до #1399: частей в них нет, а сам файл набора есть. Повторное
     /// применение разбиения режет части заново из файла — и вложения возвращаются.
     /// </summary>
     [Fact]
@@ -137,9 +186,32 @@ public partial class BackupServiceTests
 
     // ── Помощники ─────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Тесты этого файла пишут в хранилище настоящие файлы, а сброс базы чистит только реестр — без
+    /// уборки каждый прогон оставлял бы их в бакете навсегда. Флаг ставит засев: остальным тестам
+    /// класса уборка не нужна. Реестр после сброса базы перечисляет ровно файлы этого теста.
+    /// </summary>
+    private bool storedDataSetFiles;
+
+    private async Task DropDataSetFilesAsync()
+    {
+        if (!storedDataSetFiles) return;
+        using var scope = fixture.Services.CreateScope();
+        var blob = scope.ServiceProvider.GetRequiredService<IBlobStorage>();
+        foreach (var path in await scope.ServiceProvider.GetRequiredService<AppDbContext>().BlobRegistry.Select(e => e.Path).ToListAsync())
+            await blob.DeleteAsync(path);
+    }
+
+    private static BackupSummary SummaryOf(ZipArchive zip)
+    {
+        using var entry = zip.GetEntry(BackupFileStore.SummaryEntryName)!.Open();
+        return JsonSerializer.Deserialize<BackupSummary>(entry, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+    }
+
     /// <summary>Альбом из четырёх листов, разрезанный на два документа. Возвращает части с их байтами.</summary>
     private async Task<(Guid FileId, Guid SourceId, Dictionary<string, byte[]> Parts)> SeedSplitDataSetAsync()
     {
+        storedDataSetFiles = true;
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var blob = scope.ServiceProvider.GetRequiredService<IBlobStorage>();

@@ -24,6 +24,15 @@ public record ProjectedRows(
 /// </summary>
 public static class GostGroupingProjection
 {
+    /// <summary>
+    /// Колонка реестра «Документы» с путём к вырезанному PDF документа. Её читает файловый маппинг
+    /// привязки, её же обходит резервная копия (issue #1399) — поэтому имя одно, константой.
+    /// </summary>
+    public const string FilePathColumn = "ФайлПуть";
+
+    /// <summary>Колонка реестра «Документы» с размером вырезанного PDF в байтах.</summary>
+    public const string FileSizeColumn = "РазмерБайт";
+
     public static ProjectedRows Project(GostGroupingData grouping)
     {
         var cover = new List<Dictionary<string, string?>>();
@@ -51,8 +60,8 @@ public static class GostGroupingProjection
                     // раньше добавлялись снаружи в кэш источника, теперь несёт сама группировка.
                     if (!string.IsNullOrEmpty(group.BlobPath))
                     {
-                        fields["ФайлПуть"] = group.BlobPath;
-                        fields["РазмерБайт"] = group.BlobSize?.ToString() ?? "";
+                        fields[FilePathColumn] = group.BlobPath;
+                        fields[FileSizeColumn] = group.BlobSize?.ToString() ?? "";
                     }
                     documents.Add(new ProjectedDocument(
                         group.Id, group.Code ?? "", group.Name, group.Pages.Select(p => p.PageIndex).ToList(), fields));

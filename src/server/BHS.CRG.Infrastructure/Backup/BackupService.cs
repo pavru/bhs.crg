@@ -78,7 +78,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             path, FileMode.CreateNew, FileAccess.Write, FileShare.None,
             bufferSize: 81920, FileOptions.Asynchronous);
 
-        var blobPaths = ExtractBlobPaths(manifest);
+        var blobPaths = ExtractBlobPaths(manifest, warnings);
         var summary = BuildSummary(manifest, blobPaths.Count, warnings);
         var missingBlobs = 0;
 
@@ -254,7 +254,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             await JsonSerializer.SerializeAsync(deflate, manifest, JsonOptions, ct);
         var manifestBytes = counter.Written;
 
-        var paths = ExtractBlobPaths(manifest);
+        var paths = ExtractBlobPaths(manifest, []);
         var overhead = EntryOverhead("manifest.json") + EntryOverhead(BackupFileStore.SummaryEntryName);
 
         // Паспорт копии (issue #831) - вторая JSON-запись архива. Считаем её тем же Deflate: без
