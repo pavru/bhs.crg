@@ -51,7 +51,8 @@ export function ActiveJobsIndicator() {
           className="flex items-center gap-2 h-9 pl-3 pr-3.5 rounded-full text-sm font-medium text-fg2 hover:bg-muted transition-colors data-[state=open]:bg-brand-subtle data-[state=open]:text-brand"
         >
           <Loader2 size={16} className="animate-spin motion-reduce:animate-none shrink-0" />
-          <span className="max-w-[180px] truncate">{label}</span>
+          {/* На телефоне — один значок: подпись выдавливала аватар из первой строки шапки (#1430). */}
+          <span className="max-sm:hidden max-w-[180px] truncate">{label}</span>
         </button>
       </Popover.Trigger>
       <Popover.Portal>

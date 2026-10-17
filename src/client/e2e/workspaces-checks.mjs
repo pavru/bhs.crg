@@ -9,7 +9,7 @@
 // «Счета и накладные» сузило бы им меню, и они упали бы на чужом. Поэтому настройки пространств
 // сбрасываются и до проверок, и после — в finally, адресом, а не через экран.
 
-import { BASE, settled, callApi, railSection } from './harness.mjs';
+import { BASE, settled, callApi, railSection, accountAction } from './harness.mjs';
 
 const RESET = { workspaces: null, workspace: null, 'workspace.default': null };
 const OWN = 'Снабжение (проверка)';
@@ -26,7 +26,7 @@ async function switcherName(page) {
 }
 
 /**
- * Выйти кнопкой «Выйти» и войти обратно в той же вкладке. Настоящий вход не помещается в предел
+ * Выйти пунктом «Выйти» меню профиля и войти обратно в той же вкладке. Настоящий вход не помещается в предел
  * входов прогонов CI, поэтому «вход» — возврат тех же токенов: выход приложения при этом проходит
  * целиком, со всем, что он стирает. Отзыв refresh-токена на сервере перехвачен — иначе следующие
  * проверки набора остались бы без сессии.
@@ -38,7 +38,7 @@ async function relogInSameTab(page) {
   if (!tokens.length) throw new Error('токены сессии не найдены — возвращать нечего');
   await page.route('**/api/auth/logout', route => route.fulfill({ status: 204 }));
   try {
-    await page.getByRole('button', { name: 'Выйти' }).click();
+    await accountAction(page, 'Выйти');
     await page.waitForURL(/\/login/);
   } finally {
     await page.unroute('**/api/auth/logout');

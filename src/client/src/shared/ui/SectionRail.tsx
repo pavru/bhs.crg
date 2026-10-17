@@ -5,7 +5,7 @@ import { BrandLogo } from '@/shared/ui/Brand';
 import { useProductName } from '@/shared/api/branding';
 import { useGuardedNavClick } from '@/shared/ui/NavigationGuard';
 import { OutsideNav } from '@/shared/ui/WorkspaceNav';
-import { PageList, RailFooter } from '@/shared/ui/AppRail';
+import { PageList } from '@/shared/ui/AppRail';
 import type { NavItem, RailId, RailSectionDef } from '@/shared/ui/navConfig';
 import type { PanelGroup, RailSection } from '@/shared/ui/railSections';
 import { IconButton } from './Button';
@@ -16,15 +16,15 @@ import { Tooltip } from './Tooltip';
  * короткая подпись. Сверху вниз — рабочие разделы, черта, «Система».
  *
  * «Система» стоит сразу под разделами, а не прижата к низу: на невысоком экране прижатый пункт
- * уходит из виду (эпик #1428, «Правила оболочки»). Внизу — только то, что уйдёт в шапку (#1430).
+ * уходит из виду (эпик #1428, «Правила оболочки»). Внизу ничего нет: тема, профиль, сообщение о
+ * проблеме, выход и версия живут в меню профиля в шапке (#1430).
  */
-export function SectionRail({ sections, active, panelHidden, onShowPanel, onChangePassword }: {
+export function SectionRail({ sections, active, panelHidden, onShowPanel }: {
   sections: RailSection[];
   active: RailId | null;
   /** Подпанель есть у этого адреса, но скрыта человеком: щелчок по своему разделу её возвращает. */
   panelHidden: boolean;
   onShowPanel: () => void;
-  onChangePassword: () => void;
 }) {
   const productName = useProductName();
   const guardedClick = useGuardedNavClick();
@@ -59,7 +59,7 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel, onChan
   };
 
   return (
-    <div className="w-[88px] shrink-0 flex flex-col items-center bg-surface overflow-y-auto">
+    <div className="w-[88px] shrink-0 flex flex-col items-center pb-3 bg-surface overflow-y-auto">
       {/* Название и логотип экземпляра (ТЗ CORE-25.1, issue #967) — не зашитые. Название видно под
           логотипом; длинное обрезается, целиком — в подсказке. */}
       <Tooltip content={productName} side="right">
@@ -79,9 +79,6 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel, onChan
           </>
         )}
       </nav>
-
-      <div className="flex-1 min-h-6" />
-      <RailFooter compact onChangePassword={onChangePassword} />
     </div>
   );
 }
