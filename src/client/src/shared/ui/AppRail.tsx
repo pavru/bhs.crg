@@ -12,6 +12,7 @@ import { useBugReportDialog } from '@/shared/ui/bugReportBus';
 import { OutsideNav } from '@/shared/ui/WorkspaceNav';
 import { useNavSections } from '@/shared/ui/navSections';
 import type { PanelGroup } from '@/shared/ui/railSections';
+import { panelLink } from '@/shared/ui/panelLink';
 import { LogOut, KeyRound, Bug, type LucideIcon } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 
@@ -68,10 +69,7 @@ export function PageList({ groups, onPick }: { groups: PanelGroup[]; onPick?: ()
           <div className="space-y-0.5">
             {group.items.map(({ to, label }) => (
               <NavLink key={to} to={to} onClick={guardedClick(to)}
-                className={({ isActive }) =>
-                  'flex items-center h-10 px-3 rounded-full text-sm select-none transition-colors ' +
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ' +
-                  (isActive ? 'bg-tonal text-on-tonal font-medium' : 'text-fg2 hover:bg-black/5 dark:hover:bg-white/10')}>
+                className={({ isActive }) => panelLink(isActive)}>
                 <span className="truncate">{label}</span>
               </NavLink>
             ))}

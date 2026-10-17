@@ -114,12 +114,13 @@ function Shell() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  useEffect(() => {
-    const wide = window.matchMedia(WIDE);
-    const onChange = () => { if (wide.matches) setMenuOpen(false); };
-    wide.addEventListener('change', onChange);
-    return () => wide.removeEventListener('change', onChange);
-  }, []);
+  // Окно расширили — выдвижное меню закрывается: иначе оно лежало бы поверх вернувшегося рейла.
+  const wide = useMedia(WIDE);
+  const [wasWide, setWasWide] = useState(wide);
+  if (wide !== wasWide) {
+    setWasWide(wide);
+    if (wide) setMenuOpen(false);
+  }
 
   const brand = (
     <>

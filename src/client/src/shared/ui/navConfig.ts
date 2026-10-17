@@ -80,7 +80,7 @@ export const railSections: RailSectionDef[] = [
 const COSTS_REPORTS = 'Отчёты и закрытие месяца';
 
 export const workNav: NavItem[] = [
-  { to: '/document-sets',   label: 'Стройки',            icon: FolderOpen,  permission: 'core.constructions.read', section: 'constructions', rail: 'constructions' },
+  { to: '/document-sets',   label: 'Стройки',            icon: Building2,  permission: 'core.constructions.read', section: 'constructions', rail: 'constructions' },
   { to: '/common-data',     label: 'Общие данные',        icon: Database,    permission: 'core.catalog.read', section: 'catalog', rail: 'data' },
   { to: '/datasets',        label: 'Наборы данных',       icon: Layers,      permission: 'core.datasets.read', section: 'datasets', rail: 'data' },
   { to: '/quality-docs',    label: 'Документы качества',  icon: ShieldCheck, module: 'id', rail: 'data' },

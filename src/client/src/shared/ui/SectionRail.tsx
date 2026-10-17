@@ -33,8 +33,11 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel, onChan
 
   // Свой раздел при скрытой подпанели — «покажи страницы раздела», а не переход на его первую
   // страницу: человек, открывший «Накладные», уходил бы на «Счета», хотя просил меню.
+  // Щелчок с Ctrl/⌘/Shift/Alt или не левой кнопкой — «открыть в новой вкладке»: его не перехватываем,
+  // как и `useGuardedNavClick`.
   const guardedSection = (section: RailSection) => (e: MouseEvent) => {
-    if (section.def.id === active && panelHidden) { e.preventDefault(); onShowPanel(); return; }
+    const plain = !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && e.button === 0;
+    if (plain && section.def.id === active && panelHidden) { e.preventDefault(); onShowPanel(); return; }
     guardedClick(section.home)(e);
   };
 
@@ -57,12 +60,13 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel, onChan
 
   return (
     <div className="w-[88px] shrink-0 flex flex-col items-center bg-surface overflow-y-auto">
-      {/* Название и логотип экземпляра (ТЗ CORE-25.1, issue #967) — не зашитые. В 88 px названию
-          места нет: оно в подсказке и в имени ссылки. */}
+      {/* Название и логотип экземпляра (ТЗ CORE-25.1, issue #967) — не зашитые. Название видно под
+          логотипом; длинное обрезается, целиком — в подсказке. */}
       <Tooltip content={productName} side="right">
         <Link to="/" onClick={guardedClick('/')} aria-label={`${productName} — на главную`}
-          className="mt-3 mb-5 flex items-center justify-center w-10 h-10 rounded-xl shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+          className="mt-3 mb-4 flex flex-col items-center gap-0.5 w-20 shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
           <BrandLogo className="w-8 h-8 text-brand" iconSize={24} />
+          <span className="w-full px-1 text-caption font-semibold text-brand text-center truncate">{productName}</span>
         </Link>
       </Tooltip>
 
@@ -82,6 +86,8 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel, onChan
   );
 }
 
+const PANEL_ID = 'section-panel';
+
 /**
  * Подпанель раздела (issue #1429): заголовок, одна строка пояснения, страницы по группам и кнопка
  * «Скрыть панель раздела». Строка «Ещё N разделов вне пространства» — у рабочих разделов: «Систему»
@@ -94,14 +100,15 @@ export function SectionPanel({ def, groups, outside, onHide }: {
   onHide: () => void;
 }) {
   return (
-    <nav data-testid="section-panel" aria-label={def.title}
+    <nav id={PANEL_ID} data-testid="section-panel" aria-label={def.title}
       className="w-60 shrink-0 flex flex-col px-3 py-4 bg-surface border-l border-stroke overflow-y-auto">
       <div className="flex items-start gap-1 pl-3 pb-3">
         <div className="flex-1 min-w-0 pt-1">
           <h2 className="text-base font-semibold text-fg1 break-words">{def.title}</h2>
           <p className="text-xs text-fg3">{def.hint}</p>
         </div>
-        <IconButton label="Скрыть панель раздела" size="lg" onClick={onHide}>
+        <IconButton label="Скрыть панель раздела" size="lg" onClick={onHide}
+          aria-expanded aria-controls={PANEL_ID}>
           <PanelLeftClose size={18} />
         </IconButton>
       </div>
@@ -114,7 +121,7 @@ export function SectionPanel({ def, groups, outside, onHide }: {
 /** Кнопка «Показать панель раздела» — над страницей, пока подпанель скрыта. */
 export function ShowPanelButton({ onShow }: { onShow: () => void }) {
   return (
-    <IconButton label="Показать панель раздела" onClick={onShow}>
+    <IconButton label="Показать панель раздела" onClick={onShow} aria-expanded={false}>
       <PanelLeftOpen size={18} />
     </IconButton>
   );

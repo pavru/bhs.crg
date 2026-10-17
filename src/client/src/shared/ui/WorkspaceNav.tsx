@@ -7,6 +7,7 @@ import { useGuardedNavigate, useGuardedPick } from './NavigationGuard';
 import { useWorkspace } from './workspaceContext';
 import { outsideItem } from './workspaces';
 import type { NavItem } from './navConfig';
+import { panelLink } from './panelLink';
 
 /**
  * «Ещё N разделов вне пространства ▸» — последней строкой подпанели и меню, постоянно (ТЗ AUTH-16.1;
@@ -22,9 +23,16 @@ export function OutsideNav({ items, onPick }: {
   onPick?: () => void;
 }) {
   const { pathname } = useLocation();
-  // Открытая отсюда страница держит список раскрытым: иначе выбранный пункт пропадал бы из виду.
+  // Пришли на страницу из этого списка — он раскрывается, и палитрой или ссылкой, когда подпанель уже
+  // стоит: иначе выбранный пункт пропадал бы из виду. Раскрывается в МОМЕНТ прихода (поправка
+  // состояния при рендере, как велит React), а не держится раскрытым: свернуть его человек может.
   const here = items.some(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
   const [open, setOpen] = useState(here);
+  const [wasHere, setWasHere] = useState(here);
+  if (here !== wasHere) {
+    setWasHere(here);
+    if (here) setOpen(true);
+  }
   const guardedClick = useGuardedPick(onPick);
   if (items.length === 0) return null;
 
@@ -40,10 +48,7 @@ export function OutsideNav({ items, onPick }: {
         <div className="space-y-0.5 mt-0.5">
           {items.map(({ to, label }) => (
             <NavLink key={to} to={to} onClick={guardedClick(to)}
-              className={({ isActive }) =>
-                'flex items-center h-10 px-3 rounded-full text-sm select-none transition-colors ' +
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ' +
-                (isActive ? 'bg-tonal text-on-tonal' : 'text-fg3 hover:bg-black/5 dark:hover:bg-white/10')}>
+              className={({ isActive }) => panelLink(isActive, true)}>
               <span className="truncate">{label}</span>
             </NavLink>
           ))}
