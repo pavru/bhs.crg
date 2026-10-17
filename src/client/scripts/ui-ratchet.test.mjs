@@ -58,6 +58,21 @@ describe('храповик интерфейса: счёт', () => {
       .toEqual({ 'native-title': 1 });
   });
 
+  /** Флажок в обход Checkbox (issue #1414): `type` в любой строке тега, после обработчика со стрелкой. */
+  it('нативный флажок', () => {
+    expect(countViolations([
+      '<input type="checkbox" checked={a} onChange={() => go()} />',
+      '<input\n  onChange={e => set(e.target.checked)}\n  type={\'checkbox\'}\n  checked={b}\n/>',
+    ].join(' '))).toEqual({ 'native-checkbox': 2 });
+  });
+
+  it('Checkbox, другие поля и проверка типа в коде флажком не считаются', () => {
+    expect(countViolations([
+      '<Checkbox checked={a} onChange={setA} label="Общее" /> <input type="text" />',
+      '<input type={kind} /> <div role="checkbox" /> if (el.type !== \'checkbox\') el.select();',
+    ].join(' '))).toEqual({});
+  });
+
   /** Свои чипы, пометки, кнопки-иконки и вкладки при готовых Chip, StatusBadge, IconButton, Tabs. */
   it('свой чип: нажимаемая пилюля или aria-pressed', () => {
     expect(countViolations([

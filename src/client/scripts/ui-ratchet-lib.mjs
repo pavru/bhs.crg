@@ -62,6 +62,18 @@ export const RULES = [
     instead: 'подсказка — Tooltip (shared/ui/Tooltip) или проп title у Button / IconButton: при наведении и фокусе, в нашем виде; у кнопки из одной иконки — <Tooltip name>. Нативный title — только полный текст обрезанной строки (docs/UI.md, «Подсказка»)',
   },
   {
+    id: 'native-checkbox',
+    // Нативный флажок в обход Checkbox (issue #1414): у каждого свой размер, цвет и отступ, а у
+    // голого — серый браузерный вид. По синтаксическому дереву, как native-title: `type` стоит в
+    // любой строке многострочного тега, а текстом `<input … type="checkbox"` не поймать — перед
+    // ним бывают обработчики со стрелкой `=>`. Накопленные стоят в уровне до перевода экранов
+    // (перечень — в #1414). Законных исключений нет: Checkbox и есть нативный `<input>` — он
+    // годится и в ячейку таблицы (size="sm"), и под Tooltip (передаёт ref), и флажку только для
+    // чтения (aria-readonly и onClick уходят во флажок как есть).
+    count: countNativeCheckboxes,
+    instead: 'флажок — Checkbox (shared/ui/Checkbox): label и description — подпись и пояснение, size="sm" в строках таблиц и плотных списках, indeterminate — «выбраны не все»; внутри своей разметки строки — Checkbox без label в обёртке <label> или с aria-label (docs/UI.md, таблица контролов)',
+  },
+  {
     id: 'chip',
     // Свой чип (#1416): нажимаемая пилюля — rounded-full с полями по бокам (px-…) или aria-pressed у
     // нативного элемента. Компоненты (Button, Chip) рисуют пилюлю сами и не считаются: правило
@@ -121,11 +133,35 @@ function isTabRole({ attrs }) {
   return /^["'{`]*(?:tab|tablist|tabpanel)["'}`]*$/.test(attrs.get('role') ?? '');
 }
 
-// Четыре правила подряд читают один и тот же файл — дерево разбирается однажды.
+// Правила по дереву читают один и тот же файл подряд — дерево разбирается однажды.
 let parsed = { text: null, sf: null };
 function parse(text) {
   if (parsed.text !== text) parsed = { text, sf: ts.createSourceFile('x.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX) };
   return parsed.sf;
+}
+
+/** Значение атрибута разметки строкой: `"x"`, `{'x'}`, `{"x"}`; выражение — null. */
+function literalOf(init) {
+  if (!init) return null;
+  if (ts.isStringLiteral(init)) return init.text;
+  const e = init.expression;
+  return e && (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) ? e.text : null;
+}
+
+/** `<input type="checkbox">` — см. правило `native-checkbox`. */
+function countNativeCheckboxes(text) {
+  if (!text.includes('checkbox')) return 0;
+  const sf = parse(text);
+  let n = 0;
+  const visit = node => {
+    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText(sf) === 'input'
+      && node.attributes.properties.some(p => ts.isJsxAttribute(p) && p.name.getText(sf) === 'type'
+        && literalOf(p.initializer) === 'checkbox'))
+      n++;
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return n;
 }
 
 /** Сколько элементов разметки (тег со строчной буквы) подходят под `match`. */
