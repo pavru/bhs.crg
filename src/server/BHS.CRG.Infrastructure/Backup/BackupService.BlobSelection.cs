@@ -12,11 +12,18 @@ public partial class BackupService
     /// <param name="TakenByScan">Пути, которые нашёл только обход: список мест о них не знает.</param>
     /// <param name="LeftInText">Строки, где ссылка на файл записана внутри текста, а файла в копии нет;
     /// ключи у каждой — только невзятые.</param>
-    /// <param name="Holders">Чей каждый путь из <paramref name="Paths" /> — ключи те же.</param>
+    /// <param name="Holders">Все пути, которые уезжают в архив, и чей каждый из них.</param>
     /// <param name="Addresses">Поле манифеста, где обход встретил путь первым, — у путей точной формы.</param>
     private sealed record BlobSelection(
-        HashSet<string> Paths, IReadOnlyList<CoreFileHit> TakenByScan, IReadOnlyList<CoreFileHit> LeftInText,
-        IReadOnlyDictionary<string, BlobHolder> Holders, IReadOnlyDictionary<string, string> Addresses);
+        Dictionary<string, BlobHolder> Holders, IReadOnlyList<CoreFileHit> TakenByScan,
+        IReadOnlyList<CoreFileHit> LeftInText, IReadOnlyDictionary<string, string> Addresses)
+    {
+        /// <summary>
+        /// Пути архива — ключи <see cref="Holders" />, а не второе множество: архив, оценка веса и
+        /// проверка восстановления обязаны видеть один и тот же состав.
+        /// </summary>
+        public IReadOnlyCollection<string> Paths => Holders.Keys;
+    }
 
     /// <summary>Чей файл — от этого зависит, что сказать восстановлению, если его нет.</summary>
     private enum BlobHolderKind
@@ -24,7 +31,11 @@ public partial class BackupService
         /// <summary>Поле записи (вложение, файл набора, найденное обходом) — общий случай.</summary>
         Record,
 
-        /// <summary>Часть PDF-набора, вырезанная разбиением (issue #1399), — вырезается заново.</summary>
+        /// <summary>Файл набора данных — сырьё, из которого набор читается и режется.</summary>
+        DataSetFile,
+
+        /// <summary>Часть PDF-набора, вырезанная разбиением (issue #1399), — вырезается заново из
+        /// файла набора, если он есть.</summary>
         DataSetPart,
 
         /// <summary>Сформированный PDF документа — формируется заново.</summary>
@@ -40,7 +51,7 @@ public partial class BackupService
         Module,
     }
 
-    /// <param name="DataSetFileId">Набор, из которого вырезана часть, — только у
+    /// <param name="DataSetFileId">Набор — у <see cref="BlobHolderKind.DataSetFile" /> и
     /// <see cref="BlobHolderKind.DataSetPart" />.</param>
     private sealed record BlobHolder(BlobHolderKind Kind, Guid? DataSetFileId = null)
     {
@@ -49,6 +60,7 @@ public partial class BackupService
         public static readonly BlobHolder QualityScan = new(BlobHolderKind.QualityScan);
         public static readonly BlobHolder TemplateAsset = new(BlobHolderKind.TemplateAsset);
         public static readonly BlobHolder Module = new(BlobHolderKind.Module);
+        public static BlobHolder FileOf(Guid fileId) => new(BlobHolderKind.DataSetFile, fileId);
         public static BlobHolder PartOf(Guid fileId) => new(BlobHolderKind.DataSetPart, fileId);
     }
 
@@ -110,12 +122,11 @@ public partial class BackupService
     private static BlobSelection SelectBlobs(BackupManifest manifest, List<string> warnings)
     {
         var holders = ExtractBlobPaths(manifest, warnings);
-        var paths = new HashSet<string>(holders.Keys, StringComparer.Ordinal);
         var found = CoreFileScan.Scan(manifest, JsonOptions);
 
         var exactKeys = new HashSet<string>(StringComparer.Ordinal);
         var anyKeys = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var path in paths)
+        foreach (var path in holders.Keys)
             if (BlobPathShape.Inspect(path) is { } listed)
             {
                 anyKeys.UnionWith(listed.Keys);
@@ -126,7 +137,6 @@ public partial class BackupService
         foreach (var hit in found.Exact)
             if (exactKeys.Add(hit.Hit.Keys[0]))
             {
-                paths.Add(hit.Text);
                 holders.TryAdd(hit.Text, BlobHolder.Record);
                 anyKeys.Add(hit.Hit.Keys[0]);
                 taken.Add(hit);
@@ -142,7 +152,7 @@ public partial class BackupService
         var addresses = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var hit in found.Exact) addresses.TryAdd(hit.Text, hit.Address);
 
-        return new BlobSelection(paths, taken, left, holders, addresses);
+        return new BlobSelection(holders, taken, left, addresses);
     }
 
     /// <summary>

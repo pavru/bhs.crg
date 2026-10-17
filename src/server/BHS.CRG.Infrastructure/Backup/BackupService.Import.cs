@@ -46,6 +46,9 @@ public partial class BackupService
         // Всё, что лежит в архиве, — положенное и то, что положить не удалось: о втором отчёт говорит
         // ниже сам, и проверки файлов не должны звать его «в копии нет».
         var archived = blobEntries.Select(e => e.FullName["blobs/".Length..]).ToHashSet(StringComparer.Ordinal);
+        // Положенное на самом деле: скан, который в архиве был, но записать его не удалось, — всё равно
+        // документ без сертификата, и сказать об этом нужно словами документа (ревью PR #1440).
+        var restored = new HashSet<string>(StringComparer.Ordinal);
         int blobsRestored = 0;
         foreach (var entry in blobEntries)
         {
@@ -59,6 +62,7 @@ public partial class BackupService
                     await es.CopyToAsync(entryMs, ct);
                 entryMs.Position = 0;
                 await blob.PutAsync(blobPath, entryMs, contentType, ct);
+                restored.Add(blobPath);
                 blobsRestored++;
             }
             catch (Exception ex)
@@ -174,7 +178,7 @@ public partial class BackupService
         // База зафиксирована: дальше только слова отчёта. Вне try нарочно — отказ или отмена здесь
         // не «ошибка восстановления», и откат уже зафиксированной транзакции бросил бы сам, превратив
         // восстановленную базу в отказ запроса без отчёта.
-        await WarnAboutMissingFilesAsync(manifest, archived, warnings, ct);
+        await WarnAboutMissingFilesAsync(manifest, archived, restored, warnings, ct);
         await WarnAboutModuleFilesAsync(restoredModules, archived, warnings, ct);
 
         return new RestoreReport(true, conversionNotice, warnings,

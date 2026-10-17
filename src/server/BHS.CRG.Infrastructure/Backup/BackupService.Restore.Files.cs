@@ -1,4 +1,5 @@
 using BHS.CRG.Application.Backup;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.Backup;
@@ -20,21 +21,27 @@ public partial class BackupService
     /// манифеста), поэтому о составе копия и проверка не разойдутся. У старой копии набор шире взятого
     /// ею — в этом и смысл. Хранилище спрашивают только о путях, которых НЕТ В АРХИВЕ: у исправной
     /// копии вопросов к нему нет вовсе. Файл из архива, который положить не удалось, назван отчётом
-    /// раньше, по имени. Файл, уцелевший на этой установке, отказом не считается.</para>
+    /// раньше, по имени, — кроме скана: скан и есть документ, и о нём говорится словами документа.
+    /// Файл, уцелевший на этой установке, отказом не считается.</para>
     ///
-    /// <para>Слова — по хозяину пути (<see cref="BlobHolder" />): у части набора, сформированного PDF,
-    /// скана и ассета свой выход, у прочих — адрес поля. Файлы модулей не наши: о них говорит модуль,
-    /// считая пути из своих строк заново. Проверка идёт по манифесту, а не по базе, поэтому называет и
-    /// файлы записей, которые восстановление пропустило (неизвестный тип и т.п.), — те названы раньше.</para>
+    /// <para>Слова — по хозяину пути (<see cref="BlobHolder" />): у файла и части набора, сформированного
+    /// PDF, скана и ассета свой выход, у прочих — адрес поля. Файлы модулей не наши: о них говорит
+    /// модуль, считая пути из своих строк заново. Проверка идёт по манифесту, поэтому называет и файлы
+    /// записей, которые восстановление пропустило (неизвестный тип и т.п.), — те названы раньше. Сканы
+    /// считаются по карточкам в базе: пропущенной карточки нет, и «откроется без скана» о ней неправда.</para>
     ///
     /// <para>⚠️ «Не найден» хранилище отвечает и тогда, когда до него не достучаться
     /// (<c>BlobStorage.GetSizeAsync</c>): отказ хранилища выглядит массовым «не найдены», а не отказом
     /// проверки. Поэтому вторая причина называется отдельной строкой.</para>
     ///
-    /// <para>Отказ самой проверки восстановление не роняет: база уже зафиксирована.</para>
+    /// <para>Ни отказ, ни отмена проверки восстановление не роняют: база уже зафиксирована, и отчёт
+    /// говорит, что проверка не прошла, — молчание читалось бы как «файлы на месте».</para>
     /// </summary>
+    /// <param name="archived">Всё, что лежит в архиве.</param>
+    /// <param name="restored">Из архива положено в хранилище на самом деле.</param>
     private async Task WarnAboutMissingFilesAsync(
-        BackupManifest manifest, HashSet<string> archived, List<string> warnings, CancellationToken ct)
+        BackupManifest manifest, HashSet<string> archived, HashSet<string> restored, List<string> warnings,
+        CancellationToken ct)
     {
         try
         {
@@ -43,7 +50,8 @@ public partial class BackupService
             var missing = new List<(string Path, BlobHolder Holder)>();
             foreach (var (path, holder) in selection.Holders)
             {
-                if (holder.Kind == BlobHolderKind.Module || archived.Contains(path)) continue;
+                if (holder.Kind == BlobHolderKind.Module) continue;
+                if ((holder.Kind == BlobHolderKind.QualityScan ? restored : archived).Contains(path)) continue;
                 if (await blob.GetSizeAsync(path, ct) is null) missing.Add((path, holder));
             }
 
@@ -58,13 +66,16 @@ public partial class BackupService
 
             var byKind = missing.ToLookup(m => m.Holder.Kind);
             SayRecords(byKind[BlobHolderKind.Record].Select(m => m.Path).ToList(), selection, copyKnew, warnings);
-            SayQualityScans(byKind[BlobHolderKind.QualityScan].Select(m => m.Path).ToHashSet(), manifest, warnings);
+            await SayQualityScansAsync(byKind[BlobHolderKind.QualityScan].Select(m => m.Path).ToList(), warnings, ct);
             SayCount(byKind[BlobHolderKind.TemplateAsset].Count(), warnings,
                 "Ассеты шаблонов", "Документы по шаблонам, которые на них ссылаются, выйдут без них (шрифт, " +
                 "графика) или не сформируются вовсе — загрузите ассеты заново в редакторе шаблонов.");
             SayCount(byKind[BlobHolderKind.Generated].Count(), warnings,
                 "Сформированные PDF документов", "Сами документы вернулись — сформируйте их заново.");
-            SayParts(byKind[BlobHolderKind.DataSetPart].Select(m => m.Holder).ToList(), selection, manifest, warnings);
+            var lostSets = byKind[BlobHolderKind.DataSetFile].Select(m => m.Holder.DataSetFileId).ToHashSet();
+            SayDataSetFiles(lostSets, manifest, warnings);
+            SayParts(byKind[BlobHolderKind.DataSetPart].Select(m => m.Holder).ToList(), lostSets, selection,
+                manifest, warnings);
 
             warnings.Add(
                 "О ненайденных файлах: если хранилище во время восстановления было недоступно, повторите " +
@@ -73,6 +84,15 @@ public partial class BackupService
             logger.LogWarning(
                 "Восстановление: файлов нет ни в архиве, ни в хранилище — {Count}. Пути: {Paths}",
                 missing.Count, missing.Take(20).Select(m => m.Path).ToArray());
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Отмена после фиксации — не отказ восстановления: база уже восстановлена, и журнал обязан
+            // это сохранить, даже если отчёт отменённому запросу не дойдёт (ревью PR #1440).
+            logger.LogWarning("Восстановление: база восстановлена, проверка файлов прервана отменой запроса");
+            warnings.Add(
+                "Данные восстановлены, но проверка файлов прервана: запрос отменён. Откройте вложения у " +
+                "нескольких записей из копии.");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -83,7 +103,12 @@ public partial class BackupService
         }
     }
 
-    /// <summary>Поля записей — по адресу, как в паспорте копии; причина — по признаку копии.</summary>
+    /// <summary>
+    /// Поля записей — по адресу, как в паспорте копии. Причина — по пути: «версия не брала» верно
+    /// только для пути, который нашёл один обход (<see cref="BlobSelection.TakenByScan" />), и только у
+    /// копии без признака обхода. Путь из списка мест брала и прежняя версия: его не было в хранилище
+    /// при снятии, и новая копия с той же установки его не вернёт (ревью PR #1440).
+    /// </summary>
     private static void SayRecords(
         List<string> paths, BlobSelection selection, bool copyKnew, List<string> warnings)
     {
@@ -93,28 +118,40 @@ public partial class BackupService
             .GroupBy(p => selection.Addresses.GetValueOrDefault(p, "путь иной формы"))
             .OrderBy(g => g.Key, StringComparer.Ordinal)
             .Select(g => $"{g.Key} ({g.Count()})"));
+        var notTaken = copyKnew
+            ? 0
+            : paths.Intersect(selection.TakenByScan.Select(h => h.Text), StringComparer.Ordinal).Count();
+
         warnings.Add(
             $"В копии нет файлов, на которые ссылаются записи, и в хранилище они не найдены: {paths.Count} " +
-            $"({tally}). Записи вернулись и показывают файл приложенным, но открыть его будет нечем. " +
-            (copyKnew
-                ? "Этих файлов не было в хранилище исходной установки уже при снятии копии — об этом сказал " +
-                  "её паспорт."
-                : "Копия снята версией, которая брала в архив не все файлы: если исходная установка цела, " +
-                  "обновите её, снимите копию заново и восстановите из новой."));
+            $"({tally}). Записи вернулись и показывают файл приложенным, но открыть его будет нечем." +
+            (notTaken > 0
+                ? $" {notTaken} из них лежат в полях, которые версия, снявшая копию, не обходила: если " +
+                  "исходная установка цела, обновите её, снимите копию заново и восстановите из новой."
+                : "") +
+            (notTaken < paths.Count
+                ? (notTaken > 0 ? " Остальных" : " Этих файлов") + " не было в хранилище исходной установки " +
+                  "уже при снятии копии — об этом сказал её паспорт."
+                : ""));
     }
 
     /// <summary>
-    /// Сканы — по документам: скан и есть документ, и счёт идёт карточкам, а не файлам.
+    /// Сканы — по карточкам в базе: скан и есть документ, и счёт идёт карточкам, а не файлам. Карточки,
+    /// которую восстановление пропустило, в базе нет — о ней сказано раньше, и «откроется без скана» о
+    /// ней было бы неправдой.
     /// </summary>
-    private static void SayQualityScans(HashSet<string> paths, BackupManifest manifest, List<string> warnings)
+    private async Task SayQualityScansAsync(List<string> paths, List<string> warnings, CancellationToken ct)
     {
         if (paths.Count == 0) return;
 
-        var documents = (manifest.QualityDocuments ?? [])
-            .Count(q => q.ScanBlobPath is { Length: > 0 } scan && paths.Contains(scan));
+        var documents = await db.QualityDocuments.CountAsync(
+            d => d.ScanBlobPath != null && paths.Contains(d.ScanBlobPath), ct);
+        if (documents == 0) return;
+
         warnings.Add(
-            $"Документы качества: у {RecordsGenitive(documents)} скана нет ни в копии, ни в хранилище. " +
-            "Карточка документа откроется, но сам сертификат по ней не показать: скан нужно загрузить заново.");
+            $"Документы качества: у {RecordsGenitive(documents)} скан не восстановлен, и в хранилище его нет — " +
+            "в копии его не было или его не удалось записать. Карточка документа откроется, но сам " +
+            "сертификат по ней не показать: скан нужно загрузить заново.");
     }
 
     private static void SayCount(int count, List<string> warnings, string what, string exit)
@@ -123,12 +160,26 @@ public partial class BackupService
             warnings.Add($"{what}: {count} — нет ни в копии, ни в хранилище. {exit}");
     }
 
+    /// <summary>Файлы наборов — по имени: без файла набор не перечитать и не разрезать заново.</summary>
+    private static void SayDataSetFiles(HashSet<Guid?> lost, BackupManifest manifest, List<string> warnings)
+    {
+        if (lost.Count == 0) return;
+
+        warnings.Add(
+            "Файлов наборов данных нет ни в копии, ни в хранилище: " +
+            $"{string.Join(", ", lost.Select(id => $"«{SetName(id, manifest)}»"))}. Наборы вернулись с " +
+            "разобранным содержимым, но перечитать или разбить их заново не из чего — загрузите файл набора " +
+            "заново.");
+    }
+
     /// <summary>
-    /// Части PDF-наборов (issue #1399) — по имени набора и с выходом «Разбиение»: части вырезаются
-    /// заново из файла набора, и это единственные файлы, которые установка умеет вернуть сама.
+    /// Части PDF-наборов (issue #1399) — по имени набора. Выход «Разбиение» — только там, где файл
+    /// набора на месте: части вырезаются из него, и без него сохранение разбиения ничего не вернёт
+    /// (ревью PR #1440).
     /// </summary>
     private static void SayParts(
-        List<BlobHolder> holders, BlobSelection selection, BackupManifest manifest, List<string> warnings)
+        List<BlobHolder> holders, HashSet<Guid?> lostSets, BlobSelection selection, BackupManifest manifest,
+        List<string> warnings)
     {
         if (holders.Count == 0) return;
 
@@ -136,16 +187,28 @@ public partial class BackupService
             .Where(h => h.Kind == BlobHolderKind.DataSetPart)
             .CountBy(h => h.DataSetFileId)
             .ToDictionary(p => p.Key, p => p.Value);
-        var lacking = holders
-            .CountBy(h => h.DataSetFileId)
-            .Select(p => $"«{SetName(p.Key, manifest)}» — {p.Value} из {totals[p.Key]}");
+        var sets = holders.CountBy(h => h.DataSetFileId)
+            .Select(p => (Id: p.Key, Text: $"«{SetName(p.Key, manifest)}» — {p.Value} из {totals[p.Key]}"))
+            .ToList();
+        // Резать есть из чего, только если файл набора в копии и не пропал.
+        var cuttable = sets
+            .Where(s => !lostSets.Contains(s.Id) && (manifest.DataSetFiles ?? []).Any(f => f.Id == s.Id))
+            .ToList();
+        var stuck = sets.Except(cuttable).ToList();
 
-        warnings.Add(
-            "В копии нет вырезанных PDF документов, и в хранилище они не найдены: " +
-            $"{string.Join("; ", lacking)}. Наборы вернулись, но документы с этими вложениями будут " +
-            "печататься без них. Так выглядит копия, снятая прежней версией, которая части не брала, " +
-            "или копия, при снятии которой их не оказалось в хранилище. Части вырезаются заново из " +
-            "файла набора: откройте у набора «Разбиение» и сохраните его.");
+        if (cuttable.Count > 0)
+            warnings.Add(
+                "В копии нет вырезанных PDF документов, и в хранилище они не найдены: " +
+                $"{string.Join("; ", cuttable.Select(s => s.Text))}. Наборы вернулись, но документы с этими " +
+                "вложениями будут печататься без них. Так выглядит копия, снятая прежней версией, которая " +
+                "части не брала, или копия, при снятии которой их не оказалось в хранилище. Части вырезаются " +
+                "заново из файла набора: откройте у набора «Разбиение» и сохраните его.");
+        if (stuck.Count > 0)
+            warnings.Add(
+                "В копии нет вырезанных PDF документов, и вырезать их заново не из чего — файла набора нет " +
+                $"тоже: {string.Join("; ", stuck.Select(s => s.Text))}. Документы с этими вложениями будут " +
+                "печататься без них. Верните файл набора (загрузите заново), затем откройте у набора " +
+                "«Разбиение» и сохраните его.");
     }
 
     /// <summary>Имя набора — у файла; реестр, чьего файла в копии нет, назван своим именем.</summary>

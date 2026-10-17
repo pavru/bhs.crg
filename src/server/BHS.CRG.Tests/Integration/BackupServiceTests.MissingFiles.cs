@@ -24,24 +24,81 @@ public partial class BackupServiceTests
     private const string StorageCaveat = "О ненайденных файлах";
 
     /// <summary>
-    /// Проверка срабатывает: файла нет ни в архиве, ни в хранилище — отчёт называет число, поле и выход.
+    /// Проверка срабатывает: файлов нет ни в архиве, ни в хранилище — отчёт называет число, поле и
+    /// выход. Причина — по пути (ревью PR #1440): «версия не обходила» — только о пути, который нашёл
+    /// один обход; путь из списка мест брала и прежняя версия, и его не было в хранилище при снятии.
     /// </summary>
     [Fact]
-    public async Task OldCopyWithoutFile_RestoreNamesIt()
+    public async Task OldCopyWithoutFiles_RestoreNamesThem_EachWithItsCause()
     {
-        var (path, _) = await StoreAsync("подпись.png");
-        await SeedRecordWithDataAsync(new { Подпись = new { _type = "file", blobPath = path } }.Typed());
+        var (listed, _) = await StoreAsync("подпись.png");
+        var (scanned, _) = await StoreAsync("печать.png");
+        await SeedRecordWithDataAsync(new
+        {
+            Подпись = new { _type = "file", blobPath = listed },
+            Печать = scanned,
+        }.Typed());
 
-        var zipBytes = AsOldCopy(WithoutEntries(await ExportAsync(BackupScope.Full), [$"blobs/{path}"]));
-        await DropStoredAsync(path);
+        var zipBytes = AsOldCopy(WithoutEntries(
+            await ExportAsync(BackupScope.Full), [$"blobs/{listed}", $"blobs/{scanned}"]));
+        await DropStoredAsync(listed);
+        await DropStoredAsync(scanned);
         await fixture.ResetDatabaseAsync();
         var report = await ImportZipAsync(zipBytes);
 
         Assert.True(report.Success, string.Join("; ", report.Warnings));
         Assert.Contains(report.Warnings, w =>
-            w.Contains(RecordsLackFiles) && w.Contains("CommonDataEntries[].Data (1)") &&
-            w.Contains("снимите копию заново"));
+            w.Contains(RecordsLackFiles) && w.Contains("CommonDataEntries[].Data (2)") &&
+            w.Contains("1 из них лежат в полях, которые версия, снявшая копию, не обходила") &&
+            w.Contains("снимите копию заново") && w.Contains("Остальных не было в хранилище"));
         Assert.Contains(report.Warnings, w => w.StartsWith(StorageCaveat));
+    }
+
+    /// <summary>
+    /// Пропал файл набора — набор назван по имени, а частям не обещан выход «Разбиение»: резать их
+    /// не из чего (ревью PR #1440).
+    /// </summary>
+    [Fact]
+    public async Task LostDataSetFile_IsNamed_AndPartsAreNotPromisedRecut()
+    {
+        var (fileId, _, parts) = await SeedSplitDataSetAsync();
+        string filePath;
+        using (var scope = fixture.Services.CreateScope())
+            filePath = (await scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.AppDbContext>()
+                .DataSetFiles.FindAsync(fileId))!.BlobPath;
+
+        var drop = parts.Keys.Append(filePath).Select(p => $"blobs/{p}").ToHashSet();
+        var zipBytes = WithoutEntries(await ExportFullAsync(), drop);
+        await WipeAsync(fileId, parts.Keys);
+        var report = await ImportZipAsync(zipBytes);
+
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.Contains(report.Warnings, w => w.StartsWith("Файлов наборов данных нет") && w.Contains("«Альбом ЭМ»"));
+        Assert.Contains(report.Warnings, w => w.Contains("вырезать их заново не из чего") && w.Contains("«Альбом ЭМ» — 2 из 2"));
+        Assert.DoesNotContain(report.Warnings, w => w.Contains("Части вырезаются заново"));
+        Assert.DoesNotContain(report.Warnings, w => w.Contains(RecordsLackFiles));
+    }
+
+    /// <summary>
+    /// Карточка, которую восстановление пропустило, в базе не появилась — «откроется без скана» о ней
+    /// было бы неправдой (ревью PR #1440).
+    /// </summary>
+    [Fact]
+    public async Task SkippedQualityDocument_IsNotCountedWithoutScan()
+    {
+        var manifest = ManifestWith([],
+            [
+                new BackupQualityDocument(Guid.NewGuid(), Guid.NewGuid(), "Сертификат неизвестного типа",
+                    JsonDocument.Parse("{}").RootElement.Clone(),
+                    nameof(CatalogScope.System), null, nameof(QualityDocSource.Manual), null,
+                    "quality/lost.pdf", "lost.pdf", "application/pdf",
+                    DateTimeOffset.UtcNow, DateTimeOffset.UtcNow),
+            ]);
+
+        var report = await ImportManifestAsync(manifest);
+
+        Assert.Contains(report.Warnings, w => w.Contains("не найден, пропущен"));
+        Assert.DoesNotContain(report.Warnings, w => w.Contains("скан не восстановлен"));
     }
 
     /// <summary>
@@ -145,7 +202,7 @@ public partial class BackupServiceTests
         var report = await ImportManifestZipAsync(manifest);
 
         Assert.Equal(1, report.QualityDocumentsCreated);
-        Assert.DoesNotContain(report.Warnings, w => w.Contains("скана нет") || w.StartsWith(StorageCaveat));
+        Assert.DoesNotContain(report.Warnings, w => w.Contains("скан не восстановлен") || w.StartsWith(StorageCaveat));
     }
 
     // ── Помощники ─────────────────────────────────────────────────────────────

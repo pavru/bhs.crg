@@ -135,7 +135,7 @@ public partial class BackupService
         // наборов блоба нет вовсе: их сырьё - данные самой системы, а в BlobPath лежит сентинел.
         foreach (var f in manifest.DataSetFiles ?? [])
         {
-            if (!string.IsNullOrEmpty(f.BlobPath) && f.Format != "System") holders.Add(f.BlobPath, BlobHolder.Record);
+            if (!string.IsNullOrEmpty(f.BlobPath) && f.Format != "System") holders.Add(f.BlobPath, BlobHolder.FileOf(f.Id));
             // Части альбома по ГОСТ (issue #1399): каждая группа-документ режется в свой под-PDF, и
             // путь к нему лежит в разбиении набора. До #1399 копия их не уносила вовсе — отчёт писал
             // «восстановлено N из N», а генерация после восстановления молча выдавала документы без

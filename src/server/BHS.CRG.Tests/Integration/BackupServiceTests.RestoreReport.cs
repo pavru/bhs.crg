@@ -310,7 +310,7 @@ public partial class BackupServiceTests
 
         Assert.True(report.Success);
         Assert.Equal(1, report.QualityDocumentsCreated);
-        Assert.Contains(report.Warnings, w => w.Contains("скана нет ни в копии, ни в хранилище"));
+        Assert.Contains(report.Warnings, w => w.Contains("скан не восстановлен"));
     }
 
     /// <summary>
