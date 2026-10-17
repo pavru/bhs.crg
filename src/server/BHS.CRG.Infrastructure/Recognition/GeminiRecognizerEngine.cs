@@ -115,7 +115,15 @@ public class GeminiRecognizerEngine(
                     $"Gemini: модель {model} больше не обслуживается"
                     + (advice is null ? "." : $" — {advice}."));
             }
-            throw new RecognitionUnavailableException($"Gemini ответил {(int)resp.StatusCode}.");
+            // Негодный документ и неверный ключ приходят одним 400 INVALID_ARGUMENT (issue #1343). У ключа
+            // причина названа в details (API_KEY_INVALID), у документа — нет. Отказ о файле не повторяется
+            // и к следующему движку не уходит: файл тот же. Прочие 400 — отказ сервиса, но с кодом.
+            var status = ProviderErrorCode.Of(body, "error", "status");
+            if (resp.StatusCode == HttpStatusCode.BadRequest && status == "INVALID_ARGUMENT"
+                && ProviderErrorCode.GeminiReasons(body).Count == 0)
+                throw new RecognitionFileRejectedException(
+                    "Gemini отклонил документ как негодный: файл повреждён, не того вида или слишком велик для отправки.");
+            throw new RecognitionUnavailableException($"Gemini ответил {(int)resp.StatusCode}{ProviderErrorCode.Suffix(status)}.");
         }
     }
 

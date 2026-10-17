@@ -55,7 +55,7 @@ export type RecognitionState = 'none' | 'running' | 'done' | 'failed';
 
 export interface InvoiceRecognition {
   state: RecognitionState;
-  /** Вид отказа: NotConfigured, Unavailable, NoAnswer, Interrupted, Refused. */
+  /** Вид отказа: NotConfigured, Unavailable, NoAnswer, BadFile, Interrupted, Refused, NoImage. */
   reason: string | null;
   /** Причина словами — текст сервера, для человека. */
   error: string | null;

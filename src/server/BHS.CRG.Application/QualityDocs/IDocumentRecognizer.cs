@@ -78,6 +78,18 @@ public class RecognitionUnavailableException(string message) : Exception(message
 public class RecognitionSilentException(string message) : RecognitionUnavailableException(message);
 
 /// <summary>
+/// Не читается сам ФАЙЛ, а не движок (issue #1343): PDF не открывается — повреждён, под паролем или
+/// это вовсе не PDF, — либо поставщик ответил, что документ в запросе негоден. Раньше такой файл
+/// уходил к движку как есть, а ответ 400 назывался «распознавание недоступно»: битый файл человека
+/// выглядел как «сломался Google», и чинить шли настройки, которые в порядке.
+///
+/// <para>Наследник <see cref="RecognitionUnavailableException" /> — каждое место, которое ловит
+/// базовый тип, получает текст о файле без правки. Разница — у цепочки: повтор и следующий движок
+/// ничего не изменят, файл тот же, поэтому перебор на нём прекращается.</para>
+/// </summary>
+public class RecognitionFileRejectedException(string message) : RecognitionUnavailableException(message);
+
+/// <summary>
 /// Движок не ответил за отведённый срок (issue #797).
 ///
 /// Наследник <see cref="RecognitionUnavailableException" /> намеренно: для цепочки движков это

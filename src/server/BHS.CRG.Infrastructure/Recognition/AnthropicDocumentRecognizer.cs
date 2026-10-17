@@ -115,7 +115,11 @@ public class AnthropicRecognizerEngine(
             }
             // 400 «credit balance too low» и пр. — считаем движок недоступным, цепочка перейдёт к следующему.
             // Пустой счёт отвечает 400 и на снятую модель, маскируя 404 (см. ModelGone.Is).
-            throw new RecognitionUnavailableException($"Anthropic ответил {(int)resp.StatusCode}.");
+            // Код ошибки — да, сообщение — нет (issue #1343): «ответил 400» без кода не говорит, что
+            // чинить. Негодный документ отдельно не распознаётся: у Anthropic его код (invalid_request_error)
+            // тот же, что у пустого счёта, а битый PDF к нему не доходит — его отсекает проверка цепочки.
+            var code = ProviderErrorCode.Of(body, "error", "type");
+            throw new RecognitionUnavailableException($"Anthropic ответил {(int)resp.StatusCode}{ProviderErrorCode.Suffix(code)}.");
         }
     }
 
