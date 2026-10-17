@@ -5,6 +5,7 @@
   "description": "Сборка PDF из Markdown-инструкций BHS.CRG",
   "scripts": {
     "pdf": "node build-pdf.mjs",
+    "toc": "node toc.mjs",
     "icons": "node brand-icons.mjs"
   },
   "dependencies": {
