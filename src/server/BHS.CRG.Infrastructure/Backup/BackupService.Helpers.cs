@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Infrastructure.DataSets;
@@ -98,46 +97,50 @@ public partial class BackupService
     // ── Blob path extraction ──────────────────────────────────────────────────
 
     /// <summary>
-    /// Все файлы хранилища, которые уезжают с этим манифестом. Отсюда берут пути архив, оценка веса и
-    /// паспорт копии — поэтому одно место, а не три.
+    /// Файлы хранилища, которые копия знает по месту: список, выписанный руками. Архив, оценка веса и
+    /// паспорт берут пути не отсюда, а из <see cref="SelectBlobs" />: к списку там добавляется обход
+    /// манифеста по форме пути — он находит то, о чём список не знает (issue #1422).
+    ///
+    /// <para>У каждого пути записано, чей он (<see cref="BlobHolder" />): о файле, которого нет,
+    /// восстановление говорит словами его места — скан, часть набора, сформированный PDF, — а не одним
+    /// «файла нет» (<see cref="WarnAboutMissingFilesAsync" />).</para>
     /// </summary>
-    /// <param name="warnings">Куда сказать о данных, пути из которых прочесть не удалось. Оценка веса
-    /// передаёт сюда пустой список: предупреждения она не показывает, их скажет сама копия.</param>
-    private static HashSet<string> ExtractBlobPaths(BackupManifest manifest, List<string> warnings)
+    /// <param name="warnings">Куда сказать о данных, пути из которых прочесть не удалось.</param>
+    private static Dictionary<string, BlobHolder> ExtractBlobPaths(BackupManifest manifest, List<string> warnings)
     {
-        var paths = new HashSet<string>(StringComparer.Ordinal);
+        var holders = new BlobHolders();
         foreach (var e in manifest.CommonDataEntries)
-            CollectBlobPaths(e.Data, paths);
+            holders.Add(BlobHolder.Record, paths => CollectBlobPaths(e.Data, paths));
         foreach (var e in manifest.CatalogEntities)
-            CollectBlobPaths(e.Data, paths);
+            holders.Add(BlobHolder.Record, paths => CollectBlobPaths(e.Data, paths));
         // Файлы ассетов шаблонов (issue #403) — графика/шрифты в blob-хранилище.
         foreach (var a in manifest.TemplateAssets ?? [])
-            if (!string.IsNullOrEmpty(a.BlobPath)) paths.Add(a.BlobPath);
+            if (!string.IsNullOrEmpty(a.BlobPath)) holders.Add(a.BlobPath, BlobHolder.TemplateAsset);
         // Сканы документов качества (issue #687). Скан — не иллюстрация к документу, а он сам:
         // библиотека без сканов не подтверждает ничего, и переносить её метаданными было бы
         // переносом пустых карточек. Реквизиты обходим тем же сборщиком — там могут лежать
         // вложения (тот же формат, что у реквизитов экземпляра документа).
         foreach (var q in manifest.QualityDocuments ?? [])
         {
-            if (!string.IsNullOrEmpty(q.ScanBlobPath)) paths.Add(q.ScanBlobPath);
-            CollectBlobPaths(q.Requisites, paths);
+            if (!string.IsNullOrEmpty(q.ScanBlobPath)) holders.Add(q.ScanBlobPath, BlobHolder.QualityScan);
+            holders.Add(BlobHolder.Record, paths => CollectBlobPaths(q.Requisites, paths));
         }
         // Проектные данные (issue #833).
         foreach (var d in manifest.Documents ?? [])
         {
-            CollectBlobPaths(d.Data, paths);
-            foreach (var f in d.GeneratedFiles) paths.Add(f.BlobPath);
+            holders.Add(BlobHolder.Record, paths => CollectBlobPaths(d.Data, paths));
+            foreach (var f in d.GeneratedFiles) holders.Add(f.BlobPath, BlobHolder.Generated);
         }
         // Файл набора данных - то самое сырьё, из которого документы и собираются. У системных
         // наборов блоба нет вовсе: их сырьё - данные самой системы, а в BlobPath лежит сентинел.
         foreach (var f in manifest.DataSetFiles ?? [])
         {
-            if (!string.IsNullOrEmpty(f.BlobPath) && f.Format != "System") paths.Add(f.BlobPath);
+            if (!string.IsNullOrEmpty(f.BlobPath) && f.Format != "System") holders.Add(f.BlobPath, BlobHolder.FileOf(f.Id));
             // Части альбома по ГОСТ (issue #1399): каждая группа-документ режется в свой под-PDF, и
             // путь к нему лежит в разбиении набора. До #1399 копия их не уносила вовсе — отчёт писал
             // «восстановлено N из N», а генерация после восстановления молча выдавала документы без
             // вложений: части в реестре файлов уже не значились.
-            CollectGroupingParts(f, paths, warnings);
+            holders.Add(BlobHolder.PartOf(f.Id), paths => CollectGroupingParts(f, paths, warnings));
         }
         // Те же части глазами реестра «Документы»: генерация берёт путь вложения ИМЕННО отсюда —
         // колонкой ФайлПуть, через файловый маппинг привязки, — а не из разбиения. Сегодня строки —
@@ -149,13 +152,14 @@ public partial class BackupService
         // (Excel, CSV), и его значения — текст пользователя, а не пути нашего хранилища.
         foreach (var s in manifest.DataSetSources ?? [])
             if (s.SheetOrPath == PdfProfiles.GostDocumentsMarker)
-                CollectRowFilePaths(s, paths, warnings);
+                holders.Add(BlobHolder.PartOf(s.FileId), paths => CollectRowFilePaths(s, paths, warnings));
         // Файлы модулей (issue #1261): сканы счетов. Перечень собран при снятии строк модуля —
         // IModuleSchemaBackup: колонки модуля ядро не знает, а путь в его строках находит обход. Сюда
         // он приходит готовым, чтобы архив, оценка веса и паспорт брали пути из одного места.
         foreach (var m in manifest.ModuleData ?? [])
-            paths.UnionWith(m.Files ?? []);
-        return paths;
+            foreach (var path in m.Files ?? [])
+                holders.Add(path, BlobHolder.Module);
+        return holders.Of;
     }
 
     /// <summary>
@@ -185,9 +189,10 @@ public partial class BackupService
     /// <see cref="GostGroupingProjection.FilePathColumn" />. Строка без колонки или с непривычным
     /// значением путей не даёт; непрочитанный кэш назван в предупреждениях, как и разбиение.
     ///
-    /// <para>Берётся только значение формы пути нашего хранилища (<see cref="BlobPathShape.Pattern" />),
-    /// ревью PR #1408. У группы, которую не удалось вырезать, проекция оставляет распознанные поля
-    /// штампа, и поле профиля с тем же именем кладёт в колонку текст из PDF. Взятый «путём», он
+    /// <para>Берётся только точный путь нашего хранилища (<see cref="BlobPathShape.IsExactPath" />),
+    /// ревью PR #1408; общая форма <see cref="BlobPathShape.Pattern" /> для этого слишком широка
+    /// (ревью PR #1289, issue #1422). У группы, которую не удалось вырезать, проекция оставляет
+    /// распознанные поля штампа, и поле профиля с тем же именем кладёт в колонку текст из PDF. Взятый «путём», он
     /// ушёл бы в хранилище запросом за чужим объектом — или ложным «файлов не оказалось», в котором
     /// тонет настоящая потеря.</para>
     /// </summary>
@@ -202,7 +207,7 @@ public partial class BackupService
                 if (row.ValueKind == JsonValueKind.Object &&
                     row.TryGetProperty(GostGroupingProjection.FilePathColumn, out var path) &&
                     path.ValueKind == JsonValueKind.String && path.GetString() is { Length: > 0 } part &&
-                    StoragePath().IsMatch(part))
+                    BlobPathShape.IsExactPath(part))
                     paths.Add(part);
         }
         catch (JsonException)
@@ -211,9 +216,6 @@ public partial class BackupService
                          "вложений из них в копию не вошли.");
         }
     }
-
-    [GeneratedRegex(BlobPathShape.Pattern)]
-    private static partial Regex StoragePath();
 
     private static void CollectBlobPaths(JsonElement element, HashSet<string> paths)
     {
