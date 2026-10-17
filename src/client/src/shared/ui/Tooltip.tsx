@@ -36,19 +36,15 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
 interface TooltipProps {
   /** Текст подсказки; пустой — подсказки нет, триггер рисуется как есть. */
   content: ReactNode;
-  /** Один элемент, умеющий ref и обработчики (кнопка, ссылка, span). */
+  /**
+   * Один элемент, умеющий ref и обработчики (кнопка, ссылка, span). Неактивной кнопке с подсказкой —
+   * `aria-disabled`, а не `disabled`: настоящий `disabled` не получает ни наведения, ни фокуса (см. `Button`).
+   */
   children: ReactElement;
   side?: 'top' | 'right' | 'bottom' | 'left';
-  /**
-   * Триггер неактивен. Неактивная кнопка не получает ни наведения, ни фокуса, а объясняет подсказка
-   * как раз её — почему нельзя. Тогда подсказка вешается на обёртку, и до обёртки доходят и мышь, и Tab.
-   */
-  disabled?: boolean;
-  /** Классы обёртки неактивного триггера — растянуть её, если кнопка растянута (`w-full`). */
-  wrapperClassName?: string;
 }
 
-export function Tooltip({ content, children, side = 'top', disabled = false, wrapperClassName = '' }: TooltipProps) {
+export function Tooltip({ content, children, side = 'top' }: TooltipProps) {
   const shared = useContext(Shared);
   if (content == null || content === '' || content === false) return children;
 
@@ -58,9 +54,7 @@ export function Tooltip({ content, children, side = 'top', disabled = false, wra
           вернуло окно (выход с шага к открывшей его кнопке), иначе открыл бы её сам — и первый Esc
           достался бы подсказке, а не окну. */}
       <RadixTooltip.Trigger asChild onFocus={e => { if (!focusVisible(e.currentTarget)) e.preventDefault(); }}>
-        {disabled
-          ? <span tabIndex={0} className={`inline-flex rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${wrapperClassName}`}>{children}</span>
-          : children}
+        {children}
       </RadixTooltip.Trigger>
       <RadixTooltip.Portal>
         <RadixTooltip.Content side={side} sideOffset={6} collisionPadding={8}

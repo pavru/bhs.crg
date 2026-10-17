@@ -1,4 +1,4 @@
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { Children, forwardRef, type ButtonHTMLAttributes, type MouseEvent, type ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 
@@ -60,6 +60,26 @@ function variantClass(variant: ButtonVariant, danger: boolean): string {
   }
 }
 
+/**
+ * Неактивная кнопка, которая говорит почему (issue #1394): `aria-disabled`, а не `disabled`. Настоящий
+ * `disabled` не получает ни наведения, ни фокуса — причину не увидеть ни мышью, ни с клавиатуры, а
+ * обёртка вокруг неё сбивала раскладку и пересоздавала кнопку на каждом переключении (ревью #1396).
+ * Такая кнопка остаётся в Tab, скринридер называет её недоступной, нажатие ничего не делает — и
+ * форму не отправляет: щелчок по ней отменён.
+ */
+function withReason(reason: boolean, disabled: boolean | undefined, onClick: ButtonProps['onClick']) {
+  return reason
+    ? { disabled: false, 'aria-disabled': true as const, onClick: (e: MouseEvent<HTMLButtonElement>) => e.preventDefault() }
+    : { disabled, onClick };
+}
+
+/** Подсветка наведения и нажатия — не для неактивной: она звала бы нажать то, что не нажимается. */
+const stillLooking = (cls: string) => cls.split(' ').filter(c => !/^(dark:)?(hover|active):/.test(c)).join(' ');
+const REASONED = 'opacity-40 cursor-default';
+
+/** Есть ли у кнопки подпись: `{cond && 'Удалить'}` даёт `false`, и это не подпись. */
+const hasLabel = (children: ReactNode) => Children.toArray(children).some(c => c !== '');
+
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
@@ -74,7 +94,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   multiline?: boolean;
   /**
    * Подсказка при наведении и фокусе — наша (`Tooltip`, issue #1394), а не браузерная. У неактивной
-   * кнопки она и объясняет, почему нельзя: видна и тогда. У кнопки без подписи — ещё и её имя.
+   * кнопки она и объясняет, почему нельзя: видна и тогда. У кнопки без подписи — ещё и её имя, у
+   * кнопки с подписью — постоянное описание для скринридера (подсказка Radix описывает, только пока открыта).
    */
   title?: string;
 }
@@ -88,16 +109,19 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   const sizeCls = multiline
     ? `${(variant === 'text' ? MULTILINE_TEXT_SIZE : MULTILINE_SIZE)[size]} py-1.5 whitespace-normal`
     : `${(variant === 'text' ? TEXT_SIZE : SIZE)[size]} whitespace-nowrap`;
+  const reason = !!disabled && !loading && !!title;
+  const labelled = hasLabel(children);
   return (
-    <Tooltip content={title} disabled={!!disabled} wrapperClassName={fullWidth ? 'w-full' : ''}>
+    <Tooltip content={title}>
       <button
         ref={ref}
         type={type ?? 'button'}
-        disabled={disabled || loading}
-        // Без подписи имя кнопки — её подсказка: браузерный `title` давал его сам, наша — нет.
-        aria-label={rest['aria-label'] ?? (children == null ? title : undefined)}
-        className={`${BASE} ${sizeCls} ${variantClass(variant, danger)} ${fullWidth ? 'w-full' : ''} ${className}`}
+        // Без подписи имя кнопки — её подсказка, с подписью — описание: браузерный `title` давал их сам.
+        aria-label={labelled ? undefined : title}
+        aria-description={labelled ? title : undefined}
+        className={`${BASE} ${sizeCls} ${reason ? `${stillLooking(variantClass(variant, danger))} ${REASONED}` : variantClass(variant, danger)} ${fullWidth ? 'w-full' : ''} ${className}`}
         {...rest}
+        {...withReason(reason, disabled || loading, rest.onClick)}
       >
         {loading ? <Loader2 size={16} className="animate-spin shrink-0" /> : icon}
         {children}
@@ -127,8 +151,14 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
   { label, size = 'md', danger = false, className = '', type, title, children, ...rest },
   ref,
 ) {
+  // Неактивная с причиной — та же `aria-disabled`, что у `Button`; без причины подсказка лишь имя,
+  // и неактивной кнопке её показывать незачем.
+  const reason = !!rest.disabled && !!title;
+  const look = danger
+    ? 'text-fg3 hover:text-danger hover:bg-danger/10'
+    : 'text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10';
   return (
-    <Tooltip content={title ?? label} disabled={!!rest.disabled}>
+    <Tooltip content={title ?? label}>
       <button
         ref={ref}
         type={type ?? 'button'}
@@ -137,11 +167,10 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
           'transition-[background-color,color] duration-150 focus-visible:outline-none focus-visible:ring-2 ' +
           'focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-base ' +
           'disabled:opacity-40 disabled:pointer-events-none ' +
-          (danger
-            ? 'text-fg3 hover:text-danger hover:bg-danger/10'
-            : 'text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10') +
+          (reason ? `${stillLooking(look)} ${REASONED}` : look) +
           ` ${className}`}
         {...rest}
+        {...withReason(reason, rest.disabled, rest.onClick)}
       >
         {children}
       </button>
