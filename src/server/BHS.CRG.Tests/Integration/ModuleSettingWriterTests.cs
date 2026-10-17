@@ -10,6 +10,7 @@ using BHS.CRG.Modules.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -32,9 +33,22 @@ public class ModuleSettingWriterTests(InvoiceLineHost host) : InvoiceLineTestBas
         await store.SetAsync(CostsSettings.ShippingDayCounts.Key, null);
     }
 
+    /// <summary>
+    /// ⚠️ Всю смену тот же замок держит разделяемым соединение к ДРУГОЙ базе того же сервера. Совещательные
+    /// замки у каждой базы свои, а <c>pg_locks</c> показывает замки всего сервера: зонд без отбора по базе
+    /// видел чужой и отвечал «держится» при выравнивании. В прогоне двумя потоками (две базы на одном
+    /// сервере) тест так краснел изредка, а отдельно не краснел никогда; с соседом здесь — всегда.
+    /// </summary>
     [Fact]
     public async Task Модуль_пишет_под_замком_ядра_а_выравнивает_без_него()
     {
+        var neighbour = new NpgsqlConnectionStringBuilder(IntegrationTestFixture.TestConnectionString) { Database = "postgres" };
+        await using var foreign = new NpgsqlConnection(neighbour.ConnectionString);
+        await foreign.OpenAsync();
+        await using var held = await foreign.BeginTransactionAsync();
+        await using (var take = new NpgsqlCommand($"SELECT pg_advisory_xact_lock_shared({AdvisoryLockKeys.PeriodWrite})", foreign, held))
+            await take.ExecuteNonQueryAsync();
+
         var probe = new Probe(host.Services, refuse: false);
         await SaveAsync([probe], new Dictionary<string, string?> { [Key] = "0.30" });
 
@@ -136,7 +150,8 @@ public class ModuleSettingWriterTests(InvoiceLineHost host) : InvoiceLineTestBas
 
     /// <summary>
     /// Зонд вместо модуля: спрашивает с ЧУЖОГО соединения, держит ли кто-нибудь разделяемый замок записи в
-    /// учёт, — так его видит закрытие периода.
+    /// учёт В ЭТОЙ БАЗЕ, — так его видит закрытие периода. Отбор по базе обязателен: <c>pg_locks</c> общий на
+    /// сервер, и без него зонд видит замок соседнего потока прогона на его базе.
     /// </summary>
     private sealed class Probe(IServiceProvider services, bool refuse) : IModuleSettingChange
     {
@@ -177,7 +192,8 @@ public class ModuleSettingWriterTests(InvoiceLineHost host) : InvoiceLineTestBas
             return await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.SqlQuery<bool>($"""
                 SELECT EXISTS (SELECT 1 FROM pg_locks
                     WHERE locktype = 'advisory' AND granted AND mode = 'ShareLock'
-                      AND objsubid = 1 AND classid::bigint = {key >> 32} AND objid::bigint = {key & 0xFFFFFFFF}) AS "Value"
+                      AND objsubid = 1 AND classid::bigint = {key >> 32} AND objid::bigint = {key & 0xFFFFFFFF}
+                      AND database = (SELECT oid FROM pg_database WHERE datname = current_database())) AS "Value"
                 """).SingleAsync();
         }
     }
