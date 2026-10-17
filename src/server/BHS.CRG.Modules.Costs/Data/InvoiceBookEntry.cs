@@ -139,6 +139,7 @@ public sealed class InvoiceBookEntry : IAppendOnly
         line.Property(l => l.Gross).HasColumnName("gross").HasPrecision(18, 2);
         line.Property(l => l.Net).HasColumnName("net").HasPrecision(18, 2);
         line.Property(l => l.VatUnknown).HasColumnName("vat_unknown");
+        line.Property(l => l.Shifted).HasColumnName("shifted");
         line.Ignore(l => l.Cell);
         line.Ignore(l => l.Value);
 
@@ -191,13 +192,31 @@ public sealed class InvoiceBookLine : IAppendOnly
     /// </summary>
     public bool VatUnknown { get; private set; }
 
+    /// <summary>
+    /// Строка легла днём записи, а не своим днём, — корректировка закрытого периода (PR 6d E2,
+    /// <see cref="Grain.Shifted" />).
+    ///
+    /// <para>⚠️ <b>Признак влияет не только на показ, но и на проводку</b> (ревью PR #1395): своя часть
+    /// книги пары — строки без него, и по ней правило (б′) решает, ляжет ли следующая разница своим днём.</para>
+    ///
+    /// <para>⚠️ <b>У строк, записанных до PR 6d, признак восстановлен догадкой</b> миграцией
+    /// <c>InvoiceBookShifted</c> (решение владельца 17.10.2026): открытие и оплата — нет; исправление,
+    /// отмена оплаты и выравнивание — да, если день строки равен дню записи и раньше у счёта не было строки
+    /// открытия или оплаты тем же днём (<c>InvoiceBookShifted.Guess</c>). Ошибается догадка на склеенной
+    /// строке: прежде своя и перенесённая строки одной ячейки на день записи складывались в одну, и разделить
+    /// их нечем. И копия, снятая до PR 6d, восстанавливается с признаком «нет» у всех своих строк:
+    /// восстановление даёт колонке, которой в копии нет, значение по умолчанию. Ошибочное «нет» — прежнее
+    /// поведение проводки, не хуже.</para>
+    /// </summary>
+    public bool Shifted { get; private set; }
+
     /// <summary>Ячейка строки — тем же значением, каким её считает проводка.</summary>
     public BookCell Cell => new(
         ConstructionId is null && ArticleId is null ? null : new AllocationTarget(ConstructionId, SectionId, ArticleId),
         SupplierId);
 
     /// <summary>Строка значением — тем, каким её посчитала проводка.</summary>
-    public Grain Value => new(Cell, Day, Gross, Net, VatUnknown);
+    public Grain Value => new(Cell, Day, Gross, Net, VatUnknown, Shifted);
 
     public static InvoiceBookLine Create(Guid entryId, int ordinal, Grain line) => new()
     {
@@ -212,5 +231,6 @@ public sealed class InvoiceBookLine : IAppendOnly
         Gross = line.Gross,
         Net = line.Net,
         VatUnknown = line.VatUnknown,
+        Shifted = line.Shifted,
     };
 }

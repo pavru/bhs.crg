@@ -29,6 +29,11 @@ export interface CorrectionLineView {
   gross: number;
   net: number;
   vatUnknown: boolean;
+  /**
+   * Легла днём записи, а не своим днём (PR 6d). Нет поля — сервер старше: тогда «днём записи» значит «днём записи»
+   * по дате, как было до признака.
+   */
+  shifted?: boolean;
 }
 
 /**

@@ -105,13 +105,17 @@ export function correctionRows(preview: CorrectionPreview, day: (iso: string) =>
 /**
  * Строки записи двумя группами: легшие днём записи и своим днём (период открыт). Одна функция на
  * предпросмотр и историю счёта — иначе одно исправление до записи и после читалось бы по-разному.
+ *
+ * <p>Группа — по признаку переноса, а не по дате (ревью PR #1395): своя строка самого дня записи лежит тем же
+ * днём, что и перенесённая, и по дате попала бы к ней — две одинаковые строки одной группы, бывает +30 и −30.</p>
  */
 export function dayRows(lines: CorrectionLineView[], day: string, today: string): PreviewRow[] {
   const group = (key: string, title: string, part: CorrectionLineView[]): PreviewRow[] => part.length === 0 ? []
     : [{ kind: 'group', key, title }, ...part.map((line, i): PreviewRow => ({ kind: 'line', key: `${key}-${i}`, line }))];
+  const moved = (l: CorrectionLineView) => l.shifted ?? l.day === day;
   return [
-    ...group('today', today, lines.filter(l => l.day === day)),
-    ...group('own', 'Своим днём (период открыт)', lines.filter(l => l.day !== day)),
+    ...group('today', today, lines.filter(moved)),
+    ...group('own', 'Своим днём (период открыт)', lines.filter(l => !moved(l))),
   ];
 }
 

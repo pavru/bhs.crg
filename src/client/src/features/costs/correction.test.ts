@@ -118,8 +118,8 @@ describe('отказ 409 — по свежему виду', () => {
 });
 
 describe('строки предпросмотра', () => {
-  const line = (day: string, gross: number) => ({
-    constructionId: 'A', sectionId: null, articleId: null, day, gross, net: gross, vatUnknown: false,
+  const line = (day: string, gross: number, shifted?: boolean) => ({
+    constructionId: 'A', sectionId: null, articleId: null, day, gross, net: gross, vatUnknown: false, shifted,
   });
   const preview = (lines: ReturnType<typeof line>[]): CorrectionPreview => ({
     version: 2, day: '2026-10-16', stamp: 's',
@@ -135,6 +135,13 @@ describe('строки предпросмотра', () => {
       'Днём исправления 2026-10-16', -300, 'Своим днём (период открыт)', 300,
     ]);
     expect(correctionRows(preview([line('2026-10-16', -300)]), iso => iso).filter(r => r.kind === 'group')).toHaveLength(1);
+  });
+
+  it('группа — по признаку переноса: своя строка дня исправления — своим днём, а не рядом с перенесённой', () => {
+    const rows = correctionRows(preview([line('2026-10-16', -30, true), line('2026-10-16', 30, false)]), iso => iso);
+    expect(rows.map(r => (r.kind === 'group' ? r.title : r.line.gross))).toEqual([
+      'Днём исправления 2026-10-16', -30, 'Своим днём (период открыт)', 30,
+    ]);
   });
 
   it('без денег — строк нет: меняются только версия и причина', () => {

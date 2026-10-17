@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { ArrowUpRight, ChartNoAxesColumn } from 'lucide-react';
+import { ArrowUpRight, ChartNoAxesColumn, History } from 'lucide-react';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -10,9 +10,9 @@ import { useSiteFilterState } from '@/shared/siteFilter/siteFilterContext';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { apiError } from '@/shared/utils/apiError';
 import { useCostsConstructions } from '@/shared/api/invoices';
-import { useSiteCosts, type CostFigure, type SiteCosts } from '@/shared/api/siteCosts';
+import { useSiteCosts, type CostCorrections, type CostFigure, type SiteCosts } from '@/shared/api/siteCosts';
 import { formatCount, formatMoney } from '@/shared/format/format';
-import { foldSites, foldedText, invoicesText, siteCostsLinks, type FoldedSites } from './siteCosts';
+import { correctionsText, foldSites, foldedText, invoicesText, siteCostsLinks, type FoldedSites } from './siteCosts';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { COST_VIEWS_ID, CostViewsBand } from './CostViewsBand';
 
@@ -125,7 +125,6 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
   onView: (view: 'corrected' | 'closing') => void;
 }) {
   const period = data.from === data.to ? data.months[0] : `${data.months[0]} — ${data.months[data.months.length - 1]}`;
-  const empty = data.total.invoices === 0;
   // Неизбранные стройки — одной строкой (issue #1223): фильтр прячет строки, но чисел не меняет. Раскрытие —
   // здесь и только здесь: глобальный фильтр оно не трогает и не запоминается (§62.3 Дизайнера).
   const filter = useSiteFilterState();
@@ -147,8 +146,15 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
 
   const columns = costColumns(!data.site ? 'Объект' : bySections ? 'Раздел' : 'Контрагент',
     // По разделам счёт на два раздела стоит в двух строках: числа счетов в итог не складываются.
-    data.site && bySections ? 'Счёт, разнесённый на несколько разделов, посчитан в каждом' : undefined, linkNote);
-  const total: Line = { kind: 'figure', key: 'total', name: 'Итого затраты', figure: data.total,
+    data.site && bySections ? 'Счёт, разнесённый на несколько разделов, посчитан в каждом' : undefined, linkNote, closing);
+  // Корректировки закрытых периодов — только во взгляде «на момент закрытия»: в первом их нет по устройству, а
+  // при совпавших взглядах на экране числа основной таблицы.
+  const adjusted = closing ? data.total.corrections : null;
+  // Ноль счетов с корректировкой — не «счетов нет»: свои деньги периода и корректировка одного счёта погасили
+  // друг друга (ревью PR #1395). Пустота тогда названа так, чтобы строка «включая» под ней ей не противоречила.
+  const empty = data.total.invoices === 0;
+  // Корректировки итога названы строкой под ним — значок у самого числа повторял бы её.
+  const total: Line = { kind: 'figure', key: 'total', name: 'Итого затраты', figure: { ...data.total, corrections: null },
     link: data.totalLinked !== false ? siteCostsLinks.total(data) : undefined };
   const lines: Line[] = data.site && bySections
     // Среза может не быть в ответе: клиент и сервер обновляются порознь.
@@ -195,8 +201,13 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
           </h2>
 
           {empty ? (
-            <EmptyState icon={<ChartNoAxesColumn size={28} />} title="За период оплаченных счетов нет"
-              description={data.site ? `На стройку «${data.site.name}» в эти месяцы не вошло ничего.` : 'В эти учётные месяцы не вошло ни одного платежа.'} />
+            adjusted ? (
+              <EmptyState icon={<ChartNoAxesColumn size={28} />} title="Затраты за период — ноль"
+                description="Деньги, вошедшие в эти месяцы, и корректировки закрытых периодов в сумме дали ноль." />
+            ) : (
+              <EmptyState icon={<ChartNoAxesColumn size={28} />} title="За период оплаченных счетов нет"
+                description={data.site ? `На стройку «${data.site.name}» в эти месяцы не вошло ничего.` : 'В эти учётные месяцы не вошло ни одного платежа.'} />
+            )
           ) : (
             <DataGrid className="mt-1.5" columns={columns} rows={lines} rowKey={l => l.key} section={sectionOf}
               // Итог — главное число отчёта: им сверяют реестр. Поэтому он не мельче строк над ним и
@@ -204,6 +215,14 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
               footer={c => <span className="text-sm font-medium text-fg1">{c.cell?.(total, -1)}</span>} />
           )}
 
+          {/* Месяц, где лежит разница (разбор Дизайнера, п. 7): исправление закрытого периода лежит днём
+              исправления, и итог открытого месяца его уже включает. Не «из них», а «включая»: корректировка
+              бывает и с минусом, и больше итога. */}
+          {adjusted && (
+            <p className="mt-1 pl-4 text-sm text-fg3">
+              {correctionsText(adjusted)}
+            </p>
+          )}
           {/* Во взгляде «на момент закрытия» — не «из них», а указатель (разбор Дизайнера, п. 7): «без позиции»
               — признак сегодняшний, и сумма под итогом закрытия смешивала бы два времени. Слова про взгляд —
               кнопка переключения. */}
@@ -307,6 +326,27 @@ function sectionOf(line: Line): ReactNode | null {
 const NO_LINK = <span className="inline-block w-[22px]" aria-hidden />;
 
 /**
+ * Корректировки закрытых периодов у строки — после названия (разбор Дизайнера, п. 7): целиком из них —
+ * приглушённое слово, смешанная — значок с числами в подсказке. Не на месте стрелки, как в разборе: стрелка во
+ * взгляде «на момент закрытия» остаётся у чисел, равных реестру, и смешанная строка с ней потеряла бы значок.
+ */
+function CorrectionMark({ corrections }: { corrections: CostCorrections | null }) {
+  if (!corrections) return null;
+  if (corrections.whole) return <span className="text-fg4"> · корректировка</span>;
+  return <CorrectionIcon text={correctionsText(corrections)} />;
+}
+
+/** Значок корректировок; числа — в подсказке, той же формулировкой, что под итогом. */
+function CorrectionIcon({ text }: { text: string }) {
+  const title = text.charAt(0).toUpperCase() + text.slice(1);
+  return (
+    <span role="img" aria-label={title} title={title} className="ml-1.5 inline-flex align-middle text-fg3">
+      <History size={14} aria-hidden />
+    </span>
+  );
+}
+
+/**
  * Колонки отчёта: название — заголовок строки, число счетов и сумма со стрелкой в реестр.
  *
  * Неизбранные стройки — одной строкой (`folded`): название, сколько их и их деньги. Клетка «Счетов» пуста
@@ -314,16 +354,23 @@ const NO_LINK = <span className="inline-block w-[22px]" aria-hidden />;
  * Стрелки в реестр нет: отбор «все неизбранные» — перечень названий длиной в справочник, а одноимённые
  * стройки сделали бы итог реестра больше строки.
  */
-function costColumns(name: string, countHint: string | undefined, linkNote: string | undefined): DataGridColumn<Line>[] {
+function costColumns(
+  name: string, countHint: string | undefined, linkNote: string | undefined, corrections = false,
+): DataGridColumn<Line>[] {
+  const marked = (line: Line) => corrections && line.kind === 'figure' ? line.figure.corrections ?? null : null;
   return [
     { key: 'name', label: name, rowHeader: true, wrap: true,
       cell: line => line.kind === 'folded' ? (
         <span data-testid="site-costs-folded" className="pl-4 text-fg3">
           {foldedText(line.folded.count)}
+          {corrections && line.folded.corrections !== null && <CorrectionIcon text={correctionsText({ amount: line.folded.corrections })} />}
           <button type="button" onClick={line.onUnfold} className="ml-2 text-xs underline hover:text-fg1">Показать построчно</button>
         </span>
       ) : line.kind === 'figure' ? (
-        <span className={`${line.indent ? 'pl-4' : ''} ${line.muted ? 'text-fg3' : ''}`}>{line.name}</span>
+        <span className={`${line.indent ? 'pl-4' : ''} ${line.muted ? 'text-fg3' : ''}`}>
+          {line.name}
+          <CorrectionMark corrections={marked(line)} />
+        </span>
       ) : null },
     { key: 'invoices', label: 'Счетов', hint: countHint, align: 'right', width: 'w-24',
       cell: line => line.kind === 'figure' ? <span className="text-fg2">{formatCount(line.figure.invoices)}</span> : null },
