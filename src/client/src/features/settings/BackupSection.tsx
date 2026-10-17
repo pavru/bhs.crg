@@ -66,7 +66,7 @@ export function BackupSection() {
  * Запрос уходит только когда раздел раскрыт: CollapsibleSection не монтирует содержимое свёрнутого.
  */
 function BackupSizeLine({ scope }: { scope: BackupScope }) {
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, error } = useQuery({
     queryKey: ['backup', 'size', scope],
     queryFn: () => fetchBackupSize(scope),
     staleTime: 5 * 60 * 1000,
@@ -76,7 +76,9 @@ function BackupSizeLine({ scope }: { scope: BackupScope }) {
 
   if (isPending) return <p className="text-xs text-fg4">Размер копии оценивается…</p>;
   // Молча ничего не показывать нельзя, но и мешать копированию нечем: кнопка работает и без оценки.
-  if (isError || !data) return <p className="text-xs text-fg4">Размер копии оценить не удалось.</p>;
+  // Причину — сервера, если он её назвал: недоступное хранилище отвечает отказом с объяснением
+  // (issue #1427), и «оценить не удалось» без него не говорило бы, что копия выйдет без файлов.
+  if (isError || !data) return <p className="text-xs text-fg4">{apiError(error, 'Размер копии оценить не удалось.')}</p>;
 
   const variant = data.variant;
   const exceedsUploadLimit = variant.totalBytes > data.limitBytes;

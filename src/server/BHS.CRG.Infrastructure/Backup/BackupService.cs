@@ -274,7 +274,13 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             // Размер каждого блоба спрашиваем один раз на обе оценки: конфигурационные файлы
             // входят в обе, и повторный HEAD по каждому из них удвоил бы стоимость запроса.
             if (!sizes.TryGetValue(path, out var size))
-                sizes[path] = size = await blob.GetSizeAsync(path, ct);
+            {
+                // null — только «объекта нет»; недоступное хранилище — отказ (issue #1427), и оценка
+                // отвечает отказом, а не копией, в которой пропало всё.
+                try { size = await blob.GetSizeAsync(path, ct); }
+                catch (Exception ex) when (!ct.IsCancellationRequested) { throw new BackupSizeUnknownException(ex); }
+                sizes[path] = size;
+            }
             // Недоступный блоб экспорт пропускает с предупреждением - оценка считает его так же.
             if (size is null) missing++;
             else blobBytes += size.Value;

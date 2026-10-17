@@ -12,10 +12,10 @@ public class FakeBlobStorage : IBlobStorage
     /// <summary>
     /// Хранилище «не отвечает»: размер не узнать, удаление падает (issue #741).
     ///
-    /// Заведено потому, что настоящий MinIO на недоступность и на отсутствие объекта отвечает
-    /// одинаково — <c>GetSizeAsync</c> возвращает <c>null</c> в обоих случаях, — а последствия
-    /// разные: приняв связь за отсутствие, уборка сняла бы записи реестра у живых файлов и сделала
-    /// бы их недоступными навсегда. Воспроизвести это без флага нечем.
+    /// Размер при этом — отказ, а не <c>null</c>, как у настоящего хранилища с issue #1427. Прежде
+    /// оно на недоступность и на отсутствие объекта отвечало одинаково, <c>null</c>, и подделка
+    /// повторяла это — а последствия разные: приняв связь за отсутствие, уборка сняла бы записи
+    /// реестра у живых файлов, а оценка копии показала бы все файлы пропавшими.
     ///
     /// <para>Сбрасывать обязательно (<c>try/finally</c>): подделка — синглтон на всю коллекцию.</para>
     /// </summary>
@@ -27,6 +27,14 @@ public class FakeBlobStorage : IBlobStorage
     /// байты складывались до цикла удаления, а сбои цикла проглатывались.
     /// </summary>
     public bool FailDeletes { get; set; }
+
+    /// <summary>
+    /// Хранилище отвечает, но о каждом объекте говорит «нет» — так выглядит пустой или чужой бакет
+    /// (перепутанная настройка, хранилище поднято заново). Отказом это не является, и отличить его
+    /// от пропавших файлов может только проба по живым объектам (issue #1427).
+    /// <para>Сбрасывать обязательно (<c>try/finally</c>): подделка — синглтон на всю коллекцию.</para>
+    /// </summary>
+    public bool Blank { get; set; }
 
     /// <summary>Сколько файлов выгружено за жизнь подделки — чтобы проверить, что отказ пришёл ДО выгрузки.</summary>
     public int Uploads => _uploads;
@@ -71,8 +79,10 @@ public class FakeBlobStorage : IBlobStorage
     }
 
     public Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
-        => Task.FromResult(!Offline && _store.TryGetValue(blobPath, out var bytes)
-            ? bytes.LongLength : (long?)null);
+    {
+        if (Offline) throw new IOException("Хранилище недоступно");
+        return Task.FromResult(!Blank && _store.TryGetValue(blobPath, out var bytes) ? bytes.LongLength : (long?)null);
+    }
 
     /// <summary>Для тестов best-effort очистки осиротевших blob'ов — проверить, что путь реально удалён/не существовал.</summary>
     public bool Exists(string blobPath) => _store.ContainsKey(blobPath);
