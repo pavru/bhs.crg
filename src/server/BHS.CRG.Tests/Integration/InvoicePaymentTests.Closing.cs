@@ -230,7 +230,7 @@ public partial class InvoicePaymentTests
         var (from, through, paidOn) = (today.AddDays(-30), today.AddDays(-1), today.AddDays(-5));
 
         var before = await ClosingPreviewAsync(admin, from, through);
-        // Сколько счетов запрётся: строка «Запрутся целиком» есть, только когда число другое.
+        // Сколько счетов запрётся: строка «Дальше — только исправлением» есть, только когда число другое.
         static int Locked(JsonElement preview) =>
             Line(preview, "frozen", "locked") is { Count: > 0 } locked ? locked.Count : Line(preview, "frozen", "entering").Count;
         async Task<(int Count, decimal? Amount, int Unsettled, int Locked)> GrownAsync()

@@ -5,6 +5,7 @@ using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Periods;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules.Costs.Data;
+using BHS.CRG.Modules.Costs.Tables;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Contour = BHS.CRG.Domain.Periods.PeriodContour;
@@ -102,7 +103,9 @@ public partial class InvoicePaymentTests
         Assert.Equal(40_000m, Total(inNow, "СуммаПоОтбору").GetProperty("sum").GetDecimal());
         Assert.Equal(100_000m, Total(inNow, "Итого").GetProperty("sum").GetDecimal());
         Assert.Equal("только периоды, названные отбором", Column(inNow, "СуммаПоОтбору").GetProperty("note").GetString());
-        Assert.Equal("только периоды, названные отбором", Total(inNow, "СуммаПоОтбору").GetProperty("note").GetString());
+        // Под итогом — по началу: подпись «есть исправления после закрытия» — о месяцах по ВСЕМ счетам с
+        // книгой, а база прогонов общая, и чужое исправление в текущем месяце её законно добавит.
+        Assert.StartsWith("только периоды, названные отбором", Total(inNow, "СуммаПоОтбору").GetProperty("note").GetString());
         Assert.Equal("счета целиком, а не деньги названного периода", Total(inNow, "Итого").GetProperty("note").GetString());
 
         // «Период прошлый И период этот» — счета, разведённые на оба месяца; названы оба, счёт целиком.
@@ -116,7 +119,10 @@ public partial class InvoicePaymentTests
         var twoAxes = await MoneyAsync(
             new { type = "condition", column = "Дата", op = "between", values = new[] { "2000-01-01", "2100-01-01" } },
             new { type = "condition", column = "УчётныйПериод", op = "eq", value = now });
-        Assert.Equal("только периоды, названные отбором", Total(twoAxes, "СуммаПоОтбору").GetProperty("note").GetString());
+        // По началу — по той же причине, что выше; оговорки оси в подписи нет ни в каком случае.
+        var twoAxesNote = Total(twoAxes, "СуммаПоОтбору").GetProperty("note").GetString();
+        Assert.StartsWith("только периоды, названные отбором", twoAxesNote);
+        Assert.DoesNotContain(InvoiceTable.ByIssueDateNote, twoAxesNote);
         Assert.Equal("счета целиком, а не деньги названного периода", Total(twoAxes, "Итого").GetProperty("note").GetString());
 
         // Оба месяца названы — счёт целиком; месяц и объект вместе — доля объекта В ЭТОМ месяце.

@@ -20,9 +20,9 @@ namespace BHS.CRG.Tests.Integration;
 public partial class InvoicePaymentTests
 {
     /// <summary>
-    /// I6: закрытие записывает взгляд «на момент закрытия». Счёт с книгой идёт строкой «Счета с книгой
-    /// исправлений» — её числами, а не числами документа; в «вошедшие» он не входит, и ссылки в реестр у
-    /// «вошедших» тогда нет.
+    /// I6: закрытие записывает взгляд «на момент закрытия». Счёт с книгой идёт её числами, а не числами
+    /// документа: своими строками — в «вошедшие», и ссылки в реестр у «вошедших» тогда нет, а причина
+    /// названа.
     /// </summary>
     [Fact]
     public async Task Диалог_закрытия_считает_счёт_с_книгой_её_строками()
@@ -31,31 +31,73 @@ public partial class InvoicePaymentTests
         var today = await TodayAsync();
         var (_, a, b) = await BookedAsync(admin, today);
 
-        // А закрывается дальше, по вчера: и документ, и книга кладут в эти дни 40 000 «9 дней назад», но
-        // счёт с книгой идёт её строкой, а не «вошедшими». Поправка отмены (−40 000) лежит сегодня и в
-        // это закрытие не входит.
+        // А закрывается дальше, по вчера: и документ, и книга кладут в эти дни 40 000 «9 дней назад» —
+        // своей строкой новой оплаты. Поправка отмены (−40 000) лежит сегодня и в это закрытие не входит.
         var preview = await ClosingPreviewAsync(admin, today.AddDays(-9), today.AddDays(-1), a);
-        Assert.Equal((0, 0), Line(preview, "frozen", "entering"));
-        Assert.Equal((1, 40_000m), Line(preview, "frozen", "corrected"));
-        // Запирается тот же счёт, что назван строкой книги, — отдельной строки «запрутся» нет.
+        Assert.Equal((1, 40_000m), Line(preview, "frozen", "entering"));
+        Assert.Equal((0, 0), Line(preview, "frozen", "adjustments"));
+        // Запирается тот же счёт, что назван «вошедшими», — отдельной строки «запрутся» нет.
         Assert.Equal((0, 0), Line(preview, "frozen", "locked"));
-        var corrected = Assert.Single(Assert.Single(preview.GetProperty("sections").EnumerateArray())
+        var entering = Assert.Single(Assert.Single(preview.GetProperty("sections").EnumerateArray())
             .GetProperty("frozen").EnumerateArray());
-        Assert.Equal("Счета с книгой исправлений", corrected.GetProperty("text").GetString());
-        Assert.Equal(JsonValueKind.Null, corrected.GetProperty("link").ValueKind);
+        Assert.Equal(JsonValueKind.Null, entering.GetProperty("link").ValueKind);
+        Assert.EndsWith(CostsClosingReport.NoListing, entering.GetProperty("note").GetString());
 
-        // Б закрывается впервые: книга на день оплаты сложилась в 60 000 — столько же, сколько в документе.
+        // Б закрывается впервые: своя часть книги на день оплаты сложилась в 60 000 — столько же, сколько в
+        // документе; отмена и новая оплата легли тем же открытым днём, перенесённых строк нет.
         preview = await ClosingPreviewAsync(admin, today.AddDays(-40), today.AddDays(-1), b);
-        Assert.Equal((1, 60_000m), Line(preview, "frozen", "corrected"));
-        Assert.Equal((0, 0), Line(preview, "frozen", "entering"));
+        Assert.Equal((1, 60_000m), Line(preview, "frozen", "entering"));
+        Assert.Equal((0, 0), Line(preview, "frozen", "adjustments"));
 
         // Повторное закрытие А после отмены (spec п. 1.6): в днях первого закрытия документ денег А больше
         // не держит, а книга держит прежние 40 000 — их и запишет закрытие. По документу здесь было бы пусто.
         await ReopenAsync(a, today.AddDays(-10));
         preview = await ClosingPreviewAsync(admin, today.AddDays(-40), today.AddDays(-10), a);
-        Assert.Equal((1, 40_000m), Line(preview, "frozen", "corrected"));
-        Assert.Equal((0, 0), Line(preview, "frozen", "entering"));
+        Assert.Equal((1, 40_000m), Line(preview, "frozen", "entering"));
+        Assert.Equal((0, 0), Line(preview, "frozen", "adjustments"));
         Assert.Equal((0, 0), Line(preview, "frozen", "locked"));
+        // Денег документа в этих днях нет — ссылку снимает и причину называет одна своя строка книги:
+        // реестр под ссылкой не нашёл бы здесь ничего, а строка говорит о счёте.
+        entering = Assert.Single(Assert.Single(preview.GetProperty("sections").EnumerateArray())
+            .GetProperty("frozen").EnumerateArray());
+        Assert.Equal(JsonValueKind.Null, entering.GetProperty("link").ValueKind);
+        Assert.EndsWith(CostsClosingReport.NoListing, entering.GetProperty("note").GetString());
+    }
+
+    /// <summary>
+    /// Диалог закрытия делит книгу по признаку переноса (разбор Дизайнера, п. 8): своя строка — к
+    /// «вошедшим», перенесённая — строкой «Исправления счетов закрытых периодов». У одного счёта бывают обе,
+    /// и в сумме они — итог взгляда «на момент закрытия» за те же дни (здесь ноль: отмена и новая оплата).
+    ///
+    /// <para>Закрыть сегодняшний день нельзя, а поправка отмены лежит сегодня: запись отмены здесь
+    /// «состарена» на день прямо в базе. Читателю всё равно, когда её сделали, — он видит строки по дням.</para>
+    /// </summary>
+    [Fact]
+    public async Task Диалог_закрытия_отделяет_поправки_закрытых_периодов()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var today = await TodayAsync();
+        var (invoice, a, _) = await BookedAsync(admin, today);
+        var yesterday = today.AddDays(-1);
+        using (var scope = host.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<CostsDbContext>().Database;
+            await db.ExecuteSqlInterpolatedAsync(
+                $"UPDATE costs.invoice_book_lines SET day = {yesterday} WHERE shifted AND day = {today} AND entry_id IN (SELECT id FROM costs.invoice_book_entries WHERE invoice_id = {invoice})");
+            await db.ExecuteSqlInterpolatedAsync(
+                $"UPDATE costs.invoice_book_entries SET day = {yesterday} WHERE invoice_id = {invoice} AND day = {today}");
+        }
+
+        // А закрывается по вчера: новая оплата легла своим днём «9 дней назад» (+40 000), поправка отмены —
+        // вчера (−40 000) перенесённой. Один счёт в обеих строках; в сумме ноль — как во взгляде закрытия.
+        var preview = await ClosingPreviewAsync(admin, today.AddDays(-9), yesterday, a);
+        Assert.Equal((1, 40_000m), Line(preview, "frozen", "entering"));
+        Assert.Equal((1, -40_000m), Line(preview, "frozen", "adjustments"));
+        Assert.Equal((0, 0), Line(preview, "frozen", "locked"));
+        var adjustments = Assert.Single(Assert.Single(preview.GetProperty("sections").EnumerateArray())
+            .GetProperty("frozen").EnumerateArray(), l => l.GetProperty("key").GetString() == "adjustments");
+        Assert.Equal("Исправления счетов закрытых периодов, сделанные в эти дни", adjustments.GetProperty("text").GetString());
+        Assert.Equal(JsonValueKind.Null, adjustments.GetProperty("link").ValueKind);
     }
 
     /// <summary>
