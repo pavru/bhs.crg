@@ -379,6 +379,50 @@ export function callApi(page, method, path, body) {
 export const registryAddress = filter =>
   `${BASE}/tables/costs.invoices/registry#filter=${encodeURIComponent(JSON.stringify(filter))}`;
 
+/**
+ * Навигация с #1429 — рейл РАЗДЕЛОВ и подпанель открытого раздела: страницы других разделов на
+ * экране не видны. Отсюда три помощника вместо `page.locator('nav')`, который находил бы рейл без
+ * страниц, а на экране со своим `<nav>` — ещё и чужую колонку.
+ */
+export const railSection = (page, name) =>
+  page.getByRole('navigation', { name: 'Разделы' }).getByRole('link', { name, exact: true });
+
+/**
+ * Подпанель обязана стоять на экране. Без неё меню — один рейл, и «пункта нет у роли» проходило бы,
+ * ничего не прочитав: окно уже 1200 px или оставленная скрытой подпанель (ключ `rail`) прячут её.
+ */
+async function shownPanel(page, where) {
+  const panel = page.getByTestId('section-panel');
+  await panel.waitFor({ timeout: 5000 }).catch(() => {
+    throw new Error(`подпанели раздела нет (${where}) — меню читать не по чему: окно уже 1200 px или она скрыта настройкой rail`);
+  });
+  return panel;
+}
+
+/** Текст навигации на экране: разделы рейла и страницы открытой подпанели. */
+export async function menuText(page) {
+  const panel = await shownPanel(page, new URL(page.url()).pathname);
+  return [await page.locator('#app-rail-nav').innerText(), await panel.innerText()].join('\n');
+}
+
+/**
+ * Всё меню человека — обходом разделов рейла: «пункта нет у роли» иначе проверялось бы на одной
+ * подпанели и проходило бы, не глядя на остальные. Уводит со страницы. Первая страница каждого
+ * раздела подпанель имеет, поэтому её отсутствие — отказ, а не пропуск.
+ */
+export async function wholeMenu(page) {
+  const rail = page.getByRole('navigation', { name: 'Разделы' });
+  const names = (await rail.getByRole('link').allInnerTexts()).map(t => t.trim()).filter(Boolean);
+  if (!names.length) throw new Error('в рейле нет ни одного раздела');
+  const parts = [names.join('\n')];
+  for (const name of names) {
+    await railSection(page, name).click();
+    await rail.locator('a[aria-current="true"]', { hasText: name }).waitFor({ timeout: 5000 });
+    parts.push(await (await shownPanel(page, `раздел «${name}»`)).innerText());
+  }
+  return parts.join('\n');
+}
+
 /** Выход «изнутри»: чистим оба хранилища, иначе сессия может пережить сброс. */
 export async function clearSession(page) {
   await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });

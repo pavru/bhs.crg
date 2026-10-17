@@ -58,7 +58,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/table-view-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, PASSWORD, launchBrowser, login, createChecks, settled, until, pickOption } from './harness.mjs';
+import { BASE, PASSWORD, launchBrowser, login, createChecks, settled, until, pickOption, railSection } from './harness.mjs';
 import { TABLE_SEED, ensureTableRows, tableSeedSum } from './seed-invoices.mjs';
 import { readFile } from 'node:fs/promises';
 import { sheetXml } from './xlsx.mjs';
@@ -537,7 +537,9 @@ try {
   await check('registry-is-a-named-setup: пункт навигации открывает реестр его колонками, итогами и местами под отбор', async () => {
     await page.setViewportSize({ width: 1500, height: 1000 });
     await page.goto(`${BASE}/document-sets`, { waitUntil: 'networkidle' });
-    await page.getByRole('link', { name: 'Реестр счетов' }).click();
+    // «Реестр счетов» — в подпанели «Учёта» (issue #1429).
+    await railSection(page, 'Учёт').click();
+    await page.getByTestId('section-panel').getByRole('link', { name: 'Реестр счетов' }).click();
     await page.getByRole('heading', { name: 'Реестр счетов' }).waitFor({ timeout: 10000 });
     await dataRows(page).first().waitFor({ timeout: 8000 });
 

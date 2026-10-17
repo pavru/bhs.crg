@@ -78,7 +78,7 @@ try {
   const hinted = () => page.evaluate(() => (document.querySelector('[data-modal-hint]')?.textContent ?? '').trim());
   const closed = () => until(async () => { if (await dialogs()) throw new Error('диалог не закрылся'); });
   const openBugReport = async () => {
-    await page.getByText('Сообщить об ошибке', { exact: true }).first().click();
+    await page.getByRole('button', { name: 'Сообщить об ошибке', exact: true }).first().click();
     await page.locator('[role=dialog] textarea').first().waitFor({ state: 'visible', timeout: 5000 });
   };
 

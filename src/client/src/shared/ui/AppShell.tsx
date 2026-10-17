@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Link, Outlet } from 'react-router';
+import { Link, Outlet, useLocation } from 'react-router';
 import { useAccount, useResendConfirmation } from '@/shared/api/account';
 import { NotificationsCenter } from '@/features/notifications/NotificationsCenter';
 import { ActiveJobsIndicator } from '@/features/jobs/ActiveJobsIndicator';
@@ -17,17 +17,24 @@ import { OutsideBanner } from '@/shared/ui/WorkspaceNav';
 import { SiteFilterProvider } from '@/shared/siteFilter/SiteFilterProvider';
 import { SiteFilterSwitch } from '@/shared/siteFilter/SiteFilterSwitch';
 import { useSyncedPreference } from '@/shared/hooks/useSyncedPreference';
-import { RailBody } from '@/shared/ui/AppRail';
+import { DrawerBody } from '@/shared/ui/AppRail';
+import { SectionPanel, SectionRail, ShowPanelButton } from '@/shared/ui/SectionRail';
 import { useNavSections } from '@/shared/ui/navSections';
-import { MailWarning, X, PanelLeftClose, PanelLeftOpen, Menu } from 'lucide-react';
+import { activeRail, panelAt, railDef } from '@/shared/ui/railSections';
+import { MailWarning, X, Menu } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 
 /**
- * Боковая панель свёрнута в иконки (issue #1355). Выбор — настройка человека, как тема: лежит на
- * сервере и едет за ним на другую машину, а зеркало в браузере даёт первый кадр без прыжка ширины.
+ * Подпанель раздела скрыта (issue #1429; ключ — со времён свёртки панели в иконки, #1355). Выбор —
+ * настройка человека, как тема: лежит на сервере и едет за ним на другую машину, а зеркало в браузере
+ * даёт первый кадр без прыжка ширины.
+ *
+ * Пока человек не выбирал, решает ширина окна (`auto`): ниже ~1200 px рейл 88 и подпанель 240
+ * оставили бы странице меньше 900 px. `auto` на сервер не уходит — отправляет только нажатие.
  */
 const RAIL_KEY = 'rail';
 const RAIL_MIRROR = 'crg-rail';
+const ROOMY = '(min-width: 1200px)';
 
 /**
  * Узкий экран (issue #1355): ниже `md` панели у края нет, меню выдвигается кнопкой в шапке. Порог
@@ -53,16 +60,34 @@ export function AppShell() {
   );
 }
 
+/** Совпадает ли медиазапрос — и следит за ним, пока окно меняет размер. */
+function useMedia(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const list = window.matchMedia(query);
+    const onChange = () => setMatches(list.matches);
+    list.addEventListener('change', onChange);
+    return () => list.removeEventListener('change', onChange);
+  }, [query]);
+  return matches;
+}
+
 function Shell() {
   const productName = useProductName();
-  const { allWork, work } = useNavSections();
+  const { allWork, work, outside, settings, rail: sections } = useNavSections();
+  const { pathname } = useLocation();
   const [pwOpen, setPwOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [rail, setRail] = useSyncedPreference(RAIL_KEY, RAIL_MIRROR, 'expanded');
-  const collapsed = rail === 'collapsed';
-  const railToggle = collapsed ? 'Развернуть панель' : 'Свернуть панель';
+  const [rail, setRail] = useSyncedPreference(RAIL_KEY, RAIL_MIRROR, 'auto');
+  const roomy = useMedia(ROOMY);
+  const panelWanted = rail === 'auto' ? roomy : rail !== 'collapsed';
+  // Раздел адреса — среди ВСЕХ видных пунктов: страница вне пространства тоже принадлежит разделу.
+  const active = activeRail(pathname, [...allWork, ...settings]);
+  const activeDef = active ? railDef(active) : null;
+  const panelSection = activeDef && panelAt(pathname, activeDef) ? activeDef : null;
+  const panelShown = !!panelSection && panelWanted;
 
   // Глобальные шорткаты (issue #107): Ctrl/⌘+K — палитра, «?» — справка (не в полях ввода).
   useEffect(() => {
@@ -89,12 +114,13 @@ function Shell() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  useEffect(() => {
-    const wide = window.matchMedia(WIDE);
-    const onChange = () => { if (wide.matches) setMenuOpen(false); };
-    wide.addEventListener('change', onChange);
-    return () => wide.removeEventListener('change', onChange);
-  }, []);
+  // Окно расширили — выдвижное меню закрывается: иначе оно лежало бы поверх вернувшегося рейла.
+  const wide = useMedia(WIDE);
+  const [wasWide, setWasWide] = useState(wide);
+  if (wide !== wasWide) {
+    setWasWide(wide);
+    if (wide) setMenuOpen(false);
+  }
 
   const brand = (
     <>
@@ -107,27 +133,18 @@ function Shell() {
 
   return (
     <div className="flex h-screen bg-base">
-      {/* Navigation rail — на рабочем столе. */}
-      <aside data-testid="rail" data-collapsed={collapsed || undefined}
-        className={`${collapsed ? 'w-16' : 'w-56'} shrink-0 hidden md:flex flex-col border-r border-stroke bg-surface`}>
-        <RailBody collapsed={collapsed} navId="app-rail-nav" onChangePassword={() => setPwOpen(true)} head={
-          // Название и логотип экземпляра (ТЗ CORE-25.1, issue #967) — не зашитые. В свёрнутой
-          // панели от строки остаётся кнопка разворота: логотип без названия ничего не называет.
-          <div className={`flex items-center gap-2 h-12 border-b border-stroke shrink-0 ${collapsed ? 'justify-center' : 'pl-4 pr-2'}`}>
-            {!collapsed && brand}
-            <Tooltip content={railToggle}>
-              <button type="button" onClick={() => setRail(collapsed ? 'expanded' : 'collapsed')}
-                aria-label={railToggle} aria-expanded={!collapsed} aria-controls="app-rail-nav"
-                className={iconButton}>
-                {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-              </button>
-            </Tooltip>
-          </div>
-        } />
+      {/* Рейл разделов и подпанель раздела — на рабочем столе (issue #1429). */}
+      <aside data-testid="rail" data-panel={panelShown || undefined}
+        className="shrink-0 hidden md:flex border-r border-stroke">
+        <SectionRail sections={sections} active={active} panelHidden={!!panelSection && !panelShown}
+          onShowPanel={() => setRail('expanded')} onChangePassword={() => setPwOpen(true)} />
+        {panelShown && (
+          <SectionPanel def={panelSection} outside={outside} onHide={() => setRail('collapsed')}
+            groups={sections.find(s => s.def.id === panelSection.id)?.groups ?? []} />
+        )}
       </aside>
 
-      {/* Выдвижное меню — на узком экране (issue #1355). Та же панель, всегда развёрнутая: свёртка
-          в иконки нужна, чтобы отдать ширину странице, а выдвижному меню отдавать нечего. */}
+      {/* Выдвижное меню — на узком экране (issue #1355): все разделы разом, со страницами. */}
       <Dialog.Root open={menuOpen} onOpenChange={setMenuOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 md:hidden" />
@@ -135,7 +152,7 @@ function Shell() {
             className="fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] flex flex-col bg-surface border-r border-stroke focus:outline-none md:hidden"
             style={{ boxShadow: 'var(--f-shadow28)' }}>
             <Dialog.Title className="sr-only">Меню</Dialog.Title>
-            <RailBody collapsed={false} navId="app-drawer-nav" onChangePassword={() => setPwOpen(true)}
+            <DrawerBody onChangePassword={() => setPwOpen(true)}
               onPick={() => setMenuOpen(false)} head={
                 <div className="flex items-center gap-2 h-12 pl-4 pr-2 border-b border-stroke shrink-0">
                   {brand}
@@ -165,6 +182,8 @@ function Shell() {
               <Menu size={20} />
             </button>
           </Tooltip>
+          {/* Скрытая подпанель возвращается отсюда — с края страницы, где она стояла. */}
+          {panelSection && !panelShown && <span className="hidden md:inline-flex"><ShowPanelButton onShow={() => setRail('expanded')} /></span>}
           <div data-testid="header-context"
             className="order-last md:order-none w-full md:w-auto min-w-0 flex items-center gap-1 whitespace-nowrap max-md:[&>*]:shrink-0 max-md:overflow-x-auto max-md:pb-1.5">
             {/* Переключатель пространства — слева: это контекст экрана, а не действие (AUTH-16.1). */}

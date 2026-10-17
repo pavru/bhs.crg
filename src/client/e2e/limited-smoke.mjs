@@ -175,7 +175,7 @@ await check('bug-report-with-an-attachment-goes-through', async () => {
   // так, что падение первой уносит вторую.
   await page.goto(`${BASE}/document-sets`);
   await settled(page);
-  await page.getByText('Сообщить об ошибке').first().click();
+  await page.getByRole('button', { name: 'Сообщить об ошибке' }).first().click();
   await page.waitForSelector('[role=dialog]', { timeout: 10000 });
   const dialog = page.locator('[role=dialog]').last();
 
