@@ -506,7 +506,9 @@ public partial class ModuleDataBackupTests(IntegrationTestFixture fixture) : IAs
         scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Recognition.RecognitionProfileCatalog>(),
         // Запрет смены валюты — по составу модулей ЭТОГО теста: у хоста поддельного модуля нет.
         Guard(scope, Registry()),
-        scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Settings.IModuleSettingRestoreGuard>());
+        scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Settings.IModuleSettingRestoreGuard>(),
+        scope.ServiceProvider.GetRequiredService<IRestoreAftercare>(),
+        scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Objects.IRecordHolders>());
 
     /// <summary>Копия целиком в памяти: её читают дважды — как манифест и как вход восстановления.</summary>
     private static async Task<MemoryStream> ArchiveAsync(BackupService service, BackupScope scope)
