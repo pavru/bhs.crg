@@ -38,7 +38,7 @@ export async function railChecks(page, check) {
       const spoken = (await link.locator('.sr-only').allTextContents()).join('').trim();
       if (!spoken) throw new Error('подпись пункта свёрнутой панели не оставлена диктору');
       await link.hover();
-      // Подсказка Radix — скрытая копия с role=tooltip: видимой её не дождаться, только в разметке.
+      // Подсказка появляется с задержкой наведения; её слой — role=tooltip в портале.
       await page.locator('[role=tooltip]', { hasText: spoken }).first().waitFor({ state: 'attached', timeout: 3000 })
         .catch(() => { throw new Error(`у пункта «${spoken}» свёрнутой панели нет подсказки`); });
     });
