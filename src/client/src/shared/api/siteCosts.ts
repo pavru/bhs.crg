@@ -5,6 +5,20 @@ import { apiClient } from './client';
 export interface CostFigure {
   invoices: number;
   amount: number;
+  /**
+   * Из них — корректировки закрытых периодов (PR 6d E2): деньги книги исправлений, легшие днём исправления,
+   * а не своим днём. Только во взгляде «на момент закрытия»; null или нет поля — таких нет.
+   */
+  corrections?: CostCorrections | null;
+}
+
+/** Корректировки закрытых периодов в числе отчёта. */
+export interface CostCorrections {
+  /** Счета, чьи корректировки здесь не ноль. */
+  invoices: number;
+  amount: number;
+  /** Число целиком из корректировок: своих денег нет ни у одного счёта. Из чисел этого не вывести. */
+  whole: boolean;
 }
 
 /**

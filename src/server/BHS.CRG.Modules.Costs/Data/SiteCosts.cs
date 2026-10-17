@@ -1,7 +1,28 @@
 namespace BHS.CRG.Modules.Costs.Data;
 
 /// <summary>Число отчёта: сколько счетов и сколько денег.</summary>
-public sealed record CostFigure(int Invoices, decimal Amount);
+/// <param name="Corrections">Из них — корректировки закрытых периодов (PR 6d E2): строки книги, легшие днём
+/// исправления, а не своим днём. Бывают только во взгляде «на момент закрытия»; null — таких нет либо
+/// взгляд «с исправлениями», где их нет по устройству.</param>
+public sealed record CostFigure(int Invoices, decimal Amount, CostCorrections? Corrections = null)
+{
+    /// <summary>
+    /// Те же счета и деньги — без корректировок: реестр их не знает, и число с ними под ссылкой ему всё равно
+    /// равно. Сравни записи целиком — стрелка пропала бы у каждого числа с корректировкой.
+    /// </summary>
+    public bool Same(CostFigure? other) => other is not null && Invoices == other.Invoices && Amount == other.Amount;
+}
+
+/// <summary>
+/// Корректировки закрытых периодов в числе отчёта (PR 6d E2, разбор Дизайнера п. 7 «Месяц, где лежит разница»).
+/// </summary>
+/// <param name="Invoices">Счета, чьи корректировки здесь не ноль, — тем же правилом «ноль не считается», что у
+/// строки. Счёт считается и тогда, когда сама строка его не считает: свои +30 и корректировка −30 одного
+/// счёта дают строке ноль, а корректировка в ней всё равно есть (решение владельца 17.10.2026 — правило
+/// строки не меняется).</param>
+/// <param name="Whole">Число целиком из корректировок: ни у одного счёта в нём нет своих денег. Клиенту из
+/// чисел этого не вывести — один счёт бывает и в своих деньгах строки, и в корректировке.</param>
+public sealed record CostCorrections(int Invoices, decimal Amount, bool Whole);
 
 /// <summary>Строка отчёта — стройка, статья вне строек или контрагент.</summary>
 /// <param name="Id">Чья строка; null — строка не про одну запись: «поставщик не указан», удалённые
@@ -10,7 +31,10 @@ public sealed record CostFigure(int Invoices, decimal Amount);
 /// у строки нет: ссылка, по которой цифры не сходятся, хуже её отсутствия.</param>
 /// <param name="Registry">Как эту строку зовёт реестр, если иначе, чем отчёт: раздел в отчёте стройки —
 /// «4 эт.», а колонка «Раздел» реестра — «Комарова 36 / 4 эт.». Отбор ссылки берёт это название.</param>
-public sealed record CostLine(Guid? Id, string Name, int Invoices, decimal Amount, bool Linked = true, string? Registry = null);
+/// <param name="Corrections">Из них — корректировки закрытых периодов (<see cref="CostFigure.Corrections" />).</param>
+public sealed record CostLine(
+    Guid? Id, string Name, int Invoices, decimal Amount, bool Linked = true, string? Registry = null,
+    CostCorrections? Corrections = null);
 
 /// <summary>Раздел доли — одно название на реестр, второе на отчёт стройки и панель строки.</summary>
 /// <param name="Registry">Как раздел зовёт колонка «Раздел» реестра: «Комарова 36 / 4 эт.». По нему же
@@ -150,7 +174,18 @@ public static class SiteCosts
             var list = rows.ToList();
             var counted = list.GroupBy(r => r.Money.Invoice).Where(g => g.Sum(r => r.Amount) != 0).Select(g => g.Key).ToList();
             if (main) inTotal.UnionWith(counted);
-            return new(counted.Count, list.Sum(r => r.Amount));
+            return new(counted.Count, list.Sum(r => r.Amount), Corrections(list));
+        }
+        // Корректировки — отдельным числом у каждой цифры (PR 6d): тем же правилом счёта, что у строки, но по
+        // перенесённым деньгам. «Целиком» — своих денег нет ни у одного счёта: тогда строка вся из корректировок.
+        static CostCorrections? Corrections(List<Entry> list)
+        {
+            var shifted = list.Where(r => r.Money.Grain.Shifted).ToList();
+            if (shifted.Count == 0) return null;
+            var whole = list.Where(r => !r.Money.Grain.Shifted).GroupBy(r => r.Money.Invoice).All(g => g.Sum(r => r.Amount) == 0);
+            var figure = new CostCorrections(
+                shifted.GroupBy(r => r.Money.Invoice).Count(g => g.Sum(r => r.Amount) != 0), shifted.Sum(r => r.Amount), whole);
+            return figure is { Invoices: 0, Amount: 0 } ? null : figure;
         }
         // «Из них» — только из счетов итога: счёт, которого итог не считает, не считается и в расшифровке.
         // ownMoney — счёт ещё и с ненулевыми деньгами в самой расшифровке: признак «НДС неизвестен» стоит у
@@ -207,7 +242,7 @@ public static class SiteCosts
 
         // Итог — после всех строк основного среза: его счета собраны ими.
         return new(sites, articles, lost, unallocated, bySupplier, bySection,
-            new(inTotal.Count, entries.Sum(e => e.Amount)),
+            new(inTotal.Count, entries.Sum(e => e.Amount), Corrections(entries)),
             Some(Part(entries.Where(e => e.Money.Unmatched), ownMoney: false)),
             withVat ? null : Some(Part(entries.Where(e => e.VatUnknown), ownMoney: true)),
             lostSuppliers);

@@ -386,6 +386,10 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("section_id");
 
+                    b.Property<bool>("Shifted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("shifted");
+
                     b.Property<Guid?>("SupplierId")
                         .HasColumnType("uuid")
                         .HasColumnName("supplier_id");

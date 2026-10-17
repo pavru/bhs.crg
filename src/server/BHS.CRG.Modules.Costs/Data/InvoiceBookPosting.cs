@@ -17,7 +17,11 @@ public readonly record struct BookCell(AllocationTarget? Target, Guid? SupplierI
 /// книги: форма у них одна, и сравнивают их друг с другом — два типа одной формы разошлись бы молча на
 /// первом новом поле (ревью PR #1357).
 /// </summary>
-public sealed record Grain(BookCell Cell, DateOnly Day, decimal Gross, decimal Net, bool VatUnknown);
+/// <param name="Shifted">Строка книги легла днём записи D, а не своим днём (PR 6d E2): её день был закрыт
+/// или книга на её пару разошлась с документом. Это и есть «корректировка закрытого периода» на экране
+/// отчёта. У зерна документа и у открытия — всегда <c>false</c>. В равенствах (<see cref="InvoiceBookPosting.Pairs" />)
+/// не участвует: суммы пары от него не зависят.</param>
+public sealed record Grain(BookCell Cell, DateOnly Day, decimal Gross, decimal Net, bool VatUnknown, bool Shifted = false);
 
 /// <summary>Запись книги до сохранения: вид, день D, допуск и строки.</summary>
 public sealed record BookRecord(InvoiceBookKind Kind, DateOnly Day, decimal Tolerance, IReadOnlyList<Grain> Lines);
@@ -134,7 +138,7 @@ public static class InvoiceBookPosting
 
         if (book.Count == 0)
             Write(new BookRecord(InvoiceBookKind.Opening, day, change.ToleranceBefore,
-                [.. Ordered(before).Select(p => new Grain(p.Key.Cell, p.Key.Day, p.Value.Gross, p.Value.Net, p.Value.VatUnknown))]));
+                [.. Ordered(before.Select(p => new Grain(p.Key.Cell, p.Key.Day, p.Value.Gross, p.Value.Net, p.Value.VatUnknown)))]));
         else if (atLast is not null && !Same(atLast, before))
             // Страховка — по деньгам, а не по числу допуска (п. 1.3 шаг 2): смена, не тронувшая денег
             // счёта, ему ничего не пишет, и пустой заголовок «выравнивание» был бы ложным следом.
@@ -164,9 +168,15 @@ public static class InvoiceBookPosting
         {
             text.Append(invariant, $"{record.Kind}|{record.Day:yyyy-MM-dd}|{record.Tolerance:0.00####}\n");
             foreach (var line in record.Lines)
+            {
                 text.Append(invariant,
                     $"  {line.Cell.Target?.ConstructionId}|{line.Cell.Target?.SectionId}|{line.Cell.Target?.ArticleId}|" +
-                    $"{line.Cell.SupplierId}|{line.Day:yyyy-MM-dd}|{line.Gross:0.00####}|{line.Net:0.00####}|{line.VatUnknown}\n");
+                    $"{line.Cell.SupplierId}|{line.Day:yyyy-MM-dd}|{line.Gross:0.00####}|{line.Net:0.00####}|{line.VatUnknown}");
+                // Признак переноса — только у перенесённой: отметки записей без переноса остаются прежними, и
+                // предпросмотр, открытый до PR 6d, отказом «пересчитайте» ответит лишь там, где строки и правда
+                // стали другими (своя и перенесённая на D раньше были одной).
+                text.Append(line.Shifted ? "|shifted\n" : "\n");
+            }
         }
 
         return Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
@@ -198,12 +208,20 @@ public static class InvoiceBookPosting
             // (закрытие отменили).
             var held = book.GetValueOrDefault(key);
             var own = !boundaries.IsClosed(key.Day, key.Cell.Contour) && held.Gross == was.Gross && held.Net == was.Net;
-            result.Add(new Grain(key.Cell, own ? key.Day : day, gross, net, was.VatUnknown || now.VatUnknown));
+            // Перенесена — по ДНЮ, а не по «не своим днём» (разбор Архитектора, PR 6d): пара самого дня D,
+            // у которой книга разошлась с документом, ложится днём D и при этом своим днём — корректировкой
+            // чужого периода она не является.
+            result.Add(new Grain(key.Cell, own ? key.Day : day, gross, net, was.VatUnknown || now.VatUnknown,
+                Shifted: !own && key.Day != day));
         }
 
-        // Строки одного дня одной ячейки складываются — у дня D их бывает несколько из разных пар.
-        return [.. Ordered(Pairs(result))
-            .Select(p => new Grain(p.Key.Cell, p.Key.Day, p.Value.Gross, p.Value.Net, p.Value.VatUnknown))];
+        // Строки одного дня одной ячейки складываются — у дня D их бывает несколько из разных пар. Своя и
+        // перенесённая строки одной ячейки на D — раздельно (PR 6d): сложенные, они бы уже не разделились, и
+        // «корректировку» в отчёте стало бы нечем посчитать. Свои +30 и перенесённые −30 — две строки, а не ноль.
+        return [.. Ordered(result
+            .GroupBy(g => (g.Cell, g.Day, g.Shifted))
+            .Select(g => new Grain(g.Key.Cell, g.Key.Day, g.Sum(x => x.Gross), g.Sum(x => x.Net), g.Any(x => x.VatUnknown), g.Key.Shifted))
+            .Where(g => g.Gross != 0 || g.Net != 0))];
     }
 
     /// <summary>Книга по ячейкам равна документу — по суммам с НДС и без.</summary>
@@ -246,15 +264,18 @@ public static class InvoiceBookPosting
             .Where(p => p.Money.Gross != 0 || p.Money.Net != 0)
             .ToDictionary(p => p.Key, p => p.Money);
 
-    /// <summary>Порядок строк — по ячейке и дню: одна и та же правка пишет книгу одинаково.</summary>
-    private static IEnumerable<KeyValuePair<(BookCell Cell, DateOnly Day), Money>> Ordered(
-        IReadOnlyDictionary<(BookCell Cell, DateOnly Day), Money> pairs) =>
-        pairs.OrderBy(p => p.Key.Cell.Target is null)
-            .ThenBy(p => p.Key.Cell.Target?.ConstructionId)
-            .ThenBy(p => p.Key.Cell.Target?.SectionId)
-            .ThenBy(p => p.Key.Cell.Target?.ArticleId)
-            .ThenBy(p => p.Key.Cell.SupplierId)
-            .ThenBy(p => p.Key.Day);
+    /// <summary>
+    /// Порядок строк — по ячейке, дню и переносу (своя раньше перенесённой): одна и та же правка пишет книгу
+    /// одинаково.
+    /// </summary>
+    private static IEnumerable<Grain> Ordered(IEnumerable<Grain> lines) =>
+        lines.OrderBy(g => g.Cell.Target is null)
+            .ThenBy(g => g.Cell.Target?.ConstructionId)
+            .ThenBy(g => g.Cell.Target?.SectionId)
+            .ThenBy(g => g.Cell.Target?.ArticleId)
+            .ThenBy(g => g.Cell.SupplierId)
+            .ThenBy(g => g.Day)
+            .ThenBy(g => g.Shifted);
 
     internal readonly record struct Money(decimal Gross, decimal Net, bool VatUnknown);
 }

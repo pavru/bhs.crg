@@ -18,7 +18,7 @@ public partial class InvoiceBookPostingTests
             [G(CellA, D(9, 15), 120m, 100m), G(CellB, D(9, 15), 120m, 100m)],
             [G(CellB, D(9, 15), 120m, 100m), G(CellA, D(10, 1), 120m, 100m)]);
 
-        Assert.Equal(Sorted("A 05.10 -120.00/-100.00", "A 01.10 +120.00/+100.00"), Lines(swap[1]));
+        Assert.Equal(Sorted("A 05.10 -120.00/-100.00 ⇢", "A 01.10 +120.00/+100.00"), Lines(swap[1]));
         Assert.Equal(120m, run.Close(OnA, 9));
     }
 
@@ -31,9 +31,9 @@ public partial class InvoiceBookPostingTests
 
         var fix = run.Post(InvoiceBookKind.Correction, D(10, 5), ClosedA, [G(CellA, D(9, 15), 120m, 100m)], at132);
         Assert.Equal(["A 15.09 +120.00/+100.00"], Lines(fix[0]));
-        Assert.Equal(["A 05.10 +12.00/+10.00"], Lines(fix[1]));
+        Assert.Equal(["A 05.10 +12.00/+10.00 ⇢"], Lines(fix[1]));
 
-        Assert.Equal(["A 06.10 -132.00/-110.00"],
+        Assert.Equal(["A 06.10 -132.00/-110.00 ⇢"],
             Lines(Assert.Single(run.Post(InvoiceBookKind.Unpayment, D(10, 6), ClosedA, at132, []))));
 
         Assert.Equal(["A 07.10 +132.00/+110.00"],
@@ -56,7 +56,7 @@ public partial class InvoiceBookPostingTests
         Assert.Equal(Sorted("B 15.09 -60.00/-50.00", "A/р2 01.10 +60.00/+50.00"), Lines(first[1]));
 
         var merged = run.Post(InvoiceBookKind.Correction, D(10, 6), ClosedA, split, [G(Cell(A, R3), D(10, 1), 120m, 100m)]);
-        Assert.Equal(Sorted("A/р1 06.10 -60.00/-50.00", "A/р2 01.10 -60.00/-50.00", "A/р3 01.10 +120.00/+100.00"),
+        Assert.Equal(Sorted("A/р1 06.10 -60.00/-50.00 ⇢", "A/р2 01.10 -60.00/-50.00", "A/р3 01.10 +120.00/+100.00"),
             Lines(Assert.Single(merged)));
         Assert.Equal((60m, 60m), (run.Close(OnA, 9), run.Close(OnA, 10)));
     }
@@ -72,7 +72,7 @@ public partial class InvoiceBookPostingTests
         var merged = run.Post(InvoiceBookKind.Correction, D(10, 5), ClosedA,
             [G(Cell(A, R1), D(9, 15), 60m, 50m), G(CellB, D(9, 15), 60m, 50m)], [G(Cell(A, R1), D(9, 15), 120m, 100m)]);
 
-        Assert.Equal(Sorted("B 15.09 -60.00/-50.00", "A/р1 05.10 +60.00/+50.00"), Lines(merged[1]));
+        Assert.Equal(Sorted("B 15.09 -60.00/-50.00", "A/р1 05.10 +60.00/+50.00 ⇢"), Lines(merged[1]));
         Assert.Equal((60m, 60m), (run.Close(OnA, 9), run.Close(OnA, 10)));
     }
 
@@ -85,7 +85,7 @@ public partial class InvoiceBookPostingTests
             [G(Cell(A, R1), D(9, 15), 60m, 50m), G(CellB, D(9, 15), 60m, 50m)],
             [G(Cell(A, R1), D(9, 15), 30m, 25m), G(Cell(A, R2), D(9, 15), 90m, 75m)]);
 
-        Assert.Equal(Sorted("B 15.09 -60.00/-50.00", "A/р1 05.10 -30.00/-25.00", "A/р2 05.10 +90.00/+75.00"),
+        Assert.Equal(Sorted("B 15.09 -60.00/-50.00", "A/р1 05.10 -30.00/-25.00 ⇢", "A/р2 05.10 +90.00/+75.00 ⇢"),
             Lines(mixed[1]));
     }
 
@@ -97,7 +97,7 @@ public partial class InvoiceBookPostingTests
         var moved = run.Post(InvoiceBookKind.Correction, D(10, 5), ClosedA,
             [G(Cell(A, R1), D(9, 15), 120m, 100m)], [G(Cell(A, R2), D(9, 15), 120m, 100m)]);
 
-        Assert.Equal(Sorted("A/р1 05.10 -120.00/-100.00", "A/р2 05.10 +120.00/+100.00"), Lines(moved[1]));
+        Assert.Equal(Sorted("A/р1 05.10 -120.00/-100.00 ⇢", "A/р2 05.10 +120.00/+100.00 ⇢"), Lines(moved[1]));
         Assert.Equal((120m, 0m), (run.Close(OnA, 9), run.Close(OnA, 10)));
     }
 
@@ -113,7 +113,7 @@ public partial class InvoiceBookPostingTests
         var raised = run.Post(InvoiceBookKind.Correction, D(10, 6), ClosedA, both,
             [G(CellA, D(9, 15), 132m, 110m), G(CellA, D(10, 1), 132m, 110m)]);
 
-        Assert.Equal(Sorted("A 01.10 +12.00/+10.00", "A 06.10 +12.00/+10.00"), Lines(Assert.Single(raised)));
+        Assert.Equal(Sorted("A 01.10 +12.00/+10.00", "A 06.10 +12.00/+10.00 ⇢"), Lines(Assert.Single(raised)));
         Assert.Equal(120m, run.Close(OnA, 9));
     }
 
@@ -132,7 +132,7 @@ public partial class InvoiceBookPostingTests
         var again = run.Post(InvoiceBookKind.Correction, D(10, 7), PeriodBoundaries.None, at132,
             [G(CellA, D(9, 15), 144m, 120m)]);
 
-        Assert.Equal(["A 07.10 +12.00/+10.00"], Lines(Assert.Single(again)));
+        Assert.Equal(["A 07.10 +12.00/+10.00 ⇢"], Lines(Assert.Single(again)));
         Assert.Equal(120m, run.Close(OnA, 9));
     }
 
@@ -144,7 +144,7 @@ public partial class InvoiceBookPostingTests
         Grain[] at132 = [G(CellA, D(9, 15), 132m, 110m)];
         run.Post(InvoiceBookKind.Correction, D(10, 5), ClosedA, [G(CellA, D(9, 15), 120m, 100m)], at132);
 
-        Assert.Equal(["A 07.10 -132.00/-110.00"],
+        Assert.Equal(["A 07.10 -132.00/-110.00 ⇢"],
             Lines(Assert.Single(run.Post(InvoiceBookKind.Unpayment, D(10, 7), PeriodBoundaries.None, at132, []))));
         Assert.Equal((120m, -120m), (run.Close(OnA, 9), run.Close(OnA, 10)));
     }
@@ -197,5 +197,53 @@ public partial class InvoiceBookPostingTests
         Assert.Equal([G(CellA, D(9, 15), 120m, 100m), G(Rest, D(9, 15), 30m, 25m)], grains);
         var blind = InvoiceBookPosting.Grains(invoice with { VatTotal = null }, new Dictionary<Guid, LineVat>())[0];
         Assert.Equal((120m, true), (blind.Net, blind.VatUnknown));
+    }
+
+    /// <summary>
+    /// Своя и перенесённая строки одной ячейки в день записи — раздельно (PR 6d E2, разбор Архитектора): 30
+    /// из закрытого сентября в часть самого дня исправления. Сложенные, они давали ноль — строки не было
+    /// вовсе, и корректировку −30 в отчёте было бы нечем посчитать.
+    /// </summary>
+    [Fact]
+    public void Своя_и_перенесённая_строки_дня_записи_не_складываются()
+    {
+        var run = new Run();
+        var moved = run.Post(InvoiceBookKind.Correction, D(10, 5), ClosedA,
+            [G(CellA, D(9, 15), 120m, 100m)], [G(CellA, D(9, 15), 90m, 75m), G(CellA, D(10, 5), 30m, 25m)]);
+
+        Assert.Equal(Sorted("A 05.10 +30.00/+25.00", "A 05.10 -30.00/-25.00 ⇢"), Lines(moved[^1]));
+        Assert.Equal(120m, run.Close(OnA, 9));
+    }
+
+    /// <summary>
+    /// Перенос — по ДНЮ строки, а не по «не своим днём» (разбор Архитектора): у пары самого дня записи книга
+    /// уже разошлась с документом (на ней лежит прежний перенос), и правка её денег ложится днём записи — но
+    /// это её собственный день, а не корректировка чужого периода.
+    /// </summary>
+    [Fact]
+    public void Строка_своего_дня_записи_при_разошедшейся_книге_не_перенос()
+    {
+        var run = new Run();
+        Grain[] after = [G(CellA, D(9, 15), 90m, 75m), G(CellA, D(10, 5), 30m, 25m)];
+        run.Post(InvoiceBookKind.Correction, D(10, 5), ClosedA, [G(CellA, D(9, 15), 120m, 100m)], after);
+
+        var raised = run.Post(InvoiceBookKind.Correction, D(10, 5), ClosedA,
+            after, [G(CellA, D(9, 15), 90m, 75m), G(CellA, D(10, 5), 42m, 35m)]);
+
+        Assert.Equal(["A 05.10 +12.00/+10.00"], Lines(Assert.Single(raised)));
+    }
+
+    /// <summary>
+    /// Отметка предпросмотра различает перенос (PR 6d): строки, разные только им, ложатся в книгу по-разному —
+    /// одна корректировкой, другая нет, — и подтверждённое человеком обязано быть тем, что ляжет. Строка без
+    /// переноса пишется в отметку как до 6d.
+    /// </summary>
+    [Fact]
+    public void Отметка_различает_перенос()
+    {
+        static BookRecord Record(bool shifted) =>
+            new(InvoiceBookKind.Correction, D(10, 5), 1.00m, [G(CellA, D(10, 5), 30m) with { Shifted = shifted }]);
+
+        Assert.NotEqual(InvoiceBookPosting.Stamp([Record(false)]), InvoiceBookPosting.Stamp([Record(true)]));
     }
 }

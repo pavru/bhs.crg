@@ -62,6 +62,15 @@ public partial class InvoiceBookPostingTests
             foreach (var line in added.Where(r => r.Kind != InvoiceBookKind.Opening).SelectMany(r => r.Lines))
                 Assert.False(boundaries.IsClosed(line.Day, line.Cell.Contour), $"строка в закрытом дне: {Show(line)}");
 
+            // Перенос (PR 6d): перенесённая строка лежит днём своей записи; у открытия переноса нет — оно несёт
+            // свои дни.
+            foreach (var record in added)
+            foreach (var line in record.Lines.Where(l => l.Shifted))
+            {
+                Assert.NotEqual(InvoiceBookKind.Opening, record.Kind);
+                Assert.Equal(record.Day, line.Day);
+            }
+
             Book.AddRange(added);
 
             // I4′(в): дни записей не убывают.
@@ -93,7 +102,7 @@ public partial class InvoiceBookPostingTests
 
     private static string Show(Grain line) =>
         string.Create(CultureInfo.InvariantCulture,
-            $"{Name(line.Cell)} {line.Day:dd.MM} {line.Gross:+0.00;-0.00;0.00}/{line.Net:+0.00;-0.00;0.00}{(line.VatUnknown ? " vU" : "")}");
+            $"{Name(line.Cell)} {line.Day:dd.MM} {line.Gross:+0.00;-0.00;0.00}/{line.Net:+0.00;-0.00;0.00}{(line.VatUnknown ? " vU" : "")}{(line.Shifted ? " ⇢" : "")}");
 
     private static string[] Lines(BookRecord record) => [.. record.Lines.Select(Show).Order(StringComparer.Ordinal)];
 
@@ -119,7 +128,7 @@ public partial class InvoiceBookPostingTests
         Assert.Equal([InvoiceBookKind.Opening, InvoiceBookKind.Alignment], lowered.Select(r => r.Kind));
         Assert.Equal(Sorted("A 15.09 +599.70/+599.70", "B 15.09 +400.30/+400.30"), Lines(lowered[0]));
         Assert.Equal((D(10, 2), 1.00m), (lowered[0].Day, lowered[0].Tolerance));
-        Assert.Equal(Sorted("A 02.10 +0.80/+0.80", "остаток 15.09 -0.80/-0.80"), Lines(lowered[1]));
+        Assert.Equal(Sorted("A 02.10 +0.80/+0.80 ⇢", "остаток 15.09 -0.80/-0.80"), Lines(lowered[1]));
         Assert.Equal(0.50m, lowered[1].Tolerance);
 
         // 05.10 исправление только текста: заголовок без строк.
@@ -127,7 +136,7 @@ public partial class InvoiceBookPostingTests
         Assert.Empty(Assert.Single(text).Lines);
 
         var raised = run.Post(InvoiceBookKind.Alignment, D(10, 6), ClosedA, S05At050, S05At100, 0.50m, 1.00m);
-        Assert.Equal(Sorted("A 06.10 -0.80/-0.80", "остаток 15.09 +0.80/+0.80"), Lines(Assert.Single(raised)));
+        Assert.Equal(Sorted("A 06.10 -0.80/-0.80 ⇢", "остаток 15.09 +0.80/+0.80"), Lines(Assert.Single(raised)));
 
         Assert.Empty(Assert.Single(run.Post(InvoiceBookKind.Correction, D(10, 7), ClosedA, S05At100, S05At100)).Lines);
         Assert.Equal(599.70m, run.Close(OnA, 9));
@@ -166,7 +175,7 @@ public partial class InvoiceBookPostingTests
 
         var lowered = run.Post(InvoiceBookKind.Alignment, D(10, 2), company, before, after, 1.00m, 0.40m);
         Assert.Equal(Sorted("A 15.09 +600.50/+600.50", "B 15.09 +400.30/+400.30"), Lines(lowered[0]));
-        Assert.Equal(Sorted("A 02.10 -0.50/-0.50", "остаток 02.10 +0.50/+0.50"), Lines(lowered[1]));
+        Assert.Equal(Sorted("A 02.10 -0.50/-0.50 ⇢", "остаток 02.10 +0.50/+0.50 ⇢"), Lines(lowered[1]));
 
         Assert.Empty(Assert.Single(run.Post(InvoiceBookKind.Correction, D(10, 5), company, after, after, 0.40m)).Lines);
         Assert.Equal(1000.80m, run.Close(_ => true, 9));
@@ -190,15 +199,15 @@ public partial class InvoiceBookPostingTests
         var c2 = new Run { NeverClosed = { new PeriodContour.Company() } };
         decimal September() => c1.Close(OnA, 9) + c2.Close(OnA, 9);
 
-        Assert.Equal("A 02.10 +0.80/+0.80",
+        Assert.Equal("A 02.10 +0.80/+0.80 ⇢",
             Lines(c1.Post(InvoiceBookKind.Alignment, D(10, 2), ClosedA, c1At100, c1At040, 1.00m, 0.40m)[1]).First());
         var second = c2.Post(InvoiceBookKind.Alignment, D(10, 2), ClosedA, c2At100, c2At040, 1.00m, 0.40m);
-        Assert.Equal(Sorted("A 02.10 -0.50/-0.50", "остаток 15.09 +0.50/+0.50"), Lines(second[1]));
+        Assert.Equal(Sorted("A 02.10 -0.50/-0.50 ⇢", "остаток 15.09 +0.50/+0.50"), Lines(second[1]));
         Assert.Equal(1200.20m, September());
 
         c1.Post(InvoiceBookKind.Alignment, D(10, 3), ClosedA, c1At040, c1At100, 0.40m, 1.00m);
         var back = c2.Post(InvoiceBookKind.Alignment, D(10, 3), ClosedA, c2At040, c2At100, 0.40m, 1.00m);
-        Assert.Equal(Sorted("A 03.10 +0.50/+0.50", "остаток 15.09 -0.50/-0.50"), Lines(Assert.Single(back)));
+        Assert.Equal(Sorted("A 03.10 +0.50/+0.50 ⇢", "остаток 15.09 -0.50/-0.50"), Lines(Assert.Single(back)));
         Assert.Equal(1200.20m, September());
     }
 
@@ -233,7 +242,7 @@ public partial class InvoiceBookPostingTests
         var next = run.Post(InvoiceBookKind.Correction, D(10, 6), ClosedA, S05At100, S05At100, 1.00m, atLast: S05At050);
 
         Assert.Equal([InvoiceBookKind.Alignment, InvoiceBookKind.Correction], next.Select(r => r.Kind));
-        Assert.Equal(Sorted("A 06.10 -0.80/-0.80", "остаток 15.09 +0.80/+0.80"), Lines(next[0]));
+        Assert.Equal(Sorted("A 06.10 -0.80/-0.80 ⇢", "остаток 15.09 +0.80/+0.80"), Lines(next[0]));
         Assert.Equal(1.00m, next[0].Tolerance);
         Assert.Empty(next[1].Lines);
     }
@@ -283,10 +292,10 @@ public partial class InvoiceBookPostingTests
 
         var vat = run.Post(InvoiceBookKind.Correction, D(10, 5), ClosedA, unknown, known);
         Assert.Equal(["A 15.09 +120.00/+120.00 vU"], Lines(vat[0]));
-        Assert.Equal(["A 05.10 0.00/-20.00 vU"], Lines(vat[1]));
+        Assert.Equal(["A 05.10 0.00/-20.00 vU ⇢"], Lines(vat[1]));
 
         var unpaid = run.Post(InvoiceBookKind.Unpayment, D(10, 6), ClosedA, known, []);
-        Assert.Equal(["A 06.10 -120.00/-100.00"], Lines(Assert.Single(unpaid)));
+        Assert.Equal(["A 06.10 -120.00/-100.00 ⇢"], Lines(Assert.Single(unpaid)));
     }
 
     /// <summary>S30 (б): с суммой — +12 по «с НДС» и −10 по «без»: net правит прежнее число-заглушку.</summary>
@@ -297,7 +306,7 @@ public partial class InvoiceBookPostingTests
         var vat = run.Post(InvoiceBookKind.Correction, D(10, 5), ClosedA,
             [G(CellA, D(9, 15), 120m, vatUnknown: true)], [G(CellA, D(9, 15), 132m, 110m)]);
 
-        Assert.Equal(["A 05.10 +12.00/-10.00 vU"], Lines(vat[1]));
+        Assert.Equal(["A 05.10 +12.00/-10.00 vU ⇢"], Lines(vat[1]));
     }
 
     /// <summary>
@@ -314,7 +323,7 @@ public partial class InvoiceBookPostingTests
         Grain[] known = [G(CellB, D(9, 15), 120m, 100m), G(CellA, D(9, 15), 120m, 100m)];
 
         var vat = run.Post(InvoiceBookKind.Correction, D(10, 5), closedB, unknown, known);
-        Assert.Equal(Sorted("A 15.09 0.00/-20.00 vU", "B 05.10 0.00/-20.00 vU"), Lines(vat[1]));
+        Assert.Equal(Sorted("A 15.09 0.00/-20.00 vU", "B 05.10 0.00/-20.00 vU ⇢"), Lines(vat[1]));
 
         var more = run.Post(InvoiceBookKind.Correction, D(10, 6), closedB, known,
             [G(CellB, D(9, 15), 120m, 100m), G(CellA, D(9, 15), 132m, 110m)]);

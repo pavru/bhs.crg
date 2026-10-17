@@ -184,12 +184,12 @@ public static class SiteCostsEndpoints
         // Ссылка — только под числом, которое реестр покажет: во взгляде «на момент закрытия» строка, чьё
         // число разошлось с «с исправлениями», её теряет.
         CostLine Line(Guid? id, string name, CostFigure figure, CostFigure? listed, bool linked = true) =>
-            new(id, name, figure.Invoices, figure.Amount, linked && figure == listed);
+            new(id, name, figure.Invoices, figure.Amount, linked && figure.Same(listed), Corrections: figure.Corrections);
         var listedSuppliers = registry.Suppliers.ToDictionary(s => s.Supplier ?? Guid.Empty, s => s.Figure);
         var listedSections = registry.Sections.ToDictionary(s => s.Section.Registry, s => s.Figure, StringComparer.Ordinal);
 
         return TypedResults.Ok(new SiteCostsView(
-            site is { } chosen ? new(chosen, labels[chosen], result.Total.Invoices, result.Total.Amount, result.Total == registry.Total) : null,
+            site is { } chosen ? new(chosen, labels[chosen], result.Total.Invoices, result.Total.Amount, result.Total.Same(registry.Total)) : null,
             $"{first:yyyy-MM}", $"{last:yyyy-MM}", withVat,
             [.. Months(first, last).Select(PaymentViews.Month)],
             [.. result.Sites.Select(s => Line(s.Key, labels[s.Key], s.Value, registry.Sites.GetValueOrDefault(s.Key))).OrderBy(l => l.Name, byName)],
@@ -207,15 +207,16 @@ public static class SiteCostsEndpoints
             // заголовке; реестр зовёт его вместе со стройкой, и это название строка несёт для ссылки.
             [.. result.Sections
                 .Select(s => new CostLine(s.Section.Id, s.Section.Short, s.Figure.Invoices, s.Figure.Amount,
-                    s.Figure == listedSections.GetValueOrDefault(s.Section.Registry),
-                    s.Section.Registry))
+                    s.Figure.Same(listedSections.GetValueOrDefault(s.Section.Registry)),
+                    s.Section.Registry, s.Figure.Corrections))
                 .OrderBy(l => l.Id is null).ThenBy(l => l.Name, byName)],
             result.Total, result.Unmatched, payable, result.VatUnknown, payableVatUnknown,
             closing ? Closing : Corrected,
             differs switch { ViewsDiffer.Totals => "totals", ViewsDiffer.Details => "details", _ => null },
-            result.Total == registry.Total,
+            result.Total.Same(registry.Total),
             result.Unmatched == registry.Unmatched,
-            differs == ViewsDiffer.None ? null : (closing ? registry : atClosing).Total,
+            // Итог другого взгляда — числом, без его корректировок: полоса называет только его.
+            differs == ViewsDiffer.None ? null : (closing ? registry : atClosing).Total with { Corrections = null },
             closing ? registry.Unmatched : null));
     }
 

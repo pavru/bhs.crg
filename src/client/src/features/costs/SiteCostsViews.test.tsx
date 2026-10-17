@@ -29,18 +29,28 @@ const FILTER: SiteFilterValue = (() => {
   };
 })();
 
-/** Ответ на взгляд, о котором спросили: «на момент закрытия» у Комарова 36 — другое число. */
+/**
+ * Ответ на взгляд, о котором спросили: «на момент закрытия» у Комарова 36 — другое число. Корректировки
+ * закрытых периодов (PR 6d) — в любом ответе взгляда закрытия, и при совпавших взглядах тоже: показывать ли
+ * их, решает экран.
+ */
 function report(closing: boolean, differs: SiteCosts['differs']): SiteCosts {
   const zero = { invoices: 0, amount: 0 };
   const diverged = closing && !!differs;
+  const adjusted = <T extends object>(corrections: T) => closing ? { corrections } : {};
   return {
     site: null, from: '2026-09', to: '2026-09', withVat: true, months: ['09.2026'], articles: [], lost: null,
     unallocated: null, suppliers: [], unmatched: { invoices: 1, amount: 20 }, payable: zero, vatUnknown: null, payableVatUnknown: null,
     sites: [
-      { id: 'a', name: 'Комарова 36', invoices: 1, amount: diverged ? 70 : 100, linked: !diverged },
-      { id: 'b', name: 'Ленина 5', invoices: 1, amount: 20, linked: true },
+      { id: 'a', name: 'Комарова 36', invoices: 1, amount: diverged ? 70 : 100, linked: !diverged,
+        ...adjusted({ invoices: 1, amount: -30, whole: false }) },
+      { id: 'b', name: 'Ленина 5', invoices: 1, amount: 20, linked: true, ...adjusted({ invoices: 1, amount: 20, whole: true }) },
+      // Целиком из корректировок и без стрелки: место стрелки свободно, но значка в нём нет — у строки слово.
+      ...(closing ? [{ id: 'c', name: 'Мира 1', invoices: 1, amount: 10, linked: false, corrections: { invoices: 1, amount: 10, whole: true } }] : []),
+      // Смешанная и со стрелкой (число равно реестру): значок у неё всё равно есть — он не на месте стрелки.
+      ...(closing ? [{ id: 'd', name: 'Садовая 2', invoices: 2, amount: 50, linked: true, corrections: { invoices: 1, amount: 5, whole: false } }] : []),
     ],
-    total: { invoices: 2, amount: diverged ? 90 : 120 },
+    total: { invoices: 2, amount: diverged ? 90 : 120, ...adjusted({ invoices: 2, amount: -10, whole: false }) },
     view: closing ? 'closing' : 'corrected', differs, totalLinked: !diverged, unmatchedLinked: true,
     other: differs ? { invoices: 2, amount: diverged ? 120 : 90 } : null,
     unmatchedNow: closing ? { invoices: 1, amount: 20 } : null,
@@ -87,6 +97,7 @@ describe('два взгляда на закрытые периоды', () => {
     expect(asked()).toEqual([undefined]);
     expect(arrow('Итого затраты')).not.toBeNull();
     expect(arrow('Комарова 36')).not.toBeNull();
+    expect(screen.queryByText(/корректировк/)).toBeNull();
   });
 
   it('«на момент закрытия» спрашивается словом в адресе; стрелки — только у чисел, равных реестру', async () => {
@@ -97,8 +108,18 @@ describe('два взгляда на закрытые периоды', () => {
     expect(screen.getByText(/· на момент закрытия/)).toBeTruthy();
     expect(arrow('Итого затраты')).toBeNull();
     expect(arrow('Комарова 36')).toBeNull();
+    // Корректировки закрытых периодов (PR 6d, разбор Дизайнера п. 7): под итогом — «включая»; у смешанной
+    // строки — значок на месте стрелки; у строки целиком из корректировок — слово в названии и без значка.
+    expect(screen.getByText(/включая корректировки закрытых периодов: 2 счёта/)).toBeTruthy();
+    expect(screen.getByRole('img', { name: /^Включая корректировки закрытых периодов: 1 счёт, \S?30/ })).toBeTruthy();
+    expect(screen.getAllByRole('img', { name: /корректировки закрытых периодов/ })).toHaveLength(2);
+    expect(arrow('Садовая 2')).not.toBeNull();
+    expect(screen.getByRole('img', { name: /^Включая корректировки закрытых периодов: 1 счёт, 5/ })).toBeTruthy();
     // Ленина 5 сошлась с реестром — её стрелка на месте.
     expect(arrow('Ленина 5')).not.toBeNull();
+    expect(screen.getByText('Ленина 5').parentElement?.textContent).toContain('· корректировка');
+    expect(screen.getByText('Мира 1').parentElement?.textContent).toContain('· корректировка');
+    expect(screen.getByText('Комарова 36').closest('span')?.textContent).not.toContain('· корректировка');
     // «Без позиции» — не «из них» под итогом закрытия, а указатель на первый взгляд; он же переключает.
     expect(screen.queryByText(/из них без позиции/)).toBeNull();
     expect(screen.getByText(/Без позиции номенклатуры сейчас: 1 счёт/)).toBeTruthy();
@@ -134,5 +155,8 @@ describe('два взгляда на закрытые периоды', () => {
     expect(screen.queryByRole('region', { name: 'Закрытые периоды' })).toBeNull();
     expect(screen.queryByText(/· на момент закрытия/)).toBeNull();
     expect(arrow('Итого затраты')).not.toBeNull();
+    // На экране числа основной таблицы — и корректировок взгляда закрытия при них нет.
+    expect(screen.queryByText(/корректировк/)).toBeNull();
+    expect(screen.queryByRole('img', { name: /корректировки/ })).toBeNull();
   });
 });
