@@ -63,6 +63,7 @@ public class DomainExceptionPolicyTests
         ["BHS.CRG.Infrastructure/DataSets/DataSetParserFactory.cs"] = "нет парсера для формата — дефект реестра парсеров",
         ["BHS.CRG.Infrastructure/Generation/UserLibMaterializer.cs"] = "сработала защита от записи за пределы дерева — обязана быть громкой, а не тихим 409",
         ["BHS.CRG.Infrastructure/Generation/TypeBlocksMaterializer.cs"] = "та же защита для блоков типов: пути формирует сервер, выход за папку компиляции — дефект, не отказ пользователю",
+        ["BHS.CRG.Infrastructure/Backup/CoreFileScan.cs"] = "тип поля манифеста незнаком обходу файлов копии (issue #1422) — дефект модели, ловит CoreFileScanTests",
         ["BHS.CRG.Infrastructure/Storage/BlobStorage.cs"] = "путь берётся из базы, а не из запроса: «исправьте запрос» тут неверно по существу",
         ["BHS.CRG.Modules.Costs/Data/AllocationSplit.cs"] = "делить не на что или вес не больше нуля: цели и веса проверяет адрес предпросмотра раньше (AllocationMatrixEndpoints.Targets, DocumentTargetsAsync) и отказывает своими словами — сюда такое доходит только из нашего кода",
         ["BHS.CRG.Modules.Costs/Data/Invoice.cs"] = "номер записи книги проводок не растёт (E2, issue #1100): его ставит только InvoiceBook после своей сверки — человек до этого отказа не доходит",

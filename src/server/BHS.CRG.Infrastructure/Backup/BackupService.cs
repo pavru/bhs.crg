@@ -78,9 +78,11 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             path, FileMode.CreateNew, FileAccess.Write, FileShare.None,
             bufferSize: 81920, FileOptions.Asynchronous);
 
-        var blobPaths = ExtractBlobPaths(manifest, warnings);
+        var selection = SelectBlobs(manifest, warnings);
+        LogScanFindings(selection);
+        var blobPaths = selection.Paths;
         var summary = BuildSummary(manifest, blobPaths.Count, warnings);
-        var missingBlobs = 0;
+        var missingBlobs = new HashSet<string>(StringComparer.Ordinal);
 
         using (var zip = new ZipArchive(file, ZipArchiveMode.Create, leaveOpen: true))
         {
@@ -108,14 +110,15 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
                 {
                     // Blob missing in storage — skip, DB reference kept intact
                     logger.LogWarning(ex, "Бинарный файл отсутствует в хранилище при экспорте бэкапа: {BlobPath}", blobPath);
-                    missingBlobs++;
+                    missingBlobs.Add(blobPath);
                 }
 
                 done++;
                 if (progress is not null) await progress(done, blobPaths.Count);
             }
 
-            if (missingBlobs > 0) warnings.Add(MissingBlobsWarning(missingBlobs, blobPaths.Count));
+            WarnAboutScan(selection, missingBlobs, warnings);
+            if (missingBlobs.Count > 0) warnings.Add(MissingBlobsWarning(missingBlobs.Count, blobPaths.Count));
 
             // Паспорт пишем ПОСЛЕДНИМ, хотя читается он первым: до конца прогона по блобам не
             // известно, чего в хранилище не оказалось, а поле «что пропущено» заведено именно
@@ -263,11 +266,12 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             await JsonSerializer.SerializeAsync(deflate, manifest, JsonOptions, ct);
         var manifestBytes = counter.Written;
 
-        var paths = ExtractBlobPaths(manifest, warnings);
+        var selection = SelectBlobs(manifest, warnings);
+        var paths = selection.Paths;
         var overhead = EntryOverhead("manifest.json") + EntryOverhead(BackupFileStore.SummaryEntryName);
 
         long blobBytes = 0;
-        var missing = 0;
+        var missing = new HashSet<string>(StringComparer.Ordinal);
         foreach (var path in paths)
         {
             overhead += EntryOverhead($"blobs/{path}");
@@ -276,7 +280,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             if (!sizes.TryGetValue(path, out var size))
                 sizes[path] = size = await blob.GetSizeAsync(path, ct);
             // Недоступный блоб экспорт пропускает с предупреждением - оценка считает его так же.
-            if (size is null) missing++;
+            if (size is null) missing.Add(path);
             else blobBytes += size.Value;
         }
 
@@ -285,7 +289,8 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
         // проверяется с точностью до сотен байт - то есть разъехалось бы сразу и молча. Считаем
         // ПОСЛЕ размеров файлов, как и копия пишет паспорт последним: о пропавших файлах тоже
         // говорит паспорт.
-        if (missing > 0) warnings.Add(MissingBlobsWarning(missing, paths.Count));
+        WarnAboutScan(selection, missing, warnings);
+        if (missing.Count > 0) warnings.Add(MissingBlobsWarning(missing.Count, paths.Count));
         var summaryCounter = new CountingStream();
         await using (var deflate = new DeflateStream(summaryCounter, CompressionLevel.Fastest, leaveOpen: true))
             await deflate.WriteAsync(BackupFileStore.SummaryBytes(BuildSummary(manifest, paths.Count, warnings)), ct);
@@ -296,7 +301,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             ManifestBytes: manifestBytes,
             BlobBytes: blobBytes,
             BlobCount: paths.Count,
-            MissingBlobCount: missing);
+            MissingBlobCount: missing.Count);
     }
 
     private async Task<BackupManifest> BuildManifestAsync(
