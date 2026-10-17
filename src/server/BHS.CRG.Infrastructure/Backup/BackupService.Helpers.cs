@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Infrastructure.DataSets;
@@ -98,11 +97,11 @@ public partial class BackupService
     // ── Blob path extraction ──────────────────────────────────────────────────
 
     /// <summary>
-    /// Все файлы хранилища, которые уезжают с этим манифестом. Отсюда берут пути архив, оценка веса и
-    /// паспорт копии — поэтому одно место, а не три.
+    /// Файлы хранилища, которые копия знает по месту: список, выписанный руками. Архив, оценка веса и
+    /// паспорт берут пути не отсюда, а из <see cref="SelectBlobs" />: к списку там добавляется обход
+    /// манифеста по форме пути — он находит то, о чём список не знает (issue #1422).
     /// </summary>
-    /// <param name="warnings">Куда сказать о данных, пути из которых прочесть не удалось. Оценка веса
-    /// передаёт сюда пустой список: предупреждения она не показывает, их скажет сама копия.</param>
+    /// <param name="warnings">Куда сказать о данных, пути из которых прочесть не удалось.</param>
     private static HashSet<string> ExtractBlobPaths(BackupManifest manifest, List<string> warnings)
     {
         var paths = new HashSet<string>(StringComparer.Ordinal);
@@ -185,9 +184,10 @@ public partial class BackupService
     /// <see cref="GostGroupingProjection.FilePathColumn" />. Строка без колонки или с непривычным
     /// значением путей не даёт; непрочитанный кэш назван в предупреждениях, как и разбиение.
     ///
-    /// <para>Берётся только значение формы пути нашего хранилища (<see cref="BlobPathShape.Pattern" />),
-    /// ревью PR #1408. У группы, которую не удалось вырезать, проекция оставляет распознанные поля
-    /// штампа, и поле профиля с тем же именем кладёт в колонку текст из PDF. Взятый «путём», он
+    /// <para>Берётся только точный путь нашего хранилища (<see cref="BlobPathShape.IsExactPath" />),
+    /// ревью PR #1408; общая форма <see cref="BlobPathShape.Pattern" /> для этого слишком широка
+    /// (ревью PR #1289, issue #1422). У группы, которую не удалось вырезать, проекция оставляет
+    /// распознанные поля штампа, и поле профиля с тем же именем кладёт в колонку текст из PDF. Взятый «путём», он
     /// ушёл бы в хранилище запросом за чужим объектом — или ложным «файлов не оказалось», в котором
     /// тонет настоящая потеря.</para>
     /// </summary>
@@ -202,7 +202,7 @@ public partial class BackupService
                 if (row.ValueKind == JsonValueKind.Object &&
                     row.TryGetProperty(GostGroupingProjection.FilePathColumn, out var path) &&
                     path.ValueKind == JsonValueKind.String && path.GetString() is { Length: > 0 } part &&
-                    StoragePath().IsMatch(part))
+                    BlobPathShape.IsExactPath(part))
                     paths.Add(part);
         }
         catch (JsonException)
@@ -211,9 +211,6 @@ public partial class BackupService
                          "вложений из них в копию не вошли.");
         }
     }
-
-    [GeneratedRegex(BlobPathShape.Pattern)]
-    private static partial Regex StoragePath();
 
     private static void CollectBlobPaths(JsonElement element, HashSet<string> paths)
     {
