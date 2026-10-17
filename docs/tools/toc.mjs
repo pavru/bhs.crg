@@ -14,7 +14,7 @@
 // Зависимостей нет нарочно: модуль импортирует сторож из проверки фронтенда, где docs/tools/node_modules
 // не установлены.
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -53,60 +53,123 @@ export function slugger() {
   };
 }
 
+
 /**
- * Текст заголовка, как его видит читатель, — из него GitHub строит якорь: код без кавычек-обратных
- * апострофов, ссылка — своим текстом, без звёздочек выделения.
+ * Текст заголовка, как его видит читатель (textContent отрисованного заголовка), — из него GitHub
+ * строит якорь.
+ *
+ * <p>⚠️ Код разбирается ПЕРВЫМ и остаётся как написан: `<путь>` внутри кода — текст, а не тег, и
+ * выброшенный тегом он дал бы якорь без слова (ревью PR #1447). Вне кода: ссылка — своим текстом, теги
+ * выброшены, звёздочки и подчёркивания выделения сняты (подчёркивание внутри слова — `BACKUP_DIR` —
+ * не выделение и остаётся), сущности вроде «&amp;» — своим знаком.</p>
  */
 export function plain(markdown) {
   return markdown
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/`([^`]*)`/g, '$1')
-    .replace(/\*+/g, '')
-    .replace(/<[^>]+>/g, '')
+    .split(/(`[^`]*`)/)
+    .map((part, i) => (i % 2 === 1 ? part.slice(1, -1) : prose(part)))
+    .join('')
     .trim();
 }
 
+const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+
+function prose(text) {
+  return text
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\*+/g, '')
+    .replace(/(^|[^\p{L}\p{N}])_+(?=\S)|(?<=\S)_+(?=[^\p{L}\p{N}]|$)/gu, '$1')
+    .replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (all, name) => {
+      if (name[0] !== '#') return ENTITIES[name.toLowerCase()] ?? all;
+      const code = name[1] === 'x' || name[1] === 'X' ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : all;
+    });
+}
+
+const ATX = /^ {0,3}(#{1,6})[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$/;
+
 /**
- * Заголовки документа по порядку: уровень, текст как в Markdown и якорь.
+ * Документ одним проходом по строкам: заголовки, где стоит блок содержания, ссылки на якоря из текста
+ * и заголовки в форме, которую построитель не понимает.
  *
  * <p>⚠️ Строки «#» внутри блоков кода — не заголовки: в DEPLOYMENT блоки shell полны комментариев
  * вида «# 1. Взять со страницы выпуска…», и наивный разбор принял бы их за разделы. Ограда блока
  * бывает с отступом — у блока внутри пункта списка.</p>
  *
- * <p>Блок содержания пропускается: заголовков в нём нет, но и считать его частью документа нельзя.</p>
+ * <p>⚠️ Метка содержания — только ЦЕЛОЙ строкой и вне блоков кода (ревью PR #1447). Поиск подстроки
+ * находил бы и упоминание метки в тексте («метками `&lt;!-- toc --&gt;`…»), и перестройка переписала
+ * бы прозу вместо блока.</p>
+ *
+ * <p>⚠️ Заголовки в цитате, в пункте списка и подчёркнутые («===», «---») GitHub считает, а этот
+ * разбор — нет: счёт повторов («-1», «-2») и содержание съехали бы молча. Разбирать их всерьёз —
+ * значит писать свой Markdown; дешевле запретить: такие строки попадают в `unsupported`, и сторож
+ * отказывает, называя строку.</p>
  */
-export function headings(md) {
+export function scan(md) {
+  const lines = md.split(/\r?\n/);
   const slug = slugger();
-  const found = [];
+  const doc = { lines, headings: [], links: [], unsupported: [], start: -1, end: -1 };
   let fence = null;
   let inToc = false;
-  for (const line of md.split(/\r?\n/)) {
-    if (line.trim() === START) { inToc = true; continue; }
-    if (line.trim() === END) { inToc = false; continue; }
-    if (inToc) continue;
-
+  let paragraph = false;
+  lines.forEach((line, index) => {
+    const number = index + 1;
     const mark = /^\s*(`{3,}|~{3,})/.exec(line);
     if (mark) {
       if (fence === null) fence = mark[1];
       else if (mark[1][0] === fence[0] && mark[1].length >= fence.length && line.trim() === mark[1]) fence = null;
-      continue;
+      paragraph = false;
+      return;
     }
-    if (fence !== null) continue;
+    if (fence !== null) return;
 
-    const heading = /^ {0,3}(#{1,6})[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$/.exec(line);
-    if (!heading) continue;
-    const text = heading[2];
-    found.push({ level: heading[1].length, text, anchor: slug(plain(text)) });
-  }
-  return found;
+    const bare = line.trim();
+    if (bare === START && doc.start < 0) { doc.start = index; inToc = true; paragraph = false; return; }
+    if (bare === END && inToc) { doc.end = index; inToc = false; paragraph = false; return; }
+    if (inToc) return;
+
+    const heading = ATX.exec(line);
+    if (heading) {
+      doc.headings.push({ level: heading[1].length, text: heading[2], anchor: slug(plain(heading[2])), line: number });
+      paragraph = false;
+    } else if (/^\s*>\s*#{1,6}[ \t]/.test(line) || /^\s*(?:[-*+]|\d+[.)])[ \t]+#{1,6}[ \t]/.test(line)) {
+      doc.unsupported.push(`строка ${number}: заголовок внутри цитаты или пункта списка — «${bare}»`);
+    } else if (paragraph && /^ {0,3}(=+|-+)[ \t]*$/.test(line)) {
+      doc.unsupported.push(`строка ${number}: заголовок, подчёркнутый «${bare}», — пишите его через «##»`);
+    }
+
+    for (const link of line.replace(/`[^`]*`/g, '').matchAll(/\]\(#([^)\s]+)\)/g))
+      doc.links.push({ anchor: decodeURIComponent(link[1]), line: number });
+
+    // Подчёркивание делает заголовком только строку абзаца, начатую с края: продолжение пункта списка
+    // (с отступом), строка таблицы, цитаты или разметки под чертой «---» остаются чертой.
+    paragraph = !heading && /^[^\s>|<\-*+]/.test(line) && !/^\d+[.)][ \t]/.test(line);
+  });
+  return doc;
+}
+
+/** Заголовки документа по порядку: уровень, текст как в Markdown, якорь и строка. */
+export function headings(md) {
+  return scan(md).headings;
+}
+
+/**
+ * Текст строки содержания. Ссылка в заголовке — своим текстом, скобки экранированы: иначе вышла бы
+ * ссылка в ссылке, а её не отрисует ни GitHub, ни marked (ревью PR #1447).
+ */
+function tocText(text) {
+  return text
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[[\]]/g, '\\$&');
 }
 
 /** Блок содержания: разделы «##» и подразделы «###», каждая строка — ссылка на свой заголовок. */
 export function tocBlock(md) {
   const lines = headings(md)
     .filter(h => h.level === 2 || h.level === 3)
-    .map(h => `${h.level === 3 ? '  ' : ''}- [${h.text}](#${h.anchor})`);
+    .map(h => `${h.level === 3 ? '  ' : ''}- [${tocText(h.text)}](#${h.anchor})`);
   // Пустая строка перед закрывающей меткой — чтобы она не прилипла к последнему пункту списка.
   return [START, '**Содержание**', '', ...lines, '', END].join('\n');
 }
@@ -116,35 +179,56 @@ export function tocBlock(md) {
  * содержание (после вводного абзаца, до §1), решает человек один раз.
  */
 export function withToc(md, file = 'документ') {
-  const from = md.indexOf(START);
-  const to = md.indexOf(END);
-  if (from < 0 || to < from) throw new Error(`${file}: нет меток ${START} … ${END} — поставьте их перед §1.`);
+  const { lines, start, end } = scan(md);
+  if (start < 0 || end < 0) throw new Error(`${file}: нет меток ${START} … ${END} отдельными строками — поставьте их перед §1.`);
   const eol = md.includes('\r\n') ? '\r\n' : '\n';
-  return md.slice(0, from) + tocBlock(md).replace(/\n/g, eol) + md.slice(to + END.length);
+  return [...lines.slice(0, start), ...tocBlock(md).split('\n'), ...lines.slice(end + 1)].join(eol);
 }
 
 /**
- * Чем содержание расходится с заголовками — человеческим языком, по строке на расхождение: новая
- * глава без строки, строка без главы, переименование. Пусто — сходится.
+ * Чем документ расходится с заголовками — человеческим языком, по строке на расхождение: новая глава
+ * без строки содержания, строка без главы, переименование, ссылка из текста на якорь, которого нет, и
+ * заголовок, который построитель не понимает. Пусто — сходится.
  */
 export function tocProblems(md, file) {
-  const from = md.indexOf(START);
-  const to = md.indexOf(END);
-  if (from < 0 || to < from) return [`${file}: нет меток ${START} … ${END} перед §1.`];
+  const doc = scan(md);
+  if (doc.start < 0 || doc.end < 0) return [`${file}: нет меток ${START} … ${END} отдельными строками перед §1.`];
 
-  const written = md.slice(from, to).split(/\r?\n/).filter(l => /^\s*- \[/.test(l)).map(l => l.trim());
-  const expected = tocBlock(md).split('\n').filter(l => /^\s*- \[/.test(l)).map(l => l.trim());
-  const problems = [];
+  const problems = doc.unsupported.map(u => `${file}, ${u}`);
+  const item = l => /^\s*- \[/.test(l);
+  const written = doc.lines.slice(doc.start, doc.end).filter(item).map(l => l.trim());
+  const expected = tocBlock(md).split('\n').filter(item).map(l => l.trim());
   for (const line of expected) if (!written.includes(line)) problems.push(`${file}: в содержании нет строки ${line}`);
   for (const line of written) if (!expected.includes(line)) problems.push(`${file}: в содержании лишняя строка ${line}`);
   if (problems.length === 0 && written.join('\n') !== expected.join('\n'))
     problems.push(`${file}: строки содержания стоят не в порядке заголовков`);
-  if (problems.length === 0 && md.slice(from, to + END.length).replace(/\r\n/g, '\n') !== tocBlock(md))
+  if (problems.length === 0 && doc.lines.slice(doc.start, doc.end + 1).join('\n') !== tocBlock(md))
     problems.push(`${file}: блок содержания отличается от построенного (отступы, подпись)`);
+
+  // Ссылки на разделы из текста (README советует их ставить): переименование главы перестройка
+  // содержания чинит, а эти — нет, и без сверки они вели бы в никуда молча (ревью PR #1447).
+  const anchors = new Set(doc.headings.map(h => h.anchor));
+  for (const link of doc.links)
+    if (!anchors.has(link.anchor))
+      problems.push(`${file}, строка ${link.line}: ссылка «#${link.anchor}» ведёт в никуда — заголовка с таким якорем нет`);
   return problems;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/**
+ * Запущен ли модуль сам, а не импортирован. Сравниваются настоящие пути: через ссылку на каталог
+ * (junction, symlink) Node называет модуль его настоящим путём, а argv[1] — путём ссылки, и `--check`
+ * молча не проверял бы ничего (ревью PR #1447).
+ */
+function launchedDirectly() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(resolve(process.argv[1])) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (launchedDirectly()) {
   const check = process.argv.includes('--check');
   let failed = false;
   for (const file of TOC_DOCS) {
@@ -164,4 +248,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     console.error(`Содержание разошлось с заголовками. Перестроить: ${FIX_COMMAND}`);
     process.exit(1);
   }
+  // Успех говорится вслух: молчание выглядело бы так же, как проверка, которая не запускалась.
+  if (check) console.log(`Содержание сходится с заголовками: ${TOC_DOCS.join(', ')}.`);
 }

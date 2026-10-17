@@ -13,7 +13,7 @@
 import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { dirname, resolve, basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { marked } from 'marked';
+import { Marked } from 'marked';
 import { headings } from './toc.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -86,18 +86,29 @@ function footer(title) {
 // Якоря заголовков (issue #1374): без них ссылки содержания в PDF вели бы в никуда — marked id не
 // ставит. Берутся из toc.mjs по порядку заголовков, тем же правилом, что у GitHub, — одна ссылка
 // работает в обоих местах. Разойдись разбор marked и toc.mjs (заголовок, который видит один и не видит
-// другой), — отказ сборки, а не PDF со съехавшими ссылками.
-let anchors = [];
-marked.use({
-  renderer: {
-    heading({ tokens, depth, text }) {
-      const next = anchors.shift();
-      if (!next || next.text !== text)
-        throw new Error(`Заголовок «${text}» не совпал с разбором toc.mjs («${next?.text ?? 'нет'}») — якоря съехали бы.`);
-      return `<h${depth} id="${next.anchor}">${this.parser.parseInline(tokens)}</h${depth}>\n`;
+// другой), — отказ сборки, а не PDF со съехавшими ссылками: и на несовпавший заголовок, и на
+// заголовок toc.mjs, до которого marked так и не дошёл.
+//
+// Свой экземпляр marked на документ, а не общий marked.use с очередью снаружи (ревью PR #1447): очередь
+// одного документа не может достаться разбору другого — ни при второй сборке подряд, ни при разборе
+// фрагмента.
+function renderDocument(md, file) {
+  const anchors = headings(md);
+  const parser = new Marked({
+    renderer: {
+      heading({ tokens, depth, text }) {
+        const next = anchors.shift();
+        if (!next || next.text !== text)
+          throw new Error(`${file}: заголовок «${text}» не совпал с разбором toc.mjs («${next?.text ?? 'нет'}») — якоря съехали бы.`);
+        return `<h${depth} id="${next.anchor}">${this.parser.parseInline(tokens)}</h${depth}>\n`;
+      },
     },
-  },
-});
+  });
+  const html = parser.parse(md);
+  if (anchors.length > 0)
+    throw new Error(`${file}: заголовок «${anchors[0].text}» (строка ${anchors[0].line}) видит toc.mjs, а marked — нет: его ссылка в PDF вела бы в никуда.`);
+  return html;
+}
 
 const chromium = await loadChromium();
 mkdirSync(OUT, { recursive: true });
@@ -123,8 +134,7 @@ for (const [file, title] of jobs) {
   const cover = `<div class="doc-title"><div class="t">${title}</div>
     <div class="s">Система исполнительной документации BHS.CRG</div>
     <div class="d">Версия документа: ${new Date().toISOString().slice(0, 10)}</div></div>`;
-  anchors = headings(md);
-  const html = htmlTemplate(title, cover + marked.parse(md));
+  const html = htmlTemplate(title, cover + renderDocument(md, file));
 
   // Временный HTML рядом с документом — чтобы относительные пути к images/ работали.
   const tmp = resolve(DOCS, `.tmp-${basename(file)}.html`);
