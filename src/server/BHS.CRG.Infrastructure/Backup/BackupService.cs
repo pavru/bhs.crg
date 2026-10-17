@@ -95,16 +95,16 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             var done = 0;
             foreach (var blobPath in blobPaths)
             {
+                // Пропуском прощается только отказ ОТКРЫТЬ файл в хранилище, и под catch стоит одно
+                // это: запись в архиве заводится после, так что пропущенный файл не оставляет в
+                // архиве ничего. На этом держится оценка веса (MeasureAsync): нет файла — нет ни
+                // байтов, ни заголовка (issue #1425). Отказ посреди переноса в архив пропуском не
+                // считается и роняет экспорт: запись к тому времени заведена, и обрезанный файл
+                // восстановление выдало бы за целый.
+                Stream? blobStream = null;
                 try
                 {
-                    // await using, а не голый вызов: поток от хранилища держит соединение, и до
-                    // issue #687 их было по числу ассетов шаблона — единицы. Теперь их по числу
-                    // сертификатов в библиотеке, и неосвобождённые ответы исчерпают пул соединений
-                    // клиента MinIO — экспорт не упадёт, а повиснет, что разбирать заметно труднее.
-                    await using var blobStream = await blob.DownloadAsync(blobPath, ct);
-                    var entry = zip.CreateEntry($"blobs/{blobPath}", CompressionLevel.NoCompression);
-                    await using var ew = entry.Open();
-                    await blobStream.CopyToAsync(ew, ct);
+                    blobStream = await blob.DownloadAsync(blobPath, ct);
                 }
                 catch (Exception ex)
                 {
@@ -112,6 +112,18 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
                     logger.LogWarning(ex, "Бинарный файл отсутствует в хранилище при экспорте бэкапа: {BlobPath}", blobPath);
                     missingBlobs.Add(blobPath);
                 }
+
+                // await using, а не голый вызов: поток от хранилища держит соединение, и до
+                // issue #687 их было по числу ассетов шаблона — единицы. Теперь их по числу
+                // сертификатов в библиотеке, и неосвобождённые ответы исчерпают пул соединений
+                // клиента MinIO — экспорт не упадёт, а повиснет, что разбирать заметно труднее.
+                if (blobStream is not null)
+                    await using (blobStream)
+                    {
+                        var entry = zip.CreateEntry($"blobs/{blobPath}", CompressionLevel.NoCompression);
+                        await using var ew = entry.Open();
+                        await blobStream.CopyToAsync(ew, ct);
+                    }
 
                 done++;
                 if (progress is not null) await progress(done, blobPaths.Count);
@@ -251,7 +263,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
         var manifest = await BuildManifestAsync(scope, warnings, ct);
         return new BackupSizeEstimate(
             scope.ToString(),
-            await MeasureAsync(manifest, new Dictionary<string, long?>(StringComparer.Ordinal), warnings, ct),
+            await MeasureAsync(manifest, warnings, ct),
             limitBytes);
     }
 
@@ -259,7 +271,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
     /// <param name="warnings">Предупреждения, собранные при построении манифеста; сюда же ложатся
     /// предупреждения сбора путей и пропавших файлов — в том порядке, что у настоящей копии.</param>
     private async Task<BackupSizeVariant> MeasureAsync(
-        BackupManifest manifest, Dictionary<string, long?> sizes, List<string> warnings, CancellationToken ct)
+        BackupManifest manifest, List<string> warnings, CancellationToken ct)
     {
         var counter = new CountingStream();
         await using (var deflate = new DeflateStream(counter, CompressionLevel.Fastest, leaveOpen: true))
@@ -274,14 +286,16 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
         var missing = new HashSet<string>(StringComparer.Ordinal);
         foreach (var path in paths)
         {
-            overhead += EntryOverhead($"blobs/{path}");
-            // Размер каждого блоба спрашиваем один раз на обе оценки: конфигурационные файлы
-            // входят в обе, и повторный HEAD по каждому из них удвоил бы стоимость запроса.
-            if (!sizes.TryGetValue(path, out var size))
-                sizes[path] = size = await blob.GetSizeAsync(path, ct);
-            // Недоступный блоб экспорт пропускает с предупреждением - оценка считает его так же.
+            var size = await blob.GetSizeAsync(path, ct);
+            // Недоступный блоб экспорт пропускает с предупреждением и записи в архиве не заводит -
+            // оценка считает его так же, вместе с заголовком: до issue #1425 заголовок шёл за
+            // каждый путь, и десять пропавших файлов завышали оценку на 3,6 КБ.
             if (size is null) missing.Add(path);
-            else blobBytes += size.Value;
+            else
+            {
+                blobBytes += size.Value;
+                overhead += EntryOverhead($"blobs/{path}");
+            }
         }
 
         // Паспорт копии (issue #831) - вторая JSON-запись архива. Считаем её тем же Deflate: без
