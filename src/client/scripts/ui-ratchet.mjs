@@ -5,8 +5,8 @@
 // <select> вместо Select, произвольный размер текста text-[11px], сырая палитра Tailwind,
 // браузерная подсказка title вместо Tooltip (#1394), нативный флажок вместо Checkbox (#1414), свои
 // чипы, пометки и вкладки вместо Chip, StatusBadge и Tabs (#1416), кнопка из одной иконки вместо
-// IconButton (#1417), белый текст на сплошной заливке вместо text-on-* (#1462, единственное правило,
-// которое смотрит и shared/).
+// IconButton (#1417), белый текст на сплошной заливке вместо text-on-* (#1462, смотрит и shared/ —
+// каталоги правила называет его `dirs`).
 // Переписать накопленное разом нельзя, а остановить рост можно — тем же приёмом, что храповик
 // линта (#854) и размера файлов (#1041): накопленное не чинить, новое не добавлять.
 //
@@ -23,7 +23,7 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { RULES, countViolations, compare, normalize } from './ui-ratchet-lib.mjs';
+import { RULES, countViolations, compare, normalize, dirsOf } from './ui-ratchet-lib.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const clientRoot = join(here, '..');
@@ -31,17 +31,18 @@ const srcRoot = join(clientRoot, 'src');
 const baselinePath = join(clientRoot, 'ui-baseline.json');
 const update = process.argv.includes('--update');
 
-// Под присмотром — экраны. shared/ — только правилами с `shared: true`: остальным там не место,
-// там живут сами DataGrid и Select, которые эти элементы и заворачивают. Тесты не считаются: разметка
-// в фикстурах — не интерфейс.
+// Под присмотром — экраны; другие каталоги — только правилами, которые их назвали (`dirs`): в shared/
+// живут сами DataGrid и Select, которые эти элементы и заворачивают. Тесты не считаются: разметка в
+// фикстурах — не интерфейс.
 const sources = dir => readdirSync(join(srcRoot, dir), { recursive: true })
   .map(f => dir + '/' + String(f).replaceAll('\\', '/'))
   .filter(f => /\.(tsx?|jsx?)$/.test(f) && !/\.test\.[tj]sx?$/.test(f));
+const dirs = [...new Set(RULES.flatMap(dirsOf))];
 
 const actual = {};
-for (const [dir, shared] of [['features', false], ['shared', true]])
+for (const dir of dirs)
   for (const file of sources(dir))
-    for (const [rule, n] of Object.entries(countViolations(readFileSync(join(srcRoot, file), 'utf8'), { shared })))
+    for (const [rule, n] of Object.entries(countViolations(readFileSync(join(srcRoot, file), 'utf8'), { dir })))
       (actual[rule] ??= {})[file] = n;
 
 const sum = level => Object.fromEntries(RULES.map(r =>
@@ -63,7 +64,9 @@ const baseline = JSON.parse(readFileSync(baselinePath, 'utf8'));
 const { worse, better } = compare(baseline, actual);
 const line = d => `  ${d.file} — ${d.rule}: было ${d.was}, стало ${d.now}`;
 
-console.log(`Нарушений интерфейса в features/ (и white-on-fill в shared/): ${summary(actual)}.`);
+const wider = RULES.filter(r => dirsOf(r).some(d => d !== 'features'))
+  .map(r => `${r.id} — ещё в ${dirsOf(r).filter(d => d !== 'features').join(', ')}/`);
+console.log(`Нарушений интерфейса в features/${wider.length ? ` (${wider.join('; ')})` : ''}: ${summary(actual)}.`);
 
 if (worse.length > 0) {
   console.error('\nНарушений интерфейса стало БОЛЬШЕ:\n' + worse.map(line).join('\n'));

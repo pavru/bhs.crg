@@ -132,9 +132,20 @@ describe('храповик интерфейса: счёт', () => {
     ].join('\n'))).toEqual({});
   });
 
+  /** Ревью #1477: прозрачность, заливка модификатором, свои белые утилиты, произвольное значение, не-className. */
+  it('белое на заливке — во всех записях заливки и белого', () => {
+    expect(countViolations([
+      '<span className="bg-brand/90 text-white" />',
+      '<button className="hover:bg-brand-hover fill-white" />',
+      '<div className="bg-success stroke-white divide-white" />',
+      '<div className="bg-[var(--f-brand)] text-white" /> <i className="bg-[var(--color-danger)] shadow-white" />',
+      '<Badge iconClassName="bg-warning text-white" />',
+    ].join('\n'))).toEqual({ 'white-on-fill': 6 });
+  });
+
   it('в shared/ считается только белое на заливке', () => {
     const text = '<table /> <select /> <button className="bg-danger text-white">x</button>';
-    expect(countViolations(text, { shared: true })).toEqual({ 'white-on-fill': 1 });
+    expect(countViolations(text, { dir: 'shared' })).toEqual({ 'white-on-fill': 1 });
     expect(countViolations(text)).toEqual({ table: 1, select: 1, 'white-on-fill': 1 });
   });
 
