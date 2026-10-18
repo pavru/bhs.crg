@@ -138,12 +138,19 @@ public class OutboundConnectTests
         // настоящий отказ. Listen(4) ни при чём: подключение одно, а переполнение очереди на Linux
         // отбрасывает SYN, а не отвечает сбросом.
         var accepted = listener.AcceptAsync();
+        // Отказ подключения — итог теста, и приём до ожидания тогда не доходит: слушатель закроется,
+        // приём завершится отказом, и этот отказ не должен всплыть вдобавок ненаблюдаемым исключением.
+        _ = accepted.ContinueWith(t => _ = t.Exception,
+            CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
 
         var endPoint = new DnsEndPoint(IPAddress.Loopback.ToString(), port);
         using var socket = await OutboundConnect.ConnectAsync(endPoint, filter: null, CancellationToken.None);
-        using var server = await accepted;
+        // Со сроком: подключение, ушедшее не к этому слушателю, иначе повесило бы прогон, а не уронило тест.
+        using var server = await accepted.WaitAsync(TimeSpan.FromSeconds(10));
 
-        Assert.True(socket.Connected);
+        // Принятое — именно наше соединение, а не просто «какое-то подключение состоялось».
+        Assert.Equal(listener.LocalEndPoint, socket.RemoteEndPoint);
+        Assert.Equal(socket.LocalEndPoint, server.RemoteEndPoint);
     }
 
     [Fact]
