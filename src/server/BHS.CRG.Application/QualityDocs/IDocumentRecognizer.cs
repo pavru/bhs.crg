@@ -1,7 +1,19 @@
 ﻿namespace BHS.CRG.Application.QualityDocs;
 
 /// <summary>Поле-цель для извлечения (плоский путь, напр. «ВыпустившаяОрганизация.ИНН»).</summary>
-public record RecognitionField(string Path, string Title, string Type, IReadOnlyList<string>? Options = null);
+public record RecognitionField(string Path, string Title, string Type, IReadOnlyList<string>? Options = null)
+{
+    /// <summary>
+    /// Колонки объекта строки — у поля-массива табличной части (issue #1481); у остальных <c>null</c>.
+    /// Запрос, которому нужен смысл колонок, печатает их описания отсюда. В названии поля-массива ключи
+    /// остаются: оба перечня строятся из одного списка и разойтись не могут, а убрать их из названия —
+    /// значит снова менять запрос, проверенный прогоном на счетах (#1481), без выигрыша, кроме токенов.
+    ///
+    /// <para>Список сравнивается по ссылке, как и <see cref="Options" />: поля вызова сравнивают по
+    /// <see cref="Path" />, а не целиком.</para>
+    /// </summary>
+    public IReadOnlyList<RecognitionField>? Columns { get; init; }
+}
 
 /// <summary>
 /// Результат распознавания: значения по плоским путям полей + сырой текст (для отладки)
