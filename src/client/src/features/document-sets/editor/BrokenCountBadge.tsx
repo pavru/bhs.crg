@@ -9,7 +9,7 @@ export function BrokenCountBadge({ count, className = '' }: { count: number; cla
   return (
     <Tooltip content={`Битых ссылок: ${count}`}>
       <span
-        className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-danger text-white text-caption font-semibold leading-none ${className}`}>
+        className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-danger text-on-danger text-caption font-semibold leading-none ${className}`}>
         {count}
       </span>
     </Tooltip>

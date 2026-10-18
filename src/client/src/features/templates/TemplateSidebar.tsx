@@ -82,7 +82,7 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
         <div className="flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
           <button onClick={handleDelete} disabled={deleting || toDelete.length === 0}
-            className="px-4 py-2 text-sm bg-danger hover:bg-danger text-white rounded-md disabled:opacity-50 transition-colors">
+            className="px-4 py-2 text-sm bg-danger hover:bg-danger text-on-danger rounded-md disabled:opacity-50 transition-colors">
             {deleting ? 'Удаление...' : `Удалить ${toDelete.length} вер.`}
           </button>
         </div>

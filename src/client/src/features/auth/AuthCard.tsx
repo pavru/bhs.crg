@@ -14,7 +14,7 @@ export function AuthCard({ title, subtitle, children }: {
       <div className="w-full max-w-sm rounded-[28px] bg-surface border border-stroke p-8"
         style={{ boxShadow: 'var(--f-shadow16)' }}>
         <div className="flex items-center gap-3 mb-6">
-          <BrandLogo className="w-11 h-11 rounded-lg bg-brand text-white"
+          <BrandLogo className="w-11 h-11 rounded-lg bg-brand text-on-brand"
             style={{ boxShadow: 'var(--f-shadow4)' }} iconSize={22} />
           <span className="text-2xl font-semibold text-brand leading-none">{productName}</span>
         </div>
