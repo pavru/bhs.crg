@@ -132,19 +132,38 @@ public static class RecognitionShared
     ///
     /// <para>Только у счёта: у таблиц документа колонки и так печатаются полями с описаниями
     /// (<c>ListRowColumnsAsFields</c>).</para>
+    ///
+    /// <para>Поле-массив ищется по колонкам, а не по одному ключу: поле шапки, названное так же, стоит в
+    /// списке раньше и молча погасило бы весь список. Тип печатается, только если он не строка (строка —
+    /// умолчание, и семь «— string» подряд ничего модели не говорят), варианты — как у полей шапки:
+    /// иначе выбор типа и перечня в редакторе для колонок счёта ни на что не влиял бы.</para>
     /// </summary>
     private static void AppendRowColumns(StringBuilder sb, IReadOnlyList<RecognitionField> fields)
     {
-        if (fields.FirstOrDefault(f => f.Path == InvoiceFields.LineItemsPath)?.Columns is not { Count: > 0 } columns) return;
+        if (fields.FirstOrDefault(f => f.Path == InvoiceFields.LineItemsPath && f.Columns is not null)?.Columns
+            is not { Count: > 0 } columns) return;
 
         sb.AppendLine("Ключи объекта строки (ключ — что в нём):");
         foreach (var column in columns)
         {
             sb.Append("- ").Append(column.Path);
-            if (column.Title != column.Path) sb.Append(" — ").Append(column.Title);
+            var title = OneLine(column.Title);
+            if (title != column.Path) sb.Append(" — ").Append(title);
+            var hints = new List<string>(2);
+            if (column.Type != "string") hints.Add("тип " + column.Type);
+            if (column.Options is { Count: > 0 }) hints.Add("варианты: " + string.Join(", ", column.Options));
+            if (hints.Count > 0) sb.Append(" (").Append(string.Join("; ", hints)).Append(')');
             sb.AppendLine();
         }
     }
+
+    /// <summary>
+    /// Описание из редактора — в одну строку. Перевод строки в нём разорвал бы список «- ключ — что в
+    /// нём»: продолжение, начатое с «-», модель прочла бы новым ключом. Одиночные пробелы не меняются —
+    /// побайтовые снимки заводских запросов это держат.
+    /// </summary>
+    private static string OneLine(string text) =>
+        string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     /// <summary>Промпт для распознавания ТАБЛИЦЫ документа ГОСТ (спецификация/ведомость или кабельный
     /// журнал) — весь под-документ одним вызовом, строки таблицы одним полем-массивом (см. GostTableFields).</summary>
@@ -230,7 +249,7 @@ public static class RecognitionShared
         sb.AppendLine("Поля (путь — название — тип):");
         foreach (var f in fields)
         {
-            sb.Append("- ").Append(f.Path).Append(" — ").Append(f.Title).Append(" — ").Append(f.Type);
+            sb.Append("- ").Append(f.Path).Append(" — ").Append(OneLine(f.Title)).Append(" — ").Append(f.Type);
             if (f.Options is { Count: > 0 }) sb.Append(" (варианты: ").Append(string.Join(", ", f.Options)).Append(')');
             sb.AppendLine();
         }

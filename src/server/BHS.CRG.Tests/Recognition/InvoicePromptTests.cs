@@ -1,6 +1,8 @@
 using BHS.CRG.Application.QualityDocs;
+using BHS.CRG.Application.Recognition;
 using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Infrastructure.Recognition;
+using BHS.CRG.Modules.Costs;
 using BHS.CRG.Tests.Support;
 
 namespace BHS.CRG.Tests.Recognition;
@@ -39,7 +41,7 @@ public class InvoicePromptTests
         - Наименование — Наименование товара/услуги, как в строке счёта, без номера строки
         - ЕдиницаИзмерения — Единица измерения, как в счёте (шт, м, кг, усл.)
         - Количество — Количество из графы количества; не склей его с ценой: количество × цена даёт сумму строки (без НДС или с ним)
-        - Цена — Цена за единицу, как напечатана в счёте, с НДС или без; не пересчитывай
+        - Цена — Цена за единицу, как напечатана в счёте; если цен две, без НДС и с НДС, бери цену с НДС; не пересчитывай
         - Сумма — Сумма по строке (итог строки); если сумм две, без НДС и с НДС, бери сумму с НДС
         - СтавкаНДС — Ставка НДС по строке (например 22 %, 10 %, «Без НДС»)
         - СуммаНДС — Сумма НДС по строке из графы суммы НДС; нет такой графы — пусто
@@ -53,24 +55,74 @@ public class InvoicePromptTests
 
     /// <summary>
     /// Колонка, добавленная администратором, уходит модели со своим описанием; колонка без описания —
-    /// одним ключом, без повтора «Ключ — Ключ».
+    /// одним ключом, без повтора «Ключ — Ключ» и без висящего тире. Профиль идёт через рабочее
+    /// отображение (<see cref="ResolvedRecognitionProfile" />): «пустое описание → ключ» решает оно, и
+    /// тест, подставивший описание руками, его бы не заметил.
     /// </summary>
     [Fact]
     public void Своя_колонка_уходит_модели_с_описанием()
     {
-        RecognitionField[] lines =
-        [
-            .. TestRecognition.InvoiceLines,
-            new("Артикул", "Код товара поставщика из отдельной колонки; не номер строки", "string"),
-            new("Страна", "Страна", "string"),
-        ];
-        var prompt = RecognitionShared.BuildInvoicePrompt(
-            RecognitionKinds.ComposeCallFields(RecognitionProfileKind.Invoice, TestRecognition.InvoiceHeader, lines))
-            .ReplaceLineEndings("\n");
+        var prompt = Prompt(
+            new RecognitionProfileField("Артикул", "Код товара поставщика из отдельной колонки; не номер строки"),
+            new RecognitionProfileField("Страна"));
 
         Assert.Contains("\n- Артикул — Код товара поставщика из отдельной колонки; не номер строки\n", prompt);
         Assert.Contains("\n- Страна\n", prompt);
-        Assert.DoesNotContain("Страна — Страна", prompt);
+        Assert.DoesNotContain("\n- Страна —", prompt);
+    }
+
+    /// <summary>
+    /// Тип и перечень, выбранные в редакторе, доходят до модели; строка — умолчание и не печатается.
+    /// </summary>
+    [Fact]
+    public void Тип_и_варианты_колонки_уходят_модели()
+    {
+        var prompt = Prompt(
+            new RecognitionProfileField("ДатаПоставки", "Дата поставки", "date"),
+            new RecognitionProfileField("Склад", "Склад получателя", Options: ["Основной", "Резервный"]));
+
+        Assert.Contains("\n- ДатаПоставки — Дата поставки (тип date)\n", prompt);
+        Assert.Contains("\n- Склад — Склад получателя (варианты: Основной, Резервный)\n", prompt);
+    }
+
+    /// <summary>
+    /// Описание в несколько строк печатается одной: продолжение, начатое с «-», иначе стало бы в списке
+    /// ключей новым ключом.
+    /// </summary>
+    [Fact]
+    public void Описание_в_несколько_строк_не_рвёт_список_ключей()
+    {
+        var prompt = Prompt(new RecognitionProfileField("Артикул", "Код поставщика\r\n- не номер строки"));
+
+        Assert.Contains("\n- Артикул — Код поставщика - не номер строки\n", prompt);
+        Assert.DoesNotContain("\n- не номер строки", prompt);
+    }
+
+    /// <summary>
+    /// Поле шапки с ключом «Товары» стоит в списке раньше поля-массива и прежде гасило весь список
+    /// колонок — без отказа.
+    /// </summary>
+    [Fact]
+    public void Поле_шапки_с_ключом_таблицы_не_гасит_колонки()
+    {
+        RecognitionField[] header = [.. TestRecognition.InvoiceHeader, new(InvoiceFields.LineItemsPath, "Товары", "string")];
+        var prompt = RecognitionShared.BuildInvoicePrompt(
+            RecognitionKinds.ComposeCallFields(RecognitionProfileKind.Invoice, header, TestRecognition.InvoiceLines));
+
+        Assert.Contains("Ключи объекта строки", prompt);
+    }
+
+    /// <summary>Запрос по заводскому профилю счёта с добавленными колонками — через рабочее отображение.</summary>
+    private static string Prompt(params RecognitionProfileField[] extra)
+    {
+        static RecognitionProfileField Field(BHS.CRG.Modules.Recognition.ModuleRecognitionField f) =>
+            new(f.Name, f.Description, f.Type, f.Options);
+
+        var profile = new ResolvedRecognitionProfile(Guid.NewGuid(), "Счёт", RecognitionProfileKind.Invoice,
+            [.. CostsRecognitionProfiles.InvoiceHeader.Select(Field)],
+            [.. CostsRecognitionProfiles.InvoiceLines.Select(Field), .. extra],
+            null);
+        return RecognitionShared.BuildInvoicePrompt(RecognitionKinds.ComposeCallFields(profile)).ReplaceLineEndings("\n");
     }
 
     /// <summary>
