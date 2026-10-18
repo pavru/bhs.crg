@@ -18,7 +18,7 @@ import {
   INVOICES_KEY, forgetInvoice, scansRunning, useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
   type InvoiceListItem, type InvoiceQueue,
 } from '@/shared/api/invoices';
-import { SiteFilterNote } from '@/shared/siteFilter/SiteFilterNotes';
+import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
 import { useInvoiceQueues, useParsingCount } from '@/shared/api/invoiceQueues';
 import { refreshInvoiceLists, sendScan, useInvoiceFromScan } from '@/shared/api/invoiceRecognition';
 import { acceptOf, recognizedKinds, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
@@ -375,7 +375,10 @@ export function InvoicesPage() {
           <NavSearchInput value={query} onChange={setQuery} placeholder="Номер, поставщик, назначение…" />
           <InvoiceQueueChips queue={queue} onChange={setQueue} queues={queues} parsing={parsing}
             failed={counts.isError}
-            onRetry={() => void counts.refetch()} />
+            onRetry={() => void counts.refetch()}
+            // Под очередью и отбором загрузки рейл не урезается (#1221) — и отбора «Стройки» там нет.
+            // Под поиском число — сколько скрытых нашёл бы он: иначе оно звало бы искать там, где нет.
+            sites={filter === null ? <SitesFilter hidden={sites.foundHidden} /> : undefined} />
           <InvoiceScanBatchBar batch={batch} only={onlyUpload} found={found} alive={aliveIds(invoices.data, listKnown, batch)}
             // Включение снимает чип (состояние одно) и поиск: одним действием видны ровно те счета.
             onOnly={() => { setQuery(''); setFilter('upload'); }}
@@ -399,10 +402,6 @@ export function InvoicesPage() {
             )}
             {/* Фильтр ещё не известен — строк нет: ни полных, ни урезанных (см. SiteFilterValue). */}
             {sites.pending && <p className="px-3 py-2 text-xs text-fg3">Загрузка…</p>}
-            {/* Под поиском — сколько скрытых нашёл бы он: иначе число звало бы искать там, где нет. */}
-            {!invoices.isPending && !invoices.isError && rows.length > 0 && filter === null && (
-              <div className="px-3 py-1.5"><SiteFilterNote hidden={sites.foundHidden} /></div>
-            )}
             {/* Счета есть, но скрыты фильтром — сказать это ПЕРЕД «Счетов пока нет», которое было бы неправдой. */}
             {!invoices.isPending && !invoices.isError && !sites.pending && rows.length === 0 && filter === null && (
               <RailSitesEmpty searching={!!query.trim()} hidden={sites.hidden} foundHidden={sites.foundHidden}

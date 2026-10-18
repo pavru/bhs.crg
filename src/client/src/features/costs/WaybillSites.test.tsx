@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 import { useWaybillState, waybillKey, type WaybillList, type WaybillView } from '@/shared/api/waybills';
 import { SiteFilterContext, type SiteFilterValue } from '@/shared/siteFilter/siteFilterContext';
-import { SiteFilterNote } from '@/shared/siteFilter/SiteFilterNotes';
+import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
 import { filterState, isVisible } from '@/shared/siteFilter/rule';
 import { ToastProvider } from '@/shared/ui/ToastProvider';
 import { appliedHidden, useWaybillSites, viewHidden } from './useWaybillSites';
@@ -21,13 +21,11 @@ vi.mock('@/shared/api/client', () => ({ apiClient: { get: vi.fn(), post: vi.fn()
 
 const LIVE = ['a', 'b', 'c'];
 
-function filterOf(favorites: string[], status: SiteFilterValue['status'] = 'ready', on = true,
-  register = () => () => {}): SiteFilterValue {
+function filterOf(favorites: string[], status: SiteFilterValue['status'] = 'ready', on = true): SiteFilterValue {
   const state = filterState(favorites, on, new Set(LIVE));
   return {
     status, favorites: state.favorites, on, active: status === 'ready' && state.active, sites: [],
     visible: sites => isVisible(sites, state), setOn: vi.fn(), setFavorite: vi.fn(), setFavorites: vi.fn(),
-    consumers: 0, register,
   };
 }
 
@@ -90,18 +88,10 @@ describe('запрос списка накладных под фильтром',
     expect(asked()).toEqual([{ sites: 'c' }]);
   });
 
-  it('очередь «Сопоставить» не урезается, не ждёт фильтра и экран не регистрирует', async () => {
-    const register = vi.fn(() => () => {});
-    mount(filterOf(['a'], 'loading', true, register), { unmatched: true });
+  it('очередь «Сопоставить» не урезается и не ждёт фильтра', async () => {
+    mount(filterOf(['a'], 'loading', true), { unmatched: true });
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(1));
     expect(asked()).toEqual([{ unmatched: true }]);
-    expect(register).not.toHaveBeenCalled();
-  });
-
-  it('общий список экран регистрирует — шапка горит над урезанным', () => {
-    const register = vi.fn(() => () => {});
-    mount(filterOf(['a'], 'ready', true, register));
-    expect(register).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -203,14 +193,14 @@ describe('тост своей записи', () => {
 
 function showNote(hidden: number, partial: boolean) {
   render(
-    <SiteFilterContext.Provider value={filterOf(['a'])}><SiteFilterNote hidden={hidden} partial={partial} /></SiteFilterContext.Provider>,
+    <SiteFilterContext.Provider value={filterOf(['a'])}><SitesFilter hidden={hidden} partial={partial} /></SiteFilterContext.Provider>,
   );
-  return screen.getByTestId('site-filter-note').textContent;
+  return screen.getByTestId('sites-filter').textContent;
 }
 
-describe('свидетельство у списка накладных', () => {
+describe('свидетельство у списка накладных — подпись отбора «Стройки» (#1432)', () => {
   it('без поиска — число скрытых, и под пределом тоже: оно по всему отбору', () => {
-    expect(showNote(4, false)).toContain('скрыто: 4');
+    expect(showNote(4, false)).toContain('скрыто 4');
   });
 
   it('под поиском — «часть скрыта», без числа: поиск скрытых не видит', () => {
@@ -219,5 +209,9 @@ describe('свидетельство у списка накладных', () => 
     expect(text).not.toContain('4');
   });
 
-  it('под поиском, но скрытых нет — так и сказано', () => expect(showNote(0, true)).toContain('скрыто: 0'));
+  it('скрытых нет — без числа, отбор назван', () => {
+    const text = showNote(0, true);
+    expect(text).toContain('Избранные стройки');
+    expect(text).not.toContain('скрыт');
+  });
 });

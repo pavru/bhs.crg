@@ -18,7 +18,8 @@ import { HiddenByWorkspace } from '@/shared/ui/WorkspaceNav';
 import type { Construction } from '@/shared/api/types';
 import { STATUS_LABELS, STATUS_COLORS } from './fields';
 import { useSiteFilter, useSiteFilterState } from '@/shared/siteFilter/siteFilterContext';
-import { FavoriteStar, SiteFilterNote } from '@/shared/siteFilter/SiteFilterNotes';
+import { FavoriteStar } from '@/shared/siteFilter/SiteFilterNotes';
+import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
 import { useToast } from '@/shared/ui/Toast';
 import { apiError } from '@/shared/utils/apiError';
 import { PageHeader } from '@/shared/ui/PageHeader';
@@ -97,14 +98,14 @@ export function ConstructionsList() {
   const [createError, setCreateError] = useState('');
 
   const { data: constructions = [], isLoading } = useListConstructions();
-  // Список строек — первый потребитель избранного (#1218): урезается и регистрирует экран для шапки.
+  // Список строек — первый потребитель избранного (#1218): урезается, и отбор «Стройки» стоит над ним (#1432).
   const filter = useSiteFilter();
   const toast = useToast();
   // Стройки, оставленные на экране после щелчка по звезде: снятая не исчезает из-под курсора, а
   // первая звезда не сжимает список до одной карточки, пока человек не ушёл с экрана (§62.2).
   const [kept, setKept] = useState<ReadonlySet<string>>(() => new Set());
-  // Переключили фильтр в шапке — это уже явное «покажи иначе», и удержание снимается: иначе сегмент
-  // горел бы «Избранные» над неурезанным списком со строкой «скрыто: 0» (ревью PR #1331).
+  // Переключили отбор «Стройки» — это уже явное «покажи иначе», и удержание снимается: иначе отбор
+  // говорил бы «Избранные» над неурезанным списком (ревью PR #1331).
   const [keptOn, setKeptOn] = useState(filter.on);
   if (keptOn !== filter.on) {
     setKeptOn(filter.on);
@@ -161,7 +162,7 @@ export function ConstructionsList() {
 
       {idOn ? <DocumentSearchPanel /> : <HiddenByWorkspace module="id" what="Поиск документов и комплекты строек" />}
 
-      <div className="mb-3"><SiteFilterNote hidden={constructions.length - shown.length} /></div>
+      <div className="mb-3 flex"><SitesFilter hidden={constructions.length - shown.length} /></div>
 
       {isLoading || filter.status === 'loading' ? (
         <div className="text-center py-10 text-fg4 text-sm">Загрузка...</div>

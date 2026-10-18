@@ -14,10 +14,10 @@ import { WorkspaceProvider } from '@/shared/ui/WorkspaceProvider';
 import { WorkspaceSwitcher } from '@/shared/ui/WorkspaceSwitcher';
 import { OutsideBanner } from '@/shared/ui/WorkspaceNav';
 import { SiteFilterProvider } from '@/shared/siteFilter/SiteFilterProvider';
-import { SiteFilterSwitch } from '@/shared/siteFilter/SiteFilterSwitch';
 import { useSyncedPreference } from '@/shared/hooks/useSyncedPreference';
 import { DrawerBody } from '@/shared/ui/AppRail';
 import { SectionPanel, SectionRail, ShowPanelButton } from '@/shared/ui/SectionRail';
+import { useFavoriteSitesGroup, withFavoriteSites } from '@/shared/siteFilter/favoriteSitesGroup';
 import { useNavSections } from '@/shared/ui/navSections';
 import { activeRail, panelAt, railDef } from '@/shared/ui/railSections';
 import { CircleHelp, MailWarning, X, Menu, Search } from 'lucide-react';
@@ -87,6 +87,7 @@ function Shell() {
   const activeDef = active ? railDef(active) : null;
   const panelSection = activeDef && panelAt(pathname, activeDef) ? activeDef : null;
   const panelShown = !!panelSection && panelWanted;
+  const favoriteSites = useFavoriteSitesGroup();
 
   // Глобальные шорткаты (issue #107): Ctrl/⌘+K — палитра, «?» — справка (не в полях ввода).
   useEffect(() => {
@@ -139,7 +140,9 @@ function Shell() {
           onShowPanel={() => setRail('expanded')} />
         {panelShown && (
           <SectionPanel def={panelSection} outside={outside} onHide={() => setRail('collapsed')}
-            groups={sections.find(s => s.def.id === panelSection.id)?.groups ?? []} />
+            // Избранные стройки — быстрым переходом к карточке (#1432): шапка их больше не показывает.
+            groups={withFavoriteSites(panelSection.id, sections.find(s => s.def.id === panelSection.id)?.groups ?? [],
+              favoriteSites)} />
         )}
       </aside>
 
@@ -169,11 +172,10 @@ function Shell() {
 
       {/* Content */}
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        {/* Шапка (issue #1430): контекст экрана, поиск, активность (#1431), справка, профиль.
-            На узком экране — две строки (issue #1355): сверху меню, поиск и кнопки, под ними контекст
-            экрана. В одну строку 390 px не вмещают: подпись избранного ложилась в два этажа поверх
-            колокольчика. Прятать контекст в «ещё» нельзя — он говорит, что видно. */}
-        <header className="min-h-12 md:h-12 shrink-0 border-b border-stroke bg-surface flex flex-wrap md:flex-nowrap items-center gap-1 px-2 md:px-4">
+        {/* Шапка (issue #1430): пространство, поиск, активность (#1431), справка, профиль. Одной
+            строкой и на телефоне: вторая строка (#1355) была нужна подписи избранного, а оно ушло в
+            отбор над списками (#1432). Короткое имя пространства ужимается вместе с поиском. */}
+        <header className="h-12 shrink-0 border-b border-stroke bg-surface flex items-center gap-1 px-2 md:px-4">
           <Tooltip content="Меню">
             <button type="button" onClick={() => setMenuOpen(true)} aria-label="Меню"
               className={`${iconButton} md:hidden h-12`}>
@@ -182,13 +184,9 @@ function Shell() {
           </Tooltip>
           {/* Скрытая подпанель возвращается отсюда — с края страницы, где она стояла. */}
           {panelSection && !panelShown && <span className="hidden md:inline-flex"><ShowPanelButton onShow={() => setRail('expanded')} /></span>}
-          <div data-testid="header-context"
-            className="order-last md:order-none w-full md:w-auto min-w-0 flex items-center gap-1 whitespace-nowrap max-md:[&>*]:shrink-0 max-md:overflow-x-auto max-md:pb-1.5">
-            {/* Переключатель пространства — слева: это контекст экрана, а не действие (AUTH-16.1). */}
-            <WorkspaceSwitcher />
-            {/* Избранные стройки — за пространством (#1218): тоже «что я вижу», а не действие. */}
-            <SiteFilterSwitch />
-          </div>
+          {/* Переключатель пространства — слева: это контекст экрана, а не действие (AUTH-16.1). Без
+              обёртки: при одном модуле его нет, и обёртка пустой строкой ложилась бы под шапку. */}
+          <WorkspaceSwitcher />
           <SearchButton onOpen={() => setPaletteOpen(true)} />
           <ActivityCenter />
           {/* Видимый вход в справку: клавишу «?» знает только тот, кто её уже нашёл. На телефоне

@@ -12,7 +12,7 @@ import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { useCan } from '@/shared/api/access';
 import { useListConstructions } from '@/shared/api/constructions';
 import { useSiteFilter } from '@/shared/siteFilter/siteFilterContext';
-import { SiteFilterNote } from '@/shared/siteFilter/SiteFilterNotes';
+import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
 import {
   usePeriods, usePeriodHistory, useClosePeriod, useReopenPeriod, useClosingPreview, inverted,
   type PeriodContourState, type PeriodClosureRecord, type ClosingSection,
@@ -97,6 +97,8 @@ export function PeriodsPage() {
         закрываются только прошедшие дни.
       </p>
 
+      {/* Отбор «Стройки» (#1432) — над таблицей, которую он урезает. */}
+      <div className="mb-2 flex"><SitesFilter hidden={sites.hidden} /></div>
       <DataGrid rows={[data.company, ...shownSites]} rowKey={state => state.constructionId ?? 'company'} columns={[
         { key: 'contour', label: 'Контур',
           // Число — и в шапке: строка под таблицей уходит за сгиб, а урезанную таблицу видно сразу.
@@ -127,7 +129,6 @@ export function PeriodsPage() {
           ) },
       ]} />
       {!sitesKnown && <p className="mt-2 text-note text-fg4">Загрузка строек...</p>}
-      {sites.hidden > 0 && <div className="mt-2"><SiteFilterNote hidden={sites.hidden} /></div>}
 
       <History records={history} nameOf={nameOf} />
 
