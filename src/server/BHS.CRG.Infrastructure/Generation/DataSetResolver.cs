@@ -60,9 +60,16 @@ public class DataSetResolver(
         List<ResolutionDiagnostic>? diagnostics, CancellationToken ct, IReadOnlySet<Guid>? standing = null)
     {
         var forPersist = standing is not null;
+        // Порядок привязок закреплён ключом — временем создания, при равенстве идентификатором (issue
+        // #1402). Без него привязки шли в порядке строк в куче, и после pg_restore у того же документа
+        // менялся порядок `_dataSets` и нумерация вложений `assets/att_N`. Хуже, когда две привязки
+        // пишут одно поле: итог зависел бы от физического порядка строк — на одной базе одно, на копии
+        // другое. С ключом побеждает позже заведённая, на любой базе. Время создания копия переносит
+        // (DataSetBinding.Restore), поэтому и после восстановления порядок прежний.
         var bindings = await db.DataSetBindings
             .Include(b => b.Source).ThenInclude(s => s.File)
             .Where(b => b.OwnerId == ownerId)
+            .OrderBy(b => b.CreatedAt).ThenBy(b => b.Id)
             .AsNoTracking()
             .ToListAsync(ct);
 
