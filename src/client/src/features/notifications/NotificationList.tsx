@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import {
   BellOff, Info, AlertTriangle, AlertCircle, X, Check, CheckCheck, Trash2, HeartPulse, Download,
@@ -159,7 +159,7 @@ function HealthNote() {
     ? `${bad[0].name} — ${healthLook(bad[0]).label}`
     : `не в норме: ${bad.length} из ${health.length}`;
   return (
-    <div className="border-b border-stroke">
+    <div className="shrink-0 border-b border-stroke">
       <button type="button" aria-expanded={open} onClick={() => setOpen(v => !v)}
         className="w-full flex items-center gap-2.5 pl-5 pr-4 py-2.5 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand">
         <HeartPulse size={18} className={`shrink-0 ${down ? 'text-danger' : 'text-warning'}`} />
@@ -198,13 +198,19 @@ function HealthNote() {
  * «Очистить все», строка состояния системы, список. «Уже случилось» — в отличие от раздела
  * «Выполняется» над ним.
  */
-export function NotificationList({ items, unread }: { items: NotificationDto[]; unread: number }) {
+export function NotificationList({ items, unread, className = '' }: {
+  items: NotificationDto[];
+  unread: number;
+  /** Место в раскладке поповера: прокручивается только список, шапка остаётся на месте. */
+  className?: string;
+}) {
   const markAll = useMarkAllNotificationsRead();
   const clearAll = useClearNotifications();
+  const heading = useId();
   return (
-    <section aria-labelledby="activity-notifications">
-      <div className="flex items-center gap-2 pl-5 pr-2 py-2">
-        <h2 id="activity-notifications" className="flex-1 text-base font-medium text-fg1">Уведомления</h2>
+    <section aria-labelledby={heading} className={`flex flex-col ${className}`}>
+      <div className="shrink-0 flex items-center gap-2 pl-5 pr-2 py-2">
+        <h2 id={heading} className="flex-1 text-base font-medium text-fg1">Уведомления</h2>
         <IconButton label="Отметить все прочитанными" onClick={() => markAll.mutate()} disabled={unread === 0}>
           <CheckCheck size={18} />
         </IconButton>
@@ -219,7 +225,7 @@ export function NotificationList({ items, unread }: { items: NotificationDto[]; 
           Нет новых уведомлений
         </div>
       ) : (
-        <div className="divide-y divide-stroke">
+        <div className="min-h-0 overflow-y-auto divide-y divide-stroke">
           {items.map(n => <NotificationRow key={n.id} n={n} />)}
         </div>
       )}

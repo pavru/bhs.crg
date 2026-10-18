@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import type { ActiveJob } from '@/shared/api/jobs';
 import type { ComponentHealth, NotificationDto } from '@/shared/api/notifications';
@@ -51,11 +52,13 @@ function shown() {
   return screen.getByTestId('activity');
 }
 
-function open() {
+/** Открыть с клавиатуры: Tab до кнопки и Enter — без щелчка (ревью PR #1450). */
+async function open() {
   const button = shown();
-  act(() => button.focus());
-  fireEvent.keyDown(button, { key: 'Enter' });
-  fireEvent.click(button);
+  const user = userEvent.setup();
+  await user.tab();
+  expect(document.activeElement).toBe(button);
+  await user.keyboard('{Enter}');
   return screen.getByRole('dialog', { name: 'Активность' });
 }
 
@@ -90,46 +93,52 @@ describe('кнопка активности', () => {
   it('поповер: «Выполняется» над «Уведомлениями», Esc возвращает фокус', async () => {
     jobs = [job('j1', 'Сборка комплекта')];
     items = [note('1')];
-    const dialog = open();
-    // Фокус — на поповере, а не на первой кнопке: её подсказка забрала бы первый Esc.
-    expect(document.activeElement).toBe(dialog);
-    const headings =within(dialog).getAllByRole('heading').map(h => h.textContent);
+    const dialog = await open();
+    const headings = within(dialog).getAllByRole('heading').map(h => h.textContent);
     expect(headings).toEqual(['Выполняется', 'Уведомления']);
     expect(within(dialog).getByText('Сборка комплекта')).toBeTruthy();
     expect(within(dialog).getByText('Уведомление 1')).toBeTruthy();
-    fireEvent.keyDown(dialog, { key: 'Escape' });
+    // Фокус на первой кнопке поповера, но её подсказка не открыта — первый Esc закрывает поповер.
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Активность' })).toBeNull();
     await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('activity')));
   });
 
-  it('без задач раздела «Выполняется» нет', () => {
-    const dialog = open();
+  it('без задач раздела «Выполняется» нет', async () => {
+    const dialog = await open();
     expect(within(dialog).getAllByRole('heading').map(h => h.textContent)).toEqual(['Уведомления']);
     expect(within(dialog).getByText('Нет новых уведомлений')).toBeTruthy();
   });
 
-  it('задачу в очереди можно отменить', () => {
+  it('задачу в очереди можно отменить; ход задач — живая область, таймер вне озвучки', async () => {
     jobs = [job('j1', 'Ждёт', 'Queued')];
-    fireEvent.click(within(open()).getByRole('button', { name: 'Отменить задачу' }));
+    const dialog = await open();
+    const live = within(dialog).getByRole('status');
+    expect(within(live).getByText('Ждёт')).toBeTruthy();
+    expect(within(live).getByText('0:00').getAttribute('aria-hidden')).toBe('true');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Отменить задачу' }));
     expect(cancel).toHaveBeenCalledWith('j1');
   });
 
-  it('«Отметить все прочитанными» и «Очистить все»', () => {
+  it('«Отметить все прочитанными» и «Очистить все»', async () => {
     items = [note('1')];
-    const dialog = open();
+    const dialog = await open();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Отметить все прочитанными' }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Очистить все' }));
     expect(markAll).toHaveBeenCalled();
     expect(clearAll).toHaveBeenCalled();
   });
 
-  it('состояние системы в норме — строки нет', () => {
+  it('состояние системы в норме — строки нет', async () => {
     health = [component('db', 'База данных', 'Up'), component('s3', 'Хранилище', 'Up')];
-    expect(within(open()).queryByText(/Состояние системы/)).toBeNull();
+    expect(within(await open()).queryByText(/Состояние системы/)).toBeNull();
   });
 
-  it('что-то не в норме — строка, по ней раскрывается весь список', () => {
+  it('что-то не в норме — строка, по ней раскрывается весь список', async () => {
     health = [component('db', 'База данных', 'Up'), component('conv', 'Конвертер офисных файлов', 'Down')];
-    const dialog = open();
+    const dialog = await open();
     const line = within(dialog).getByRole('button', { name: /Состояние системы: Конвертер офисных файлов — недоступен/ });
     expect(line.getAttribute('aria-expanded')).toBe('false');
     expect(within(dialog).queryByText('База данных')).toBeNull();
@@ -139,11 +148,11 @@ describe('кнопка активности', () => {
     expect(within(dialog).getByText('в норме')).toBeTruthy();
   });
 
-  it('несколько не в норме — их число; «не проверяли» не в счёт', () => {
+  it('несколько не в норме — их число; «не проверяли» не в счёт', async () => {
     health = [
       component('px', 'Прокси', 'Down'), component('ai', 'Распознавание', 'Unknown'),
       component('mail', 'Почта', 'Flapping'), component('db', 'База данных', 'Up'),
     ];
-    expect(within(open()).getByRole('button', { name: /Состояние системы: не в норме: 2 из 4/ })).toBeTruthy();
+    expect(within(await open()).getByRole('button', { name: /Состояние системы: не в норме: 2 из 4/ })).toBeTruthy();
   });
 });
