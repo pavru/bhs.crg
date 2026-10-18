@@ -15,7 +15,7 @@ import { useDraftBase } from './draftBase';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import { formatMoney } from '@/shared/format/format';
 import {
-  emptyDraft, mismatch, toDrafts, toPayload, totals, type LineDraft,
+  emptyDraft, mismatch, toDrafts, toPayload, totals, vatCaption, type LineDraft,
 } from './invoiceLines';
 import { InvoiceLinesPaste } from './InvoiceLinesPaste';
 import { AllocationSummary } from './LineAllocation';
@@ -354,7 +354,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
 function Reconciliation({ sums, paper, difference, unsaved, matched }: {
   /** Сколько позиций подставлено из запомненного — их человек не выбирал, и это видно числом. */
   matched: number;
-  sums: { count: number; withoutNomenclature: number; amount: number; vat: number };
+  sums: { count: number; withoutNomenclature: number; amount: number; vat: number; vatMissing: number };
   paper: unknown;
   difference: number | null;
   unsaved: boolean;
@@ -371,7 +371,7 @@ function Reconciliation({ sums, paper, difference, unsaved, matched }: {
       {matched > 0 && <span className="text-fg4">подставлено из запомненного: {matched}</span>}
 
       <span className="text-fg2">Сумма строк: <b>{formatMoney(sums.amount)}</b></span>
-      <span className="text-fg4">в том числе НДС: {formatMoney(sums.vat)}</span>
+      <span className="text-fg4">{vatCaption(sums, formatMoney)}</span>
 
       {typeof paper === 'number' && (
         <span className="text-fg4">к оплате по счёту: {formatMoney(paper)}</span>

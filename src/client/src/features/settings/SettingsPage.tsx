@@ -37,7 +37,7 @@ export function SettingsPage() {
 
   return (
     <div className="px-6 py-4 max-w-3xl space-y-5">
-      <PageHeader title="Настройки" />
+      <PageHeader title="Параметры системы" />
 
       {/* ── Template versioning ────────────────────────────────────────────── */}
       <form onSubmit={handleSave}>

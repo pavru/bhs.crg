@@ -1,13 +1,12 @@
 ﻿import { useState, useEffect } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Link, Outlet } from 'react-router';
+import { Link, Outlet, useLocation } from 'react-router';
 import { useAccount, useResendConfirmation } from '@/shared/api/account';
-import { NotificationsCenter } from '@/features/notifications/NotificationsCenter';
-import { ActiveJobsIndicator } from '@/features/jobs/ActiveJobsIndicator';
-import { ChangePasswordModal } from '@/shared/ui/ChangePasswordModal';
+import { ActivityCenter } from '@/features/activity/ActivityCenter';
 import { BrandLogo } from '@/shared/ui/Brand';
 import { useProductName } from '@/shared/api/branding';
 import { CommandPalette } from '@/shared/ui/CommandPalette';
+import { AccountMenu } from '@/shared/ui/AccountMenu';
 import { ShortcutsHelp } from '@/shared/ui/ShortcutsHelp';
 import { useGuardedNavClick } from '@/shared/ui/NavigationGuard';
 import { paletteShown, refusedByDialog } from '@/shared/ui/modalDismissal';
@@ -15,19 +14,27 @@ import { WorkspaceProvider } from '@/shared/ui/WorkspaceProvider';
 import { WorkspaceSwitcher } from '@/shared/ui/WorkspaceSwitcher';
 import { OutsideBanner } from '@/shared/ui/WorkspaceNav';
 import { SiteFilterProvider } from '@/shared/siteFilter/SiteFilterProvider';
-import { SiteFilterSwitch } from '@/shared/siteFilter/SiteFilterSwitch';
 import { useSyncedPreference } from '@/shared/hooks/useSyncedPreference';
-import { RailBody } from '@/shared/ui/AppRail';
+import { DrawerBody } from '@/shared/ui/AppRail';
+import { SectionPanel, SectionRail, ShowPanelButton } from '@/shared/ui/SectionRail';
+import { useFavoriteSitesGroup, withFavoriteSites } from '@/shared/siteFilter/favoriteSitesGroup';
 import { useNavSections } from '@/shared/ui/navSections';
-import { MailWarning, X, PanelLeftClose, PanelLeftOpen, Menu } from 'lucide-react';
+import { activeRail, panelAt, railDef } from '@/shared/ui/railSections';
+import { CircleHelp, MailWarning, X, Menu, Search } from 'lucide-react';
+import { IconButton } from './Button';
 import { Tooltip } from './Tooltip';
 
 /**
- * Боковая панель свёрнута в иконки (issue #1355). Выбор — настройка человека, как тема: лежит на
- * сервере и едет за ним на другую машину, а зеркало в браузере даёт первый кадр без прыжка ширины.
+ * Подпанель раздела скрыта (issue #1429; ключ — со времён свёртки панели в иконки, #1355). Выбор —
+ * настройка человека, как тема: лежит на сервере и едет за ним на другую машину, а зеркало в браузере
+ * даёт первый кадр без прыжка ширины.
+ *
+ * Пока человек не выбирал, решает ширина окна (`auto`): ниже ~1200 px рейл 88 и подпанель 240
+ * оставили бы странице меньше 900 px. `auto` на сервер не уходит — отправляет только нажатие.
  */
 const RAIL_KEY = 'rail';
 const RAIL_MIRROR = 'crg-rail';
+const ROOMY = '(min-width: 1200px)';
 
 /**
  * Узкий экран (issue #1355): ниже `md` панели у края нет, меню выдвигается кнопкой в шапке. Порог
@@ -53,16 +60,34 @@ export function AppShell() {
   );
 }
 
+/** Совпадает ли медиазапрос — и следит за ним, пока окно меняет размер. */
+function useMedia(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const list = window.matchMedia(query);
+    const onChange = () => setMatches(list.matches);
+    list.addEventListener('change', onChange);
+    return () => list.removeEventListener('change', onChange);
+  }, [query]);
+  return matches;
+}
+
 function Shell() {
   const productName = useProductName();
-  const { allWork, work } = useNavSections();
-  const [pwOpen, setPwOpen] = useState(false);
+  const { allWork, work, outside, settings, rail: sections } = useNavSections();
+  const { pathname } = useLocation();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [rail, setRail] = useSyncedPreference(RAIL_KEY, RAIL_MIRROR, 'expanded');
-  const collapsed = rail === 'collapsed';
-  const railToggle = collapsed ? 'Развернуть панель' : 'Свернуть панель';
+  const [rail, setRail] = useSyncedPreference(RAIL_KEY, RAIL_MIRROR, 'auto');
+  const roomy = useMedia(ROOMY);
+  const panelWanted = rail === 'auto' ? roomy : rail !== 'collapsed';
+  // Раздел адреса — среди ВСЕХ видных пунктов: страница вне пространства тоже принадлежит разделу.
+  const active = activeRail(pathname, [...allWork, ...settings]);
+  const activeDef = active ? railDef(active) : null;
+  const panelSection = activeDef && panelAt(pathname, activeDef) ? activeDef : null;
+  const panelShown = !!panelSection && panelWanted;
+  const favoriteSites = useFavoriteSitesGroup();
 
   // Глобальные шорткаты (issue #107): Ctrl/⌘+K — палитра, «?» — справка (не в полях ввода).
   useEffect(() => {
@@ -89,12 +114,13 @@ function Shell() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  useEffect(() => {
-    const wide = window.matchMedia(WIDE);
-    const onChange = () => { if (wide.matches) setMenuOpen(false); };
-    wide.addEventListener('change', onChange);
-    return () => wide.removeEventListener('change', onChange);
-  }, []);
+  // Окно расширили — выдвижное меню закрывается: иначе оно лежало бы поверх вернувшегося рейла.
+  const wide = useMedia(WIDE);
+  const [wasWide, setWasWide] = useState(wide);
+  if (wide !== wasWide) {
+    setWasWide(wide);
+    if (wide) setMenuOpen(false);
+  }
 
   const brand = (
     <>
@@ -107,27 +133,20 @@ function Shell() {
 
   return (
     <div className="flex h-screen bg-base">
-      {/* Navigation rail — на рабочем столе. */}
-      <aside data-testid="rail" data-collapsed={collapsed || undefined}
-        className={`${collapsed ? 'w-16' : 'w-56'} shrink-0 hidden md:flex flex-col border-r border-stroke bg-surface`}>
-        <RailBody collapsed={collapsed} navId="app-rail-nav" onChangePassword={() => setPwOpen(true)} head={
-          // Название и логотип экземпляра (ТЗ CORE-25.1, issue #967) — не зашитые. В свёрнутой
-          // панели от строки остаётся кнопка разворота: логотип без названия ничего не называет.
-          <div className={`flex items-center gap-2 h-12 border-b border-stroke shrink-0 ${collapsed ? 'justify-center' : 'pl-4 pr-2'}`}>
-            {!collapsed && brand}
-            <Tooltip content={railToggle}>
-              <button type="button" onClick={() => setRail(collapsed ? 'expanded' : 'collapsed')}
-                aria-label={railToggle} aria-expanded={!collapsed} aria-controls="app-rail-nav"
-                className={iconButton}>
-                {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-              </button>
-            </Tooltip>
-          </div>
-        } />
+      {/* Рейл разделов и подпанель раздела — на рабочем столе (issue #1429). */}
+      <aside data-testid="rail" data-panel={panelShown || undefined}
+        className="shrink-0 hidden md:flex border-r border-stroke">
+        <SectionRail sections={sections} active={active} panelHidden={!!panelSection && !panelShown}
+          onShowPanel={() => setRail('expanded')} />
+        {panelShown && (
+          <SectionPanel def={panelSection} outside={outside} onHide={() => setRail('collapsed')}
+            // Избранные стройки — быстрым переходом к карточке (#1432): шапка их больше не показывает.
+            groups={withFavoriteSites(panelSection.id, sections.find(s => s.def.id === panelSection.id)?.groups ?? [],
+              favoriteSites)} />
+        )}
       </aside>
 
-      {/* Выдвижное меню — на узком экране (issue #1355). Та же панель, всегда развёрнутая: свёртка
-          в иконки нужна, чтобы отдать ширину странице, а выдвижному меню отдавать нечего. */}
+      {/* Выдвижное меню — на узком экране (issue #1355): все разделы разом, со страницами. */}
       <Dialog.Root open={menuOpen} onOpenChange={setMenuOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 md:hidden" />
@@ -135,8 +154,7 @@ function Shell() {
             className="fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] flex flex-col bg-surface border-r border-stroke focus:outline-none md:hidden"
             style={{ boxShadow: 'var(--f-shadow28)' }}>
             <Dialog.Title className="sr-only">Меню</Dialog.Title>
-            <RailBody collapsed={false} navId="app-drawer-nav" onChangePassword={() => setPwOpen(true)}
-              onPick={() => setMenuOpen(false)} head={
+            <DrawerBody onPick={() => setMenuOpen(false)} head={
                 <div className="flex items-center gap-2 h-12 pl-4 pr-2 border-b border-stroke shrink-0">
                   {brand}
                   <Tooltip content="Закрыть меню">
@@ -149,32 +167,34 @@ function Shell() {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-      <ChangePasswordModal open={pwOpen} onClose={() => setPwOpen(false)} />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <ShortcutsHelp open={helpOpen} onOpenChange={setHelpOpen} />
 
       {/* Content */}
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        {/* На узком экране шапка — две строки (issue #1355): сверху меню, задачи и уведомления, под
-            ними контекст экрана. В одну строку 390 px не вмещают: подпись избранного ложилась в два
-            этажа поверх колокольчика. Прятать контекст в «ещё» нельзя — он говорит, что видно. */}
-        <header className="min-h-12 md:h-12 shrink-0 border-b border-stroke bg-surface flex flex-wrap md:flex-nowrap items-center gap-1 px-2 md:px-4">
+        {/* Шапка (issue #1430): пространство, поиск, активность (#1431), справка, профиль. Одной
+            строкой и на телефоне: вторая строка (#1355) была нужна подписи избранного, а оно ушло в
+            отбор над списками (#1432). Короткое имя пространства ужимается вместе с поиском. */}
+        <header className="h-12 shrink-0 border-b border-stroke bg-surface flex items-center gap-1 px-2 md:px-4">
           <Tooltip content="Меню">
             <button type="button" onClick={() => setMenuOpen(true)} aria-label="Меню"
               className={`${iconButton} md:hidden h-12`}>
               <Menu size={20} />
             </button>
           </Tooltip>
-          <div data-testid="header-context"
-            className="order-last md:order-none w-full md:w-auto min-w-0 flex items-center gap-1 whitespace-nowrap max-md:[&>*]:shrink-0 max-md:overflow-x-auto max-md:pb-1.5">
-            {/* Переключатель пространства — слева: это контекст экрана, а не действие (AUTH-16.1). */}
-            <WorkspaceSwitcher />
-            {/* Избранные стройки — за пространством (#1218): тоже «что я вижу», а не действие. */}
-            <SiteFilterSwitch />
-          </div>
-          <div className="flex-1" />
-          <ActiveJobsIndicator />
-          <NotificationsCenter />
+          {/* Скрытая подпанель возвращается отсюда — с края страницы, где она стояла. */}
+          {panelSection && !panelShown && <span className="hidden md:inline-flex"><ShowPanelButton onShow={() => setRail('expanded')} /></span>}
+          {/* Переключатель пространства — слева: это контекст экрана, а не действие (AUTH-16.1). Без
+              обёртки: при одном модуле его нет, и обёртка пустой строкой ложилась бы под шапку. */}
+          <WorkspaceSwitcher />
+          <SearchButton onOpen={() => setPaletteOpen(true)} />
+          <ActivityCenter />
+          {/* Видимый вход в справку: клавишу «?» знает только тот, кто её уже нашёл. На телефоне
+              справки по клавишам нет — клавиатуры там нет, а место в строке нужно аватару. */}
+          <IconButton label="Справка и горячие клавиши" size="lg" className="max-md:hidden" onClick={() => setHelpOpen(true)}>
+            <CircleHelp size={20} />
+          </IconButton>
+          <span className="pl-1"><AccountMenu /></span>
         </header>
         <OutsideBanner items={allWork} inside={work} />
         <EmailConfirmBanner />
@@ -182,6 +202,30 @@ function Shell() {
           <Outlet />
         </div>
       </main>
+    </div>
+  );
+}
+
+/**
+ * Поиск в шапке (issue #1430) — видимая дверь к палитре Ctrl K: клавишу знает только тот, кто её уже
+ * нашёл. Занимает свободное место строки, но не шире 640 px — дальше строка поиска читается как
+ * разделитель, а не поле. Что палитра ищет — #1433.
+ */
+function SearchButton({ onOpen }: { onOpen: () => void }) {
+  // На Mac палитру зовут ⌘K (слушатель принимает и Ctrl, и ⌘), и подсказка называет ту клавишу,
+  // которой там пользуются.
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+  return (
+    <div className="flex-1 min-w-0 flex">
+      {/* Узкое место (контекст экрана забрал строку) — по ширине самой кнопки: сначала
+          обрезается подпись, потом уходит метка клавиш, потом подпись становится невидимой, и
+          остаётся значок поиска. Метка держится дольше подписи: учить клавише — смысл кнопки. */}
+      <button type="button" onClick={onOpen} aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'}
+        className="@container flex-1 min-w-10 max-w-160 flex items-center gap-2.5 h-10 px-2.5 mx-1 md:mx-3 overflow-hidden rounded-full bg-base text-sm text-fg3 hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+        <Search size={18} className="shrink-0" />
+        <span className="flex-1 min-w-0 truncate text-left @max-[8rem]:sr-only">Найти счёт, стройку или действие</span>
+        <kbd className="hidden @[14rem]:inline shrink-0 rounded border border-stroke px-1.5 text-caption text-fg4">{mac ? '⌘ K' : 'Ctrl K'}</kbd>
+      </button>
     </div>
   );
 }

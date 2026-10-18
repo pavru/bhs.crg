@@ -1,4 +1,4 @@
-import { Check, X, type LucideIcon } from 'lucide-react';
+import { Check, ChevronDown, X, type LucideIcon } from 'lucide-react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { Tooltip } from './Tooltip';
 
@@ -13,6 +13,8 @@ import { Tooltip } from './Tooltip';
  * - `dashed` — пунктир у невыбранного: место под условие, которого ещё нет.
  * - `count` — число строк под отбором; ноль рисуется как есть, решать, показывать ли чип, — экрану.
  * - `onRemove` — крестик снятия отдельной кнопкой рядом (своё имя для диктора: `removeLabel`).
+ * - `menu` — чип открывает выбор (поповер, меню): стрелка справа, `selected` только красит — нажатым
+ *   он не бывает, состояние называет подпись («Избранные стройки» / «Все стройки», #1432).
  *
  * Чипы отбора над таблицей с правкой условия на месте — `shared/filter/FilterChips`: там чип — лицо
  * условия с поповером, а не переключатель.
@@ -26,6 +28,7 @@ export interface ChipProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>,
   dashed?: boolean;
   onRemove?: () => void;
   removeLabel?: string;
+  menu?: boolean;
 }
 
 const BASE = 'inline-flex items-center gap-1 rounded-full border text-xs bg-surface transition-colors ' +
@@ -44,14 +47,15 @@ function chipClass({ selected = false, tone = 'neutral', dashed = false }:
   return `${BASE} ${selected ? SELECTED : `${TONE[tone]}${dashed ? ' border-dashed' : ''}`}`;
 }
 
-export function Chip({ children, selected, icon: Icon, count, tone, dashed, onRemove, removeLabel, className = '', type = 'button', ...rest }: ChipProps) {
-  const toggles = selected !== undefined;
+export function Chip({ children, selected, icon: Icon, count, tone, dashed, onRemove, removeLabel, menu = false, className = '', type = 'button', ...rest }: ChipProps) {
+  const toggles = selected !== undefined && !menu;
   const Shown = toggles && selected ? Check : Icon;
   const body = (
     <>
       {Shown && <Shown size={12} aria-hidden className="shrink-0" />}
       <span className="min-w-0 truncate">{children}</span>
       {count !== undefined && <span className="font-medium tabular-nums">· {count}</span>}
+      {menu && <ChevronDown size={12} aria-hidden className="shrink-0" />}
     </>
   );
 

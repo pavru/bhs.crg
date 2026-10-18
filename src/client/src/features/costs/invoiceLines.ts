@@ -167,23 +167,56 @@ export function preview(draft: LineDraft): { amount: number | null; vat: number 
   return { amount, vat };
 }
 
-/** Итоги по строкам в правке — то же, что считает сервер, но по ненасохранённому. */
+/**
+ * Итоги по строкам в правке — то же, что считает сервер (`InvoiceLineTotals`), но по несохранённому.
+ *
+ * <p>`vatMissing` — сколько строк без НДС (issue #1409): `vat` сложен только по указанным, и без этого
+ * числа сверка писала бы «в том числе НДС: 0,00» у счёта, где НДС стоит лишь в итогах бумаги. ⚠️ Правило
+ * обязано совпадать с серверным: научи «не указан» только одно место — надпись менялась бы на глазах
+ * при сохранении. «Без НДС» (ставка 0) — это ноль, а не пропуск.</p>
+ */
 export function totals(drafts: readonly LineDraft[]): {
-  count: number; withoutNomenclature: number; amount: number; vat: number;
+  count: number; withoutNomenclature: number; amount: number; vat: number; vatMissing: number;
 } {
   let amount = 0;
   let vat = 0;
+  let vatMissing = 0;
   for (const draft of drafts) {
     const line = preview(draft);
     amount += line.amount ?? 0;
-    vat += line.vat ?? 0;
+    if (line.vat === null) vatMissing += 1;
+    else vat += line.vat;
   }
   return {
     count: drafts.length,
     withoutNomenclature: drafts.filter(d => d.nomenclatureId === null).length,
     amount: money(amount),
     vat: money(vat),
+    vatMissing,
   };
+}
+
+/**
+ * Надпись «в том числе НДС» под строками (issue #1409): неизвестное — словами, а не нулём.
+ *
+ * <p>НДС не указан ни у одной строки — так выглядит каждый счёт, где НДС только в итогах бумаги, — и
+ * «0,00» здесь читалось бы как «НДС потерян». У части — сумма по указанным и сколько строк молчит:
+ * одно число без оговорки выдало бы неполную сумму за полную.</p>
+ */
+export function vatCaption(
+  sums: { count: number; vat: number; vatMissing: number },
+  format: (value: number) => string,
+): string {
+  if (sums.count > 0 && sums.vatMissing === sums.count) return 'НДС по строкам не указан';
+  const vat = `в том числе НДС: ${format(sums.vat)}`;
+  return sums.vatMissing > 0 ? `${vat}, у ${lines(sums.vatMissing)} не указан` : vat;
+}
+
+/** «1 строки», «2 строк», «21 строки» — родительный падеж после «у». */
+function lines(count: number): string {
+  const tens = count % 100;
+  const one = count % 10 === 1 && tens !== 11;
+  return `${count} ${one ? 'строки' : 'строк'}`;
 }
 
 /**

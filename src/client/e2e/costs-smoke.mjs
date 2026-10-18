@@ -31,7 +31,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/costs-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled, callApi, registryAddress, pickOption } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, callApi, registryAddress, pickOption, menuText } from './harness.mjs';
 
 const SUPPLIER_EMAIL = process.env.SMOKE_SUPPLIER_EMAIL || 'snab@bhs.local';
 const ACCOUNTANT_EMAIL = process.env.SMOKE_ACCOUNTANT_EMAIL || 'buh@bhs.local';
@@ -74,7 +74,8 @@ async function api(page, method, path, body) {
 }
 
 /** Пункты бокового меню — то, что роль видит входом в модуль. */
-const menu = page => page.locator('nav').first().innerText();
+// Меню читается на экранах «Учёта» (реестр, накладные) — их подпанель и проверяется.
+const menu = page => menuText(page);
 
 /** Экран открылся и дал своим запросам дойти: отказ, оборванный следующим переходом, не посчитан. */
 async function visit(seat, screen, path) {

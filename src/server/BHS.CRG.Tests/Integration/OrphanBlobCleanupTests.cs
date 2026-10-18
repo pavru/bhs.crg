@@ -410,10 +410,10 @@ public class OrphanBlobCleanupTests(IntegrationTestFixture fixture) : IAsyncLife
     /// <summary>
     /// Хранилище молчит — уборка не идёт.
     ///
-    /// <para>Различить «объекта нет» и «до хранилища не достучаться» по ответу нельзя: MinIO на
-    /// любой отказ отдаёт то же самое. Прими сборщик молчание за отсутствие — он снял бы записи
-    /// реестра у ЖИВЫХ файлов, а без записи файл не отдаётся и больше никогда не попадётся этой же
-    /// уборке. То есть данные не удалялись бы, но исчезали.</para>
+    /// <para>Прими сборщик молчание за отсутствие — он снял бы записи реестра у ЖИВЫХ файлов, а без
+    /// записи файл не отдаётся и больше никогда не попадётся этой же уборке. То есть данные не
+    /// удалялись бы, но исчезали. С issue #1427 недоступность приходит отказом запроса размера, а не
+    /// «объекта нет», и уборка обязана встать на нём, а не упасть.</para>
     /// </summary>
     [Fact]
     public async Task Cleanup_StorageUnreachable_RefusesToRun()
@@ -436,6 +436,65 @@ public class OrphanBlobCleanupTests(IntegrationTestFixture fixture) : IAsyncLife
         Assert.Equal(0, report.Bytes);
         Assert.True(await InRegistryAsync(orphan));   // запись цела — прогон можно повторить
         Assert.True(InStorage(orphan));
+    }
+
+    /// <summary>
+    /// Отказ хранилища на одном объекте пропускает этот объект, а не всю уборку (issue #1427).
+    ///
+    /// <para>Пакет берётся в одном и том же порядке, и объект, о котором хранилище отказывает всегда,
+    /// иначе отменял бы каждый прогон — под видом «хранилище не отвечает», при живом хранилище.
+    /// Сам он не трогается: без размера живой файл от пропавшего не отличить.</para>
+    /// </summary>
+    [Fact]
+    public async Task Cleanup_OneObjectRefusesSize_SkipsItAndCleansTheRest()
+    {
+        var referenced = await UploadAsync("cert.pdf");
+        await SeedQualityDocAsync(referenced);
+        var stubborn = await UploadAsync("упрямый.pdf");
+        var orphan = await UploadAsync("забытый.pdf");
+        var storage = fixture.Services.GetRequiredService<FakeBlobStorage>();
+
+        OrphanBlobReport report;
+        try
+        {
+            storage.RefuseSizeOf = stubborn;
+            report = await RunAsync(dryRun: false);
+        }
+        finally { storage.RefuseSizeOf = null; }
+
+        Assert.False(report.StorageUnreachable);
+        Assert.Equal(1, report.Failed);            // пропущенный сказан, а не утаён
+        Assert.False(await InRegistryAsync(orphan));
+        Assert.True(await InRegistryAsync(stubborn));
+        Assert.True(InStorage(stubborn));
+    }
+
+    /// <summary>
+    /// Хранилище отвечает «нет» обо всём — тоже не уборка (issue #1427).
+    ///
+    /// <para>Так выглядит пустой или чужой бакет: связь есть, отказа нет, а объектов, на которые
+    /// ссылается база, — тоже нет. Отличает это от пропавших файлов только проба по живым объектам;
+    /// отказ связи до неё больше не доходит, и без этого теста она осталась бы непроверенной.</para>
+    /// </summary>
+    [Fact]
+    public async Task Cleanup_StorageBlank_RefusesToRun()
+    {
+        var referenced = await UploadAsync("cert.pdf");
+        await SeedQualityDocAsync(referenced);
+        var orphan = await UploadAsync("забытый.pdf");
+        var storage = fixture.Services.GetRequiredService<FakeBlobStorage>();
+
+        OrphanBlobReport report;
+        try
+        {
+            storage.Blank = true;
+            report = await RunAsync(dryRun: false);
+        }
+        finally { storage.Blank = false; }
+
+        Assert.True(report.StorageUnreachable);
+        Assert.Equal(0, report.Deleted);
+        Assert.True(await InRegistryAsync(orphan));
     }
 
     // ── Согласованность со сбором реестра ────────────────────────────────────────

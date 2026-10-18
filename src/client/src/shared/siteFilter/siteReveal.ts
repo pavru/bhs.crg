@@ -21,8 +21,8 @@ export const SiteRevealContext = createContext<SiteRevealValue | null>(null);
 export const REVEAL_CHOICE = '__show-all-sites__';
 
 /**
- * Варианты выбора стройки для СПИСКА, который фильтр урезает. Регистрирует экран потребителем
- * фильтра: список урезан — сегмент в шапке горит, и выключить фильтр целиком можно там.
+ * Варианты выбора стройки для СПИСКА, который фильтр урезает. Выключить фильтр целиком можно
+ * отбором «Стройки» над списками, а здесь — раскрыть все стройки пунктом-выходом.
  */
 export function useSiteChoices<T extends SiteEntry>(
   sites: readonly T[] | undefined,

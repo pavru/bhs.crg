@@ -44,6 +44,10 @@ public static class CostsRecognitionProfiles
     public const string LineQuantity = "Количество";
     public const string LinePrice = "Цена";
     public const string LineAmount = "Сумма";
+    // НДС строки (issue #1410). Колонок может не быть вовсе — НДС только в итогах бумаги, — и тогда
+    // строки ложатся без НДС, а отчёты берут его из шапки.
+    public const string LineVatRate = "СтавкаНДС";
+    public const string LineVatAmount = "СуммаНДС";
 
     public static readonly IReadOnlyList<ModuleRecognitionField> InvoiceHeader =
     [
@@ -65,6 +69,8 @@ public static class CostsRecognitionProfiles
         new(LineQuantity, "Количество"),
         new(LinePrice, "Цена за единицу"),
         new(LineAmount, "Сумма по строке"),
+        new(LineVatRate, "Ставка НДС по строке (например 22 %, 10 %, «Без НДС»)"),
+        new(LineVatAmount, "Сумма НДС по строке"),
     ];
 
     public static IReadOnlyList<ModuleRecognitionProfile> All =>

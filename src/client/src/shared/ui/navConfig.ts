@@ -1,4 +1,4 @@
-import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Scale, Bug, History, ReceiptText, Table2, Truck, CalendarCheck, ChartNoAxesColumn, Link2 } from 'lucide-react';
+import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Scale, Bug, History, ReceiptText, Table2, Truck, CalendarCheck, ChartNoAxesColumn, Link2, Building2, Calculator, Wrench } from 'lucide-react';
 
 /**
  * Пункты навигации — общий источник для сайдбара (AppShell) и командной палитры (Ctrl+K).
@@ -25,34 +25,87 @@ export interface NavItem {
    * модуля раздела не называет — он входит в пространство своим модулем.
    */
   section?: string;
+  /** Раздел рейла, в подпанели которого стоит пункт (issue #1429). */
+  rail: RailId;
+  /**
+   * Группа подпанели. Пункты одной группы стоят подряд; пункт без группы — в начале подпанели, над
+   * группами. Порядок пунктов в массиве и есть порядок в подпанели.
+   */
+  group?: string;
 }
 
+/**
+ * Разделы рейла (issue #1429): рейл называет РАЗДЕЛ, а страницы раздела — в его подпанели. Так рейл
+ * короток на любом экране, а двадцать пунктов перестают быть одним списком, который надо прочесть
+ * целиком, чтобы найти нужное.
+ */
+export type RailId = 'constructions' | 'data' | 'costs' | 'system';
+
+export interface RailSectionDef {
+  id: RailId;
+  /** Подпись в рейле: под значком 80 px, поэтому одно короткое слово. */
+  label: string;
+  icon: typeof FolderOpen;
+  /** Заголовок подпанели — полное имя раздела. */
+  title: string;
+  /** Строка под заголовком: что в разделе, чтобы не открывать его наугад. */
+  hint: string;
+  /**
+   * Подпанель только на странице списка раздела, а не в карточке под ним. Карточка стройки ведёт
+   * свою навигацию (`ListDetailShell`), и две панели навигации рядом оставили бы содержимому
+   * 650 px из 1440 (эпик #1428).
+   */
+  panelOnlyAt?: string;
+  /**
+   * Раздел не сужается пространством. «Система» — администрирование, а не контекст работы: прятать
+   * «Пользователей» за пространством «Счета» значило бы заставлять администратора переключаться
+   * ради своего же меню (ТЗ AUTH-16.1).
+   */
+  unscoped?: boolean;
+}
+
+export const railSections: RailSectionDef[] = [
+  { id: 'constructions', label: 'Стройки', icon: Building2, title: 'Стройки',
+    hint: 'Объекты, разделы и комплекты документов', panelOnlyAt: '/document-sets' },
+  { id: 'data',   label: 'Данные', icon: Database,   title: 'Данные',
+    hint: 'Справочники, наборы данных и сверка' },
+  { id: 'costs',  label: 'Учёт',   icon: Calculator, title: 'Учёт затрат',
+    hint: 'Счета, накладные, закрытие месяца' },
+  // Подпись «Система», заголовок «Администрирование»: полное слово в 80 px рейла не помещается
+  // (решение владельца, 17.10.2026).
+  { id: 'system', label: 'Система', icon: Wrench,    title: 'Администрирование',
+    hint: 'Типы, шаблоны, пользователи и параметры', unscoped: true },
+];
+
+const COSTS_REPORTS = 'Отчёты и закрытие месяца';
+
 export const workNav: NavItem[] = [
-  { to: '/document-sets',   label: 'Стройки',            icon: FolderOpen,  permission: 'core.constructions.read', section: 'constructions' },
-  { to: '/common-data',     label: 'Общие данные',        icon: Database,    permission: 'core.catalog.read', section: 'catalog' },
-  { to: '/datasets',        label: 'Наборы данных',       icon: Layers,      permission: 'core.datasets.read', section: 'datasets' },
-  { to: '/quality-docs',    label: 'Документы качества',  icon: ShieldCheck, module: 'id' },
+  { to: '/document-sets',   label: 'Стройки',            icon: Building2,  permission: 'core.constructions.read', section: 'constructions', rail: 'constructions' },
+  { to: '/common-data',     label: 'Общие данные',        icon: Database,    permission: 'core.catalog.read', section: 'catalog', rail: 'data' },
+  { to: '/datasets',        label: 'Наборы данных',       icon: Layers,      permission: 'core.datasets.read', section: 'datasets', rail: 'data' },
+  { to: '/quality-docs',    label: 'Документы качества',  icon: ShieldCheck, module: 'id', rail: 'data' },
   // Право И модуль: доступ к модулю и право заводить счета — разные вещи (у бухгалтера есть первое
   // без второго), а пункт обязан закрываться тем же правом, что стоит на группе адресов экрана.
   { to: '/invoices',        label: 'Счета',               icon: ReceiptText, module: 'costs',
-    permission: 'costs.invoice.read' },
+    permission: 'costs.invoice.read', rail: 'costs' },
   // Накладные закрыты СВОИМ правом (ТЗ COST-29): право на счета их не открывает, и наоборот.
   { to: '/waybills',        label: 'Накладные',           icon: Truck, module: 'costs',
-    permission: 'costs.waybill.read' },
+    permission: 'costs.waybill.read', rail: 'costs' },
   // «Реестр счетов» — готовое представление таблицы счетов (ТЗ COST-20.1, задача G4). Закрыт МОДУЛЕМ,
   // без права: ключ таблицы — код модуля, и открывается она всякому, кому открыт «Счета и накладные».
   // Суммы в ней закрывает право на счета — причиной у колонки, а не отказом экрана.
-  { to: '/tables/costs.invoices/registry', label: 'Реестр счетов', icon: Table2, module: 'costs' },
+  { to: '/tables/costs.invoices/registry', label: 'Реестр счетов', icon: Table2, module: 'costs',
+    rail: 'costs', group: COSTS_REPORTS },
   // «Затраты по стройке» (ТЗ COST-20, задача G5): суммы по всем стройкам экземпляра — своим правом на
   // отчёты, а не правом на счета. Оно включает чтение счетов, так что ссылки отчёта в реестр открыты.
   { to: '/site-costs',      label: 'Затраты по стройке',  icon: ChartNoAxesColumn, module: 'costs',
-    permission: 'costs.report.read' },
+    permission: 'costs.report.read', rail: 'costs', group: COSTS_REPORTS },
   // Закрытие периода — служба ядра (ТЗ CORE-35): пункт не зависит от модулей. Право то же, что на
   // адресах закрытия и отмены; сами границы читает любой вошедший, но экран существует ради действия.
   { to: '/periods',         label: 'Учётный период',      icon: CalendarCheck, permission: 'core.period.close',
-    section: 'periods' },
+    section: 'periods', rail: 'costs', group: COSTS_REPORTS },
   { to: '/reconciliations', label: 'Сверка',              icon: Scale,       permission: 'core.reconciliation.run',
-    section: 'reconciliations' },
+    section: 'reconciliations', rail: 'data' },
 ];
 
 /**
@@ -77,18 +130,25 @@ export const pageOwners: PageOwner[] = [
   { match: /^\/document-sets\/[^/]+(\/sections\/[^/]+)?\/datasets$/, label: 'Наборы данных стройки', section: 'datasets' },
 ];
 
+const DOCS = 'Документы';
+const PEOPLE = 'Люди и доступ';
+const WATCH = 'Наблюдение';
+const GENERAL = 'Общее';
+
 export const settingsNav: NavItem[] = [
-  { to: '/document-types',       label: 'Типы документов',       icon: BookOpen, permission: 'core.types.edit' },
-  { to: '/composite-types',      label: 'Составные типы',        icon: Layers,   permission: 'core.types.edit' },
-  { to: '/field-types',          label: 'Типы полей',            icon: Tag,      permission: 'core.types.edit' },
+  { to: '/document-types',       label: 'Типы документов',       icon: BookOpen, permission: 'core.types.edit', rail: 'system', group: DOCS },
+  { to: '/templates',            label: 'Шаблоны',               icon: FileText, permission: 'id.config.edit', rail: 'system', group: DOCS },
+  { to: '/composite-types',      label: 'Составные типы',        icon: Layers,   permission: 'core.types.edit', rail: 'system', group: DOCS },
+  { to: '/field-types',          label: 'Типы полей',            icon: Tag,      permission: 'core.types.edit', rail: 'system', group: DOCS },
   // «Сопоставление полей» (issue #1101) — рядом с типами и тем же правом: экран пишет схему типа
   // (тэг типа, тэг поля) адресом редактора. Право на настройку системы его не открывает.
-  { to: '/field-mapping',        label: 'Сопоставление полей',   icon: Link2,    permission: 'core.types.edit' },
-  { to: '/templates',            label: 'Шаблоны',               icon: FileText, permission: 'id.config.edit' },
-  { to: '/recognition-profiles', label: 'Профили распознавания', icon: ScanText, permission: 'core.recognition.settings' },
-  { to: '/users',                label: 'Пользователи',          icon: Users,    permission: 'core.users.manage' },
-  { to: '/roles',                label: 'Роли и права',          icon: ShieldCheck, permission: 'core.users.manage' },
-  { to: '/activity',             label: 'Журнал действий',       icon: History,  permission: 'core.audit.read' },
-  { to: '/bug-reports',          label: 'Сообщения об ошибках',  icon: Bug,      permission: 'core.support.review' },
-  { to: '/settings',             label: 'Настройки',             icon: Settings, permission: 'core.system.manage' },
+  { to: '/field-mapping',        label: 'Сопоставление полей',   icon: Link2,    permission: 'core.types.edit', rail: 'system', group: DOCS },
+  { to: '/recognition-profiles', label: 'Профили распознавания', icon: ScanText, permission: 'core.recognition.settings', rail: 'system', group: DOCS },
+  { to: '/users',                label: 'Пользователи',          icon: Users,    permission: 'core.users.manage', rail: 'system', group: PEOPLE },
+  { to: '/roles',                label: 'Роли и права',          icon: ShieldCheck, permission: 'core.users.manage', rail: 'system', group: PEOPLE },
+  { to: '/activity',             label: 'Журнал действий',       icon: History,  permission: 'core.audit.read', rail: 'system', group: WATCH },
+  { to: '/bug-reports',          label: 'Сообщения об ошибках',  icon: Bug,      permission: 'core.support.review', rail: 'system', group: WATCH },
+  // «Параметры системы», а не «Настройки» (issue #1429): рядом с «Администрированием» слово
+  // «настройки» читалось бы как «всё, что здесь», а это один экран.
+  { to: '/settings',             label: 'Параметры системы',     icon: Settings, permission: 'core.system.manage', rail: 'system', group: GENERAL },
 ];

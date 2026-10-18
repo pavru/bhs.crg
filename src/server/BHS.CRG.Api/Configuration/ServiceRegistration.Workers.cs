@@ -74,6 +74,7 @@ internal static class WorkerRegistration
     // Хранение образов (issue #1269). Одиночка: блокировка «один файл строится один раз» живёт в
     // нём, а контекст базы он берёт свой на каждое обращение.
     builder.Services.AddSingleton<RenditionStore>();
+    builder.Services.AddScoped<BHS.CRG.Infrastructure.Renditions.RenditionLayoutProfiles>();
     builder.Services.AddSingleton<HealthMonitorService>();
     builder.Services.AddSingleton<IHealthState>(sp => sp.GetRequiredService<HealthMonitorService>());
     // Расписание проверки обновлений и мониторинга — выключаемое, по той же причине, что и плановое

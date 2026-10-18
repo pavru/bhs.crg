@@ -21,7 +21,8 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/routing-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, clearSession, createChecks, watchRequests, settled, callApi, registryAddress }
+import { BASE, launchBrowser, login, clearSession, createChecks, watchRequests, settled, callApi, registryAddress,
+  railSection, menuText, wholeMenu }
   from './harness.mjs';
 import { TABLE_SEED } from './seed-invoices.mjs';
 
@@ -74,12 +75,18 @@ try {
 
   // ── NavLink: переход и активный пункт ───────────────────────────────────────
   await check('navlink-navigates-and-marks-active', async () => {
-    await page.getByRole('link', { name: 'Наборы данных', exact: true }).click();
+    // Страницы раздела — в его подпанели (issue #1429): сперва раздел рейла, он ведёт на первую.
+    await railSection(page, 'Данные').click();
+    await page.waitForURL(atPath('/common-data'), { timeout: 5000 });
+    await page.getByTestId('section-panel').getByRole('link', { name: 'Наборы данных', exact: true }).click();
     await page.waitForURL(atPath('/datasets'), { timeout: 5000 });
     // Ждём атрибут, а не читаем сразу: адрес меняется раньше, чем React дорисует активный пункт.
     await page.waitForSelector('nav a[href="/datasets"][aria-current="page"]', { timeout: 5000 });
     const others = await page.locator('nav a[aria-current="page"]').count();
     if (others !== 1) throw new Error(`текущим помечен не один пункт, а ${others}`);
+    // Раздел в рейле помечен своим «текущий раздел», а не «текущая страница»: иначе страниц было бы две.
+    const section = await page.locator('#app-rail-nav a[aria-current="true"]').innerText();
+    if (section.trim() !== 'Данные') throw new Error(`в рейле текущим помечен раздел «${section.trim()}»`);
   });
 
   // ── История браузера ────────────────────────────────────────────────────────
@@ -209,7 +216,7 @@ try {
     await page.waitForSelector('text=Журнал действий', { timeout: 5000 });
     // Пункт в меню у того, кому можно, — вторая половина проверки ниже: «не видно никому» и
     // «видно всем» одинаково проходят, пока смотришь одним глазом.
-    const menu = await page.locator('nav').innerText();
+    const menu = await menuText(page);
     if (!menu.includes('Журнал действий'))
       throw new Error('пункта «Журнал действий» нет в меню у администратора');
 
@@ -257,8 +264,8 @@ try {
     // Заголовок на месте раньше данных: роли и справочник прав приходят своими запросами.
     await settled(page);
 
-    // .first() — на этом экране два <nav>: боковое меню приложения и левая колонка списка ролей.
-    const menu = await page.locator('nav').first().innerText();
+    // Не `nav` целиком: на этом экране есть и левая колонка списка ролей.
+    const menu = await menuText(page);
     if (!menu.includes('Роли и права'))
       throw new Error('пункта «Роли и права» нет в меню у администратора');
 
@@ -365,9 +372,10 @@ try {
   await check('closed-section-is-absent-from-the-menu', async () => {
     await userPage.goto(`${BASE}/document-sets`);
     await userPage.waitForSelector('nav', { timeout: 5000 });
-    const menu = await userPage.locator('nav').innerText();
-    if (menu.includes('Настройки'))
-      throw new Error('пункт «Настройки» виден пользователю, у которого нет права на него');
+    // Всё меню — обходом разделов: подпанель на экране одна, и пункт в чужом разделе она не видит.
+    const menu = await wholeMenu(userPage);
+    if (menu.includes('Параметры системы'))
+      throw new Error('пункт «Параметры системы» виден пользователю, у которого нет права на него');
     if (menu.includes('Журнал действий'))
       throw new Error('пункт «Журнал действий» виден тому, у кого нет права его читать');
     if (menu.includes('Роли и права'))

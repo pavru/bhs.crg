@@ -20,7 +20,8 @@ import { WaybillForm } from './WaybillForm';
 import { useOpenRecord } from './openRecord';
 import { RereadFailedNotice } from '@/shared/ui/RereadFailedNotice';
 import { formatDate } from '@/shared/format/format';
-import { FilterHidesAll, NotInListNotice, SiteFilterNote } from '@/shared/siteFilter/SiteFilterNotes';
+import { FilterHidesAll, NotInListNotice } from '@/shared/siteFilter/SiteFilterNotes';
+import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
 import { SEARCH_ALL_SITES, SHOW_ALL_SITES } from '@/shared/siteFilter/siteFilterTexts';
 import { NOT_IN_LIST, SEARCH_HIDDEN, hiddenEmpty, useWaybillSites } from './useWaybillSites';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -134,11 +135,16 @@ export function WaybillsPage() {
       nav={
         <>
           <NavSearchInput value={query} onChange={setQuery} placeholder="Номер, стройка, склад…" />
-          <label className="flex items-center gap-2 px-3 py-1.5 text-xs text-fg3 cursor-pointer">
-            <input type="checkbox" checked={unmatched} onChange={e => setUnmatched(e.target.checked)} />
-            <ListChecks size={13} />
-            Только «Сопоставить»
-          </label>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-1.5">
+            <label className="flex items-center gap-2 text-xs text-fg3 cursor-pointer">
+              <input type="checkbox" checked={unmatched} onChange={e => setUnmatched(e.target.checked)} />
+              <ListChecks size={13} />
+              Только «Сопоставить»
+            </label>
+            {/* Очередь «Сопоставить» стройками не урезается (#1222) — отбора «Стройки» под ней нет. Под
+                поиском — без числа: оно о всём отборе, а поиск видит только загруженное. */}
+            {!unmatched && <SitesFilter hidden={hidden ?? undefined} partial={searching} />}
+          </div>
           <div className="flex-1 overflow-y-auto">
             {waybills.isPending && <p className="px-3 py-2 text-xs text-fg3">Загрузка…</p>}
             {waybills.isError && (
@@ -147,10 +153,6 @@ export function WaybillsPage() {
               </p>
             )}
             {stale && <p className="px-3 py-2 text-xs text-fg3">Обновляется…</p>}
-            {/* Под поиском — без числа: оно о всём отборе, а поиск видит только загруженное. */}
-            {hidden !== null && items.length > 0 && (
-              <div className="px-3 py-1.5"><SiteFilterNote hidden={hidden} partial={searching} /></div>
-            )}
             {settled && items.length === 0 && !!hidden && (
               <FilterHidesAll testId="waybill-list-sites-empty" onShowAll={filter.showAll}
                 text={searching ? SEARCH_HIDDEN : hiddenEmpty(hidden)} action={searching ? SEARCH_ALL_SITES : SHOW_ALL_SITES} />

@@ -7,6 +7,7 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 import { RevealItem, SiteSelectItems } from '@/shared/siteFilter/SiteOptions';
 import { REVEAL_CHOICE, useSiteChoices } from '@/shared/siteFilter/siteReveal';
 import { useSiteFilterState } from '@/shared/siteFilter/siteFilterContext';
+import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { apiError } from '@/shared/utils/apiError';
 import { useCostsConstructions } from '@/shared/api/invoices';
@@ -83,6 +84,11 @@ export function SiteCostsPage() {
               <RevealItem hidden={choices.hidden} />
             </Select>
           </div>
+
+          {/* Отбор «Стройки» (#1432) — у отчёта по всем стройкам: неизбранные он сворачивает в строку
+              «Скрыто фильтром», и здесь же фильтр выключают для всех списков разом. У одной стройки
+              сворачивать нечего. */}
+          {site === null && <div className="h-8 flex items-center"><SitesFilter /></div>}
 
           <fieldset className="flex items-end gap-1.5">
             <legend className="sr-only">Учётный период</legend>

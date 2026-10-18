@@ -9,7 +9,7 @@
 // «Счета и накладные» сузило бы им меню, и они упали бы на чужом. Поэтому настройки пространств
 // сбрасываются и до проверок, и после — в finally, адресом, а не через экран.
 
-import { BASE, settled, callApi } from './harness.mjs';
+import { BASE, settled, callApi, railSection, accountAction } from './harness.mjs';
 
 const RESET = { workspaces: null, workspace: null, 'workspace.default': null };
 const OWN = 'Снабжение (проверка)';
@@ -26,7 +26,7 @@ async function switcherName(page) {
 }
 
 /**
- * Выйти кнопкой «Выйти» и войти обратно в той же вкладке. Настоящий вход не помещается в предел
+ * Выйти пунктом «Выйти» меню профиля и войти обратно в той же вкладке. Настоящий вход не помещается в предел
  * входов прогонов CI, поэтому «вход» — возврат тех же токенов: выход приложения при этом проходит
  * целиком, со всем, что он стирает. Отзыв refresh-токена на сервере перехвачен — иначе следующие
  * проверки набора остались бы без сессии.
@@ -38,7 +38,7 @@ async function relogInSameTab(page) {
   if (!tokens.length) throw new Error('токены сессии не найдены — возвращать нечего');
   await page.route('**/api/auth/logout', route => route.fulfill({ status: 204 }));
   try {
-    await page.getByRole('button', { name: 'Выйти' }).click();
+    await accountAction(page, 'Выйти');
     await page.waitForURL(/\/login/);
   } finally {
     await page.unroute('**/api/auth/logout');
@@ -58,22 +58,33 @@ export async function workspaceChecks(page, check) {
     await settled(page);
 
     await check('workspace-switcher-names-its-modules', async () => {
-      // Два доступных модуля — переключатель есть, и рядом с именем состав: имя само не отвечает
-      // на вопрос «почему я не вижу сметы».
-      const composition = await page.getByTestId('workspace-composition').innerText();
-      if (!/^2 модуля: .+, .+/.test(composition)) throw new Error(`состав в шапке: «${composition}»`);
+      // Два доступных модуля — переключатель есть. На кнопке только короткое имя (#1432), а состав —
+      // в списке, у пространства: имя само не отвечает на вопрос «почему я не вижу сметы».
       if (!(await switcherName(page)).includes('Все доступные модули'))
         throw new Error(`открыто не «Все доступные модули»: ${await switcherName(page)}`);
+      const button = page.getByTestId('workspace-switcher');
+      if ((await button.innerText()).trim() !== 'Все доступные модули')
+        throw new Error(`на кнопке пространства: «${await button.innerText()}»`);
+      await button.click();
+      const option = page.getByTestId('workspace-option').filter({ has: page.getByText('Все доступные модули', { exact: true }) });
+      const composition = await option.getByTestId('workspace-composition').innerText();
+      await page.keyboard.press('Escape');
+      if (!/^2 модуля: .+, .+/.test(composition)) throw new Error(`состав в списке: «${composition}»`);
     });
 
     await check('workspace-narrows-the-menu-and-names-what-is-hidden', async () => {
       await choose(page, 'Счета и накладные');
-      const nav = page.locator('aside nav');
-      if (!(await nav.getByRole('link', { name: 'Счета', exact: true }).count()))
-        throw new Error('в пространстве «Счета и накладные» нет пункта «Счета»');
-      if (!(await nav.getByRole('link', { name: 'Стройки', exact: true }).count()))
+      if (!(await railSection(page, 'Стройки').count()))
         throw new Error('нет «Строек» — раздела ядра, который объявил модуль счетов');
-      if (await nav.getByRole('link', { name: 'Документы качества', exact: true }).count())
+      await railSection(page, 'Учёт').click();
+      await settled(page);
+      const panel = page.getByTestId('section-panel');
+      if (!(await panel.getByRole('link', { name: 'Счета', exact: true }).count()))
+        throw new Error('в пространстве «Счета и накладные» нет пункта «Счета»');
+      // «Данные» остаются разделом — «Общие данные» объявил модуль счетов, — но без страниц модуля ИД.
+      await railSection(page, 'Данные').click();
+      await settled(page);
+      if (await panel.getByRole('link', { name: 'Документы качества', exact: true }).count())
         throw new Error('пункт модуля ИД виден в пространстве счетов');
       const more = await page.getByTestId('outside-nav').locator('button').first().innerText();
       if (!/^Ещё \d+ раздел/.test(more) || !more.includes('вне пространства'))

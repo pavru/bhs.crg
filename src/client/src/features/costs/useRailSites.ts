@@ -17,7 +17,7 @@ export function useRailSites({ cuts, list, selected, matches }: {
   selected: string | null;
   matches: (item: InvoiceListItem) => boolean;
 }) {
-  const favorites = useSiteFilter(cuts);
+  const favorites = useSiteFilter();
   const hides = (item: InvoiceListItem) => cuts && hiddenBySite(item.constructionIds, favorites);
   const all = list ?? [];
   const hidden = all.filter(hides);

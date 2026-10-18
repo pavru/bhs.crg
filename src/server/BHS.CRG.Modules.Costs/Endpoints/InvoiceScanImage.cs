@@ -79,7 +79,7 @@ public sealed class InvoiceScanImage(IModuleRenditions renditions, IModuleBlobs 
             throw new ConflictException(
                 $"{InvoiceEndpoints.Label(invoice)}: перестраивать нечего — читаемый вид строится только " +
                 $"для файлов {FileKindCatalog.Words(FileKindCatalog.All.Where(kind => kind.Reading == FileReading.Rendition))}.");
-        var rebuilt = await renditions.RebuildAsync(invoice.ScanBlobPath!, ct);
+        var rebuilt = await renditions.RebuildAsync(invoice.ScanBlobPath!, ct: ct);
         if (rebuilt is ModuleRendition.Refused { OtherKind: true } other)
             throw new ConflictException($"{InvoiceEndpoints.Label(invoice)}: перестраивать нечего. {other.Reason}");
         return View(rebuilt);

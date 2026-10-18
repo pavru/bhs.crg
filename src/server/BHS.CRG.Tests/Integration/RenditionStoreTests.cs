@@ -22,7 +22,13 @@ namespace BHS.CRG.Tests.Integration;
 [Collection("Integration")]
 public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetime
 {
-    public async Task InitializeAsync() => await fixture.ResetDatabaseAsync();
+    public async Task InitializeAsync()
+    {
+        await fixture.ResetDatabaseAsync();
+        // Записи образов несут отпечаток системного профиля печати, а таблица профилей между классами
+        // не усекается: правленый соседом системный профиль дал бы здесь чужой отпечаток.
+        await PrintProfilesState.ResetAsync(fixture.Services);
+    }
     public Task DisposeAsync() => Task.CompletedTask;
 
     private static readonly string[] Words = ["invoice", "supplier", "total"];
@@ -64,6 +70,31 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
         // Образ — такой же файл хранилища, с записью в реестре: без неё его не отдали бы на чтение.
         Assert.True(await InRegistryAsync(record.ImageBlobPath!));
         Assert.Equal(original, Assert.Single(await RecordsAsync()).OriginalBlobPath);
+    }
+
+    /// <summary>
+    /// Книга без своей раскладки: в записи — след раскладки и снимок профиля (issue #1453), а оригинал
+    /// в хранилище побайтно тот же — вписывается КОПИЯ.
+    /// </summary>
+    [Fact]
+    public async Task Вписанная_книга_оставляет_след_раскладки_а_оригинал_цел()
+    {
+        var book = Workbook(b => b.CreateSheet("Sheet").CreateRow(0).CreateCell(0).SetCellValue(string.Join(" ", Words)),
+            ownLayout: false);
+        var original = await Blobs.UploadAsync("счёт.xlsx", new MemoryStream(book), "application/octet-stream");
+
+        await Store(StubConverter.Converts(Words)).EnsureAsync(original, CancellationToken.None);
+
+        var record = Assert.Single(await RecordsAsync());
+        Assert.Equal(RenditionLayout.Applied, record.Layout);
+        Assert.Contains("\"profile\": \"по умолчанию\"", record.LayoutApplied);
+        // Первое построение — по системному профилю, и запись помнит его с отпечатком (issue #1454).
+        Assert.Equal((RenditionLayoutProfile.SystemId, RenditionLayoutProfile.System().Stamp),
+            (record.LayoutProfileId, record.LayoutStamp));
+        await using var stored = await Blobs.DownloadAsync(original);
+        using var copy = new MemoryStream();
+        await stored.CopyToAsync(copy);
+        Assert.Equal(book, copy.ToArray());
     }
 
     [Fact]
@@ -285,7 +316,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var original = await UploadBookAsync();
         var before = await store.EnsureAsync(original, CancellationToken.None);
 
-        var after = await Store(StubConverter.Converts(Words, version: "9.0.0")).RebuildAsync(original, CancellationToken.None);
+        var after = await Store(StubConverter.Converts(Words, version: "9.0.0")).RebuildAsync(original, null, CancellationToken.None);
 
         Assert.NotEqual(before.ImageBlobPath, after.ImageBlobPath);
         Assert.True(Storage.Exists(after.ImageBlobPath!));
@@ -309,7 +340,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var original = await UploadBookAsync();
         var before = await Store(StubConverter.Converts(Words)).EnsureAsync(original, CancellationToken.None);
 
-        var refused = await Store(new StubConverter(Answers(status))).RebuildAsync(original, CancellationToken.None);
+        var refused = await Store(new StubConverter(Answers(status))).RebuildAsync(original, null, CancellationToken.None);
 
         Assert.Equal(RenditionState.Refused, refused.State);
         var kept = Assert.Single(await RecordsAsync());
