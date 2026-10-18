@@ -1836,6 +1836,13 @@ namespace BHS.CRG.Infrastructure.Migrations
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
 
+                    b.Property<string>("Layout")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("LayoutApplied")
+                        .HasColumnType("jsonb");
+
                     b.Property<string>("Mime")
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");

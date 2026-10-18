@@ -71,6 +71,12 @@ public abstract record Rendition
         /// назвал; образ от этого хуже не стал, и отказом это не считается.
         /// </summary>
         public string? Converter { get; init; }
+
+        /// <summary>Чем кончилась раскладка по профилю печати (issue #1453); <c>null</c> — не снималась.</summary>
+        public BHS.CRG.Domain.Storage.RenditionLayout? Layout { get; init; }
+
+        /// <summary>Снимок применённых параметров профиля, JSON — только у вписанной книги.</summary>
+        public string? LayoutApplied { get; init; }
     }
 
     /// <summary>Образа нет.</summary>
@@ -142,6 +148,17 @@ public static class RenditionLimits
     public const double CoverageRefuseBelow = 0.5;
 
     public const double CoverageNoteBelow = 0.98;
+
+    /// <summary>
+    /// Медиана кегля вписанного образа (pt), ниже которой он несёт пометку «вид уменьшен» (issue #1453).
+    ///
+    /// <para>Подобрана пробой на выдуманном счёте, вписанном по ширине, растр 300 dpi (как у
+    /// распознавания), локальная модель qwen3.8: при 7,1 / 5,2 / 4,0 / 3,0 pt прочитаны все 49 чисел из
+    /// 49, при 2,3 pt — 48, и чтение вдвое дольше. Порог — с запасом над точкой, где чтение начинает
+    /// ошибаться. Пометка обращена и к человеку: текст мельче 4 pt на экране он сверяет с трудом.
+    /// Облачные движки на этом пороге не проверены.</para>
+    /// </summary>
+    public const double SmallTextBelowPt = 4.0;
 
     /// <summary>Сколько файл ждёт своей очереди к конвертеру, прежде чем получить «занят».</summary>
     public static readonly TimeSpan GateWait = TimeSpan.FromSeconds(20);

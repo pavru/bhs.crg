@@ -12,7 +12,7 @@ namespace BHS.CRG.Infrastructure.Renditions;
 /// код 200 и страницу без единой буквы, файл с обрезанной ячейкой — страницу без её хвоста. Такой
 /// «образ» дальше честно распознаётся в пустой счёт, и отказа не видит уже никто.</para>
 /// </summary>
-internal static class RenditionPostconditions
+public static class RenditionPostconditions
 {
     /// <param name="pdf">Ответ конвертера.</param>
     /// <param name="cellWords">Слова ячеек книги Excel; <c>null</c> — файл не книга, сверять не с чем.</param>
@@ -115,6 +115,30 @@ internal static class RenditionPostconditions
                 if (char.IsLetterOrDigit(symbol)) glued.Append(char.ToLowerInvariant(symbol));
         }
         return glued.ToString();
+    }
+
+    /// <summary>
+    /// Медиана кегля видимых букв образа (pt), с учётом повторов; <c>null</c> — букв нет или PDF не
+    /// открылся. Кегль — видимый (<c>PointSize</c>, с учётом матриц текста и страницы), а не записанный
+    /// в шрифте: LibreOffice 8.37 пишет вписанный текст уже уменьшенным кеглем, но другой построитель
+    /// вправе уменьшать масштабом — и тогда записанный кегль остался бы прежним.
+    /// </summary>
+    public static double? MedianPointSize(byte[] pdf)
+    {
+        try
+        {
+            using var document = PdfDocument.Open(pdf);
+            var sizes = document.GetPages()
+                .SelectMany(page => page.Letters.Where(letter => letter.Value.Any(char.IsLetterOrDigit)))
+                .Select(letter => letter.PointSize)
+                .Order()
+                .ToList();
+            return sizes.Count == 0 ? null : sizes[sizes.Count / 2];
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return null;
+        }
     }
 
     private static Rendition.Refused Failed(string why) =>
