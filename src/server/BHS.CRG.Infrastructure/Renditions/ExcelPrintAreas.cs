@@ -4,17 +4,16 @@ using System.Xml;
 namespace BHS.CRG.Infrastructure.Renditions;
 
 /// <summary>
-/// Области печати листов книги <c>.xlsx</c> (issue #1268): что из листа попадает на страницу.
+/// Области печати листов книги Excel (issue #1268): что из листа попадает на страницу.
 ///
 /// <para>Нужны сверке слов. Лист со счётом в области печати и справочными колонками рядом — обычное
 /// дело; на страницу идёт только область, и без неё здоровая книга выглядела бы потерявшей
 /// половину текста — то есть получала бы отказ навсегда.</para>
 ///
-/// <para>⚠️ Только новый формат. У <c>.xls</c> область печати записана в двоичном потоке книги,
-/// и разборщик её не отдаёт: там сверяется весь видимый лист, и книга с большим текстом вне области
-/// печати может получить пометку или отказ зря. Ограничение известное и названо в DEV_NOTES.</para>
+/// <para>У <c>.xlsx</c> область читается из оглавления книги, у <c>.xls</c> — из её двоичного потока
+/// (issue #1457, <see cref="OfBiff" />): разборщик ячеек её не отдаёт ни в том, ни в другом.</para>
 /// </summary>
-internal sealed class ExcelPrintAreas
+internal sealed partial class ExcelPrintAreas
 {
     private const string Name = "_xlnm.Print_Area";
 
@@ -31,10 +30,17 @@ internal sealed class ExcelPrintAreas
         || boxes.Exists(box => row >= box.Top && row <= box.Bottom && column >= box.Left && column <= box.Right);
 
     /// <summary>
-    /// Области из оглавления книги. Что не разобралось — пропускается: лист тогда сверяется целиком,
-    /// как если бы области у него не было.
+    /// Области листов книги. Что не разобралось — пропускается: лист тогда сверяется целиком, как если
+    /// бы области у него не было. Не книга — областей нет.
     /// </summary>
-    public static ExcelPrintAreas Of(byte[] file)
+    public static ExcelPrintAreas Of(byte[] file, OfficeFormat format) => format switch
+    {
+        OfficeFormat.Xlsx => OfXlsx(file),
+        OfficeFormat.Xls => OfBiff(file),
+        _ => None,
+    };
+
+    private static ExcelPrintAreas OfXlsx(byte[] file)
     {
         var areas = new ExcelPrintAreas();
         try

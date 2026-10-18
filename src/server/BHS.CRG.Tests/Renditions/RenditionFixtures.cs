@@ -6,6 +6,7 @@ using BHS.CRG.Api.Renditions;
 using BHS.CRG.Infrastructure.OfficeConversion;
 using BHS.CRG.Infrastructure.Renditions;
 using Microsoft.Extensions.Logging.Abstractions;
+using NPOI.POIFS.FileSystem;
 using NPOI.SS.UserModel;
 using NPOI.XSSF.UserModel;
 using UglyToad.PdfPig.Content;
@@ -98,6 +99,52 @@ internal static class RenditionFixtures
         return file.ToArray();
     }
 
+    /// <summary>
+    /// Книга Excel 5.0/95 (BIFF5) — формат, в котором два из трёх настоящих <c>.xls</c> обзора счетов
+    /// (issue #1457). NPOI такую не пишет и не читает, поэтому записи собраны руками: начало книги,
+    /// кодировка, лист, по желанию — область печати, затем лист с текстовыми ячейками. Так же собранную
+    /// книгу читают и разборщик ячеек, и настоящий конвертер — и область он исполняет (проверено живьём).
+    /// </summary>
+    /// <param name="printArea">Область печати листа: строки и колонки с нуля, границы включительно.</param>
+    public static byte[] Biff5Workbook((int Row, int Column, string Text)[] cells,
+        (int Top, int Left, int Bottom, int Right)? printArea = null)
+    {
+        static byte[] Record(ushort id, params byte[][] parts)
+        {
+            var body = parts.SelectMany(part => part).ToArray();
+            return [.. BitConverter.GetBytes(id), .. BitConverter.GetBytes((ushort)body.Length), .. body];
+        }
+        static byte[] U16(int value) => BitConverter.GetBytes((ushort)value);
+        static byte[] Begin(int type) => Record(0x0809, U16(0x0500), U16(type), U16(0), U16(0));
+        var end = Record(0x000A);
+
+        var sheet = new List<byte>(Begin(0x0010));
+        sheet.AddRange(Record(0x0200, U16(0), U16(cells.Max(c => c.Row) + 1), U16(0), U16(cells.Max(c => c.Column) + 1), U16(0)));
+        foreach (var (row, column, text) in cells)
+            sheet.AddRange(Record(0x0204, U16(row), U16(column), U16(0), U16(text.Length), Encoding.ASCII.GetBytes(text)));
+        sheet.AddRange(end);
+
+        // Встроенное имя Print_Area (0x06) листа 1. Формула — 21 байт: знак ptgArea3d и сама ссылка в
+        // раскладке BIFF5 — лист (2+8+2+2), строки (2+2), колонки (1+1).
+        var name = printArea is { } area
+            ? Record(0x0018, U16(0x0020), [0], [1], U16(21), U16(0), U16(1), new byte[4], [0x06], [0x3B], U16(0xFFFF),
+                new byte[8], U16(0), U16(0), U16(area.Top), U16(area.Bottom), [(byte)area.Left], [(byte)area.Right])
+            : [];
+        byte[] Globals(int sheetAt) =>
+        [
+            .. Begin(0x0005), .. Record(0x0042, U16(1252)),
+            .. Record(0x0085, BitConverter.GetBytes(sheetAt), [0], [0], [5], Encoding.ASCII.GetBytes("Sheet")),
+            .. name, .. end,
+        ];
+        var globals = Globals(Globals(0).Length);
+
+        var container = new POIFSFileSystem();
+        container.CreateDocument(new MemoryStream([.. globals, .. sheet]), "Book");
+        using var file = new MemoryStream();
+        container.WriteFileSystem(file);
+        return file.ToArray();
+    }
+
     /// <summary>Архив с заданными частями — заготовка офисного файла, какой он есть на диске.</summary>
     public static byte[] Archive(params (string Name, byte[] Content)[] parts)
     {
@@ -149,6 +196,10 @@ internal static class RenditionFixtures
         }
         return builder.Build();
     }
+
+    /// <summary>Картинка 1×1 — печать или подпись на странице без текста (issue #1457).</summary>
+    public static readonly byte[] Png = Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==");
 
     /// <summary>Файл из репозитория — пара эталонов конвертера лежит в <c>deploy/</c>.</summary>
     public static byte[] RepoFile(params string[] path)

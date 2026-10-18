@@ -36,11 +36,13 @@ public sealed class OfficeRenditionBuilder(OfficeConverterClient converter, ILog
         if (OfficeFileBudget.Check(format, file) is { } overBudget) return overBudget;
 
         IReadOnlyList<string>? cellWords = null;
+        IReadOnlyList<string> sheets = [];
         var uncheckedBook = false;
         if (format is OfficeFormat.Xlsx or OfficeFormat.Xls)
         {
             var cells = ExcelCellTexts.From(file, format, ct);
             if (cells.Refusal is not null) return cells.Refusal;
+            sheets = cells.Sheets;
             if (cells.Unreadable is null) cellWords = cells.Words;
             else
             {
@@ -81,6 +83,7 @@ public sealed class OfficeRenditionBuilder(OfficeConverterClient converter, ILog
         if (laid.Outcome == RenditionLayout.Applied && profile.FitWidth && built.MedianPointSize is { } median
             && median < RenditionLimits.SmallTextBelowPt)
             notes.Add(SmallTextNote);
+        if (sheets.Count > 1) notes.Add(SheetsNote(sheets));
         if (uncheckedBook) notes.Add(UncheckedNote);
         return built with
         {
@@ -100,6 +103,22 @@ public sealed class OfficeRenditionBuilder(OfficeConverterClient converter, ILog
 
     /// <summary>Пометка вписанного образа, текст которого вышел мельче порога.</summary>
     public const string SmallTextNote = "Вид уменьшен — мелкий текст сверяйте с файлом.";
+
+    /// <summary>Сколько листов называть в пометке по имени; остальные — числом.</summary>
+    private const int NamedSheets = 5;
+
+    /// <summary>
+    /// Пометка книги, в которой печатается больше одного листа (issue #1457). Каждый лист конвертер
+    /// начинает с новой страницы, и служебный лист, оставленный программой выгрузки («Параметры»),
+    /// иначе читался бы продолжением счёта. Какой лист служебный, отсюда не видно — листы названы, а
+    /// судит человек.
+    /// </summary>
+    public static string SheetsNote(IReadOnlyList<string> sheets)
+    {
+        var named = string.Join(", ", sheets.Take(NamedSheets).Select(name => $"«{name}»"));
+        if (sheets.Count > NamedSheets) named += $" и ещё {sheets.Count - NamedSheets}";
+        return $"Листов с данными: {sheets.Count} — {named}; каждый начинается с новой страницы.";
+    }
 
     /// <inheritdoc cref="OfficeFileBudget.MayBeOffice" />
     public static bool MayBeOffice(ReadOnlySpan<byte> head) => OfficeFileBudget.MayBeOffice(head);

@@ -208,8 +208,8 @@ public class RenditionPostconditionTests
     }
 
     /// <summary>
-    /// Страницы без текста не выбрасываются, а называются: старый Excel даёт лишние пустые листы,
-    /// но на такой же странице может стоять печать картинкой — по текстовому слою их не различить.
+    /// Страницы без текста не выбрасываются, а называются: на такой странице может стоять печать
+    /// картинкой. Чем пустая отличается от страницы с картинкой — в <see cref="OldWorkbookRenditionTests" />.
     /// </summary>
     [Fact]
     public async Task Страницы_без_текста_названы_пометкой()
@@ -217,7 +217,7 @@ public class RenditionPostconditionTests
         var built = Assert.IsType<Rendition.Built>(await BuildFrom(Pdf(First(20), "", "")));
 
         Assert.Equal(3, built.Pages);
-        Assert.Equal("Страниц: 3, из них без текста: 2.", Assert.Single(built.Notes));
+        Assert.Equal("Страниц: 3, из них без текста: 2 — на них нет ни текста, ни картинок.", Assert.Single(built.Notes));
     }
 
     [Fact]
