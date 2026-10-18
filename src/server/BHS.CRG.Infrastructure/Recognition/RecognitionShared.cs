@@ -119,7 +119,31 @@ public static class RecognitionShared
         sb.Append("Поле ").Append(InvoiceFields.LineItemsPath)
           .AppendLine(" — верни ЗНАЧЕНИЕМ этого ключа настоящий JSON-массив объектов");
         sb.AppendLine("(не строку), по одному объекту на строку таблицы товаров/услуг. Если товаров нет — пустой массив [].");
+        AppendRowColumns(sb, fields);
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Колонки строк счёта с описаниями (issue #1481, решение владельца 18.10.2026). Раньше модель
+    /// получала одни ключи через «/» — в названии поля «Товары», — и описание колонки, которое редактор
+    /// профиля называет единственным каналом смысла для модели, до неё не доходило: уточнить колонку
+    /// описанием было нельзя. Колонка без описания печатается ключом: описания у неё нет, и повторять
+    /// ключ дважды незачем.
+    ///
+    /// <para>Только у счёта: у таблиц документа колонки и так печатаются полями с описаниями
+    /// (<c>ListRowColumnsAsFields</c>).</para>
+    /// </summary>
+    private static void AppendRowColumns(StringBuilder sb, IReadOnlyList<RecognitionField> fields)
+    {
+        if (fields.FirstOrDefault(f => f.Path == InvoiceFields.LineItemsPath)?.Columns is not { Count: > 0 } columns) return;
+
+        sb.AppendLine("Ключи объекта строки (ключ — что в нём):");
+        foreach (var column in columns)
+        {
+            sb.Append("- ").Append(column.Path);
+            if (column.Title != column.Path) sb.Append(" — ").Append(column.Title);
+            sb.AppendLine();
+        }
     }
 
     /// <summary>Промпт для распознавания ТАБЛИЦЫ документа ГОСТ (спецификация/ведомость или кабельный

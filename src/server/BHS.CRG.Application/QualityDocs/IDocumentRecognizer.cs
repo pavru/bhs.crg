@@ -1,7 +1,15 @@
 ﻿namespace BHS.CRG.Application.QualityDocs;
 
 /// <summary>Поле-цель для извлечения (плоский путь, напр. «ВыпустившаяОрганизация.ИНН»).</summary>
-public record RecognitionField(string Path, string Title, string Type, IReadOnlyList<string>? Options = null);
+public record RecognitionField(string Path, string Title, string Type, IReadOnlyList<string>? Options = null)
+{
+    /// <summary>
+    /// Колонки объекта строки — у поля-массива табличной части (issue #1481); у остальных <c>null</c>.
+    /// Запрос, которому нужен смысл колонок, печатает их описания отсюда: в названии поля-массива
+    /// остаются одни ключи — его формулировку держат побайтовые сверки запросов.
+    /// </summary>
+    public IReadOnlyList<RecognitionField>? Columns { get; init; }
+}
 
 /// <summary>
 /// Результат распознавания: значения по плоским путям полей + сырой текст (для отладки)

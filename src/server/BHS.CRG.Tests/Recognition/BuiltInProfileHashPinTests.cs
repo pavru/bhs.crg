@@ -20,15 +20,16 @@ public class BuiltInProfileHashPinTests
     [Theory]
     [InlineData("titleblock", "A0F3A3BC1A26E2EFE1B7AFED6059C0EC2060F0E263C0FE00B8FC27086B7DE943")]
     [InlineData("cover-title", "C27311682DE9E3E92D2823B1833AF95E9729AFABAD35FA0BEBE7B1B7E1707D51")]
-    [InlineData("invoice", "B7CAB201B653C70E77EB77C811926640DB8634822277504CA9370C1C49F09790")]
+    [InlineData("invoice", "47CEB06AB82192B120942A902C44F236F42D93E735BC0A18D7EEDF3033C468B7")]
     [InlineData("spec-table", "FAA89A9DCF1E130D9A3ADCDB8BF76342724ECE41CFC6D8315230138469315E43")]
     [InlineData("cable-journal", "95FC222F0967378ACB383F4D72D840DCD7BCD7E9475D8C2F089CC8D0362CBF52")]
     public void Factory_hash_is_pinned(string code, string expected)
     {
         // Числа сняты с кода ДО переноса объявлений в модули — со статического списка ядра. «invoice»
         // с тех пор переехал ещё раз, от ядра к модулю счетов (issue #1077), и число пережило и это.
-        // Сменилось оно одной настоящей правкой: колонки НДС строк у «invoice» (issue #1410) — у
-        // правивших профиль это и должно зажечь «заводской профиль обновился».
+        // Сменилось оно двумя настоящими правками: колонки НДС строк у «invoice» (issue #1410) и
+        // пересмотр описаний колонок строк, которые с issue #1481 уходят модели, — у правивших профиль
+        // это и должно зажечь «заводской профиль обновился».
         var def = TestRecognition.Catalog.All.Single(d => d.Code == code);
 
         Assert.Equal(expected, def.Hash);
