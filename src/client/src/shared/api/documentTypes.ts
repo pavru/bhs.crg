@@ -34,6 +34,18 @@ export function useListDocumentTypes(kind?: DocumentTypeKind) {
   });
 }
 
+/**
+ * Один тип по идентификатору — схема полей (право `core.types.read`). Ключ под общим `document-types`:
+ * правка схемы сбрасывает и его, и открытая форма записи видит дописанное поле без перезагрузки.
+ */
+export function useDocumentType(id: string | null | undefined) {
+  return useQuery({
+    queryKey: ['document-types', 'one', id],
+    queryFn: () => apiClient.get<DocumentType>(`/document-types/${id}`).then(r => r.data),
+    enabled: !!id,
+  });
+}
+
 export function useCreateDocumentType() {
   const qc = useQueryClient();
   return useMutation({

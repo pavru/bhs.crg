@@ -45,6 +45,8 @@ import { CorrectionBar } from './CorrectionBar';
 import { CorrectionHistory } from './CorrectionHistory';
 import { CorrectionContext, useCorrecting, useCorrectionDraft } from './useCorrectionDraft';
 import { mayCorrect } from './correction';
+import { ExtraField, UnshownExtras } from './InvoiceExtraFields';
+import { InvoiceExtrasProvider, useExtraField, useInvoiceExtras } from './invoiceExtras';
 
 /**
  * Форма ввода счёта (задача C1, второй PR, issue #1076, ТЗ COST-6.2).
@@ -160,7 +162,9 @@ export function InvoiceForm({
   // Всё, что пишет само, в исправлении убрано: запись у него одна (скан, распознавание, «Ещё», «Сохранить»).
   const quiet = locked || correcting;
 
-  const orphanMarks = unconfirmedOutsideBlocks(view.unconfirmed);
+  // Поля, дописанные в тип «Счёт» (issue #1482), — блок «Дополнительно».
+  const extras = useInvoiceExtras(view.documentTypeId);
+  const orphanMarks = unconfirmedOutsideBlocks(view.unconfirmed, extras.block?.fields);
 
   // Уход из раздела с несохранёнными правками спрашивает (G4, issue #1097). Открытый счёт назван в
   // адресе, и пункт «Счета» в навигации ведёт на адрес БЕЗ счёта: форма закрылась бы вместе с
@@ -202,6 +206,7 @@ export function InvoiceForm({
     <RecognitionContext.Provider value={quiet ? undefined : watch.recognition}>
     <InvoiceDeleteProvider view={view} canEdit={canEdit && !closed} dirty={dirty || linesDirty} reading={watch.running}
       organizations={organizations} onDeleted={onClose}>
+    <InvoiceExtrasProvider value={extras.byKey}>
     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
       <LeaveGuardDialog open={leave !== null} saving={update.isPending}
         onCancel={() => setLeave(null)}
@@ -301,7 +306,7 @@ export function InvoiceForm({
       {/* ── Остальное: прокручивается ────────────────────────────────────────── */}
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-6">
         {!quiet && <RecognitionNotes recognition={watch.recognition} />}
-        {BLOCKS.slice(1).map(block => (
+        {[...BLOCKS.slice(1), ...(extras.block ? [extras.block] : [])].map(block => (
           <section key={block.id} className="space-y-3">
             <BlockFields block={block} columns="sm:grid-cols-2" titled
               view={view} edits={edits} organizations={organizations} locked={locked}
@@ -310,11 +315,23 @@ export function InvoiceForm({
           </section>
         ))}
 
+        <UnshownExtras extras={extras} />
+        {/* Метки у полей, которых форма не показывает (вид без поля ввода, схема не прочитана, поля нет в
+            типе): править их здесь нечем — снимает только «Всё верно» этой строки. */}
         {orphanMarks.length > 0 && (
-          <p className="text-xs text-warning">
-            Метки есть и у полей, которых нет в блоках формы ({orphanMarks.join(', ')}) — это поля,
-            дописанные в тип. Снять метку с них можно правкой значения.
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="flex-1 text-xs text-warning">
+              Распознано, не подтверждено — у полей, которых форма не показывает:{' '}
+              {orphanMarks.map(key => `«${extras.unshown.find(u => u.field.key === key)?.field.title || key}»`).join(', ')}.
+              Сверьте их по скану.
+            </p>
+            {!quiet && (
+              <Button size="sm" variant="outlined" icon={<CheckCheck size={13} />} loading={confirm.isPending}
+                onClick={() => confirmBlock({ id: 'unshown', title: '', fields: orphanMarks })}>
+                Всё верно ({orphanMarks.length})
+              </Button>
+            )}
+          </div>
         )}
 
         <InvoiceLinesTable key={correction.generation} view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty}
@@ -328,6 +345,7 @@ export function InvoiceForm({
         <CorrectionHistory view={view} gone={gone} />
       </div>
     </div>
+    </InvoiceExtrasProvider>
     </InvoiceDeleteProvider>
     </RecognitionContext.Provider>
     </CorrectionContext.Provider>
@@ -394,10 +412,13 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
   // Обязательное для «Разобран» — пометкой у подписи (issue #1291). Перечень присылает сервер.
   const required = isRequired(view, fieldKey);
   const current = value(fieldKey);
+  const extra = useExtraField(fieldKey);
 
   // Рамкой предупреждения, а не ошибки: распознанное значение не ошибка, его просто никто пока не
   // подтвердил. Красная рамка звала бы чинить то, что, скорее всего, верно.
   const frame = marked ? 'rounded-md ring-1 ring-warning-border' : '';
+
+  if (extra) return <ExtraField field={extra} value={current} set={set} locked={locked} hint={hint} frame={frame} />;
 
   switch (fieldKey) {
     case K.supplier:

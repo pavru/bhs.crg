@@ -1,4 +1,5 @@
 import type { InvoiceDuplicate, InvoiceRequisites, InvoiceSameFile } from '@/shared/api/invoices';
+import type { SchemaField } from '@/shared/api/schema';
 import { formatDate, formatDateTime, formatInputAmount, formatMoney } from '@/shared/format/format';
 
 /**
@@ -103,10 +104,49 @@ export function isMarked(
   return unconfirmed.includes(key) && !(key in edits);
 }
 
-/** Есть ли в форме хоть одна метка вне известных блоков — такие поля дописал заказчик. */
-export function unconfirmedOutsideBlocks(unconfirmed: readonly string[]): string[] {
-  const known = new Set(BLOCKS.flatMap(b => [...b.fields]));
+/**
+ * Метки у полей, которых форма не показывает ни в одном блоке, — ни в блоках модуля, ни в
+ * «Дополнительно» (`shown` — его поля). Снять их можно только «Всё верно» у этой строки.
+ */
+export function unconfirmedOutsideBlocks(unconfirmed: readonly string[], shown: readonly string[] = []): string[] {
+  const known = new Set([...BLOCKS.flatMap(b => [...b.fields]), ...shown]);
   return unconfirmed.filter(key => !known.has(key));
+}
+
+/** Виды полей, у которых в форме счёта есть поле ввода (общий `PrimitiveInput`, как у документов). */
+const SHOWN_KINDS: ReadonlySet<SchemaField['type']> = new Set(['string', 'text', 'number', 'date', 'boolean', 'enum', 'primitive']);
+
+/** Почему поле не показано — словом вида, а не кодом. */
+const UNSHOWN_KIND: Partial<Record<SchemaField['type'], string>> = {
+  complex: 'составное', array: 'список', 'doc-ref': 'ссылка на документ', 'doc-array': 'ссылки на документы',
+  image: 'изображение', file: 'файл',
+};
+
+export interface ExtraFields {
+  /** Поля блока «Дополнительно» — в порядке схемы. */
+  shown: SchemaField[];
+  /** Дописанные поля, которых форма показать не может, с причиной. Молчать о них нельзя (issue #1482). */
+  unshown: { field: SchemaField; why: string }[];
+}
+
+/**
+ * Поля, дописанные в тип «Счёт» (issue #1482): заказчик вправе добавить свои необязательные поля, и
+ * форма обязана их показать. Берутся только те, которых модуль не знает (`K`): поле модуля стоит в своём
+ * блоке, и второй его экземпляр в «Дополнительно» правил бы то же значение из двух мест.
+ */
+export function extraFields(fields: readonly SchemaField[]): ExtraFields {
+  const known = new Set<string>(Object.values(K));
+  const extra = fields.filter(f => !known.has(f.key));
+  const why = (f: SchemaField) => f.computed ? 'вычисляемое' : SHOWN_KINDS.has(f.type) ? null : UNSHOWN_KIND[f.type] ?? f.type;
+  return {
+    shown: extra.filter(f => why(f) === null),
+    unshown: extra.flatMap(f => { const reason = why(f); return reason ? [{ field: f, why: reason }] : []; }),
+  };
+}
+
+/** Блок «Дополнительно» — после блоков модуля; без дописанных полей его нет. */
+export function extraBlock(shown: readonly SchemaField[]): InvoiceBlock | null {
+  return shown.length > 0 ? { id: 'extra', title: 'Дополнительно', fields: shown.map(f => f.key) } : null;
 }
 
 /**
