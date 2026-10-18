@@ -295,7 +295,9 @@ export function InvoiceForm({
         <InvoiceTwinNotes view={view} onOpenInvoice={onOpenInvoice} />
         {scanSlot}
 
-        <BlockFields block={BLOCKS[0]} columns="sm:grid-cols-2 lg:grid-cols-5"
+        {/* Три колонки, а не пять (ревью PR #1508): пять полей в ряд сжимали поставщика до пятой части
+            формы, а рядом со сканом — до нечитаемого. */}
+        <BlockFields block={BLOCKS[0]} columns="sm:grid-cols-2 lg:grid-cols-3"
           view={view} edits={edits} organizations={organizations} locked={locked}
           organizationsUnread={organizationsError != null} value={value} set={set}
           onConfirm={confirmBlock} confirming={confirm.isPending} />

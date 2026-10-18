@@ -31,9 +31,11 @@ import { DataGrid } from '@/shared/ui/DataGrid';
  * сверху», и от неё же зависит, какая из двух сумм («без НДС | с НДС») станет суммой строки. Вставка без
  * этого заводила счёт в расхождение ровно на НДС — ту самую ошибку, с которой начат эпик #1496.</p>
  */
-export function InvoiceLinesPaste({ mode, onAdd }: {
+export function InvoiceLinesPaste({ mode, modeFixed = false, onAdd }: {
   /** Режим черновика строк — с него начинается отметка в окне. */
   mode: VatMode;
+  /** Режим здесь не меняется (исправление, #1498): отметки в окне нет, роли — по режиму счёта. */
+  modeFixed?: boolean;
   onAdd: (drafts: LineDraft[], mode: VatMode) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -44,14 +46,14 @@ export function InvoiceLinesPaste({ mode, onAdd }: {
         onClick={() => setOpen(true)}>
         Вставить из буфера
       </Button>
-      {open && <PasteDialog mode={mode} onClose={() => setOpen(false)}
+      {open && <PasteDialog mode={mode} modeFixed={modeFixed} onClose={() => setOpen(false)}
         onAdd={(drafts, chosen) => { onAdd(drafts, chosen); setOpen(false); }} />}
     </>
   );
 }
 
-function PasteDialog({ mode, onClose, onAdd }: {
-  mode: VatMode; onClose: () => void; onAdd: (drafts: LineDraft[], mode: VatMode) => void;
+function PasteDialog({ mode, modeFixed, onClose, onAdd }: {
+  mode: VatMode; modeFixed: boolean; onClose: () => void; onAdd: (drafts: LineDraft[], mode: VatMode) => void;
 }) {
   const [text, setText] = useState('');
   const [roles, setRoles] = useState<PasteRole[] | null>(null);
@@ -60,8 +62,11 @@ function PasteDialog({ mode, onClose, onAdd }: {
 
   const table = parseTable(text);
   const width = Math.max(0, ...table.map(row => row.length));
-  const byHeader = mode === 'Included' && pastedWithoutVat(table);
-  const chosen: VatMode = (onTop ?? (mode === 'OnTop' || byHeader)) ? 'OnTop' : 'Included';
+  // Отметка в окне только СТАВИТСЯ (ревью PR #1508): у счёта сверху бумага та же, и снять её вставкой
+  // значило бы переодеть уже лежащие строки, хотя человек вставлял новые. Снимают её над строками.
+  const offered = mode === 'Included' && !modeFixed;
+  const byHeader = offered && pastedWithoutVat(table);
+  const chosen: VatMode = offered ? ((onTop ?? byHeader) ? 'OnTop' : 'Included') : mode;
   // Роли, названные человеком, важнее догадки — но только пока ширина не изменилась: вставил другую
   // таблицу — прежние роли к ней не относятся.
   const current = roles && roles.length === width ? roles : guessRoles(table, chosen);
@@ -125,12 +130,14 @@ function PasteDialog({ mode, onClose, onAdd }: {
                 <p className="text-xs text-fg4">Показаны первые 8 строк из {rows.length} — добавятся все.</p>
               )}
 
-              <Checkbox size="sm" label="Цены без НДС, НДС сверху" checked={chosen === 'OnTop'}
-                onChange={on => setOnTop(on)}
-                description={chosen === mode ? undefined
-                  : chosen === 'OnTop'
-                  ? `${byHeader && onTop === null ? 'В шапке таблицы цены без НДС. ' : ''}Отметка встанет и над строками счёта — для всех его строк.`
-                  : 'Отметка снимется и над строками счёта — для всех его строк.'} />
+              {offered ? (
+                <Checkbox size="sm" label="Цены без НДС, НДС сверху" checked={chosen === 'OnTop'}
+                  onChange={on => setOnTop(on)}
+                  description={chosen === 'Included' ? undefined
+                    : `${byHeader && onTop === null ? 'В шапке таблицы цены без НДС. ' : ''}Отметка встанет и над строками счёта — для всех его строк.`} />
+              ) : mode === 'OnTop' && (
+                <p className="text-xs text-fg4">Цены без НДС, НДС сверху — как отмечено над строками счёта.</p>
+              )}
             </>
           )}
 

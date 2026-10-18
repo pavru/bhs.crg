@@ -236,7 +236,9 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
   });
 
   function edit(key: string, patch: Partial<LineDraft>) {
-    setDrafts(prev => prev.map(draft => (draft.key === key ? { ...draft, ...patch } : draft)));
+    // НДС, набранный руками, — новое слово человека: отложенный сменой режима ему не вернуть.
+    const typed = 'vatAmount' in patch ? { vatAside: undefined } : {};
+    setDrafts(prev => prev.map(draft => (draft.key === key ? { ...draft, ...patch, ...typed } : draft)));
     setDirty(true);
   }
 
@@ -303,7 +305,9 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
         <div className="flex-1" />
         {!still && (
           <>
-            <InvoiceLinesPaste mode={mode} onAdd={add} />
+            {/* В исправлении режим не меняется (#1498): тело исправления несёт режим счёта, и вставка,
+                переключившая его в черновике, легла бы бумагой другого режима. */}
+            <InvoiceLinesPaste mode={mode} modeFixed={correcting !== null} onAdd={add} />
             {!correcting && (
               <Button size="sm" variant="filled" icon={<Save size={13} />} disabled={!dirty}
                 loading={replace.isPending} onClick={save}>
@@ -315,7 +319,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
       </div>
 
       {mode !== savedMode && view.lines.length > 0 && (
-        <p className="text-xs text-warning">{modeConsequences(view, parsed)}</p>
+        <p className="text-xs text-warning">{modeConsequences(view, drafts, parsed)}</p>
       )}
 
       {base.stale && dirty && !correcting && <StaleInvoiceNotice what="строки" onReread={reread} />}
@@ -406,7 +410,10 @@ function ReconciliationStrip({ sums, strip, unsaved, matched, hint, onHint }: {
   hint: 'onTop' | 'included' | null;
   onHint: (to: VatMode) => void;
 }) {
-  const offer = hint && strip.difference !== null ? modeHint(hint) : null;
+  // Догадку сервер даёт только при расхождении сверх допуска, и строки при ней сохранены: свою сверку
+  // форма здесь не спрашивает. Сверху без НДС у строк она расхождения не показывает вовсе («не посчитать»),
+  // а флажок, поставленный зря, — ровно этот случай (ревью PR #1508).
+  const offer = hint ? modeHint(hint) : null;
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border border-stroke
       bg-muted px-3 py-2 text-xs">

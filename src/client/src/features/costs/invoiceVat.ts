@@ -17,9 +17,16 @@ export const vatModeOf = (view: Pick<InvoiceView, 'vatMode'>): VatMode => view.v
  * Черновик строк в другом режиме. Бумажная сумма остаётся: на бумаге то же число, меняется его смысл.
  * НДС строк со ставкой пересчитывается — его посчитал прежний режим (от суммы с НДС), и в новом он был
  * бы неверен; у строки без ставки сумма НДС — из бумаги, и она остаётся.
+ *
+ * <p>⚠️ Стёртый НДС откладывается, а не теряется (ревью PR #1508): режимов два, и обратное переключение
+ * возвращает строке её НДС. Иначе флажок, поставленный и тут же снятый, молча заменял бы НДС бумаги
+ * (219,99) расчётным (220,00).</p>
  */
 export function withMode(drafts: readonly LineDraft[]): LineDraft[] {
-  return drafts.map(draft => (toNumber(draft.vatRate) === null ? draft : { ...draft, vatAmount: '' }));
+  return drafts.map(draft => {
+    if (draft.vatAside !== undefined) return { ...draft, vatAmount: draft.vatAside, vatAside: undefined };
+    return toNumber(draft.vatRate) === null ? draft : { ...draft, vatAmount: '', vatAside: draft.vatAmount };
+  });
 }
 
 /** Кусок полосы сверки: подпись, число (жирным) и тон. */
@@ -38,6 +45,13 @@ export interface Reconciliation {
 }
 
 /**
+ * Сверху с НДС шапки «сошлось» — арифметика бумаги, а не готовность: у строки без ставки суммы с НДС нет,
+ * и «Разобран» её не примет (ревью PR #1508). Зелёное «сходится» рядом с отказом готовности спорило бы с
+ * ним, поэтому полоса говорит, чего не хватает.
+ */
+const HEAD_ONLY = 'с НДС из реквизитов сходится — для «Разобран» впишите ставку НДС в строках';
+
+/**
  * Полоса сверки порядком бумаги (issue #1499).
  *
  * <p>«В том числе» — как прежде: сумма строк и НДС в ней. Сверху — «сумма строк без НДС · НДС · всего с
@@ -53,6 +67,7 @@ export function reconcile(
   const head = typeof paperVat === 'number' ? paperVat : null;
   const items: ReconciliationItem[] = [];
   let gross: number | null = sums.amount;
+  let fromHead = false;
 
   if (sums.mode === 'Included') {
     items.push({ label: 'Сумма строк: ', value: sums.amount, tone: 'main' });
@@ -64,6 +79,7 @@ export function reconcile(
     else if (head !== null) {
       items.push({ label: 'НДС из реквизитов: ', value: head, tone: 'quiet' });
       gross = money((sums.net ?? 0) + head);
+      fromHead = true;
     } else {
       gross = null;
       items.push({
@@ -80,11 +96,9 @@ export function reconcile(
   if (typeof total === 'number') items.push({ label: 'к оплате по счёту: ', value: total, tone: 'quiet' });
 
   const difference = gross === null ? null : mismatch(total, gross, sums.count);
-  return {
-    items,
-    difference,
-    agrees: gross !== null && sums.count > 0 && typeof total === 'number' && difference === null,
-  };
+  const matched = gross !== null && sums.count > 0 && typeof total === 'number' && difference === null;
+  if (matched && fromHead) items.push({ label: HEAD_ONLY, value: null, tone: 'warning' });
+  return { items, difference, agrees: matched && !fromHead };
 }
 
 /**
@@ -93,12 +107,19 @@ export function reconcile(
  * <p>Сумма строки с НДС меняется. Разноска по количеству пересчитывается сама; разноска суммой —
  * записанными деньгами — разойдётся, и это надо назвать строками. Разобранный счёт с несошедшейся
  * разноской сервер вернёт в черновик.</p>
+ *
+ * <p>Разноска — у сохранённых строк, а номера — как на экране, по черновику (ревью PR #1508): удалённая
+ * в черновике строка сдвигает номера, и сохранённый номер назвал бы чужую строку.</p>
  */
-export function modeConsequences(view: InvoiceView, parsed: boolean): string {
-  const allocated = view.lines.filter(line => line.allocation.parts.length > 0);
-  const bySum = allocated.filter(line => line.allocation.mode === 'amount').map(line => line.ordinal);
+export function modeConsequences(view: InvoiceView, drafts: readonly LineDraft[], parsed: boolean): string {
+  const saved = new Map(view.lines.map(line => [line.id, line]));
+  const allocated = drafts.flatMap((draft, index) => {
+    const line = draft.id ? saved.get(draft.id) : undefined;
+    return line && line.allocation.parts.length > 0 ? [{ number: index + 1, mode: line.allocation.mode }] : [];
+  });
+  const bySum = allocated.filter(line => line.mode === 'amount').map(line => line.number);
   const parts = ['Суммы строк с НДС изменятся'];
-  if (allocated.some(line => line.allocation.mode === 'quantity')) parts.push('разноска по количеству пересчитается сама');
+  if (allocated.some(line => line.mode === 'quantity')) parts.push('разноска по количеству пересчитается сама');
   if (bySum.length > 0)
     parts.push(`разноска суммой у ${bySum.length === 1 ? 'строки' : 'строк'} ${bySum.join(', ')} разойдётся — проверьте её после сохранения`);
   const text = parts.join(', ');

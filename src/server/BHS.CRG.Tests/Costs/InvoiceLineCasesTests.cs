@@ -14,7 +14,7 @@ namespace BHS.CRG.Tests.Costs;
 /// </summary>
 public class InvoiceLineCasesTests
 {
-    private const string CasesFile = "src/client/src/features/costs/invoiceLineCases.json";
+    private static readonly string CasesFile = RepoPaths.File("src", "client", "src", "features", "costs", "invoiceLineCases.json");
 
     public static TheoryData<string> Names() => [.. Cases().Select(c => c.GetProperty("name").GetString()!)];
 
@@ -42,20 +42,7 @@ public class InvoiceLineCasesTests
 
     private static IEnumerable<JsonElement> Cases()
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoRoot, CasesFile)));
+        using var document = JsonDocument.Parse(File.ReadAllText(CasesFile));
         return [.. document.RootElement.GetProperty("cases").EnumerateArray().Select(c => c.Clone())];
-    }
-
-    private static string RepoRoot { get; } = FindRepoRoot();
-
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "CLAUDE.md")))
-            dir = dir.Parent;
-        return dir?.FullName
-            ?? throw new InvalidOperationException(
-                "Не найден корень репозитория (CLAUDE.md) выше " + AppContext.BaseDirectory +
-                " — примеры строк лежат у формы, и без них сверять нечего.");
     }
 }

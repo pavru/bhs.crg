@@ -69,6 +69,13 @@ describe('смена режима в черновике', () => {
     expect(preview(rated, 'OnTop')).toEqual({ amount: 1220, vat: 268.4, gross: 1488.4 });
     expect(silent.vatAmount).toBe('50');
   });
+
+  it('флажок поставили и сняли — НДС из бумаги возвращается, а не заменяется расчётным (ревью PR #1508)', () => {
+    const paper = draft({ amount: '1220', vatRate: '22', vatAmount: '219,99' });
+    const [back] = withMode(withMode([paper]));
+    expect(back.vatAmount).toBe('219,99');
+    expect(back.vatAside).toBeUndefined();
+  });
 });
 
 describe('полоса сверки', () => {
@@ -92,12 +99,14 @@ describe('полоса сверки', () => {
     expect(r.agrees).toBe(true);
   });
 
-  it('сверху, строки об НДС молчат — НДС из реквизитов, и сверка сходится', () => {
+  it('сверху, строки об НДС молчат — НДС из реквизитов; совпало — но «сходится» не говорит: ставка нужна строкам', () => {
     const r = view(silent, 'OnTop', 330, 1830);
-    expect(labels(r)).toEqual([
+    expect(labels(r).slice(0, 4)).toEqual([
       'Сумма строк без НДС: 1500', 'НДС из реквизитов: 330', 'всего с НДС: 1830', 'к оплате по счёту: 1830',
     ]);
-    expect(r).toMatchObject({ difference: null, agrees: true });
+    // Сервер у строки без ставки суммы с НДС не знает, и «Разобран» откажет: зелёное «сходится» спорило бы с ним.
+    expect(r).toMatchObject({ difference: null, agrees: false });
+    expect(r.items.at(-1)).toMatchObject({ tone: 'warning', label: expect.stringContaining('впишите ставку НДС в строках') });
   });
 
   it('сверху, НДС не указан нигде — «не посчитать», и ложного расхождения на весь налог нет', () => {
@@ -137,19 +146,27 @@ describe('вставка из буфера', () => {
 
 describe('последствия смены режима', () => {
   const allocated = (ordinal: number, mode: 'quantity' | 'amount') => line({
-    ordinal,
+    id: `l${ordinal}`, ordinal,
     allocation: { mode, parts: [{} as never], unallocatedQuantity: null, unallocatedAmount: null, balanced: true },
   });
 
+  const drafts = (view: InvoiceView) => toDrafts(view.lines, 'Included');
+
   it('разноска суммой — строками; по количеству — пересчитается сама', () => {
-    const view = { lines: [allocated(1, 'quantity'), allocated(3, 'amount'), allocated(5, 'amount')] } as InvoiceView;
-    expect(modeConsequences(view, false)).toBe('Суммы строк с НДС изменятся, разноска по количеству пересчитается '
-      + 'сама, разноска суммой у строк 3, 5 разойдётся — проверьте её после сохранения.');
+    const view = { lines: [allocated(1, 'quantity'), allocated(2, 'amount'), allocated(3, 'amount')] } as InvoiceView;
+    expect(modeConsequences(view, drafts(view), false)).toBe('Суммы строк с НДС изменятся, разноска по количеству '
+      + 'пересчитается сама, разноска суммой у строк 2, 3 разойдётся — проверьте её после сохранения.');
+  });
+
+  it('номера — как на экране: строка, удалённая в черновике, их сдвигает (ревью PR #1508)', () => {
+    const view = { lines: [allocated(1, 'quantity'), allocated(2, 'quantity'), allocated(3, 'amount')] } as InvoiceView;
+    const [first, , third] = drafts(view);
+    expect(modeConsequences(view, [first, third], false)).toContain('у строки 2 разойдётся');
   });
 
   it('у разобранного с разноской — счёт может вернуться в черновик', () => {
     const view = { lines: [allocated(2, 'amount')] } as InvoiceView;
-    expect(modeConsequences(view, true)).toContain('Если разноска не сойдётся, счёт вернётся в черновик.');
+    expect(modeConsequences(view, drafts(view), true)).toContain('Если разноска не сойдётся, счёт вернётся в черновик.');
   });
 });
 

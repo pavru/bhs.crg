@@ -72,6 +72,11 @@ export interface LineDraft {
   declined?: boolean;
   /** `false` — «не запоминать выбор в этой строке». На сервер уезжает только отказ. */
   remember?: boolean;
+  /**
+   * Сумма НДС, отложенная сменой режима (ревью PR #1508): флажок, поставленный и снятый, возвращает её, а
+   * не теряет — у бумаги она могла расходиться с расчётной на копейку. Правка НДС руками её снимает.
+   */
+  vatAside?: string;
 }
 
 let sequence = 0;
@@ -391,8 +396,7 @@ function headerRoles(row: readonly string[], width: number, mode: VatMode): Past
     const was = owner.get(role);
     const money = role === 'price' || role === 'amount';
     // Денежной роли — колонку своего режима, если она есть; иначе — первую, как прежде.
-    const better = money && was !== undefined && !fits.test(row[was] ?? '') && fits.test(row[column] ?? '')
-      && !(mode === 'Included' && WITHOUT_VAT.test(row[column] ?? ''));
+    const better = money && was !== undefined && !fits.test(row[was] ?? '') && fits.test(row[column] ?? '');
     if (was === undefined || better) owner.set(role, column);
   });
   const roles = found.map((role, column) => (role !== undefined && owner.get(role) === column ? role : 'skip'));
