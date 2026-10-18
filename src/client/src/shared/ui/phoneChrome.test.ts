@@ -20,13 +20,15 @@ const sections: RailSection[] = [
 describe('оболочка телефона', () => {
   it('на рабочем столе ничего не добавляет', () => {
     expect(phoneChrome({ wide: true, panelSection: costs, panelGroups: groups, outside, sections }))
-      .toEqual({ sectionMenu: null, admin: undefined });
+      .toEqual({ sectionMenu: null, admin: undefined, bottomNav: [] });
   });
 
   it('на телефоне — меню раздела с его страницами и «вне пространства», и «Система» для меню профиля', () => {
-    const { sectionMenu, admin } = phoneChrome({ wide: false, panelSection: costs, panelGroups: groups, outside, sections });
+    const { sectionMenu, admin, bottomNav } = phoneChrome({ wide: false, panelSection: costs, panelGroups: groups, outside, sections });
     expect(sectionMenu).toEqual({ def: costs, groups, outside });
     expect(admin?.def.id).toBe('system');
+    // Внизу — только рабочие разделы.
+    expect(bottomNav.map(s => s.def.id)).toEqual(['costs']);
   });
 
   it('у «Системы» строки «вне пространства» нет — как в подпанели', () => {

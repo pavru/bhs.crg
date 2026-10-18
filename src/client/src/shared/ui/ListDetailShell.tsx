@@ -58,7 +58,8 @@ export function ListDetailShell({ overlay, nav, navWidth = 'w-80', detail, view,
         <ViewContext.Provider value={current}>
           <div className="flex-1 min-h-0 flex">
             <nav aria-label={header.title} data-testid="ld-nav"
-              className={`w-full ${NAV_WIDE[navWidth]} shrink-0 @2xl/ld:border-r border-stroke flex flex-col bg-base ${
+              // Под концом списка — место для плавающей кнопки, пока она есть (#1434, `--fab-clearance`).
+              className={`w-full ${NAV_WIDE[navWidth]} shrink-0 @2xl/ld:border-r border-stroke flex flex-col bg-base pb-[var(--fab-clearance,0px)] ${
                 onDetail ? '@max-2xl/ld:hidden' : ''}`}>
               {nav}
             </nav>

@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
 import { PALETTE_ACTIONS } from '@/shared/ui/paletteActions';
+import { PrimaryActionButton } from '@/shared/ui/PrimaryActionButton';
 import { usePaletteIntent } from '@/shared/ui/usePaletteIntent';
 import { ListChecks, PackageCheck, Plus, Truck } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
@@ -125,12 +126,9 @@ export function WaybillsPage() {
           <Button variant="outlined" icon={<PackageCheck size={16} />} onClick={() => setMaterialsOpen(true)}>
             Материалы на объекте
           </Button>
-          {canEdit && (
-            // На телефоне — плавающей кнопкой (#1434).
-            <Button variant="filled" icon={<Plus size={16} />} loading={create.isPending} onClick={addDraft} className="max-md:hidden">
-              Новая накладная
-            </Button>
-          )}
+          {/* На телефоне — плавающей кнопкой (#1434). */}
+          {canEdit && <PrimaryActionButton action={PALETTE_ACTIONS.waybillNew} icon={<Plus size={16} />}
+            loading={create.isPending} onClick={addDraft} />}
           {materialsOpen && (
             <IssuedMaterialsDialog sites={sites.data ?? []} sitesFailed={sites.isError}
               onClose={() => setMaterialsOpen(false)} />

@@ -7,7 +7,8 @@ import type { SectionMenuValue } from './sectionMenuContext';
  * - `sectionMenu` — страницы раздела для меню заголовка, там, где на рабочем столе стояла бы
  *   подпанель (`panelSection`); у «Системы» без строки «вне пространства», как в подпанели;
  * - `admin` — раздел «Система» для пункта «Администрирование» меню профиля (решение владельца от
- *   17.10.2026). На рабочем столе «Система» в рейле, и меню профиля остаётся только про человека.
+ *   17.10.2026). На рабочем столе «Система» в рейле, и меню профиля остаётся только про человека;
+ * - `bottomNav` — рабочие разделы для нижней навигации, без «Системы».
  */
 export function phoneChrome({ wide, panelSection, panelGroups, outside, sections }: {
   wide: boolean;
@@ -15,9 +16,10 @@ export function phoneChrome({ wide, panelSection, panelGroups, outside, sections
   panelGroups: PanelGroup[];
   outside: NavItem[];
   sections: RailSection[];
-}): { sectionMenu: SectionMenuValue | null; admin: RailSection | undefined } {
-  if (wide) return { sectionMenu: null, admin: undefined };
+}): { sectionMenu: SectionMenuValue | null; admin: RailSection | undefined; bottomNav: RailSection[] } {
+  if (wide) return { sectionMenu: null, admin: undefined, bottomNav: [] };
   return {
+    bottomNav: sections.filter(s => !s.def.unscoped),
     sectionMenu: panelSection
       ? { def: panelSection, groups: panelGroups, outside: panelSection.unscoped ? [] : outside }
       : null,

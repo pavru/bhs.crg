@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, type CSSProperties } from 'react';
 import { Link, Outlet, useLocation } from 'react-router';
 import { useAccount, useResendConfirmation } from '@/shared/api/account';
 import { useAccess } from '@/shared/api/access';
@@ -20,7 +20,8 @@ import { phoneChrome } from '@/shared/ui/phoneChrome';
 import { BrandLogo } from '@/shared/ui/Brand';
 import { useProductName } from '@/shared/api/branding';
 import { PrimaryFab } from '@/shared/ui/PrimaryFab';
-import { PrimaryFabCoverContext } from '@/shared/ui/primaryFabContext';
+import { PrimaryFabContext, usePrimaryFabState } from '@/shared/ui/primaryFabContext';
+import { FAB_CLEARANCE, toastLift } from '@/shared/ui/phoneLayout';
 import { primaryActionAt } from '@/shared/ui/paletteActions';
 import { SectionPanel, SectionRail, ShowPanelButton } from '@/shared/ui/SectionRail';
 import { useFavoriteSitesGroup, withFavoriteSites } from '@/shared/siteFilter/favoriteSitesGroup';
@@ -76,11 +77,20 @@ function Shell() {
   // Телефон (issue #1434): рейла нет — разделы внизу, страницы раздела — в меню заголовка страницы,
   // «Администрирование» — пункт меню профиля.
   const wide = useMedia(WIDE);
-  const { sectionMenu, admin } = phoneChrome({ wide, panelSection, panelGroups, outside, sections });
+  const { sectionMenu, admin, bottomNav } = phoneChrome({ wide, panelSection, panelGroups, outside, sections });
   // Основное действие экрана — плавающей кнопкой на телефоне; пока карточка закрывает список, её нет.
   const { data: access } = useAccess();
-  const [fabCovered, setFabCovered] = useState(false);
-  const fab = !wide && !fabCovered && access ? primaryActionAt(pathname, access) : undefined;
+  const fabState = usePrimaryFabState();
+  const fab = !wide && !fabState.covered && access ? primaryActionAt(pathname, access) : undefined;
+  // Тосты встают над тем, что стоит у нижнего края. Их поле — вне оболочки, поэтому подъём —
+  // переменной на корне документа, и ставит её одно место, которое знает и строку, и кнопку.
+  const lift = toastLift({ bottomNav: bottomNav.length > 0, fab: !!fab });
+  useEffect(() => {
+    if (!lift) return;
+    const root = document.documentElement.style;
+    root.setProperty('--toast-lift', lift);
+    return () => { root.removeProperty('--toast-lift'); };
+  }, [lift]);
 
   // Глобальные шорткаты (issue #107): Ctrl/⌘+K — палитра, «?» — справка (не в полях ввода).
   useEffect(() => {
@@ -149,18 +159,21 @@ function Shell() {
         </header>
         <OutsideBanner items={allWork} inside={work} />
         <EmailConfirmBanner />
-        {/* Плавающая кнопка стоит над содержимым, а не в нём: прокрутка списка её не уносит. */}
-        <div className="relative flex-1 min-h-0 flex flex-col">
+        {/* Плавающая кнопка стоит над содержимым, а не в нём: прокрутка списка её не уносит. Пока
+            она есть, `--fab-clearance` говорит спискам, сколько места оставить под концом, чтобы
+            последняя строка поднималась выше кнопки (`ListDetailShell`, список строек). */}
+        <div className="relative flex-1 min-h-0 flex flex-col"
+          style={fab ? { '--fab-clearance': FAB_CLEARANCE } as CSSProperties : undefined}>
           <div className="flex-1 overflow-auto">
             <SectionMenuContext.Provider value={sectionMenu}>
-              <PrimaryFabCoverContext.Provider value={setFabCovered}>
+              <PrimaryFabContext.Provider value={fabState.report}>
                 <Outlet />
-              </PrimaryFabCoverContext.Provider>
+              </PrimaryFabContext.Provider>
             </SectionMenuContext.Provider>
           </div>
-          {fab && <PrimaryFab action={fab} />}
+          {fab && <PrimaryFab action={fab} busy={fabState.isBusy(fab.id)} />}
         </div>
-        <BottomNav sections={sections} active={active} />
+        <BottomNav sections={bottomNav} active={active} />
       </main>
     </div>
   );

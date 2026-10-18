@@ -88,13 +88,23 @@ describe('основное действие экрана', () => {
   });
 
   /**
-   * На телефоне filled-кнопка экрана прячется (`max-md:hidden`): плавающая и она рядом — одно действие
-   * дважды. Сверяется по исходнику экрана: кнопка, забывшая класс, вернула бы дубль молча.
+   * Основное действие экран рисует `PrimaryActionButton`: она прячется на телефоне, где её место у
+   * плавающей кнопки, и отдаёт той свою занятость. Своя `<Button>` с той же подписью рядом — двойник:
+   * на телефоне одно действие стояло бы дважды (ревью PR #1502 — пустое состояние строек), а занятость
+   * плавающая кнопка не узнала бы. Считаются ВСЕ кнопки экрана, а не первая найденная.
    */
-  it('экран прячет на телефоне свою кнопку этого действия', () => {
-    const shown = all.filter(a => a.primary).filter(a => !screenFiles(a.to).some(file =>
-      new RegExp(`<Button variant="filled"(?:(?!</Button>)[\\s\\S])*?max-md:hidden(?:(?!</Button>)[\\s\\S])*?${a.label}\\s*</Button>`)
-        .test(clientSources[file] ?? '')));
-    expect(shown.map(a => a.label)).toEqual([]);
+  it('экран рисует основное действие общей кнопкой и без двойников', () => {
+    const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const problems = Object.entries(PALETTE_ACTIONS).filter(([, a]) => (a as PaletteAction).primary).flatMap(([name, a]) => {
+      const sources = screenFiles(a.to).map(file => clientSources[file] ?? '');
+      const label = new RegExp(`>\\s*${escaped(a.label)}\\s*<`);
+      const twins = sources.flatMap(text => text.match(/<Button\b[\s\S]*?<\/Button>/g) ?? []).filter(b => label.test(b));
+      return [
+        ...(sources.some(text => text.includes(`<PrimaryActionButton action={PALETTE_ACTIONS.${name}}`))
+          ? [] : [`«${a.label}»: экран не рисует PrimaryActionButton`]),
+        ...twins.map(() => `«${a.label}»: своя <Button> рядом с PrimaryActionButton`),
+      ];
+    });
+    expect(problems).toEqual([]);
   });
 });
