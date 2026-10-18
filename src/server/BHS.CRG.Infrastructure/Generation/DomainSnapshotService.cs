@@ -9,6 +9,7 @@ using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
+using BHS.CRG.Infrastructure.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -226,9 +227,13 @@ public class DomainSnapshotService(
                 .AsNoTracking()
                 .Include(b => b.Source).ThenInclude(s => s.File)
                 .Where(b => b.OwnerId == documentId && b.TargetFieldKey != null)
+                .InBindingOrder()
                 .ToListAsync(ct))
+            // Из двух привязок в поле — та, что применяется на генерации: позже заведённая
+            // (DataSetBindingOrder, ревью PR #1451). Первая была проигравшей: агенту называлась одна
+            // таблица, а в PDF шла другая.
             .GroupBy(b => b.TargetFieldKey!)
-            .ToDictionary(g => g.Key, g => g.First());
+            .ToDictionary(g => g.Key, g => g.Last());
 
         var result = new List<DocumentTableField>();
         foreach (var field in tableFields)

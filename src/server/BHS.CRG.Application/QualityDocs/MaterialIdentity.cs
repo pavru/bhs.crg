@@ -84,9 +84,16 @@ public static class MaterialIdentity
         };
     }
 
-    /// <summary>Ключ поля, в которое подмешивается документ качества (тэг material.qualityDocLink).</summary>
+    /// <summary>
+    /// Ключ поля, в которое подмешивается документ качества (тэг material.qualityDocLink).
+    ///
+    /// <para>Типы — по идентификатору, как у <see cref="KeysOf" />, а не в порядке выдачи хранилища
+    /// (ревью PR #1451): тэг может стоять у разных полей разных типов, и без порядка документ качества
+    /// подмешивался бы на одной базе в одно поле, а на копии после pg_restore — в другое.</para>
+    /// </summary>
     public static string? QualityDocFieldOf(IReadOnlyList<DocumentType> allTypes)
         => allTypes
+            .OrderBy(t => t.Id.ToString(), StringComparer.Ordinal)
             .SelectMany(t => SchemaTags.TaggedFields(t, allTypes))
             .Where(f => f.Tag == FunctionalTag.MaterialQualityDocLink)
             .Select(f => f.Key)

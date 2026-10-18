@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.DataSets;
@@ -79,7 +80,12 @@ public class DataSetResolverOrderTests(IntegrationTestFixture fixture) : IAsyncL
         // Читать подряд, как база, живущая дольше одного теста (см. описание класса). Настройка — на
         // соединении области; резолвер берёт тот же контекст, а значит, и это соединение.
         await db.Database.OpenConnectionAsync();
-        await db.Database.ExecuteSqlRawAsync("SET enable_indexscan = off; SET enable_bitmapscan = off");
+        // Соединения — только вложенным циклом (ревью PR #1451): слияние и хеш ведут выдачу по
+        // сортировке или по своей стороне построения — по случайному идентификатору источника, — и
+        // предусловие краснело бы через раз. У вложенного цикла внешней таблицей может стать любая из
+        // трёх, и все три заведены в обратном порядке.
+        await db.Database.ExecuteSqlRawAsync(
+            "SET enable_indexscan = off; SET enable_bitmapscan = off; SET enable_mergejoin = off; SET enable_hashjoin = off");
         // Предусловие: запрос той же формы, что у резолвера, но без порядка, отдаёт привязки НЕ по ключу.
         var unordered = (await db.DataSetBindings.Include(b => b.Source).ThenInclude(s => s.File)
             .Where(b => b.OwnerId == instance.Id).AsNoTracking().ToListAsync()).Select(b => b.Id).ToList();
@@ -88,9 +94,28 @@ public class DataSetResolverOrderTests(IntegrationTestFixture fixture) : IAsyncL
         var inst = await m.Send(new GetDocumentInstanceQuery(instance.Id));
         var view = DocumentView.From(inst!);
         var ctx = await scope.ServiceProvider.GetRequiredService<IEntityResolver>().ResolveAsync(view);
-        await scope.ServiceProvider.GetRequiredService<IDataSetResolver>().InjectAsync(ctx, view, TestAccess.All, null, default);
+        var diagnostics = new List<ResolutionDiagnostic>();
+        await scope.ServiceProvider.GetRequiredService<IDataSetResolver>().InjectAsync(ctx, view, TestAccess.All, diagnostics, default);
 
         var rows = (JsonElement)ctx.Data["Строки"]!;
         Assert.Equal("поздняя", rows.EnumerateArray().Single().GetProperty("Поле").GetString());
+
+        // Проигравшая названа, а не затёрта молча (ревью PR #1451): в отчёте генерации, в предпросмотре
+        // и в срезе для агента — одна и та же, и агенту названа та таблица, что уходит в PDF.
+        var said = Assert.Single(diagnostics, d => d.Path == "Строки");
+        Assert.Equal(DiagnosticSeverity.Warning, said.Severity);
+        Assert.Contains("«Ранний» не применяется", said.Message);
+        Assert.Contains("«Поздний», заведённая позже", said.Message);
+
+        var preview = await svc.PreviewBindingsAsync(instance.Id, TestAccess.All, default);
+        Assert.Equal([earlier.Id, later.Id], preview.Select(p => p.BindingId));
+        Assert.Contains("«Ранний» не применяется", preview[0].Error);
+        Assert.Null(preview[1].Error);
+
+        Assert.Equal([earlier.Id, later.Id], (await svc.ListBindingsAsync(instance.Id, default)).Select(b => b.Id));
+
+        var snapshot = await scope.ServiceProvider.GetRequiredService<IDomainSnapshotService>()
+            .GetDocumentAsync(instance.Id, TestAccess.All, ct: default);
+        Assert.Equal("Поздний", Assert.Single(snapshot!.TableFields, t => t.Key == "Строки").SourceName);
     }
 }

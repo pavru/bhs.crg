@@ -60,16 +60,13 @@ public class DataSetResolver(
         List<ResolutionDiagnostic>? diagnostics, CancellationToken ct, IReadOnlySet<Guid>? standing = null)
     {
         var forPersist = standing is not null;
-        // Порядок привязок закреплён ключом — временем создания, при равенстве идентификатором (issue
-        // #1402). Без него привязки шли в порядке строк в куче, и после pg_restore у того же документа
-        // менялся порядок `_dataSets` и нумерация вложений `assets/att_N`. Хуже, когда две привязки
-        // пишут одно поле: итог зависел бы от физического порядка строк — на одной базе одно, на копии
-        // другое. С ключом побеждает позже заведённая, на любой базе. Время создания копия переносит
-        // (DataSetBinding.Restore), поэтому и после восстановления порядок прежний.
+        // Порядок привязок закреплён ключом (issue #1402, DataSetBindingOrder). Без него привязки шли в
+        // порядке строк в куче, и после pg_restore у того же документа менялся порядок `_dataSets` и
+        // нумерация вложений `assets/att_N`, а из двух привязок в одно поле побеждала то одна, то другая.
         var bindings = await db.DataSetBindings
             .Include(b => b.Source).ThenInclude(s => s.File)
             .Where(b => b.OwnerId == ownerId)
-            .OrderBy(b => b.CreatedAt).ThenBy(b => b.Id)
+            .InBindingOrder()
             .AsNoTracking()
             .ToListAsync(ct);
 
@@ -98,6 +95,15 @@ public class DataSetResolver(
         }
 
         if (bindings.Count == 0) return;
+
+        // Две привязки в одно поле: применяется позже заведённая, проигравшая — названа и не грузится
+        // вовсе (ревью PR #1451). Прежде она молча скачивала файл, а результат затирался. Предупреждение,
+        // а не ошибка: документ собирается, и данные в нём — те, что были бы и без этой строки.
+        var overridden = DataSetBindingOrder.Overridden(bindings);
+        foreach (var loser in bindings.Where(b => overridden.ContainsKey(b.Id)))
+            diagnostics?.Add(new ResolutionDiagnostic(DiagnosticSeverity.Warning, loser.TargetFieldKey!,
+                DataSetBindingOrder.OverriddenText(loser, overridden[loser.Id])));
+        bindings = [.. bindings.Where(b => !overridden.ContainsKey(b.Id))];
 
         // Границы выдачи опубликованных наборов — в контекст генерации, то есть в data.json
         // отладочного комплекта (ТЗ CORE-24.3, issue #965). Нужны ровно там: отладочный пакет — то
