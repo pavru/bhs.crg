@@ -28,7 +28,7 @@ import { TABLE_SEED } from './seed-invoices.mjs';
 
 const USER_EMAIL = process.env.SMOKE_USER_EMAIL || 'petrov@bhs.local';
 const USER_PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
-const PALETTE_INPUT = 'input[placeholder="Перейти к разделу…"]';
+const PALETTE_INPUT = 'input[aria-label="Поиск и действия"]';
 
 const { check, summarize } = createChecks();
 const pathOf = page => new URL(page.url()).pathname;

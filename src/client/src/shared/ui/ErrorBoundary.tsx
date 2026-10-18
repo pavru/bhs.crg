@@ -97,7 +97,7 @@ export class ErrorBoundary extends Component<
                   </button>
                 )}
                 <button type="button" onClick={this.reset}
-                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium bg-brand text-white hover:bg-brand-hover transition-colors">
+                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium bg-brand text-on-brand hover:bg-brand-hover transition-colors">
                   <RotateCcw size={14} /> Попробовать снова
                 </button>
                 {allowReload && (

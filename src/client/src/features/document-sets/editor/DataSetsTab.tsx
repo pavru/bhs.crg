@@ -525,7 +525,7 @@ function AddBindingPanel({
         <button
           onClick={handleSave}
           disabled={!sourceId || create.isPending}
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-white disabled:opacity-40 bg-brand"
+          className="px-3 py-1.5 rounded-md text-sm font-medium text-on-brand disabled:opacity-40 bg-brand"
         >
           {create.isPending ? 'Сохранение...' : 'Сохранить привязку'}
         </button>
@@ -631,7 +631,7 @@ function BindingRow({
         ) : (
           <div className="flex items-center gap-1.5 text-xs">
             <button onClick={handleDelete} disabled={del.isPending}
-              className="px-2 py-0.5 rounded text-white text-xs bg-danger">
+              className="px-2 py-0.5 rounded text-on-danger text-xs bg-danger">
               Да
             </button>
             <button onClick={() => setConfirming(false)}
@@ -655,7 +655,7 @@ function BindingRow({
           />
           <div className="flex gap-2">
             <button onClick={handleSave} disabled={update.isPending}
-              className="px-3 py-1.5 rounded-md text-sm font-medium text-white bg-brand">
+              className="px-3 py-1.5 rounded-md text-sm font-medium text-on-brand bg-brand">
               {update.isPending ? 'Сохранение...' : 'Сохранить'}
             </button>
             <button onClick={handleAutoRemap} disabled={autoMap.isPending}

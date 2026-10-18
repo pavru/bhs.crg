@@ -192,7 +192,7 @@ function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, ch
               : problem && <p className="mt-1.5 text-xs text-danger">Похоже, условие не выполнится: {problem}.</p>}
             <div className="mt-2.5 flex justify-end">
               <button type="submit" disabled={!draft.column.trim() || waiting}
-                className="px-3 py-1 rounded-md text-xs font-medium text-white bg-brand disabled:opacity-50">
+                className="px-3 py-1 rounded-md text-xs font-medium text-on-brand bg-brand disabled:opacity-50">
                 {submit}
               </button>
             </div>

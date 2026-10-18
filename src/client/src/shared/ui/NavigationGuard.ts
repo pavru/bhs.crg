@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useRef, useEffect, useLayoutEffect, type MouseEvent } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { refusedByDialog } from './modalDismissal';
 
 /** Обработчик ухода: показывает подтверждение и вызывает `proceed()`, если пользователь решил уйти. */
@@ -72,6 +72,26 @@ export function useGuardedNavigate() {
   const leave = useGuardedLeave();
   const navigate = useNavigate();
   return useCallback((to: string) => leave(() => navigate(to)), [leave, navigate]);
+}
+
+/**
+ * Переход к действию экрана (issue #1433, ревью PR #1478): на ДРУГОЙ экран — через охрану, как любой
+ * уход; на ТОТ ЖЕ — без неё, и параметры действия ДОПИСЫВАЮТСЯ к нынешним. Со своего экрана никто не
+ * уходит: открытая запись и форма с правками остаются на месте, и о правках спрашивает сама кнопка
+ * экрана, как при обычном щелчке. Охрана здесь спросила бы первой, а кнопка — второй раз о том же; а
+ * адрес без нынешних параметров закрыл бы открытую запись вместе с правками, не спросив вовсе.
+ */
+export function useGuardedIntent() {
+  const navigate = useGuardedNavigate();
+  const direct = useNavigate();
+  const { pathname, search } = useLocation();
+  return useCallback((to: string) => {
+    const target = new URL(to, 'http://x');
+    if (target.pathname !== pathname) { navigate(to); return; }
+    const params = new URLSearchParams(search);
+    target.searchParams.forEach((value, name) => params.set(name, value));
+    direct(`${pathname}?${params}`);
+  }, [navigate, direct, pathname, search]);
 }
 
 /**

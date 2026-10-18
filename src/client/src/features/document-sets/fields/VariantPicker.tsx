@@ -55,8 +55,8 @@ export function VariantPicker({ options, active, onSelect, layout = 'auto' }: {
         return (
           <button key={o.key} type="button" role="radio" aria-checked={on} onClick={() => onSelect(o.key)}
             className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${i > 0 ? 'border-l border-stroke' : ''} ${
-              on ? 'bg-brand text-white font-medium' : 'bg-surface text-fg2 hover:bg-base'}`}>
-            {o.filled && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${on ? 'bg-white' : 'bg-brand'}`} />}
+              on ? 'bg-brand text-on-brand font-medium' : 'bg-surface text-fg2 hover:bg-base'}`}>
+            {o.filled && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${on ? 'bg-on-brand' : 'bg-brand'}`} />}
             <span className="truncate">{o.label}</span>
           </button>
         );

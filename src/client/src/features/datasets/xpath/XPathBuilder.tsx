@@ -142,7 +142,7 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
           <Tooltip content="Атрибут / элемент">
             <button type="button"
               onClick={() => onChange({ axis: step.axis === 'attribute' ? 'child' : 'attribute' })}
-              className={`text-xs px-1 rounded shrink-0 ${step.axis === 'attribute' ? 'bg-brand text-white' : 'text-fg4 border border-stroke hover:border-stroke-strong'}`}>
+              className={`text-xs px-1 rounded shrink-0 ${step.axis === 'attribute' ? 'bg-brand text-on-brand' : 'text-fg4 border border-stroke hover:border-stroke-strong'}`}>
               @
             </button>
           </Tooltip>

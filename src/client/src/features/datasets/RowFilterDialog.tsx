@@ -29,7 +29,7 @@ function LogicToggle({
           type="button"
           onClick={() => onChange(l)}
           className={`px-2.5 py-1 transition-colors ${
-            logic === l ? 'bg-brand text-white' : 'bg-surface text-fg3'
+            logic === l ? 'bg-brand text-on-brand' : 'bg-surface text-fg3'
           }`}
         >
           {l.toUpperCase()}
@@ -283,7 +283,7 @@ export function RowFilterDialog({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand disabled:opacity-50"
+            className="px-4 py-2 rounded-md text-sm font-medium text-on-brand bg-brand disabled:opacity-50"
           >
             {saving ? words.saving : words.save}
           </button>
