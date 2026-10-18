@@ -152,5 +152,6 @@
     "features/templates/TemplateSidebar.tsx": 3,
     "features/templates/UserLibFileList.tsx": 2
   },
-  "tabs": {}
+  "tabs": {},
+  "white-on-fill": {}
 }

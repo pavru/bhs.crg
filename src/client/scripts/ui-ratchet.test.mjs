@@ -110,6 +110,34 @@ describe('храповик интерфейса: счёт', () => {
       .toEqual({ tabs: 2 });
   });
 
+  /** Белое на светлой заливке тёмной темы (issue #1462): пара литералов — где бы ни стояла. */
+  it('белое на сплошной заливке — в className целиком и в строке вне его', () => {
+    expect(countViolations([
+      '<button className="px-4 bg-brand text-white">Сохранить</button>',
+      '<button className={`px-2 ${on ? \'bg-brand text-white\' : \'bg-surface text-fg3\'}`}>A</button>',
+      '<span className={`bg-danger ${big ? "text-white" : ""}`}>3</span>',
+      '<span className={`w-1.5 h-1.5 rounded-full ${on ? \'bg-white\' : \'bg-brand\'}`} />',
+      "const DANGER = 'bg-danger text-white shadow';",
+      "const sel = 'ring-2 ring-white/70 hover:bg-brand-hover';",
+    ].join('\n'))).toEqual({ 'white-on-fill': 6 });
+  });
+
+  it('парный токен, контейнер роли и слой состояния белым на заливке не считаются', () => {
+    expect(countViolations([
+      '<button className="bg-brand text-on-brand hover:bg-brand-hover">A</button>',
+      '<span className="bg-danger text-on-danger ring-on-danger">!</span>',
+      '<div className="bg-brand-subtle text-on-brand-subtle dark:hover:bg-white/10">B</div>',
+      '<div className="bg-black/40 text-white">затемнение</div>',
+      '<div className="bg-surface hover:bg-white/10" /> <Logo className="bg-brand" />',
+    ].join('\n'))).toEqual({});
+  });
+
+  it('в shared/ считается только белое на заливке', () => {
+    const text = '<table /> <select /> <button className="bg-danger text-white">x</button>';
+    expect(countViolations(text, { shared: true })).toEqual({ 'white-on-fill': 1 });
+    expect(countViolations(text)).toEqual({ table: 1, select: 1, 'white-on-fill': 1 });
+  });
+
   it('токены и чёрно-белые слои палитрой не считаются', () => {
     expect(countViolations('bg-brand-subtle text-tertiary border-danger/30 bg-black/40 hover:bg-white/10 text-fg2'))
       .toEqual({});

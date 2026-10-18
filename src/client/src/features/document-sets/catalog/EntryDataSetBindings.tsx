@@ -128,7 +128,7 @@ function AddEntryBindingPanel({
           type="button"
           onClick={handleSave}
           disabled={!sourceId || create.isPending}
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-white disabled:opacity-40 bg-brand"
+          className="px-3 py-1.5 rounded-md text-sm font-medium text-on-brand disabled:opacity-40 bg-brand"
         >
           {create.isPending ? 'Сохранение...' : 'Сохранить привязку'}
         </button>
@@ -191,7 +191,7 @@ function EntryBindingRow({
           </IconButton>
         ) : (
           <div className="flex items-center gap-1.5 text-xs">
-            <button type="button" onClick={handleDelete} disabled={del.isPending} className="px-2 py-0.5 rounded text-white text-xs bg-danger">Да</button>
+            <button type="button" onClick={handleDelete} disabled={del.isPending} className="px-2 py-0.5 rounded text-on-danger text-xs bg-danger">Да</button>
             <button type="button" onClick={() => setConfirming(false)} className="px-2 py-0.5 rounded text-xs bg-muted text-fg2">Нет</button>
           </div>
         )}
@@ -209,7 +209,7 @@ function EntryBindingRow({
             onChange={(m, t) => { setMappingState(m); setTargetFieldKey(t); }}
           />
           <div className="flex gap-2">
-            <button type="button" onClick={handleSave} disabled={update.isPending} className="px-3 py-1.5 rounded-md text-sm font-medium text-white bg-brand">
+            <button type="button" onClick={handleSave} disabled={update.isPending} className="px-3 py-1.5 rounded-md text-sm font-medium text-on-brand bg-brand">
               {update.isPending ? 'Сохранение...' : 'Сохранить'}
             </button>
             <button type="button" onClick={() => setEditing(false)} className="px-3 py-1.5 rounded-md text-sm font-medium text-fg3">

@@ -58,6 +58,12 @@
   --f-warning-stroke: #c49500;
   --f-danger-bg:  #ffdad6;  /* error-container */
   --f-danger-fg:  #ba1a1a;  /* error          */
+  /* Текст НА сплошной заливке состояния (issue #1462): on-error и т. п. В светлой теме — белый, как
+     был; у success это 4,35:1 — для подписи на кнопке мало, для значка и крупного текста хватает.
+     Сплошной зелёной заливки с текстом сейчас нет нигде. */
+  --f-success-text: #ffffff;
+  --f-warning-text: #ffffff;
+  --f-danger-text:  #ffffff;  /* on-error       */
 
   /* Elevation shadows → MD3 levels (тёплый сине-серый scrim-тон) */
   --f-shadow4:  0 1px 2px rgba(16,35,63,.30), 0 1px 3px 1px rgba(16,35,63,.12);
@@ -113,6 +119,11 @@
   --f-warning-stroke: #5a3c00;
   --f-danger-bg:  #5c1417;
   --f-danger-fg:  #ffb4ab;  /* error */
+  /* Заливки здесь светлые: белый на них — 1,7:1, его не прочесть (issue #1462). Тёмный тон той же
+     роли — 7:1 и выше, как у on-primary. */
+  --f-success-text: #003920;
+  --f-warning-text: #432c00;
+  --f-danger-text:  #690005;  /* on-error */
 
   --f-shadow4:  0 1px 2px rgba(0,0,0,.40), 0 1px 3px 1px rgba(0,0,0,.24);
   --f-shadow16: 0 2px 8px rgba(0,0,0,.36), 0 1px 2px rgba(0,0,0,.24);
@@ -172,6 +183,11 @@
   --color-warning-border:  var(--f-warning-stroke);
   --color-danger:          var(--f-danger-fg);
   --color-danger-subtle:   var(--f-danger-bg);
+  /* Текст и значок на сплошной заливке состояния — пара к bg-success / bg-warning / bg-danger, как
+     text-on-brand к bg-brand. Не text-white: в тёмной теме заливки светлые (issue #1462). */
+  --color-on-success:      var(--f-success-text);
+  --color-on-warning:      var(--f-warning-text);
+  --color-on-danger:       var(--f-danger-text);
 
   /* Шкала текста (issue #1350). Основа — Tailwind: text-xs 12/16, text-sm 14/20, text-base 16/24.
      Две ступени, которых в ней нет, названы ролями (назначение — docs/UI.md, «Текст»):

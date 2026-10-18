@@ -5,7 +5,8 @@
 // <select> вместо Select, произвольный размер текста text-[11px], сырая палитра Tailwind,
 // браузерная подсказка title вместо Tooltip (#1394), нативный флажок вместо Checkbox (#1414), свои
 // чипы, пометки и вкладки вместо Chip, StatusBadge и Tabs (#1416), кнопка из одной иконки вместо
-// IconButton (#1417).
+// IconButton (#1417), белый текст на сплошной заливке вместо text-on-* (#1462, единственное правило,
+// которое смотрит и shared/).
 // Переписать накопленное разом нельзя, а остановить рост можно — тем же приёмом, что храповик
 // линта (#854) и размера файлов (#1041): накопленное не чинить, новое не добавлять.
 //
@@ -30,16 +31,18 @@ const srcRoot = join(clientRoot, 'src');
 const baselinePath = join(clientRoot, 'ui-baseline.json');
 const update = process.argv.includes('--update');
 
-// Под присмотром — экраны. shared/ не считается: там живут сами DataGrid и Select, которые эти
-// элементы и заворачивают. Тесты тоже: разметка в фикстурах — не интерфейс.
-const files = readdirSync(join(srcRoot, 'features'), { recursive: true })
-  .map(f => 'features/' + String(f).replaceAll('\\', '/'))
+// Под присмотром — экраны. shared/ — только правилами с `shared: true`: остальным там не место,
+// там живут сами DataGrid и Select, которые эти элементы и заворачивают. Тесты не считаются: разметка
+// в фикстурах — не интерфейс.
+const sources = dir => readdirSync(join(srcRoot, dir), { recursive: true })
+  .map(f => dir + '/' + String(f).replaceAll('\\', '/'))
   .filter(f => /\.(tsx?|jsx?)$/.test(f) && !/\.test\.[tj]sx?$/.test(f));
 
 const actual = {};
-for (const file of files)
-  for (const [rule, n] of Object.entries(countViolations(readFileSync(join(srcRoot, file), 'utf8'))))
-    (actual[rule] ??= {})[file] = n;
+for (const [dir, shared] of [['features', false], ['shared', true]])
+  for (const file of sources(dir))
+    for (const [rule, n] of Object.entries(countViolations(readFileSync(join(srcRoot, file), 'utf8'), { shared })))
+      (actual[rule] ??= {})[file] = n;
 
 const sum = level => Object.fromEntries(RULES.map(r =>
   [r.id, Object.values(level[r.id] ?? {}).reduce((a, b) => a + b, 0)]));
@@ -60,7 +63,7 @@ const baseline = JSON.parse(readFileSync(baselinePath, 'utf8'));
 const { worse, better } = compare(baseline, actual);
 const line = d => `  ${d.file} — ${d.rule}: было ${d.was}, стало ${d.now}`;
 
-console.log(`Нарушений интерфейса в features/: ${summary(actual)}.`);
+console.log(`Нарушений интерфейса в features/ (и white-on-fill в shared/): ${summary(actual)}.`);
 
 if (worse.length > 0) {
   console.error('\nНарушений интерфейса стало БОЛЬШЕ:\n' + worse.map(line).join('\n'));

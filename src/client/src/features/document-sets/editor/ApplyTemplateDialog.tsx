@@ -167,7 +167,7 @@ export function ApplyTemplateDialog({
           <button
             onClick={handleApply}
             disabled={!selectedTemplate || !selectedSource || create.isPending}
-            className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium text-white disabled:opacity-40 bg-brand"
+            className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium text-on-brand disabled:opacity-40 bg-brand"
           >
             {create.isPending && <Loader2 size={13} className="animate-spin" />}
             Создать привязку

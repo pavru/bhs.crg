@@ -62,7 +62,14 @@ Tailwind (`bg-indigo-50`, `text-purple-700`, `border-red-200`) запрещен�
 | Бренд (primary) | `text-brand`, `bg-brand`, `bg-brand-subtle`, `text-on-brand`, `text-on-brand-subtle` | действие, выбранное, ссылка на документ |
 | Тональный (secondary) | `bg-tonal`, `text-on-tonal` | tonal-кнопки, чипы |
 | Третий акцент (tertiary) | `text-tertiary`, `bg-tertiary-subtle`, `text-on-tertiary-subtle` | функциональные тэги, значки видов файлов |
-| Состояние | `success`, `warning`, `danger` с `-subtle`; у warning есть `border-warning-border` | статусы, ошибки, предупреждения |
+| Состояние | `success`, `warning`, `danger` с `-subtle`; у warning есть `border-warning-border`; на сплошной заливке — `text-on-success`, `text-on-warning`, `text-on-danger` | статусы, ошибки, предупреждения |
+
+**На сплошной заливке роли — только парный токен, не `text-white`** (#1462). В тёмной теме заливки
+светлые (`bg-brand` — `#a7c8ff`), и белое на них даёт 1,7:1 — подпись не прочесть. Пара:
+`bg-brand` → `text-on-brand`, `bg-danger` → `text-on-danger`, `bg-success` → `text-on-success`,
+`bg-warning` → `text-on-warning`. То же для кольца (`ring-on-brand/70`) и точки (`bg-on-brand`). В
+светлой теме пара белая, как и было; у `success` это 4,35:1 — для значка хватает, а кнопку с подписью
+на сплошном зелёном лучше не заводить. Белое на затемнении (`bg-black/40 text-white`) — законно.
 
 - Обводка статусной плашки, у которой своего токена нет, берётся прозрачностью роли:
   `border-danger/30`, `border-success/30`, `border-tertiary/50`.
@@ -347,4 +354,10 @@ Tailwind (`bg-indigo-50`, `text-purple-700`, `border-red-200`) запрещен�
   (#1416) — `role="tab"` / `tablist` / `tabpanel`, уровень — ноль; `icon-button` (#1417) — `<button>`,
   единственный ребёнок которого — компонент-значок. Накопленное стоит в уровне. Вкладки, нарисованные
   состоянием без ролей, по тексту не отличить — их ловит ревью.
+- Белое на сплошной заливке — `text-white`, `ring-white`, `bg-white` вместе с `bg-brand` /
+  `bg-danger` / `bg-success` / `bg-warning` — тот же храповик, правило `white-on-fill` (#1462),
+  уровень — ноль. Единственное правило, которое смотрит и `shared/`: кнопка и календарь рисуют
+  заливку первыми. Считает по синтаксическому дереву: `className` целиком, со всеми ветвями условий,
+  и строку вне `className` (карта вариантов, класс в переменной) — каждую отдельно. Пару, разнесённую
+  по разным строкам (кольцо фокуса в одной функции, заливка — в другой), он не видит: её ловит ревью.
 - Всё остальное здесь — договорённость, проверяет её ревью.
