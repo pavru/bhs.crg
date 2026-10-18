@@ -12,13 +12,14 @@ namespace BHS.CRG.Infrastructure.Renditions;
 /// код 200 и страницу без единой буквы, файл с обрезанной ячейкой — страницу без её хвоста. Такой
 /// «образ» дальше честно распознаётся в пустой счёт, и отказа не видит уже никто.</para>
 /// </summary>
-internal static class RenditionPostconditions
+public static class RenditionPostconditions
 {
     /// <param name="pdf">Ответ конвертера.</param>
     /// <param name="cellWords">Слова ячеек книги Excel; <c>null</c> — файл не книга, сверять не с чем.</param>
     public static Rendition Check(byte[] pdf, IReadOnlyList<string>? cellWords)
     {
         List<string> pages;
+        var sizes = new List<double>();
         try
         {
             using var document = PdfDocument.Open(pdf);
@@ -26,7 +27,7 @@ internal static class RenditionPostconditions
                 return new Rendition.Refused(RenditionRefusal.TooLarge,
                     $"Файл слишком велик для читаемого вида: получилось {document.NumberOfPages} страниц, " +
                     $"а предел — {RenditionLimits.MaxPages}.");
-            pages = [.. document.GetPages().Select(VisibleText)];
+            pages = [.. document.GetPages().Select(page => VisibleText(page, sizes))];
         }
         // Разборщик PDF на чужом содержимом падает чем угодно; для нас это одно: ответ — не PDF.
         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -64,7 +65,8 @@ internal static class RenditionPostconditions
                           "Сверяйте с исходным файлом.");
         }
 
-        return new Rendition.Built(pdf, pages.Count, notes);
+        sizes.Sort();
+        return new Rendition.Built(pdf, pages.Count, notes) { MedianPointSize = sizes[sizes.Count / 2] };
     }
 
     /// <summary>
@@ -102,8 +104,14 @@ internal static class RenditionPostconditions
     /// её края. В файле они есть, на странице их нет — ни для человека, ни для модели, читающей
     /// картинку. Поэтому считаются только буквы, стоящие в пределах листа: иначе сверка находила бы
     /// текст, которого никто не видит (так и было: обрезанный счёт из пробы проходил чистым).</para>
+    ///
+    /// <para>Тем же проходом собирается кегль видимых букв (<paramref name="sizes" />): второй разбор
+    /// того же PDF ради медианы стоил бы столько же, сколько вся сверка. Кегль — видимый
+    /// (<c>PointSize</c>, с учётом матриц текста и страницы), а не записанный в шрифте: LibreOffice 8.37
+    /// пишет вписанный текст уже уменьшенным кеглем, но другой построитель вправе уменьшать масштабом —
+    /// и тогда записанный кегль остался бы прежним.</para>
     /// </summary>
-    private static string VisibleText(Page page)
+    private static string VisibleText(Page page, List<double> sizes)
     {
         var sheet = page.CropBox.Bounds;
         var glued = new StringBuilder();
@@ -111,8 +119,10 @@ internal static class RenditionPostconditions
         {
             var at = letter.StartBaseLine;
             if (at.X < sheet.Left || at.X > sheet.Right || at.Y < sheet.Bottom || at.Y > sheet.Top) continue;
+            var visible = false;
             foreach (var symbol in letter.Value)
-                if (char.IsLetterOrDigit(symbol)) glued.Append(char.ToLowerInvariant(symbol));
+                if (char.IsLetterOrDigit(symbol)) { glued.Append(char.ToLowerInvariant(symbol)); visible = true; }
+            if (visible) sizes.Add(letter.PointSize);
         }
         return glued.ToString();
     }

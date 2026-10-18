@@ -66,6 +66,28 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
         Assert.Equal(original, Assert.Single(await RecordsAsync()).OriginalBlobPath);
     }
 
+    /// <summary>
+    /// Книга без своей раскладки: в записи — след раскладки и снимок профиля (issue #1453), а оригинал
+    /// в хранилище побайтно тот же — вписывается КОПИЯ.
+    /// </summary>
+    [Fact]
+    public async Task Вписанная_книга_оставляет_след_раскладки_а_оригинал_цел()
+    {
+        var book = Workbook(b => b.CreateSheet("Sheet").CreateRow(0).CreateCell(0).SetCellValue(string.Join(" ", Words)),
+            ownLayout: false);
+        var original = await Blobs.UploadAsync("счёт.xlsx", new MemoryStream(book), "application/octet-stream");
+
+        await Store(StubConverter.Converts(Words)).EnsureAsync(original, CancellationToken.None);
+
+        var record = Assert.Single(await RecordsAsync());
+        Assert.Equal(RenditionLayout.Applied, record.Layout);
+        Assert.Contains("\"profile\": \"default\"", record.LayoutApplied);
+        await using var stored = await Blobs.DownloadAsync(original);
+        using var copy = new MemoryStream();
+        await stored.CopyToAsync(copy);
+        Assert.Equal(book, copy.ToArray());
+    }
+
     [Fact]
     public async Task Повторный_вопрос_о_том_же_файле_конвертер_не_запускает()
     {
