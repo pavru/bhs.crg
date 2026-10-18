@@ -54,6 +54,9 @@ public static class CostsRecognitionProfiles
     // (InvoiceScanLines.Targets).
     public const string LineCode = "Артикул";
 
+    // «Сумма к оплате» и НДС описаны с issue #1481 (эпик #1496): прежнее «(итого)» на счёте с НДС
+    // сверху вело модель к «Итого» БЕЗ НДС — сверка с такими же строками «сходилась», и счёт уходил
+    // разобранным с суммой к оплате на НДС меньше. Подписи в форме и реестре — свои, их это не трогает.
     public static readonly IReadOnlyList<ModuleRecognitionField> InvoiceHeader =
     [
         new(Number, "Номер счёта"),
@@ -63,8 +66,8 @@ public static class CostsRecognitionProfiles
         new(Payer, "Плательщик (заказчик)"),
         new(PayerTaxId, "ИНН плательщика"),
         new(Basis, "Основание (договор/назначение платежа)"),
-        new(Total, "Сумма к оплате (итого)"),
-        new(VatTotal, "В том числе НДС"),
+        new(Total, "Всего к оплате, с НДС (последняя сумма в итогах)"),
+        new(VatTotal, "Сумма НДС (в том числе или сверху)"),
     ];
 
     // Описания колонок строк модель получает с issue #1481 (до того — одни ключи). Пересмотрены тогда же
