@@ -27,7 +27,7 @@ const SECTION_TITLES: Record<string, string> = {
   'users': 'Пользователи',
   'recognition-profiles': 'Профили распознавания',
   'bug-reports': 'Сообщения об ошибках',
-  'settings': 'Настройки',
+  'settings': 'Параметры системы',
   'profile': 'Профиль',
   'login': 'Вход',
 };

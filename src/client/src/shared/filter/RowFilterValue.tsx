@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import type { FilterCondition } from '@/shared/api/types';
 import { opArity, valueFits, type FilterColumn } from './rowFilterModel';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 const FIELD_CLS = 'border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1';
 
@@ -136,7 +137,7 @@ function OptionList({ options, values, onChange }: {
     <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-3 gap-y-1">
       {options.map(o => (
         <label key={o} className="inline-flex items-center gap-1 text-xs text-fg1 cursor-pointer">
-          <input type="checkbox" checked={values.includes(o)} onChange={() => toggle(o)} />
+          <Checkbox size="sm" checked={values.includes(o)} onChange={() => toggle(o)} />
           {o}
         </label>
       ))}

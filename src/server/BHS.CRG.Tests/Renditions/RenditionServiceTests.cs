@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using BHS.CRG.Api.Renditions;
+using BHS.CRG.Domain.Storage;
 using BHS.CRG.Infrastructure.Renditions;
 using BHS.CRG.Modules.Files;
 using NPOI.SS.UserModel;
@@ -174,7 +175,194 @@ public class RenditionServiceTests
         var built = Assert.IsType<Rendition.Built>(await Service(Returns(Pdf(InvoiceText))).BuildAsync(odd));
 
         Assert.Equal(RenditionRefusal.Failed, refused.Kind);
-        Assert.Equal(OfficeRenditionBuilder.UncheckedNote, Assert.Single(built.Notes));
+        // Оглавление не читается и у раскладки (issue #1453): книга ушла как есть, и об этом сказано.
+        Assert.Equal([ExcelPageLayout.FailedNote, OfficeRenditionBuilder.UncheckedNote], built.Notes);
+        Assert.Equal(RenditionLayout.Skipped, built.Layout);
+    }
+
+    // ── Раскладка по профилю печати (issue #1453) ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Книга без своей раскладки уходит к конвертеру вписанной КОПИЕЙ, а сверка идёт по словам
+    /// ОРИГИНАЛА: вписанная книга — первый случай, когда к конвертеру идёт не тот массив, по которому
+    /// считались слова.
+    /// </summary>
+    [Fact]
+    public async Task Книга_без_раскладки_уходит_вписанной_копией_а_оригинал_цел()
+    {
+        var book = Workbook(b => b.CreateSheet("Sheet").CreateRow(0).CreateCell(0).SetCellValue(InvoiceText), ownLayout: false);
+        var before = book.ToArray();
+        byte[]? sent = null;
+        var service = Service(async (request, ct) =>
+        {
+            sent = await Assert.Single(Assert.IsType<MultipartFormDataContent>(request.Content)).ReadAsByteArrayAsync(ct);
+            return PdfReply(Pdf(InvoiceText));
+        });
+
+        var built = Assert.IsType<Rendition.Built>(await service.BuildAsync(book));
+
+        Assert.Equal(before, book);
+        Assert.NotEqual(book, sent);
+        Assert.Contains("fitToPage=\"1\"", SheetText(sent!));
+        Assert.Equal(RenditionLayout.Applied, built.Layout);
+        Assert.Contains("\"fit\":\"width\"", built.LayoutApplied);
+        // Слов оригинала в образе хватает — пометки о потере нет, есть только о вписывании.
+        Assert.Equal([ExcelPageLayout.AppliedNote(PageProfile.Default, 1)], built.Notes);
+    }
+
+    /// <summary>
+    /// Вписанная копия получила отказ «не вышло» — образ строится второй раз, по ОРИГИНАЛУ: виновата
+    /// могла быть правка, а запомненный отказ закрыл бы вид, который по файлу строится. Исход в записи —
+    /// <see cref="RenditionLayout.Skipped" /> с пометкой, а не «вписан».
+    /// </summary>
+    [Fact]
+    public async Task Отказ_на_вписанной_копии_повторяется_по_оригиналу()
+    {
+        var book = Workbook(b => b.CreateSheet("Sheet").CreateRow(0).CreateCell(0).SetCellValue(InvoiceText), ownLayout: false);
+        var sent = new List<byte[]>();
+        var service = Service(async (request, ct) =>
+        {
+            sent.Add(await Assert.Single(Assert.IsType<MultipartFormDataContent>(request.Content)).ReadAsByteArrayAsync(ct));
+            // Первый ответ — PDF без слов книги: постусловия отвечают Failed.
+            return PdfReply(Pdf(sent.Count == 1 ? "Something else entirely" : InvoiceText));
+        });
+
+        var built = Assert.IsType<Rendition.Built>(await service.BuildAsync(book));
+
+        Assert.Equal(2, sent.Count);
+        Assert.NotEqual(book, sent[0]);
+        Assert.Equal(book, sent[1]);
+        Assert.Equal((RenditionLayout.Skipped, (string?)null), (built.Layout, built.LayoutApplied));
+        Assert.Equal([ExcelPageLayout.FailedNote], built.Notes);
+    }
+
+    /// <summary>
+    /// Повтор — только у вписанной копии и только на «не вышло». Книга автора с тем же отказом
+    /// повторно не строится: по тому же массиву вышло бы то же. Недоступный конвертер — не вина
+    /// правки, и второй вызов был бы вторым ожиданием.
+    /// </summary>
+    [Theory]
+    [InlineData(true, HttpStatusCode.OK)]
+    [InlineData(false, HttpStatusCode.BadGateway)]
+    public async Task Прочие_отказы_не_повторяются(bool ownLayout, HttpStatusCode status)
+    {
+        var book = Workbook(b => b.CreateSheet("Sheet").CreateRow(0).CreateCell(0).SetCellValue(InvoiceText), ownLayout: ownLayout);
+        var calls = 0;
+        var service = Service((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(status == HttpStatusCode.OK
+                ? PdfReply(Pdf("Something else entirely"))
+                : new HttpResponseMessage(status));
+        });
+
+        Assert.IsType<Rendition.Refused>(await service.BuildAsync(book));
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
+    public async Task Книга_со_своей_раскладкой_уходит_тем_же_массивом()
+    {
+        var book = Workbook(Invoice);
+        byte[]? sent = null;
+        var service = Service(async (request, ct) =>
+        {
+            sent = await Assert.Single(Assert.IsType<MultipartFormDataContent>(request.Content)).ReadAsByteArrayAsync(ct);
+            return PdfReply(Pdf(InvoiceText));
+        });
+
+        var built = Assert.IsType<Rendition.Built>(await service.BuildAsync(book));
+
+        Assert.Equal(book, sent);
+        Assert.Equal(RenditionLayout.BookOwn, built.Layout);
+        Assert.Null(built.LayoutApplied);
+    }
+
+    [Fact]
+    public async Task Word_и_старый_Excel_профилем_не_раскладываются()
+    {
+        var old = Workbook(b => b.CreateSheet("Sheet").CreateRow(0).CreateCell(0).SetCellValue(InvoiceText), old: true);
+
+        var xls = Assert.IsType<Rendition.Built>(await Service(Returns(Pdf(InvoiceText))).BuildAsync(old));
+        var docx = Assert.IsType<Rendition.Built>(await Service(Returns(Pdf("Word document text"))).BuildAsync(Document()));
+
+        Assert.Equal((RenditionLayout.NotBook, RenditionLayout.NotBook), (xls.Layout, docx.Layout));
+    }
+
+    /// <summary>
+    /// Мелкий текст — пометка только у вписанной книги: уменьшили её мы. Кегль автора — его решение.
+    /// </summary>
+    [Theory]
+    [InlineData(false, 3, true)]
+    [InlineData(false, 9, false)]
+    [InlineData(true, 3, false)]
+    public async Task Вписанный_вид_с_мелким_текстом_несёт_пометку(bool ownLayout, int points, bool noted)
+    {
+        var book = Workbook(b => b.CreateSheet("Sheet").CreateRow(0).CreateCell(0).SetCellValue(InvoiceText), ownLayout: ownLayout);
+
+        var built = Assert.IsType<Rendition.Built>(await Service(Returns(Pdf(points, InvoiceText))).BuildAsync(book));
+
+        Assert.Equal(noted, built.Notes.Contains(OfficeRenditionBuilder.SmallTextNote));
+    }
+
+    /// <summary>
+    /// Профиль «не вписывать» (issue #1454) кегль не уменьшает — и о мелком тексте молчит: мелкий он у
+    /// автора, а это его решение.
+    /// </summary>
+    [Fact]
+    public async Task Профиль_без_вписывания_о_мелком_тексте_не_говорит()
+    {
+        var book = Workbook(b => b.CreateSheet("Sheet").CreateRow(0).CreateCell(0).SetCellValue(InvoiceText), ownLayout: false);
+
+        var built = Assert.IsType<Rendition.Built>(await Service(Returns(Pdf(3, InvoiceText)))
+            .BuildAsync(new MemoryStream(book), PageProfile.Default with { FitWidth = false }, CancellationToken.None));
+
+        Assert.Equal(RenditionLayout.Applied, built.Layout);
+        Assert.DoesNotContain(OfficeRenditionBuilder.SmallTextNote, built.Notes);
+    }
+
+    /// <summary>
+    /// Пара из <c>deploy/</c>: выдуманная широкая книга без раскладки и её копия, которую вписывает этот
+    /// код. Пара обязана оставаться парой: живая проверка (<c>deploy/converter.tests.sh</c>) отправляет
+    /// конвертеру именно копию и ждёт одну страницу A4 — разойдись копия с тем, что делает код, и
+    /// живая проверка проверяла бы не то.
+    /// </summary>
+    [Fact]
+    public void Вписанная_копия_из_deploy_это_то_что_делает_раскладка()
+    {
+        var laid = ExcelPageLayout.Apply(RepoFile("deploy", "converter-wide.xlsx"), PageProfile.Default, CancellationToken.None);
+
+        Assert.Equal(RenditionLayout.Applied, laid.Outcome);
+        Assert.Equal(Parts(RepoFile("deploy", "converter-wide-laid.xlsx")), Parts(laid.File));
+    }
+
+    /// <summary>
+    /// Настоящий образ вписанной книги (PDF настоящего конвертера) проходит сверку по словам ОРИГИНАЛА, а
+    /// его кегль — уменьшенный: 10 pt книги стали 7,1 (проба #1453 — та же цифра у PyMuPDF).
+    /// </summary>
+    [Fact]
+    public async Task Настоящий_образ_вписанной_книги_сверяется_с_оригиналом_и_кегль_уменьшен()
+    {
+        var pdf = RepoFile("deploy", "converter-wide-laid.pdf");
+
+        var built = Assert.IsType<Rendition.Built>(await Service(Returns(pdf)).BuildAsync(RepoFile("deploy", "converter-wide.xlsx")));
+
+        Assert.Equal((1, RenditionLayout.Applied), (built.Pages, built.Layout));
+        Assert.DoesNotContain(built.Notes, note => note.StartsWith("Часть текста", StringComparison.Ordinal));
+        Assert.InRange(built.MedianPointSize!.Value, 6.5, 7.5);
+    }
+
+    private static Dictionary<string, string> Parts(byte[] book)
+    {
+        using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(book));
+        return zip.Entries.ToDictionary(e => e.FullName, e => new StreamReader(e.Open()).ReadToEnd());
+    }
+
+    private static string SheetText(byte[] book)
+    {
+        using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(book));
+        using var reader = new StreamReader(zip.GetEntry("xl/worksheets/sheet1.xml")!.Open());
+        return reader.ReadToEnd();
     }
 
     /// <summary>
@@ -227,7 +415,7 @@ public class RenditionServiceTests
     {
         var gif = new ReadCounting([.. Encoding.ASCII.GetBytes("GIF89a"), .. new byte[5 * 1024 * 1024]]);
 
-        var refused = Assert.IsType<Rendition.Refused>(await Service(MustNotBeCalled).BuildAsync(gif, CancellationToken.None));
+        var refused = Assert.IsType<Rendition.Refused>(await Service(MustNotBeCalled).BuildAsync(gif, PageProfile.Default, CancellationToken.None));
 
         Assert.Equal(RenditionRefusal.WrongFormat, refused.Kind);
         Assert.True(gif.ReadSoFar < 64 * 1024, $"прочитано {gif.ReadSoFar} байт");

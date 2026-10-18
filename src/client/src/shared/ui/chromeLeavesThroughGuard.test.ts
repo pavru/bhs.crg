@@ -53,7 +53,7 @@ describe('обвязка приложения', () => {
   it('найдена насквозь: палитра, колокольчик и сами окна на месте', async () => {
     const files = Object.keys(await chrome());
     expect(files).toContain('/src/shared/ui/CommandPalette.tsx');
-    expect(files).toContain('/src/features/notifications/NotificationsCenter.tsx');
+    expect(files).toContain('/src/features/notifications/NotificationList.tsx');
     // Не через оболочку напрямую — через тех, кого она подключает.
     expect(files).toContain('/src/shared/ui/Modal.tsx');
     expect(files).toContain('/src/shared/ui/modalDismissal.ts');

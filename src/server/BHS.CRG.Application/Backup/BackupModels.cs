@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using BHS.CRG.Domain.Common;
 
 namespace BHS.CRG.Application.Backup;
 
@@ -68,7 +69,24 @@ public record BackupManifest(
     // Общие представления таблиц (ТЗ CORE-33, issue #1095) — в ЛЮБОЙ копии: это настройка компании,
     // как типы и шаблоны. Личные не едут — они адресуют учётную запись. null — копия снята версией,
     // не знавшей о представлениях.
-    BackupTableView[]? TableViews = null);
+    BackupTableView[]? TableViews = null,
+    // Копия снята версией, которая находит файлы ядра обходом манифеста (issue #1422), а не только
+    // списком мест. Нужен восстановлению, чтобы назвать причину пропавшего файла верно: у копии с
+    // признаком файла не было в хранилище уже при снятии (паспорт об этом сказал), у копии без него —
+    // версия могла его просто не взять, и лечится это новой копией с исходной установки.
+    bool? KnowsCoreFileScan = null,
+    // Профили печати читаемого образа (issue #1454) — в ЛЮБОЙ копии: настройка компании. null — копия
+    // снята версией, не знавшей о профилях; системный профиль тогда остаётся здешним.
+    BackupPrintProfile[]? PrintProfiles = null);
+
+/// <summary>
+/// Профиль печати (issue #1454). Перечни — именами, как в базе. Системный узнаётся по признаку и по
+/// идентификатору-константе: копия другой установки несёт его под тем же идентификатором.
+/// </summary>
+public record BackupPrintProfile(
+    Guid Id, string Name, string Paper, string Orientation, string Fit,
+    int MarginTop, int MarginBottom, int MarginLeft, int MarginRight, bool IsSystem,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
 /// <summary>
 /// Общее представление таблицы (ТЗ CORE-33, issue #1095). Автора нет нарочно: учётные записи копия
@@ -424,6 +442,18 @@ public record BackupSizeVariant(
     long BlobBytes,
     int BlobCount,
     int MissingBlobCount);
+
+/// <summary>
+/// Вес копии не оценить: хранилище файлов отказало в ответе (issue #1427).
+///
+/// Род — конфликт, как у недоступного Typst: запрос правильный, не пускает состояние стенда. Отказ
+/// вместо числа нарочно: прежде лежащее хранилище давало оценку «все файлы пропали» — крошечную
+/// копию с предупреждением о битых ссылках, которых нет.
+/// </summary>
+public class BackupSizeUnknownException(Exception inner) : ConflictException(
+    "Оценить вес копии нельзя: хранилище файлов отказало в запросе размера — оно недоступно, не " +
+    "принимает ключ доступа или в нём нет указанного бакета. Причина записана в журнал сервера. " +
+    "Копия, снятая сейчас, вышла бы без этих файлов.", inner);
 
 public record RestoreReport(
     bool Success,

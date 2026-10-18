@@ -76,14 +76,25 @@ public sealed record InvoiceLineView(
 /// <param name="WithoutNomenclature">Сколько строк ждёт позиции номенклатуры — это и есть счётчик
 /// «Разобрать» (ТЗ COST-6.2).</param>
 /// <param name="Amount">Сумма строк. Строки без суммы в неё не попадают — их нет, а не нуль.</param>
-/// <param name="Vat">Сумма НДС по строкам — то самое «в том числе НДС», посчитанное по строкам.</param>
-public sealed record InvoiceLineTotals(int Count, int WithoutNomenclature, decimal Amount, decimal Vat)
+/// <param name="Vat">Сумма НДС по строкам — то самое «в том числе НДС», посчитанное по строкам. Только по
+/// строкам, где НДС указан: строки без него сюда не попадают — их НДС не ноль, а неизвестен.</param>
+/// <param name="VatMissing">Сколько строк без НДС (issue #1409). Без этого числа <see cref="Vat" /> врёт:
+/// у счёта, где НДС стоит лишь в итогах бумаги, строки о нём молчат, и сверка писала «в том числе НДС:
+/// 0,00» рядом с шапкой, где НДС распознан верно, — неизвестное выдано за ноль ровно там, где человек
+/// сверяет суммы. Равно <see cref="Count" /> — «НДС по строкам не указан», а не ноль.
+///
+/// <para>⚠️ «Не указан» — это пустая сумма НДС, а не нулевая. Строка со ставкой 0 («без НДС») даёт
+/// сумму 0 и считается указанной; строка со ставкой и суммой, но без суммы НДС, получает его расчётом
+/// (<see cref="InvoiceLineValues.Completed" />) ещё до записи — тоже указанной.</para></param>
+public sealed record InvoiceLineTotals(
+    int Count, int WithoutNomenclature, decimal Amount, decimal Vat, int VatMissing)
 {
     public static InvoiceLineTotals Of(IReadOnlyCollection<InvoiceLine> lines) => new(
         lines.Count,
         lines.Count(l => l.NomenclatureId is null),
         lines.Sum(l => l.Amount ?? 0m),
-        lines.Sum(l => l.VatAmount ?? 0m));
+        lines.Sum(l => l.VatAmount ?? 0m),
+        lines.Count(l => l.VatAmount is null));
 }
 
 /// <summary>Разбор присланной строки — с отказами, которые называют поле подписью с экрана.</summary>
@@ -216,7 +227,7 @@ public static class InvoiceLineRequests
             null => null,
             { } rate when rate is >= 0 and <= 100 => rate,
             { } rate => throw new InvalidRequestException(
-                $"Поле «{label}»: «{rate}» — не ставка НДС. Ожидаются проценты от 0 до 100 (20, 10, 0): " +
+                $"Поле «{label}»: «{rate}» — не ставка НДС. Ожидаются проценты от 0 до 100 (22, 10, 0): " +
                 "при ставке вне этих границ сумма НДС вышла бы больше суммы строки."),
         };
     }

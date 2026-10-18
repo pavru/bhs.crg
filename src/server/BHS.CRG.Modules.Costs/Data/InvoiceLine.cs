@@ -91,7 +91,10 @@ public sealed class InvoiceLine
     /// <summary>Цена за единицу — с НДС, как в бумаге (см. <see cref="VatAmount" />).</summary>
     public decimal? Price { get; private set; }
 
-    /// <summary>Ставка НДС в процентах: 20, 10, 0. <c>null</c> — в бумаге не указана, а не «без НДС».</summary>
+    /// <summary>
+    /// Ставка НДС в процентах — любая от 0 до 100: 22, 10, 0 (основная с 2026 года — 22 %, список
+    /// нарочно не зашит). <c>null</c> — в бумаге не указана, а не «без НДС»: «без НДС» — это 0.
+    /// </summary>
     public decimal? VatRate { get; private set; }
 
     /// <summary>

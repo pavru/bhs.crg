@@ -192,8 +192,10 @@ public sealed class InvoiceScanReading(
     /// <summary>Строки скана и запомненное для них — по каждому поставщику, который может встать в счёт.</summary>
     /// <param name="Recalled">Ответ по поставщику. Пусто — спрашивать было не о ком или нечем.</param>
     /// <param name="RecallFailed">Спросить запомненное НЕ УДАЛОСЬ — это не «ничего не запомнено».</param>
+    /// <param name="VatNote">НДС строк снят, потому что прочитан не у всех (issue #1410), — почему.</param>
     private sealed record ScanLines(
-        List<InvoiceLineValues> Rows, IReadOnlyDictionary<Guid, RecallAnswer> Recalled, bool RecallFailed);
+        IReadOnlyList<InvoiceLineValues> Rows, IReadOnlyDictionary<Guid, RecallAnswer> Recalled, bool RecallFailed,
+        string? VatNote);
 
     /// <summary>
     /// Разобрать строки скана и спросить запомненное для них (задача C3, issue #1079) — ДО слияния и
@@ -212,22 +214,22 @@ public sealed class InvoiceScanReading(
     private async Task<ScanLines> LinesAsync(
         Invoice invoice, ModuleRecognitionResult read, InvoicePartiesView matched, CancellationToken ct)
     {
-        var rows = read.Rows.Select(Line).OfType<InvoiceLineValues>().ToList();
+        var (rows, vatNote) = InvoiceScanLines.Read(read.Rows);
         var recalled = new Dictionary<Guid, RecallAnswer>();
-        if (rows.Count == 0) return new(rows, recalled, false);
+        if (rows.Count == 0) return new(rows, recalled, false, vatNote);
 
         try
         {
             foreach (var supplier in new[] { invoice.SupplierId, matched.Supplier?.Match }.OfType<Guid>().Distinct())
                 recalled[supplier] = await SupplierMatching.RecallAsync(db, catalog, supplier, rows, ct);
-            return new(rows, recalled, false);
+            return new(rows, recalled, false, vatNote);
         }
         catch (Exception failure) when (failure is not OperationCanceledException)
         {
             logs.CreateLogger<InvoiceScanReading>().LogWarning(failure,
                 "Счёт {InvoiceId}: запомненные позиции для строк файла спросить не удалось — строки лягут без них.",
                 invoice.Id);
-            return new(rows, new Dictionary<Guid, RecallAnswer>(), true);
+            return new(rows, new Dictionary<Guid, RecallAnswer>(), true, vatNote);
         }
     }
 
@@ -448,6 +450,7 @@ public sealed class InvoiceScanReading(
                 else if (answer is { Unusable: > 0 })
                     notes.Add($"Строк, для которых запомнена позиция в архиве или удалённая: {answer.Unusable}. " +
                               "Она не подставлена — выберите действующую, и она заменит запомненное.");
+                if (lines.VatNote is { } vatNote) notes.Add(vatNote);
                 invoice.ContentChanged();
                 added = rows.Count;
             }
@@ -460,76 +463,6 @@ public sealed class InvoiceScanReading(
 
         return (filled.Count, added, recalled);
     }
-
-    /// <summary>
-    /// Строка скана → строка счёта. Номенклатуры здесь нет: её подставит запомненное для поставщика
-    /// (<see cref="SupplierMatching.RecallAsync" />) либо выберет человек — тогда строка ждёт в очереди
-    /// «Разобрать».
-    ///
-    /// <para>⚠️ Пределы — те же, что у строки из формы (<see cref="InvoiceLineRequests" />): длина,
-    /// «триллион», точность колонки. Форма на нарушение отвечает отказом; здесь отказывать некому, и
-    /// значение, которое не помещается или не читается однозначно, в поле не попадает — уходит в
-    /// примечание строки. Молча округлить или обрезать нельзя: записанное разошлось бы с бумагой, а
-    /// отказ базы уронил бы всё распознавание вместе с шапкой.</para>
-    /// </summary>
-    private static InvoiceLineValues? Line(IReadOnlyDictionary<string, string?> row)
-    {
-        // Строка, в которой движок не прочитал ничего, — не строка счёта.
-        if (row.Values.All(string.IsNullOrWhiteSpace)) return null;
-
-        var unread = new List<string>();
-
-        decimal? Number(string key, string title, Func<string?, decimal?> parse, int digits)
-        {
-            var text = row.GetValueOrDefault(key);
-            if (string.IsNullOrWhiteSpace(text)) return null;
-
-            if (parse(text) is { } value && Math.Abs(value) < CostsValues.Limit && decimal.Round(value, digits) == value)
-                return value;
-
-            unread.Add($"{title} «{Short(text)}»");
-            return null;
-        }
-
-        string? Text(string key, string title, int limit)
-        {
-            var text = row.GetValueOrDefault(key);
-            if (string.IsNullOrWhiteSpace(text)) return null;
-            if (text.Length <= limit) return text;
-
-            unread.Add($"{title} «{Short(text)}» (длиннее {limit} знаков)");
-            return null;
-        }
-
-        var quantity = Number(CostsRecognitionProfiles.LineQuantity, "количество", RecognizedValues.Quantity, 3);
-        // Цена — деньгами, а не количеством: «1.250» в графе цены бывает и тысячей двести пятьюдесятью.
-        var price = Number(CostsRecognitionProfiles.LinePrice, "цена", RecognizedValues.Money, 2);
-        var amount = Number(CostsRecognitionProfiles.LineAmount, "сумма", RecognizedValues.Money, 2);
-        var unit = Text(CostsRecognitionProfiles.LineUnit, "единица", InvoiceLine.UnitLength);
-
-        if (amount is null && quantity is { } q && price is { } p && Math.Abs(q * p) >= CostsValues.Limit)
-        {
-            // Сумму досчитала бы строка сама — и получила бы число, которого колонка не вместит.
-            unread.Add($"цена «{CostsValues.Shown(p)}» (количество × цена больше, чем здесь бывает)");
-            price = null;
-        }
-
-        var values = new InvoiceLineValues(
-            NomenclatureId: null,
-            SupplierText: row.GetValueOrDefault(CostsRecognitionProfiles.LineName) is { } name && !string.IsNullOrWhiteSpace(name)
-                ? name
-                : null,
-            SupplierCode: null,
-            Unit: unit,
-            Quantity: quantity, Price: price, VatRate: null, VatAmount: null, Amount: amount,
-            Note: unread.Count > 0 ? "В файле не прочитано: " + string.Join(", ", unread) : null);
-
-        // Сумму досчитываем, только когда в скане её НЕТ. Стояла, но не прочиталась — оставляем пустой:
-        // посчитанная выглядела бы прочитанной, а на бумаге написано другое.
-        return string.IsNullOrWhiteSpace(row.GetValueOrDefault(CostsRecognitionProfiles.LineAmount)) ? values.Completed() : values;
-    }
-
-    private static string Short(string text) => text.Length > 40 ? text[..40] + "…" : text;
 
     private static bool IsBlank(JsonNode? node) =>
         node is null || (node is JsonValue value && value.TryGetValue<string>(out var text) && string.IsNullOrWhiteSpace(text));

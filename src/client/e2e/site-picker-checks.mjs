@@ -7,7 +7,7 @@
 // ⚠️ Избранное хранит сервер за ЭТИМ человеком, а следующие наборы входят им же: оставленное избранное
 // урезало бы им выбор строек. Поэтому настройки сбрасываются в finally — адресом, а не через экран.
 
-import { BASE, listGroups, listOptions, pickOption, shownValue } from './harness.mjs';
+import { BASE, listGroups, listOptions, pickOption, pickSites, shownValue } from './harness.mjs';
 
 const RESET = { favoriteConstructions: null, favoritesFilter: null };
 const REVEAL = /^Показать все стройки \(ещё \d+\)…$/;
@@ -97,18 +97,17 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
       const rail = page.getByRole('button', { name: new RegExp(elsewhere.number) });
       if (await rail.count()) throw new Error('счёт неизбранной стройки стоит в рейле под фильтром');
       await page.getByTestId('invoice-not-in-rail').waitFor({ timeout: 5_000 });
-      const note = await page.getByTestId('site-filter-note').innerText();
-      if (!/скрыто: [1-9]/.test(note)) throw new Error(`строка у рейла: «${note}»`);
+      const note = await page.getByTestId('sites-filter').innerText();
+      if (!/скрыто [1-9]/.test(note)) throw new Error(`отбор у рейла: «${note}»`);
     });
 
     await check('invoice-rail-switch-keeps-open-invoice', async () => {
-      // Переключение фильтра в шапке открытый счёт не закрывает: выбор живёт в адресе.
-      const switcher = page.getByTestId('site-filter-switch');
-      await switcher.getByRole('button', { name: /^Все/ }).click();
+      // Переключение отбора «Стройки» открытый счёт не закрывает: выбор живёт в адресе.
+      await pickSites(page, 'Все стройки');
       await page.getByRole('button', { name: new RegExp(elsewhere.number) }).first().waitFor({ timeout: 5_000 });
       if (new URL(page.url()).searchParams.get('invoice') !== elsewhere.id) throw new Error('«Все» закрыло открытый счёт');
       if (await page.getByTestId('invoice-not-in-rail').count()) throw new Error('без фильтра форма говорит «нет в списке»');
-      await switcher.getByRole('button', { name: /Избранные/ }).click();
+      await pickSites(page, 'Избранные стройки');
       await page.getByTestId('invoice-not-in-rail').waitFor({ timeout: 5_000 });
       if (new URL(page.url()).searchParams.get('invoice') !== elsewhere.id) throw new Error('«Избранные» закрыли открытый счёт');
     });
@@ -164,15 +163,13 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
         // открыта, у списка — сколько скрыто. Свежая накладная стоит первой, то есть до предела.
         await check('waybill-list-hides-non-favorite-and-counts', async () => {
           const row = page.getByRole('button', { name: new RegExp(`РН-ИЗБ-${stamp}`) });
-          // Сколько скрыто, говорит строка над непустым списком ИЛИ пустое состояние: на чистой базе CI
-          // эта накладная — единственная, и под фильтром список пуст (CI PR #1335). Ждать одну из двух —
-          // значит проверять базу стенда, а не приложение.
-          const said = page.getByTestId('site-filter-note').or(page.getByTestId('waybill-list-sites-empty'));
-          await said.first().waitFor({ timeout: 10_000 });
+          // Сколько скрыто, говорит отбор «Стройки» над списком (#1432) — и над пустым тоже: на чистой
+          // базе CI эта накладная — единственная, и под фильтром список пуст (CI PR #1335). Число
+          // появляется с ответом сервера, поэтому ждём его, а не сам отбор.
+          const said = page.getByTestId('sites-filter').filter({ hasText: /скрыто [1-9]/ });
+          await said.waitFor({ timeout: 10_000 });
           if (await row.count()) throw new Error('накладная неизбранной стройки стоит в списке под фильтром');
           await page.getByTestId('waybill-not-in-list').waitFor({ timeout: 5_000 });
-          const note = await said.first().innerText();
-          if (!/скрыто: [1-9]|Скрыто фильтром: [1-9]/.test(note)) throw new Error(`у списка: «${note}»`);
 
           // Число сходится с разницей против выключенного фильтра — там, где ни один список не усечён.
           const favorites = [sites[0].id, sites[1].id].sort().join(',');
@@ -181,11 +178,11 @@ export async function sitePickerChecks({ page, check, api, invoice, openMatrix, 
           if (!cut.more && !all.more && all.items.length - cut.items.length !== cut.hidden)
             throw new Error(`скрыто ${cut.hidden}, а разница списков — ${all.items.length - cut.items.length}`);
 
-          await page.getByTestId('site-filter-switch').getByRole('button', { name: /^Все/ }).click();
+          await pickSites(page, 'Все стройки');
           await row.first().waitFor({ timeout: 10_000 });
           if (await page.getByTestId('waybill-not-in-list').count()) throw new Error('без фильтра форма говорит «нет в списке»');
-          await page.getByTestId('site-filter-switch').getByRole('button', { name: /Избранные/ }).click();
-          await said.first().waitFor({ timeout: 10_000 });
+          await pickSites(page, 'Избранные стройки');
+          await said.waitFor({ timeout: 10_000 });
         });
       } finally {
         await page.evaluate(async ([id, version]) => {

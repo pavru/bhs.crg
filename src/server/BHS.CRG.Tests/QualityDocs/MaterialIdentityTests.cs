@@ -45,6 +45,21 @@ public class MaterialIdentityTests
             MaterialIdentity.KeysOf([Material, Unit, Org]),
             MaterialIdentity.KeysOf([Org, Unit, Material]));
 
+    /// <summary>
+    /// Тэг документа качества у разных полей двух типов — поле одно и то же при любом порядке типов
+    /// (ревью PR #1451): порядок выдачи хранилища после pg_restore другой.
+    /// </summary>
+    [Fact]
+    public void QualityDocFieldOf_IsIndependentOfTypeOrder()
+    {
+        var other = Composite("Изделие", """
+            { "fields": [ { "key": "Паспорт", "tags": ["material.qualityDocLink"] } ] }
+            """);
+        Assert.Equal(
+            MaterialIdentity.QualityDocFieldOf([Material, other]),
+            MaterialIdentity.QualityDocFieldOf([other, Material]));
+    }
+
     [Fact]
     public void KeysOf_NoMaterialType_IsEmpty()
         => Assert.Empty(MaterialIdentity.KeysOf([Unit, Org]));

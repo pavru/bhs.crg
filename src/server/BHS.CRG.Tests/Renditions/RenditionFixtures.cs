@@ -67,7 +67,7 @@ internal static class RenditionFixtures
         new(new OfficeRenditionBuilder(Client(converter, version: version), NullLogger<OfficeRenditionBuilder>.Instance));
 
     public static Task<Rendition> BuildAsync(this RenditionService service, byte[] file) =>
-        service.BuildAsync(new MemoryStream(file), CancellationToken.None);
+        service.BuildAsync(new MemoryStream(file), PageProfile.Default, CancellationToken.None);
 
     // ── Файлы ───────────────────────────────────────────────────────────────────────────────────
 
@@ -82,10 +82,17 @@ internal static class RenditionFixtures
         for (var row = 0; row < cells.Length; row++) sheet.CreateRow(row).CreateCell(0).SetCellValue(cells[row]);
     });
 
-    public static byte[] Workbook(Action<IWorkbook> fill, bool old = false)
+    /// <param name="ownLayout">
+    /// Книга задаёт раскладку сама (вписывание на каждом листе), и профиль печати её не трогает (issue
+    /// #1453). По умолчанию так: тесты сверки проверяют сверку, а не раскладку, и конвертер у них
+    /// получает тот же файл, что собран здесь. Раскладку проверяют с <c>ownLayout: false</c>.
+    /// </param>
+    public static byte[] Workbook(Action<IWorkbook> fill, bool old = false, bool ownLayout = true)
     {
         using IWorkbook book = old ? new NPOI.HSSF.UserModel.HSSFWorkbook() : new XSSFWorkbook();
         fill(book);
+        if (ownLayout && !old)
+            for (var i = 0; i < book.NumberOfSheets; i++) book.GetSheetAt(i).FitToPage = true;
         using var file = new MemoryStream();
         book.Write(file, leaveOpen: true);
         return file.ToArray();
@@ -114,7 +121,10 @@ internal static class RenditionFixtures
     /// PDF с текстовым слоем: по тексту на страницу, пустая строка — страница без текста. Текст
     /// раскладывается по строкам листа: буква, уехавшая за его край, для службы не напечатана.
     /// </summary>
-    public static byte[] Pdf(params string[] pages)
+    public static byte[] Pdf(params string[] pages) => Pdf(8, pages);
+
+    /// <param name="points">Кегль текста — для пометки о мелком тексте вписанного вида (issue #1453).</param>
+    public static byte[] Pdf(int points, params string[] pages)
     {
         var builder = new PdfDocumentBuilder();
         var font = builder.AddStandard14Font(Standard14Font.Helvetica);
@@ -127,7 +137,7 @@ internal static class RenditionFixtures
             {
                 if (line.Length + word.Length > 90)
                 {
-                    page.AddText(line.ToString(), 8, new PdfPoint(20, y), font);
+                    page.AddText(line.ToString(), points, new PdfPoint(20, y), font);
                     line.Clear();
                     y -= 12;
                     // Лист кончился — длинный текст продолжается на следующем, как у настоящего PDF.
@@ -135,7 +145,7 @@ internal static class RenditionFixtures
                 }
                 line.Append(word).Append(' ');
             }
-            if (line.Length > 0) page.AddText(line.ToString(), 8, new PdfPoint(20, y), font);
+            if (line.Length > 0) page.AddText(line.ToString(), points, new PdfPoint(20, y), font);
         }
         return builder.Build();
     }

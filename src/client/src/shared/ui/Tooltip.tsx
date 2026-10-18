@@ -31,6 +31,24 @@ let lastClosed = 0;
 const noteClosed = () => { lastClosed = Date.now(); };
 const justClosed = () => Date.now() - lastClosed < SKIP;
 
+/**
+ * Фокус, который слой Radix ставит сам, открываясь (поповер, окно, меню — `FocusScope`): первый
+ * фокусируемый элемент внутри. Открыли слой с клавиатуры — такой фокус ещё и «виден», и подсказка
+ * первой кнопки открывалась сама: первый Esc доставался ей, слой закрывался только со второго (ревью
+ * PR #1450). Человек туда фокус не вёл — подсказку он не звал.
+ *
+ * Слой объявляет свой автофокус событием `focusScope.autoFocusOnMount` и сразу, в том же заходе,
+ * ставит фокус, синхронно. Событие не всплывает, но перехват на документе его видит — отметка живёт
+ * до ближайшей микрозадачи, то есть ровно этот синхронный шаг.
+ */
+let layerAutoFocus = false;
+if (typeof document !== 'undefined') {
+  document.addEventListener('focusScope.autoFocusOnMount', () => {
+    layerAutoFocus = true;
+    queueMicrotask(() => { layerAutoFocus = false; });
+  }, true);
+}
+
 /** Виден ли фокус. Движок без `:focus-visible` (старый браузер, тестовый DOM) — считаем видимым. */
 function focusVisible(el: Element): boolean {
   try { return el.matches(':focus-visible'); }
@@ -133,8 +151,11 @@ export function Tooltip({ content, children, name = false, side = 'top' }: Toolt
     onPointerDown: (e: PointerEvent<HTMLElement>) => { own.onPointerDown?.(e); hide(); },
     // Фокус открывает подсказку, только когда он виден — пришёл с клавиатуры. Фокус, который вернуло
     // окно (выход с шага к открывшей его кнопке), иначе открыл бы её сам — и первый Esc достался бы
-    // подсказке, а не окну.
-    onFocus: (e: FocusEvent<HTMLElement>) => { own.onFocus?.(e); if (focusVisible(e.currentTarget)) show(true); },
+    // подсказке, а не окну. Фокус, поставленный открывшимся слоем, — тоже не зов (см. `layerAutoFocus`).
+    onFocus: (e: FocusEvent<HTMLElement>) => {
+      own.onFocus?.(e);
+      if (!layerAutoFocus && focusVisible(e.currentTarget)) show(true);
+    },
     onBlur: (e: FocusEvent<HTMLElement>) => { own.onBlur?.(e); hide(); },
   };
 

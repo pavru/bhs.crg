@@ -41,6 +41,27 @@ public static partial class RecognizedValues
     public static decimal? Money(string? text) => Number(text, maxFraction: 2);
 
     /// <summary>
+    /// Ставка НДС в процентах (issue #1410): «22%», «22 %», «НДС 22», «10,0» → число; «Без НДС» → 0.
+    /// Только от 0 до 100 — как принимает правка строки; список ставок не зашит: основная с 2026 года —
+    /// 22 %, и следующая перемена ставок обязана проходить без правки здесь. <c>null</c> — не читается
+    /// однозначно: расчётная «20/120», ставка вне границ, слова.
+    /// </summary>
+    public static decimal? VatRate(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        if (NoVat(text)) return 0m;
+
+        var bare = RateWords().Replace(text, " ").Trim();
+        return Number(bare, maxFraction: 2) is { } rate && rate is >= 0 and <= 100 ? rate : null;
+    }
+
+    /// <summary>
+    /// «Без НДС», «НДС не облагается» — НДС назван, и назван нулём. Это не пустая ячейка: строка такая
+    /// говорит, что налога нет, а не молчит о нём.
+    /// </summary>
+    public static bool NoVat(string? text) => text is not null && NoVatWords().IsMatch(text);
+
+    /// <summary>
     /// Количество. Тут разделитель один и он дробный: «0,125» м или «1,5» шт — обычное дело, а тысячи
     /// в количестве разделителем не пишут. Два разных разделителя — как у суммы. Знаков после
     /// разделителя — не больше трёх: точнее тысячной количество счёт не хранит.
@@ -101,4 +122,10 @@ public static partial class RecognizedValues
 
     [GeneratedRegex(@"^-?\d[\d.,]*$")]
     private static partial Regex Shape();
+
+    [GeneratedRegex(@"^\s*(без\s+ндс|ндс\s+не\s+облагается|не\s+облагается(\s+ндс)?)\.?\s*$", RegexOptions.IgnoreCase)]
+    private static partial Regex NoVatWords();
+
+    [GeneratedRegex(@"ставка|ндс|%", RegexOptions.IgnoreCase)]
+    private static partial Regex RateWords();
 }

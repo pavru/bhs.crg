@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Search, Star } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
+import { Checkbox } from '@/shared/ui/Checkbox';
 import { apiError } from '@/shared/utils/apiError';
 import { useSiteFilterState } from './siteFilterContext';
 
@@ -8,7 +9,7 @@ import { useSiteFilterState } from './siteFilterContext';
 const SEARCH_FROM = 8;
 
 /**
- * Выбор избранных строек (issue #1218) — ОДИН компонент на три входа: поповер из шапки, раздел
+ * Выбор избранных строек (issue #1218) — ОДИН компонент на три входа: отбор «Стройки» списка (#1432), раздел
  * профиля и — точечно — звезда на карточке стройки. Галочка пишется сразу, без кнопки «Сохранить».
  *
  * <p>Порядок строк запоминается при открытии: отмеченные — сверху. Пересортировка на каждой галочке
@@ -46,8 +47,8 @@ export function FavoritesPicker({ maxHeight = 'max-h-72' }: { maxHeight?: string
   return (
     <div className="space-y-3" data-testid="favorites-picker">
       <p className="text-xs text-fg3">
-        Отмеченные стройки показываются на всех экранах, остальные скрываются. Это удобство, а не права:
-        фильтр выключается в шапке.
+        Отмеченные стройки показываются во всех списках, остальные скрываются. Это удобство, а не права:
+        отбор «Стройки» над списком показывает и все.
       </p>
       {filter.sites.length >= SEARCH_FROM && (
         <div className="relative">
@@ -66,9 +67,8 @@ export function FavoritesPicker({ maxHeight = 'max-h-72' }: { maxHeight?: string
             return (
               <li key={s.id}>
                 <label className="flex items-center gap-2 px-1 py-1 rounded hover:bg-base cursor-pointer text-sm text-fg1">
-                  <input type="checkbox" checked={checked} disabled={busy}
-                    onChange={() => run(() => filter.setFavorite(s.id, !checked))}
-                    />
+                  <Checkbox size="sm" checked={checked} disabled={busy}
+                    onChange={() => run(() => filter.setFavorite(s.id, !checked))} />
                   <Star size={13} className={checked ? 'text-brand fill-current' : 'text-fg4'} aria-hidden />
                   <span className="truncate">{s.name}</span>
                 </label>

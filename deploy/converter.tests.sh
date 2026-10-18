@@ -126,6 +126,20 @@ check 'и в отказе сказано про пароль'          да  "$(
 check 'старую книгу под паролем он паролем не объясняет (500)' 500 "$(answer file.xls < "$HERE/converter-protected.xls")"
 check 'текст с расширением таблицы превращает в PDF (200)'     200 "$(printf 'просто текст, не таблица\n' | answer file.xlsx)"
 
+echo '── раскладка по профилю печати исполняется (issue #1453) ──'
+# Пара выдуманных книг: широкая без раскладки и её копия, которую вписывает приложение
+# (ExcelPageLayout; что копия — его, сверяет тест приложения). Сервис раскладку не выбирает — он
+# исполняет записанную в книге, и именно это здесь проверяется: смени LibreOffice поведение в
+# прибитой версии, и вписывание молча перестало бы работать, а образы снова поехали бы на две страницы.
+pages() { "${PDFTOTEXT[@]}" - - 2>/dev/null | tr -cd '\f' | wc -c | tr -d ' '; }
+inside curl -sS -o - -F 'files=@-;filename=wide.xlsx' http://localhost:3000/forms/libreoffice/convert < "$HERE/converter-wide.xlsx" > "$SB/wide.pdf"
+inside curl -sS -o - -F 'files=@-;filename=wide.xlsx' http://localhost:3000/forms/libreoffice/convert < "$HERE/converter-wide-laid.xlsx" > "$SB/laid.pdf"
+check 'контроль: книга без раскладки уезжает на вторую страницу' 2 "$(pages < "$SB/wide.pdf")"
+check 'вписанная копия ложится на одну страницу'                1 "$(pages < "$SB/laid.pdf")"
+check 'и итог счёта на ней'                                     да "$(has "$(layer < "$SB/laid.pdf")" 'Итого к оплате')"
+# Как с эталонным счётом: рядом лежит PDF, на котором тесты приложения проверяют сверку и кегль.
+check 'эталонный PDF вписанной книги несёт тот же текст, что отдаёт сервис' "$(layer < "$SB/laid.pdf")" "$(layer < "$HERE/converter-wide-laid.pdf")"
+
 # Свою версию сервис называет сам, и приложение пишет её отметкой на каждом образе (issue #1269):
 # по ней потом отвечают на вопрос «каким конвертером это построено».
 check 'сервис называет свою версию, и она та же, что в теге образа' "${image#*:}" "$(inside curl -s -m 10 http://localhost:3000/version)-libreoffice"

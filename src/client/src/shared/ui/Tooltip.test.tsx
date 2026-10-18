@@ -177,6 +177,8 @@ describe('Button и IconButton', () => {
         <IconButton label="Обновить"><svg /></IconButton>
       </Modal>,
     );
+    // Человек приходит фокусом позже, своим заходом: автофокус открывшегося окна подсказку не зовёт.
+    await act(async () => {});
     await focus(screen.getByRole('button', { name: 'Обновить' }));
     expect(tip()).not.toBeNull();
     fireEvent.keyDown(document.activeElement!, { key: 'Escape' });

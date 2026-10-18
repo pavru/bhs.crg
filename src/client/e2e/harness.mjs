@@ -379,6 +379,90 @@ export function callApi(page, method, path, body) {
 export const registryAddress = filter =>
   `${BASE}/tables/costs.invoices/registry#filter=${encodeURIComponent(JSON.stringify(filter))}`;
 
+/**
+ * Навигация с #1429 — рейл РАЗДЕЛОВ и подпанель открытого раздела: страницы других разделов на
+ * экране не видны. Отсюда три помощника вместо `page.locator('nav')`, который находил бы рейл без
+ * страниц, а на экране со своим `<nav>` — ещё и чужую колонку.
+ */
+export const railSection = (page, name) =>
+  page.getByRole('navigation', { name: 'Разделы' }).getByRole('link', { name, exact: true });
+
+/**
+ * Подпанель обязана стоять на экране. Без неё меню — один рейл, и «пункта нет у роли» проходило бы,
+ * ничего не прочитав: окно уже 1200 px или оставленная скрытой подпанель (ключ `rail`) прячут её.
+ */
+async function shownPanel(page, where) {
+  const panel = page.getByTestId('section-panel');
+  await panel.waitFor({ timeout: 5000 }).catch(() => {
+    throw new Error(`подпанели раздела нет (${where}) — меню читать не по чему: окно уже 1200 px или она скрыта настройкой rail`);
+  });
+  return panel;
+}
+
+/** Текст навигации на экране: разделы рейла и страницы открытой подпанели. */
+export async function menuText(page) {
+  const panel = await shownPanel(page, new URL(page.url()).pathname);
+  return [await page.locator('#app-rail-nav').innerText(), await panel.innerText()].join('\n');
+}
+
+/**
+ * Всё меню человека — обходом разделов рейла: «пункта нет у роли» иначе проверялось бы на одной
+ * подпанели и проходило бы, не глядя на остальные. Уводит со страницы. Первая страница каждого
+ * раздела подпанель имеет, поэтому её отсутствие — отказ, а не пропуск.
+ */
+export async function wholeMenu(page) {
+  const rail = page.getByRole('navigation', { name: 'Разделы' });
+  const names = (await rail.getByRole('link').allInnerTexts()).map(t => t.trim()).filter(Boolean);
+  if (!names.length) throw new Error('в рейле нет ни одного раздела');
+  const parts = [names.join('\n')];
+  for (const name of names) {
+    await railSection(page, name).click();
+    await rail.locator('a[aria-current="true"]', { hasText: name }).waitFor({ timeout: 5000 });
+    parts.push(await (await shownPanel(page, `раздел «${name}»`)).innerText());
+  }
+  return parts.join('\n');
+}
+
+/**
+ * Меню профиля в шапке (issue #1430): тема, «Профиль и пароль», «Сообщить о проблеме», «Выйти» и
+ * версия живут в нём, а не на экране. Открывает меню и отдаёт его.
+ */
+export async function accountMenu(page) {
+  await page.getByTestId('account-menu').click();
+  const menu = page.getByRole('menu');
+  await menu.waitFor({ timeout: 5000 });
+  return menu;
+}
+
+/** Пункт меню профиля по имени: открыть меню и выбрать. */
+export async function accountAction(page, name) {
+  await (await accountMenu(page)).getByRole('menuitem', { name, exact: true }).click();
+}
+
+/**
+ * Тема — из меню профиля. Выбор меню не закрывает (новую тему видно сразу), поэтому закрываем
+ * сами: открытое меню перехватило бы следующий щелчок проверки.
+ */
+export async function pickTheme(page, label) {
+  const menu = await accountMenu(page);
+  await menu.getByRole('menuitemradio', { name: label, exact: true }).click();
+  await page.keyboard.press('Escape');
+  await menu.waitFor({ state: 'hidden', timeout: 5000 });
+  await settled(page);
+}
+
+/**
+ * «Избранные стройки» / «Все стройки» — отбором «Стройки» над списком (issue #1432), а не сегментом в
+ * шапке. Выбор положения окно закрывает сам; Esc здесь не жмём — он ушёл бы открытой форме.
+ */
+export async function pickSites(page, label) {
+  await page.getByTestId('sites-filter').click();
+  const popover = page.getByTestId('sites-filter-popover');
+  await popover.getByRole('radio', { name: new RegExp(`^${label}`) }).click();
+  await popover.waitFor({ state: 'detached', timeout: 5000 });
+  await settled(page);
+}
+
 /** Выход «изнутри»: чистим оба хранилища, иначе сессия может пережить сброс. */
 export async function clearSession(page) {
   await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });

@@ -33,7 +33,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/limited-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, accountMenu, accountAction } from './harness.mjs';
 
 // Учётная запись с ограниченными правами — та же, что заводит посев (e2e/seed.mjs): роль `User`,
 // она же «Инженер ИД». Отдельной заводить незачем; разойдясь, значения дали бы «не вошёл».
@@ -136,14 +136,19 @@ for (const section of SECTIONS) {
   });
 }
 
-// ── Подвал боковой панели: версия видна (issue #974, поломка 1) ───────────────
+// ── Меню профиля: версия видна (issue #974, поломка 1) ────────────────────────
 //
 // Статус версии читает КАЖДЫЙ экран, поэтому неверно закрытый адрес отвечал отказом всем и всюду.
-// Здесь проверяется видимое следствие; сам отказ поймал бы счётчик ниже.
-await check('sidebar-shows-the-version-label', async () => {
-  screen = 'подвал панели';
-  if (!(await page.getByText(/^v\d+\.\d+\.\d+/).count()))
-    throw new Error('в подвале панели нет строки версии');
+// Здесь проверяется видимое следствие; сам отказ поймал бы счётчик ниже. Версия с #1430 — внизу
+// меню профиля, а не в подвале панели.
+await check('account-menu-shows-the-version-label', async () => {
+  screen = 'меню профиля';
+  const menu = await accountMenu(page);
+  const text = await menu.getByTestId('app-version').innerText().catch(() => '');
+  await page.keyboard.press('Escape');
+  await menu.waitFor({ state: 'hidden', timeout: 5000 });
+  if (!/^Версия \d+\.\d+\.\d+/.test(text.trim()))
+    throw new Error(`в меню профиля нет строки версии: «${text.trim()}»`);
 });
 
 // ── Основной экран роли: редактор документа ───────────────────────────────────
@@ -175,7 +180,7 @@ await check('bug-report-with-an-attachment-goes-through', async () => {
   // так, что падение первой уносит вторую.
   await page.goto(`${BASE}/document-sets`);
   await settled(page);
-  await page.getByText('Сообщить об ошибке').first().click();
+  await accountAction(page, 'Сообщить о проблеме');
   await page.waitForSelector('[role=dialog]', { timeout: 10000 });
   const dialog = page.locator('[role=dialog]').last();
 

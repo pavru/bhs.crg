@@ -21,13 +21,12 @@ afterEach(cleanup);
 const LIVE = ['a', 'b', 'c'];
 
 function filterOf(
-  favorites: string[], register = () => () => {}, status: SiteFilterValue['status'] = 'ready',
+  favorites: string[], status: SiteFilterValue['status'] = 'ready',
 ): SiteFilterValue {
   const state = filterState(favorites, true, new Set(LIVE));
   return {
     status, favorites: state.favorites, on: true, active: status === 'ready' && state.active, sites: [],
     visible: sites => isVisible(sites, state), setOn: vi.fn(), setFavorite: vi.fn(), setFavorites: vi.fn(),
-    consumers: 0, register,
   };
 }
 
@@ -66,14 +65,13 @@ const LIST = [item('i1', ['a']), item('i2', ['b'], 'Кабель'), item('i3', [
 interface Mount {
   selected?: string | null;
   query?: string;
-  register?: () => () => void;
   status?: SiteFilterValue['status'];
   /** Пишущий хук счёта рядом с рейлом — запись идёт настоящей мутацией через кэш. */
   writer?: () => null;
 }
 
 /** Хук на настоящем контексте фильтра, кэше запросов и тостах; наружу — что он вернул. */
-function mount(favorites: string[], cuts: boolean, { selected = 'i1', query = '', register, status, writer }: Mount = {}) {
+function mount(favorites: string[], cuts: boolean, { selected = 'i1', query = '', status, writer }: Mount = {}) {
   const got: { current: ReturnType<typeof useRailSites> | null } = { current: null };
   const qc = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   function Probe() {
@@ -86,7 +84,7 @@ function mount(favorites: string[], cuts: boolean, { selected = 'i1', query = ''
   render(
     <QueryClientProvider client={qc}>
       <ToastProvider>
-        <SiteFilterContext.Provider value={filterOf(favorites, register, status)}><Probe /><Writer /></SiteFilterContext.Provider>
+        <SiteFilterContext.Provider value={filterOf(favorites, status)}><Probe /><Writer /></SiteFilterContext.Provider>
       </ToastProvider>
     </QueryClientProvider>,
   );
@@ -99,15 +97,6 @@ describe('рейл под фильтром', () => {
     expect(LIST.filter(i => !rail.hides(i)).map(i => i.id)).toEqual(['i1', 'i3', 'i4']);
     expect(rail.hidden).toBe(1);
     expect(rail.openHidden).toBe(true);
-  });
-
-  it('шапку зажигает только общий список: под очередью экран не потребитель', () => {
-    const register = vi.fn(() => () => {});
-    mount(['a'], false, { register });
-    expect(register).not.toHaveBeenCalled();
-    cleanup();
-    mount(['a'], true, { register });
-    expect(register).toHaveBeenCalledTimes(1);
   });
 
   it('под очередью не урезает ничего', () => {

@@ -38,7 +38,8 @@ public sealed class RenditionService(OfficeRenditionBuilder office)
         return reading == FileReading.None && !OfficeRenditionBuilder.MayBeOffice(head.Span) ? WrongFormat() : null;
     }
 
-    public async Task<Rendition> BuildAsync(Stream content, CancellationToken ct)
+    /// <param name="profile">Профиль печати книги без своей раскладки (issue #1454).</param>
+    public async Task<Rendition> BuildAsync(Stream content, PageProfile profile, CancellationToken ct)
     {
         if (!content.CanSeek) throw new ArgumentException("Нужен поток с перемоткой.", nameof(content));
 
@@ -54,7 +55,7 @@ public sealed class RenditionService(OfficeRenditionBuilder office)
                     $"Файл слишком велик для читаемого вида: он больше {RenditionLimits.OfficeMaxBytes / (1024 * 1024)} МБ.")
                 : WrongFormat();
 
-        if (reading == FileReading.Rendition) return await office.BuildAsync(await WholeAsync(content, ct), FormatOf(kind), ct);
+        if (reading == FileReading.Rendition) return await office.BuildAsync(await WholeAsync(content, ct), FormatOf(kind), profile, ct);
 
         // Вид не определился — но причина может быть в самом файле: под паролем он уже не архив,
         // а обрезанный — архив без оглавления. Человеку это не «файл другого вида». Целиком ради

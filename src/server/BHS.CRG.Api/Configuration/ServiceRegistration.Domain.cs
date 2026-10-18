@@ -94,6 +94,10 @@ internal static class DomainRegistration
     // (обратная ссылка сделала бы её модулем в смысле ModuleBoundaryTests).
     builder.Services.AddScoped<BHS.CRG.Application.Backup.IModuleSchemaBackup,
         BHS.CRG.Api.Modules.ModuleSchemaBackup>();
+    // Шаги старта после восстановления (issue #1400): проекция типов модулей — тем же приёмом, в корне
+    // композиции.
+    builder.Services.AddScoped<BHS.CRG.Application.Backup.IRestoreAftercare,
+        BHS.CRG.Api.Modules.ModuleTypesRestoreAftercare>();
     builder.Services.AddSingleton<BHS.CRG.Infrastructure.Backup.BackupFileStore>();
     builder.Services.AddScoped<BHS.CRG.Infrastructure.Backup.BackupJobRunner>();
     // Плановое копирование (issue #832): служба ставит ту же задачу, что и кнопка в интерфейсе, —

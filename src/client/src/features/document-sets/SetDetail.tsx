@@ -119,7 +119,7 @@ export function SetDetail() {
     try {
       await assembleMutation.mutateAsync({ setId: set!.id });
       setWatching(true);
-      setAssembleMsg('Сборка запущена — прогресс в индикаторе задач слева от колокольчика.');
+      setAssembleMsg('Сборка запущена — ход виден на кнопке активности в шапке.');
       setTimeout(() => setWatching(false), 5 * 60 * 1000); // страховка: не опрашивать вечно
     } catch (err: unknown) {
       setAssembleMsg(err instanceof Error ? err.message : 'Ошибка запуска сборки');
