@@ -1,6 +1,6 @@
 import * as Popover from '@radix-ui/react-popover';
 import { Building2, Check, Star, X } from 'lucide-react';
-import { useId } from 'react';
+import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { IconButton } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -20,6 +20,10 @@ import { useSiteFilterState } from './siteFilterContext';
  * <p>Поведение не меняется: состояние ГЛОБАЛЬНОЕ (настройка пользователя), его меняет любой список,
  * и избранное правится здесь же, без похода в профиль.</p>
  *
+ * <p>Выход — одним щелчком, как у прежней строки «Показать все»: у включённого отбора крестик
+ * «Показать все стройки». Выбор положения в окне окно закрывает — дальше смотрят на список; правка
+ * избранного галочками — нет.</p>
+ *
  * @param hidden сколько строк этого списка скрыто; `undefined` — список не считает.
  * @param partial число — о всём списке, а на экране его часть (поиск по загруженному у накладных):
  *     тогда — «часть скрыта», без числа (ревью PR #1335).
@@ -27,6 +31,7 @@ import { useSiteFilterState } from './siteFilterContext';
 export function SitesFilter({ hidden, partial = false }: { hidden?: number; partial?: boolean }) {
   const filter = useSiteFilterState();
   const heading = useId();
+  const [open, setOpen] = useState(false);
   if (filter.status === 'unavailable') return null;
 
   if (filter.status === 'loading') {
@@ -45,15 +50,17 @@ export function SitesFilter({ hidden, partial = false }: { hidden?: number; part
   ) : (
     <Chip icon={filter.active ? Star : Building2} selected={filter.active} menu count={hiddenText}
       data-testid="sites-filter"
+      // Имя начинается с видимой подписи (WCAG 2.5.3): голосом нажимают то, что видят.
       aria-label={filter.active
-        ? `Стройки: избранные, ${count} из ${total}${hiddenText ? `, ${hiddenText}` : ''}`
-        : 'Стройки: все'}>
+        ? `Избранные стройки${hiddenText ? ` · ${hiddenText}` : ''} — ${count} из ${total}`
+        : undefined}
+      onRemove={filter.active ? () => filter.setOn(false) : undefined} removeLabel="Показать все стройки">
       {filter.active ? 'Избранные стройки' : 'Все стройки'}
     </Chip>
   );
 
   return (
-    <Popover.Root>
+    <Popover.Root open={open} onOpenChange={setOpen}>
       {filter.status === 'error' ? (
         <Tooltip content="Настройки или справочник строек не загрузились. Списки показаны полностью; обновите страницу.">
           <Popover.Trigger asChild>{chip}</Popover.Trigger>
@@ -72,12 +79,8 @@ export function SitesFilter({ hidden, partial = false }: { hidden?: number; part
           {/* Выбирать между «избранными» и «всеми» можно, только когда избранное есть: иначе положение
               «Избранные» показало бы всё и выглядело бы сломанным. Тогда остаётся сам выбор строек. */}
           {filter.status === 'ready' && count > 0 && (
-            <div role="radiogroup" aria-label="Какие стройки показывать" className="-mx-2 mb-3 pb-3 border-b border-stroke">
-              <Choice checked={filter.on} onPick={() => filter.setOn(true)}
-                label="Избранные стройки" note={`${count} из ${total}`} />
-              <Choice checked={!filter.on} onPick={() => filter.setOn(false)}
-                label="Все стройки" note={String(total)} />
-            </div>
+            <Choices on={filter.on} onPick={filter.setOn} onDone={() => setOpen(false)}
+              favorites={`${count} из ${total}`} all={String(total)} />
           )}
           <FavoritesPicker />
         </Popover.Content>
@@ -86,13 +89,43 @@ export function SitesFilter({ hidden, partial = false }: { hidden?: number; part
   );
 }
 
-function Choice({ checked, onPick, label, note }: { checked: boolean; onPick: () => void; label: string; note: string }) {
+/**
+ * «Избранные / Все» — радиогруппа по шаблону APG: в группу ведёт одна остановка Tab (выбранное
+ * положение), стрелки переключают положение. Щелчок выбирает и закрывает окно; стрелка — только
+ * выбирает: ею перебирают, и окно не должно исчезать из-под клавиатуры.
+ */
+function Choices({ on, onPick, onDone, favorites, all }: {
+  on: boolean; onPick: (on: boolean) => void; onDone: () => void; favorites: string; all: string;
+}) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const items = [
+    { value: true, label: 'Избранные стройки', note: favorites },
+    { value: false, label: 'Все стройки', note: all },
+  ];
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+    e.preventDefault();
+    // Положений два: любая стрелка ведёт к другому.
+    const next = items.findIndex(i => i.value !== on);
+    onPick(items[next].value);
+    refs.current[next]?.focus();
+  };
   return (
-    <button type="button" role="radio" aria-checked={checked} onClick={() => { if (!checked) onPick(); }}
-      className="w-full flex items-center gap-2 h-9 px-2 rounded-md text-left text-sm hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-      <Check size={16} aria-hidden className={`shrink-0 ${checked ? 'text-brand' : 'invisible'}`} />
-      <span className={`flex-1 ${checked ? 'font-medium text-fg1' : 'text-fg2'}`}>{label}</span>
-      <span className="text-xs tabular-nums text-fg3">{note}</span>
-    </button>
+    <div role="radiogroup" aria-label="Какие стройки показывать" onKeyDown={onKeyDown}
+      className="-mx-2 mb-3 pb-3 border-b border-stroke">
+      {items.map((item, i) => {
+        const checked = item.value === on;
+        return (
+          <button key={item.label} ref={el => { refs.current[i] = el; }} type="button" role="radio"
+            aria-checked={checked} tabIndex={checked ? 0 : -1}
+            onClick={() => { if (!checked) onPick(item.value); onDone(); }}
+            className="w-full flex items-center gap-2 h-9 px-2 rounded-md text-left text-sm hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+            <Check size={16} aria-hidden className={`shrink-0 ${checked ? 'text-brand' : 'invisible'}`} />
+            <span className={`flex-1 ${checked ? 'font-medium text-fg1' : 'text-fg2'}`}>{item.label}</span>
+            <span className="text-xs tabular-nums text-fg3">{item.note}</span>
+          </button>
+        );
+      })}
+    </div>
   );
 }

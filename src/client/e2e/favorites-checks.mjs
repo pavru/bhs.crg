@@ -42,7 +42,7 @@ export async function favoritesChecks(page, check) {
       await chip.waitFor({ timeout: 5000 });
       if ((await chip.innerText()).trim() !== 'Все стройки') throw new Error(`отбор без избранного: «${await chip.innerText()}»`);
       // Шапка об избранном больше не говорит: отбор стоит у списка, который урезает.
-      if (/Избранн/.test(await page.getByTestId('header-context').innerText())) throw new Error('избранное осталось в шапке');
+      if (/Избранн/.test(await page.locator('main > header').innerText())) throw new Error('избранное осталось в шапке');
       await chip.click();
       const popover = page.getByTestId('sites-filter-popover');
       await popover.getByTestId('favorites-picker').waitFor({ timeout: 5000 });
@@ -59,7 +59,7 @@ export async function favoritesChecks(page, check) {
       if (left !== all.length) throw new Error(`после первой звезды карточек ${left}, а строек ${all.length}`);
       // Отбор включён, но удержанные карточки не скрыты — число скрытых не пишется.
       const label = await page.getByTestId('sites-filter').getAttribute('aria-label');
-      if (label !== `Стройки: избранные, 1 из ${all.length}`) throw new Error(`отбор: «${label}»`);
+      if (label !== `Избранные стройки — 1 из ${all.length}`) throw new Error(`отбор: «${label}»`);
     });
 
     await check('favorites-filter-list-after-reload', async () => {

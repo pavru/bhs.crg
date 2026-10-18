@@ -5,6 +5,7 @@ import { OutsideNav } from '@/shared/ui/WorkspaceNav';
 import { useNavSections } from '@/shared/ui/navSections';
 import type { PanelGroup } from '@/shared/ui/railSections';
 import { panelLink } from '@/shared/ui/panelLink';
+import { useFavoriteSitesGroup, withFavoriteSites } from '@/shared/siteFilter/favoriteSitesGroup';
 
 /**
  * Выдвижное меню узкого экрана (issue #1355): все разделы рейла разом, каждый со своими страницами.
@@ -23,6 +24,8 @@ export function DrawerBody({ head, onPick }: {
   onPick: () => void;
 }) {
   const { rail, outside } = useNavSections();
+  // Избранные стройки — и здесь, как в подпанели рабочего стола (#1432).
+  const favorites = useFavoriteSitesGroup();
   return (
     <>
       {head}
@@ -32,7 +35,7 @@ export function DrawerBody({ head, onPick }: {
             {/* Раздел — ступенью выше группы: иначе «Учёт затрат» и «Отчёты и закрытие месяца»
                 читались бы соседями. */}
             <h2 className="px-3 mb-1 text-sm font-semibold text-fg1">{section.def.title}</h2>
-            <PageList groups={section.groups} onPick={onPick} />
+            <PageList groups={withFavoriteSites(section.def.id, section.groups, favorites)} onPick={onPick} />
           </div>
         ))}
         <OutsideNav items={outside} onPick={onPick} />

@@ -100,6 +100,9 @@ async function narrowChecks(page, check) {
 
     await check('narrow-screen-menu-reaches-every-section', async () => {
       if (await page.getByTestId('rail').isVisible()) throw new Error('на 390 px панель осталась у края');
+      // Шапка — одной строкой и на телефоне (#1432): пустая вторая строка под ней была бы лишней.
+      const header = await page.locator('main > header').boundingBox();
+      if (!header || header.height > 49) throw new Error(`шапка на 390 px высотой ${header?.height}px — не в одну строку`);
       const extra = await sideScroll(page);
       if (extra > 0) throw new Error(`каркас шире экрана на ${extra}px — страница едет вбок`);
 

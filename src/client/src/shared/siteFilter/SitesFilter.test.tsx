@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, renderHook, screen, within } from '@testing
 import { SiteFilterContext, type SiteFilterValue } from './siteFilterContext';
 import { filterState, isVisible } from './rule';
 import { SitesFilter } from './SitesFilter';
-import { FAVORITE_SITES_GROUP, useFavoriteSitesGroup } from './favoriteSitesGroup';
+import { FAVORITE_SITES_GROUP, useFavoriteSitesGroup, withFavoriteSites } from './favoriteSitesGroup';
 import type { ReactNode } from 'react';
 
 /**
@@ -57,9 +57,23 @@ describe('отбор «Стройки»', () => {
     const chip = screen.getByTestId('sites-filter');
     expect(chip.textContent).toContain('Избранные стройки');
     expect(chip.textContent).toContain('скрыто 12');
-    expect(chip.getAttribute('aria-label')).toBe('Стройки: избранные, 2 из 3, скрыто 12');
+    // Имя начинается с видимой подписи — голосом нажимают то, что видят (ревью PR #1471).
+    expect(chip.getAttribute('aria-label')).toBe('Избранные стройки · скрыто 12 — 2 из 3');
     expect(chip.getAttribute('aria-pressed')).toBeNull();
     expect(chip.getAttribute('aria-haspopup')).toBe('dialog');
+  });
+
+  it('выход одним щелчком — крестик «Показать все стройки»', () => {
+    const value = filterOf(['a']);
+    shown(value, { hidden: 2 });
+    fireEvent.click(screen.getByRole('button', { name: 'Показать все стройки' }));
+    expect(value.setOn).toHaveBeenCalledWith(false);
+    expect(screen.queryByTestId('sites-filter-popover')).toBeNull();
+  });
+
+  it('у выключенного отбора крестика нет', () => {
+    shown(filterOf(['a'], { on: false }));
+    expect(screen.queryByRole('button', { name: 'Показать все стройки' })).toBeNull();
   });
 
   it('под поиском — «часть скрыта», без числа', () => {
@@ -81,6 +95,21 @@ describe('отбор «Стройки»', () => {
       .toEqual([['Избранные стройки1 из 3', 'false'], ['Все стройки3', 'true']]);
     fireEvent.click(choices[0]);
     expect(value.setOn).toHaveBeenCalledWith(true);
+    // Выбрали положение — смотрят на список: окно закрывается.
+    expect(screen.queryByTestId('sites-filter-popover')).toBeNull();
+  });
+
+  it('стрелка переключает положение и окна не закрывает; Tab ведёт в группу одной остановкой', () => {
+    const value = filterOf(['a']);
+    shown(value);
+    fireEvent.click(screen.getByTestId('sites-filter'));
+    const popover = screen.getByTestId('sites-filter-popover');
+    const [favorites, all] = within(popover).getAllByRole('radio');
+    expect([favorites.tabIndex, all.tabIndex]).toEqual([0, -1]);
+    fireEvent.keyDown(favorites, { key: 'ArrowDown' });
+    expect(value.setOn).toHaveBeenCalledWith(false);
+    expect(document.activeElement).toBe(all);
+    expect(screen.getByTestId('sites-filter-popover')).toBeTruthy();
   });
 
   it('уже выбранное положение повторно не пишется', () => {
@@ -116,6 +145,14 @@ describe('избранные стройки в подпанели «Стройк
   it('и при выключенном отборе: это переход, а не фильтр', () => {
     const { result } = renderHook(() => useFavoriteSitesGroup(), { wrapper: wrap(filterOf(['b'], { on: false })) });
     expect(result.current?.items.map(i => i.label)).toEqual(['Школа №7']);
+  });
+
+  it('группа встаёт последней и только у «Строек» — в подпанели и в меню телефона одинаково', () => {
+    const pages = [{ items: [] }];
+    const favorites = { label: FAVORITE_SITES_GROUP, items: [] };
+    expect(withFavoriteSites('constructions', pages, favorites)).toEqual([...pages, favorites]);
+    expect(withFavoriteSites('costs', pages, favorites)).toBe(pages);
+    expect(withFavoriteSites('constructions', pages, null)).toBe(pages);
   });
 
   it('избранного нет или оно не известно — группы нет', () => {

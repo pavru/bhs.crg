@@ -1,4 +1,5 @@
 import { Star } from 'lucide-react';
+import type { RailId } from '@/shared/ui/navConfig';
 import type { PanelGroup } from '@/shared/ui/railSections';
 import { useSiteFilterState } from './siteFilterContext';
 
@@ -20,4 +21,12 @@ export function useFavoriteSitesGroup(): PanelGroup | null {
     items: filter.sites.filter(s => filter.favorites.has(s.id))
       .map(s => ({ to: `/document-sets/${s.id}`, label: s.name, icon: Star, rail: 'constructions' })),
   };
+}
+
+/**
+ * Страницы раздела с избранными стройками — одно правило на подпанель рабочего стола и выдвижное меню
+ * телефона: группа стоит только у раздела «Стройки», последней.
+ */
+export function withFavoriteSites(section: RailId, groups: PanelGroup[], favorites: PanelGroup | null): PanelGroup[] {
+  return section === 'constructions' && favorites ? [...groups, favorites] : groups;
 }

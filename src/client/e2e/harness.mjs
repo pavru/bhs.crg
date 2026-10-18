@@ -453,13 +453,12 @@ export async function pickTheme(page, label) {
 
 /**
  * «Избранные стройки» / «Все стройки» — отбором «Стройки» над списком (issue #1432), а не сегментом в
- * шапке. Выбор поповер не закрывает (рядом правится само избранное), поэтому закрываем сами.
+ * шапке. Выбор положения окно закрывает сам; Esc здесь не жмём — он ушёл бы открытой форме.
  */
 export async function pickSites(page, label) {
   await page.getByTestId('sites-filter').click();
   const popover = page.getByTestId('sites-filter-popover');
   await popover.getByRole('radio', { name: new RegExp(`^${label}`) }).click();
-  await page.keyboard.press('Escape');
   await popover.waitFor({ state: 'detached', timeout: 5000 });
   await settled(page);
 }
