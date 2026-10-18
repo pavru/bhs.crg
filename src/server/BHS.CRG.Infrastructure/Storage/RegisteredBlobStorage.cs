@@ -83,6 +83,37 @@ public class RegisteredBlobStorage(
     public async Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
         => await IsKnownAsync(blobPath, ct) ? await inner.GetSizeAsync(blobPath, ct) : null;
 
+    /// <summary>
+    /// Отсутствующие пути — с тем же замком, что у <see cref="GetSizeAsync" />, но реестр спрашивается
+    /// ОДИН раз за все пути (issue #1439). Незарегистрированный путь для нас «нет» — хранилище о нём не
+    /// спрашивают вовсе; спрашивают только о зарегистрированных.
+    ///
+    /// <para>Ради этого и заведено: у копии, снятой при недоступном хранилище, на новой установке
+    /// путей вне архива тысячи, и ни один из них не зарегистрирован — прежде это были тысячи пар
+    /// «запрос к реестру + запрос к хранилищу», теперь один запрос к базе.</para>
+    /// </summary>
+    public async Task<IReadOnlySet<string>> FindAbsentAsync(
+        IEnumerable<string> blobPaths, CancellationToken ct = default)
+    {
+        var asked = blobPaths.ToHashSet(StringComparer.Ordinal);
+        if (asked.Count == 0) return asked;
+
+        HashSet<string> known;
+        await using (var scope = scopes.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var list = asked.ToList();
+            known = (await db.BlobRegistry.AsNoTracking()
+                    .Where(e => list.Contains(e.Path)).Select(e => e.Path).ToListAsync(ct))
+                .ToHashSet(StringComparer.Ordinal);
+        }
+
+        asked.ExceptWith(known);
+        foreach (var path in known)
+            if (await inner.GetSizeAsync(path, ct) is null) asked.Add(path);
+        return asked;
+    }
+
     public async Task DeleteAsync(string blobPath, CancellationToken ct = default)
     {
         await inner.DeleteAsync(blobPath, ct);

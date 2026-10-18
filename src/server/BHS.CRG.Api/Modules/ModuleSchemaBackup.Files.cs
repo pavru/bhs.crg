@@ -55,27 +55,26 @@ public sealed partial class ModuleSchemaBackup
         CancellationToken ct)
     {
         var blobs = scoped.GetRequiredService<IBlobStorage>();
-        var present = new Dictionary<string, bool>(StringComparer.Ordinal);
+        var sections = restored
+            .Select(section => (section, module: registry.Find(section.Module)))
+            .Where(s => s.module is not null)
+            .Select(s => (s.section, module: s.module!, found: ModuleFileScan.Scan(s.section.Tables, s.module!.Files)))
+            .ToList();
 
-        foreach (var section in restored)
+        // Пути всех модулей — одним вопросом к хранилищу (issue #1439): по одному у копии, снятой при
+        // недоступном хранилище, это тысячи вопросов внутри запроса восстановления.
+        var absent = await blobs.FindAbsentAsync(
+            sections.SelectMany(s => s.found.Paths).Where(p => !inArchive.Contains(p)),
+            ct);
+
+        foreach (var (section, module, found) in sections)
         {
-            if (registry.Find(section.Module) is not { } module) continue;
-
-            var found = ModuleFileScan.Scan(section.Tables, module.Files);
             var missing = new List<string>();
 
             foreach (var (what, paths) in found.Groups.OrderBy(g => g.Key, StringComparer.Ordinal))
             {
-                var absent = 0;
-                foreach (var path in paths)
-                {
-                    if (inArchive.Contains(path)) continue;
-                    if (!present.TryGetValue(path, out var here))
-                        present[path] = here = await blobs.GetSizeAsync(path, ct) is not null;
-                    if (!here) absent++;
-                }
-
-                if (absent > 0) missing.Add($"{what} — {absent} из {paths.Count}");
+                var lost = paths.Count(p => !inArchive.Contains(p) && absent.Contains(p));
+                if (lost > 0) missing.Add($"{what} — {lost} из {paths.Count}");
             }
 
             if (missing.Count == 0) continue;
