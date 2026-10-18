@@ -173,6 +173,37 @@ await check('document-page-browser-back-asks-with-edits', async () => {
   if (path !== `/document-sets/${CONSTRUCTION}/sets/${SET}`) throw new Error(`«Назад» увёл не к комплекту: ${path}`);
 });
 
+// То же на телефоне (#1418): там окна кладут записи в историю, а вопрос ухода, заданный на шаге
+// истории, — нет. Иначе «Не сохранять» ушло бы на его же запись, а не к комплекту; «Назад» при вопросе —
+// снова шаг под охраной, вопрос остаётся. Поймано живым прогоном: StrictMode монтирует вопрос дважды.
+await check('document-page-browser-back-asks-on-phone', async () => {
+  const desktop = page.viewportSize();
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}`);
+    await page.locator('tbody tr, [data-testid=ld-nav] button').filter({ hasText: /АОСР/ }).first().click();
+    await page.waitForURL(url => url.pathname === DOC_PATH, { timeout: 15000 });
+    const editor = page.getByTestId('document-editor');
+    const input = editor.getByRole('textbox').first();
+    await input.fill(`${await input.inputValue()} 7`);
+    await editor.locator('[aria-description="Есть несохранённые изменения"]').waitFor({ timeout: 5000 });
+
+    const ask = page.getByRole('dialog', { name: 'Несохранённые изменения' });
+    await page.goBack();
+    await ask.waitFor({ timeout: 5000 }).catch(() => { throw new Error('«Назад» увёл из документа с правками без вопроса'); });
+    if (await page.evaluate(() => history.state?.layer)) throw new Error('вопрос ухода положил запись в историю');
+    await page.goBack();
+    await page.waitForTimeout(300);
+    if (!(await ask.isVisible())) throw new Error('«Назад» при вопросе ухода убрала вопрос');
+    if (new URL(page.url()).pathname !== DOC_PATH) throw new Error(`«Назад» при вопросе увела: ${page.url()}`);
+    await ask.getByRole('button', { name: 'Не сохранять' }).click();
+    await page.waitForURL(url => url.pathname === `/document-sets/${CONSTRUCTION}/sets/${SET}`, { timeout: 5000 })
+      .catch(() => { throw new Error(`«Не сохранять» увело не к комплекту: ${page.url()}`); });
+  } finally {
+    if (desktop) await page.setViewportSize(desktop);
+  }
+});
+
 // Пришли из комплекта — «К комплекту» шагает назад по истории, а не кладёт комплект новой записью:
 // иначе «Назад» с комплекта снова открывал бы документ (ревью PR #1388). Признак шага — «Вперёд»
 // возвращает документ.

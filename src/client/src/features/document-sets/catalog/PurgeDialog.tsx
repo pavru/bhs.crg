@@ -5,6 +5,7 @@ import { Button } from '@/shared/ui/Button';
 import { useToast } from '@/shared/ui/Toast';
 import type { PurgeHolder, PurgeOffer } from '@/shared/api/recordPurge';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
+import { useHistoryLayer } from '@/shared/ui/historyLayers';
 import { countMatches, holderLabel, mismatchShown, type PurgeFailure } from './purgeRecord';
 
 const HOLDER_COLUMNS: DataGridColumn<PurgeHolder>[] = [
@@ -59,6 +60,12 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
   onDone?: () => void;
 }) {
   const toast = useToast();
+  // «Назад» на телефоне (issue #1418) — «Отмена»; пока идёт удаление, окно не закрывается ничем.
+  useHistoryLayer(true, () => {
+    if (pending) return false;
+    onClose();
+    return true;
+  });
   const [offer, setOffer] = useState(offered);
   const [input, setInput] = useState('');
   const [settled, setSettled] = useState(false);

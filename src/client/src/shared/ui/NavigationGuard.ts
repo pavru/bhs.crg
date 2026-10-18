@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useRef, useEffect, useLayoutEffect, type MouseEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { refusedByDialog } from './modalDismissal';
+import { goPastLayers, holdNextLayer, layersAfter, layersFirst } from './historyLayers';
 
 /** Обработчик ухода: показывает подтверждение и вызывает `proceed()`, если пользователь решил уйти. */
 export type LeaveHandler = (proceed: () => void) => void;
@@ -136,10 +137,16 @@ export function useLeaveGuard(active: boolean, onLeave: LeaveHandler) {
  * сделать тот же шаг ещё раз, уже мимо перехвата. Шаг меряется по `idx`, который роутер кладёт в
  * `history.state`; запись без него (чужая) не трогается.</p>
  */
-let stepGuard: ((e: PopStateEvent) => void) | null = null;
+let stepGuard: ((e: PopStateEvent) => boolean) | null = null;
 let approvedStep = false;
 if (typeof window !== 'undefined') {
-  window.addEventListener('popstate', e => { if (!approvedStep) stepGuard?.(e); }, { capture: true });
+  // Один слушатель на всех, и порядок в нём — договор (issue #1418): свой шаг слоёв истории, затем
+  // охрана шага страницы, затем закрытие верхнего слоя. См. `historyLayers`.
+  window.addEventListener('popstate', e => {
+    if (layersFirst(e)) return;
+    if (!approvedStep && stepGuard?.(e)) return;
+    layersAfter(e);
+  }, { capture: true });
 }
 
 /**
@@ -152,7 +159,8 @@ export function stepBackApproved() {
   // Гаснет на этом же шаге, после охраны (её слушатель зарегистрирован первым): без охраны, то есть
   // без правок, флаг иначе дожил бы до чужого «Назад» и пропустил бы его.
   window.addEventListener('popstate', () => { approvedStep = false; }, { once: true });
-  window.history.back();
+  // Мимо записей открытых слоёв (issue #1418): с телефона выход зовут и из вопроса, у которого она есть.
+  goPastLayers(-1);
 }
 
 function useHistoryStepGuard(active: boolean, onLeave: { current: LeaveHandler }) {
@@ -165,21 +173,25 @@ function useHistoryStepGuard(active: boolean, onLeave: { current: LeaveHandler }
     if (!active) return;
     let phase: 'watch' | 'restoring' | 'leaving' = 'watch';
     let step = 0;
+    // Возвращает `true`, если шаг перехвачен: тогда он не достаётся ни слоям истории, ни роутеру.
     const onPop = (e: PopStateEvent) => {
-      if (phase === 'leaving') { phase = 'watch'; return; }   // уход решён — шаг достаётся роутеру
+      if (phase === 'leaving') { phase = 'watch'; return false; }   // уход решён — шаг достаётся роутеру
       if (phase === 'restoring') {
         e.stopImmediatePropagation();
         phase = 'watch';
-        onLeave.current(() => { phase = 'leaving'; window.history.go(step); });
-        return;
+        // Вопрос ухода записи истории не кладёт — см. `holdNextLayer`.
+        holdNextLayer();
+        onLeave.current(() => { phase = 'leaving'; goPastLayers(step); });
+        return true;
       }
       const from = at.current;
       const to = (e.state as { idx?: unknown } | null)?.idx;
-      if (typeof from !== 'number' || typeof to !== 'number' || to === from) return;
+      if (typeof from !== 'number' || typeof to !== 'number' || to === from) return false;
       e.stopImmediatePropagation();
       step = to - from;
       phase = 'restoring';
       window.history.go(-step);
+      return true;
     };
     stepGuard = onPop;
     return () => { if (stepGuard === onPop) stepGuard = null; };

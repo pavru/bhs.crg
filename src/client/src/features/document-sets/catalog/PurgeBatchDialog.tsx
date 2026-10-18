@@ -6,6 +6,7 @@ import { Button } from '@/shared/ui/Button';
 import { useToast } from '@/shared/ui/Toast';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
+import { useHistoryLayer } from '@/shared/ui/historyLayers';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { apiError } from '@/shared/utils/apiError';
 import {
@@ -88,6 +89,12 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
   const matches = !!offer && countMatches(input, offer);
   const mismatch = !!offer && mismatchShown(input, offer, settled);
   const busy = purge.isPending;
+  // «Назад» на телефоне (issue #1418) — «Закрыть»; пока идёт удаление, окно не закрывается ничем.
+  useHistoryLayer(true, () => {
+    if (busy) return false;
+    onClose(false);
+    return true;
+  });
 
   async function submit(e: FormEvent) {
     e.preventDefault();
