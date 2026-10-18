@@ -82,7 +82,14 @@ public class RenditionLayoutProfile : Entity
     /// </summary>
     public const int UsefulMinMm = 100;
 
-    public static readonly PageMarginsMm FactoryMargins = new(5, 5, 5, 5);
+    /// <summary>
+    /// Заводские параметры — одно место на всё: системный при создании, сброс и признак «заводской»
+    /// читают их отсюда (ревью PR #1472). Три копии разошлись бы на первом же их изменении.
+    /// </summary>
+    public static readonly (PaperFormat Paper, PageOrientation Orientation, PageFit Fit, PageMarginsMm Margins) Factory =
+        (PaperFormat.A4, PageOrientation.Portrait, PageFit.Width, new(5, 5, 5, 5));
+
+    public static PageMarginsMm FactoryMargins => Factory.Margins;
 
     public string Name { get; private set; } = default!;
     public PaperFormat Paper { get; private set; }
@@ -102,7 +109,7 @@ public class RenditionLayoutProfile : Entity
     public static RenditionLayoutProfile System()
     {
         var profile = new RenditionLayoutProfile { Id = SystemId, Name = SystemName, IsSystem = true };
-        profile.Set(PaperFormat.A4, PageOrientation.Portrait, PageFit.Width, FactoryMargins);
+        profile.Set(Factory.Paper, Factory.Orientation, Factory.Fit, Factory.Margins);
         return profile;
     }
 
@@ -148,7 +155,7 @@ public class RenditionLayoutProfile : Entity
     {
         if (!IsSystem)
             throw new ConflictException("Сбросить к заводским можно только системный профиль: у своего профиля заводских параметров нет.");
-        Set(PaperFormat.A4, PageOrientation.Portrait, PageFit.Width, FactoryMargins);
+        Set(Factory.Paper, Factory.Orientation, Factory.Fit, Factory.Margins);
         TouchUpdatedAt();
     }
 
@@ -161,9 +168,11 @@ public class RenditionLayoutProfile : Entity
                 "Удалить его нельзя — только изменить или сбросить к заводским.");
     }
 
-    /// <summary>Параметры совпадают с заводскими — сбрасывать нечего.</summary>
-    public bool IsFactory => Paper == PaperFormat.A4 && Orientation == PageOrientation.Portrait && Fit == PageFit.Width
-                             && Margins == FactoryMargins;
+    /// <summary>
+    /// Системный с заводскими параметрами — сбрасывать нечего. У своего профиля всегда <c>false</c>:
+    /// заводских у него нет, и совпадение его параметров с заводскими ничего не значит.
+    /// </summary>
+    public bool IsFactory => IsSystem && (Paper, Orientation, Fit, Margins) == Factory;
 
     /// <summary>
     /// Отпечаток параметров без имени. Приставка — версия формата: новый параметр профиля меняет

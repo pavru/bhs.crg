@@ -22,7 +22,13 @@ namespace BHS.CRG.Tests.Integration;
 [Collection("Integration")]
 public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetime
 {
-    public async Task InitializeAsync() => await fixture.ResetDatabaseAsync();
+    public async Task InitializeAsync()
+    {
+        await fixture.ResetDatabaseAsync();
+        // Записи образов несут отпечаток системного профиля печати, а таблица профилей между классами
+        // не усекается: правленый соседом системный профиль дал бы здесь чужой отпечаток.
+        await PrintProfilesState.ResetAsync(fixture.Services);
+    }
     public Task DisposeAsync() => Task.CompletedTask;
 
     private static readonly string[] Words = ["invoice", "supplier", "total"];

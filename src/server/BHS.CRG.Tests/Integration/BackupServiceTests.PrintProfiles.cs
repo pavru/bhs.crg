@@ -58,6 +58,61 @@ public partial class BackupServiceTests
         }
     }
 
+    /// <summary>
+    /// Профили, которые здесь после снятия копии обменялись именами, восстанавливаются оба: имя занято
+    /// только тем, кто остаётся при своём, а не тем, кого эта же копия переименует (ревью PR #1472).
+    /// </summary>
+    [Fact]
+    public async Task Обмен_именами_профилей_печати_восстанавливается()
+    {
+        try
+        {
+            await PrintProfilesState.ResetAsync(fixture.Services);
+            Guid firstId, secondId;
+            using (var scope = fixture.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var first = RenditionLayoutProfile.Create("Первый", PaperFormat.A4, PageOrientation.Portrait, PageFit.Width, new(3, 3, 3, 3));
+                var second = RenditionLayoutProfile.Create("Второй", PaperFormat.A3, PageOrientation.Portrait, PageFit.Width, new(3, 3, 3, 3));
+                (firstId, secondId) = (first.Id, second.Id);
+                db.RenditionLayoutProfiles.AddRange(first, second);
+                await db.SaveChangesAsync();
+            }
+            var zip = await ExportedAsync();
+
+            using (var scope = fixture.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var first = await db.RenditionLayoutProfiles.SingleAsync(p => p.Id == firstId);
+                var second = await db.RenditionLayoutProfiles.SingleAsync(p => p.Id == secondId);
+                first.Update("~", first.Paper, first.Orientation, first.Fit, first.Margins);
+                await db.SaveChangesAsync();
+                second.Update("Первый", second.Paper, second.Orientation, second.Fit, second.Margins);
+                await db.SaveChangesAsync();
+                first.Update("Второй", first.Paper, first.Orientation, first.Fit, first.Margins);
+                await db.SaveChangesAsync();
+            }
+
+            using (var scope = fixture.Services.CreateScope())
+            {
+                var report = await Backup(scope).ImportAsync(new MemoryStream(zip));
+                Assert.True(report.Success);
+                Assert.DoesNotContain(report.Warnings, w => w.Contains("профилей печати"));
+            }
+
+            using (var scope = fixture.Services.CreateScope())
+            {
+                var names = await scope.ServiceProvider.GetRequiredService<AppDbContext>().RenditionLayoutProfiles.AsNoTracking()
+                    .Where(p => !p.IsSystem).ToDictionaryAsync(p => p.Id, p => p.Name);
+                Assert.Equal(("Первый", "Второй"), (names[firstId], names[secondId]));
+            }
+        }
+        finally
+        {
+            await PrintProfilesState.ResetAsync(fixture.Services);
+        }
+    }
+
     /// <summary>Свой профиль, чьё имя здесь занято другим, пропускается — и пропуск назван.</summary>
     [Fact]
     public async Task Профиль_печати_с_занятым_именем_пропускается_с_предупреждением()

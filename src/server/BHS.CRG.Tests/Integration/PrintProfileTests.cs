@@ -303,6 +303,44 @@ public class PrintProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
             Layout(await port.FindAsync(original)));
     }
 
+    /// <summary>
+    /// Книга со своей раскладкой профиля не получала — и не помнит его: правка системного не делает её
+    /// вид «изменённым», перестроение дало бы тот же (ревью PR #1472).
+    /// </summary>
+    [Fact]
+    public async Task Книга_со_своей_раскладкой_профиля_не_помнит()
+    {
+        var store = Store();
+        var port = new ModuleRenditionsPort(store, NullLogger<ModuleRenditionsPort>.Instance);
+        var original = await Blobs.UploadAsync("счёт.xlsx", new MemoryStream(Workbook(Words)), "application/octet-stream");
+
+        var record = await store.EnsureAsync(original, default);
+        await UpdateAsync(RenditionLayoutProfile.SystemId, RenditionLayoutProfile.SystemName, 9);
+
+        Assert.Equal((RenditionLayout.BookOwn, (Guid?)null), (record.Layout, record.LayoutProfileId));
+        Assert.Equal(new ModuleRenditionLayout(ModuleLayoutOutcome.BookOwn, null, null, null), Layout(await port.FindAsync(original)));
+    }
+
+    /// <summary>
+    /// Вид, вписанный константой #1453 (исход есть, профиля нет), — «построен до профилей»: перестроение
+    /// применит нынешний профиль, и экран обязан это сказать (ревью PR #1472).
+    /// </summary>
+    [Fact]
+    public async Task Вписанный_до_профилей_вид_называется_построенным_до_профилей()
+    {
+        var port = new ModuleRenditionsPort(Store(), NullLogger<ModuleRenditionsPort>.Instance);
+        const string original = "files/2026/10/вписан-константой.xlsx";
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.Renditions.Add(RenditionRecord.Built(original, "files/2026/10/rendition.pdf", 1, [], "gotenberg 8.37.0",
+                RenditionLayout.Applied, """{"profile":"default","fit":"width"}"""));
+            await db.SaveChangesAsync();
+        }
+
+        Assert.Equal(new ModuleRenditionLayout(ModuleLayoutOutcome.BeforeProfiles, null, null, null), Layout(await port.FindAsync(original)));
+    }
+
     /// <summary>Профиль помнит только книга: у Word и у файла, который читается сам, его нет.</summary>
     [Fact]
     public async Task Не_книга_профиля_не_помнит()

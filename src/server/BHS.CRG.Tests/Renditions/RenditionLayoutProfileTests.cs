@@ -82,6 +82,20 @@ public class RenditionLayoutProfileTests
             system.Update("Мой", PaperFormat.A4, PageOrientation.Portrait, PageFit.Width, Five));
     }
 
+    /// <summary>
+    /// «Заводской» — только у системного: у своего профиля заводских нет, и совпадение его параметров с
+    /// заводскими ничего не значит — экран не должен показывать ему ни пометку, ни сброс (ревью PR #1472).
+    /// </summary>
+    [Fact]
+    public void Свой_профиль_с_заводскими_параметрами_заводским_не_считается()
+    {
+        var copy = RenditionLayoutProfile.Create("Копия", RenditionLayoutProfile.Factory.Paper,
+            RenditionLayoutProfile.Factory.Orientation, RenditionLayoutProfile.Factory.Fit, RenditionLayoutProfile.Factory.Margins);
+
+        Assert.False(copy.IsFactory);
+        Assert.Equal(RenditionLayoutProfile.System().Stamp, copy.Stamp);
+    }
+
     [Fact]
     public void Сброс_к_заводским_только_у_системного()
     {

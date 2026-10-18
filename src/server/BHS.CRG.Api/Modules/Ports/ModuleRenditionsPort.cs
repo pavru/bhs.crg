@@ -15,22 +15,33 @@ namespace BHS.CRG.Api.Modules.Ports;
 /// </summary>
 public sealed class ModuleRenditionsPort(RenditionStore store, ILogger<ModuleRenditionsPort> log) : IModuleRenditions
 {
-    public async Task<ModuleRendition> EnsureAsync(string originalPath, CancellationToken ct = default) =>
-        await ShownAsync(await store.EnsureAsync(originalPath, ct), ct);
+    /// <remarks>
+    /// Записанный образ — одним запросом вместе с профилем (<see cref="RenditionStore.FindShownAsync" />):
+    /// это путь каждого открытия счёта и каждого опроса его состояния.
+    /// </remarks>
+    public async Task<ModuleRendition> EnsureAsync(string originalPath, CancellationToken ct = default)
+    {
+        if (await store.FindShownAsync(originalPath, ct) is { } known) return Shown(known.Record, known.Profile);
+        return await BuiltNowAsync(await store.EnsureAsync(originalPath, ct), ct);
+    }
 
     public async Task<ModuleRendition?> FindAsync(string originalPath, CancellationToken ct = default) =>
-        await store.FindAsync(originalPath, ct) is { } record ? await ShownAsync(record, ct) : null;
+        await store.FindShownAsync(originalPath, ct) is { } known ? Shown(known.Record, known.Profile) : null;
 
     public async Task<ModuleRendition> RebuildAsync(
         string originalPath, Guid? layoutProfileId = null, CancellationToken ct = default) =>
-        await ShownAsync(await store.RebuildAsync(originalPath, layoutProfileId, ct), ct);
+        await BuiltNowAsync(await store.RebuildAsync(originalPath, layoutProfileId, ct), ct);
 
-    private async Task<ModuleRendition> ShownAsync(RenditionRecord record, CancellationToken ct) => record.State switch
+    /// <summary>Только что построенный образ: профиль — отдельным вопросом, построение и так дорогое.</summary>
+    private async Task<ModuleRendition> BuiltNowAsync(RenditionRecord record, CancellationToken ct) =>
+        Shown(record, record.LayoutProfileId is { } id ? await store.ProfileOfAsync(id, ct) : null);
+
+    private ModuleRendition Shown(RenditionRecord record, RenditionLayoutProfile? profile) => record.State switch
     {
         RenditionState.AsIs => new ModuleRendition.AsIs(record.OriginalBlobPath, record.Mime!),
         RenditionState.Built => new ModuleRendition.Built(
             record.ImageBlobPath!, record.Pages ?? 0, record.Notes, record.Converter, record.UpdatedAt,
-            await LayoutAsync(record, ct)),
+            Layout(record, profile)),
         _ => new ModuleRendition.Refused(record.RefusalReason!, RetryHelps(record.RefusalKind),
             OtherKind: record.RefusalKind == nameof(RenditionRefusal.WrongFormat),
             AboutFile: Enum.TryParse<RenditionRefusal>(record.RefusalKind, out var kind) && kind.Remembered()),
@@ -40,20 +51,23 @@ public sealed class ModuleRenditionsPort(RenditionStore store, ILogger<ModuleRen
     /// Состояние раскладки — при чтении, а не из записи (issue #1454): «профиль изменён» и «профиль
     /// удалён» — это о профиле сейчас, и записанное однажды устарело бы с первой же его правкой.
     /// Переименование состояния не меняет: отпечаток — параметры без имени.
+    ///
+    /// <para>«До профилей» — и вид без исхода раскладки (до #1453), и вписанный без профиля: его вписала
+    /// константа #1453, профилей тогда не было, и перестроение применит нынешний профиль (ревью PR #1472).</para>
     /// </summary>
-    private async Task<ModuleRenditionLayout> LayoutAsync(RenditionRecord record, CancellationToken ct)
+    private static ModuleRenditionLayout Layout(RenditionRecord record, RenditionLayoutProfile? profile)
     {
         var outcome = record.Layout switch
         {
             null => ModuleLayoutOutcome.BeforeProfiles,
             RenditionLayout.NotBook => ModuleLayoutOutcome.NotBook,
             RenditionLayout.BookOwn => ModuleLayoutOutcome.BookOwn,
+            RenditionLayout.Applied when record.LayoutProfileId is null => ModuleLayoutOutcome.BeforeProfiles,
             RenditionLayout.Applied => ModuleLayoutOutcome.Applied,
             _ => ModuleLayoutOutcome.Skipped,
         };
         if (record.LayoutProfileId is not { } id) return new(outcome, null, null, null);
 
-        var profile = await store.ProfileOfAsync(id, ct);
         if (profile is null) return new(outcome, id, null, ModuleLayoutProfileState.Deleted);
         return new(outcome, id, profile.Name,
             profile.Stamp == record.LayoutStamp ? ModuleLayoutProfileState.Current : ModuleLayoutProfileState.Changed);

@@ -100,8 +100,32 @@ public sealed class RenditionStore(
     public async Task<RenditionLayoutProfile?> ProfileOfAsync(Guid id, CancellationToken ct)
     {
         await using var scope = scopes.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<AppDbContext>()
-            .RenditionLayoutProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct);
+        return await scope.ServiceProvider.GetRequiredService<RenditionLayoutProfiles>().FindAsync(id, ct);
+    }
+
+    /// <summary>Запись образа вместе с профилем, по которому он построен, — для показа.</summary>
+    /// <param name="Profile"><c>null</c> — профиль не записан или удалён: что из двух, говорит
+    /// <see cref="RenditionRecord.LayoutProfileId" />.</param>
+    public sealed record Shown(RenditionRecord Record, RenditionLayoutProfile? Profile);
+
+    /// <summary>
+    /// Что записано об образе — вместе с профилем, одним запросом (ревью PR #1472). Это горячий путь:
+    /// состояние распознавания счёта опрашивается поллингом, и второй запрос за профилем на каждый
+    /// опрос был бы платой за строку, которую показывают раз. Профиль ищется по идентификатору без
+    /// отбора — тем же правилом, что <see cref="RenditionLayoutProfiles.FindAsync" />.
+    /// </summary>
+    public async Task<Shown?> FindShownAsync(string originalPath, CancellationToken ct)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var row = await (
+                from record in db.Renditions.AsNoTracking().Where(e => e.OriginalBlobPath == originalPath)
+                join profile in db.RenditionLayoutProfiles.AsNoTracking() on record.LayoutProfileId equals (Guid?)profile.Id
+                    into profiles
+                from profile in profiles.DefaultIfEmpty()
+                select new { record, profile })
+            .FirstOrDefaultAsync(ct);
+        return row is null ? null : new(row.record, row.profile);
     }
 
     /// <summary>Чем строить: профиль и его снимок, снятые до построения.</summary>
@@ -157,9 +181,11 @@ public sealed class RenditionStore(
                 using (var pdf = new MemoryStream(image.Pdf, writable: false))
                 {
                     var path = await blobs.UploadAsync(ImageFileName, pdf, "application/pdf", ct);
-                    // Профиль помнит только книга: Word и .xls по нему не строятся, и «профиль
-                    // изменён» у них значило бы то, чего нет.
-                    var byProfile = image.Layout is not (null or RenditionLayout.NotBook);
+                    // Профиль помнит только книга, которой его раскладку подставили. Word и .xls по
+                    // нему не строятся, книга со своей раскладкой его не получала, а неудавшаяся
+                    // правка ушла как есть — у всех них «профиль изменён» обещал бы перестроением
+                    // другой вид, которого не будет (ревью PR #1472).
+                    var byProfile = image.Layout == RenditionLayout.Applied;
                     return (RenditionRecord.Built(originalPath, path, image.Pages, image.Notes, image.Converter,
                         image.Layout, image.LayoutApplied,
                         byProfile ? profile.Id : null, byProfile ? profile.Stamp : null), true);

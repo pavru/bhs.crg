@@ -28,7 +28,8 @@ public partial class BackupService
 
         var existing = await db.RenditionLayoutProfiles.ToListAsync(ct);
         var byId = existing.ToDictionary(p => p.Id);
-        int created = 0, updated = 0, invalid = 0, named = 0;
+        int created = 0, updated = 0, invalid = 0;
+        var own = new List<(BackupPrintProfile Item, PrintProfileInput Input)>();
 
         foreach (var item in items)
         {
@@ -37,50 +38,71 @@ public partial class BackupService
                 invalid++;
                 continue;
             }
-
-            if (item.IsSystem || item.Id == RenditionLayoutProfile.SystemId)
+            if (!(item.IsSystem || item.Id == RenditionLayoutProfile.SystemId))
             {
-                var system = existing.FirstOrDefault(p => p.IsSystem);
-                var fresh = system is null;
-                if (system is null)
-                {
-                    // Сидер на старте его создаёт всегда; нет — значит, его не было и в этой копии
-                    // восстановления, и брать его неоткуда, кроме как отсюда.
-                    system = RenditionLayoutProfile.System();
-                    db.RenditionLayoutProfiles.Add(system);
-                    existing.Add(system);
-                    created++;
-                }
-                if (Apply(system, RenditionLayoutProfile.SystemName, input) && !fresh) updated++;
+                own.Add((item, input));
                 continue;
             }
 
-            var lower = input.Name.ToLowerInvariant();
-            if (existing.Any(p => p.Id != item.Id && p.Name.ToLowerInvariant() == lower))
+            var system = existing.FirstOrDefault(p => p.IsSystem);
+            var fresh = system is null;
+            if (system is null)
             {
-                named++;
-                continue;
+                // Сидер на старте его создаёт всегда; нет — значит, его не было и в этой копии
+                // восстановления, и брать его неоткуда, кроме как отсюда.
+                system = RenditionLayoutProfile.System();
+                db.RenditionLayoutProfiles.Add(system);
+                existing.Add(system);
+                created++;
             }
+            if (Apply(system, RenditionLayoutProfile.SystemName, input) && !fresh) updated++;
+        }
 
+        // Какие свои профили копия принесёт. Занятым имя считается у профилей, которые ОСТАЮТСЯ при
+        // своём, — а не у тех, что эта же копия переименует: иначе обмен именами «A↔B» упирался бы в
+        // имена, которые к концу восстановления свободны, и оба профиля пропускались бы (ревью PR #1472).
+        // Пропущенный профиль остаётся при своём имени и сам его занимает — поэтому до неподвижной точки.
+        var accepted = own.ToList();
+        while (true)
+        {
+            var carried = accepted.Select(a => a.Item.Id).ToHashSet();
+            var taken = existing.Where(p => !carried.Contains(p.Id)).Select(p => Key(p.Name)).ToHashSet();
+            var claimed = new HashSet<string>();
+            var losing = accepted.Where(a => taken.Contains(Key(a.Input.Name)) || !claimed.Add(Key(a.Input.Name))).ToList();
+            if (losing.Count == 0) break;
+            accepted = [.. accepted.Except(losing)];
+        }
+        Warn(warnings, invalid, "профилей печати", "параметры эта версия не принимает");
+        Warn(warnings, own.Count - accepted.Count, "профилей печати", "профиль с таким названием здесь уже есть");
+
+        // Имена меняются в два шага: уникальный индекс проверяется построчно, а порядок строк в
+        // сохранении не наш — обмен именами упёрся бы в него посреди сохранения. Сначала переименуемые
+        // получают имя, которого нет ни у кого, потом своё.
+        var renamed = accepted.Where(a => byId.TryGetValue(a.Item.Id, out var row) && Key(row.Name) != Key(a.Input.Name)).ToList();
+        foreach (var (item, _) in renamed)
+        {
+            var row = byId[item.Id];
+            row.Update($"~{row.Id:N}", row.Paper, row.Orientation, row.Fit, row.Margins);
+        }
+        if (renamed.Count > 0) await db.SaveChangesAsync(ct);
+
+        foreach (var (item, input) in accepted)
+        {
             if (byId.TryGetValue(item.Id, out var row))
             {
                 if (Apply(row, input.Name, input)) updated++;
                 continue;
             }
-
-            var restored = RenditionLayoutProfile.Restore(
-                item.Id, input.Name, input.Paper, input.Orientation, input.Fit, input.Margins, item.CreatedAt, item.UpdatedAt);
-            db.RenditionLayoutProfiles.Add(restored);
-            existing.Add(restored);
-            byId[restored.Id] = restored;
+            db.RenditionLayoutProfiles.Add(RenditionLayoutProfile.Restore(
+                item.Id, input.Name, input.Paper, input.Orientation, input.Fit, input.Margins, item.CreatedAt, item.UpdatedAt));
             created++;
         }
 
-        Warn(warnings, invalid, "профилей печати", "параметры эта версия не принимает");
-        Warn(warnings, named, "профилей печати", "профиль с таким названием здесь уже есть");
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
         stats.Count("Профили печати", created, updated);
+
+        static string Key(string name) => name.ToLowerInvariant();
 
         // Совпадающий профиль не трогаем: иначе повторное восстановление той же копии сдвигало бы
         // время правки каждого профиля без единого изменения.

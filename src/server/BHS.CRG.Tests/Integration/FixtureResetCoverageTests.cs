@@ -33,7 +33,7 @@ public class FixtureResetCoverageTests(IntegrationTestFixture fixture)
         // Системный профиль печати создаёт сидер, и только при старте хоста (issue #1454). TRUNCATE снёс
         // бы его на весь прогон, а построение образа книги рассчитывает на него. Тесты, которые заводят
         // свои профили или правят системный, возвращают таблицу к одному заводскому профилю у себя
-        // (PrintProfileTests.ResetProfilesAsync).
+        // (PrintProfilesState.ResetAsync в PrintProfileTests.cs).
         ["rendition_layout_profiles"] = "конфигурация: системный профиль сидер создаёт один раз при старте",
 
         // Права наполняет сверка с кодом, и только при старте хоста (AUTH-1). TRUNCATE снёс бы
