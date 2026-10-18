@@ -128,10 +128,20 @@ public class OutboundConnectTests
         listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
         listener.Listen(4);
         var port = ((IPEndPoint)listener.LocalEndPoint!).Port;
-        _ = listener.AcceptAsync();
+
+        // Принятый сокет держим до конца теста и закрываем сами. Брошенный (`_ = AcceptAsync()`)
+        // забирал сборщик мусора, а финализатор закрывает сокет АВАРИЙНО — RST, а не FIN. На Linux
+        // подключение считается состоявшимся, только когда .NET прочитает SO_ERROR после сигнала
+        // epoll; RST, успевший раньше, лежит там как ECONNRESET, и ConnectAsync отказывает «Connection
+        // reset by peer» — изредка, под нагрузкой параллельного прогона, где сборки идут часто.
+        // Код подключения здесь прав: сервер, сбросивший соединение сразу после рукопожатия, —
+        // настоящий отказ. Listen(4) ни при чём: подключение одно, а переполнение очереди на Linux
+        // отбрасывает SYN, а не отвечает сбросом.
+        var accepted = listener.AcceptAsync();
 
         var endPoint = new DnsEndPoint(IPAddress.Loopback.ToString(), port);
         using var socket = await OutboundConnect.ConnectAsync(endPoint, filter: null, CancellationToken.None);
+        using var server = await accepted;
 
         Assert.True(socket.Connected);
     }
