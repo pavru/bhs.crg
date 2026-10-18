@@ -67,7 +67,7 @@ internal static class RenditionFixtures
         new(new OfficeRenditionBuilder(Client(converter, version: version), NullLogger<OfficeRenditionBuilder>.Instance));
 
     public static Task<Rendition> BuildAsync(this RenditionService service, byte[] file) =>
-        service.BuildAsync(new MemoryStream(file), CancellationToken.None);
+        service.BuildAsync(new MemoryStream(file), PageProfile.Default, CancellationToken.None);
 
     // ── Файлы ───────────────────────────────────────────────────────────────────────────────────
 

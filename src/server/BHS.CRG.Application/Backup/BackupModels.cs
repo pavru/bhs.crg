@@ -74,7 +74,19 @@ public record BackupManifest(
     // списком мест. Нужен восстановлению, чтобы назвать причину пропавшего файла верно: у копии с
     // признаком файла не было в хранилище уже при снятии (паспорт об этом сказал), у копии без него —
     // версия могла его просто не взять, и лечится это новой копией с исходной установки.
-    bool? KnowsCoreFileScan = null);
+    bool? KnowsCoreFileScan = null,
+    // Профили печати читаемого образа (issue #1454) — в ЛЮБОЙ копии: настройка компании. null — копия
+    // снята версией, не знавшей о профилях; системный профиль тогда остаётся здешним.
+    BackupPrintProfile[]? PrintProfiles = null);
+
+/// <summary>
+/// Профиль печати (issue #1454). Перечни — именами, как в базе. Системный узнаётся по признаку и по
+/// идентификатору-константе: копия другой установки несёт его под тем же идентификатором.
+/// </summary>
+public record BackupPrintProfile(
+    Guid Id, string Name, string Paper, string Orientation, string Fit,
+    int MarginTop, int MarginBottom, int MarginLeft, int MarginRight, bool IsSystem,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
 /// <summary>
 /// Общее представление таблицы (ТЗ CORE-33, issue #1095). Автора нет нарочно: учётные записи копия

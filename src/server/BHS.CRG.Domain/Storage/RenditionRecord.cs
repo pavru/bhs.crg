@@ -89,6 +89,19 @@ public class RenditionRecord : Entity
     /// </summary>
     public string? LayoutApplied { get; private set; }
 
+    /// <summary>
+    /// По какому профилю печати строился образ книги (issue #1454); <c>null</c> — не книга, построен до
+    /// профилей или вида нет. Без внешнего ключа нарочно: удаление своего профиля не должно упираться
+    /// в записи видов — запись помнит, по чему построена, даже когда профиля уже нет.
+    /// </summary>
+    public Guid? LayoutProfileId { get; private set; }
+
+    /// <summary>
+    /// Отпечаток параметров профиля на момент построения (<see cref="RenditionLayoutProfile.Stamp" />).
+    /// Разошёлся с нынешним — профиль с тех пор правили; состояние вычисляется при чтении, а не хранится.
+    /// </summary>
+    public string? LayoutStamp { get; private set; }
+
     private RenditionRecord() { }
 
     public static RenditionRecord AsIs(string originalPath, string mime) =>
@@ -96,7 +109,7 @@ public class RenditionRecord : Entity
 
     public static RenditionRecord Built(
         string originalPath, string imagePath, int pages, IEnumerable<string> notes, string? converter,
-        RenditionLayout? layout = null, string? layoutApplied = null) =>
+        RenditionLayout? layout = null, string? layoutApplied = null, Guid? layoutProfileId = null, string? layoutStamp = null) =>
         new()
         {
             OriginalBlobPath = originalPath,
@@ -107,6 +120,8 @@ public class RenditionRecord : Entity
             Converter = converter,
             Layout = layout,
             LayoutApplied = layoutApplied,
+            LayoutProfileId = layoutProfileId,
+            LayoutStamp = layoutStamp,
         };
 
     public static RenditionRecord Refused(string originalPath, string kind, string reason) =>
@@ -128,6 +143,8 @@ public class RenditionRecord : Entity
         Converter = fresh.Converter;
         Layout = fresh.Layout;
         LayoutApplied = fresh.LayoutApplied;
+        LayoutProfileId = fresh.LayoutProfileId;
+        LayoutStamp = fresh.LayoutStamp;
         TouchUpdatedAt();
     }
 }

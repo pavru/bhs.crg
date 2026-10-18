@@ -79,6 +79,10 @@ internal static class StartupTasks
         await BHS.CRG.Infrastructure.Recognition.RecognitionProfileSeeder.SeedAsync(
             db, scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Recognition.RecognitionProfileCatalog>());
 
+        // Системный профиль печати (issue #1454) — создать, если нет, и только: заводские параметры
+        // при старте не пересеваются, иначе выпуск менял бы раскладку видов без решения администратора.
+        await BHS.CRG.Infrastructure.Renditions.RenditionLayoutProfileSeeder.SeedAsync(db);
+
         // Секреты интеграций до 0.92.0 лежали в БД открытым текстом. Перешифровываем оставшиеся —
         // идемпотентно: уже зашифрованные пропускаются, второй прогон работы не находит.
         var protectedCount = await scope.ServiceProvider

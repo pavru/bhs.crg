@@ -86,6 +86,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<BHS.CRG.Domain.Storage.RenditionRecord> Renditions
         => Set<BHS.CRG.Domain.Storage.RenditionRecord>();
 
+    /// <summary>Профили печати читаемого образа книги (issue #1454).</summary>
+    public DbSet<BHS.CRG.Domain.Storage.RenditionLayoutProfile> RenditionLayoutProfiles
+        => Set<BHS.CRG.Domain.Storage.RenditionLayoutProfile>();
+
     /// <summary>
     /// Журнал действий (ТЗ CORE-28). Обращаться к набору напрямую позволено ОДНОЙ службе —
     /// <c>Infrastructure/Activity/ActivityLog.cs</c>; сторож <c>ActivityLogInventoryTests</c>

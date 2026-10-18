@@ -71,6 +71,7 @@ public partial class BackupService
         // Только общие: личное представление адресует учётную запись, а их копия не переносит.
         var tableViews = await db.SavedTableViews.AsNoTracking().Where(v => v.Shared)
             .OrderBy(v => v.TableAddress).ThenBy(v => v.Title).ToListAsync(ct);
+        var printProfiles = await db.RenditionLayoutProfiles.AsNoTracking().OrderBy(p => p.Name).ToListAsync(ct);
         // Закрытия периода — через службу: прямой доступ к набору есть только у неё.
         var closures = scope == BackupScope.Full ? await periods.ExportAsync(ct) : [];
 
@@ -225,6 +226,9 @@ public partial class BackupService
                 c.At, c.ById, c.ByName, c.Reason, c.CancelsId, c.Report)).ToArray() : null,
             AppSettings: appSettings.Select(a => new BackupAppSetting(a.Key, a.Value, a.UpdatedAt)).ToArray(),
             TableViews: tableViews.Select(v => new BackupTableView(
-                v.Id, v.TableAddress, v.BasedOn, v.Title, v.State, v.CreatedAt, v.UpdatedAt)).ToArray());
+                v.Id, v.TableAddress, v.BasedOn, v.Title, v.State, v.CreatedAt, v.UpdatedAt)).ToArray(),
+            PrintProfiles: printProfiles.Select(p => new BackupPrintProfile(
+                p.Id, p.Name, p.Paper.ToString(), p.Orientation.ToString(), p.Fit.ToString(),
+                p.MarginTop, p.MarginBottom, p.MarginLeft, p.MarginRight, p.IsSystem, p.CreatedAt, p.UpdatedAt)).ToArray());
     }
 }

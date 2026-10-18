@@ -24,8 +24,11 @@ public abstract record ModuleRendition
     /// файла.</param>
     /// <param name="Converter">Чем построен: «gotenberg 8.37.0»; <c>null</c> — неизвестно.</param>
     /// <param name="BuiltAt">Когда построен.</param>
+    /// <param name="Layout">Как образ разложен на бумагу (issue #1454) — готовым состоянием: модуль
+    /// параметры профиля не толкует, он показывает строку. <c>null</c> — ядро не сказало.</param>
     public sealed record Built(
-        string Path, int Pages, IReadOnlyList<string> Notes, string? Converter, DateTimeOffset BuiltAt)
+        string Path, int Pages, IReadOnlyList<string> Notes, string? Converter, DateTimeOffset BuiltAt,
+        ModuleRenditionLayout? Layout = null)
         : ModuleRendition;
 
     /// <summary>Образа нет.</summary>
@@ -42,6 +45,49 @@ public abstract record ModuleRendition
     public sealed record Refused(string Reason, bool RetryHelps, bool OtherKind = false, bool AboutFile = false)
         : ModuleRendition;
 }
+
+/// <summary>Чем кончилась раскладка книги по профилю печати (issue #1454).</summary>
+public enum ModuleLayoutOutcome
+{
+    /// <summary>Файл не книга <c>.xlsx</c> — профили к нему не применяются.</summary>
+    NotBook,
+
+    /// <summary>
+    /// Образ построен до профилей печати. ⚠️ Вида файла запись тех времён не помнит: книга это или
+    /// Word, знает модуль, и строку «перестроение применит профиль» он показывает только книге.
+    /// </summary>
+    BeforeProfiles,
+
+    /// <summary>Книга задала раскладку сама — профиль не применялся.</summary>
+    BookOwn,
+
+    /// <summary>Раскладка профиля подставлена.</summary>
+    Applied,
+
+    /// <summary>Подставить раскладку не удалось — образ построен по файлу как есть.</summary>
+    Skipped,
+}
+
+/// <summary>Профиль, по которому строился образ, — сейчас.</summary>
+public enum ModuleLayoutProfileState
+{
+    /// <summary>Профиль есть, и его параметры те же, что при построении.</summary>
+    Current,
+
+    /// <summary>Профиль с тех пор правили: перестроение даст другой вид.</summary>
+    Changed,
+
+    /// <summary>Профиль удалили: перестроение без выбора возьмёт системный.</summary>
+    Deleted,
+}
+
+/// <summary>Раскладка образа для показа рядом с ним (issue #1454).</summary>
+/// <param name="ProfileId">Профиль, по которому строился образ; <c>null</c> — не записан (не книга,
+/// построен до профилей).</param>
+/// <param name="ProfileName">Его имя сейчас; <c>null</c> — профиля нет или он не записан.</param>
+/// <param name="ProfileState"><c>null</c> — профиль не записан.</param>
+public sealed record ModuleRenditionLayout(
+    ModuleLayoutOutcome Outcome, Guid? ProfileId, string? ProfileName, ModuleLayoutProfileState? ProfileState);
 
 /// <summary>
 /// Читаемые образы файлов для модуля (issue #1269): счёт в Excel или Word показывают и распознают
@@ -91,6 +137,10 @@ public interface IModuleRenditions
     /// Построить образ заново — по явному действию человека. Новый образ ложится под новым путём;
     /// после этого вызова пара «что видел человек — что читала модель» больше не обещана, и
     /// распознавание стоит повторить.
+    ///
+    /// <para><paramref name="layoutProfileId" /> — профиль печати, выбранный человеком (issue #1454). Не
+    /// назван — тот, по которому строился прежний образ, пока он есть, иначе системный. Назван
+    /// несуществующий — исключение «не найдено» (404), а не молча системный.</para>
     /// </summary>
-    Task<ModuleRendition> RebuildAsync(string originalPath, CancellationToken ct = default);
+    Task<ModuleRendition> RebuildAsync(string originalPath, Guid? layoutProfileId = null, CancellationToken ct = default);
 }

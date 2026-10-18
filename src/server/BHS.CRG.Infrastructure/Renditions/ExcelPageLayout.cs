@@ -9,15 +9,25 @@ using BHS.CRG.Domain.Storage;
 namespace BHS.CRG.Infrastructure.Renditions;
 
 /// <summary>
-/// Профиль печати: как разложить на бумаге лист книги, автор которого раскладку не задал (issue #1453).
-/// Пока один, константой; профили администратора — #1454.
+/// Профиль печати глазами раскладки: параметры, снятые с <see cref="RenditionLayoutProfile" /> в начале
+/// построения (issue #1454). Снимок, а не сам профиль: правка профиля посреди построения не должна
+/// дать образ, построенный по одним параметрам и записанный под другими.
 /// </summary>
-/// <param name="Title">Как профиль называется человеку — в пометке образа.</param>
+/// <param name="Name">Как профиль называется человеку — в пометке образа.</param>
 /// <param name="PaperSize">Код бумаги по ECMA-376 (<c>9</c> — A4).</param>
-public sealed record PageProfile(string Code, string Title, int PaperSize, string Orientation, double MarginMm)
+/// <param name="FitWidth">Вписать в ширину страницы; иначе — только бумага, ориентация и поля.</param>
+public sealed record PageProfile(
+    string Name, int PaperSize, string Orientation, bool FitWidth, double TopMm, double BottomMm, double LeftMm, double RightMm)
 {
-    /// <summary>A4, книжная, вписать по ширине, поля 5 мм со всех сторон.</summary>
-    public static readonly PageProfile Default = new("default", "по умолчанию", 9, "portrait", 5);
+    /// <summary>Заводской системный: A4, книжная, вписать по ширине, поля 5 мм со всех сторон.</summary>
+    public static readonly PageProfile Default = From(RenditionLayoutProfile.System());
+
+    public static PageProfile From(RenditionLayoutProfile profile) => new(
+        profile.Name,
+        profile.Paper switch { PaperFormat.A3 => 8, PaperFormat.A5 => 11, _ => 9 },
+        profile.Orientation == PageOrientation.Landscape ? "landscape" : "portrait",
+        profile.Fit == PageFit.Width,
+        profile.MarginTop, profile.MarginBottom, profile.MarginLeft, profile.MarginRight);
 }
 
 /// <summary>Книга после раскладки: что ушло к конвертеру и что сказать о нём.</summary>
@@ -47,7 +57,9 @@ public sealed record LaidOut(RenditionLayout Outcome, byte[] File, IReadOnlyList
 ///
 /// <para><b>Что подставляется</b>: вписать по ширине (<c>fitToPage=1</c>, <c>fitToWidth=1</c>,
 /// <c>fitToHeight=0</c>), поля профиля; бумага и ориентация — автора, если записаны, иначе профиля.
-/// Бумага пишется всегда: отсутствующая по схеме — Letter (проба: лист 216×279).</para>
+/// Бумага пишется всегда: отсутствующая по схеме — Letter (проба: лист 216×279). Профиль «не
+/// вписывать» (issue #1454) ставит только бумагу, ориентацию и поля: свойства листа и атрибуты
+/// вписывания автора остаются как были.</para>
 ///
 /// <para><b>Колонтитул.</b> Нет колонтитула с текстом — поля колонтитулов ноль, все четыре поля
 /// профиля. Есть — верхнее и нижнее поля и поля колонтитулов остаются автора, профиль ставит только
@@ -76,9 +88,13 @@ public static class ExcelPageLayout
 
     public const string FailedNote = "Раскладку по профилю применить не удалось — вид построен по файлу как есть.";
 
-    public static string AppliedNote(PageProfile profile, int sheets) => sheets == 1
-        ? $"Лист вписан в ширину страницы по профилю печати «{profile.Title}»: в Excel он печатается иначе."
-        : $"Листы ({sheets}) вписаны в ширину страницы по профилю печати «{profile.Title}»: в Excel они печатаются иначе.";
+    public static string AppliedNote(PageProfile profile, int sheets) => (profile.FitWidth, sheets == 1) switch
+    {
+        (true, true) => $"Лист вписан в ширину страницы по профилю печати «{profile.Name}»: в Excel он печатается иначе.",
+        (true, false) => $"Листы ({sheets}) вписаны в ширину страницы по профилю печати «{profile.Name}»: в Excel они печатаются иначе.",
+        (false, true) => $"Лист разложен на бумагу по профилю печати «{profile.Name}»: в Excel он печатается иначе.",
+        (false, false) => $"Листы ({sheets}) разложены на бумагу по профилю печати «{profile.Name}»: в Excel они печатаются иначе.",
+    };
 
     /// <summary>Порядок элементов листа по схеме <c>CT_Worksheet</c>: вставлять недостающее можно только сюда.</summary>
     private static readonly string[] Order =
@@ -156,8 +172,8 @@ public static class ExcelPageLayout
     /// </summary>
     private static string Snapshot(PageProfile profile, IEnumerable<SheetFacts> sheets) => JsonSerializer.Serialize(new
     {
-        profile = profile.Code,
-        fit = "width",
+        profile = profile.Name,
+        fit = profile.FitWidth ? "width" : "none",
         sheets = sheets.Select(facts =>
         {
             var page = Effective(facts, profile);
@@ -177,6 +193,8 @@ public static class ExcelPageLayout
 
     private static readonly JsonSerializerOptions SnapshotJson = new()
     {
+        // Имя профиля — кириллицей, а не \u-последовательностями: снимок читают и глазами.
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(System.Text.Unicode.UnicodeRanges.All),
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
     };
 
@@ -345,13 +363,14 @@ public static class ExcelPageLayout
             ? setup.Attribute("orientation")!.Value
             : profile.Orientation;
 
-        var side = profile.MarginMm / 25.4;
+        double left = profile.LeftMm / 25.4, right = profile.RightMm / 25.4;
         if (!facts.HeaderFooter)
-            return new(paper, custom ? width : null, custom ? height : null, orientation, side, side, side, side, 0, 0);
+            return new(paper, custom ? width : null, custom ? height : null, orientation,
+                left, right, profile.TopMm / 25.4, profile.BottomMm / 25.4, 0, 0);
 
         // Умолчания — Excel: поле 0,75″, колонтитул 0,3″ от края.
         var margins = facts.Margins;
-        return new(paper, custom ? width : null, custom ? height : null, orientation, side, side,
+        return new(paper, custom ? width : null, custom ? height : null, orientation, left, right,
             Number(margins, "top") ?? 0.75, Number(margins, "bottom") ?? 0.75,
             Number(margins, "header") ?? 0.3, Number(margins, "footer") ?? 0.3);
     }
@@ -420,9 +439,9 @@ public static class ExcelPageLayout
         // Пишет каждый из трёх элементов раскладки, место которого по схеме раньше ранга, — один раз.
         void Before(int rank)
         {
-            if (!sheetPr && rank > SheetPrRank) { WriteSheetPr(writer, prefix, facts.SheetPr); sheetPr = true; }
+            if (!sheetPr && rank > SheetPrRank) { WriteSheetPr(writer, prefix, facts.SheetPr, profile.FitWidth); sheetPr = true; }
             if (!margins && rank > MarginsRank) { WriteMargins(writer, prefix, page); margins = true; }
-            if (!setup && rank > SetupRank) { WriteSetup(writer, prefix, facts.Setup, page); setup = true; }
+            if (!setup && rank > SetupRank) { WriteSetup(writer, prefix, facts.Setup, page, profile.FitWidth); setup = true; }
         }
 
         if (xml.IsEmptyElement)
@@ -462,10 +481,21 @@ public static class ExcelPageLayout
 
     /// <summary>
     /// <c>sheetPr</c> с <c>pageSetUpPr/@fitToPage=1</c>. Прочие свойства листа — как были;
-    /// <c>pageSetUpPr</c> по схеме последний, поэтому пишется перед закрытием, один.
+    /// <c>pageSetUpPr</c> по схеме последний, поэтому пишется перед закрытием, один. Профиль без
+    /// вписывания свойств листа не трогает: есть — пишутся как были, нет — не появляются.
     /// </summary>
-    private static void WriteSheetPr(XmlWriter writer, string prefix, XElement? props)
+    private static void WriteSheetPr(XmlWriter writer, string prefix, XElement? props, bool fitWidth)
     {
+        if (!fitWidth)
+        {
+            if (props is null) return;
+            writer.WriteStartElement(prefix, "sheetPr", Main);
+            CopyAttributes(writer, props);
+            foreach (var node in props.Nodes()) node.WriteTo(writer);
+            writer.WriteEndElement();
+            return;
+        }
+
         writer.WriteStartElement(prefix, "sheetPr", Main);
         XElement? fit = null;
         if (props is not null)
@@ -496,16 +526,23 @@ public static class ExcelPageLayout
 
     /// <summary>
     /// <c>pageSetup</c> с вписыванием по ширине. Атрибуты автора остаются, кроме вписывания; бумага и
-    /// ориентация — из <see cref="Effective" />. Содержимого у элемента по схеме нет.
+    /// ориентация — из <see cref="Effective" />. Содержимого у элемента по схеме нет. Без вписывания
+    /// атрибуты вписывания автора остаются как были: без <c>fitToPage</c> они не действуют.
     /// </summary>
-    private static void WriteSetup(XmlWriter writer, string prefix, XElement? setup, Page page)
+    private static void WriteSetup(XmlWriter writer, string prefix, XElement? setup, Page page, bool fitWidth)
     {
         writer.WriteStartElement(prefix, "pageSetup", Main);
-        if (setup is not null) CopyAttributes(writer, setup, "fitToWidth", "fitToHeight", "orientation", "paperSize");
+        if (setup is not null)
+            CopyAttributes(writer, setup, fitWidth
+                ? ["fitToWidth", "fitToHeight", "orientation", "paperSize"]
+                : ["orientation", "paperSize"]);
         if (page.PaperSize is not null) writer.WriteAttributeString("paperSize", page.PaperSize);
         writer.WriteAttributeString("orientation", page.Orientation);
-        writer.WriteAttributeString("fitToWidth", "1");
-        writer.WriteAttributeString("fitToHeight", "0");
+        if (fitWidth)
+        {
+            writer.WriteAttributeString("fitToWidth", "1");
+            writer.WriteAttributeString("fitToHeight", "0");
+        }
         writer.WriteEndElement();
     }
 

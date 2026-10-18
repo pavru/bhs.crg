@@ -28,8 +28,10 @@ public sealed class OfficeRenditionBuilder(OfficeConverterClient converter, ILog
     public const string UncheckedNote =
         "Сверить образ с ячейками книги не удалось: книга читается не полностью. Сверяйте с исходным файлом.";
 
+    /// <param name="profile">Профиль печати для книги без своей раскладки — снятый с профиля ДО
+    /// построения (issue #1454). Word и <c>.xls</c> его не читают.</param>
     /// <returns><see cref="Rendition.Built" /> или <see cref="Rendition.Refused" />.</returns>
-    public async Task<Rendition> BuildAsync(byte[] file, OfficeFormat format, CancellationToken ct)
+    public async Task<Rendition> BuildAsync(byte[] file, OfficeFormat format, PageProfile profile, CancellationToken ct)
     {
         if (OfficeFileBudget.Check(format, file) is { } overBudget) return overBudget;
 
@@ -53,7 +55,7 @@ public sealed class OfficeRenditionBuilder(OfficeConverterClient converter, ILog
         // потока у запроса и так нет — это поток пула), а секунда правки бывает только у книги на
         // верхнем пределе бюджета (проба #1453 (г)).
         var laid = format == OfficeFormat.Xlsx
-            ? ExcelPageLayout.Apply(file, PageProfile.Default, ct)
+            ? ExcelPageLayout.Apply(file, profile, ct)
             : new LaidOut(RenditionLayout.NotBook, file, [], null);
 
         // Версию спрашиваем одновременно с преобразованием, а не после: отметка необязательна, и
@@ -75,8 +77,8 @@ public sealed class OfficeRenditionBuilder(OfficeConverterClient converter, ILog
         var notes = new List<string>(built.Notes);
         notes.AddRange(laid.Notes);
         // Мелкий текст — только у вписанной книги: уменьшили её мы, и сказать об этом обязаны мы. Кегль
-        // автора — его решение, и сверять его с файлом незачем.
-        if (laid.Outcome == RenditionLayout.Applied && built.MedianPointSize is { } median
+        // автора — его решение, и сверять его с файлом незачем; профиль «не вписывать» его не меняет.
+        if (laid.Outcome == RenditionLayout.Applied && profile.FitWidth && built.MedianPointSize is { } median
             && median < RenditionLimits.SmallTextBelowPt)
             notes.Add(SmallTextNote);
         if (uncheckedBook) notes.Add(UncheckedNote);

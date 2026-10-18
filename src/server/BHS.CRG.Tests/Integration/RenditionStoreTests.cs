@@ -81,7 +81,10 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
 
         var record = Assert.Single(await RecordsAsync());
         Assert.Equal(RenditionLayout.Applied, record.Layout);
-        Assert.Contains("\"profile\": \"default\"", record.LayoutApplied);
+        Assert.Contains("\"profile\": \"по умолчанию\"", record.LayoutApplied);
+        // Первое построение — по системному профилю, и запись помнит его с отпечатком (issue #1454).
+        Assert.Equal((RenditionLayoutProfile.SystemId, RenditionLayoutProfile.System().Stamp),
+            (record.LayoutProfileId, record.LayoutStamp));
         await using var stored = await Blobs.DownloadAsync(original);
         using var copy = new MemoryStream();
         await stored.CopyToAsync(copy);
@@ -307,7 +310,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var original = await UploadBookAsync();
         var before = await store.EnsureAsync(original, CancellationToken.None);
 
-        var after = await Store(StubConverter.Converts(Words, version: "9.0.0")).RebuildAsync(original, CancellationToken.None);
+        var after = await Store(StubConverter.Converts(Words, version: "9.0.0")).RebuildAsync(original, null, CancellationToken.None);
 
         Assert.NotEqual(before.ImageBlobPath, after.ImageBlobPath);
         Assert.True(Storage.Exists(after.ImageBlobPath!));
@@ -331,7 +334,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var original = await UploadBookAsync();
         var before = await Store(StubConverter.Converts(Words)).EnsureAsync(original, CancellationToken.None);
 
-        var refused = await Store(new StubConverter(Answers(status))).RebuildAsync(original, CancellationToken.None);
+        var refused = await Store(new StubConverter(Answers(status))).RebuildAsync(original, null, CancellationToken.None);
 
         Assert.Equal(RenditionState.Refused, refused.State);
         var kept = Assert.Single(await RecordsAsync());

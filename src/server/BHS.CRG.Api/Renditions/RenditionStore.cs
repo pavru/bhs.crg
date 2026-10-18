@@ -26,6 +26,11 @@ namespace BHS.CRG.Api.Renditions;
 /// изменили» на форме, которую человек открыл до загрузки. По той же причине у службы свой контекст
 /// базы, а не контекст запроса: сохранение здесь не должно вынести в базу чужие несохранённые правки.</para>
 ///
+/// <para><b>Профиль печати</b> (issue #1454) снимается в начале построения, до конвертера: правка
+/// профиля посреди построения не должна дать образ, построенный по одним параметрам и записанный под
+/// другими. Первое построение — по системному профилю; перестроение — по названному, а без названия по
+/// тому, что помнит запись, пока он есть.</para>
+///
 /// <para>Блокировка по пути — в процессе: два одновременных вопроса об одном файле не запустят
 /// конвертер дважды. От второго процесса защищает уникальность ключа в таблице: проигравший убирает
 /// свой образ и отдаёт запись победителя.</para>
@@ -58,7 +63,7 @@ public sealed class RenditionStore(
         // Пока ждали блокировку, образ мог построить тот, кто её держал.
         if (await FindAsync(originalPath, ct) is { } built) return built;
 
-        var (fresh, remember) = await BuildAsync(originalPath, ct);
+        var (fresh, remember) = await BuildAsync(originalPath, await ProfileAsync(null, null, ct), ct);
         return remember ? await SaveAsync(fresh, replace: false) : fresh;
     }
 
@@ -74,10 +79,14 @@ public sealed class RenditionStore(
     /// файле. Затри мы запись — образ, по которому распознаны значения, остался бы без держателя и
     /// ушёл бы следующей уборкой. Человек получает причину отказа, запись остаётся прежней.</para>
     /// </summary>
-    public async Task<RenditionRecord> RebuildAsync(string originalPath, CancellationToken ct)
+    /// <param name="profileId">Профиль печати, выбранный человеком. Не назван — тот, по которому строился
+    /// прежний образ, пока он есть, иначе системный. Назван несуществующий — «не найдено», а не молча
+    /// системный: человек выбрал раскладку и должен узнать, что её нет.</param>
+    public async Task<RenditionRecord> RebuildAsync(string originalPath, Guid? profileId, CancellationToken ct)
     {
         using var held = await _locks.EnterAsync(originalPath, ct);
-        var (fresh, remember) = await BuildAsync(originalPath, ct);
+        var remembered = profileId is null ? (await FindAsync(originalPath, ct))?.LayoutProfileId : null;
+        var (fresh, remember) = await BuildAsync(originalPath, await ProfileAsync(profileId, remembered, ct), ct);
         if (fresh.State == RenditionState.Refused
             && await FindAsync(originalPath, ct) is { State: RenditionState.Built })
         {
@@ -87,8 +96,34 @@ public sealed class RenditionStore(
         return remember ? await SaveAsync(fresh, replace: true) : fresh;
     }
 
+    /// <summary>Профиль печати, если он есть; <c>null</c> — удалён (или не было). Для показа записи.</summary>
+    public async Task<RenditionLayoutProfile?> ProfileOfAsync(Guid id, CancellationToken ct)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>()
+            .RenditionLayoutProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct);
+    }
+
+    /// <summary>Чем строить: профиль и его снимок, снятые до построения.</summary>
+    private sealed record Chosen(Guid Id, string Stamp, PageProfile Page);
+
+    private async Task<Chosen> ProfileAsync(Guid? named, Guid? remembered, CancellationToken ct)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var profile = await scope.ServiceProvider.GetRequiredService<RenditionLayoutProfiles>()
+            .ForBuildAsync(named, remembered, ct);
+        if (profile is null)
+        {
+            // Системный создаёт старт; нет его — старт прошёл не так, но образ из-за этого не отказ.
+            log.LogWarning("Системного профиля печати в базе нет: образ строится по заводским параметрам");
+            profile = RenditionLayoutProfile.System();
+        }
+        return new(profile.Id, profile.Stamp, PageProfile.From(profile));
+    }
+
     /// <summary>Построить и, если образ есть, положить его в хранилище. В базу не пишет.</summary>
-    private async Task<(RenditionRecord Record, bool Remember)> BuildAsync(string originalPath, CancellationToken ct)
+    private async Task<(RenditionRecord Record, bool Remember)> BuildAsync(
+        string originalPath, Chosen profile, CancellationToken ct)
     {
         Rendition result;
         await using (var original = await blobs.DownloadAsync(originalPath, ct))
@@ -107,7 +142,7 @@ public sealed class RenditionStore(
                     FileShare.None, 81920, FileOptions.DeleteOnClose | FileOptions.Asynchronous);
                 await copy.WriteAsync(head.AsMemory(0, read), ct);
                 await original.CopyToAsync(copy, ct);
-                result = await builder.BuildAsync(copy, ct);
+                result = await builder.BuildAsync(copy, profile.Page, ct);
             }
         }
 
@@ -122,8 +157,12 @@ public sealed class RenditionStore(
                 using (var pdf = new MemoryStream(image.Pdf, writable: false))
                 {
                     var path = await blobs.UploadAsync(ImageFileName, pdf, "application/pdf", ct);
+                    // Профиль помнит только книга: Word и .xls по нему не строятся, и «профиль
+                    // изменён» у них значило бы то, чего нет.
+                    var byProfile = image.Layout is not (null or RenditionLayout.NotBook);
                     return (RenditionRecord.Built(originalPath, path, image.Pages, image.Notes, image.Converter,
-                        image.Layout, image.LayoutApplied), true);
+                        image.Layout, image.LayoutApplied,
+                        byProfile ? profile.Id : null, byProfile ? profile.Stamp : null), true);
                 }
             case Rendition.Refused refused:
                 if (!refused.Kind.Remembered())

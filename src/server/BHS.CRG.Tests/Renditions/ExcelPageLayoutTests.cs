@@ -40,7 +40,62 @@ public class ExcelPageLayoutTests
         Assert.All(new[] { "left", "right", "top", "bottom" }, side => Assert.Equal("0.19685", Attr(margins, side)));
         Assert.Equal(("0", "0"), (Attr(margins, "header"), Attr(margins, "footer")));
         Assert.Equal([ExcelPageLayout.AppliedNote(PageProfile.Default, 1)], laid.Notes);
-        Assert.Contains("\"profile\":\"default\"", laid.Applied);
+        Assert.Contains("\"profile\":\"по умолчанию\"", laid.Applied);
+    }
+
+    /// <summary>
+    /// Поля профиля — по сторонам, каждое своё (issue #1454), бумага и ориентация — профиля, если
+    /// автор их не записал.
+    /// </summary>
+    [Fact]
+    public void Поля_бумага_и_ориентация_профиля_ставятся_каждое_своё()
+    {
+        var profile = new PageProfile("Альбомный A3", 8, "landscape", true, 10, 15, 7, 3);
+
+        var laid = ExcelPageLayout.Apply(Book(Sheet(Data + Margins())), profile, CancellationToken.None);
+
+        var sheet = SheetOf(laid.File);
+        var margins = sheet.Element(X + "pageMargins")!;
+        Assert.Equal(("0.393701", "0.590551", "0.275591", "0.11811"), (Attr(margins, "top"), Attr(margins, "bottom"),
+            Attr(margins, "left"), Attr(margins, "right")));
+        var setup = sheet.Element(X + "pageSetup")!;
+        Assert.Equal(("8", "landscape"), (Attr(setup, "paperSize"), Attr(setup, "orientation")));
+        Assert.Equal([ExcelPageLayout.AppliedNote(profile, 1)], laid.Notes);
+        Assert.Contains("\"profile\":\"Альбомный A3\"", laid.Applied);
+    }
+
+    /// <summary>
+    /// Профиль «не вписывать» (issue #1454) ставит бумагу, ориентацию и поля, но не вписывание: флага
+    /// у листа не появляется, атрибуты вписывания автора остаются как были — без флага они не действуют.
+    /// </summary>
+    [Fact]
+    public void Профиль_без_вписывания_ставит_бумагу_и_поля_но_не_вписывание()
+    {
+        var profile = PageProfile.Default with { Name = "Без вписывания", FitWidth = false };
+
+        var laid = ExcelPageLayout.Apply(Book(Sheet(Data + Margins() +
+            "<pageSetup fitToWidth=\"2\" fitToHeight=\"3\"/>")), profile, CancellationToken.None);
+
+        Assert.Equal(RenditionLayout.Applied, laid.Outcome);
+        var sheet = SheetOf(laid.File);
+        Assert.Null(sheet.Element(X + "sheetPr"));
+        var setup = sheet.Element(X + "pageSetup")!;
+        Assert.Equal(("9", "portrait", "2", "3"), (Attr(setup, "paperSize"), Attr(setup, "orientation"),
+            Attr(setup, "fitToWidth"), Attr(setup, "fitToHeight")));
+        Assert.Equal("0.19685", Attr(sheet.Element(X + "pageMargins")!, "left"));
+        Assert.Equal(["Лист разложен на бумагу по профилю печати «Без вписывания»: в Excel он печатается иначе."], laid.Notes);
+        Assert.Contains("\"fit\":\"none\"", laid.Applied);
+    }
+
+    /// <summary>Свойства листа автора профиль без вписывания не трогает: они выходят как были.</summary>
+    [Fact]
+    public void Профиль_без_вписывания_оставляет_свойства_листа_как_были()
+    {
+        var laid = ExcelPageLayout.Apply(Book(Sheet("<sheetPr codeName=\"Лист1\"><pageSetUpPr autoPageBreaks=\"0\"/></sheetPr>",
+            Data + Margins())), PageProfile.Default with { FitWidth = false }, CancellationToken.None);
+
+        var fit = SheetOf(laid.File).Element(X + "sheetPr")!.Element(X + "pageSetUpPr")!;
+        Assert.Equal(("0", "(нет)"), (Attr(fit, "autoPageBreaks"), Attr(fit, "fitToPage")));
     }
 
     /// <summary>Каждый признак своей раскладки по отдельности — книга уходит к конвертеру ТЕМ ЖЕ массивом.</summary>
@@ -121,7 +176,7 @@ public class ExcelPageLayoutTests
         var laid = Apply(Book(Sheet(Data + Margins() + "<pageSetup paperSize=\"8\" orientation=\"landscape\"/>"),
             second: Sheet(Data + Margins())));
 
-        Assert.Equal("{\"profile\":\"default\",\"fit\":\"width\",\"sheets\":[" +
+        Assert.Equal("{\"profile\":\"по умолчанию\",\"fit\":\"width\",\"sheets\":[" +
                      "{\"paperSize\":\"8\",\"orientation\":\"landscape\",\"marginsMm\":{\"left\":5,\"right\":5,\"top\":5,\"bottom\":5}}," +
                      "{\"paperSize\":\"9\",\"orientation\":\"portrait\",\"marginsMm\":{\"left\":5,\"right\":5,\"top\":5,\"bottom\":5}}]}",
             laid.Applied);

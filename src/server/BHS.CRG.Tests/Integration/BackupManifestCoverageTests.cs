@@ -177,6 +177,7 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         // Представления таблиц (ТЗ CORE-33, issue #1095): в копию идут ОБЩИЕ — настройка компании.
         // Личные не идут по той же причине, что настройки пользователя: адресуют учётную запись.
         ["SavedTableView"] = nameof(BackupManifest.TableViews),
+        ["RenditionLayoutProfile"] = nameof(BackupManifest.PrintProfiles),
     };
 
     [Fact]
