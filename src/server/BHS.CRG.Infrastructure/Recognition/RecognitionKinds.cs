@@ -114,7 +114,7 @@ public static class RecognitionKinds
         [
             .. scalars,
             .. descriptor.ListRowColumnsAsFields ? rowColumns : [],
-            new(descriptor.RowsKey, RowsFieldTitle(descriptor.RowsKey, rowColumns), "json-array"),
+            new(descriptor.RowsKey, RowsFieldTitle(descriptor.RowsKey, rowColumns), "json-array") { Columns = rowColumns },
         ];
     }
 
