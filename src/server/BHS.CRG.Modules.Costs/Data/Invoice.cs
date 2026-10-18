@@ -101,6 +101,13 @@ public sealed class Invoice
 
     public decimal? VatTotal { get; private set; }
 
+    /// <summary>
+    /// Как бумага считает НДС — «в том числе» или сверху (issue #1497). Описывает СТРОКИ, а не шапку:
+    /// «Сумма к оплате» и «В том числе НДС» значат одно и то же в обоих режимах. Поэтому и меняется он
+    /// вместе со строками — тем же <c>PUT …/lines</c>, а не правкой шапки (<see cref="ChangeVatMode" />).
+    /// </summary>
+    public VatMode VatMode { get; private set; } = VatMode.Included;
+
     public DateOnly? ShippedOn { get; private set; }
 
     public int? DeferralDays { get; private set; }
@@ -410,6 +417,20 @@ public sealed class Invoice
     /// позвавший этот метод, оставляет гонку открытой — молча.</para>
     /// </summary>
     public void ContentChanged() => Touch();
+
+    /// <summary>
+    /// Сменить режим НДС. Зовёт только запись строк — и в той же правке кладёт строки, досчитанные по
+    /// НОВОМУ режиму: режим без пересчёта строк оставил бы суммы с НДС посчитанными по старому правилу.
+    /// </summary>
+    /// <returns>Режим сменился — правка содержимого, как правка строк.</returns>
+    public bool ChangeVatMode(VatMode mode)
+    {
+        if (VatMode == mode) return false;
+
+        VatMode = mode;
+        Touch();
+        return true;
+    }
 
     /// <summary>
     /// Отметить оплату (C5, issue #1082): целиком, одной датой. Учётные даты долей здесь НЕ ставятся —

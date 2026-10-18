@@ -42,6 +42,7 @@ public class DomainExceptionPolicyTests
     /// </summary>
     private static readonly Dictionary<string, string> DeliberatelyFramework = new()
     {
+        ["BHS.CRG.Modules.Costs/Data/InvoiceLine.cs"] = "бумажная сумма строки не в поле своего режима НДС (issue #1497): промах кода, звавшего досчёт, — человеку тот же запрет раньше называет разбор запроса (InvoiceLineRequests.Complete) своим 400",
         ["BHS.CRG.Infrastructure/Generation/TypstGenerator.cs"] = "сбой компилятора Typst: stderr с путями временной папки — диагностика для лога",
         ["BHS.CRG.Application/Documents/CommonDataRefs.cs"] = "назначение чтения не названо (issue #1185): промах кода, собравшего запрос, а не действие человека — адреса на неназванное отвечают своим 400 раньше",
         // TypstProcess.cs отсюда УБРАН (issue #1059): «Typst не запустился» перестало быть

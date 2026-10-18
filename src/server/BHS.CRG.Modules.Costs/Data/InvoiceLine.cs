@@ -88,7 +88,16 @@ public sealed class InvoiceLine
 
     public decimal? Quantity { get; private set; }
 
-    /// <summary>Цена за единицу — с НДС, как в бумаге (см. <see cref="VatAmount" />).</summary>
+    /// <summary>
+    /// Цена за единицу — КАК В БУМАГЕ. Её смысл зависит от режима счёта, и она единственное число строки,
+    /// у которого так (issue #1497): при «в том числе» цена с НДС, при НДС сверху — без НДС. Пересчитать
+    /// её к одному виду нельзя: цена с НДС от цены без НДС даёт доли копейки, а колонка — до копеек.
+    ///
+    /// <para>⚠️ Для расчёта её не читает никто, кроме <see cref="InvoiceLineValues.Completed" />
+    /// (количество × цена) — только показ, снимок версии и ответ. Понадобится читать её как деньги
+    /// («последняя цена поставщика») — только вместе с режимом; кто начнёт, того назовёт перепись
+    /// <c>VatModeInventoryTests</c>.</para>
+    /// </summary>
     public decimal? Price { get; private set; }
 
     /// <summary>
@@ -99,16 +108,31 @@ public sealed class InvoiceLine
 
     /// <summary>
     /// Сумма НДС строки. Присланная — как есть; не присланную считает <see cref="InvoiceLineValues" />
-    /// по ставке, и считает как «в том числе», потому что итог документа по ТЗ (COST-7.2) называется
-    /// «в том числе НДС» — то есть цена в бумаге с НДС.
+    /// по ставке и режиму счёта: «в том числе» — от суммы с НДС, сверху — от суммы без НДС.
     /// </summary>
     public decimal? VatAmount { get; private set; }
 
     /// <summary>
-    /// Сумма строки. Присланная — как есть, иначе количество × цена: бумага иногда округляет иначе,
-    /// чем мы, и её число важнее нашего (сверять человек будет с ней).
+    /// Сумма строки <b>С НДС — всегда, в обоих режимах счёта</b> (issue #1497). Её читают разноска,
+    /// книга, оплата, отчёты и реестр, и ни один из них режима не знает.
+    ///
+    /// <para>«В том числе»: присланная — как есть, иначе количество × цена: бумага иногда округляет
+    /// иначе, чем мы, и её число важнее нашего. Сверху: <see cref="NetAmount" /> + <see cref="VatAmount" />
+    /// — производное, и <b>пустое, когда НДС неизвестен</b> (нет ни ставки, ни суммы НДС): бумажная сумма
+    /// без НДС, выданная за сумму с НДС, ошиблась бы на весь налог молча. Держит это и база —
+    /// <c>ck_invoice_lines_net_amount</c>.</para>
     /// </summary>
     public decimal? Amount { get; private set; }
+
+    /// <summary>
+    /// Сумма строки ИЗ БУМАГИ, без НДС — только у счёта с НДС сверху; при «в том числе» пусто
+    /// (issue #1497). Бумажное число лежит здесь ровно как прислано — «присланное не трогается никогда»
+    /// не нарушается, сумма с НДС рядом названа производной.
+    ///
+    /// <para>При «в том числе» она не хранится нарочно: там сумма без НДС — производное с округлением, и
+    /// второе число могло бы разойтись с первым.</para>
+    /// </summary>
+    public decimal? NetAmount { get; private set; }
 
     /// <summary>Примечание — единственное место, где свободный текст ничего не подменяет (ТЗ COST-7).</summary>
     public string? Note { get; private set; }
@@ -144,17 +168,21 @@ public sealed class InvoiceLine
     /// того же набора: форма присылает строки целиком на каждое сохранение, и запись в журнал без этой
     /// сверки означала бы «строки изменены» там, где не изменилось ничего.
     /// </summary>
-    public InvoiceLineValues Snapshot() => new(
+    public CompletedLine Snapshot() => new(new(
         NomenclatureId, SupplierText, SupplierCode, Unit, Quantity, Price, VatRate, VatAmount, Amount,
-        Note, MatchedBy);
+        Note, MatchedBy, NetAmount));
 
     /// <summary>
     /// Положить значения строки разом. Одним методом, как у счёта: строки приходят таблицей целиком —
     /// и с клавиатуры, и вставкой из буфера, — а сеттер на колонку приглашал бы править их по одной,
     /// чего форма не делает.
+    ///
+    /// <para>⚠️ Принимает только <see cref="CompletedLine" /> (issue #1497): недосчитанное сюда не
+    /// передать, и забытый режим — ошибка компиляции, а не теста. Цена забывчивости здесь — НДС.</para>
     /// </summary>
-    public void Apply(int ordinal, InvoiceLineValues values)
+    public void Apply(int ordinal, CompletedLine line)
     {
+        var values = line.Values;
         Ordinal = ordinal;
         NomenclatureId = values.NomenclatureId;
         SupplierText = values.SupplierText;
@@ -165,6 +193,7 @@ public sealed class InvoiceLine
         VatRate = values.VatRate;
         VatAmount = values.VatAmount;
         Amount = values.Amount;
+        NetAmount = values.NetAmount;
         Note = values.Note;
         MatchedBy = values.MatchedBy;
         UpdatedAt = DateTimeOffset.UtcNow;
@@ -172,7 +201,35 @@ public sealed class InvoiceLine
 }
 
 /// <summary>
-/// Значения строки — разобранные и досчитанные, ровно то, что ложится в колонки.
+/// Строка, досчитанная по режиму счёта, — единственное, что принимает запись (issue #1497,
+/// <see cref="InvoiceLine.Apply" />). Создают её двое: <see cref="InvoiceLineValues.Completed" /> и
+/// снимок лежащей строки — она досчитана при записи.
+/// </summary>
+/// <param name="Values">Значения с суммой С НДС в <see cref="InvoiceLineValues.Amount" /> и бумажной
+/// суммой без НДС в <see cref="InvoiceLineValues.NetAmount" /> — у счёта с НДС сверху.</param>
+public sealed record CompletedLine
+{
+    internal CompletedLine(InvoiceLineValues values) => Values = values;
+
+    public InvoiceLineValues Values { get; }
+
+    /// <summary>
+    /// Строка скана — досчитанная самим распознаванием, ВЫБОРОЧНО (<c>InvoiceScanLines</c>): графа
+    /// стояла в бумаге и не прочиталась — её сумма остаётся пустой, а не посчитанной. Общий
+    /// <see cref="InvoiceLineValues.Completed" /> досчитал бы её, и посчитанное выглядело бы прочитанным.
+    ///
+    /// <para>⚠️ Только «в том числе»: строки скана ложатся только в такой счёт, пока режим со скана не
+    /// умеет распознавание (issue #1501).</para>
+    /// </summary>
+    internal static CompletedLine Scanned(InvoiceLineValues included) => included.NetAmount is null
+        ? new(included)
+        : throw new ArgumentException("Строка скана с суммой без НДС: распознавание читает строки только «в том числе».",
+            nameof(included));
+}
+
+/// <summary>
+/// Значения строки — разобранные, как в бумаге. В колонки они ложатся досчитанными по режиму счёта —
+/// через <see cref="Completed" /> и <see cref="CompletedLine" />.
 ///
 /// <para>Отдельно от сущности по той же причине, что <c>InvoiceColumns</c> у счёта: разбор присланного
 /// умеет отказать, а запись обязана положить уже разобранное. Здесь же живёт арифметика — суммы,
@@ -189,34 +246,61 @@ public sealed record InvoiceLineValues(
     decimal? VatAmount,
     decimal? Amount,
     string? Note,
-    Guid? MatchedBy = null)
+    Guid? MatchedBy = null,
+    decimal? NetAmount = null)
 {
     /// <summary>
-    /// Досчитать то, чего в бумаге нет: сумму строки и сумму НДС.
+    /// Досчитать то, чего в бумаге нет: сумму строки и сумму НДС, — по режиму счёта (issue #1497).
     ///
     /// <para><b>Присланное не трогается никогда.</b> Бумага поставщика округляет по-своему, и наше
     /// «более правильное» число разошлось бы с тем, что человек видит на скане рядом. Считаем только
     /// то, чего нет вовсе.</para>
     ///
-    /// <para>⚠️ <b>НДС считается «в том числе»</b>: <c>сумма × ставка ÷ (100 + ставка)</c>. Основание —
-    /// ТЗ COST-7.2: итог документа называется «в том числе НДС», значит цена в бумаге с НДС. Допущение
-    /// названо вслух, потому что при ценах БЕЗ НДС та же ставка даёт другое число, и разойтись это может
-    /// только молча — итог по строкам не сошёлся бы с «в том числе НДС» из бумаги. Переключатель
-    /// «цены с НДС / без НДС» на уровне документа — отдельное решение владельца продукта, а не догадка
-    /// здесь: до него сумму НДС можно просто прислать, и она ляжет как есть.</para>
+    /// <para><b>«В том числе»</b> (<see cref="VatMode.Included" />): бумажная сумма — в
+    /// <see cref="Amount" />, иначе количество × цена; НДС — <c>сумма × ставка ÷ (100 + ставка)</c>.</para>
+    ///
+    /// <para><b>Сверху</b> (<see cref="VatMode.OnTop" />): бумажная сумма — в <see cref="NetAmount" />,
+    /// иначе количество × цена; НДС — <c>сумма × ставка ÷ 100</c>, построчно, копейки «от нуля»; сумма с
+    /// НДС — их сложение. Разница с НДС бумаги, посчитанным от итога, — копейки, и они уходят в допуск
+    /// расхождения, как любое округление. НДС неизвестен — сумма с НДС пустая, а не равная бумажной.</para>
+    ///
+    /// <para>⚠️ <b>Режим обязателен, умолчания нет нарочно</b> — тот же приём, что у допуска в
+    /// <c>AllocationMath.Of</c>: с умолчанием забытое место считало бы «в том числе» у счёта сверху.</para>
     /// </summary>
-    public InvoiceLineValues Completed()
+    /// <exception cref="ArgumentException">Бумажная сумма лежит не в своём поле: <see cref="Amount" />
+    /// при НДС сверху либо <see cref="NetAmount" /> при «в том числе». Человеку об этом отказывает разбор
+    /// запроса раньше (<c>InvoiceLineRequests</c>) — здесь последняя дверь против удвоения НДС.</exception>
+    public CompletedLine Completed(VatMode mode)
     {
-        var amount = Amount ?? (Quantity is { } quantity && Price is { } price
-            ? Money(quantity * price)
-            : null);
+        var paper = mode switch
+        {
+            VatMode.Included when NetAmount is null => Amount,
+            VatMode.OnTop when Amount is null => NetAmount,
+            _ => throw new ArgumentException(
+                $"Бумажная сумма строки при режиме {mode} лежит не в своём поле — сумма с НДС посчиталась бы дважды.",
+                nameof(mode)),
+        };
+        var sum = paper ?? (Quantity is { } quantity && Price is { } price ? Money(quantity * price) : null);
 
-        var vat = VatAmount ?? (amount is { } total && VatRate is { } rate && rate >= 0
-            ? Money(total * rate / (100 + rate))
-            : null);
+        if (mode == VatMode.Included)
+        {
+            var included = VatAmount ?? (sum is { } total && VatRate is { } rate && rate >= 0
+                ? Money(total * rate / (100 + rate))
+                : null);
+            return new(this with { Amount = sum, VatAmount = included });
+        }
 
-        return this with { Amount = amount, VatAmount = vat };
+        var vat = VatAmount ?? (sum is { } net && VatRate is { } onTop && onTop >= 0 ? Money(net * onTop / 100) : null);
+        return new(this with { NetAmount = sum, VatAmount = vat, Amount = sum + vat });
     }
+
+    /// <summary>
+    /// Бумажную сумму строки — в поле её режима: сумма строки из бумаги при НДС сверху лежит в
+    /// <see cref="NetAmount" />. Для тех, кто читает бумагу одним числом «сумма» и режим узнаёт позже, —
+    /// распознавания (issue #1497).
+    /// </summary>
+    public InvoiceLineValues PaperIn(VatMode mode) =>
+        mode == VatMode.OnTop && NetAmount is null ? this with { NetAmount = Amount, Amount = null } : this;
 
     /// <summary>
     /// Копейки — с округлением «от нуля», как считают деньги люди и как считает бумага. Банковское

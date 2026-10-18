@@ -171,6 +171,14 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
 
+                    b.Property<string>("VatMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("Included")
+                        .HasColumnName("vat_mode");
+
                     b.Property<decimal?>("VatTotal")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)")
@@ -434,6 +442,11 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("matched_by");
 
+                    b.Property<decimal?>("NetAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("net_amount");
+
                     b.Property<Guid?>("NomenclatureId")
                         .HasColumnType("uuid")
                         .HasColumnName("nomenclature_id");
@@ -497,7 +510,10 @@ namespace BHS.CRG.Modules.Costs.Migrations
                     b.HasIndex("InvoiceId", "Ordinal")
                         .HasDatabaseName("ix_invoice_lines_order");
 
-                    b.ToTable("invoice_lines", "costs");
+                    b.ToTable("invoice_lines", "costs", t =>
+                        {
+                            t.HasCheckConstraint("ck_invoice_lines_net_amount", "net_amount IS NULL OR ((amount IS NULL) = (vat_amount IS NULL) AND (amount IS NULL OR amount = net_amount + vat_amount))");
+                        });
                 });
 
             modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.InvoiceRecognition", b =>

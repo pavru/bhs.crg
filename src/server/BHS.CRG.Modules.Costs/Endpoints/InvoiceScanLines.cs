@@ -191,16 +191,18 @@ public static class InvoiceScanLines
 
         // Досчитываем только то, чего в скане НЕТ: сумму — по количеству и цене, сумму НДС — по ставке.
         // Стояло, но не прочиталось — оставляем пустым: посчитанное выглядело бы прочитанным, а на бумаге
-        // написано другое.
+        // написано другое. Досчёт — «в том числе»: строки скана ложатся только в такой счёт (issue #1497;
+        // режим со скана — #1501), и потому же лягут они CompletedLine.Scanned.
         var total = string.IsNullOrWhiteSpace(Cell(ScanLineField.Amount))
-            ? values.Completed().Amount
+            ? values.Completed(VatMode.Included).Values.Amount
             : amount;
         values = values with { Amount = total };
 
         // ⚠️ НДС — только от суммы, которая ЕСТЬ у строки (ревью PR #1444). Не прочиталась сумма — нет и
         // НДС: Completed досчитал бы его от «количество × цена», и у строки без суммы стоял бы НДС,
         // посчитанный из числа, которого никто не видел.
-        if (vatEmpty && total is not null) values = values with { VatAmount = values.Completed().VatAmount };
+        if (vatEmpty && total is not null)
+            values = values with { VatAmount = values.Completed(VatMode.Included).Values.VatAmount };
 
         return new(values, VatAmountRead: !vatEmpty && vat is not null);
     }

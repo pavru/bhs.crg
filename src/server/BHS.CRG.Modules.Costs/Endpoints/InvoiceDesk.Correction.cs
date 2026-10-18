@@ -76,7 +76,7 @@ public sealed partial class InvoiceDesk
                 var wasGaps = InvoiceCorrectionCheck.Gaps(invoice, was);
                 var dueWas = (invoice.DueDate, invoice.DueDateManual);
 
-                if (Moved(was, body) && !await user.HasAsync(AllocationEndpoints.Permission, ct))
+                if (Moved(was, body, invoice.VatMode) && !await user.HasAsync(AllocationEndpoints.Permission, ct))
                     throw new ForbiddenException(
                         $"{label}: исправление меняет разноску — цель, количество, сумму или порядок частей, — а " +
                         "права на разноску («costs.allocation.edit») у вас нет. Исправьте содержимое, не трогая " +
@@ -162,7 +162,9 @@ public sealed partial class InvoiceDesk
     /// Отличается ли присланная разноска от записанной — целью, количеством, суммой или порядком частей.
     /// Производные деньги (округление, расхождение в последней части) не в счёт: их не присылают.
     /// </summary>
-    private static bool Moved(InvoiceSnapshot was, CorrectionBody body)
+    /// <param name="vat">Режим НДС счёта: вид разноски строки зависит от её суммы С НДС, а присланное —
+    /// бумага (issue #1497). У строки сверху без ставки суммы с НДС нет, как и у записанной.</param>
+    private static bool Moved(InvoiceSnapshot was, CorrectionBody body, VatMode vat)
     {
         var stored = was.Parts.OrderBy(a => a.Ordinal).ToLookup(a => a.LineId, a => a.Snapshot());
         var sent = body.Lines.Where(l => l.Id is not null).Select(l => l.Id!.Value).ToHashSet();
@@ -174,9 +176,10 @@ public sealed partial class InvoiceDesk
         // услышит тот, кому разноску менять можно: без права ответ — 403, а не 400 о чужой ему разноске.
         try
         {
-            foreach (var line in body.Lines)
+            foreach (var (line, number) in body.Lines.Select((line, index) => (line, index + 1)))
             {
-                var mode = AllocationMath.ModeOf(line.Values.Quantity, line.Values.Amount);
+                var done = InvoiceLineRequests.Complete(line.Values, number, vat).Values;
+                var mode = AllocationMath.ModeOf(done.Quantity, done.Amount);
                 var parts = line.Parts.Select((p, index) => InvoiceAllocations.Values(p, index + 1, mode)).ToList();
                 if (!(line.Id is { } known ? stored[known] : Enumerable.Empty<AllocationValues>()).SequenceEqual(parts)) return true;
             }
