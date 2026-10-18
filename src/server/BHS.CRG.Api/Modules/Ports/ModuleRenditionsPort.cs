@@ -40,7 +40,7 @@ public sealed class ModuleRenditionsPort(RenditionStore store, ILogger<ModuleRen
     {
         RenditionState.AsIs => new ModuleRendition.AsIs(record.OriginalBlobPath, record.Mime!),
         RenditionState.Built => new ModuleRendition.Built(
-            record.ImageBlobPath!, record.Pages ?? 0, record.Notes, record.Converter, record.UpdatedAt,
+            record.ImageBlobPath!, record.Pages ?? 0, NotesOf(record), record.Converter, record.UpdatedAt,
             Layout(record, profile)),
         _ => new ModuleRendition.Refused(record.RefusalReason!, RetryHelps(record.RefusalKind),
             OtherKind: record.RefusalKind == nameof(RenditionRefusal.WrongFormat),
@@ -72,6 +72,19 @@ public sealed class ModuleRenditionsPort(RenditionStore store, ILogger<ModuleRen
         return new(outcome, id, profile.Name,
             profile.Stamp == record.LayoutStamp ? ModuleLayoutProfileState.Current : ModuleLayoutProfileState.Changed);
     }
+
+    /// <summary>Что дописано к пометке о потерянном тексте у книги со своей раскладкой.</summary>
+    public const string AuthorLayoutNote = "Раскладку задал автор файла — профиль печати к нему не применяется.";
+
+    /// <summary>
+    /// Пометки построителя для показа. У книги со своей раскладкой к пометке о потерянном тексте дописано,
+    /// почему профиль печати не помог (issue #1456): ровно тогда человек и спросит, а ответ не должен
+    /// требовать администратора. При чтении, а не в записи, — так фразу получают и виды, построенные до неё.
+    /// </summary>
+    private static IReadOnlyList<string> NotesOf(RenditionRecord record) =>
+        record.Layout != RenditionLayout.BookOwn ? record.Notes
+        : record.Notes.Select(note => note.StartsWith(RenditionPostconditions.LostTextNote, StringComparison.Ordinal)
+            ? $"{note} {AuthorLayoutNote}" : note).ToList();
 
     /// <summary>
     /// Поможет ли повтор — решает служба образов по виду отказа: правило одно, и живёт оно там.

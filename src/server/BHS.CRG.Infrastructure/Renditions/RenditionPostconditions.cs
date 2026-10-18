@@ -14,6 +14,12 @@ namespace BHS.CRG.Infrastructure.Renditions;
 /// </summary>
 public static class RenditionPostconditions
 {
+    /// <summary>
+    /// Начало пометки о потерянном тексте. Константой — по ней порт модулей узнаёт пометку и дописывает
+    /// к ней у книги со своей раскладкой, почему профиль печати не помог (issue #1456).
+    /// </summary>
+    public const string LostTextNote = "Часть текста не попала на страницу";
+
     /// <param name="pdf">Ответ конвертера.</param>
     /// <param name="cellWords">Слова ячеек книги Excel; <c>null</c> — файл не книга, сверять не с чем.</param>
     public static Rendition Check(byte[] pdf, IReadOnlyList<string>? cellWords)
@@ -61,7 +67,7 @@ public static class RenditionPostconditions
             if (found < RenditionLimits.CoverageNoteBelow)
                 // Доля — вниз до целого: округлённая как обычно, 97,96 % стала бы «98 %» — числом
                 // порога, под которым пометки быть не должно.
-                notes.Add($"Часть текста не попала на страницу: из слов в ячейках найдено {(int)Math.Floor(found * 100)} %. " +
+                notes.Add($"{LostTextNote}: из слов в ячейках найдено {(int)Math.Floor(found * 100)} %. " +
                           "Сверяйте с исходным файлом.");
         }
 

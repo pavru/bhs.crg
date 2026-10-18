@@ -38,14 +38,29 @@ export interface PrintProfileInput extends PrintProfileParams {
   name: string;
 }
 
+/** «A4 · книжная · по ширине · поля 5 мм»; разные поля — «поля 5/5/10/10 мм» (верх/низ/лево/право). */
+export function profileSummary(p: PrintProfileParams): string {
+  const orientation = p.orientation === 'landscape' ? 'альбомная' : 'книжная';
+  const fit = p.fit === 'width' ? 'по ширине' : 'не вписывать';
+  const { top, bottom, left, right } = p.margins;
+  const margins = top === bottom && top === left && top === right ? `${top}` : `${top}/${bottom}/${left}/${right}`;
+  return `${p.paper} · ${orientation} · ${fit} · поля ${margins} мм`;
+}
+
 const KEY = ['print-profiles'];
 const URL = '/settings/print-profiles';
 
-/** Список читает всякий, кто работает с файлами (право `core.files.use`) — им же кормится меню «Перестроить». */
-export function usePrintProfiles() {
+/**
+ * Список читает всякий, кто работает с файлами (право `core.files.use`) — им же кормится выбор
+ * «Раскладка» у вида счёта. Профили меняются редко, а спрашивает их каждый открытый счёт с книгой:
+ * пять минут свежести; правка профиля и так сбрасывает ключ.
+ */
+export function usePrintProfiles({ enabled = true }: { enabled?: boolean } = {}) {
   return useQuery<PrintProfile[]>({
     queryKey: KEY,
     queryFn: () => apiClient.get(URL).then(r => r.data),
+    staleTime: 5 * 60_000,
+    enabled,
   });
 }
 

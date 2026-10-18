@@ -3,7 +3,12 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using BHS.CRG.Domain.Common;
+using BHS.CRG.Domain.Storage;
+using BHS.CRG.Infrastructure.Persistence;
+using BHS.CRG.Infrastructure.Renditions;
 using BHS.CRG.Modules.Costs;
+using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Files;
 using BHS.CRG.Tests.Renditions;
 using Microsoft.EntityFrameworkCore;
@@ -294,6 +299,107 @@ public sealed class InvoiceOfficeFileTests(InvoiceScanHost host)
         var refused = await client.PostAsync($"/api/costs/invoices/{other}/scan/image", null);
         Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
         Assert.Contains("перестраивать нечего", await refused.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>
+    /// Раскладка вида (issue #1456). Книга без своей раскладки — по профилю, и перестроение по
+    /// выбранному профилю строит по нему: без <c>If-Match</c> и не двигая версию счёта (сторож задачи —
+    /// рядом с <c>WritesNothing</c> у <c>InvoiceStaleFormTests</c>). Несуществующий профиль — 404, вид
+    /// прежний. Книга со своей раскладкой — «из файла», Word — ничего.
+    /// </summary>
+    [Fact]
+    public async Task Перестроение_по_выбранному_профилю_строит_по_нему_и_счёт_не_трогает()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var (ownLayout, _, _) = Office();
+        var own = await OwnProfileAsync("Альбомный для счетов");
+        try
+        {
+            var id = await CreateAsync(client);
+            await AttachAsync(client, id, Workbook(b => b.CreateSheet("Sheet").CreateRow(0).CreateCell(0)
+                .SetCellValue("invoice supplier"), ownLayout: false), "Счёт.xlsx");
+            var version = (await ReadAsync(client, id)).GetProperty("version").ToString();
+
+            var first = await ImageAsync(client, id);
+            Assert.Equal(("profile", "по умолчанию", "current"), Layout(first));
+
+            using var chosen = new HttpRequestMessage(HttpMethod.Post, $"/api/costs/invoices/{id}/scan/image")
+            { Content = JsonContent.Create(new { printProfileId = own }) };
+            var rebuilt = await client.SendAsync(chosen);
+            await OkAsync(rebuilt);
+            Assert.Equal(("profile", "Альбомный для счетов", "current"), Layout(await rebuilt.Content.ReadFromJsonAsync<JsonElement>()));
+            Assert.Equal(("profile", "Альбомный для счетов", "current"), Layout(await ImageAsync(client, id)));
+            Assert.Equal(version, (await ReadAsync(client, id)).GetProperty("version").ToString());
+
+            var missing = await client.PostAsJsonAsync($"/api/costs/invoices/{id}/scan/image", new { printProfileId = Guid.NewGuid() });
+            Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+            Assert.Equal("Альбомный для счетов", Layout(await ImageAsync(client, id)).Profile);
+
+            // Профиль правили — вид «изменён»; удалили — «удалён», без имени. Подставить не удалось — по
+            // профилю, но без профиля и состояния: почему, говорит пометка построителя.
+            await ProfilesAsync(p => p.UpdateAsync(own, new("Альбомный для счетов", PaperFormat.A4,
+                PageOrientation.Landscape, PageFit.Width, new(9, 9, 9, 9)), default));
+            Assert.Equal(("profile", "Альбомный для счетов", "changed"), Layout(await ImageAsync(client, id)));
+            await ProfilesAsync(p => p.DeleteAsync(own, default));
+            Assert.Equal(("profile", null, "deleted"), Layout(await ImageAsync(client, id)));
+            await SetLayoutAsync(RenditionLayout.Skipped, id);
+            Assert.Equal(("profile", null, null), Layout(await ImageAsync(client, id)));
+
+            var authored = await CreateAsync(client);
+            await AttachAsync(client, authored, ownLayout, "Счёт 1С.xlsx");
+            Assert.Equal(("file", null, null), Layout(await ImageAsync(client, authored)));
+
+            var word = await CreateAsync(client);
+            await AttachAsync(client, word, Document(), "Счёт.docx");
+            Assert.Equal((null, null, null), Layout(await ImageAsync(client, word)));
+
+            // Вид, построенный до профилей, — «перестроение применит профиль» только у книги: запись вида
+            // файла не помнит, и Word с той же записью этой строки не получает («Чем ломается» задачи).
+            await SetLayoutAsync(null, id, word);
+            Assert.Equal(("profile", null, "none"), Layout(await ImageAsync(client, id)));
+            Assert.Equal((null, null, null), Layout(await ImageAsync(client, word)));
+        }
+        finally
+        {
+            // Только свой профиль, а не сброс таблицы: класс идёт вне коллекции «Integration», параллельно
+            // другим, и чужие профили ему трогать нельзя.
+            try { await ProfilesAsync(p => p.DeleteAsync(own, default)); }
+            catch (NotFoundException) { /* уже удалён проверкой «удалён» */ }
+        }
+    }
+
+    private static (string? Layout, string? Profile, string? State) Layout(JsonElement view) => (
+        view.GetProperty("layout").GetString(),
+        view.GetProperty("profile") is { ValueKind: JsonValueKind.Object } profile ? profile.GetProperty("name").GetString() : null,
+        view.GetProperty("profileState").GetString());
+
+    private async Task<Guid> OwnProfileAsync(string name)
+    {
+        using var scope = host.Services.CreateScope();
+        var created = await scope.ServiceProvider.GetRequiredService<RenditionLayoutProfiles>().CreateAsync(
+            new(name, PaperFormat.A4, PageOrientation.Landscape, PageFit.Width, new(5, 5, 5, 5)), default);
+        return created.Id;
+    }
+
+    private async Task ProfilesAsync(Func<RenditionLayoutProfiles, Task> act)
+    {
+        using var scope = host.Services.CreateScope();
+        await act(scope.ServiceProvider.GetRequiredService<RenditionLayoutProfiles>());
+    }
+
+    /// <summary>
+    /// Записи видов этих счетов — с таким исходом раскладки и без профиля: <c>null</c> — как до #1453,
+    /// <see cref="RenditionLayout.Skipped" /> — подставить профиль не удалось.
+    /// </summary>
+    private async Task SetLayoutAsync(RenditionLayout? layout, params Guid[] invoices)
+    {
+        using var scope = host.Services.CreateScope();
+        var paths = await scope.ServiceProvider.GetRequiredService<CostsDbContext>().Invoices
+            .Where(i => invoices.Contains(i.Id)).Select(i => i.ScanBlobPath!).ToListAsync();
+        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Renditions
+            .Where(r => paths.Contains(r.OriginalBlobPath))
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Layout, layout)
+                .SetProperty(r => r.LayoutProfileId, (Guid?)null).SetProperty(r => r.LayoutStamp, (string?)null));
     }
 
     private static Task<JsonElement> ImageAsync(HttpClient client, Guid id) =>

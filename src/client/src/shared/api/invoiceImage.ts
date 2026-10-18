@@ -25,6 +25,19 @@ export interface InvoiceImage {
    * молчит, не настроен, — и следующий вопрос строит заново.
    */
   aboutFile: boolean;
+  /**
+   * Откуда раскладка вида на бумагу (issue #1456): `profile` — книга `.xlsx` без своей раскладки, профиль
+   * печати к ней применяется (или применится перестроением); `file` — раскладку задал автор книги;
+   * `null` — не книга `.xlsx`: профили к ней не относятся.
+   */
+  layout: 'profile' | 'file' | null;
+  /** Профиль, по которому построен вид, — как он называется сейчас; `null` — не записан или удалён. */
+  profile: { id: string; name: string } | null;
+  /**
+   * `changed` — профиль правили после построения; `deleted` — его удалили; `none` — вид построен до
+   * профилей. `null` — профиль к виду не относится или подставить его не удалось (пометка построителя).
+   */
+  profileState: 'current' | 'changed' | 'deleted' | 'none' | null;
 }
 
 // ⚠️ Ключ — НЕ под ключом счетов: каждое сохранение счёта сбрасывает всё под ним, а вопрос о виде
@@ -49,11 +62,16 @@ export function useInvoiceImage(id: string, blobPath: string | null) {
 /**
  * «Перестроить» — и оно же «Повторить» после отказа сервиса. В счёт не пишет, версии не спрашивает.
  * Распознанное перечитывается: оно теперь может оказаться «по прежнему виду».
+ *
+ * <p>`printProfileId` — профиль печати, выбранный человеком (issue #1456); не назван — сервер возьмёт
+ * профиль прежнего вида. Выбор сервер запоминает за файлом.</p>
  */
 export function useRebuildInvoiceImage(id: string, blobPath: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => apiClient.post<InvoiceImage>(`/costs/invoices/${id}/scan/image`).then(r => r.data),
+    mutationFn: (printProfileId: string | void) => apiClient
+      .post<InvoiceImage>(`/costs/invoices/${id}/scan/image`, printProfileId ? { printProfileId } : undefined)
+      .then(r => r.data),
     onSuccess: image => {
       // Отказ построенного вида не затирает: сервер оставил прежний, и на экране остаётся он же.
       // Причину отказа получает тот, кто нажал, — ответом этого вызова.

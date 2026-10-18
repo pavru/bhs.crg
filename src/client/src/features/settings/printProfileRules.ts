@@ -1,5 +1,5 @@
 import type {
-  PrintFit, PrintMargins, PrintOrientation, PrintPaper, PrintProfile, PrintProfileInput, PrintProfileParams,
+  PrintFit, PrintMargins, PrintOrientation, PrintPaper, PrintProfile, PrintProfileInput,
 } from '@/shared/api/printProfiles';
 
 /**
@@ -49,14 +49,8 @@ export function pageSize(paper: PrintPaper, orientation: PrintOrientation): { wi
   return orientation === 'landscape' ? { width: p.longMm, height: p.shortMm } : { width: p.shortMm, height: p.longMm };
 }
 
-/** «A4 · книжная · по ширине · поля 5 мм»; разные поля — «поля 5/5/10/10 мм» (верх/низ/лево/право). */
-export function profileSummary(p: PrintProfileParams): string {
-  const orientation = p.orientation === 'landscape' ? 'альбомная' : 'книжная';
-  const fit = p.fit === 'width' ? 'по ширине' : 'не вписывать';
-  const { top, bottom, left, right } = p.margins;
-  const margins = top === bottom && top === left && top === right ? `${top}` : `${top}/${bottom}/${left}/${right}`;
-  return `${p.paper} · ${orientation} · ${fit} · поля ${margins} мм`;
-}
+// Сводка нужна и счёту (меню «Раскладка», #1456) — живёт рядом с типом профиля.
+export { profileSummary } from '@/shared/api/printProfiles';
 
 /** Профиль по умолчанию правили: его параметры разошлись с заводскими. У своего профиля такого нет. */
 export function isModified(p: PrintProfile): boolean {
