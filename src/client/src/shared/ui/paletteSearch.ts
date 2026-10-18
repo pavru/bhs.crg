@@ -6,8 +6,14 @@
  * («создать», «скан»). Подсвечиваются совпадения только в подписи: слова поиска не показываются.</p>
  */
 
-/** Регистр и «ё» не различаются. Длина строки не меняется — по ней режется подсветка. */
-const fold = (s: string) => s.toLowerCase().replaceAll('ё', 'е');
+/**
+ * Регистр и «ё» не различаются. Длина строки не меняется — по ней режется подсветка: буква, у которой
+ * строчная длиннее («İ» → «i̇»), остаётся как есть (ревью PR #1478).
+ */
+const fold = (s: string) => [...s].map(c => {
+  const lower = c.toLowerCase();
+  return lower.length === c.length ? lower : c;
+}).join('').replaceAll('ё', 'е');
 
 export function queryWords(query: string): string[] {
   return fold(query).split(/\s+/).filter(Boolean);

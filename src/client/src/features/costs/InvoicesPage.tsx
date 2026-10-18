@@ -102,9 +102,6 @@ export function InvoicesPage() {
   const create = useCreateInvoice();
   const fromScan = useInvoiceFromScan();
   const scanInput = useRef<HTMLInputElement>(null);
-  // Те же две кнопки из командной палитры (issue #1433): «Новый счёт» и «Счёт из файла» из любого места.
-  usePaletteIntent(PALETTE_ACTIONS.invoiceNew, () => void addDraft());
-  usePaletteIntent(PALETTE_ACTIONS.invoiceScan, () => scanInput.current?.click());
   const toast = useToast();
 
   const view = useInvoice(selected ?? undefined);
@@ -302,6 +299,10 @@ export function InvoicesPage() {
     return next;
   }, { replace: true }), id => { forgetCreated(id); forgetInvoice(qc, id); });
   const loading = fromScan.isPending || (batch !== null && batch.phase !== 'done');
+  // Те же две кнопки из командной палитры (issue #1433): «Новый счёт» и «Счёт из файла» из любого места —
+  // и закрыты тогда же, когда закрыты кнопки.
+  usePaletteIntent(PALETTE_ACTIONS.invoiceNew, () => void addDraft(), { busy: create.isPending });
+  usePaletteIntent(PALETTE_ACTIONS.invoiceScan, () => scanInput.current?.click(), { busy: loading });
   // Что распознаётся, говорит реестр видов: из него и выбор файла, и подсказка, и отсев до отправки.
   const kinds = useFileKinds();
   const readable = recognizedKinds(kinds.data);

@@ -3,6 +3,26 @@ import type { AccessInfo } from '@/shared/api/access';
 import { clientSources } from '@/shared/testing/clientSources';
 import { PALETTE_ACTIONS, availableActions, intentHref } from './paletteActions';
 
+/** Файл компонента по его импорту в `from` (`@/…` или `./…`). */
+function importOf(name: string, from: string): string | null {
+  const spec = clientSources[from]?.match(new RegExp(`import \\{[^}]*\\b${name}\\b[^}]*\\} from '([^']+)'`))?.[1];
+  if (!spec) return null;
+  const path = spec.startsWith('@/') ? '/src/' + spec.slice(2) : from.replace(/[^/]+$/, '') + spec.replace(/^\.\//, '');
+  return [path + '.tsx', path + '.ts'].find(f => f in clientSources) ?? null;
+}
+
+/** Файлы, которые рисуют адрес: компонент маршрута `App.tsx` и его индексный маршрут, если он есть. */
+function screenFiles(to: string): string[] {
+  const app = '/src/App.tsx';
+  const segment = to.replace(/^\//, '');
+  const page = clientSources[app].match(new RegExp(`<Route path="${segment}(?:/\\*)?" element=\\{<(\\w+)`))?.[1];
+  const file = page ? importOf(page, app) : null;
+  if (!file) return [];
+  const index = clientSources[file].match(/<Route index element=\{<(\w+)/)?.[1];
+  const inner = index ? importOf(index, file) : null;
+  return inner ? [file, inner] : [file];
+}
+
 function access(permissions: string[], modules: string[] = []): AccessInfo {
   return { permissions, modules: modules.map(code => ({ code, title: code, available: true })) };
 }
@@ -24,18 +44,26 @@ describe('действия палитры', () => {
       .toEqual(['Новая стройка']);
   });
 
+  it('экран адреса находится по маршрутам — сторож выше не слеп', () => {
+    expect(screenFiles('/invoices')).toEqual(['/src/features/costs/InvoicesPage.tsx']);
+    expect(screenFiles('/document-sets')).toEqual([
+      '/src/features/document-sets/DocumentSetsPage.tsx', '/src/features/document-sets/ConstructionsList.tsx']);
+  });
+
   it('действие ведёт на свой экран с параметром', () => {
     expect(intentHref(PALETTE_ACTIONS.waybillNew)).toBe('/waybills?do=waybill-new');
   });
 
   /**
-   * ⚠️ Действие, которое не принимает ни один экран, — дверь в никуда: палитра привела бы на список и
-   * ничего не сделала. Каждое обязано иметь `usePaletteIntent(PALETTE_ACTIONS.<имя>` в экране.
+   * ⚠️ Действие, которое не принимает его экран, — дверь в никуда: палитра привела бы на список и
+   * ничего не сделала. Принимать обязан ИМЕННО экран адреса `to` — тот, что маршрут `App.tsx` рисует
+   * на нём (с индексным маршрутом внутри, как у строек), а не любой файл (ревью PR #1478).
    */
-  it('у каждого действия есть экран, который его исполняет', () => {
-    const screens = Object.entries(clientSources).filter(([file]) => file.startsWith('/src/features/'));
-    const orphans = Object.keys(PALETTE_ACTIONS).filter(name =>
-      !screens.some(([, text]) => text.includes(`usePaletteIntent(PALETTE_ACTIONS.${name},`)));
-    expect(orphans).toEqual([]);
+  it('каждое действие принимает экран его адреса', () => {
+    const misplaced = Object.entries(PALETTE_ACTIONS)
+      .filter(([name, action]) => !screenFiles(action.to).some(file =>
+        clientSources[file]?.includes(`usePaletteIntent(PALETTE_ACTIONS.${name},`)))
+      .map(([name, action]) => `${name} → ${action.to}: ${screenFiles(action.to).join(', ') || 'маршрута нет'}`);
+    expect(misplaced).toEqual([]);
   });
 });

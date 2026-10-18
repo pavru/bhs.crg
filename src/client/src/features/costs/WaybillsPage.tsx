@@ -114,7 +114,7 @@ export function WaybillsPage() {
     if (leaveGuard.current) leaveGuard.current(() => void createDraft()); else void createDraft();
   };
   // Та же кнопка из командной палитры (issue #1433).
-  usePaletteIntent(PALETTE_ACTIONS.waybillNew, addDraft);
+  usePaletteIntent(PALETTE_ACTIONS.waybillNew, addDraft, { busy: create.isPending });
 
   return (
     <ListDetailShell view={ld}
