@@ -139,15 +139,15 @@ function TemplateForm({
       <div className="flex gap-2 flex-wrap">
         <button type="button" onClick={() => setFilterOpen(true)} className={toggleCls(filterCount > 0)}>
           <Filter size={12} /> Фильтрация
-          {filterCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-white text-caption bg-brand">{filterCount}</span>}
+          {filterCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-on-brand text-caption bg-brand">{filterCount}</span>}
         </button>
         <button type="button" onClick={() => setTransformsOpen(true)} className={toggleCls(transformCount > 0)}>
           <FunctionSquare size={12} /> Преобразования
-          {transformCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-white text-caption bg-brand">{transformCount}</span>}
+          {transformCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-on-brand text-caption bg-brand">{transformCount}</span>}
         </button>
         <button type="button" onClick={() => setSortOpen(true)} className={toggleCls(sortCount > 0)}>
           <ArrowUpDown size={12} /> Сортировка
-          {sortCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-white text-caption bg-brand">{sortCount}</span>}
+          {sortCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-on-brand text-caption bg-brand">{sortCount}</span>}
         </button>
       </div>
 
@@ -157,7 +157,7 @@ function TemplateForm({
         <button
           onClick={handleSave}
           disabled={saving || !name.trim()}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-white disabled:opacity-40 bg-brand"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-on-brand disabled:opacity-40 bg-brand"
         >
           <Check size={13} />
           {saving ? 'Сохранение...' : 'Сохранить'}
@@ -242,7 +242,7 @@ function TemplateRow({ template }: { template: DataSetProcessingTemplate }) {
           <div className="flex items-center gap-1.5 text-xs">
             <span className="text-fg3">Удалить?</span>
             <button onClick={() => del.mutateAsync({ id: template.id }).then(() => setConfirming(false))}
-              disabled={del.isPending} className="px-2 py-0.5 rounded text-white bg-danger" style={{ fontSize: '11px' }}>
+              disabled={del.isPending} className="px-2 py-0.5 rounded text-on-danger bg-danger" style={{ fontSize: '11px' }}>
               Да
             </button>
             <button onClick={() => setConfirming(false)} className="px-2 py-0.5 rounded bg-muted text-fg2" style={{ fontSize: '11px' }}>

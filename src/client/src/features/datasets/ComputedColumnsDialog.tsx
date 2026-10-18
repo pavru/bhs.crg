@@ -129,7 +129,7 @@ export function ComputedColumnsDialog({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand disabled:opacity-50"
+            className="px-4 py-2 rounded-md text-sm font-medium text-on-brand bg-brand disabled:opacity-50"
           >
             {saving ? 'Сохранение…' : 'Сохранить'}
           </button>

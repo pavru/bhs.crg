@@ -8,7 +8,8 @@ const UTILITIES = 'bg|text|border|ring|ring-offset|outline|divide|fill|stroke|fr
 
 /**
  * Классы нарушений. У каждого — куда идти вместо: сообщение отказа обязано называть выход, иначе
- * его обходят первым попавшимся способом.
+ * его обходят первым попавшимся способом. `dirs` — каталоги src/, которые правило смотрит; без него —
+ * только features/ (в shared/ живут сами DataGrid и Select, которые эти элементы и заворачивают).
  */
 export const RULES = [
   {
@@ -102,6 +103,21 @@ export const RULES = [
     count: text => countElements(text, isTabRole),
     instead: 'вкладки — Tabs + TabPanel (shared/ui/Tabs): underline для разделов, segmented для режима; стрелки и ручную активацию компонент делает сам (docs/UI.md, «Язык формы»)',
   },
+  {
+    id: 'white-on-fill',
+    // Белый текст, кольцо или точка на сплошной заливке роли (#1462). В тёмной теме заливки светлые
+    // (brand — #a7c8ff), и белое на них — 1,7:1: подписи не прочесть. Пара к заливке — text-on-*.
+    // Смотрит className ЦЕЛИКОМ, со всеми ветвями условий: `${on ? 'bg-brand text-white' : …}` и
+    // `bg-brand ${x ? 'text-white' : ''}` — одно нарушение. И строки вне className (карта вариантов
+    // кнопки, класс в переменной) — каждую отдельно. Белый с прозрачностью у фона (hover:bg-white/10)
+    // — слой состояния, не цвет, и не считается. В отличие от прочих правил смотрит и shared/: кнопка
+    // и календарь — первые, кто рисует заливку, и пропусти он их — ошибку размножили бы экраны.
+    // ⚠️ Не видит пары, разнесённой по РАЗНЫМ элементам или строкам: заливка у кнопки, белая точка или
+    // ползунок у ребёнка (так был пропущен Switch, ревью #1477), заливка через style. Её ловит ревью.
+    count: countWhiteOnFill,
+    dirs: ['features', 'shared'],
+    instead: 'текст и значок на заливке — парный токен: bg-brand → text-on-brand, bg-danger → text-on-danger, bg-success → text-on-success, bg-warning → text-on-warning; кольцо — ring-on-*, точка — bg-on-* (docs/UI.md, «Цвет»)',
+  },
 ];
 
 // Классы оформления пишутся строкой, шаблоном или выражением — правило читает текст значения
@@ -164,6 +180,34 @@ function countNativeCheckboxes(text) {
   return n;
 }
 
+// Сплошная заливка роли (с наведением и нажатием) — классом или произвольным значением на токене
+// (`bg-[var(--f-brand)]`), — и белое поверх неё. `bg-brand-subtle` — контейнер, на нём свой текст
+// (text-on-brand-subtle), и заливкой он не считается. Белый фон с прозрачностью — слой состояния.
+const ROLE = 'brand(?:-hover|-pressed)?|danger|success|warning';
+const FILL = new RegExp(`(?<![\\w-])(?:[\\w-]+:)*bg-(?:(?:${ROLE})(?![\\w-])|\\[var\\(--(?:color-(?:${ROLE})|f-brand(?:-hover|-pressed)?|f-(?:danger|success|warning)-fg)\\)\\])`);
+const WHITE = /(?<![\w-])(?:[\w-]+:)*(?:(?:text|ring|border|outline|fill|stroke|divide|decoration|shadow|accent|caret|from|via|to)-white(?![\w-])|bg-white(?![\w/-]))/;
+
+/** Белое на сплошной заливке — см. правило `white-on-fill`. */
+function countWhiteOnFill(text) {
+  if (!text.includes('white')) return 0;
+  const sf = parse(text);
+  let n = 0;
+  const hit = node => { const t = node.getText(sf); return FILL.test(t) && WHITE.test(t); };
+  const visit = node => {
+    if (ts.isJsxAttribute(node) && node.name.getText(sf) === 'className') {
+      if (node.initializer && hit(node.initializer)) n++;
+      return;
+    }
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateExpression(node)) {
+      if (hit(node)) n++;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return n;
+}
+
 /** Сколько элементов разметки (тег со строчной буквы) подходят под `match`. */
 function countElements(text, match) {
   if (!text.includes('<')) return 0;
@@ -216,10 +260,16 @@ function countNativeTitles(text) {
   return n;
 }
 
-/** Сколько нарушений каждого класса в тексте одного файла. Нулевые классы не возвращаются. */
-export function countViolations(text) {
+/** Каталоги, которые смотрит правило (см. `dirs` у RULES). */
+export const dirsOf = rule => rule.dirs ?? ['features'];
+
+/**
+ * Сколько нарушений каждого класса в тексте одного файла. Нулевые классы не возвращаются.
+ * `dir` — каталог src/, из которого файл: считаются только правила, которые его смотрят.
+ */
+export function countViolations(text, { dir = 'features' } = {}) {
   const counts = {};
-  for (const rule of RULES) {
+  for (const rule of RULES.filter(r => dirsOf(r).includes(dir))) {
     const n = rule.count ? rule.count(text) : text.match(rule.pattern)?.length ?? 0;
     if (n > 0) counts[rule.id] = n;
   }

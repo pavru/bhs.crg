@@ -65,7 +65,7 @@ export function LoginPage() {
         >
           {/* Название и логотип экземпляра (ТЗ CORE-25.1, issue #967). */}
           <div className="flex items-center gap-3">
-            <BrandLogo className="w-12 h-12 rounded-2xl bg-white/20" iconSize={24} />
+            <BrandLogo className="w-12 h-12 rounded-2xl bg-on-brand/20" iconSize={24} />
             <span className="text-2xl font-medium tracking-wide">{productName}</span>
           </div>
           <div>

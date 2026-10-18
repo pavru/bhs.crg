@@ -42,7 +42,7 @@ function SortRow({
             key={d}
             type="button"
             onClick={() => onChange({ ...level, direction: d })}
-            className={`px-2 py-1 transition-colors ${level.direction === d ? 'bg-brand text-white' : 'bg-surface text-fg3'}`}
+            className={`px-2 py-1 transition-colors ${level.direction === d ? 'bg-brand text-on-brand' : 'bg-surface text-fg3'}`}
           >
             {d === 'asc' ? '↑ возр.' : '↓ убыв.'}
           </button>
@@ -110,7 +110,7 @@ export function SortSpecDialog({
       footer={
         <div className="flex gap-2">
           <button onClick={handleSave} disabled={saving}
-            className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand disabled:opacity-50">
+            className="px-4 py-2 rounded-md text-sm font-medium text-on-brand bg-brand disabled:opacity-50">
             {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
           <ModalExit variant="tonal" />
