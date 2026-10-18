@@ -65,7 +65,6 @@ function filterOf({ favorites = ['a', 'b'], live = SITES.map(s => s.id), status 
     status, favorites: state.favorites, on: true, active: status === 'ready' && state.active,
     sites: SITES.filter(s => live.includes(s.id)),
     visible: sites => isVisible(sites, state), setOn: vi.fn(), setFavorite: vi.fn(), setFavorites: vi.fn(),
-    consumers: 0, register: () => () => {},
   };
 }
 
@@ -104,11 +103,11 @@ async function closeCompany() {
 }
 
 describe('Учётный период под фильтром избранного (#1220)', () => {
-  it('таблица — компания и избранные; число скрытых сверху и под таблицей', async () => {
+  it('таблица — компания и избранные; число скрытых в шапке таблицы и в отборе «Стройки»', async () => {
     await shown();
     expect(contours()).toEqual(['Компания', 'ЖК «Север»', 'Школа №7']);
     expect(screen.getByTestId('period-sites-count').textContent).toBe('2 из 4 строек');
-    expect(screen.getByTestId('site-filter-note').textContent).toContain('Избранные стройки · скрыто: 2');
+    expect(screen.getByTestId('sites-filter').textContent).toContain('Избранные стройки· скрыто 2');
   });
 
   it('стройка, которой ещё нет в кэше справочника, — не в избранном, а не «без стройки»', async () => {
@@ -122,7 +121,7 @@ describe('Учётный период под фильтром избранног
     await shown({ favorites: SITES.map(s => s.id) });
     expect(contours()).toEqual(['Компания', ...SITES.map(s => s.name)]);
     expect(screen.queryByTestId('period-sites-count')).toBeNull();
-    expect(screen.queryByTestId('site-filter-note')).toBeNull();
+    expect(screen.queryByTestId('sites-filter')?.textContent ?? '').not.toContain('скрыто');
   });
 
   it('пока фильтр не известен — компания с кнопками, строек нет', async () => {
@@ -136,7 +135,7 @@ describe('Учётный период под фильтром избранног
     await shown(NO_FILTER);
     expect(contours()).toEqual(['Компания', ...SITES.map(s => s.name)]);
     expect(screen.queryByTestId('period-sites-count')).toBeNull();
-    expect(screen.queryByTestId('site-filter-note')).toBeNull();
+    expect(screen.queryByTestId('sites-filter')?.textContent ?? '').not.toContain('скрыто');
   });
 
   it('неизбранная стройка в истории — по имени, а не «удалена»', async () => {

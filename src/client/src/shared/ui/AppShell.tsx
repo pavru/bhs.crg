@@ -14,10 +14,10 @@ import { WorkspaceProvider } from '@/shared/ui/WorkspaceProvider';
 import { WorkspaceSwitcher } from '@/shared/ui/WorkspaceSwitcher';
 import { OutsideBanner } from '@/shared/ui/WorkspaceNav';
 import { SiteFilterProvider } from '@/shared/siteFilter/SiteFilterProvider';
-import { SiteFilterSwitch } from '@/shared/siteFilter/SiteFilterSwitch';
 import { useSyncedPreference } from '@/shared/hooks/useSyncedPreference';
 import { DrawerBody } from '@/shared/ui/AppRail';
 import { SectionPanel, SectionRail, ShowPanelButton } from '@/shared/ui/SectionRail';
+import { useFavoriteSitesGroup } from '@/shared/siteFilter/favoriteSitesGroup';
 import { useNavSections } from '@/shared/ui/navSections';
 import { activeRail, panelAt, railDef } from '@/shared/ui/railSections';
 import { CircleHelp, MailWarning, X, Menu, Search } from 'lucide-react';
@@ -87,6 +87,7 @@ function Shell() {
   const activeDef = active ? railDef(active) : null;
   const panelSection = activeDef && panelAt(pathname, activeDef) ? activeDef : null;
   const panelShown = !!panelSection && panelWanted;
+  const favoriteSites = useFavoriteSitesGroup();
 
   // Глобальные шорткаты (issue #107): Ctrl/⌘+K — палитра, «?» — справка (не в полях ввода).
   useEffect(() => {
@@ -139,7 +140,9 @@ function Shell() {
           onShowPanel={() => setRail('expanded')} />
         {panelShown && (
           <SectionPanel def={panelSection} outside={outside} onHide={() => setRail('collapsed')}
-            groups={sections.find(s => s.def.id === panelSection.id)?.groups ?? []} />
+            groups={[...sections.find(s => s.def.id === panelSection.id)?.groups ?? [],
+              // Избранные стройки — быстрым переходом к карточке (#1432): шапка их больше не показывает.
+              ...(panelSection.id === 'constructions' && favoriteSites ? [favoriteSites] : [])]} />
         )}
       </aside>
 
@@ -184,10 +187,9 @@ function Shell() {
           {panelSection && !panelShown && <span className="hidden md:inline-flex"><ShowPanelButton onShow={() => setRail('expanded')} /></span>}
           <div data-testid="header-context"
             className="order-last md:order-none w-full md:w-auto min-w-0 flex items-center gap-1 whitespace-nowrap max-md:[&>*]:shrink-0 max-md:overflow-x-auto max-md:pb-1.5">
-            {/* Переключатель пространства — слева: это контекст экрана, а не действие (AUTH-16.1). */}
+            {/* Переключатель пространства — слева: это контекст экрана, а не действие (AUTH-16.1).
+                «Избранные стройки» отсюда ушли в отбор «Стройки» над списками (#1432). */}
             <WorkspaceSwitcher />
-            {/* Избранные стройки — за пространством (#1218): тоже «что я вижу», а не действие. */}
-            <SiteFilterSwitch />
           </div>
           <SearchButton onOpen={() => setPaletteOpen(true)} />
           <ActivityCenter />

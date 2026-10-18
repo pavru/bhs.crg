@@ -117,7 +117,8 @@ describe('кнопка активности', () => {
     const dialog = await open();
     const live = within(dialog).getByRole('status');
     expect(within(live).getByText('Ждёт')).toBeTruthy();
-    expect(within(live).getByText('0:00').getAttribute('aria-hidden')).toBe('true');
+    // Время — любым: под нагрузкой прогона между созданием задачи и проверкой проходит секунда.
+    expect(within(live).getByText(/^\d+:\d\d$/).getAttribute('aria-hidden')).toBe('true');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Отменить задачу' }));
     expect(cancel).toHaveBeenCalledWith('j1');
   });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 import { useAccess, hasPermission } from '@/shared/api/access';
@@ -50,7 +50,6 @@ export function SiteFilterProvider({ children }: { children: ReactNode }) {
   const directory = useConstructionDirectory(allowed);
   const queryClient = useQueryClient();
   const toast = useToast();
-  const [consumers, setConsumers] = useState(0);
 
   const sites = useMemo(() => directory.data ?? [], [directory.data]);
   const live = useMemo(() => new Set(sites.map(s => s.id)), [sites]);
@@ -122,11 +121,6 @@ export function SiteFilterProvider({ children }: { children: ReactNode }) {
       });
   }, [queryClient, write, live]);
 
-  const register = useCallback(() => {
-    setConsumers(n => n + 1);
-    return () => setConsumers(n => n - 1);
-  }, []);
-
   // Состояние фильтра — отдельно от счётчика потребителей: каждый смонтированный список выбора
   // регистрируется, и пересчитывай его `value` целиком — `favorites` выходило бы новым множеством на
   // каждую регистрацию, сбрасывая мемоизацию у всех списков (ревью PR #1332).
@@ -158,11 +152,9 @@ export function SiteFilterProvider({ children }: { children: ReactNode }) {
       setFavorite: (id, favorite) => changeFavorites(ids =>
         favorite ? [...ids.filter(x => x !== id), id] : ids.filter(x => x !== id)),
       setFavorites: wanted => changeFavorites(() => [...wanted]),
-      consumers,
-      register,
     };
   }, [user, access.data, access.isError, allowed, settings.data, settings.isError, directory.data, directory.isError,
-    on, state, sites, write, changeFavorites, consumers, register, toast]);
+    on, state, sites, write, changeFavorites, toast]);
 
   return <SiteFilterContext.Provider value={value}>{children}</SiteFilterContext.Provider>;
 }

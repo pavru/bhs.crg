@@ -24,7 +24,6 @@ function filterOf(favorites: string[]): SiteFilterValue {
   return {
     status: 'ready', favorites: state.favorites, on: true, active: state.active, sites: SITES,
     visible: s => isVisible(s, state), setOn: vi.fn(), setFavorite: vi.fn(), setFavorites: vi.fn(),
-    consumers: 0, register: () => () => {},
   };
 }
 

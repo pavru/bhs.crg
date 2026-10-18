@@ -31,7 +31,6 @@ const PLACES: Places = {
 const filter: SiteFilterValue = {
   status: 'ready', favorites: new Set(['a', 'b']), on: true, active: true,
   sites: PLACES.sites!, visible: () => true, setOn: () => {}, setFavorite: async () => {}, setFavorites: async () => {},
-  consumers: 0, register: () => () => {},
 };
 
 function Under({ children }: { children: ReactNode }) {

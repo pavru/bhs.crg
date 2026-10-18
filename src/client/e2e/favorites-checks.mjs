@@ -8,7 +8,7 @@
 // избранное урезало бы им список строек, и они упали бы на чужом. Поэтому настройки сбрасываются и
 // до проверок, и после — в finally, адресом, а не через экран.
 
-import { BASE, settled, callApi } from './harness.mjs';
+import { BASE, settled, callApi, pickSites } from './harness.mjs';
 
 const RESET = { favoriteConstructions: null, favoritesFilter: null };
 
@@ -35,10 +35,20 @@ export async function favoritesChecks(page, check) {
     await page.goto(`${BASE}/document-sets`);
     await settled(page);
 
-    await check('favorites-empty-header-is-quiet-button', async () => {
-      // Избранного нет — сегмента нет, на его месте тихая кнопка к выбору.
-      await page.getByTestId('site-filter-empty').waitFor({ timeout: 5000 });
-      if (await page.getByTestId('site-filter-switch').count()) throw new Error('сегмент виден без избранного');
+    await check('favorites-empty-filter-says-all', async () => {
+      // Избранного нет — отбор над списком говорит «Все стройки», а в его поповере только выбор строек:
+      // положение «Избранные» без избранного показало бы всё и выглядело бы сломанным (#1432).
+      const chip = page.getByTestId('sites-filter');
+      await chip.waitFor({ timeout: 5000 });
+      if ((await chip.innerText()).trim() !== 'Все стройки') throw new Error(`отбор без избранного: «${await chip.innerText()}»`);
+      // Шапка об избранном больше не говорит: отбор стоит у списка, который урезает.
+      if (/Избранн/.test(await page.getByTestId('header-context').innerText())) throw new Error('избранное осталось в шапке');
+      await chip.click();
+      const popover = page.getByTestId('sites-filter-popover');
+      await popover.getByTestId('favorites-picker').waitFor({ timeout: 5000 });
+      if (await popover.getByRole('radiogroup').count()) throw new Error('выбор «Избранные / Все» без избранного');
+      await page.keyboard.press('Escape');
+      await popover.waitFor({ state: 'detached', timeout: 5000 });
     });
 
     await check('favorites-first-star-keeps-the-screen', async () => {
@@ -47,9 +57,9 @@ export async function favoritesChecks(page, check) {
       // Первая звезда не сжимает список под курсором — до ухода с экрана (§62.2).
       const left = await stars(page).count();
       if (left !== all.length) throw new Error(`после первой звезды карточек ${left}, а строек ${all.length}`);
-      const segment = await page.getByTestId('site-filter-switch').innerText();
-      if (!/Избранные\s*1/.test(segment) || !new RegExp(`Все\\s*${all.length}`).test(segment))
-        throw new Error(`сегмент: «${segment}»`);
+      // Отбор включён, но удержанные карточки не скрыты — число скрытых не пишется.
+      const label = await page.getByTestId('sites-filter').getAttribute('aria-label');
+      if (label !== `Стройки: избранные, 1 из ${all.length}`) throw new Error(`отбор: «${label}»`);
     });
 
     await check('favorites-filter-list-after-reload', async () => {
@@ -57,31 +67,27 @@ export async function favoritesChecks(page, check) {
       await settled(page);
       const left = await stars(page).count();
       if (left !== 1) throw new Error(`после перезагрузки карточек ${left}, ждали одну`);
-      const note = await page.getByTestId('site-filter-note').innerText();
-      if (!note.includes(`скрыто: ${all.length - 1}`)) throw new Error(`строка у списка: «${note}»`);
+      const chip = await page.getByTestId('sites-filter').innerText();
+      if (!chip.includes(`скрыто ${all.length - 1}`)) throw new Error(`отбор у списка: «${chip}»`);
     });
 
     await check('favorites-switch-shows-all-and-is-stored', async () => {
-      await page.getByTestId('site-filter-switch').getByRole('button', { name: /^Все/ }).click();
-      await settled(page);
+      await pickSites(page, 'Все стройки');
       if ((await stars(page).count()) !== all.length) throw new Error('«Все» не показало все стройки');
       // Хранит сервер: с другого компьютера человек увидит то же.
       const stored = (await callApi(page, 'GET', '/account/settings')).body.favoritesFilter;
       if (stored !== 'off') throw new Error(`выключенный фильтр не сохранён: ${stored}`);
-      await page.getByTestId('site-filter-switch').getByRole('button', { name: /Избранные/ }).click();
-      await settled(page);
+      await pickSites(page, 'Избранные стройки');
       if ((await stars(page).count()) !== 1) throw new Error('«Избранные» не вернули отбор');
     });
 
     await check('favorites-switch-after-star-filters-the-list', async () => {
-      // Звезда держит карточки на экране до ухода с него, но явное переключение в шапке это
-      // удержание снимает — иначе «Избранные» горели бы над неурезанным списком (ревью PR #1331).
-      await page.getByTestId('site-filter-switch').getByRole('button', { name: /^Все/ }).click();
-      await settled(page);
+      // Звезда держит карточки на экране до ухода с него, но явное переключение отбора это удержание
+      // снимает — иначе «Избранные» горели бы над неурезанным списком (ревью PR #1331).
+      await pickSites(page, 'Все стройки');
       await page.locator('[data-testid="favorite-star"][aria-pressed="false"]').first().click();
       await settled(page);
-      await page.getByTestId('site-filter-switch').getByRole('button', { name: /Избранные/ }).click();
-      await settled(page);
+      await pickSites(page, 'Избранные стройки');
       const left = await stars(page).count();
       if (left !== 2) throw new Error(`после звезды и «Избранные» карточек ${left}, ждали две`);
     });
@@ -124,9 +130,28 @@ export async function favoritesChecks(page, check) {
       const other = all.find(c => !favorite.includes(c.id));
       await page.goto(`${BASE}/document-sets/${other.id}`);
       await settled(page);
-      // Объект открыт полностью, строка говорит, почему его нет в списке; шапка — «не действуют».
+      // Объект открыт полностью, строка говорит, почему его нет в списке. Отбора «Стройки» здесь нет:
+      // страница стройки ничего не урезает (#1432).
       await page.getByTestId('not-favorite-note').waitFor({ timeout: 5000 });
-      await page.getByTestId('site-filter-idle').waitFor({ timeout: 5000 });
+      if (await page.getByTestId('sites-filter').count()) throw new Error('отбор «Стройки» на странице стройки');
+    });
+
+    await check('favorites-subpanel-links-to-cards', async () => {
+      // Избранные — в подпанели раздела «Стройки» быстрым переходом к карточке (#1432).
+      const favorite = (await callApi(page, 'GET', '/account/settings')).body.favoriteConstructions.split(',');
+      const names = (await callApi(page, 'GET', '/constructions')).body.filter(c => favorite.includes(c.id));
+      await page.goto(`${BASE}/document-sets`);
+      await settled(page);
+      if (!names.length) throw new Error('избранных строек нет в справочнике');
+      const group = page.getByTestId('section-panel').getByRole('heading', { name: 'Избранные стройки' });
+      await group.waitFor({ timeout: 5000 });
+      const links = page.getByTestId('section-panel').locator('a[href^="/document-sets/"]');
+      const shown = await links.evaluateAll(as => as.map(a => a.getAttribute('href')));
+      const wanted = names.map(c => `/document-sets/${c.id}`);
+      if (wanted.some(href => !shown.includes(href))) throw new Error(`в подпанели ${shown.join(', ')}, ждали ${wanted.join(', ')}`);
+      await links.filter({ hasText: names[0].name }).first().click();
+      await page.waitForURL(new RegExp(`/document-sets/${names[0].id}$`));
+      await settled(page);
     });
 
     await check('favorites-periods-table-filtered-closing-names-all', async () => {
@@ -143,8 +168,8 @@ export async function favoritesChecks(page, check) {
       if (rows !== 2) throw new Error(`в таблице периода строк ${rows}, ждали компанию и одну стройку`);
       const count = await page.getByTestId('period-sites-count').innerText();
       if (!count.startsWith(`1 из ${total} `)) throw new Error(`шапка таблицы: «${count}»`);
-      const note = await page.getByTestId('site-filter-note').innerText();
-      if (!note.includes(`скрыто: ${total - 1}`)) throw new Error(`строка под таблицей: «${note}»`);
+      const chip = await page.getByTestId('sites-filter').innerText();
+      if (!chip.includes(`скрыто ${total - 1}`)) throw new Error(`отбор над таблицей: «${chip}»`);
       await table.locator('tbody tr').first().getByRole('button', { name: 'Закрыть период' }).click();
       const dialog = page.getByRole('dialog');
       const text = await dialog.innerText();
@@ -161,7 +186,7 @@ export async function favoritesChecks(page, check) {
         route.request().method() === 'GET' ? route.fulfill({ status: 500, body: '{}' }) : route.continue());
       try {
         await page.goto(`${BASE}/document-sets`);
-        await page.getByTestId('site-filter-error').waitFor({ timeout: 20000 });
+        await page.getByTestId('sites-filter-error').waitFor({ timeout: 20000 });
         const left = await stars(page).count();
         if (left !== 0 && left !== all.length) throw new Error(`при сбое настроек карточек ${left} из ${all.length}`);
         const cards = await page.locator('h3').count();

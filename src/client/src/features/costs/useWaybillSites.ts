@@ -23,7 +23,7 @@ export function useWaybillSites({ unmatched, selected, open }: {
   open: WaybillView | undefined;
 }) {
   const cuts = !unmatched;
-  const filter = useSiteFilter(cuts);
+  const filter = useSiteFilter();
   const sites = cuts && filter.active ? [...filter.favorites] : null;
   const waybills = useWaybills(unmatched, sites, !cuts || filter.status !== 'loading');
   const stale = waybills.isPlaceholderData;
