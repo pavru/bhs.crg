@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using System.Xml;
+using System.Xml.Linq;
 using BHS.CRG.Domain.Storage;
 
 namespace BHS.CRG.Infrastructure.Renditions;
@@ -40,16 +41,26 @@ public sealed record LaidOut(RenditionLayout Outcome, byte[] File, IReadOnlyList
 /// разрыв колонок (<c>colBreaks/brk</c>). <c>fitToWidth</c>/<c>fitToHeight</c> БЕЗ <c>fitToPage</c>
 /// признаком не считаются: LibreOffice их без флага не исполняет — проба #1453 (а): такая книга
 /// выходит той же, что книга без раскладки, две страницы, кегль 10. Excel без флага их тоже не
-/// применяет. Поля признаком не считаются: Excel пишет их всегда.</para>
+/// применяет. Поля признаком не считаются: Excel пишет их всегда. Ручные разрывы СТРОК признаком тоже
+/// не считаются: они делят лист по высоте, а вписывание — по ширине, и одно другому не мешает (проба к
+/// ревью PR #1470: разрыв соблюдён, кегль тот же 7,1, что без него).</para>
 ///
 /// <para><b>Что подставляется</b>: вписать по ширине (<c>fitToPage=1</c>, <c>fitToWidth=1</c>,
 /// <c>fitToHeight=0</c>), поля профиля; бумага и ориентация — автора, если записаны, иначе профиля.
-/// Бумага пишется всегда: отсутствующая по схеме — Letter (проба: лист 216×279). Поля колонтитулов —
-/// ноль, если колонтитула нет: под нулевым полем стоящий колонтитул лёг бы на текст.</para>
+/// Бумага пишется всегда: отсутствующая по схеме — Letter (проба: лист 216×279).</para>
+///
+/// <para><b>Колонтитул.</b> Нет колонтитула с текстом — поля колонтитулов ноль, все четыре поля
+/// профиля. Есть — верхнее и нижнее поля и поля колонтитулов остаются автора, профиль ставит только
+/// левое и правое: под полем 5 мм колонтитул на расстоянии 0,3″ от края LibreOffice не печатает ВОВСЕ —
+/// в виде его нет (проба к ревью PR #1470), а сколько ему нужно места по высоте, знает только автор.
+/// Ширину, ради которой профиль и нужен, дают левое и правое поля.</para>
 ///
 /// <para><b>Потоком, а не DOM</b>: лист бывает до 100 МБ распакованным. Элементы — строго в порядке
 /// схемы <c>CT_Worksheet</c>: LibreOffice 8.37 неверный порядок прощает, но Excel такую книгу чинит, а
-/// следующая версия конвертера вправе не простить.</para>
+/// следующая версия конвертера вправе не простить. Три элемента раскладки (<c>sheetPr</c>,
+/// <c>pageMargins</c>, <c>pageSetup</c>) пишутся ТОЛЬКО на своём месте схемы и только по разу — из
+/// того, что о них узнал осмотр листа, — а сами они в исходнике пропускаются, где бы ни стояли: так
+/// книга, у которой автор поставил их не по порядку или дважды, не получает дублей.</para>
 ///
 /// <para>Профиль не делает из книги отказ: что пошло не так — книга идёт к конвертеру как есть, с
 /// пометкой.</para>
@@ -61,6 +72,7 @@ public static class ExcelPageLayout
     private const string Relationships = "http://schemas.openxmlformats.org/package/2006/relationships";
     private const string OfficeRels = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     private const string Compatibility = "http://schemas.openxmlformats.org/markup-compatibility/2006";
+    private static readonly XNamespace X = Main;
 
     public const string FailedNote = "Раскладку по профилю применить не удалось — вид построен по файлу как есть.";
 
@@ -103,39 +115,72 @@ public static class ExcelPageLayout
         try
         {
             var sheets = SheetsOf(book, out var strict);
-            if (strict) return new(RenditionLayout.Skipped, book, [FailedNote], null);
+            // Ни одного листа-таблицы не нашлось — это не «автор всё задал сам», а «мы книгу не поняли»:
+            // нет оглавления, связи ведут мимо, в книге одни диаграммы. Назвать такую книгу своей
+            // раскладкой значило бы соврать и в пометке, и в записи образа.
+            if (strict || sheets.Count == 0) return Skipped(book);
 
             var plan = new Dictionary<string, SheetFacts>(StringComparer.Ordinal);
             using (var zip = new ZipArchive(new MemoryStream(book, writable: false), ZipArchiveMode.Read))
                 foreach (var path in sheets)
                 {
                     ct.ThrowIfCancellationRequested();
-                    if (zip.GetEntry(path) is not { } entry) continue;
+                    // Связь ведёт к части, которой в архиве нет, — книга битая, и раскладывать её
+                    // наполовину незачем.
+                    if (Entry(zip, path) is not { } entry) return Skipped(book);
                     using var part = entry.Open();
                     var facts = Inspect(part);
-                    if (!facts.Own) plan[path] = facts;
+                    if (!facts.Own) plan[entry.FullName] = facts;
                 }
 
             if (plan.Count == 0) return new(RenditionLayout.BookOwn, book, [], null);
 
             var laid = Rewrite(book, plan, profile, ct);
-            return new(RenditionLayout.Applied, laid, [AppliedNote(profile, plan.Count)], Snapshot(profile, plan.Count));
+            return new(RenditionLayout.Applied, laid, [AppliedNote(profile, plan.Count)], Snapshot(profile, plan.Values));
         }
-        catch (Exception ex) when (ex is XmlException or InvalidDataException or IOException or FormatException)
+        catch (OperationCanceledException) { throw; }
+        // Правка — необязательный шаг, и сбой любого рода (разбор, архив, запись, атрибуты) означает одно:
+        // книга уходит как есть. Узкий перечень исключений обещание «отказа не бывает» не держал:
+        // ошибка записи XML или даты записи архива роняла бы построение образа, который строился.
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            return new(RenditionLayout.Skipped, book, [FailedNote], null);
+            return Skipped(book);
         }
     }
 
-    private static string Snapshot(PageProfile profile, int sheets) => JsonSerializer.Serialize(new
+    private static LaidOut Skipped(byte[] book) => new(RenditionLayout.Skipped, book, [FailedNote], null);
+
+    /// <summary>
+    /// Снимок того, что ДЕЙСТВИТЕЛЬНО записано в каждый вписанный лист: бумага и ориентация бывают
+    /// автора, а верх и низ — автора у листа с колонтитулом. Код профиля один на всю книгу.
+    /// </summary>
+    private static string Snapshot(PageProfile profile, IEnumerable<SheetFacts> sheets) => JsonSerializer.Serialize(new
     {
         profile = profile.Code,
-        paperSize = profile.PaperSize,
-        orientation = profile.Orientation,
         fit = "width",
-        marginMm = profile.MarginMm,
-        sheets,
-    });
+        sheets = sheets.Select(facts =>
+        {
+            var page = Effective(facts, profile);
+            return new
+            {
+                paperSize = page.PaperSize,
+                paperWidth = page.PaperWidth,
+                paperHeight = page.PaperHeight,
+                orientation = page.Orientation,
+                marginsMm = new
+                {
+                    left = Mm(page.Left), right = Mm(page.Right), top = Mm(page.Top), bottom = Mm(page.Bottom),
+                },
+            };
+        }).ToList(),
+    }, SnapshotJson);
+
+    private static readonly JsonSerializerOptions SnapshotJson = new()
+    {
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+    };
+
+    private static double Mm(double inches) => Math.Round(inches * 25.4, 1);
 
     // ── Листы книги ─────────────────────────────────────────────────────────────────────────────
 
@@ -150,7 +195,7 @@ public static class ExcelPageLayout
         using var zip = new ZipArchive(new MemoryStream(book, writable: false), ZipArchiveMode.Read);
         var workbook = Target(zip, "_rels/.rels", "", rel => rel.EndsWith("/officeDocument", StringComparison.Ordinal))
             .FirstOrDefault() ?? "xl/workbook.xml";
-        if (zip.GetEntry(workbook) is not { } part) return [];
+        if (Entry(zip, workbook) is not { } part) return [];
 
         var ids = new List<string>();
         using (var stream = part.Open())
@@ -180,7 +225,7 @@ public static class ExcelPageLayout
     private static Dictionary<string, string> Targets(ZipArchive zip, string rels, string folder, Func<string, bool> type)
     {
         var found = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (zip.GetEntry(rels) is not { } entry) return found;
+        if (Entry(zip, rels) is not { } entry) return found;
         using var stream = entry.Open();
         using var xml = XmlReader.Create(stream, Reading);
         while (xml.Read())
@@ -193,6 +238,14 @@ public static class ExcelPageLayout
         }
         return found;
     }
+
+    /// <summary>
+    /// Часть архива по имени. Имена частей пакета регистра не различают (OPC), а <c>GetEntry</c> — различает:
+    /// связь «Worksheets/Sheet1.xml» к записи «xl/worksheets/sheet1.xml» Excel открывает, а мы бы лист
+    /// не нашли.
+    /// </summary>
+    private static ZipArchiveEntry? Entry(ZipArchive zip, string path) => zip.GetEntry(path)
+        ?? zip.Entries.FirstOrDefault(e => string.Equals(e.FullName, path, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Путь цели связи в архиве: от корня пакета, если начинается с «/», иначе от каталога части.</summary>
     private static string Resolve(string folder, string target)
@@ -209,17 +262,21 @@ public static class ExcelPageLayout
 
     // ── Правило ─────────────────────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Что осмотр узнал о листе: решение и всё, из чего правка потом пишет три элемента раскладки. Сами
+    /// элементы малы — их держим целиком; если автор поставил элемент дважды, берётся первый.
+    /// </summary>
     /// <param name="Own">Автор задал раскладку сам — лист не трогаем.</param>
-    /// <param name="HeaderFooter">У листа есть колонтитул с текстом: его полю ноль ставить нельзя.</param>
-    private sealed record SheetFacts(bool Own, bool HeaderFooter, double? Header, double? Footer);
+    /// <param name="HeaderFooter">У листа есть колонтитул с текстом.</param>
+    private sealed record SheetFacts(bool Own, bool HeaderFooter, XElement? SheetPr, XElement? Margins, XElement? Setup);
 
     private static SheetFacts Inspect(Stream sheet)
     {
         bool own = false, headerFooter = false;
-        double? header = null, footer = null;
+        XElement? sheetPr = null, margins = null, setup = null;
         using var xml = XmlReader.Create(sheet, Reading);
         xml.MoveToContent();
-        if (!xml.Read()) return new(false, false, null, null);
+        if (!xml.Read()) return new(false, false, null, null, null);
         while (!xml.EOF)
         {
             if (xml.NodeType != XmlNodeType.Element || xml.Depth != 1 || xml.NamespaceURI != Main)
@@ -228,24 +285,24 @@ public static class ExcelPageLayout
                 else xml.Read();
                 continue;
             }
+            // Элемент читается ВСЕГДА, даже если такой уже встречался: чтение и двигает читателя дальше.
             switch (xml.LocalName)
             {
                 case "sheetPr":
-                    using (var inner = xml.ReadSubtree())
-                        while (inner.Read())
-                            if (inner.NodeType == XmlNodeType.Element && inner.LocalName == "pageSetUpPr"
-                                && inner.GetAttribute("fitToPage") is "1" or "true")
-                                own = true;
-                    xml.Read();
+                    var props = (XElement)XNode.ReadFrom(xml);
+                    sheetPr ??= props;
+                    if (props.Descendants().Any(e => e.Name.LocalName == "pageSetUpPr"
+                                                     && e.Attribute("fitToPage")?.Value is "1" or "true"))
+                        own = true;
                     break;
                 case "pageSetup":
-                    if (xml.GetAttribute("scale") is { } scale && scale.Trim() != "100") own = true;
-                    xml.Skip();
+                    var page = (XElement)XNode.ReadFrom(xml);
+                    setup ??= page;
+                    if (page.Attribute("scale")?.Value is { } scale && scale.Trim() != "100") own = true;
                     break;
                 case "pageMargins":
-                    header = Number(xml.GetAttribute("header"));
-                    footer = Number(xml.GetAttribute("footer"));
-                    xml.Skip();
+                    var fields = (XElement)XNode.ReadFrom(xml);
+                    margins ??= fields;
                     break;
                 case "colBreaks":
                     using (var inner = xml.ReadSubtree())
@@ -265,17 +322,55 @@ public static class ExcelPageLayout
                     break;
             }
         }
-        return new(own, headerFooter, header, footer);
+        return new(own, headerFooter, sheetPr, margins, setup);
     }
 
-    private static double? Number(string? value) =>
-        double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) ? number : null;
+    /// <summary>Что пишется в лист. Поля — в дюймах, как в разметке.</summary>
+    /// <param name="PaperSize">Код бумаги; <c>null</c> — автор задал бумагу размерами и кода у неё нет.</param>
+    private sealed record Page(string? PaperSize, string? PaperWidth, string? PaperHeight, string Orientation,
+        double Left, double Right, double Top, double Bottom, double Header, double Footer);
+
+    /// <summary>
+    /// Одно место, где решается, что встанет в лист, — его читают и правка, и снимок: иначе снимок
+    /// писал бы профиль там, где в лист ушли бумага, ориентация или поля автора.
+    /// </summary>
+    private static Page Effective(SheetFacts facts, PageProfile profile)
+    {
+        var setup = facts.Setup;
+        string? width = setup?.Attribute("paperWidth")?.Value, height = setup?.Attribute("paperHeight")?.Value;
+        var custom = width is not null && height is not null;
+        var paper = setup?.Attribute("paperSize")?.Value
+                    ?? (custom ? null : profile.PaperSize.ToString(CultureInfo.InvariantCulture));
+        var orientation = setup?.Attribute("orientation")?.Value is "portrait" or "landscape"
+            ? setup.Attribute("orientation")!.Value
+            : profile.Orientation;
+
+        var side = profile.MarginMm / 25.4;
+        if (!facts.HeaderFooter)
+            return new(paper, custom ? width : null, custom ? height : null, orientation, side, side, side, side, 0, 0);
+
+        // Умолчания — Excel: поле 0,75″, колонтитул 0,3″ от края.
+        var margins = facts.Margins;
+        return new(paper, custom ? width : null, custom ? height : null, orientation, side, side,
+            Number(margins, "top") ?? 0.75, Number(margins, "bottom") ?? 0.75,
+            Number(margins, "header") ?? 0.3, Number(margins, "footer") ?? 0.3);
+    }
+
+    private static double? Number(XElement? element, string name) =>
+        double.TryParse(element?.Attribute(name)?.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)
+            ? number
+            : null;
 
     // ── Правка ──────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>
     /// Новый архив: части листов из плана переписаны, остальные скопированы как были, в том же порядке
     /// (<c>[Content_Types].xml</c> первым — некоторые читатели на этом настаивают).
+    ///
+    /// <para>Часть, которая в исходнике не сжалась (картинки, уже сжатое, записанное без сжатия),
+    /// второй раз не сжимается: архив живёт до конвертера на той же машине, и тратить на него время
+    /// процессора незачем. Перепаковки целиком это не отменяет — нетронутую часть <c>ZipArchive</c>
+    /// скопировать сжатой не умеет.</para>
     /// </summary>
     private static byte[] Rewrite(byte[] book, Dictionary<string, SheetFacts> plan, PageProfile profile, CancellationToken ct)
     {
@@ -286,11 +381,16 @@ public static class ExcelPageLayout
             foreach (var entry in source.Entries)
             {
                 ct.ThrowIfCancellationRequested();
-                var copy = target.CreateEntry(entry.FullName, CompressionLevel.Fastest);
-                copy.LastWriteTime = entry.LastWriteTime;
+                var sheet = plan.TryGetValue(entry.FullName, out var facts);
+                var squeezed = entry.CompressedLength < entry.Length * 9 / 10;
+                var copy = target.CreateEntry(entry.FullName,
+                    sheet || squeezed ? CompressionLevel.Fastest : CompressionLevel.NoCompression);
+                // Дата записи бывает и вне того, что умеет архив (расширенные поля времени): копия без
+                // неё ничем не хуже, а исключение отняло бы у книги раскладку.
+                if (entry.LastWriteTime.Year is >= 1980 and <= 2107) copy.LastWriteTime = entry.LastWriteTime;
                 using var from = entry.Open();
                 using var to = copy.Open();
-                if (plan.TryGetValue(entry.FullName, out var facts)) RewriteSheet(from, to, facts, profile);
+                if (sheet) RewriteSheet(from, to, facts!, profile);
                 else from.CopyTo(to);
             }
         }
@@ -315,12 +415,14 @@ public static class ExcelPageLayout
         writer.WriteAttributes(xml, defattr: true);
         xml.MoveToElement();
 
+        var page = Effective(facts, profile);
         bool sheetPr = false, margins = false, setup = false;
+        // Пишет каждый из трёх элементов раскладки, место которого по схеме раньше ранга, — один раз.
         void Before(int rank)
         {
-            if (!sheetPr && rank > SheetPrRank) { WriteSheetPr(writer, prefix, null); sheetPr = true; }
-            if (!margins && rank > MarginsRank) { WriteMargins(writer, prefix, facts, profile); margins = true; }
-            if (!setup && rank > SetupRank) { WriteSetup(writer, prefix, null, profile); setup = true; }
+            if (!sheetPr && rank > SheetPrRank) { WriteSheetPr(writer, prefix, facts.SheetPr); sheetPr = true; }
+            if (!margins && rank > MarginsRank) { WriteMargins(writer, prefix, page); margins = true; }
+            if (!setup && rank > SetupRank) { WriteSetup(writer, prefix, facts.Setup, page); setup = true; }
         }
 
         if (xml.IsEmptyElement)
@@ -341,17 +443,16 @@ public static class ExcelPageLayout
 
             var rank = xml.NamespaceURI == Main ? Rank(xml.LocalName)
                 : xml.NamespaceURI == Compatibility && xml.LocalName == "AlternateContent" ? AlternateRank : -1;
-            if (rank >= 0) Before(rank);
-
-            if (xml.NamespaceURI == Main && xml.LocalName == "sheetPr") { WriteSheetPr(writer, prefix, xml); sheetPr = true; }
-            else if (xml.NamespaceURI == Main && xml.LocalName == "pageMargins")
+            if (rank == SheetPrRank || rank == MarginsRank || rank == SetupRank)
             {
-                WriteMargins(writer, prefix, facts, profile);
-                margins = true;
+                // Элемент раскладки уже записан по осмотру (или запишется здесь же, на своём месте) —
+                // исходный пропускаем, где бы он ни стоял и сколько бы раз ни встречался.
+                Before(rank + 1);
                 xml.Skip();
+                continue;
             }
-            else if (xml.NamespaceURI == Main && xml.LocalName == "pageSetup") { WriteSetup(writer, prefix, xml, profile); setup = true; }
-            else writer.WriteNode(xml, defattr: true);
+            if (rank >= 0) Before(rank);
+            writer.WriteNode(xml, defattr: true);
         }
 
         Before(int.MaxValue);
@@ -361,104 +462,70 @@ public static class ExcelPageLayout
 
     /// <summary>
     /// <c>sheetPr</c> с <c>pageSetUpPr/@fitToPage=1</c>. Прочие свойства листа — как были;
-    /// <c>pageSetUpPr</c> по схеме последний, поэтому недостающий встаёт перед закрытием.
+    /// <c>pageSetUpPr</c> по схеме последний, поэтому пишется перед закрытием, один.
     /// </summary>
-    private static void WriteSheetPr(XmlWriter writer, string prefix, XmlReader? xml)
+    private static void WriteSheetPr(XmlWriter writer, string prefix, XElement? props)
     {
         writer.WriteStartElement(prefix, "sheetPr", Main);
-        if (xml is null)
+        XElement? fit = null;
+        if (props is not null)
         {
-            WriteFit(writer, prefix, null);
-            writer.WriteEndElement();
-            return;
+            CopyAttributes(writer, props);
+            foreach (var node in props.Nodes())
+                if (node is XElement element && element.Name == X + "pageSetUpPr") fit ??= element;
+                else node.WriteTo(writer);
         }
-
-        CopyAttributes(writer, xml, skip: null);
-        if (xml.IsEmptyElement)
-        {
-            WriteFit(writer, prefix, null);
-            writer.WriteEndElement();
-            xml.Read();
-            return;
-        }
-
-        var fit = false;
-        xml.Read();
-        while (!(xml.NodeType == XmlNodeType.EndElement && xml.Depth == 1))
-        {
-            if (xml.NodeType == XmlNodeType.Element && xml.NamespaceURI == Main && xml.LocalName == "pageSetUpPr")
-            {
-                WriteFit(writer, prefix, xml);
-                fit = true;
-                xml.Skip();
-            }
-            else writer.WriteNode(xml, defattr: true);
-        }
-        if (!fit) WriteFit(writer, prefix, null);
-        writer.WriteEndElement();
-        xml.Read();
-    }
-
-    private static void WriteFit(XmlWriter writer, string prefix, XmlReader? existing)
-    {
         writer.WriteStartElement(prefix, "pageSetUpPr", Main);
-        if (existing is not null) CopyAttributes(writer, existing, skip: "fitToPage");
+        if (fit is not null) CopyAttributes(writer, fit, "fitToPage");
         writer.WriteAttributeString("fitToPage", "1");
         writer.WriteEndElement();
+        writer.WriteEndElement();
     }
 
-    private static void WriteMargins(XmlWriter writer, string prefix, SheetFacts facts, PageProfile profile)
+    private static void WriteMargins(XmlWriter writer, string prefix, Page page)
     {
-        var inches = Inches(profile.MarginMm);
         writer.WriteStartElement(prefix, "pageMargins", Main);
-        foreach (var side in new[] { "left", "right", "top", "bottom" }) writer.WriteAttributeString(side, inches);
-        // Колонтитул с текстом остаётся на своём поле (а нет своего — на поле Excel по умолчанию).
-        writer.WriteAttributeString("header", facts.HeaderFooter ? Format(facts.Header ?? 0.3) : "0");
-        writer.WriteAttributeString("footer", facts.HeaderFooter ? Format(facts.Footer ?? 0.3) : "0");
+        writer.WriteAttributeString("left", Format(page.Left));
+        writer.WriteAttributeString("right", Format(page.Right));
+        writer.WriteAttributeString("top", Format(page.Top));
+        writer.WriteAttributeString("bottom", Format(page.Bottom));
+        writer.WriteAttributeString("header", Format(page.Header));
+        writer.WriteAttributeString("footer", Format(page.Footer));
         writer.WriteEndElement();
     }
 
     /// <summary>
     /// <c>pageSetup</c> с вписыванием по ширине. Атрибуты автора остаются, кроме вписывания; бумага и
-    /// ориентация — его, если записаны, иначе профиля.
+    /// ориентация — из <see cref="Effective" />. Содержимого у элемента по схеме нет.
     /// </summary>
-    private static void WriteSetup(XmlWriter writer, string prefix, XmlReader? xml, PageProfile profile)
+    private static void WriteSetup(XmlWriter writer, string prefix, XElement? setup, Page page)
     {
         writer.WriteStartElement(prefix, "pageSetup", Main);
-        var paper = false;
-        var orientation = false;
-        if (xml is not null)
-        {
-            paper = xml.GetAttribute("paperSize") is not null
-                    || (xml.GetAttribute("paperWidth") is not null && xml.GetAttribute("paperHeight") is not null);
-            orientation = xml.GetAttribute("orientation") is "portrait" or "landscape";
-            CopyAttributes(writer, xml, skip: null, except: ["fitToWidth", "fitToHeight", "orientation"]);
-            if (orientation) writer.WriteAttributeString("orientation", xml.GetAttribute("orientation"));
-        }
-        if (!paper) writer.WriteAttributeString("paperSize", profile.PaperSize.ToString(CultureInfo.InvariantCulture));
-        if (!orientation) writer.WriteAttributeString("orientation", profile.Orientation);
+        if (setup is not null) CopyAttributes(writer, setup, "fitToWidth", "fitToHeight", "orientation", "paperSize");
+        if (page.PaperSize is not null) writer.WriteAttributeString("paperSize", page.PaperSize);
+        writer.WriteAttributeString("orientation", page.Orientation);
         writer.WriteAttributeString("fitToWidth", "1");
         writer.WriteAttributeString("fitToHeight", "0");
         writer.WriteEndElement();
-        // Содержимого у pageSetup по схеме нет — пропускаем элемент целиком, сколько бы в нём ни было.
-        xml?.Skip();
     }
 
-    /// <summary>Атрибуты элемента, на котором стоит читатель, — с их пространствами имён.</summary>
-    private static void CopyAttributes(XmlWriter writer, XmlReader xml, string? skip, string[]? except = null)
+    /// <summary>
+    /// Атрибуты элемента автора — с их пространствами имён и объявлениями, кроме названных. Объявление
+    /// пространства по умолчанию не копируется: имя элемента пишем мы, и пространство у него наше.
+    /// </summary>
+    private static void CopyAttributes(XmlWriter writer, XElement element, params string[] except)
     {
-        if (!xml.MoveToFirstAttribute()) return;
-        do
+        foreach (var attribute in element.Attributes())
         {
-            if (xml.LocalName == skip && xml.NamespaceURI.Length == 0) continue;
-            if (except is not null && xml.NamespaceURI.Length == 0 && except.Contains(xml.LocalName)) continue;
-            writer.WriteAttributeString(xml.Prefix, xml.LocalName, xml.NamespaceURI, xml.Value);
+            var name = attribute.Name;
+            if (name.Namespace == XNamespace.None && (name.LocalName == "xmlns" || except.Contains(name.LocalName))) continue;
+            if (attribute.IsNamespaceDeclaration)
+                writer.WriteAttributeString("xmlns", name.LocalName, XNamespace.Xmlns.NamespaceName, attribute.Value);
+            else
+                writer.WriteAttributeString(element.GetPrefixOfNamespace(name.Namespace), name.LocalName,
+                    name.NamespaceName, attribute.Value);
         }
-        while (xml.MoveToNextAttribute());
-        xml.MoveToElement();
     }
-
-    private static string Inches(double mm) => Format(mm / 25.4);
 
     private static string Format(double value) => value.ToString("0.######", CultureInfo.InvariantCulture);
 }

@@ -210,6 +210,56 @@ public class RenditionServiceTests
         Assert.Equal([ExcelPageLayout.AppliedNote(PageProfile.Default, 1)], built.Notes);
     }
 
+    /// <summary>
+    /// Вписанная копия получила отказ «не вышло» — образ строится второй раз, по ОРИГИНАЛУ: виновата
+    /// могла быть правка, а запомненный отказ закрыл бы вид, который по файлу строится. Исход в записи —
+    /// <see cref="RenditionLayout.Skipped" /> с пометкой, а не «вписан».
+    /// </summary>
+    [Fact]
+    public async Task Отказ_на_вписанной_копии_повторяется_по_оригиналу()
+    {
+        var book = Workbook(b => b.CreateSheet("Sheet").CreateRow(0).CreateCell(0).SetCellValue(InvoiceText), ownLayout: false);
+        var sent = new List<byte[]>();
+        var service = Service(async (request, ct) =>
+        {
+            sent.Add(await Assert.Single(Assert.IsType<MultipartFormDataContent>(request.Content)).ReadAsByteArrayAsync(ct));
+            // Первый ответ — PDF без слов книги: постусловия отвечают Failed.
+            return PdfReply(Pdf(sent.Count == 1 ? "Something else entirely" : InvoiceText));
+        });
+
+        var built = Assert.IsType<Rendition.Built>(await service.BuildAsync(book));
+
+        Assert.Equal(2, sent.Count);
+        Assert.NotEqual(book, sent[0]);
+        Assert.Equal(book, sent[1]);
+        Assert.Equal((RenditionLayout.Skipped, (string?)null), (built.Layout, built.LayoutApplied));
+        Assert.Equal([ExcelPageLayout.FailedNote], built.Notes);
+    }
+
+    /// <summary>
+    /// Повтор — только у вписанной копии и только на «не вышло». Книга автора с тем же отказом
+    /// повторно не строится: по тому же массиву вышло бы то же. Недоступный конвертер — не вина
+    /// правки, и второй вызов был бы вторым ожиданием.
+    /// </summary>
+    [Theory]
+    [InlineData(true, HttpStatusCode.OK)]
+    [InlineData(false, HttpStatusCode.BadGateway)]
+    public async Task Прочие_отказы_не_повторяются(bool ownLayout, HttpStatusCode status)
+    {
+        var book = Workbook(b => b.CreateSheet("Sheet").CreateRow(0).CreateCell(0).SetCellValue(InvoiceText), ownLayout: ownLayout);
+        var calls = 0;
+        var service = Service((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(status == HttpStatusCode.OK
+                ? PdfReply(Pdf("Something else entirely"))
+                : new HttpResponseMessage(status));
+        });
+
+        Assert.IsType<Rendition.Refused>(await service.BuildAsync(book));
+        Assert.Equal(1, calls);
+    }
+
     [Fact]
     public async Task Книга_со_своей_раскладкой_уходит_тем_же_массивом()
     {
@@ -283,7 +333,7 @@ public class RenditionServiceTests
 
         Assert.Equal((1, RenditionLayout.Applied), (built.Pages, built.Layout));
         Assert.DoesNotContain(built.Notes, note => note.StartsWith("Часть текста", StringComparison.Ordinal));
-        Assert.InRange(RenditionPostconditions.MedianPointSize(pdf)!.Value, 6.5, 7.5);
+        Assert.InRange(built.MedianPointSize!.Value, 6.5, 7.5);
     }
 
     private static Dictionary<string, string> Parts(byte[] book)

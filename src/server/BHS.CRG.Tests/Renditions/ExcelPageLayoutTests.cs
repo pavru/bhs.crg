@@ -84,15 +84,61 @@ public class ExcelPageLayoutTests
     public void Масштаб_100_и_пустой_перечень_разрывов_раскладкой_не_считаются(string tail)
         => Assert.Equal(RenditionLayout.Applied, Apply(Book(Sheet(Data + Margins() + tail))).Outcome);
 
-    /// <summary>Колонтитул с текстом остаётся на своём поле: под нулевым он лёг бы на таблицу.</summary>
+    /// <summary>
+    /// Колонтитул с текстом: верх, низ и поля колонтитулов остаются автора, профиль ставит только левое и
+    /// правое. Под верхним полем профиля (5 мм) колонтитул на 0,3″ от края LibreOffice не печатает вовсе —
+    /// проба к ревью PR #1470: в виде его не было.
+    /// </summary>
     [Fact]
-    public void Колонтитул_с_текстом_сохраняет_своё_поле()
+    public void Колонтитул_с_текстом_оставляет_верх_и_низ_автора()
     {
         var laid = Apply(Book(Sheet(Data + Margins(header: "0.4", footer: "0.35") +
             "<headerFooter><oddFooter>&amp;P из &amp;N</oddFooter></headerFooter>")));
 
         var margins = SheetOf(laid.File).Element(X + "pageMargins")!;
-        Assert.Equal(("0.4", "0.35"), (Attr(margins, "header"), Attr(margins, "footer")));
+        Assert.Equal(("0.19685", "0.19685", "0.75", "0.75", "0.4", "0.35"), (Attr(margins, "left"), Attr(margins, "right"),
+            Attr(margins, "top"), Attr(margins, "bottom"), Attr(margins, "header"), Attr(margins, "footer")));
+        Assert.Contains("\"marginsMm\":{\"left\":5,\"right\":5,\"top\":19,\"bottom\":19}", laid.Applied);
+    }
+
+    /// <summary>Без своих полей у листа с колонтитулом — поля Excel по умолчанию, а не профиля.</summary>
+    [Fact]
+    public void Колонтитул_без_полей_автора_получает_поля_Excel_по_умолчанию()
+    {
+        var laid = Apply(Book(Sheet(Data + "<headerFooter><oddHeader>Счёт</oddHeader></headerFooter>")));
+
+        var margins = SheetOf(laid.File).Element(X + "pageMargins")!;
+        Assert.Equal(("0.75", "0.3"), (Attr(margins, "top"), Attr(margins, "header")));
+    }
+
+    /// <summary>
+    /// Снимок — то, что записано в лист, а не профиль: бумага и ориентация автора стоят в нём своими
+    /// значениями.
+    /// </summary>
+    [Fact]
+    public void Снимок_называет_бумагу_и_ориентацию_автора()
+    {
+        var laid = Apply(Book(Sheet(Data + Margins() + "<pageSetup paperSize=\"8\" orientation=\"landscape\"/>"),
+            second: Sheet(Data + Margins())));
+
+        Assert.Equal("{\"profile\":\"default\",\"fit\":\"width\",\"sheets\":[" +
+                     "{\"paperSize\":\"8\",\"orientation\":\"landscape\",\"marginsMm\":{\"left\":5,\"right\":5,\"top\":5,\"bottom\":5}}," +
+                     "{\"paperSize\":\"9\",\"orientation\":\"portrait\",\"marginsMm\":{\"left\":5,\"right\":5,\"top\":5,\"bottom\":5}}]}",
+            laid.Applied);
+    }
+
+    /// <summary>
+    /// Ручные разрывы строк своей раскладкой не считаются: вписывание по ширине им не мешает (проба к
+    /// ревью PR #1470 — разрыв соблюдён, кегль тот же). Сами разрывы остаются.
+    /// </summary>
+    [Fact]
+    public void Разрывы_строк_не_мешают_вписыванию_и_остаются()
+    {
+        var laid = Apply(Book(Sheet(Data + Margins() +
+            "<rowBreaks count=\"1\" manualBreakCount=\"1\"><brk id=\"20\" max=\"16383\" man=\"1\"/></rowBreaks>")));
+
+        Assert.Equal(RenditionLayout.Applied, laid.Outcome);
+        Assert.Equal("20", SheetOf(laid.File).Element(X + "rowBreaks")!.Element(X + "brk")!.Attribute("id")!.Value);
     }
 
     [Fact]
@@ -119,6 +165,40 @@ public class ExcelPageLayoutTests
         Assert.Equal([ExcelPageLayout.FailedNote], laid.Notes);
     }
 
+    /// <summary>
+    /// Ни одного листа не нашлось — это «книгу не поняли», а не «автор задал раскладку сам»: исход
+    /// <see cref="RenditionLayout.Skipped" /> с пометкой, а не <see cref="RenditionLayout.BookOwn" /> молча.
+    /// </summary>
+    [Theory]
+    [InlineData("нет части листа")]
+    [InlineData("нет оглавления")]
+    [InlineData("одни диаграммы")]
+    public void Книга_без_найденных_листов_уходит_как_есть_с_пометкой(string why)
+    {
+        var book = why switch
+        {
+            "нет части листа" => Book(Sheet(Data), entryName: "xl/worksheets/other.xml"),
+            "нет оглавления" => Book(Sheet(Data), withoutWorkbook: true),
+            _ => Book(Sheet(Data), sheetType: "chartsheet"),
+        };
+
+        var laid = Apply(book);
+
+        Assert.Equal(RenditionLayout.Skipped, laid.Outcome);
+        Assert.Same(book, laid.File);
+        Assert.Equal([ExcelPageLayout.FailedNote], laid.Notes);
+    }
+
+    /// <summary>Имена частей пакета регистра не различают: связь «Worksheets/Sheet1.xml» ведёт к «worksheets/sheet1.xml».</summary>
+    [Fact]
+    public void Лист_находится_и_при_другом_регистре_имени_в_связи()
+    {
+        var laid = Apply(Book(Sheet(Data + Margins()), sheetTarget: "Worksheets/Sheet1.xml", entryName: SheetPath));
+
+        Assert.Equal(RenditionLayout.Applied, laid.Outcome);
+        Assert.NotNull(SheetOf(laid.File).Element(X + "pageSetup"));
+    }
+
     // ── Правка ──────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -136,6 +216,23 @@ public class ExcelPageLayoutTests
         var names = SheetOf(laid.File).Elements().Select(e => e.Name.LocalName).ToList();
         Assert.Equal(["sheetPr", "dimension", "sheetData", "mergeCells", "printOptions", "pageMargins", "pageSetup",
             "headerFooter", "drawing", "extLst"], names);
+    }
+
+    /// <summary>
+    /// Элементы раскладки автора не по порядку схемы или дважды — в копии каждый один и на своём месте.
+    /// Свойства листа после <c>dimension</c> переезжают вперёд со своим содержимым.
+    /// </summary>
+    [Fact]
+    public void Элементы_раскладки_не_по_порядку_и_дважды_выходят_по_одному_на_своём_месте()
+    {
+        var laid = Apply(Book(Sheet("<dimension ref=\"A1:B1\"/><sheetPr codeName=\"Лист1\"/>",
+            Data + "<pageSetup paperSize=\"8\"/>" + Margins() + Margins(header: "0.5") + "<pageSetup paperSize=\"5\"/>")));
+
+        var sheet = SheetOf(laid.File);
+        Assert.Equal(["sheetPr", "dimension", "sheetData", "pageMargins", "pageSetup"], sheet.Elements().Select(e => e.Name.LocalName));
+        Assert.Equal("Лист1", Attr(sheet.Element(X + "sheetPr")!, "codeName"));
+        // Из двух — первый.
+        Assert.Equal("8", Attr(sheet.Element(X + "pageSetup")!, "paperSize"));
     }
 
     [Fact]
@@ -252,12 +349,13 @@ public class ExcelPageLayoutTests
 
     /// <summary>Книга из частей: оглавление, связи и один-два листа.</summary>
     private static byte[] Book(string sheet, string? second = null, string secondState = "visible",
-        string sheetTarget = "worksheets/sheet1.xml", string workbookNs = Main, (string Name, string Xml)? extra = null)
+        string sheetTarget = "worksheets/sheet1.xml", string workbookNs = Main, (string Name, string Xml)? extra = null,
+        string? entryName = null, string sheetType = "worksheet", bool withoutWorkbook = false)
     {
         const string rels = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
         var sheets = "<sheet name=\"Счёт\" sheetId=\"1\" r:id=\"rId1\"/>" +
                      (second is null ? "" : $"<sheet name=\"Второй\" sheetId=\"2\" state=\"{secondState}\" r:id=\"rId2\"/>");
-        var links = $"<Relationship Id=\"rId1\" Type=\"{rels}/worksheet\" Target=\"{sheetTarget}\"/>" +
+        var links = $"<Relationship Id=\"rId1\" Type=\"{rels}/{sheetType}\" Target=\"{sheetTarget}\"/>" +
                     (second is null ? "" : $"<Relationship Id=\"rId2\" Type=\"{rels}/worksheet\" Target=\"worksheets/sheet2.xml\"/>");
         var parts = new List<(string, string)>
         {
@@ -267,8 +365,9 @@ public class ExcelPageLayoutTests
             ("xl/workbook.xml", $"<workbook xmlns=\"{workbookNs}\" xmlns:r=\"{rels}\"><sheets>{sheets}</sheets></workbook>"),
             ("xl/_rels/workbook.xml.rels", "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
                 links + "</Relationships>"),
-            (sheetTarget.StartsWith('/') ? sheetTarget[1..] : "xl/" + sheetTarget, sheet),
+            (entryName ?? (sheetTarget.StartsWith('/') ? sheetTarget[1..] : "xl/" + sheetTarget), sheet),
         };
+        if (withoutWorkbook) parts.RemoveAll(part => part.Item1 == "xl/workbook.xml");
         if (second is not null) parts.Add(("xl/worksheets/sheet2.xml", second));
         if (extra is { } more) parts.Add(more);
 

@@ -77,6 +77,13 @@ public abstract record Rendition
 
         /// <summary>Снимок применённых параметров профиля, JSON — только у вписанной книги.</summary>
         public string? LayoutApplied { get; init; }
+
+        /// <summary>
+        /// Медиана кегля видимых букв (pt), с учётом повторов: по ней построитель решает, сказать ли
+        /// «вид уменьшен». Ставят постусловия тем же проходом, что сверку, и не хранится —
+        /// <c>null</c> у образа, собранного не ими.
+        /// </summary>
+        public double? MedianPointSize { get; init; }
     }
 
     /// <summary>Образа нет.</summary>
