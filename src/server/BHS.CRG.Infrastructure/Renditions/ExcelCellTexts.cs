@@ -32,23 +32,30 @@ internal static class ExcelCellTexts
     /// <param name="Refusal">Почему из книги образа не будет; тогда слов нет.</param>
     /// <param name="Unreadable">Чем разборщик упал — тип исключения, для журнала. Текст исключения не
     /// берётся: в нём бывают куски содержимого. Не <c>null</c> — книга идёт к конвертеру без сверки.</param>
-    public sealed record Read(IReadOnlyList<string> Words, Rendition.Refused? Refusal, string? Unreadable = null);
+    public sealed record Read(IReadOnlyList<string> Words, Rendition.Refused? Refusal, string? Unreadable = null)
+    {
+        /// <summary>
+        /// Листы, у которых есть что печатать, по порядку книги (issue #1457). Каждый из них конвертер
+        /// начинает с новой страницы — и лист с параметрами выгрузки выглядит в виде продолжением счёта.
+        /// </summary>
+        public IReadOnlyList<string> Sheets { get; init; } = [];
+    }
 
     public static Read From(byte[] file, OfficeFormat format, CancellationToken ct)
     {
         try
         {
-            var areas = format == OfficeFormat.Xlsx ? ExcelPrintAreas.Of(file) : ExcelPrintAreas.None;
+            var areas = ExcelPrintAreas.Of(file, format);
             using var reader = ExcelReaderFactory.CreateReader(new MemoryStream(file, writable: false));
             var words = new List<string>();
+            var sheets = new List<string>();
             var cells = 0;
             long visited = 0;
-            var sheet = -1;
             do
             {
-                sheet++;
                 if (!string.Equals(reader.VisibleState, "visible", StringComparison.OrdinalIgnoreCase)) continue;
                 var row = -1;
+                var prints = false;
                 while (reader.Read())
                 {
                     row++;
@@ -69,14 +76,17 @@ internal static class ExcelCellTexts
                         if (++cells > RenditionLimits.MaxCells)
                             return Refuse(RenditionRefusal.TooLarge,
                                 $"Файл слишком велик для читаемого вида: в книге больше {RenditionLimits.MaxCells} заполненных ячеек.");
-                        if (value is string cell && areas.Prints(sheet, row, column)) words.AddRange(WordsOf(cell));
+                        if (!areas.Prints(reader.Name, row, column)) continue;
+                        prints = true;
+                        if (value is string cell) words.AddRange(WordsOf(cell));
                     }
                 }
+                if (prints) sheets.Add(reader.Name);
             } while (reader.NextResult());
 
             return cells == 0
                 ? Refuse(RenditionRefusal.Empty, "В книге нет ни одной заполненной ячейки — показывать нечего.")
-                : new Read(words, null);
+                : new Read(words, null) { Sheets = sheets };
         }
         catch (InvalidPasswordException)
         {

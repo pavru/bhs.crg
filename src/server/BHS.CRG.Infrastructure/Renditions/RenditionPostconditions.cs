@@ -25,6 +25,7 @@ public static class RenditionPostconditions
     public static Rendition Check(byte[] pdf, IReadOnlyList<string>? cellWords)
     {
         List<string> pages;
+        var pictured = 0;
         var sizes = new List<double>();
         try
         {
@@ -33,7 +34,13 @@ public static class RenditionPostconditions
                 return new Rendition.Refused(RenditionRefusal.TooLarge,
                     $"Файл слишком велик для читаемого вида: получилось {document.NumberOfPages} страниц, " +
                     $"а предел — {RenditionLimits.MaxPages}.");
-            pages = [.. document.GetPages().Select(page => VisibleText(page, sizes))];
+            pages = [];
+            foreach (var page in document.GetPages())
+            {
+                var visible = VisibleText(page, sizes);
+                if (visible.Length == 0 && HasPicture(page)) pictured++;
+                pages.Add(visible);
+            }
         }
         // Разборщик PDF на чужом содержимом падает чем угодно; для нас это одно: ответ — не PDF.
         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -55,9 +62,7 @@ public static class RenditionPostconditions
 
         var notes = new List<string>();
         var blank = pages.Count(page => page.Length == 0);
-        // Страницу без текста не выбрасываем, а называем: на ней может стоять печать или подпись
-        // картинкой, и по текстовому слою пустую от такой не отличить.
-        if (blank > 0) notes.Add($"Страниц: {pages.Count}, из них без текста: {blank}.");
+        if (blank > 0) notes.Add(BlankPagesNote(pages.Count, blank, pictured));
 
         if (cellWords is { Count: > 0 })
         {
@@ -73,6 +78,36 @@ public static class RenditionPostconditions
 
         sizes.Sort();
         return new Rendition.Built(pdf, pages.Count, notes) { MedianPointSize = sizes[sizes.Count / 2] };
+    }
+
+    /// <summary>
+    /// Пометка о страницах без текста. Страница не выбрасывается, а называется — и, если на ней видна
+    /// картинка, называется картинкой (issue #1457): у старых книг это обычно продолжение картинки, не
+    /// поместившейся внизу листа, — печать, подпись, условия оферты, вставленные картинкой. «Без текста»
+    /// без уточнения человек читал как «лишняя пустая страница» и её пролистывал.
+    ///
+    /// <para>⚠️ Картинки нет — это ещё не «пусто»: рисунок EMF/WMF (так бывают вставлены и печать, и
+    /// подпись) и рамки ячеек LibreOffice пишет линиями, а не картинкой. Поэтому про такую страницу
+    /// сказано только «без текста» — утверждать, что на ней ничего нет, отсюда нельзя (ревью #1457).</para>
+    /// </summary>
+    private static string BlankPagesNote(int pages, int blank, int pictured)
+    {
+        var head = $"Страниц: {pages}, из них без текста: {blank}";
+        if (pictured == 0) return head + ".";
+        const string pictures = "только картинки (печать, подпись, текст картинкой).";
+        if (pictured < blank) return $"{head}, на {pictured} из них — {pictures}";
+        return $"{head} — {(blank == 1 ? "на ней" : "на них")} {pictures}";
+    }
+
+    /// <summary>
+    /// Видна ли на странице картинка. Считается только та, что хоть краем стоит на листе: картинку,
+    /// уехавшую за край, LibreOffice тоже записывает в страницу, но на ней её никто не увидит.
+    /// </summary>
+    private static bool HasPicture(Page page)
+    {
+        var sheet = page.CropBox.Bounds;
+        return page.GetImages().Any(image => image.Bounds.Right > sheet.Left && image.Bounds.Left < sheet.Right
+                                             && image.Bounds.Top > sheet.Bottom && image.Bounds.Bottom < sheet.Top);
     }
 
     /// <summary>
