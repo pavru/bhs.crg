@@ -1,16 +1,17 @@
+import { useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import {
-  Bell, BellOff, Info, AlertTriangle, AlertCircle, X, Check, CheckCheck, Trash2, HeartPulse, Download,
-  ArrowRight, ExternalLink,
+  BellOff, Info, AlertTriangle, AlertCircle, X, Check, CheckCheck, Trash2, HeartPulse, Download,
+  ArrowRight, ExternalLink, ChevronDown,
 } from 'lucide-react';
 import { useGuardedNavigate } from '@/shared/ui/NavigationGuard';
 import { formatDayTime } from '@/shared/format/format';
 import { IconButton } from '@/shared/ui/Button';
 import {
-  useNotifications, useHealth,
+  useHealth,
   useMarkNotificationRead, useMarkAllNotificationsRead,
   useDismissNotification, useClearNotifications,
-  type NotificationSeverity, type NotificationDto,
+  type NotificationSeverity, type NotificationDto, type ComponentHealth,
 } from '@/shared/api/notifications';
 import { apiClient } from '@/shared/api/client';
 import { filenameFromContentDisposition, saveBlob } from '@/shared/api/attachments';
@@ -63,7 +64,7 @@ function relTime(iso: string): string {
 }
 
 function NotificationRow({ n }: { n: NotificationDto }) {
-  // Колокольчик виден над любой страницей — уходит через охрану несохранённых правок (issue #1238).
+  // Кнопка активности видна над любой страницей — уходит через охрану несохранённых правок (issue #1238).
   const navigate = useGuardedNavigate();
   const markRead = useMarkNotificationRead();
   const dismiss = useDismissNotification();
@@ -96,7 +97,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
             <Download size={13} /> {n.linkLabel ?? 'Открыть результат'}
           </button>
         ) : (
-          // Колокольчик — сигнал, а не рабочее место: уходя на экран, закрываем его за собой.
+          // Уведомления — сигнал, а не рабочее место: уходя на экран, закрываем его за собой.
           <Popover.Close asChild>
             <button
               type="button"
@@ -129,109 +130,99 @@ function NotificationRow({ n }: { n: NotificationDto }) {
   );
 }
 
-function HealthSection() {
+/** Состояние компонента словами и цветом. Три состояния, а не два: «отвечает через раз» — не норма и
+ *  ещё не отказ. Пока их было два, панель перекрашивалась на каждом опросе (issue #917). */
+function healthLook(c: ComponentHealth): { dot: string; tone: string; label: string } {
+  if (c.state === 'Up') return { dot: 'bg-success', tone: 'text-fg3', label: 'в норме' };
+  if (c.state === 'Flapping') return { dot: 'bg-warning', tone: 'text-warning', label: 'отвечает через раз' };
+  // «Не проверяли» — не норма и не отказ: сервис за упавшим прокси, и сказано о нём одной строкой
+  // выше. Выдать это за норму значило бы спрятать, за отказ — обвинить невиновного.
+  if (c.state === 'Unknown') return { dot: 'bg-fg4', tone: 'text-fg3', label: 'не проверяли' };
+  return { dot: 'bg-danger', tone: 'text-danger', label: c.detail ? 'сбой' : 'недоступен' };
+}
+
+/**
+ * Состояние системы — одной строкой, и только когда что-то не в норме (#1431): «всё в порядке»
+ * каждому на каждом открытии — шум, который приучает строку не читать. Полный список раскрывается
+ * здесь же, а не на странице администрирования: его читает и пользователь — руководство отсылает
+ * к строке «Конвертер офисных файлов», когда не строится вид для чтения.
+ *
+ * «Не проверяли» в счёт не идёт: такой компонент стоит за упавшим прокси, а прокси уже в строке.
+ */
+function HealthNote() {
   const { data: health } = useHealth();
-  if (!health || health.length === 0) return null;
+  const [open, setOpen] = useState(false);
+  const bad = (health ?? []).filter(c => c.state === 'Down' || c.state === 'Flapping');
+  if (!health || bad.length === 0) return null;
+  const down = bad.some(c => c.state === 'Down');
+  const summary = bad.length === 1
+    ? `${bad[0].name} — ${healthLook(bad[0]).label}`
+    : `не в норме: ${bad.length} из ${health.length}`;
   return (
-    <div className="px-5 pt-1 pb-2">
-      <div className="flex items-center gap-1.5 mb-1 text-xs font-medium uppercase tracking-wide text-fg3">
-        <HeartPulse size={16} /> Состояние системы
-      </div>
-      <div>
-        {health.map(c => {
-          // Три состояния, а не два: «отвечает через раз» — не норма и ещё не отказ. Пока их было
-          // два, панель перекрашивалась на каждом опросе (issue #917).
-          const dot = c.state === 'Up' ? 'bg-success' : c.state === 'Flapping' ? 'bg-warning'
-            : c.state === 'Unknown' ? 'bg-fg4' : 'bg-danger';
-          const tone = c.state === 'Up' ? 'text-fg3' : c.state === 'Flapping' ? 'text-warning'
-            : c.state === 'Unknown' ? 'text-fg3' : 'text-danger';
-          // «Не проверяли» — не норма и не отказ: сервис за упавшим прокси, и сказано о нём одной
-          // строкой выше. Выдать это за норму значило бы спрятать, за отказ — обвинить невиновного.
-          const label = c.state === 'Up' ? 'в норме'
-            : c.state === 'Flapping' ? 'отвечает через раз'
-            : c.state === 'Unknown' ? 'не проверяли'
-            : (c.detail ? 'сбой' : 'недоступен');
-          return (
-            <Tooltip key={c.code} content={c.detail ?? undefined}>
-              <div className="flex items-center gap-2.5 h-9 text-sm">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
-                <span className="text-fg1 flex-1 truncate">
-                  {c.name}
-                  {c.viaProxy && <span className="ml-1.5 text-xs text-fg4">через прокси</span>}
-                </span>
-                <span className={`text-xs font-medium shrink-0 ${tone}`}>{label}</span>
-              </div>
-            </Tooltip>
-          );
-        })}
-      </div>
+    <div className="border-b border-stroke">
+      <button type="button" aria-expanded={open} onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-2.5 pl-5 pr-4 py-2.5 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand">
+        <HeartPulse size={18} className={`shrink-0 ${down ? 'text-danger' : 'text-warning'}`} />
+        {/* Переносом, а не обрезкой: обрезанным оказывалось как раз имя сервиса — то, ради чего строка. */}
+        <span className="flex-1 min-w-0">
+          <span className="font-medium text-fg1">Состояние системы:</span>{' '}
+          <span className={down ? 'text-danger' : 'text-warning'}>{summary}</span>
+        </span>
+        <ChevronDown size={16} className={`shrink-0 text-fg3 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="pl-5 pr-4 pb-2">
+          {health.map(c => {
+            const { dot, tone, label } = healthLook(c);
+            return (
+              <Tooltip key={c.code} content={c.detail ?? undefined}>
+                <div className="flex items-center gap-2.5 h-9 text-sm">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+                  <span className="text-fg1 flex-1 truncate">
+                    {c.name}
+                    {c.viaProxy && <span className="ml-1.5 text-xs text-fg4">через прокси</span>}
+                  </span>
+                  <span className={`text-xs font-medium shrink-0 ${tone}`}>{label}</span>
+                </div>
+              </Tooltip>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
-export function NotificationsCenter() {
-  const { data } = useNotifications();
+/**
+ * Раздел «Уведомления» кнопки активности (#1431): заголовок с «Отметить все прочитанными» и
+ * «Очистить все», строка состояния системы, список. «Уже случилось» — в отличие от раздела
+ * «Выполняется» над ним.
+ */
+export function NotificationList({ items, unread }: { items: NotificationDto[]; unread: number }) {
   const markAll = useMarkAllNotificationsRead();
   const clearAll = useClearNotifications();
-
-  const items = data?.items ?? [];
-  const unread = data?.unreadCount ?? 0;
-  // Цвет бейджа: красный, если среди непрочитанных есть ошибка, иначе зелёный.
-  const hasUnreadError = items.some(n => !n.isRead && n.severity === 'Error');
-
   return (
-    <Popover.Root>
-      <Tooltip content="Уведомления">
-        <Popover.Trigger asChild>
-          <button
-            type="button"
-            aria-label="Уведомления"
-            className="relative flex items-center justify-center w-11 h-11 rounded-full transition-colors text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 data-[state=open]:bg-tonal data-[state=open]:text-on-tonal"
-          >
-            <Bell size={22} />
-            {unread > 0 && (
-              <span className={`absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full text-caption font-medium flex items-center justify-center text-white ${hasUnreadError ? 'bg-danger' : 'bg-success'}`}>
-                {unread > 99 ? '99+' : unread}
-              </span>
-            )}
-          </button>
-        </Popover.Trigger>
-      </Tooltip>
-      <Popover.Portal>
-        <Popover.Content
-          align="end"
-          sideOffset={8}
-          className="w-[400px] max-w-[calc(100vw-40px)] max-h-[calc(100vh-90px)] flex flex-col rounded-2xl border border-stroke bg-surface z-50 overflow-hidden focus:outline-none"
-          style={{ boxShadow: 'var(--f-shadow16)' }}
-        >
-          {/* Header (фиксированная шапка) */}
-          <div className="flex items-center gap-2 pl-5 pr-2 py-3 shrink-0">
-            <span className="flex-1 text-base font-medium text-fg1">Уведомления</span>
-            <IconButton label="Отметить все прочитанными" onClick={() => markAll.mutate()} disabled={unread === 0}>
-              <CheckCheck size={18} />
-            </IconButton>
-            <IconButton label="Очистить все" onClick={() => clearAll.mutate()} disabled={items.length === 0}>
-              <Trash2 size={18} />
-            </IconButton>
-          </div>
-
-          {/* Scrollable body */}
-          <div className="flex-1 overflow-y-auto min-h-0">
-            <HealthSection />
-            <div className="border-t border-stroke" />
-            {items.length === 0 ? (
-              <div className="px-6 py-9 text-center text-sm text-fg3">
-                <BellOff size={36} className="mx-auto mb-2 opacity-50" />
-                Нет новых уведомлений
-              </div>
-            ) : (
-              <div className="divide-y divide-stroke">
-                {items.map(n => <NotificationRow key={n.id} n={n} />)}
-              </div>
-            )}
-          </div>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+    <section aria-labelledby="activity-notifications">
+      <div className="flex items-center gap-2 pl-5 pr-2 py-2">
+        <h2 id="activity-notifications" className="flex-1 text-base font-medium text-fg1">Уведомления</h2>
+        <IconButton label="Отметить все прочитанными" onClick={() => markAll.mutate()} disabled={unread === 0}>
+          <CheckCheck size={18} />
+        </IconButton>
+        <IconButton label="Очистить все" onClick={() => clearAll.mutate()} disabled={items.length === 0}>
+          <Trash2 size={18} />
+        </IconButton>
+      </div>
+      <HealthNote />
+      {items.length === 0 ? (
+        <div className="px-6 py-9 text-center text-sm text-fg3">
+          <BellOff size={36} className="mx-auto mb-2 opacity-50" />
+          Нет новых уведомлений
+        </div>
+      ) : (
+        <div className="divide-y divide-stroke">
+          {items.map(n => <NotificationRow key={n.id} n={n} />)}
+        </div>
+      )}
+    </section>
   );
 }
