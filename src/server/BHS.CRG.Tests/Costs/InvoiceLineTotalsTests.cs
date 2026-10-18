@@ -13,21 +13,21 @@ namespace BHS.CRG.Tests.Costs;
 /// </summary>
 public class InvoiceLineTotalsTests
 {
-    private static readonly Guid Invoice = Guid.NewGuid();
+    private static readonly Invoice Invoice = Invoice.Create(Guid.NewGuid(), null);
 
     private static InvoiceLine Line(decimal amount, decimal? rate)
     {
-        var line = InvoiceLine.Create(Invoice);
+        var line = InvoiceLine.Create(Invoice.Id);
         // Сумма НДС не прислана: её досчитывает Completed по ставке — как при записи строки.
         line.Apply(1, new InvoiceLineValues(
-            null, "Кабель", null, "м", 1m, amount, rate, null, amount, null).Completed());
+            null, "Кабель", null, "м", 1m, amount, rate, null, amount, null).Completed(VatMode.Included));
         return line;
     }
 
     [Fact]
     public void НДС_не_указан_ни_у_одной_строки()
     {
-        var totals = InvoiceLineTotals.Of([Line(1200m, null), Line(600m, null)]);
+        var totals = InvoiceLineTotals.Of(Invoice, [Line(1200m, null), Line(600m, null)]);
 
         Assert.Equal(0m, totals.Vat);
         Assert.Equal(2, totals.VatMissing);
@@ -36,7 +36,7 @@ public class InvoiceLineTotalsTests
     [Fact]
     public void НДС_указан_у_части_строк()
     {
-        var totals = InvoiceLineTotals.Of([Line(1220m, 22m), Line(600m, null)]);
+        var totals = InvoiceLineTotals.Of(Invoice, [Line(1220m, 22m), Line(600m, null)]);
 
         Assert.Equal(220m, totals.Vat);
         Assert.Equal(1, totals.VatMissing);
@@ -45,7 +45,7 @@ public class InvoiceLineTotalsTests
     [Fact]
     public void НДС_указан_у_всех_строк()
     {
-        var totals = InvoiceLineTotals.Of([Line(1220m, 22m), Line(1100m, 10m)]);
+        var totals = InvoiceLineTotals.Of(Invoice, [Line(1220m, 22m), Line(1100m, 10m)]);
 
         Assert.Equal(320m, totals.Vat);
         Assert.Equal(0, totals.VatMissing);
@@ -55,7 +55,7 @@ public class InvoiceLineTotalsTests
     [Fact]
     public void Ставка_ноль_считается_указанной()
     {
-        var totals = InvoiceLineTotals.Of([Line(1200m, 0m)]);
+        var totals = InvoiceLineTotals.Of(Invoice, [Line(1200m, 0m)]);
 
         Assert.Equal(0m, totals.Vat);
         Assert.Equal(0, totals.VatMissing);

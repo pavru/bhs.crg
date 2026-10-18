@@ -16,7 +16,9 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <para>⚠️ Строка с <c>id</c> УЗНАЁТСЯ: она правится на месте, а не заводится заново. Иначе ссылки на
 /// строку (разноска по количеству, F1) рвались бы на каждом сохранении формы, и виноватой выглядела бы
 /// разноска.</para></param>
-public sealed record InvoiceLinesRequest(IReadOnlyList<JsonElement>? Lines);
+/// <param name="VatMode">Режим НДС счёта (issue #1497) — едет со строками: он описывает их суммы, и
+/// пишется атомарно с ними. <c>null</c> — режим не меняется; строки тогда читаются по лежащему.</param>
+public sealed record InvoiceLinesRequest(IReadOnlyList<JsonElement>? Lines, VatMode? VatMode = null);
 
 /// <summary>Строка счёта в ответе.</summary>
 /// <param name="NomenclatureName">Название позиции из справочника ядра. <c>null</c> при заполненной
@@ -53,13 +55,17 @@ public sealed record InvoiceLineView(
     decimal? Price,
     decimal? VatRate,
     decimal? VatAmount,
+    // Сумма строки С НДС — в обоих режимах счёта (issue #1497). Обратно в запрос её не присылают при НДС
+    // сверху: там бумажная сумма — netAmount, а эта посчитана сервером.
     decimal? Amount,
     string? Note,
     /// <summary>Разноска строки по стройкам и остаток «не разнесено» (F1, issue #1085).</summary>
     LineAllocationView Allocation,
     // Пометка «(запомнено)» (issue #1079): позиция подставлена из соответствий поставщика. null —
     // позицию выбрал человек либо её нет.
-    InvoiceLineMatchView? Match = null);
+    InvoiceLineMatchView? Match = null,
+    // Сумма строки из бумаги, без НДС, — только у счёта с НДС сверху; при «в том числе» null (issue #1497).
+    decimal? NetAmount = null);
 
 /// <summary>
 /// Сверка: сумма строк против суммы к оплате (ТЗ COST-6.2 — «всегда на виду, числом и не запретом»).
@@ -86,21 +92,39 @@ public sealed record InvoiceLineView(
 /// <para>⚠️ «Не указан» — это пустая сумма НДС, а не нулевая. Строка со ставкой 0 («без НДС») даёт
 /// сумму 0 и считается указанной; строка со ставкой и суммой, но без суммы НДС, получает его расчётом
 /// (<see cref="InvoiceLineValues.Completed" />) ещё до записи — тоже указанной.</para></param>
+/// <param name="Mode">Режим НДС счёта (issue #1497): от него зависит, как подписаны числа, — сами числа
+/// одни. <see cref="Amount" /> — сумма строк С НДС в обоих режимах; у строки сверху без НДС суммы с НДС
+/// нет, и в неё она не попадает (её видно по <see cref="VatMissing" />).</param>
+/// <param name="Net">Сумма строк без НДС ИЗ БУМАГИ — только при НДС сверху: там она и есть бумага. При «в
+/// том числе» <c>null</c>: сумма без НДС там производное, и полоса сверки её не показывает.</param>
+/// <param name="VatFrom">Откуда сверке брать НДС: <c>lines</c> — он указан у каждой строки;
+/// <c>requisites</c> — у строк его нет, есть «В том числе НДС» в шапке; <c>null</c> — НДС не указан нигде.
+/// Число не подменяется: сервер называет источник, а сумму НДС шапки форма и так видит.</param>
 public sealed record InvoiceLineTotals(
-    int Count, int WithoutNomenclature, decimal Amount, decimal Vat, int VatMissing)
+    int Count, int WithoutNomenclature, decimal Amount, decimal Vat, int VatMissing,
+    VatMode Mode = VatMode.Included, decimal? Net = null, string? VatFrom = null)
 {
-    public static InvoiceLineTotals Of(IReadOnlyCollection<InvoiceLine> lines) => new(
-        lines.Count,
-        lines.Count(l => l.NomenclatureId is null),
-        lines.Sum(l => l.Amount ?? 0m),
-        lines.Sum(l => l.VatAmount ?? 0m),
-        lines.Count(l => l.VatAmount is null));
+    public static InvoiceLineTotals Of(Invoice invoice, IReadOnlyCollection<InvoiceLine> lines)
+    {
+        var missing = lines.Count(l => l.VatAmount is null);
+        return new(
+            lines.Count,
+            lines.Count(l => l.NomenclatureId is null),
+            lines.Sum(l => l.Amount ?? 0m),
+            lines.Sum(l => l.VatAmount ?? 0m),
+            missing,
+            invoice.VatMode,
+            invoice.VatMode == VatMode.OnTop ? lines.Sum(l => l.NetAmount ?? 0m) : null,
+            lines.Count > 0 && missing == 0 ? "lines" : invoice.VatTotal is not null ? "requisites" : null);
+    }
 }
 
 /// <summary>Разбор присланной строки — с отказами, которые называют поле подписью с экрана.</summary>
 public static class InvoiceLineRequests
 {
     private const string IdKey = "id";
+    private const string AmountKey = "amount";
+    private const string NetAmountKey = "netAmount";
     private const string NomenclatureKey = "nomenclature";
 
     /// <summary>
@@ -143,7 +167,8 @@ public static class InvoiceLineRequests
     }
 
     /// <summary>
-    /// Значения строки — разобранные и досчитанные.
+    /// Значения строки — разобранные, как в бумаге. Досчитывает их <see cref="Complete" /> — по режиму
+    /// счёта, который известен под замком записи.
     /// </summary>
     /// <param name="number">Номер строки в присланном наборе, с единицы. Нужен отказам: «ожидается
     /// число» без номера строки заставило бы человека искать опечатку во всей таблице.</param>
@@ -162,9 +187,10 @@ public static class InvoiceLineRequests
             Price: CostsValues.Money(line, "price", $"Цена, строка {number}", PriceHint),
             VatRate: Rate(line, number),
             VatAmount: CostsValues.Money(line, "vatAmount", $"Сумма НДС, строка {number}"),
-            Amount: CostsValues.Money(line, "amount", $"Сумма, строка {number}"),
+            Amount: CostsValues.Money(line, AmountKey, $"Сумма, строка {number}"),
             Note: CostsValues.Text(line, "note", $"Примечание, строка {number}"),
-            MatchedBy: MatchedBy(line, number));
+            MatchedBy: MatchedBy(line, number),
+            NetAmount: CostsValues.Money(line, NetAmountKey, $"Сумма без НДС, строка {number}"));
 
         if (values.MatchedBy is not null && values.NomenclatureId is null)
             throw new InvalidRequestException(
@@ -172,15 +198,40 @@ public static class InvoiceLineRequests
                 "откуда позиция взялась, — без позиции ей говорить не о чем. Отмена подстановки снимает и " +
                 "позицию, и пометку.");
 
-        var completed = values.Completed();
+        return values;
+    }
+
+    /// <summary>
+    /// Досчитать разобранную строку по режиму счёта (issue #1497) — с отказами человеку.
+    ///
+    /// <para>⚠️ <b>Чужое поле суммы — отказ, а не догадка.</b> Ответ отдаёт <c>amount</c> С НДС в обоих
+    /// режимах; прими запрос при НДС сверху <c>amount</c> за бумагу, круг «прочитал → отправил без правок»
+    /// прибавлял бы НДС на каждом сохранении формы. Поэтому сумма строки из бумаги приходит полем своего
+    /// режима: <c>amount</c> при «в том числе», <c>netAmount</c> при НДС сверху.</para>
+    /// </summary>
+    public static CompletedLine Complete(InvoiceLineValues values, int number, VatMode mode)
+    {
+        if (mode == VatMode.OnTop && values.Amount is not null)
+            throw new InvalidRequestException(
+                $"Строка {number}: при НДС сверху сумму строки из бумаги присылают полем «{NetAmountKey}», " +
+                $"а «{AmountKey}» — сумма с НДС, её считает сервер. Принять её за бумагу значило бы прибавить " +
+                "НДС ещё раз.");
+        if (mode == VatMode.Included && values.NetAmount is not null)
+            throw new InvalidRequestException(
+                $"Строка {number}: у счёта с НДС «в том числе» сумму строки присылают полем «{AmountKey}»; " +
+                $"«{NetAmountKey}» — сумма без НДС, она бывает только при НДС сверху. Если в бумаге цены без " +
+                "НДС, переключите режим счёта — он едет в том же запросе полем «vatMode».");
+
+        var completed = values.Completed(mode);
 
         // Присланные числа в границе, а ПОСЧИТАННАЯ сумма — уже нет: количество × цена у двух чисел
         // под триллион даёт до 10²⁴. В decimal оно помещается, в колонку — нет, и отказала бы база.
-        if (completed.Amount is { } amount && Math.Abs(amount) >= CostsValues.Limit)
-            throw new InvalidRequestException(
-                $"Строка {number}: количество × цена = {CostsValues.Shown(amount)} — " +
-                "больше, чем здесь бывает (предел — триллион). В одном из двух чисел лишние нули или " +
-                "склейка при вставке из буфера.");
+        foreach (var sum in new[] { completed.Values.Amount, completed.Values.NetAmount })
+            if (sum is { } amount && Math.Abs(amount) >= CostsValues.Limit)
+                throw new InvalidRequestException(
+                    $"Строка {number}: количество × цена = {CostsValues.Shown(amount)} — " +
+                    "больше, чем здесь бывает (предел — триллион). В одном из двух чисел лишние нули или " +
+                    "склейка при вставке из буфера.");
 
         return completed;
     }

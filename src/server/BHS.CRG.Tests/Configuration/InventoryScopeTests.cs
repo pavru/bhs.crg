@@ -69,6 +69,8 @@ public class InventoryScopeTests
             "сторож одного модуля: пути записи счёта есть только в модуле счетов, и связка записи — его",
         ["BHS.CRG.Tests/Configuration/InvoiceBookInventoryTests.cs"] =
             "сторож одного модуля: книга проводок счёта — таблица модуля счетов (E2, issue #1100)",
+        ["BHS.CRG.Tests/Configuration/VatModeInventoryTests.cs"] =
+            "сторож одного модуля: режим НДС — признак счёта модуля счетов (issue #1497)",
     };
 
     /// <summary>

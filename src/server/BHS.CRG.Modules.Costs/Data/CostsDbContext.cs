@@ -189,6 +189,12 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         invoice.Property(i => i.State).HasColumnName("state").HasConversion<string>().HasMaxLength(32);
         invoice.Property(i => i.Payment).HasColumnName("payment").HasConversion<string>().HasMaxLength(32);
 
+        // Режим НДС (issue #1497) — тоже строкой. Умолчание в базе — «в том числе»: им были все счета до
+        // него, и им же ложится копия, снятая до миграции, — колонки в ней нет (сторож — копия и
+        // восстановление в тестах).
+        invoice.Property(i => i.VatMode).HasColumnName("vat_mode").HasConversion<string>().HasMaxLength(16)
+            .HasDefaultValue(VatMode.Included).HasSentinel(VatMode.Included);
+
         invoice.Property(i => i.PaidOn).HasColumnName("paid_on");
         invoice.Property(i => i.PaymentDocument).HasColumnName("payment_document");
         invoice.Property(i => i.PaidAt).HasColumnName("paid_at");
@@ -385,6 +391,15 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         line.Property(l => l.VatRate).HasColumnName("vat_rate").HasPrecision(5, 2);
         line.Property(l => l.VatAmount).HasColumnName("vat_amount").HasPrecision(18, 2);
         line.Property(l => l.Amount).HasColumnName("amount").HasPrecision(18, 2);
+        line.Property(l => l.NetAmount).HasColumnName("net_amount").HasPrecision(18, 2);
+
+        // Сумма с НДС у счёта сверху — производное двух чисел рядом (issue #1497), и держит его база:
+        // НДС неизвестен — суммы с НДС нет, известен — она ровно их сложение. Что net_amount пуст именно
+        // у «в том числе», проверкой не выразить — это другая таблица; держит единственный путь записи
+        // (CompletedLine) и тест.
+        line.ToTable(t => t.HasCheckConstraint("ck_invoice_lines_net_amount",
+            "net_amount IS NULL OR ((amount IS NULL) = (vat_amount IS NULL) " +
+            "AND (amount IS NULL OR amount = net_amount + vat_amount))"));
 
         line.Property(l => l.Note).HasColumnName("note");
         line.Property(l => l.CreatedAt).HasColumnName("created_at");
