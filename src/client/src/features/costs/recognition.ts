@@ -107,6 +107,9 @@ const TEXT_FIELDS: readonly string[] = [K.number, K.basis, K.purpose];
 export function fieldOffer(
   key: string, view: InvoiceView, edits: Readonly<Record<string, unknown>>,
   recognition: InvoiceRecognition | undefined, names: (id: string) => string | null,
+  /** Поле — дописанное в тип текстовое (issue #1482): прочитанное кладётся в него как есть, как у
+   *  текстовых полей модуля (ревью PR #1506). */
+  extraText = false,
 ): FieldOffer | null {
   if (recognition?.state !== 'done') return null;
   const shown = key in edits ? edits[key] : view.requisites[key];
@@ -137,7 +140,7 @@ export function fieldOffer(
 
   const text = typeof offer === 'string' ? offer : '';
   if (!text || text === String(shown ?? '')) return null;
-  return TEXT_FIELDS.includes(key) ? { text: `«${text}»`, take: text } : { text: `«${text}»` };
+  return TEXT_FIELDS.includes(key) || extraText ? { text: `«${text}»`, take: text } : { text: `«${text}»` };
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);

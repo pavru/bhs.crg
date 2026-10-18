@@ -3,7 +3,9 @@ import {
   BLOCKS, K, READ_ONLY_KEYS, SCAN_BESIDE_MIN_WIDTH,
   asInput, catalogRef, duplicateLabel, fromInput, refEntryId, sameFileLabel, twinsOf,
   isMarked, moneyInput, scanFitsBeside, toRequisites, unconfirmedInBlock, unconfirmedOutsideBlocks,
+  extraBlock, extraFields,
 } from './invoiceFields';
+import type { SchemaField } from '@/shared/api/schema';
 
 describe('сборка реквизитов на отправку', () => {
   it('поле, которого нет в форме, ПЕРЕЖИВАЕТ сохранение', () => {
@@ -69,6 +71,43 @@ describe('блоки формы', () => {
   it('метка на дописанном заказчиком поле не теряется', () => {
     // Иначе метка была бы у поля, которое ни один блок не подтверждает: снять её стало бы нечем.
     expect(unconfirmedOutsideBlocks([K.number, 'ЦентрЗатрат'])).toEqual(['ЦентрЗатрат']);
+  });
+
+  it('поле блока «Дополнительно» — уже в блоке: строка о непоказанных его не называет', () => {
+    expect(unconfirmedOutsideBlocks([K.number, 'ЦентрЗатрат', 'Договор'], ['ЦентрЗатрат'])).toEqual(['Договор']);
+  });
+});
+
+describe('поля, дописанные в тип «Счёт» (issue #1482)', () => {
+  const f = (key: string, type: SchemaField['type'], more: Partial<SchemaField> = {}): SchemaField =>
+    ({ key, title: key, type, required: false, ...more });
+
+  it('в «Дополнительно» — только поля, которых модуль не знает, в порядке схемы', () => {
+    const { shown } = extraFields([
+      f('ЦентрЗатрат', 'string'), f(K.number, 'string', { origin: 'module' }), f(K.basis, 'text', { origin: 'module' }),
+      f('Срочный', 'boolean'), f(K.scan, 'file', { origin: 'module' }), f('Договор', 'enum', { options: ['А'] }),
+    ]);
+    // Поле модуля стоит в своём блоке — второй экземпляр правил бы то же значение из двух мест.
+    expect(shown.map(x => x.key)).toEqual(['ЦентрЗатрат', 'Срочный', 'Договор']);
+  });
+
+  it('новое поле модуля, которого форма ещё не знает, в «Дополнительно» не встаёт — его узнают по пометке', () => {
+    const { shown, unshown } = extraFields([f('РежимЦен', 'boolean', { origin: 'module' }), f('Мой', 'string', { origin: 'customer' })]);
+    expect(shown.map(x => x.key)).toEqual(['Мой']);
+    expect(unshown).toEqual([]);
+  });
+
+  it('поле без поля ввода не прячется молча — названо с причиной', () => {
+    const { shown, unshown } = extraFields([
+      f('Акт', 'file'), f('Адрес', 'complex'), f('Код', 'string', { computed: true }), f('Дата2', 'date'),
+    ]);
+    expect(shown.map(x => x.key)).toEqual(['Дата2']);
+    expect(unshown.map(u => `${u.field.key}:${u.why}`)).toEqual(['Акт:файл', 'Адрес:составное', 'Код:вычисляемое']);
+  });
+
+  it('без дописанных полей блока нет — форма как раньше', () => {
+    expect(extraBlock(extraFields([f(K.number, 'string'), f(K.total, 'number')]).shown)).toBeNull();
+    expect(extraBlock([f('ЦентрЗатрат', 'string')])).toEqual({ id: 'extra', title: 'Дополнительно', fields: ['ЦентрЗатрат'] });
   });
 });
 

@@ -32,6 +32,7 @@
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
 import { BASE, launchBrowser, login, createChecks, settled, callApi, registryAddress, pickOption, menuText } from './harness.mjs';
+import { extraFieldChecks } from './invoice-extra-field-checks.mjs';
 
 const SUPPLIER_EMAIL = process.env.SMOKE_SUPPLIER_EMAIL || 'snab@bhs.local';
 const ACCOUNTANT_EMAIL = process.env.SMOKE_ACCOUNTANT_EMAIL || 'buh@bhs.local';
@@ -41,7 +42,7 @@ const PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
 const SITE = 'Демо-стройка';
 
 const browser = await launchBrowser();
-const { check, summarize } = createChecks();
+const { check, skip, summarize } = createChecks();
 const number = `РОЛ-${Date.now().toString().slice(-6)}`;
 
 /**
@@ -172,6 +173,9 @@ async function supplierPart() {
     invoiceId = created.id;
   });
   if (invoiceId === null) return;
+
+  // Поле, дописанное администратором в тип «Счёт», рабочая роль видит и правит (issue #1482).
+  await extraFieldChecks({ browser, check, skip, seat: supplier, invoiceId, open: id => openInvoice(supplier, id, 'счёт: дописанное поле') });
 
   await check('supplier-opens-the-registry', async () => {
     await registryAmount(supplier);
