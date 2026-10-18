@@ -14,8 +14,12 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="Field">Ключ поля шапки — у <c>field</c>, <c>reference</c> и <c>total</c>.</param>
 /// <param name="Lines">Номера строк — у <c>nomenclature</c>, <c>position</c>, <c>rate</c> и у <c>allocation</c>, когда
 /// не разнесены конкретные строки. По ним форма ведёт к строке, а не к таблице целиком.</param>
+/// <param name="VatExplains">Только у <c>total</c>: расхождение объясняет режим НДС (issue #1500) —
+/// <c>"onTop"</c> (похоже, цены в строках без НДС: «сверху» стоит поставить), <c>"included"</c> (похоже,
+/// цены уже с НДС: «сверху» поставлено зря), <c>null</c> — не объясняет. Подсказка, не решение: режим сам
+/// не меняется никогда. Пункту с признаком место у флажка режима, а не у «Суммы к оплате».</param>
 public sealed record InvoiceReadinessGap(
-    string Kind, string Label, string? Field = null, IReadOnlyList<int>? Lines = null);
+    string Kind, string Label, string? Field = null, IReadOnlyList<int>? Lines = null, string? VatExplains = null);
 
 /// <summary>
 /// Готовность счёта к «Разобран» в ответе чтения (issue #1291).
@@ -248,12 +252,14 @@ public sealed class InvoiceReadiness
 
         if (!allocation.WithinTolerance && allocation.Discrepancy is { } gap)
         {
+            var guess = ModeExplains(invoice, lines, allocation.Tolerance);
             problems.Add($"сумма строк расходится с суммой к оплате на {Math.Abs(gap):0.00} при допуске " +
                 $"{allocation.Tolerance:0.00} — расхождение в пределах допуска уходит в последнюю часть " +
-                "разноски, сверх него нужно разобраться: " + (VatExplains(invoice, lines, gap) ??
+                "разноски, сверх него нужно разобраться: " + (guess?.Text ?? OnTopRounding(invoice, lines, gap) ??
                 "скидка, доставка или строка, которой нет в таблице"));
             gaps.Add(new InvoiceReadinessGap("total",
-                $"сумма строк расходится с суммой к оплате на {Math.Abs(gap):0.00}", Field: InvoiceRequisites.TotalKey));
+                $"сумма строк расходится с суммой к оплате на {Math.Abs(gap):0.00}{guess?.Label}",
+                Field: InvoiceRequisites.TotalKey, VatExplains: guess?.Code));
         }
 
         // «Не разнесён» без единой названной причины — счёт без строк: разносить ещё нечего.
@@ -269,12 +275,43 @@ public sealed class InvoiceReadiness
     }
 
     /// <summary>
+    /// Расхождение объясняет режим НДС (issue #1500)? У «в том числе» — бумажные суммы строк сходятся с
+    /// суммой к оплате, если прибавить НДС: похоже, цены без НДС. У «сверху» — бумажные суммы сходятся и без
+    /// НДС: флажок поставлен зря. Догадку даёт <see cref="VatModeGuess" /> — та же, что у распознавания.
+    ///
+    /// <para>Только когда бумажная сумма есть у каждой строки: без неё сумма строк неполна, и совпадение
+    /// с НДС было бы случайным. Суммы к оплате нет — нет и расхождения, сюда не дойдёт.</para>
+    /// </summary>
+    private static (string Code, string Label, string Text)? ModeExplains(
+        Invoice invoice, IReadOnlyList<InvoiceLine> lines, decimal tolerance)
+    {
+        if (invoice.Total is not { } total) return null;
+
+        var paper = lines.Select(l => invoice.VatMode == VatMode.OnTop ? l.NetAmount : l.Amount).ToList();
+        if (paper.Any(p => p is null)) return null;
+
+        var guess = VatModeGuess.Of(
+            [.. lines.Select((l, i) => new VatGuessLine(paper[i]!.Value, l.VatRate))], invoice.VatTotal, total, tolerance);
+
+        return (invoice.VatMode, guess) switch
+        {
+            (VatMode.Included, VatMode.OnTop) => ("onTop", " — похоже, цены без НДС",
+                "расхождение ровно на НДС — похоже, цены в строках без НДС; отметьте «Цены без НДС, НДС сверху» " +
+                "над строками"),
+            (VatMode.OnTop, VatMode.Included) => ("included", " — похоже, цены уже с НДС",
+                "суммы строк без НДС уже сходятся с суммой к оплате — похоже, цены в строках с НДС; снимите " +
+                "отметку «Цены без НДС, НДС сверху» над строками"),
+            _ => null,
+        };
+    }
+
+    /// <summary>
     /// Расхождение — целиком разница НДС по строкам и НДС бумаги (issue #1497)? При НДС сверху так и
     /// бывает: строки считают НДС построчно, а бумага — от итога. Без этой причины человек искал бы
     /// пропавшую строку. Только при НДС сверху и только когда НДС известен у каждой строки: при «в том
     /// числе» НДС в сумму строк не входит отдельно, и совпадение было бы случайным.
     /// </summary>
-    private static string? VatExplains(Invoice invoice, IReadOnlyList<InvoiceLine> lines, decimal gap)
+    private static string? OnTopRounding(Invoice invoice, IReadOnlyList<InvoiceLine> lines, decimal gap)
     {
         if (invoice.VatMode != VatMode.OnTop || invoice.VatTotal is not { } paper) return null;
         if (lines.Count == 0 || lines.Any(l => l.VatAmount is null)) return null;

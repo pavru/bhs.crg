@@ -27,6 +27,8 @@ public class VatModeInventoryTests
         [$"{Module}/Data/Invoice.cs"] = "режим — признак счёта; меняет его только запись строк",
         [$"{Module}/Data/InvoiceLine.cs"] =
             "строка и граница записи: Completed(mode) приводит бумагу к сумме с НДС, CompletedLine — единственный вход записи",
+        [$"{Module}/Data/VatModeGuess.cs"] =
+            "догадка о режиме по арифметике бумаги — подсказка формы (#1500) и распознавание (#1501)",
         [$"{Module}/Data/CostsDbContext.cs"] = "колонки и проверка в базе amount = net_amount + vat_amount",
         [$"{Module}/Data/InvoiceVersion.cs"] = "снимок версии хранит бумагу счёта: режим, цену и сумму без НДС",
         [$"{Module}/Endpoints/InvoiceLineContracts.cs"] =
