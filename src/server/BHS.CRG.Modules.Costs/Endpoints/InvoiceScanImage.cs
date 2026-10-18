@@ -18,9 +18,25 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="AboutFile">Отказ — свойство файла, и он запомнен: сам собой вид не построится.
 /// Иначе дело в сервисе или установке (конвертер занят, молчит, не настроен), и следующий вопрос
 /// строит заново.</param>
+/// <param name="Layout">Откуда раскладка вида на бумагу (issue #1456): <see cref="InvoiceScanImage.ByProfile" />
+/// — книга без своей раскладки, профиль печати к ней применяется (или применится перестроением);
+/// <see cref="InvoiceScanImage.ByFile" /> — раскладку задал автор книги; <c>null</c> — файл не книга
+/// <c>.xlsx</c> или вида нет: профили к нему не относятся.</param>
+/// <param name="Profile">Профиль, по которому построен вид; <c>null</c> — не записан или удалён.</param>
+/// <param name="ProfileState"><c>current</c>, <c>changed</c> (правлен после построения), <c>deleted</c>,
+/// <c>none</c> (вид построен до профилей); <c>null</c> — профиль к виду не относится или подставить его не
+/// удалось.</param>
 public sealed record InvoiceImageView(
     string State, int? Pages, IReadOnlyList<string> Notes, string? Converter, DateTimeOffset? BuiltAt,
-    string? Reason, bool AboutFile);
+    string? Reason, bool AboutFile,
+    string? Layout = null, InvoiceImageProfile? Profile = null, string? ProfileState = null);
+
+/// <summary>Профиль печати вида — именем, как он называется сейчас.</summary>
+public sealed record InvoiceImageProfile(Guid Id, string Name);
+
+/// <summary>«Перестроить» с выбором (issue #1456). Тело необязательно: без него — профиль прежнего вида.</summary>
+/// <param name="PrintProfileId">Профиль печати, выбранный человеком; несуществующий — 404.</param>
+public sealed record InvoiceImageRebuild(Guid? PrintProfileId);
 
 /// <summary>
 /// Распознать нельзя, потому что у файла нет читаемого образа. Своим типом — чтобы исход
@@ -47,6 +63,12 @@ public sealed class InvoiceScanImage(IModuleRenditions renditions, IModuleBlobs 
     public const string Built = "built";
     public const string Refused = "refused";
 
+    /// <summary>Раскладка по профилю печати — <see cref="InvoiceImageView.Layout" />.</summary>
+    public const string ByProfile = "profile";
+
+    /// <summary>Раскладку задал автор книги — <see cref="InvoiceImageView.Layout" />.</summary>
+    public const string ByFile = "file";
+
     /// <summary>Вид причины отказа распознавания: образа у файла нет.</summary>
     public const string NoImage = "NoImage";
 
@@ -70,19 +92,23 @@ public sealed class InvoiceScanImage(IModuleRenditions renditions, IModuleBlobs 
     /// приехать из резервной копии, куда образы не кладутся.
     /// </summary>
     public async Task<InvoiceImageView> ViewAsync(Invoice invoice, CancellationToken ct) =>
-        Possible(invoice) ? View(await renditions.EnsureAsync(invoice.ScanBlobPath!, ct)) : AsOriginal;
+        Possible(invoice) ? View(await renditions.EnsureAsync(invoice.ScanBlobPath!, ct), invoice) : AsOriginal;
 
-    /// <summary>Построить заново — явным действием человека.</summary>
-    public async Task<InvoiceImageView> RebuildAsync(Invoice invoice, CancellationToken ct)
+    /// <summary>
+    /// Построить заново — явным действием человека. <paramref name="profileId" /> — профиль печати,
+    /// выбранный им (issue #1456); не назван — ядро возьмёт профиль прежнего вида. Выбор помнит ядро, за
+    /// файлом, а не счёт: в счёт «Перестроить» не пишет.
+    /// </summary>
+    public async Task<InvoiceImageView> RebuildAsync(Invoice invoice, Guid? profileId, CancellationToken ct)
     {
         if (!Possible(invoice))
             throw new ConflictException(
                 $"{InvoiceEndpoints.Label(invoice)}: перестраивать нечего — читаемый вид строится только " +
                 $"для файлов {FileKindCatalog.Words(FileKindCatalog.All.Where(kind => kind.Reading == FileReading.Rendition))}.");
-        var rebuilt = await renditions.RebuildAsync(invoice.ScanBlobPath!, ct: ct);
+        var rebuilt = await renditions.RebuildAsync(invoice.ScanBlobPath!, profileId, ct);
         if (rebuilt is ModuleRendition.Refused { OtherKind: true } other)
             throw new ConflictException($"{InvoiceEndpoints.Label(invoice)}: перестраивать нечего. {other.Reason}");
-        return View(rebuilt);
+        return View(rebuilt, invoice);
     }
 
     /// <summary>
@@ -129,15 +155,46 @@ public sealed class InvoiceScanImage(IModuleRenditions renditions, IModuleBlobs 
     public async Task<Stream?> OpenAsync(Invoice invoice, CancellationToken ct) =>
         (await StateAsync(invoice, ct)).Current is { } path ? await blobs.OpenAsync(path, ct) : null;
 
-    private static InvoiceImageView View(ModuleRendition rendition) => rendition switch
+    private static InvoiceImageView View(ModuleRendition rendition, Invoice invoice) => rendition switch
     {
-        ModuleRendition.Built built =>
-            new(Built, built.Pages, built.Notes, built.Converter, built.BuiltAt, null, false),
+        ModuleRendition.Built built => Laid(
+            new(Built, built.Pages, built.Notes, built.Converter, built.BuiltAt, null, false), built.Layout, invoice),
         // Файл другого вида — не отказ, а «образ не положен»: экран покажет его как умеет сам.
         ModuleRendition.Refused { OtherKind: false } refused =>
             new(Refused, null, [], null, null, refused.Reason, refused.AboutFile),
         _ => AsOriginal,
     };
+
+    /// <summary>
+    /// Раскладка — готовым состоянием ядра; параметров профиля модуль не толкует (issue #1456).
+    ///
+    /// <para>⚠️ «До профилей» — только у книги: запись без исхода раскладки вида файла не помнит, а Word и
+    /// <c>.xls</c> перестроение по профилю не разложит — строка «применит профиль» была бы им неправдой.</para>
+    ///
+    /// <para>«Подставить не удалось» — по профилю, но без профиля и состояния: книга своей раскладки не
+    /// задала, и выбор другого профиля перестроением имеет смысл; почему не вышло — пометка построителя.</para>
+    /// </summary>
+    private static InvoiceImageView Laid(InvoiceImageView view, ModuleRenditionLayout? layout, Invoice invoice) =>
+        layout?.Outcome switch
+        {
+            ModuleLayoutOutcome.BookOwn => view with { Layout = ByFile },
+            ModuleLayoutOutcome.Applied => view with
+            {
+                Layout = ByProfile,
+                Profile = layout is { ProfileId: { } id, ProfileName: { } name } ? new(id, name) : null,
+                ProfileState = layout.ProfileState switch
+                {
+                    ModuleLayoutProfileState.Current => "current",
+                    ModuleLayoutProfileState.Changed => "changed",
+                    ModuleLayoutProfileState.Deleted => "deleted",
+                    _ => null,
+                },
+            },
+            ModuleLayoutOutcome.BeforeProfiles when FileKinds.Recorded(invoice.ScanMimeType) == FileKinds.Xlsx =>
+                view with { Layout = ByProfile, ProfileState = "none" },
+            ModuleLayoutOutcome.Skipped => view with { Layout = ByProfile },
+            _ => view,
+        };
 }
 
 /// <summary>Адреса читаемого образа файла счёта.</summary>
@@ -178,13 +235,15 @@ public static class InvoiceScanImageEndpoints
     }
 
     /// <summary>
-    /// «Перестроить» — построить образ заново тем конвертером, что стоит сейчас.
+    /// «Перестроить» — построить образ заново тем конвертером, что стоит сейчас; книгу без своей
+    /// раскладки — по профилю печати из тела (issue #1456), без тела — по профилю прежнего вида.
     ///
     /// <para>⚠️ Версию счёта (<c>If-Match</c>) адрес не спрашивает: в счёт он не пишет — образ лежит
     /// у ядра. По той же причине его не останавливает и запертый счёт: документ закрытого периода —
     /// оригинал, а он остаётся тем же.</para>
     /// </summary>
     private static async Task<Ok<InvoiceImageView>> RebuildAsync(
-        Guid id, CostsDbContext db, InvoiceScanImage image, CancellationToken ct) =>
-        TypedResults.Ok(await image.RebuildAsync(await InvoiceEndpoints.FindAsync(db, id, ct), ct));
+        Guid id, InvoiceImageRebuild? request, CostsDbContext db, InvoiceScanImage image, CancellationToken ct) =>
+        TypedResults.Ok(await image.RebuildAsync(
+            await InvoiceEndpoints.FindAsync(db, id, ct), request?.PrintProfileId, ct));
 }

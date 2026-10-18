@@ -23,6 +23,7 @@
 
 import { readFileSync } from 'node:fs';
 import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
+import { invoiceLayoutChecks } from './invoice-layout-checks.mjs';
 
 /** Подпись у помеченного поля — она же примета метки на экране. */
 const MARK = 'Распознано, не подтверждено';
@@ -501,6 +502,9 @@ try {
     if (!box || box.x + box.width > 1500 + 1)
       throw new Error('панель файла уехала за правый край экрана');
   });
+
+  // Раскладка вида по профилю печати (issue #1456) — своим модулем, с помощниками этого прогона.
+  await invoiceLayoutChecks(page, check, { api, requisites, open, attachScan, named, officeFile, UNKNOWN_TYPE, stamp });
 
   // ── 10. Файл под паролем ПРИЛОЖЕН, а причина названа словами (issue #1270) ──────────────────────
   //

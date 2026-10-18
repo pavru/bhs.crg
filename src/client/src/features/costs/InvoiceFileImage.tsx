@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
-import { CloudOff, Download, FileSpreadsheet, FileX, Maximize2, RotateCw } from 'lucide-react';
+import { CloudOff, Download, FileSpreadsheet, FileX, Info, Maximize2, RotateCw } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { loadInvoiceScan } from '@/shared/api/invoices';
 import { loadInvoiceImage, useRebuildInvoiceImage, type InvoiceImage } from '@/shared/api/invoiceImage';
 import { useFileKinds } from '@/shared/api/fileKinds';
+import { usePrintProfiles, type PrintProfile } from '@/shared/api/printProfiles';
 import { formatDateTime } from '@/shared/format/format';
 import { useToast } from '@/shared/ui/Toast';
 import { saveScan } from './scanView';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { canChooseProfile, layoutHint, layoutNotes, layoutNotice, rebuiltMessage } from './invoiceImageLayout';
+import { LayoutChooser } from './LayoutChooser';
 
 /**
  * Вид для чтения файла счёта (issue #1270): Excel и Word рядом с формой стоят не сами, а PDF,
@@ -44,13 +47,32 @@ export function OriginalButton({ invoiceId, fileName, label }: {
   );
 }
 
-/** Построенный вид: строка-оговорка, пометки построителя и сам PDF. */
+/**
+ * Построенный вид: строка-оговорка, пометки построителя и сам PDF.
+ *
+ * <p>О профиле печати (issue #1456) — по месту и только когда есть что сказать: по чему разложен вид —
+ * в подсказке оговорки; «профиль изменён / удалён / вид до профилей» и выбор профиля — тому, кто может
+ * перестроить. Список профилей спрашивается только тогда же: читателю он ни к чему.</p>
+ */
 export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
   invoiceId: string; blobPath: string | null; fileName: string | null; image: InvoiceImage; canEdit: boolean;
 }) {
   const { url, failed } = useImageUrl(invoiceId, `${blobPath ?? ''}|${image.builtAt ?? ''}`);
   const rebuild = useRebuildInvoiceImage(invoiceId, blobPath);
   const toast = useToast();
+  const byProfile = canEdit && image.layout === 'profile';
+  const { data: profiles = NO_PROFILES } = usePrintProfiles({ enabled: byProfile });
+  const notice = canEdit ? layoutNotice(image) : null;
+  const notes = layoutNotes(image);
+
+  /** Перестроить; `true` — вид построен (окно выбора тогда закрывается). */
+  const rebuildWith = (profileId?: string) => rebuild.mutateAsync(profileId)
+    .then(next => {
+      if (next.state === 'refused') { toast.info(`Вид не перестроен. ${next.reason ?? ''} Показан прежний.`); return false; }
+      toast.success(rebuiltMessage(next));
+      return true;
+    })
+    .catch(e => { toast.apiError(e, 'Вид не перестроен'); return false; });
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -66,7 +88,8 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
       <div className="px-3 py-1.5 border-b border-stroke bg-muted text-xs text-fg2 shrink-0" data-testid="image-caveat">
         <div className="flex items-baseline gap-2">
           <Tooltip content={`Построен ${image.builtAt ? formatDateTime(image.builtAt) : ''} из файла${fileName ? ` «${fileName}»` : ''}. `
-              + 'Текст и числа взяты из файла; расположение, шрифты и разбивка на страницы — приближённые.'}>
+              + 'Текст и числа взяты из файла; расположение, шрифты и разбивка на страницы — приближённые.'
+              + (layoutHint(image) ? ` ${layoutHint(image)}` : '')}>
             <span className="flex-1">
               <span className="font-medium text-fg1">Вид для чтения</span>
               {image.pages ? ` · ${image.pages} стр.` : ''} — {IMAGE_CAVEAT}.
@@ -75,18 +98,25 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
           {canEdit && (
             <Button size="sm" variant="text" loading={rebuild.isPending} icon={<RotateCw size={12} />}
               title="Построить вид заново. Сам файл и распознанное остаются как были."
-              onClick={() => rebuild.mutateAsync()
-                .then(next => next.state === 'refused'
-                  ? toast.info(`Вид не перестроен. ${next.reason ?? ''} Показан прежний.`)
-                  : toast.success('Вид для чтения перестроен.'))
-                .catch(e => toast.apiError(e, 'Вид не перестроен'))}>
+              onClick={() => void rebuildWith()}>
               {rebuild.isPending ? 'Перестраиваем…' : 'Перестроить'}
             </Button>
           )}
         </div>
-        {image.notes.length > 0 && (
+        {byProfile && canChooseProfile(image, profiles) && (
+          <div className="mt-1.5">
+            <LayoutChooser image={image} profiles={profiles} rebuilding={rebuild.isPending} onRebuild={rebuildWith} />
+          </div>
+        )}
+        {(notes.length > 0 || notice) && (
           <ul className="mt-1 space-y-0.5 text-fg2">
-            {image.notes.map(note => <li key={note}>{note}</li>)}
+            {notice && (
+              // Не предупреждение: вид не испорчен, он лишь по прежним параметрам.
+              <li className="flex items-start gap-1.5" data-testid="layout-notice">
+                <Info size={12} aria-hidden className="shrink-0 mt-0.5 text-fg3" />{notice}
+              </li>
+            )}
+            {notes.map(note => <li key={note}>{note}</li>)}
           </ul>
         )}
       </div>
@@ -164,6 +194,8 @@ export function RefusedImage({ invoiceId, blobPath, fileName, image, canEdit, re
     </div>
   );
 }
+
+const NO_PROFILES: PrintProfile[] = [];
 
 /** Сообщение посреди панели. Одно на панель файла и на вид для чтения. */
 export function Centered({ children }: { children: React.ReactNode }) {
