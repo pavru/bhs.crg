@@ -122,7 +122,8 @@ public sealed class RenditionStore(
                 using (var pdf = new MemoryStream(image.Pdf, writable: false))
                 {
                     var path = await blobs.UploadAsync(ImageFileName, pdf, "application/pdf", ct);
-                    return (RenditionRecord.Built(originalPath, path, image.Pages, image.Notes, image.Converter), true);
+                    return (RenditionRecord.Built(originalPath, path, image.Pages, image.Notes, image.Converter,
+                        image.Layout, image.LayoutApplied), true);
                 }
             case Rendition.Refused refused:
                 if (!refused.Kind.Remembered())

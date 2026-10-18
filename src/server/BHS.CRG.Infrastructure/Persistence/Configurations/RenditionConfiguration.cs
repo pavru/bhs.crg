@@ -24,6 +24,9 @@ public class RenditionConfiguration : IEntityTypeConfiguration<RenditionRecord>
         b.Property(e => e.RefusalKind).HasMaxLength(32);
         b.Property(e => e.RefusalReason).HasMaxLength(1024);
         b.Property(e => e.Converter).HasMaxLength(64);
+        // Раскладка по профилю печати (issue #1453): имя исхода и снимок применённых параметров.
+        b.Property(e => e.Layout).HasConversion<string>().HasMaxLength(16);
+        b.Property(e => e.LayoutApplied).HasColumnType("jsonb");
 
         // Запись у пути одна. Блокировка по пути живёт в процессе, а это — то, что останется верным
         // и при двух процессах: проигравший получит отказ вставки, а не вторую запись.

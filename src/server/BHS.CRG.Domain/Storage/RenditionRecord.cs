@@ -16,6 +16,27 @@ public enum RenditionState
 }
 
 /// <summary>
+/// Чем кончилась раскладка книги по профилю печати перед построением образа (issue #1453).
+///
+/// <para>⚠️ Имена — формат хранения: они лежат в записи образа. <c>null</c> в записи — образ построен
+/// до профилей печати; по нему #1456 покажет строку «Перестроить применит профиль».</para>
+/// </summary>
+public enum RenditionLayout
+{
+    /// <summary>Файл не книга <c>.xlsx</c> — Word или <c>.xls</c>: профили к нему не применяются.</summary>
+    NotBook,
+
+    /// <summary>Книга задала раскладку сама на каждом листе; в конвертер ушёл исходный файл.</summary>
+    BookOwn,
+
+    /// <summary>Хотя бы одному листу подставлена раскладка профиля.</summary>
+    Applied,
+
+    /// <summary>Раскладку подставить не удалось (или формат её не позволяет); в конвертер ушёл исходный файл.</summary>
+    Skipped,
+}
+
+/// <summary>
 /// Читаемый образ файла — запись ядра по ключу «путь оригинала» (issue #1269).
 ///
 /// <para><b>Почему у ядра, а не у владельца файла.</b> Образ — функция от оригинала и конвертера, а
@@ -59,13 +80,23 @@ public class RenditionRecord : Entity
     /// <summary>Чем построен образ: «gotenberg 8.37.0». <c>null</c> — конвертер себя не назвал.</summary>
     public string? Converter { get; private set; }
 
+    /// <summary>Раскладка по профилю печати (issue #1453); <c>null</c> — образ построен до профилей.</summary>
+    public RenditionLayout? Layout { get; private set; }
+
+    /// <summary>
+    /// Снимок применённых параметров профиля, JSON (<see cref="RenditionLayout.Applied" />). Снимок, а
+    /// не ссылка на профиль: профиль правят, а образ построен по тому, каким он был.
+    /// </summary>
+    public string? LayoutApplied { get; private set; }
+
     private RenditionRecord() { }
 
     public static RenditionRecord AsIs(string originalPath, string mime) =>
         new() { OriginalBlobPath = originalPath, State = RenditionState.AsIs, Mime = mime };
 
     public static RenditionRecord Built(
-        string originalPath, string imagePath, int pages, IEnumerable<string> notes, string? converter) =>
+        string originalPath, string imagePath, int pages, IEnumerable<string> notes, string? converter,
+        RenditionLayout? layout = null, string? layoutApplied = null) =>
         new()
         {
             OriginalBlobPath = originalPath,
@@ -74,6 +105,8 @@ public class RenditionRecord : Entity
             Pages = pages,
             Notes = [.. notes],
             Converter = converter,
+            Layout = layout,
+            LayoutApplied = layoutApplied,
         };
 
     public static RenditionRecord Refused(string originalPath, string kind, string reason) =>
@@ -93,6 +126,8 @@ public class RenditionRecord : Entity
         RefusalKind = fresh.RefusalKind;
         RefusalReason = fresh.RefusalReason;
         Converter = fresh.Converter;
+        Layout = fresh.Layout;
+        LayoutApplied = fresh.LayoutApplied;
         TouchUpdatedAt();
     }
 }
