@@ -26,6 +26,7 @@ public class DataSetBindingService(
         var bindings = await db.DataSetBindings
             .Include(b => b.Source).ThenInclude(s => s.File)
             .Where(b => b.OwnerId == ownerId)
+            .InBindingOrder()
             .AsNoTracking()
             .ToListAsync(ct);
         var counts = await BindingCountsAsync(bindings, ct);
@@ -40,6 +41,7 @@ public class DataSetBindingService(
         var bindings = await db.DataSetBindings
             .Include(b => b.Source).ThenInclude(s => s.File)
             .Where(b => ownerIds.Contains(b.OwnerId))
+            .InBindingOrder()
             .AsNoTracking()
             .ToListAsync(ct);
         var counts = await BindingCountsAsync(bindings, ct);
@@ -209,6 +211,7 @@ public class DataSetBindingService(
         var bindings = await db.DataSetBindings
             .Include(b => b.Source).ThenInclude(s => s.File)
             .Where(b => b.OwnerId == ownerId)
+            .InBindingOrder()
             .AsNoTracking()
             .ToListAsync(ct);
 
@@ -226,11 +229,23 @@ public class DataSetBindingService(
         var typesById = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
         var ownerFields = FieldsOf(owner?.CompositeTypeId, typesById);
 
+        // Две привязки в одно поле — та же проверка, что у генерации (DataSetBindingOrder): проигравшая
+        // показана отказом с названием победившей, а не исправными данными, которых в документе не
+        // будет. Файл её при этом не грузится — как и генерацией.
+        var overridden = DataSetBindingOrder.Overridden(bindings);
+
         var results = new List<BindingPreviewDto>();
         foreach (var binding in bindings)
         {
             try
             {
+                if (overridden.TryGetValue(binding.Id, out var winner))
+                {
+                    results.Add(new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
+                        "error", binding.TargetFieldKey, 0, new { }, DataSetBindingOrder.OverriddenText(binding, winner)));
+                    continue;
+                }
+
                 // Целевого поля в типе владельца больше нет — генерация такую привязку пропускает
                 // целиком (DataSetResolver), и предпросмотр обязан сказать то же, а не рисовать
                 // исправные данные под зелёной галкой. Тип владельца неизвестен — не утверждаем.
