@@ -28,7 +28,8 @@ export function LayoutChooser({ image, profiles, rebuilding, onRebuild }: {
   return (
     <Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) setChosen(initialChoice(image, profiles)); }}>
       <Popover.Trigger asChild>
-        <Chip icon={Printer} menu data-testid="layout-chip">{layoutChipLabel(image)}</Chip>
+        {/* Не шире панели: длинное имя профиля обрезается многоточием, целиком оно — в окне выбора. */}
+        <Chip icon={Printer} menu className="max-w-full" data-testid="layout-chip">{layoutChipLabel(image)}</Chip>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6} data-testid="layout-popover" aria-labelledby={heading}

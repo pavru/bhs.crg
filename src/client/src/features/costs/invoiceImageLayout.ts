@@ -58,22 +58,18 @@ export function initialChoice(image: InvoiceImage, profiles: readonly PrintProfi
   return profiles.find(p => p.id === image.profile?.id)?.id ?? profiles.find(p => p.isSystem)?.id;
 }
 
-/** Пометка построителя о потерянном тексте — её начало, как пишет сервер (`RenditionPostconditions`). */
-export const LOST_TEXT_NOTE = 'Часть текста не попала на страницу';
-export const AUTHOR_LAYOUT_NOTE = 'Раскладку задал автор файла — профиль печати к нему не применяется.';
-
 /**
- * Пометки построителя. У книги со своей раскладкой к пометке о потерянном тексте дописано, почему
- * профиль не помог: ровно тогда человек и спросит, а ответ не должен требовать администратора.
+ * Тост после перестроения: по какому профилю — иначе человек не видит, что изменилось.
+ *
+ * <p>Вид раскладывался по профилю (или «до профилей»), а перестроенный разложен по самому файлу — книга
+ * задала раскладку сама, и выбранный профиль не применился. Это сказано словами: чип выбора при этом
+ * исчезает, и молчаливое «перестроен» человек прочёл бы как «перестроен по выбранному».</p>
+ *
+ * <p>Пояснение к пометке о потерянном тексте у такой книги дописывает сервер (порт видов ядра).</p>
  */
-export function layoutNotes(image: InvoiceImage): string[] {
-  if (image.layout !== 'file') return image.notes;
-  return image.notes.map(note => note.startsWith(LOST_TEXT_NOTE) ? `${note} ${AUTHOR_LAYOUT_NOTE}` : note);
-}
-
-/** Тост после перестроения: по какому профилю — иначе человек не видит, что изменилось. */
-export function rebuiltMessage(image: InvoiceImage): string {
-  return image.layout === 'profile' && image.profile
-    ? `Вид для чтения перестроен по профилю «${image.profile.name}».`
-    : 'Вид для чтения перестроен.';
+export function rebuiltMessage(next: InvoiceImage, before: InvoiceImage): string {
+  if (next.layout === 'profile' && next.profile) return `Вид для чтения перестроен по профилю «${next.profile.name}».`;
+  if (next.layout === 'file' && before.layout === 'profile')
+    return 'Вид для чтения перестроен по раскладке самого файла: автор книги задал её сам, профиль печати к ней не применяется.';
+  return 'Вид для чтения перестроен.';
 }

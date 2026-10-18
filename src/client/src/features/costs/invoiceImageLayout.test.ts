@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { InvoiceImage } from '@/shared/api/invoiceImage';
 import type { PrintProfile } from '@/shared/api/printProfiles';
 import {
-  AUTHOR_LAYOUT_NOTE, canChooseProfile, initialChoice, layoutChipLabel, layoutHint, layoutNotes, layoutNotice,
-  rebuiltMessage,
+  canChooseProfile, initialChoice, layoutChipLabel, layoutHint, layoutNotice, rebuiltMessage,
 } from './invoiceImageLayout';
 
 /** Раскладка вида у счёта (issue #1456): что сказать о профиле печати и когда давать выбор. */
@@ -57,15 +56,12 @@ describe('раскладка вида для чтения', () => {
     expect(layoutChipLabel(built({ profile: null, profileState: null }))).toBe('Раскладка: профиль не применён');
   });
 
-  it('потерянный текст у книги со своей раскладкой объясняется; у раскладки по профилю — нет', () => {
-    const lost = 'Часть текста не попала на страницу: из слов в ячейках найдено 80 %.';
-    expect(layoutNotes(built({ layout: 'file', profile: null, profileState: null, notes: [lost, 'страниц: 2'] })))
-      .toEqual([`${lost} ${AUTHOR_LAYOUT_NOTE}`, 'страниц: 2']);
-    expect(layoutNotes(built({ notes: [lost] }))).toEqual([lost]);
-  });
-
-  it('тост называет профиль только у раскладки по профилю', () => {
-    expect(rebuiltMessage(built())).toBe('Вид для чтения перестроен по профилю «по умолчанию».');
-    expect(rebuiltMessage(built({ layout: 'file', profile: null, profileState: null }))).toBe('Вид для чтения перестроен.');
+  it('тост называет профиль; профиль, не применённый к книге со своей раскладкой, назван словами', () => {
+    const own = built({ layout: 'file', profile: null, profileState: null });
+    expect(rebuiltMessage(built(), built())).toBe('Вид для чтения перестроен по профилю «по умолчанию».');
+    expect(rebuiltMessage(own, own)).toBe('Вид для чтения перестроен.');
+    // Вид «до профилей» оказался книгой со своей раскладкой: выбранный профиль не применился.
+    expect(rebuiltMessage(own, built({ profile: null, profileState: 'none' })))
+      .toContain('по раскладке самого файла: автор книги задал её сам');
   });
 });

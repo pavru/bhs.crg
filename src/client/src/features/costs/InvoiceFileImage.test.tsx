@@ -26,12 +26,16 @@ const image = (over: Partial<InvoiceImage> = {}): InvoiceImage => ({
   layout: 'profile', profile: { id: 'sys', name: 'по умолчанию' }, profileState: 'changed', ...over,
 });
 
+let filesUse = true;
+
 afterEach(cleanup);
 beforeEach(() => {
+  filesUse = true;
   vi.mocked(apiClient.get).mockReset();
   vi.mocked(apiClient.post).mockReset();
   vi.mocked(apiClient.get).mockImplementation((async (url: string) => {
     if (url === '/settings/print-profiles') return { data: PROFILES };
+    if (url === '/account/access') return { data: { permissions: filesUse ? ['core.files.use'] : [], modules: [] } };
     throw new Error('вида в тесте нет');
   }) as never);
 });
@@ -67,6 +71,15 @@ describe('вид для чтения: профиль печати', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Перестроить по выбранному' }));
     await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith('/costs/invoices/i1/scan/image', { printProfileId: 'wide' }));
     expect(await screen.findByText('Вид для чтения перестроен по профилю «Альбомный».')).toBeTruthy();
+  });
+
+  it('без права работы с файлами выбора нет, и список профилей не спрашивается — а строка «изменён» есть', async () => {
+    filesUse = false;
+    shown(image(), true);
+    expect(screen.getByTestId('layout-notice').textContent).toContain('изменён после построения вида');
+    await waitFor(() => expect(vi.mocked(apiClient.get).mock.calls.some(([url]) => url === '/account/access')).toBe(true));
+    expect(screen.queryByTestId('layout-chip')).toBeNull();
+    expect(vi.mocked(apiClient.get).mock.calls.some(([url]) => url === '/settings/print-profiles')).toBe(false);
   });
 
   it('у книги со своей раскладкой выбора нет, а «Перестроить» — без профиля', async () => {

@@ -341,6 +341,32 @@ public class PrintProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
         Assert.Equal(new ModuleRenditionLayout(ModuleLayoutOutcome.BeforeProfiles, null, null, null), Layout(await port.FindAsync(original)));
     }
 
+    /// <summary>
+    /// Пометка о потерянном тексте у книги со своей раскладкой говорит, почему профиль печати не помог
+    /// (issue #1456); у книги, разложенной по профилю, — нет: там профиль и есть ответ. Дописывает порт при
+    /// чтении, поэтому фразу получают и виды, построенные раньше неё.
+    /// </summary>
+    [Fact]
+    public async Task Потерянный_текст_у_книги_со_своей_раскладкой_объяснён()
+    {
+        var port = new ModuleRenditionsPort(Store(), NullLogger<ModuleRenditionsPort>.Instance);
+        var lost = $"{RenditionPostconditions.LostTextNote}: из слов в ячейках найдено 80 %. Сверяйте с исходным файлом.";
+        const string authored = "files/2026/10/своя-раскладка.xlsx", laid = "files/2026/10/по-профилю.xlsx";
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.Renditions.Add(RenditionRecord.Built(authored, "files/2026/10/a.pdf", 1,
+                [lost, "Страниц: 2, из них без текста: 1."], "gotenberg 8.37.0", RenditionLayout.BookOwn));
+            db.Renditions.Add(RenditionRecord.Built(laid, "files/2026/10/b.pdf", 1, [lost], "gotenberg 8.37.0",
+                RenditionLayout.Applied, """{"profile":"default","fit":"width"}"""));
+            await db.SaveChangesAsync();
+        }
+
+        Assert.Equal([$"{lost} {ModuleRenditionsPort.AuthorLayoutNote}", "Страниц: 2, из них без текста: 1."],
+            Assert.IsType<ModuleRendition.Built>(await port.FindAsync(authored)).Notes);
+        Assert.Equal([lost], Assert.IsType<ModuleRendition.Built>(await port.FindAsync(laid)).Notes);
+    }
+
     /// <summary>Профиль помнит только книга: у Word и у файла, который читается сам, его нет.</summary>
     [Fact]
     public async Task Не_книга_профиля_не_помнит()

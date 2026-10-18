@@ -4,12 +4,13 @@ import { Button } from '@/shared/ui/Button';
 import { loadInvoiceScan } from '@/shared/api/invoices';
 import { loadInvoiceImage, useRebuildInvoiceImage, type InvoiceImage } from '@/shared/api/invoiceImage';
 import { useFileKinds } from '@/shared/api/fileKinds';
+import { useCan } from '@/shared/api/access';
 import { usePrintProfiles, type PrintProfile } from '@/shared/api/printProfiles';
 import { formatDateTime } from '@/shared/format/format';
 import { useToast } from '@/shared/ui/Toast';
 import { saveScan } from './scanView';
 import { Tooltip } from '@/shared/ui/Tooltip';
-import { canChooseProfile, layoutHint, layoutNotes, layoutNotice, rebuiltMessage } from './invoiceImageLayout';
+import { canChooseProfile, layoutHint, layoutNotice, rebuiltMessage } from './invoiceImageLayout';
 import { LayoutChooser } from './LayoutChooser';
 
 /**
@@ -52,7 +53,8 @@ export function OriginalButton({ invoiceId, fileName, label }: {
  *
  * <p>О профиле печати (issue #1456) — по месту и только когда есть что сказать: по чему разложен вид —
  * в подсказке оговорки; «профиль изменён / удалён / вид до профилей» и выбор профиля — тому, кто может
- * перестроить. Список профилей спрашивается только тогда же: читателю он ни к чему.</p>
+ * перестроить. Список профилей спрашивается только тогда же: читателю он ни к чему. Он закрыт правом
+ * работы с файлами — без него выбора нет вовсе, а не отказ 403 на каждом счёте.</p>
  */
 export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
   invoiceId: string; blobPath: string | null; fileName: string | null; image: InvoiceImage; canEdit: boolean;
@@ -60,16 +62,16 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
   const { url, failed } = useImageUrl(invoiceId, `${blobPath ?? ''}|${image.builtAt ?? ''}`);
   const rebuild = useRebuildInvoiceImage(invoiceId, blobPath);
   const toast = useToast();
-  const byProfile = canEdit && image.layout === 'profile';
-  const { data: profiles = NO_PROFILES } = usePrintProfiles({ enabled: byProfile });
+  const mayList = useCan().permission('core.files.use');
+  const { data: profiles = NO_PROFILES } = usePrintProfiles({ enabled: canEdit && mayList && image.layout === 'profile' });
   const notice = canEdit ? layoutNotice(image) : null;
-  const notes = layoutNotes(image);
+  const hint = layoutHint(image);
 
   /** Перестроить; `true` — вид построен (окно выбора тогда закрывается). */
   const rebuildWith = (profileId?: string) => rebuild.mutateAsync(profileId)
     .then(next => {
       if (next.state === 'refused') { toast.info(`Вид не перестроен. ${next.reason ?? ''} Показан прежний.`); return false; }
-      toast.success(rebuiltMessage(next));
+      toast.success(rebuiltMessage(next, image));
       return true;
     })
     .catch(e => { toast.apiError(e, 'Вид не перестроен'); return false; });
@@ -89,7 +91,7 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
         <div className="flex items-baseline gap-2">
           <Tooltip content={`Построен ${image.builtAt ? formatDateTime(image.builtAt) : ''} из файла${fileName ? ` «${fileName}»` : ''}. `
               + 'Текст и числа взяты из файла; расположение, шрифты и разбивка на страницы — приближённые.'
-              + (layoutHint(image) ? ` ${layoutHint(image)}` : '')}>
+              + (hint ? ` ${hint}` : '')}>
             <span className="flex-1">
               <span className="font-medium text-fg1">Вид для чтения</span>
               {image.pages ? ` · ${image.pages} стр.` : ''} — {IMAGE_CAVEAT}.
@@ -103,12 +105,12 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
             </Button>
           )}
         </div>
-        {byProfile && canChooseProfile(image, profiles) && (
+        {canEdit && canChooseProfile(image, profiles) && (
           <div className="mt-1.5">
             <LayoutChooser image={image} profiles={profiles} rebuilding={rebuild.isPending} onRebuild={rebuildWith} />
           </div>
         )}
-        {(notes.length > 0 || notice) && (
+        {(image.notes.length > 0 || notice) && (
           <ul className="mt-1 space-y-0.5 text-fg2">
             {notice && (
               // Не предупреждение: вид не испорчен, он лишь по прежним параметрам.
@@ -116,7 +118,7 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
                 <Info size={12} aria-hidden className="shrink-0 mt-0.5 text-fg3" />{notice}
               </li>
             )}
-            {notes.map(note => <li key={note}>{note}</li>)}
+            {image.notes.map(note => <li key={note}>{note}</li>)}
           </ul>
         )}
       </div>

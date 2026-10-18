@@ -3,9 +3,10 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using BHS.CRG.Infrastructure.Renditions;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Storage;
 using BHS.CRG.Infrastructure.Persistence;
+using BHS.CRG.Infrastructure.Renditions;
 using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Files;
@@ -311,9 +312,9 @@ public sealed class InvoiceOfficeFileTests(InvoiceScanHost host)
     {
         var (client, _) = await SignInAsync("Supplier");
         var (ownLayout, _, _) = Office();
+        var own = await OwnProfileAsync("Альбомный для счетов");
         try
         {
-            var own = await OwnProfileAsync("Альбомный для счетов");
             var id = await CreateAsync(client);
             await AttachAsync(client, id, Workbook(b => b.CreateSheet("Sheet").CreateRow(0).CreateCell(0)
                 .SetCellValue("invoice supplier"), ownLayout: false), "Счёт.xlsx");
@@ -334,6 +335,16 @@ public sealed class InvoiceOfficeFileTests(InvoiceScanHost host)
             Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
             Assert.Equal("Альбомный для счетов", Layout(await ImageAsync(client, id)).Profile);
 
+            // Профиль правили — вид «изменён»; удалили — «удалён», без имени. Подставить не удалось — по
+            // профилю, но без профиля и состояния: почему, говорит пометка построителя.
+            await ProfilesAsync(p => p.UpdateAsync(own, new("Альбомный для счетов", PaperFormat.A4,
+                PageOrientation.Landscape, PageFit.Width, new(9, 9, 9, 9)), default));
+            Assert.Equal(("profile", "Альбомный для счетов", "changed"), Layout(await ImageAsync(client, id)));
+            await ProfilesAsync(p => p.DeleteAsync(own, default));
+            Assert.Equal(("profile", null, "deleted"), Layout(await ImageAsync(client, id)));
+            await SetLayoutAsync(RenditionLayout.Skipped, id);
+            Assert.Equal(("profile", null, null), Layout(await ImageAsync(client, id)));
+
             var authored = await CreateAsync(client);
             await AttachAsync(client, authored, ownLayout, "Счёт 1С.xlsx");
             Assert.Equal(("file", null, null), Layout(await ImageAsync(client, authored)));
@@ -344,13 +355,16 @@ public sealed class InvoiceOfficeFileTests(InvoiceScanHost host)
 
             // Вид, построенный до профилей, — «перестроение применит профиль» только у книги: запись вида
             // файла не помнит, и Word с той же записью этой строки не получает («Чем ломается» задачи).
-            await ForgetLayoutAsync(id, word);
+            await SetLayoutAsync(null, id, word);
             Assert.Equal(("profile", null, "none"), Layout(await ImageAsync(client, id)));
             Assert.Equal((null, null, null), Layout(await ImageAsync(client, word)));
         }
         finally
         {
-            await PrintProfilesState.ResetAsync(host.Services);
+            // Только свой профиль, а не сброс таблицы: класс идёт вне коллекции «Integration», параллельно
+            // другим, и чужие профили ему трогать нельзя.
+            try { await ProfilesAsync(p => p.DeleteAsync(own, default)); }
+            catch (NotFoundException) { /* уже удалён проверкой «удалён» */ }
         }
     }
 
@@ -367,15 +381,24 @@ public sealed class InvoiceOfficeFileTests(InvoiceScanHost host)
         return created.Id;
     }
 
-    /// <summary>Записи видов этих счетов — как до #1453: без исхода раскладки и без профиля.</summary>
-    private async Task ForgetLayoutAsync(params Guid[] invoices)
+    private async Task ProfilesAsync(Func<RenditionLayoutProfiles, Task> act)
+    {
+        using var scope = host.Services.CreateScope();
+        await act(scope.ServiceProvider.GetRequiredService<RenditionLayoutProfiles>());
+    }
+
+    /// <summary>
+    /// Записи видов этих счетов — с таким исходом раскладки и без профиля: <c>null</c> — как до #1453,
+    /// <see cref="RenditionLayout.Skipped" /> — подставить профиль не удалось.
+    /// </summary>
+    private async Task SetLayoutAsync(RenditionLayout? layout, params Guid[] invoices)
     {
         using var scope = host.Services.CreateScope();
         var paths = await scope.ServiceProvider.GetRequiredService<CostsDbContext>().Invoices
             .Where(i => invoices.Contains(i.Id)).Select(i => i.ScanBlobPath!).ToListAsync();
         await scope.ServiceProvider.GetRequiredService<AppDbContext>().Renditions
             .Where(r => paths.Contains(r.OriginalBlobPath))
-            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Layout, (RenditionLayout?)null)
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Layout, layout)
                 .SetProperty(r => r.LayoutProfileId, (Guid?)null).SetProperty(r => r.LayoutStamp, (string?)null));
     }
 

@@ -50,11 +50,16 @@ export function profileSummary(p: PrintProfileParams): string {
 const KEY = ['print-profiles'];
 const URL = '/settings/print-profiles';
 
-/** Список читает всякий, кто работает с файлами (право `core.files.use`) — им же кормится меню «Перестроить». */
+/**
+ * Список читает всякий, кто работает с файлами (право `core.files.use`) — им же кормится выбор
+ * «Раскладка» у вида счёта. Профили меняются редко, а спрашивает их каждый открытый счёт с книгой:
+ * пять минут свежести; правка профиля и так сбрасывает ключ.
+ */
 export function usePrintProfiles({ enabled = true }: { enabled?: boolean } = {}) {
   return useQuery<PrintProfile[]>({
     queryKey: KEY,
     queryFn: () => apiClient.get(URL).then(r => r.data),
+    staleTime: 5 * 60_000,
     enabled,
   });
 }
