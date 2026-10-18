@@ -5,6 +5,7 @@ import { Button } from './Button';
 import { Checkbox } from './Checkbox';
 import { apiError } from '@/shared/utils/apiError';
 import { DISMISSAL, pointAtExit } from './modalDismissal';
+import { useHistoryLayer } from './historyLayers';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -101,6 +102,12 @@ function ConfirmDialogBody({
   // равны «Отмена», как было.
   const rule = blockedView ? DISMISSAL.result : null;
   const content = useRef<HTMLDivElement>(null);
+  // «Назад» на телефоне (issue #1418) — «Отмена»; пока идёт действие, окно не закрывается ничем.
+  useHistoryLayer(true, () => {
+    if (busy) return false;
+    onOpenChange(false);
+    return true;
+  });
 
   async function handleConfirm() {
     setBusy(true);

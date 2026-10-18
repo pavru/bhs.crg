@@ -10,6 +10,7 @@ import { useCan } from '@/shared/api/access';
 import { NewNomenclatureStep } from './NewNomenclatureStep';
 import type { LineWords } from './newNomenclature';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { useHistoryLayer } from '@/shared/ui/historyLayers';
 
 /**
  * Выбор позиции номенклатуры для строки счёта (задача C2, issue #1078, ТЗ COST-7).
@@ -108,6 +109,12 @@ function PickerDialog({ from, onClose, onPick }: {
   // Шаг «Новая позиция» живёт в этом же окне: набранный запрос цел, пока окно открыто.
   const [creating, setCreating] = useState(false);
   const canCreate = useCan().permission('core.nomenclature.edit');
+  // «Назад» на телефоне (issue #1418): с шага «Новая позиция» — к поиску, с поиска — закрыть выбор.
+  useHistoryLayer(true, () => {
+    if (!creating) { onClose(); return true; }
+    setCreating(false);
+    return false;
+  });
 
   // Задержка в обработчике, а не в эффекте: запрос на каждую букву — это двадцать обращений на одно
   // слово, а состояние, поставленное из эффекта, вызывает лишний кадр (правило react-hooks).

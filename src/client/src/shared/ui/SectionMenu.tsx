@@ -1,7 +1,8 @@
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Link, useLocation } from 'react-router';
 import { useGuardedNavClick } from './NavigationGuard';
+import { useHistoryLayer } from './historyLayers';
 import { MICRO_HEADING } from './panelLink';
 import { ownerItem, type PanelGroup } from './railSections';
 import type { SectionMenuValue } from './sectionMenuContext';
@@ -26,9 +27,12 @@ export function SectionMenu({ value, children }: { value: SectionMenuValue; chil
   const guardedClick = useGuardedNavClick();
   const all: PanelGroup[] = outside.length ? [...groups, { label: 'Вне пространства', items: outside }] : groups;
   const here = ownerItem(pathname, all.flatMap(g => g.items))?.to;
+  // «Назад» на телефоне закрывает меню, а не страницу (issue #1418).
+  const [open, setOpen] = useState(false);
+  useHistoryLayer(open, () => { setOpen(false); return true; });
 
   return (
-    <DropdownMenu.Root>
+    <DropdownMenu.Root open={open} onOpenChange={setOpen}>
       <DropdownMenu.Trigger asChild>{children}</DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="start" sideOffset={6} data-testid="section-menu"

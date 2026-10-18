@@ -8,6 +8,7 @@ import { railDef } from './railSections';
 import { visibleNav } from './navAccess';
 import { useAccess, NO_ACCESS } from '@/shared/api/access';
 import { useGuardedIntent, useGuardedLeave, useGuardedNavigate } from './NavigationGuard';
+import { useHistoryLayer } from './historyLayers';
 import { useWorkspace } from './workspaceContext';
 import { Chip } from './Chip';
 import { availableActions, intentHref } from './paletteActions';
@@ -52,6 +53,8 @@ export function CommandPalette(props: { open: boolean; onOpenChange: (o: boolean
 }
 
 function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  // «Назад» на телефоне закрывает палитру, а не страницу под ней (issue #1418).
+  useHistoryLayer(true, () => { onOpenChange(false); return true; });
   // Палитра — второй вход в те же разделы, что и рейл, и уходить обязана тем же путём — через
   // охрану несохранённых правок (issue #1238). С прямым `navigate` счёт с правками терялся за два
   // нажатия, без вопроса; то же — команда выхода.

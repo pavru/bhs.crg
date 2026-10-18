@@ -190,6 +190,66 @@ async function narrowChecks(page, check) {
       await dialog.waitFor({ state: 'detached' });
     });
 
+    // Системная «Назад» на телефоне закрывает верхний слой, а не страницу под ним (#1418): меню,
+    // окно, окно с вводом — тем же вопросом, что крестик. Адрес при этом не меняется.
+    await check('narrow-back-closes-the-top-layer', async () => {
+      const here = page.url();
+      const stayed = (what) => { if (page.url() !== here) throw new Error(`«Назад» с ${what} увела на ${page.url()}`); };
+
+      await page.getByTestId('section-menu-trigger').click();
+      const menu = page.getByTestId('section-menu');
+      await menu.waitFor();
+      await page.goBack();
+      await menu.waitFor({ state: 'detached' });
+      stayed('меню раздела');
+
+      await page.getByTestId('account-menu').click();
+      const account = page.getByRole('menu');
+      await account.waitFor();
+      await page.goBack();
+      await account.waitFor({ state: 'detached' });
+      stayed('меню профиля');
+
+      const dialog = page.getByRole('dialog', { name: 'Новая роль' });
+      await page.getByRole('button', { name: 'Новая роль' }).click();
+      await dialog.waitFor();
+      await page.goBack();
+      await dialog.waitFor({ state: 'detached' });
+      stayed('пустого окна');
+
+      // С вводом — вопрос; «Назад» при вопросе — «Продолжить редактирование», как Esc.
+      await page.getByRole('button', { name: 'Новая роль' }).click();
+      await dialog.waitFor();
+      await dialog.getByRole('textbox').first().fill('Набранное');
+      await page.goBack();
+      const ask = dialog.getByText('Закрыть без сохранения?');
+      await ask.waitFor();
+      stayed('окна с вводом');
+      await page.goBack();
+      await ask.waitFor({ state: 'detached' });
+      if (!(await dialog.isVisible())) throw new Error('«Назад» при вопросе закрыла окно с набранным');
+      stayed('вопроса');
+      await page.goBack();
+      await ask.waitFor();
+      // «Закрыть» вопроса, а не крестик окна с тем же именем.
+      await dialog.locator('div', { has: page.getByText('Закрыть без сохранения?') }).last()
+        .getByRole('button', { name: 'Закрыть', exact: true }).click();
+      await dialog.waitFor({ state: 'detached' });
+      stayed('закрытого окна');
+
+      // Слоёв больше нет — «Назад» уводит со страницы, одним нажатием: записи закрытых слоёв не
+      // съедают нажатий.
+      // Сверяется по записи роутера (`idx`): соседняя запись бывает с тем же адресом.
+      const idx = await page.evaluate(() => history.state?.idx);
+      const at = (want) => page.waitForFunction(i => history.state?.idx === i && !history.state?.layer, want, { timeout: 5000 });
+      await page.goBack();
+      await at(idx - 1);
+      await page.goForward();
+      await at(idx);
+      stayed('«Вперёд» обратно');
+      await settled(page);
+    });
+
     // Меню раздела, открытое на телефоне, закрывается, когда окно расширили: на рабочем столе его
     // место заняла подпанель, и меню лежало бы поверх неё.
     await check('narrow-section-menu-closes-when-window-widens', async () => {

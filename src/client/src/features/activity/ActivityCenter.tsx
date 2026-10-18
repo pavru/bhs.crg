@@ -1,10 +1,11 @@
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { Bell } from 'lucide-react';
 import { useActiveJobs } from '@/shared/api/jobs';
 import { useNotifications } from '@/shared/api/notifications';
 import { JobRow } from '@/features/jobs/JobRow';
 import { NotificationList } from '@/features/notifications/NotificationList';
+import { useHistoryLayer } from '@/shared/ui/historyLayers';
 
 /**
  * Кнопка активности в шапке (issue #1431) — одна дверь к тому, что идёт и что уже случилось. Раньше
@@ -40,8 +41,12 @@ export function ActivityCenter() {
     ? `${jobs.length === 1 ? `Выполняется: ${doing}` : doing}; ${news}`
     : `Уведомления — ${news}`;
 
+  // «Назад» на телефоне закрывает панель, а не страницу (issue #1418).
+  const [open, setOpen] = useState(false);
+  useHistoryLayer(open, () => { setOpen(false); return true; });
+
   return (
-    <Popover.Root>
+    <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <button type="button" data-testid="activity" aria-label={label}
           className={'relative shrink-0 flex items-center justify-center rounded-full h-10 max-md:h-11 transition-colors ' +

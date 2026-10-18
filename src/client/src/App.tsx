@@ -9,6 +9,7 @@ import { LocaleProvider } from '@/shared/ui/LocaleProvider';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
 import { NavigationGuardProvider } from '@/shared/ui/NavigationGuardProvider';
 import { BrandIconLinks } from '@/shared/ui/BrandIconLinks';
+import { HistoryLayersHost } from '@/shared/ui/historyLayers';
 import { DocumentTitleManager } from '@/shared/ui/DocumentTitleManager';
 import { ToastProvider } from '@/shared/ui/ToastProvider';
 import { BugReportProvider } from '@/shared/ui/BugReportProvider';
@@ -68,6 +69,8 @@ export default function App() {
           <NavigationGuardProvider>
           <DocumentTitleManager>
           <BrandIconLinks />
+          {/* Где мы в истории — для «Назад», закрывающей верхний слой на телефоне (issue #1418). */}
+          <HistoryLayersHost />
           <AppRoutes />
           </DocumentTitleManager>
           </NavigationGuardProvider>
