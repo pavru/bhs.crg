@@ -1,4 +1,8 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { IconButton } from './Button';
+import { SectionMenu } from './SectionMenu';
+import { useSectionMenu } from './sectionMenuContext';
 import { Tooltip } from './Tooltip';
 
 /**
@@ -22,6 +26,10 @@ import { Tooltip } from './Tooltip';
  * `@2xl` (672 px) — действия уходят строкой под заголовок.
  *
  * Шапку выбранного в list-detail объекта рисует `DetailHeader` с `DetailTitle` (`h2`), не этот компонент.
+ *
+ * На телефоне (issue #1434) заголовок — дверь к соседним страницам раздела: подпанели там нет, и
+ * «Счета на оплату ▾» раскрывает меню раздела, а над заголовком стоит имя раздела. Заголовок-контрол
+ * (выбор представления) своё нажатие уже занял — меню раздела тогда открывает кнопка «▾» рядом.
  */
 export interface PageHeaderProps {
   title: ReactNode;
@@ -38,18 +46,45 @@ export function PageHeader({ title, subtitle, icon, badge, breadcrumb, actions, 
   className?: string;
 }) {
   const plain = typeof title === 'string';
+  const section = useSectionMenu();
+  // Подсказка о меню — описанием кнопки, а не частью имени: заголовок в списке заголовков диктора
+  // звучит названием страницы.
+  const hint = useId();
+  const heading = section && plain ? (<>
+    <h1 className="text-xl font-semibold text-fg1 min-w-0">
+      <SectionMenu value={section}>
+        <button type="button" data-testid="section-menu-trigger" aria-describedby={hint}
+          className="flex items-center gap-1 max-w-[calc(100%+0.5rem)] min-h-11 -ml-2 px-2 rounded-xl text-left hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand data-[state=open]:bg-tonal data-[state=open]:text-on-tonal">
+          <span className="truncate">{title}</span>
+          <ChevronDown size={20} className="shrink-0 text-fg3" aria-hidden />
+        </button>
+      </SectionMenu>
+    </h1>
+    {/* Вне заголовка: текст внутри него стал бы частью имени. */}
+    <span id={hint} className="sr-only">Другие страницы раздела «{section.def.title}»</span>
+  </>) : (
+    <Tooltip content={plain ? title : undefined}>
+      <h1 className={`text-xl font-semibold text-fg1 min-w-0 ${plain ? 'truncate' : ''}`}>
+        {title}
+      </h1>
+    </Tooltip>
+  );
   return (
     <header className={`@container ${bar ? 'shrink-0 px-6 py-3 border-b border-stroke ' : ''}${className}`}>
       <div className="flex flex-col gap-2 @2xl:flex-row @2xl:items-center @2xl:justify-between @2xl:gap-4">
         <div className="min-w-0 @2xl:flex-1 @2xl:min-w-48">
           {breadcrumb && <div className="mb-0.5">{breadcrumb}</div>}
+          {section && !breadcrumb && <div data-testid="section-caption" className="text-xs text-fg3">{section.def.title}</div>}
           <div className="flex items-center gap-2 min-w-0">
             {icon && <span className="flex text-fg3 shrink-0">{icon}</span>}
-            <Tooltip content={plain ? title : undefined}>
-              <h1 className={`text-xl font-semibold text-fg1 min-w-0 ${plain ? 'truncate' : ''}`}>
-                {title}
-              </h1>
-            </Tooltip>
+            {heading}
+            {section && !plain && (
+              <SectionMenu value={section}>
+                <IconButton label={`Другие страницы раздела «${section.def.title}»`} size="lg" className="min-h-11 min-w-11" data-testid="section-menu-trigger">
+                  <ChevronDown size={20} />
+                </IconButton>
+              </SectionMenu>
+            )}
             {badge && <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">{badge}</div>}
           </div>
           {subtitle && <div className="text-xs text-fg3 mt-0.5">{subtitle}</div>}

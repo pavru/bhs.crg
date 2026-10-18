@@ -8,7 +8,7 @@
 // подпанель прятала бы страницы разделов, и чужие локаторы по тексту меню упали бы. Поэтому
 // настройка сбрасывается и до проверок, и после — в finally, адресом, а не через экран.
 
-import { BASE, settled, callApi, until, railSection } from './harness.mjs';
+import { BASE, settled, callApi, until, railSection, accountAction } from './harness.mjs';
 
 const RESET = { rail: null };
 
@@ -85,39 +85,62 @@ export async function railChecks(page, check) {
 
 const sideScroll = page => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
+/** Цели касания телефона меньше 44 px — нижняя навигация, шапка, заголовок-меню (issue #1434). */
+const smallTargets = page => page.evaluate(() =>
+  [...document.querySelectorAll('#app-bottom-nav a, main > header button, [data-testid=section-menu-trigger]')]
+    .map(el => ({ el, box: el.getBoundingClientRect() }))
+    .filter(({ box }) => box.width > 0 && (box.width < 44 || box.height < 44))
+    .map(({ el, box }) => `«${(el.getAttribute('aria-label') ?? el.textContent ?? '').slice(0, 30)}» ${Math.round(box.width)}×${Math.round(box.height)}`));
+
 /**
- * Узкий экран (issue #1355): 390 px — ширина обычного телефона. Размер окна возвращается в finally:
- * следующие проверки набора идут на рабочем столе, и оставленный телефон уронил бы их на чужом.
+ * Узкий экран (issue #1355, #1434): 390 и 375 px — ширины обычных телефонов. Размер окна
+ * возвращается в finally: следующие проверки набора идут на рабочем столе, и оставленный телефон
+ * уронил бы их на чужом.
  */
 async function narrowChecks(page, check) {
   const desktop = page.viewportSize();
-  const sections = await page.locator('#app-rail-nav a').count();
-  if (!sections) throw new Error('в рейле нет ни одного раздела');
+  // Рабочие разделы рейла — всё, кроме «Системы»: она на телефоне в меню профиля.
+  const work = (await page.locator('#app-rail-nav a').allInnerTexts()).map(t => t.trim()).filter(t => t !== 'Система');
+  if (!work.length) throw new Error('в рейле нет ни одного рабочего раздела');
   try {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${BASE}/document-sets`);
     await settled(page);
 
-    await check('narrow-screen-menu-reaches-every-section', async () => {
+    await check('narrow-screen-bottom-nav-reaches-every-section', async () => {
       if (await page.getByTestId('rail').isVisible()) throw new Error('на 390 px панель осталась у края');
       // Шапка — одной строкой и на телефоне (#1432): пустая вторая строка под ней была бы лишней.
       const header = await page.locator('main > header').boundingBox();
       if (!header || header.height > 49) throw new Error(`шапка на 390 px высотой ${header?.height}px — не в одну строку`);
-      const extra = await sideScroll(page);
-      if (extra > 0) throw new Error(`каркас шире экрана на ${extra}px — страница едет вбок`);
+      // Гамбургера нет: разделы — внизу (#1434).
+      if (await page.getByRole('button', { name: 'Меню', exact: true }).count()) throw new Error('в шапке остался гамбургер');
+      // Те же рабочие разделы, что в рейле рабочего стола: копия, разошедшаяся с рейлом, прятала бы разделы.
+      const shown = (await page.getByTestId('bottom-nav').getByRole('link').allInnerTexts()).map(t => t.trim());
+      if (shown.join('|') !== work.join('|')) throw new Error(`внизу [${shown}], в рейле рабочего стола [${work}]`);
+      for (const width of [390, 375]) {
+        await page.setViewportSize({ width, height: 844 });
+        const extra = await sideScroll(page);
+        if (extra > 0) throw new Error(`на ${width} px каркас шире экрана на ${extra}px — страница едет вбок`);
+        const small = await smallTargets(page);
+        if (small.length) throw new Error(`на ${width} px цели касания меньше 44 px: ${small.join(', ')}`);
+      }
+      await page.setViewportSize({ width: 390, height: 844 });
+    });
 
-      await page.getByRole('button', { name: 'Меню' }).click();
-      const drawer = page.getByTestId('rail-drawer');
-      await drawer.waitFor();
-      // Те же разделы, что в рейле рабочего стола, — все сразу, каждый со страницами: копия,
-      // разошедшаяся с рейлом, прятала бы разделы.
-      const shown = await drawer.locator('#app-drawer-nav h2').count();
-      if (shown !== sections) throw new Error(`в меню ${shown} разделов, на рабочем столе ${sections}`);
-
-      // Выбор раздела закрывает меню — иначе оно лежало бы поверх открытого раздела.
-      await drawer.getByRole('link', { name: 'Роли и права' }).click();
+    // Подпанели на телефоне нет — страницы раздела раскрывает заголовок; «Систему» — меню профиля.
+    await check('narrow-title-opens-the-pages-of-the-section', async () => {
+      await accountAction(page, 'Администрирование');
+      await page.waitForURL(url => !url.pathname.startsWith('/document-sets'));
+      await settled(page);
+      await page.getByTestId('section-menu-trigger').click();
+      const menu = page.getByTestId('section-menu');
+      await menu.waitFor();
+      // Выбор страницы закрывает меню — иначе оно лежало бы поверх открытой страницы.
+      await menu.getByRole('menuitem', { name: 'Роли и права' }).click();
       await page.waitForURL(/\/roles/);
-      await drawer.waitFor({ state: 'detached' });
+      await menu.waitFor({ state: 'detached' });
+      const caption = (await page.getByTestId('section-caption').innerText()).trim();
+      if (caption !== 'Администрирование') throw new Error(`над заголовком «${caption}», ждали имя раздела «Администрирование»`);
     });
 
     await check('narrow-list-and-card-take-turns', async () => {
@@ -151,15 +174,16 @@ async function narrowChecks(page, check) {
       await dialog.waitFor({ state: 'detached' });
     });
 
-    // Меню, открытое на телефоне, закрывается, когда окно расширили: иначе оно лежало бы поверх
-    // панели, вернувшейся к краю, и держало бы страницу под затемнением.
-    await check('narrow-menu-closes-when-window-widens', async () => {
-      await page.getByRole('button', { name: 'Меню' }).click();
-      const drawer = page.getByTestId('rail-drawer');
-      await drawer.waitFor();
+    // Меню раздела, открытое на телефоне, закрывается, когда окно расширили: на рабочем столе его
+    // место заняла подпанель, и меню лежало бы поверх неё.
+    await check('narrow-section-menu-closes-when-window-widens', async () => {
+      await page.getByTestId('section-menu-trigger').click();
+      const menu = page.getByTestId('section-menu');
+      await menu.waitFor();
       await page.setViewportSize(desktop ?? { width: 1280, height: 720 });
-      await drawer.waitFor({ state: 'detached' });
+      await menu.waitFor({ state: 'detached' });
       if (!(await page.getByTestId('rail').isVisible())) throw new Error('на рабочем столе панель не вернулась к краю');
+      if (await page.getByTestId('bottom-nav').isVisible()) throw new Error('на рабочем столе осталась нижняя навигация');
     });
   } finally {
     if (desktop) await page.setViewportSize(desktop);

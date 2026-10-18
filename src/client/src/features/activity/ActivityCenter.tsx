@@ -44,12 +44,13 @@ export function ActivityCenter() {
     <Popover.Root>
       <Popover.Trigger asChild>
         <button type="button" data-testid="activity" aria-label={label}
-          className={'relative shrink-0 flex items-center justify-center rounded-full h-10 transition-colors ' +
+          className={'relative shrink-0 flex items-center justify-center rounded-full h-10 max-md:h-11 transition-colors ' +
             'hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 data-[state=open]:bg-tonal data-[state=open]:text-on-tonal ' +
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface ' +
             // Цвет — в каждой ветке свой, а не общий с перебивкой: из двух `text-*` побеждает тот, что
             // позже в таблице стилей, а не в атрибуте (ревью PR #1450).
-            (busy ? 'gap-2 pl-2.5 pr-3 text-fg2' : 'w-10 text-fg3')}>
+            // На телефоне — 44 px: цель касания (#1434).
+            (busy ? 'gap-2 pl-2.5 pr-3 text-fg2' : 'w-10 max-md:w-11 text-fg3')}>
           {busy ? (
             <>
               <ProgressRing />

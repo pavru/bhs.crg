@@ -50,10 +50,14 @@ export function groupItems(items: NavItem[]): PanelGroup[] {
  * пространства всё равно принадлежит своему разделу.
  */
 export function activeRail(pathname: string, items: NavItem[]): RailId | null {
-  const owner = [...items]
+  return ownerItem(pathname, items)?.rail ?? null;
+}
+
+/** Пункт, которому принадлежит адрес, — с самым длинным подходящим адресом (см. `activeRail`). */
+export function ownerItem(pathname: string, items: NavItem[]): NavItem | undefined {
+  return [...items]
     .sort((a, b) => b.to.length - a.to.length)
     .find(item => pathname === item.to || pathname.startsWith(`${item.to}/`));
-  return owner?.rail ?? null;
 }
 
 /** Есть ли у этого адреса подпанель: в карточке стройки её место занимает навигация стройки. */
