@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { fromDraft, pageSize, profileSummary, toDraft, validateDraft, type PrintProfileDraft } from './printProfileRules';
+import {
+  fieldIssue, fromDraft, pageSize, pairIssue, profileSummary, toDraft, validateDraft, type PrintProfileDraft,
+} from './printProfileRules';
 
 /** Проверка формы «Профили печати» (issue #1455) — до отправки, теми же пределами, что у сервера. */
 
@@ -36,23 +38,31 @@ describe('проверка профиля печати', () => {
     expect(validateDraft(withMargins({ left: '41' }), [])['margins.left']).toBe('От 0 до 40 мм');
   });
 
-  it('по ширине и по высоте остаётся не меньше 100 мм — ошибка под правым и нижним полем', () => {
+  it('по ширине и по высоте остаётся не меньше 100 мм — ошибка пары, с осью в тексте', () => {
     // A5 книжная: 148 − 40 − 40 = 68.
     const narrow = validateDraft(withMargins({ left: '40', right: '40' }, { paper: 'A5' }), []);
-    expect(narrow['margins.right'])
-      .toBe('Слишком широкие поля: для страницы остаётся 68 мм. Нужно не меньше 100 мм.');
-    expect(narrow['margins.left']).toBeUndefined();
+    expect(pairIssue(narrow, ['left', 'right']))
+      .toBe('Слишком широкие поля: по ширине остаётся 68 мм. Нужно не меньше 100 мм.');
+    // Ошибка пары — не ошибка поля: под самим полем её нет.
+    expect(fieldIssue(narrow, 'left')).toBeUndefined();
     // A5 альбомная: высота 148 − 25 − 25 = 98.
     const low = validateDraft(withMargins({ top: '25', bottom: '25' }, { paper: 'A5', orientation: 'landscape' }), []);
-    expect(low['margins.bottom']).toContain('остаётся 98 мм');
+    expect(pairIssue(low, ['top', 'bottom'])).toContain('по высоте остаётся 98 мм');
     // Ровно 100 — годится: A5 книжная, 148 − 24 − 24.
     expect(validateDraft(withMargins({ left: '24', right: '24' }, { paper: 'A5' }), [])).toEqual({});
   });
 
   it('нехватку места не меряют по негодному полю', () => {
     const issues = validateDraft(withMargins({ left: '', right: '40' }, { paper: 'A5' }), []);
-    expect(issues['margins.left']).toBe('Целое число миллиметров');
+    expect(fieldIssue(issues, 'left')).toBe('Целое число миллиметров');
     expect(issues['margins.right']).toBeUndefined();
+    expect(pairIssue(issues, ['left', 'right'])).toBeNull();
+  });
+
+  it('отказ сервера читается так же: один текст на обеих сторонах — ошибка пары', () => {
+    const server = { 'margins.left': 'По ширине остаётся 98 мм — нужно не меньше 100.', 'margins.right': 'По ширине остаётся 98 мм — нужно не меньше 100.' };
+    expect(pairIssue(server, ['left', 'right'])).toContain('98 мм');
+    expect(fieldIssue({ 'margins.top': 'Поля — от 0 до 40 мм.' }, 'top')).toBe('Поля — от 0 до 40 мм.');
   });
 });
 

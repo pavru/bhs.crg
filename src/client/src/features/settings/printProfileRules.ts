@@ -114,8 +114,11 @@ export function nameIssue(name: string, otherNames: string[]): string | null {
 
 /**
  * Ошибки черновика: путь поля → текст, пути — как у отказа сервера (`name`, `margins.top`…).
- * Нехватку места меряем, только когда обе стороны поля годны: иначе «остаётся N мм» считалось бы
- * от числа, которого в поле нет.
+ *
+ * <p>Нехватка места — ошибка ПАРЫ полей, и пишется она, как пишет сервер, на обе стороны пары
+ * (`margins.left` и `margins.right`) одним текстом: исправляют её любым из двух. Мерить её можно,
+ * только когда обе стороны годны — иначе «остаётся N мм» считалось бы от числа, которого в поле нет.
+ * Отличить её от ошибки самого поля помогает {@link pairIssue}.</p>
  *
  * @param otherNames Названия остальных профилей — сверка без учёта регистра, как у сервера.
  */
@@ -133,15 +136,33 @@ export function validateDraft(d: PrintProfileDraft, otherNames: string[]): Recor
   }
 
   const page = pageSize(d.paper, d.orientation);
-  const shortfall = (rest: number) =>
-    `Слишком широкие поля: для страницы остаётся ${rest} мм. Нужно не меньше ${USEFUL_MIN_MM} мм.`;
+  const shortfall = (axis: string, rest: number) =>
+    `Слишком широкие поля: ${axis} остаётся ${rest} мм. Нужно не меньше ${USEFUL_MIN_MM} мм.`;
   if (mm.left !== undefined && mm.right !== undefined) {
     const rest = page.width - mm.left - mm.right;
-    if (rest < USEFUL_MIN_MM) issues['margins.right'] = shortfall(rest);
+    if (rest < USEFUL_MIN_MM) issues['margins.left'] = issues['margins.right'] = shortfall('по ширине', rest);
   }
   if (mm.top !== undefined && mm.bottom !== undefined) {
     const rest = page.height - mm.top - mm.bottom;
-    if (rest < USEFUL_MIN_MM) issues['margins.bottom'] = shortfall(rest);
+    if (rest < USEFUL_MIN_MM) issues['margins.top'] = issues['margins.bottom'] = shortfall('по высоте', rest);
   }
   return issues;
+}
+
+/** Пары противоположных полей: место под текст меряется по каждой. */
+export const MARGIN_PAIRS: [keyof PrintMargins, keyof PrintMargins][] = [['left', 'right'], ['top', 'bottom']];
+
+/**
+ * Ошибка пары полей — один текст на обеих сторонах (так её пишут и проверка здесь, и сервер). `null` —
+ * ошибки пары нет: у сторон свои ошибки, или ошибок нет вовсе.
+ */
+export function pairIssue(issues: Record<string, string>, [a, b]: [keyof PrintMargins, keyof PrintMargins]): string | null {
+  const first = issues[`margins.${a}`];
+  return first && first === issues[`margins.${b}`] ? first : null;
+}
+
+/** Ошибка самого поля — та, что не принадлежит паре. */
+export function fieldIssue(issues: Record<string, string>, side: keyof PrintMargins): string | undefined {
+  const pair = MARGIN_PAIRS.find(p => p.includes(side))!;
+  return pairIssue(issues, pair) ? undefined : issues[`margins.${side}`];
 }

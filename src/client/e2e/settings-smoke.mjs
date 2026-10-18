@@ -22,7 +22,7 @@ import { printProfilesChecks } from './print-profiles-checks.mjs';
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1100 } });
 page.on('pageerror', e => console.log('  ! ошибка страницы:', e.message));
-const { check, summarize } = createChecks();
+const { check, skip, summarize } = createChecks();
 
 await login(page);
 
@@ -306,7 +306,7 @@ await favoritesChecks(page, check);
 await railChecks(page, check);
 
 // Профили печати (issue #1455) — под этим же входом; свои профили проверки убирают за собой.
-await printProfilesChecks(page, check);
+await printProfilesChecks(page, check, skip);
 
 // Секция «Название и логотип» о значках из логотипа (issue #1315): что вышло — картинками, что не
 // вышло — словами. Идёт ПОСЛЕДНЕЙ: раскрытая секция запоминается в localStorage, а проверки выше

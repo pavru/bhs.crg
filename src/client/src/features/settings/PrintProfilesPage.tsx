@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Plus, Printer } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
@@ -6,12 +6,15 @@ import { TextField } from '@/shared/ui/TextField';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { useToast } from '@/shared/ui/Toast';
 import { ListDetailShell } from '@/shared/ui/ListDetailShell';
+import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
+import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
+import { useDirtyGuard } from '@/shared/ui/useDirtyGuard';
 import { useListDetailView } from '@/shared/ui/listDetailView';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
 import { refusalIssues } from '@/shared/api/refusals';
 import { useCreatePrintProfile, usePrintProfiles, type PrintProfile } from '@/shared/api/printProfiles';
 import { NAME_MAX, isModified, nameIssue, profileSummary } from './printProfileRules';
-import { PrintProfileDetail } from './PrintProfileDetail';
+import { PrintProfileDetail, type EditState } from './PrintProfileDetail';
 import { SheetSketch } from './SheetSketch';
 
 /**
@@ -20,11 +23,15 @@ import { SheetSketch } from './SheetSketch';
  *
  * <p>Строка списка несёт набросок листа: бумага, ориентация и поля видны, не открывая профиль. Поиска
  * нет: профилей единицы.</p>
+ *
+ * <p>Несохранённую правку карточки страница не теряет молча — ни переходом к другому профилю, ни
+ * уходом с экрана: оба спрашивают, как у типов полей.</p>
  */
 
 const SELECTION_KEYS = ['profile'] as const;
 const LAST_KEY = 'print-profiles-last';
 const EMPTY: PrintProfile[] = [];
+const CLEAN: EditState = { dirty: false, saving: false };
 
 export function PrintProfilesPage() {
   const { data: loaded, isLoading, isError } = usePrintProfiles();
@@ -36,6 +43,19 @@ export function PrintProfilesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   // Удалённый или чужой id — молча первый профиль: он есть всегда (по умолчанию не удаляется).
   const selected = profiles.find(p => p.id === values.profile) ?? profiles[0];
+  const base = profiles.find(p => p.isSystem);
+
+  // Карточка сообщает, есть ли у неё несохранённое, и даёт своё сохранение — для «Сохранить и перейти».
+  const [edit, setEdit] = useState<EditState>(CLEAN);
+  const saveRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const saveAll = () => saveRef.current();
+  const { request, dialogProps } = useDirtyGuard<string>({
+    isDirty: edit.dirty, saving: edit.saving, saveAll, onCommit: setSelectedId,
+  });
+  const open = (id: string) => { ld.showDetail(); if (id !== selected?.id) request(id); };
+
+  const [routeLeave, setRouteLeave] = useState<(() => void) | null>(null);
+  useLeaveGuard(edit.dirty, proceed => setRouteLeave(() => proceed));
 
   return (
     <>
@@ -52,8 +72,7 @@ export function PrintProfilesPage() {
         nav={
           <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-0.5" data-testid="print-profiles-list">
             {profiles.map(p => (
-              <ProfileRow key={p.id} profile={p} active={selected?.id === p.id}
-                onClick={() => { ld.showDetail(); setSelectedId(p.id); }} />
+              <ProfileRow key={p.id} profile={p} active={selected?.id === p.id} onClick={() => open(p.id)} />
             ))}
             {isError && <p className="text-sm text-fg4 px-3 py-2">Не удалось получить список профилей</p>}
           </div>
@@ -61,12 +80,23 @@ export function PrintProfilesPage() {
         detail={selected
           ? <PrintProfileDetail key={selected.id} profile={selected}
               otherNames={profiles.filter(p => p.id !== selected.id).map(p => p.name)}
-              onDeleted={() => setSelectedId(null)} />
+              onDeleted={() => setSelectedId(null)} onEditState={setEdit} saveRef={saveRef} />
           : <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Выберите профиль</div>} />
 
+      <LeaveGuardDialog {...dialogProps} />
+      <LeaveGuardDialog
+        open={routeLeave !== null} saving={edit.saving}
+        onCancel={() => setRouteLeave(null)}
+        onDiscard={() => { const p = routeLeave; setRouteLeave(null); p?.(); }}
+        onSave={async () => {
+          try { await saveAll(); const p = routeLeave; setRouteLeave(null); p?.(); }
+          catch { setRouteLeave(null); /* ошибка показана в карточке */ }
+        }} />
+
       <Modal open={createOpen} onOpenChange={setCreateOpen} title="Новый профиль печати">
-        <CreateForm names={profiles.map(p => p.name)} base={profiles.find(p => p.isSystem)}
-          onCreated={id => { setSelectedId(id); ld.showDetail(); setCreateOpen(false); }}
+        <CreateForm names={profiles.map(p => p.name)} base={base}
+          // Созданный открывается через тот же вопрос: правка в карточке не пропадает и отсюда.
+          onCreated={id => { setCreateOpen(false); open(id); }}
           onCancel={() => setCreateOpen(false)} />
       </Modal>
     </>
@@ -95,6 +125,9 @@ function ProfileRow({ profile, active, onClick }: { profile: PrintProfile; activ
 /**
  * Новый профиль — одно название: параметры берутся из профиля по умолчанию и правятся в карточке.
  * Так новый профиль с первой секунды годен, и форма создания не повторяет карточку.
+ *
+ * <p>Профиля по умолчанию в списке нет (сервер его не отдал) — брать параметры неоткуда: «Создать»
+ * недоступна, и причина написана, а не молчаливое нажатие без ответа.</p>
  */
 function CreateForm({ names, base, onCreated, onCancel }: {
   names: string[]; base: PrintProfile | undefined; onCreated: (id: string) => void; onCancel: () => void;
@@ -105,9 +138,9 @@ function CreateForm({ names, base, onCreated, onCancel }: {
   const [error, setError] = useState<string | undefined>();
 
   async function save() {
+    if (!base) return;
     const issue = nameIssue(name, names);
     if (issue) { setError(issue); return; }
-    if (!base) return;
     try {
       const created = await create.mutateAsync({
         name: name.trim(), paper: base.paper, orientation: base.orientation, fit: base.fit, margins: base.margins,
@@ -125,10 +158,12 @@ function CreateForm({ names, base, onCreated, onCancel }: {
     <form className="space-y-4" onSubmit={e => { e.preventDefault(); void save(); }}>
       <TextField label="Название" autoFocus value={name} maxLength={NAME_MAX} error={error}
         onChange={e => { setName(e.target.value); setError(undefined); }} />
-      <p className="text-xs text-fg3">Параметры возьмутся из профиля по умолчанию — поменяете в карточке.</p>
+      {base
+        ? <p className="text-xs text-fg3">Параметры возьмутся из профиля по умолчанию — поменяете в карточке.</p>
+        : <p className="text-xs text-danger">Нет профиля по умолчанию — параметры взять неоткуда. Обновите страницу.</p>}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="text" onClick={onCancel}>Отмена</Button>
-        <Button type="submit" variant="filled" loading={create.isPending}>Создать</Button>
+        <Button type="submit" variant="filled" loading={create.isPending} disabled={!base}>Создать</Button>
       </div>
     </form>
   );

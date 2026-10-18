@@ -35,7 +35,8 @@ function shown(profile: PrintProfile, otherNames: string[] = []) {
   render(
     <QueryClientProvider client={new QueryClient()}>
       <ToastProvider>
-        <PrintProfileDetail profile={profile} otherNames={otherNames} onDeleted={() => {}} />
+        <PrintProfileDetail profile={profile} otherNames={otherNames} onDeleted={() => {}}
+          onEditState={() => {}} saveRef={{ current: () => Promise.resolve() }} />
       </ToastProvider>
     </QueryClientProvider>,
   );
@@ -69,8 +70,35 @@ describe('карточка профиля печати', () => {
     fireEvent.change(screen.getByLabelText('Левое'), { target: { value: '40' } });
     fireEvent.change(screen.getByLabelText('Правое'), { target: { value: '40' } });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
-    expect((await screen.findByRole('alert')).textContent).toContain('остаётся 68 мм');
+    expect((await screen.findByRole('alert')).textContent).toContain('по ширине остаётся 68 мм');
     expect(apiClient.put).not.toHaveBeenCalled();
+    // Ошибка пары связана с обоими полями: диктор на поле прочтёт её.
+    expect(screen.getByLabelText('Левое').getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByLabelText('Правое').getAttribute('aria-describedby')).toBeTruthy();
+    // После первой попытки проверка живая: исправили — ошибка ушла, без нового «Сохранить».
+    fireEvent.change(screen.getByLabelText('Левое'), { target: { value: '4' } }); // 148 − 4 − 40 = 104
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('смена бумаги пересчитывает остаток, а не оставляет прежний текст', async () => {
+    shown(own);
+    fireEvent.change(screen.getByLabelText('Левое'), { target: { value: '30' } });
+    fireEvent.change(screen.getByLabelText('Правое'), { target: { value: '30' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    // A5 книжная: 148 − 30 − 30 = 88.
+    expect((await screen.findByRole('alert')).textContent).toContain('остаётся 88 мм');
+    fireEvent.click(screen.getByRole('radio', { name: /A4/ }));
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('бумага — радиогруппа: одна остановка Tab, стрелка переводит выбор', () => {
+    shown(own);
+    const group = screen.getByRole('radiogroup', { name: 'Бумага' });
+    const a5 = screen.getByRole('radio', { name: /A5/ });
+    expect(a5.getAttribute('aria-checked')).toBe('true');
+    expect(screen.getAllByRole('radio', { name: /^A/ }).filter(r => r.tabIndex === 0)).toHaveLength(1);
+    fireEvent.keyDown(group, { key: 'ArrowRight' });
+    expect(screen.getByRole('radio', { name: /A4/ }).getAttribute('aria-checked')).toBe('true');
   });
 
   it('отказ сервера с адресом поля встаёт под поле', async () => {

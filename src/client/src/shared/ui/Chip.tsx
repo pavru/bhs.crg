@@ -1,5 +1,5 @@
 import { Check, ChevronDown, X, type LucideIcon } from 'lucide-react';
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react';
 import { Tooltip } from './Tooltip';
 
 /**
@@ -15,12 +15,17 @@ import { Tooltip } from './Tooltip';
  * - `onRemove` — крестик снятия отдельной кнопкой рядом (своё имя для диктора: `removeLabel`).
  * - `menu` — чип открывает выбор (поповер, меню): стрелка справа, `selected` только красит — нажатым
  *   он не бывает, состояние называет подпись («Избранные стройки» / «Все стройки», #1432).
+ * - `role="radio"` — чип один из группы взаимоисключающих (`role="radiogroup"` у обёртки, стрелки и
+ *   переход фокуса — у неё): `aria-checked` вместо `aria-pressed`, иначе диктор назвал бы три
+ *   независимых переключателя, а не «один из трёх» (#1455).
  *
  * Чипы отбора над таблицей с правкой условия на месте — `shared/filter/FilterChips`: там чип — лицо
  * условия с поповером, а не переключатель.
  */
 export interface ChipProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   children: ReactNode;
+  /** На саму кнопку: радиогруппа переводит фокус стрелками. */
+  ref?: Ref<HTMLButtonElement>;
   selected?: boolean;
   icon?: LucideIcon;
   count?: ReactNode;
@@ -49,6 +54,8 @@ function chipClass({ selected = false, tone = 'neutral', dashed = false }:
 
 export function Chip({ children, selected, icon: Icon, count, tone, dashed, onRemove, removeLabel, menu = false, className = '', type = 'button', ...rest }: ChipProps) {
   const toggles = selected !== undefined && !menu;
+  const radio = rest.role === 'radio';
+  const state = radio ? { 'aria-checked': !!selected } : { 'aria-pressed': toggles ? selected : undefined };
   const Shown = toggles && selected ? Check : Icon;
   const body = (
     <>
@@ -61,7 +68,7 @@ export function Chip({ children, selected, icon: Icon, count, tone, dashed, onRe
 
   if (!onRemove)
     return (
-      <button {...rest} type={type} aria-pressed={toggles ? selected : undefined}
+      <button {...rest} type={type} {...state}
         className={`${chipClass({ selected, tone, dashed })} px-2.5 py-1 ${className}`}>
         {body}
       </button>
@@ -69,7 +76,7 @@ export function Chip({ children, selected, icon: Icon, count, tone, dashed, onRe
 
   return (
     <span className={`${chipClass({ selected, tone, dashed })} ${className}`}>
-      <button {...rest} type={type} aria-pressed={toggles ? selected : undefined}
+      <button {...rest} type={type} {...state}
         className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-l-full min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
         {body}
       </button>
