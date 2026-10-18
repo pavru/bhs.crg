@@ -2,8 +2,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { Link, Outlet, useLocation } from 'react-router';
 import { useAccount, useResendConfirmation } from '@/shared/api/account';
-import { NotificationsCenter } from '@/features/notifications/NotificationsCenter';
-import { ActiveJobsIndicator } from '@/features/jobs/ActiveJobsIndicator';
+import { ActivityCenter } from '@/features/activity/ActivityCenter';
 import { BrandLogo } from '@/shared/ui/Brand';
 import { useProductName } from '@/shared/api/branding';
 import { CommandPalette } from '@/shared/ui/CommandPalette';
@@ -170,7 +169,7 @@ function Shell() {
 
       {/* Content */}
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        {/* Шапка (issue #1430): контекст экрана, поиск, задачи и уведомления, справка, профиль.
+        {/* Шапка (issue #1430): контекст экрана, поиск, активность (#1431), справка, профиль.
             На узком экране — две строки (issue #1355): сверху меню, поиск и кнопки, под ними контекст
             экрана. В одну строку 390 px не вмещают: подпись избранного ложилась в два этажа поверх
             колокольчика. Прятать контекст в «ещё» нельзя — он говорит, что видно. */}
@@ -191,8 +190,7 @@ function Shell() {
             <SiteFilterSwitch />
           </div>
           <SearchButton onOpen={() => setPaletteOpen(true)} />
-          <ActiveJobsIndicator />
-          <NotificationsCenter />
+          <ActivityCenter />
           {/* Видимый вход в справку: клавишу «?» знает только тот, кто её уже нашёл. На телефоне
               справки по клавишам нет — клавиатуры там нет, а место в строке нужно аватару. */}
           <IconButton label="Справка и горячие клавиши" size="lg" className="max-md:hidden" onClick={() => setHelpOpen(true)}>

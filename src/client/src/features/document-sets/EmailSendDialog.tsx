@@ -138,7 +138,7 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
         {error && <p className="text-sm text-danger">{error}</p>}
         {queued && (
           <p className="text-sm text-success flex items-center gap-1.5">
-            <CheckCircle size={15} /> Отправка запущена — прогресс в индикаторе задач слева от колокольчика.
+            <CheckCircle size={15} /> Отправка запущена — ход виден на кнопке активности в шапке.
           </p>
         )}
       </div>

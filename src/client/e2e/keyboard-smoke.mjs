@@ -102,6 +102,24 @@ try {
         throw new Error('после Esc фокус не вернулся на аватар');
     });
   });
+  // Кнопка активности (issue #1431): одна вместо пилюли задач и колокольчика. Enter открывает
+  // поповер, первый же Esc закрывает его — подсказка первой кнопки фокус больше не забирает.
+  await check('activity-button-by-keyboard', async () => {
+    const button = page.getByTestId('activity');
+    if (!/уведомлени/i.test((await button.getAttribute('aria-label')) ?? ''))
+      throw new Error('имя кнопки активности не называет уведомления');
+    await button.focus();
+    await page.keyboard.press('Enter');
+    const popover = page.getByRole('dialog', { name: 'Активность' });
+    await popover.waitFor({ timeout: 3000 });
+    await popover.getByRole('heading', { name: 'Уведомления' }).waitFor({ timeout: 3000 });
+    await page.keyboard.press('Escape');
+    await popover.waitFor({ state: 'hidden', timeout: 3000 });
+    await until(async () => {
+      if (!(await page.evaluate(() => document.activeElement?.getAttribute('data-testid') === 'activity')))
+        throw new Error('после Esc фокус не вернулся на кнопку активности');
+    });
+  });
 
   // ── Чем закрывается диалог (issue #1235) ────────────────────────────────────
   // Правило — по состоянию окна. Сама таблица проверена тестом `Modal`; здесь то, чего тест не
