@@ -18,6 +18,7 @@ import {
   rowsOf, targetName, targetsOf, targetsOfState, toSplitTargets, toState, type MatrixCells, type MatrixRow, type MatrixTarget,
 } from './matrix';
 import { toDrafts, type LineDraft } from './invoiceLines';
+import { vatModeOf } from './invoiceVat';
 import { PlaceSelect } from './PlaceSelect';
 import { chosen, missingSection, placeOfPart, samePlace, usePlaces, type Places } from './places';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -63,8 +64,10 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
 
   const drafting = draft !== undefined;
   const draftLines = draft?.lines ?? null;
-  const rowsFor = (of: InvoiceView) => (drafting ? draftRows(draftLines ?? toDrafts(of.lines), total) : rowsOf(of, total));
-  const rows = useMemo(() => (drafting ? draftRows(draftLines ?? toDrafts(view.lines), total) : rowsOf(view, total)),
+  const mode = vatModeOf(view);
+  const rowsFor = (of: InvoiceView) => (drafting
+    ? draftRows(draftLines ?? toDrafts(of.lines, vatModeOf(of)), total, vatModeOf(of)) : rowsOf(of, total));
+  const rows = useMemo(() => (drafting ? draftRows(draftLines ?? toDrafts(view.lines, mode), total, mode) : rowsOf(view, total)),
     [drafting, draftLines, view, total]);
   // Набор, уже лежащий в черновике исправления: матрица открывается им, а не записанной разноской.
   const [opened] = useState(() => (draft?.state ? { state: draft.state, targets: targetsOfState(draft.state) } : null));
@@ -242,7 +245,8 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
                   <div className="text-fg4">
                     {row.mode === 'quantity'
                       ? `${row.whole === null ? '' : formatQuantity(row.whole)} ${row.unit ?? ''}`.trim()
-                        + (row.amount === null ? '' : ` · ${formatMoney(row.amount)}`)
+                        // Сверху сумма строки в бумаге без НДС — делится же сумма с НДС, и это названо.
+                        + (row.amount === null ? '' : ` · ${formatMoney(row.amount)}${mode === 'OnTop' ? ' с НДС' : ''}`)
                       : row.whole === null ? 'суммы нет' : formatMoney(row.whole)}
                   </div>
                 </>

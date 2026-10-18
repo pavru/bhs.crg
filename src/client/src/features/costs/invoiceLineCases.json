@@ -1,0 +1,27 @@
+{
+  "about": "Строка счёта по режиму НДС — общий набор примеров (issue #1499, сторож С7). Его считают оба: предпросмотр формы (invoiceLines.test.ts, preview) и сервер (InvoiceLineCasesTests, InvoiceLineValues.Completed). Разойдутся правила — краснеет тот, кто отстал. Поля: paper — сумма строки из бумаги (при Included — с НДС, при OnTop — без НДС), vat — сумма НДС из бумаги; expect.amount — бумажная сумма после досчёта, expect.gross — сумма с НДС (null — НДС неизвестен). Числа выдуманные.",
+  "cases": [
+    { "name": "в том числе: НДС от суммы с НДС", "mode": "Included", "paper": 1220, "rate": 22,
+      "expect": { "amount": 1220, "vat": 220, "gross": 1220 } },
+    { "name": "в том числе: ставка как доля от 100 + ставка, а не от 100", "mode": "Included", "paper": 10000, "rate": 20,
+      "expect": { "amount": 10000, "vat": 1666.67, "gross": 10000 } },
+    { "name": "в том числе: сумма из количества и цены", "mode": "Included", "quantity": 3, "price": 33.33, "rate": 20,
+      "expect": { "amount": 99.99, "vat": 16.67, "gross": 99.99 } },
+    { "name": "в том числе: без ставки НДС неизвестен", "mode": "Included", "paper": 500,
+      "expect": { "amount": 500, "vat": null, "gross": 500 } },
+    { "name": "сверху: НДС прибавляется к сумме без НДС", "mode": "OnTop", "paper": 1000, "rate": 22,
+      "expect": { "amount": 1000, "vat": 220, "gross": 1220 } },
+    { "name": "сверху: сумма без НДС из количества и цены", "mode": "OnTop", "quantity": 2, "price": 500, "rate": 22,
+      "expect": { "amount": 1000, "vat": 220, "gross": 1220 } },
+    { "name": "сверху: без ставки суммы с НДС нет", "mode": "OnTop", "paper": 1000,
+      "expect": { "amount": 1000, "vat": null, "gross": null } },
+    { "name": "сверху: НДС из бумаги не пересчитывается", "mode": "OnTop", "paper": 1000, "rate": 22, "vat": 219.99,
+      "expect": { "amount": 1000, "vat": 219.99, "gross": 1219.99 } },
+    { "name": "сверху: ставка 0 — НДС ноль, а не неизвестен", "mode": "OnTop", "paper": 750, "rate": 0,
+      "expect": { "amount": 750, "vat": 0, "gross": 750 } },
+    { "name": "сверху: копейки от нуля на половинке (1,005 → 1,01)", "mode": "OnTop", "paper": 10.05, "rate": 10,
+      "expect": { "amount": 10.05, "vat": 1.01, "gross": 11.06 } },
+    { "name": "сверху: копейки от нуля из количества и цены", "mode": "OnTop", "quantity": 3, "price": 33.33, "rate": 10,
+      "expect": { "amount": 99.99, "vat": 10, "gross": 109.99 } }
+  ]
+}

@@ -62,7 +62,14 @@ export interface InvoiceLineView {
   price: number | null;
   vatRate: number | null;
   vatAmount: number | null;
+  /**
+   * Сумма строки С НДС — в обоих режимах счёта (issue #1497). ⚠️ При НДС сверху это производное
+   * сервера, а не бумага: отправленная обратно как бумага, она прибавила бы НДС второй раз (сервер
+   * ответит 400). Бумажная сумма такого счёта — `netAmount`.
+   */
   amount: number | null;
+  /** Сумма строки из бумаги, без НДС, — только у счёта с НДС сверху (issue #1497). */
+  netAmount?: number | null;
   note: string | null;
   /** Разноска строки по стройкам и остаток «не разнесено» (F1, issue #1085). */
   allocation: LineAllocationView;
@@ -194,10 +201,18 @@ export interface CostsConstruction {
   sections: CostsSection[];
 }
 
+/**
+ * Как бумага счёта считает НДС (issue #1497): `Included` — суммы строк с НДС, «в том числе»; `OnTop` — цены
+ * и суммы строк без НДС, НДС начислен сверху. Признак счёта, а не строки: смешанных режимов в одной бумаге
+ * не бывает.
+ */
+export type VatMode = 'Included' | 'OnTop';
+
 /** Сверка суммы строк с суммой к оплате и счётчик ждущих позицию (ТЗ COST-6.2). */
 export interface InvoiceLineTotals {
   count: number;
   withoutNomenclature: number;
+  /** Сумма строк С НДС — в обоих режимах; строка сверху без НДС в неё не входит. */
   amount: number;
   /** Сумма НДС по строкам, где он указан. */
   vat: number;
@@ -236,6 +251,12 @@ export interface InvoiceReadinessGap {
   label: string;
   field?: string | null;
   lines?: number[] | null;
+  /**
+   * Расхождение суммы строк объясняет режим НДС (issue #1500): `onTop` — похоже, цены без НДС; `included`
+   * — флажок «сверху» поставлен зря. Догадка сервера, а не решение: сам режим не меняет никто, кроме
+   * человека.
+   */
+  vatExplains?: 'onTop' | 'included' | null;
 }
 
 export interface InvoiceReadiness {
@@ -288,6 +309,8 @@ export interface InvoiceView {
   book?: number;
   /** Что запомнилось этим сохранением строк; у чтения счёта поля нет. */
   memory?: InvoiceMatchMemory | null;
+  /** Режим НДС (issue #1497). Меняется только вместе со строками; старый сервер поля не присылает. */
+  vatMode?: VatMode;
 }
 
 export type ReferenceState = 'present' | 'archived' | 'lost';
@@ -649,8 +672,13 @@ export function useAttachInvoiceScan() {
  * рвал бы ссылку молча. Собирает набор `toPayload` — там же это правило и записано.
  */
 export function useReplaceInvoiceLines() {
-  return useInvoiceWrite(({ id, seen, lines }: { id: string; seen: string; lines: Record<string, unknown>[] }) =>
-    apiClient.put<InvoiceView>(`/costs/invoices/${id}/lines`, { lines }, seenBy(seen)).then(r => r.data));
+  return useInvoiceWrite(({ id, seen, lines, vatMode }: {
+    id: string; seen: string; lines: Record<string, unknown>[]; vatMode?: VatMode;
+  }) =>
+    // Режим едет тем же запросом и с той же версией (issue #1497): он описывает суммы этих строк, и запись
+    // «режим есть, строк ещё нет» дала бы счёт, где суммы вдруг стали без НДС. Нет поля — режим не меняется.
+    apiClient.put<InvoiceView>(`/costs/invoices/${id}/lines`, { lines, ...(vatMode ? { vatMode } : {}) }, seenBy(seen))
+      .then(r => r.data));
 }
 
 /** Стройки с разделами — цели разноски. Узким списком модуля, как организации. */

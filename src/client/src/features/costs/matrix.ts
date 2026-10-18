@@ -1,4 +1,4 @@
-import type { AllocationPartView, InvoiceView, LineAllocationView } from '@/shared/api/invoices';
+import type { AllocationPartView, InvoiceView, LineAllocationView, VatMode } from '@/shared/api/invoices';
 import type { AllocationPreview, MatrixPart, MatrixState, SplitTarget } from '@/shared/api/allocationMatrix';
 import { formatInput, formatMoney, formatQuantity } from '@/shared/format/format';
 import { K } from './invoiceFields';
@@ -74,11 +74,12 @@ export function rowsOf(view: InvoiceView, total: number | null): MatrixRow[] {
  * черновика (у записанной это её идентификатор), вид разноски — тем же правилом, что у сервера
  * (`AllocationMath.ModeOf`): есть количество — делится количество, нет — сумма.
  */
-export function draftRows(drafts: readonly LineDraft[], total: number | null): MatrixRow[] {
+export function draftRows(drafts: readonly LineDraft[], total: number | null, vat: VatMode): MatrixRow[] {
   if (drafts.length === 0) return [documentRow(total)];
   return drafts.map((draft, index) => {
     const quantity = toNumber(draft.quantity);
-    const amount = linePreview(draft).amount;
+    // Делятся деньги с НДС (issue #1499): сверху это не бумажная сумма строки, а она плюс НДС.
+    const amount = linePreview(draft, vat).gross;
     const mode = quantity !== null && quantity > 0 ? 'quantity' : amount !== null && amount !== 0 ? 'amount' : 'none';
     return {
       key: draft.key, lineId: draft.key,

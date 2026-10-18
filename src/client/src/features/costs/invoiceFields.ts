@@ -62,8 +62,10 @@ export interface InvoiceBlock {
  * счёт», и расходились бы эти два ответа молча. Место под него в шапке оставлено.
  */
 export const BLOCKS: readonly InvoiceBlock[] = [
-  { id: 'head', title: 'Счёт', fields: [K.supplier, K.number, K.date, K.total] },
-  { id: 'requisites', title: 'Реквизиты', fields: [K.payer, K.vat, K.basis, K.purpose] },
+  // «В том числе НДС» — рядом с «Суммой к оплате» (issue #1499): их сверяют друг с другом и со строками, и
+  // смотреть в два блока ради трёх чисел не нужно.
+  { id: 'head', title: 'Счёт', fields: [K.supplier, K.number, K.date, K.total, K.vat] },
+  { id: 'requisites', title: 'Реквизиты', fields: [K.payer, K.basis, K.purpose] },
   { id: 'payment', title: 'Оплата', fields: [K.shippedOn, K.deferral, K.dueDate, K.payment, K.state] },
 ];
 

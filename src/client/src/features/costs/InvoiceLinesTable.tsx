@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { CircleCheck, Save, Undo2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
+import { Checkbox } from '@/shared/ui/Checkbox';
 import { EditGrid } from '@/shared/ui/EditGrid';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { useToast } from '@/shared/ui/Toast';
-import { useInvoiceState, useReplaceInvoiceLines, type InvoiceView } from '@/shared/api/invoices';
+import { useInvoiceState, useReplaceInvoiceLines, type InvoiceView, type VatMode } from '@/shared/api/invoices';
 import { K, PARSED, REJECTED, refEntryId } from './invoiceFields';
 import { askMatchSuggestions, useLaidMatchSuggestions } from '@/shared/api/supplierMatches';
 import { apiError } from '@/shared/utils/apiError';
@@ -14,9 +16,10 @@ import {
 import { useDraftBase } from './draftBase';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import { formatMoney } from '@/shared/format/format';
+import { emptyDraft, toDrafts, toPayload, totals, type LineDraft } from './invoiceLines';
 import {
-  emptyDraft, mismatch, toDrafts, toPayload, totals, vatCaption, type LineDraft,
-} from './invoiceLines';
+  modeConsequences, modeHint, reconcile, savedExplains, vatModeOf, withMode, type Reconciliation,
+} from './invoiceVat';
 import { InvoiceLinesPaste } from './InvoiceLinesPaste';
 import { AllocationSummary } from './LineAllocation';
 import { useInvoiceLineColumns } from './invoiceLineColumns';
@@ -71,7 +74,10 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
   const correcting = useCorrecting();
   const still = (locked && !correcting) || readOnly;
   const { data: access = NO_ACCESS } = useAccess();
-  const [drafts, setDrafts] = useState<LineDraft[]>(() => toDrafts(view.lines));
+  // Режим НДС — часть черновика строк (issue #1499): он описывает их суммы и пишется вместе с ними.
+  const savedMode = vatModeOf(view);
+  const [mode, setMode] = useState<VatMode>(savedMode);
+  const [drafts, setDrafts] = useState<LineDraft[]>(() => toDrafts(view.lines, savedMode));
   const [dirty, setDirty] = useState(false);
   useEffect(() => onDirty?.(dirty), [dirty, onDirty]);
   const report = correcting?.setLines;
@@ -88,12 +94,27 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
   const base = useDraftBase(view, linesSignature, dirty || allocating);
   // Строки изменили, а своих правок нет — показываем свежие. Иначе таблица держала бы прежние до
   // перезагрузки страницы, и «сохранить» первой же правкой затёрло бы чужие.
-  if (base.rebuild) setDrafts(toDrafts(view.lines));
+  if (base.rebuild) {
+    setDrafts(toDrafts(view.lines, savedMode));
+    setMode(savedMode);
+  }
 
   function reread() {
-    setDrafts(toDrafts(view.lines));
+    setDrafts(toDrafts(view.lines, savedMode));
+    setMode(savedMode);
     setDirty(false);
     base.rebase();
+  }
+
+  // Флажок — сюда переводится фокус после подсказки (issue #1500): кнопка подсказки пропадает с нажатием,
+  // и фокус без этого ушёл бы в никуда.
+  const modeBox = useRef<HTMLInputElement>(null);
+  function switchMode(next: VatMode, focus = false) {
+    if (next === mode) return;
+    setMode(next);
+    setDrafts(prev => withMode(prev));
+    setDirty(true);
+    if (focus) requestAnimationFrame(() => modeBox.current?.focus());
   }
 
   const replace = useReplaceInvoiceLines();
@@ -194,9 +215,8 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
     }
   }
 
-  const sums = totals(drafts);
-  const paper = view.requisites[K.total];
-  const difference = mismatch(paper, sums.amount, sums.count);
+  const sums = totals(drafts, mode);
+  const strip = reconcile(sums, view.requisites[K.vat], view.requisites[K.total], formatMoney);
   const parsed = view.requisites[K.state] === PARSED;
   const rejected = view.requisites[K.state] === REJECTED;
   // Запертому счёту (закрытый период, удалён) строки готовности нет вовсе: «Разобран» ему откажет замок,
@@ -209,19 +229,25 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
   const settled = readiness?.length === 0 && !dirty && !headerDirty;
 
   const columns = useInvoiceLineColumns({
-    view, still, allocationLocked: locked || correcting !== null,
+    view, still, mode, allocationLocked: locked || correcting !== null,
     blocked: dirty ? 'Разносить можно сохранённые строки: сохраните правки строк' : null,
     offerFor, hasSupplier: supplierId !== null, onBorn: draft => void suggest([draft]),
     onAllocating: setAllocating, onEdit: edit,
   });
 
   function edit(key: string, patch: Partial<LineDraft>) {
-    setDrafts(prev => prev.map(draft => (draft.key === key ? { ...draft, ...patch } : draft)));
+    // НДС, набранный руками, — новое слово человека: отложенный сменой режима ему не вернуть.
+    const typed = 'vatAmount' in patch ? { vatAside: undefined } : {};
+    setDrafts(prev => prev.map(draft => (draft.key === key ? { ...draft, ...patch, ...typed } : draft)));
     setDirty(true);
   }
 
-  function add(added: LineDraft[]) {
-    setDrafts(prev => [...prev, ...added]);
+  /** Строки добавлены; вставка с отметкой «цены без НДС» приносит и режим (issue #1499). */
+  function add(added: LineDraft[], pastedMode?: VatMode) {
+    if (pastedMode && pastedMode !== mode) {
+      setMode(pastedMode);
+      setDrafts(prev => [...withMode(prev), ...added]);
+    } else setDrafts(prev => [...prev, ...added]);
     setDirty(true);
     void suggest(added);
   }
@@ -233,10 +259,13 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
 
   async function save() {
     try {
-      const saved = await base.save(seen => replace.mutateAsync({ id: view.id, seen, lines: toPayload(drafts) }));
+      const saved = await base.save(seen => replace.mutateAsync({
+        id: view.id, seen, lines: toPayload(drafts, mode), vatMode: mode,
+      }));
       // Строки перечитываем ИЗ ОТВЕТА: сервер вернул досчитанные суммы и идентификаторы новых строк,
       // а без них следующее сохранение прочиталось бы как «удали эти строки и заведи новые».
-      setDrafts(toDrafts(saved.lines));
+      setDrafts(toDrafts(saved.lines, vatModeOf(saved)));
+      setMode(vatModeOf(saved));
       setDirty(false);
       // Один тост на сохранение, и только когда есть что сказать: запомненное меняет поведение
       // следующих счетов этого поставщика — молча это делать нельзя.
@@ -265,10 +294,20 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
     <section className="space-y-3" data-readiness="lines">
       <div className="flex items-center gap-2 flex-wrap">
         <h2 className="text-sm font-medium text-fg2">Строки счёта</h2>
+        {/* Где менять нельзя (заперт, нет права, исправление — смена режима исправлением в #1498), флажка
+            нет: «сверху» говорит пометка, «в том числе» — обычный случай, о нём молчат заголовки колонок. */}
+        {still || correcting
+          ? mode === 'OnTop' && <StatusBadge tone="quiet">цены без НДС, НДС сверху</StatusBadge>
+          : (
+            <Checkbox ref={modeBox} size="sm" label="Цены без НДС, НДС сверху" checked={mode === 'OnTop'}
+              onChange={on => switchMode(on ? 'OnTop' : 'Included')} />
+          )}
         <div className="flex-1" />
         {!still && (
           <>
-            <InvoiceLinesPaste onAdd={add} />
+            {/* В исправлении режим не меняется (#1498): тело исправления несёт режим счёта, и вставка,
+                переключившая его в черновике, легла бы бумагой другого режима. */}
+            <InvoiceLinesPaste mode={mode} modeFixed={correcting !== null} onAdd={add} />
             {!correcting && (
               <Button size="sm" variant="filled" icon={<Save size={13} />} disabled={!dirty}
                 loading={replace.isPending} onClick={save}>
@@ -278,6 +317,10 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
           </>
         )}
       </div>
+
+      {mode !== savedMode && view.lines.length > 0 && (
+        <p className="text-xs text-warning">{modeConsequences(view, drafts, parsed)}</p>
+      )}
 
       {base.stale && dirty && !correcting && <StaleInvoiceNotice what="строки" onReread={reread} />}
 
@@ -301,8 +344,10 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
         onRemove={still ? undefined : draft => remove(draft.key)}
         columns={columns} />
 
-      <Reconciliation sums={sums} paper={paper} difference={difference} unsaved={dirty}
-        matched={drafts.filter(d => d.matchedBy !== null).length} />
+      <ReconciliationStrip sums={sums} strip={strip} unsaved={dirty}
+        matched={drafts.filter(d => d.matchedBy !== null).length}
+        hint={!still && !correcting && !dirty ? savedExplains(view) : null}
+        onHint={to => switchMode(to, true)} />
 
       <div className="flex items-center gap-2 flex-wrap">
         {/* У отклонённого — тоже возврат: «Разобран» ему сервер откажет словами «верните в черновик». */}
@@ -344,21 +389,31 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
 }
 
 /**
- * Сверка. Показывает ЧЕТЫРЕ числа: сумму строк, НДС по строкам, сумму к оплате из бумаги и
- * расхождение. Ни одно из них не запрет.
+ * Сверка: суммы строк, НДС, сумма к оплате из бумаги и расхождение — порядком бумаги (issue #1499). Ни
+ * одно из чисел не запрет.
  *
  * <p>⚠️ Пока строки не сохранены, числа посчитаны ЗДЕСЬ, и об этом сказано: после сохранения их
  * возвращает сервер, и они могут разойтись с нашими на копейку округления. Молчаливое «сумма 4850»,
  * которое после сохранения стало «4850,01», читалось бы как ошибка ввода.</p>
+ *
+ * <p>Подсказка о режиме (issue #1500) стоит на месте «сохранить всё равно можно» — рядом с числом, которое
+ * объясняет, и пропадает вместе с ним. Живого региона у полосы нет нарочно: она меняется на каждом ударе
+ * по клавише в клетке.</p>
  */
-function Reconciliation({ sums, paper, difference, unsaved, matched }: {
+function ReconciliationStrip({ sums, strip, unsaved, matched, hint, onHint }: {
   /** Сколько позиций подставлено из запомненного — их человек не выбирал, и это видно числом. */
   matched: number;
-  sums: { count: number; withoutNomenclature: number; amount: number; vat: number; vatMissing: number };
-  paper: unknown;
-  difference: number | null;
+  sums: { count: number; withoutNomenclature: number };
+  strip: Reconciliation;
   unsaved: boolean;
+  /** Сервер видит, что расхождение объясняет режим НДС; `null` — не видит или строки правятся. */
+  hint: 'onTop' | 'included' | null;
+  onHint: (to: VatMode) => void;
 }) {
+  // Догадку сервер даёт только при расхождении сверх допуска, и строки при ней сохранены: свою сверку
+  // форма здесь не спрашивает. Сверху без НДС у строк она расхождения не показывает вовсе («не посчитать»),
+  // а флажок, поставленный зря, — ровно этот случай (ревью PR #1508).
+  const offer = hint ? modeHint(hint) : null;
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border border-stroke
       bg-muted px-3 py-2 text-xs">
@@ -370,25 +425,40 @@ function Reconciliation({ sums, paper, difference, unsaved, matched }: {
 
       {matched > 0 && <span className="text-fg4">подставлено из запомненного: {matched}</span>}
 
-      <span className="text-fg2">Сумма строк: <b>{formatMoney(sums.amount)}</b></span>
-      <span className="text-fg4">{vatCaption(sums, formatMoney)}</span>
+      {strip.items.map(item => (
+        <span key={item.label} className={TONE[item.tone]}>
+          {item.label}{item.value !== null && (item.tone === 'main' ? <b>{formatMoney(item.value)}</b> : formatMoney(item.value))}
+        </span>
+      ))}
 
-      {typeof paper === 'number' && (
-        <span className="text-fg4">к оплате по счёту: {formatMoney(paper)}</span>
-      )}
-
-      {difference !== null && (
+      {strip.difference !== null && (
         <span className="text-warning">
-          расхождение: <b>{formatMoney(difference)}</b> — сохранить всё равно можно
+          расхождение: <b>{formatMoney(strip.difference)}</b>
+          {offer ? null : ' — сохранить всё равно можно'}
         </span>
       )}
+      {offer && (
+        <span className="inline-flex flex-wrap items-center gap-x-2 text-fg2">
+          {offer.text}
+          <Button size="sm" variant="text" onClick={() => onHint(offer.to)}>{offer.action}</Button>
+        </span>
+      )}
+      {strip.agrees && <span className="text-success">сходится с суммой к оплате</span>}
 
       {unsaved && <span className="text-fg4">(посчитано в форме — строки ещё не сохранены)</span>}
     </div>
   );
 }
 
-/** Из чего собран черновик строк: сами строки, как их принял бы сервер. */
+const TONE: Record<Reconciliation['items'][number]['tone'], string> = {
+  main: 'text-fg2', quiet: 'text-fg4', warning: 'text-warning',
+};
+
+/**
+ * Из чего собран черновик строк: сами строки, как их принял бы сервер, — и режим НДС: чужая смена режима
+ * меняет смысл тех же чисел, и черновик без неё не пересобрался бы.
+ */
 function linesSignature(view: InvoiceView): string {
-  return JSON.stringify(toPayload(toDrafts(view.lines)));
+  const mode = vatModeOf(view);
+  return JSON.stringify([mode, toPayload(toDrafts(view.lines, mode), mode)]);
 }

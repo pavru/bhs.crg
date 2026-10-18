@@ -41,7 +41,7 @@ describe('сборка реквизитов на отправку', () => {
 
 describe('блоки формы', () => {
   it('шапка — первая и в ней то, что названо в ТЗ', () => {
-    expect(BLOCKS[0].fields).toEqual([K.supplier, K.number, K.date, K.total]);
+    expect(BLOCKS[0].fields).toEqual([K.supplier, K.number, K.date, K.total, K.vat]);
   });
 
   it('каждое поле стоит ровно в одном блоке', () => {

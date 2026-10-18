@@ -63,7 +63,7 @@ describe('тело исправления', () => {
   it('разноска из матрицы — по ключу черновика: и записанной строки, и новой', () => {
     const view = invoice([line('l1', 'amount', [part('A', 1)])]);
     const added = { ...emptyDraft(), supplierText: 'Доставка', amount: '50' };
-    const drafts = [...toDrafts(view.lines), added];
+    const drafts = [...toDrafts(view.lines, 'Included'), added];
     const body = correctionBody(view, {
       ...nothing, lines: drafts,
       allocation: {
@@ -81,7 +81,7 @@ describe('тело исправления', () => {
 
   it('новая строка без разноски из матрицы уходит неразнесённой, а не с чужими частями', () => {
     const view = invoice([line('l1', 'amount', [part('A', 1)])]);
-    const body = correctionBody(view, { ...nothing, lines: [...toDrafts(view.lines), emptyDraft()] });
+    const body = correctionBody(view, { ...nothing, lines: [...toDrafts(view.lines, 'Included'), emptyDraft()] });
     expect(body.lines[1].parts).toEqual([]);
   });
 
@@ -161,7 +161,7 @@ describe('матрица исправления', () => {
       { ...emptyDraft(), supplierText: 'Доставка', amount: '50' },
       { ...emptyDraft() },
     ];
-    expect(draftRows(drafts, null).map(r => [r.lineId, r.mode, r.whole])).toEqual([
+    expect(draftRows(drafts, null, 'Included').map(r => [r.lineId, r.mode, r.whole])).toEqual([
       [drafts[0].key, 'quantity', 10], [drafts[1].key, 'amount', 50], [drafts[2].key, 'none', null],
     ]);
   });

@@ -1,5 +1,5 @@
 import { formatInput } from '@/shared/format/format';
-import type { InvoiceLineMatch, InvoiceLineView } from '@/shared/api/invoices';
+import type { InvoiceLineMatch, InvoiceLineView, VatMode } from '@/shared/api/invoices';
 import type { MatchOffer } from './supplierMatches';
 import { catalogRef } from './invoiceFields';
 
@@ -50,6 +50,10 @@ export interface LineDraft {
   price: string;
   vatRate: string;
   vatAmount: string;
+  /**
+   * Сумма строки КАК В БУМАГЕ (issue #1497): при «в том числе» — с НДС, при НДС сверху — без НДС. Смену
+   * режима это число переживает нетронутым: на бумаге оно то же, меняется только его смысл.
+   */
   amount: string;
   note: string;
   /**
@@ -68,6 +72,11 @@ export interface LineDraft {
   declined?: boolean;
   /** `false` — «не запоминать выбор в этой строке». На сервер уезжает только отказ. */
   remember?: boolean;
+  /**
+   * Сумма НДС, отложенная сменой режима (ревью PR #1508): флажок, поставленный и снятый, возвращает её, а
+   * не теряет — у бумаги она могла расходиться с расчётной на копейку. Правка НДС руками её снимает.
+   */
+  vatAside?: string;
 }
 
 let sequence = 0;
@@ -94,8 +103,15 @@ export function emptyDraft(): LineDraft {
   };
 }
 
-/** Строки с сервера — в правку. Числа показываем так, как их набирают: с запятой. */
-export function toDrafts(lines: readonly InvoiceLineView[]): LineDraft[] {
+/**
+ * Строки с сервера — в правку. Числа показываем так, как их набирают: с запятой.
+ *
+ * <p>⚠️ <b>Сумма — бумажная, поле её режима</b> (issue #1497): у счёта с НДС сверху это `netAmount`, а
+ * `amount` ответа там — сумма С НДС, посчитанная сервером. Взятая в черновик, она уехала бы обратно как
+ * бумага, и НДС прибавился бы второй раз. Режим обязателен, умолчания нет нарочно — как у сервера
+ * (`InvoiceLineValues.Completed`): с умолчанием забытое место читало бы «в том числе» у счёта сверху.</p>
+ */
+export function toDrafts(lines: readonly InvoiceLineView[], mode: VatMode): LineDraft[] {
   return lines.map(line => ({
     key: line.id,
     id: line.id,
@@ -111,7 +127,7 @@ export function toDrafts(lines: readonly InvoiceLineView[]): LineDraft[] {
     price: formatInput(line.price),
     vatRate: formatInput(line.vatRate),
     vatAmount: formatInput(line.vatAmount),
-    amount: formatInput(line.amount),
+    amount: formatInput(mode === 'OnTop' ? line.netAmount ?? null : line.amount),
     note: line.note ?? '',
     matchedBy: line.match?.id ?? null,
     match: line.match ?? null,
@@ -121,8 +137,11 @@ export function toDrafts(lines: readonly InvoiceLineView[]): LineDraft[] {
 /**
  * Что уедет на сервер. Пустое поле — `null`, а не «»: человек, стерев количество, имеет в виду
  * «количества нет», а пустую строку сервер прочитал бы как значение.
+ *
+ * <p>Бумажная сумма уезжает полем своего режима (issue #1497): `netAmount` при НДС сверху, `amount` при
+ * «в том числе». Чужое поле сервер отвергает (400) — иначе прочитанное «с НДС» легло бы бумагой.</p>
  */
-export function toPayload(drafts: readonly LineDraft[]): Record<string, unknown>[] {
+export function toPayload(drafts: readonly LineDraft[], mode: VatMode): Record<string, unknown>[] {
   return drafts.map(draft => ({
     id: draft.id,
     nomenclature: draft.nomenclatureId ? catalogRef(draft.nomenclatureId) : null,
@@ -133,7 +152,7 @@ export function toPayload(drafts: readonly LineDraft[]): Record<string, unknown>
     price: text(draft.price),
     vatRate: text(draft.vatRate),
     vatAmount: text(draft.vatAmount),
-    amount: text(draft.amount),
+    [mode === 'OnTop' ? 'netAmount' : 'amount']: text(draft.amount),
     note: text(draft.note),
     matchedBy: draft.matchedBy,
     // Только отказ: умолчание сервера — «запоминать», и слать его на каждой строке незачем.
@@ -141,17 +160,30 @@ export function toPayload(drafts: readonly LineDraft[]): Record<string, unknown>
   }));
 }
 
+/** Строка, посчитанная для показа: бумажная сумма, НДС и сумма с НДС. */
+export interface LinePreview {
+  /** Сумма как в бумаге — с НДС при «в том числе», без НДС при НДС сверху. */
+  amount: number | null;
+  vat: number | null;
+  /** Сумма С НДС — та, что делится разноской. Сверху без НДС её нет: `null`, а не бумажная. */
+  gross: number | null;
+}
+
 /**
  * Сумма и НДС строки для ПОКАЗА, пока она не сохранена.
  *
- * <p>⚠️ Правило то же, что на сервере, и повторено оно нарочно — иначе таблица молчала бы о суммах до
- * сохранения, то есть сверка с суммой к оплате появлялась бы только после него. Сохранённые значения
- * всегда приходят от сервера: расхождение правил поймал бы тест, считающий те же числа (1666,67 на
- * ставке 20 % — это «в том числе», а не «сверху»).</p>
+ * <p>⚠️ Правило то же, что на сервере (`InvoiceLineValues.Completed`), и повторено оно нарочно — иначе
+ * таблица молчала бы о суммах до сохранения, то есть сверка с суммой к оплате появлялась бы только после
+ * него. Сохранённые значения всегда приходят от сервера. Совпадение правил держит общий набор примеров
+ * `invoiceLineCases.json`: его считают и этот тест, и тест сервера (issue #1499).</p>
+ *
+ * <p>«В том числе»: НДС — сумма × ставка ÷ (100 + ставка). Сверху: НДС — сумма × ставка ÷ 100, сумма с
+ * НДС — их сложение, а без НДС её нет вовсе: бумажная сумма, выданная за сумму с НДС, ошиблась бы на весь
+ * налог молча.</p>
  *
  * <p>Присланное не пересчитывается: если сумма набрана руками, показываем её.</p>
  */
-export function preview(draft: LineDraft): { amount: number | null; vat: number | null } {
+export function preview(draft: LineDraft, mode: VatMode): LinePreview {
   const quantity = toNumber(draft.quantity);
   const price = toNumber(draft.price);
   const rate = toNumber(draft.vatRate);
@@ -160,11 +192,13 @@ export function preview(draft: LineDraft): { amount: number | null; vat: number 
   const amount = typed ?? (quantity != null && price != null ? money(quantity * price) : null);
 
   const typedVat = toNumber(draft.vatAmount);
-  const vat = typedVat ?? (amount != null && rate != null && rate >= 0
-    ? money((amount * rate) / (100 + rate))
-    : null);
-
-  return { amount, vat };
+  const known = amount != null && rate != null && rate >= 0;
+  if (mode === 'Included') {
+    const vat = typedVat ?? (known ? money((amount * rate) / (100 + rate)) : null);
+    return { amount, vat, gross: amount };
+  }
+  const vat = typedVat ?? (known ? money((amount * rate) / 100) : null);
+  return { amount, vat, gross: amount != null && vat != null ? money(amount + vat) : null };
 }
 
 /**
@@ -175,15 +209,27 @@ export function preview(draft: LineDraft): { amount: number | null; vat: number 
  * обязано совпадать с серверным: научи «не указан» только одно место — надпись менялась бы на глазах
  * при сохранении. «Без НДС» (ставка 0) — это ноль, а не пропуск.</p>
  */
-export function totals(drafts: readonly LineDraft[]): {
-  count: number; withoutNomenclature: number; amount: number; vat: number; vatMissing: number;
-} {
+export interface LineTotals {
+  count: number;
+  withoutNomenclature: number;
+  /** Сумма строк С НДС — строки без неё (сверху без НДС) не входят. */
+  amount: number;
+  vat: number;
+  vatMissing: number;
+  mode: VatMode;
+  /** Сумма строк без НДС из бумаги — только при НДС сверху: там она и есть бумага. */
+  net: number | null;
+}
+
+export function totals(drafts: readonly LineDraft[], mode: VatMode): LineTotals {
   let amount = 0;
+  let net = 0;
   let vat = 0;
   let vatMissing = 0;
   for (const draft of drafts) {
-    const line = preview(draft);
-    amount += line.amount ?? 0;
+    const line = preview(draft, mode);
+    amount += line.gross ?? 0;
+    net += line.amount ?? 0;
     if (line.vat === null) vatMissing += 1;
     else vat += line.vat;
   }
@@ -193,6 +239,8 @@ export function totals(drafts: readonly LineDraft[]): {
     amount: money(amount),
     vat: money(vat),
     vatMissing,
+    mode,
+    net: mode === 'OnTop' ? money(net) : null,
   };
 }
 
@@ -213,7 +261,7 @@ export function vatCaption(
 }
 
 /** «1 строки», «2 строк», «21 строки» — родительный падеж после «у». */
-function lines(count: number): string {
+export function lines(count: number): string {
   const tens = count % 100;
   const one = count % 10 === 1 && tens !== 11;
   return `${count} ${one ? 'строки' : 'строк'}`;
@@ -284,9 +332,9 @@ export function parseTable(clipboard: string): string[][] {
  *
  * <p>Шапку таблицы узнаём по словам в первой строке и роли берём из неё — это надёжнее порядка.</p>
  */
-export function guessRoles(table: readonly string[][]): PasteRole[] {
+export function guessRoles(table: readonly string[][], mode: VatMode): PasteRole[] {
   const width = Math.max(0, ...table.map(row => row.length));
-  const header = headerRoles(table[0] ?? [], width);
+  const header = headerRoles(table[0] ?? [], width, mode);
   if (header) return header;
 
   // ⚠️ Числовой — та колонка, где ЕСТЬ хотя бы одно число, а не та, где нет ничего нечислового.
@@ -312,8 +360,58 @@ export function guessRoles(table: readonly string[][]): PasteRole[] {
   });
 }
 
-/** Роли из шапки таблицы — по словам, которыми колонки подписывает бумага. */
-function headerRoles(row: readonly string[], width: number): PasteRole[] | null {
+/** Шапка колонки говорит «без НДС» — и как её узнать, и как сказать обратное. */
+const WITHOUT_VAT = /без\s*ндс/i;
+const WITH_VAT = /(^|[\s(])(с|вкл\.?|включая)\s*ндс|всего/i;
+
+/**
+ * Цены вставленной таблицы — без НДС (issue #1499): так подписана шапка цены, либо сумма строки в шапке
+ * одна, и она «без НДС». Только догадка для окна вставки — отметка стоит там на виду, снять её можно.
+ */
+export function pastedWithoutVat(table: readonly string[][]): boolean {
+  if (!hasHeader(table)) return false;
+  const head = table[0];
+  if (head.some(cell => roleWords(cell) === 'price' && WITHOUT_VAT.test(cell))) return true;
+  const sums = head.filter(cell => roleWords(cell) === 'amount');
+  return sums.length > 0 && sums.every(cell => WITHOUT_VAT.test(cell));
+}
+
+/**
+ * Роли из шапки таблицы — по словам, которыми колонки подписывает бумага.
+ *
+ * <p>Две колонки на одну денежную роль («Сумма без НДС | Сумма с НДС», issue #1499) — берётся та, что
+ * подходит режиму: при «в том числе» — с НДС, при НДС сверху — без НДС. Раньше роль забирала левая, без
+ * НДС, и вставка сама заводила счёт «в том числе» в расхождение ровно на НДС.</p>
+ */
+function headerRoles(row: readonly string[], width: number, mode: VatMode): PasteRole[] | null {
+  // ⚠️ Роль не занимают ДВАЖДЫ. «Сумма без НДС | Сумма с НДС» просили одну и ту же роль, и второе
+  // число молча перетирало первое (а у текстовых ролей — склеивалось с ним). Остальные колонки получают
+  // «пропустить»: это видно человеку зачёркнутой колонкой в разборе, и он вправе назвать роль сам.
+  // Молчаливая же потеря числа не видна вовсе — сумма просто оказывается не той.
+  const found = Array.from({ length: width }, (_, column) => roleWords(row[column] ?? ''));
+  const fits = mode === 'OnTop' ? WITHOUT_VAT : WITH_VAT;
+  const owner = new Map<PasteRole, number>();
+  found.forEach((role, column) => {
+    if (role === undefined) return;
+    const was = owner.get(role);
+    const money = role === 'price' || role === 'amount';
+    // Денежной роли — колонку своего режима, если она есть; иначе — первую, как прежде.
+    const better = money && was !== undefined && !fits.test(row[was] ?? '') && fits.test(row[column] ?? '');
+    if (was === undefined || better) owner.set(role, column);
+  });
+  const roles = found.map((role, column) => (role !== undefined && owner.get(role) === column ? role : 'skip'));
+
+  // Шапкой считаем только то, где узнано наименование И хотя бы одно число: иначе первая строка
+  // товаров, начинающаяся со слова «Кабель», сошла бы за шапку и потерялась.
+  const recognized = roles.filter(role => role !== 'skip');
+  return recognized.includes('supplierText')
+    && recognized.some(role => role === 'quantity' || role === 'price' || role === 'amount')
+    ? roles
+    : null;
+}
+
+/** Роль по словам шапки колонки; `undefined` — слов не узнали. */
+function roleWords(cell: string): PasteRole | undefined {
   // ⚠️ Слова ищутся ЦЕЛИКОМ, а не как попало внутри слова: «ед» без границ совпадало с «прЕДмет», и
   // колонка «Предмет поставки» становилась единицей измерения — фразой на семьдесят знаков, которую
   // сервер отвергал (а до правки отвечал пятисотым). Нашло ревью PR #1117.
@@ -332,32 +430,12 @@ function headerRoles(row: readonly string[], width: number): PasteRole[] | null 
     ['amount', /сумма|всего|итого/i],
     ['note', /примеч/i],
   ];
-
-  // ⚠️ Роль не занимают ДВАЖДЫ. «Сумма без НДС | Сумма с НДС» просили одну и ту же роль, и второе
-  // число молча перетирало первое (а у текстовых ролей — склеивалось с ним). Вторая колонка получает
-  // «пропустить»: это видно человеку зачёркнутой колонкой в разборе, и он вправе назвать роль сам.
-  // Молчаливая же потеря числа не видна вовсе — сумма просто оказывается не той.
-  const taken = new Set<PasteRole>();
-  const roles = Array.from({ length: width }, (_, column) => {
-    const cell = row[column] ?? '';
-    const found = words.find(([, pattern]) => pattern.test(cell))?.[0];
-    if (found === undefined || taken.has(found)) return 'skip';
-    taken.add(found);
-    return found;
-  });
-
-  // Шапкой считаем только то, где узнано наименование И хотя бы одно число: иначе первая строка
-  // товаров, начинающаяся со слова «Кабель», сошла бы за шапку и потерялась.
-  const recognized = roles.filter(role => role !== 'skip');
-  return recognized.includes('supplierText')
-    && recognized.some(role => role === 'quantity' || role === 'price' || role === 'amount')
-    ? roles
-    : null;
+  return words.find(([, pattern]) => pattern.test(cell))?.[0];
 }
 
 /** Есть ли у разбора шапка, которую надо выбросить из данных. */
 export function hasHeader(table: readonly string[][]): boolean {
-  return headerRoles(table[0] ?? [], Math.max(0, ...table.map(row => row.length))) !== null;
+  return headerRoles(table[0] ?? [], Math.max(0, ...table.map(row => row.length)), 'Included') !== null;
 }
 
 /** Собрать строки из разобранной таблицы и названных ролей. */
@@ -387,9 +465,15 @@ export function toNumber(text: string): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
-/** Копейки с округлением «от нуля» — как считает бумага и как считает сервер. */
-function money(value: number): number {
-  return Math.sign(value) * Math.round(Math.abs(value) * 100) / 100;
+/**
+ * Копейки с округлением «от нуля» — как считает бумага и как считает сервер (`decimal`).
+ *
+ * <p>⚠️ Через 15 значащих цифр, а не прямо: двоичная дробь прячет половинку. 10,05 × 10 % — это 1,005, а в
+ * double — 1,00499…, и прямое округление давало 1,00 там, где сервер пишет 1,01: предпросмотр расходился
+ * с сохранённым на копейку. Нашёл общий набор примеров `invoiceLineCases.json` (issue #1499).</p>
+ */
+export function money(value: number): number {
+  return Math.sign(value) * Math.round(Number((Math.abs(value) * 100).toPrecision(15))) / 100;
 }
 
 
