@@ -48,6 +48,11 @@ public static class CostsRecognitionProfiles
     // строки ложатся без НДС, а отчёты берут его из шапки.
     public const string LineVatRate = "СтавкаНДС";
     public const string LineVatAmount = "СуммаНДС";
+    // Артикул (issue #1480). В заводском профиле его НЕТ, и это нарочно: колонка в нём сменила бы хеш, и
+    // у каждого, кто профиль правил, зажглось бы «заводской профиль обновился». Колонку с этим ключом
+    // добавляет администратор — и она ложится в строку счёта, как любая объявленная
+    // (InvoiceScanLines.Targets).
+    public const string LineCode = "Артикул";
 
     public static readonly IReadOnlyList<ModuleRecognitionField> InvoiceHeader =
     [
