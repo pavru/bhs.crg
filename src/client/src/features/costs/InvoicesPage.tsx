@@ -356,7 +356,8 @@ export function InvoicesPage() {
               <Button variant="outlined" icon={<Plus size={16} />} loading={create.isPending} onClick={addDraft}>
                 Новый счёт
               </Button>
-              <Button variant="filled" icon={<ScanLine size={16} />} loading={loading}
+              {/* На телефоне это действие — плавающая кнопка (#1434): вторая такая же в шапке лишняя. */}
+              <Button variant="filled" icon={<ScanLine size={16} />} loading={loading} className="max-md:hidden"
                 title={`Один или несколько файлов${readable.length ? `: ${wordsOf(readable)}` : ''}. Файлы можно перетащить на список счетов.`}
                 onClick={() => scanInput.current?.click()}>
                 Счёт из файла

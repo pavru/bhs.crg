@@ -159,7 +159,8 @@ export function ConstructionsList() {
   return (
     <div className="px-6 py-4">
       <PageHeader title="Стройки" className="mb-4" actions={canEdit && (
-        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
+        // На телефоне — плавающей кнопкой (#1434).
+        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)} className="max-md:hidden">
           Новая стройка
         </Button>
       )} />

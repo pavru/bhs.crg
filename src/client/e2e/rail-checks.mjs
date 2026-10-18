@@ -127,6 +127,22 @@ async function narrowChecks(page, check) {
       await page.setViewportSize({ width: 390, height: 844 });
     });
 
+    // Основное действие экрана на телефоне — плавающая кнопка с подписью (#1434): та же кнопка экрана
+    // через `?do=`, а её двойник в шапке спрятан.
+    await check('narrow-primary-action-is-a-labelled-fab', async () => {
+      const fab = page.getByTestId('primary-fab');
+      const label = (await fab.innerText()).trim();
+      if (label !== 'Новая стройка') throw new Error(`плавающая кнопка строек — «${label}»`);
+      if (await page.locator('main header').getByRole('button', { name: 'Новая стройка', exact: true }).isVisible())
+        throw new Error('кнопка «Новая стройка» в шапке осталась рядом с плавающей');
+      await fab.click();
+      const dialog = page.getByRole('dialog', { name: 'Новая стройка' });
+      await dialog.waitFor();
+      if (new URL(page.url()).searchParams.has('do')) throw new Error(`действие осталось в адресе: ${page.url()}`);
+      await page.keyboard.press('Escape');
+      await dialog.waitFor({ state: 'detached' });
+    });
+
     // Подпанели на телефоне нет — страницы раздела раскрывает заголовок; «Систему» — меню профиля.
     await check('narrow-title-opens-the-pages-of-the-section', async () => {
       await accountAction(page, 'Администрирование');

@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation } from 'react-router';
 import { useAccount, useResendConfirmation } from '@/shared/api/account';
+import { useAccess } from '@/shared/api/access';
 import { ActivityCenter } from '@/features/activity/ActivityCenter';
 import { CommandPalette } from '@/shared/ui/CommandPalette';
 import { AccountMenu } from '@/shared/ui/AccountMenu';
@@ -15,6 +16,9 @@ import { useSyncedPreference } from '@/shared/hooks/useSyncedPreference';
 import { useMedia, WIDE } from '@/shared/hooks/useMedia';
 import { BottomNav } from '@/shared/ui/BottomNav';
 import { SectionMenuContext } from '@/shared/ui/sectionMenuContext';
+import { PrimaryFab } from '@/shared/ui/PrimaryFab';
+import { PrimaryFabCoverContext } from '@/shared/ui/primaryFabContext';
+import { primaryActionAt } from '@/shared/ui/paletteActions';
 import { SectionPanel, SectionRail, ShowPanelButton } from '@/shared/ui/SectionRail';
 import { useFavoriteSitesGroup, withFavoriteSites } from '@/shared/siteFilter/favoriteSitesGroup';
 import { useNavSections } from '@/shared/ui/navSections';
@@ -73,6 +77,10 @@ function Shell() {
     : null;
   // «Администрирование» на телефоне — пункт меню профиля (решение владельца от 17.10.2026).
   const admin = wide ? undefined : sections.find(s => s.def.unscoped);
+  // Основное действие экрана — плавающей кнопкой на телефоне; пока карточка закрывает список, её нет.
+  const { data: access } = useAccess();
+  const [fabCovered, setFabCovered] = useState(false);
+  const fab = !wide && !fabCovered && access ? primaryActionAt(pathname, access) : undefined;
 
   // Глобальные шорткаты (issue #107): Ctrl/⌘+K — палитра, «?» — справка (не в полях ввода).
   useEffect(() => {
@@ -140,10 +148,16 @@ function Shell() {
         </header>
         <OutsideBanner items={allWork} inside={work} />
         <EmailConfirmBanner />
-        <div className="flex-1 overflow-auto">
-          <SectionMenuContext.Provider value={sectionMenu}>
-            <Outlet />
-          </SectionMenuContext.Provider>
+        {/* Плавающая кнопка стоит над содержимым, а не в нём: прокрутка списка её не уносит. */}
+        <div className="relative flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 overflow-auto">
+            <SectionMenuContext.Provider value={sectionMenu}>
+              <PrimaryFabCoverContext.Provider value={setFabCovered}>
+                <Outlet />
+              </PrimaryFabCoverContext.Provider>
+            </SectionMenuContext.Provider>
+          </div>
+          {fab && <PrimaryFab action={fab} />}
         </div>
         <BottomNav sections={sections} active={active} />
       </main>

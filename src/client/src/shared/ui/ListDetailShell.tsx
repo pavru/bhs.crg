@@ -5,6 +5,7 @@ import { Button } from './Button';
 import { PageHeader, type PageHeaderProps } from './PageHeader';
 import { SearchInput } from './SearchInput';
 import { Tooltip } from './Tooltip';
+import { useCoversPrimaryFab } from './primaryFabContext';
 
 
 /** Свой порядок сплита начинает с карточки — страницы уровня (см. ниже). Постоянная «запись»:
@@ -48,6 +49,8 @@ export function ListDetailShell({ overlay, nav, navWidth = 'w-80', detail, view,
   const own = useListDetailView(OWN_START);
   const current = view ?? own;
   const onDetail = current.view === 'detail';
+  // На телефоне карточка занимает место списка — плавающая кнопка закрыла бы её поля (#1434).
+  useCoversPrimaryFab(onDetail);
   return (
     <div className="h-full flex flex-col @container/ld">
       <PageHeader bar {...header} />

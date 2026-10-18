@@ -126,7 +126,8 @@ export function WaybillsPage() {
             Материалы на объекте
           </Button>
           {canEdit && (
-            <Button variant="filled" icon={<Plus size={16} />} loading={create.isPending} onClick={addDraft}>
+            // На телефоне — плавающей кнопкой (#1434).
+            <Button variant="filled" icon={<Plus size={16} />} loading={create.isPending} onClick={addDraft} className="max-md:hidden">
               Новая накладная
             </Button>
           )}

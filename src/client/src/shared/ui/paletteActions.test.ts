@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { AccessInfo } from '@/shared/api/access';
 import { clientSources } from '@/shared/testing/clientSources';
-import { PALETTE_ACTIONS, availableActions, intentHref } from './paletteActions';
+import { PALETTE_ACTIONS, availableActions, intentHref, primaryActionAt, type PaletteAction } from './paletteActions';
 
 /** Файл компонента по его импорту в `from` (`@/…` или `./…`). */
 function importOf(name: string, from: string): string | null {
@@ -65,5 +65,36 @@ describe('действия палитры', () => {
         clientSources[file]?.includes(`usePaletteIntent(PALETTE_ACTIONS.${name},`)))
       .map(([name, action]) => `${name} → ${action.to}: ${screenFiles(action.to).join(', ') || 'маршрута нет'}`);
     expect(misplaced).toEqual([]);
+  });
+});
+
+/** Основное действие экрана — плавающая кнопка телефона (issue #1434). */
+describe('основное действие экрана', () => {
+  const all: PaletteAction[] = Object.values(PALETTE_ACTIONS);
+
+  it('у экрана оно одно', () => {
+    const screens = all.filter(a => a.primary).map(a => a.to);
+    expect(screens).toEqual([...new Set(screens)]);
+  });
+
+  it('только на самом экране и только с правом кнопки', () => {
+    const clerk = access(['costs.invoice.read', 'costs.invoice.edit', 'core.constructions.read', 'core.constructions.edit'], ['costs']);
+    expect(primaryActionAt('/invoices', clerk)?.label).toBe('Счёт из файла');
+    expect(primaryActionAt('/document-sets', clerk)?.label).toBe('Новая стройка');
+    // Карточка под экраном — у неё свои кнопки.
+    expect(primaryActionAt('/document-sets/42', clerk)).toBeUndefined();
+    // Читает, но не заводит — кнопки нет, как нет её и на экране.
+    expect(primaryActionAt('/invoices', access(['costs.invoice.read'], ['costs']))).toBeUndefined();
+  });
+
+  /**
+   * На телефоне filled-кнопка экрана прячется (`max-md:hidden`): плавающая и она рядом — одно действие
+   * дважды. Сверяется по исходнику экрана: кнопка, забывшая класс, вернула бы дубль молча.
+   */
+  it('экран прячет на телефоне свою кнопку этого действия', () => {
+    const shown = all.filter(a => a.primary).filter(a => !screenFiles(a.to).some(file =>
+      new RegExp(`<Button variant="filled"(?:(?!</Button>)[\\s\\S])*?max-md:hidden(?:(?!</Button>)[\\s\\S])*?${a.label}\\s*</Button>`)
+        .test(clientSources[file] ?? '')));
+    expect(shown.map(a => a.label)).toEqual([]);
   });
 });

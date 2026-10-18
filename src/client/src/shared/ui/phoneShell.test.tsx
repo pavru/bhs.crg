@@ -3,6 +3,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { BottomNav } from './BottomNav';
+import { PrimaryFab } from './PrimaryFab';
+import { PALETTE_ACTIONS } from './paletteActions';
 import { NavigationGuardProvider } from './NavigationGuardProvider';
 import { PageHeader } from './PageHeader';
 import { railDef, type RailSection } from './railSections';
@@ -38,7 +40,8 @@ const costs: SectionMenuValue = {
 };
 
 function Address() {
-  return <output aria-label="адрес">{useLocation().pathname}</output>;
+  const { pathname, search } = useLocation();
+  return <output aria-label="адрес">{pathname + search}</output>;
 }
 
 function shown(ui: React.ReactNode, at = '/invoices', menu: SectionMenuValue | null = null) {
@@ -72,6 +75,14 @@ describe('нижняя навигация', () => {
   it('без рабочих разделов строки нет', () => {
     shown(<BottomNav sections={sections.filter(s => s.def.unscoped)} active={null} />);
     expect(screen.queryByRole('navigation')).toBeNull();
+  });
+});
+
+describe('плавающая кнопка основного действия', () => {
+  it('названа действием и зовёт кнопку экрана, не закрывая открытую запись', () => {
+    shown(<PrimaryFab action={PALETTE_ACTIONS.invoiceScan} />, '/invoices?invoice=7');
+    fireEvent.click(screen.getByRole('button', { name: 'Счёт из файла' }));
+    expect(screen.getByLabelText('адрес').textContent).toBe('/invoices?invoice=7&do=invoice-scan');
   });
 });
 
