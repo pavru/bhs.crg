@@ -58,12 +58,18 @@ export async function workspaceChecks(page, check) {
     await settled(page);
 
     await check('workspace-switcher-names-its-modules', async () => {
-      // Два доступных модуля — переключатель есть, и рядом с именем состав: имя само не отвечает
-      // на вопрос «почему я не вижу сметы».
-      const composition = await page.getByTestId('workspace-composition').innerText();
-      if (!/^2 модуля: .+, .+/.test(composition)) throw new Error(`состав в шапке: «${composition}»`);
+      // Два доступных модуля — переключатель есть. На кнопке только короткое имя (#1432), а состав —
+      // в списке, у пространства: имя само не отвечает на вопрос «почему я не вижу сметы».
       if (!(await switcherName(page)).includes('Все доступные модули'))
         throw new Error(`открыто не «Все доступные модули»: ${await switcherName(page)}`);
+      const button = page.getByTestId('workspace-switcher');
+      if ((await button.innerText()).trim() !== 'Все доступные модули')
+        throw new Error(`на кнопке пространства: «${await button.innerText()}»`);
+      await button.click();
+      const option = page.getByTestId('workspace-option').filter({ has: page.getByText('Все доступные модули', { exact: true }) });
+      const composition = await option.getByTestId('workspace-composition').innerText();
+      await page.keyboard.press('Escape');
+      if (!/^2 модуля: .+, .+/.test(composition)) throw new Error(`состав в списке: «${composition}»`);
     });
 
     await check('workspace-narrows-the-menu-and-names-what-is-hidden', async () => {

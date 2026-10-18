@@ -7,29 +7,6 @@ import { Tooltip } from '@/shared/ui/Tooltip';
 const link = 'text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded';
 
 /**
- * Свидетельство у урезанного списка (§62.1): «почему тут мало» отвечает строка у самого списка, а не
- * шапка — та одна на все экраны. Закрыть строку нельзя нарочно: забытое «включено» прячет данные, и
- * эта строка — всё напоминание о нём. «Показать все» переключает ГЛОБАЛЬНОЕ состояние: шапка меняется
- * на глазах, второго состояния поверх первого нет.
- *
- * @param partial число — о всём списке, а на экране его часть: поиск по загруженному у накладных (#1222)
- *     скрытых не видит, и «скрыто: 12» над одной найденной читалось бы как «поиску не показали 12
- *     совпадений». Тогда — «часть скрыта», без числа (ревью PR #1335).
- */
-export function SiteFilterNote({ hidden, partial = false }: { hidden: number; partial?: boolean }) {
-  const filter = useSiteFilterState();
-  if (!filter.active) return null;
-  return (
-    <p className="flex items-center gap-1.5 text-xs text-fg3" data-testid="site-filter-note">
-      <Star size={12} className="text-brand fill-current" aria-hidden />
-      <span>Избранные стройки · {partial && hidden > 0 ? 'часть скрыта' : `скрыто: ${hidden}`}</span>
-      <span aria-hidden>·</span>
-      <button type="button" className={link} onClick={() => filter.setOn(false)}>Показать все</button>
-    </p>
-  );
-}
-
-/**
  * Звезда стройки (§62.2). Стоит вне hover-группы действий: она ещё и признак, а невидимый признак
  * ничего не помечает. Клик не проваливается в карточку.
  */

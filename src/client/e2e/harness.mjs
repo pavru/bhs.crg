@@ -451,6 +451,18 @@ export async function pickTheme(page, label) {
   await settled(page);
 }
 
+/**
+ * «Избранные стройки» / «Все стройки» — отбором «Стройки» над списком (issue #1432), а не сегментом в
+ * шапке. Выбор положения окно закрывает сам; Esc здесь не жмём — он ушёл бы открытой форме.
+ */
+export async function pickSites(page, label) {
+  await page.getByTestId('sites-filter').click();
+  const popover = page.getByTestId('sites-filter-popover');
+  await popover.getByRole('radio', { name: new RegExp(`^${label}`) }).click();
+  await popover.waitFor({ state: 'detached', timeout: 5000 });
+  await settled(page);
+}
+
 /** Выход «изнутри»: чистим оба хранилища, иначе сессия может пережить сброс. */
 export async function clearSession(page) {
   await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });

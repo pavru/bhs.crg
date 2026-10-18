@@ -168,7 +168,7 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
 
           {preview && draft.modules.length > 0 && (
             <p className="text-xs text-fg2" data-testid="workspace-preview">
-              В шапке: <span className="font-medium">{draft.name.trim() || 'Без имени'}</span> · {compositionLabel(preview, access)}
+              В шапке: <span className="font-medium">{draft.name.trim() || 'Без имени'}</span>. В списке пространств: {compositionLabel(preview, access)}
             </p>
           )}
 

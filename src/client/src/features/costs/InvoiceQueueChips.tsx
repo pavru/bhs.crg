@@ -1,4 +1,5 @@
 import { Archive, Check, ListChecks, ScanLine, TriangleAlert } from 'lucide-react';
+import type { ReactNode } from 'react';
 import type { InvoiceQueue } from '@/shared/api/invoices';
 import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
 import { QUEUE_LABEL, queueChip } from './invoiceQueues';
@@ -13,7 +14,7 @@ import { Tooltip } from '@/shared/ui/Tooltip';
  * Числа считает сервер, те же стоят над реестром. Тому, кто счёт править не может, чипов «наведите
  * порядок» не показывают (числа у него и не спрашивают): число было бы упрёком без выхода.
  */
-export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, onRetry }: {
+export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, onRetry, sites }: {
   queue: InvoiceQueue | null;
   onChange: (queue: InvoiceQueue | null) => void;
   /** Числа; `undefined` — не пришли или их не спрашивали. */
@@ -23,6 +24,8 @@ export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, on
   /** Числа не пришли: это не «ноль», и молча убрать чип нельзя. */
   failed: boolean;
   onRetry: () => void;
+  /** Отбор «Стройки» (#1432) — последним: под очередью его нет, и уходя, он не сдвигает чипы очередей. */
+  sites?: ReactNode;
 }) {
   const toggle = (next: InvoiceQueue) => onChange(queue === next ? null : next);
   const lost = queueChip('lost', queues, queue === 'lost');
@@ -68,6 +71,7 @@ export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, on
           </button>
         </Tooltip>
       )}
+      {sites}
     </div>
   );
 }
