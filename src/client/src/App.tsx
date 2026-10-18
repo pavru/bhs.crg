@@ -23,6 +23,7 @@ import { SystemCommonDataPage } from '@/features/common-data/SystemCommonDataPag
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { PrimitiveTypesPage } from '@/features/settings/PrimitiveTypesPage';
 import { RecognitionProfilesPage } from '@/features/settings/RecognitionProfilesPage';
+import { PrintProfilesPage } from '@/features/settings/PrintProfilesPage';
 import { ReconciliationsPage } from '@/features/reconciliations/ReconciliationsPage';
 import { PeriodsPage } from '@/features/periods/PeriodsPage';
 import { FieldMappingPage } from '@/features/settings/FieldMappingPage';
@@ -144,6 +145,7 @@ function AppRoutes() {
             <Route path="field-types" element={<PrimitiveTypesPage />} />
             <Route path="field-mapping" element={<FieldMappingPage />} />
             <Route path="recognition-profiles" element={<RecognitionProfilesPage />} />
+            <Route path="print-profiles" element={<PrintProfilesPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="roles" element={<RolesPage />} />
             <Route path="activity" element={<ActivityPage />} />
