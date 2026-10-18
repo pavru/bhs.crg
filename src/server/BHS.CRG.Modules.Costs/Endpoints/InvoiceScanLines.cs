@@ -14,44 +14,35 @@ public static class InvoiceScanLines
 {
     private static readonly CultureInfo Russian = CultureInfo.GetCultureInfo("ru-RU");
 
-    /// <summary>Разобранные строки и, если НДС пришлось снять, — почему (в примечания распознавания).</summary>
-    public sealed record Reading(IReadOnlyList<InvoiceLineValues> Lines, string? VatNote);
+    /// <summary>Разобранные строки и примечания распознавания к ним.</summary>
+    /// <param name="VatNote">НДС пришлось снять — почему (issue #1410).</param>
+    /// <param name="StrayNote">Что прочитано и в счёт не легло — по колонкам (issue #1480).</param>
+    public sealed record Reading(IReadOnlyList<InvoiceLineValues> Lines, string? VatNote, string? StrayNote = null);
 
     /// <summary>
     /// Ключи колонок строки счёта: колонка профиля с таким ключом заполняет это поле строки (issue
-    /// #1480). Значение — имя свойства <see cref="InvoiceLineValues" />.
+    /// #1480).
     ///
     /// <para><b>Общее правило, а не перечисление заводских ключей</b> (решение владельца 18.10.2026).
     /// Профиль правит администратор, и раньше колонка, которой разбор не знал, читалась моделью и молча
     /// терялась: так на продакшене пропадал добавленный «Артикул». Теперь у каждого поля строки есть
-    /// ключ, а колонка с другим ключом не теряется молча — она попадает в примечание строки (и остаётся
-    /// в наборах данных, которые читают тот же профиль).</para>
+    /// ключ, а колонка с другим ключом не теряется молча — она названа в примечании распознавания (и
+    /// остаётся в наборах данных, которые читают тот же профиль).</para>
     ///
     /// <para>Ключ сравнивается точно, после обрезки краевых пробелов: «артикул» со строчной — другой
-    /// ключ, и это видно в примечании, а не угадывается.</para>
+    /// ключ, и это видно в примечании, а не угадывается. С этой таблицей тест сверяет таблицу ключей в
+    /// ADMIN_GUIDE (§7, «ключи строк»).</para>
     /// </summary>
-    public static readonly IReadOnlyDictionary<string, string> Targets = new Dictionary<string, string>(StringComparer.Ordinal)
+    public static readonly IReadOnlyDictionary<string, ScanLineField> Targets = new Dictionary<string, ScanLineField>(StringComparer.Ordinal)
     {
-        [CostsRecognitionProfiles.LineName] = nameof(InvoiceLineValues.SupplierText),
-        [CostsRecognitionProfiles.LineCode] = nameof(InvoiceLineValues.SupplierCode),
-        [CostsRecognitionProfiles.LineUnit] = nameof(InvoiceLineValues.Unit),
-        [CostsRecognitionProfiles.LineQuantity] = nameof(InvoiceLineValues.Quantity),
-        [CostsRecognitionProfiles.LinePrice] = nameof(InvoiceLineValues.Price),
-        [CostsRecognitionProfiles.LineAmount] = nameof(InvoiceLineValues.Amount),
-        [CostsRecognitionProfiles.LineVatRate] = nameof(InvoiceLineValues.VatRate),
-        [CostsRecognitionProfiles.LineVatAmount] = nameof(InvoiceLineValues.VatAmount),
-    };
-
-    /// <summary>
-    /// Поля строки, которые распознавание не заполняет, — и почему. Новое поле строки обязано попасть
-    /// либо в <see cref="Targets" />, либо сюда: иначе краснеет сторож, а не теряется колонка.
-    /// </summary>
-    public static readonly IReadOnlyDictionary<string, string> NotTargets = new Dictionary<string, string>(StringComparer.Ordinal)
-    {
-        [nameof(InvoiceLineValues.NomenclatureId)] =
-            "позицию подставляет запомненное для поставщика или выбирает человек — не бумага",
-        [nameof(InvoiceLineValues.MatchedBy)] = "пометка подстановки из запомненного ставится сервером, а не читается",
-        [nameof(InvoiceLineValues.Note)] = "примечание собирает сам разбор: что не прочиталось и что не легло",
+        [CostsRecognitionProfiles.LineName] = ScanLineField.SupplierText,
+        [CostsRecognitionProfiles.LineCode] = ScanLineField.SupplierCode,
+        [CostsRecognitionProfiles.LineUnit] = ScanLineField.Unit,
+        [CostsRecognitionProfiles.LineQuantity] = ScanLineField.Quantity,
+        [CostsRecognitionProfiles.LinePrice] = ScanLineField.Price,
+        [CostsRecognitionProfiles.LineAmount] = ScanLineField.Amount,
+        [CostsRecognitionProfiles.LineVatRate] = ScanLineField.VatRate,
+        [CostsRecognitionProfiles.LineVatAmount] = ScanLineField.VatAmount,
     };
 
     /// <summary>
@@ -75,15 +66,18 @@ public static class InvoiceScanLines
     /// </summary>
     public static Reading Read(IEnumerable<IReadOnlyDictionary<string, string?>> rows)
     {
-        var lines = rows.Select(Line).OfType<Scanned>().ToList();
+        var read = rows.Select(Cells).ToList();
+        var lines = read.Select(r => Line(r.Cells)).OfType<Scanned>().ToList();
+        var stray = StrayNote([.. read.SelectMany(r => r.Stray)]);
+
         var named = lines.Count(l => l.Values.VatAmount is not null);
         var touched = lines.Any(l => l.Values.VatAmount is not null || l.Values.VatRate is not null);
-        if (!touched || named == lines.Count) return new([.. lines.Select(l => l.Values)], null);
+        if (!touched || named == lines.Count) return new([.. lines.Select(l => l.Values)], null, stray);
 
         return new([.. lines.Select(Strip)],
             $"НДС прочитан не у всех строк (у {named} из {lines.Count}) — в строки не положен ни у одной: " +
             "отчёты берут НДС из шапки, только когда о нём молчат все строки. Прочитанное — в примечаниях " +
-            "строк; впишите недостающее, если НДС нужен по строкам.");
+            "строк; впишите недостающее, если НДС нужен по строкам.", stray);
     }
 
     /// <summary>Строка и то, прочитана ли её сумма НДС в файле, — или досчитана по ставке.</summary>
@@ -122,20 +116,19 @@ public static class InvoiceScanLines
     /// примечание строки. Молча округлить или обрезать нельзя: записанное разошлось бы с бумагой, а
     /// отказ базы уронил бы всё распознавание вместе с шапкой.</para>
     ///
-    /// <para>Ячейки берутся по полю строки через <see cref="Targets" />, а не по ключам профиля: разбор
-    /// знает, КАК читать количество или артикул, а каким ключом колонка названа — решает таблица.</para>
+    /// <para>Ячейки приходят уже по полям строки (<see cref="Cells" />): разбор знает, КАК читать
+    /// количество или артикул, а каким ключом колонка названа — решает <see cref="Targets" />.</para>
     /// </summary>
-    private static Scanned? Line(IReadOnlyDictionary<string, string?> row)
+    private static Scanned? Line(IReadOnlyDictionary<ScanLineField, string> cells)
     {
-        // Строка, в которой движок не прочитал ничего, — не строка счёта.
-        if (row.Values.All(string.IsNullOrWhiteSpace)) return null;
-
-        var (cells, stray) = Cells(row);
-        string? Cell(string field) => cells.GetValueOrDefault(field);
+        // Строка, в которой движок не прочитал ни одного поля счёта, — не строка счёта: подзаголовок
+        // раздела или хвост таблицы, где заполнена только колонка вроде «№» (ревью PR #1485).
+        if (cells.Count == 0) return null;
+        string? Cell(ScanLineField field) => cells.GetValueOrDefault(field);
 
         var unread = new List<string>();
 
-        decimal? Number(string field, string title, Func<string?, decimal?> parse, int digits)
+        decimal? Number(ScanLineField field, string title, Func<string?, decimal?> parse, int digits)
         {
             var text = Cell(field);
             if (string.IsNullOrWhiteSpace(text)) return null;
@@ -147,7 +140,7 @@ public static class InvoiceScanLines
             return null;
         }
 
-        string? Text(string field, string title, int? limit = null)
+        string? Text(ScanLineField field, string title, int? limit = null)
         {
             var text = Cell(field);
             if (string.IsNullOrWhiteSpace(text)) return null;
@@ -160,21 +153,26 @@ public static class InvoiceScanLines
         // Колонки НДС: прочерк — пустая ячейка, а не «не прочитано» и не ноль. «Без НДС» — ноль: строка
         // НДС назвала, и назвала нулём (issue #1410). Ставку разбирает VatRate целиком, вместе с «Без НДС»;
         // у суммы НДС «Без НДС» понимается тем же правилом (RecognizedValues.NoVat) — одно место на оба.
-        var rateEmpty = Empty(Cell(nameof(InvoiceLineValues.VatRate)));
-        var vatEmpty = Empty(Cell(nameof(InvoiceLineValues.VatAmount)));
+        var rateEmpty = Empty(Cell(ScanLineField.VatRate));
+        var vatEmpty = Empty(Cell(ScanLineField.VatAmount));
 
-        var quantity = Number(nameof(InvoiceLineValues.Quantity), "количество", RecognizedValues.Quantity, 3);
+        var quantity = Number(ScanLineField.Quantity, "количество", RecognizedValues.Quantity, 3);
         // Цена — деньгами, а не количеством: «1.250» в графе цены бывает и тысячей двести пятьюдесятью.
-        var price = Number(nameof(InvoiceLineValues.Price), "цена", RecognizedValues.Money, 2);
-        var amount = Number(nameof(InvoiceLineValues.Amount), "сумма", RecognizedValues.Money, 2);
-        var rate = rateEmpty ? null : Number(nameof(InvoiceLineValues.VatRate), "ставка НДС", RecognizedValues.VatRate, 2);
+        var price = Number(ScanLineField.Price, "цена", RecognizedValues.Money, 2);
+        var amount = Number(ScanLineField.Amount, "сумма", RecognizedValues.Money, 2);
+        var rate = rateEmpty ? null : Number(ScanLineField.VatRate, "ставка НДС", RecognizedValues.VatRate, 2);
         var vat = vatEmpty
             ? null
-            : Number(nameof(InvoiceLineValues.VatAmount), "сумма НДС",
+            : Number(ScanLineField.VatAmount, "сумма НДС",
                 text => RecognizedValues.NoVat(text) ? 0m : RecognizedValues.Money(text), 2);
-        var unit = Text(nameof(InvoiceLineValues.Unit), "единица", InvoiceLine.UnitLength);
+        var unit = Text(ScanLineField.Unit, "единица", InvoiceLine.UnitLength);
         // Длиннее колонки — в примечание, как непрочитанное число: отказ базы уронил бы всё распознавание.
-        var code = Text(nameof(InvoiceLineValues.SupplierCode), "артикул", InvoiceLine.SupplierCodeLength);
+        // Прочерк или крест в графе артикула — «артикула нет», а не артикул «—» (ревью PR #1485): артикул
+        // старше наименования у соответствий, и общий «—» у всех строк поставщика сделал бы их одним
+        // товаром — выбор позиции одной строке встал бы во все.
+        var code = Empty(Cell(ScanLineField.SupplierCode))
+            ? null
+            : Text(ScanLineField.SupplierCode, "артикул", InvoiceLine.SupplierCodeLength);
 
         if (amount is null && quantity is { } q && price is { } p && Math.Abs(q * p) >= CostsValues.Limit)
         {
@@ -183,26 +181,18 @@ public static class InvoiceScanLines
             price = null;
         }
 
-        string?[] notes =
-        [
-            unread.Count > 0 ? "В файле не прочитано: " + string.Join(", ", unread) : null,
-            // Временная форма (issue #1480): задача #1484 переносит это в замечания распознавания счёта.
-            stray.Count > 0 ? "Прочитано, в счёт не положено: " + string.Join(", ", stray) : null,
-        ];
-        var note = string.Join("; ", notes.OfType<string>());
-
         var values = new InvoiceLineValues(
             NomenclatureId: null,
-            SupplierText: Text(nameof(InvoiceLineValues.SupplierText), "наименование"),
+            SupplierText: Text(ScanLineField.SupplierText, "наименование"),
             SupplierCode: code,
             Unit: unit,
             Quantity: quantity, Price: price, VatRate: rate, VatAmount: vat, Amount: amount,
-            Note: note.Length > 0 ? note : null);
+            Note: unread.Count > 0 ? "В файле не прочитано: " + string.Join(", ", unread) : null);
 
         // Досчитываем только то, чего в скане НЕТ: сумму — по количеству и цене, сумму НДС — по ставке.
         // Стояло, но не прочиталось — оставляем пустым: посчитанное выглядело бы прочитанным, а на бумаге
         // написано другое.
-        var total = string.IsNullOrWhiteSpace(Cell(nameof(InvoiceLineValues.Amount)))
+        var total = string.IsNullOrWhiteSpace(Cell(ScanLineField.Amount))
             ? values.Completed().Amount
             : amount;
         values = values with { Amount = total };
@@ -215,28 +205,60 @@ public static class InvoiceScanLines
         return new(values, VatAmountRead: !vatEmpty && vat is not null);
     }
 
+    /// <summary>Прочитанное, что в поле строки не легло: ключ колонки, значение и почему.</summary>
+    /// <param name="Repeats">Ключ, чьё поле уже занято; <c>null</c> — у строки счёта нет поля с этим ключом.</param>
+    private sealed record Stray(string Key, string Value, string? Repeats);
+
     /// <summary>
-    /// Ячейки строки по полям (<see cref="Targets" />) и колонки, у которых поля в счёте нет, — для
-    /// примечания: «ключ «значение»». Пустая колонка без поля не называется: ей нечего терять.
+    /// Ячейки строки по полям (<see cref="Targets" />) — только непустые — и то, что в поля не легло.
     ///
-    /// <para>Два ключа одного поля после обрезки пробелов («Цена» и «Цена ») — берётся непустой: модель
-    /// отвечает по ключам профиля, и пустой дубль иначе мог бы затереть прочитанное.</para>
+    /// <para>Два ключа одного поля после обрезки пробелов («Цена» и «Цена ») — поле берёт первый
+    /// непустой, а второй непустой назван, а не отброшен молча (ревью PR #1485): прочитаны два разных
+    /// числа, и человек должен узнать о втором. Пустой дубль не называется — ему нечего терять.</para>
     /// </summary>
-    private static (Dictionary<string, string?> Cells, List<string> Stray) Cells(IReadOnlyDictionary<string, string?> row)
+    private static (Dictionary<ScanLineField, string> Cells, List<Stray> Stray) Cells(IReadOnlyDictionary<string, string?> row)
     {
-        var cells = new Dictionary<string, string?>(StringComparer.Ordinal);
-        var stray = new List<string>();
+        var cells = new Dictionary<ScanLineField, string>();
+        var owners = new Dictionary<ScanLineField, string>();
+        var stray = new List<Stray>();
         foreach (var (key, text) in row)
         {
+            if (string.IsNullOrWhiteSpace(text)) continue;
             var bare = key.Trim();
-            if (Targets.TryGetValue(bare, out var field))
+            if (!Targets.TryGetValue(bare, out var field))
+                stray.Add(new(bare, text, null));
+            else if (owners.TryGetValue(field, out var owner))
+                stray.Add(new(key, text, owner));
+            else
             {
-                if (string.IsNullOrWhiteSpace(cells.GetValueOrDefault(field))) cells[field] = text;
+                cells[field] = text;
+                owners[field] = key;
             }
-            else if (!string.IsNullOrWhiteSpace(text))
-                stray.Add($"{bare} «{Short(text)}»");
         }
         return (cells, stray);
+    }
+
+    /// <summary>
+    /// Одно примечание распознавания на все строки: по колонке — сколько строк и пример значения.
+    ///
+    /// <para>⚠️ <b>В примечание распознавания, а не строки</b> (ревью PR #1485). Примечание строки —
+    /// поле человека: оно едет в версии счёта и книгу исправлений, и служебная фраза у каждой строки
+    /// каждого счёта осталась бы в данных навсегда, в том числе у запертых закрытым периодом. Колонка
+    /// «только для наборов данных» законна, поэтому это сведение, а не предупреждение.</para>
+    /// </summary>
+    private static string? StrayNote(IReadOnlyList<Stray> stray)
+    {
+        if (stray.Count == 0) return null;
+        var columns = stray.GroupBy(s => (s.Key, s.Repeats)).Select(g =>
+        {
+            var why = g.Key.Repeats is { } owner
+                ? $"повторяет ключ «{owner.Trim()}», поле уже заполнено им"
+                : "у строки счёта нет поля с таким ключом";
+            return $"«{g.Key.Key}» — {why} (строк: {g.Count()}, например «{Short(g.First().Value)}»)";
+        });
+        return "Прочитано, в счёт не положено: " + string.Join("; ", columns) +
+               ". Такие колонки получают только наборы данных; чтобы колонка заполняла строку счёта, назовите " +
+               "её ключом поля строки (инструкция администратора, «Счёт на оплату: ключи строк»).";
     }
 
     /// <summary>
@@ -252,4 +274,21 @@ public static class InvoiceScanLines
     }
 
     private static string Short(string text) => text.Length > 40 ? text[..40] + "…" : text;
+}
+
+/// <summary>
+/// Поля строки счёта, которые заполняет распознавание (issue #1480). Имена — имена свойств
+/// <see cref="InvoiceLineValues" />: сторож сверяет их отражением, и поле строки без решения «цель или
+/// нет» краснеет там, а не теряет колонку молча.
+/// </summary>
+public enum ScanLineField
+{
+    SupplierText,
+    SupplierCode,
+    Unit,
+    Quantity,
+    Price,
+    Amount,
+    VatRate,
+    VatAmount,
 }

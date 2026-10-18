@@ -193,9 +193,10 @@ public sealed class InvoiceScanReading(
     /// <param name="Recalled">Ответ по поставщику. Пусто — спрашивать было не о ком или нечем.</param>
     /// <param name="RecallFailed">Спросить запомненное НЕ УДАЛОСЬ — это не «ничего не запомнено».</param>
     /// <param name="VatNote">НДС строк снят, потому что прочитан не у всех (issue #1410), — почему.</param>
+    /// <param name="StrayNote">Прочитанное, что в поля строк не легло, — по колонкам (issue #1480).</param>
     private sealed record ScanLines(
         IReadOnlyList<InvoiceLineValues> Rows, IReadOnlyDictionary<Guid, RecallAnswer> Recalled, bool RecallFailed,
-        string? VatNote);
+        string? VatNote, string? StrayNote);
 
     /// <summary>
     /// Разобрать строки скана и спросить запомненное для них (задача C3, issue #1079) — ДО слияния и
@@ -214,22 +215,22 @@ public sealed class InvoiceScanReading(
     private async Task<ScanLines> LinesAsync(
         Invoice invoice, ModuleRecognitionResult read, InvoicePartiesView matched, CancellationToken ct)
     {
-        var (rows, vatNote) = InvoiceScanLines.Read(read.Rows);
+        var (rows, vatNote, strayNote) = InvoiceScanLines.Read(read.Rows);
         var recalled = new Dictionary<Guid, RecallAnswer>();
-        if (rows.Count == 0) return new(rows, recalled, false, vatNote);
+        if (rows.Count == 0) return new(rows, recalled, false, vatNote, strayNote);
 
         try
         {
             foreach (var supplier in new[] { invoice.SupplierId, matched.Supplier?.Match }.OfType<Guid>().Distinct())
                 recalled[supplier] = await SupplierMatching.RecallAsync(db, catalog, supplier, rows, ct);
-            return new(rows, recalled, false, vatNote);
+            return new(rows, recalled, false, vatNote, strayNote);
         }
         catch (Exception failure) when (failure is not OperationCanceledException)
         {
             logs.CreateLogger<InvoiceScanReading>().LogWarning(failure,
                 "Счёт {InvoiceId}: запомненные позиции для строк файла спросить не удалось — строки лягут без них.",
                 invoice.Id);
-            return new(rows, new Dictionary<Guid, RecallAnswer>(), true, vatNote);
+            return new(rows, new Dictionary<Guid, RecallAnswer>(), true, vatNote, strayNote);
         }
     }
 
@@ -451,6 +452,7 @@ public sealed class InvoiceScanReading(
                     notes.Add($"Строк, для которых запомнена позиция в архиве или удалённая: {answer.Unusable}. " +
                               "Она не подставлена — выберите действующую, и она заменит запомненное.");
                 if (lines.VatNote is { } vatNote) notes.Add(vatNote);
+                if (lines.StrayNote is { } strayNote) notes.Add(strayNote);
                 invoice.ContentChanged();
                 added = rows.Count;
             }

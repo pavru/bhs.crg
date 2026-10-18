@@ -12,8 +12,9 @@ namespace BHS.CRG.Tests.Integration;
 public sealed partial class InvoiceFromScanTests
 {
     /// <summary>
-    /// Колонка «Артикул», добавленная в профиль, ложится в строку; длинный артикул — в примечание;
-    /// колонка, которой в счёте некуда лечь, названа в примечании, а не потеряна молча.
+    /// Колонка «Артикул», добавленная в профиль, ложится в строку; длинный артикул — в примечание строки;
+    /// колонка, которой в счёте некуда лечь, названа в примечаниях распознавания, а не потеряна молча и не
+    /// дописана в примечание строки — то поле человека (ревью PR #1485).
     /// </summary>
     [Fact]
     public async Task Артикул_из_профиля_ложится_а_лишняя_колонка_названа()
@@ -27,7 +28,10 @@ public sealed partial class InvoiceFromScanTests
             With(Row("Муфта", "шт", "1", "3,00", "3,00"), ("Страна", "Россия")))));
 
         var id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
-        Assert.Equal("done", (await OutcomeAsync(client, id)).GetProperty("state").GetString());
+        var recognition = await OutcomeAsync(client, id);
+        Assert.Equal("done", recognition.GetProperty("state").GetString());
+        Assert.Contains(recognition.GetProperty("notes").EnumerateArray(),
+            n => n.GetString()!.StartsWith("Прочитано, в счёт не положено: «Страна» — у строки счёта нет поля с таким ключом"));
 
         var lines = (await ReadAsync(client, id)).GetProperty("lines");
         Assert.Equal("ВВГ-325", lines[0].GetProperty("supplierCode").GetString());
@@ -37,7 +41,7 @@ public sealed partial class InvoiceFromScanTests
         Assert.Contains($"длиннее {InvoiceLine.SupplierCodeLength} знаков", lines[1].GetProperty("note").GetString());
 
         Assert.Equal(JsonValueKind.Null, lines[2].GetProperty("supplierCode").ValueKind);
-        Assert.Equal("Прочитано, в счёт не положено: Страна «Россия»", lines[2].GetProperty("note").GetString());
+        Assert.Equal(JsonValueKind.Null, lines[2].GetProperty("note").ValueKind);
     }
 
     private static IReadOnlyDictionary<string, string?> With(IReadOnlyDictionary<string, string?> row, (string Key, string Value) extra) =>
