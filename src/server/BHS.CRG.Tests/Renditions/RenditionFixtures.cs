@@ -106,9 +106,14 @@ internal static class RenditionFixtures
     /// книгу читают и разборщик ячеек, и настоящий конвертер — и область он исполняет (проверено живьём).
     /// </summary>
     /// <param name="printArea">Область печати листа: строки и колонки с нуля, границы включительно.</param>
+    /// <param name="onSheet">Ссылка области — на лист (ptgArea3d, как пишет Excel) или простая (ptgArea):
+    /// обе LibreOffice исполняет.</param>
+    /// <param name="sheetName">Имя листа — байтами кодировки 1251, как пишут его русские программы.</param>
     public static byte[] Biff5Workbook((int Row, int Column, string Text)[] cells,
-        (int Top, int Left, int Bottom, int Right)? printArea = null)
+        (int Top, int Left, int Bottom, int Right)? printArea = null, bool onSheet = true, string sheetName = "Sheet")
     {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var cyrillic = Encoding.GetEncoding(1251);
         static byte[] Record(ushort id, params byte[][] parts)
         {
             var body = parts.SelectMany(part => part).ToArray();
@@ -124,16 +129,20 @@ internal static class RenditionFixtures
             sheet.AddRange(Record(0x0204, U16(row), U16(column), U16(0), U16(text.Length), Encoding.ASCII.GetBytes(text)));
         sheet.AddRange(end);
 
-        // Встроенное имя Print_Area (0x06) листа 1. Формула — 21 байт: знак ptgArea3d и сама ссылка в
-        // раскладке BIFF5 — лист (2+8+2+2), строки (2+2), колонки (1+1).
-        var name = printArea is { } area
-            ? Record(0x0018, U16(0x0020), [0], [1], U16(21), U16(0), U16(1), new byte[4], [0x06], [0x3B], U16(0xFFFF),
-                new byte[8], U16(0), U16(0), U16(area.Top), U16(area.Bottom), [(byte)area.Left], [(byte)area.Right])
+        // Встроенное имя Print_Area (0x06) листа 1. Формула — знак ссылки и сама ссылка в раскладке BIFF5:
+        // у ptgArea3d — лист (2+8+2+2), затем у обеих строки (2+2) и колонки (1+1).
+        byte[] formula = printArea is { } area
+            ? [onSheet ? (byte)0x3B : (byte)0x25, .. onSheet ? [.. U16(0xFFFF), .. new byte[8], .. U16(0), .. U16(0)] : Array.Empty<byte>(),
+                .. U16(area.Top), .. U16(area.Bottom), (byte)area.Left, (byte)area.Right]
             : [];
+        var name = formula.Length > 0
+            ? Record(0x0018, U16(0x0020), [0], [1], U16(formula.Length), U16(0), U16(1), new byte[4], [0x06], formula)
+            : [];
+        var title = cyrillic.GetBytes(sheetName);
         byte[] Globals(int sheetAt) =>
         [
-            .. Begin(0x0005), .. Record(0x0042, U16(1252)),
-            .. Record(0x0085, BitConverter.GetBytes(sheetAt), [0], [0], [5], Encoding.ASCII.GetBytes("Sheet")),
+            .. Begin(0x0005), .. Record(0x0042, U16(1251)),
+            .. Record(0x0085, BitConverter.GetBytes(sheetAt), [0], [0], [(byte)title.Length], title),
             .. name, .. end,
         ];
         var globals = Globals(Globals(0).Length);

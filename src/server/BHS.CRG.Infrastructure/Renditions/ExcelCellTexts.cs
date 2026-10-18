@@ -51,10 +51,8 @@ internal static class ExcelCellTexts
             var sheets = new List<string>();
             var cells = 0;
             long visited = 0;
-            var sheet = -1;
             do
             {
-                sheet++;
                 if (!string.Equals(reader.VisibleState, "visible", StringComparison.OrdinalIgnoreCase)) continue;
                 var row = -1;
                 var prints = false;
@@ -78,7 +76,7 @@ internal static class ExcelCellTexts
                         if (++cells > RenditionLimits.MaxCells)
                             return Refuse(RenditionRefusal.TooLarge,
                                 $"Файл слишком велик для читаемого вида: в книге больше {RenditionLimits.MaxCells} заполненных ячеек.");
-                        if (!areas.Prints(sheet, row, column)) continue;
+                        if (!areas.Prints(reader.Name, row, column)) continue;
                         prints = true;
                         if (value is string cell) words.AddRange(WordsOf(cell));
                     }

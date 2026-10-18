@@ -20,14 +20,28 @@ internal sealed partial class ExcelPrintAreas
     /// <summary>Прямоугольник области, границы включительно, счёт с нуля.</summary>
     private readonly record struct Box(int Top, int Left, int Bottom, int Right);
 
-    private readonly Dictionary<int, List<Box>> _bySheet = [];
+    /// <summary>
+    /// Области по ИМЕНИ листа. Книга записывает область номером листа, но номер у неё считается по всем
+    /// листам — с диаграммами и макросами, — а у разборщика ячеек по своим: сопоставлять номера значило бы
+    /// однажды положить область на соседний лист (ревью #1457). Имя у обоих одно.
+    /// </summary>
+    private readonly Dictionary<string, List<Box>> _bySheet = new(StringComparer.Ordinal);
 
     public static readonly ExcelPrintAreas None = new();
 
-    /// <summary>Печатается ли ячейка. У листа без области печатается всё.</summary>
-    public bool Prints(int sheet, int row, int column) =>
+    /// <summary>Печатается ли ячейка листа. У листа без области печатается всё.</summary>
+    public bool Prints(string sheet, int row, int column) =>
         !_bySheet.TryGetValue(sheet, out var boxes)
         || boxes.Exists(box => row >= box.Top && row <= box.Bottom && column >= box.Left && column <= box.Right);
+
+    /// <summary>Области, записанные номером листа (с нуля, по порядку листов книги), — по именам.</summary>
+    private static ExcelPrintAreas Named(List<string> sheets, Dictionary<int, List<Box>> byIndex)
+    {
+        var areas = new ExcelPrintAreas();
+        foreach (var (index, boxes) in byIndex)
+            if (index >= 0 && index < sheets.Count) areas._bySheet[sheets[index]] = boxes;
+        return areas;
+    }
 
     /// <summary>
     /// Области листов книги. Что не разобралось — пропускается: лист тогда сверяется целиком, как если
@@ -42,27 +56,35 @@ internal sealed partial class ExcelPrintAreas
 
     private static ExcelPrintAreas OfXlsx(byte[] file)
     {
-        var areas = new ExcelPrintAreas();
+        var sheets = new List<string>();
+        var byIndex = new Dictionary<int, List<Box>>();
         try
         {
             using var zip = new ZipArchive(new MemoryStream(file, writable: false), ZipArchiveMode.Read);
-            if (zip.GetEntry("xl/workbook.xml") is not { } workbook) return areas;
+            if (zip.GetEntry("xl/workbook.xml") is not { } workbook) return None;
             using var part = workbook.Open();
             using var xml = XmlReader.Create(part, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null });
-            while (xml.Read())
+            xml.Read();
+            while (!xml.EOF)
             {
-                if (xml.NodeType != XmlNodeType.Element || xml.LocalName != "definedName") continue;
-                if (xml.GetAttribute("name") != Name) continue;
-                if (!int.TryParse(xml.GetAttribute("localSheetId"), out var sheet)) continue;
-                var boxes = Parse(xml.ReadElementContentAsString());
-                if (boxes is not null) areas._bySheet[sheet] = boxes;
+                if (xml.NodeType == XmlNodeType.Element && xml.LocalName == "definedName" && xml.GetAttribute("name") == Name
+                    && int.TryParse(xml.GetAttribute("localSheetId"), out var sheet))
+                {
+                    if (Parse(xml.ReadElementContentAsString()) is { } boxes) byIndex[sheet] = boxes;
+                    // Чтение содержимого само встало на следующий узел: Read() перешагнул бы его — а Excel
+                    // пишет имена подряд, без пробелов, и область второго листа терялась бы (ревью #1457).
+                    continue;
+                }
+                // localSheetId — номер в этом списке, по всем листам книги.
+                if (xml.NodeType == XmlNodeType.Element && xml.LocalName == "sheet") sheets.Add(xml.GetAttribute("name") ?? "");
+                xml.Read();
             }
         }
         catch (Exception ex) when (ex is InvalidDataException or XmlException)
         {
             // Оглавление не читается — о том, цела ли книга, скажут разборщик и конвертер.
         }
-        return areas;
+        return Named(sheets, byIndex);
     }
 
     /// <summary>«Лист1!$A$1:$F$20,Лист1!$H:$J» → прямоугольники; <c>null</c> — запись не понята.</summary>

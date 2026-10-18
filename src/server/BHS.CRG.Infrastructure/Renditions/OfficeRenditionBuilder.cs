@@ -113,7 +113,7 @@ public sealed class OfficeRenditionBuilder(OfficeConverterClient converter, ILog
     /// иначе читался бы продолжением счёта. Какой лист служебный, отсюда не видно — листы названы, а
     /// судит человек.
     /// </summary>
-    public static string SheetsNote(IReadOnlyList<string> sheets)
+    private static string SheetsNote(IReadOnlyList<string> sheets)
     {
         var named = string.Join(", ", sheets.Take(NamedSheets).Select(name => $"«{name}»"));
         if (sheets.Count > NamedSheets) named += $" и ещё {sheets.Count - NamedSheets}";

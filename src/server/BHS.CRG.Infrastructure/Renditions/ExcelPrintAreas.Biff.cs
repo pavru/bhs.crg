@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Text;
 using NPOI.POIFS.FileSystem;
 
 namespace BHS.CRG.Infrastructure.Renditions;
@@ -12,63 +13,101 @@ namespace BHS.CRG.Infrastructure.Renditions;
 /// этом не пересохраняется: пересохранение через NPOI теряет рисунки, а здесь только чтение.</para>
 ///
 /// <para>Область печати — встроенное имя <c>Print_Area</c> (код 0x06) с номером листа; формула имени —
-/// одна или несколько ссылок на прямоугольник. Всё, что понять не удалось, пропускается — лист тогда
-/// сверяется целиком, как без области.</para>
+/// одна или несколько ссылок на прямоугольник. Имя «Print_Area», записанное обычным, не встроенным,
+/// LibreOffice не исполняет (проверено живьём) — и сверка его не берёт: иначе прятала бы текст, который на
+/// странице есть. Всё, что понять не удалось, пропускается — лист тогда сверяется целиком, как без
+/// области.</para>
+///
+/// <para>Читается только общая часть книги, до её конца: имена и листы лежат там, а дальше — ячейки и
+/// рисунки, у настоящих счетов это мегабайты картинок печати.</para>
 /// </summary>
 internal sealed partial class ExcelPrintAreas
 {
-    private const ushort Bof = 0x0809, Eof = 0x000A, FilePass = 0x002F, NameRecord = 0x0018;
+    private const ushort Bof = 0x0809, Eof = 0x000A, FilePass = 0x002F, CodePage = 0x0042, BoundSheet = 0x0085,
+        NameRecord = 0x0018;
     private const ushort Biff8 = 0x0600, Biff5 = 0x0500;
     private const byte PrintAreaCode = 0x06;
 
+    /// <summary>Кодировка имён BIFF5 без записи о ней — та же, что берёт разборщик ячеек по умолчанию.</summary>
+    private const int DefaultCodePage = 1252;
+
     private static ExcelPrintAreas OfBiff(byte[] file)
     {
-        var areas = new ExcelPrintAreas();
+        var sheets = new List<string>();
+        var byIndex = new Dictionary<int, List<Box>>();
         try
         {
-            if (WorkbookStream(file) is not { } stream) return areas;
+            var container = new POIFSFileSystem(new MemoryStream(file, writable: false));
+            var name = container.Root.EntryNames.FirstOrDefault(entry =>
+                entry.Equals("Workbook", StringComparison.OrdinalIgnoreCase) || entry.Equals("Book", StringComparison.OrdinalIgnoreCase));
+            if (name is null) return None;
+            using var stream = container.CreateDocumentInputStream(name);
+
             var version = (ushort)0;
-            for (var at = 0; at + 4 <= stream.Length;)
+            var encoding = Encoding.GetEncoding(DefaultCodePage);
+            var head = new byte[4];
+            var data = new byte[ushort.MaxValue];
+            while (stream.ReadAtLeast(head, 4, throwOnEndOfStream: false) == 4)
             {
-                var id = BinaryPrimitives.ReadUInt16LittleEndian(stream.AsSpan(at));
-                var length = BinaryPrimitives.ReadUInt16LittleEndian(stream.AsSpan(at + 2));
-                if (at + 4 + length > stream.Length) break;
-                var data = stream.AsSpan(at + 4, length);
-                at += 4 + length;
+                var id = BinaryPrimitives.ReadUInt16LittleEndian(head);
+                var length = BinaryPrimitives.ReadUInt16LittleEndian(head.AsSpan(2));
+                if (stream.ReadAtLeast(data.AsSpan(0, length), length, throwOnEndOfStream: false) < length) break;
+                var body = data.AsSpan(0, length);
 
                 if (version == 0)
                 {
                     // Первая запись — начало книги; по ней видно, BIFF5 это или BIFF8. Иное — не книга.
-                    if (id != Bof || data.Length < 2) return areas;
-                    version = BinaryPrimitives.ReadUInt16LittleEndian(data);
-                    if (version is not (Biff8 or Biff5)) return areas;
+                    if (id != Bof || body.Length < 2) return None;
+                    version = BinaryPrimitives.ReadUInt16LittleEndian(body);
+                    if (version is not (Biff8 or Biff5)) return None;
                     continue;
                 }
                 // Конец общей части книги: дальше — листы, имён там нет. Шифрованную книгу не читаем:
                 // её записи после этой — каша, а о пароле скажет разборщик ячеек.
                 if (id is Eof or FilePass) break;
-                if (id == NameRecord && PrintArea(data, version == Biff8) is ({ } sheet, { } boxes))
-                    areas._bySheet[sheet] = boxes;
+                switch (id)
+                {
+                    case CodePage when body.Length >= 2 && version == Biff5:
+                        encoding = Legacy(BinaryPrimitives.ReadUInt16LittleEndian(body));
+                        break;
+                    case BoundSheet:
+                        sheets.Add(SheetName(body, version == Biff8, encoding) ?? "");
+                        break;
+                    case NameRecord when PrintArea(body, version == Biff8) is ({ } sheet, { } boxes):
+                        byIndex[sheet] = boxes;
+                        break;
+                }
             }
         }
         // Чужой файл ломает разборщик контейнера чем угодно; для сверки это одно: области нет.
         catch (Exception ex) when (ex is not (OutOfMemoryException or OperationCanceledException))
         {
+            return None;
         }
-        return areas;
+        return Named(sheets, byIndex);
     }
 
-    /// <summary>Поток книги внутри контейнера: «Workbook» у BIFF8, «Book» у BIFF5.</summary>
-    private static byte[]? WorkbookStream(byte[] file)
+    /// <summary>Кодировка однобайтовых строк BIFF5 по записи книги; незнакомая — по умолчанию.</summary>
+    private static Encoding Legacy(int codePage)
     {
-        var container = new POIFSFileSystem(new MemoryStream(file, writable: false));
-        var name = container.Root.EntryNames.FirstOrDefault(entry =>
-            entry.Equals("Workbook", StringComparison.OrdinalIgnoreCase) || entry.Equals("Book", StringComparison.OrdinalIgnoreCase));
-        if (name is null) return null;
-        using var stream = container.CreateDocumentInputStream(name);
-        using var copy = new MemoryStream();
-        stream.CopyTo(copy);
-        return copy.ToArray();
+        try { return Encoding.GetEncoding(codePage == 32769 ? DefaultCodePage : codePage); }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException) { return Encoding.GetEncoding(DefaultCodePage); }
+    }
+
+    /// <summary>
+    /// Имя листа из записи о нём: смещение (4), состояние (1), вид (1), длина (1), затем буквы — у BIFF8
+    /// с байтом признаков (буква в один или два байта), у BIFF5 — байтами кодировки книги.
+    /// </summary>
+    private static string? SheetName(ReadOnlySpan<byte> data, bool biff8, Encoding encoding)
+    {
+        if (data.Length < 7) return null;
+        var length = data[6];
+        if (!biff8) return data.Length < 7 + length ? null : encoding.GetString(data.Slice(7, length));
+        if (data.Length < 8) return null;
+        var wide = (data[7] & 0x01) != 0;
+        var bytes = wide ? length * 2 : length;
+        if (data.Length < 8 + bytes) return null;
+        return wide ? Encoding.Unicode.GetString(data.Slice(8, bytes)) : Encoding.Latin1.GetString(data.Slice(8, bytes));
     }
 
     /// <summary>
@@ -94,8 +133,9 @@ internal sealed partial class ExcelPrintAreas
     }
 
     /// <summary>
-    /// Формула имени → прямоугольники. Понимаются ссылка и диапазон на лист и их объединение — так
-    /// Excel и LibreOffice пишут область печати. Встретилось что-то иное — <c>null</c>: не понято.
+    /// Формула имени → прямоугольники. Понимаются ссылка и диапазон — на лист и без него — и их
+    /// объединение: так Excel и LibreOffice пишут область печати, и обе записи LibreOffice исполняет.
+    /// Встретилось что-то иное — <c>null</c>: не понято.
     /// </summary>
     private static List<Box>? Boxes(ReadOnlySpan<byte> formula, bool biff8)
     {
@@ -105,6 +145,8 @@ internal sealed partial class ExcelPrintAreas
             var token = formula[at++];
             // У ссылок класс (ссылка, значение, массив) записан двумя битами; область от него не зависит.
             var kind = token >= 0x20 ? (byte)((token & 0x1F) | 0x20) : token;
+            // Ссылка на лист отличается от простой только префиксом листа: BIFF8 — 2 байта, BIFF5 — 14.
+            var sheetPrefix = kind is 0x3A or 0x3B ? (biff8 ? 2 : 14) : 0;
             switch (kind)
             {
                 case 0x10 or 0x15: // объединение, скобки
@@ -112,12 +154,12 @@ internal sealed partial class ExcelPrintAreas
                 case 0x29: // начало списка ссылок: длина списка
                     at += 2;
                     break;
-                case 0x3B: // диапазон на лист
-                    if (!Area(formula, ref at, biff8, out var area)) return null;
+                case 0x25 or 0x3B: // диапазон
+                    if (!Area(formula, ref at, sheetPrefix, biff8, out var area)) return null;
                     boxes.Add(area);
                     break;
-                case 0x3A: // ячейка на лист
-                    if (!Cell(formula, ref at, biff8, out var cell)) return null;
+                case 0x24 or 0x3A: // ячейка
+                    if (!Cell(formula, ref at, sheetPrefix, biff8, out var cell)) return null;
                     boxes.Add(cell);
                     break;
                 default:
@@ -127,29 +169,29 @@ internal sealed partial class ExcelPrintAreas
         return boxes.Count > 0 ? boxes : null;
     }
 
-    // BIFF8: лист (2), строки (2+2), колонки (2+2) — в колонке два старших бита признаки «$».
-    // BIFF5: лист (2+8+2+2), строки (2+2) — признаки в двух старших битах строки, колонки (1+1).
-    private static bool Area(ReadOnlySpan<byte> formula, ref int at, bool biff8, out Box box)
+    // BIFF8: строки (2+2), колонки (2+2) — в колонке два старших бита признаки «$».
+    // BIFF5: строки (2+2) — признаки в двух старших битах строки, колонки (1+1).
+    private static bool Area(ReadOnlySpan<byte> formula, ref int at, int sheetPrefix, bool biff8, out Box box)
     {
         box = default;
-        var size = biff8 ? 10 : 20;
+        var size = sheetPrefix + (biff8 ? 8 : 6);
         if (at + size > formula.Length) return false;
-        var span = formula.Slice(at, size);
+        var span = formula.Slice(at + sheetPrefix, size - sheetPrefix);
         at += size;
         box = biff8
-            ? new Box(U16(span, 2), U16(span, 6) & 0x3FFF, U16(span, 4), U16(span, 8) & 0x3FFF)
-            : new Box(U16(span, 14) & 0x3FFF, span[18], U16(span, 16) & 0x3FFF, span[19]);
+            ? new Box(U16(span, 0), U16(span, 4) & 0x3FFF, U16(span, 2), U16(span, 6) & 0x3FFF)
+            : new Box(U16(span, 0) & 0x3FFF, span[4], U16(span, 2) & 0x3FFF, span[5]);
         return true;
     }
 
-    private static bool Cell(ReadOnlySpan<byte> formula, ref int at, bool biff8, out Box box)
+    private static bool Cell(ReadOnlySpan<byte> formula, ref int at, int sheetPrefix, bool biff8, out Box box)
     {
         box = default;
-        var size = biff8 ? 6 : 17;
+        var size = sheetPrefix + (biff8 ? 4 : 3);
         if (at + size > formula.Length) return false;
-        var span = formula.Slice(at, size);
+        var span = formula.Slice(at + sheetPrefix, size - sheetPrefix);
         at += size;
-        var (row, column) = biff8 ? (U16(span, 2), U16(span, 4) & 0x3FFF) : (U16(span, 14) & 0x3FFF, (int)span[16]);
+        var (row, column) = biff8 ? (U16(span, 0), U16(span, 2) & 0x3FFF) : (U16(span, 0) & 0x3FFF, (int)span[2]);
         box = new Box(row, column, row, column);
         return true;
     }

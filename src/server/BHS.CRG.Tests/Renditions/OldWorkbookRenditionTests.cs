@@ -81,6 +81,45 @@ public class OldWorkbookRenditionTests
         Assert.Empty(built.Notes);
     }
 
+    /// <summary>Простая ссылка (без листа) и русское имя листа в кодировке книги — область та же.</summary>
+    [Fact]
+    public async Task Область_старой_книги_простой_ссылкой_и_на_русском_листе_читается()
+    {
+        var book = Biff5Workbook(Cells, (0, 0, 1, 1), onSheet: false, sheetName: "Счёт");
+
+        var built = Assert.IsType<Rendition.Built>(await Service(Returns(AreaOnly)).BuildAsync(book));
+
+        Assert.Empty(built.Notes);
+    }
+
+    /// <summary>
+    /// Области на двух листах, перед ними скрытый лист: каждая ложится на свой лист — по имени, а не по
+    /// номеру. У <c>.xlsx</c> так ловится и потеря второго имени при чтении оглавления подряд.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Области_нескольких_листов_ложатся_каждая_на_свой_лист(bool old)
+    {
+        var book = Workbook(b =>
+        {
+            b.CreateSheet("Hidden").CreateRow(0).CreateCell(0).SetCellValue("secret");
+            b.SetSheetHidden(0, SheetState.Hidden);
+            string[][] sheets = [["alpha bravo", "service marks"], ["charlie delta", "export noise words"]];
+            for (var i = 0; i < sheets.Length; i++)
+            {
+                var row = b.CreateSheet($"Part{i + 1}").CreateRow(0);
+                row.CreateCell(0).SetCellValue(sheets[i][0]);
+                row.CreateCell(3).SetCellValue(sheets[i][1]);
+                b.SetPrintArea(i + 1, "$A$1:$B$1");
+            }
+        }, old);
+
+        var built = Assert.IsType<Rendition.Built>(await Service(Returns(AreaOnly)).BuildAsync(book));
+
+        Assert.Equal("Листов с данными: 2 — «Part1», «Part2»; каждый начинается с новой страницы.", Assert.Single(built.Notes));
+    }
+
     // ── Страница без текста ─────────────────────────────────────────────────────────────────────
 
     /// <summary>Страница с текстом и за ней страницы без текста — с картинкой на листе и без неё.</summary>
@@ -117,10 +156,14 @@ public class OldWorkbookRenditionTests
             await BlankNoteOf(OnSheet));
     }
 
+    /// <summary>
+    /// Картинки не видно — страница не названа пустой: печать вставленным рисунком EMF и рамки ячеек
+    /// LibreOffice пишет линиями, и «ничего нет» было бы неправдой (ревью #1457).
+    /// </summary>
     [Fact]
-    public async Task Страница_без_текста_и_без_видимой_картинки_названа_пустой()
+    public async Task Страница_без_текста_и_без_видимой_картинки_пустой_не_названа()
     {
-        Assert.Equal("Страниц: 3, из них без текста: 2 — на них нет ни текста, ни картинок.", await BlankNoteOf(OffSheet, null));
+        Assert.Equal("Страниц: 3, из них без текста: 2.", await BlankNoteOf(OffSheet, null));
     }
 
     [Fact]
