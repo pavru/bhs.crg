@@ -114,7 +114,7 @@ public class RenditionCleanupTests(IntegrationTestFixture fixture) : IAsyncLifet
         await HoldAsync(original);
         var store = Store(StubConverter.Converts(Words));
         var before = await store.EnsureAsync(original, CancellationToken.None);
-        var after = await store.RebuildAsync(original, CancellationToken.None);
+        var after = await store.RebuildAsync(original, null, CancellationToken.None);
         Assert.True(Storage.Exists(before.ImageBlobPath!));
 
         var report = await CleanAsync();

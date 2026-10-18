@@ -64,7 +64,7 @@ public class OfficeConverterClientTests
         var builder = new OfficeRenditionBuilder(client, Microsoft.Extensions.Logging.Abstractions.NullLogger<OfficeRenditionBuilder>.Instance);
 
         var built = Assert.IsType<Rendition.Built>(
-            await builder.BuildAsync(Workbook("invoice", "supplier", "total"), OfficeFormat.Xlsx, CancellationToken.None));
+            await builder.BuildAsync(Workbook("invoice", "supplier", "total"), OfficeFormat.Xlsx, PageProfile.Default, CancellationToken.None));
 
         Assert.Equal("gotenberg 8.37.0", built.Converter);
     }
@@ -83,7 +83,7 @@ public class OfficeConverterClientTests
         var builder = new OfficeRenditionBuilder(client, Microsoft.Extensions.Logging.Abstractions.NullLogger<OfficeRenditionBuilder>.Instance);
 
         var built = Assert.IsType<Rendition.Built>(
-            await builder.BuildAsync(Workbook("invoice", "supplier", "total"), OfficeFormat.Xlsx, CancellationToken.None));
+            await builder.BuildAsync(Workbook("invoice", "supplier", "total"), OfficeFormat.Xlsx, PageProfile.Default, CancellationToken.None));
 
         Assert.Null(built.Converter);
     }

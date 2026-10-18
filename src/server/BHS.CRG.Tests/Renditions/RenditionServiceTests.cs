@@ -306,6 +306,22 @@ public class RenditionServiceTests
     }
 
     /// <summary>
+    /// Профиль «не вписывать» (issue #1454) кегль не уменьшает — и о мелком тексте молчит: мелкий он у
+    /// автора, а это его решение.
+    /// </summary>
+    [Fact]
+    public async Task Профиль_без_вписывания_о_мелком_тексте_не_говорит()
+    {
+        var book = Workbook(b => b.CreateSheet("Sheet").CreateRow(0).CreateCell(0).SetCellValue(InvoiceText), ownLayout: false);
+
+        var built = Assert.IsType<Rendition.Built>(await Service(Returns(Pdf(3, InvoiceText)))
+            .BuildAsync(new MemoryStream(book), PageProfile.Default with { FitWidth = false }, CancellationToken.None));
+
+        Assert.Equal(RenditionLayout.Applied, built.Layout);
+        Assert.DoesNotContain(OfficeRenditionBuilder.SmallTextNote, built.Notes);
+    }
+
+    /// <summary>
     /// Пара из <c>deploy/</c>: выдуманная широкая книга без раскладки и её копия, которую вписывает этот
     /// код. Пара обязана оставаться парой: живая проверка (<c>deploy/converter.tests.sh</c>) отправляет
     /// конвертеру именно копию и ждёт одну страницу A4 — разойдись копия с тем, что делает код, и
@@ -399,7 +415,7 @@ public class RenditionServiceTests
     {
         var gif = new ReadCounting([.. Encoding.ASCII.GetBytes("GIF89a"), .. new byte[5 * 1024 * 1024]]);
 
-        var refused = Assert.IsType<Rendition.Refused>(await Service(MustNotBeCalled).BuildAsync(gif, CancellationToken.None));
+        var refused = Assert.IsType<Rendition.Refused>(await Service(MustNotBeCalled).BuildAsync(gif, PageProfile.Default, CancellationToken.None));
 
         Assert.Equal(RenditionRefusal.WrongFormat, refused.Kind);
         Assert.True(gif.ReadSoFar < 64 * 1024, $"прочитано {gif.ReadSoFar} байт");

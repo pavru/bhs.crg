@@ -1819,6 +1819,62 @@ namespace BHS.CRG.Infrastructure.Migrations
                     b.ToTable("blob_registry", (string)null);
                 });
 
+            modelBuilder.Entity("BHS.CRG.Domain.Storage.RenditionLayoutProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Fit")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("MarginBottom")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MarginLeft")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MarginRight")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MarginTop")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("Orientation")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Paper")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsSystem")
+                        .IsUnique()
+                        .HasFilter("\"IsSystem\"");
+
+                    b.ToTable("rendition_layout_profiles", (string)null);
+                });
+
             modelBuilder.Entity("BHS.CRG.Domain.Storage.RenditionRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1842,6 +1898,13 @@ namespace BHS.CRG.Infrastructure.Migrations
 
                     b.Property<string>("LayoutApplied")
                         .HasColumnType("jsonb");
+
+                    b.Property<Guid?>("LayoutProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("LayoutStamp")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<string>("Mime")
                         .HasMaxLength(128)

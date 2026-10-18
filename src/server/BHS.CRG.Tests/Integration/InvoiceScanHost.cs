@@ -117,8 +117,9 @@ public sealed class InvoiceScanHost : InvoiceLineHost
         public Task<ModuleRendition?> FindAsync(string originalPath, CancellationToken ct = default) =>
             inner.FindAsync(originalPath, ct);
 
-        public Task<ModuleRendition> RebuildAsync(string originalPath, CancellationToken ct = default) =>
-            inner.RebuildAsync(originalPath, ct);
+        public Task<ModuleRendition> RebuildAsync(
+            string originalPath, Guid? layoutProfileId = null, CancellationToken ct = default) =>
+            inner.RebuildAsync(originalPath, layoutProfileId, ct);
     }
 
     /// <summary>Настоящий журнал — с отказом на одно действие по просьбе теста.</summary>
