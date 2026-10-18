@@ -67,6 +67,13 @@ describe('предложение под полем', () => {
     expect(offer).toEqual({ text: '«СЧ-417»', take: 'СЧ-417' });
   });
 
+  it('дописанное в тип текстовое поле: «Взять», как у текстовых полей модуля (ревью PR #1506)', () => {
+    const offers = recognition({ offers: { 'Договор': '№ 12/7' } });
+    expect(fieldOffer('Договор', view({ 'Договор': '№ 1' }), {}, offers, noNames, true)).toEqual({ text: '«№ 12/7»', take: '№ 12/7' });
+    // Не текстовое дописанное (число, дата) — прочитанное только показано: разбирать его клиент не берётся.
+    expect(fieldOffer('Договор', view({ 'Договор': '№ 1' }), {}, offers, noNames)).toEqual({ text: '«№ 12/7»' });
+  });
+
   it('совпало с полем — предлагать нечего', () => {
     expect(fieldOffer(K.number, view({ [K.number]: 'СЧ-417' }), {}, recognition({ offers: { [K.number]: 'СЧ-417' } }), noNames))
       .toBeNull();
