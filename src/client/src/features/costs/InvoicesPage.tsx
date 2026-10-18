@@ -13,6 +13,8 @@ import { useCloseGone } from '@/shared/hooks/useCloseGone';
 import { useOpenRecord } from './openRecord';
 import { RereadFailedNotice } from '@/shared/ui/RereadFailedNotice';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
+import { PALETTE_ACTIONS } from '@/shared/ui/paletteActions';
+import { usePaletteIntent } from '@/shared/ui/usePaletteIntent';
 import { apiError } from '@/shared/utils/apiError';
 import {
   INVOICES_KEY, forgetInvoice, scansRunning, useCostsOrganizations, useCreateInvoice, useInvoice, useInvoices,
@@ -100,6 +102,9 @@ export function InvoicesPage() {
   const create = useCreateInvoice();
   const fromScan = useInvoiceFromScan();
   const scanInput = useRef<HTMLInputElement>(null);
+  // Те же две кнопки из командной палитры (issue #1433): «Новый счёт» и «Счёт из файла» из любого места.
+  usePaletteIntent(PALETTE_ACTIONS.invoiceNew, () => void addDraft());
+  usePaletteIntent(PALETTE_ACTIONS.invoiceScan, () => scanInput.current?.click());
   const toast = useToast();
 
   const view = useInvoice(selected ?? undefined);

@@ -2,6 +2,8 @@ import { MISSING } from './lostReferences';
 import { useCallback, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
+import { PALETTE_ACTIONS } from '@/shared/ui/paletteActions';
+import { usePaletteIntent } from '@/shared/ui/usePaletteIntent';
 import { ListChecks, PackageCheck, Plus, Truck } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
@@ -111,6 +113,8 @@ export function WaybillsPage() {
   const addDraft = () => {
     if (leaveGuard.current) leaveGuard.current(() => void createDraft()); else void createDraft();
   };
+  // Та же кнопка из командной палитры (issue #1433).
+  usePaletteIntent(PALETTE_ACTIONS.waybillNew, addDraft);
 
   return (
     <ListDetailShell view={ld}

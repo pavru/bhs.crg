@@ -14,7 +14,7 @@
 
 import { BASE, launchBrowser, login, createChecks, settled, until, accountAction } from './harness.mjs';
 
-const PALETTE_INPUT = 'input[placeholder="Перейти к разделу…"]';
+const PALETTE_INPUT = 'input[aria-label="Поиск и действия"]';
 const { check, summarize } = createChecks();
 
 const browser = await launchBrowser();
@@ -54,6 +54,19 @@ try {
   await check('esc-closes-palette', async () => {
     await page.keyboard.press('Escape');
     await page.waitForSelector(PALETTE_INPUT, { state: 'hidden', timeout: 3000 });
+  });
+  // Действие палитры исполняет экран своей кнопкой (issue #1433): окно новой стройки, без черновика
+  // до сохранения, — и параметр действия уходит из адреса, чтобы обновление не открыло его снова.
+  await check('palette-runs-action', async () => {
+    await page.keyboard.press('Control+k');
+    await page.fill(PALETTE_INPUT, 'новая стройка');
+    await page.keyboard.press('Enter');
+    await page.getByRole('dialog', { name: 'Новая стройка' }).waitFor({ state: 'visible', timeout: 5000 });
+    const url = new URL(page.url());
+    if (url.pathname !== '/document-sets' || url.searchParams.has('do'))
+      throw new Error(`адрес после действия: ${url.pathname}${url.search}`);
+    await page.keyboard.press('Escape');
+    await page.getByRole('dialog', { name: 'Новая стройка' }).waitFor({ state: 'hidden', timeout: 3000 });
   });
 
   // ── Шпаргалка «?» ───────────────────────────────────────────────────────────

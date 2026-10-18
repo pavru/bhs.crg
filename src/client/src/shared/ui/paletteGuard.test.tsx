@@ -20,8 +20,8 @@ import { NavigationGuardProvider } from './NavigationGuardProvider';
 const logout = vi.fn();
 vi.mock('@/shared/hooks/useAuth', () => ({ useAuth: () => ({ logout }) }));
 vi.mock('@/shared/ui/themeContext', () => ({ useTheme: () => ({ setTheme: vi.fn() }) }));
-vi.mock('@/shared/api/access', () => ({ useAccess: () => ({ data: undefined }), NO_ACCESS: {} }));
-vi.mock('./navAccess', () => ({ visibleNav: (items: unknown[]) => items }));
+vi.mock('@/shared/api/access', () => ({ useAccess: () => ({ data: undefined }), NO_ACCESS: {}, hasPermission: () => false }));
+vi.mock('./navAccess', () => ({ visibleNav: (items: unknown[]) => items, allowed: () => true }));
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
