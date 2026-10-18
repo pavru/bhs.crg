@@ -237,6 +237,37 @@ public class ModuleRecognitionPortTests(CostsOnlyHost host)
     }
 
     /// <summary>
+    /// Ключ колонки с пробелами по краям («Артикул » — профиль его принял) находит ответ модели, которая
+    /// пробелы уронила (ревью PR #1485). Ключ в результате — ключ профиля: получатель узнаёт своё.
+    /// </summary>
+    [Fact]
+    public async Task Key_with_edge_spaces_finds_the_answer_without_them()
+    {
+        _ = host.CreateClient();
+        using var scope = host.Services.CreateScope();
+        var stored = await scope.ServiceProvider.GetRequiredService<IRecognitionProfileProvider>()
+            .GetDefaultAsync(RecognitionProfileKind.Invoice);
+        var edited = stored with
+        {
+            Fields = [.. stored.Fields, new RecognitionProfileField(" Основание договора ")],
+            RowColumns = [.. stored.RowColumns, new RecognitionProfileField(" Артикул ")],
+        };
+        var port = new ModuleRecognitionPort(
+            scope.ServiceProvider.GetRequiredService<RecognitionProfileCatalog>(), new Edited(edited),
+            new Answering(new()
+            {
+                ["Основание договора"] = "Договор № 5",
+                [InvoiceFields.LineItemsPath] = """[{"Наименование":"Кабель","Артикул":"ВВГ-325"}]""",
+            }),
+            new Preflight(null));
+
+        var result = await port.RecognizeAsync(Code, Scan, "application/pdf");
+
+        Assert.Equal("Договор № 5", result.Fields[" Основание договора "]);
+        Assert.Equal("ВВГ-325", Assert.Single(result.Rows)[" Артикул "]);
+    }
+
+    /// <summary>
     /// Модуль счетов выключен (установка по умолчанию): его профиль объявлен, но не читается — отказ
     /// называет модуль. Ворота стоят до движка: распознаватель не спрошен.
     /// </summary>

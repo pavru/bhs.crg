@@ -45,7 +45,7 @@ public sealed class ModuleRecognitionPort(
 
         var answer = await WholeFileRecognition.RunAsync(recognizer, preflight, profile, content, mimeType, ct);
 
-        var values = fields.ToDictionary(f => f.Path, f => Blank(answer.Values.GetValueOrDefault(f.Path)));
+        var values = fields.ToDictionary(f => f.Path, f => Blank(Answer(answer.Values, f.Path)));
         var rowsKey = RecognitionKinds.Describe(declaration.Kind).RowsKey;
         var (rows, rowsProblem) = rowsKey is null
             ? ([], null)
@@ -95,13 +95,28 @@ public sealed class ModuleRecognitionPort(
     {
         var (raw, problem) = WholeFileRecognition.ReadRows(json);
         var rows = raw
-            .Select(r => columns.ToDictionary(c => c, c => Blank(r.GetValueOrDefault(c))))
+            .Select(r => columns.ToDictionary(c => c, c => Blank(Answer(r, c))))
             .Where(r => r.Values.Any(v => v is not null))
             .ToList<IReadOnlyDictionary<string, string?>>();
 
         if (problem is null && raw.Count > 0 && rows.Count == 0)
             problem = "в строках таблицы нет ни одной запрошенной колонки";
         return (rows, problem);
+    }
+
+    /// <summary>
+    /// Значение по ключу профиля: точно, а нет — по ключу без краевых пробелов (ревью PR #1485).
+    ///
+    /// <para>Ключ пишет администратор, и « Артикул » с лишним пробелом законен: профиль его принял. А
+    /// модель, отвечая, пробелы по краям ключа роняет. Ищи мы только точно, прочитанное терялось бы
+    /// ещё здесь — раньше, чем получатель успел бы назвать его хоть где-то. Ключ результата остаётся
+    /// ключом профиля: получатель узнаёт в нём то, что объявлял.</para>
+    /// </summary>
+    private static string? Answer(IReadOnlyDictionary<string, string?> answer, string key)
+    {
+        if (answer.TryGetValue(key, out var exact)) return exact;
+        var bare = key.Trim();
+        return answer.FirstOrDefault(pair => pair.Key.Trim() == bare).Value;
     }
 
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
