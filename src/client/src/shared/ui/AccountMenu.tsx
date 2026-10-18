@@ -1,5 +1,6 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Link, useLocation } from 'react-router';
+import { ownerItem, type RailSection } from '@/shared/ui/railSections';
 import { LogOut, MessageCircleWarning, UserRound } from 'lucide-react';
 import { formatDateTime } from '@/shared/format/format';
 import { useAuth } from '@/shared/hooks/useAuth';
@@ -27,8 +28,13 @@ const item = 'flex items-center gap-3.5 h-11 px-3 rounded-xl text-sm text-fg1 cu
  * Клавиатура — у Radix: стрелки по пунктам, Esc закрывает и возвращает фокус на аватар. Подсказки
  * у аватара нет: имя уже в его `aria-label`, а подсказка, открытая возвращённым фокусом, забирала бы
  * себе следующий Esc.
+ *
+ * `admin` — раздел «Система» на телефоне (issue #1434, решение владельца от 17.10.2026): рейла там
+ * нет, а нижняя навигация — для работы. Пункт «Администрирование» отделён от личных чертой: он не
+ * про человека. Есть только у того, кому открыта хоть одна страница раздела, — иначе раздела нет и
+ * в `rail`. На рабочем столе его не передают: там «Система» стоит в рейле.
  */
-export function AccountMenu() {
+export function AccountMenu({ admin }: { admin?: RailSection }) {
   const { user, logout } = useAuth();
   const { data: account } = useAccount();
   const { theme, setTheme } = useTheme();
@@ -47,20 +53,25 @@ export function AccountMenu() {
   const { data: version } = useAppVersion();
   const { data: update } = useUpdateStatus(!!user);
   const newer = update?.updateAvailable ? update.latest : null;
-  // Профиль — страница без раздела рейла: «вы здесь» показывает аватар.
-  const here = useLocation().pathname.startsWith('/profile');
+  // Профиль — страница без раздела рейла: «вы здесь» показывает аватар. На телефоне — и страницы
+  // администрирования: их пункт тоже живёт в этом меню.
+  const { pathname } = useLocation();
+  const here = pathname.startsWith('/profile');
+  const inAdmin = !!admin && !!ownerItem(pathname, admin.groups.flatMap(g => g.items));
+  const AdminIcon = admin?.def.icon;
 
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
+        {/* На телефоне — поле вокруг аватара: цель касания 44 px, а не 36 (#1434). */}
         <button type="button" data-testid="account-menu"
           aria-label={`${name} — профиль и оформление${newer ? `; доступна версия ${newer}` : ''}`}
-          className={'relative shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ' +
+          className={'relative shrink-0 rounded-full max-md:p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ' +
             'focus-visible:ring-offset-2 focus-visible:ring-offset-surface data-[state=open]:ring-2 data-[state=open]:ring-brand ' +
-            (here ? 'ring-2 ring-brand' : '')}>
+            (here || inAdmin ? 'ring-2 ring-brand' : '')}>
           <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-9 h-9 text-sm" />
           {newer && <span data-testid="update-dot" aria-hidden="true"
-            className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-brand ring-2 ring-surface" />}
+            className="absolute -top-0.5 -right-0.5 max-md:top-0.5 max-md:right-0.5 w-2.5 h-2.5 rounded-full bg-brand ring-2 ring-surface" />}
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
@@ -112,6 +123,19 @@ export function AccountMenu() {
               <MessageCircleWarning size={20} className="text-fg3 shrink-0" />Сообщить о проблеме
             </DropdownMenu.Item>
           </div>
+
+          {admin && AdminIcon && (
+            <>
+              <DropdownMenu.Separator className="h-px bg-stroke" />
+              <div className="p-2">
+                <DropdownMenu.Item asChild className={item + (inAdmin ? ' bg-tonal text-on-tonal' : '')}>
+                  <Link to={admin.home} onClick={guardedClick(admin.home)} data-testid="account-admin">
+                    <AdminIcon size={20} className="text-fg3 shrink-0" />{admin.def.title}
+                  </Link>
+                </DropdownMenu.Item>
+              </div>
+            </>
+          )}
 
           <DropdownMenu.Separator className="h-px bg-stroke" />
           <div className="p-2">

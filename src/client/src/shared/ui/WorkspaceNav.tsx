@@ -3,25 +3,21 @@ import { NavLink, useLocation } from 'react-router';
 import { ChevronDown, ChevronRight, LayoutGrid } from 'lucide-react';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
 import { ruCount } from '@/shared/utils/pluralize';
-import { useGuardedNavigate, useGuardedPick } from './NavigationGuard';
+import { useGuardedNavClick, useGuardedNavigate } from './NavigationGuard';
 import { useWorkspace } from './workspaceContext';
 import { outsideItem } from './workspaces';
 import type { NavItem } from './navConfig';
 import { panelLink } from './panelLink';
 
 /**
- * «Ещё N разделов вне пространства ▸» — последней строкой подпанели и меню, постоянно (ТЗ AUTH-16.1;
+ * «Ещё N разделов вне пространства ▸» — последней строкой подпанели, постоянно (ТЗ AUTH-16.1;
  * issue #1001, #1429). Меню само говорит, что скрыто: без этой строки к скрытому разделу вёл бы только
  * поиск, то есть нужно было бы заранее знать ответ. Переход открывает раздел БЕЗ смены пространства.
  *
  * Строка одна на все разделы рейла, а не своя у каждого: раздел, у которого вне пространства ВСЁ, из
  * рейла уходит, и его страницам остаётся только эта строка.
  */
-export function OutsideNav({ items, onPick }: {
-  items: NavItem[];
-  /** Выбран раздел — выдвижное меню по нему закрывается (см. `DrawerBody`). */
-  onPick?: () => void;
-}) {
+export function OutsideNav({ items }: { items: NavItem[] }) {
   const { pathname } = useLocation();
   // Пришли на страницу из этого списка — он раскрывается, и палитрой или ссылкой, когда подпанель уже
   // стоит: иначе выбранный пункт пропадал бы из виду. Раскрывается в МОМЕНТ прихода (поправка
@@ -33,7 +29,7 @@ export function OutsideNav({ items, onPick }: {
     setWasHere(here);
     if (here) setOpen(true);
   }
-  const guardedClick = useGuardedPick(onPick);
+  const guardedClick = useGuardedNavClick();
   if (items.length === 0) return null;
 
   const caption = `Ещё ${ruCount(items.length, 'раздел', 'раздела', 'разделов')} вне пространства`;

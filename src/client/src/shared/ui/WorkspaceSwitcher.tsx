@@ -51,7 +51,7 @@ export function WorkspaceSwitcher() {
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
           <button type="button" data-testid="workspace-switcher" aria-label={`Рабочее пространство: ${ws.current.name}`}
-            className="flex items-center gap-1.5 min-w-0 max-w-60 h-9 pl-3 pr-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+            className="flex items-center gap-1.5 min-w-0 max-w-60 h-9 max-md:h-11 pl-3 pr-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
             <LayoutGrid size={16} className="shrink-0 text-fg3" />
             <Tooltip content={composition(ws.current) ?? ws.current.name}>
               <span className="min-w-0 truncate text-sm font-medium text-fg1">{ws.current.name}</span>

@@ -24,8 +24,8 @@ export function useFavoriteSitesGroup(): PanelGroup | null {
 }
 
 /**
- * Страницы раздела с избранными стройками — одно правило на подпанель рабочего стола и выдвижное меню
- * телефона: группа стоит только у раздела «Стройки», последней.
+ * Страницы раздела с избранными стройками — одно правило на подпанель рабочего стола и меню раздела
+ * телефона (#1434): группа стоит только у раздела «Стройки», последней.
  */
 export function withFavoriteSites(section: RailId, groups: PanelGroup[], favorites: PanelGroup | null): PanelGroup[] {
   return section === 'constructions' && favorites ? [...groups, favorites] : groups;
