@@ -19,6 +19,7 @@ import { PlaceSelect } from './PlaceSelect';
 import { missingSection, usePlaces } from './places';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { vatModeOf } from './invoiceVat';
 
 /**
  * Разноска строки счёта по стройкам (задача F1, issue #1085, ТЗ COST-10, COST-11, COST-13).
@@ -159,6 +160,9 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
   }
 
   const title = `Разноска строки ${number}: ${line.nomenclatureName ?? line.supplierText ?? 'без наименования'}`;
+  // Деньги на стройку — с НДС (issue #1499): у счёта сверху бумажная сумма строки без НДС, и сумма, которая
+  // делится, обязана это назвать.
+  const gross = vatModeOf(view) === 'OnTop' ? ' с НДС' : '';
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title={title} wide isDirty={dirty}
@@ -168,9 +172,9 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
           <span className="text-xs text-fg4 mr-auto">
             {byQuantity
               ? `В строке ${line.quantity === null ? '' : formatQuantity(line.quantity)} ${unit}`.trim()
-                + (line.amount === null ? '' : ` на ${formatMoney(line.amount)}`)
+                + (line.amount === null ? '' : ` на ${formatMoney(line.amount)}${gross}`)
                 + '. Делится количество, сумма части считается.'
-              : `Количества у строки нет — делится сумма ${formatMoney(line.amount ?? 0)}.`}
+              : `Количества у строки нет — делится сумма ${formatMoney(line.amount ?? 0)}${gross}.`}
           </span>
           <ModalExit>{canEdit ? 'Отмена' : 'Закрыть'}</ModalExit>
           {canEdit && !gone && (
@@ -237,7 +241,7 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
             ),
           },
           ...(byQuantity ? [{
-            key: 'amount', label: 'Сумма части', width: 'w-32', align: 'right' as const,
+            key: 'amount', label: `Сумма части${gross}`, width: 'w-32', align: 'right' as const,
             cell: (draft: PartDraft) => {
               const saved = line.allocation.parts.find(p => p.id === draft.id);
               // Сумма части — ответ сервера, и только для несменённой части: у правленой прежнее

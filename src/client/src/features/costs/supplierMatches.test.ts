@@ -47,7 +47,7 @@ describe('подстановка и отмена', () => {
 
     expect(placed.nomenclatureId).toBe('n-1');
     expect(placed.match?.state).toBe('current');
-    expect(toPayload([placed])[0]).toMatchObject({ matchedBy: 'm-1' });
+    expect(toPayload([placed], 'Included')[0]).toMatchObject({ matchedBy: 'm-1' });
   });
 
   it('отмена снимает позицию и пометку, а запомненное оставляет под рукой — вернуть', () => {
@@ -57,7 +57,7 @@ describe('подстановка и отмена', () => {
     expect(cancelled.nomenclatureId).toBeNull();
     expect(cancelled.matchedBy).toBeNull();
     expect(cancelled.declined).toBe(true);
-    expect(toPayload([cancelled])[0]).toMatchObject({ nomenclature: null, matchedBy: null });
+    expect(toPayload([cancelled], 'Included')[0]).toMatchObject({ nomenclature: null, matchedBy: null });
 
     // Отменённую «Подставить запомненное» не возвращает — иначе отмена жила бы до первой кнопки.
     expect(pending([cancelled], d => d.offer)).toEqual([]);
@@ -68,7 +68,7 @@ describe('подстановка и отмена', () => {
     const [line] = toDrafts([saved({
       nomenclatureId: 'n-1', nomenclatureName: 'Кабель ВВГнг-LS 3х2,5',
       match: { id: 'm-1', by: 'name', state: 'current', source: 'Кабель силовой 3х2,5', rememberedAt: null, rememberedBy: null },
-    })]);
+    })], 'Included');
 
     expect(line.matchedBy).toBe('m-1');
     expect(cancelMatch(line).offer).toMatchObject({ matchId: 'm-1', nomenclatureId: 'n-1' });
@@ -124,8 +124,8 @@ describe('что запомнится сохранением', () => {
     const off = { ...chosen, remember: false };
 
     expect(memoryFate(off, undefined, true, null)).toBe('off');
-    expect(toPayload([off])[0]).toMatchObject({ remember: false });
-    expect(toPayload([chosen])[0]).not.toHaveProperty('remember');
+    expect(toPayload([off], 'Included')[0]).toMatchObject({ remember: false });
+    expect(toPayload([chosen], 'Included')[0]).not.toHaveProperty('remember');
   });
 
   it('узнавать строку не по чему — и запоминать нечего', () => {

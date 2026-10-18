@@ -30,7 +30,7 @@ function line(overrides: Partial<InvoiceLineView> = {}): InvoiceLineView {
 describe('предпросмотр сумм', () => {
   it('считает сумму строки количеством на цену', () => {
     const draft = { ...emptyDraft(), quantity: '7,25', price: '1 234,56' };
-    expect(preview(draft).amount).toBe(8950.56);
+    expect(preview(draft, 'Included').amount).toBe(8950.56);
   });
 
   /**
@@ -40,30 +40,30 @@ describe('предпросмотр сумм', () => {
    */
   it('считает НДС «в том числе», а не «сверху»', () => {
     const draft = { ...emptyDraft(), quantity: '100', price: '100', vatRate: '20' };
-    expect(preview(draft).vat).toBe(1666.67);
+    expect(preview(draft, 'Included').vat).toBe(1666.67);
   });
 
   it('набранную руками сумму не пересчитывает', () => {
     const draft = { ...emptyDraft(), quantity: '3', price: '33,33', amount: '99,98', vatRate: '20' };
-    expect(preview(draft).amount).toBe(99.98);
+    expect(preview(draft, 'Included').amount).toBe(99.98);
   });
 
   it('без количества или цены суммы нет вовсе — а не нуль', () => {
-    expect(preview({ ...emptyDraft(), price: '100' }).amount).toBeNull();
-    expect(preview({ ...emptyDraft(), quantity: '2' }).vat).toBeNull();
+    expect(preview({ ...emptyDraft(), price: '100' }, 'Included').amount).toBeNull();
+    expect(preview({ ...emptyDraft(), quantity: '2' }, 'Included').vat).toBeNull();
   });
 });
 
 describe('сверка с суммой к оплате', () => {
   it('расхождение — число', () => {
     const drafts = [{ ...emptyDraft(), quantity: '2', price: '100' }];
-    const sums = totals(drafts);
+    const sums = totals(drafts, 'Included');
     expect(mismatch(250, sums.amount, sums.count)).toBe(50);
   });
 
   it('сошлось — расхождения нет', () => {
     const drafts = [{ ...emptyDraft(), quantity: '2', price: '100' }];
-    expect(mismatch(200, totals(drafts).amount, 1)).toBeNull();
+    expect(mismatch(200, totals(drafts, 'Included').amount, 1)).toBeNull();
   });
 
   /** Без строк сверять НЕЧЕГО: «расхождение 128 400» у счёта без строк звучало бы как претензия. */
@@ -81,7 +81,7 @@ describe('итоги по строкам', () => {
     const sums = totals([
       { ...emptyDraft(), nomenclatureId: 'a', quantity: '1', price: '10' },
       { ...emptyDraft(), quantity: '1', price: '5' },
-    ]);
+    ], 'Included');
     expect(sums).toMatchObject({ count: 2, withoutNomenclature: 1, amount: 15 });
   });
 });
@@ -97,32 +97,32 @@ describe('НДС по строкам: не указан ≠ ноль', () => {
   const named = { ...emptyDraft(), quantity: '1', price: '1220', vatRate: '22' };
 
   it('не указан ни у одной строки — словами, а не нулём', () => {
-    const sums = totals([silent, silent]);
+    const sums = totals([silent, silent], 'Included');
     expect(sums).toMatchObject({ vat: 0, vatMissing: 2 });
     expect(vatCaption(sums, format)).toBe('НДС по строкам не указан');
   });
 
   it('указан у части — сумма по указанным и сколько молчит', () => {
-    const sums = totals([named, silent]);
+    const sums = totals([named, silent], 'Included');
     expect(sums).toMatchObject({ vat: 220, vatMissing: 1 });
     expect(vatCaption(sums, format)).toBe('в том числе НДС: #220, у 1 строки не указан');
     expect(vatCaption({ ...sums, count: 3, vatMissing: 2 }, format)).toContain('у 2 строк не указан');
   });
 
   it('указан у всех — как раньше', () => {
-    const sums = totals([named, named]);
+    const sums = totals([named, named], 'Included');
     expect(sums).toMatchObject({ vat: 440, vatMissing: 0 });
     expect(vatCaption(sums, format)).toBe('в том числе НДС: #440');
   });
 
   it('ставка 0 («без НДС») — ноль, а не пропуск', () => {
-    const sums = totals([{ ...silent, vatRate: '0' }]);
+    const sums = totals([{ ...silent, vatRate: '0' }], 'Included');
     expect(sums).toMatchObject({ vat: 0, vatMissing: 0 });
     expect(vatCaption(sums, format)).toBe('в том числе НДС: #0');
   });
 
   it('без строк — сверять нечего, «не указан» не говорим', () => {
-    expect(vatCaption(totals([]), format)).toBe('в том числе НДС: #0');
+    expect(vatCaption(totals([], 'Included'), format)).toBe('в том числе НДС: #0');
   });
 });
 
@@ -151,7 +151,7 @@ describe('вставка из буфера', () => {
   it('узнаёт шапку и берёт роли из неё', () => {
     const table = parseTable(excel);
     expect(hasHeader(table)).toBe(true);
-    expect(guessRoles(table)).toEqual(['supplierText', 'unit', 'quantity', 'price', 'amount']);
+    expect(guessRoles(table, 'Included')).toEqual(['supplierText', 'unit', 'quantity', 'price', 'amount']);
   });
 
   /**
@@ -161,17 +161,17 @@ describe('вставка из буфера', () => {
   it('строку товаров за шапку не принимает', () => {
     const table = parseTable('Кабель ВВГ 3х2,5\t100\t48,50\nТруба 20\t50\t12,00');
     expect(hasHeader(table)).toBe(false);
-    expect(guessRoles(table)).toEqual(['supplierText', 'quantity', 'price']);
+    expect(guessRoles(table, 'Included')).toEqual(['supplierText', 'quantity', 'price']);
   });
 
   it('без шапки числа берёт по порядку: количество, цена, сумма', () => {
     const table = parseTable('Кабель\t10\t5\t50\t7');
-    expect(guessRoles(table)).toEqual(['supplierText', 'quantity', 'price', 'amount', 'skip']);
+    expect(guessRoles(table, 'Included')).toEqual(['supplierText', 'quantity', 'price', 'amount', 'skip']);
   });
 
   it('собирает строки, выбрасывая шапку', () => {
     const table = parseTable(excel);
-    const drafts = fromTable(table, guessRoles(table));
+    const drafts = fromTable(table, guessRoles(table, 'Included'));
 
     expect(drafts).toHaveLength(2);
     expect(drafts[0]).toMatchObject({
@@ -194,7 +194,7 @@ describe('вставка из буфера', () => {
 describe('что уезжает на сервер', () => {
   it('позиция уезжает ссылкой, пустое — как null', () => {
     const drafts = [{ ...emptyDraft(), nomenclatureId: 'aa', quantity: '5', supplierText: '  ' }];
-    expect(toPayload(drafts)[0]).toMatchObject({
+    expect(toPayload(drafts, 'Included')[0]).toMatchObject({
       nomenclature: { $ref: 'catalog', entryId: 'aa' },
       quantity: '5',
       supplierText: null,
@@ -207,13 +207,13 @@ describe('что уезжает на сервер', () => {
    * заведи новые» — и ссылки разноски (F1) порвались бы на каждом сохранении формы.
    */
   it('идентификатор сохранённой строки не теряется', () => {
-    const drafts = toDrafts([line({ id: 'keep-me', quantity: 3 })]);
-    expect(toPayload(drafts)[0].id).toBe('keep-me');
+    const drafts = toDrafts([line({ id: 'keep-me', quantity: 3 })], 'Included');
+    expect(toPayload(drafts, 'Included')[0].id).toBe('keep-me');
     expect(drafts[0].quantity).toBe('3');
   });
 
   it('новая строка уезжает без идентификатора', () => {
-    expect(toPayload([emptyDraft()])[0].id).toBeNull();
+    expect(toPayload([emptyDraft()], 'Included')[0].id).toBeNull();
   });
 });
 
@@ -244,7 +244,7 @@ describe('разбор вставки не сдвигает смысл', () => {
     expect(table.map(row => row.length)).toEqual([3, 3]);
     expect(table[1][0]).toBe('Труба 20; ГОСТ 55000');
 
-    const rows = fromTable(table, guessRoles(table));
+    const rows = fromTable(table, guessRoles(table, 'Included'));
     expect(rows[0].quantity).toBe('100');
     expect(rows[0].price).toBe('48,50');
   });
@@ -256,7 +256,7 @@ describe('разбор вставки не сдвигает смысл', () => {
   it('пустая колонка роль числа не забирает', () => {
     // Два таба подряд — обычный результат извлечения таблицы из PDF: колонка есть, данных в ней нет.
     const table = parseTable('Кабель\t\t10\t5');
-    const rows = fromTable(table, guessRoles(table));
+    const rows = fromTable(table, guessRoles(table, 'Included'));
 
     expect(rows[0].quantity).toBe('10');
     expect(rows[0].price).toBe('5');
@@ -267,7 +267,7 @@ describe('разбор вставки не сдвигает смысл', () => {
       'Наименование\tПредмет поставки\tКол-во\tЦена',
       'Кабель\tпоставка по договору № 17/2026 от 01.02.2026 силового кабеля\t10\t5',
     ].join('\n'));
-    const roles = guessRoles(table);
+    const roles = guessRoles(table, 'Included');
 
     expect(roles).not.toContain('unit');
     expect(fromTable(table, roles)[0].unit).toBe('');
@@ -275,7 +275,7 @@ describe('разбор вставки не сдвигает смысл', () => {
 
   it('«Ед.» единицей остаётся', () => {
     const table = parseTable('Наименование\tЕд.\tКол-во\tЦена\nКабель\tм\t10\t5');
-    expect(fromTable(table, guessRoles(table))[0].unit).toBe('м');
+    expect(fromTable(table, guessRoles(table, 'Included'))[0].unit).toBe('м');
   });
 
   it('«Сумма с НДС» — итог строки, а не сумма НДС', () => {
@@ -283,7 +283,7 @@ describe('разбор вставки не сдвигает смысл', () => {
       'Наименование\tКол-во\tЦена\tСумма с НДС',
       'Кабель\t10\t100\t1000',
     ].join('\n'));
-    const rows = fromTable(table, guessRoles(table));
+    const rows = fromTable(table, guessRoles(table, 'Included'));
 
     expect(rows[0].amount).toBe('1000');
     expect(rows[0].vatAmount).toBe('');
@@ -291,7 +291,7 @@ describe('разбор вставки не сдвигает смысл', () => {
 
   it('«Сумма НДС» суммой НДС и остаётся', () => {
     const table = parseTable('Наименование\tКол-во\tЦена\tСумма НДС\nКабель\t10\t100\t200');
-    expect(fromTable(table, guessRoles(table))[0].vatAmount).toBe('200');
+    expect(fromTable(table, guessRoles(table, 'Included'))[0].vatAmount).toBe('200');
   });
 
   it('две колонки на одну роль: вторая пропускается, а шапка остаётся шапкой', () => {
@@ -303,7 +303,7 @@ describe('разбор вставки не сдвигает смысл', () => {
     // Шапка узнана — значит в счёт она не поедет строкой с числами в примечании.
     expect(hasHeader(table)).toBe(true);
 
-    const roles = guessRoles(table);
+    const roles = guessRoles(table, 'Included');
     expect(roles.filter(role => role === 'amount')).toHaveLength(1);
 
     const rows = fromTable(table, roles);
@@ -319,7 +319,7 @@ describe('потеря позиции приходит от сервера', () 
       nomenclatureId: 'c0ffee00-0000-0000-0000-000000000009',
       nomenclatureName: null,
       nomenclatureLost: false,
-    })]);
+    })], 'Included');
 
     expect(draft.nomenclatureId).not.toBeNull();
     expect(draft.nomenclatureLost).toBe(false);
@@ -330,7 +330,7 @@ describe('потеря позиции приходит от сервера', () 
       nomenclatureId: 'c0ffee00-0000-0000-0000-000000000009',
       nomenclatureName: null,
       nomenclatureLost: true,
-    })]);
+    })], 'Included');
 
     expect(draft.nomenclatureLost).toBe(true);
   });

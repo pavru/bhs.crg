@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { EditGridColumn } from '@/shared/ui/EditGrid';
 import { formatInputAmount } from '@/shared/format/format';
-import type { InvoiceView } from '@/shared/api/invoices';
+import type { InvoiceView, VatMode } from '@/shared/api/invoices';
 import { LOST } from './lostReferences';
 import { K, refEntryId } from './invoiceFields';
 import { preview, type LineDraft } from './invoiceLines';
@@ -27,6 +27,8 @@ export interface InvoiceLineContext {
   view: InvoiceView;
   /** Строки только читаются: счёт заперт либо права вводить счета нет. */
   still: boolean;
+  /** Режим НДС черновика (issue #1499): от него — подписи цены и суммы и досчёт НДС. */
+  mode: VatMode;
   /** Разноску запирает только закрытый период: без права на счета её по-прежнему решает своё право. */
   allocationLocked: boolean;
   /** Почему разносить сейчас нельзя (строки не сохранены), либо `null`. */
@@ -47,7 +49,11 @@ export interface InvoiceLineContext {
  * спрошенное в `ref`), и колонки собираются тем же рендером, что и форма.
  */
 export function useInvoiceLineColumns(ctx: InvoiceLineContext): EditGridColumn<LineDraft>[] {
-  const { view, still } = ctx;
+  const { view, still, mode } = ctx;
+  // Сверху цена и сумма строки — без НДС, и подпись обязана это сказать: её же читает читалка («Цена без
+  // НДС, строка 2»). Колонки «с НДС» нет нарочно — колонок и так двенадцать; сумма с НДС видна в сверке
+  // и в разноске.
+  const net = mode === 'OnTop' ? ' без НДС' : '';
   const saved = (draft: LineDraft) => view.lines.find(line => line.id === draft.id);
 
   /**
@@ -124,10 +130,10 @@ export function useInvoiceLineColumns(ctx: InvoiceLineContext): EditGridColumn<L
     text('supplierCode', 'Артикул', 'w-24', 'supplierCode', { keyField: true }),
     text('unit', 'Единица', 'w-16', 'unit'),
     text('quantity', 'Количество', 'w-20', 'quantity', { numeric: true }),
-    text('price', 'Цена', 'w-24', 'price', { numeric: true }),
+    text('price', `Цена${net}`, 'w-24', 'price', { numeric: true }),
     text('vatRate', 'Ставка НДС', 'w-16', 'vatRate', { numeric: true }),
-    text('vatAmount', 'Сумма НДС', 'w-24', 'vatAmount', { numeric: true, computed: d => preview(d).vat }),
-    text('amount', 'Сумма', 'w-28', 'amount', { numeric: true, computed: d => preview(d).amount }),
+    text('vatAmount', 'Сумма НДС', 'w-24', 'vatAmount', { numeric: true, computed: d => preview(d, mode).vat }),
+    text('amount', `Сумма${net}`, 'w-28', 'amount', { numeric: true, computed: d => preview(d, mode).amount }),
     text('note', 'Примечание', 'w-40', 'note'),
     {
       key: 'allocation', label: 'Разноска', width: 'w-32',
@@ -138,7 +144,7 @@ export function useInvoiceLineColumns(ctx: InvoiceLineContext): EditGridColumn<L
       ),
     },
   ];
-  return columns.map(withShortHeader);
+  return columns.map(column => withShortHeader(column, mode));
 }
 
 /**
@@ -149,6 +155,12 @@ const SHORT: Record<string, ReactNode> = {
   unit: 'Ед.', quantity: 'Кол-во', vatRate: <>НДС&nbsp;%</>,
 };
 
-function withShortHeader(column: EditGridColumn<LineDraft>): EditGridColumn<LineDraft> {
-  return SHORT[column.key] ? { ...column, header: SHORT[column.key] } : column;
+/** Сверху — в две строки, а не сокращением «б/НДС»: ширину колонок менять не придётся. */
+const SHORT_NET: Record<string, ReactNode> = {
+  price: <>Цена<br />без НДС</>, amount: <>Сумма<br />без НДС</>,
+};
+
+function withShortHeader(column: EditGridColumn<LineDraft>, mode: VatMode): EditGridColumn<LineDraft> {
+  const short = (mode === 'OnTop' ? SHORT_NET[column.key] : undefined) ?? SHORT[column.key];
+  return short ? { ...column, header: short } : column;
 }

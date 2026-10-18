@@ -21,6 +21,7 @@
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
 import { BASE, launchBrowser, login, createChecks, pickOption } from './harness.mjs';
+import { vatOnTopChecks } from './invoice-vat-on-top-checks.mjs';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
@@ -101,7 +102,7 @@ const cable = `Кабель прогона ${stamp}`;
 await position(cable);
 
 /** Счёт с полной шапкой: без плательщика «разобран» откажет обязательным полем, а проверяем не его. */
-async function invoice(number, total = 10_000) {
+async function invoice(number, total = 10_000, vat = undefined) {
   const payers = organizations.length > 1 ? organizations[1].id : supplierId;
   return api('POST', '/costs/invoices', {
     requisites: {
@@ -110,6 +111,7 @@ async function invoice(number, total = 10_000) {
       'Поставщик': { $ref: 'catalog', entryId: supplierId },
       'Плательщик': { $ref: 'catalog', entryId: payers },
       'Итого': total,
+      ...(vat === undefined ? {} : { 'ВТомЧислеНДС': vat }),
     },
   });
 }
@@ -609,6 +611,9 @@ try {
     if ((await page.getByRole('button', { name: 'позиция удалена' }).count()) !== 0)
       throw new Error('после снятия ссылки строка всё ещё считает позицию потерянной');
   });
+
+  // ── Счёт с НДС сверху (эпик #1496) — своим файлом: прогон и так велик ────────
+  await vatOnTopChecks({ page, check, stamp, invoice, open, cell, addRow, saveLines, cable, pickOption });
 
 } finally {
   await browser.close();

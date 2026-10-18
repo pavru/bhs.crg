@@ -5,6 +5,7 @@ import type {
 } from '@/shared/api/invoiceCorrection';
 import { toRequisites } from './invoiceFields';
 import { toDrafts, toPayload, type LineDraft } from './invoiceLines';
+import { vatModeOf } from './invoiceVat';
 
 /**
  * Исправление счёта закрытого периода (E2, issue #1100, PR 6b-1) — всё, что не рисование.
@@ -44,7 +45,11 @@ const inOrder = (parts: readonly AllocationPartView[]) => [...parts].sort((a, b)
 
 /** Тело исправления: черновик поверх счёта. */
 export function correctionBody(view: InvoiceView, content: CorrectionContent): InvoiceCorrectionBody {
-  const drafts = content.lines ?? toDrafts(view.lines);
+  // Строки — в режиме счёта (issue #1499): исправление его сохраняет, а бумажную сумму сервер принимает
+  // только полем режима — без него любое исправление счёта сверху получило бы 400. Смена режима
+  // исправлением — #1498.
+  const mode = vatModeOf(view);
+  const drafts = content.lines ?? toDrafts(view.lines, mode);
   const stored = new Map(view.lines.map(line => [line.id, line]));
 
   // Матрица исправления собрана по строкам ЧЕРНОВИКА и зовёт их ключом черновика (у записанной строки
@@ -59,7 +64,7 @@ export function correctionBody(view: InvoiceView, content: CorrectionContent): I
     : content.allocation ? content.allocation.document
     : inOrder(view.allocation.document.parts).map(p => sentPart(p, 'amount'));
 
-  const payload = toPayload(drafts);
+  const payload = toPayload(drafts, mode);
   return {
     reason: content.reason.trim(),
     requisites: toRequisites(view.requisites, content.edits),

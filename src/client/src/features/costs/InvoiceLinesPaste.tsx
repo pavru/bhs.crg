@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { ClipboardPaste } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
+import { Checkbox } from '@/shared/ui/Checkbox';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
+import type { VatMode } from '@/shared/api/invoices';
 import {
-  PASTE_ROLES, fromTable, guessRoles, hasHeader, parseTable,
+  PASTE_ROLES, fromTable, guessRoles, hasHeader, parseTable, pastedWithoutVat,
   type LineDraft, type PasteRole,
 } from './invoiceLines';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -24,8 +26,16 @@ import { DataGrid } from '@/shared/ui/DataGrid';
  * <p>⚠️ Позиции номенклатуры у вставленных строк нет и быть не может: в бумаге стоят слова поставщика.
  * Сопоставляет их человек (или таблица соответствий, C3), а счёт до тех пор живёт в отборе
  * «Разобрать».</p>
+ *
+ * <p><b>Режим НДС — в том же окне</b> (issue #1499): шапка «Цена без НДС» ставит отметку «Цены без НДС, НДС
+ * сверху», и от неё же зависит, какая из двух сумм («без НДС | с НДС») станет суммой строки. Вставка без
+ * этого заводила счёт в расхождение ровно на НДС — ту самую ошибку, с которой начат эпик #1496.</p>
  */
-export function InvoiceLinesPaste({ onAdd }: { onAdd: (drafts: LineDraft[]) => void }) {
+export function InvoiceLinesPaste({ mode, onAdd }: {
+  /** Режим черновика строк — с него начинается отметка в окне. */
+  mode: VatMode;
+  onAdd: (drafts: LineDraft[], mode: VatMode) => void;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -34,21 +44,27 @@ export function InvoiceLinesPaste({ onAdd }: { onAdd: (drafts: LineDraft[]) => v
         onClick={() => setOpen(true)}>
         Вставить из буфера
       </Button>
-      {open && <PasteDialog onClose={() => setOpen(false)}
-        onAdd={drafts => { onAdd(drafts); setOpen(false); }} />}
+      {open && <PasteDialog mode={mode} onClose={() => setOpen(false)}
+        onAdd={(drafts, chosen) => { onAdd(drafts, chosen); setOpen(false); }} />}
     </>
   );
 }
 
-function PasteDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (drafts: LineDraft[]) => void }) {
+function PasteDialog({ mode, onClose, onAdd }: {
+  mode: VatMode; onClose: () => void; onAdd: (drafts: LineDraft[], mode: VatMode) => void;
+}) {
   const [text, setText] = useState('');
   const [roles, setRoles] = useState<PasteRole[] | null>(null);
+  // Отметка, поставленная или снятая человеком; `null` — догадка по шапке.
+  const [onTop, setOnTop] = useState<boolean | null>(null);
 
   const table = parseTable(text);
   const width = Math.max(0, ...table.map(row => row.length));
+  const byHeader = mode === 'Included' && pastedWithoutVat(table);
+  const chosen: VatMode = (onTop ?? (mode === 'OnTop' || byHeader)) ? 'OnTop' : 'Included';
   // Роли, названные человеком, важнее догадки — но только пока ширина не изменилась: вставил другую
   // таблицу — прежние роли к ней не относятся.
-  const current = roles && roles.length === width ? roles : guessRoles(table);
+  const current = roles && roles.length === width ? roles : guessRoles(table, chosen);
   const rows = hasHeader(table) ? table.slice(1) : table;
 
   return (
@@ -62,7 +78,7 @@ function PasteDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (drafts: 
         <div className="flex items-center justify-end gap-2">
           <ModalExit size="sm" />
           <Button size="sm" variant="filled" disabled={rows.length === 0}
-            onClick={() => onAdd(fromTable(table, current))}>
+            onClick={() => onAdd(fromTable(table, current), chosen)}>
             Добавить строк: {rows.length}
           </Button>
         </div>
@@ -108,6 +124,13 @@ function PasteDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (drafts: 
               {rows.length > 8 && (
                 <p className="text-xs text-fg4">Показаны первые 8 строк из {rows.length} — добавятся все.</p>
               )}
+
+              <Checkbox size="sm" label="Цены без НДС, НДС сверху" checked={chosen === 'OnTop'}
+                onChange={on => setOnTop(on)}
+                description={chosen === mode ? undefined
+                  : chosen === 'OnTop'
+                  ? `${byHeader && onTop === null ? 'В шапке таблицы цены без НДС. ' : ''}Отметка встанет и над строками счёта — для всех его строк.`
+                  : 'Отметка снимется и над строками счёта — для всех его строк.'} />
             </>
           )}
 

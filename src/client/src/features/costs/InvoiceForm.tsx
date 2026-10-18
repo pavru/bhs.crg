@@ -295,7 +295,7 @@ export function InvoiceForm({
         <InvoiceTwinNotes view={view} onOpenInvoice={onOpenInvoice} />
         {scanSlot}
 
-        <BlockFields block={BLOCKS[0]} columns="sm:grid-cols-2 lg:grid-cols-4"
+        <BlockFields block={BLOCKS[0]} columns="sm:grid-cols-2 lg:grid-cols-5"
           view={view} edits={edits} organizations={organizations} locked={locked}
           organizationsUnread={organizationsError != null} value={value} set={set}
           onConfirm={confirmBlock} confirming={confirm.isPending} />
