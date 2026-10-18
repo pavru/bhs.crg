@@ -5,7 +5,7 @@ import { BrandLogo } from '@/shared/ui/Brand';
 import { useProductName } from '@/shared/api/branding';
 import { useGuardedNavClick } from '@/shared/ui/NavigationGuard';
 import { OutsideNav } from '@/shared/ui/WorkspaceNav';
-import { PageList } from '@/shared/ui/AppRail';
+import { PageList } from '@/shared/ui/PageList';
 import type { NavItem, RailId, RailSectionDef } from '@/shared/ui/navConfig';
 import type { PanelGroup, RailSection } from '@/shared/ui/railSections';
 import { IconButton } from './Button';
@@ -48,11 +48,7 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel }: {
       <Link key={section.def.id} to={section.home} onClick={guardedSection(section)}
         aria-current={on ? 'true' : undefined}
         className="group flex flex-col items-center gap-1 w-20 pb-2 text-xs select-none focus-visible:outline-none">
-        <span className={'flex items-center justify-center w-14 h-8 rounded-full transition-colors ' +
-          'group-focus-visible:ring-2 group-focus-visible:ring-brand ' +
-          (on ? 'bg-tonal text-on-tonal' : 'text-fg3 group-hover:bg-black/5 dark:group-hover:bg-white/10')}>
-          <Icon size={20} />
-        </span>
+        <SectionPill icon={Icon} on={on} />
         <span className={on ? 'font-semibold text-fg1' : 'font-medium text-fg2'}>{section.def.label}</span>
       </Link>
     );
@@ -80,6 +76,20 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel }: {
         )}
       </nav>
     </div>
+  );
+}
+
+/**
+ * Значок раздела в плашке — один на рейл и нижнюю навигацию телефона (#1434): выбранный раздел
+ * выглядит одинаково, где бы человек его ни увидел. `wide` — плашка нижней строки, шире под палец.
+ */
+export function SectionPill({ icon: Icon, on, wide = false }: { icon: RailSectionDef['icon']; on: boolean; wide?: boolean }) {
+  return (
+    <span className={`flex items-center justify-center ${wide ? 'w-16' : 'w-14'} h-8 rounded-full transition-colors ` +
+      'group-focus-visible:ring-2 group-focus-visible:ring-brand ' +
+      (on ? 'bg-tonal text-on-tonal' : 'text-fg3 group-hover:bg-black/5 dark:group-hover:bg-white/10')}>
+      <Icon size={wide ? 22 : 20} />
+    </span>
   );
 }
 

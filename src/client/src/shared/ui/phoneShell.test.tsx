@@ -3,6 +3,10 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { BottomNav } from './BottomNav';
+import { PrimaryFab } from './PrimaryFab';
+import { PrimaryActionButton } from './PrimaryActionButton';
+import { PrimaryFabContext, useCoversPrimaryFab, usePrimaryFabState } from './primaryFabContext';
+import { PALETTE_ACTIONS } from './paletteActions';
 import { NavigationGuardProvider } from './NavigationGuardProvider';
 import { PageHeader } from './PageHeader';
 import { railDef, type RailSection } from './railSections';
@@ -38,7 +42,8 @@ const costs: SectionMenuValue = {
 };
 
 function Address() {
-  return <output aria-label="адрес">{useLocation().pathname}</output>;
+  const { pathname, search } = useLocation();
+  return <output aria-label="адрес">{pathname + search}</output>;
 }
 
 function shown(ui: React.ReactNode, at = '/invoices', menu: SectionMenuValue | null = null) {
@@ -54,9 +59,12 @@ function shown(ui: React.ReactNode, at = '/invoices', menu: SectionMenuValue | n
   );
 }
 
+// Какие разделы внизу (рабочие, без «Системы»), решает `phoneChrome` — см. его тест.
+const work = sections.filter(s => !s.def.unscoped);
+
 describe('нижняя навигация', () => {
-  it('рабочие разделы, без «Системы»; свой отмечен', () => {
-    shown(<BottomNav sections={sections} active="costs" />);
+  it('разделы с подписями; свой отмечен', () => {
+    shown(<BottomNav sections={work} active="costs" />);
     const nav = screen.getByRole('navigation', { name: 'Разделы' });
     const links = nav.querySelectorAll('a');
     expect([...links].map(a => a.textContent)).toEqual(['Стройки', 'Учёт']);
@@ -64,14 +72,69 @@ describe('нижняя навигация', () => {
   });
 
   it('раздел ведёт на свою первую страницу', () => {
-    shown(<BottomNav sections={sections} active="costs" />);
+    shown(<BottomNav sections={work} active="costs" />);
     fireEvent.click(screen.getByRole('link', { name: 'Стройки' }));
     expect(screen.getByLabelText('адрес').textContent).toBe('/document-sets');
   });
 
   it('без рабочих разделов строки нет', () => {
-    shown(<BottomNav sections={sections.filter(s => s.def.unscoped)} active={null} />);
+    shown(<BottomNav sections={[]} active={null} />);
     expect(screen.queryByRole('navigation')).toBeNull();
+  });
+});
+
+describe('плавающая кнопка основного действия', () => {
+  it('названа действием и зовёт кнопку экрана, не закрывая открытую запись', () => {
+    shown(<PrimaryFab action={PALETTE_ACTIONS.invoiceScan} />, '/invoices?invoice=7');
+    fireEvent.click(screen.getByRole('button', { name: 'Счёт из файла' }));
+    expect(screen.getByLabelText('адрес').textContent).toBe('/invoices?invoice=7&do=invoice-scan');
+  });
+});
+
+/** Оболочка в миниатюре: состояние плавающей кнопки и то, что ей сообщают экраны (ревью PR #1502). */
+function FabShell({ children }: { children: React.ReactNode }) {
+  const state = usePrimaryFabState();
+  return (
+    <PrimaryFabContext.Provider value={state.report}>
+      {children}
+      {!state.covered && <PrimaryFab action={PALETTE_ACTIONS.waybillNew} busy={state.isBusy(PALETTE_ACTIONS.waybillNew.id)} />}
+    </PrimaryFabContext.Provider>
+  );
+}
+
+function Cover({ on }: { on: boolean }) {
+  useCoversPrimaryFab(on);
+  return null;
+}
+
+describe('что экран сообщает плавающей кнопке', () => {
+  const fab = () => screen.queryByTestId('primary-fab');
+
+  it('занятая кнопка экрана делает плавающую занятой — со спиннером и запретом', () => {
+    const view = (loading: boolean) => (
+      <FabShell><PrimaryActionButton action={PALETTE_ACTIONS.waybillNew} loading={loading} onClick={() => {}} /></FabShell>);
+    const { rerender } = render(<MemoryRouter>{view(true)}</MemoryRouter>);
+    expect(fab()?.hasAttribute('disabled')).toBe(true);
+    expect(fab()?.getAttribute('aria-busy')).toBe('true');
+    rerender(<MemoryRouter>{view(false)}</MemoryRouter>);
+    expect(fab()?.hasAttribute('disabled')).toBe(false);
+  });
+
+  it('кнопка экрана подписана действием и прячется на телефоне', () => {
+    render(<MemoryRouter><FabShell><PrimaryActionButton action={PALETTE_ACTIONS.waybillNew} onClick={() => {}} /></FabShell></MemoryRouter>);
+    const own = screen.getAllByRole('button', { name: 'Новая накладная' }).find(b => b !== fab())!;
+    expect(own.className).toContain('max-md:hidden');
+  });
+
+  it('«закрыто» держится, пока закрывает хоть один', () => {
+    const view = (a: boolean, b: boolean) => <MemoryRouter><FabShell><Cover on={a} /><Cover on={b} /></FabShell></MemoryRouter>;
+    const { rerender } = render(view(true, true));
+    expect(fab()).toBeNull();
+    // Один снял — второй всё ещё закрывает: флажок «последний пишущий побеждает» открыл бы кнопку.
+    rerender(view(false, true));
+    expect(fab()).toBeNull();
+    rerender(view(false, false));
+    expect(fab()).not.toBeNull();
   });
 });
 

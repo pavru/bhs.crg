@@ -1,6 +1,7 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, type CSSProperties } from 'react';
 import { Link, Outlet, useLocation } from 'react-router';
 import { useAccount, useResendConfirmation } from '@/shared/api/account';
+import { useAccess } from '@/shared/api/access';
 import { ActivityCenter } from '@/features/activity/ActivityCenter';
 import { CommandPalette } from '@/shared/ui/CommandPalette';
 import { AccountMenu } from '@/shared/ui/AccountMenu';
@@ -15,6 +16,13 @@ import { useSyncedPreference } from '@/shared/hooks/useSyncedPreference';
 import { useMedia, WIDE } from '@/shared/hooks/useMedia';
 import { BottomNav } from '@/shared/ui/BottomNav';
 import { SectionMenuContext } from '@/shared/ui/sectionMenuContext';
+import { phoneChrome } from '@/shared/ui/phoneChrome';
+import { BrandLogo } from '@/shared/ui/Brand';
+import { useProductName } from '@/shared/api/branding';
+import { PrimaryFab } from '@/shared/ui/PrimaryFab';
+import { PrimaryFabContext, usePrimaryFabState } from '@/shared/ui/primaryFabContext';
+import { FAB_CLEARANCE, toastLift } from '@/shared/ui/phoneLayout';
+import { primaryActionAt } from '@/shared/ui/paletteActions';
 import { SectionPanel, SectionRail, ShowPanelButton } from '@/shared/ui/SectionRail';
 import { useFavoriteSitesGroup, withFavoriteSites } from '@/shared/siteFilter/favoriteSitesGroup';
 import { useNavSections } from '@/shared/ui/navSections';
@@ -66,13 +74,23 @@ function Shell() {
   const panelGroups = panelSection
     ? withFavoriteSites(panelSection.id, sections.find(s => s.def.id === panelSection.id)?.groups ?? [], favoriteSites)
     : [];
-  // Телефон (issue #1434): рейла нет — разделы внизу, страницы раздела — в меню заголовка страницы.
+  // Телефон (issue #1434): рейла нет — разделы внизу, страницы раздела — в меню заголовка страницы,
+  // «Администрирование» — пункт меню профиля.
   const wide = useMedia(WIDE);
-  const sectionMenu = !wide && panelSection
-    ? { def: panelSection, groups: panelGroups, outside: panelSection.unscoped ? [] : outside }
-    : null;
-  // «Администрирование» на телефоне — пункт меню профиля (решение владельца от 17.10.2026).
-  const admin = wide ? undefined : sections.find(s => s.def.unscoped);
+  const { sectionMenu, admin, bottomNav } = phoneChrome({ wide, panelSection, panelGroups, outside, sections });
+  // Основное действие экрана — плавающей кнопкой на телефоне; пока карточка закрывает список, её нет.
+  const { data: access } = useAccess();
+  const fabState = usePrimaryFabState();
+  const fab = !wide && !fabState.covered && access ? primaryActionAt(pathname, access) : undefined;
+  // Тосты встают над тем, что стоит у нижнего края. Их поле — вне оболочки, поэтому подъём —
+  // переменной на корне документа, и ставит её одно место, которое знает и строку, и кнопку.
+  const lift = toastLift({ bottomNav: bottomNav.length > 0, fab: !!fab });
+  useEffect(() => {
+    if (!lift) return;
+    const root = document.documentElement.style;
+    root.setProperty('--toast-lift', lift);
+    return () => { root.removeProperty('--toast-lift'); };
+  }, [lift]);
 
   // Глобальные шорткаты (issue #107): Ctrl/⌘+K — палитра, «?» — справка (не в полях ввода).
   useEffect(() => {
@@ -101,8 +119,8 @@ function Shell() {
 
   return (
     // Высота — видимая область (`dvh`), а не 100vh: на телефоне 100vh выше экрана на панель браузера,
-    // и нижняя навигация уходила бы под неё (#1434).
-    <div className="flex h-dvh bg-base">
+    // и нижняя навигация уходила бы под неё (#1434). Браузеру без `dvh` остаётся 100vh, а не ничего.
+    <div className="flex h-screen supports-[height:100dvh]:h-dvh bg-base">
       {/* Рейл разделов и подпанель раздела — на рабочем столе (issue #1429). */}
       <aside data-testid="rail" data-panel={panelShown || undefined}
         className="shrink-0 hidden md:flex border-r border-stroke">
@@ -124,6 +142,7 @@ function Shell() {
             Гамбургера на телефоне нет (#1434): разделы — в нижней навигации, страницы раздела — в
             меню заголовка страницы. Цели касания там — 44 px (`max-md:h-11`). */}
         <header className="h-12 shrink-0 border-b border-stroke bg-surface flex items-center gap-1 px-2 md:px-4">
+          <PhoneBrand />
           {/* Скрытая подпанель возвращается отсюда — с края страницы, где она стояла. */}
           {panelSection && !panelShown && <span className="hidden md:inline-flex"><ShowPanelButton onShow={() => setRail('expanded')} /></span>}
           {/* Переключатель пространства — слева: это контекст экрана, а не действие (AUTH-16.1). Без
@@ -140,14 +159,39 @@ function Shell() {
         </header>
         <OutsideBanner items={allWork} inside={work} />
         <EmailConfirmBanner />
-        <div className="flex-1 overflow-auto">
-          <SectionMenuContext.Provider value={sectionMenu}>
-            <Outlet />
-          </SectionMenuContext.Provider>
+        {/* Плавающая кнопка стоит над содержимым, а не в нём: прокрутка списка её не уносит. Пока
+            она есть, `--fab-clearance` говорит спискам, сколько места оставить под концом, чтобы
+            последняя строка поднималась выше кнопки (`ListDetailShell`, список строек). */}
+        <div className="relative flex-1 min-h-0 flex flex-col"
+          style={fab ? { '--fab-clearance': FAB_CLEARANCE } as CSSProperties : undefined}>
+          <div className="flex-1 overflow-auto">
+            <SectionMenuContext.Provider value={sectionMenu}>
+              <PrimaryFabContext.Provider value={fabState.report}>
+                <Outlet />
+              </PrimaryFabContext.Provider>
+            </SectionMenuContext.Provider>
+          </div>
+          {fab && <PrimaryFab action={fab} busy={fabState.isBusy(fab.id)} />}
         </div>
-        <BottomNav sections={sections} active={active} />
+        <BottomNav sections={bottomNav} active={active} />
       </main>
     </div>
+  );
+}
+
+/**
+ * Знак экземпляра на телефоне (ТЗ CORE-25.1, #1434): рейла с логотипом там нет, и без этой кнопки
+ * оформление компании не было бы видно ни на одном экране. Название — в имени ссылки: в строку
+ * рядом с поиском и аватаром оно не помещается.
+ */
+function PhoneBrand() {
+  const productName = useProductName();
+  const guardedClick = useGuardedNavClick();
+  return (
+    <Link to="/" onClick={guardedClick('/')} aria-label={`${productName} — на главную`} data-testid="phone-brand"
+      className="md:hidden shrink-0 flex items-center justify-center w-11 h-11 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+      <BrandLogo className="w-7 h-7 text-brand" iconSize={22} />
+    </Link>
   );
 }
 
