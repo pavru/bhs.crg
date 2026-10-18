@@ -13,6 +13,8 @@ import { ruCount } from '@/shared/utils/pluralize';
 import { useListConstructions, useCreateConstruction, useRenameConstruction, useDeleteConstruction } from '@/shared/api/constructions';
 import { useSearchDocuments } from '@/shared/api/documentSets';
 import { useCan } from '@/shared/api/access';
+import { PALETTE_ACTIONS } from '@/shared/ui/paletteActions';
+import { usePaletteIntent } from '@/shared/ui/usePaletteIntent';
 import { useIdIndicators } from './useIdIndicators';
 import { HiddenByWorkspace } from '@/shared/ui/WorkspaceNav';
 import type { Construction } from '@/shared/api/types';
@@ -94,6 +96,8 @@ export function ConstructionsList() {
 
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
+  // Та же кнопка из командной палитры (issue #1433).
+  usePaletteIntent(PALETTE_ACTIONS.constructionNew, () => setCreateOpen(true));
   const [newName, setNewName] = useState('');
   const [createError, setCreateError] = useState('');
 
