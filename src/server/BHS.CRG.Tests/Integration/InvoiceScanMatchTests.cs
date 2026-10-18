@@ -158,6 +158,36 @@ public sealed class InvoiceScanMatchTests(InvoiceScanHost host)
         Assert.Equal(JsonValueKind.Null, line.GetProperty("nomenclatureId").ValueKind);
     }
 
+    /// <summary>
+    /// Соответствие, запомненное по наименованию до того, как в профиле появился «Артикул», находит
+    /// строку, у которой артикул теперь прочитан (issue #1480): иначе добавленная колонка разом
+    /// «забыла» бы всё, что человек сопоставлял раньше.
+    /// </summary>
+    [Fact]
+    public async Task Строка_скана_с_артикулом_находит_запомненное_по_наименованию()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var (vendor, taxId) = await VendorAsync();
+        var position = await PositionAsync();
+        await RememberAsync(client, vendor, position, "Кабель силовой 3х2,5");
+
+        var scan = Scan();
+        var row = new Dictionary<string, string?>(Row("Кабель силовой 3х2,5", "м", "10", "5,00", "50,00"))
+        {
+            [CostsRecognitionProfiles.LineCode] = "КС-325",
+        };
+        host.Recognition.On(scan, () => Task.FromResult(Read(
+            Header(number: "СЧ-81", supplier: "Поставщик", supplierTaxId: taxId), row)));
+
+        var id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
+        Assert.Equal("done", (await OutcomeAsync(client, id)).GetProperty("state").GetString());
+
+        var line = (await ReadAsync(client, id)).GetProperty("lines")[0];
+        Assert.Equal("КС-325", line.GetProperty("supplierCode").GetString());
+        Assert.Equal(position, line.GetProperty("nomenclatureId").GetGuid());
+        Assert.Equal("name", line.GetProperty("match").GetProperty("by").GetString());
+    }
+
     // ── Помощники ────────────────────────────────────────────────────────────
 
     /// <summary>Счёт, заведённый руками, в котором человек выбрал позицию строке, — так выбор запоминается.</summary>
