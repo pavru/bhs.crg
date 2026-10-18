@@ -65,6 +65,26 @@ public class ExcelPageLayoutTests
     }
 
     /// <summary>
+    /// Свой профиль ставит свою бумагу и ориентацию и поверх записанных автором (решение владельца
+    /// 18.10.2026): Excel пишет A4 книжную и тогда, когда бумагу никто не выбирал. Размеры бумаги автора
+    /// уходят тоже — иначе в листе стояли бы две бумаги.
+    /// </summary>
+    [Fact]
+    public void Свой_профиль_ставит_свою_бумагу_поверх_бумаги_автора()
+    {
+        var own = new PageProfile("Альбомный A3", 8, "landscape", true, 5, 5, 5, 5, AuthorPaperFirst: false);
+
+        var laid = ExcelPageLayout.Apply(Book(Sheet(Data + Margins() +
+            "<pageSetup paperSize=\"9\" orientation=\"portrait\" paperWidth=\"210mm\" paperHeight=\"297mm\" horizontalDpi=\"600\"/>")),
+            own, CancellationToken.None);
+
+        var setup = SheetOf(laid.File).Element(X + "pageSetup")!;
+        Assert.Equal(("8", "landscape", "(нет)", "(нет)", "600"), (Attr(setup, "paperSize"), Attr(setup, "orientation"),
+            Attr(setup, "paperWidth"), Attr(setup, "paperHeight"), Attr(setup, "horizontalDpi")));
+        Assert.Contains("\"paperSize\":\"8\",\"orientation\":\"landscape\"", laid.Applied);
+    }
+
+    /// <summary>
     /// Профиль «не вписывать» (issue #1454) ставит бумагу, ориентацию и поля, но не вписывание: флага
     /// у листа не появляется, атрибуты вписывания автора остаются как были — без флага они не действуют.
     /// </summary>

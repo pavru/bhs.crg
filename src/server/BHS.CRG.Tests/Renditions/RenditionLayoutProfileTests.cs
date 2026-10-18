@@ -124,7 +124,8 @@ public class RenditionLayoutProfileTests
         var page = PageProfile.From(RenditionLayoutProfile.Create(
             "Альбомный A3", PaperFormat.A3, PageOrientation.Landscape, PageFit.None, new(10, 15, 7, 3)));
 
-        Assert.Equal(new PageProfile("Альбомный A3", 8, "landscape", false, 10, 15, 7, 3), page);
+        // Свой профиль ставит свою бумагу и поверх записанной автором — системный её уважает.
+        Assert.Equal(new PageProfile("Альбомный A3", 8, "landscape", false, 10, 15, 7, 3, AuthorPaperFirst: false), page);
         Assert.Equal(11, PageProfile.From(RenditionLayoutProfile.Create(
             "A5", PaperFormat.A5, PageOrientation.Portrait, PageFit.Width, Five)).PaperSize);
         Assert.Equal(new PageProfile(RenditionLayoutProfile.SystemName, 9, "portrait", true, 5, 5, 5, 5), PageProfile.Default);

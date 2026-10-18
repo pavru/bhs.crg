@@ -16,8 +16,17 @@ namespace BHS.CRG.Infrastructure.Renditions;
 /// <param name="Name">Как профиль называется человеку — в пометке образа.</param>
 /// <param name="PaperSize">Код бумаги по ECMA-376 (<c>9</c> — A4).</param>
 /// <param name="FitWidth">Вписать в ширину страницы; иначе — только бумага, ориентация и поля.</param>
+/// <param name="AuthorPaperFirst">
+/// Бумага и ориентация, записанные автором в листе, главнее профиля. Так у системного: по нему строится
+/// первый вид, и бумагу, выбранную автором, он уважает. Свой профиль человек выбирает вручную — и ставит
+/// свою бумагу (решение владельца, 18.10.2026): иначе «A3 альбомная» не сработала бы почти ни на одной
+/// книге, потому что Excel пишет в лист A4 книжную и тогда, когда бумагу никто не выбирал. Правило — по
+/// роду профиля, а не по тому, как он выбран: один и тот же профиль с тем же отпечатком обязан давать
+/// один и тот же вид.
+/// </param>
 public sealed record PageProfile(
-    string Name, int PaperSize, string Orientation, bool FitWidth, double TopMm, double BottomMm, double LeftMm, double RightMm)
+    string Name, int PaperSize, string Orientation, bool FitWidth, double TopMm, double BottomMm, double LeftMm, double RightMm,
+    bool AuthorPaperFirst = true)
 {
     /// <summary>Заводской системный: A4, книжная, вписать по ширине, поля 5 мм со всех сторон.</summary>
     public static readonly PageProfile Default = From(RenditionLayoutProfile.System());
@@ -27,7 +36,8 @@ public sealed record PageProfile(
         profile.Paper switch { PaperFormat.A3 => 8, PaperFormat.A5 => 11, _ => 9 },
         profile.Orientation == PageOrientation.Landscape ? "landscape" : "portrait",
         profile.Fit == PageFit.Width,
-        profile.MarginTop, profile.MarginBottom, profile.MarginLeft, profile.MarginRight);
+        profile.MarginTop, profile.MarginBottom, profile.MarginLeft, profile.MarginRight,
+        AuthorPaperFirst: profile.IsSystem);
 }
 
 /// <summary>Книга после раскладки: что ушло к конвертеру и что сказать о нём.</summary>
@@ -56,7 +66,8 @@ public sealed record LaidOut(RenditionLayout Outcome, byte[] File, IReadOnlyList
 /// ревью PR #1470: разрыв соблюдён, кегль тот же 7,1, что без него).</para>
 ///
 /// <para><b>Что подставляется</b>: вписать по ширине (<c>fitToPage=1</c>, <c>fitToWidth=1</c>,
-/// <c>fitToHeight=0</c>), поля профиля; бумага и ориентация — автора, если записаны, иначе профиля.
+/// <c>fitToHeight=0</c>), поля профиля; бумага и ориентация — автора, если записаны, иначе профиля
+/// (у своего профиля — всегда профиля, см. <see cref="PageProfile.AuthorPaperFirst" />).
 /// Бумага пишется всегда: отсутствующая по схеме — Letter (проба: лист 216×279). Профиль «не
 /// вписывать» (issue #1454) ставит только бумагу, ориентацию и поля: свойства листа и атрибуты
 /// вписывания автора остаются как были.</para>
@@ -354,7 +365,8 @@ public static class ExcelPageLayout
     /// </summary>
     private static Page Effective(SheetFacts facts, PageProfile profile)
     {
-        var setup = facts.Setup;
+        // Свой профиль бумагу автора не читает вовсе — ни кода, ни размеров (см. AuthorPaperFirst).
+        var setup = profile.AuthorPaperFirst ? facts.Setup : null;
         string? width = setup?.Attribute("paperWidth")?.Value, height = setup?.Attribute("paperHeight")?.Value;
         var custom = width is not null && height is not null;
         var paper = setup?.Attribute("paperSize")?.Value
@@ -441,7 +453,7 @@ public static class ExcelPageLayout
         {
             if (!sheetPr && rank > SheetPrRank) { WriteSheetPr(writer, prefix, facts.SheetPr, profile.FitWidth); sheetPr = true; }
             if (!margins && rank > MarginsRank) { WriteMargins(writer, prefix, page); margins = true; }
-            if (!setup && rank > SetupRank) { WriteSetup(writer, prefix, facts.Setup, page, profile.FitWidth); setup = true; }
+            if (!setup && rank > SetupRank) { WriteSetup(writer, prefix, facts.Setup, page, profile); setup = true; }
         }
 
         if (xml.IsEmptyElement)
@@ -529,13 +541,17 @@ public static class ExcelPageLayout
     /// ориентация — из <see cref="Effective" />. Содержимого у элемента по схеме нет. Без вписывания
     /// атрибуты вписывания автора остаются как были: без <c>fitToPage</c> они не действуют.
     /// </summary>
-    private static void WriteSetup(XmlWriter writer, string prefix, XElement? setup, Page page, bool fitWidth)
+    private static void WriteSetup(XmlWriter writer, string prefix, XElement? setup, Page page, PageProfile profile)
     {
+        var fitWidth = profile.FitWidth;
         writer.WriteStartElement(prefix, "pageSetup", Main);
         if (setup is not null)
-            CopyAttributes(writer, setup, fitWidth
-                ? ["fitToWidth", "fitToHeight", "orientation", "paperSize"]
-                : ["orientation", "paperSize"]);
+            CopyAttributes(writer, setup,
+            [
+                "orientation", "paperSize",
+                .. fitWidth ? (string[])["fitToWidth", "fitToHeight"] : [],
+                .. profile.AuthorPaperFirst ? [] : (string[])["paperWidth", "paperHeight"],
+            ]);
         if (page.PaperSize is not null) writer.WriteAttributeString("paperSize", page.PaperSize);
         writer.WriteAttributeString("orientation", page.Orientation);
         if (fitWidth)
