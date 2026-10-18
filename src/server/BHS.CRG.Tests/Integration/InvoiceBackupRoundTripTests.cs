@@ -207,6 +207,88 @@ public class InvoiceBackupRoundTripTests(InvoiceLineHost host) : InvoiceLineTest
         Assert.DoesNotContain(report.Warnings, w => w.Contains(Missing));
     }
 
+    /// <summary>
+    /// Сторож С9 (issue #1497): копия, снятая ДО режима НДС, — колонок vat_mode и net_amount в ней нет, —
+    /// восстанавливается счетами «в том числе»: других тогда не было. Восстановление пишет только колонки
+    /// копии, и умолчание базы срабатывает; что копия старше схемы, отчёт говорит сам.
+    /// </summary>
+    [Fact]
+    public async Task Копия_до_режима_НДС_возвращает_счета_в_том_числе()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        await ForgetInvoicesAsync();
+        var invoice = await CreateAsync(client);
+        await LinesAsync(client, invoice, [Line(cable, quantity: 10, price: 122m, rate: 22m)]);
+
+        var (_, manifest) = await ExportAsync();
+        var former = Copy(manifest, ("invoices", "vat_mode"), ("invoice_lines", "net_amount"));
+        await ForgetInvoicesAsync();
+
+        var report = await ImportAsync(former);
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+        Assert.Contains(report.Warnings, w => w.Contains("vat_mode") && w.Contains("более старой версией"));
+
+        var read = await ReadAsync(client, invoice);
+        Assert.Equal("Included", read.GetProperty("vatMode").GetString());
+        Assert.Equal(1220m, read.GetProperty("lines")[0].GetProperty("amount").GetDecimal());
+        Assert.Equal(JsonValueKind.Null, read.GetProperty("lines")[0].GetProperty("netAmount").ValueKind);
+    }
+
+    /// <summary>Счёт с НДС сверху уезжает в копию с режимом и бумажной суммой и возвращается тем же.</summary>
+    [Fact]
+    public async Task Счёт_с_НДС_сверху_возвращается_из_копии_с_режимом()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        await ForgetInvoicesAsync();
+        var invoice = await CreateAsync(client);
+        await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}/lines", new
+        {
+            vatMode = "OnTop",
+            lines = new object[] { new { nomenclature = Reference(cable), quantity = 10m, price = 100m, vatRate = 22m } },
+        }));
+
+        var (archive, manifest) = await ExportAsync();
+        var section = Assert.Single(manifest.ModuleData!);
+        Assert.Contains(section.Tables.Single(t => t.Table == "invoices").Rows,
+            r => r.GetProperty("vat_mode").GetString() == "OnTop");
+        Assert.Contains(section.Tables.Single(t => t.Table == "invoice_lines").Rows,
+            r => r.GetProperty("net_amount").GetDecimal() == 1000m);
+        await ForgetInvoicesAsync();
+
+        var report = await ImportAsync(archive);
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+
+        var read = await ReadAsync(client, invoice);
+        Assert.Equal("OnTop", read.GetProperty("vatMode").GetString());
+        Assert.Equal(1000m, read.GetProperty("lines")[0].GetProperty("netAmount").GetDecimal());
+        Assert.Equal(1220m, read.GetProperty("lines")[0].GetProperty("amount").GetDecimal());
+    }
+
+    /// <summary>Архив из манифеста без названных колонок — так выглядит копия, снятая до их миграции.</summary>
+    private static MemoryStream Copy(BackupManifest manifest, params (string Table, string Column)[] without)
+    {
+        JsonElement Strip(string table, JsonElement row)
+        {
+            var node = System.Text.Json.Nodes.JsonNode.Parse(row.GetRawText())!.AsObject();
+            foreach (var (_, column) in without.Where(w => w.Table == table)) node.Remove(column);
+            return JsonSerializer.SerializeToElement(node);
+        }
+
+        var former = manifest with
+        {
+            ModuleData = [.. manifest.ModuleData!.Select(m => m with
+            {
+                Tables = [.. m.Tables.Select(t => t with { Rows = [.. t.Rows.Select(r => Strip(t.Table, r))] })],
+            })],
+        };
+        var archive = new MemoryStream();
+        using (var zip = new ZipArchive(archive, ZipArchiveMode.Create, leaveOpen: true))
+        using (var entry = zip.CreateEntry("manifest.json").Open())
+            JsonSerializer.Serialize(entry, former);
+        archive.Position = 0;
+        return archive;
+    }
+
     /// <summary>Слова отчёта о файлах, которых нет ни в копии, ни в хранилище.</summary>
     private const string Missing = "в хранилище они не найдены";
 

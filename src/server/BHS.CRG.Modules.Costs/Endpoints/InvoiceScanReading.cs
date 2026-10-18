@@ -422,6 +422,17 @@ public sealed class InvoiceScanReading(
                 offeredLines = JsonSerializer.SerializeToDocument(read.Rows);
                 notes.Add($"Распознано строк: {rows.Count}. У счёта уже есть свои строки — распознанные не добавлены.");
             }
+            else if (invoice.VatMode == VatMode.OnTop)
+            {
+                // Режим «сверху» поставил человек, а распознавание пока читает строки «в том числе» (issue
+                // #1497; режим со скана — #1501): положи мы их, НДС у каждой строки был бы посчитан не по
+                // той формуле. Режим человека распознавание не перезаписывает — строки предлагаются, как
+                // строки счёта, у которого свои уже есть.
+                offeredLines = JsonSerializer.SerializeToDocument(read.Rows);
+                notes.Add($"Распознано строк: {rows.Count}. У счёта стоит «НДС сверху», а распознавание пока " +
+                          "читает строки с НДС «в том числе» — распознанные не добавлены. Введите строки вручную " +
+                          "или снимите режим и распознайте заново.");
+            }
             else
             {
                 // Запомненное для этого поставщика подставляется сразу (задача C3, issue #1079): счёт
@@ -435,9 +446,9 @@ public sealed class InvoiceScanReading(
                 {
                     var known = answer?.Lines[index];
                     var line = InvoiceLine.Create(invoice.Id);
-                    line.Apply(index + 1, known is null
+                    line.Apply(index + 1, CompletedLine.Scanned(known is null
                         ? values
-                        : values with { NomenclatureId = known.Position, MatchedBy = known.Match });
+                        : values with { NomenclatureId = known.Position, MatchedBy = known.Match }));
                     db.InvoiceLines.Add(line);
                     if (known is not null) recalled++;
                 }

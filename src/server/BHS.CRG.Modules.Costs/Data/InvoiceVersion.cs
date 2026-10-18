@@ -56,6 +56,10 @@ public sealed class InvoiceVersion : IAppendOnly
     /// разноски — значениями с учётными днями; деньги — зёрнами, от которых исправление считало книгу
     /// (<c>M_before</c>). Зёрна лежат здесь, а не выводятся из строк заново: при другом допуске они
     /// вышли бы другими, а версия обязана сказать, от чего считали тогда.
+    ///
+    /// <para>Режим НДС и бумажная сумма без НДС — в версии с issue #1497: без них история теряла бы бумагу
+    /// счёта сверху, где сумма с НДС — производное. Версия, записанная до них, полей не имеет и читается
+    /// как «в том числе»: других счетов тогда не было.</para>
     /// </summary>
     public static string Snapshot(
         Invoice invoice, IReadOnlyList<InvoiceLine> lines, IReadOnlyList<InvoiceAllocation> parts,
@@ -65,13 +69,15 @@ public sealed class InvoiceVersion : IAppendOnly
             requisites = InvoiceRequisites.Merge(invoice),
             total = invoice.Total,
             vatTotal = invoice.VatTotal,
+            vatMode = invoice.VatMode.ToString(),
             paidOn = invoice.PaidOn,
             remainderOn = invoice.RemainderAccountingOn,
             lines = lines.OrderBy(l => l.Ordinal).Select(l => new
             {
                 id = l.Id, ordinal = l.Ordinal, nomenclature = l.NomenclatureId, supplierText = l.SupplierText,
                 supplierCode = l.SupplierCode, unit = l.Unit, quantity = l.Quantity, price = l.Price,
-                vatRate = l.VatRate, vatAmount = l.VatAmount, amount = l.Amount, note = l.Note,
+                vatRate = l.VatRate, vatAmount = l.VatAmount, amount = l.Amount, netAmount = l.NetAmount,
+                note = l.Note,
             }),
             parts = parts.OrderBy(p => p.LineId).ThenBy(p => p.Ordinal).Select(p => new
             {

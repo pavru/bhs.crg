@@ -76,6 +76,9 @@ public sealed record InvoiceView(
     // «Исправления», и историю она читает своим адресом (`…/book`). Число, а не признак: та же
     // запись в книгу двигает и версию, так что история перечитывается вместе с формой.
     int Book,
+    // Режим НДС счёта (issue #1497): как читать суммы строк из бумаги. Меняется только вместе со строками —
+    // тем же PUT …/lines полем «vatMode».
+    VatMode VatMode,
     // Что запомнилось ЭТИМ сохранением строк (issue #1079). Есть только в ответе сохранения строк:
     // чтение счёта о запоминании не знает, и ноль там читался бы как «ничего не запомнилось».
     InvoiceMatchMemory? Memory = null);
@@ -199,7 +202,7 @@ public static class InvoiceViews
         sameFile,
         [.. lines.OrderBy(l => l.Ordinal).Select(l => Line(l, names, allocation.Lines[l.Id], lost, archived)
             with { Match = InvoiceLineMatchView.Of(l, invoice.SupplierId, matches) })],
-        InvoiceLineTotals.Of(lines),
+        InvoiceLineTotals.Of(invoice, lines),
         allocation.Summary,
         payment,
         references,
@@ -211,7 +214,8 @@ public static class InvoiceViews
         due,
         invoice.CreatedAt,
         invoice.UpdatedAt,
-        invoice.BookSeq);
+        invoice.BookSeq,
+        invoice.VatMode);
 
     /// <param name="lost">Записи, которых в ядре нет вовсе, — по обратному опросу. Нужен ПОМИМО словаря
     /// названий: без типа «Номенклатура» словаря нет, а удалённая запись от этого не перестаёт быть
@@ -245,7 +249,8 @@ public static class InvoiceViews
         line.VatAmount,
         line.Amount,
         line.Note,
-        allocation);
+        allocation,
+        NetAmount: line.NetAmount);
 
     public const string NomenclatureGone = "lost";
     public const string NomenclatureMoved = "moved";

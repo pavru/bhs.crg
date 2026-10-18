@@ -72,13 +72,16 @@ public static class InvoiceLineEndpoints
         var remember = incoming.Select((line, index) => InvoiceLineRequests.Remember(line, index + 1)).ToList();
 
         EnsureIdsDistinct(parsed);
+        VatMode? modeWas = null;
         var (invoice, changed, reason, worth) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
 
         // Журнал правки строк — ДО запоминания: строки уже записаны, и запись о них не должна зависеть
         // от того, чем кончится запоминание (ревью PR #1262).
         if (changed)
             await log.RecordAsync(InvoiceActions.LinesChanged, invoice.Id.ToString(),
-                InvoiceEndpoints.Label(invoice), after: $"строк: {parsed.Count}", ct: ct);
+                InvoiceEndpoints.Label(invoice), before: modeWas is { } was ? VatModes.Shown(was) : null,
+                after: $"строк: {parsed.Count}" + (modeWas is null ? "" : $"; НДС: {VatModes.Shown(invoice.VatMode)}"),
+                ct: ct);
 
         if (reason is not null)
             await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(),
@@ -107,6 +110,11 @@ public static class InvoiceLineEndpoints
         async Task<(Invoice Invoice, bool Changed, string? Reason, IReadOnlyList<MatchToRemember> Worth)> PlaceAsync(
             Invoice invoice)
         {
+            // Режим — до строк: строки досчитываются по НОВОМУ режиму, в той же правке (issue #1497).
+            var before = invoice.VatMode;
+            var modeChanged = body.VatMode is { } mode && invoice.ChangeVatMode(mode);
+            if (modeChanged) modeWas = before;
+
             var placed = await PlaceLinesAsync(db, catalog, invoice, parsed, remember, ct);
 
             // Возврат в черновик — ДО сохранения: одна запись в базу на всю правку.
@@ -128,14 +136,18 @@ public static class InvoiceLineEndpoints
             if (reason is not null) invoice.ReturnToDraft();
 
             await db.SaveChangesAsync(ct);
-            return (invoice, placed.Changed, reason, placed.Worth);
+            return (invoice, placed.Changed || modeChanged, reason, placed.Worth);
         }
     }
 
     /// <summary>
     /// Положить присланный набор строк в счёт — без сохранения и без возврата в черновик: их делает
     /// звавший. Одна функция на замену строк и на исправление счёта (E2, issue #1100).
+    ///
+    /// <para>Строки досчитываются ЗДЕСЬ, по режиму счёта, прочитанного под замком записи (issue #1497):
+    /// режим известен только тут, и досчёт до замка взял бы режим, который тем временем сменили.</para>
     /// </summary>
+    /// <param name="parsed">Строки, как в бумаге (<see cref="InvoiceLineRequests.Values" />).</param>
     /// <returns>Строки после правки — по порядку набора; изменён ли набор; что запомнить после записи.</returns>
     internal static async Task<LinesPlaced> PlaceLinesAsync(
         CostsDbContext db, IModuleCatalog catalog, Invoice invoice,
@@ -156,9 +168,10 @@ public static class InvoiceLineEndpoints
         // сверки появлялась бы в журнале там, где не изменилось ничего: журнал заполнился бы шумом, а
         // настоящая правка в нём потерялась бы.
         var was = existing.OrderBy(l => l.Ordinal).Select(l => (l.Id, Values: l.Snapshot())).ToList();
-        var now = new List<(Guid Id, InvoiceLineValues Values)>(parsed.Count);
+        var now = new List<(Guid Id, CompletedLine Values)>(parsed.Count);
         var placed = new List<InvoiceLine>(parsed.Count);
-        var stored = was.ToDictionary(l => l.Id, l => l.Values);
+        var stored = was.ToDictionary(l => l.Id, l => l.Values.Values);
+        var completed = parsed.Select((p, index) => InvoiceLineRequests.Complete(p.Values, index + 1, invoice.VatMode)).ToList();
         InvoiceLineValues? Stored(Guid? lineId) => lineId is { } known ? stored.GetValueOrDefault(known) : null;
 
         // Пометка «запомнено» проверяется, только когда она НОВАЯ — у новой строки, с другим
@@ -183,7 +196,8 @@ public static class InvoiceLineEndpoints
 
         for (var index = 0; index < parsed.Count; index++)
         {
-            var (lineId, values) = parsed[index];
+            var lineId = parsed[index].Id;
+            var values = completed[index];
 
             var line = lineId is { } known
                 ? existing.FirstOrDefault(l => l.Id == known)

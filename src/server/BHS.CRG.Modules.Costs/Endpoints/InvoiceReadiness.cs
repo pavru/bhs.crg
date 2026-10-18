@@ -7,11 +7,12 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="Kind">К какому месту формы пункт ведёт: <c>field</c> — обязательное поле шапки,
 /// <c>lines</c> — строк нет, <c>nomenclature</c> — строки ждут позиции, <c>reference</c> — организации
 /// шапки нет в справочнике, <c>position</c> — позиции строки нет в справочнике, <c>catalog</c> —
-/// справочника номенклатуры нет в установке, <c>allocation</c> — разноска, <c>total</c> — сумма строк
+/// справочника номенклатуры нет в установке, <c>rate</c> — у строк счёта с НДС сверху нет ставки, и
+/// суммы с НДС у них нет (issue #1497), <c>allocation</c> — разноска, <c>total</c> — сумма строк
 /// расходится с суммой к оплате.</param>
 /// <param name="Label">Пункт словами, как он стоит в строке: «плательщик», «3 строки без позиции».</param>
 /// <param name="Field">Ключ поля шапки — у <c>field</c>, <c>reference</c> и <c>total</c>.</param>
-/// <param name="Lines">Номера строк — у <c>nomenclature</c>, <c>position</c> и у <c>allocation</c>, когда
+/// <param name="Lines">Номера строк — у <c>nomenclature</c>, <c>position</c>, <c>rate</c> и у <c>allocation</c>, когда
 /// не разнесены конкретные строки. По ним форма ведёт к строке, а не к таблице целиком.</param>
 public sealed record InvoiceReadinessGap(
     string Kind, string Label, string? Field = null, IReadOnlyList<int>? Lines = null);
@@ -70,9 +71,9 @@ public sealed class InvoiceReadiness
         var label = InvoiceEndpoints.Label(invoice);
 
         found.Fields(invoice, label);
-        found.Lines(lines, label);
+        found.Lines(invoice, lines, label);
         found.References(invoice, lines, names, lost, label);
-        found.Allocation(allocation, label);
+        found.Allocation(invoice, lines, allocation, label);
         return found;
     }
 
@@ -111,7 +112,7 @@ public sealed class InvoiceReadiness
             [.. missing.Select(m => new InvoiceReadinessGap("field", m.Title.ToLowerInvariant(), Field: m.Key))]);
     }
 
-    private void Lines(IReadOnlyList<InvoiceLine> lines, string label)
+    private void Lines(Invoice invoice, IReadOnlyList<InvoiceLine> lines, string label)
     {
         if (lines.Count == 0)
         {
@@ -131,6 +132,17 @@ public sealed class InvoiceReadiness
                 "черновиком и виден в отборе «Разобрать».",
                 conflict: false,
                 new InvoiceReadinessGap("nomenclature", $"{Counted(unmatched.Count)} без позиции", Lines: unmatched));
+
+        // НДС сверху: у строки без НДС нет суммы с НДС (issue #1497) — и это причина, а не расхождение.
+        // Пункт стоит ДО разноски: иначе расхождение суммы строк заслонило бы, откуда оно взялось.
+        if (invoice.VatMode != VatMode.OnTop) return;
+        var blind = lines.Where(l => l.Amount is null && l.NetAmount is not null).Select(l => l.Ordinal).ToList();
+        if (blind.Count > 0)
+            Add($"{label}: у {Genitive(blind)} нет ставки НДС, а цены в счёте без НДС — сумму с НДС у " +
+                $"{(blind.Count == 1 ? "неё" : "них")} не посчитать. Впишите ставку (или сумму НДС) из бумаги: " +
+                "без неё строка не входит в сумму строк, и сверка с суммой к оплате не сойдётся.",
+                conflict: false,
+                new InvoiceReadinessGap("rate", $"нет ставки НДС: {Subject(blind)}", Lines: blind));
     }
 
     /// <summary>
@@ -206,7 +218,7 @@ public sealed class InvoiceReadiness
     /// пункт «разноска» вёл к выбору объекта и тогда, когда расходилась сумма, — выбор объекта её не
     /// чинит, а причину человек по-прежнему узнавал нажатием.</para>
     /// </summary>
-    private void Allocation(AllocationSummaryView allocation, string label)
+    private void Allocation(Invoice invoice, IReadOnlyList<InvoiceLine> lines, AllocationSummaryView allocation, string label)
     {
         if (allocation.Allocated) return;
 
@@ -238,7 +250,8 @@ public sealed class InvoiceReadiness
         {
             problems.Add($"сумма строк расходится с суммой к оплате на {Math.Abs(gap):0.00} при допуске " +
                 $"{allocation.Tolerance:0.00} — расхождение в пределах допуска уходит в последнюю часть " +
-                "разноски, сверх него нужно разобраться: скидка, доставка или строка, которой нет в таблице");
+                "разноски, сверх него нужно разобраться: " + (VatExplains(invoice, lines, gap) ??
+                "скидка, доставка или строка, которой нет в таблице"));
             gaps.Add(new InvoiceReadinessGap("total",
                 $"сумма строк расходится с суммой к оплате на {Math.Abs(gap):0.00}", Field: InvoiceRequisites.TotalKey));
         }
@@ -253,6 +266,24 @@ public sealed class InvoiceReadiness
         Add($"{label}: {string.Join("; ", problems)}. «Разобран» означает, что " +
             "деньги счёта легли на стройки целиком: иначе затраты по стройке не сойдутся со счетами.",
             conflict: false, [.. gaps]);
+    }
+
+    /// <summary>
+    /// Расхождение — целиком разница НДС по строкам и НДС бумаги (issue #1497)? При НДС сверху так и
+    /// бывает: строки считают НДС построчно, а бумага — от итога. Без этой причины человек искал бы
+    /// пропавшую строку. Только при НДС сверху и только когда НДС известен у каждой строки: при «в том
+    /// числе» НДС в сумму строк не входит отдельно, и совпадение было бы случайным.
+    /// </summary>
+    private static string? VatExplains(Invoice invoice, IReadOnlyList<InvoiceLine> lines, decimal gap)
+    {
+        if (invoice.VatMode != VatMode.OnTop || invoice.VatTotal is not { } paper) return null;
+        if (lines.Count == 0 || lines.Any(l => l.VatAmount is null)) return null;
+
+        var byLines = lines.Sum(l => l.VatAmount!.Value);
+        return paper - byLines == gap
+            ? $"НДС по строкам {byLines:0.00}, в бумаге {paper:0.00} — бумага, видимо, считает НДС от итога, а " +
+              "строки — построчно. Поправьте сумму НДС строк по бумаге или поднимите допуск расхождения"
+            : null;
     }
 
     /// <summary>
