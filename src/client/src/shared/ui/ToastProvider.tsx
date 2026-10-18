@@ -44,8 +44,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <RT.Provider swipeDirection="right">
         {children}
         {items.map(t => <ToastCard key={t.id} item={t} onRemove={() => remove(t.id)} />)}
-        {/* На телефоне — над нижней навигацией (#1434): у края тост закрывал бы разделы. */}
-        <RT.Viewport className="fixed bottom-4 max-md:bottom-24 right-4 z-[100] flex w-[380px] max-w-[calc(100vw-2rem)] flex-col gap-2 outline-none" />
+        {/* На телефоне — над нижней навигацией и плавающей кнопкой (#1434), если они есть: их высоты
+            объявляют они сами (`--bottom-nav`, `--primary-fab`). У края тост закрывал бы разделы. */}
+        <RT.Viewport className="fixed bottom-4 max-md:bottom-[calc(1rem+var(--bottom-nav,0px)+var(--primary-fab,0px))] right-4 z-[100] flex w-[380px] max-w-[calc(100vw-2rem)] flex-col gap-2 outline-none" />
       </RT.Provider>
     </ToastCtx.Provider>
   );

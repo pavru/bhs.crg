@@ -16,6 +16,9 @@ import { useSyncedPreference } from '@/shared/hooks/useSyncedPreference';
 import { useMedia, WIDE } from '@/shared/hooks/useMedia';
 import { BottomNav } from '@/shared/ui/BottomNav';
 import { SectionMenuContext } from '@/shared/ui/sectionMenuContext';
+import { phoneChrome } from '@/shared/ui/phoneChrome';
+import { BrandLogo } from '@/shared/ui/Brand';
+import { useProductName } from '@/shared/api/branding';
 import { PrimaryFab } from '@/shared/ui/PrimaryFab';
 import { PrimaryFabCoverContext } from '@/shared/ui/primaryFabContext';
 import { primaryActionAt } from '@/shared/ui/paletteActions';
@@ -70,13 +73,10 @@ function Shell() {
   const panelGroups = panelSection
     ? withFavoriteSites(panelSection.id, sections.find(s => s.def.id === panelSection.id)?.groups ?? [], favoriteSites)
     : [];
-  // Телефон (issue #1434): рейла нет — разделы внизу, страницы раздела — в меню заголовка страницы.
+  // Телефон (issue #1434): рейла нет — разделы внизу, страницы раздела — в меню заголовка страницы,
+  // «Администрирование» — пункт меню профиля.
   const wide = useMedia(WIDE);
-  const sectionMenu = !wide && panelSection
-    ? { def: panelSection, groups: panelGroups, outside: panelSection.unscoped ? [] : outside }
-    : null;
-  // «Администрирование» на телефоне — пункт меню профиля (решение владельца от 17.10.2026).
-  const admin = wide ? undefined : sections.find(s => s.def.unscoped);
+  const { sectionMenu, admin } = phoneChrome({ wide, panelSection, panelGroups, outside, sections });
   // Основное действие экрана — плавающей кнопкой на телефоне; пока карточка закрывает список, её нет.
   const { data: access } = useAccess();
   const [fabCovered, setFabCovered] = useState(false);
@@ -109,8 +109,8 @@ function Shell() {
 
   return (
     // Высота — видимая область (`dvh`), а не 100vh: на телефоне 100vh выше экрана на панель браузера,
-    // и нижняя навигация уходила бы под неё (#1434).
-    <div className="flex h-dvh bg-base">
+    // и нижняя навигация уходила бы под неё (#1434). Браузеру без `dvh` остаётся 100vh, а не ничего.
+    <div className="flex h-screen supports-[height:100dvh]:h-dvh bg-base">
       {/* Рейл разделов и подпанель раздела — на рабочем столе (issue #1429). */}
       <aside data-testid="rail" data-panel={panelShown || undefined}
         className="shrink-0 hidden md:flex border-r border-stroke">
@@ -132,6 +132,7 @@ function Shell() {
             Гамбургера на телефоне нет (#1434): разделы — в нижней навигации, страницы раздела — в
             меню заголовка страницы. Цели касания там — 44 px (`max-md:h-11`). */}
         <header className="h-12 shrink-0 border-b border-stroke bg-surface flex items-center gap-1 px-2 md:px-4">
+          <PhoneBrand />
           {/* Скрытая подпанель возвращается отсюда — с края страницы, где она стояла. */}
           {panelSection && !panelShown && <span className="hidden md:inline-flex"><ShowPanelButton onShow={() => setRail('expanded')} /></span>}
           {/* Переключатель пространства — слева: это контекст экрана, а не действие (AUTH-16.1). Без
@@ -162,6 +163,22 @@ function Shell() {
         <BottomNav sections={sections} active={active} />
       </main>
     </div>
+  );
+}
+
+/**
+ * Знак экземпляра на телефоне (ТЗ CORE-25.1, #1434): рейла с логотипом там нет, и без этой кнопки
+ * оформление компании не было бы видно ни на одном экране. Название — в имени ссылки: в строку
+ * рядом с поиском и аватаром оно не помещается.
+ */
+function PhoneBrand() {
+  const productName = useProductName();
+  const guardedClick = useGuardedNavClick();
+  return (
+    <Link to="/" onClick={guardedClick('/')} aria-label={`${productName} — на главную`} data-testid="phone-brand"
+      className="md:hidden shrink-0 flex items-center justify-center w-11 h-11 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+      <BrandLogo className="w-7 h-7 text-brand" iconSize={22} />
+    </Link>
   );
 }
 

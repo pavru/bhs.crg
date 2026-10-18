@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useGuardedIntent } from './NavigationGuard';
 import { intentHref, type PaletteAction } from './paletteActions';
 
@@ -9,9 +10,16 @@ import { intentHref, type PaletteAction } from './paletteActions';
  * `usePaletteIntent`): у действия один исполнитель — с тем же вопросом о правках, той же занятостью и
  * тем же выбором файла. Экран — тот же, поэтому адрес дописывается, а не заменяется
  * (`useGuardedIntent`).
+ *
+ * Кнопка объявляет свою высоту с отступом (`--primary-fab`): тост встаёт над ней, а не на неё.
  */
 export function PrimaryFab({ action }: { action: PaletteAction }) {
   const toScreen = useGuardedIntent();
+  useEffect(() => {
+    const root = document.documentElement.style;
+    root.setProperty('--primary-fab', '4.5rem');
+    return () => { root.removeProperty('--primary-fab'); };
+  }, []);
   const Icon = action.icon;
   return (
     <button type="button" data-testid="primary-fab" onClick={() => toScreen(intentHref(action))}
