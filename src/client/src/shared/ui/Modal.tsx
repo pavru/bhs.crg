@@ -7,6 +7,7 @@ import {
   type WindowStepHost, type WindowStepSlots, type WindowStepState,
 } from './modalControl';
 import { DISMISSAL, modalState, pointAtExit } from './modalDismissal';
+import { useHistoryLayer } from './historyLayers';
 
 interface ModalBaseProps {
   open: boolean;
@@ -149,14 +150,25 @@ function ModalBody({
     askedFrom.current = null;
   }, [asking]);
 
+  /** Охраняемый выход. `true` — окно закрывается (а не спросило, не вернулось с шага, не занято). */
   function requestClose() {
-    if (rule.exit === 'dead') return;
+    if (rule.exit === 'dead') return false;
     if (rule.exit === 'ask') {
       askedFrom.current ??= document.activeElement as HTMLElement | null;
       setConfirmClose(true);
+      return false;
     }
-    else leave();
+    leave();
+    return !top;
   }
+
+  // Системная «Назад» на телефоне (issue #1418) — тот же выход, что у крестика: с шага — к форме, с
+  // вводом — вопрос. При показанном вопросе — «Продолжить редактирование», как Esc.
+  useHistoryLayer(true, () => {
+    if (!asking) return requestClose();
+    setConfirmClose(false);
+    return false;
+  });
 
   /** Показать выход — см. `pointAtExit`. */
   const showExit = (focus: boolean) => pointAtExit(content.current, focus);

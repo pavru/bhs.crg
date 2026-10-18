@@ -3,6 +3,7 @@ import { Search, Ban } from 'lucide-react';
 import { typeIcon } from './typeIcons';
 import { useMemo, useRef, useState } from 'react';
 import { Tooltip } from './Tooltip';
+import { useHistoryLayer } from './historyLayers';
 
 /**
  * Searchable-пикер типа (issue: длинный несортированный Select) — модалка в стиле командной
@@ -107,6 +108,8 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
 
 
 
+  // «Назад» на телефоне закрывает выбор, а не страницу под ним (issue #1418).
+  useHistoryLayer(true, () => { onOpenChange(false); return true; });
   function choose(t: PickType) { pushRecent(t.id); onSelect(t.id); onOpenChange(false); }
   function chooseNone() { onSelectNone?.(); onOpenChange(false); }
   /** Выход: кнопка исчезает, и фокус обязан вернуться в поиск — иначе стрелки и Enter молчат. */

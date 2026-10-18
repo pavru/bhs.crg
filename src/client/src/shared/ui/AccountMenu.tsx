@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Link, useLocation } from 'react-router';
 import { ownerItem, type RailSection } from '@/shared/ui/railSections';
@@ -13,6 +14,7 @@ import { useGuardedLeave, useGuardedNavClick } from '@/shared/ui/NavigationGuard
 import { useBugReportDialog } from '@/shared/ui/bugReportBus';
 import { THEME_OPTIONS } from '@/shared/ui/themeOptions';
 import { Tooltip } from './Tooltip';
+import { useHistoryLayer } from './historyLayers';
 
 const item = 'flex items-center gap-3.5 h-11 px-3 rounded-xl text-sm text-fg1 cursor-pointer select-none outline-none ' +
   'data-[highlighted]:bg-black/5 dark:data-[highlighted]:bg-white/10';
@@ -59,9 +61,12 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
   const here = pathname.startsWith('/profile');
   const inAdmin = !!admin && !!ownerItem(pathname, admin.groups.flatMap(g => g.items));
   const AdminIcon = admin?.def.icon;
+  // «Назад» на телефоне закрывает меню, а не страницу (issue #1418).
+  const [open, setOpen] = useState(false);
+  useHistoryLayer(open, () => { setOpen(false); return true; });
 
   return (
-    <DropdownMenu.Root>
+    <DropdownMenu.Root open={open} onOpenChange={setOpen}>
       <DropdownMenu.Trigger asChild>
         {/* На телефоне — поле вокруг аватара: цель касания 44 px, а не 36 (#1434). */}
         <button type="button" data-testid="account-menu"
