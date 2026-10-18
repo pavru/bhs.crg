@@ -42,7 +42,7 @@ const PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
 const SITE = 'Демо-стройка';
 
 const browser = await launchBrowser();
-const { check, summarize } = createChecks();
+const { check, skip, summarize } = createChecks();
 const number = `РОЛ-${Date.now().toString().slice(-6)}`;
 
 /**
@@ -175,7 +175,7 @@ async function supplierPart() {
   if (invoiceId === null) return;
 
   // Поле, дописанное администратором в тип «Счёт», рабочая роль видит и правит (issue #1482).
-  await extraFieldChecks({ browser, check, seat: supplier, invoiceId, open: id => openInvoice(supplier, id, 'счёт: дописанное поле') });
+  await extraFieldChecks({ browser, check, skip, seat: supplier, invoiceId, open: id => openInvoice(supplier, id, 'счёт: дописанное поле') });
 
   await check('supplier-opens-the-registry', async () => {
     await registryAmount(supplier);

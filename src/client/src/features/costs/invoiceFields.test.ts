@@ -91,6 +91,12 @@ describe('поля, дописанные в тип «Счёт» (issue #1482)', 
     expect(shown.map(x => x.key)).toEqual(['ЦентрЗатрат', 'Срочный', 'Договор']);
   });
 
+  it('новое поле модуля, которого форма ещё не знает, в «Дополнительно» не встаёт — его узнают по пометке', () => {
+    const { shown, unshown } = extraFields([f('РежимЦен', 'boolean', { origin: 'module' }), f('Мой', 'string', { origin: 'customer' })]);
+    expect(shown.map(x => x.key)).toEqual(['Мой']);
+    expect(unshown).toEqual([]);
+  });
+
   it('поле без поля ввода не прячется молча — названо с причиной', () => {
     const { shown, unshown } = extraFields([
       f('Акт', 'file'), f('Адрес', 'complex'), f('Код', 'string', { computed: true }), f('Дата2', 'date'),

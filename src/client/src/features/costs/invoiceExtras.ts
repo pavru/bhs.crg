@@ -14,6 +14,8 @@ export interface InvoiceExtras extends ExtraFields {
   byKey: ReadonlyMap<string, SchemaField>;
   /** Отказ чтения схемы. ⚠️ Не «полей нет»: их список сюда не доехал. */
   error: unknown;
+  /** Схема ещё читается: какие поля форма покажет, пока неизвестно (ревью PR #1506). */
+  loading: boolean;
 }
 
 export function useInvoiceExtras(typeId: string): InvoiceExtras {
@@ -25,8 +27,9 @@ export function useInvoiceExtras(typeId: string): InvoiceExtras {
       block: extraBlock(extras.shown),
       byKey: new Map(extras.shown.map(f => [f.key, f])),
       error: type.error,
+      loading: type.isPending && type.error == null,
     };
-  }, [type.data, type.error]);
+  }, [type.data, type.error, type.isPending]);
 }
 
 const ExtrasContext = createContext<ReadonlyMap<string, SchemaField>>(new Map());

@@ -164,7 +164,9 @@ export function InvoiceForm({
 
   // Поля, дописанные в тип «Счёт» (issue #1482), — блок «Дополнительно».
   const extras = useInvoiceExtras(view.documentTypeId);
-  const orphanMarks = unconfirmedOutsideBlocks(view.unconfirmed, extras.block?.fields);
+  // Пока схема читается, «форма не показывает» — неправда: поле вот-вот встанет в «Дополнительно», а «Всё
+  // верно» этой строки подтвердило бы значение, которого человек не видел (ревью PR #1506).
+  const orphanMarks = extras.loading ? [] : unconfirmedOutsideBlocks(view.unconfirmed, extras.block?.fields);
 
   // Уход из раздела с несохранёнными правками спрашивает (G4, issue #1097). Открытый счёт назван в
   // адресе, и пункт «Счета» в навигации ведёт на адрес БЕЗ счёта: форма закрылась бы вместе с

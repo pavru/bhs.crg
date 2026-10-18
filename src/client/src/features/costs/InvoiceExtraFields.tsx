@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { TriangleAlert } from 'lucide-react';
+import { TextField } from '@/shared/ui/TextField';
 import { PrimitiveInput } from '@/features/document-sets/fields/PrimitiveInput';
 import { isLockedField } from '@/features/document-sets/fields/lockedFields';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
@@ -6,6 +8,7 @@ import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import type { SchemaField } from '@/shared/api/schema';
 import { apiError } from '@/shared/utils/apiError';
 import type { InvoiceExtras } from './invoiceExtras';
+import { toNumber } from './invoiceLines';
 
 /**
  * Поля, дописанные в тип «Счёт» (issue #1482). Тип расширяемый: заказчик дописывает свои необязательные
@@ -27,20 +30,64 @@ export function ExtraField({ field, value, set, locked, hint, frame }: {
   return (
     // Флажок — по высоте поля рядом: в одной строке с полем ввода он не висит у верхнего края.
     <div className={`${frame} ${field.type === 'boolean' ? 'min-h-14 flex items-center' : ''}`}>
-      {field.typeId ? <TypedInput {...props} /> : <PrimitiveInput {...props} />}
+      {field.typeId ? <TypedInput {...props} />
+        : field.type === 'number' ? <NumberInput {...props} />
+        : <PrimitiveInput {...props} />}
     </div>
   );
 }
 
-/** Поле со своим типом (примитив, перечисление-справочник): определение читается, только когда нужно. */
-function TypedInput(props: Parameters<typeof PrimitiveInput>[0]) {
+type InputProps = Parameters<typeof PrimitiveInput>[0];
+
+/**
+ * Поле со своим типом (примитив, перечисление-справочник): определение читается, только когда нужно.
+ *
+ * Пока определения нет, поле только показывает значение и говорит почему (ревью PR #1506): без него
+ * перечисление объявило бы «Нет вариантов — добавьте их в схеме», а примитив-дата стал бы простым
+ * текстом, и набранное сервер отверг бы при сохранении.
+ */
+function TypedInput(props: InputProps) {
   const primitives = useListPrimitiveTypes();
   const enums = useListEnumTypes();
+  const enumField = props.field.type === 'enum';
+  const query = enumField ? enums : primitives;
   const id = props.field.typeId;
+  const primitiveTypeDef = enumField ? undefined : primitives.data?.find(t => t.id === id);
+  const enumTypeDef = enumField ? enums.data?.find(t => t.id === id) : undefined;
+  if (primitiveTypeDef || enumTypeDef)
+    return <PrimitiveInput {...props} primitiveTypeDef={primitiveTypeDef} enumTypeDef={enumTypeDef} />;
+  const why = query.isPending && query.error == null ? 'Тип поля загружается…'
+    : query.error != null ? `Тип поля не прочитан: ${apiError(query.error, 'сервер отказал')}`
+    : 'Тип поля не найден — значение только читается';
+  return <PrimitiveInput {...props} field={{ ...props.field, type: 'string' }} readOnly hint={why} />;
+}
+
+const shownNumber = (value: unknown) =>
+  typeof value === 'number' ? String(value).replace('.', ',') : value == null ? '' : String(value);
+
+/**
+ * Число — с запятой и пробелами, как суммы шапки (ревью PR #1506): `type="number"` браузера с чужой
+ * локалью считает «1 234,50» недопустимым и молча отдаёт пустоту. Уезжает числом — сервер сверяет вид
+ * значения поля; не число уезжает как набрано, и отказ сервера назовёт поле.
+ */
+function NumberInput({ field, value, onChange, readOnly, label, hint }: InputProps) {
+  const [text, setText] = useState(() => shownNumber(value));
+  // Значение сменили не здесь (перечитали счёт, «Взять») — показать его. Своё набранное не трогаем:
+  // «1,» уже значит 1, и переписанный текст сдвинул бы курсор.
+  const [seen, setSeen] = useState(value);
+  if (seen !== value) {
+    setSeen(value);
+    if (value !== text && !(typeof value === 'number' && toNumber(text) === value)) setText(shownNumber(value));
+  }
+  const invalid = text.trim() !== '' && toNumber(text) === null;
   return (
-    <PrimitiveInput {...props}
-      primitiveTypeDef={props.field.type === 'primitive' ? primitives.data?.find(t => t.id === id) : undefined}
-      enumTypeDef={props.field.type === 'enum' ? enums.data?.find(t => t.id === id) : undefined} />
+    <TextField label={label ?? field.title} required={readOnly ? undefined : field.required} readOnly={readOnly}
+      hint={invalid ? 'Не число' : hint} invalid={invalid} inputMode="decimal" value={text}
+      onChange={e => {
+        const typed = e.target.value;
+        setText(typed);
+        onChange(typed.trim() === '' ? null : toNumber(typed) ?? typed);
+      }} />
   );
 }
 

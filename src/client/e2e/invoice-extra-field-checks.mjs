@@ -33,7 +33,7 @@ async function placeField(admin, present) {
 /**
  * @param seat снабженец: `{ page }` с открытым модулем; `open(id)` открывает счёт.
  */
-export async function extraFieldChecks({ browser, check, seat, invoiceId, open }) {
+export async function extraFieldChecks({ browser, check, skip, seat, invoiceId, open }) {
   const context = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
   const admin = await context.newPage();
   try {
@@ -41,9 +41,12 @@ export async function extraFieldChecks({ browser, check, seat, invoiceId, open }
     const page = seat.page;
     const section = () => page.locator('section').filter({ has: page.getByRole('heading', { name: 'Дополнительно', exact: true }) });
 
-    await check('invoice-without-extra-fields-has-no-extra-block', async () => {
-      const clean = await placeField(admin, false);
-      if (!clean) return;   // на стенде заказчик уже дописал поля — сравнивать «как раньше» не с чем
+    let clean = false;
+    await check('invoice-type-schema-is-editable', async () => { clean = await placeField(admin, false); });
+    // Заказчик уже дописал поля — сравнивать «как раньше» не с чем. Пропуск ЗАЯВЛЕН, а не зелёная галка
+    // без проверки (ревью PR #1506).
+    if (!clean) skip('invoice-without-extra-fields-has-no-extra-block', 'в типе «Счёт» уже есть поля заказчика');
+    else await check('invoice-without-extra-fields-has-no-extra-block', async () => {
       await open(invoiceId);
       if (await section().count()) throw new Error('блок «Дополнительно» есть у счёта, хотя в тип ничего не дописано');
     });
