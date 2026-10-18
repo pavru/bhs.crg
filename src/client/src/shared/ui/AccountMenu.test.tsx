@@ -5,6 +5,7 @@ import { MemoryRouter, useLocation } from 'react-router';
 import { AccountMenu } from './AccountMenu';
 import { useLeaveGuard } from './NavigationGuard';
 import { NavigationGuardProvider } from './NavigationGuardProvider';
+import { railDef, type RailSection } from './railSections';
 
 /**
  * Меню профиля в шапке (issue #1430): только своё — профиль, оформление, сообщение о проблеме, выход,
@@ -37,13 +38,20 @@ function Page({ dirty, asked }: { dirty: boolean; asked: (proceed: () => void) =
   return <output aria-label="адрес">{useLocation().pathname}</output>;
 }
 
-function shown(dirty = false, at = '/invoices') {
+/** Раздел «Система» так, как его отдаёт оболочка телефона (issue #1434). */
+const system: RailSection = {
+  def: railDef('system'),
+  groups: [{ items: [{ to: '/users', label: 'Пользователи', icon: railDef('system').icon, rail: 'system' }] }],
+  home: '/users',
+};
+
+function shown(dirty = false, at = '/invoices', admin?: RailSection) {
   const asked = vi.fn<(proceed: () => void) => void>();
   render(
     <MemoryRouter initialEntries={[at]}>
       <NavigationGuardProvider>
         <Page dirty={dirty} asked={asked} />
-        <AccountMenu />
+        <AccountMenu admin={admin} />
       </NavigationGuardProvider>
     </MemoryRouter>,
   );
@@ -126,6 +134,24 @@ describe('меню профиля', () => {
     open();
     fireEvent.click(screen.getByRole('menuitem', { name: 'Профиль и пароль' }));
     expect(screen.getByLabelText('адрес').textContent).toBe('/profile');
+  });
+
+  /** Телефон (issue #1434): рейла нет, и администрирование — пункт этого меню, отдельно от личных. */
+  it('на телефоне «Администрирование» — отдельным блоком перед выходом и ведёт в раздел', () => {
+    shown(false, '/invoices', system);
+    open();
+    expect(screen.getAllByRole('menuitem').map(i => i.textContent)).toEqual(
+      ['Профиль и пароль', 'Сообщить о проблеме', 'Администрирование', 'Выйти']);
+    const item = screen.getByRole('menuitem', { name: 'Администрирование' });
+    // Черта отделяет пункт от личных.
+    expect(item.parentElement?.previousElementSibling?.getAttribute('role')).toBe('separator');
+    fireEvent.click(item);
+    expect(screen.getByLabelText('адрес').textContent).toBe('/users');
+  });
+
+  it('на странице администрирования аватар показывает «вы здесь»', () => {
+    shown(false, '/users', system);
+    expect(avatar().className).toContain('ring-brand');
   });
 
   it('выход при несохранённых правках ждёт страницу', () => {
