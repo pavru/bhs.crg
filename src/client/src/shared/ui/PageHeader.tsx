@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, LayoutList } from 'lucide-react';
 import { IconButton } from './Button';
 import { SectionMenu } from './SectionMenu';
 import { useSectionMenu } from './sectionMenuContext';
@@ -29,7 +29,7 @@ import { Tooltip } from './Tooltip';
  *
  * На телефоне (issue #1434) заголовок — дверь к соседним страницам раздела: подпанели там нет, и
  * «Счета на оплату ▾» раскрывает меню раздела, а над заголовком стоит имя раздела. Заголовок-контрол
- * (выбор представления) своё нажатие уже занял — меню раздела тогда открывает кнопка «▾» рядом.
+ * (выбор представления) своё нажатие уже занял — меню раздела тогда открывает кнопка рядом.
  */
 export interface PageHeaderProps {
   title: ReactNode;
@@ -80,8 +80,10 @@ export function PageHeader({ title, subtitle, icon, badge, breadcrumb, actions, 
             {heading}
             {section && !plain && (
               <SectionMenu value={section}>
+                {/* Свой значок: у заголовка-контрола уже есть «▾», и второй такой же рядом читался бы
+                    повтором той же стрелки (ревью PR #1488). */}
                 <IconButton label={`Другие страницы раздела «${section.def.title}»`} size="lg" className="min-h-11 min-w-11" data-testid="section-menu-trigger">
-                  <ChevronDown size={20} />
+                  <LayoutList size={20} />
                 </IconButton>
               </SectionMenu>
             )}

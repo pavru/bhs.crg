@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router';
-import { CalendarClock, FileText, Link2, Plus, ScanLine, Tags } from 'lucide-react';
+import { CalendarClock, FileText, Link2, Plus, Tags } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
@@ -14,6 +14,7 @@ import { useOpenRecord } from './openRecord';
 import { RereadFailedNotice } from '@/shared/ui/RereadFailedNotice';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { PALETTE_ACTIONS } from '@/shared/ui/paletteActions';
+import { PrimaryActionButton } from '@/shared/ui/PrimaryActionButton';
 import { usePaletteIntent } from '@/shared/ui/usePaletteIntent';
 import { apiError } from '@/shared/utils/apiError';
 import {
@@ -356,11 +357,10 @@ export function InvoicesPage() {
               <Button variant="outlined" icon={<Plus size={16} />} loading={create.isPending} onClick={addDraft}>
                 Новый счёт
               </Button>
-              <Button variant="filled" icon={<ScanLine size={16} />} loading={loading}
+              {/* На телефоне это действие — плавающая кнопка (#1434): кнопка сама там прячется. */}
+              <PrimaryActionButton action={PALETTE_ACTIONS.invoiceScan} loading={loading}
                 title={`Один или несколько файлов${readable.length ? `: ${wordsOf(readable)}` : ''}. Файлы можно перетащить на список счетов.`}
-                onClick={() => scanInput.current?.click()}>
-                Счёт из файла
-              </Button>
+                onClick={() => scanInput.current?.click()} />
               {/* Только то, что распознаётся: файл другого вида сервер отверг бы, и выбор его здесь
                   был бы дверью в отказ. */}
               <input ref={scanInput} type="file" multiple className="hidden" accept={acceptOf(readable) || undefined}

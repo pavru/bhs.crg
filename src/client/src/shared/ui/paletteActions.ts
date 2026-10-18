@@ -28,6 +28,12 @@ export interface PaletteAction {
   to: string;
   /** Право кнопки на экране — то самое, которым экран её показывает. */
   permission: string;
+  /**
+   * Основное действие экрана — его filled-кнопка (правило `Button`: такая на экране одна). На
+   * телефоне оно встаёт плавающей кнопкой (`PrimaryFab`, issue #1434), а кнопка в шапке экрана там
+   * прячется. У экрана основное действие одно — сверяет `paletteActions.test.ts`.
+   */
+  primary?: true;
 }
 
 export const INTENT_PARAM = 'do';
@@ -39,15 +45,16 @@ export const PALETTE_ACTIONS = {
   },
   invoiceScan: {
     id: 'invoice-scan', label: 'Счёт из файла', words: 'загрузить скан pdf распознать файлы счета',
-    icon: ScanLine, to: '/invoices', permission: 'costs.invoice.edit',
+    // Основное — «из скана» (решение владельца от 08.10.2026): счёт приезжает бумагой.
+    icon: ScanLine, to: '/invoices', permission: 'costs.invoice.edit', primary: true,
   },
   waybillNew: {
     id: 'waybill-new', label: 'Новая накладная', words: 'создать завести расходную накладные',
-    icon: Truck, to: '/waybills', permission: 'costs.waybill.edit',
+    icon: Truck, to: '/waybills', permission: 'costs.waybill.edit', primary: true,
   },
   constructionNew: {
     id: 'construction-new', label: 'Новая стройка', words: 'создать завести объект стройки',
-    icon: Building2, to: '/document-sets', permission: 'core.constructions.edit',
+    icon: Building2, to: '/document-sets', permission: 'core.constructions.edit', primary: true,
   },
 } as const satisfies Record<string, PaletteAction>;
 
@@ -66,4 +73,12 @@ export function availableActions(access: AccessInfo): PaletteAction[] {
     const screen = workNav.find(n => n.to === a.to);
     return screen !== undefined && allowed(screen, access) && hasPermission(access, a.permission);
   });
+}
+
+/**
+ * Основное действие экрана по адресу — для плавающей кнопки телефона (issue #1434). Только на самом
+ * экране действия: в карточке под ним (`/document-sets/<id>`) у экрана свои кнопки.
+ */
+export function primaryActionAt(pathname: string, access: AccessInfo): PaletteAction | undefined {
+  return availableActions(access).find(a => a.primary && a.to === pathname);
 }

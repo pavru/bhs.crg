@@ -14,6 +14,7 @@ import { useListConstructions, useCreateConstruction, useRenameConstruction, use
 import { useSearchDocuments } from '@/shared/api/documentSets';
 import { useCan } from '@/shared/api/access';
 import { PALETTE_ACTIONS } from '@/shared/ui/paletteActions';
+import { PrimaryActionButton } from '@/shared/ui/PrimaryActionButton';
 import { usePaletteIntent } from '@/shared/ui/usePaletteIntent';
 import { useIdIndicators } from './useIdIndicators';
 import { HiddenByWorkspace } from '@/shared/ui/WorkspaceNav';
@@ -157,11 +158,11 @@ export function ConstructionsList() {
   }
 
   return (
-    <div className="px-6 py-4">
+    // Под концом списка — место для плавающей кнопки, пока она есть (#1434, `--fab-clearance`).
+    <div className="px-6 pt-4 pb-[calc(1rem+var(--fab-clearance,0px))]">
+      {/* На телефоне «Новая стройка» — плавающей кнопкой (#1434), и здесь, и в пустом состоянии. */}
       <PageHeader title="Стройки" className="mb-4" actions={canEdit && (
-        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
-          Новая стройка
-        </Button>
+        <PrimaryActionButton action={PALETTE_ACTIONS.constructionNew} icon={<Plus size={16} />} onClick={() => setCreateOpen(true)} />
       )} />
 
       {idOn ? <DocumentSearchPanel /> : <HiddenByWorkspace module="id" what="Поиск документов и комплекты строек" />}
@@ -173,7 +174,8 @@ export function ConstructionsList() {
       ) : constructions.length === 0 ? (
         <EmptyState icon={<Building2 size={30} />} title="Пока нет строек"
           description="Создайте первую стройку, чтобы начать вести исполнительную документацию по её разделам и комплектам."
-          action={canEdit ? <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>Новая стройка</Button> : undefined} />
+          action={canEdit ? <PrimaryActionButton action={PALETTE_ACTIONS.constructionNew} icon={<Plus size={16} />}
+            onClick={() => setCreateOpen(true)} /> : undefined} />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {shown.map(c => {
