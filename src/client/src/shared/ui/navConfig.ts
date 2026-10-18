@@ -1,4 +1,4 @@
-import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Scale, Bug, History, ReceiptText, Table2, Truck, CalendarCheck, ChartNoAxesColumn, Link2, Building2, Calculator, Wrench } from 'lucide-react';
+import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Printer, Scale, Bug, History, ReceiptText, Table2, Truck, CalendarCheck, ChartNoAxesColumn, Link2, Building2, Calculator, Wrench } from 'lucide-react';
 
 /**
  * Пункты навигации — общий источник для сайдбара (AppShell) и командной палитры (Ctrl+K).
@@ -144,6 +144,7 @@ export const settingsNav: NavItem[] = [
   // (тэг типа, тэг поля) адресом редактора. Право на настройку системы его не открывает.
   { to: '/field-mapping',        label: 'Сопоставление полей',   icon: Link2,    permission: 'core.types.edit', rail: 'system', group: DOCS },
   { to: '/recognition-profiles', label: 'Профили распознавания', icon: ScanText, permission: 'core.recognition.settings', rail: 'system', group: DOCS },
+  { to: '/print-profiles',       label: 'Профили печати',        icon: Printer,  permission: 'core.system.manage', rail: 'system', group: DOCS },
   { to: '/users',                label: 'Пользователи',          icon: Users,    permission: 'core.users.manage', rail: 'system', group: PEOPLE },
   { to: '/roles',                label: 'Роли и права',          icon: ShieldCheck, permission: 'core.users.manage', rail: 'system', group: PEOPLE },
   { to: '/activity',             label: 'Журнал действий',       icon: History,  permission: 'core.audit.read', rail: 'system', group: WATCH },

@@ -26,6 +26,7 @@ const SECTION_TITLES: Record<string, string> = {
   'field-mapping': 'Сопоставление полей',
   'users': 'Пользователи',
   'recognition-profiles': 'Профили распознавания',
+  'print-profiles': 'Профили печати',
   'bug-reports': 'Сообщения об ошибках',
   'settings': 'Параметры системы',
   'profile': 'Профиль',
