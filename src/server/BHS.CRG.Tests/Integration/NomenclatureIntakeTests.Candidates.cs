@@ -102,6 +102,45 @@ public partial class NomenclatureIntakeTests
         Assert.Empty(await CandidatesAsync());
     }
 
+    /// <summary>
+    /// Запись вида без ключа идентичности — у корня «Номенклатуры» этого хоста схема пуста — сверяется
+    /// названием, а найденная альтернативным именем называет его: поиск в том же окне её находит, и подбор,
+    /// молча её пропустивший, говорил бы «подходящих нет». Проверено поломкой: без чтения таких записей
+    /// ответ пуст.
+    /// </summary>
+    [Fact]
+    public async Task Запись_вида_без_ключа_находится_названием_и_альтернативным_именем()
+    {
+        var root = await TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура");
+        var mark = Guid.NewGuid().ToString("N")[..6];
+        var bare = await EntryAsync(root, $"Муфта {mark} термоусаживаемая", $"ТУМ-{mark} концевая");
+
+        var answers = await CandidatesAsync(
+            new ModuleLineWords($"Муфта {mark} термоусаживаемая", null), new($"тум-{mark} концевая", null));
+
+        var byName = Assert.Single(answers[0].Items, h => h.Ref.Id == bare);
+        Assert.Equal("то же наименование", byName.Why[0]);
+        Assert.Null(byName.Ref.MatchedAlias);
+
+        var byAlias = Assert.Single(answers[1].Items, h => h.Ref.Id == bare);
+        Assert.Equal("так названа альтернативным именем", byAlias.Why[0]);
+        Assert.Equal($"ТУМ-{mark} концевая", byAlias.Ref.MatchedAlias);
+    }
+
+    [Fact]
+    public async Task Неназначенный_справочник_ноль_а_предел_меньше_одного_отказ()
+    {
+        // Роль не несёт ни один тип — «справочник не назначен», а не «подходящих нет».
+        var unassigned = new TestDirectory();
+        using var scope = host.Services.CreateScope();
+        Assert.Null(await unassigned.Port(scope.ServiceProvider)
+            .SimilarAsync(unassigned.Role, [new("Что-то", null)], 5));
+
+        var port = scope.ServiceProvider.GetRequiredService<IModuleCatalog>();
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            port.SimilarAsync(CostsDirectories.Nomenclature, [new("Что-то", null)], 0));
+    }
+
     private Task<IReadOnlyList<ModuleLineCandidates>> CandidatesAsync(params ModuleLineWords[] lines) =>
         CandidatesUpToAsync(10, lines);
 

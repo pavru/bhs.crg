@@ -35,7 +35,6 @@ public sealed class ModuleCatalogPort(
     IMediator mediator, IRepository<DocumentType> types, ModuleNeeds needs, TagCatalog tags,
     ISimilarityRecordsLoader similarity) : IModuleCatalog
 {
-
     public async Task<IReadOnlyList<ModuleCatalogEntry>?> ListAsync(
         string role, RecordsFor purpose, CancellationToken ct = default)
     {
@@ -125,6 +124,9 @@ public sealed class ModuleCatalogPort(
     public async Task<IReadOnlyList<ModuleLineCandidates>?> SimilarAsync(
         string role, IReadOnlyList<ModuleLineWords> lines, int limit, CancellationToken ct = default)
     {
+        // Предел ноль — дефект вызывающего: ответ «кандидатов больше» без единого кандидата ничего не
+        // значит, и модуль показал бы «есть ещё» над пустым списком.
+        ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
         // Как у названий: спрашивать нечего — и справочник выяснять незачем, но объявлена ли роль,
         // проверяем и тут.
         needs.EnsureDeclared(role);
@@ -135,19 +137,23 @@ public sealed class ModuleCatalogPort(
         if (resolved.Root is null) return null;
         var codes = resolved.Family;
 
-        // Записи — один раз на все строки; ключ у каждой — её собственного вида (`identity: null`).
+        // Записи — один раз на все строки; ключ у каждой — её собственного вида
+        // (`identity: null`).
+        // ⚠️ Поля ключа читаются по тэгу «Идентификатор», а не по тэгу поля роли из Needs: ключ — понятие
+        // ядра (его же сверяет шаг «Новая позиция», им же называется запись), и роль им не владеет. Снятый
+        // с поля тэг ключа делает подбор беднее, но не ложным: запись сверяется названием.
         var lying = await similarity.LoadAsync(all, [.. all.Values.Where(t => codes.ContainsKey(t.Id))], null, ct);
         return [.. lines.Select(line =>
         {
             // Всех: действующих отсекает предел порта, архивные идут числом.
             var hits = NomenclatureSimilarity.ForLine(
-                new(line.Name, line.Code), lying.Records, lying.Titles, lying.Unreadable, int.MaxValue).Hits;
+                new(line.Name, line.Code), lying.Records, lying.Titles, limit: int.MaxValue).Hits;
             var live = hits.Where(h => !h.Record.Archived).ToList();
             return new ModuleLineCandidates(
                 [.. live.Take(limit).Select(h => new ModuleLineCandidate(
                     new ModuleCatalogRef(
                         h.Record.Id, codes.TryGetValue(h.Record.TypeId, out var code) ? code : string.Empty,
-                        h.Record.Name, Archived: false),
+                        h.Record.Name, Archived: false, MatchedAlias: h.Matched.Alias),
                     h.Why, h.Strong,
                     new ModuleLineMatched(
                         [.. h.Matched.Words.Select(w => new ModuleLineWord(w.Text, w.Start, w.Found))], h.Matched.Field)))],

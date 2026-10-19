@@ -41,6 +41,17 @@ public sealed class SimilarityRecordsLoader(AppDbContext db, ISender mediator) :
                 if (value.Unreadable) unreadable.Add(value.Record.Id);
             }
 
+        // Вид без ключа идентичности (бывает у корня семейства): спросить у его записей нечего, но сами
+        // они — позиции справочника, и поиск в том же окне их находит. Сверяются названием записи —
+        // так же, как запись с пустым полем названия.
+        var keyless = keys.Where(k => k.Value.Count == 0).Select(k => k.Key).ToList();
+        if (keyless.Count > 0)
+            foreach (var bare in await db.DomainObjects.AsNoTracking()
+                         .Where(o => o.Facet == null && keyless.Contains(o.CompositeTypeId))
+                         .Select(o => new CommonDataRef(o.Id, o.CompositeTypeId, o.DisplayName, o.ArchivedAt != null, null))
+                         .ToListAsync(ct))
+                values.TryAdd(bare.Id, (bare, new(StringComparer.Ordinal)));
+
         var ownKey = await OwnKeyAsync(own, keys, unreadable, ct);
         var aliases = await AliasesAsync([.. family.Select(t => t.Id)], ct);
 

@@ -31,7 +31,8 @@ public interface ISimilarityRecordsLoader
     /// это ключ выбранного вида, и запись подтипа, у которой заполнены свои поля ключа сверх него,
     /// помечена <see cref="SimilarRecord.OwnKey" />. <c>null</c> — у каждой записи ключ её СОБСТВЕННОГО
     /// вида: у строки бумаги вида нет, и сравнивать запись есть с чем только по её ключу. Запись вида без
-    /// ключа идентичности тогда не сверяется вовсе — назвать её полем нечем, как нечем и завести.</param>
+    /// ключа идентичности тогда сверяется названием записи: поиск в том же окне её находит, и подбор,
+    /// молча её пропустивший, говорил бы «подходящих нет» о лежащей позиции.</param>
     Task<SimilarityRecords> LoadAsync(
         IReadOnlyDictionary<Guid, DocumentType> all, IReadOnlyList<DocumentType> family,
         IReadOnlyList<string>? identity, CancellationToken ct = default);

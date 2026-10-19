@@ -194,6 +194,8 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Infrastructure/Documents/SimilarityRecordsLoader.cs|await db.DomainObjects.AsNoTracking()"] =
             Seen("альтернативные имена записей для сверки похожих и подбора для строки бумаги: архивная позиция — " +
                  "тоже двойник, а подбор называет архивных числом"),
+        ["BHS.CRG.Infrastructure/Documents/SimilarityRecordsLoader.cs|foreach (var bare in await db.DomainObjects.AsNoTracking()"] =
+            Seen("записи вида без ключа идентичности для подбора по названию: архивная идёт числом, а не выбором"),
         ["BHS.CRG.Infrastructure/Documents/NomenclatureIntakeService.cs|var found = await db.DomainObjects.AsNoTracking()"] =
             Choice("записи на выбор в поле-ссылке новой позиции номенклатуры (единица измерения): архивной в выборе " +
                    "нет, и присланная мимо окна отвергается",
