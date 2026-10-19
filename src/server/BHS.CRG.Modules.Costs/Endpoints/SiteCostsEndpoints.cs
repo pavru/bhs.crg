@@ -245,7 +245,7 @@ public static class SiteCostsEndpoints
         var lines = await db.InvoiceLines.AsNoTracking().Where(l => owners.Contains(l.InvoiceId))
             .Select(l => new { l.Id, l.InvoiceId, l.Amount, l.VatAmount, l.NomenclatureId }).ToListAsync(ct);
         var unmatched = lines.Where(l => l.NomenclatureId is null).Select(l => l.InvoiceId).ToHashSet();
-        var vatByLines = lines.Where(l => l.VatAmount is not null).Select(l => l.InvoiceId).ToHashSet();
+        var vatByLines = lines.Where(l => LineVat.Named(l.VatAmount)).Select(l => l.InvoiceId).ToHashSet();
 
         return (
             [.. heads.Select(h => new CostInvoice(h.Id, h.SupplierId, h.Total, h.VatTotal, unmatched.Contains(h.Id), vatByLines.Contains(h.Id),

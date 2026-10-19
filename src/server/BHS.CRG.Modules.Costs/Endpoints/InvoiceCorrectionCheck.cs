@@ -17,13 +17,16 @@ internal readonly record struct CorrectionGap(Guid? Line, string Kind);
 /// <list type="bullet">
 /// <item><b>Сумма:</b> <c>|расхождение после| ≤ max(допуск, |расхождение до|)</c>.</item>
 /// <item><b>Пробелы</b> (потерянная ссылка, неразнесённая строка, строка без цены или без ставки при НДС
-/// сверху) — парой (строка, вид):
+/// сверху) — парой (строка, вид); у разобранного строки без НДС среди строк с НДС — их числом:
 /// отказ только на пару, которой до исправления не было. Строку узнаём по идентификатору: номер строки
 /// исправление вправе сдвинуть.</item>
 /// </list>
 /// </summary>
 internal static class InvoiceCorrectionCheck
 {
+    /// <summary>Пробел «строка без НДС среди строк с НДС» — по счёту, с порядковым номером: «vat#2».</summary>
+    private const string VatKey = "vat#";
+
     /// <summary>Пробелы готовности счёта — по снимку, из которого собирается и ответ чтения.</summary>
     public static IReadOnlySet<CorrectionGap> Gaps(Invoice invoice, InvoiceSnapshot seen)
     {
@@ -47,6 +50,15 @@ internal static class InvoiceCorrectionCheck
             foreach (var field in InvoiceRequisites.MissingFields(invoice))
                 gaps.Add(new CorrectionGap(null, "field:" + field.Key));
             if (seen.Lines.Count == 0) gaps.Add(new CorrectionGap(null, "lines"));
+
+            // НДС у части строк (issue #1445) держит «разобран» так же, но меряется ЧИСЛОМ строк без НДС, а
+            // не парой (строка, вид): пара отказывала бы исправлению, которое частичный НДС не ухудшило, —
+            // перенесло его на соседнюю строку или пересоздало молчащую строку с новым идентификатором.
+            // Ключи «vat#1…vat#N» новые только тогда, когда таких строк стало больше: прежний частичный НДС
+            // оставить можно, прибавить строк без НДС — нельзя. Режим — тот, что у счёта сейчас: «до» звучит
+            // до смены режима, «после» — после.
+            var unnamed = InvoiceReadiness.VatUnnamed(invoice.VatMode, seen.Lines).Count;
+            for (var i = 1; i <= unnamed; i++) gaps.Add(new CorrectionGap(null, VatKey + i));
         }
 
         foreach (var line in seen.Lines)
@@ -105,11 +117,23 @@ internal static class InvoiceCorrectionCheck
             problems.Add($"счёт без строк разнесён не полностью: не разнесено {Math.Abs(open):0.00}, а до " +
                 $"исправления — {left:0.00}");
 
+        var fresh = Gaps(invoice, seen).Except(wasGaps).ToList();
+
+        // Строк без НДС стало больше (issue #1445) — один пункт на счёт, а не по строке: какие именно
+        // строки молчат, называет нынешний перечень.
+        if (fresh.RemoveAll(g => g.Kind.StartsWith(VatKey, StringComparison.Ordinal)) > 0)
+        {
+            var unnamed = InvoiceReadiness.VatUnnamed(invoice.VatMode, seen.Lines);
+            var silentWas = wasGaps.Count(g => g.Kind.StartsWith(VatKey, StringComparison.Ordinal));
+            problems.Add($"НДС указан не у всех строк — его нет у {InvoiceReadiness.Genitive(unnamed)}" +
+                (silentWas == 0 ? ", а до исправления он был у всех или ни у одной" : $", а до исправления строк без НДС было {silentWas}"));
+        }
+
         var ordinals = seen.Lines.ToDictionary(l => l.Id, l => l.Ordinal);
-        var fresh = Gaps(invoice, seen).Except(wasGaps)
+        var words = fresh
             .OrderBy(g => g.Line is { } id ? ordinals.GetValueOrDefault(id) : 0).ThenBy(g => g.Kind)
             .Select(g => Words(g, g.Line is { } id ? ordinals.GetValueOrDefault(id) : 0));
-        problems.AddRange(fresh);
+        problems.AddRange(words);
 
         if (problems.Count > 0)
             throw new InvalidRequestException(
