@@ -32,8 +32,10 @@ namespace BHS.CRG.Api.Modules.Ports;
 /// «сопоставлено» про справочник, который порт не видит.</para>
 /// </summary>
 public sealed class ModuleCatalogPort(
-    IMediator mediator, IRepository<DocumentType> types, ModuleNeeds needs, TagCatalog tags) : IModuleCatalog
+    IMediator mediator, IRepository<DocumentType> types, ModuleNeeds needs, TagCatalog tags,
+    ISimilarityRecordsLoader similarity) : IModuleCatalog
 {
+
     public async Task<IReadOnlyList<ModuleCatalogEntry>?> ListAsync(
         string role, RecordsFor purpose, CancellationToken ct = default)
     {
@@ -118,6 +120,39 @@ public sealed class ModuleCatalogPort(
                         v.Record.DisplayName, v.Record.Archived),
                     v.Value, v.InheritedFrom, v.Unreadable))
                 .OrderBy(v => v.Record.DisplayName, StringComparer.CurrentCulture)]);
+    }
+
+    public async Task<IReadOnlyList<ModuleLineCandidates>?> SimilarAsync(
+        string role, IReadOnlyList<ModuleLineWords> lines, int limit, CancellationToken ct = default)
+    {
+        // Как у названий: спрашивать нечего — и справочник выяснять незачем, но объявлена ли роль,
+        // проверяем и тут.
+        needs.EnsureDeclared(role);
+        if (lines.Count == 0) return [];
+
+        var all = (await types.GetAllAsync(ct)).ToDictionary(t => t.Id);
+        var resolved = RoleResolution.Role(role, [.. all.Values]);
+        if (resolved.Root is null) return null;
+        var codes = resolved.Family;
+
+        // Записи — один раз на все строки; ключ у каждой — её собственного вида (`identity: null`).
+        var lying = await similarity.LoadAsync(all, [.. all.Values.Where(t => codes.ContainsKey(t.Id))], null, ct);
+        return [.. lines.Select(line =>
+        {
+            // Всех: действующих отсекает предел порта, архивные идут числом.
+            var hits = NomenclatureSimilarity.ForLine(
+                new(line.Name, line.Code), lying.Records, lying.Titles, lying.Unreadable, int.MaxValue).Hits;
+            var live = hits.Where(h => !h.Record.Archived).ToList();
+            return new ModuleLineCandidates(
+                [.. live.Take(limit).Select(h => new ModuleLineCandidate(
+                    new ModuleCatalogRef(
+                        h.Record.Id, codes.TryGetValue(h.Record.TypeId, out var code) ? code : string.Empty,
+                        h.Record.Name, Archived: false),
+                    h.Why, h.Strong,
+                    new ModuleLineMatched(
+                        [.. h.Matched.Words.Select(w => new ModuleLineWord(w.Text, w.Start, w.Found))], h.Matched.Field)))],
+                live.Count > limit, hits.Count - live.Count, lying.Unreadable);
+        })];
     }
 
     /// <summary>

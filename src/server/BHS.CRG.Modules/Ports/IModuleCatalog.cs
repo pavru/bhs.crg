@@ -222,4 +222,24 @@ public interface IModuleCatalog
     /// </summary>
     Task<ModuleCatalogFieldValues?> FieldValuesAsync(
         string role, string fieldTag, RecordsFor purpose, CancellationToken ct = default);
+
+    /// <summary>
+    /// Кандидаты справочника для строк бумаги (issue #1514, эпик #1511): позиция номенклатуры для строки
+    /// счёта — по артикулу, тому же наименованию, названию позиции целиком в строке, большинству слов.
+    ///
+    /// <para><b>Строк — список сразу:</b> записи справочника читаются один раз, подбор крутится в памяти на
+    /// каждую строку. Ответ — по ответу на строку, в том же порядке.</para>
+    ///
+    /// <para>Ответы те же три, что у <see cref="ListAsync" />: <c>null</c> — роль не обеспечена.</para>
+    ///
+    /// <para>Каждая запись сверяется по полям ключа СВОЕГО вида: вида у строки нет. Причины — словами
+    /// ядра. Архивные в кандидатах не стоят, их число — <see cref="ModuleLineCandidates.InArchive" />.
+    /// Кэша нет: позиция, заведённая только что, — в кандидатах при следующем вопросе.</para>
+    ///
+    /// <para>⚠️ Цена — чтение полей ключа ВСЕХ записей справочника: спрашивают при открытии окна, а не на
+    /// каждую букву.</para>
+    /// </summary>
+    /// <param name="limit">Сколько действующих кандидатов отдать на строку.</param>
+    Task<IReadOnlyList<ModuleLineCandidates>?> SimilarAsync(
+        string role, IReadOnlyList<ModuleLineWords> lines, int limit, CancellationToken ct = default);
 }

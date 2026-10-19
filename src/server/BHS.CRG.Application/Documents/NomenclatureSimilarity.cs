@@ -212,9 +212,11 @@ public static class NomenclatureSimilarity
     /// </summary>
     /// <param name="titles">Заголовки полей ключа по виду записи, в порядке ключа, — для причины
     /// «совпадает артикул «…»». Вида нет в словаре — «поле ключа».</param>
+    /// <param name="limit">Сколько кандидатов показать. Порт модулей берёт всех: действующих он показывает
+    /// своим пределом, а архивных — числом.</param>
     public static LineAnswer ForLine(
         LineQuestion line, IReadOnlyList<SimilarRecord> records,
-        IReadOnlyDictionary<Guid, IReadOnlyList<string>> titles, int unreadable = 0)
+        IReadOnlyDictionary<Guid, IReadOnlyList<string>> titles, int unreadable = 0, int limit = Limit)
     {
         var name = MatchKeyNormalizer.Normalize(line.Name);
         var code = MatchKeyNormalizer.Normalize(line.Code);
@@ -309,7 +311,7 @@ public static class NomenclatureSimilarity
             .Select(h => new LineHit(h.Record, h.Why, h.Sure && sureOnes == 1, h.Matched))
             .ToList();
 
-        return new([.. ordered.Take(Limit)], ordered.Count > Limit, unreadable);
+        return new([.. ordered.Take(limit)], ordered.Count > limit, unreadable);
     }
 
     private const int ByCode = 3, ByName = 2, ByWords = 1;
