@@ -1,15 +1,16 @@
-import { useState, useRef, useLayoutEffect } from 'react';
+import { useState, useRef, useLayoutEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import type { DatePrecision } from '@/shared/api/types';
-import {
-  MONTHS_RU, MONTHS_RU_SHORT, WEEKDAYS_RU, parseISO, toISO, daysInMonth, monthMatrix,
-} from '@/shared/utils/date';
+import { parseISO, toISO, daysInMonth, monthMatrix, dayInWeek } from '@/shared/utils/date';
+import { firstDayOfWeek, monthNames, weekdayNames } from '@/shared/format/dateMask';
+import { resolveLocale, useLocale } from '@/shared/hooks/useLocale';
 import { Tooltip } from './Tooltip';
 
 /**
  * MD3 docked-календарь (issue #338): чистая управляемая поверхность выбора даты. Три ТЕРМИНАЛЬНЫХ
  * вида по точности (#60): day → сетка месяца (Пн-Вс), month → сетка месяцев + год, year → сетка лет.
- * Вся APG-клавиатура (стрелки/PageUp-Down/Shift+Page/Home/End/Enter/Esc), RU-локаль, тема на токенах.
+ * Вся APG-клавиатура (стрелки/PageUp-Down/Shift+Page/Home/End/Enter/Esc), тема на токенах. Названия
+ * месяцев и дней недели и первый день недели — по языку пользователя (issue #1461), не таблицей.
  * Аддитивен к сегментному вводу — сюда приходит текущее value, отсюда уходит выбранный полный ISO.
  */
 const MIN_YEAR = 1900;
@@ -29,6 +30,12 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
 }) {
   const now = new Date();
   const sel = parseISO(value);
+  const [stored] = useLocale();
+  const locale = resolveLocale(stored);
+  const { months, monthsShort, weekdays, firstDay } = useMemo(() => ({
+    months: monthNames(locale, 'long'), monthsShort: monthNames(locale, 'short'),
+    weekdays: weekdayNames(locale), firstDay: firstDayOfWeek(locale),
+  }), [locale]);
   const start = sel ?? { y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate() };
 
   // Терминальный вид точности: year → только годы; month → месяцы; day → дни.
@@ -66,14 +73,17 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
     setFy(y); setFm(m); setFd(Math.min(fd, daysInMonth(y, m)));
   }
 
+  /** Номер дня в фокусе внутри недели языка: 0 — её первый день. */
+  const dayOfWeek = () => dayInWeek(new Date(fy, fm - 1, fd), firstDay);
+
   function onDaysKey(e: React.KeyboardEvent) {
     switch (e.key) {
       case 'ArrowLeft': shiftDay(-1); break;
       case 'ArrowRight': shiftDay(1); break;
       case 'ArrowUp': shiftDay(-7); break;
       case 'ArrowDown': shiftDay(7); break;
-      case 'Home': shiftDay(-(((new Date(fy, fm - 1, fd).getDay() + 6) % 7))); break; // к понедельнику недели
-      case 'End': shiftDay(6 - ((new Date(fy, fm - 1, fd).getDay() + 6) % 7)); break;  // к воскресенью
+      case 'Home': shiftDay(-dayOfWeek()); break;    // к первому дню недели языка
+      case 'End': shiftDay(6 - dayOfWeek()); break;  // к последнему
       case 'PageUp': shiftMonth(e.shiftKey ? -12 : -1); break;
       case 'PageDown': shiftMonth(e.shiftKey ? 12 : 1); break;
       case 'Enter': case ' ': selectDay(fy, fm, fd); break;
@@ -137,7 +147,7 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
         <Tooltip content="Выбрать год">
           <button type="button" onClick={() => setView('years')}
             className="flex items-center gap-1 px-2 h-8 rounded-full text-sm font-medium text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
-            {view === 'days' ? `${MONTHS_RU[fm - 1]} ${fy}` : fy}
+            {view === 'days' ? `${months[fm - 1]} ${fy}` : fy}
             <ChevronDown size={14} className="text-fg4" />
           </button>
         </Tooltip>
@@ -152,11 +162,11 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
   // ── Тело по виду ──
   let body: React.ReactNode;
   if (view === 'days') {
-    const weeks = monthMatrix(fy, fm);
+    const weeks = monthMatrix(fy, fm, firstDay);
     body = (
       <div ref={gridRef} role="grid" aria-label="Календарь" onKeyDown={onDaysKey}>
         <div className="grid grid-cols-7 mb-1">
-          {WEEKDAYS_RU.map(w => <div key={w} className="h-7 flex items-center justify-center text-xs text-fg4">{w}</div>)}
+          {weekdays.map(w => <div key={w} className="h-7 flex items-center justify-center text-xs text-fg4">{w}</div>)}
         </div>
         {weeks.map((week, wi) => (
           <div key={wi} role="row" className="grid grid-cols-7">
@@ -187,7 +197,7 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
   } else if (view === 'months') {
     body = (
       <div ref={gridRef} role="grid" aria-label="Выбор месяца" onKeyDown={onMonthsKey} className="grid grid-cols-4 gap-1">
-        {MONTHS_RU_SHORT.map((mn, i) => {
+        {monthsShort.map((mn, i) => {
           const m = i + 1;
           const isSel = !!sel && sel.y === fy && sel.m === m && precision === 'month';
           const isCur = now.getFullYear() === fy && now.getMonth() + 1 === m;

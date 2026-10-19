@@ -1,6 +1,6 @@
 import type { SchemaField } from '@/shared/api/schema';
 import type { EnumTypeDef, PrimitiveTypeDef } from '@/shared/api/types';
-import { formatDateRu } from './date';
+import { formatDateInMask } from '@/shared/format/format';
 
 /**
  * Значение поля в человеческом виде — для мест, где значение ПОКАЗЫВАЮТ, а не редактируют
@@ -29,12 +29,14 @@ export function formatFieldValue(
 ): string {
   if (value == null || value === '') return '';
 
-  if (field.type === 'date') return formatDateRu(String(value));
+  // Дата — в записи маски поля на языке пользователя: сводка стоит рядом с самими полями, и порядок
+  // дня и месяца у них обязан совпасть (ревью PR #1544).
+  if (field.type === 'date') return formatDateInMask(String(value));
 
   if (field.type === 'primitive') {
     const def = defs.primitiveTypes?.find(pt => pt.id === field.typeId);
     if (def?.baseType === 'date')
-      return formatDateRu(String(value), def.constraints.datePrecision ?? 'day');
+      return formatDateInMask(String(value), def.constraints.datePrecision ?? 'day');
     return String(value);
   }
 

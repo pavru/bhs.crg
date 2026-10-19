@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
+import { setFormatLocale } from '@/shared/format/format';
 import { formatFieldValue } from './fieldDisplay';
 import type { SchemaField } from '@/shared/api/schema';
 import type { EnumTypeDef, PrimitiveTypeDef } from '@/shared/api/types';
@@ -20,6 +21,17 @@ describe('formatFieldValue', () => {
   it('дату показывает по-русски, а не сырым ISO', () => {
     // Ровно issue #611: в сводке стояло «2023-08-10», в поле внутри — «10.08.2023».
     expect(formatFieldValue(f('date'), '2023-08-10')).toBe('10.08.2023');
+  });
+
+  // Ревью PR #1544: сводка стоит рядом с полями в маске языка — порядок дня и месяца у них общий.
+  describe('язык пользователя', () => {
+    afterEach(() => setFormatLocale('ru-RU'));
+    it('дата и точность — в маске языка', () => {
+      setFormatLocale('en-US');
+      expect(formatFieldValue(f('date'), '2023-08-10')).toBe('08/10/2023');
+      const defs = { primitiveTypes: [prim('p1', 'date', { datePrecision: 'month' })] };
+      expect(formatFieldValue(f('primitive', 'p1'), '2026-07-01', defs)).toBe('07/2026');
+    });
   });
 
   it('учитывает точность примитивного date-типа', () => {
