@@ -200,7 +200,15 @@ public enum GostGroupKind
 /// обложка/титул/документы как группы с <see cref="GostGroupKind"/>. PageCount — общее число
 /// страниц исходного PDF (в т.ч. не вошедших ни в одну группу — допустимо, см. GetPagesAsync).
 /// </summary>
-public record GostGroupingDto(IReadOnlyList<GostGroupingGroupDto> Groups, bool ManuallyEdited, int PageCount);
+/// <param name="MissingParts">
+/// Сколько вырезанных PDF документов нет в хранилище (issue #1534): часть, путь которой назван в
+/// разбиении или в строках реестра «Документы», а файла нет, и документ, который не удалось вырезать.
+/// Не ноль — генерация выпустит документы без вложений, и редактор предлагает «Вырезать документы
+/// заново». Считается только при открытии редактора (GetPagesAsync) и после перерезки; прочие ответы
+/// несут 0 — не «всё на месте», а «не считали», и клиент берёт число из чтения страниц.
+/// </param>
+public record GostGroupingDto(
+    IReadOnlyList<GostGroupingGroupDto> Groups, bool ManuallyEdited, int PageCount, int MissingParts = 0);
 
 /// <summary>Одна группа страниц. Для документа Code/Name как в реестре; для обложки/титула — null.
 /// PageIndices — 0-based индексы исходного PDF. Tags — функциональные тэги документа (тип таблицы).</summary>

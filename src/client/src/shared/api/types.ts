@@ -541,6 +541,11 @@ export interface GostGrouping {
   manuallyEdited: boolean;
   /** Общее число страниц исходного PDF — включая не вошедшие ни в одну группу. */
   pageCount: number;
+  /**
+   * Документов без файла в хранилище (issue #1534). Считается при чтении страниц и после перерезки;
+   * в ответах прочих правок разбиения — 0: «не считали», а не «всё на месте».
+   */
+  missingParts: number;
 }
 
 export interface DataSetFile {

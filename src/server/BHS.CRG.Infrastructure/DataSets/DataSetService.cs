@@ -110,6 +110,8 @@ public class DataSetService(
         pdfRecognition.GetPageThumbnailAsync(fileId, pageIndex, ct, dpi);
     public Task<GostGroupingDto?> ApplyGroupingAsync(Guid fileId, ApplyGroupingInput input, CancellationToken ct) =>
         pdfRecognition.ApplyGroupingAsync(fileId, input, ct);
+    public Task<GostGroupingDto?> RecutGroupingAsync(Guid fileId, CancellationToken ct) =>
+        pdfRecognition.RecutGroupingAsync(fileId, ct);
     public Task<GostGroupingDto?> SetDocumentTagsAsync(Guid fileId, int firstPageIndex, IReadOnlyList<string> tags, CancellationToken ct) =>
         pdfRecognition.SetDocumentTagsAsync(fileId, firstPageIndex, tags, ct);
 
