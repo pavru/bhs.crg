@@ -93,6 +93,13 @@ public interface IDomainObjectRepository : IRepository<DomainObject>
     Task<IReadOnlyList<CommonDataRef>> RefsAmongAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
 
     /// <summary>
+    /// Запись с данными и её достижимые основы — для карточки (issue #1516), см. <see cref="CardChain" />.
+    /// <c>null</c> — записи нет. Содержимое полей <paramref name="opaque" /> (картинки, файлы, таблицы,
+    /// вложенные объекты) из базы не читается: вместо него — признак «заполнено», число элементов или ссылка.
+    /// </summary>
+    Task<CardChain?> CardChainAsync(Guid id, IReadOnlyCollection<string> opaque, CancellationToken ct = default);
+
+    /// <summary>
     /// Сохранить правку объекта, собранную по версии <paramref name="seen" /> (issue #1214): строка
     /// блокируется, её версия сверяется с названной, и только потом идёт запись — сверка и запись
     /// неразрывны. Не совпала — <see cref="BHS.CRG.Domain.Common.ConflictException" />, и не записано
