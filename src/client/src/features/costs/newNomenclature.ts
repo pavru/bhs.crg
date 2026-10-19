@@ -21,10 +21,11 @@ export interface IntakeDraft {
   refs: Record<string, string>;
 }
 
-const text = (value: string | null | undefined) => (value ?? '').trim();
+/** Набранное без краевых пробелов; `null` и `undefined` — пустая строка. */
+export const trimText = (value: string | null | undefined) => (value ?? '').trim();
 
 /** «шт.» и «ШТ» — одна единица: так же её сравнивает ядро. */
-const unitKey = (value: string | null | undefined) => text(value).replace(/[.\s]+$/, '').toLowerCase();
+const unitKey = (value: string | null | undefined) => trimText(value).replace(/[.\s]+$/, '').toLowerCase();
 
 /** Поле названия — первое поле ключа: им сервер называет запись. */
 export function namingField(kind: IntakeKind): IntakeField | null {
@@ -62,9 +63,9 @@ export function defaultKind(kinds: IntakeKind[]): IntakeKind | null {
 export function prefill(kind: IntakeKind, from: LineWords): IntakeDraft {
   const draft: IntakeDraft = { values: {}, refs: {} };
   const naming = namingField(kind);
-  if (naming && text(from.name)) draft.values[naming.key] = text(from.name);
+  if (naming && trimText(from.name)) draft.values[naming.key] = trimText(from.name);
   const article = articleField(kind);
-  if (article && text(from.code)) draft.values[article.key] = text(from.code);
+  if (article && trimText(from.code)) draft.values[article.key] = trimText(from.code);
 
   const wanted = unitKey(from.unit);
   // Поле единицы сопоставлено тэгом — единица строки ложится только в него, а окно его не спрашивает —
@@ -86,9 +87,9 @@ export function prefill(kind: IntakeKind, from: LineWords): IntakeDraft {
  * бывает внутренним кодом поставщика; подставленное без оговорки сохранят не читая.
  */
 export function prefillHint(kind: IntakeKind, field: IntakeField, from: LineWords): string | null {
-  if (field === namingField(kind) && text(from.name))
+  if (field === namingField(kind) && trimText(from.name))
     return 'Из счёта — это слова поставщика. Назовите позицию так, как она должна стоять в справочнике.';
-  if (field === articleField(kind) && text(from.code))
+  if (field === articleField(kind) && trimText(from.code))
     return 'Из счёта. Если это внутренний код поставщика, а не артикул изделия, — сотрите.';
   return null;
 }
@@ -96,10 +97,10 @@ export function prefillHint(kind: IntakeKind, field: IntakeField, from: LineWord
 /** Вопрос о похожих: только поля ключа. `null` — спрашивать не о чем: названия ещё нет. */
 export function similarBody(kind: IntakeKind, values: Record<string, string>): IntakeBody | null {
   const naming = namingField(kind);
-  if (!naming || !text(values[naming.key])) return null;
+  if (!naming || !trimText(values[naming.key])) return null;
   const asked: Record<string, string> = {};
   for (const field of kind.fields)
-    if (field.identity && field.options === null && text(values[field.key])) asked[field.key] = text(values[field.key]);
+    if (field.identity && field.options === null && trimText(values[field.key])) asked[field.key] = trimText(values[field.key]);
   return { typeId: kind.typeId, values: asked };
 }
 
@@ -108,7 +109,7 @@ export function createBody(kind: IntakeKind, draft: IntakeDraft): IntakeBody {
   const values: Record<string, string> = {};
   const refs: Record<string, string> = {};
   for (const field of kind.fields) {
-    if (field.options === null) { if (text(draft.values[field.key])) values[field.key] = text(draft.values[field.key]); }
+    if (field.options === null) { if (trimText(draft.values[field.key])) values[field.key] = trimText(draft.values[field.key]); }
     else if (draft.refs[field.key]) refs[field.key] = draft.refs[field.key];
   }
   return { typeId: kind.typeId, values, refs };
@@ -119,7 +120,7 @@ export function missingFields(kind: IntakeKind, draft: IntakeDraft): string[] {
   const naming = namingField(kind);
   return kind.fields
     .filter(f => f.required || f === naming)
-    .filter(f => f.options === null ? !text(draft.values[f.key]) : !draft.refs[f.key])
+    .filter(f => f.options === null ? !trimText(draft.values[f.key]) : !draft.refs[f.key])
     .map(f => f.title);
 }
 
@@ -135,6 +136,9 @@ const sameText = (a: string, b: string) =>
  * Поле названия пустым у позиции не бывает: им сервер называет запись. Пусто оно в данных у записей,
  * заведённых одним именем, — тогда значение поля и есть имя записи, а «не заполнено» про позицию с
  * именем было бы неправдой.
+ *
+ * Не прочитанное сервером — не «не заполнено» (`unreadable`): сказано, что сверить не удалось. Иначе
+ * лежащая позиция читалась бы отличной от набранной, и её завели бы вторым экземпляром.
  */
 export function typedVsCard(
   kind: IntakeKind, draft: IntakeDraft, card: Pick<NomenclatureCard, 'lines' | 'name'>,
@@ -144,16 +148,20 @@ export function typedVsCard(
   for (const field of kind.fields) {
     if (!field.identity) continue;
     const typed = field.options === null
-      ? text(draft.values[field.key])
-      : text(field.options.find(o => o.id === draft.refs[field.key])?.name);
+      ? trimText(draft.values[field.key])
+      : trimText(field.options.find(o => o.id === draft.refs[field.key])?.name);
     if (!typed) continue;
-    const there = card.lines.find(l => l.key === field.key)?.text ?? (field === naming ? card.name : null);
-    if (!there)
-      rows.push({ label: field.title, text: 'в справочнике не заполнено', tone: 'plain' });
+    const line = card.lines.find(l => l.key === field.key);
+    const there = line?.text ?? (field === naming ? card.name : null);
+    const row = { key: field.key, label: field.title };
+    if (!there && line?.unreadable)
+      rows.push({ ...row, text: 'в справочнике не прочитано — сверить не удалось', tone: 'plain' });
+    else if (!there)
+      rows.push({ ...row, text: 'в справочнике не заполнено', tone: 'plain' });
     else if (sameText(typed, there))
-      rows.push({ label: field.title, text: `совпадает: ${there}`, tone: 'ok' });
+      rows.push({ ...row, text: `совпадает: ${there}`, tone: 'ok' });
     else
-      rows.push({ label: field.title, text: `отличается — набрано «${typed}»`, tone: 'differs' });
+      rows.push({ ...row, text: `отличается — набрано «${typed}»`, tone: 'differs' });
   }
   return rows;
 }

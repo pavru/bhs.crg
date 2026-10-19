@@ -1,12 +1,13 @@
 import { LOST } from './lostReferences';
 import { ARCHIVED_HINT, withArchiveWord } from '@/shared/ui/archive';
-import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Search, TriangleAlert, X } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
 import { apiError } from '@/shared/utils/apiError';
-import { useNomenclature, type NomenclatureItem } from '@/shared/api/invoices';
+import { isNotFound, useNomenclature, type NomenclatureItem } from '@/shared/api/invoices';
+import { useNomenclatureCard } from '@/shared/api/nomenclatureCard';
 import { useCan } from '@/shared/api/access';
 import { NewNomenclatureStep } from './NewNomenclatureStep';
 import { NomenclatureCardPanel, type CardHead } from './NomenclatureCardPanel';
@@ -102,24 +103,31 @@ export function NomenclaturePicker({ chosen, name, lost, lostText, archived, mar
 const NO_WORDS: LineWords = {};
 
 /**
- * Тело окна уже этой ширины — карточке рядом со списком места нет (issue #1517): она открывается шагом
- * окна по нажатию на строку. Меряется тело, а не экран: на планшете окно уже экрана.
+ * Окно уже этой ширины — карточке рядом со списком места нет (issue #1517): она открывается шагом окна
+ * по нажатию на строку. Меряется окно, а не экран: на планшете окно уже экрана.
  */
 const NARROW_BODY = 720;
 
 function useNarrow() {
   // Узел — состоянием, а не `useRef`: тело окна появляется позже первого эффекта, и наблюдатель,
   // подключаемый один раз при монтировании, не подключался вовсе — окно не узнавало, что сузилось.
-  const [node, ref] = useState<HTMLDivElement | null>(null);
+  const [node, setNode] = useState<HTMLDivElement | null>(null);
   const [narrow, setNarrow] = useState(() => window.innerWidth < NARROW_BODY);
+  // Первая мерка — в момент появления узла, до первого кадра: догадка по ширине экрана расходится с
+  // окном у экранов чуть шире порога, и окно мигнуло бы двумя колонками.
+  const ref = useCallback((el: HTMLDivElement | null) => {
+    setNode(el);
+    const dialog = el?.closest<HTMLElement>('[role="dialog"]');
+    if (dialog) setNarrow(dialog.offsetWidth < NARROW_BODY);
+  }, []);
   useLayoutEffect(() => {
-    if (!node) return;
-    // Нулевая ширина — тело скрыто под шагом окна («Новая позиция», карточка), а не сжато: окно той же
-    // ширины, и прежняя мерка верна. Без этого шаг под скрытым телом всегда считал себя узким.
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry.contentRect.width > 0) setNarrow(entry.contentRect.width < NARROW_BODY);
-    });
-    observer.observe(node);
+    // Само окно, а не тело списка: тело прячется под шагом окна («Новая позиция», карточка), и его нулевая
+    // ширина читалась бы как «узко» — а пока шаг открыт, поворот планшета не доходил бы до него вовсе.
+    // `offsetWidth`, а не прямоугольник: окно появляется с масштабом, и мерка шла бы по анимации.
+    const dialog = node?.closest<HTMLElement>('[role="dialog"]');
+    if (!dialog) return;
+    const observer = new ResizeObserver(() => setNarrow(dialog.offsetWidth < NARROW_BODY));
+    observer.observe(dialog);
     return () => observer.disconnect();
   }, [node]);
   return { ref, narrow };
@@ -152,6 +160,12 @@ function PickerDialog({ from, line, onClose, onPick }: {
   const canCreate = useCan().permission('core.nomenclature.edit');
   const { ref, narrow } = useNarrow();
   const listId = useId();
+  // Удалённую или убранную в архив за время показа в строку не выбрать — кнопки в подвале шага нет.
+  const openedCard = useNomenclatureCard(opened?.id ?? null);
+  const openedPickable = !(openedCard.isError && isNotFound(openedCard.error)) && !openedCard.data?.archived;
+  // В поле зрения выделение ведёт только стрелка: строка, выделенная мышью, под ней и так видна, а
+  // прокрутка из-под курсора сдвигала бы список, и он полз бы сам.
+  const byKeys = useRef(false);
 
   // Задержка в обработчике, а не в эффекте: запрос на каждую букву — это двадцать обращений на одно
   // слово, а состояние, поставленное из эффекта, вызывает лишний кадр (правило react-hooks).
@@ -177,6 +191,7 @@ function PickerDialog({ from, line, onClose, onPick }: {
   function keys(e: React.KeyboardEvent) {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
+      byKeys.current = true;
       selection.step(e.key === 'ArrowDown' ? 1 : -1);
       return;
     }
@@ -191,7 +206,8 @@ function PickerDialog({ from, line, onClose, onPick }: {
   // Выделенная стрелкой строка — в поле зрения: без этого стрелка уводила бы выделение за край списка.
   const activeOption = selection.index >= 0 && selection.active ? optionId(selection.active) : undefined;
   useLayoutEffect(() => {
-    if (activeOption) document.getElementById(activeOption)?.scrollIntoView({ block: 'nearest' });
+    if (activeOption && byKeys.current) document.getElementById(activeOption)?.scrollIntoView({ block: 'nearest' });
+    byKeys.current = false;
   }, [activeOption]);
 
   const plate = <LinePlate from={from} line={line} />;
@@ -301,9 +317,11 @@ function PickerDialog({ from, line, onClose, onPick }: {
           footer={(
             <div className="flex items-center gap-2">
               <ModalExit>К списку</ModalExit>
-              <Button variant="filled" className="flex-1" onClick={() => onPick(opened.id, opened.name)}>
-                Выбрать эту позицию
-              </Button>
+              {openedPickable && (
+                <Button variant="filled" className="flex-1" onClick={() => onPick(opened.id, opened.name)}>
+                  Выбрать эту позицию
+                </Button>
+              )}
             </div>
           )}>
           <NomenclatureCardPanel id={opened.id} head={{ name: opened.name, type: opened.type, why: whyOf(opened) }}

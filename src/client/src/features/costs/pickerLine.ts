@@ -1,4 +1,4 @@
-import type { LineWords } from './newNomenclature';
+import { trimText as text, type LineWords } from './newNomenclature';
 
 /**
  * Для какой строки открыт выбор позиции (issue #1517) — плашка под заголовком окна. Без неё человек,
@@ -10,8 +10,6 @@ export interface PickerLine {
   /** Количество строки, как набрано; пустое не выводится. */
   quantity?: string | null;
 }
-
-const text = (value: string | null | undefined) => (value ?? '').trim();
 
 /** «Строка 3 счёта · ЭНЕРГОСФЕРА»: поставщика нет — без него, а не «· —». */
 export function invoiceLineWhere(number: number, supplier: string | null | undefined): string {

@@ -98,7 +98,7 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
           <h4 className="text-caption font-medium uppercase tracking-wide text-fg3">{compare!.title}</h4>
           <dl className="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
             {rows.map(row => (
-              <div key={row.label} className="contents">
+              <div key={row.key} className="contents">
                 <dt className="text-xs text-fg3">{row.label}</dt>
                 <dd className={COMPARE_TONE[row.tone]}>{row.text}</dd>
               </div>
@@ -178,7 +178,8 @@ function Title({ name, why, archived = false }: { name: string | null; why?: str
   );
 }
 
-function Refusal({ children }: { children: React.ReactNode }) {
+/** Отказ — красной строкой со значком: им же говорит шаг «Новая позиция». */
+export function Refusal({ children }: { children: React.ReactNode }) {
   return (
     <p className="flex items-start gap-2 text-xs text-danger">
       <TriangleAlert size={13} className="shrink-0 mt-0.5" />

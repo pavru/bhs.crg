@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { TriangleAlert } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { ModalExit } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
@@ -13,7 +12,7 @@ import {
   createBody, defaultKind, missingFields, prefill, prefillHint, similarBody, typedVsCard,
   type IntakeDraft, type LineWords,
 } from './newNomenclature';
-import { NomenclatureCardPanel } from './NomenclatureCardPanel';
+import { NomenclatureCardPanel, Refusal } from './NomenclatureCardPanel';
 import { usePickerSelection } from './pickerSelection';
 import { Select, SelectItem } from '@/shared/ui/Select';
 
@@ -212,15 +211,6 @@ export function NewNomenclatureStep({ from, plate, narrow, onBack, onPick }: {
         </div>
       )}
     </WindowStep>
-  );
-}
-
-function Refusal({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="flex items-start gap-2 text-xs text-danger">
-      <TriangleAlert size={13} className="shrink-0 mt-0.5" />
-      <span>{children}</span>
-    </p>
   );
 }
 

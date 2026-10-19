@@ -58,6 +58,8 @@ export function onlyName(card: Pick<NomenclatureCard, 'lines' | 'notShown' | 'al
 
 /** Строка сравнения «набрано ↔ в справочнике»: `ok` — совпало, `differs` — нет, `plain` — сравнивать не с чем. */
 export interface CompareRow {
+  /** Ключ поля: заголовки у полей бывают одинаковые. */
+  key: string;
   label: string;
   text: string;
   tone: 'ok' | 'differs' | 'plain';
