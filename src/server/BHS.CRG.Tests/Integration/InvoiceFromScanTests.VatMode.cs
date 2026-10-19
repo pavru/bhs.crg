@@ -1,8 +1,10 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using BHS.CRG.Application.Activity;
 using BHS.CRG.Modules.Costs;
 using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Modules.Ports;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -29,6 +31,18 @@ public sealed partial class InvoiceFromScanTests
     private static decimal? Money(JsonElement line, string key) =>
         line.GetProperty(key).ValueKind == JsonValueKind.Null ? null : line.GetProperty(key).GetDecimal();
 
+    private static IEnumerable<string> Notes(JsonElement recognition) =>
+        recognition.GetProperty("notes").EnumerateArray().Select(n => n.GetString()!);
+
+    /// <summary>Что записано в журнал «Счёт заполнен из файла» у этого счёта.</summary>
+    private async Task<string?> RecognizedRecordAsync(Guid invoice)
+    {
+        using var scope = host.Services.CreateScope();
+        var records = await scope.ServiceProvider.GetRequiredService<IActivityLog>()
+            .ReadAsync(0, 200, ActivityVisibility.Whole, "costs.invoice.recognized");
+        return records.First(r => r.TargetId == invoice.ToString()).After;
+    }
+
     [Fact]
     public async Task Скан_сверху_ложится_сверху_и_сходится()
     {
@@ -53,7 +67,38 @@ public sealed partial class InvoiceFromScanTests
         Assert.Equal(1220m, Money(lines[0], "amount"));
         Assert.Equal(610m, Money(lines[1], "amount"));
         Assert.Equal(1830m, view.GetProperty("totals").GetProperty("amount").GetDecimal());
-        Assert.Contains(recognition.GetProperty("notes").EnumerateArray(), n => n.GetString()!.Contains("из итогов файла: 22 %"));
+        Assert.Contains(Notes(recognition), n => n.Contains("из итогов файла: 22 %"));
+        // «Верно» нажимают, сверив, — значит, в замечании прочитанные числа, а не одни слова (ревью PR #1509).
+        Assert.Contains(Notes(recognition),
+            n => n.Contains("сумма строк 1500,00, НДС 330,00, итого без НДС 1500,00, к оплате 1830,00"));
+        // Режим поставило распознавание — журнал говорит об этом (ревью PR #1509), как говорит правка строк.
+        Assert.Contains("НДС: сверху", await RecognizedRecordAsync(id));
+    }
+
+    /// <summary>
+    /// Ревью PR #1509: строки не сходятся с суммой к оплате (скидка, доставка) и режим не определён — это не
+    /// повод для замечания на каждом таком скане: расхождение показывает сверка под строками. Журнал о режиме
+    /// молчит — его не меняли.
+    /// </summary>
+    [Fact]
+    public async Task Не_сошлось_ложится_в_том_числе_молча()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var scan = Scan();
+        host.Recognition.On(scan, () => Task.FromResult(Read(
+            Header(number: "СЧ-1501-6", total: "2 000,00", vat: "330,00"),
+            Row("Кабель", "м", "10", "100,00", "1 000,00"),
+            Row("Труба", "м", "5", "100,00", "500,00"))));
+
+        var id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
+        var recognition = await OutcomeAsync(client, id);
+        Assert.Equal("done", recognition.GetProperty("state").GetString());
+
+        var view = await ReadAsync(client, id);
+        Assert.Equal("Included", view.GetProperty("vatMode").GetString());
+        Assert.Equal(2, view.GetProperty("lines").GetArrayLength());
+        Assert.DoesNotContain(Notes(recognition), n => n.Contains("НДС сверху"));
+        Assert.DoesNotContain("НДС:", await RecognizedRecordAsync(id));
     }
 
     /// <summary>Регрессия #1410: бумага «в том числе» ложится, как до #1501, — без отметки и без метки.</summary>

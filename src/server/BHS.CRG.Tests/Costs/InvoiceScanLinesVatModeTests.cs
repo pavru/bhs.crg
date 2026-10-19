@@ -78,6 +78,21 @@ public class InvoiceScanLinesVatModeTests
         Assert.Null(own.RateNote);
     }
 
+    /// <summary>
+    /// Ревью PR #1509: НДС, снятый правилом «все или ни одной» (#1410), полей не оставляет, но строка о нём
+    /// говорила — своя 10 % под ставкой итогов 22 % стала бы неправдой, а примечания спорили бы друг с другом.
+    /// </summary>
+    [Fact]
+    public void Ставка_документа_не_ложится_после_снятия_НДС()
+    {
+        var reading = InvoiceScanLines.Read([Row("1 000,00", "10%"), Row("500,00")]);
+        Assert.NotNull(reading.VatNote);
+
+        var done = InvoiceScanLines.Complete(reading.Paper, VatMode.OnTop, 22m);
+        Assert.All(done.Lines, l => Assert.Null(l.VatRate));
+        Assert.Null(done.RateNote);
+    }
+
     [Theory]
     // Строки сходятся с суммой к оплате — «в том числе».
     [InlineData("1830", "330", null, VatMode.Included)]

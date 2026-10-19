@@ -1,4 +1,4 @@
-import type { InvoiceView, VatMode } from '@/shared/api/invoices';
+import type { InvoiceLineTotals, InvoiceView, VatMode } from '@/shared/api/invoices';
 import { lines, mismatch, money, toNumber, vatCaption, type LineDraft, type LineTotals } from './invoiceLines';
 
 /**
@@ -132,7 +132,10 @@ export function modeConsequences(view: InvoiceView, drafts: readonly LineDraft[]
  * строк, когда он у каждой, иначе из шапки; «=» — только когда сходится: равенство, которого нет, было бы
  * неправдой ровно там, где человек сверяет.
  */
-export function modeProof(sums: LineTotals, paperVat: unknown, total: unknown, format: (value: number) => string): string {
+export function modeProof(
+  sums: Pick<InvoiceLineTotals, 'count' | 'amount' | 'vat' | 'vatMissing' | 'net'>, paperVat: unknown, total: unknown,
+  format: (value: number) => string,
+): string {
   const net = sums.net ?? sums.amount;
   const vat = sums.count > 0 && sums.vatMissing === 0 ? sums.vat : typeof paperVat === 'number' ? paperVat : null;
   const lines = vat === null ? `строки ${format(net)}` : `строки ${format(net)} + НДС ${format(vat)}`;

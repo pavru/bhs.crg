@@ -336,7 +336,8 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
         <div className="flex items-center gap-2 flex-wrap text-xs text-warning" data-testid="vat-mode-recognized">
           <span>
             {UNCONFIRMED_HINT} ·{' '}
-            {modeProof(totals(toDrafts(view.lines, savedMode), savedMode), view.requisites[K.vat],
+            {/* Итоги сохранённого — серверные: метка о сохранённом, и пересчитывать их здесь незачем. */}
+            {modeProof(view.totals, view.requisites[K.vat],
               view.requisites[K.total], formatMoney)}
           </span>
           <Button size="sm" variant="text" loading={confirm.isPending} onClick={confirmMode}>Верно</Button>

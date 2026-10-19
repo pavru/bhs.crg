@@ -22,8 +22,12 @@ public static class InvoiceScanLines
     /// <param name="StrayNote">Что прочитано и в счёт не легло — по колонкам (issue #1480).</param>
     public sealed record Reading(IReadOnlyList<ScanLine> Paper, string? VatNote, string? StrayNote = null)
     {
-        /// <summary>Строки, досчитанные «в том числе», — как их клали до #1501.</summary>
-        public IReadOnlyList<InvoiceLineValues> Lines => Complete(Paper, VatMode.Included, null).Lines;
+        /// <summary>
+        /// Строки, досчитанные «в том числе», — как их клали до #1501. Считаются один раз, при создании:
+        /// разбор бумаги им не нужен заново на каждое обращение (ревью PR #1509). ⚠️ Поэтому <c>with</c> с
+        /// новой бумагой оставил бы их от прежней — разбор такого не делает, и делать не должен.
+        /// </summary>
+        public IReadOnlyList<InvoiceLineValues> Lines { get; } = Complete(Paper, VatMode.Included, null).Lines;
     }
 
     /// <summary>
@@ -34,7 +38,9 @@ public static class InvoiceScanLines
     /// </summary>
     /// <param name="VatCellEmpty">Графа суммы НДС пуста (или с прочерком): НДС тогда досчитывается по
     /// ставке. Стояло, но не прочиталось — не досчитывается: посчитанное выглядело бы прочитанным.</param>
-    public sealed record ScanLine(InvoiceLineValues Values, bool VatCellEmpty)
+    /// <param name="VatStripped">НДС у строки в файле был, но снят правилом «все или ни одной» (issue
+    /// #1410): строка о НДС не молчит, хотя полей НДС у неё уже нет.</param>
+    public sealed record ScanLine(InvoiceLineValues Values, bool VatCellEmpty, bool VatStripped = false)
     {
         /// <summary>Сумма НДС прочитана в файле, а не досчитывается по ставке.</summary>
         public bool VatAmountRead => Values.VatAmount is not null;
@@ -122,6 +128,7 @@ public static class InvoiceScanLines
         var note = $"НДС в файле: {string.Join(", ", read)} — не положен: НДС прочитан не у всех строк";
         return scanned with
         {
+            VatStripped = true,
             Values = line with
             {
                 VatRate = null,
@@ -146,12 +153,17 @@ public static class InvoiceScanLines
     /// НДС молчат все строки. Выводить её делением НДС на сумму нельзя — это выдумка числа (разбор
     /// Архитектора, §5.3). «В том числе» её не получает: там НДС шапки уже берут отчёты, и счёт ложится как
     /// до #1501.</para>
+    ///
+    /// <para>⚠️ «Молчат» — в ФАЙЛЕ, а не в полях после разбора (ревью PR #1509). НДС, снятый правилом «все или
+    /// ни одной» (<see cref="ScanLine.VatStripped" />), полей уже не оставляет, но строка о нём говорила, и
+    /// своя ставка у неё могла быть другой: ставка итогов легла бы поверх прочитанных 10 %, а примечание
+    /// «впишите недостающее» спорило бы с примечанием «ставка из итогов».</para>
     /// </summary>
     public static Completed Complete(IReadOnlyList<ScanLine> paper, VatMode mode, decimal? documentRate)
     {
         string? rateNote = null;
         if (mode == VatMode.OnTop && documentRate is >= 0 and <= 100 && paper.Count > 0
-            && paper.All(l => l.Values.VatRate is null && !l.VatAmountRead))
+            && paper.All(l => l.Values.VatRate is null && !l.VatAmountRead && !l.VatStripped))
         {
             paper = [.. paper.Select(l => l with { Values = l.Values with { VatRate = documentRate } })];
             rateNote = $"Ставка НДС строк — из итогов файла: {documentRate.Value.ToString("0.##", Russian)} %. " +

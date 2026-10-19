@@ -192,6 +192,11 @@ describe('доказательство режима со скана (#1501)', ()
     expect(modeProof(totals(silent, 'OnTop'), 330, 1830, format)).toBe('строки #1500 + НДС #330 = к оплате #1830');
   });
 
+  it('итоги сервера — те же числа (ревью PR #1509)', () => {
+    const server = { count: 2, withoutNomenclature: 0, amount: 1830, vat: 330, vatMissing: 0, mode: 'OnTop' as const, net: 1500 };
+    expect(modeProof(server, null, 1830, format)).toBe('строки #1500 + НДС #330 = к оплате #1830');
+  });
+
   it('не сходится — без «=»: равенство, которого нет, было бы неправдой', () => {
     expect(modeProof(totals(rated, 'OnTop'), null, 1900, format)).toBe('строки #1500 + НДС #330 · к оплате #1900');
     expect(modeProof(totals(silent, 'OnTop'), null, 1830, format)).toBe('строки #1500 · к оплате #1830');
