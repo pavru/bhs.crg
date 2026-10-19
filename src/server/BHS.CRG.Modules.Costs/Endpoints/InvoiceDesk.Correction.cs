@@ -112,8 +112,8 @@ public sealed partial class InvoiceDesk
 
                 var appended = await InvoiceBook.AppendAsync(db, invoice,
                     last => new BookChange(InvoiceBookKind.Correction, before, tolerance, after, tolerance,
-                        last is { } t && t != tolerance ? MoneyAt(t) : null),
-                    boundaries, today, BookAuthor.Of(user, body.Reason, number, shift), ct);
+                        last is { } t && t != tolerance ? MoneyAt(t) : null, shift),
+                    boundaries, today, BookAuthor.Of(user, body.Reason, number), ct);
 
                 var done = new CorrectionDone(invoice, number, appended.Records,
                     InvoiceBookPosting.Stamp(appended.Records), changed, dueWas, shift);
@@ -169,8 +169,10 @@ public sealed partial class InvoiceDesk
     /// Отличается ли присланная разноска от записанной — целью, количеством, суммой или порядком частей.
     /// Производные деньги (округление, расхождение в последней части) не в счёт: их не присылают.
     /// </summary>
-    /// <param name="vat">Режим НДС счёта: вид разноски строки зависит от её суммы С НДС, а присланное —
-    /// бумага (issue #1497). У строки сверху без ставки суммы с НДС нет, как и у записанной.</param>
+    /// <param name="vat">Режим НДС ПРИСЛАННЫЙ, а не лежащий у счёта (issue #1498): присланные строки — бумага
+    /// этого режима, и досчитать их по прежнему значило бы прочитать «без НДС» как «с НДС» (или отказать
+    /// 400 на чужое поле суммы). Вид разноски строки зависит от её суммы С НДС (issue #1497). У строки
+    /// сверху без ставки суммы с НДС нет, как и у записанной.</param>
     private static bool Moved(InvoiceSnapshot was, CorrectionBody body, VatMode vat)
     {
         var stored = was.Parts.OrderBy(a => a.Ordinal).ToLookup(a => a.LineId, a => a.Snapshot());

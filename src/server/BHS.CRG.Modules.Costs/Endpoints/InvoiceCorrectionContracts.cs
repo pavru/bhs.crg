@@ -47,13 +47,7 @@ internal sealed record CorrectionLine(Guid? Id, InvoiceLineValues Values, IReadO
 /// Строками книги её не показать: при тех же суммах с НДС смена денег не сдвигает вовсе.</param>
 public sealed record CorrectionPreviewView(
     int Version, DateOnly Day, IReadOnlyList<CorrectionRecordView> Records, string Stamp,
-    VatModeShiftView? VatMode = null);
-
-/// <summary>Смена режима НДС — каким был и каким стал: <c>Included</c> или <c>OnTop</c>, как у счёта.</summary>
-public sealed record VatModeShiftView(VatMode From, VatMode To)
-{
-    public static VatModeShiftView? Of(VatModeShift? shift) => shift is { } s ? new(s.From, s.To) : null;
-}
+    VatModeShift? VatMode = null);
 
 /// <summary>Запись книги, которую ляжет исправлением.</summary>
 /// <param name="Kind"><c>opening</c> — деньги счёта, как они лежали до первой записи; <c>alignment</c> —
@@ -139,7 +133,7 @@ internal static class InvoiceCorrections
         done.Version, done.Records[^1].Day,
         [.. done.Records.Select(r => new CorrectionRecordView(Kind(r.Kind), r.Day, r.Tolerance,
             [.. r.Lines.Select(Line)]))],
-        done.Stamp, VatModeShiftView.Of(done.VatMode));
+        done.Stamp, done.VatMode);
 
     /// <summary>Строка книги ответом — одна на предпросмотр и историю счёта.</summary>
     public static CorrectionLineView Line(Grain line) => new(line.Cell.Target?.ConstructionId,

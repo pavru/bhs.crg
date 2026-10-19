@@ -30,7 +30,14 @@ export function CorrectionHistory({ view, gone }: { view: InvoiceView; gone: boo
   const columns: DataGridColumn<InvoiceBookEntry>[] = [
     { key: 'at', label: 'Когда', cell: e => formatDateTime(e.at) },
     { key: 'author', label: 'Кто', cell: e => bookAuthor(e) },
-    { key: 'kind', label: 'Вид', cell: e => (e.version != null ? `${bookKindTitle(e.kind)} (версия ${e.version})` : bookKindTitle(e.kind)) },
+    // Смена режима НДС — в самой строке (issue #1498): при тех же суммах с НДС итог записи ±0, и без
+    // этой строки исправление читалось бы «ничего не изменилось», пока его не раскроют.
+    { key: 'kind', label: 'Вид', cell: e => (
+      <>
+        {e.version != null ? `${bookKindTitle(e.kind)} (версия ${e.version})` : bookKindTitle(e.kind)}
+        {e.vatMode && <span className="block text-xs text-fg2">{vatShiftText(e.vatMode)}</span>}
+      </>
+    ) },
     { key: 'reason', label: 'Причина', wrap: true, cell: e => e.reason ?? '—' },
     { key: 'day', label: 'День', cell: e => formatDate(e.day) },
     { key: 'total', label: 'Итог ±', align: 'right', cell: e => <span className="tabular-nums">{bookTotal(e, formatMoney)}</span> },

@@ -31,11 +31,14 @@ public sealed record BookRecord(InvoiceBookKind Kind, DateOnly Day, decimal Tole
 /// <param name="AtLast">Деньги счёта при допуске ПОСЛЕДНЕЙ записи книги — для страховки (spec п. 1.3
 /// шаг 2). Нужны, только если книга есть и тот допуск отличается от <paramref name="ToleranceBefore" />;
 /// иначе <c>null</c>.</param>
+/// <param name="VatMode">Смена режима НДС, которую проводит запись (исправление, issue #1498); <c>null</c> — режим
+/// не менялся. В проводку не входит — деньги считаются от сумм с НДС, как всегда; ложится признаком самой
+/// записи, чтобы история назвала смену, которую деньгами не показать.</param>
 public sealed record BookChange(
     InvoiceBookKind Kind,
     IReadOnlyList<Grain> Before, decimal ToleranceBefore,
     IReadOnlyList<Grain> After, decimal ToleranceAfter,
-    IReadOnlyList<Grain>? AtLast = null);
+    IReadOnlyList<Grain>? AtLast = null, VatModeShift? VatMode = null);
 
 /// <summary>
 /// Проводка по книге счёта (<c>PostToBook</c>, E2, issue #1100, spec v3.3 п. 1.2–1.3) — чистая

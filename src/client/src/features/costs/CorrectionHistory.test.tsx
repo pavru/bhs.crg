@@ -26,6 +26,9 @@ const entries: InvoiceBookEntry[] = [
     reason: null, version: null, gross: 1000, net: 1000, lines: [line('2026-09-10', 1000)] },
   { seq: 2, kind: 'correction', day: '2026-10-16', at: '2026-10-16T05:00:00Z', author: 'Бухгалтер Иванова',
     reason: 'опечатка в цене', version: 1, gross: 50, net: 50, lines: [line('2026-10-16', 50)] },
+  { seq: 3, kind: 'correction', day: '2026-10-17', at: '2026-10-17T05:00:00Z', author: 'Бухгалтер Иванова',
+    reason: 'цены в счёте без НДС', version: 2, gross: 0, net: 0, lines: [],
+    vatMode: { from: 'Included', to: 'OnTop' } },
 ];
 
 const view = (book: number): InvoiceView => ({ id: 'i1', version: '9', book }) as unknown as InvoiceView;
@@ -73,6 +76,19 @@ describe('секция «Исправления»', () => {
 
     fireEvent.click(reason);
     expect(await screen.findByText(/Днём записи 16\.10\.2026/)).toBeTruthy();
+  });
+
+  it('смена режима НДС видна в строке таблицы, а не только в раскрытой записи (issue #1498)', async () => {
+    mount(3);
+    const reason = await screen.findByText('цены в счёте без НДС');
+    const rows = screen.getAllByRole('row').map(r => r.textContent ?? '');
+    const shifted = rows.findIndex(r => r.includes('Исправление (версия 2)'));
+    expect(rows[shifted]).toContain('Цены в строках: с НДС → без НДС');
+    expect(rows.find(r => r.includes('Исправление (версия 1)'))).not.toContain('Цены в строках');
+
+    // Раскрытая запись без строк называет, что записано: деньги не сдвинуты, а режим — сменён.
+    fireEvent.click(reason);
+    expect(await screen.findByText(/записаны версия, причина и режим НДС/)).toBeTruthy();
   });
 });
 

@@ -25,7 +25,7 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// режим не менялся или запись не исправление.</param>
 public sealed record InvoiceBookEntryView(
     int Seq, string Kind, DateOnly Day, DateTimeOffset At, string? Author, string? Reason, int? Version,
-    decimal Gross, decimal Net, IReadOnlyList<CorrectionLineView> Lines, VatModeShiftView? VatMode = null);
+    decimal Gross, decimal Net, IReadOnlyList<CorrectionLineView> Lines, VatModeShift? VatMode = null);
 
 /// <summary>
 /// История счёта — его книга проводок (E2, issue #1100, PR 6b-2): кто, когда и почему сдвинул деньги
@@ -56,7 +56,7 @@ public static class InvoiceBookEndpoints
                 h.Entry.AuthorName, h.Entry.Reason, h.Entry.Version,
                 h.Lines.Sum(l => l.Gross), h.Lines.Sum(l => l.Net),
                 [.. h.Lines.Select(l => InvoiceCorrections.Line(l.Value))],
-                h.Entry is { VatModeWas: { } from, VatMode: { } to } ? new VatModeShiftView(from, to) : null))];
+                h.Entry is { VatModeWas: { } from, VatMode: { } to } ? new VatModeShift(from, to) : null))];
         return TypedResults.Ok(entries);
     }
 }

@@ -27,7 +27,9 @@ public class VatModeInventoryTests
         [$"{Module}/Data/Invoice.cs"] = "режим — признак счёта; меняет его только запись строк и исправление",
         // Книга хранит СМЕНУ режима исправлением как историю (#1498) — пару «было → стало» у записи. Денег
         // книги режим не касается: её строки, как и прежде, считаются от amount.
-        [$"{Module}/Data/InvoiceBook.cs"] = "автор записи несёт смену режима исправлением — в запись, не в деньги",
+        [$"{Module}/Data/InvoiceBook.cs"] = "кладёт смену режима из BookChange в саму запись, не в деньги",
+        [$"{Module}/Data/InvoiceBookPosting.cs"] =
+            "BookChange несёт смену режима до записи; проводка её не читает — деньги от amount, как всегда",
         [$"{Module}/Data/InvoiceBookEntry.cs"] = "запись книги хранит пару режимов смены исправлением (#1498)",
         [$"{Module}/Endpoints/InvoiceBookEndpoints.cs"] = "история счёта показывает смену режима пунктом записи",
         [$"{Module}/Data/InvoiceLine.cs"] =
