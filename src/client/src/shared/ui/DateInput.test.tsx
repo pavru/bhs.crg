@@ -3,6 +3,14 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { useState } from 'react';
 import { DateInput } from './DateInput';
+
+// Язык пользователя задаёт маску (issue #1461). jsdom говорит по-английски, поэтому язык — явно:
+// по умолчанию русский, а проверки других языков меняют его на время своего теста.
+let locale = 'ru-RU';
+vi.mock('@/shared/hooks/useLocale', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/shared/hooks/useLocale')>()),
+  useLocale: () => [locale, () => {}, 'idle'],
+}));
 import { DateField } from './DateField';
 
 /**
@@ -16,7 +24,7 @@ beforeAll(() => {
   Element.prototype.hasPointerCapture ??= () => false;
   Element.prototype.scrollIntoView ??= () => {};
 });
-afterEach(() => { cleanup(); vi.useRealTimers(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); locale = 'ru-RU'; });
 
 /** Поле с настоящим состоянием — как в форме: отданное значение возвращается в `value`. */
 function Controlled({ initial = '', onChange, field = false, calendar = false }: { initial?: string; onChange?: (v: string) => void; field?: boolean; calendar?: boolean }) {
@@ -239,5 +247,101 @@ describe('DateInput: правки по ревью PR #1542', () => {
     expect(screen.getByTestId('value').textContent).toBe('2026-02-19');
     expect(seg('ДД').value).toBe('19');
     expect(seg('ДД').getAttribute('aria-invalid')).toBeNull();
+  });
+});
+
+describe('DateInput: маска по языку пользователя (issue #1461)', () => {
+  const placeholders = () => [...document.querySelectorAll('input')].map(i => i.placeholder);
+  const separators = () => [...document.querySelectorAll('span.select-none')].map(s => s.textContent);
+
+  it.each([
+    ['ru-RU', 'day', ['ДД', 'ММ', 'ГГГГ'], '.'], ['ru-RU', 'month', ['ММ', 'ГГГГ'], '.'], ['ru-RU', 'year', ['ГГГГ'], ''],
+    ['en-US', 'day', ['MM', 'DD', 'YYYY'], '/'], ['en-US', 'month', ['MM', 'YYYY'], '/'], ['en-US', 'year', ['YYYY'], ''],
+    ['en-GB', 'day', ['DD', 'MM', 'YYYY'], '/'], ['en-GB', 'month', ['MM', 'YYYY'], '/'], ['en-GB', 'year', ['YYYY'], ''],
+    ['de-DE', 'day', ['TT', 'MM', 'JJJJ'], '.'], ['de-DE', 'month', ['MM', 'JJJJ'], '.'], ['de-DE', 'year', ['JJJJ'], ''],
+  ] as const)('%s, точность %s: сегменты %j через «%s»', (lang, precision, order, sep) => {
+    locale = lang;
+    render(<DateInput value="" onChange={() => {}} precision={precision} calendar={false} />);
+    expect(placeholders()).toEqual(order);
+    expect(new Set(separators())).toEqual(new Set(sep ? [sep] : []));
+  });
+
+  it.each([['ru-RU'], ['en-US'], ['en-GB'], ['de-DE']])('%s: хранимое значение одно и то же, сегменты — в порядке языка', lang => {
+    locale = lang;
+    render(<DateInput value="2026-10-18" onChange={() => {}} calendar={false} />);
+    const shown = [...document.querySelectorAll('input')].map(i => i.value);
+    expect(shown).toEqual(lang === 'en-US' ? ['10', '18', '2026'] : ['18', '10', '2026']);
+  });
+
+  it('en-US: ввод 10/18/2026 по сегментам с автопереходом — 2026-10-18', () => {
+    locale = 'en-US';
+    const onChange = vi.fn();
+    render(<Controlled onChange={onChange} />);
+    const [first, second, third] = [...document.querySelectorAll('input')];
+    fireEvent.focus(first); fireEvent.change(first, { target: { value: '10' } });
+    expect(document.activeElement).toBe(second); // за месяцем у en-US идёт день
+    fireEvent.change(second, { target: { value: '18' } });
+    expect(document.activeElement).toBe(third);
+    fireEvent.change(third, { target: { value: '2026' } });
+    expect(onChange).toHaveBeenLastCalledWith('2026-10-18');
+  });
+
+  it('вставка: «10/18/2026» у en-US, «18.10.2026» у ru-RU; «01.02.2026» — по языку, без угадывания', () => {
+    const pasted = (lang: string, text: string) => {
+      locale = lang;
+      const onChange = vi.fn();
+      render(<Controlled onChange={onChange} />);
+      fireEvent.paste(document.querySelector('input')!, { clipboardData: { getData: () => text } });
+      cleanup();
+      return onChange.mock.calls.at(-1)?.[0];
+    };
+    expect(pasted('en-US', '10/18/2026')).toBe('2026-10-18');
+    expect(pasted('ru-RU', '18.10.2026')).toBe('2026-10-18');
+    expect(pasted('ru-RU', '01.02.2026')).toBe('2026-02-01');
+    expect(pasted('en-US', '01.02.2026')).toBe('2026-01-02');
+    expect(pasted('en-US', '2026-10-18')).toBe('2026-10-18'); // ISO — при любом языке
+    expect(pasted('en-US', '18/10/2026')).toBeUndefined();    // месяца 18 нет — не дата, не догадка
+  });
+});
+
+// Цифра в полный сегмент без выделения заменяет его (живые прогоны PR #1544): иначе её съедает
+// `maxLength`.
+describe('DateInput: цифра в полный сегмент', () => {
+  it('без выделения — сегмент выделяется, и цифра его заменит', () => {
+    render(<Controlled initial="2026-10-19" />);
+    const month = seg('ММ');
+    month.focus();
+    month.setSelectionRange(2, 2);
+    fireEvent.keyDown(month, { key: '0' });
+    expect([month.selectionStart, month.selectionEnd]).toEqual([0, 2]);
+  });
+
+  it('с выделением и в неполном сегменте — не трогает', () => {
+    render(<Controlled initial="2026-10-19" />);
+    const month = seg('ММ');
+    month.focus();
+    month.setSelectionRange(1, 2);
+    fireEvent.keyDown(month, { key: '5' });
+    expect([month.selectionStart, month.selectionEnd]).toEqual([1, 2]);
+    fireEvent.keyDown(month, { key: 'ArrowLeft' });
+    expect([month.selectionStart, month.selectionEnd]).toEqual([1, 2]);
+  });
+
+  // Настоящая причина «31.2.2026» в CI: выделение после автоперехода ставилось только таймером, и на
+  // медленной машине он срабатывал ПОСЛЕ первой цифры месяца — выделял «0», и «2» его заменяла.
+  it('автопереход выделяет сразу, а запоздавший таймер не выделяет набранное', () => {
+    vi.useFakeTimers();
+    render(<Controlled initial="2026-10-19" />);
+    const day = seg('ДД');
+    const month = seg('ММ');
+    day.focus();
+    fireEvent.change(day, { target: { value: '3' } });
+    fireEvent.change(day, { target: { value: '31' } });
+    expect(document.activeElement).toBe(month);
+    expect([month.selectionStart, month.selectionEnd]).toEqual([0, 2]);
+    fireEvent.change(month, { target: { value: '0' } });
+    act(() => { vi.runAllTimers(); });
+    expect(month.value).toBe('0');
+    expect([month.selectionStart, month.selectionEnd]).toEqual([1, 1]);
   });
 });

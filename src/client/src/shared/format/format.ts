@@ -1,5 +1,6 @@
 import { LOCALE_KEY, SYSTEM_LOCALE, resolveLocale } from '@/shared/hooks/useLocale';
 import type { DatePrecision } from '@/shared/api/types';
+import { dateMask, inMask } from './dateMask';
 
 /**
  * Единственное место, где клиент превращает число, сумму и дату в текст для человека (задача N2
@@ -101,6 +102,23 @@ export function setFormatLocale(next: string): void {
 /** Язык, которым форматирует модуль, — уже разрешённый («system» → язык браузера). */
 export function formatLocale(): string {
   return resolveLocale(stored);
+}
+
+/**
+ * Маска поля даты текстом на языке пользователя — для подписей и подсказок вне самого поля:
+ * «ДД.ММ.ГГГГ», «MM/YYYY» (issue #1461). Поле подписано на настройку само и зовёт `dateMask`.
+ */
+export function dateMaskText(precision: DatePrecision = 'day'): string {
+  return dateMask(formatLocale(), precision).text;
+}
+
+/**
+ * Дата в записи маски поля на языке пользователя — там, где текст обязан совпасть с тем, как дату
+ * набирают: «Дата не ранее 07/01/2026» под полем MM/DD/YYYY, сводка свёрнутого объекта рядом с его
+ * полями (ревью PR #1544). Показ даты сам по себе — `formatDatePrecise`. Не ISO — как есть.
+ */
+export function formatDateInMask(iso: string, precision: DatePrecision = 'day'): string {
+  return inMask(iso, formatLocale(), precision);
 }
 
 // Построение `Intl`-форматтера дороже самого форматирования на порядок, а таблица зовёт его на

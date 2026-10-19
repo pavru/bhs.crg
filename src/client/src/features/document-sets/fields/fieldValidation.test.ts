@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { isMissing, validateConstraint } from './fieldValidation';
+import { afterEach, describe, it, expect } from 'vitest';
+import { isMissing, validateConstraint, validateSample } from './fieldValidation';
+import { setFormatLocale } from '@/shared/format/format';
 import type { SchemaField } from '@/shared/api/schema';
 import type { PrimitiveTypeDef, FieldConstraints } from '@/shared/api/types';
 
@@ -65,5 +66,44 @@ describe('ограничения типа поля', () => {
     expect(validateConstraint('2', def('number', { integer: true }))).toBeNull();
     expect(validateConstraint('0', def('number', { min: 1 }))).toBe('Мин. значение: 1');
     expect(validateConstraint('9', def('number', { max: 5 }))).toBe('Макс. значение: 5');
+  });
+});
+
+// Образец даты в настройке типа — в маске языка пользователя (issue #1461).
+describe('validateSample: дата образца по языку пользователя', () => {
+  afterEach(() => setFormatLocale('ru-RU'));
+  const def = { id: 'd', name: 'Дата', baseType: 'date', constraints: { minDate: '2026-01-01' } } as unknown as PrimitiveTypeDef;
+
+  it('en-US: 10/18/2026 — дата и проходит предел; 12/31/2025 — раньше предела', () => {
+    setFormatLocale('en-US');
+    expect(validateSample('10/18/2026', def)).toBeNull();
+    expect(validateSample('12/31/2025', def)).toMatch(/не ранее/);
+    expect(validateSample('18.10.2026', def)).toBe('Не дата (ожидается MM/DD/YYYY)');
+  });
+
+  it('ru-RU: 18.10.2026 — дата; текст не в маске — отказ с маской языка', () => {
+    setFormatLocale('ru-RU');
+    expect(validateSample('18.10.2026', def)).toBeNull();
+    expect(validateSample('вчера', def)).toBe('Не дата (ожидается ДД.ММ.ГГГГ)');
+  });
+
+  // Ревью PR #1544: образец — в точности типа, как подсказывает кнопка «Месяц и год (ММ.ГГГГ)».
+  it('точность «месяц и год»: образец ММ.ГГГГ, отказ называет маску точности', () => {
+    const month = { ...def, constraints: { minDate: '2026-01-01', datePrecision: 'month' } } as PrimitiveTypeDef;
+    expect(validateSample('10.2026', month)).toBeNull();
+    expect(validateSample('12.2025', month)).toBe('Дата не ранее 01.2026');
+    expect(validateSample('вчера', month)).toBe('Не дата (ожидается ММ.ГГГГ)');
+    const year = { ...def, constraints: { datePrecision: 'year' } } as PrimitiveTypeDef;
+    expect(validateSample('2026', year)).toBeNull();
+  });
+
+  // Ревью PR #1544: предел под полем MM/DD/YYYY — в той же записи, иначе 01.07 читалось бы как 7 января.
+  it('предел в сообщении — в маске языка пользователя', () => {
+    const limited = { ...def, constraints: { minDate: '2026-07-01', maxDate: '2026-07-31' } } as PrimitiveTypeDef;
+    setFormatLocale('en-US');
+    expect(validateConstraint('2026-06-30', limited)).toBe('Дата не ранее 07/01/2026');
+    expect(validateConstraint('2026-08-01', limited)).toBe('Дата не позднее 07/31/2026');
+    setFormatLocale('ru-RU');
+    expect(validateConstraint('2026-06-30', limited)).toBe('Дата не ранее 01.07.2026');
   });
 });

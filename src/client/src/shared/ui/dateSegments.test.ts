@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parsePasted, readSegments, segmentsOf } from './dateSegments';
+import { parsePasted, readSegments, segmentsOf, splitDate } from './dateSegments';
 
 // Сегменты поля даты (issue #1460): что отдаётся наружу, что показывается, что разбирается во вставке.
 describe('readSegments: наружу уходит только существующая дата', () => {
@@ -59,5 +59,17 @@ describe('parsePasted: дата целиком из вставки', () => {
   it('не дата — null: её разбирает сам сегмент', () => {
     expect(parsePasted('18', 'day')).toBeNull();
     expect(parsePasted('счёт от 18.10.2026', 'day')).toBeNull();
+  });
+});
+
+// Один разбор на поле и на таблицу (ревью PR #1544): год — как набран, решает вызывающий.
+describe('splitDate', () => {
+  it('порядок языка, точность и год как набран', () => {
+    expect(splitDate('10/18/26', 'day', ['m', 'd', 'y'])).toEqual({ d: '18', m: '10', y: '26' });
+    expect(splitDate('2026/10/18', 'day', ['y', 'm', 'd'])).toEqual({ d: '18', m: '10', y: '2026' });
+    expect(splitDate('2026', 'year', ['d', 'm', 'y'])).toEqual({ d: '', m: '', y: '2026' });
+    expect(splitDate('2026', 'month', ['d', 'm', 'y'])).toBeNull();
+    expect(splitDate('2026-10-18T10:00', 'day', ['m', 'd', 'y'])).toEqual({ d: '18', m: '10', y: '2026' });
+    expect(splitDate('18.10.202', 'day', ['d', 'm', 'y'])).toBeNull();
   });
 });

@@ -11,9 +11,11 @@ const enumDef = {
   values: [{ code: 'pcs', label: 'Штука' }, { code: 'm', label: 'Метр' }],
 } as unknown as EnumTypeDef;
 
+const monthType = { ...prim('p-month', 'date'), constraints: { datePrecision: 'month' } } as PrimitiveTypeDef;
+
 const ctx: CoerceContext = {
   locale: 'ru-RU',
-  primitiveTypes: [prim('p-num', 'number'), prim('p-date', 'date'), prim('p-str', 'string')],
+  primitiveTypes: [prim('p-num', 'number'), prim('p-date', 'date'), prim('p-str', 'string'), monthType],
   enumTypes: [enumDef],
 };
 
@@ -21,19 +23,30 @@ const field = (f: Partial<SchemaField>) => ({ key: 'k', title: 'Поле', ...f 
 
 describe('parseDateCell', () => {
   it('принимает ДД.ММ.ГГГГ и ISO', () => {
-    expect(parseDateCell('15.01.2026')).toBe('2026-01-15');
-    expect(parseDateCell('5/1/2026')).toBe('2026-01-05');
-    expect(parseDateCell('5-1-2026')).toBe('2026-01-05');
-    expect(parseDateCell('2026-01-15')).toBe('2026-01-15');
+    expect(parseDateCell('15.01.2026', 'ru-RU')).toBe('2026-01-15');
+    expect(parseDateCell('5/1/2026', 'ru-RU')).toBe('2026-01-05');
+    expect(parseDateCell('5-1-2026', 'ru-RU')).toBe('2026-01-05');
+    expect(parseDateCell('2026-01-15', 'ru-RU')).toBe('2026-01-15');
   });
 
   it('непонятная дата — отказ, а не сырая строка в поле', () => {
     // Сырая строка выглядела бы пустым полем при непустых данных: DateInput показать её не может.
-    expect(parseDateCell('15.01.26')).toBeNull();     // двузначный год: 1926-й или 2026-й?
-    expect(parseDateCell('15 января 2026')).toBeNull();
-    expect(parseDateCell('31.02.2026')).toBeNull();   // такой даты нет — подставлять 3 марта нельзя
-    expect(parseDateCell('12.31.2026')).toBeNull();   // американский порядок
-    expect(parseDateCell('')).toBeNull();
+    expect(parseDateCell('15.01.26', 'ru-RU')).toBeNull();     // двузначный год: 1926-й или 2026-й?
+    expect(parseDateCell('15 января 2026', 'ru-RU')).toBeNull();
+    expect(parseDateCell('31.02.2026', 'ru-RU')).toBeNull();   // такой даты нет — подставлять 3 марта нельзя
+    expect(parseDateCell('12.31.2026', 'ru-RU')).toBeNull();   // американский порядок
+    expect(parseDateCell('0999-01-01', 'ru-RU')).toBeNull();
+    expect(parseDateCell('', 'ru-RU')).toBeNull();
+  });
+
+  // Разбор общий с полем даты (ревью PR #1544): точность типа сужает дату так же, как у поля.
+  it('точность типа: месяц с годом и только год', () => {
+    expect(parseDateCell('10.2026', 'ru-RU', 'month')).toBe('2026-10-01');
+    expect(parseDateCell('18.10.2026', 'ru-RU', 'month')).toBe('2026-10-01');
+    expect(parseDateCell('10/2026', 'en-US', 'month')).toBe('2026-10-01');
+    expect(parseDateCell('2026', 'ru-RU', 'year')).toBe('2026-01-01');
+    expect(parseDateCell('10.2026', 'ru-RU', 'day')).toBeNull();
+    expect(parseDateCell('13.2026', 'ru-RU', 'month')).toBeNull();
   });
 });
 
@@ -105,5 +118,29 @@ describe('rejectReason', () => {
     expect(rejectReason(field({ type: 'enum' }), ctx)).toContain('списке');
     expect(rejectReason(field({ type: 'primitive', typeId: 'p-num' }), ctx)).toBe('не число');
     expect(rejectReason(field({ type: 'primitive', typeId: 'p-date' }), ctx)).toContain('не дата');
+  });
+});
+
+// Порядок даты — языка пользователя (issue #1461): «01.02.2026» у ru-RU — 1 февраля, у en-US — 2 января.
+describe('дата во вставке — в порядке языка пользователя', () => {
+  const date = field({ type: 'date' });
+  const us: CoerceContext = { ...ctx, locale: 'en-US' };
+
+  it('en-US: MM/DD/YYYY, ISO — при любом языке', () => {
+    expect(coerceScalar(date, '10/18/2026', us)).toBe('2026-10-18');
+    expect(coerceScalar(date, '01.02.2026', us)).toBe('2026-01-02');
+    expect(coerceScalar(date, '2026-10-18', us)).toBe('2026-10-18');
+    expect(coerceScalar(date, '18/10/2026', us)).toBeNull(); // месяца 18 нет — отказ, а не догадка
+  });
+
+  it('ru-RU: ДД.ММ.ГГГГ; тот же текст читается по-русски', () => {
+    expect(coerceScalar(date, '01.02.2026', ctx)).toBe('2026-02-01');
+    expect(coerceScalar(date, '10/18/2026', ctx)).toBeNull();
+  });
+
+  it('отказ называет маску языка', () => {
+    expect(rejectReason(date, us)).toBe('не дата (ожидается MM/DD/YYYY)');
+    expect(rejectReason(date, ctx)).toBe('не дата (ожидается ДД.ММ.ГГГГ)');
+    expect(rejectReason(field({ type: 'primitive', typeId: 'p-month' }), us)).toBe('не дата (ожидается MM/YYYY)');
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isoToRu, ruToISO, formatDateRu, parseISO, toISO, daysInMonth, monthMatrix } from './date';
+import { isoToRu, ruToISO, parseISO, toISO, daysInMonth, monthMatrix, dayInWeek } from './date';
 
 describe('isoToRu', () => {
   it('converts full ISO to RU', () => {
@@ -18,30 +18,6 @@ describe('ruToISO', () => {
   });
   it('passes through incomplete', () => {
     expect(ruToISO('11.07')).toBe('11.07');
-  });
-});
-
-describe('formatDateRu (issue #60)', () => {
-  const iso = '2026-07-11';
-  it('day precision (default) shows full date', () => {
-    expect(formatDateRu(iso)).toBe('11.07.2026');
-    expect(formatDateRu(iso, 'day')).toBe('11.07.2026');
-  });
-  it('month precision hides the day', () => {
-    expect(formatDateRu(iso, 'month')).toBe('07.2026');
-  });
-  it('year precision shows only the year', () => {
-    expect(formatDateRu(iso, 'year')).toBe('2026');
-  });
-  it('formats padded partial dates by precision (values stored full ISO)', () => {
-    // year-точность хранит YYYY-01-01, month — YYYY-MM-01; показываем только значимую часть
-    expect(formatDateRu('2026-01-01', 'year')).toBe('2026');
-    expect(formatDateRu('2026-07-01', 'month')).toBe('07.2026');
-  });
-  it('passes through empty/unparseable', () => {
-    expect(formatDateRu('')).toBe('');
-    expect(formatDateRu(null, 'year')).toBe('');
-    expect(formatDateRu('мусор', 'month')).toBe('мусор');
   });
 });
 
@@ -83,5 +59,26 @@ describe('monthMatrix (Monday-first)', () => {
     expect(w.every(row => row.length === 7)).toBe(true);
     const days = w.flat().filter((x): x is number => x != null);
     expect(days).toEqual(Array.from({ length: 28 }, (_, i) => i + 1));
+  });
+});
+
+describe('monthMatrix: неделя языка (issue #1461)', () => {
+  it('с воскресенья: 1 октября 2026 (четверг) — пятая колонка', () => {
+    expect(monthMatrix(2026, 10, 7)[0]).toEqual([null, null, null, null, 1, 2, 3]);
+  });
+  it('с понедельника по умолчанию — как раньше', () => {
+    expect(monthMatrix(2026, 10)[0]).toEqual(monthMatrix(2026, 10, 1)[0]);
+    expect(monthMatrix(2026, 10)[0]).toEqual([null, null, null, 1, 2, 3, 4]);
+  });
+});
+
+describe('dayInWeek', () => {
+  it('номер дня в неделе языка: 0 — её первый день', () => {
+    const mon = new Date(2026, 9, 19), sun = new Date(2026, 9, 18);
+    expect(dayInWeek(mon)).toBe(0);
+    expect(dayInWeek(sun)).toBe(6);
+    expect(dayInWeek(sun, 7)).toBe(0);
+    expect(dayInWeek(mon, 7)).toBe(1);
+    expect(dayInWeek(new Date(2026, 9, 17), 6)).toBe(0); // суббота у недели с субботы
   });
 });
