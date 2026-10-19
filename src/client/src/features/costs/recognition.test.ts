@@ -62,26 +62,38 @@ describe('полоса отказа', () => {
 });
 
 describe('предложение под полем', () => {
-  it('занятое строковое поле: прочитанное предлагается и берётся как есть', () => {
-    const offer = fieldOffer(K.number, view({ [K.number]: 'СЧ-1' }), {}, recognition({ offers: { [K.number]: 'СЧ-417' } }), noNames);
-    expect(offer).toEqual({ text: '«СЧ-417»', take: 'СЧ-417' });
+  it('занятое поле: прочитанное предлагается, «Взять» кладёт значение сервера', () => {
+    const offers = { [K.number]: { text: 'СЧ-417', value: 'СЧ-417' } };
+    expect(fieldOffer(K.number, view({ [K.number]: 'СЧ-1' }), {}, recognition({ offers }), noNames))
+      .toEqual({ text: '«СЧ-417»', take: 'СЧ-417' });
   });
 
-  it('дописанное в тип текстовое поле: «Взять», как у текстовых полей модуля (ревью PR #1506)', () => {
-    const offers = recognition({ offers: { 'Договор': '№ 12/7' } });
-    expect(fieldOffer('Договор', view({ 'Договор': '№ 1' }), {}, offers, noNames, true)).toEqual({ text: '«№ 12/7»', take: '№ 12/7' });
-    // Не текстовое дописанное (число, дата) — прочитанное только показано: разбирать его клиент не берётся.
-    expect(fieldOffer('Договор', view({ 'Договор': '№ 1' }), {}, offers, noNames)).toEqual({ text: '«№ 12/7»' });
+  it('у любого поля — модуля или дописанного в тип, числа или даты (issue #1483)', () => {
+    const offers = recognition({ offers: {
+      [K.total]: { text: '1 234,50 руб.', value: 1234.5 },
+      'Объём': { text: '12,5', value: 12.5 },
+      'ДатаДоговора': { text: '01.10.2026', value: '2026-10-01' },
+    } });
+    expect(fieldOffer(K.total, view({ [K.total]: 100 }), {}, offers, noNames)).toEqual({ text: '«1 234,50 руб.»', take: 1234.5 });
+    expect(fieldOffer('Объём', view({ 'Объём': 1 }), {}, offers, noNames)).toEqual({ text: '«12,5»', take: 12.5 });
+    expect(fieldOffer('ДатаДоговора', view({}), {}, offers, noNames)).toEqual({ text: '«01.10.2026»', take: '2026-10-01' });
   });
 
   it('совпало с полем — предлагать нечего', () => {
-    expect(fieldOffer(K.number, view({ [K.number]: 'СЧ-417' }), {}, recognition({ offers: { [K.number]: 'СЧ-417' } }), noNames))
-      .toBeNull();
+    const offers = { [K.total]: { text: '1 234,50', value: 1234.5 } };
+    expect(fieldOffer(K.total, view({ [K.total]: 1234.5 }), {}, recognition({ offers }), noNames)).toBeNull();
+    // Набранное число лежит в правке строкой — сравнивается числом (ревью PR #1523).
+    expect(fieldOffer(K.total, view({ [K.total]: 100 }), { [K.total]: '1 234,5' }, recognition({ offers }), noNames)).toBeNull();
   });
 
-  it('дату и сумму клиент не разбирает: показано, «Взять» нет', () => {
-    const offer = fieldOffer(K.total, view({ [K.total]: 100 }), {}, recognition({ offers: { [K.total]: '1.234' } }), noNames);
+  it('значение не разобрано сервером — показано, «Взять» нет: клиент сам не разбирает', () => {
+    const offer = fieldOffer(K.total, view({ [K.total]: 100 }), {}, recognition({ offers: { [K.total]: { text: '1.234' } } }), noNames);
     expect(offer).toEqual({ text: '«1.234»' });
+  });
+
+  it('запись до #1483 — строкой: только показать', () => {
+    const offer = fieldOffer(K.number, view({ [K.number]: 'СЧ-1' }), {}, recognition({ offers: { [K.number]: 'СЧ-417' } }), noNames);
+    expect(offer).toEqual({ text: '«СЧ-417»' });
   });
 
   it('сторона: предлагается найденная запись, а не текст', () => {

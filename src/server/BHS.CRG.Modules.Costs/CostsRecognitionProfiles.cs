@@ -1,3 +1,4 @@
+using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Recognition;
 
 namespace BHS.CRG.Modules.Costs;
@@ -95,8 +96,51 @@ public static class CostsRecognitionProfiles
         new(LineVatAmount, "Сумма НДС по строке из графы суммы НДС; нет такой графы — пусто"),
     ];
 
+    /// <summary>
+    /// Куда ложится шапка счёта (issue #1483): ключ поля профиля = ключ поля счёта. Поля, которые заказчик
+    /// допишет в тип «Счёт на оплату», ядро добавит само — здесь только поля модуля.
+    ///
+    /// <para>Прежние ключи — закрытый список совместимости, а не синонимы (разбор Архитектора, §3):
+    /// заводской профиль не переименовывается — его читают и наборы данных, где ключ — имя колонки, а
+    /// правленые копии на установках держат старые ключи. Новым целям прежние ключи не положены — перечень
+    /// закреплён снимком в тесте.</para>
+    ///
+    /// <para>«Основание» ложится в «Основание», а не в «Назначение», как было с #1255 (решение владельца
+    /// 18.10.2026): «Назначение» — подпись человека, на бумаге его нет. Кому нужно заполнять его со скана —
+    /// колонка профиля с ключом «Назначение».</para>
+    ///
+    /// <para>Каждое поле типа счёта решено здесь — поле, вход или недоступное с причиной: новое поле типа
+    /// без решения краснеет в стороже, а не начинает молча заполняться общим разбором.</para>
+    /// </summary>
+    public static readonly ModuleRecognitionTargets InvoiceTargets = new(CostsRecordTypes.InvoiceCode,
+    [
+        new(InvoiceRequisites.NumberKey, LegacyKeys: [Number]),
+        new(InvoiceRequisites.DateKey, LegacyKeys: [Date]),
+        new(InvoiceRequisites.BasisKey),
+        new(InvoiceRequisites.PurposeKey),
+        new(InvoiceRequisites.TotalKey, LegacyKeys: [Total]),
+        new(InvoiceRequisites.VatTotalKey),
+        new(InvoiceRequisites.ShippedOnKey),
+
+        // Стороны — через справочник организаций (InvoiceParties): в поле ложится найденная запись, а не текст.
+        new(Supplier, ModuleTargetUse.Input, "организация ищется в справочнике по названию и ИНН"),
+        new(Payer, ModuleTargetUse.Input, "организация ищется в справочнике по названию и ИНН"),
+        new(SupplierTaxId, ModuleTargetUse.Input, "ИНН — ключ поиска поставщика в справочнике"),
+        new(PayerTaxId, ModuleTargetUse.Input, "ИНН — ключ поиска плательщика в справочнике"),
+        // Доводы режима НДС (issue #1501): реквизитами счёта они не становятся.
+        new(Subtotal, ModuleTargetUse.Input, "по нему понимается, что цены в строках без НДС"),
+        new(DocumentVatRate, ModuleTargetUse.Input, "ложится ставкой строкам с НДС сверху"),
+
+        new(InvoiceRequisites.DeferralKey, ModuleTargetUse.Unavailable, "отсрочку подставляют условия поставщика"),
+        new(InvoiceRequisites.DueDateKey, ModuleTargetUse.Unavailable,
+            "срок считает правило из настроек по дате отгрузки и отсрочке"),
+        new(InvoiceRequisites.StateKey, ModuleTargetUse.Unavailable, "состояние счёта двигают действия с ним"),
+        new(InvoiceRequisites.PaymentKey, ModuleTargetUse.Unavailable, "состояние оплаты ставит отметка платежа"),
+        new(InvoiceRequisites.ScanKey, ModuleTargetUse.Unavailable, "файл счёта прикладывают, а не распознают"),
+    ]);
+
     public static IReadOnlyList<ModuleRecognitionProfile> All =>
     [
-        new(InvoiceCode, "Счёт на оплату", "Invoice", InvoiceHeader, InvoiceLines),
+        new(InvoiceCode, "Счёт на оплату", "Invoice", InvoiceHeader, InvoiceLines, Targets: InvoiceTargets),
     ];
 }

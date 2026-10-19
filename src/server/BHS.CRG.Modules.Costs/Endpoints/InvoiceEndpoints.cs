@@ -492,12 +492,14 @@ public static class InvoiceEndpoints
     {
         var refusals = await guard.RefusalsAsync(typeId, stored, incoming, ct);
         if (refusals.Count == 0) return;
-
-        // Находка правила архива называет поле сама, заголовком: адрес перед ней — повтор.
-        throw new InvalidRequestException(
-            "Счёт не сохранён — охрана записи: " + string.Join(" ", refusals.Select(
-                r => r.Path is { Length: > 0 } path && r.Code != "archived-ref" ? $"«{path}»: {r.Message}" : r.Message)));
+        throw Refused(refusals);
     }
+
+    /// <summary>Отказ охраны записи словами для человека — один у формы и у распознавания (issue #1483).</summary>
+    internal static InvalidRequestException Refused(IReadOnlyList<ModuleWriteRefusal> refusals) =>
+        // Находка правила архива называет поле сама, заголовком: адрес перед ней — повтор.
+        new("Счёт не сохранён — охрана записи: " + string.Join(" ", refusals.Select(
+            r => r.Path is { Length: > 0 } path && r.Code != "archived-ref" ? $"«{path}»: {r.Message}" : r.Message)));
 
     /// <summary>
     /// Названия позиций номенклатуры одним обращением на весь счёт — либо <c>null</c>, если вида

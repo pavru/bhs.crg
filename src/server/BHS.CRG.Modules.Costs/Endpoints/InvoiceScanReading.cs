@@ -4,6 +4,7 @@ using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Files;
 using BHS.CRG.Modules.Ports;
+using BHS.CRG.Modules.Recognition;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -28,7 +29,7 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 public sealed class InvoiceScanReading(
     CostsDbContext db, InvoiceDesk desk, IModuleRecognition recognition, InvoiceScanImage image,
     IModuleWriteGuard guard, IModuleActivityLog log, ILoggerFactory logs, InvoiceParties parties,
-    IModuleCatalog catalog, IModuleBlobs blobs)
+    IModuleCatalog catalog, IModuleBlobs blobs, IModuleRecognitionTargets targets)
 {
     /// <summary>Сколько раз слияние повторяется, проиграв одновременной правке формы.</summary>
     private const int MergeAttempts = 3;
@@ -100,7 +101,10 @@ public sealed class InvoiceScanReading(
             // в счёт без сторон.
             var matched = await parties.MatchAsync(read.Fields, ct);
             var lines = await LinesAsync(invoice, read, matched, ct);
-            merged = await MergeAsync(invoiceId, scanBlobPath, read, matched, lines, readImage, ct);
+            // Куда ложится шапка (issue #1483) — тоже до замка: схема типа между попытками слияния не меняется.
+            var header = InvoiceScanHeader.Of(read.Fields,
+                await targets.ResolveAsync(CostsRecognitionProfiles.InvoiceCode, [.. read.Fields.Keys], ct));
+            merged = await MergeAsync(invoiceId, scanBlobPath, read, matched, lines, header, readImage, ct);
         }
         catch (DomainException refusal)
         {
@@ -164,7 +168,7 @@ public sealed class InvoiceScanReading(
     /// </summary>
     private async Task<(string Label, int Filled, int Lines, int Recalled, VatMode? ModeSet)> MergeAsync(
         Guid invoiceId, string? scanBlobPath, ModuleRecognitionResult read, InvoicePartiesView matched,
-        ScanLines lines, string? readImage, CancellationToken ct)
+        ScanLines lines, InvoiceScanHeader.Plan header, string? readImage, CancellationToken ct)
     {
         // Правило срока — ДО замка (ревью PR #1328): чтение настройки под замком периода держало бы его
         // зря, а между попытками слияния правило не меняется.
@@ -179,7 +183,7 @@ public sealed class InvoiceScanReading(
                     // заменить ему скан. Условие проверяется заново — и против того же файла.
                     EnsureSameScan(write.Invoice, scanBlobPath);
                     var stored = await db.InvoiceRecognitions.FirstAsync(r => r.InvoiceId == invoiceId, ct);
-                    var applied = await ApplyAsync(write.Invoice, stored, read, matched, lines, readImage, rule, ct);
+                    var applied = await ApplyAsync(write.Invoice, stored, read, matched, lines, header, readImage, rule, ct);
                     await db.SaveChangesAsync(ct);
                     return (InvoiceEndpoints.Label(write.Invoice), applied.Filled, applied.Lines, applied.Recalled,
                         applied.ModeSet);
@@ -310,7 +314,7 @@ public sealed class InvoiceScanReading(
     /// <returns><c>ModeSet</c> — режим НДС, который поставило распознавание; <c>null</c> — не меняло.</returns>
     private async Task<(int Filled, int Lines, int Recalled, VatMode? ModeSet)> ApplyAsync(
         Invoice invoice, InvoiceRecognition stored, ModuleRecognitionResult read, InvoicePartiesView matched,
-        ScanLines lines, string? readImage, InvoiceDueRule rule, CancellationToken ct)
+        ScanLines lines, InvoiceScanHeader.Plan header, string? readImage, InvoiceDueRule rule, CancellationToken ct)
     {
         var modeBefore = invoice.VatMode;
         var before = InvoiceRequisites.Merge(invoice);
@@ -319,42 +323,33 @@ public sealed class InvoiceScanReading(
         var offers = new JsonObject();
         var notes = new List<string>();
 
-        void Put(string profileKey, string requisiteKey, string title, Func<string, JsonNode?> parse)
+        // Шапка по правилу «ключ поля профиля = ключ поля счёта» (issue #1483): разобрано — в пустое поле,
+        // занятое — в предложение, не разобранное — в предложение с замечанием. Предложение несёт и
+        // разобранное значение: «Взять» кладёт его, а не разбирает текст второй раз на клиенте.
+        notes.AddRange(header.Notes);
+        var landed = new Dictionary<string, InvoiceScanHeader.Candidate>(StringComparer.Ordinal);
+        foreach (var candidate in header.Candidates)
         {
-            // Поле убрали из профиля — его не спрашивали, и говорить «в скане нет» не о чем.
-            if (!read.Fields.TryGetValue(profileKey, out var text) || text is null) return;
-
-            var value = parse(text);
-            if (value is null)
+            if (candidate.Value is null)
             {
-                offers[requisiteKey] = text;
-                notes.Add($"{title}: «{text}» не прочитано как значение поля — впишите вручную.");
-                return;
+                offers[candidate.Key] = InvoiceScanHeader.Offer(candidate.Text, null);
+                notes.Add($"{candidate.Title}: «{candidate.Text}» не прочитано как значение поля — впишите вручную.");
+                continue;
             }
 
-            var was = before.TryGetPropertyValue(requisiteKey, out var node) ? node : null;
+            var was = before.TryGetPropertyValue(candidate.Key, out var node) ? node : null;
             if (!IsBlank(was))
             {
                 // Занято: значение человека побеждает. Совпало с распознанным — и предлагать нечего.
-                if (!JsonNode.DeepEquals(was, value)) offers[requisiteKey] = text;
-                return;
+                if (!JsonNode.DeepEquals(was, candidate.Value))
+                    offers[candidate.Key] = InvoiceScanHeader.Offer(candidate.Text, candidate.Value);
+                continue;
             }
 
-            after[requisiteKey] = value;
-            filled.Add(requisiteKey);
+            after[candidate.Key] = candidate.Value.DeepClone();
+            filled.Add(candidate.Key);
+            landed[candidate.Key] = candidate;
         }
-
-        Put(CostsRecognitionProfiles.Number, InvoiceRequisites.NumberKey, "Номер счёта",
-            text => text.Length <= Invoice.NumberLength ? JsonValue.Create(text) : null);
-        Put(CostsRecognitionProfiles.Date, InvoiceRequisites.DateKey, "Дата счёта",
-            text => RecognizedValues.Date(text) is { } date
-                ? JsonValue.Create(date.ToString(CostsValues.DateFormat, System.Globalization.CultureInfo.InvariantCulture))
-                : null);
-        Put(CostsRecognitionProfiles.Basis, InvoiceRequisites.PurposeKey, "Основание", text => JsonValue.Create(text));
-        Put(CostsRecognitionProfiles.Total, InvoiceRequisites.TotalKey, "Сумма к оплате",
-            text => RecognizedValues.Money(text) is { } money ? JsonValue.Create(money) : null);
-        Put(CostsRecognitionProfiles.VatTotal, InvoiceRequisites.VatTotalKey, "В том числе НДС",
-            text => RecognizedValues.Money(text) is { } money ? JsonValue.Create(money) : null);
 
         // Стороны — по ИНН. В поле ложится только НАЙДЕННАЯ организация (одна действующая либо
         // организация среди своих ролей), и только в пустое: между разными записями выбирает
@@ -390,17 +385,9 @@ public sealed class InvoiceScanReading(
         PutParty(matched.Supplier, InvoiceRequisites.SupplierKey);
         PutParty(matched.Payer, InvoiceRequisites.PayerKey);
 
-        if (filled.Count > 0)
+        if (filled.Count > 0 && await GuardedAsync(invoice, before, after, filled, landed, offers, notes, ct)
+                is (var columns, var rest, var termed))
         {
-            using var incoming = JsonDocument.Parse(after.ToJsonString());
-            // Охране — то, что ляжет в счёт, а не присланное: см. Split.
-            var (columns, rest, landing) = InvoiceRequisites.Split(incoming.RootElement, before);
-            // Узнанный поставщик приносит отсрочку из своих условий (ТЗ COST-9.2): скан её не читает.
-            // До охраны — охрана судит то, что ляжет в счёт (ревью PR #1329).
-            (columns, var termed) = await desk.WithTermsAsync(columns, invoice, ct);
-            // Охрана записи ядра — та же, что у формы: фоновой правке её правила не уступают.
-            await InvoiceEndpoints.EnsureAllowedAsync(guard, invoice.DocumentTypeId, before.ToJsonString(),
-                InvoiceEndpoints.WithTerms(landing, termed, columns), ct);
             // Срок оплаты распознавание не трогает, значит и «вписан рукой» ему ставить нечему.
             var dueBefore = invoice.DueDate;
             invoice.ApplyRequisites(columns, rest, dueDateByHand: false, rule);
@@ -486,6 +473,67 @@ public sealed class InvoiceScanReading(
             offeredLines, notes, readImage);
 
         return (filled.Count, added, recalled, invoice.VatMode != modeBefore ? invoice.VatMode : null);
+    }
+
+    /// <summary>
+    /// Охрана записи — ПО ПОЛЯМ (issue #1483). Поле, которому охрана отказала (поле заказчика с шаблоном
+    /// или длиной), уходит в предложение с её словами, остальное ложится. Отказ целиком, как у формы, здесь
+    /// терял бы номер, суммы и строки из-за одного поля, о котором человек и не просил.
+    ///
+    /// <para>Охрана — та же, что у формы: фоновой правке её правила не уступают. Отказ не по заполняемому
+    /// полю (отсрочка из условий поставщика, чужое поле) — ошибка кода, и распознавание падает, как
+    /// раньше.</para>
+    /// </summary>
+    /// <returns>Что ложится в счёт; <c>null</c> — не легло ни одно поле.</returns>
+    private async Task<(InvoiceColumns Columns, JsonDocument Extra, bool Termed)?> GuardedAsync(
+        Invoice invoice, JsonObject before, JsonObject after, List<string> filled,
+        IReadOnlyDictionary<string, InvoiceScanHeader.Candidate> read, JsonObject offers, List<string> notes,
+        CancellationToken ct)
+    {
+        // Отсрочка из условий — один раз (ревью PR #1523): поставщика охрана по полям не снимает, и условия
+        // между попытками те же — перечитывать их под замком счёта незачем.
+        (int? Days, bool Termed)? terms = null;
+        while (true)
+        {
+            using var incoming = JsonDocument.Parse(after.ToJsonString());
+            // Охране — то, что ляжет в счёт, а не присланное: см. Split.
+            var (columns, rest, landing) = InvoiceRequisites.Split(incoming.RootElement, before);
+            // Узнанный поставщик приносит отсрочку из своих условий (ТЗ COST-9.2): скан её не читает.
+            // До охраны — охрана судит то, что ляжет в счёт (ревью PR #1329).
+            if (terms is null)
+            {
+                (columns, var substituted) = await desk.WithTermsAsync(columns, invoice, ct);
+                terms = (columns.DeferralDays, substituted);
+            }
+            else if (terms.Value.Termed)
+                columns = columns with { DeferralDays = terms.Value.Days, DeferralFromTerms = true };
+            var termed = terms.Value.Termed;
+            var refusals = await guard.RefusalsAsync(invoice.DocumentTypeId, before.ToJsonString(),
+                InvoiceEndpoints.WithTerms(landing, termed, columns), ct);
+            if (refusals.Count == 0) return (columns, rest, termed);
+
+            var refused = refusals
+                .Select(r => (Key: Root(r.Path), Refusal: r))
+                .Where(p => p.Key is not null && read.ContainsKey(p.Key) && filled.Contains(p.Key))
+                .ToList();
+            if (refused.Count == 0) throw InvoiceEndpoints.Refused(refusals);
+
+            foreach (var (key, refusal) in refused)
+            {
+                if (!filled.Remove(key!)) continue;
+                // Как лежало: пустая строка остаётся пустой строкой, а не пропавшим ключом.
+                if (before.TryGetPropertyValue(key!, out var was)) after[key!] = was?.DeepClone();
+                else after.Remove(key!);
+                var candidate = read[key!];
+                offers[key!] = InvoiceScanHeader.Offer(candidate.Text, candidate.Value);
+                notes.Add($"{candidate.Title}: «{candidate.Text}» не записано — охрана записи: {refusal.Message}");
+            }
+            if (filled.Count == 0) return null;
+        }
+
+        // «Работы[3].Количество» → «Работы»: отказ называет путь, а поле шапки — его начало.
+        static string? Root(string? path) =>
+            path is { Length: > 0 } ? path.Split('.', '[')[0] : null;
     }
 
     /// <summary>
