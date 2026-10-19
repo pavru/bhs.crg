@@ -10,6 +10,7 @@ import {
   useFreshWaybill, useMatchWaybillLine, useSaveWaybill, useWaybillState, type WaybillView,
 } from '@/shared/api/waybills';
 import { NomenclaturePicker } from './NomenclaturePicker';
+import { waybillLineWhere } from './pickerLine';
 import { WaybillDeleteMenu } from './WaybillDeleteDialog';
 import { withArchiveWord } from '@/shared/ui/archive';
 import { pickSite, REVEAL_CHOICE, useSiteChoices } from '@/shared/siteFilter/siteReveal';
@@ -321,10 +322,11 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
             columns={[
               {
                 key: 'nomenclature', label: 'Позиция номенклатуры', width: 'w-[30%]',
-                cell: line => canEdit && !closed ? (
+                cell: (line, index) => canEdit && !closed ? (
                   <NomenclaturePicker chosen={line.nomenclatureId !== null} name={line.nomenclatureName}
                     lost={line.nomenclatureLost} archived={line.nomenclatureArchived}
                     from={{ name: line.sourceText, unit: line.unit }}
+                    line={{ where: waybillLineWhere(index + 1), quantity: line.quantity }}
                     onPick={(id, name) => posted
                       ? void matchLine(line, id)
                       : editLine(line.key, { nomenclatureId: id, nomenclatureName: name, nomenclatureLost: false, nomenclatureArchived: false })}

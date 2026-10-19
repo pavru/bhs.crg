@@ -56,8 +56,10 @@ const blank = (value: string) => value.trim() || null;
  * приёмом, что правки шапки: эффект со сбросом состояния рисует лишний кадр, в котором строки одного
  * счёта стоят в другом.</p>
  */
-export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, headerDirty = false, onParsed }: {
+export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, headerDirty = false, onParsed, supplierName = null }: {
   view: InvoiceView;
+  /** Сохранённый поставщик названием — для плашки окна выбора позиции (issue #1517). */
+  supplierName?: string | null;
   /** Переход «разобран» идёт через страницу (issue #1293): она запирает форму на время записи и
    *  решает, вести ли к следующему счёту очереди. Отказ записи возвращается сюда же. */
   onParsed?: (send: () => Promise<unknown>) => Promise<unknown>;
@@ -245,7 +247,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
   const columns = useInvoiceLineColumns({
     view, still, mode, allocationLocked: locked || correcting !== null,
     blocked: dirty ? 'Разносить можно сохранённые строки: сохраните правки строк' : null,
-    offerFor, hasSupplier: supplierId !== null, onBorn: draft => void suggest([draft]),
+    offerFor, hasSupplier: supplierId !== null, supplierName, onBorn: draft => void suggest([draft]),
     onAllocating: setAllocating, onEdit: edit,
   });
 

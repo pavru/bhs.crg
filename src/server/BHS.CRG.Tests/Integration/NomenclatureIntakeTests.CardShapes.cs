@@ -59,6 +59,8 @@ public partial class NomenclatureIntakeTests
         var lines = card.GetProperty("lines").EnumerateArray().ToDictionary(l => l.GetProperty("title").GetString()!);
 
         Assert.Equal("hidden", lines["Фото"].GetProperty("kind").GetString());
+        // Ключ поля едет рядом с заголовком: им окно сверяет набранное с лежащим (issue #1517).
+        Assert.Equal("Исполнение", lines["Исполнение"].GetProperty("key").GetString());
         Assert.True(lines["Фото"].GetProperty("identity").GetBoolean());
         Assert.Equal("Брызгозащищённое", lines["Исполнение"].GetProperty("text").GetString());
         Assert.Equal("choice", lines["Исполнение"].GetProperty("kind").GetString());

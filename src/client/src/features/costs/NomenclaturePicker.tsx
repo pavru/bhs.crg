@@ -1,16 +1,19 @@
 import { LOST } from './lostReferences';
 import { ARCHIVED_HINT, withArchiveWord } from '@/shared/ui/archive';
-import * as Dialog from '@radix-ui/react-dialog';
-import { useRef, useState, type ReactNode } from 'react';
+import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Search, TriangleAlert, X } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { WindowStep } from '@/shared/ui/WindowStep';
 import { apiError } from '@/shared/utils/apiError';
-import { useNomenclature } from '@/shared/api/invoices';
+import { useNomenclature, type NomenclatureItem } from '@/shared/api/invoices';
 import { useCan } from '@/shared/api/access';
 import { NewNomenclatureStep } from './NewNomenclatureStep';
+import { NomenclatureCardPanel, type CardHead } from './NomenclatureCardPanel';
 import type { LineWords } from './newNomenclature';
+import { plateMeta, type PickerLine } from './pickerLine';
+import { usePickerSelection } from './pickerSelection';
 import { Tooltip } from '@/shared/ui/Tooltip';
-import { useHistoryLayer } from '@/shared/ui/historyLayers';
 
 /**
  * Выбор позиции номенклатуры для строки счёта (задача C2, issue #1078, ТЗ COST-7).
@@ -29,7 +32,7 @@ import { useHistoryLayer } from '@/shared/ui/historyLayers';
  * <c>core.nomenclature.edit</c>: у того, кто вводит счета, его может не быть, и кнопка, отказывающая
  * правами, обещала бы то, чего нет. Без права на её месте сказано, кто заводит позиции.</p>
  */
-export function NomenclaturePicker({ chosen, name, lost, lostText, archived, mark, clearable = true, from, onPick, onClear }: {
+export function NomenclaturePicker({ chosen, name, lost, lostText, archived, mark, clearable = true, from, line, onPick, onClear }: {
   /**
    * Ссылка на позицию ЕСТЬ. Отдельно от названия: пустое название бывает и у выбранной позиции —
    * записи справочника без имени законны, и пикер их показывает.
@@ -52,6 +55,8 @@ export function NomenclaturePicker({ chosen, name, lost, lostText, archived, mar
   clearable?: boolean;
   /** Слова строки, для которой выбирают позицию: ими заполняется окно «Новая позиция». */
   from?: LineWords;
+  /** Для какой строки открыто окно — плашка под заголовком (issue #1517). */
+  line?: PickerLine;
   onPick: (id: string, name: string | null) => void;
   onClear: () => void;
 }) {
@@ -86,7 +91,7 @@ export function NomenclaturePicker({ chosen, name, lost, lostText, archived, mar
       </div>
 
       {open && (
-        <PickerDialog from={from ?? NO_WORDS}
+        <PickerDialog from={from ?? NO_WORDS} line={line}
           onClose={() => setOpen(false)}
           onPick={(id, picked) => { onPick(id, picked); setOpen(false); }} />
       )}
@@ -96,9 +101,43 @@ export function NomenclaturePicker({ chosen, name, lost, lostText, archived, mar
 
 const NO_WORDS: LineWords = {};
 
-/** Тело монтируется по открытию: запрос заводится заново, и эффекта «закрылось — очисти» не нужно. */
-function PickerDialog({ from, onClose, onPick }: {
+/**
+ * Тело окна уже этой ширины — карточке рядом со списком места нет (issue #1517): она открывается шагом
+ * окна по нажатию на строку. Меряется тело, а не экран: на планшете окно уже экрана.
+ */
+const NARROW_BODY = 720;
+
+function useNarrow() {
+  // Узел — состоянием, а не `useRef`: тело окна появляется позже первого эффекта, и наблюдатель,
+  // подключаемый один раз при монтировании, не подключался вовсе — окно не узнавало, что сузилось.
+  const [node, ref] = useState<HTMLDivElement | null>(null);
+  const [narrow, setNarrow] = useState(() => window.innerWidth < NARROW_BODY);
+  useLayoutEffect(() => {
+    if (!node) return;
+    // Нулевая ширина — тело скрыто под шагом окна («Новая позиция», карточка), а не сжато: окно той же
+    // ширины, и прежняя мерка верна. Без этого шаг под скрытым телом всегда считал себя узким.
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width > 0) setNarrow(entry.contentRect.width < NARROW_BODY);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [node]);
+  return { ref, narrow };
+}
+
+/** Почему позиция в списке — словами: набранного в названии нет, и без пояснения строка читается промахом. */
+const whyOf = (item: NomenclatureItem) => (item.matchedAlias ? `найдено по «${item.matchedAlias}»` : null);
+
+/**
+ * Тело монтируется по открытию: запрос заводится заново, и эффекта «закрылось — очисти» не нужно.
+ *
+ * <p>Окно — `Modal wide` (issue #1517): справа от списка карточка выделенной позиции. Одно выделение на
+ * список (`aria-activedescendant`): стрелки меняют карточку сразу, мышь — после покоя над строкой.
+ * Нажатие на строку выбирает её; на узком теле — открывает карточку шагом окна.</p>
+ */
+function PickerDialog({ from, line, onClose, onPick }: {
   from: LineWords;
+  line?: PickerLine;
   onClose: () => void;
   onPick: (id: string, name: string | null) => void;
 }) {
@@ -108,13 +147,11 @@ function PickerDialog({ from, onClose, onPick }: {
   const found = useNomenclature(query);
   // Шаг «Новая позиция» живёт в этом же окне: набранный запрос цел, пока окно открыто.
   const [creating, setCreating] = useState(false);
+  // Карточка шагом окна — на узком теле.
+  const [opened, setOpened] = useState<NomenclatureItem | null>(null);
   const canCreate = useCan().permission('core.nomenclature.edit');
-  // «Назад» на телефоне (issue #1418): с шага «Новая позиция» — к поиску, с поиска — закрыть выбор.
-  useHistoryLayer(true, () => {
-    if (!creating) { onClose(); return true; }
-    setCreating(false);
-    return false;
-  });
+  const { ref, narrow } = useNarrow();
+  const listId = useId();
 
   // Задержка в обработчике, а не в эффекте: запрос на каждую букву — это двадцать обращений на одно
   // слово, а состояние, поставленное из эффекта, вызывает лишний кадр (правило react-hooks).
@@ -125,33 +162,69 @@ function PickerDialog({ from, onClose, onPick }: {
   }
 
   const items = found.data?.items ?? [];
+  const selection = usePickerSelection(items.map(item => item.id));
+  const optionId = (id: string) => `${listId}-${id}`;
+  // Вид у строки — только когда в выдаче их больше одного: одинаковая метка у всех ничего не различает.
+  const kinds = new Set(items.map(item => item.type)).size > 1;
+  const shown = items.find(item => item.id === selection.active);
+  const head: CardHead | null = shown ? { name: shown.name, type: shown.type, why: whyOf(shown) } : null;
+
+  function choose(item: NomenclatureItem) {
+    if (narrow) { selection.select(item.id); setOpened(item); }
+    else onPick(item.id, item.name);
+  }
+
+  function keys(e: React.KeyboardEvent) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      selection.step(e.key === 'ArrowDown' ? 1 : -1);
+      return;
+    }
+    // Enter выбирает выделенную, только пока она среди ЭТОГО ответа: прошлый ответ стоит на экране, пока
+    // едет новый, и Enter по нему выбрал бы строку, которой под набранным уже нет.
+    if (e.key === 'Enter' && selection.index >= 0 && !found.isPlaceholderData) {
+      e.preventDefault();
+      choose(items[selection.index]);
+    }
+  }
+
+  // Выделенная стрелкой строка — в поле зрения: без этого стрелка уводила бы выделение за край списка.
+  const activeOption = selection.index >= 0 && selection.active ? optionId(selection.active) : undefined;
+  useLayoutEffect(() => {
+    if (activeOption) document.getElementById(activeOption)?.scrollIntoView({ block: 'nearest' });
+  }, [activeOption]);
+
+  const plate = <LinePlate from={from} line={line} />;
 
   return (
-    <Dialog.Root open onOpenChange={o => { if (!o) onClose(); }}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-        <Dialog.Content data-modal-state="free" className="fixed z-50 left-1/2 top-24 -translate-x-1/2 w-[min(40rem,92vw)]
-          max-h-[calc(100vh-7rem)] overflow-y-auto
-          rounded-xl border border-stroke bg-surface shadow-xl p-4 space-y-3">
-          <Dialog.Title className="text-sm font-medium text-fg2">
-            {creating ? 'Новая позиция номенклатуры' : 'Позиция номенклатуры'}
-          </Dialog.Title>
-
-          {creating ? (
-            <>
-              <NewNomenclatureStep from={from} onBack={() => setCreating(false)} onPick={onPick} />
-              <div className="flex justify-end">
-                <Button size="sm" variant="text" onClick={onClose}>Закрыть</Button>
-              </div>
-            </>
-          ) : (<>
-          <div className="flex items-center gap-2 border-b border-stroke pb-2">
-            <Search size={14} className="text-fg4 shrink-0" />
+    <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Позиция номенклатуры" wide flushBody nothingToLose
+      footer={(
+        <div className="flex items-center justify-between gap-3">
+          {/* Кнопка — всегда, а не только при пустом поиске: двадцать пять неподходящих находок —
+              такой же повод завести позицию, как ни одной. */}
+          {canCreate ? (
+            <Button size="sm" variant="text" onClick={() => setCreating(true)}>Завести новую позицию…</Button>
+          ) : (
+            <p className="text-caption text-fg4">
+              Новую позицию заводит тот, кто ведёт справочник номенклатуры. Строку можно сохранить без позиции.
+            </p>
+          )}
+          <ModalExit>Закрыть</ModalExit>
+        </div>
+      )}>
+      <div ref={ref} className={narrow ? 'flex-1 min-h-0 overflow-y-auto'
+        : 'flex-1 min-h-0 grid grid-cols-[minmax(0,55fr)_minmax(0,45fr)] border-t border-stroke'}>
+        <div className={`space-y-3 px-6 pt-3 pb-4 ${narrow ? '' : 'overflow-y-auto'}`}>
+          {plate}
+          <div className="flex items-center gap-2 rounded-md border border-stroke-strong px-2.5 h-10">
+            <Search size={15} className="text-fg4 shrink-0" />
             {/* Курсор ставим ссылкой на узел, а не атрибутом `autoFocus`: пикер открывают, чтобы
                 искать, но атрибут ругает линтер (он бьёт по фокусу на загрузке страницы), а эффект
                 рисовал бы лишний кадр. */}
-            <input ref={node => node?.focus()} value={typed} onChange={e => type(e.target.value)}
-              placeholder="часть наименования"
+            <input ref={node => node?.focus()} value={typed} onChange={e => type(e.target.value)} onKeyDown={keys}
+              placeholder="наименование или часть наименования" aria-label="Поиск позиции" data-search=""
+              role="combobox" aria-expanded aria-controls={listId} aria-autocomplete="list"
+              aria-activedescendant={activeOption}
               className="flex-1 bg-transparent text-sm outline-none text-fg1 placeholder:text-fg4" />
           </div>
 
@@ -163,30 +236,35 @@ function PickerDialog({ from, onClose, onPick }: {
             </p>
           )}
 
-          <div className="max-h-72 overflow-y-auto -mx-1">
-            {items.map(item => (
-              <button key={item.id} type="button" onClick={() => onPick(item.id, item.name)}
-                className="w-full text-left px-3 py-1.5 rounded hover:bg-muted flex items-baseline gap-2">
-                <span className="text-sm text-fg1 truncate">{item.name ?? 'без названия'}</span>
-                {/* Найдено по альтернативному имени — сказано словами: набранного в названии нет, и
-                    без пояснения строка читается как промах поиска. */}
-                {item.matchedAlias && (
-                  <span className="text-caption text-fg3 truncate">найдено по «{item.matchedAlias}»</span>
-                )}
-                <span className="text-caption text-fg4 shrink-0">{item.type}</span>
-              </button>
-            ))}
-
-            {!found.isError && items.length === 0 && !found.isFetching && (
-              <p className="px-3 py-2 text-xs text-fg4">
-                {!query ? 'Справочник номенклатуры пуст.'
-                  : canCreate
-                    ? 'По этому запросу позиций нет. Проверьте другое написание — или заведите новую позицию.'
-                    : 'По этому запросу позиций нет. Заводит их ответственный за справочник — строку можно '
-                      + 'оставить без позиции, счёт будет ждать в отборе «Разобрать».'}
-              </p>
-            )}
+          <div id={listId} role="listbox" aria-label="Найденные позиции" onMouseLeave={selection.leave}
+            className="-mx-2 space-y-0.5">
+            {items.map(item => {
+              const active = item.id === selection.active;
+              const why = whyOf(item);
+              return (
+                <div key={item.id} id={optionId(item.id)} role="option" aria-selected={active}
+                  onClick={() => choose(item)} onMouseMove={() => { if (!active) selection.hover(item.id); }}
+                  className={`cursor-pointer px-2 py-1.5 rounded-md flex items-baseline gap-2 ${active ? 'bg-muted' : 'hover:bg-muted'}`}>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm text-fg1">{item.name ?? 'без названия'}</span>
+                    {why && <span className="block text-caption text-fg3">{why}</span>}
+                  </span>
+                  {kinds && <span className="text-caption text-fg4 shrink-0">{item.type}</span>}
+                  <span className="text-xs text-brand shrink-0" aria-hidden>{narrow ? '›' : 'Выбрать'}</span>
+                </div>
+              );
+            })}
           </div>
+
+          {!found.isError && items.length === 0 && !found.isFetching && (
+            <p className="text-xs text-fg4">
+              {!query ? 'Справочник номенклатуры пуст.'
+                : canCreate
+                  ? 'По этому запросу позиций нет. Проверьте другое написание — или заведите новую позицию.'
+                  : 'По этому запросу позиций нет. Заводит их ответственный за справочник — строку можно '
+                    + 'оставить без позиции, счёт будет ждать в отборе «Разобрать».'}
+            </p>
+          )}
 
           {/* Архивные позиции в выбор не попадают — и молчать о них нельзя: не найдя позицию,
               человек заведёт её заново, а она есть. Действия здесь нет нарочно: вернуть из архива
@@ -205,22 +283,52 @@ function PickerDialog({ from, onClose, onPick }: {
               нельзя решить, что позиции в справочнике нет.
             </p>
           )}
+          {narrow && items.length > 0 && (
+            <p className="text-caption text-fg4">Нажмите на позицию, чтобы открыть её карточку.</p>
+          )}
+        </div>
 
-          {/* Кнопка — всегда, а не только при пустом поиске: двадцать пять неподходящих находок —
-              такой же повод завести позицию, как ни одной. */}
-          <div className="flex items-center justify-between gap-3">
-            {canCreate ? (
-              <Button size="sm" variant="text" onClick={() => setCreating(true)}>Завести новую позицию…</Button>
-            ) : (
-              <p className="text-caption text-fg4">
-                Новую позицию заводит тот, кто ведёт справочник номенклатуры. Строку можно сохранить без позиции.
-              </p>
-            )}
-            <Button size="sm" variant="text" onClick={onClose}>Закрыть</Button>
-          </div>
-          </>)}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        {/* Карточка остаётся, когда курсор ушёл со списка: её уводят читать, а не терять. */}
+        {!narrow && (
+          <aside aria-label="Карточка позиции" className="overflow-y-auto border-l border-stroke px-5 py-4">
+            <NomenclatureCardPanel id={selection.active} head={head} onPick={onPick} />
+          </aside>
+        )}
+      </div>
+
+      {opened && (
+        <WindowStep title="Карточка позиции" onBack={() => setOpened(null)}
+          footer={(
+            <div className="flex items-center gap-2">
+              <ModalExit>К списку</ModalExit>
+              <Button variant="filled" className="flex-1" onClick={() => onPick(opened.id, opened.name)}>
+                Выбрать эту позицию
+              </Button>
+            </div>
+          )}>
+          <NomenclatureCardPanel id={opened.id} head={{ name: opened.name, type: opened.type, why: whyOf(opened) }}
+            pick={null} onPick={onPick} />
+        </WindowStep>
+      )}
+
+      {creating && (
+        <NewNomenclatureStep from={from} plate={plate} narrow={narrow}
+          onBack={() => setCreating(false)} onPick={onPick} />
+      )}
+    </Modal>
+  );
+}
+
+/** Для какой строки открыто окно: где, слова поставщика целиком (до двух строк), артикул и количество. */
+function LinePlate({ from, line }: { from: LineWords; line?: PickerLine }) {
+  const meta = plateMeta(from, line?.quantity);
+  const name = (from.name ?? '').trim();
+  if (!line && !name && !meta) return null;
+  return (
+    <div className="rounded-lg bg-muted px-3 py-2 space-y-0.5">
+      {line && <p className="text-caption text-fg3">{line.where}</p>}
+      {name && <p className="text-sm leading-snug text-fg1 line-clamp-2" title={name}>{name}</p>}
+      {meta && <p className="text-xs text-fg3 tabular-nums">{meta}</p>}
+    </div>
   );
 }

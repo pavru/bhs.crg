@@ -1,6 +1,8 @@
 import {
   NOMENCLATURE_ARTICLE, NOMENCLATURE_UNIT, type IntakeBody, type IntakeField, type IntakeKind,
 } from '@/shared/api/nomenclatureIntake';
+import type { NomenclatureCard } from '@/shared/api/nomenclatureCard';
+import type { CompareRow } from './nomenclatureCardView';
 
 /**
  * Новая позиция номенклатуры из строки счёта (задача C3, issue #1079) — то, что можно проверить без
@@ -119,4 +121,39 @@ export function missingFields(kind: IntakeKind, draft: IntakeDraft): string[] {
     .filter(f => f.required || f === naming)
     .filter(f => f.options === null ? !text(draft.values[f.key]) : !draft.refs[f.key])
     .map(f => f.title);
+}
+
+/** «EKF » и «ekf» — одно и то же значение: регистр и лишние пробелы набранного сверку не ломают. */
+const sameText = (a: string, b: string) =>
+  a.replace(/\s+/g, ' ').trim().toLowerCase() === b.replace(/\s+/g, ' ').trim().toLowerCase();
+
+/**
+ * Сравнение «Набрано ↔ в справочнике» в карточке шага «Новая позиция» (issue #1517) — по полям КЛЮЧА:
+ * они решают, та ли это позиция. По ключу поля, а не по заголовку: заголовки у полей бывают одинаковые.
+ * Ненабранное не сравнивается — «отличается» про пустое поле было бы неправдой.
+ *
+ * Поле названия пустым у позиции не бывает: им сервер называет запись. Пусто оно в данных у записей,
+ * заведённых одним именем, — тогда значение поля и есть имя записи, а «не заполнено» про позицию с
+ * именем было бы неправдой.
+ */
+export function typedVsCard(
+  kind: IntakeKind, draft: IntakeDraft, card: Pick<NomenclatureCard, 'lines' | 'name'>,
+): CompareRow[] {
+  const rows: CompareRow[] = [];
+  const naming = namingField(kind);
+  for (const field of kind.fields) {
+    if (!field.identity) continue;
+    const typed = field.options === null
+      ? text(draft.values[field.key])
+      : text(field.options.find(o => o.id === draft.refs[field.key])?.name);
+    if (!typed) continue;
+    const there = card.lines.find(l => l.key === field.key)?.text ?? (field === naming ? card.name : null);
+    if (!there)
+      rows.push({ label: field.title, text: 'в справочнике не заполнено', tone: 'plain' });
+    else if (sameText(typed, there))
+      rows.push({ label: field.title, text: `совпадает: ${there}`, tone: 'ok' });
+    else
+      rows.push({ label: field.title, text: `отличается — набрано «${typed}»`, tone: 'differs' });
+  }
+  return rows;
 }

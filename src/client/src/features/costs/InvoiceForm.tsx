@@ -339,6 +339,7 @@ export function InvoiceForm({
         )}
 
         <InvoiceLinesTable key={correction.generation} view={view} locked={closed || gone} readOnly={!canEdit} onDirty={setLinesDirty}
+          supplierName={savedSupplierName(view, organizations)}
           headerDirty={dirty} onParsed={onExit && (send => onExit('parsed', send, () => {}))} />
 
         <p className="text-xs text-fg4">
@@ -573,3 +574,11 @@ function scanOf(view: InvoiceView): { fileName: string | null; mimeType: string 
   };
 }
 
+/**
+ * Поставщик, СОХРАНЁННЫЙ в шапке, — названием: для плашки окна выбора позиции (issue #1517). Строки
+ * пишутся отдельно от шапки, и запомненное сверяется с лежащим поставщиком, а не с набранным.
+ */
+function savedSupplierName(view: InvoiceView, organizations: CostsOrganization[]): string | null {
+  const id = refEntryId(view.requisites[K.supplier]);
+  return id === null ? null : organizations.find(o => o.id === id)?.name ?? view.references?.supplierName ?? null;
+}

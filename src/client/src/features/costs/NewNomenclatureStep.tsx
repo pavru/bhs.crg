@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, TriangleAlert } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { TriangleAlert } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
+import { ModalExit } from '@/shared/ui/Modal';
+import { WindowStep } from '@/shared/ui/WindowStep';
 import { useToast } from '@/shared/ui/Toast';
 import { apiError } from '@/shared/utils/apiError';
 import {
@@ -8,9 +10,11 @@ import {
   type NomenclaturePosition, type SimilarPositions,
 } from '@/shared/api/nomenclatureIntake';
 import {
-  createBody, defaultKind, missingFields, prefill, prefillHint, similarBody,
+  createBody, defaultKind, missingFields, prefill, prefillHint, similarBody, typedVsCard,
   type IntakeDraft, type LineWords,
 } from './newNomenclature';
+import { NomenclatureCardPanel } from './NomenclatureCardPanel';
+import { usePickerSelection } from './pickerSelection';
 import { Select, SelectItem } from '@/shared/ui/Select';
 
 const field = 'w-full rounded border border-stroke bg-surface px-2 py-1 text-sm text-fg1 outline-none';
@@ -18,7 +22,10 @@ const field = 'w-full rounded border border-stroke bg-surface px-2 py-1 text-sm 
 /**
  * Шаг «Новая позиция номенклатуры» в окне выбора позиции (задача C3, issue #1079, ТЗ COST-7.1).
  *
- * <p>Второй шаг ТОГО ЖЕ окна, а не третье окно поверх двух: под ним несохранённые строки счёта.</p>
+ * <p>Второй шаг ТОГО ЖЕ окна (`WindowStep`), а не третье окно поверх двух: под ним несохранённые строки
+ * счёта. Справа — карточка (issue #1517): «такая уже есть» — сразу, похожая — по наведению, со сравнением
+ * набранного с лежащим по полям ключа. Набор карточку не сбрасывает, пока показанная остаётся среди
+ * похожих.</p>
  *
  * <p>⚠️ <b>Кнопки создания нет, пока нет ответа о похожих</b> — ни пока он едет, ни когда он не
  * пришёл. Новая позиция без показа похожих и есть то, от чего это окно заведено: дубль в справочнике,
@@ -27,9 +34,13 @@ const field = 'w-full rounded border border-stroke bg-surface px-2 py-1 text-sm 
  * <p>Что спрашивать, решает сервер по схеме вида: ключей полей здесь нет. Вид, у которого обязательно
  * то, что окну заполнить нечем, назван негодным — с причиной, а не с кнопкой, которая откажет.</p>
  */
-export function NewNomenclatureStep({ from, onBack, onPick }: {
+export function NewNomenclatureStep({ from, plate, narrow, onBack, onPick }: {
   /** Слова строки счёта — подставляются в поля. */
   from: LineWords;
+  /** Плашка «для какой строки» — та же, что над поиском. */
+  plate: ReactNode;
+  /** Тело окна узкое: карточке рядом места нет. */
+  narrow: boolean;
   onBack: () => void;
   onPick: (id: string, name: string | null) => void;
 }) {
@@ -109,13 +120,18 @@ export function NewNomenclatureStep({ from, onBack, onPick }: {
 
   const missing = kind && fit ? missingFields(kind, draft) : [];
 
-  return (
+  // Карточка справа: «такая уже есть» — сразу; иначе — наведённая из похожих. Пока ответ о похожих едет,
+  // наведённая держится: исчезнуть ей велит только пришедший ответ, где её нет.
+  const hits = similar.data?.similar.map(hit => hit.position.id) ?? [];
+  const selection = usePickerSelection(hits);
+  const answered = settled && !similar.isFetching && !!similar.data;
+  const exact = answered ? similar.data?.exact ?? null : null;
+  const shownId = exact?.id ?? (answered && selection.index < 0 ? null : selection.active);
+  const shownHead = exact ?? similar.data?.similar.find(hit => hit.position.id === shownId)?.position ?? null;
+
+  const form = (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 border-b border-stroke pb-2">
-        <button type="button" onClick={onBack} className="flex items-center gap-1 text-xs text-fg3 hover:text-fg1">
-          <ArrowLeft size={13} /> К поиску
-        </button>
-      </div>
+      {plate}
 
       {kinds.isPending && <p className="text-xs text-fg4">Читаем, что спросить о позиции…</p>}
       {kinds.isError && (
@@ -161,6 +177,7 @@ export function NewNomenclatureStep({ from, onBack, onPick }: {
           </p>
 
           <Similar body={body !== null} settled={settled} similar={similar} onPick={onPick}
+            hover={selection.hover} leave={selection.leave} active={shownId}
             create={(
               <Button size="sm" disabled={missing.length > 0 || create.isPending} onClick={() => void submit()}
                 variant={similar.data?.similar.length ? 'outlined' : 'filled'}
@@ -180,6 +197,22 @@ export function NewNomenclatureStep({ from, onBack, onPick }: {
       )}
     </div>
   );
+
+  return (
+    <WindowStep title="Новая позиция номенклатуры" onBack={onBack}
+      footer={<div className="flex justify-start"><ModalExit>← К поиску</ModalExit></div>}>
+      {narrow || !kind || !fit ? form : (
+        <div className="grid grid-cols-[minmax(0,55fr)_minmax(0,45fr)] gap-5">
+          {form}
+          <aside aria-label="Карточка позиции" className="self-start sticky top-0 border-l border-stroke pl-5">
+            <NomenclatureCardPanel id={shownId} pick="filled" onPick={onPick}
+              head={shownHead && { name: shownHead.name, type: shownHead.type }}
+              compare={{ title: 'Набрано ↔ в справочнике', rows: card => typedVsCard(kind, draft, card) }} />
+          </aside>
+        </div>
+      )}
+    </WindowStep>
+  );
 }
 
 function Refusal({ children }: { children: React.ReactNode }) {
@@ -192,12 +225,16 @@ function Refusal({ children }: { children: React.ReactNode }) {
 }
 
 /** Блок «Похожие в справочнике»: что на экране и есть ли кнопка создания — по ответу сервера. */
-function Similar({ body, settled, similar, create, onPick }: {
+function Similar({ body, settled, similar, create, onPick, hover, leave, active }: {
   body: boolean;
   settled: boolean;
   similar: { data?: SimilarPositions; isFetching: boolean; isError: boolean; error: unknown; refetch: () => unknown };
   create: React.ReactNode;
   onPick: (id: string, name: string | null) => void;
+  /** Мышь над похожей — её карточка справа после покоя (`usePickerSelection`). */
+  hover: (id: string) => void;
+  leave: () => void;
+  active: string | null;
 }) {
   const head = <p className="text-xs font-medium text-fg2">Похожие в справочнике</p>;
 
@@ -241,9 +278,12 @@ function Similar({ body, settled, similar, create, onPick }: {
 
   return (
     <div className="space-y-1">{head}
-      {hits.map(hit => (
-        <Row key={hit.position.id} position={hit.position} why={hit.why} action="Это она" onPick={onPick} />
-      ))}
+      <div onMouseLeave={leave} className="space-y-0.5">
+        {hits.map(hit => (
+          <Row key={hit.position.id} position={hit.position} why={hit.why} action="Это она" onPick={onPick}
+            active={hit.position.id === active} onHover={() => hover(hit.position.id)} />
+        ))}
+      </div>
       {more && <p className="text-xs text-warning">Есть ещё похожие — уточните наименование.</p>}
       {hits.length === 0 && <p className="text-xs text-fg3">Похожих в справочнике не найдено.</p>}
       {/* Оговорка — всегда: «не найдено» значит «правила не нашли», а не «дубля нет». */}
@@ -256,11 +296,13 @@ function Similar({ body, settled, similar, create, onPick }: {
   );
 }
 
-function Row({ position, why, action, onPick }: {
+function Row({ position, why, action, onPick, active = false, onHover }: {
   position: NomenclaturePosition;
   why?: string;
   action: string;
   onPick: (id: string, name: string | null) => void;
+  active?: boolean;
+  onHover?: () => void;
 }) {
   const label = (
     <>
@@ -272,13 +314,15 @@ function Row({ position, why, action, onPick }: {
   // Архивную выбрать нельзя — сервер её в новую строку не примет; но показать обязаны: иначе её
   // заведут заново.
   if (position.archived) return (
-    <div className="px-3 py-1.5 flex items-baseline gap-2">
+    <div onMouseMove={active ? undefined : onHover}
+      className={`px-3 py-1.5 rounded flex items-baseline gap-2 ${active ? 'bg-muted' : ''}`}>
       {label}<span className="ml-auto text-caption text-fg4 shrink-0">в архиве</span>
     </div>
   );
   return (
     <button type="button" onClick={() => onPick(position.id, position.name)}
-      className="w-full text-left px-3 py-1.5 rounded hover:bg-muted flex items-baseline gap-2">
+      onMouseMove={active ? undefined : onHover}
+      className={`w-full text-left px-3 py-1.5 rounded flex items-baseline gap-2 ${active ? 'bg-muted' : 'hover:bg-muted'}`}>
       {label}<span className="ml-auto text-xs text-brand shrink-0">{action}</span>
     </button>
   );

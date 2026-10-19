@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { existingPosition, type IntakeKind } from '@/shared/api/nomenclatureIntake';
 import {
-  createBody, defaultKind, missingFields, prefill, prefillHint, similarBody,
+  createBody, defaultKind, missingFields, prefill, prefillHint, similarBody, typedVsCard,
 } from './newNomenclature';
+import type { CardLine } from '@/shared/api/nomenclatureCard';
 
 const kind = (patch: Partial<IntakeKind> = {}): IntakeKind => ({
   typeId: 't-1', code: 'Номенклатура', name: 'Номенклатура', refusals: [],
@@ -111,5 +112,40 @@ describe('новая позиция номенклатуры из строки �
     expect(createBody(kind(), draft)).toEqual({
       typeId: 't-1', values: { Наименование: 'Кабель' }, refs: { ЕдиницаИзмерения: 'u-2' },
     });
+  });
+});
+
+describe('набрано ↔ в справочнике (#1517)', () => {
+  const line = (key: string, text: string | null): CardLine => ({
+    key, title: key, text, kind: 'text', identity: true, inheritedFrom: null, unreadable: false, archived: false,
+  });
+  const card = {
+    name: 'Выключатель AV-10',
+    lines: [line('Наименование', 'Выключатель AV-10'), line('Производитель', 'EKF'), line('Артикул', null)],
+  };
+
+  it('сравнивает поля ключа по ключу; регистр и пробелы не в счёт; ненабранное не сравнивается', () => {
+    const draft = { values: { 'Наименование': 'Выключатель AV-10 6A', 'Производитель': ' ekf ', 'Артикул': 'mcb10' }, refs: {} };
+    expect(typedVsCard(kind(), draft, card)).toEqual([
+      { label: 'Наименование', text: 'отличается — набрано «Выключатель AV-10 6A»', tone: 'differs' },
+      { label: 'Производитель', text: 'совпадает: EKF', tone: 'ok' },
+      { label: 'Артикул', text: 'в справочнике не заполнено', tone: 'plain' },
+    ]);
+    expect(typedVsCard(kind(), { values: { 'Наименование': 'выключатель  av-10' }, refs: {} }, card))
+      .toEqual([{ label: 'Наименование', text: 'совпадает: Выключатель AV-10', tone: 'ok' }]);
+  });
+
+  it('поле не из ключа не сравнивается', () => {
+    const draft = { values: { 'Наименование': 'Выключатель AV-10' }, refs: { 'ЕдиницаИзмерения': 'u-1' } };
+    expect(typedVsCard(kind(), draft, card).map(r => r.label)).toEqual(['Наименование']);
+  });
+
+  it('поле названия пусто в данных — сравнивается с именем записи: им запись и названа', () => {
+    const named = { name: 'Кабель прогона 018746', lines: [line('Наименование', null), line('Производитель', null)] };
+    const draft = { values: { 'Наименование': 'кабель прогона 018746', 'Производитель': 'EKF' }, refs: {} };
+    expect(typedVsCard(kind(), draft, named)).toEqual([
+      { label: 'Наименование', text: 'совпадает: Кабель прогона 018746', tone: 'ok' },
+      { label: 'Производитель', text: 'в справочнике не заполнено', tone: 'plain' },
+    ]);
   });
 });

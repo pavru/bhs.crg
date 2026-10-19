@@ -8,6 +8,7 @@ import { preview, type LineDraft } from './invoiceLines';
 import { applyOffer, cancelMatch, lineKey, memoryFate, pickByHand, sameKey, type MatchOffer } from './supplierMatches';
 import { LineMatchChip } from './LineMatchChip';
 import { NomenclaturePicker } from './NomenclaturePicker';
+import { invoiceLineWhere } from './pickerLine';
 import { LineAllocationCell } from './LineAllocation';
 import { Cell, LockedPosition } from './InvoiceLineCells';
 
@@ -37,6 +38,8 @@ export interface InvoiceLineContext {
   offerFor: (draft: LineDraft) => MatchOffer | null;
   /** У счёта сохранён поставщик: без него ни подставить, ни запомнить. */
   hasSupplier: boolean;
+  /** Сохранённый поставщик названием — в плашку окна выбора позиции. */
+  supplierName: string | null;
   /** У строки появился новый ключ (наименование или артикул) — спросить запомненное. */
   onBorn: (draft: LineDraft) => void;
   /** Диалог разноски строки открыт или закрыт — пока открыт, таблица не пересобирается. */
@@ -103,7 +106,7 @@ export function useInvoiceLineColumns(ctx: InvoiceLineContext): EditGridColumn<L
   const columns: EditGridColumn<LineDraft>[] = [
     {
       key: 'nomenclature', label: 'Позиция номенклатуры', width: 'w-64',
-      cell: draft => (still ? <LockedPosition draft={draft} /> : (
+      cell: (draft, index) => (still ? <LockedPosition draft={draft} /> : (
         // Потерю называет СЕРВЕР: у формы на все случаи пустого названия один признак, и выбранная
         // только что позиция без имени краснела бы как потерянная. Выбор и снятие потерю снимают —
         // ссылка меняется здесь же, и прежний ответ сервера к ней уже не относится.
@@ -112,6 +115,7 @@ export function useInvoiceLineColumns(ctx: InvoiceLineContext): EditGridColumn<L
           archived={draft.nomenclatureArchived}
           clearable={draft.matchedBy === null}
           from={{ name: draft.supplierText, code: draft.supplierCode, unit: draft.unit }}
+          line={{ where: invoiceLineWhere(index + 1, ctx.supplierName), quantity: draft.quantity }}
           mark={(
             <LineMatchChip draft={draft} offer={ctx.offerFor(draft)}
               fate={memoryFate(draft, saved(draft), ctx.hasSupplier, ctx.offerFor(draft))}

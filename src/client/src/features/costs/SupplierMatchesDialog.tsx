@@ -14,6 +14,7 @@ import {
   type SupplierMatchFilter, type SupplierMatchItem,
 } from '@/shared/api/supplierMatches';
 import { NomenclaturePicker } from './NomenclaturePicker';
+import { supplierMatchWhere } from './pickerLine';
 import { forgetAllQuestion, forgetQuestion, issueNote, shownOf, supplierLabel } from './supplierMatchList';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -107,6 +108,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
           <NomenclaturePicker chosen name={item.nomenclatureName} clearable={false}
             lost={item.issue === 'lost'} archived={item.issue === 'archived'}
             from={item.by === 'code' ? { code: item.source } : { name: item.source }}
+            line={{ where: supplierMatchWhere(item.supplierName) }}
             onPick={id => void repoint(item, id)} onClear={() => {}} />
           {issueNote(item.issue) && (
             <p className={`mt-0.5 ${item.issue === 'lost' ? 'text-danger' : 'text-fg4'}`}>
