@@ -40,7 +40,10 @@ public sealed record LineQuestion(string? Name, string? Code);
 /// позиции (или в том альтернативном имени, которым она нашлась). Разбивает на слова только сервер:
 /// клиент, повторивший разбиение, подсветил бы не то, по чему подбирали.</param>
 /// <param name="Field">Заголовок поля ключа, с которым совпал артикул строки; <c>null</c> — не совпал.</param>
-public sealed record LineMatched(IReadOnlyList<LineWord> Words, string? Field);
+/// <param name="Alias">Альтернативное имя, как записано, — когда позиция нашлась им, а не названием;
+/// иначе <c>null</c>. Показать его обязан тот, кто показывает кандидата: слова строки отмечены по нему, и
+/// без него название, в котором этих слов нет, выглядит ошибкой подбора.</param>
+public sealed record LineMatched(IReadOnlyList<LineWord> Words, string? Field, string? Alias = null);
 
 /// <summary>Слово строки бумаги так, как оно в ней написано.</summary>
 /// <param name="Start">Где слово начинается в исходной строке (<see cref="LineQuestion.Name" />): карточка
@@ -212,72 +215,73 @@ public static class NomenclatureSimilarity
     /// </summary>
     /// <param name="titles">Заголовки полей ключа по виду записи, в порядке ключа, — для причины
     /// «совпадает артикул «…»». Вида нет в словаре — «поле ключа».</param>
+    /// <param name="limit">Сколько кандидатов показать. Порт модулей берёт всех: действующих он показывает
+    /// своим пределом, а архивных — числом.</param>
     public static LineAnswer ForLine(
         LineQuestion line, IReadOnlyList<SimilarRecord> records,
-        IReadOnlyDictionary<Guid, IReadOnlyList<string>> titles, int unreadable = 0)
+        IReadOnlyDictionary<Guid, IReadOnlyList<string>> titles, int unreadable = 0, int limit = Limit) =>
+        ForLine(line, LinePool.Of(records, titles), unreadable, limit);
+
+    /// <summary>
+    /// Подбор над разобранными записями. Разбор не вынесен наружу нарочно: замер (issue #1514) — 50 строк
+    /// на 2 000 позиций за ~1,2 с что с разбором один раз на все строки, что на каждую. Время уходит на
+    /// сравнение слов строки со словами каждой позиции; предвыборке на счёт нужен индекс по словам.
+    /// </summary>
+    private static LineAnswer ForLine(LineQuestion line, LinePool pool, int unreadable, int limit)
     {
         var name = MatchKeyNormalizer.Normalize(line.Name);
         var code = MatchKeyNormalizer.Normalize(line.Code);
         if (name.Length == 0 && code.Length == 0) return new([], false, unreadable);
 
-        var lying = records.Select(r => (Record: r, Key: KeyOf(r, Math.Max(1, r.Identity.Count)))).ToList();
-        // Сколько позиций несут значение в каком-либо поле ключа, кроме названия: всех — для «редкого»,
-        // действующих — для «единственного». Архивный двойник артикула выбрать нельзя, и единственную
-        // действующую позицию он не делает спорной.
-        var shared = code.Length == 0 ? [] : SharedValues(lying);
-        var sharedLive = code.Length == 0 ? [] : SharedValues(lying.Where(x => !x.Record.Archived));
         var words = Words(name);
         var shown = Shown(line.Name);
 
         var hits = new List<LineCandidate>();
-        foreach (var (record, key) in lying)
+        foreach (var (record, key, names) in pool.Entries)
         {
             var why = new List<string>();
             int level = 0;
             bool sure = false, whole = false;
             string? field = null;
-            // Имя, которым позиция нашлась, его слова: по ним доля и подсветка.
-            var by = key[0];
-            List<string>? own = null;
+            // Имя, которым позиция нашлась: по его словам доля и подсветка.
+            var by = names[0];
 
             var at = code.Length == 0 ? -1 : Array.IndexOf(key, code, 1);
-            if (at > 0 && shared[code] <= RareLimit)
+            if (at > 0 && pool.Shared[code] <= RareLimit)
             {
-                var many = record.Archived ? shared[code] : sharedLive[code];
-                field = Title(titles, record.TypeId, at);
+                var many = record.Archived ? pool.Shared[code] : pool.SharedLive[code];
+                field = Title(pool.Titles, record.TypeId, at);
                 var what = $"{field.ToLowerInvariant()} «{line.Code!.Trim()}»";
                 why.Add(many == 1 ? $"совпадает {what}" : $"{what} совпадает у {many} позиций — сверьте");
                 level = ByCode;
                 sure = many == 1;
             }
 
-            var aliases = record.Aliases.Select(MatchKeyNormalizer.Normalize).Where(a => a.Length > 0).ToList();
             if (name.Length > 0 && key[0] == name)
             {
                 why.Add("то же наименование");
                 (level, sure) = (Math.Max(level, ByName), true);
             }
-            else if (name.Length > 0 && aliases.Contains(name))
+            else if (name.Length > 0 && names.Skip(1).FirstOrDefault(n => n.Name == name) is { } alias)
             {
                 why.Add("так названа альтернативным именем");
-                (level, sure, by) = (Math.Max(level, ByName), true, name);
+                (level, sure, by) = (Math.Max(level, ByName), true, alias);
             }
             else if (words.Count > 0)
             {
                 // Лучшее из названия и альтернативных имён: позиция подходит, если подходит любое её имя.
-                var names = aliases.Prepend(key[0]).Select(n => (Name: n, Own: Words(n))).ToList();
-                var full = names.FirstOrDefault(n => n.Own.Count >= 2 && n.Own.All(o => words.Any(w => Matches(w, o))));
-                var best = names.Select(n => (n.Name, n.Own, Found: Counted(words, n.Own))).MaxBy(n => n.Found);
-                if (full.Name is not null)
+                var full = names.FirstOrDefault(n => n.Words.Count >= 2 && n.Words.All(o => words.Any(w => Matches(w, o))));
+                var best = names.Select(n => (Name: n, Found: Counted(words, n.Words))).MaxBy(n => n.Found);
+                if (full is not null)
                 {
                     why.Add("название позиции целиком есть в строке");
-                    (level, whole, by, own) = (Math.Max(level, ByWords), true, full.Name, full.Own);
+                    (level, whole, by) = (Math.Max(level, ByWords), true, full);
                 }
                 // Больше половины слов: одно общее «кабель» из четырёх — не сходство, а раздел справочника.
                 else if (best.Found * 2 > words.Count || (words.Count == 1 && best.Found == 1))
                 {
                     why.Add("большинство слов строки");
-                    (level, by, own) = (Math.Max(level, ByWords), best.Name, best.Own);
+                    (level, by) = (Math.Max(level, ByWords), best.Name);
                 }
             }
             if (level == 0) continue;
@@ -285,11 +289,10 @@ public static class NomenclatureSimilarity
 
             // Доля слов строки, найденных в имени, и подсветка — тем же сравнением, что правила: карточка
             // показывает ровно то, по чему подбирали.
-            own ??= Words(by);
-            var share = words.Count == 0 ? 0 : 100 * Counted(words, own) / words.Count;
+            var share = words.Count == 0 ? 0 : 100 * Counted(words, by.Words) / words.Count;
             var matched = new LineMatched(
-                [.. shown.Select(s => new LineWord(s.Text, s.Start, IsWord(s.Lower) && own.Any(o => Matches(s.Lower, o))))],
-                field);
+                [.. shown.Select(s => new LineWord(s.Text, s.Start, IsWord(s.Lower) && by.Words.Any(o => Matches(s.Lower, o))))],
+                field, by.Alias);
             hits.Add(new(record, level, share, whole, sure && !record.Archived && !record.OwnKey, why, matched));
         }
 
@@ -309,8 +312,55 @@ public static class NomenclatureSimilarity
             .Select(h => new LineHit(h.Record, h.Why, h.Sure && sureOnes == 1, h.Matched))
             .ToList();
 
-        return new([.. ordered.Take(Limit)], ordered.Count > Limit, unreadable);
+        return new([.. ordered.Take(limit)], ordered.Count > limit, unreadable);
     }
+
+    /// <summary>
+    /// Лежащие записи, разобранные для подбора: ключ, имена с их словами (альтернативное имя — и как
+    /// записано: его называет ответ), счёт значений полей ключа. От строки здесь не зависит ничего.
+    /// </summary>
+    private sealed class LinePool
+    {
+        private LinePool(
+            List<(SimilarRecord Record, string[] Key, List<PoolName> Names)> entries,
+            Dictionary<string, int> shared, Dictionary<string, int> sharedLive,
+            IReadOnlyDictionary<Guid, IReadOnlyList<string>> titles) =>
+            (Entries, Shared, SharedLive, Titles) = (entries, shared, sharedLive, titles);
+
+        public List<(SimilarRecord Record, string[] Key, List<PoolName> Names)> Entries { get; }
+
+        /// <summary>
+        /// Сколько позиций несут значение в каком-либо поле ключа, кроме названия: всех — для «редкого»,
+        /// действующих (<see cref="SharedLive" />) — для «единственного». Архивный двойник артикула выбрать
+        /// нельзя, и единственную действующую позицию он не делает спорной.
+        /// </summary>
+        public Dictionary<string, int> Shared { get; }
+
+        public Dictionary<string, int> SharedLive { get; }
+
+        public IReadOnlyDictionary<Guid, IReadOnlyList<string>> Titles { get; }
+
+        public static LinePool Of(IReadOnlyList<SimilarRecord> records, IReadOnlyDictionary<Guid, IReadOnlyList<string>> titles)
+        {
+            var entries = records.Select(r =>
+            {
+                var key = KeyOf(r, Math.Max(1, r.Identity.Count));
+                // Название первым: при равенстве выигрывает оно, а не альтернативное имя.
+                var names = new List<PoolName> { new(key[0], null, Words(key[0])) };
+                foreach (var alias in r.Aliases)
+                    if (MatchKeyNormalizer.Normalize(alias) is { Length: > 0 } normalized)
+                        names.Add(new(normalized, alias.Trim(), Words(normalized)));
+                return (Record: r, Key: key, Names: names);
+            }).ToList();
+            return new(entries,
+                SharedValues(entries.Select(e => e.Key)),
+                SharedValues(entries.Where(e => !e.Record.Archived).Select(e => e.Key)),
+                titles);
+        }
+    }
+
+    /// <summary>Имя позиции глазами подбора. <c>Alias</c> — альтернативное имя, как оно записано; у названия — <c>null</c>.</summary>
+    private sealed record PoolName(string Name, string? Alias, List<string> Words);
 
     private const int ByCode = 3, ByName = 2, ByWords = 1;
 
@@ -318,8 +368,8 @@ public static class NomenclatureSimilarity
     private sealed record LineCandidate(
         SimilarRecord Record, int Level, int Share, bool Whole, bool Sure, List<string> Why, LineMatched Matched);
 
-    private static Dictionary<string, int> SharedValues(IEnumerable<(SimilarRecord Record, string[] Key)> lying) =>
-        lying.SelectMany(x => x.Key.Skip(1).Where(v => v.Length > 0).Distinct())
+    private static Dictionary<string, int> SharedValues(IEnumerable<string[]> keys) =>
+        keys.SelectMany(k => k.Skip(1).Where(v => v.Length > 0).Distinct())
             .GroupBy(v => v).ToDictionary(g => g.Key, g => g.Count());
 
     private static string Title(IReadOnlyDictionary<Guid, IReadOnlyList<string>> titles, Guid type, int at) =>

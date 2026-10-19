@@ -200,6 +200,9 @@ internal static class DomainRegistration
     // Заведение записи справочника по названию и одному значению (issue #1077) — для порта модулей.
     builder.Services.AddScoped<BHS.CRG.Application.Documents.ICatalogIntake,
         BHS.CRG.Infrastructure.Documents.CatalogIntakeService>();
+    // Загрузчик записей сверки — один на шаг «Новая позиция» и подбор для строки бумаги (issue #1514).
+    builder.Services.AddScoped<BHS.CRG.Application.Documents.ISimilarityRecordsLoader,
+        BHS.CRG.Infrastructure.Documents.SimilarityRecordsLoader>();
     // Создание позиции номенклатуры коротким окном и поиск похожих (issue #1079).
     builder.Services.AddScoped<BHS.CRG.Application.Documents.INomenclatureIntake,
         BHS.CRG.Infrastructure.Documents.NomenclatureIntakeService>();

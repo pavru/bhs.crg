@@ -191,8 +191,11 @@ public partial class ArchiveReadInventoryTests
             Documents("документы — строки системного набора"),
         ["BHS.CRG.Infrastructure/DataSets/SubtreeDocumentsProvider.cs|var documents = await objects.GetDocumentsInSetsAsync([.. setById.Keys], ct);"] =
             Documents("документы — строки системного набора"),
-        ["BHS.CRG.Infrastructure/Documents/NomenclatureIntakeService.cs|await db.DomainObjects.AsNoTracking()"] =
-            Seen("альтернативные имена позиций номенклатуры для сверки похожих: архивная позиция — тоже двойник"),
+        ["BHS.CRG.Infrastructure/Documents/SimilarityRecordsLoader.cs|await db.DomainObjects.AsNoTracking()"] =
+            Seen("альтернативные имена записей для сверки похожих и подбора для строки бумаги: архивная позиция — " +
+                 "тоже двойник, а подбор называет архивных числом"),
+        ["BHS.CRG.Infrastructure/Documents/SimilarityRecordsLoader.cs|foreach (var bare in await db.DomainObjects.AsNoTracking()"] =
+            Seen("записи вида без ключа идентичности для подбора по названию: архивная идёт числом, а не выбором"),
         ["BHS.CRG.Infrastructure/Documents/NomenclatureIntakeService.cs|var found = await db.DomainObjects.AsNoTracking()"] =
             Choice("записи на выбор в поле-ссылке новой позиции номенклатуры (единица измерения): архивной в выборе " +
                    "нет, и присланная мимо окна отвергается",
