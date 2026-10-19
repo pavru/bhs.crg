@@ -75,9 +75,9 @@ public partial class BackupService
                 "графика) или не сформируются вовсе — загрузите ассеты заново в редакторе шаблонов.");
             SayCount(byKind[BlobHolderKind.Generated].Count(), warnings,
                 "Сформированные PDF документов", "Сами документы вернулись — сформируйте их заново.");
-            var lostSets = byKind[BlobHolderKind.DataSetFile].Select(m => m.Holder.DataSetFileId).ToHashSet();
-            SayDataSetFiles(lostSets, manifest, warnings);
-            SayParts(missing, selection, manifest, warnings);
+            var lostFiles = LostDataSetFiles(missing, manifest);
+            SayDataSetFiles(lostFiles, manifest, warnings);
+            SayParts(missing, lostFiles, selection, manifest, warnings);
 
             logger.LogWarning(
                 "Восстановление: файлов нет ни в архиве, ни в хранилище — {Count}. Пути: {Paths}",
@@ -121,10 +121,7 @@ public partial class BackupService
     {
         if (paths.Count == 0) return;
 
-        var tally = string.Join(", ", paths
-            .GroupBy(p => selection.Addresses.GetValueOrDefault(p, "путь иной формы"))
-            .OrderBy(g => g.Key, StringComparer.Ordinal)
-            .Select(g => $"{g.Key} ({g.Count()})"));
+        var tally = PlaceTally(paths, selection);
         var notTaken = copyKnew
             ? 0
             : paths.Intersect(selection.TakenByScan.Select(h => h.Text), StringComparer.Ordinal).Count();
@@ -167,14 +164,17 @@ public partial class BackupService
             warnings.Add($"{what}: {count} — нет ни в копии, ни в хранилище. {exit}");
     }
 
-    /// <summary>Файлы наборов — по имени: без файла набор не перечитать и не разрезать заново.</summary>
-    private static void SayDataSetFiles(HashSet<Guid?> lost, BackupManifest manifest, List<string> warnings)
+    /// <summary>
+    /// Файлы наборов — по имени: без файла набор не перечитать и не разрезать заново. Наборы — по пути
+    /// файла (<see cref="LostDataSetFiles" />): на одном файле их бывает несколько.
+    /// </summary>
+    private static void SayDataSetFiles(List<BackupDataSetFile> lost, BackupManifest manifest, List<string> warnings)
     {
         if (lost.Count == 0) return;
 
         warnings.Add(
             "Файлов наборов данных нет ни в копии, ни в хранилище: " +
-            $"{string.Join(", ", lost.Select(id => $"«{SetName(id, manifest)}»"))}. Наборы вернулись с " +
+            $"{SetNames(lost, manifest)}. Наборы вернулись с " +
             "разобранным содержимым, но перечитать или разбить их заново не из чего — загрузите файл набора " +
             "заново.");
     }
@@ -184,10 +184,10 @@ public partial class BackupService
     /// (<see cref="MissingPartsBySet" />).
     /// </summary>
     private static void SayParts(
-        IReadOnlyCollection<(string Path, BlobHolder Holder)> missing, BlobSelection selection,
-        BackupManifest manifest, List<string> warnings)
+        IReadOnlyCollection<(string Path, BlobHolder Holder)> missing, List<BackupDataSetFile> lostFiles,
+        BlobSelection selection, BackupManifest manifest, List<string> warnings)
     {
-        var (cuttable, stuck) = MissingPartsBySet(missing, selection, manifest);
+        var (cuttable, stuck) = MissingPartsBySet(missing, lostFiles, selection, manifest);
 
         if (cuttable.Count > 0)
             warnings.Add(

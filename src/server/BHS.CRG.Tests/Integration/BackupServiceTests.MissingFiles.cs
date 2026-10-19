@@ -4,7 +4,10 @@ using System.Text.Json.Nodes;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Infrastructure.Backup;
+using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
@@ -67,7 +70,7 @@ public partial class BackupServiceTests
         var (fileId, _, parts) = await SeedSplitDataSetAsync();
         string filePath;
         using (var scope = fixture.Services.CreateScope())
-            filePath = (await scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.AppDbContext>()
+            filePath = (await scope.ServiceProvider.GetRequiredService<AppDbContext>()
                 .DataSetFiles.FindAsync(fileId))!.BlobPath;
 
         var drop = parts.Keys.Append(filePath).Select(p => $"blobs/{p}").ToHashSet();
@@ -240,9 +243,13 @@ public partial class BackupServiceTests
 
     /// <summary>
     /// Паспорт копии называет пропавшие части PDF-наборов по набору и с тем же выходом, что у
-    /// восстановления: «Разбиение» → «Сохранить». Прежде он говорил одно «файлов не оказалось: N из M»
-    /// — и на продовой копии 50 таких файлов оставались безымянными, хотя все 50 вырезаются заново.
-    /// Оценка веса пишет те же слова: её паспорт обязан весить столько же (#1425).
+    /// восстановления: «Разбиение» → «Вырезать документы заново» (issue #1534). Прежде он говорил одно «файлов не
+    /// оказалось: N из M» — и на продовой копии 50 таких файлов оставались безымянными, хотя все 50
+    /// вырезаются заново.
+    ///
+    /// <para>Оценка веса пишет те же слова: её паспорт обязан весить столько же (#1425). Кроме общего
+    /// допуска архива сверяется вес JSON-записей отдельно и теснее: общий (256 байт) рассчитан на весь
+    /// архив и короткую фразу мог бы проглотить.</para>
     /// </summary>
     [Fact]
     public async Task Copy_MissingParts_NamesSets_AndRecut()
@@ -259,39 +266,101 @@ public partial class BackupServiceTests
 
         Assert.Contains(warnings, w =>
             w.StartsWith("Вырезанных PDF документов не оказалось в хранилище: «Альбом ЭМ» — 2 из 2.") &&
-            w.Contains("откройте у набора «Разбиение» и сохраните его") && w.Contains("снимите копию заново"));
+            w.Contains("откройте у набора «Разбиение» и нажмите «Вырезать документы заново»") &&
+            w.Contains("снимите копию заново"));
         Assert.DoesNotContain(warnings, w => w.Contains("вырезать их заново не из чего"));
         // Других потерь нет — и общей фразы нет: она сосчитала бы те же части второй раз.
         Assert.DoesNotContain(warnings, w => w.Contains("Файлов не оказалось") || w.Contains("Других файлов"));
         Assert.Equal(2, estimate.Variant.MissingBlobCount);
         AssertEstimateMatchesArchive(estimate.Variant.TotalBytes, zipBytes.LongLength);
+        // JSON-записи расходятся лишь датами снятия и тем, где поток сброшен при записи, — на десятки
+        // байт. Оценка с прежней короткой фразой разошлась бы на сотни (проверено подменой: 473).
+        var archived = zip.GetEntry("manifest.json")!.CompressedLength +
+                       zip.GetEntry(BackupFileStore.SummaryEntryName)!.CompressedLength;
+        Assert.InRange(estimate.Variant.ManifestBytes - archived, -64, 64);
     }
 
     /// <summary>
     /// Нет и файла набора — «Разбиение» частей не вернёт: выход — сначала вернуть файл. Сам файл набора
-    /// назван общей фразой, «других», и в счёт частей не попадает.
+    /// назван по имени, своей фразой, а общей фразы нет: других потерь нет.
     /// </summary>
     [Fact]
     public async Task Copy_MissingPartsAndSetFile_SaysReturnTheFileFirst()
     {
         var (fileId, _, parts) = await SeedSplitDataSetAsync();
-        string filePath;
-        using (var scope = fixture.Services.CreateScope())
-            filePath = (await scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.AppDbContext>()
-                .DataSetFiles.FindAsync(fileId))!.BlobPath;
-        foreach (var path in parts.Keys.Append(filePath)) await DropStoredAsync(path);
+        foreach (var path in parts.Keys.Append(await DataSetBlobPathAsync(fileId))) await DropStoredAsync(path);
 
         using var zip = new ZipArchive(new MemoryStream(await ExportFullAsync()), ZipArchiveMode.Read);
         var warnings = SummaryOf(zip).Warnings ?? [];
 
         Assert.Contains(warnings, w =>
             w.Contains("вырезать их заново не из чего") && w.Contains("«Альбом ЭМ» — 2 из 2") &&
-            w.Contains("Верните файл набора (загрузите заново)"));
+            w.Contains("Верните файл набора (загрузите заново)") && w.Contains("«Вырезать документы заново»"));
         Assert.DoesNotContain(warnings, w => w.Contains("Части вырезаются заново"));
-        Assert.Contains(warnings, w => w.StartsWith("Других файлов не оказалось в хранилище: 1 из 3"));
+        Assert.Contains(warnings, w => w.StartsWith("Файлов наборов данных не оказалось в хранилище: «Альбом ЭМ»."));
+        Assert.DoesNotContain(warnings, w => w.Contains("Других файлов") || w.Contains("Файлов не оказалось"));
+    }
+
+    /// <summary>
+    /// Два набора на одном файле — файл пропал у обоих (ревью PR #1535). У пути хозяин один, «кто первым
+    /// назвал», и пропажа, разложенная по хозяину, касалась только его: частям второго набора паспорт
+    /// обещал «Разбиение», хотя резать их не из чего. Какой набор назван первым, решает порядок строк в
+    /// базе, поэтому тест проверяет итог, а не порядок.
+    /// </summary>
+    [Fact]
+    public async Task Copy_SharedSetFileLost_NoSetIsPromisedRecut()
+    {
+        var (fileId, _, parts) = await SeedSplitDataSetAsync();
+        var filePath = await DataSetBlobPathAsync(fileId);
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.DataSetFiles.Add(DataSetFile.Create("Альбом ЭМ, копия", DataSetFormat.Pdf, filePath, CatalogScope.System, null));
+            await db.SaveChangesAsync();
+        }
+        foreach (var path in parts.Keys.Append(filePath)) await DropStoredAsync(path);
+
+        using var zip = new ZipArchive(new MemoryStream(await ExportFullAsync()), ZipArchiveMode.Read);
+        var warnings = SummaryOf(zip).Warnings ?? [];
+
+        Assert.DoesNotContain(warnings, w => w.Contains("Части вырезаются заново"));
+        Assert.Contains(warnings, w => w.Contains("вырезать их заново не из чего") && w.Contains("«Альбом ЭМ» — 2 из 2"));
+        Assert.Contains(warnings, w =>
+            w.StartsWith("Файлов наборов данных не оказалось в хранилище:") &&
+            w.Contains("«Альбом ЭМ»") && w.Contains("«Альбом ЭМ, копия»"));
+    }
+
+    /// <summary>
+    /// Хранилище отказало при снятии копии — копия отказывает, как оценка (#1427), а не выходит с
+    /// паспортом «файлов не оказалось» (ревью PR #1535). С названными выходами такой паспорт советовал
+    /// бы вырезать заново и загружать заново то, что лежит на месте.
+    /// </summary>
+    [Fact]
+    public async Task Copy_StorageRefuses_FailsInsteadOfCallingFilesMissing()
+    {
+        var (path, _) = await StoreAsync("подпись.png");
+        await SeedRecordWithDataAsync(new { Подпись = path });
+
+        var storage = fixture.Services.GetRequiredService<FakeBlobStorage>();
+        Exception? failure;
+        try
+        {
+            storage.Offline = true;
+            failure = await Record.ExceptionAsync(() => ExportAsync(BackupScope.Full));
+        }
+        finally { storage.Offline = false; }
+
+        var refusal = Assert.IsType<BackupStorageRefusedException>(failure);
+        Assert.Contains("хранилище файлов отказало", refusal.Message);
     }
 
     // ── Помощники ─────────────────────────────────────────────────────────────
+
+    private async Task<string> DataSetBlobPathAsync(Guid fileId)
+    {
+        using var scope = fixture.Services.CreateScope();
+        return (await scope.ServiceProvider.GetRequiredService<AppDbContext>().DataSetFiles.FindAsync(fileId))!.BlobPath;
+    }
 
     private async Task DropStoredAsync(string path)
     {

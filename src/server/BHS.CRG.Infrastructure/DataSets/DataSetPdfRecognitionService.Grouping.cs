@@ -38,7 +38,8 @@ public partial class DataSetPdfRecognitionService
             .Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags, g.ProfileId,
                 g.Pages.Where(p => p.NoAnswer).Select(p => p.PageIndex).ToList()))
             .ToList();
-        return new GostGroupingDto(groups, grouping?.ManuallyEdited ?? false, pageCount);
+        return new GostGroupingDto(groups, grouping?.ManuallyEdited ?? false, pageCount,
+            await CountMissingPartsAsync(file.Id, grouping, ct));
     }
 
     public async Task<byte[]?> GetPageThumbnailAsync(Guid fileId, int pageIndex, CancellationToken ct, int dpi = 96)

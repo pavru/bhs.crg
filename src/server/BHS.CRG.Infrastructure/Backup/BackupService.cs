@@ -97,8 +97,8 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             var done = 0;
             foreach (var blobPath in blobPaths)
             {
-                // Пропуском прощается только отказ ОТКРЫТЬ файл в хранилище, и под catch стоит одно
-                // это: запись в архиве заводится после, так что пропущенный файл не оставляет в
+                // Пропуском прощается только отказ ОТКРЫТЬ файл, которого в хранилище НЕТ, и под catch
+                // стоит одно это: запись в архиве заводится после, так что пропущенный файл не оставляет в
                 // архиве ничего. На этом держится оценка веса (MeasureAsync): нет файла — нет ни
                 // байтов, ни заголовка (issue #1425). Отказ посреди переноса в архив пропуском не
                 // считается и роняет экспорт: запись к тому времени заведена, и обрезанный файл
@@ -108,9 +108,10 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
                 {
                     blobStream = await blob.DownloadAsync(blobPath, ct);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (!ct.IsCancellationRequested)
                 {
-                    // Blob missing in storage — skip, DB reference kept intact
+                    // Пропуском — только «объекта нет»; отказ хранилища роняет копию (issue #1534).
+                    await EnsureAbsentAsync(blobPath, ex, ct);
                     logger.LogWarning(ex, "Бинарный файл отсутствует в хранилище при экспорте бэкапа: {BlobPath}", blobPath);
                     missingBlobs.Add(blobPath);
                 }

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Infrastructure.Storage;
 
 namespace BHS.CRG.Infrastructure.DataSets;
 
@@ -51,6 +52,36 @@ public static class GostGroupingSerialization
                         g.TryGetProperty(nameof(GostGroupingGroup.BlobPath), out var p) &&
                         p.ValueKind == JsonValueKind.String && p.GetString() is { Length: > 0 } path)
                         paths.Add(path);
+            return paths;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Пути вложений из строк реестра «Документы» — значения колонки
+    /// <see cref="GostGroupingProjection.FilePathColumn" />: генерация берёт путь части ИМЕННО отсюда.
+    /// Берётся только точный путь нашего хранилища (<see cref="BlobPathShape.IsExactPath" />): у группы,
+    /// которую не удалось вырезать, в колонке может лежать текст штампа (ревью PR #1408). Читают его
+    /// резервная копия и редактор разбиения (счёт документов без файла, issue #1534) — одно знание.
+    /// </summary>
+    /// <returns>Пути; null — строки не прочитаны (не JSON).</returns>
+    public static HashSet<string>? ReadRowFilePaths(string? cachedData)
+    {
+        var paths = new HashSet<string>(StringComparer.Ordinal);
+        if (string.IsNullOrEmpty(cachedData)) return paths;
+        try
+        {
+            using var doc = JsonDocument.Parse(cachedData);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array) return paths;
+            foreach (var row in doc.RootElement.EnumerateArray())
+                if (row.ValueKind == JsonValueKind.Object &&
+                    row.TryGetProperty(GostGroupingProjection.FilePathColumn, out var path) &&
+                    path.ValueKind == JsonValueKind.String && path.GetString() is { Length: > 0 } part &&
+                    BlobPathShape.IsExactPath(part))
+                    paths.Add(part);
             return paths;
         }
         catch (JsonException)
