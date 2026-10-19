@@ -24,7 +24,7 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { RULES, countViolations, compare, normalize, dirsOf, EVERYWHERE, ROOT } from './ui-ratchet-lib.mjs';
+import { RULES, countViolations, compare, normalize, dirsToScan, scopeNote, ROOT } from './ui-ratchet-lib.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const clientRoot = join(here, '..');
@@ -34,17 +34,14 @@ const update = process.argv.includes('--update');
 
 // Под присмотром — экраны; другие каталоги — только правилами, которые их назвали (`dirs`): в shared/
 // живут сами DataGrid и Select, которые эти элементы и заворачивают. Тесты не считаются: разметка в
-// фикстурах — не интерфейс. Правило со всем src/ (`EVERYWHERE`) добавляет каждый каталог и корень
-// (`ROOT`: App.tsx, main.tsx) — список каталогов берётся с диска, чтобы новый каталог не выпал молча.
+// фикстурах — не интерфейс. Правило со всем src/ (`everywhere`) добавляет каждый каталог и корень
+// (`ROOT`: App.tsx, main.tsx) — список каталогов берётся с диска (`dirsToScan`).
 const code = f => /\.(tsx?|jsx?)$/.test(f) && !/\.test\.[tj]sx?$/.test(f);
 const sources = dir => dir === ROOT
   ? readdirSync(srcRoot, { withFileTypes: true }).filter(e => e.isFile() && code(e.name)).map(e => e.name)
   : readdirSync(join(srcRoot, dir), { recursive: true })
     .map(f => dir + '/' + String(f).replaceAll('\\', '/')).filter(code);
-const named = RULES.flatMap(dirsOf);
-const dirs = named.includes(EVERYWHERE)
-  ? [ROOT, ...readdirSync(srcRoot, { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name)]
-  : [...new Set(named)];
+const dirs = dirsToScan(RULES, readdirSync(srcRoot, { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name));
 
 const actual = {};
 for (const dir of dirs)
@@ -71,9 +68,7 @@ const baseline = JSON.parse(readFileSync(baselinePath, 'utf8'));
 const { worse, better } = compare(baseline, actual);
 const line = d => `  ${d.file} — ${d.rule}: было ${d.was}, стало ${d.now}`;
 
-const wider = RULES.filter(r => dirsOf(r).some(d => d !== 'features'))
-  .map(r => dirsOf(r).includes(EVERYWHERE) ? `${r.id} — весь src/`
-    : `${r.id} — ещё в ${dirsOf(r).filter(d => d !== 'features').join(', ')}/`);
+const wider = RULES.map(scopeNote).filter(Boolean);
 console.log(`Нарушений интерфейса в features/${wider.length ? ` (${wider.join('; ')})` : ''}: ${summary(actual)}.`);
 
 if (worse.length > 0) {

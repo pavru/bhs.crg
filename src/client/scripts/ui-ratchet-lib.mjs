@@ -6,9 +6,7 @@ import ts from 'typescript';
 const COLORS = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
 const UTILITIES = 'bg|text|border|ring|ring-offset|outline|divide|fill|stroke|from|via|to|shadow|accent|caret|decoration|placeholder';
 
-/** `dirs` правила, которое смотрит весь src/: каждый каталог и файлы в его корне (App.tsx, main.tsx). */
-export const EVERYWHERE = '*';
-/** Каталог файлов из корня src/ — для `countViolations({ dir })`. */
+/** Каталог файлов из корня src/ (App.tsx, main.tsx) — для `countViolations({ dir })` и `dirsToScan`. */
 export const ROOT = '.';
 
 /**
@@ -141,12 +139,16 @@ export const RULES = [
     // Нативное поле даты, месяца или времени (#1459, эпик #1458): формат у него — по языку ОС, а не
     // пользователя (на Windows с английской локалью — MM/DD/YYYY и AM/PM), вид — браузерный. По
     // синтаксическому дереву: `type` бывает выражением (`type={c ? 'date' : 'text'}` — так в отборе
-    // реестров), и считается любой строковый литерал внутри него. Тег — `<input>` и `TextField`: он
-    // отдаёт `type` полю как есть. Смотрит ВЕСЬ src/: законных мест нет и в shared/ — DateInput сам
-    // рисует `type="text"`. ⚠️ Не видит `type`, пришедший переменной или разворотом `{...props}`.
+    // реестров), и считается литерал, которым выражение может СТАТЬ (ветвь условия, правая часть
+    // `&&`), а не литерал из сравнения в условии. Тег — `<input>` и `TextField` (с именем при импорте):
+    // он отдаёт `type` полю как есть. Смотрит ВЕСЬ src/: законных мест нет и в shared/ — DateInput сам
+    // рисует `type="text"`. ⚠️ Не видит `type`, пришедший переменной или разворотом `{...props}`, и
+    // обёртку, которая отдаёт `type` полю под своим именем.
     count: countNativeDates,
-    dirs: [EVERYWHERE],
-    instead: 'дата — DateField (форма) / DateInput compact (ячейка) / DateInput size=sm (отбор); месяц — precision="month"; время — TimeField (docs/UI.md, «Дата и время»)',
+    everywhere: true,
+    // Отбор с рамкой (DateInput size, #1464) и TimeField (#1468) ещё не написаны — сообщение говорит
+    // это прямо: совет идти к несуществующему компоненту толкает к обходу через переменную.
+    instead: 'дата — DateField (форма) / DateInput compact (ячейка); месяц и год — тот же компонент с precision="month" | "year". Отбор и строка настроек — DateInput в рамке обвязки, пока у него нет size (#1464). Время суток — TimeField ещё не написан (#1468): до него новое нативное время не заводится без согласования, а поднятый уровень объясняют в PR (docs/UI.md, «Дата и время»)',
   },
 ];
 
@@ -258,19 +260,48 @@ function countPortalContainers(text) {
 }
 
 const NATIVE_DATE = new Set(['date', 'month', 'time', 'datetime-local', 'week']);
-const TYPED_INPUTS = new Set(['input', 'TextField']);
 
-/** `<input type="date">` и `type` с таким литералом в выражении — см. правило `native-date`. */
+/**
+ * Может ли выражение `type` дать нативный тип даты: литерал — сам, условие — любой своей ветвью,
+ * `a && b` — правой частью, `a || b` и `a ?? b` — любой. Условие и сравнения не в счёт:
+ * `kind === 'date' ? 'text' : 'number'` для даты рисует как раз текстовое поле.
+ */
+function yieldsNativeDate(node) {
+  if (!node) return false;
+  if (ts.isJsxExpression(node) || ts.isParenthesizedExpression(node)) return yieldsNativeDate(node.expression);
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return NATIVE_DATE.has(node.text);
+  if (ts.isConditionalExpression(node)) return yieldsNativeDate(node.whenTrue) || yieldsNativeDate(node.whenFalse);
+  if (ts.isBinaryExpression(node)) {
+    const op = node.operatorToken.kind;
+    if (op === ts.SyntaxKind.AmpersandAmpersandToken) return yieldsNativeDate(node.right);
+    if (op === ts.SyntaxKind.BarBarToken || op === ts.SyntaxKind.QuestionQuestionToken)
+      return yieldsNativeDate(node.left) || yieldsNativeDate(node.right);
+  }
+  return false;
+}
+
+/** Теги, отдающие `type` полю как есть: `input`, `TextField` и его имена при импорте (`TextField as X`). */
+function typedInputTags(sf) {
+  const tags = new Set(['input', 'TextField']);
+  for (const st of sf.statements) {
+    const named = ts.isImportDeclaration(st) && st.importClause?.namedBindings;
+    if (named && ts.isNamedImports(named))
+      for (const el of named.elements)
+        if ((el.propertyName ?? el.name).text === 'TextField') tags.add(el.name.text);
+  }
+  return tags;
+}
+
+/** `<input type="date">` и `type`, который может им стать — см. правило `native-date`. */
 function countNativeDates(text) {
   if (!/date|month|time|week/.test(text)) return 0;
   const sf = parse(text);
-  const mentions = node => ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && NATIVE_DATE.has(node.text))
-    || (ts.forEachChild(node, mentions) ?? false);
+  const tags = typedInputTags(sf);
   let n = 0;
   const visit = node => {
-    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && TYPED_INPUTS.has(node.tagName.getText(sf))
+    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && tags.has(node.tagName.getText(sf))
       && node.attributes.properties.some(p => ts.isJsxAttribute(p) && p.name.getText(sf) === 'type'
-        && p.initializer && mentions(p.initializer)))
+        && yieldsNativeDate(p.initializer)))
       n++;
     ts.forEachChild(node, visit);
   };
@@ -330,9 +361,25 @@ function countNativeTitles(text) {
   return n;
 }
 
-/** Каталоги, которые смотрит правило (см. `dirs` у RULES); `EVERYWHERE` — весь src/. */
+/** Каталоги, которые правило называет (см. `dirs` у RULES); правило с `everywhere` смотрит любой. */
 export const dirsOf = rule => rule.dirs ?? ['features'];
-const watches = (rule, dir) => dirsOf(rule).includes(EVERYWHERE) || dirsOf(rule).includes(dir);
+export const watches = (rule, dir) => rule.everywhere === true || dirsOf(rule).includes(dir);
+
+/**
+ * Какие каталоги src/ обходить. `topDirs` — каталоги в корне src/ с диска: правило с `everywhere`
+ * добавляет их все и корень (`ROOT`), чтобы новый каталог не выпал из надзора молча.
+ */
+export function dirsToScan(rules, topDirs) {
+  if (rules.some(r => r.everywhere === true)) return [ROOT, ...topDirs];
+  return [...new Set(rules.flatMap(dirsOf))];
+}
+
+/** Область правила шире features/ — строкой для сводки (`white-on-fill — ещё в shared/`); иначе null. */
+export function scopeNote(rule) {
+  if (rule.everywhere === true) return `${rule.id} — весь src/`;
+  const more = dirsOf(rule).filter(d => d !== 'features');
+  return more.length ? `${rule.id} — ещё в ${more.join(', ')}/` : null;
+}
 
 /**
  * Сколько нарушений каждого класса в тексте одного файла. Нулевые классы не возвращаются.
