@@ -7,17 +7,19 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Costs.Data;
 
-/// <summary>Кто и почему пишет запись: у исправления — причина и номер версии.</summary>
+/// <summary>Кто и почему пишет запись: у исправления — причина, номер версии и смена режима НДС.</summary>
 /// <param name="Name">Имя автора на момент записи — его показывает история счёта (PR 6b-2 E2).</param>
-public sealed record BookAuthor(Guid? UserId, string? Reason = null, int? Version = null, string? Name = null)
+/// <param name="VatMode">Смена режима НДС исправлением (issue #1498); <c>null</c> — режим не менялся.</param>
+public sealed record BookAuthor(
+    Guid? UserId, string? Reason = null, int? Version = null, string? Name = null, VatModeShift? VatMode = null)
 {
     /// <summary>
     /// Автор — тот, кто действует сейчас, с его нынешним именем. Только так в производственном коде: имя,
     /// забытое одним из мест записи, оставило бы в истории «—» у записей, автор которых известен.
     /// Конструктор вне этого файла модулю запрещает <c>InvoiceBookInventoryTests</c>.
     /// </summary>
-    public static BookAuthor Of(IModuleUser user, string? reason = null, int? version = null) =>
-        new(user.Id, reason, version, user.Name);
+    public static BookAuthor Of(IModuleUser user, string? reason = null, int? version = null, VatModeShift? vatMode = null) =>
+        new(user.Id, reason, version, user.Name, vatMode);
 }
 
 /// <summary>Запись книги со строками — как её показывает история счёта.</summary>
@@ -111,12 +113,13 @@ public static class InvoiceBook
         var seq = invoice.BookSeq;
         foreach (var record in records)
         {
-            // Причина, версия и имя — только у самой записи (она последняя): открытие и страховку пишет не
+            // Причина, версия, имя и смена режима — только у самой записи (она последняя): открытие и страховку пишет не
             // человек, а следствие его записи, и «Кто: Иванова» у открытия читалось бы так, будто она
             // переложила деньги сама. Идентификатор остаётся у всех — по нему видно, чьей записью вызваны.
             var own = ReferenceEquals(record, records[^1]);
             var entry = InvoiceBookEntry.Create(invoice.Id, ++seq, record, author.UserId,
-                own ? author.Name : null, own ? author.Reason : null, own ? author.Version : null);
+                own ? author.Name : null, own ? author.Reason : null, own ? author.Version : null,
+                own ? author.VatMode : null);
             db.InvoiceBookEntries.Add(entry);
             db.InvoiceBookLines.AddRange(record.Lines.Select((line, i) => InvoiceBookLine.Create(entry.Id, i, line)));
             entries.Add(entry);

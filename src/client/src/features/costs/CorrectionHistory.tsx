@@ -4,7 +4,7 @@ import { apiError } from '@/shared/utils/apiError';
 import { formatDate, formatDateTime, formatMoney } from '@/shared/format/format';
 import type { InvoiceView } from '@/shared/api/invoices';
 import { useInvoiceBook, type InvoiceBookEntry } from '@/shared/api/invoiceCorrection';
-import { bookAuthor, bookEmpty, bookEntryRows, bookKindTitle, bookTotal } from './correction';
+import { bookAuthor, bookEmpty, bookEntryRows, bookKindTitle, bookTotal, vatShiftText } from './correction';
 import { usePlaces } from './places';
 import { BookLines } from './BookLines';
 
@@ -49,8 +49,9 @@ export function CorrectionHistory({ view, gone }: { view: InvoiceView; gone: boo
             <div className="space-y-2">
               <p className="text-xs text-fg2">
                 {bookKindTitle(selected.kind)} от {formatDate(selected.day)}
-                {selected.lines.length === 0 ? ` — ${bookEmpty(selected.kind)}` : ':'}
+                {selected.lines.length === 0 ? ` — ${bookEmpty(selected.kind, selected.vatMode)}` : ':'}
               </p>
+              {selected.vatMode && <p className="text-xs text-fg1">{vatShiftText(selected.vatMode)}</p>}
               {selected.lines.length > 0 && (
                 <BookLines places={places} rows={bookEntryRows(selected, formatDate)} />
               )}

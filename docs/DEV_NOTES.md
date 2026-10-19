@@ -5206,9 +5206,11 @@ GET    /api/costs/site-costs?site=&from=&to=&vat=&view= → затраты за 
                                       все PUT/POST счёта отвечают 409 «заперт: …»; исключения —
                                       POST …/scan, когда скана ещё нет, PUT …/paid и POST …/unpaid
                                       (выше) и исправление (ниже)
-POST   /api/costs/invoices/{id}/correction/preview { reason, requisites, lines (с parts), document }
+POST   /api/costs/invoices/{id}/correction/preview { reason, requisites, lines (с parts), document,
+                                      vatMode (обязателен: Included | OnTop, #1498) }
                                       → что запишет исправление: version, day (D), records (opening,
-                                      alignment, correction — со строками и днями), stamp. Не пишет ничего.
+                                      alignment, correction — со строками и днями), stamp, vatMode
+                                      ({ from, to } — смена режима НДС; null — не меняется). Не пишет ничего.
                                       If-Match обязателен                        costs.invoice.edit
 POST   /api/costs/invoices/{id}/correction  { …то же, stamp } → счёт; пишет версию и книгу.
                                       Порядок отказов: 409 «не нужно» → 403 право costs.invoice.correct →
@@ -5216,7 +5218,8 @@ POST   /api/costs/invoices/{id}/correction  { …то же, stamp } → счёт
                                       «не хуже, чем было» → 409 «пересчитайте предпросмотр»   costs.invoice.edit
 GET    /api/costs/invoices/{id}/book → история счёта: записи книги по порядку (seq, kind, day, at,
                                       author — имя на момент записи, reason, version, gross/net —
-                                      у открытия деньги счёта, у прочих сдвиг, lines). Удалённый — 404.
+                                      у открытия деньги счёта, у прочих сдвиг, lines, vatMode — смена
+                                      режима НДС исправлением { from, to } или null). Удалённый — 404.
                                       Признак у формы — поле book в чтении счёта  costs.invoice.read
 GET    /api/costs/constructions     → стройки с разделами — цели разноски         costs.invoice.read
 GET    /api/costs/articles          → статьи вне строек («Склад», «Общие расходы») costs.invoice.read

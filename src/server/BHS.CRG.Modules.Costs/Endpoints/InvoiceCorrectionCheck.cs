@@ -16,7 +16,8 @@ internal readonly record struct CorrectionGap(Guid? Line, string Kind);
 ///
 /// <list type="bullet">
 /// <item><b>Сумма:</b> <c>|расхождение после| ≤ max(допуск, |расхождение до|)</c>.</item>
-/// <item><b>Пробелы</b> (потерянная ссылка, неразнесённая строка, строка без цены) — парой (строка, вид):
+/// <item><b>Пробелы</b> (потерянная ссылка, неразнесённая строка, строка без цены или без ставки при НДС
+/// сверху) — парой (строка, вид):
 /// отказ только на пару, которой до исправления не было. Строку узнаём по идентификатору: номер строки
 /// исправление вправе сдвинуть.</item>
 /// </list>
@@ -54,7 +55,12 @@ internal static class InvoiceCorrectionCheck
             // Справочника нет вовсе — не потеря позиции, а состояние установки (как у готовности).
             if (seen.Names is not null && line.NomenclatureId is { } position && !seen.Names.ContainsKey(position))
                 gaps.Add(new CorrectionGap(line.Id, "position"));
-            if (line.Amount is null) gaps.Add(new CorrectionGap(line.Id, "price"));
+            // Суммы с НДС нет — у строки без цены, а при НДС сверху и у строки с ценой, но без ставки (issue
+            // #1498): её сумма из бумаги есть, а досчитать НДС не из чего. Это разные пробелы, и названы они
+            // по-разному: «впишите цену» строке, у которой цена есть, отправил бы человека не туда.
+            if (line.Amount is null)
+                gaps.Add(new CorrectionGap(line.Id,
+                    invoice.VatMode == VatMode.OnTop && line.NetAmount is not null ? "rate" : "price"));
         }
 
         var byOrdinal = seen.Lines.ToDictionary(l => l.Ordinal, l => l.Id);
@@ -116,6 +122,7 @@ internal static class InvoiceCorrectionCheck
     {
         "position" => $"позиции номенклатуры нет в справочнике у строки {ordinal}",
         "price" => $"у строки {ordinal} не посчитать сумму — не вписана цена",
+        "rate" => $"у строки {ordinal} нет ставки НДС, а цены в счёте без НДС — сумму с НДС не посчитать",
         "allocation" => $"строка {ordinal} разнесена по стройкам не полностью",
         "nomenclature" => $"у строки {ordinal} не выбрана позиция номенклатуры",
         "lines" => "у разобранного счёта не осталось строк",

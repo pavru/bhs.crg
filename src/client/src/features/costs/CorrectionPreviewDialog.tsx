@@ -5,7 +5,7 @@ import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { apiError } from '@/shared/utils/apiError';
 import { formatDate } from '@/shared/format/format';
 import type { CorrectionPreview, CorrectionRecordView } from '@/shared/api/invoiceCorrection';
-import { correctionRows, plainRows, serviceRecords } from './correction';
+import { correctionRows, plainRows, serviceRecords, vatShiftText } from './correction';
 import { usePlaces, type Places } from './places';
 import { BookLines } from './BookLines';
 
@@ -79,8 +79,13 @@ function Shown({ preview, reason, note, places }: {
       <blockquote className="border-l-2 border-stroke pl-3 text-xs text-fg2">
         Причина: {reason.trim()}
       </blockquote>
+      {preview.vatMode && <p className="text-fg1">{vatShiftText(preview.vatMode)}</p>}
       {rows.length === 0
-        ? <p className="text-fg3">Деньги не меняются — запишутся только версия и причина.</p>
+        ? (
+          <p className="text-fg3">
+            Деньги не меняются — запишутся только версия{preview.vatMode ? ', причина и режим НДС' : ' и причина'}.
+          </p>
+        )
         : (
           <>
             <p className="text-xs text-fg3">Закрытый месяц не изменится: его поправки лягут днём исправления.</p>

@@ -21,9 +21,11 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="Version">Номер версии, ушедшей в историю с исправлением; у прочих видов — <c>null</c>.</param>
 /// <param name="Gross">Сумма строк записи с НДС: у открытия — деньги счёта целиком, у прочих — сдвиг.</param>
 /// <param name="Net">То же без НДС.</param>
+/// <param name="VatMode">Смена режима НДС исправлением — отдельным пунктом записи (issue #1498); <c>null</c> —
+/// режим не менялся или запись не исправление.</param>
 public sealed record InvoiceBookEntryView(
     int Seq, string Kind, DateOnly Day, DateTimeOffset At, string? Author, string? Reason, int? Version,
-    decimal Gross, decimal Net, IReadOnlyList<CorrectionLineView> Lines);
+    decimal Gross, decimal Net, IReadOnlyList<CorrectionLineView> Lines, VatModeShiftView? VatMode = null);
 
 /// <summary>
 /// История счёта — его книга проводок (E2, issue #1100, PR 6b-2): кто, когда и почему сдвинул деньги
@@ -53,7 +55,8 @@ public static class InvoiceBookEndpoints
             new InvoiceBookEntryView(h.Entry.Seq, InvoiceCorrections.Kind(h.Entry.Kind), h.Entry.Day, h.Entry.At,
                 h.Entry.AuthorName, h.Entry.Reason, h.Entry.Version,
                 h.Lines.Sum(l => l.Gross), h.Lines.Sum(l => l.Net),
-                [.. h.Lines.Select(l => InvoiceCorrections.Line(l.Value))]))];
+                [.. h.Lines.Select(l => InvoiceCorrections.Line(l.Value))],
+                h.Entry is { VatModeWas: { } from, VatMode: { } to } ? new VatModeShiftView(from, to) : null))];
         return TypedResults.Ok(entries);
     }
 }

@@ -32,3 +32,10 @@ public static class VatModes
 {
     public static string Shown(VatMode mode) => mode == VatMode.OnTop ? "сверху" : "в том числе";
 }
+
+/// <summary>
+/// Смена режима НДС исправлением (issue #1498): каким режим был и каким стал. Ложится в запись книги —
+/// историю счёта о ней иначе не спросить: неоплаченный счёт с книгой правится обычным путём, и режим
+/// «после исправления» по соседним версиям и по нынешнему счёту не восстановить.
+/// </summary>
+public readonly record struct VatModeShift(VatMode From, VatMode To);

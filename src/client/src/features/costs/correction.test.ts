@@ -32,7 +32,9 @@ function invoice(lines: InvoiceLineView[], document: AllocationPartView[] = [], 
   } as unknown as InvoiceView;
 }
 
-const nothing: CorrectionContent = { reason: 'опечатка в номере', edits: {}, lines: null, allocation: null };
+const nothing: CorrectionContent = {
+  reason: 'опечатка в номере', edits: {}, lines: null, vatMode: null, allocation: null,
+};
 
 describe('тело исправления', () => {
   it('нетронутое уезжает таким, каким лежит: строки с идентификаторами и частями в записанном порядке', () => {
@@ -51,6 +53,8 @@ describe('тело исправления', () => {
       { construction: 'B', section: null, article: null, quantity: null, amount: 400 },
     ]);
     expect(body.document).toEqual([]);
+    // Режим едет всегда (issue #1498): тело — содержимое целиком, и нетронутый режим — режим счёта.
+    expect(body.vatMode).toBe('Included');
   });
 
   it('у строки с количеством уезжает количество, а не сумма', () => {

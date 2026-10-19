@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiClient } from './client';
-import { invoiceQuery, seenBy, useInvoiceWrite, type InvoiceView } from './invoices';
+import { invoiceQuery, seenBy, useInvoiceWrite, type InvoiceView, type VatMode } from './invoices';
 import type { MatrixPart } from './allocationMatrix';
 
 /**
@@ -18,6 +18,17 @@ export interface InvoiceCorrectionBody {
   lines: Record<string, unknown>[];
   /** Части счёта целиком — только у счёта без строк. */
   document: MatrixPart[];
+  /**
+   * Режим НДС — обязателен, как строки (issue #1498): он описывает их суммы. Без поля сервер откажет —
+   * «не менять» из отсутствия он не читает.
+   */
+  vatMode: VatMode;
+}
+
+/** Смена режима НДС исправлением: каким был и каким стал. */
+export interface VatModeShift {
+  from: VatMode;
+  to: VatMode;
 }
 
 /** Строка книги: ячейка (без цели — остаток счёта), день и деньги со знаком. */
@@ -54,6 +65,8 @@ export interface CorrectionPreview {
   day: string;
   records: CorrectionRecordView[];
   stamp: string;
+  /** Смена режима НДС отдельным пунктом (issue #1498); `null` — режим не меняется. Нет поля — сервер старше. */
+  vatMode?: VatModeShift | null;
 }
 
 /**
@@ -98,6 +111,8 @@ export interface InvoiceBookEntry {
   gross: number;
   net: number;
   lines: CorrectionLineView[];
+  /** Смена режима НДС исправлением (issue #1498); `null` — не менялся. Нет поля — сервер старше. */
+  vatMode?: VatModeShift | null;
 }
 
 /**

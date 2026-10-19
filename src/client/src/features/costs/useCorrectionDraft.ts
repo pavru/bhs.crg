@@ -1,5 +1,6 @@
 import { createContext, useContext, useState } from 'react';
 import type { MatrixState } from '@/shared/api/allocationMatrix';
+import type { VatMode } from '@/shared/api/invoices';
 import type { LineDraft } from './invoiceLines';
 
 /**
@@ -18,6 +19,8 @@ export function useCorrectionDraft() {
   const [reason, setReason] = useState('');
   /** Черновик строк; `null` — строки не трогали. Кладёт таблица строк. */
   const [lines, setLines] = useState<LineDraft[] | null>(null);
+  /** Режим НДС черновика строк (issue #1498); `null` — строки не трогали. Кладёт таблица строк вместе с ними. */
+  const [vatMode, setVatMode] = useState<VatMode | null>(null);
   /** Разноска из матрицы; `null` — не трогали. Кладёт матрица в черновом режиме. */
   const [allocation, setAllocation] = useState<MatrixState | null>(null);
   // Поколение черновика строк: таблица смонтирована с ним ключом, и сменить его — значит собрать строки
@@ -26,12 +29,13 @@ export function useCorrectionDraft() {
 
   function forget() {
     setLines(null);
+    setVatMode(null);
     setAllocation(null);
     setGeneration(g => g + 1);
   }
 
   return {
-    active, reason, setReason, lines, setLines, allocation, setAllocation, generation,
+    active, reason, setReason, lines, setLines, vatMode, setVatMode, allocation, setAllocation, generation,
     /** Набрано то, что не видно форме: причина и разноска. Шапку и строки форма знает сама. */
     dirty: active && (reason.trim() !== '' || allocation !== null),
     start: () => setActive(true),

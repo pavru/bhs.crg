@@ -340,6 +340,16 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("tolerance");
 
+                    b.Property<string>("VatMode")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("vat_mode");
+
+                    b.Property<string>("VatModeWas")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("vat_mode_was");
+
                     b.Property<int?>("Version")
                         .HasColumnType("integer")
                         .HasColumnName("version");
@@ -350,7 +360,10 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_invoice_book_entries_seq");
 
-                    b.ToTable("invoice_book_entries", "costs");
+                    b.ToTable("invoice_book_entries", "costs", t =>
+                        {
+                            t.HasCheckConstraint("ck_invoice_book_entries_vat_mode", "(vat_mode_was IS NULL) = (vat_mode IS NULL) AND (vat_mode IS NULL OR vat_mode <> vat_mode_was)");
+                        });
                 });
 
             modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.InvoiceBookLine", b =>

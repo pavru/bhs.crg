@@ -365,7 +365,7 @@ LibreOffice. Что важно помнить: сеть у него **внутр
   оплаты ему — правом оплаты И `costs.invoice.correct`, новая оплата неоплаченного с книгой — одним
   правом оплаты; обе пишут книгу (связка записи, PR 3 E2). Содержимое меняет только
   `POST /api/costs/invoices/{id}/correction` — причина и ВСЁ содержимое одним телом (шапка, строки с
-  `parts`, `document`), право `costs.invoice.correct` и отметка `stamp` из предпросмотра
+  `parts`, `document`, `vatMode` — обязателен, #1498), право `costs.invoice.correct` и отметка `stamp` из предпросмотра
   `…/correction/preview`. Пишет версию (`invoice_versions`) и книгу проводок. ⚠️ Порядок отказов
   другой, чем у правки: «исправление не нужно» (409) и «нет права исправления» (403) идут РАНЬШЕ
   проверки `If-Match` — поэтому адреса вписаны в `VersionAfterNeed` у `InvoiceStaleFormTests`, а не

@@ -82,8 +82,20 @@ public sealed class InvoiceBookEntry : IAppendOnly
 
     public DateTimeOffset At { get; private set; }
 
+    /// <summary>
+    /// Режим НДС до исправления, если исправление его сменило (issue #1498); иначе <c>null</c> — и у прочих
+    /// видов записей. Деньги смены режима лежат строками записи, как у любой правки строк, а сам режим —
+    /// здесь: смена «с НДС → без НДС» при тех же суммах с НДС денег не сдвигает, и без этой пары история
+    /// показала бы исправление «деньги не менялись», не сказав, что изменилось.
+    /// </summary>
+    public VatMode? VatModeWas { get; private set; }
+
+    /// <summary>Режим НДС, который поставило исправление; <c>null</c> — режим не менялся.</summary>
+    public VatMode? VatMode { get; private set; }
+
     public static InvoiceBookEntry Create(
-        Guid invoiceId, int seq, BookRecord record, Guid? author, string? authorName, string? reason, int? version) => new()
+        Guid invoiceId, int seq, BookRecord record, Guid? author, string? authorName, string? reason, int? version,
+        VatModeShift? vatMode = null) => new()
     {
         Id = Guid.CreateVersion7(),
         InvoiceId = invoiceId,
@@ -96,6 +108,8 @@ public sealed class InvoiceBookEntry : IAppendOnly
         AuthorId = author,
         AuthorName = authorName,
         At = DateTimeOffset.UtcNow,
+        VatModeWas = vatMode?.From,
+        VatMode = vatMode?.To,
     };
 
     internal static void Map(ModelBuilder builder)
@@ -116,9 +130,16 @@ public sealed class InvoiceBookEntry : IAppendOnly
         entry.Property(e => e.AuthorId).HasColumnName("author_id");
         entry.Property(e => e.AuthorName).HasColumnName("author_name");
         entry.Property(e => e.At).HasColumnName("at");
+        entry.Property(e => e.VatModeWas).HasColumnName("vat_mode_was").HasConversion<string>().HasMaxLength(16);
+        entry.Property(e => e.VatMode).HasColumnName("vat_mode").HasConversion<string>().HasMaxLength(16);
 
         // Две записи с одним номером — два продолжения одной книги от одного «до»: отказ ключом.
         entry.HasIndex(e => new { e.InvoiceId, e.Seq }).IsUnique().HasDatabaseName("ux_invoice_book_entries_seq");
+
+        // Смена режима — парой и только настоящая: «было» без «стало» или «с НДС → с НДС» история
+        // показала бы сменой, которой не было.
+        entry.ToTable(t => t.HasCheckConstraint("ck_invoice_book_entries_vat_mode",
+            "(vat_mode_was IS NULL) = (vat_mode IS NULL) AND (vat_mode IS NULL OR vat_mode <> vat_mode_was)"));
 
         // ⚠️ RESTRICT, а не каскад: счёт с книгой не удаляется (spec п. 1.5), и каскад снёс бы историю
         // молча — мимо отказа дописываемого набора, который видит только отслеживаемые строки.
