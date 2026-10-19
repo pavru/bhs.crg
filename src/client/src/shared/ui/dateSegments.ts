@@ -64,22 +64,37 @@ export function fullYear(y: string): string {
 const pad = (s: string) => s.padStart(2, '0');
 
 /**
- * Дата целиком из вставки — в любой сегмент. Раньше «18.10.2026» в поле дня становилось «18»:
- * сегмент режет до двух знаков. Порядок частей — языка пользователя (`order` из маски, issue #1461:
- * «10/18/2026» у en-US, «18.10.2026» у ru-RU), разделитель — точка, дробь или дефис, год — и
- * двузначный. ISO (и со временем) — при любом языке. Поле месяца принимает и месяц с годом.
- * null — вставлена не дата: её обрабатывает сегмент. Порядок по значению не угадывается: «01.02.2026»
- * у ru-RU — 1 февраля, у en-US — 2 января.
+ * Текст даты → сегменты в порядке языка — ОДИН разбор на вставку в поле (`parsePasted`) и на вставку
+ * в таблицу (`parseDateCell`), чтобы правила не расходились (ревью PR #1544). Порядок частей — языка
+ * пользователя (`order` из маски, issue #1461: «10/18/2026» у en-US, «18.10.2026» у ru-RU),
+ * разделитель — точка, дробь или дефис. Без дня — у точности «месяц» и «год», только год — у «год».
+ * ISO (и со временем) — при любом языке. Год — как набран, двумя или четырьмя знаками: что делать с
+ * двузначным, решает вызывающий. Порядок по значению не угадывается: «01.02.2026» у ru-RU —
+ * 1 февраля, у en-US — 2 января. null — не дата в этом порядке.
  */
-export function parsePasted(text: string, precision: DatePrecision, order: DatePart[] = ['d', 'm', 'y']): Segments | null {
+export function splitDate(text: string, precision: DatePrecision, order: DatePart[]): Segments | null {
   const t = text.trim();
   const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:$|[T ])/.exec(t);
   if (iso) return { d: pad(iso[3]), m: pad(iso[2]), y: iso[1] };
   const parts = t.split(/[./-]/);
   if (!parts.every(p => /^\d{1,4}$/.test(p))) return null;
-  const full = order.filter(p => p !== 'd' || parts.length === 3);
-  if (parts.length !== full.length || (parts.length === 2 && precision === 'day') || parts.length < 2) return null;
-  const v: Record<string, string> = Object.fromEntries(full.map((p, i) => [p, parts[i]]));
-  if (v.d && v.d.length > 2 || v.m.length > 2 || !(v.y.length === 2 || v.y.length === 4)) return null;
-  return { d: v.d ? pad(v.d) : '', m: pad(v.m), y: fullYear(v.y) };
+  const shown: DatePart[] = parts.length === 3 ? ['d', 'm', 'y']
+    : parts.length === 2 && precision !== 'day' ? ['m', 'y']
+      : parts.length === 1 && precision === 'year' ? ['y'] : [];
+  if (shown.length === 0) return null;
+  const v: Partial<Record<DatePart, string>> = Object.fromEntries(
+    order.filter(p => shown.includes(p)).map((p, i) => [p, parts[i]]));
+  const { d = '', m = '', y = '' } = v;
+  if (d.length > 2 || m.length > 2 || !(y.length === 2 || y.length === 4)) return null;
+  return { d: d ? pad(d) : '', m: m ? pad(m) : '', y };
+}
+
+/**
+ * Дата целиком из вставки — в любой сегмент. Раньше «18.10.2026» в поле дня становилось «18»:
+ * сегмент режет до двух знаков. Разбор — `splitDate`; двузначный год здесь — 20ГГ, как при уходе из
+ * поля. null — вставлена не дата: её обрабатывает сегмент.
+ */
+export function parsePasted(text: string, precision: DatePrecision, order: DatePart[] = ['d', 'm', 'y']): Segments | null {
+  const got = splitDate(text, precision, order);
+  return got && { ...got, y: fullYear(got.y) };
 }

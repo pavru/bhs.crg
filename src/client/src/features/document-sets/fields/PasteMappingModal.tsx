@@ -283,6 +283,9 @@ function PasteMappingModalBody({
   // Дату тоже читают в порядке настройки (issue #1461): «01.02.2026» у ru-RU — 1 февраля, у en-US —
   // 2 января. Скопированная из Excel дата в чужом порядке разберётся иначе или откажет — сказать почему.
   const dateRejected = !!pending?.rejects.some(c => c.reason.startsWith('не дата'));
+  // Маска и ISO — обозначениями того же языка: «MM/DD/YYYY или YYYY-MM-DD», а не вперемешку с ГГГГ.
+  const { text: maskText, labels } = dateMask(resolveLocale(locale));
+  const dateHint = `${maskText} или ${labels.y}-${labels.m}-${labels.d}`;
 
   // Отказ по числу необъясним без имени настройки, по которой его разбирали.
   const localeLabel = locale === SYSTEM_LOCALE
@@ -373,15 +376,16 @@ function PasteMappingModalBody({
                 <p className="text-xs text-fg4">
                   Числа разбираются по региональной настройке (<span className="text-fg3">{localeLabel}</span>):
                   десятичный разделитель — её, остальные знаки могут быть только разделителями тысяч.
-                  Настройка — в профиле, раздел «Внешний вид».
                 </p>
               )}
               {dateRejected && (
                 <p className="text-xs text-fg4">
                   Даты разбираются в порядке региональной настройки (<span className="text-fg3">{localeLabel}</span>):{' '}
-                  {dateMask(resolveLocale(locale)).text} или ГГГГ-ММ-ДД. Дата из таблицы с другим порядком
-                  дня и месяца читается по настройке, а не угадывается. Настройка — в профиле, раздел «Внешний вид».
+                  {dateHint}. Дата из таблицы с другим порядком дня и месяца читается по настройке, а не угадывается.
                 </p>
+              )}
+              {(numberRejected || dateRejected) && (
+                <p className="text-xs text-fg4">Настройка — в профиле, раздел «Внешний вид».</p>
               )}
             </div>
           )}

@@ -64,20 +64,42 @@ export function dateMask(locale: string, precision: DatePrecision = 'day'): Date
   return { order, sep, labels, text: order.map(p => labels[p]).join(sep) };
 }
 
-const capitalize = (s: string) => s.charAt(0).toLocaleUpperCase() + s.slice(1);
-
 /**
- * Названия месяцев для календаря: «Октябрь» / «October»; короткие — без точки сокращения («Окт»):
- * в сетке месяцев точка лишь шум.
+ * Дата из хранимого ГГГГ-ММ-ДД в записи МАСКИ поля — так, как её набирают: «01.07.2026» у ru-RU,
+ * «07/01/2026» у en-US, «07.2026» при точности «месяц». Для текста, который обязан совпасть с полем
+ * рядом: «Дата не ранее …» под полем, сводка свёрнутого объекта. Не ISO — как есть.
  */
-export function monthNames(locale: string, width: 'long' | 'short'): string[] {
-  const format = new Intl.DateTimeFormat(locale, { month: width });
-  return Array.from({ length: 12 }, (_, i) => capitalize(format.format(new Date(2026, i, 1)).replace(/\.$/, '')));
+export function inMask(iso: string, locale: string, precision: DatePrecision = 'day'): string {
+  const g = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!g) return iso;
+  const v: Record<DatePart, string> = { y: g[1], m: g[2], d: g[3] };
+  const { order, sep } = dateMask(locale, precision);
+  return order.map(p => v[p]).join(sep);
 }
 
-// Страны, где неделя начинается с воскресенья, — на случай браузера без `Intl.Locale#getWeekInfo`
-// (Firefox): тогда первый день берётся по региону языка. Без региона — понедельник (ISO 8601).
-const SUNDAY_FIRST = new Set(['US', 'CA', 'MX', 'BR', 'JP', 'KR', 'IL', 'PH', 'TW', 'HK', 'IN', 'ZA', 'AU']);
+const capitalize = (s: string, locale: string) => s.charAt(0).toLocaleUpperCase(locale) + s.slice(1);
+
+/**
+ * Названия месяцев для календаря: «Октябрь» / «October». Короткие — для сетки месяцев: три первые
+ * буквы, если по ним месяцы различимы («Янв … Сен … Дек», как было до #1461), иначе сокращения
+ * языка без точки — у fr-FR «juin» и «juillet» на трёх буквах слились бы.
+ */
+export function monthNames(locale: string, width: 'long' | 'short'): string[] {
+  const names = (w: 'long' | 'short') => {
+    const format = new Intl.DateTimeFormat(locale, { month: w });
+    return Array.from({ length: 12 }, (_, i) => capitalize(format.format(new Date(2026, i, 1)).replace(/\.$/, ''), locale));
+  };
+  const long = names('long');
+  if (width === 'long') return long;
+  const three = long.map(n => n.slice(0, 3));
+  return new Set(three).size === 12 ? three : names('short');
+}
+
+// Первый день недели по региону — для браузера без `Intl.Locale#getWeekInfo` (Firefox). Списки —
+// данные CLDR (их же отдаёт `getWeekInfo`; сверяет тест по всем регионам). Остальные — понедельник.
+const SUNDAY_FIRST = new Set(('AG AS BD BR BS BT BW BZ CA CO DM DO ET GT GU HK HN ID IL IN IS JM JP KE KH KR '
+  + 'LA MH MM MO MT MX MZ NI NP PA PE PH PK PR PT PY SA SG SV TH TT TW UM US VE VI WS YE ZA ZW').split(' '));
+const SATURDAY_FIRST = new Set('AF BH DJ DZ EG IQ IR JO KW LY OM QA SD SY'.split(' '));
 
 /** Первый день недели языка: 1 — понедельник … 7 — воскресенье. */
 export function firstDayOfWeek(locale: string): number {
@@ -87,7 +109,9 @@ export function firstDayOfWeek(locale: string): number {
     };
     const info = loc.getWeekInfo?.() ?? loc.weekInfo;
     if (info?.firstDay) return info.firstDay;
-    return loc.region && SUNDAY_FIRST.has(loc.region) ? 7 : 1;
+    // Язык без региона («en» у «Системной») — регион по умолчанию для языка: en → US.
+    const region = loc.region ?? loc.maximize().region ?? '';
+    return SUNDAY_FIRST.has(region) ? 7 : SATURDAY_FIRST.has(region) ? 6 : region === 'MV' ? 5 : 1;
   } catch {
     return 1;
   }
@@ -98,5 +122,5 @@ export function weekdayNames(locale: string): string[] {
   const format = new Intl.DateTimeFormat(locale, { weekday: 'short' });
   const first = firstDayOfWeek(locale);
   // 2026-10-19 — понедельник: от него дни 1..7 по ISO.
-  return Array.from({ length: 7 }, (_, i) => capitalize(format.format(new Date(2026, 9, 19 + ((first - 1 + i) % 7)))));
+  return Array.from({ length: 7 }, (_, i) => capitalize(format.format(new Date(2026, 9, 19 + ((first - 1 + i) % 7))), locale));
 }

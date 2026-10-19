@@ -299,18 +299,22 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
         return (
           <Fragment key={part}>
             {i > 0 && <span className="text-fg4 select-none">{mask.sep}</span>}
-            <input
-              ref={ref} type="text" inputMode="numeric"
-              placeholder={mask.labels[part]} maxLength={len}
-              style={{ width: len === 4 ? '4ch' : '2.2ch' }}
-              value={shown[part]}
-              disabled={disabled} readOnly={readOnly} aria-required={required || undefined} aria-invalid={invalid} aria-describedby={describedBy}
-              onChange={e => change(e.target.value)}
-              onKeyDown={onSegmentKey(part)}
-              onFocus={onFocus}
-              onBlur={() => { blur?.(); onBlur(); }}
-              className={seg}
-            />
+            {/* Ширина — по образцам (см. `SIZER`): обозначение и цифры. */}
+            <span className="inline-grid">
+              <span data-sizer={mask.labels[part]} aria-hidden className={SIZER} />
+              <span data-sizer={len === 4 ? '0000' : '00'} aria-hidden className={SIZER} />
+              <input
+                ref={ref} type="text" inputMode="numeric"
+                placeholder={mask.labels[part]} maxLength={len}
+                value={shown[part]}
+                disabled={disabled} readOnly={readOnly} aria-required={required || undefined} aria-invalid={invalid} aria-describedby={describedBy}
+                onChange={e => change(e.target.value)}
+                onKeyDown={onSegmentKey(part)}
+                onFocus={onFocus}
+                onBlur={() => { blur?.(); onBlur(); }}
+                className={`${seg} col-start-1 row-start-1 w-0 min-w-full`}
+              />
+            </span>
           </Fragment>
         );
       })}
@@ -391,6 +395,13 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
   );
 }
 
+/**
+ * Невидимый образец, растягивающий ячейку сегмента: ширина по содержимому, а не в `ch` — «MM» и «YYYY»
+ * шире цифр, и у en-US подсказка обрезалась (проба стенда, PR #1544). Текст образца — в псевдоэлементе,
+ * мимо `textContent` и скринридера. Поле в ячейке — `w-0 min-w-full`: своей ширины по умолчанию
+ * (около 20 знаков) оно в ячейку не вносит.
+ */
+const SIZER = 'invisible col-start-1 row-start-1 px-0.5 tabular-nums after:content-[attr(data-sizer)]';
 const STOP = 'button, input, select, textarea, a[href], [tabindex]';
 /** Клавиши-разделители: набрав «18.» или «10/», человек ждёт следующий сегмент при любом языке. */
 const SEPARATORS = ['.', '/', '-'];

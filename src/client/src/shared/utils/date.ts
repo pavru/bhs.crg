@@ -1,28 +1,8 @@
-import type { DatePrecision } from '@/shared/api/types';
-
 /** Converts ISO date (YYYY-MM-DD) → Russian display format (DD.MM.YYYY). Passes through anything else. */
 export function isoToRu(iso: string | null | undefined): string {
   if (!iso) return '';
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
   return m ? `${m[3]}.${m[2]}.${m[1]}` : iso;
-}
-
-/**
- * ISO-дата в записи МАСКИ ВВОДА с учётом точности типа (issue #60): 'year' → «2026», 'month' →
- * «07.2026», 'day'/по умолчанию → «01.07.2026». Непонятный вход — как есть.
- *
- * ⚠️ Только там, где текст обязан совпасть с тем, как дату НАБИРАЮТ: сообщение «Дата не ранее
- * 01.07.2026» под полем с маской `ДД.ММ.ГГГГ`. Показ даты человеку — `formatDatePrecise` из
- * `shared/format`: он слушает язык из настройки, эта функция — нет (задача N2, issue #1103).
- */
-export function formatDateRu(iso: string | null | undefined, precision: DatePrecision = 'day'): string {
-  if (!iso) return '';
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-  if (!m) return iso;
-  const [, y, mo, d] = m;
-  if (precision === 'year') return y;
-  if (precision === 'month') return `${mo}.${y}`;
-  return `${d}.${mo}.${y}`;
 }
 
 /** Converts Russian format (DD.MM.YYYY) → ISO (YYYY-MM-DD). Passes through incomplete/other strings. */
@@ -49,14 +29,23 @@ export function daysInMonth(y: number, m: number): number {
 }
 
 /**
+ * Номер дня внутри недели языка: 0 — её первый день, 6 — последний. `firstDay` — 1 (понедельник) …
+ * 7 (воскресенье), как у `firstDayOfWeek`. Одна формула на сетку месяца и Home/End календаря:
+ * разойдись они, Home вёл бы не к первой колонке.
+ */
+export function dayInWeek(date: Date, firstDay = 1): number {
+  // getDay(): 0=Вс..6=Сб; firstDay 7 (воскресенье) — это 0.
+  return (date.getDay() - (firstDay % 7) + 7) % 7;
+}
+
+/**
  * Матрица недель месяца для сетки дней. Каждая ячейка — число дня месяца или null (пустышка добивки
  * до полной недели). m — 1..12. `firstDay` — первый день недели языка (issue #1461): 1 — понедельник
  * (по умолчанию, ISO 8601) … 7 — воскресенье (en-US); названия дней — `weekdayNames` из shared/format.
  */
 export function monthMatrix(y: number, m: number, firstDay = 1): (number | null)[][] {
   const total = daysInMonth(y, m);
-  // getDay(): 0=Вс..6=Сб; firstDay 7 (воскресенье) — это 0. Сдвиг — номер первого числа в неделе языка.
-  const firstDow = (new Date(y, m - 1, 1).getDay() - (firstDay % 7) + 7) % 7;
+  const firstDow = dayInWeek(new Date(y, m - 1, 1), firstDay);
   const cells: (number | null)[] = Array(firstDow).fill(null);
   for (let d = 1; d <= total; d++) cells.push(d);
   while (cells.length % 7 !== 0) cells.push(null);

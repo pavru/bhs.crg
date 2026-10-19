@@ -211,15 +211,16 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
 
 // ─── Constraint tester (живая проверка образца) ──────────────────────────────────
 
-/** Проверка образца по текущим ограничениям — через ТУ ЖЕ validateConstraint, что и рантайм форм
- *  документов (issue #210, требование Дизайнера: не дублировать валидацию). Состояние эфемерное. */
+/** Проверка образца по текущим ограничениям — пределы через ТУ ЖЕ validateConstraint, что и рантайм
+ *  форм (issue #210: не дублировать валидацию); образец даты сперва разбирается в маске языка и точности
+ *  (`validateSample`, #1461) — в форме дата приходит уже ISO из поля. Состояние эфемерное. */
 function ConstraintTester({ def }: { def: PrimitiveTypeDef }) {
   const [sample, setSample] = useState('');
   const has = sample.trim() !== '';
   // Образец даты — в маске языка пользователя и тем же разбором, что вставка (issue #1461).
   const err = has ? validateSample(sample, def) : null;
   const ok = has && !err;
-  const placeholder = def.baseType === 'date' ? dateMaskText() : def.baseType === 'number' ? 'например: 42' : 'введите образец';
+  const placeholder = def.baseType === 'date' ? dateMaskText(def.constraints.datePrecision) : def.baseType === 'number' ? 'например: 42' : 'введите образец';
   const StatusIcon = ok ? CheckCircle2 : AlertCircle;
   const tone = !has ? 'text-fg4' : ok ? 'text-success' : 'text-danger';
   return (

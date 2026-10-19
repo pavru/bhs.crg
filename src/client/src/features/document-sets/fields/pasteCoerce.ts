@@ -1,8 +1,9 @@
 import type { SchemaField } from '@/shared/api/schema';
-import type { EnumTypeDef, PrimitiveTypeDef } from '@/shared/api/types';
+import type { DatePrecision, EnumTypeDef, PrimitiveTypeDef } from '@/shared/api/types';
 import { parseNumber } from '@/shared/utils/parseNumber';
 import { dateMask } from '@/shared/format/dateMask';
 import { resolveLocale } from '@/shared/hooks/useLocale';
+import { readSegments, splitDate } from '@/shared/ui/dateSegments';
 
 /**
  * Приведение вставленной ячейки к типу поля (issue #1064).
@@ -31,33 +32,22 @@ const norm = (s: string) => s.trim().toLowerCase();
 const TRUE_WORDS = ['1', 'да', 'true', 'yes', '+', 'y', 'истина'];
 const FALSE_WORDS = ['0', 'нет', 'false', 'no', '-', 'n', 'ложь'];
 
-const ISO = /^(\d{4})-(\d{1,2})-(\d{1,2})$/;
-const THREE = /^(\d{1,4})[./-](\d{1,4})[./-](\d{1,4})$/;
-
 /**
- * Дата → хранимый вид `YYYY-MM-DD`. Принимаются дата в порядке языка пользователя (issue #1461:
- * `ДД.ММ.ГГГГ` у ru-RU, `MM/DD/YYYY` у en-US; разделитель — точка, дробь или дефис) и готовый ISO.
- * Порядок — только из языка, по значению не угадывается: «01.02.2026» — это 1 февраля у ru-RU и
- * 2 января у en-US, и угадывать здесь значило бы молча путать месяц с днём.
- * Двузначный год не принимается намеренно: `15.01.26` — это и 1926-й, и 2026-й.
+ * Дата → хранимый вид `YYYY-MM-DD`. Разбор — общий с полем даты (`splitDate`): дата в порядке языка
+ * пользователя (issue #1461: `ДД.ММ.ГГГГ` у ru-RU, `MM/DD/YYYY` у en-US; разделитель — точка, дробь
+ * или дефис) и ISO. Порядок — только из языка, по значению не угадывается: «01.02.2026» — это
+ * 1 февраля у ru-RU и 2 января у en-US, и угадывать здесь значило бы молча путать месяц с днём.
+ * Язык обязателен: молча подставленный русский порядок был бы той же подменой.
+ * Точность типа сужает дату, как у поля: «10.2026» у «месяц и год» → `2026-10-01`.
+ * Двузначный год не принимается намеренно (поле его дополняет, таблица — нет: в поле человек видит
+ * итог сразу): `15.01.26` — это и 1926-й, и 2026-й. Календарная несуразица (`31.02.2026`) — отказ:
+ * подставлять 3 марта нельзя.
  */
-export function parseDateCell(raw: string, locale = 'ru-RU'): string | null {
-  const t = raw.trim();
-  const iso = ISO.exec(t);
-  let y: number, m: number, d: number;
-  if (iso) {
-    [y, m, d] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
-  } else {
-    const g = THREE.exec(t);
-    if (!g) return null;
-    const v = Object.fromEntries(dateMask(locale).order.map((p, i) => [p, g[i + 1]]));
-    if (v.y.length !== 4 || v.d.length > 2 || v.m.length > 2) return null;
-    [y, m, d] = [Number(v.y), Number(v.m), Number(v.d)];
-  }
-  // Календарную несуразицу (`31.02.2026`) ловим сверкой с самой датой: подставлять 3 марта нельзя.
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
-  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+export function parseDateCell(raw: string, locale: string, precision: DatePrecision = 'day'): string | null {
+  const got = splitDate(raw, precision, dateMask(locale).order);
+  if (!got || got.y.length !== 4) return null;
+  const r = readSegments(got, precision);
+  return r.kind === 'date' ? r.iso : null;
 }
 
 /** Да/нет. Всё, что не опознано, — отказ, а НЕ «нет»: уверенное «нет» здесь и есть враньё. */
@@ -84,6 +74,12 @@ function baseTypeOf(field: SchemaField, ctx: CoerceContext): PrimitiveTypeDef['b
   return def?.baseType ?? null;
 }
 
+/** Точность даты пользовательского типа (issue #60): по ней сужаются разбор и маска в отказе. */
+function precisionOf(field: SchemaField, ctx: CoerceContext): DatePrecision {
+  const def = field.typeId ? ctx.primitiveTypes.find(p => p.id === field.typeId) : undefined;
+  return def?.constraints.datePrecision ?? 'day';
+}
+
 /**
  * Значение ячейки в виде, пригодном для хранения. `null` — не разобрано: ячейка останется пустой
  * и будет названа человеку.
@@ -97,7 +93,7 @@ export function coerceScalar(field: SchemaField, raw: string, ctx: CoerceContext
     case 'primitive': {
       const base = baseTypeOf(field, ctx);
       if (base === 'number') return parseNumber(raw, ctx.locale);
-      if (base === 'date') return parseDateCell(raw, resolveLocale(ctx.locale));
+      if (base === 'date') return parseDateCell(raw, resolveLocale(ctx.locale), precisionOf(field, ctx));
       // База `string` — как обычная строка. Неизвестный тип (не доехал справочник) тоже: отказывать
       // из-за незагруженного справочника нельзя, это отказ не по данным.
       return raw;
@@ -110,7 +106,7 @@ export function coerceScalar(field: SchemaField, raw: string, ctx: CoerceContext
 export function rejectReason(field: SchemaField, ctx: CoerceContext): string {
   const type = field.type === 'primitive' ? baseTypeOf(field, ctx) : field.type;
   if (type === 'number') return 'не число';
-  if (type === 'date') return `не дата (ожидается ${dateMask(resolveLocale(ctx.locale)).text})`;
+  if (type === 'date') return `не дата (ожидается ${dateMask(resolveLocale(ctx.locale), precisionOf(field, ctx)).text})`;
   if (type === 'boolean') return 'не «да» и не «нет»';
   if (type === 'enum') return 'нет такого варианта в списке';
   return 'не разобрано';

@@ -1,7 +1,7 @@
 import { useState, useRef, useLayoutEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import type { DatePrecision } from '@/shared/api/types';
-import { parseISO, toISO, daysInMonth, monthMatrix } from '@/shared/utils/date';
+import { parseISO, toISO, daysInMonth, monthMatrix, dayInWeek } from '@/shared/utils/date';
 import { firstDayOfWeek, monthNames, weekdayNames } from '@/shared/format/dateMask';
 import { resolveLocale, useLocale } from '@/shared/hooks/useLocale';
 import { Tooltip } from './Tooltip';
@@ -74,7 +74,7 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
   }
 
   /** Номер дня в фокусе внутри недели языка: 0 — её первый день. */
-  const dayOfWeek = () => (new Date(fy, fm - 1, fd).getDay() - (firstDay % 7) + 7) % 7;
+  const dayOfWeek = () => dayInWeek(new Date(fy, fm - 1, fd), firstDay);
 
   function onDaysKey(e: React.KeyboardEvent) {
     switch (e.key) {

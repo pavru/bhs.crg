@@ -1,8 +1,8 @@
-import { formatDateRu, ruToISO } from '@/shared/utils/date';
+import { ruToISO } from '@/shared/utils/date';
 import type { SchemaField } from '@/shared/api/schema';
 import type { PrimitiveTypeDef, FieldConstraints } from '@/shared/api/types';
 import { isFieldRef } from '@/shared/api/types';
-import { dateMaskText, formatLocale } from '@/shared/format/format';
+import { dateMaskText, formatDateInMask, formatLocale } from '@/shared/format/format';
 import { parseDateCell } from './pasteCoerce';
 
 // Отдельным файлом от компонента (issue #858): модуль, экспортирующий и компонент, и
@@ -22,13 +22,15 @@ export function isMissing(field: SchemaField, val: unknown): boolean {
 
 /**
  * Образец, набранный текстом (проверка ограничений в настройке типа), — тем же разбором, что
- * вставка в таблицу: дату в маске языка пользователя (issue #1461). Сравнение с пределами идёт по
- * ГГГГ-ММ-ДД, и «10/18/2026» как текст сравнилось бы неверно.
+ * вставка в таблицу: дату в маске языка пользователя (issue #1461) и с точностью типа — «10.2026» у
+ * «месяц и год» (ревью PR #1544). Сравнение с пределами идёт по ГГГГ-ММ-ДД, и «10/18/2026» как текст
+ * сравнилось бы неверно.
  */
 export function validateSample(sample: string, def: PrimitiveTypeDef): string | null {
   if (def.baseType !== 'date') return validateConstraint(sample, def);
-  const iso = parseDateCell(sample, formatLocale());
-  return iso ? validateConstraint(iso, def) : `Не дата (ожидается ${dateMaskText()})`;
+  const precision = def.constraints.datePrecision ?? 'day';
+  const iso = parseDateCell(sample, formatLocale(), precision);
+  return iso ? validateConstraint(iso, def) : `Не дата (ожидается ${dateMaskText(precision)})`;
 }
 
 export function validateConstraint(value: unknown, def: PrimitiveTypeDef): string | null {
@@ -53,8 +55,10 @@ export function validateConstraint(value: unknown, def: PrimitiveTypeDef): strin
   } else if (def.baseType === 'date') {
     const iso = ruToISO(String(value));
     const prec = c.datePrecision ?? 'day';
-    if (c.minDate && iso < c.minDate) return `Дата не ранее ${formatDateRu(c.minDate, prec)}`;
-    if (c.maxDate && iso > c.maxDate) return `Дата не позднее ${formatDateRu(c.maxDate, prec)}`;
+    // Предел — в записи маски поля, под которым стоит сообщение (ревью PR #1544): у en-US
+    // «01.07.2026» под полем MM/DD/YYYY читалось бы как 7 января.
+    if (c.minDate && iso < c.minDate) return `Дата не ранее ${formatDateInMask(c.minDate, prec)}`;
+    if (c.maxDate && iso > c.maxDate) return `Дата не позднее ${formatDateInMask(c.maxDate, prec)}`;
   }
   return null;
 }
