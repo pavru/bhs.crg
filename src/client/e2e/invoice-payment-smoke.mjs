@@ -8,6 +8,8 @@
 //       день виден, щелчок по нему ставит дату в поле (issue #1521). `…-fits-phone` — то же на 375×812;
 //       сторожем обрезки он не служит: окно во весь экран не резало и раньше. `…-tab-goes-to-next-field`
 //       — Tab с края календаря ведёт к следующему полю окна, а не прочь со страницы.
+//       `payment-date-escape-reverts-and-keeps-dialog` — 31.02 помечено ошибкой, Esc возвращает дату,
+//       с которой вошли в поле, и окно не закрывает (issue #1460).
 //   2. `preview-matches-recorded` — стройка закрыта, платёж задним числом: диалог называет перенос и
 //      меняет подпись кнопки; после записи расклад счёта показывает ТЕ ЖЕ учётные даты.
 //   2а. `registry-names-the-accounting-month` — реестр показывает тот же учётный месяц и деньги в нём.
@@ -247,6 +249,36 @@ await check('payment-date-calendar-tab-goes-to-next-field', async () => {
     const at = await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 160) ?? 'нигде');
     throw new Error(`Tab из календаря не дошёл до «Платёжного документа» — фокус: ${at}`);
   }
+  await leavePayment(dialog);
+});
+
+// Esc посреди ввода даты возвращает дату, с которой вошли в поле, и окну не достаётся (#1460): поле
+// гасит Esc, а `Modal` решает о своём Esc после полей. «31» поверх месяца с 31 днём успевает
+// отдать дату по пути к 31.02 — вернуться обязана прежняя, а не она.
+await check('payment-date-escape-reverts-and-keeps-dialog', async () => {
+  await open(calendarNumber);
+  await page.getByRole('button', { name: 'Отметить оплату' }).click();
+  const dialog = page.getByRole('dialog').first();
+  await dialog.getByText(/Вся сумма войдёт в затраты/).waitFor({ timeout: 10_000 });
+  const day = dialog.getByPlaceholder('ДД');
+  const shown = async () => [await day.inputValue(), await dialog.getByPlaceholder('ММ').inputValue(),
+    await dialog.getByPlaceholder('ГГГГ').inputValue()].join('.');
+  const before = await shown();
+  await day.click();
+  await day.selectText();
+  await page.keyboard.type('3102', { delay: 30 });
+  if ((await day.getAttribute('aria-invalid')) !== 'true')
+    throw new Error(`31.02 не помечено ошибкой — в поле ${await shown()}`);
+  await page.keyboard.press('Escape');
+  // Окно решает о своём Esc таймером после полей — ждём дольше него, прежде чем смотреть.
+  await page.waitForTimeout(300);
+  if (!(await dialog.isVisible())) throw new Error('Esc в поле даты закрыл окно оплаты');
+  // Окно после правки «тронуто» и на свой Esc не закрывается, а уводит фокус к выходу (`focusExit`).
+  // Поэтому признак того, что Esc достался полю, а не окну, — фокус остался в сегменте даты.
+  const at = await page.evaluate(() => document.activeElement?.getAttribute('placeholder') ?? document.activeElement?.textContent?.trim());
+  if (!['ДД', 'ММ', 'ГГГГ'].includes(at)) throw new Error(`Esc в поле даты достался окну: фокус ушёл на «${at}»`);
+  const after = await shown();
+  if (after !== before) throw new Error(`Esc вернул ${after}, а при входе в поле было ${before}`);
   await leavePayment(dialog);
 });
 

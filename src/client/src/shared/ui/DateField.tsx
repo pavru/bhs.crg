@@ -27,14 +27,18 @@ export function DateField({
   readOnly?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
+  // Ошибка набранного (issue #1460) — под рамкой, красным. Подсказка формы при этом не теряется: она
+  // бывает её же ошибкой (отказ проводки по дате у оплаты), и пропасть ей нельзя.
+  const [problem, setProblem] = useState<string | null>(null);
+  const error = problem ? (hint ? `${problem}. ${hint[0].toUpperCase()}${hint.slice(1)}` : problem) : undefined;
   return (
-    <OutlinedField label={label} required={required} invalid={invalid} hint={hint}
+    <OutlinedField label={label} required={required} invalid={invalid} hint={hint} error={error}
       raise="always" focused={focused} readOnly={readOnly}>
       <div className={`h-14 rounded-md px-4 flex items-center text-sm text-fg1 ${disabled ? 'opacity-50' : ''}`}
         onFocus={() => setFocused(true)}
         onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>
-        <DateInput value={value} onChange={onChange} precision={precision} disabled={disabled} readOnly={readOnly}
-          required={required} />
+        <DateInput value={value} onChange={onChange} onProblem={setProblem} precision={precision}
+          disabled={disabled} readOnly={readOnly} required={required} />
       </div>
     </OutlinedField>
   );
