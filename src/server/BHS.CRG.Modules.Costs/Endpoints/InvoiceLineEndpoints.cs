@@ -129,6 +129,9 @@ public static class InvoiceLineEndpoints
             var reason = invoice.State != InvoiceState.Parsed ? null
                 : count == 0 || parsed.Any(p => p.Values.NomenclatureId is null)
                     ? "позиция номенклатуры есть не у всех строк"
+                // НДС у части строк (issue #1445) — по записанным строкам: НДС строки досчитан при размещении.
+                : InvoiceReadiness.VatUnnamed(invoice.VatMode, placed.Lines).Count > 0
+                    ? "НДС указан не у всех строк"
                 : !await InvoiceAllocations.AllocatedAfterAsync(db, places, invoice,
                     [.. placed.Lines.Select(InvoiceAllocations.Line)],
                     await desk.ToleranceAsync(ct), ct)

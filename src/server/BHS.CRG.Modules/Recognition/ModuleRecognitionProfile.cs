@@ -63,6 +63,10 @@ public sealed record ModuleRecognitionShape(
 /// Функциональный тэг документа, по которому этот профиль выбирается сам: лист с таким тэгом читается
 /// как таблица этими колонками. Тэг объявляет тот же модуль (<see cref="IAppModule.Tags" />).
 /// </param>
+/// <param name="Targets">
+/// Куда модуль раскладывает шапку (issue #1483); <c>null</c> — профиль читают только наборы данных.
+/// В хеш заводского содержимого не входит: это не то, что спрашивают у модели.
+/// </param>
 public sealed record ModuleRecognitionProfile(
     string Code,
     string Name,
@@ -70,7 +74,8 @@ public sealed record ModuleRecognitionProfile(
     IReadOnlyList<ModuleRecognitionField>? Fields = null,
     IReadOnlyList<ModuleRecognitionField>? RowColumns = null,
     ModuleRecognitionShape? Shape = null,
-    string? DocumentTag = null)
+    string? DocumentTag = null,
+    ModuleRecognitionTargets? Targets = null)
 {
     public IReadOnlyList<ModuleRecognitionField> Fields { get; init; } = Fields ?? [];
 

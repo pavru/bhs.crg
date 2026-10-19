@@ -70,13 +70,15 @@ public sealed partial class InvoiceFromScanTests(InvoiceScanHost host)
         var requisites = view.GetProperty("requisites");
         Assert.Equal("СЧ-417", requisites.GetProperty("Номер").GetString());
         Assert.Equal("2026-03-12", requisites.GetProperty("Дата").GetString());
-        Assert.Equal("Договор № 5 от 01.02.2026", requisites.GetProperty("Назначение").GetString());
+        // «Основание» — в «Основание» (issue #1483), а не в «Назначение», как было с #1255.
+        Assert.Equal("Договор № 5 от 01.02.2026", requisites.GetProperty("Основание").GetString());
+        Assert.Equal(JsonValueKind.Null, requisites.GetProperty("Назначение").ValueKind);
         Assert.Equal(12000m, requisites.GetProperty("Итого").GetDecimal());
         Assert.Equal(2000m, requisites.GetProperty("ВТомЧислеНДС").GetDecimal());
         Assert.Equal("Черновик", requisites.GetProperty("Состояние").GetString());
 
         // Главное: всё, что вписал не человек, помечено — и ничего сверх того.
-        Assert.Equal(["ВТомЧислеНДС", "Дата", "Итого", "Назначение", "Номер"], Unconfirmed(view));
+        Assert.Equal(["ВТомЧислеНДС", "Дата", "Итого", "Номер", "Основание"], Unconfirmed(view));
 
         var lines = view.GetProperty("lines");
         Assert.Equal(2, lines.GetArrayLength());
@@ -197,7 +199,9 @@ public sealed partial class InvoiceFromScanTests(InvoiceScanHost host)
 
         var recognition = await OutcomeAsync(client, id);
         Assert.Equal("done", recognition.GetProperty("state").GetString());
-        Assert.Equal("СЧ-500", recognition.GetProperty("offers").GetProperty("Номер").GetString());
+        // Предложение несёт и разобранное значение: «Взять» кладёт его (issue #1483).
+        var offer = recognition.GetProperty("offers").GetProperty("Номер");
+        Assert.Equal(("СЧ-500", "СЧ-500"), (offer.GetProperty("text").GetString(), offer.GetProperty("value").GetString()));
 
         var view = await ReadAsync(client, id);
         Assert.Equal("РУЧНОЙ-1", view.GetProperty("requisites").GetProperty("Номер").GetString());
@@ -255,8 +259,10 @@ public sealed partial class InvoiceFromScanTests(InvoiceScanHost host)
         var recognition = await OutcomeAsync(client, id);
 
         Assert.Equal("done", recognition.GetProperty("state").GetString());
-        Assert.Equal("1.234", recognition.GetProperty("offers").GetProperty("Итого").GetString());
-        Assert.Equal("01.02.26", recognition.GetProperty("offers").GetProperty("Дата").GetString());
+        // Не разобрано — только текст: взять нечего.
+        Assert.Equal("1.234", recognition.GetProperty("offers").GetProperty("Итого").GetProperty("text").GetString());
+        Assert.False(recognition.GetProperty("offers").GetProperty("Итого").TryGetProperty("value", out _));
+        Assert.Equal("01.02.26", recognition.GetProperty("offers").GetProperty("Дата").GetProperty("text").GetString());
 
         var view = await ReadAsync(client, id);
         Assert.Equal(JsonValueKind.Null, view.GetProperty("requisites").GetProperty("Итого").ValueKind);
@@ -429,7 +435,7 @@ public sealed partial class InvoiceFromScanTests(InvoiceScanHost host)
             id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
             // Форма открыта ДО исхода: версия и шапка — прежние.
             var opened = await ReadAsync(client, id);
-            var patched = await RequisitesWithAsync(client, id, "Назначение", "вписано рукой");
+            var patched = await RequisitesWithAsync(client, id, "Основание", "вписано рукой");
             host.BetweenReadAndSave = () =>
             {
                 // Не ждём ответа: правка обязана встать в очередь за слиянием, а дождись мы её здесь —
@@ -458,7 +464,7 @@ public sealed partial class InvoiceFromScanTests(InvoiceScanHost host)
         Assert.Contains("тем временем изменили", await late.Content.ReadAsStringAsync());
 
         var view = await ReadAsync(client, id);
-        Assert.Equal("Договор № 8", view.GetProperty("requisites").GetProperty("Назначение").GetString());
+        Assert.Equal("Договор № 8", view.GetProperty("requisites").GetProperty("Основание").GetString());
         Assert.Equal("СЧ-508", view.GetProperty("requisites").GetProperty("Номер").GetString());
     }
 
@@ -474,7 +480,7 @@ public sealed partial class InvoiceFromScanTests(InvoiceScanHost host)
         host.Recognition.On(scan, () => Task.FromResult(Read(Header(number: "СЧ-509", total: "1.234"))));
 
         var id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
-        Assert.Equal("1.234", (await OutcomeAsync(client, id)).GetProperty("offers").GetProperty("Итого").GetString());
+        Assert.Equal("1.234", (await OutcomeAsync(client, id)).GetProperty("offers").GetProperty("Итого").GetProperty("text").GetString());
 
         using (var form = Form(Scan(), "Другой.pdf", "application/pdf"))
             await OkAsync(await client.PostAsync($"/api/costs/invoices/{id}/scan", form));
