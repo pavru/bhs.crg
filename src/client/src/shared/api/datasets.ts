@@ -433,6 +433,21 @@ export function useApplyGrouping(fileId: string) {
   });
 }
 
+/**
+ * Вырезать документы заново по текущему разбиению (issue #1534) — когда частей нет в хранилище.
+ * Разбиение не меняется; меняются пути частей и строки источников-проекций.
+ */
+export function useRecutGrouping(fileId: string) {
+  const qc = useQueryClient();
+  return useMutation<GostGrouping, unknown, void>({
+    mutationFn: () => apiClient.post(`/datasets/files/${fileId}/grouping/recut`).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['datasets', 'files', fileId, 'pages'] });
+      invalidateSources(qc);
+    },
+  });
+}
+
 /** Лёгкая установка тэгов документа (тип таблицы) — без пересборки разбиения. */
 export function useSetDocumentTags(fileId: string) {
   const qc = useQueryClient();

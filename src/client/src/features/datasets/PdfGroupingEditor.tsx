@@ -12,6 +12,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { ruCount } from '@/shared/utils/pluralize';
 import { RecognitionBlockedDialog } from './RecognitionBlockedDialog';
+import { GroupingSaveError, MissingPartsNotice } from './PdfGroupingNotices';
 import { newLocalId } from '@/shared/utils/localId';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -572,11 +573,8 @@ export function PdfGroupingEditor() {
           </Button>
         </>} />
 
-      {applyMutation.isError && (
-        <p className="text-sm text-danger mb-3">
-          {(applyMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Не удалось сохранить'}
-        </p>
-      )}
+      {applyMutation.isError && <GroupingSaveError error={applyMutation.error} />}
+      <MissingPartsNotice fileId={fileId!} missing={data?.missingParts ?? 0} dirty={dirty} />
 
       {/* Отказ распознавания таблицы/документа. Раньше эти две операции молчали при любой неудаче:
           кнопка переставала крутиться, и всё (issue #801). */}

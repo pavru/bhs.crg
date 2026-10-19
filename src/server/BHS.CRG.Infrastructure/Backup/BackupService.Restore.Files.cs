@@ -75,10 +75,9 @@ public partial class BackupService
                 "графика) или не сформируются вовсе — загрузите ассеты заново в редакторе шаблонов.");
             SayCount(byKind[BlobHolderKind.Generated].Count(), warnings,
                 "Сформированные PDF документов", "Сами документы вернулись — сформируйте их заново.");
-            var lostSets = byKind[BlobHolderKind.DataSetFile].Select(m => m.Holder.DataSetFileId).ToHashSet();
-            SayDataSetFiles(lostSets, manifest, warnings);
-            SayParts(byKind[BlobHolderKind.DataSetPart].Select(m => m.Holder).ToList(), lostSets, selection,
-                manifest, warnings);
+            var lostFiles = LostDataSetFiles(missing, manifest);
+            SayDataSetFiles(lostFiles, manifest, warnings);
+            SayParts(missing, lostFiles, selection, manifest, warnings);
 
             logger.LogWarning(
                 "Восстановление: файлов нет ни в архиве, ни в хранилище — {Count}. Пути: {Paths}",
@@ -122,10 +121,7 @@ public partial class BackupService
     {
         if (paths.Count == 0) return;
 
-        var tally = string.Join(", ", paths
-            .GroupBy(p => selection.Addresses.GetValueOrDefault(p, "путь иной формы"))
-            .OrderBy(g => g.Key, StringComparer.Ordinal)
-            .Select(g => $"{g.Key} ({g.Count()})"));
+        var tally = PlaceTally(paths, selection);
         var notTaken = copyKnew
             ? 0
             : paths.Intersect(selection.TakenByScan.Select(h => h.Text), StringComparer.Ordinal).Count();
@@ -168,60 +164,41 @@ public partial class BackupService
             warnings.Add($"{what}: {count} — нет ни в копии, ни в хранилище. {exit}");
     }
 
-    /// <summary>Файлы наборов — по имени: без файла набор не перечитать и не разрезать заново.</summary>
-    private static void SayDataSetFiles(HashSet<Guid?> lost, BackupManifest manifest, List<string> warnings)
+    /// <summary>
+    /// Файлы наборов — по имени: без файла набор не перечитать и не разрезать заново. Наборы — по пути
+    /// файла (<see cref="LostDataSetFiles" />): на одном файле их бывает несколько.
+    /// </summary>
+    private static void SayDataSetFiles(List<BackupDataSetFile> lost, BackupManifest manifest, List<string> warnings)
     {
         if (lost.Count == 0) return;
 
         warnings.Add(
             "Файлов наборов данных нет ни в копии, ни в хранилище: " +
-            $"{string.Join(", ", lost.Select(id => $"«{SetName(id, manifest)}»"))}. Наборы вернулись с " +
+            $"{SetNames(lost, manifest)}. Наборы вернулись с " +
             "разобранным содержимым, но перечитать или разбить их заново не из чего — загрузите файл набора " +
             "заново.");
     }
 
     /// <summary>
-    /// Части PDF-наборов (issue #1399) — по имени набора. Выход «Разбиение» — только там, где файл
-    /// набора на месте: части вырезаются из него, и без него сохранение разбиения ничего не вернёт
-    /// (ревью PR #1440).
+    /// Части PDF-наборов (issue #1399) — по имени набора; раскладка и выходы — общие с паспортом копии
+    /// (<see cref="MissingPartsBySet" />).
     /// </summary>
     private static void SayParts(
-        List<BlobHolder> holders, HashSet<Guid?> lostSets, BlobSelection selection, BackupManifest manifest,
-        List<string> warnings)
+        IReadOnlyCollection<(string Path, BlobHolder Holder)> missing, List<BackupDataSetFile> lostFiles,
+        BlobSelection selection, BackupManifest manifest, List<string> warnings)
     {
-        if (holders.Count == 0) return;
-
-        var totals = selection.Holders.Values
-            .Where(h => h.Kind == BlobHolderKind.DataSetPart)
-            .CountBy(h => h.DataSetFileId)
-            .ToDictionary(p => p.Key, p => p.Value);
-        var sets = holders.CountBy(h => h.DataSetFileId)
-            .Select(p => (Id: p.Key, Text: $"«{SetName(p.Key, manifest)}» — {p.Value} из {totals[p.Key]}"))
-            .ToList();
-        // Резать есть из чего, только если файл набора в копии и не пропал.
-        var cuttable = sets
-            .Where(s => !lostSets.Contains(s.Id) && (manifest.DataSetFiles ?? []).Any(f => f.Id == s.Id))
-            .ToList();
-        var stuck = sets.Except(cuttable).ToList();
+        var (cuttable, stuck) = MissingPartsBySet(missing, lostFiles, selection, manifest);
 
         if (cuttable.Count > 0)
             warnings.Add(
                 "В копии нет вырезанных PDF документов, и в хранилище они не найдены: " +
-                $"{string.Join("; ", cuttable.Select(s => s.Text))}. Наборы вернулись, но документы с этими " +
+                $"{string.Join("; ", cuttable)}. Наборы вернулись, но документы с этими " +
                 "вложениями будут печататься без них. Так выглядит копия, снятая прежней версией, которая " +
-                "части не брала, или копия, при снятии которой их не оказалось в хранилище. Части вырезаются " +
-                "заново из файла набора: откройте у набора «Разбиение» и сохраните его.");
+                "части не брала, или копия, при снятии которой их не оказалось в хранилище. " + RecutExit);
         if (stuck.Count > 0)
             warnings.Add(
                 "В копии нет вырезанных PDF документов, и вырезать их заново не из чего — файла набора нет " +
-                $"тоже: {string.Join("; ", stuck.Select(s => s.Text))}. Документы с этими вложениями будут " +
-                "печататься без них. Верните файл набора (загрузите заново), затем откройте у набора " +
-                "«Разбиение» и сохраните его.");
+                $"тоже: {string.Join("; ", stuck)}. Документы с этими вложениями будут " +
+                "печататься без них. " + ReturnFileExit);
     }
-
-    /// <summary>Имя набора — у файла; реестр, чьего файла в копии нет, назван своим именем.</summary>
-    private static string SetName(Guid? fileId, BackupManifest manifest) =>
-        (manifest.DataSetFiles ?? []).FirstOrDefault(f => f.Id == fileId)?.Name
-        ?? (manifest.DataSetSources ?? []).FirstOrDefault(s => s.FileId == fileId)?.Name
-        ?? fileId.ToString()!;
 }

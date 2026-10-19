@@ -128,6 +128,14 @@ public interface IDataSetService
     /// GostGrouping.ManuallyEdited=true. Осиротевшие blob'ы прежних под-PDF удаляются best-effort.
     /// </summary>
     Task<GostGroupingDto?> ApplyGroupingAsync(Guid fileId, ApplyGroupingInput input, CancellationToken ct);
+
+    /// <summary>
+    /// Вырезать документы заново из файла набора по ТЕКУЩЕМУ разбиению (issue #1534) — когда частей
+    /// нет в хранилище (восстановление из копии без них, висячий кэш копии источника). Разбиение не
+    /// меняется: ни отметка ручной правки, ни распознанные таблицы, ни тэги — только пути частей и
+    /// источники-проекции. Нет файла набора — <c>ConflictException</c>; null — набор не найден.
+    /// </summary>
+    Task<GostGroupingDto?> RecutGroupingAsync(Guid fileId, CancellationToken ct);
     /// <summary>Лёгкая установка тэгов документа (тип таблицы) без пересборки разбиения.</summary>
     Task<GostGroupingDto?> SetDocumentTagsAsync(Guid fileId, int firstPageIndex, IReadOnlyList<string> tags, CancellationToken ct);
 

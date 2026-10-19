@@ -268,11 +268,13 @@ public partial class BackupServiceTests
     }
 
     /// <summary>
-    /// Обход для копий, снятых до #1399: частей в них нет, а сам файл набора есть. Повторное
-    /// применение разбиения режет части заново из файла — и вложения возвращаются.
+    /// Обход для копий, снятых до #1399: частей в них нет, а сам файл набора есть. Действие, которое
+    /// называет отчёт, — «Вырезать документы заново» (issue #1534), — режет части заново из файла, и
+    /// вложения возвращаются. Редактор разбиения видит, что резать есть что: без этого числа кнопки
+    /// нет, и отчёт посылал бы к невидимому действию.
     /// </summary>
     [Fact]
-    public async Task BackupWithoutParts_ReapplyingGrouping_RestoresThem()
+    public async Task BackupWithoutParts_RecutAction_RestoresThem()
     {
         var (fileId, sourceId, parts) = await SeedSplitDataSetAsync();
         var zipBytes = WithoutEntries(await ExportFullAsync(), parts.Keys.Select(p => $"blobs/{p}").ToHashSet());
@@ -283,13 +285,14 @@ public partial class BackupServiceTests
         // Копия без частей восстанавливается не молча (ревью PR #1408): отчёт называет набор, сколько
         // частей нет и как их вернуть. Счёт «восстановлено N из N» о них ничего не говорит.
         Assert.Contains(report.Warnings, w =>
-            w.Contains("вырезанных PDF документов") && w.Contains("«Альбом ЭМ» — 2 из 2") && w.Contains("«Разбиение»"));
+            w.Contains("вырезанных PDF документов") && w.Contains("«Альбом ЭМ» — 2 из 2") &&
+            w.Contains("«Вырезать документы заново»"));
 
         using (var scope = fixture.Services.CreateScope())
         {
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
-            var grouping = await svc.GetPagesAsync(fileId, default);
-            await svc.ApplyGroupingAsync(fileId, new ApplyGroupingInput(grouping!.Groups), default);
+            Assert.Equal(2, (await svc.GetPagesAsync(fileId, default))!.MissingParts);
+            Assert.Equal(0, (await svc.RecutGroupingAsync(fileId, default))!.MissingParts);
         }
 
         await AssertPartsReadableAsync(sourceId, expected: null);

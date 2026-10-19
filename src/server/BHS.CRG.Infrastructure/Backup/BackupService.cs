@@ -97,8 +97,8 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             var done = 0;
             foreach (var blobPath in blobPaths)
             {
-                // Пропуском прощается только отказ ОТКРЫТЬ файл в хранилище, и под catch стоит одно
-                // это: запись в архиве заводится после, так что пропущенный файл не оставляет в
+                // Пропуском прощается только отказ ОТКРЫТЬ файл, которого в хранилище НЕТ, и под catch
+                // стоит одно это: запись в архиве заводится после, так что пропущенный файл не оставляет в
                 // архиве ничего. На этом держится оценка веса (MeasureAsync): нет файла — нет ни
                 // байтов, ни заголовка (issue #1425). Отказ посреди переноса в архив пропуском не
                 // считается и роняет экспорт: запись к тому времени заведена, и обрезанный файл
@@ -108,9 +108,10 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
                 {
                     blobStream = await blob.DownloadAsync(blobPath, ct);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (!ct.IsCancellationRequested)
                 {
-                    // Blob missing in storage — skip, DB reference kept intact
+                    // Пропуском — только «объекта нет»; отказ хранилища роняет копию (issue #1534).
+                    await EnsureAbsentAsync(blobPath, ex, ct);
                     logger.LogWarning(ex, "Бинарный файл отсутствует в хранилище при экспорте бэкапа: {BlobPath}", blobPath);
                     missingBlobs.Add(blobPath);
                 }
@@ -132,7 +133,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             }
 
             WarnAboutScan(selection, missingBlobs, warnings);
-            if (missingBlobs.Count > 0) warnings.Add(MissingBlobsWarning(missingBlobs.Count, blobPaths.Count));
+            WarnAboutMissingBlobs(selection, missingBlobs, manifest, warnings);
 
             // Паспорт пишем ПОСЛЕДНИМ, хотя читается он первым: до конца прогона по блобам не
             // известно, чего в хранилище не оказалось, а поле «что пропущено» заведено именно
@@ -144,11 +145,6 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
 
         return summary;
     }
-
-    /// <summary>Одна фраза на экспорт и на оценку: паспорт оценки обязан весить столько же.</summary>
-    private static string MissingBlobsWarning(int missing, int total) =>
-        $"Файлов не оказалось в хранилище: {missing} из {total} — " +
-        "в копию они не попали, и после восстановления ссылки на них останутся битыми.";
 
     /// <summary>
     /// Копия одним потоком, без каталога на сервере. Прямого потребителя у этой формы больше нет —
@@ -319,7 +315,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
         // ПОСЛЕ размеров файлов, как и копия пишет паспорт последним: о пропавших файлах тоже
         // говорит паспорт.
         WarnAboutScan(selection, missing, warnings);
-        if (missing.Count > 0) warnings.Add(MissingBlobsWarning(missing.Count, paths.Count));
+        WarnAboutMissingBlobs(selection, missing, manifest, warnings);
         var summaryCounter = new CountingStream();
         await using (var deflate = new DeflateStream(summaryCounter, CompressionLevel.Fastest, leaveOpen: true))
             await deflate.WriteAsync(BackupFileStore.SummaryBytes(BuildSummary(manifest, paths.Count, warnings)), ct);
