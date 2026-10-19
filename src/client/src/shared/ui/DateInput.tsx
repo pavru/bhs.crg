@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { AlertCircle, CalendarDays } from 'lucide-react';
 import type { DatePrecision } from '@/shared/api/types';
@@ -98,7 +98,7 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
   const reading = draft ? readSegments(draft, precision) : null;
   const problem = reading?.kind === 'impossible' ? SEGMENT_PROBLEMS.impossible
     : reading?.kind === 'partial' && !focused ? SEGMENT_PROBLEMS.partial
-      : foreign ? SEGMENT_PROBLEMS.foreign : null;
+      : foreign && !readOnly && !disabled ? SEGMENT_PROBLEMS.foreign : null;
   useEffect(() => { onProblem?.(problem); }, [onProblem, problem]);
 
   function onFocus() {
@@ -199,6 +199,8 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
     if (cur.length === 2) { const p = fullYear(cur); setY(p); emit(d, m, p); }
   }
 
+  const isSegment = (t: EventTarget) => t === dayRef.current || t === monRef.current || t === yrRef.current;
+
   /** Первый видимый сегмент — с него начинают переписывать значение, которое не дата. */
   const firstRef = showDay ? dayRef : showMonth ? monRef : yrRef;
   function startOver() {
@@ -215,6 +217,12 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
     problem ? 'text-danger' : '',
   ].join(' ');
   const invalid = problem ? true : undefined;
+  // Ошибка для скринридера — описанием сегментов (`aria-describedby`), и у `DateField` тоже: его
+  // подпись под рамкой с полем не связана. Живая область объявляет только СМЕНУ ошибки: `role="alert"`
+  // объявлял бы каждую ошибку при отрисовке, и таблица с двадцатью ячейками «не дата» зачитывалась бы
+  // подряд (ревью PR #1542).
+  const problemId = useId();
+  const describedBy = problem ? problemId : undefined;
 
   // Иконка календаря у нередактируемого поля — приглашение к действию, которого нет: открыв её,
   // человек выберет дату, и ничего не произойдёт. Убираем её вместе с жестом Alt+↓ (issue #958).
@@ -223,10 +231,13 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
   // Alt+↓ из любого сегмента открывает календарь (штатный MD3-жест).
   // Esc при правке возвращает значение, с которым вошли в поле (issue #1460), — и только его: окно,
   // где стоит поле, не закрывается (`Modal` решает о своём Esc после полей и не видит погашенного
-  // здесь). Правки нет — Esc принадлежит окну.
+  // здесь). Правки нет — Esc принадлежит окну. Только из сегмента: на значке календаря `startValue`
+  // не снят (фокус туда приходит мимо `onFocus` сегментов) и мог устареть с монтирования — откат к нему
+  // стёр бы дату, пришедшую с данными формы (ревью PR #1542).
   function onContainerKey(e: React.KeyboardEvent) {
     if (showCalendar && !disabled && e.altKey && e.key === 'ArrowDown') { e.preventDefault(); setPickerOpen(true); }
-    else if (e.key === 'Escape' && !e.nativeEvent.isComposing && (draft || (value ?? '') !== startValue.current)) {
+    else if (e.key === 'Escape' && !e.nativeEvent.isComposing && isSegment(e.target)
+      && (draft || (value ?? '') !== startValue.current)) {
       e.preventDefault(); e.stopPropagation();
       setTyped(null);
       if ((value ?? '') !== startValue.current) onChange(startValue.current);
@@ -234,20 +245,26 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
   }
 
   // Значок ошибки — у поля без своей подписи (ячейка, отбор): у `DateField` ошибка стоит под рамкой.
-  const problemMark = problem && !onProblem && (
-    <Tooltip content={problem}>
-      <span className="ml-1 shrink-0 flex items-center text-danger">
-        <AlertCircle size={compact ? 13 : 14} aria-hidden />
-        <span className="sr-only" role="alert">{problem}</span>
-      </span>
-    </Tooltip>
+  const problemMark = (
+    <>
+      <span id={problemId} className="sr-only" aria-live="polite">{problem ?? ''}</span>
+      {problem && !onProblem && (
+        <Tooltip content={problem}>
+          <span className="ml-1 shrink-0 flex items-center text-danger">
+            <AlertCircle size={compact ? 13 : 14} aria-hidden />
+          </span>
+        </Tooltip>
+      )}
+    </>
   );
 
   const segments = foreign ? (
     <div className={`flex items-center group min-w-0 ${className}`}>
       {readOnly || disabled
         ? <span className="truncate text-fg2">{value}</span>
-        : <button type="button" onClick={startOver} onFocus={startOver}
+        // Ввод начинается щелчком, Enter или пробелом, а не фокусом: проход Tab'ом по форме не должен
+        // стирать показанное и уводить фокус в сегменты (ревью PR #1542).
+        : <button type="button" onClick={startOver} aria-describedby={describedBy}
             aria-label={`${value} — не дата, набрать дату заново`}
             className="truncate text-left text-fg2 rounded-sm focus:outline-none focus-visible:bg-brand-subtle">
             {value}
@@ -263,7 +280,7 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
             placeholder="ДД" maxLength={2}
             style={{ width: '2.2ch' }}
             value={d}
-            disabled={disabled} readOnly={readOnly} aria-required={required || undefined} aria-invalid={invalid}
+            disabled={disabled} readOnly={readOnly} aria-required={required || undefined} aria-invalid={invalid} aria-describedby={describedBy}
             onChange={e => handleD(e.target.value)}
             onKeyDown={onDayKey}
             onFocus={onFocus}
@@ -280,7 +297,7 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
             placeholder="ММ" maxLength={2}
             style={{ width: '2.2ch' }}
             value={m}
-            disabled={disabled} readOnly={readOnly} aria-required={required || undefined} aria-invalid={invalid}
+            disabled={disabled} readOnly={readOnly} aria-required={required || undefined} aria-invalid={invalid} aria-describedby={describedBy}
             onChange={e => handleM(e.target.value)}
             onKeyDown={onMonKey}
             onFocus={onFocus}
@@ -295,7 +312,7 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
         placeholder="ГГГГ" maxLength={4}
         style={{ width: '4ch' }}
         value={y}
-        disabled={disabled} readOnly={readOnly} aria-required={required || undefined} aria-invalid={invalid}
+        disabled={disabled} readOnly={readOnly} aria-required={required || undefined} aria-invalid={invalid} aria-describedby={describedBy}
         onChange={e => handleY(e.target.value)}
         onKeyDown={onYrKey}
         onFocus={onFocus}
@@ -370,7 +387,9 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
           className="z-50 rounded-2xl bg-surface border border-stroke focus:outline-none"
           style={{ boxShadow: 'var(--f-shadow16)' }}>
           <Calendar value={calendarValue} precision={precision}
-            onSelect={iso => onChange(iso)} onClose={() => setPickerOpen(false)} />
+            // Выбранный день снимает набранное: совпади он с текущим значением, значение не сменится,
+            // и ошибка набранного осталась бы над выбранной датой (ревью PR #1542).
+            onSelect={iso => { setTyped(null); onChange(iso); }} onClose={() => setPickerOpen(false)} />
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

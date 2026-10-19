@@ -215,14 +215,17 @@ await check('date-input-keeps-partial-input-with-error-on-blur', async () => {
   if (after !== '202') throw new Error(`после ухода в сегменте «${after}» вместо набранного «202» — ввод откатился молча`);
   if (!(await editor.getByText('Дата не дописана').first().isVisible().catch(() => false)))
     throw new Error('под полем нет ошибки «Дата не дописана»');
-  // Esc в поле возвращает прежнее значение — и редактор не закрывает.
+  // Esc в поле возвращает прежнее значение и остаётся в поле.
   await seg.click();
   await page.keyboard.press('Escape');
   await until(async () => {
     const back = await seg.inputValue();
     if (back !== before) throw new Error(`Esc не вернул прежнее: в сегменте «${back}», было «${before}»`);
   });
-  if (!(await editor.isVisible())) throw new Error('Esc в поле даты закрыл редактор');
+  // Редактор — страница, Esc её не закрыл бы и так. Признак того, что Esc достался полю, — фокус
+  // остался в сегменте: окно на этом месте увело бы его к выходу (это сторожит invoice-payment-smoke).
+  const at = await page.evaluate(() => document.activeElement?.getAttribute('placeholder'));
+  if (at !== 'ГГГГ') throw new Error(`после Esc фокус не в поле даты, а на «${at}»`);
 });
 
 } finally {

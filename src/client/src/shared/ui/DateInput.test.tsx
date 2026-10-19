@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { useState } from 'react';
 import { DateInput } from './DateInput';
 import { DateField } from './DateField';
@@ -10,17 +10,23 @@ import { DateField } from './DateField';
  * и недописанная дата наружу не уходят, а набранное при уходе из поля не исчезает молча.
  */
 
+beforeAll(() => {
+  // Календарь — поповер Radix: jsdom не знает ни наблюдателя размеров, ни захвата указателя.
+  globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
+  Element.prototype.hasPointerCapture ??= () => false;
+  Element.prototype.scrollIntoView ??= () => {};
+});
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 /** Поле с настоящим состоянием — как в форме: отданное значение возвращается в `value`. */
-function Controlled({ initial = '', onChange, field = false }: { initial?: string; onChange?: (v: string) => void; field?: boolean }) {
+function Controlled({ initial = '', onChange, field = false, calendar = false }: { initial?: string; onChange?: (v: string) => void; field?: boolean; calendar?: boolean }) {
   const [value, setValue] = useState(initial);
   const change = (v: string) => { onChange?.(v); setValue(v); };
   return (
     <>
       {field
         ? <DateField label="Дата платежа" value={value} onChange={change} hint="от неё считается срок" />
-        : <DateInput value={value} onChange={change} calendar={false} />}
+        : <DateInput value={value} onChange={change} calendar={calendar} />}
       <output data-testid="value">{value}</output>
       <button type="button">дальше</button>
     </>
@@ -50,7 +56,7 @@ describe('DateInput: несуществующая дата', () => {
     typeDate('31', '02', '2026');
     expect(onChange).not.toHaveBeenCalled();
     expect(screen.getByTestId('value').textContent).toBe('2026-11-18');
-    expect(screen.getByText(/Такой даты нет/)).toBeTruthy();
+    expect(screen.getByText('Такой даты нет. От неё считается срок')).toBeTruthy();
     leave();
     expect(seg('ДД').value).toBe('31');
     expect(seg('ДД').getAttribute('aria-invalid')).toBe('true');
@@ -178,11 +184,60 @@ describe('DateInput: значение показывается, а не проп
     const onChange = vi.fn();
     render(<DateInput value="вчера" onChange={onChange} calendar={false} />);
     const text = screen.getByRole('button', { name: /вчера — не дата/ });
-    expect(screen.getByRole('alert').textContent).toMatch(/не дата/);
+    expect(text.getAttribute('aria-describedby')).toBeTruthy();
+    expect(document.getElementById(text.getAttribute('aria-describedby')!)?.textContent).toMatch(/не дата/);
+    // Проход Tab'ом не начинает ввод: показанное не стирается, фокус не уводится в сегменты.
+    fireEvent.focus(text);
+    expect(screen.getByRole('button', { name: /вчера — не дата/ })).toBeTruthy();
+    expect(screen.queryByPlaceholderText('ДД')).toBeNull();
     vi.useFakeTimers();
     fireEvent.click(text);
     act(() => { vi.runOnlyPendingTimers(); });
     typeDate('18', '10', '2026');
     expect(onChange).toHaveBeenLastCalledWith('2026-10-18');
+  });
+});
+
+describe('DateInput: правки по ревью PR #1542', () => {
+  it('не дата у поля только для чтения — текстом, без ошибки «наберите заново»', () => {
+    const onProblem = vi.fn();
+    render(<DateInput value="вчера" onChange={() => {}} onProblem={onProblem} readOnly />);
+    expect(screen.getByText('вчера')).toBeTruthy();
+    expect(onProblem).not.toHaveBeenCalledWith(expect.stringMatching(/не дата/));
+    cleanup();
+    render(<DateField label="Дата" value="вчера" onChange={() => {}} readOnly />);
+    expect(screen.queryByText(/наберите дату заново/)).toBeNull();
+  });
+
+  it('ошибка связана с сегментами описанием — и у DateField, чья подпись с полем не связана', () => {
+    render(<Controlled initial="2026-11-18" field />);
+    typeDate('31', '02', '2026');
+    const id = seg('ДД').getAttribute('aria-describedby');
+    expect(id && document.getElementById(id)?.textContent).toBe('Такой даты нет');
+    expect(document.querySelectorAll('[role="alert"]').length).toBe(0);
+  });
+
+  it('Esc на значке календаря значение не трогает — он принадлежит окну', () => {
+    const onChange = vi.fn();
+    const outer = vi.fn();
+    // Значение пришло после монтирования — как данные формы, загруженные позже.
+    const { rerender } = render(<div onKeyDown={outer}><DateInput value="" onChange={onChange} /></div>);
+    rerender(<div onKeyDown={outer}><DateInput value="2026-10-18" onChange={onChange} /></div>);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Открыть календарь' }), { key: 'Escape' });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(outer).toHaveBeenCalledTimes(1);
+  });
+
+  it('выбор в календаре дня, равного значению, снимает набранное с ошибкой', () => {
+    render(<Controlled initial="2026-02-19" calendar />);
+    fireEvent.focus(seg('ДД'));
+    fireEvent.change(seg('ДД'), { target: { value: '31' } });
+    expect(seg('ДД').getAttribute('aria-invalid')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть календарь' }));
+    const grid = screen.getByRole('grid', { name: 'Календарь' });
+    fireEvent.click(within(grid).getByRole('button', { name: '19' }));
+    expect(screen.getByTestId('value').textContent).toBe('2026-02-19');
+    expect(seg('ДД').value).toBe('19');
+    expect(seg('ДД').getAttribute('aria-invalid')).toBeNull();
   });
 });
