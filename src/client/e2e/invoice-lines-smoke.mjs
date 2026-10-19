@@ -283,7 +283,7 @@ try {
 
     await page.getByRole('button', { name: 'выбрать позицию' }).click();
     await page.getByPlaceholder('часть наименования').fill(stamp);
-    await page.getByRole('button', { name: cable }).click();
+    await page.getByRole('option', { name: cable }).click();
     // Набрано, но не сохранено: строка — о сохранённом счёте, и она это говорит.
     await remains(['сохраните правки']);
     await saveLines();
@@ -557,7 +557,7 @@ try {
     await cell('Цена', 1).fill('10');
     await page.getByRole('button', { name: 'выбрать позицию' }).click();
     await page.getByPlaceholder('часть наименования').fill(`Позиция под снос ${stamp}`);
-    await page.getByRole('button', { name: `Позиция под снос ${stamp}` }).click();
+    await page.getByRole('option', { name: `Позиция под снос ${stamp}` }).click();
     await saveLines();
 
     // Позицию, стоящую в строке счёта, справочник больше не отдаёт (issue #1094): отказ называет,

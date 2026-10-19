@@ -192,7 +192,7 @@ public sealed class ModuleCatalogPort(
     }
 
     private static ModuleCardLine Line(CommonDataCardLine line) => new(
-        line.Title, line.Text, line.Kind switch
+        line.Key, line.Title, line.Text, line.Kind switch
         {
             CardLineKind.Number => "number",
             CardLineKind.Date => "date",

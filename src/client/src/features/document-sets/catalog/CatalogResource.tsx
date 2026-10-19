@@ -27,6 +27,7 @@ import { ArchivedBanner } from './ArchiveParts';
 import { useRecordArchive } from './useRecordArchive';
 import { groupObjectsByType, entryMatchesQuery } from './objectsByType';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { CATALOG_RECORD } from '@/shared/ui/recordRoutes';
 
 const NO_TYPE = '__no_type__';
 const PROFILE = '__profile__';
@@ -69,6 +70,15 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
     return next;
   }, { replace: true });
 
+  // Запись, названная адресом (`?entry=id`, issue #1517): её открывает «Открыть в справочнике» из карточки
+  // позиции в окне выбора. Закрыли окно — параметр снят, иначе обновление страницы открыло бы её снова.
+  const linkedId = searchParams.get(CATALOG_RECORD.param);
+  const unlink = () => setSearchParams(prev => {
+    const next = new URLSearchParams(prev);
+    next.delete(CATALOG_RECORD.param);
+    return next;
+  }, { replace: true });
+
   function toggleType(id: string) {
     setExpandedTypes(prev => toggleInSet(prev, id));
   }
@@ -79,6 +89,8 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
   // Показ: цель уже стоящей ссылки обязана найтись и тогда, когда она в архиве.
   const { data: scopeChain = [] } = useCommonDataForScope({ scope, scopeId, purpose: 'display' });
   const deleteMutation = useDeleteCommonDataEntry();
+  const linked = linkedId ? entries.find(e => e.id === linkedId) ?? null : null;
+  const shownEntry = editEntry ?? linked;
 
   const compositeTypes = allDocTypes.filter(dt => dt.kind === 'Composite');
   const documentTypes = allDocTypes.filter(dt => dt.kind === 'Document' && !dt.isAbstract);
@@ -248,6 +260,14 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
           )}
         </div>
 
+        {/* Ссылка вела на запись, которой здесь нет, — сказать, а не молча показать список. */}
+        {linkedId && !isLoading && !linked && (
+          <p className="mb-3 text-xs text-warning">
+            Записи из ссылки на этом уровне нет: её могли удалить.{' '}
+            <button type="button" className="underline" onClick={unlink}>Скрыть</button>
+          </p>
+        )}
+
         {isLoading ? (
           <div className="text-center py-12 text-fg4 text-sm">Загрузка...</div>
         ) : entries.length === 0 ? (
@@ -316,12 +336,12 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
             allDocTypes={allDocTypes} scope={scope} scopeId={scopeId} onClose={() => setAddOpen(false)} />
         )}
       </Modal>
-      <Modal open={!!editEntry} onOpenChange={o => { if (!o) setEditEntry(null); }} title="Редактировать запись" wide flushBody>
-        {editEntry && (
-          <EditEntryForm id={editEntry.id} compositeTypes={compositeTypes} documentTypes={documentTypes}
-            allDocTypes={allDocTypes} scope={scope} scopeId={scopeId} onClose={() => setEditEntry(null)}
-            employee={archive.isEmployee(editEntry)} archiveBusy={archive.pending}
-            onUnarchive={archiveAction(editEntry)} />
+      <Modal open={!!shownEntry} onOpenChange={o => { if (!o) { setEditEntry(null); unlink(); } }} title="Редактировать запись" wide flushBody>
+        {shownEntry && (
+          <EditEntryForm id={shownEntry.id} compositeTypes={compositeTypes} documentTypes={documentTypes}
+            allDocTypes={allDocTypes} scope={scope} scopeId={scopeId} onClose={() => { setEditEntry(null); unlink(); }}
+            employee={archive.isEmployee(shownEntry)} archiveBusy={archive.pending}
+            onUnarchive={archiveAction(shownEntry)} />
         )}
       </Modal>
       <ConfirmDialog open={!!deleteTarget} onOpenChange={o => { if (!o) setDeleteTarget(null); }}

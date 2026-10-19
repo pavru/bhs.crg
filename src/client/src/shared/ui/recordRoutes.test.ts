@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { RECORD_ROUTES, recordLink, recordScreen } from './recordRoutes';
+import { CATALOG_RECORD, RECORD_ROUTES, openTo, recordLink, recordScreen } from './recordRoutes';
 import { workNav, settingsNav } from './navConfig';
 import type { AccessInfo } from '@/shared/api/access';
 
@@ -66,5 +66,13 @@ describe('адрес записи по типу', () => {
     const sections = [...workNav, ...settingsNav].map(item => item.to);
     for (const [type, route] of Object.entries(RECORD_ROUTES))
       expect(sections, `экран типа «${type}»`).toContain(route.screen);
+    expect(sections, 'справочник').toContain(CATALOG_RECORD.screen);
+  });
+
+  // Карточка позиции в выборе (issue #1517): «Открыть в справочнике» — только тому, кому открыт раздел.
+  it('запись справочника открывается на странице общих данных — только с правом её читать', () => {
+    expect(recordLink(openTo(CATALOG_RECORD, access(['core.catalog.read'])), ID))
+      .toEqual({ to: `/common-data?entry=${ID}`, label: 'Открыть в справочнике' });
+    expect(openTo(CATALOG_RECORD, reader)).toBeNull();
   });
 });

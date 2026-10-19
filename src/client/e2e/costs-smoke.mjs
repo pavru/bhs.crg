@@ -227,7 +227,7 @@ async function supplierPart() {
 async function pickPosition(seat, row) {
   await row.getByRole('button', { name: 'выбрать позицию' }).click();
   const picker = seat.page.getByRole('dialog', { name: 'Позиция номенклатуры' });
-  const first = picker.locator('div.overflow-y-auto button').first();
+  const first = picker.getByRole('option').first();
   await first.waitFor({ timeout: 10_000 })
     .catch(() => { throw new Error('в выборе позиции пусто — посев номенклатуры не отработал'); });
   await first.click();
