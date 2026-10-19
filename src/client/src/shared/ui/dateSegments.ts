@@ -1,5 +1,6 @@
 import type { DatePrecision } from '@/shared/api/types';
 import { daysInMonth } from '@/shared/utils/date';
+import type { DatePart } from '@/shared/format/dateMask';
 
 /**
  * Сегменты поля даты — чистая логика `DateInput` (issue #1460): что показать из значения, что из
@@ -64,17 +65,21 @@ const pad = (s: string) => s.padStart(2, '0');
 
 /**
  * Дата целиком из вставки — в любой сегмент. Раньше «18.10.2026» в поле дня становилось «18»:
- * сегмент режет до двух знаков. Принимает ДД.ММ.ГГГГ, ДД/ММ/ГГГГ, ДД-ММ-ГГГГ (и двузначный год),
- * ISO (и со временем), а у поля месяца — ММ.ГГГГ. null — вставлена не дата: её обрабатывает сегмент.
- * Маска по языку пользователя — задача #1461; до неё порядок «день, месяц, год».
+ * сегмент режет до двух знаков. Порядок частей — языка пользователя (`order` из маски, issue #1461:
+ * «10/18/2026» у en-US, «18.10.2026» у ru-RU), разделитель — точка, дробь или дефис, год — и
+ * двузначный. ISO (и со временем) — при любом языке. Поле месяца принимает и месяц с годом.
+ * null — вставлена не дата: её обрабатывает сегмент. Порядок по значению не угадывается: «01.02.2026»
+ * у ru-RU — 1 февраля, у en-US — 2 января.
  */
-export function parsePasted(text: string, precision: DatePrecision): Segments | null {
+export function parsePasted(text: string, precision: DatePrecision, order: DatePart[] = ['d', 'm', 'y']): Segments | null {
   const t = text.trim();
   const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:$|[T ])/.exec(t);
   if (iso) return { d: pad(iso[3]), m: pad(iso[2]), y: iso[1] };
-  const dmy = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4}|\d{2})$/.exec(t);
-  if (dmy) return { d: pad(dmy[1]), m: pad(dmy[2]), y: fullYear(dmy[3]) };
-  const my = precision !== 'day' && /^(\d{1,2})[./-](\d{4})$/.exec(t);
-  if (my) return { d: '', m: pad(my[1]), y: my[2] };
-  return null;
+  const parts = t.split(/[./-]/);
+  if (!parts.every(p => /^\d{1,4}$/.test(p))) return null;
+  const full = order.filter(p => p !== 'd' || parts.length === 3);
+  if (parts.length !== full.length || (parts.length === 2 && precision === 'day') || parts.length < 2) return null;
+  const v: Record<string, string> = Object.fromEntries(full.map((p, i) => [p, parts[i]]));
+  if (v.d && v.d.length > 2 || v.m.length > 2 || !(v.y.length === 2 || v.y.length === 4)) return null;
+  return { d: v.d ? pad(v.d) : '', m: pad(v.m), y: fullYear(v.y) };
 }

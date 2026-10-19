@@ -1,6 +1,8 @@
 import type { SchemaField } from '@/shared/api/schema';
 import type { EnumTypeDef, PrimitiveTypeDef } from '@/shared/api/types';
 import { parseNumber } from '@/shared/utils/parseNumber';
+import { dateMask } from '@/shared/format/dateMask';
+import { resolveLocale } from '@/shared/hooks/useLocale';
 
 /**
  * Приведение вставленной ячейки к типу поля (issue #1064).
@@ -18,7 +20,7 @@ import { parseNumber } from '@/shared/utils/parseNumber';
  */
 
 export interface CoerceContext {
-  /** Региональная настройка как есть, включая `system`: по ней читаются числа. */
+  /** Региональная настройка как есть, включая `system`: по ней читаются числа и порядок даты. */
   locale: string;
   primitiveTypes: PrimitiveTypeDef[];
   enumTypes: EnumTypeDef[];
@@ -29,21 +31,29 @@ const norm = (s: string) => s.trim().toLowerCase();
 const TRUE_WORDS = ['1', 'да', 'true', 'yes', '+', 'y', 'истина'];
 const FALSE_WORDS = ['0', 'нет', 'false', 'no', '-', 'n', 'ложь'];
 
-const DMY = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/;
 const ISO = /^(\d{4})-(\d{1,2})-(\d{1,2})$/;
+const THREE = /^(\d{1,4})[./-](\d{1,4})[./-](\d{1,4})$/;
 
 /**
- * Дата → хранимый вид `YYYY-MM-DD`. Принимаются `ДД.ММ.ГГГГ` (через точку, дробь или дефис) и
- * готовый ISO. Двузначный год не принимается намеренно: `15.01.26` — это и 1926-й, и 2026-й.
+ * Дата → хранимый вид `YYYY-MM-DD`. Принимаются дата в порядке языка пользователя (issue #1461:
+ * `ДД.ММ.ГГГГ` у ru-RU, `MM/DD/YYYY` у en-US; разделитель — точка, дробь или дефис) и готовый ISO.
+ * Порядок — только из языка, по значению не угадывается: «01.02.2026» — это 1 февраля у ru-RU и
+ * 2 января у en-US, и угадывать здесь значило бы молча путать месяц с днём.
+ * Двузначный год не принимается намеренно: `15.01.26` — это и 1926-й, и 2026-й.
  */
-export function parseDateCell(raw: string): string | null {
+export function parseDateCell(raw: string, locale = 'ru-RU'): string | null {
   const t = raw.trim();
-  const dmy = DMY.exec(t);
-  const iso = dmy ? null : ISO.exec(t);
-  if (!dmy && !iso) return null;
-  const [y, m, d] = dmy
-    ? [Number(dmy[3]), Number(dmy[2]), Number(dmy[1])]
-    : [Number(iso![1]), Number(iso![2]), Number(iso![3])];
+  const iso = ISO.exec(t);
+  let y: number, m: number, d: number;
+  if (iso) {
+    [y, m, d] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
+  } else {
+    const g = THREE.exec(t);
+    if (!g) return null;
+    const v = Object.fromEntries(dateMask(locale).order.map((p, i) => [p, g[i + 1]]));
+    if (v.y.length !== 4 || v.d.length > 2 || v.m.length > 2) return null;
+    [y, m, d] = [Number(v.y), Number(v.m), Number(v.d)];
+  }
   // Календарную несуразицу (`31.02.2026`) ловим сверкой с самой датой: подставлять 3 марта нельзя.
   const dt = new Date(Date.UTC(y, m - 1, d));
   if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
@@ -83,11 +93,11 @@ export function coerceScalar(field: SchemaField, raw: string, ctx: CoerceContext
     case 'number': return parseNumber(raw, ctx.locale);
     case 'boolean': return parseBooleanCell(raw);
     case 'enum': return parseEnumCell(field, raw, ctx);
-    case 'date': return parseDateCell(raw);
+    case 'date': return parseDateCell(raw, resolveLocale(ctx.locale));
     case 'primitive': {
       const base = baseTypeOf(field, ctx);
       if (base === 'number') return parseNumber(raw, ctx.locale);
-      if (base === 'date') return parseDateCell(raw);
+      if (base === 'date') return parseDateCell(raw, resolveLocale(ctx.locale));
       // База `string` — как обычная строка. Неизвестный тип (не доехал справочник) тоже: отказывать
       // из-за незагруженного справочника нельзя, это отказ не по данным.
       return raw;
@@ -100,7 +110,7 @@ export function coerceScalar(field: SchemaField, raw: string, ctx: CoerceContext
 export function rejectReason(field: SchemaField, ctx: CoerceContext): string {
   const type = field.type === 'primitive' ? baseTypeOf(field, ctx) : field.type;
   if (type === 'number') return 'не число';
-  if (type === 'date') return 'не дата (ожидается ДД.ММ.ГГГГ)';
+  if (type === 'date') return `не дата (ожидается ${dateMask(resolveLocale(ctx.locale)).text})`;
   if (type === 'boolean') return 'не «да» и не «нет»';
   if (type === 'enum') return 'нет такого варианта в списке';
   return 'не разобрано';

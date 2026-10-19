@@ -85,3 +85,13 @@ describe('monthMatrix (Monday-first)', () => {
     expect(days).toEqual(Array.from({ length: 28 }, (_, i) => i + 1));
   });
 });
+
+describe('monthMatrix: неделя языка (issue #1461)', () => {
+  it('с воскресенья: 1 октября 2026 (четверг) — пятая колонка', () => {
+    expect(monthMatrix(2026, 10, 7)[0]).toEqual([null, null, null, null, 1, 2, 3]);
+  });
+  it('с понедельника по умолчанию — как раньше', () => {
+    expect(monthMatrix(2026, 10)[0]).toEqual(monthMatrix(2026, 10, 1)[0]);
+    expect(monthMatrix(2026, 10)[0]).toEqual([null, null, null, 1, 2, 3, 4]);
+  });
+});

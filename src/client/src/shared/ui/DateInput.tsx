@@ -1,10 +1,12 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { AlertCircle, CalendarDays } from 'lucide-react';
 import type { DatePrecision } from '@/shared/api/types';
 import { Calendar } from './Calendar';
 import { Tooltip } from './Tooltip';
 import { EMPTY_SEGMENTS, SEGMENT_PROBLEMS, fullYear, parsePasted, readSegments, segmentsOf, type Segments } from './dateSegments';
+import { dateMask, type DatePart } from '@/shared/format/dateMask';
+import { resolveLocale, useLocale } from '@/shared/hooks/useLocale';
 
 interface DateInputProps {
   /** Stored value: ISO YYYY-MM-DD or '' (always full ISO, независимо от точности) */
@@ -21,7 +23,10 @@ interface DateInputProps {
    * вызывающий (`DateField`); не задан — поле само красит цифры и ставит значок с подсказкой.
    */
   onProblem?: (message: string | null) => void;
-  /** Точность ввода: 'day' (ДД.ММ.ГГГГ, по умолч.), 'month' (ММ.ГГГГ), 'year' (ГГГГ). */
+  /**
+   * Точность ввода: 'day' (по умолч.), 'month', 'year'. Маска — по языку пользователя (issue #1461):
+   * ДД.ММ.ГГГГ у ru-RU, MM/DD/YYYY у en-US; точность убирает лишние сегменты (ММ.ГГГГ, MM/YYYY).
+   */
   precision?: DatePrecision;
   /** Applied to the outer container div (border, bg, padding, focus-within:ring, width) */
   className?: string;
@@ -64,8 +69,13 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
   /** Календарь закрыт Tab'ом с края — фокус уже перенесён, возвращать его на значок не нужно. */
   const tabbedOut = useRef(false);
 
-  const showMonth = precision !== 'year';
-  const showDay = precision === 'day';
+  // Порядок сегментов, разделитель и обозначения — языка пользователя (issue #1461). Хранимое значение
+  // от языка не зависит. Полный порядок нужен вставке: дату целиком вставляют и в поле месяца.
+  const [storedLocale] = useLocale();
+  const { mask, fullOrder } = useMemo(() => {
+    const locale = resolveLocale(storedLocale);
+    return { mask: dateMask(locale, precision), fullOrder: dateMask(locale, 'day').order };
+  }, [storedLocale, precision]);
 
   const dayRef = useRef<HTMLInputElement>(null);
   const monRef = useRef<HTMLInputElement>(null);
@@ -128,7 +138,7 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
   /** Вставка даты целиком — в любой сегмент (issue #1460); не дата — сегмент разберёт её сам. */
   function onPaste(e: React.ClipboardEvent) {
     if (readOnly || disabled) return;
-    const got = parsePasted(e.clipboardData.getData('text'), precision);
+    const got = parsePasted(e.clipboardData.getData('text'), precision, fullOrder);
     if (!got) return;
     e.preventDefault();
     setTyped({ ...got, base: value ?? '' });
@@ -141,14 +151,21 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
     setTimeout(() => ref.current?.select(), 0);
   }
 
+  const refs: Record<DatePart, React.RefObject<HTMLInputElement | null>> = { d: dayRef, m: monRef, y: yrRef };
+  /** Сосед сегмента в порядке языка: у en-US за месяцем идёт день, у ru-RU — год. */
+  function go(part: DatePart, step: 1 | -1) {
+    const next = mask.order[mask.order.indexOf(part) + step];
+    if (next) advance(refs[next]);
+  }
+
   function handleD(raw: string) {
     const v = raw.replace(/\D/g, '').slice(0, 2);
     // Auto-advance only when filling in new digits (segment was not already full)
     if (v.length === 2 && d.length < 2) {
-      setD(v); advance(monRef); emit(v, m, y);
+      setD(v); go('d', 1); emit(v, m, y);
     } else if (v.length === 1 && d === '' && +v > 3) {
       // digit 4–9 can't start a valid day — auto-pad "0X" and advance
-      const p = '0' + v; setD(p); advance(monRef); emit(p, m, y);
+      const p = '0' + v; setD(p); go('d', 1); emit(p, m, y);
     } else {
       setD(v); emit(v, m, y);
     }
@@ -158,10 +175,10 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
     const v = raw.replace(/\D/g, '').slice(0, 2);
     // Auto-advance only when filling in new digits (segment was not already full)
     if (v.length === 2 && m.length < 2) {
-      setM(v); advance(yrRef); emit(d, v, y);
+      setM(v); go('m', 1); emit(d, v, y);
     } else if (v.length === 1 && m === '' && +v > 1) {
       // digit 2–9 can't start a valid month — auto-pad "0X" and advance
-      const p = '0' + v; setM(p); advance(yrRef); emit(d, p, y);
+      const p = '0' + v; setM(p); go('m', 1); emit(d, p, y);
     } else {
       setM(v); emit(d, v, y);
     }
@@ -169,19 +186,17 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
 
   function handleY(raw: string) {
     const v = raw.replace(/\D/g, '').slice(0, 4);
+    // Год не последний бывает у языка с порядком «год, месяц, день» — тогда дальше идёт месяц.
+    if (v.length === 4 && y.length < 4) go('y', 1);
     setY(v); emit(d, m, v);
   }
 
-  function onDayKey(e: React.KeyboardEvent) {
-    if ((e.key === '.' || e.key === '/') && d) { e.preventDefault(); advance(monRef); }
-  }
-  function onMonKey(e: React.KeyboardEvent) {
-    if (e.key === 'Backspace' && m === '') { advance(dayRef); }
-    else if ((e.key === '.' || e.key === '/') && m) { e.preventDefault(); advance(yrRef); }
-  }
-  function onYrKey(e: React.KeyboardEvent) {
-    if (e.key === 'Backspace' && y === '') { advance(monRef); }
-  }
+  /** Разделитель переводит к следующему сегменту, Backspace в пустом — к предыдущему. */
+  const onSegmentKey = (part: DatePart) => (e: React.KeyboardEvent) => {
+    const cur = shown[part];
+    if (e.key === 'Backspace' && cur === '') go(part, -1);
+    else if (SEPARATORS.includes(e.key) && cur) { e.preventDefault(); go(part, 1); }
+  };
 
   // Pad single digits on blur — read DOM value via ref to avoid stale closure
   // (onBlur fires synchronously before React re-renders when advance() moves focus)
@@ -202,7 +217,7 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
   const isSegment = (t: EventTarget) => t === dayRef.current || t === monRef.current || t === yrRef.current;
 
   /** Первый видимый сегмент — с него начинают переписывать значение, которое не дата. */
-  const firstRef = showDay ? dayRef : showMonth ? monRef : yrRef;
+  const firstRef = refs[mask.order[0]];
   function startOver() {
     if (readOnly || disabled) return;
     setTyped({ ...EMPTY_SEGMENTS, base: value ?? '' });
@@ -258,6 +273,12 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
     </>
   );
 
+  const SEGMENTS: Record<DatePart, { ref: React.RefObject<HTMLInputElement | null>; change: (raw: string) => void; blur?: () => void; len: number }> = {
+    d: { ref: dayRef, change: handleD, blur: blurD, len: 2 },
+    m: { ref: monRef, change: handleM, blur: blurM, len: 2 },
+    y: { ref: yrRef, change: handleY, blur: blurY, len: 4 },
+  };
+
   const segments = foreign ? (
     <div className={`flex items-center group min-w-0 ${className}`}>
       {readOnly || disabled
@@ -273,52 +294,26 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
     </div>
   ) : (
     <div className={`flex items-center group ${className}`} onKeyDown={onContainerKey} onPaste={onPaste}>
-      {showDay && (
-        <>
-          <input
-            ref={dayRef} type="text" inputMode="numeric"
-            placeholder="ДД" maxLength={2}
-            style={{ width: '2.2ch' }}
-            value={d}
-            disabled={disabled} readOnly={readOnly} aria-required={required || undefined} aria-invalid={invalid} aria-describedby={describedBy}
-            onChange={e => handleD(e.target.value)}
-            onKeyDown={onDayKey}
-            onFocus={onFocus}
-            onBlur={() => { blurD(); onBlur(); }}
-            className={seg}
-          />
-          <span className="text-fg4 select-none">.</span>
-        </>
-      )}
-      {showMonth && (
-        <>
-          <input
-            ref={monRef} type="text" inputMode="numeric"
-            placeholder="ММ" maxLength={2}
-            style={{ width: '2.2ch' }}
-            value={m}
-            disabled={disabled} readOnly={readOnly} aria-required={required || undefined} aria-invalid={invalid} aria-describedby={describedBy}
-            onChange={e => handleM(e.target.value)}
-            onKeyDown={onMonKey}
-            onFocus={onFocus}
-            onBlur={() => { blurM(); onBlur(); }}
-            className={seg}
-          />
-          <span className="text-fg4 select-none">.</span>
-        </>
-      )}
-      <input
-        ref={yrRef} type="text" inputMode="numeric"
-        placeholder="ГГГГ" maxLength={4}
-        style={{ width: '4ch' }}
-        value={y}
-        disabled={disabled} readOnly={readOnly} aria-required={required || undefined} aria-invalid={invalid} aria-describedby={describedBy}
-        onChange={e => handleY(e.target.value)}
-        onKeyDown={onYrKey}
-        onFocus={onFocus}
-        onBlur={() => { blurY(); onBlur(); }}
-        className={seg}
-      />
+      {mask.order.map((part, i) => {
+        const { ref, change, blur, len } = SEGMENTS[part];
+        return (
+          <Fragment key={part}>
+            {i > 0 && <span className="text-fg4 select-none">{mask.sep}</span>}
+            <input
+              ref={ref} type="text" inputMode="numeric"
+              placeholder={mask.labels[part]} maxLength={len}
+              style={{ width: len === 4 ? '4ch' : '2.2ch' }}
+              value={shown[part]}
+              disabled={disabled} readOnly={readOnly} aria-required={required || undefined} aria-invalid={invalid} aria-describedby={describedBy}
+              onChange={e => change(e.target.value)}
+              onKeyDown={onSegmentKey(part)}
+              onFocus={onFocus}
+              onBlur={() => { blur?.(); onBlur(); }}
+              className={seg}
+            />
+          </Fragment>
+        );
+      })}
       {problemMark}
       {showCalendar && (
         <Popover.Trigger asChild>
@@ -397,6 +392,8 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
 }
 
 const STOP = 'button, input, select, textarea, a[href], [tabindex]';
+/** Клавиши-разделители: набрав «18.» или «10/», человек ждёт следующий сегмент при любом языке. */
+const SEPARATORS = ['.', '/', '-'];
 
 /** Остановки Tab внутри `root` в порядке документа: видимые, доступные, без `tabindex="-1"`. */
 function tabStops(root: ParentNode): HTMLElement[] {

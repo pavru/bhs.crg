@@ -8,6 +8,7 @@ import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
 import { resolveEffectiveFields, type SchemaField } from '@/shared/api/schema';
 import { ruPlural } from '@/shared/utils/pluralize';
 import { useLocale, resolveLocale, LOCALE_OPTIONS, SYSTEM_LOCALE } from '@/shared/hooks/useLocale';
+import { dateMask } from '@/shared/format/dateMask';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { coerceScalar, rejectReason, type CoerceContext } from './pasteCoerce';
@@ -279,6 +280,9 @@ function PasteMappingModalBody({
   // которые выброшены целиком — обещать пустую ячейку в невставленной строке нечестно.
   const keptRejects = pending ? pending.rejects.filter(c => pending.kept.has(c.rowIndex)).length : 0;
   const numberRejected = !!pending?.rejects.some(c => c.reason === 'не число');
+  // Дату тоже читают в порядке настройки (issue #1461): «01.02.2026» у ru-RU — 1 февраля, у en-US —
+  // 2 января. Скопированная из Excel дата в чужом порядке разберётся иначе или откажет — сказать почему.
+  const dateRejected = !!pending?.rejects.some(c => c.reason.startsWith('не дата'));
 
   // Отказ по числу необъясним без имени настройки, по которой его разбирали.
   const localeLabel = locale === SYSTEM_LOCALE
@@ -370,6 +374,13 @@ function PasteMappingModalBody({
                   Числа разбираются по региональной настройке (<span className="text-fg3">{localeLabel}</span>):
                   десятичный разделитель — её, остальные знаки могут быть только разделителями тысяч.
                   Настройка — в профиле, раздел «Внешний вид».
+                </p>
+              )}
+              {dateRejected && (
+                <p className="text-xs text-fg4">
+                  Даты разбираются в порядке региональной настройки (<span className="text-fg3">{localeLabel}</span>):{' '}
+                  {dateMask(resolveLocale(locale)).text} или ГГГГ-ММ-ДД. Дата из таблицы с другим порядком
+                  дня и месяца читается по настройке, а не угадывается. Настройка — в профиле, раздел «Внешний вид».
                 </p>
               )}
             </div>

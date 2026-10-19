@@ -2,6 +2,8 @@ import { formatDateRu, ruToISO } from '@/shared/utils/date';
 import type { SchemaField } from '@/shared/api/schema';
 import type { PrimitiveTypeDef, FieldConstraints } from '@/shared/api/types';
 import { isFieldRef } from '@/shared/api/types';
+import { dateMaskText, formatLocale } from '@/shared/format/format';
+import { parseDateCell } from './pasteCoerce';
 
 // Отдельным файлом от компонента (issue #858): модуль, экспортирующий и компонент, и
 // функцию, не может быть границей горячей подмены — правка поднимается вверх по импортам.
@@ -16,6 +18,17 @@ export function isMissing(field: SchemaField, val: unknown): boolean {
   if (field.type === 'complex') return false;
   if (isFieldRef(val)) return false;
   return val == null || String(val).trim() === '';
+}
+
+/**
+ * Образец, набранный текстом (проверка ограничений в настройке типа), — тем же разбором, что
+ * вставка в таблицу: дату в маске языка пользователя (issue #1461). Сравнение с пределами идёт по
+ * ГГГГ-ММ-ДД, и «10/18/2026» как текст сравнилось бы неверно.
+ */
+export function validateSample(sample: string, def: PrimitiveTypeDef): string | null {
+  if (def.baseType !== 'date') return validateConstraint(sample, def);
+  const iso = parseDateCell(sample, formatLocale());
+  return iso ? validateConstraint(iso, def) : `Не дата (ожидается ${dateMaskText()})`;
 }
 
 export function validateConstraint(value: unknown, def: PrimitiveTypeDef): string | null {

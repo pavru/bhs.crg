@@ -107,3 +107,26 @@ describe('rejectReason', () => {
     expect(rejectReason(field({ type: 'primitive', typeId: 'p-date' }), ctx)).toContain('не дата');
   });
 });
+
+// Порядок даты — языка пользователя (issue #1461): «01.02.2026» у ru-RU — 1 февраля, у en-US — 2 января.
+describe('дата во вставке — в порядке языка пользователя', () => {
+  const date = field({ type: 'date' });
+  const us: CoerceContext = { ...ctx, locale: 'en-US' };
+
+  it('en-US: MM/DD/YYYY, ISO — при любом языке', () => {
+    expect(coerceScalar(date, '10/18/2026', us)).toBe('2026-10-18');
+    expect(coerceScalar(date, '01.02.2026', us)).toBe('2026-01-02');
+    expect(coerceScalar(date, '2026-10-18', us)).toBe('2026-10-18');
+    expect(coerceScalar(date, '18/10/2026', us)).toBeNull(); // месяца 18 нет — отказ, а не догадка
+  });
+
+  it('ru-RU: ДД.ММ.ГГГГ; тот же текст читается по-русски', () => {
+    expect(coerceScalar(date, '01.02.2026', ctx)).toBe('2026-02-01');
+    expect(coerceScalar(date, '10/18/2026', ctx)).toBeNull();
+  });
+
+  it('отказ называет маску языка', () => {
+    expect(rejectReason(date, us)).toBe('не дата (ожидается MM/DD/YYYY)');
+    expect(rejectReason(date, ctx)).toBe('не дата (ожидается ДД.ММ.ГГГГ)');
+  });
+});

@@ -4,7 +4,7 @@ import { OutlinedField } from './OutlinedField';
 import type { DatePrecision } from '@/shared/api/types';
 
 /**
- * MD3 outlined-поле даты (issue #176): сегментный ввод ДД.ММ.ГГГГ внутри той же outlined-рамки
+ * MD3 outlined-поле даты (issue #176): сегментный ввод в маске языка (#1461) внутри той же outlined-рамки
  * с вырезом, что и TextField (#178) — общая оболочка `OutlinedField` (#565). Поскольку у даты
  * всегда видны плейсхолдеры сегментов, метка держится ПОСТОЯННО во всплывшем положении
  * (`raise="always"`, notch всегда открыт) — это штатный MD3-паттерн для полей с форматной

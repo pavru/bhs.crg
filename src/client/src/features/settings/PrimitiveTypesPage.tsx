@@ -14,7 +14,7 @@ import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
 import { TextField } from '@/shared/ui/TextField';
 import { DateInput } from '@/shared/ui/DateInput';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { validateConstraint } from '@/features/document-sets/fields/fieldValidation';
+import { validateSample } from '@/features/document-sets/fields/fieldValidation';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import {
   useListPrimitiveTypes,
@@ -33,7 +33,7 @@ import {
   buildEnumTypeDto,
 } from '@/shared/api/enumTypes';
 import type { FieldConstraints, PrimitiveTypeDef, EnumTypeDef, EnumOptionDef, DatePrecision } from '@/shared/api/types';
-import { formatDatePrecise } from '@/shared/format/format';
+import { dateMaskText, formatDatePrecise } from '@/shared/format/format';
 import { useTagRegistry, fieldTags, unknownTagCodes } from '@/shared/api/tags';
 import { GroupPicker } from './TypeGroupAccordion';
 import { ValuesEditor, EnumForm } from './EnumTypesSection';
@@ -54,10 +54,11 @@ const BASE_TYPES = [
 ];
 const BASE_TYPE_LABEL: Record<string, string> = { string: 'Строка', number: 'Число', date: 'Дата' };
 
+// Маска в подписи — языка пользователя (issue #1461): «Полная (MM/DD/YYYY)» у en-US.
 const DATE_PRECISIONS: { value: DatePrecision; label: string }[] = [
-  { value: 'day', label: 'Полная (ДД.ММ.ГГГГ)' },
-  { value: 'month', label: 'Месяц и год (ММ.ГГГГ)' },
-  { value: 'year', label: 'Только год (ГГГГ)' },
+  { value: 'day', label: 'Полная' },
+  { value: 'month', label: 'Месяц и год' },
+  { value: 'year', label: 'Только год' },
 ];
 const DATE_PRECISION_LABEL: Record<DatePrecision, string> = {
   day: 'полная', month: 'месяц и год', year: 'только год',
@@ -186,7 +187,7 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
               onClick={() => p.value === 'day' ? unset('datePrecision') : set('datePrecision', p.value)}
               className={`px-3 py-1.5 text-sm transition-colors ${
                 precision === p.value ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
-              {p.label}
+              {p.label} ({dateMaskText(p.value)})
             </button>
           ))}
         </div>
@@ -215,9 +216,10 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
 function ConstraintTester({ def }: { def: PrimitiveTypeDef }) {
   const [sample, setSample] = useState('');
   const has = sample.trim() !== '';
-  const err = has ? validateConstraint(sample, def) : null;
+  // Образец даты — в маске языка пользователя и тем же разбором, что вставка (issue #1461).
+  const err = has ? validateSample(sample, def) : null;
   const ok = has && !err;
-  const placeholder = def.baseType === 'date' ? 'ДД.ММ.ГГГГ' : def.baseType === 'number' ? 'например: 42' : 'введите образец';
+  const placeholder = def.baseType === 'date' ? dateMaskText() : def.baseType === 'number' ? 'например: 42' : 'введите образец';
   const StatusIcon = ok ? CheckCircle2 : AlertCircle;
   const tone = !has ? 'text-fg4' : ok ? 'text-success' : 'text-danger';
   return (
