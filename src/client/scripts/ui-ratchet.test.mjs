@@ -146,13 +146,21 @@ describe('храповик интерфейса: счёт', () => {
   /** Календарь, портированный внутрь окна (issue #1521): его резал край окна. */
   it('портал слоя в свой контейнер — в features/ и в shared/', () => {
     const text = [
-      '<Popover.Portal container={portalContainer ?? undefined}>',
-      '<DropdownMenu.Portal\n  forceMount\n  container={el}>',
+      '<Popover.Portal container={portalContainer ?? undefined}><i /></Popover.Portal>',
+      '<DropdownMenu.Portal\n  forceMount={open && n > 0}\n  onX={() => go()}\n  container={el}><i /></DropdownMenu.Portal>',
       '<Portal container={host} />',
-      '<Popover.Portal>  <Select.Portal> <Dialog.Portal>',
+      '{createPortal(node, dialogEl)} {ReactDOM.createPortal(node, el)}',
     ].join('\n');
-    expect(countViolations(text)).toEqual({ 'portal-container': 3 });
-    expect(countViolations(text, { dir: 'shared' })).toEqual({ 'portal-container': 3 });
+    expect(countViolations(text)).toEqual({ 'portal-container': 5 });
+    expect(countViolations(text, { dir: 'shared' })).toEqual({ 'portal-container': 5 });
+  });
+
+  it('портал в body, data-container и чужой container= порталом не считаются', () => {
+    expect(countViolations([
+      '<Popover.Portal><i /></Popover.Portal> <Select.Portal><i /></Select.Portal>',
+      '<Tooltip.Portal data-container="x"><i /></Tooltip.Portal>',
+      '<Panel container={el} /> <div data-portal="1" />',
+    ].join('\n'), { dir: 'shared' })).toEqual({});
   });
 
   it('в shared/ считаются только правила, которые его смотрят (dirs)', () => {

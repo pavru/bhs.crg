@@ -123,8 +123,11 @@ export const RULES = [
     // Всплывающий слой, портированный в свой контейнер (#1521). Так календарь даты клали ВНУТРЬ окна
     // (#338) — и `overflow-hidden` с `transform` окна резали его по краю. Слой над окном держит дерево
     // React и единственная копия слоёв Radix (radix-single-copy.test), а не место в DOM. Смотрит и
-    // shared/: там живут сами поля и меню, с которых ошибка расходится по экранам. Уровень — ноль.
-    pattern: /<(?:\w+\.)?Portal\b[^>]*\bcontainer\s*=/g,
+    // shared/: там живут сами поля и меню, с которых ошибка расходится по экранам. По синтаксическому
+    // дереву, как native-title: `container` стоит в любой строке тега, а перед ним бывают стрелки `=>`
+    // и сравнения; `data-container` — не он. И `createPortal` из react-dom — тот же портал без Radix.
+    // Законный — WindowStep: шаг рисует в места СВОЕГО окна, а не слой над ним; он стоит в уровне.
+    count: countPortalContainers,
     dirs: ['features', 'shared'],
     instead: 'всплывающий слой (календарь, Select, меню, подсказка) — портал в body без container: над окном и затемнением, краем окна не обрезается; фокус и Esc внутри окна держит дерево React (docs/UI.md, «Слои над окном»)',
   },
@@ -212,6 +215,25 @@ function countWhiteOnFill(text) {
       if (hit(node)) n++;
       return;
     }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+/** `<….Portal container=…>` и `createPortal(узел, контейнер)` — см. правило `portal-container`. */
+function countPortalContainers(text) {
+  if (!text.includes('Portal')) return 0;
+  const sf = parse(text);
+  let n = 0;
+  const visit = node => {
+    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))
+      && /(?:^|\.)Portal$/.test(node.tagName.getText(sf))
+      && node.attributes.properties.some(p => ts.isJsxAttribute(p) && p.name.getText(sf) === 'container'))
+      n++;
+    if (ts.isCallExpression(node) && node.arguments.length >= 2
+      && /(?:^|\.)createPortal$/.test(node.expression.getText(sf)))
+      n++;
     ts.forEachChild(node, visit);
   };
   visit(sf);
