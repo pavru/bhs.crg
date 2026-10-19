@@ -6,6 +6,11 @@ import ts from 'typescript';
 const COLORS = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
 const UTILITIES = 'bg|text|border|ring|ring-offset|outline|divide|fill|stroke|from|via|to|shadow|accent|caret|decoration|placeholder';
 
+/** `dirs` правила, которое смотрит весь src/: каждый каталог и файлы в его корне (App.tsx, main.tsx). */
+export const EVERYWHERE = '*';
+/** Каталог файлов из корня src/ — для `countViolations({ dir })`. */
+export const ROOT = '.';
+
 /**
  * Классы нарушений. У каждого — куда идти вместо: сообщение отказа обязано называть выход, иначе
  * его обходят первым попавшимся способом. `dirs` — каталоги src/, которые правило смотрит; без него —
@@ -131,6 +136,18 @@ export const RULES = [
     dirs: ['features', 'shared'],
     instead: 'всплывающий слой (календарь, Select, меню, подсказка) — портал в body без container: над окном и затемнением, краем окна не обрезается; фокус и Esc внутри окна держит дерево React (docs/UI.md, «Слои над окном»)',
   },
+  {
+    id: 'native-date',
+    // Нативное поле даты, месяца или времени (#1459, эпик #1458): формат у него — по языку ОС, а не
+    // пользователя (на Windows с английской локалью — MM/DD/YYYY и AM/PM), вид — браузерный. По
+    // синтаксическому дереву: `type` бывает выражением (`type={c ? 'date' : 'text'}` — так в отборе
+    // реестров), и считается любой строковый литерал внутри него. Тег — `<input>` и `TextField`: он
+    // отдаёт `type` полю как есть. Смотрит ВЕСЬ src/: законных мест нет и в shared/ — DateInput сам
+    // рисует `type="text"`. ⚠️ Не видит `type`, пришедший переменной или разворотом `{...props}`.
+    count: countNativeDates,
+    dirs: [EVERYWHERE],
+    instead: 'дата — DateField (форма) / DateInput compact (ячейка) / DateInput size=sm (отбор); месяц — precision="month"; время — TimeField (docs/UI.md, «Дата и время»)',
+  },
 ];
 
 // Классы оформления пишутся строкой, шаблоном или выражением — правило читает текст значения
@@ -240,6 +257,27 @@ function countPortalContainers(text) {
   return n;
 }
 
+const NATIVE_DATE = new Set(['date', 'month', 'time', 'datetime-local', 'week']);
+const TYPED_INPUTS = new Set(['input', 'TextField']);
+
+/** `<input type="date">` и `type` с таким литералом в выражении — см. правило `native-date`. */
+function countNativeDates(text) {
+  if (!/date|month|time|week/.test(text)) return 0;
+  const sf = parse(text);
+  const mentions = node => ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && NATIVE_DATE.has(node.text))
+    || (ts.forEachChild(node, mentions) ?? false);
+  let n = 0;
+  const visit = node => {
+    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && TYPED_INPUTS.has(node.tagName.getText(sf))
+      && node.attributes.properties.some(p => ts.isJsxAttribute(p) && p.name.getText(sf) === 'type'
+        && p.initializer && mentions(p.initializer)))
+      n++;
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return n;
+}
+
 /** Сколько элементов разметки (тег со строчной буквы) подходят под `match`. */
 function countElements(text, match) {
   if (!text.includes('<')) return 0;
@@ -292,16 +330,17 @@ function countNativeTitles(text) {
   return n;
 }
 
-/** Каталоги, которые смотрит правило (см. `dirs` у RULES). */
+/** Каталоги, которые смотрит правило (см. `dirs` у RULES); `EVERYWHERE` — весь src/. */
 export const dirsOf = rule => rule.dirs ?? ['features'];
+const watches = (rule, dir) => dirsOf(rule).includes(EVERYWHERE) || dirsOf(rule).includes(dir);
 
 /**
  * Сколько нарушений каждого класса в тексте одного файла. Нулевые классы не возвращаются.
- * `dir` — каталог src/, из которого файл: считаются только правила, которые его смотрят.
+ * `dir` — каталог src/, из которого файл (`ROOT` — его корень): считаются только правила, которые его смотрят.
  */
 export function countViolations(text, { dir = 'features' } = {}) {
   const counts = {};
-  for (const rule of RULES.filter(r => dirsOf(r).includes(dir))) {
+  for (const rule of RULES.filter(r => watches(r, dir))) {
     const n = rule.count ? rule.count(text) : text.match(rule.pattern)?.length ?? 0;
     if (n > 0) counts[rule.id] = n;
   }

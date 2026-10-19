@@ -6,7 +6,8 @@
 // браузерная подсказка title вместо Tooltip (#1394), нативный флажок вместо Checkbox (#1414), свои
 // чипы, пометки и вкладки вместо Chip, StatusBadge и Tabs (#1416), кнопка из одной иконки вместо
 // IconButton (#1417), белый текст на сплошной заливке вместо text-on-* (#1462, смотрит и shared/ —
-// каталоги правила называет его `dirs`).
+// каталоги правила называет его `dirs`), портал слоя в свой контейнер (#1521, тоже shared/),
+// нативное поле даты и времени вместо DateField / DateInput (#1459, весь src/).
 // Переписать накопленное разом нельзя, а остановить рост можно — тем же приёмом, что храповик
 // линта (#854) и размера файлов (#1041): накопленное не чинить, новое не добавлять.
 //
@@ -23,7 +24,7 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { RULES, countViolations, compare, normalize, dirsOf } from './ui-ratchet-lib.mjs';
+import { RULES, countViolations, compare, normalize, dirsOf, EVERYWHERE, ROOT } from './ui-ratchet-lib.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const clientRoot = join(here, '..');
@@ -33,11 +34,17 @@ const update = process.argv.includes('--update');
 
 // Под присмотром — экраны; другие каталоги — только правилами, которые их назвали (`dirs`): в shared/
 // живут сами DataGrid и Select, которые эти элементы и заворачивают. Тесты не считаются: разметка в
-// фикстурах — не интерфейс.
-const sources = dir => readdirSync(join(srcRoot, dir), { recursive: true })
-  .map(f => dir + '/' + String(f).replaceAll('\\', '/'))
-  .filter(f => /\.(tsx?|jsx?)$/.test(f) && !/\.test\.[tj]sx?$/.test(f));
-const dirs = [...new Set(RULES.flatMap(dirsOf))];
+// фикстурах — не интерфейс. Правило со всем src/ (`EVERYWHERE`) добавляет каждый каталог и корень
+// (`ROOT`: App.tsx, main.tsx) — список каталогов берётся с диска, чтобы новый каталог не выпал молча.
+const code = f => /\.(tsx?|jsx?)$/.test(f) && !/\.test\.[tj]sx?$/.test(f);
+const sources = dir => dir === ROOT
+  ? readdirSync(srcRoot, { withFileTypes: true }).filter(e => e.isFile() && code(e.name)).map(e => e.name)
+  : readdirSync(join(srcRoot, dir), { recursive: true })
+    .map(f => dir + '/' + String(f).replaceAll('\\', '/')).filter(code);
+const named = RULES.flatMap(dirsOf);
+const dirs = named.includes(EVERYWHERE)
+  ? [ROOT, ...readdirSync(srcRoot, { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name)]
+  : [...new Set(named)];
 
 const actual = {};
 for (const dir of dirs)
@@ -65,7 +72,8 @@ const { worse, better } = compare(baseline, actual);
 const line = d => `  ${d.file} — ${d.rule}: было ${d.was}, стало ${d.now}`;
 
 const wider = RULES.filter(r => dirsOf(r).some(d => d !== 'features'))
-  .map(r => `${r.id} — ещё в ${dirsOf(r).filter(d => d !== 'features').join(', ')}/`);
+  .map(r => dirsOf(r).includes(EVERYWHERE) ? `${r.id} — весь src/`
+    : `${r.id} — ещё в ${dirsOf(r).filter(d => d !== 'features').join(', ')}/`);
 console.log(`Нарушений интерфейса в features/${wider.length ? ` (${wider.join('; ')})` : ''}: ${summary(actual)}.`);
 
 if (worse.length > 0) {

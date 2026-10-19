@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compare, countViolations } from './ui-ratchet-lib.mjs';
+import { compare, countViolations, ROOT } from './ui-ratchet-lib.mjs';
 
 // Храповик интерфейса (issue #1349): что считается нарушением и как сравнивается с уровнем.
 describe('храповик интерфейса: счёт', () => {
@@ -160,6 +160,28 @@ describe('храповик интерфейса: счёт', () => {
       '<Popover.Portal><i /></Popover.Portal> <Select.Portal><i /></Select.Portal>',
       '<Tooltip.Portal data-container="x"><i /></Tooltip.Portal>',
       '<Panel container={el} /> <div data-portal="1" />',
+    ].join('\n'), { dir: 'shared' })).toEqual({});
+  });
+
+  it('нативное поле даты: литерал, выражение и TextField — по одному на поле', () => {
+    const text = [
+      '<input type="date" /> <input\n  onChange={e => go(e)}\n  type="month">',
+      "<input type={typed && kind === 'date' ? 'date' : 'text'} />",
+      '<input type={`datetime-local`} /> <TextField type="time" label="Время" /> <input type="week" />',
+    ].join('\n');
+    expect(countViolations(text)).toEqual({ 'native-date': 6 });
+  });
+
+  it('нативное поле даты считается в любом каталоге src/ и в его корне', () => {
+    for (const dir of ['shared', 'app', ROOT])
+      expect(countViolations('<input type="date" />', { dir })).toEqual({ 'native-date': 1 });
+  });
+
+  it('текстовое поле, чужой type и «date» вне type полем даты не считаются', () => {
+    expect(countViolations([
+      '<input type="text" placeholder="date" /> <input type="number" />',
+      "<Field type=\"date\" /> <PrimitiveInput type={'date'} /> <input data-type=\"date\" />",
+      "{field.type === 'date' && <input type=\"text\" />}",
     ].join('\n'), { dir: 'shared' })).toEqual({});
   });
 
