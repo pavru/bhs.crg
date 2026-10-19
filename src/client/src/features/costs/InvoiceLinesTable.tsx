@@ -83,8 +83,11 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
   const [dirty, setDirty] = useState(false);
   useEffect(() => onDirty?.(dirty), [dirty, onDirty]);
   const report = correcting?.setLines;
-  // Нетронутые строки — `null`, а не набор: исправление шлёт их такими, какими они лежат в счёте.
+  const reportMode = correcting?.setVatMode;
+  // Нетронутые строки — `null`, а не набор: исправление шлёт их такими, какими они лежат в счёте. Режим —
+  // вместе с ними (issue #1498): он описывает их суммы, и строки без него прочлись бы бумагой другого режима.
   useEffect(() => report?.(dirty ? drafts : null), [report, dirty, drafts]);
+  useEffect(() => reportMode?.(dirty ? mode : null), [reportMode, dirty, mode]);
 
   // На чём собран черновик строк (issue #1176). Подпись — сами строки, как их принял бы сервер: правка
   // шапки или разноски версию счёта двигает, а строк не касается — и черновик остаётся в силе.
@@ -305,9 +308,9 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
     <section className="space-y-3" data-readiness="lines">
       <div className="flex items-center gap-2 flex-wrap">
         <h2 className="text-sm font-medium text-fg2">Строки счёта</h2>
-        {/* Где менять нельзя (заперт, нет права, исправление — смена режима исправлением в #1498), флажка
-            нет: «сверху» говорит пометка, «в том числе» — обычный случай, о нём молчат заголовки колонок. */}
-        {still || correcting
+        {/* Где менять нельзя (заперт без исправления, нет права), флажка нет: «сверху» говорит пометка, «в том
+            числе» — обычный случай, о нём молчат заголовки колонок. Исправление режим меняет (#1498). */}
+        {still
           ? mode === 'OnTop' && <StatusBadge tone="quiet">цены без НДС, НДС сверху</StatusBadge>
           : (
             <span className={modeMarked ? 'rounded-md ring-1 ring-warning-border px-1.5 py-0.5' : undefined}>
@@ -318,9 +321,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
         <div className="flex-1" />
         {!still && (
           <>
-            {/* В исправлении режим не меняется (#1498): тело исправления несёт режим счёта, и вставка,
-                переключившая его в черновике, легла бы бумагой другого режима. */}
-            <InvoiceLinesPaste mode={mode} modeFixed={correcting !== null} onAdd={add} />
+            <InvoiceLinesPaste mode={mode} onAdd={add} />
             {!correcting && (
               <Button size="sm" variant="filled" icon={<Save size={13} />} disabled={!dirty}
                 loading={replace.isPending} onClick={save}>

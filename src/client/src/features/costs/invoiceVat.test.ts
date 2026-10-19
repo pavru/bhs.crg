@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { InvoiceLineView, InvoiceView, VatMode } from '@/shared/api/invoices';
 import cases from './invoiceLineCases.json';
-import { correctionBody } from './correction';
+import { correctionBody, vatShiftText } from './correction';
 import {
   emptyDraft, guessRoles, parseTable, pastedWithoutVat, preview, toDrafts, toPayload, totals, type LineDraft,
 } from './invoiceLines';
@@ -53,9 +53,25 @@ describe('круг «прочитал → отправил без правок»
 
   it('в теле исправления — тем же полем: режим берётся у счёта', () => {
     const view = { id: 'i1', vatMode: 'OnTop', lines: [saved], requisites: {}, allocation: { document: { parts: [] } } } as unknown as InvoiceView;
-    const body = correctionBody(view, { reason: 'опечатка', edits: {}, lines: null, allocation: null });
+    const body = correctionBody(view, { reason: 'опечатка', edits: {}, lines: null, vatMode: null, allocation: null });
+    expect(body.vatMode).toBe('OnTop');
     expect(body.lines[0]).toMatchObject({ netAmount: '1000' });
     expect(body.lines[0]).not.toHaveProperty('amount');
+  });
+
+  it('исправление, сменившее режим, шлёт режим черновика и строки его бумагой (issue #1498)', () => {
+    const included = line({ amount: 1000, vatRate: 22 });
+    const view = { id: 'i1', vatMode: 'Included', lines: [included], requisites: {}, allocation: { document: { parts: [] } } } as unknown as InvoiceView;
+    const drafts = withMode(toDrafts(view.lines, 'Included'));
+    const body = correctionBody(view, { reason: 'цены без НДС', edits: {}, lines: drafts, vatMode: 'OnTop', allocation: null });
+    expect(body.vatMode).toBe('OnTop');
+    expect(body.lines[0]).toMatchObject({ netAmount: '1000' });
+    expect(body.lines[0]).not.toHaveProperty('amount');
+  });
+
+  it('смена режима — словами цен в строках, как в задаче', () => {
+    expect(vatShiftText({ from: 'Included', to: 'OnTop' })).toBe('Цены в строках: с НДС → без НДС');
+    expect(vatShiftText({ from: 'OnTop', to: 'Included' })).toBe('Цены в строках: без НДС → с НДС');
   });
 });
 

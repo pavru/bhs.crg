@@ -382,13 +382,14 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
                     },
                 },
                 document = Array.Empty<object>(),
+                vatMode = "Included",
             };
             var shown = await client.PostAsJsonAsync($"/api/costs/invoices/{id}/correction/preview", body);
             await OkAsync(shown);
             var stamp = (await shown.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("stamp").GetString();
             await OkAsync(await client.PostAsJsonAsync($"/api/costs/invoices/{id}/correction", new
             {
-                body.reason, body.requisites, body.lines, body.document, stamp,
+                body.reason, body.requisites, body.lines, body.document, body.vatMode, stamp,
             }));
         }
         finally

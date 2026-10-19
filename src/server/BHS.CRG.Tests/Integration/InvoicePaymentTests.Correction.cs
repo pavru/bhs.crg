@@ -252,7 +252,7 @@ public partial class InvoicePaymentTests
             Content = JsonContent.Create(new
             {
                 reason = body.Reason, requisites = body.Requisites, lines = body.Lines,
-                document = new object[] { Part(site, amount: 1_000m) },
+                document = new object[] { Part(site, amount: 1_000m) }, vatMode = body.VatMode,
             }),
         };
         request.Headers.TryAddWithoutValidation(SeenInvoiceVersion.Header, view.GetProperty("version").GetString());
@@ -294,8 +294,10 @@ public partial class InvoicePaymentTests
     private const string CostsInvoiceEdit = "costs.invoice.edit";
 
     /// <summary>Тело исправления, собранное из ответа чтения, — с правкой строк и суммой к оплате.</summary>
+    /// <param name="VatMode">Режим НДС (issue #1498): обязателен; <c>null</c> — не прислать вовсе.</param>
     private sealed record CorrectionBody(
-        string Reason, Dictionary<string, object?> Requisites, List<Dictionary<string, object?>> Lines, string? Stamp = null);
+        string Reason, Dictionary<string, object?> Requisites, List<Dictionary<string, object?>> Lines, string? Stamp = null,
+        string? VatMode = "Included");
 
     private static CorrectionBody Correction(
         JsonElement view, string reason, Action<List<Dictionary<string, object?>>>? edit = null, decimal? total = null)
@@ -303,10 +305,12 @@ public partial class InvoicePaymentTests
         var requisites = JsonSerializer.Deserialize<Dictionary<string, object?>>(view.GetProperty("requisites").GetRawText())!;
         if (total is { } sum) requisites["Итого"] = sum;
 
+        // Строки — бумагой режима счёта (issue #1497): при НДС сверху сумма из бумаги едет полем netAmount.
+        var vatMode = view.GetProperty("vatMode").GetString()!;
         var lines = view.GetProperty("lines").EnumerateArray().Select(l =>
         {
             var mode = l.GetProperty("allocation").GetProperty("mode").GetString();
-            return new Dictionary<string, object?>
+            var line = new Dictionary<string, object?>
             {
                 ["id"] = l.GetProperty("id").GetGuid().ToString(),
                 ["nomenclature"] = l.GetProperty("nomenclatureId").ValueKind == JsonValueKind.Null
@@ -325,21 +329,32 @@ public partial class InvoicePaymentTests
                     ["amount"] = mode == "amount" ? p.GetProperty("amount").Clone() : null,
                 }).ToArray(),
             };
+            if (vatMode == "OnTop")
+            {
+                line.Remove("amount");
+                line["netAmount"] = l.GetProperty("netAmount").Clone();
+                line["vatRate"] = l.GetProperty("vatRate").Clone();
+            }
+            return line;
         }).ToList();
 
         edit?.Invoke(lines);
-        return new CorrectionBody(reason, requisites, lines);
+        return new CorrectionBody(reason, requisites, lines, VatMode: vatMode);
     }
 
     /// <summary>Новая цена строки — сумма пересчитается по цене.</summary>
     private static void Price(Dictionary<string, object?> line, decimal price)
     {
         line["price"] = price;
-        line["amount"] = null;
+        line[line.ContainsKey("netAmount") ? "netAmount" : "amount"] = null;
     }
 
     private static object Payload(CorrectionBody body) =>
-        new { reason = body.Reason, requisites = body.Requisites, lines = body.Lines, document = Array.Empty<object>(), stamp = body.Stamp };
+        new
+        {
+            reason = body.Reason, requisites = body.Requisites, lines = body.Lines, document = Array.Empty<object>(),
+            stamp = body.Stamp, vatMode = body.VatMode,
+        };
 
     /// <param name="what"><c>preview</c> — предпросмотр; пусто — запись.</param>
     private static Task<HttpResponseMessage> CorrectionRawAsync(

@@ -24,7 +24,14 @@ public class VatModeInventoryTests
     private static readonly Dictionary<string, string> MayKnowTheMode = new()
     {
         [$"{Module}/Data/VatMode.cs"] = "сам режим",
-        [$"{Module}/Data/Invoice.cs"] = "режим — признак счёта; меняет его только запись строк",
+        [$"{Module}/Data/Invoice.cs"] = "режим — признак счёта; меняет его только запись строк и исправление",
+        // Книга хранит СМЕНУ режима исправлением как историю (#1498) — пару «было → стало» у записи. Денег
+        // книги режим не касается: её строки, как и прежде, считаются от amount.
+        [$"{Module}/Data/InvoiceBook.cs"] = "кладёт смену режима из BookChange в саму запись, не в деньги",
+        [$"{Module}/Data/InvoiceBookPosting.cs"] =
+            "BookChange несёт смену режима до записи; проводка её не читает — деньги от amount, как всегда",
+        [$"{Module}/Data/InvoiceBookEntry.cs"] = "запись книги хранит пару режимов смены исправлением (#1498)",
+        [$"{Module}/Endpoints/InvoiceBookEndpoints.cs"] = "история счёта показывает смену режима пунктом записи",
         [$"{Module}/Data/InvoiceLine.cs"] =
             "строка и граница записи: Completed(mode) приводит бумагу к сумме с НДС, CompletedLine — единственный вход записи",
         [$"{Module}/Data/VatModeGuess.cs"] =
@@ -36,7 +43,12 @@ public class VatModeInventoryTests
         [$"{Module}/Endpoints/InvoiceLineEndpoints.cs"] = "адрес строк: режим едет со строками и пишется с ними",
         [$"{Module}/Endpoints/InvoiceContracts.cs"] = "ответ чтения: режим счёта, цена и сумма без НДС строки",
         [$"{Module}/Endpoints/InvoiceDesk.Correction.cs"] =
-            "исправление досчитывает присланные строки по режиму, чтобы узнать вид разноски",
+            "исправление ставит присланный режим (#1498) и досчитывает строки по нему, чтобы узнать вид разноски",
+        [$"{Module}/Endpoints/InvoiceCorrectionContracts.cs"] =
+            "тело исправления несёт режим — «всё содержимое» (#1498); предпросмотр показывает его смену",
+        [$"{Module}/Endpoints/InvoiceCorrectionEndpoints.cs"] = "журнал исправления называет смену режима",
+        [$"{Module}/Endpoints/InvoiceCorrectionCheck.cs"] =
+            "«не хуже»: у строки сверху без ставки пробел — ставка, а не цена (#1498)",
         [$"{Module}/Endpoints/InvoiceReadiness.cs"] =
             "готовность: у строк сверху без ставки нет суммы с НДС; расхождение, объяснённое НДС от итога",
         [$"{Module}/Endpoints/InvoiceScanLines.cs"] = "распознавание: строки скана читаются «в том числе» и цена из бумаги",

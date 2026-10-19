@@ -1,7 +1,8 @@
 import type { AllocationPartView, InvoiceView, LineAllocationView } from '@/shared/api/invoices';
 import type { MatrixPart, MatrixState } from '@/shared/api/allocationMatrix';
+import type { VatMode } from '@/shared/api/invoices';
 import type {
-  CorrectionLineView, CorrectionPreview, CorrectionRecordView, InvoiceCorrectionBody,
+  CorrectionLineView, CorrectionPreview, CorrectionRecordView, InvoiceCorrectionBody, VatModeShift,
 } from '@/shared/api/invoiceCorrection';
 import { toRequisites } from './invoiceFields';
 import { toDrafts, toPayload, type LineDraft } from './invoiceLines';
@@ -20,6 +21,8 @@ export interface CorrectionContent {
   edits: Readonly<Record<string, unknown>>;
   /** Черновик строк; `null` — строки не трогали. */
   lines: readonly LineDraft[] | null;
+  /** Режим НДС черновика строк (issue #1498); `null` — строки не трогали, режим — как у счёта. */
+  vatMode: VatMode | null;
   /** Разноска из матрицы; `null` — не трогали, части уезжают записанными. */
   allocation: MatrixState | null;
 }
@@ -45,10 +48,9 @@ const inOrder = (parts: readonly AllocationPartView[]) => [...parts].sort((a, b)
 
 /** Тело исправления: черновик поверх счёта. */
 export function correctionBody(view: InvoiceView, content: CorrectionContent): InvoiceCorrectionBody {
-  // Строки — в режиме счёта (issue #1499): исправление его сохраняет, а бумажную сумму сервер принимает
-  // только полем режима — без него любое исправление счёта сверху получило бы 400. Смена режима
-  // исправлением — #1498.
-  const mode = vatModeOf(view);
+  // Строки — в режиме черновика, а нетронутые — в режиме счёта (issue #1498): бумажную сумму сервер
+  // принимает только полем режима, и режим едет тем же телом — он обязателен, как строки.
+  const mode = content.vatMode ?? vatModeOf(view);
   const drafts = content.lines ?? toDrafts(view.lines, mode);
   const stored = new Map(view.lines.map(line => [line.id, line]));
 
@@ -70,6 +72,7 @@ export function correctionBody(view: InvoiceView, content: CorrectionContent): I
     requisites: toRequisites(view.requisites, content.edits),
     lines: drafts.map((draft, index) => ({ ...payload[index], parts: partsOf(draft) })),
     document,
+    vatMode: mode,
   };
 }
 
@@ -186,9 +189,18 @@ export function bookAuthor(entry: { kind: string; author: string | null; reason:
   return entry.kind === 'opening' || (entry.kind === 'alignment' && !entry.reason) ? 'служебная запись' : '—';
 }
 
-/** Запись без строк — словами её вида: версия и причина есть только у исправления. */
-export function bookEmpty(kind: string): string {
-  return kind === 'correction'
-    ? 'деньги не менялись: записаны версия и причина.'
-    : 'строк нет: деньги счёта эта запись не сдвинула.';
+/** Запись без строк — словами её вида: версия и причина (и режим НДС, если сменился) есть только у исправления. */
+export function bookEmpty(kind: string, shift?: VatModeShift | null): string {
+  if (kind !== 'correction') return 'строк нет: деньги счёта эта запись не сдвинула.';
+  return shift ? 'деньги не менялись: записаны версия, причина и режим НДС.' : 'деньги не менялись: записаны версия и причина.';
+}
+
+const PRICES: Record<VatMode, string> = { Included: 'с НДС', OnTop: 'без НДС' };
+
+/**
+ * Смена режима НДС отдельным пунктом (issue #1498) — одна строка на предпросмотр и историю. Строками книги её
+ * не назвать: при тех же суммах с НДС смена двигает только суммы без НДС, а то и ничего.
+ */
+export function vatShiftText(shift: VatModeShift): string {
+  return `Цены в строках: ${PRICES[shift.from] ?? shift.from} → ${PRICES[shift.to] ?? shift.to}`;
 }

@@ -1,3 +1,4 @@
+using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -50,8 +51,12 @@ public static class InvoiceCorrectionEndpoints
         var invoice = done.Invoice;
         var label = InvoiceEndpoints.Label(invoice);
 
+        // Смена режима НДС — в той же записи (issue #1498): у замены строк она пишется так же, рядом с её итогом.
+        var mode = done.VatMode is { } shift
+            ? (Was: $"; НДС: {VatModes.Shown(shift.From)}", Now: $"; НДС: {VatModes.Shown(shift.To)}")
+            : (Was: "", Now: "");
         await log.RecordAsync(InvoiceActions.Corrected, invoice.Id.ToString(), label,
-            before: $"версия {done.Version}", after: parsed.Reason, ct: ct);
+            before: $"версия {done.Version}{mode.Was}", after: parsed.Reason + mode.Now, ct: ct);
 
         // Изменённые поля шапки и ручной срок — теми же событиями, что у правки шапки (ревью PR #1364).
         await InvoiceEndpoints.RecordRequisitesAsync(log, invoice, done.Changed, done.DueWas, ct);

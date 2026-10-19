@@ -21,14 +21,17 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="Document">Части счёта целиком суммой — только у счёта без строк; <c>[]</c> — их нет.</param>
 /// <param name="Stamp">Отметка предпросмотра (<see cref="CorrectionPreviewView.Stamp" />). Записи —
 /// обязательна, предпросмотру не нужна.</param>
+/// <param name="VatMode">Режим НДС счёта (issue #1498) — обязателен, как строки: он описывает их суммы, и
+/// строки читаются по нему. Отсутствие поля прочитать как «режим не менять» нельзя — тело заменяет
+/// содержимое целиком, а режим, не вошедший в «всё содержимое», исправление теряло бы молча.</param>
 public sealed record InvoiceCorrectionRequest(
     string? Reason, JsonElement Requisites, IReadOnlyList<JsonElement>? Lines, IReadOnlyList<JsonElement>? Document,
-    string? Stamp = null);
+    string? Stamp = null, VatMode? VatMode = null);
 
 /// <summary>Исправление, разобранное до связки: значения строк проверены, части ждут вида своей строки.</summary>
 internal sealed record CorrectionBody(
     string Reason, JsonElement Requisites, IReadOnlyList<CorrectionLine> Lines, IReadOnlyList<JsonElement> Document,
-    string? Stamp);
+    string? Stamp, VatMode VatMode);
 
 /// <summary>Строка исправления: идентификатор (нет — новая), значения и части её разноски.</summary>
 internal sealed record CorrectionLine(Guid? Id, InvoiceLineValues Values, IReadOnlyList<JsonElement> Parts);
@@ -40,8 +43,11 @@ internal sealed record CorrectionLine(Guid? Id, InvoiceLineValues Values, IReadO
 /// <param name="Version">Номер версии, которую запишет исправление (номер уходящей версии).</param>
 /// <param name="Day">День записи D — им исправление ляжет в книгу.</param>
 /// <param name="Stamp">Отметка: её присылает запись (<see cref="InvoiceCorrectionRequest.Stamp" />).</param>
+/// <param name="VatMode">Смена режима НДС отдельным пунктом (issue #1498); <c>null</c> — режим не меняется.
+/// Строками книги её не показать: при тех же суммах с НДС смена денег не сдвигает вовсе.</param>
 public sealed record CorrectionPreviewView(
-    int Version, DateOnly Day, IReadOnlyList<CorrectionRecordView> Records, string Stamp);
+    int Version, DateOnly Day, IReadOnlyList<CorrectionRecordView> Records, string Stamp,
+    VatModeShift? VatMode = null);
 
 /// <summary>Запись книги, которую ляжет исправлением.</summary>
 /// <param name="Kind"><c>opening</c> — деньги счёта, как они лежали до первой записи; <c>alignment</c> —
@@ -90,6 +96,12 @@ internal static class InvoiceCorrections
                 "Части счёта целиком («document») не присланы. У счёта со строками это «document»: [] — " +
                 "отсутствие поля прочитать как «не менять» нельзя.");
 
+        if (body.VatMode is not { } vatMode)
+            throw new InvalidRequestException(
+                "Режим НДС («vatMode») не прислан. Исправление заменяет содержимое счёта целиком, а режим описывает " +
+                "суммы строк: «Included» — с НДС, «OnTop» — без НДС, НДС сверху. Отсутствие поля прочитать как " +
+                "«режим не менять» нельзя.");
+
         if (!preview && string.IsNullOrEmpty(body.Stamp))
             throw new InvalidRequestException(
                 "Не прислана отметка предпросмотра («stamp»). Исправление записывается только таким, каким его " +
@@ -101,7 +113,7 @@ internal static class InvoiceCorrections
             Parts(line, index + 1))).ToList();
         InvoiceLineEndpoints.EnsureIdsDistinct([.. lines.Select(l => (l.Id, l.Values))]);
 
-        return new CorrectionBody(reason, body.Requisites, lines, body.Document, body.Stamp);
+        return new CorrectionBody(reason, body.Requisites, lines, body.Document, body.Stamp, vatMode);
     }
 
     /// <summary>Части строки — обязательны: набор заменяет разноску строки целиком.</summary>
@@ -121,7 +133,7 @@ internal static class InvoiceCorrections
         done.Version, done.Records[^1].Day,
         [.. done.Records.Select(r => new CorrectionRecordView(Kind(r.Kind), r.Day, r.Tolerance,
             [.. r.Lines.Select(Line)]))],
-        done.Stamp);
+        done.Stamp, done.VatMode);
 
     /// <summary>Строка книги ответом — одна на предпросмотр и историю счёта.</summary>
     public static CorrectionLineView Line(Grain line) => new(line.Cell.Target?.ConstructionId,

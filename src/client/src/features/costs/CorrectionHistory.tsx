@@ -4,7 +4,7 @@ import { apiError } from '@/shared/utils/apiError';
 import { formatDate, formatDateTime, formatMoney } from '@/shared/format/format';
 import type { InvoiceView } from '@/shared/api/invoices';
 import { useInvoiceBook, type InvoiceBookEntry } from '@/shared/api/invoiceCorrection';
-import { bookAuthor, bookEmpty, bookEntryRows, bookKindTitle, bookTotal } from './correction';
+import { bookAuthor, bookEmpty, bookEntryRows, bookKindTitle, bookTotal, vatShiftText } from './correction';
 import { usePlaces } from './places';
 import { BookLines } from './BookLines';
 
@@ -30,7 +30,14 @@ export function CorrectionHistory({ view, gone }: { view: InvoiceView; gone: boo
   const columns: DataGridColumn<InvoiceBookEntry>[] = [
     { key: 'at', label: 'Когда', cell: e => formatDateTime(e.at) },
     { key: 'author', label: 'Кто', cell: e => bookAuthor(e) },
-    { key: 'kind', label: 'Вид', cell: e => (e.version != null ? `${bookKindTitle(e.kind)} (версия ${e.version})` : bookKindTitle(e.kind)) },
+    // Смена режима НДС — в самой строке (issue #1498): при тех же суммах с НДС итог записи ±0, и без
+    // этой строки исправление читалось бы «ничего не изменилось», пока его не раскроют.
+    { key: 'kind', label: 'Вид', cell: e => (
+      <>
+        {e.version != null ? `${bookKindTitle(e.kind)} (версия ${e.version})` : bookKindTitle(e.kind)}
+        {e.vatMode && <span className="block text-xs text-fg2">{vatShiftText(e.vatMode)}</span>}
+      </>
+    ) },
     { key: 'reason', label: 'Причина', wrap: true, cell: e => e.reason ?? '—' },
     { key: 'day', label: 'День', cell: e => formatDate(e.day) },
     { key: 'total', label: 'Итог ±', align: 'right', cell: e => <span className="tabular-nums">{bookTotal(e, formatMoney)}</span> },
@@ -49,8 +56,9 @@ export function CorrectionHistory({ view, gone }: { view: InvoiceView; gone: boo
             <div className="space-y-2">
               <p className="text-xs text-fg2">
                 {bookKindTitle(selected.kind)} от {formatDate(selected.day)}
-                {selected.lines.length === 0 ? ` — ${bookEmpty(selected.kind)}` : ':'}
+                {selected.lines.length === 0 ? ` — ${bookEmpty(selected.kind, selected.vatMode)}` : ':'}
               </p>
+              {selected.vatMode && <p className="text-xs text-fg1">{vatShiftText(selected.vatMode)}</p>}
               {selected.lines.length > 0 && (
                 <BookLines places={places} rows={bookEntryRows(selected, formatDate)} />
               )}

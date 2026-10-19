@@ -388,6 +388,9 @@ await check('admin-corrects-locked-invoice', async () => {
     await page.getByLabel('Примечание, строка 1').fill('примечание исправления');
     if (await page.getByRole('button', { name: 'Сохранить строки', exact: true }).count())
       throw new Error('в исправлении у строк осталась своя кнопка записи');
+    // Режим НДС исправление меняет (#1498): флажок на месте, а не пометкой «только чтение».
+    const mode = page.getByRole('checkbox', { name: 'Цены без НДС, НДС сверху' });
+    if (!(await mode.count()) || !(await mode.isEnabled())) throw new Error('в исправлении нет флажка «Цены без НДС, НДС сверху»');
     await bar.getByLabel(/Причина исправления/).fill('опечатка в назначении');
     await verify.click();
 
@@ -396,12 +399,16 @@ await check('admin-corrects-locked-invoice', async () => {
     const text = await dialog.innerText();
     if (!text.includes(`днём ${ru(today)}`)) throw new Error(`предпросмотр не назвал день исправления ${ru(today)}: ${text.slice(0, 300)}`);
     if (!/Деньги не меняются/.test(text)) throw new Error(`правка назначения показана как движение денег: ${text.slice(0, 300)}`);
+    if (/Цены в строках/.test(text)) throw new Error(`режим НДС не меняли, а предпросмотр назвал его смену: ${text.slice(0, 300)}`);
 
     const written = page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${lockedId}/correction`)
       && r.request().method() === 'POST');
     await dialog.getByRole('button', { name: 'Записать исправление' }).click();
     const response = await written;
     if (!response.ok()) throw new Error(`запись исправления отказала: ${response.status()} ${await response.text()}`);
+    // Режим едет телом всегда (#1498): без него сервер отказал бы, «не менять» из отсутствия он не читает.
+    if (response.request().postDataJSON()?.vatMode !== 'Included')
+      throw new Error(`тело исправления без режима счёта: ${response.request().postData()?.slice(0, 200)}`);
     await page.getByText(/Исправление записано: версия 1 ушла в историю/).waitFor({ timeout: 10_000 });
     if (await page.getByTestId('correction-bar').count()) throw new Error('после записи форма осталась в режиме исправления');
 

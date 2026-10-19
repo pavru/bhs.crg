@@ -11,9 +11,10 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="Stamp">Отметка этих записей — та, что сверяется с предпросмотром.</param>
 /// <param name="Changed">Изменённые поля шапки — для журнала, теми же событиями, что у правки шапки.</param>
 /// <param name="DueWas">Срок оплаты до исправления — для события «срок изменён вручную».</param>
+/// <param name="VatMode">Смена режима НДС (issue #1498); <c>null</c> — режим не менялся.</param>
 internal sealed record CorrectionDone(
     Invoice Invoice, int Version, IReadOnlyList<BookRecord> Records, string Stamp,
-    IReadOnlyList<string> Changed, (DateOnly? Due, bool Manual) DueWas);
+    IReadOnlyList<string> Changed, (DateOnly? Due, bool Manual) DueWas, VatModeShift? VatMode);
 
 /// <summary>
 /// Исправление счёта, требующего исправления (E2, issue #1100, spec v3.3 п. 1.4), — свой вход связки
@@ -76,11 +77,17 @@ public sealed partial class InvoiceDesk
                 var wasGaps = InvoiceCorrectionCheck.Gaps(invoice, was);
                 var dueWas = (invoice.DueDate, invoice.DueDateManual);
 
-                if (Moved(was, body, invoice.VatMode) && !await user.HasAsync(AllocationEndpoints.Permission, ct))
+                // Строки исправления — бумага ПРИСЛАННОГО режима (issue #1498): по нему они и досчитываются.
+                if (Moved(was, body, body.VatMode) && !await user.HasAsync(AllocationEndpoints.Permission, ct))
                     throw new ForbiddenException(
                         $"{label}: исправление меняет разноску — цель, количество, сумму или порядок частей, — а " +
                         "права на разноску («costs.allocation.edit») у вас нет. Исправьте содержимое, не трогая " +
                         "разноску, или попросите того, у кого это право есть.");
+
+                // Режим — до строк и после снимка версии: версия хранит режим, каким он был, а строки
+                // досчитываются по новому, в той же правке — как у замены строк (issue #1497, #1498).
+                var modeWas = invoice.VatMode;
+                VatModeShift? shift = invoice.ChangeVatMode(body.VatMode) ? new(modeWas, body.VatMode) : null;
 
                 var changed = await PlaceAsync(invoice, body, guard, rule, was, ct);
                 await db.SaveChangesAsync(ct);
@@ -105,11 +112,11 @@ public sealed partial class InvoiceDesk
 
                 var appended = await InvoiceBook.AppendAsync(db, invoice,
                     last => new BookChange(InvoiceBookKind.Correction, before, tolerance, after, tolerance,
-                        last is { } t && t != tolerance ? MoneyAt(t) : null),
+                        last is { } t && t != tolerance ? MoneyAt(t) : null, shift),
                     boundaries, today, BookAuthor.Of(user, body.Reason, number), ct);
 
                 var done = new CorrectionDone(invoice, number, appended.Records,
-                    InvoiceBookPosting.Stamp(appended.Records), changed, dueWas);
+                    InvoiceBookPosting.Stamp(appended.Records), changed, dueWas, shift);
                 if (preview) throw new PreviewOnly(done);
 
                 if (body.Stamp != done.Stamp)
@@ -162,8 +169,10 @@ public sealed partial class InvoiceDesk
     /// Отличается ли присланная разноска от записанной — целью, количеством, суммой или порядком частей.
     /// Производные деньги (округление, расхождение в последней части) не в счёт: их не присылают.
     /// </summary>
-    /// <param name="vat">Режим НДС счёта: вид разноски строки зависит от её суммы С НДС, а присланное —
-    /// бумага (issue #1497). У строки сверху без ставки суммы с НДС нет, как и у записанной.</param>
+    /// <param name="vat">Режим НДС ПРИСЛАННЫЙ, а не лежащий у счёта (issue #1498): присланные строки — бумага
+    /// этого режима, и досчитать их по прежнему значило бы прочитать «без НДС» как «с НДС» (или отказать
+    /// 400 на чужое поле суммы). Вид разноски строки зависит от её суммы С НДС (issue #1497). У строки
+    /// сверху без ставки суммы с НДС нет, как и у записанной.</param>
     private static bool Moved(InvoiceSnapshot was, CorrectionBody body, VatMode vat)
     {
         var stored = was.Parts.OrderBy(a => a.Ordinal).ToLookup(a => a.LineId, a => a.Snapshot());

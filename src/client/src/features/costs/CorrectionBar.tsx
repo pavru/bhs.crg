@@ -49,7 +49,7 @@ export function CorrectionBar({ view, draft, edits, onResetHeader }: {
   const [note, setNote] = useState<string | null>(null);
 
   const content: CorrectionContent = {
-    reason: draft.reason, edits, lines: draft.lines, allocation: draft.allocation,
+    reason: draft.reason, edits, lines: draft.lines, vatMode: draft.vatMode, allocation: draft.allocation,
   };
   const touched = Object.keys(edits).length > 0 || draft.lines !== null || draft.allocation !== null;
   const [seen, setSeen] = useState(view.version);
