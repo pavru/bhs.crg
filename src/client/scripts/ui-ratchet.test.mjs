@@ -143,7 +143,19 @@ describe('храповик интерфейса: счёт', () => {
     ].join('\n'))).toEqual({ 'white-on-fill': 6 });
   });
 
-  it('в shared/ считается только белое на заливке', () => {
+  /** Календарь, портированный внутрь окна (issue #1521): его резал край окна. */
+  it('портал слоя в свой контейнер — в features/ и в shared/', () => {
+    const text = [
+      '<Popover.Portal container={portalContainer ?? undefined}>',
+      '<DropdownMenu.Portal\n  forceMount\n  container={el}>',
+      '<Portal container={host} />',
+      '<Popover.Portal>  <Select.Portal> <Dialog.Portal>',
+    ].join('\n');
+    expect(countViolations(text)).toEqual({ 'portal-container': 3 });
+    expect(countViolations(text, { dir: 'shared' })).toEqual({ 'portal-container': 3 });
+  });
+
+  it('в shared/ считаются только правила, которые его смотрят (dirs)', () => {
     const text = '<table /> <select /> <button className="bg-danger text-white">x</button>';
     expect(countViolations(text, { dir: 'shared' })).toEqual({ 'white-on-fill': 1 });
     expect(countViolations(text)).toEqual({ table: 1, select: 1, 'white-on-fill': 1 });

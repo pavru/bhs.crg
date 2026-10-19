@@ -118,6 +118,16 @@ export const RULES = [
     dirs: ['features', 'shared'],
     instead: 'текст и значок на заливке — парный токен: bg-brand → text-on-brand, bg-danger → text-on-danger, bg-success → text-on-success, bg-warning → text-on-warning; кольцо — ring-on-*, точка — bg-on-* (docs/UI.md, «Цвет»)',
   },
+  {
+    id: 'portal-container',
+    // Всплывающий слой, портированный в свой контейнер (#1521). Так календарь даты клали ВНУТРЬ окна
+    // (#338) — и `overflow-hidden` с `transform` окна резали его по краю. Слой над окном держит дерево
+    // React и единственная копия слоёв Radix (radix-single-copy.test), а не место в DOM. Смотрит и
+    // shared/: там живут сами поля и меню, с которых ошибка расходится по экранам. Уровень — ноль.
+    pattern: /<(?:\w+\.)?Portal\b[^>]*\bcontainer\s*=/g,
+    dirs: ['features', 'shared'],
+    instead: 'всплывающий слой (календарь, Select, меню, подсказка) — портал в body без container: над окном и затемнением, краем окна не обрезается; фокус и Esc внутри окна держит дерево React (docs/UI.md, «Слои над окном»)',
+  },
 ];
 
 // Классы оформления пишутся строкой, шаблоном или выражением — правило читает текст значения

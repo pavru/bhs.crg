@@ -4,6 +4,8 @@
 // про ЭКРАН: человек обязан увидеть перенос ДО сохранения и причину отказа — словами сервера.
 //   1. `refusal-is-shown-instead-of-the-form` — счёт, у которого строки не бьются с суммой: диалог
 //      называет расхождение числом сервера, полей и кнопки оплаты в нём нет.
+//   1б. `payment-date-calendar-not-clipped` (и `…-phone`, 375×812) — календарь «Даты платежа» не
+//       срезан краем окна: последний день виден, щелчок по нему ставит дату в поле (issue #1521).
 //   2. `preview-matches-recorded` — стройка закрыта, платёж задним числом: диалог называет перенос и
 //      меняет подпись кнопки; после записи расклад счёта показывает ТЕ ЖЕ учётные даты.
 //   2а. `registry-names-the-accounting-month` — реестр показывает тот же учётный месяц и деньги в нём.
@@ -142,6 +144,59 @@ await check('refusal-is-shown-instead-of-the-form', async () => {
   if (await dialog.getByText('Дата платежа').count())
     throw new Error('в диалоге отказа есть поле даты — заполнять его незачем');
   await dialog.getByRole('button', { name: 'Понятно' }).click();
+});
+
+// ── 1б. Календарь даты — слой над окном: край окна его не режет, щелчок по дню выбирает ────────────
+const calendarNumber = `ОПЛ-К-${stamp}`;
+await invoice(calendarNumber, 100, 100);
+
+/**
+ * Окно оплаты невысокое, а календарь выпадает под первым полем — его низ всегда за краем окна. Пока
+ * календарь портировался ВНУТРЬ окна, `overflow-hidden` окна срезал последние недели (issue #1521).
+ *
+ * <p>Проверяем точкой, а не рамкой: `boundingBox` у обрезанной кнопки честный, её просто не видно.
+ * `elementFromPoint` в центре последнего дня обязан попасть в сам календарь, а не в подвал окна.
+ * Потом по этому дню щёлкаем: выбор доходит до поля — то, что когда-то ломал портал в body (#338).</p>
+ */
+async function lastDayIsReachable() {
+  await open(calendarNumber);
+  await page.getByRole('button', { name: 'Отметить оплату' }).click();
+  const dialog = page.getByRole('dialog').first();
+  await dialog.getByText(/Вся сумма войдёт в затраты/).waitFor({ timeout: 10_000 });
+  await dialog.getByRole('button', { name: 'Открыть календарь' }).click();
+  const grid = page.locator('[data-radix-popper-content-wrapper]').getByRole('grid', { name: 'Календарь' });
+  await grid.waitFor({ timeout: 5_000 });
+  const last = grid.getByRole('gridcell').locator('button').last();
+  const box = await last.boundingBox();
+  if (!box) throw new Error('у последнего дня календаря нет рамки — он не нарисован');
+  const covered = await page.evaluate(([x, y]) => {
+    const hit = document.elementFromPoint(x, y);
+    return hit?.closest('[data-radix-popper-content-wrapper]') ? null : (hit?.outerHTML.slice(0, 160) ?? 'за экраном');
+  }, [box.x + box.width / 2, box.y + box.height / 2]);
+  if (covered) throw new Error(`последний день календаря не виден — в его точке: ${covered}`);
+
+  const day = (await last.innerText()).trim().padStart(2, '0');
+  await last.click();
+  await grid.waitFor({ state: 'hidden', timeout: 5_000 });
+  const shown = await dialog.getByPlaceholder('ДД').inputValue();
+  if (shown !== day) throw new Error(`щелчок по ${day} не дошёл до поля: в нём «${shown}»`);
+  if (!(await dialog.isVisible())) throw new Error('щелчок по дню закрыл окно оплаты');
+
+  // Выход — без записи. Дата теперь не та, что была при открытии, и окно спросит «Закрыть без
+  // сохранения?» — кроме дня, когда последний день сетки и есть сегодняшний.
+  await dialog.getByRole('button', { name: 'Отмена' }).click();
+  const question = dialog.getByText('Закрыть без сохранения?');
+  await question.waitFor({ timeout: 2_000 }).then(
+    () => question.locator('xpath=..').getByRole('button', { name: 'Закрыть', exact: true }).click(),
+    () => {});
+  await dialog.waitFor({ state: 'hidden', timeout: 5_000 });
+}
+
+await check('payment-date-calendar-not-clipped', lastDayIsReachable);
+// Телефон: окно во весь экран, календарь обязан поместиться и там.
+await check('payment-date-calendar-not-clipped-phone', async () => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  try { await lastDayIsReachable(); } finally { await page.setViewportSize({ width: 1500, height: 1000 }); }
 });
 
 // ── Данные: один счёт оплачен ДО закрытия (его запрёт), второй оплатим ПОСЛЕ (его перенесёт) ───────

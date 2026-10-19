@@ -50,11 +50,6 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
   const [typed, setTyped] = useState<{ d: string; m: string; y: string } | null>(null);
   const [focused, setFocused] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const anchorRef = useRef<HTMLDivElement>(null);
-  // Контейнер портала календаря: если поле внутри нашей модалки (Radix Dialog) — портируем В неё,
-  // чтобы поповер жил ВНУТРИ её focus-scope (иначе trap модалки выдёргивает фокус, клавиатура мертва).
-  // Вне модалки — обычный портал в body (undefined). Считаем при открытии (issue #338).
-  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
   const showMonth = precision !== 'year';
   const showDay = precision === 'day';
@@ -183,7 +178,7 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
   }
 
   const segments = (
-    <div ref={anchorRef} className={`flex items-center group ${className}`} onKeyDown={onContainerKey}>
+    <div className={`flex items-center group ${className}`} onKeyDown={onContainerKey}>
       {showDay && (
         <>
           <input
@@ -244,16 +239,16 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
 
   if (!showCalendar) return segments;
 
-  function handleOpenChange(o: boolean) {
-    if (o) setPortalContainer((anchorRef.current?.closest('[role="dialog"]') as HTMLElement) ?? null);
-    setPickerOpen(o);
-  }
-
+  // Календарь — слой над окном, как Select и меню: портал в body (issue #1521, docs/UI.md «Слои над
+  // окном»). Внутри окна его резали бы `overflow-hidden` и `transform` окна, а разворот вверх не
+  // спасал бы: место Radix считает по экрану. Раньше портировали ВНУТРЬ окна (#338) — это обходило
+  // дубль слоёв Radix (свои копии focus-scope и dismissable-layer у popover), которого больше нет:
+  // единственную копию сторожит `scripts/radix-single-copy.test.mjs`.
   return (
-    <Popover.Root open={pickerOpen} onOpenChange={handleOpenChange}>
+    <Popover.Root open={pickerOpen} onOpenChange={setPickerOpen}>
       <Popover.Anchor asChild>{segments}</Popover.Anchor>
-      <Popover.Portal container={portalContainer ?? undefined}>
-        <Popover.Content align="start" sideOffset={6}
+      <Popover.Portal>
+        <Popover.Content align="start" sideOffset={6} collisionPadding={8}
           className="z-50 rounded-2xl bg-surface border border-stroke focus:outline-none"
           style={{ boxShadow: 'var(--f-shadow16)' }}>
           <Calendar value={value} precision={precision}
