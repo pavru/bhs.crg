@@ -198,6 +198,32 @@ public class InvoiceReadinessTests(InvoiceLineHost host) : InvoiceLineTestBase(h
         Assert.Contains("НДС указан не у всех строк — у строки 2 его нет", await response.Content.ReadAsStringAsync());
     }
 
+    /// <summary>
+    /// Правка строк разобранного счёта обходом перехода не служит (ревью PR #1524): НДС, вписанный одной строке
+    /// из молчавших, возвращает счёт в черновик — как строка без позиции и несошедшаяся разноска.
+    /// </summary>
+    [Fact]
+    public async Task Правка_строк_с_НДС_у_части_возвращает_разобранный_в_черновик()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client, complete: true);
+        var view = await AllocatedLinesAsync(client, invoice,
+        [
+            Line(cable, quantity: 1, price: 100m),
+            Line(cable, quantity: 2, price: 50m),
+        ]);
+        await OkAsync(await client.PostAsync($"/api/costs/invoices/{invoice}/parsed", null));
+
+        view = await LinesAsync(client, invoice,
+        [
+            Line(cable, quantity: 1, price: 100m, rate: 20, id: LineId(view, 1)),
+            Line(cable, quantity: 2, price: 50m, id: LineId(view, 2)),
+        ]);
+
+        Assert.Equal("Черновик", view.GetProperty("requisites").GetProperty("Состояние").GetString());
+        Assert.Contains("vat", Kinds(view.GetProperty("readiness").GetProperty("gaps").EnumerateArray()));
+    }
+
     [Fact]
     public async Task НДС_ни_у_одной_строки_разобрать_можно()
     {

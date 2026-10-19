@@ -137,7 +137,7 @@ public sealed class InvoiceReadiness
                 conflict: false,
                 new InvoiceReadinessGap("nomenclature", $"{Counted(unmatched.Count)} без позиции", Lines: unmatched));
 
-        var unnamed = VatUnnamed(lines);
+        var unnamed = VatUnnamed(invoice.VatMode, lines);
         if (unnamed.Count > 0)
             Add($"{label}: НДС указан не у всех строк — у {Genitive(unnamed)} его нет. Счёт берёт НДС либо из " +
                 "строк, либо из шапки, а при НДС у части строк отчёт о затратах учёл бы строки без НДС полной " +
@@ -340,13 +340,14 @@ public sealed class InvoiceReadiness
     /// исправление не вправе его добавить (<see cref="InvoiceCorrectionCheck" />). Сохранение не запрещено:
     /// черновик доводят строку за строкой.
     ///
-    /// <para>Строка без суммы не в счёт: денег у неё нет, и чинится она ценой. «Без НДС» — сумма НДС ноль,
-    /// то есть названа. При НДС сверху пункт не возникает: строка без НДС там без суммы с НДС — это
-    /// пункт «нет ставки».</para>
+    /// <para>Строки — те же, что сверка под строками называет «у N строк не указан»
+    /// (<see cref="InvoiceLineTotals" />): иначе на одном экране было бы два разных счёта. «Назван» — тем
+    /// же признаком, что у отчёта (<see cref="LineVat.Named" />). При НДС сверху пункта нет: строка без НДС
+    /// там без суммы с НДС, и о ней говорит пункт «нет ставки».</para>
     /// </summary>
-    internal static IReadOnlyList<int> VatUnnamed(IReadOnlyList<InvoiceLine> lines) =>
-        lines.Any(l => l.VatAmount is not null)
-            ? [.. lines.Where(l => l.Amount is not null && l.VatAmount is null).Select(l => l.Ordinal)]
+    internal static IReadOnlyList<int> VatUnnamed(VatMode mode, IReadOnlyList<InvoiceLine> lines) =>
+        mode == VatMode.Included && lines.Any(l => LineVat.Named(l.VatAmount))
+            ? [.. lines.Where(l => !LineVat.Named(l.VatAmount)).Select(l => l.Ordinal)]
             : [];
 
     /// <summary>

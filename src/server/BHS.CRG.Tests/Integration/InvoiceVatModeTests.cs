@@ -169,6 +169,8 @@ public class InvoiceVatModeTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         var gaps = view.GetProperty("readiness").GetProperty("gaps").EnumerateArray().ToList();
         var rate = Assert.Single(gaps, g => g.GetProperty("kind").GetString() == "rate");
         Assert.Equal([2], rate.GetProperty("lines").EnumerateArray().Select(n => n.GetInt32()));
+        // Пункт «НДС у части строк» (issue #1445) сверху не повторяет «нет ставки»: причина одна.
+        Assert.DoesNotContain(gaps, g => g.GetProperty("kind").GetString() == "vat");
         Assert.True(gaps.FindIndex(g => g.GetProperty("kind").GetString() == "rate")
                     < gaps.FindIndex(g => g.GetProperty("kind").GetString() is "allocation" or "total"));
 

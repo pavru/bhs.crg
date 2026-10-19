@@ -90,7 +90,7 @@ public static class InvoiceBookPosting
             PaymentPosting.Balance(lines.Select(Endpoints.InvoiceAllocations.Line), parts, head.Total, tolerance),
             head.Total, parts, head.RemainderOn);
         var invoice = new CostInvoice(id, head.Supplier, head.Total, head.Vat,
-            lines.Any(l => l.NomenclatureId is null), lines.Any(l => l.VatAmount is not null), money);
+            lines.Any(l => l.NomenclatureId is null), lines.Any(l => LineVat.Named(l.VatAmount)), money);
         return Grains(invoice, lines.ToDictionary(l => l.Id, l => new LineVat(l.Amount, l.VatAmount)));
     }
 

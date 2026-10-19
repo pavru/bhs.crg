@@ -66,7 +66,16 @@ public sealed record CostInvoice(
 public sealed record CostMoney(Guid Invoice, bool Unmatched, Grain Grain);
 
 /// <summary>НДС строки счёта: сумма строки и сколько в ней НДС.</summary>
-public sealed record LineVat(decimal? Amount, decimal? VatAmount);
+public sealed record LineVat(decimal? Amount, decimal? VatAmount)
+{
+    /// <summary>
+    /// Назван ли НДС строки — один признак на отчёт (<see cref="CostInvoice.VatByLines" />), книгу и
+    /// готовность к «Разобран» (issue #1445). Готовность обещает, что разобранный счёт отчёт не увидит с
+    /// НДС у части строк, и обещание держится, только пока «назван» у них одно. «Без НДС» — ноль, то есть
+    /// назван.
+    /// </summary>
+    public static bool Named(decimal? vatAmount) => vatAmount is not null;
+}
 
 /// <summary>Затраты за период — посчитанные; названий здесь нет, их даёт вызывающий.</summary>
 /// <param name="Sites">По стройкам — на экране «Все стройки»; на экране стройки пусто.</param>
