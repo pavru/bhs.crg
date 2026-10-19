@@ -150,11 +150,36 @@ public class ModuleNeedsTests
     }
 
     /// <summary>
-    /// Настоящее объявление модуля счетов проходит проверку — и называет ровно то, что его код читает:
-    /// два справочника и два поля организаций.
+    /// Необязательное поле, которого нет, журнал не засоряет: его не ставит обновление, и строка на
+    /// каждом старте каждой установки читалась бы как неудавшийся перенос (ревью PR #1525). А размеченное
+    /// неверно — называется: разметку поставил человек, и она молча не работает.
     /// </summary>
     [Fact]
-    public void Объявление_модуля_счетов_годно_и_называет_четыре_потребности()
+    public void Необязательное_поле_без_разметки_молчит_а_неверно_размеченное_названо()
+    {
+        var needs = Needs(new ModuleRoleNeed(Role, "Зачем", "Счёт не завести.",
+            [new(FunctionalTag.OrgTaxId, false, "Беднее без ИНН.")]));
+
+        DocumentType Type(string schema) => DocumentType.Create("Организация", "Организация",
+            DocumentTypeKind.Composite, null, System.Text.Json.JsonDocument.Parse(schema), TypeOwner.Core, TypeVisibility.Shared);
+
+        Assert.Empty(needs.Unmet(Tags, [Type($$"""{"tags":["{{Role}}"],"fields":[]}""")]));
+
+        var twice = Assert.Single(needs.Unmet(Tags, [Type($$"""
+            {"tags":["{{Role}}"],"fields":[
+              {"key":"ИНН","type":"string","tags":["org.inn"]},
+              {"key":"ИННСтарый","type":"string","tags":["org.inn"]}]}
+            """)]));
+        Assert.Contains("Беднее без ИНН.", twice);
+    }
+
+    /// <summary>
+    /// Настоящее объявление модуля счетов проходит проверку — и называет ровно то, что его код читает:
+    /// два справочника, два обязательных поля организаций и два НЕобязательных поля номенклатуры —
+    /// артикул и единицу для карточки позиции (issue #1512): без них выбор позиции работает, беднее.
+    /// </summary>
+    [Fact]
+    public void Объявление_модуля_счетов_годно_и_называет_свои_потребности()
     {
         var costs = new CostsModule();
         var needs = new ModuleNeeds(new ModuleRegistry([costs], []), Tags);
@@ -162,10 +187,13 @@ public class ModuleNeedsTests
         Assert.Equal(
             new[] { FunctionalTag.RoleNomenclature, FunctionalTag.RoleOrganization },
             needs.All.Select(n => n.Need.Role).Order());
+        var fields = needs.All.SelectMany(n => n.Need.Fields).ToList();
         Assert.Equal(
             new[] { FunctionalTag.OrgTaxId, FunctionalTag.OrgName }.Order(),
-            needs.All.SelectMany(n => n.Need.Fields).Select(f => f.Tag).Order());
-        Assert.All(needs.All.SelectMany(n => n.Need.Fields), f => Assert.True(f.Required));
+            fields.Where(f => f.Required).Select(f => f.Tag).Order());
+        Assert.Equal(
+            new[] { FunctionalTag.NomenclatureArticle, FunctionalTag.NomenclatureUnit },
+            fields.Where(f => !f.Required).Select(f => f.Tag).Order());
     }
 
     private static ModuleNeeds Needs(params ModuleRoleNeed[] needs) =>

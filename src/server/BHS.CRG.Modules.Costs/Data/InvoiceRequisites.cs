@@ -29,6 +29,9 @@ public static class InvoiceRequisites
     public const string DateKey = "Дата";
     public const string SupplierKey = "Поставщик";
     public const string PayerKey = "Плательщик";
+    // Основание — поле остатка схемы (Data), а не колонка: на него код не опирается. Ключ назван ради
+    // распознавания (issue #1483): «Основание» со скана ложится сюда, а не в «Назначение».
+    public const string BasisKey = "Основание";
     public const string PurposeKey = "Назначение";
     public const string TotalKey = "Итого";
     public const string VatTotalKey = "ВТомЧислеНДС";

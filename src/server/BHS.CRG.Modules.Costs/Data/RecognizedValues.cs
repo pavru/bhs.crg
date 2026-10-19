@@ -71,12 +71,24 @@ public static partial class RecognizedValues
     /// </summary>
     public static decimal? Quantity(string? text) => Number(text, maxFraction: 3);
 
-    private static decimal? Number(string? text, int maxFraction)
+    /// <summary>
+    /// Число в поле, которое заказчик дописал в тип счёта (issue #1483): что это за число, разбор не знает —
+    /// деньги, проценты или метры. Дробная часть любой длины, но «1.250» и «1,250» — НЕ число: три цифры
+    /// после единственного разделителя бывают и тысячами, и дробью, и угадать значит записать в тысячу раз
+    /// не то. Такое уходит в предложение, человек впишет сам. Разбор ядра (<c>ValueCoercion</c>) здесь не
+    /// годится нарочно: «1.250» он читает как 1,25.
+    /// </summary>
+    public static decimal? Decimal(string? text) => Number(text, maxFraction: 10, threeDigitsAmbiguous: true);
+
+    private static decimal? Number(string? text, int maxFraction, bool threeDigitsAmbiguous = false)
     {
         if (string.IsNullOrWhiteSpace(text)) return null;
 
         // Валюта и единицы в хвосте — «руб.», «₽», «р.» — и пробелы внутри числа, включая неразрывные.
         var cleaned = Tail().Replace(text.Trim(), string.Empty);
+        // Тысячи уже отделены пробелом («1 234,567») — разделитель после них дробный, гадать не о чем (ревью
+        // PR #1523). Смотреть надо ДО того, как пробелы уйдут: после «1234,567» неотличимо от «1,234».
+        var grouped = SpaceGroups().IsMatch(cleaned);
         cleaned = Spaces().Replace(cleaned, string.Empty);
         if (cleaned.Length == 0 || !Shape().IsMatch(cleaned)) return null;
 
@@ -98,6 +110,10 @@ public static partial class RecognizedValues
             // Дробный разделитель один. Второй такой же — это уже не число, которое мы берёмся читать.
             if (whole.Contains(decimalMark)) return null;
             if (fraction.Length == 0 || fraction.Length > maxFraction) return null;
+            // «0,125» — дробь при любом прочтении: тысяч с нулём впереди не пишут.
+            if (threeDigitsAmbiguous && fraction.Length == 3 && !grouped && !whole.Contains(groupMark)
+                && whole.TrimStart('-') != "0")
+                return null;
 
             if (whole.Contains(groupMark))
             {
@@ -116,6 +132,9 @@ public static partial class RecognizedValues
 
     [GeneratedRegex(@"[\s  ]+")]
     private static partial Regex Spaces();
+
+    [GeneratedRegex(@"\d[\s  ]+\d{3}(?!\d)")]
+    private static partial Regex SpaceGroups();
 
     [GeneratedRegex(@"\s*(руб(лей|ля|\.)?|р\.|₽|RUB)\s*$", RegexOptions.IgnoreCase)]
     private static partial Regex Tail();

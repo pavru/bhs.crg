@@ -11,6 +11,8 @@ namespace BHS.CRG.Application.Recognition;
 /// </summary>
 /// <param name="Owner">Код владельца: код модуля либо <see cref="RecognitionProfileCatalog.CoreOwner" />.</param>
 /// <param name="DocumentTag">Тэг документа, по которому профиль выбирается сам; null — не выбирается.</param>
+/// <param name="Targets">Куда владелец раскладывает шапку (issue #1483); null — профиль читают только
+/// наборы данных. В хеш не входит: у модели этого не спрашивают.</param>
 public sealed record RecognitionProfileDeclaration(
     string Code,
     string Name,
@@ -19,7 +21,8 @@ public sealed record RecognitionProfileDeclaration(
     IReadOnlyList<RecognitionProfileField> RowColumns,
     RecognitionTableShape? Shape,
     string Owner,
-    string? DocumentTag = null)
+    string? DocumentTag = null,
+    RecognitionTargets? Targets = null)
 {
     /// <summary>Хеш заводского содержимого — по нему сидер понимает, что дефолт ушёл вперёд, пока
     /// пользователь держит свою правку (см. <c>RecognitionProfile.BuiltInHash</c>).</summary>

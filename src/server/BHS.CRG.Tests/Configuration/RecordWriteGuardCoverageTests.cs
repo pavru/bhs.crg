@@ -55,10 +55,12 @@ public class RecordWriteGuardCoverageTests
     /// Вызов охраны: у ядра — <c>WriteGuard.EnsureAllowedAsync</c>, у модуля — метод порта
     /// <c>RefusalsAsync</c> либо обёртка над ним (отказы порт возвращает, а не бросает, и превращает
     /// их в отказ запросу модуль). По имени метода, а не переменной: порт вправе зваться как угодно.
-    /// Обёртку счёта зовут и из соседнего класса — фоновое распознавание скана (issue #1077).
+    /// Обёртку счёта зовут и из соседнего класса — фоновое распознавание скана (issue #1077). Само
+    /// распознавание охраняет шапку ПО ПОЛЯМ своей обёрткой <c>GuardedAsync</c> (issue #1483): отказанное
+    /// поле уходит в предложение, остальное ложится, — и зовёт её в условии записи.
     /// </summary>
     private static readonly Regex GuardCall = new(
-        @"WriteGuard\.EnsureAllowedAsync|\bawait\s+(InvoiceEndpoints\.)?EnsureAllowedAsync\(|\.RefusalsAsync\(",
+        @"WriteGuard\.EnsureAllowedAsync|\bawait\s+(InvoiceEndpoints\.)?EnsureAllowedAsync\(|\.RefusalsAsync\(|\bawait\s+GuardedAsync\(",
         RegexOptions.Compiled);
 
     /// <summary>Сколько строк выше места записи ищется вызов охраны.</summary>

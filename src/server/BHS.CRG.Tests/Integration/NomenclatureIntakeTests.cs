@@ -61,6 +61,12 @@ public class NomenclatureIntakeTests(InvoiceLineHost host) : InvoiceLineTestBase
         var unit = good.GetProperty("fields").EnumerateArray().Last();
         Assert.Contains(unit.GetProperty("options").EnumerateArray(), o => o.GetProperty("id").GetGuid() == kind.Unit);
         Assert.Equal(JsonValueKind.Null, good.GetProperty("fields")[0].GetProperty("options").ValueKind);
+        // Разметка артикула и единицы (issue #1512) едет в ответе: поле — своим тэгом, вид — списком
+        // сопоставленных. Справочник хоста не размечен — пусто, но ключи на месте: без них окно молча
+        // угадывало бы поля по названию и на размеченном справочнике.
+        Assert.All(good.GetProperty("fields").EnumerateArray(),
+            f => Assert.Equal(JsonValueKind.Null, f.GetProperty("tag").ValueKind));
+        Assert.Empty(good.GetProperty("mapped").EnumerateArray());
 
         // Обязательное число — свойство строки: спросить его у справочника нечем, и вид назван негодным.
         var bad = kinds.EnumerateArray().Single(k => k.GetProperty("typeId").GetGuid() == counted);

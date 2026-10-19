@@ -87,6 +87,12 @@ public sealed class ModuleNeeds
     /// <para>Зачем при старте: обновление, перенёсшее роли не до конца (тип с иным кодом, поле у
     /// подтипа помечено иначе), поднимается зелёным и молчит — об остановленном сопоставлении
     /// поставщика узнают, открыв счёт. Журнал запуска читает тот, кто обновлял (ревью PR #1317).</para>
+    ///
+    /// <para>⚠️ <b>Необязательное поле, которого нет, — не предупреждение</b> (ревью PR #1525). Его не
+    /// ставит обновление, и без него модуль работает: строка «не сопоставлено» на каждом старте каждой
+    /// установки читалась бы как неудавшийся перенос. Но необязательное поле, размеченное НЕВЕРНО (тэг
+    /// на двух полях, на поле не того вида, иначе у подтипа), называется: разметку поставил человек, и
+    /// она молча не работает.</para>
     /// </summary>
     public IReadOnlyList<string> Unmet(TagCatalog tags, IReadOnlyList<Domain.Documents.DocumentType> all)
     {
@@ -103,7 +109,9 @@ public sealed class ModuleNeeds
             foreach (var field in need.Fields)
             {
                 var tag = tags.Find(field.Tag)!;
-                if (RoleResolution.Field(role, tag, all).Describe(tag) is { } fault)
+                var found = RoleResolution.Field(role, tag, all);
+                if (!field.Required && found.Fault == RoleFieldFault.Absent) continue;
+                if (found.Describe(tag) is { } fault)
                     lines.Add($"Модуль «{module.Code}»: {fault}. {field.WithoutIt}");
             }
         }

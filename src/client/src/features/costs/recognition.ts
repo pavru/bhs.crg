@@ -5,6 +5,7 @@ import type {
 import { formatDate, formatMoney } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
 import { K, catalogRef, refEntryId } from './invoiceFields';
+import { toNumber } from './invoiceLines';
 
 /**
  * Распознавание скана на экране счетов (issue #1077) — чистая логика: что написать в строке списка,
@@ -82,10 +83,6 @@ export interface FieldOffer {
 const isPartyOffer = (offer: unknown): offer is InvoicePartyOffer =>
   typeof offer === 'object' && offer !== null && typeof (offer as InvoicePartyOffer).entryId === 'string';
 
-/** Поля, чьё прочитанное — текст и кладётся в поле как есть. У даты и суммы текст скана ещё надо
- *  разобрать, а второй разборщик на клиенте разошёлся бы с серверным. */
-const TEXT_FIELDS: readonly string[] = [K.number, K.basis, K.purpose];
-
 /**
  * Предложение для поля шапки. Источников два:
  * <ul>
@@ -107,9 +104,6 @@ const TEXT_FIELDS: readonly string[] = [K.number, K.basis, K.purpose];
 export function fieldOffer(
   key: string, view: InvoiceView, edits: Readonly<Record<string, unknown>>,
   recognition: InvoiceRecognition | undefined, names: (id: string) => string | null,
-  /** Поле — дописанное в тип текстовое (issue #1482): прочитанное кладётся в него как есть, как у
-   *  текстовых полей модуля (ревью PR #1506). */
-  extraText = false,
 ): FieldOffer | null {
   if (recognition?.state !== 'done') return null;
   const shown = key in edits ? edits[key] : view.requisites[key];
@@ -138,9 +132,23 @@ export function fieldOffer(
     };
   }
 
-  const text = typeof offer === 'string' ? offer : '';
-  if (!text || text === String(shown ?? '')) return null;
-  return TEXT_FIELDS.includes(key) || extraText ? { text: `«${text}»`, take: text } : { text: `«${text}»` };
+  // «Взять» кладёт значение, разобранное сервером по виду поля (issue #1483), — у любого поля: модуля или
+  // дописанного в тип. Второго разборщика здесь нет: он разошёлся бы с серверным на «1.250». Строка —
+  // запись до #1483, значение в ней не разобрано: только показать.
+  const text = typeof offer === 'string' ? offer : offer.text;
+  const value = typeof offer === 'string' ? undefined : offer.value;
+  if (!text) return null;
+  if (value === undefined) return text === String(shown ?? '') ? null : { text: `«${text}»` };
+  return sameValue(value, shown) ? null : { text: `«${text}»`, take: value };
+}
+
+/**
+ * Совпадает ли значение сервера с тем, что в поле. Набранное число лежит в правке строкой («1 234,5»), а
+ * сервер прислал число — сравниваются числа, тем же разбором, каким форма читает набранное (ревью PR #1523).
+ */
+function sameValue(value: unknown, shown: unknown): boolean {
+  if (typeof value === 'number' && typeof shown === 'string') return toNumber(shown) === value;
+  return same(value, shown);
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);

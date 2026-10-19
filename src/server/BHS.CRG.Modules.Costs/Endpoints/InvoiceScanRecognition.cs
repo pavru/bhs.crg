@@ -153,7 +153,7 @@ public sealed class InvoiceScanRecognition(
         return new(
             done ? "done" : "failed",
             stored.Reason, stored.Error, stored.Engine, null,
-            stored.Values?.RootElement, stored.Offers?.RootElement, stored.Lines?.RootElement, stored.Notes,
+            stored.Values?.RootElement, InvoiceScanHeader.Shown(stored.Offers?.RootElement), stored.Lines?.RootElement, stored.Notes,
             stored.StartedAt, stored.FinishedAt, whyNot is null, whyNot,
             // Стороны сопоставляются СЕЙЧАС, а не хранятся: организацию могли завести или отправить в
             // архив уже после распознавания. Только у черновика: разобранному счёту выбирать сторону
