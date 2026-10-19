@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compare, countViolations } from './ui-ratchet-lib.mjs';
+import { compare, countViolations, dirsToScan, scopeNote, RULES, ROOT } from './ui-ratchet-lib.mjs';
 
 // Храповик интерфейса (issue #1349): что считается нарушением и как сравнивается с уровнем.
 describe('храповик интерфейса: счёт', () => {
@@ -163,6 +163,44 @@ describe('храповик интерфейса: счёт', () => {
     ].join('\n'), { dir: 'shared' })).toEqual({});
   });
 
+  it('нативное поле даты: литерал, выражение и TextField — по одному на поле', () => {
+    const text = [
+      '<input type="date" /> <input\n  onChange={e => go(e)}\n  type="month">',
+      "<input type={typed && kind === 'date' ? 'date' : 'text'} />",
+      '<input type={`datetime-local`} /> <TextField type="time" label="Время" /> <input type="week" />',
+    ].join('\n');
+    expect(countViolations(text)).toEqual({ 'native-date': 6 });
+  });
+
+  it('нативное поле даты считается в любом каталоге src/ и в его корне', () => {
+    for (const dir of ['shared', 'app', ROOT])
+      expect(countViolations('<input type="date" />', { dir })).toEqual({ 'native-date': 1 });
+  });
+
+  it('текстовое поле, чужой type и «date» вне type полем даты не считаются', () => {
+    expect(countViolations([
+      '<input type="text" placeholder="date" /> <input type="number" />',
+      "<Field type=\"date\" /> <PrimitiveInput type={'date'} /> <input data-type=\"date\" />",
+      "{field.type === 'date' && <input type=\"text\" />}",
+    ].join('\n'), { dir: 'shared' })).toEqual({});
+  });
+
+  it('литерал из условия в type не считается — только то, чем type может стать', () => {
+    expect(countViolations([
+      "<input type={kind === 'date' ? 'text' : 'number'} />",
+      "<input type={(kind === 'time' || kind === 'week') && 'text'} />",
+    ].join('\n'))).toEqual({});
+    expect(countViolations([
+      "<input type={(on && 'month') || 'text'} />",
+      "<input type={override ?? 'time'} />",
+    ].join('\n'))).toEqual({ 'native-date': 2 });
+  });
+
+  it('TextField под другим именем при импорте — тоже поле', () => {
+    const text = "import { TextField as Input, Select } from '@/shared/ui/TextField';\n<Input type=\"date\" /> <Select type=\"date\" />";
+    expect(countViolations(text)).toEqual({ 'native-date': 1 });
+  });
+
   it('в shared/ считаются только правила, которые его смотрят (dirs)', () => {
     const text = '<table /> <select /> <button className="bg-danger text-white">x</button>';
     expect(countViolations(text, { dir: 'shared' })).toEqual({ 'white-on-fill': 1 });
@@ -172,6 +210,25 @@ describe('храповик интерфейса: счёт', () => {
   it('токены и чёрно-белые слои палитрой не считаются', () => {
     expect(countViolations('bg-brand-subtle text-tertiary border-danger/30 bg-black/40 hover:bg-white/10 text-fg2'))
       .toEqual({});
+  });
+});
+
+describe('храповик интерфейса: какие каталоги обходить', () => {
+  const top = ['assets', 'features', 'shared', 'widgets'];
+
+  it('правило со всем src/ добавляет корень и каждый каталог с диска, и новый тоже', () => {
+    expect(dirsToScan([{ id: 'a' }, { id: 'b', everywhere: true }], top)).toEqual([ROOT, ...top]);
+  });
+
+  it('без него — только названные правилами каталоги, без повторов', () => {
+    expect(dirsToScan([{ id: 'a' }, { id: 'b', dirs: ['features', 'shared'] }], top)).toEqual(['features', 'shared']);
+  });
+
+  it('настоящие правила обходят весь src/: native-date смотрит его целиком', () => {
+    expect(dirsToScan(RULES, top)).toEqual([ROOT, ...top]);
+    expect(scopeNote(RULES.find(r => r.id === 'native-date'))).toBe('native-date — весь src/');
+    expect(scopeNote(RULES.find(r => r.id === 'white-on-fill'))).toBe('white-on-fill — ещё в shared/');
+    expect(scopeNote(RULES.find(r => r.id === 'table'))).toBeNull();
   });
 });
 
