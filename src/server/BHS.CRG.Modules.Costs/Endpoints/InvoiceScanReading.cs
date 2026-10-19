@@ -76,7 +76,7 @@ public sealed class InvoiceScanReading(
         }
 
         ModuleRecognitionResult read;
-        (string Label, int Filled, int Lines, int Recalled) merged;
+        (string Label, int Filled, int Lines, int Recalled, VatMode? ModeSet) merged;
         try
         {
             var invoice = await db.Invoices.AsNoTracking().FirstOrDefaultAsync(i => i.Id == invoiceId, ct);
@@ -140,6 +140,9 @@ public sealed class InvoiceScanReading(
             await log.RecordAsync(InvoiceActions.Recognized, invoiceId.ToString(), merged.Label,
                 after: $"полей: {merged.Filled}, строк: {merged.Lines}"
                     + (merged.Recalled > 0 ? $", из них с позицией из запомненного: {merged.Recalled}" : string.Empty)
+                    // Режим, поставленный распознаванием, — тем же словом, что у правки строк (ревью PR #1509):
+                    // иначе журнал не знал бы, откуда у счёта «сверху», которого никто не отмечал.
+                    + (merged.ModeSet is { } set ? $"; НДС: {VatModes.Shown(set)}" : string.Empty)
                     + (read.Engine is { } engine ? $"; {engine}" : string.Empty),
                 ct: ct);
         }
@@ -159,7 +162,7 @@ public sealed class InvoiceScanReading(
     /// посреди слияния, ждёт его, а не перебивает: форма, открытая до исхода, получает «тем временем
     /// изменили». Повтор остаётся последней дверью — для записи, которая прошла бы мимо блокировки.</para>
     /// </summary>
-    private async Task<(string Label, int Filled, int Lines, int Recalled)> MergeAsync(
+    private async Task<(string Label, int Filled, int Lines, int Recalled, VatMode? ModeSet)> MergeAsync(
         Guid invoiceId, string? scanBlobPath, ModuleRecognitionResult read, InvoicePartiesView matched,
         ScanLines lines, string? readImage, CancellationToken ct)
     {
@@ -178,7 +181,8 @@ public sealed class InvoiceScanReading(
                     var stored = await db.InvoiceRecognitions.FirstAsync(r => r.InvoiceId == invoiceId, ct);
                     var applied = await ApplyAsync(write.Invoice, stored, read, matched, lines, readImage, rule, ct);
                     await db.SaveChangesAsync(ct);
-                    return (InvoiceEndpoints.Label(write.Invoice), applied.Filled, applied.Lines, applied.Recalled);
+                    return (InvoiceEndpoints.Label(write.Invoice), applied.Filled, applied.Lines, applied.Recalled,
+                        applied.ModeSet);
                 }, ct);
             }
             catch (ConflictException lost) when (lost.InnerException is DbUpdateConcurrencyException && attempt < MergeAttempts)
@@ -195,7 +199,7 @@ public sealed class InvoiceScanReading(
     /// <param name="VatNote">НДС строк снят, потому что прочитан не у всех (issue #1410), — почему.</param>
     /// <param name="StrayNote">Прочитанное, что в поля строк не легло, — по колонкам (issue #1480).</param>
     private sealed record ScanLines(
-        IReadOnlyList<InvoiceLineValues> Rows, IReadOnlyDictionary<Guid, RecallAnswer> Recalled, bool RecallFailed,
+        IReadOnlyList<InvoiceScanLines.ScanLine> Rows, IReadOnlyDictionary<Guid, RecallAnswer> Recalled, bool RecallFailed,
         string? VatNote, string? StrayNote);
 
     /// <summary>
@@ -221,8 +225,10 @@ public sealed class InvoiceScanReading(
 
         try
         {
+            // Запомненное узнаёт строку по наименованию и артикулу — режим НДС ему не нужен.
+            var keys = rows.Select(r => r.Values).ToList();
             foreach (var supplier in new[] { invoice.SupplierId, matched.Supplier?.Match }.OfType<Guid>().Distinct())
-                recalled[supplier] = await SupplierMatching.RecallAsync(db, catalog, supplier, rows, ct);
+                recalled[supplier] = await SupplierMatching.RecallAsync(db, catalog, supplier, keys, ct);
             return new(rows, recalled, false, vatNote, strayNote);
         }
         catch (Exception failure) when (failure is not OperationCanceledException)
@@ -301,10 +307,12 @@ public sealed class InvoiceScanReading(
     }
 
     /// <summary>Шапка — в пустые поля, строки — в счёт без строк; остальное — предложением.</summary>
-    private async Task<(int Filled, int Lines, int Recalled)> ApplyAsync(
+    /// <returns><c>ModeSet</c> — режим НДС, который поставило распознавание; <c>null</c> — не меняло.</returns>
+    private async Task<(int Filled, int Lines, int Recalled, VatMode? ModeSet)> ApplyAsync(
         Invoice invoice, InvoiceRecognition stored, ModuleRecognitionResult read, InvoicePartiesView matched,
         ScanLines lines, string? readImage, InvoiceDueRule rule, CancellationToken ct)
     {
+        var modeBefore = invoice.VatMode;
         var before = InvoiceRequisites.Merge(invoice);
         var after = before.DeepClone().AsObject();
         var filled = new List<string>();
@@ -422,16 +430,15 @@ public sealed class InvoiceScanReading(
                 offeredLines = JsonSerializer.SerializeToDocument(read.Rows);
                 notes.Add($"Распознано строк: {rows.Count}. У счёта уже есть свои строки — распознанные не добавлены.");
             }
-            else if (invoice.VatMode == VatMode.OnTop)
+            else if (await ModeAsync(invoice, read, rows, notes, ct) is not { } mode)
             {
-                // Режим «сверху» поставил человек, а распознавание пока читает строки «в том числе» (issue
-                // #1497; режим со скана — #1501): положи мы их, НДС у каждой строки был бы посчитан не по
-                // той формуле. Режим человека распознавание не перезаписывает — строки предлагаются, как
-                // строки счёта, у которого свои уже есть.
+                // Человек отметил «сверху», а бумага сходится «в том числе»: положить её строки сверху значило
+                // бы прибавить НДС к суммам, где он уже есть. Режим человека распознавание не перезаписывает
+                // (issue #1501) — строки предлагаются, как строки счёта, у которого свои уже есть.
                 offeredLines = JsonSerializer.SerializeToDocument(read.Rows);
-                notes.Add($"Распознано строк: {rows.Count}. У счёта стоит «НДС сверху», а распознавание пока " +
-                          "читает строки с НДС «в том числе» — распознанные не добавлены. Введите строки вручную " +
-                          "или снимите режим и распознайте заново.");
+                notes.Add($"Распознано строк: {rows.Count}. В файле суммы строк уже с НДС и сходятся с суммой к " +
+                          "оплате, а у счёта отмечено «Цены без НДС, НДС сверху» — распознанные не добавлены. " +
+                          "Снимите отметку над строками и распознайте файл заново или введите строки вручную.");
             }
             else
             {
@@ -441,14 +448,18 @@ public sealed class InvoiceScanReading(
                 // этим же сканом. Строки ложатся с пометкой «запомнено» — той же, что ставит форма.
                 // Сам вопрос задан до замка (LinesAsync); здесь — только выбор ответа по поставщику.
                 var answer = invoice.SupplierId is { } supplier ? lines.Recalled.GetValueOrDefault(supplier) : null;
+                // Досчёт — после режима (issue #1501): «в том числе» и сверху считают НДС от суммы по-разному.
+                var completed = InvoiceScanLines.Complete(rows, mode,
+                    RecognizedValues.VatRate(read.Fields.GetValueOrDefault(CostsRecognitionProfiles.DocumentVatRate)));
+                if (completed.RateNote is { } rateNote) notes.Add(rateNote);
 
-                foreach (var (values, index) in rows.Select((values, index) => (values, index)))
+                foreach (var (values, index) in completed.Lines.Select((values, index) => (values, index)))
                 {
                     var known = answer?.Lines[index];
                     var line = InvoiceLine.Create(invoice.Id);
                     line.Apply(index + 1, CompletedLine.Scanned(known is null
                         ? values
-                        : values with { NomenclatureId = known.Position, MatchedBy = known.Match }));
+                        : values with { NomenclatureId = known.Position, MatchedBy = known.Match }, mode));
                     db.InvoiceLines.Add(line);
                     if (known is not null) recalled++;
                 }
@@ -474,7 +485,54 @@ public sealed class InvoiceScanReading(
             offers.Count > 0 ? JsonDocument.Parse(offers.ToJsonString()) : null,
             offeredLines, notes, readImage);
 
-        return (filled.Count, added, recalled);
+        return (filled.Count, added, recalled, invoice.VatMode != modeBefore ? invoice.VatMode : null);
+    }
+
+    /// <summary>
+    /// В каком режиме лягут строки скана (issue #1501) — после слияния шапки: сумма к оплате и НДС уже те,
+    /// что стоят в счёте (прочитанные в пустые поля или вписанные человеком с той же бумаги).
+    ///
+    /// <para><b>Режим человека не перезаписывается.</b> «Задавал» — значит, у счёта стоит «сверху»:
+    /// «в том числе» — умолчание, и у счёта без строк (а строки скана ложатся только в такой) оно ничего
+    /// человеческого не значит (разбор Архитектора, §5.1). Стоит «сверху», а бумага сходится «в том числе»
+    /// — <c>null</c>: строки не кладутся.</para>
+    ///
+    /// <para>Сверху, найденное распознаванием, помечается «распознано, не подтверждено»
+    /// (<see cref="VatModes.Mark" />) и объясняется в примечаниях — прочитанными числами, чтобы «Верно»
+    /// нажимали, сверив с файлом.</para>
+    ///
+    /// <para>Не определилось — ложится «в том числе», как до #1501, и МОЛЧА (ревью PR #1509). Строки не
+    /// сходятся с суммой к оплате и у счёта со скидкой, доставкой или пропущенной строкой — замечание «если
+    /// цены без НДС, отметьте» стояло бы почти на каждом таком скане, и его перестали бы читать. Расхождение
+    /// и так видно в сверке под строками, а «похоже, цены без НДС» она говорит сама — по арифметике
+    /// (issue #1500), только там, где это правда похоже.</para>
+    /// </summary>
+    private async Task<VatMode?> ModeAsync(
+        Invoice invoice, ModuleRecognitionResult read, IReadOnlyList<InvoiceScanLines.ScanLine> rows,
+        List<string> notes, CancellationToken ct)
+    {
+        var tolerance = await desk.ToleranceAsync(ct);
+        var subtotal = read.Fields.GetValueOrDefault(CostsRecognitionProfiles.Subtotal) is { } text
+            ? RecognizedValues.Money(text)
+            : null;
+        var found = InvoiceScanLines.ModeOf(rows, invoice.VatTotal, invoice.Total, subtotal, tolerance);
+
+        if (invoice.VatMode == VatMode.OnTop) return found == VatMode.Included ? null : VatMode.OnTop;
+
+        if (found == VatMode.OnTop)
+        {
+            invoice.ChangeVatMode(VatMode.OnTop);
+            invoice.AddUnconfirmed([VatModes.Mark]);
+            // Только прочитанное: «+ НДС = к оплате» с НДС, выведенным вычитанием, сходилось бы всегда и не
+            // доказывало бы ничего. ModeOf «сверху» без суммы к оплате и сумм строк не отвечает.
+            var paper = rows.Sum(r => r.Values.Amount!.Value);
+            notes.Add($"Цены в строках файла без НДС, НДС начислен сверху: сумма строк {CostsValues.Shown(paper)}" +
+                      (invoice.VatTotal is { } vat ? $", НДС {CostsValues.Shown(vat)}" : "") +
+                      (subtotal is { } net ? $", итого без НДС {CostsValues.Shown(net)}" : "") +
+                      $", к оплате {CostsValues.Shown(invoice.Total!.Value)} — отмечено «Цены без НДС, НДС сверху». " +
+                      "Сверьте с файлом и нажмите «Верно» у отметки над строками.");
+        }
+        return invoice.VatMode;
     }
 
     private static bool IsBlank(JsonNode? node) =>

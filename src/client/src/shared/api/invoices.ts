@@ -218,6 +218,12 @@ export interface InvoiceLineTotals {
   vat: number;
   /** Сколько строк без НДС (issue #1409): равно `count` — «не указан», а не ноль. */
   vatMissing: number;
+  /** Режим НДС, по которому сложены итоги (issue #1497). Старый сервер поля не присылает. */
+  mode?: VatMode;
+  /** Сумма строк без НДС из бумаги — только при НДС сверху, иначе `null`. Старый сервер поля не присылает. */
+  net?: number | null;
+  /** Откуда НДС счёта: у всех строк — `lines`, иначе из шапки — `requisites`; нет нигде — `null`. */
+  vatFrom?: 'lines' | 'requisites' | null;
 }
 
 /**

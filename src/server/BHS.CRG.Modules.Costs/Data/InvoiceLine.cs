@@ -214,17 +214,20 @@ public sealed record CompletedLine
     public InvoiceLineValues Values { get; }
 
     /// <summary>
-    /// Строка скана — досчитанная самим распознаванием, ВЫБОРОЧНО (<c>InvoiceScanLines</c>): графа
-    /// стояла в бумаге и не прочиталась — её сумма остаётся пустой, а не посчитанной. Общий
-    /// <see cref="InvoiceLineValues.Completed" /> досчитал бы её, и посчитанное выглядело бы прочитанным.
-    ///
-    /// <para>⚠️ Только «в том числе»: строки скана ложатся только в такой счёт, пока режим со скана не
-    /// умеет распознавание (issue #1501).</para>
+    /// Строка скана — досчитанная самим распознаванием, ВЫБОРОЧНО и по режиму счёта
+    /// (<c>InvoiceScanLines.Complete</c>, issue #1501): графа стояла в бумаге и не прочиталась — её сумма
+    /// остаётся пустой, а не посчитанной. Общий <see cref="InvoiceLineValues.Completed" /> досчитал бы её,
+    /// и посчитанное выглядело бы прочитанным.
     /// </summary>
-    internal static CompletedLine Scanned(InvoiceLineValues included) => included.NetAmount is null
-        ? new(included)
-        : throw new ArgumentException("Строка скана с суммой без НДС: распознавание читает строки только «в том числе».",
-            nameof(included));
+    /// <param name="values">Досчитанная строка в режиме счёта, в который она ляжет: при «в том числе»
+    /// <see cref="InvoiceLineValues.NetAmount" /> пуст, сверху — бумажная сумма там, а
+    /// <see cref="InvoiceLineValues.Amount" /> — с НДС.</param>
+    /// <param name="mode">Режим счёта. ⚠️ Строка чужого режима — отказ: она легла бы с суммой без НДС,
+    /// выданной за сумму с НДС, или наоборот.</param>
+    internal static CompletedLine Scanned(InvoiceLineValues values, VatMode mode) =>
+        mode == VatMode.OnTop || values.NetAmount is null
+            ? new(values)
+            : throw new ArgumentException("Строка скана с суммой без НДС в счёт «в том числе».", nameof(values));
 }
 
 /// <summary>

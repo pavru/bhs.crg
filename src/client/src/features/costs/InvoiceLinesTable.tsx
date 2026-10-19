@@ -5,8 +5,10 @@ import { Checkbox } from '@/shared/ui/Checkbox';
 import { EditGrid } from '@/shared/ui/EditGrid';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { useToast } from '@/shared/ui/Toast';
-import { useInvoiceState, useReplaceInvoiceLines, type InvoiceView, type VatMode } from '@/shared/api/invoices';
-import { K, PARSED, REJECTED, refEntryId } from './invoiceFields';
+import {
+  useConfirmInvoiceFields, useInvoiceState, useReplaceInvoiceLines, type InvoiceView, type VatMode,
+} from '@/shared/api/invoices';
+import { K, PARSED, REJECTED, UNCONFIRMED_HINT, VAT_MODE_MARK, refEntryId } from './invoiceFields';
 import { askMatchSuggestions, useLaidMatchSuggestions } from '@/shared/api/supplierMatches';
 import { apiError } from '@/shared/utils/apiError';
 import { SupplierMatchNote } from './SupplierMatchNote';
@@ -18,7 +20,7 @@ import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import { formatMoney } from '@/shared/format/format';
 import { emptyDraft, toDrafts, toPayload, totals, type LineDraft } from './invoiceLines';
 import {
-  modeConsequences, modeHint, reconcile, savedExplains, vatModeOf, withMode, type Reconciliation,
+  modeConsequences, modeHint, modeProof, reconcile, savedExplains, vatModeOf, withMode, type Reconciliation,
 } from './invoiceVat';
 import { InvoiceLinesPaste } from './InvoiceLinesPaste';
 import { AllocationSummary } from './LineAllocation';
@@ -122,7 +124,16 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
 
   const replace = useReplaceInvoiceLines();
   const state = useInvoiceState();
+  const confirm = useConfirmInvoiceFields();
   const toast = useToast();
+
+  // Режим поставило распознавание (issue #1501): флажок в рамке, рядом — числа и «Верно». Переключил
+  // человек — метка гаснет сразу, как у поля шапки, не дожидаясь сохранения.
+  const modeMarked = !still && !correcting && mode === savedMode && view.unconfirmed.includes(VAT_MODE_MARK);
+  async function confirmMode() {
+    try { await confirm.mutateAsync({ id: view.id, seen: view.version, fields: [VAT_MODE_MARK] }); }
+    catch (e) { toast.apiError(e, 'Метка не снята'); }
+  }
 
   // Запомненное (C3, issue #1079). Поставщик — тот, что СОХРАНЁН в шапке: строки пишутся отдельно от
   // неё, и сервер сверяет пометку с поставщиком, который лежит в счёте.
@@ -302,8 +313,10 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
         {still
           ? mode === 'OnTop' && <StatusBadge tone="quiet">цены без НДС, НДС сверху</StatusBadge>
           : (
-            <Checkbox ref={modeBox} size="sm" label="Цены без НДС, НДС сверху" checked={mode === 'OnTop'}
-              onChange={on => switchMode(on ? 'OnTop' : 'Included')} />
+            <span className={modeMarked ? 'rounded-md ring-1 ring-warning-border px-1.5 py-0.5' : undefined}>
+              <Checkbox ref={modeBox} size="sm" label="Цены без НДС, НДС сверху" checked={mode === 'OnTop'}
+                onChange={on => switchMode(on ? 'OnTop' : 'Included')} />
+            </span>
           )}
         <div className="flex-1" />
         {!still && (
@@ -318,6 +331,19 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
           </>
         )}
       </div>
+
+      {/* Метка — текстом, а не одной рамкой: цвет не может быть единственным носителем смысла. */}
+      {modeMarked && (
+        <div className="flex items-center gap-2 flex-wrap text-xs text-warning" data-testid="vat-mode-recognized">
+          <span>
+            {UNCONFIRMED_HINT} ·{' '}
+            {/* Итоги сохранённого — серверные: метка о сохранённом, и пересчитывать их здесь незачем. */}
+            {modeProof(view.totals, view.requisites[K.vat],
+              view.requisites[K.total], formatMoney)}
+          </span>
+          <Button size="sm" variant="text" loading={confirm.isPending} onClick={confirmMode}>Верно</Button>
+        </div>
+      )}
 
       {mode !== savedMode && view.lines.length > 0 && (
         <p className="text-xs text-warning">{modeConsequences(view, drafts, parsed)}</p>

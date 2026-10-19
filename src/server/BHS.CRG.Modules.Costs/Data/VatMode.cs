@@ -31,6 +31,14 @@ public enum VatMode
 public static class VatModes
 {
     public static string Shown(VatMode mode) => mode == VatMode.OnTop ? "сверху" : "в том числе";
+
+    /// <summary>
+    /// Метка «распознано, не подтверждено» у режима (issue #1501) — в том же перечне, что метки полей шапки
+    /// (<see cref="Invoice.Unconfirmed" />). Ставит её распознавание, поставившее «сверху»; снимает смена
+    /// режима человеком (запись строк) или «Верно» у флажка (адрес «/confirmed»). Не ключ реквизита — такого
+    /// поля в схеме нет и быть не может (режим — колонка, CORE-15).
+    /// </summary>
+    public const string Mark = "vatMode";
 }
 
 /// <summary>

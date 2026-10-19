@@ -1,4 +1,4 @@
-import type { InvoiceView, VatMode } from '@/shared/api/invoices';
+import type { InvoiceLineTotals, InvoiceView, VatMode } from '@/shared/api/invoices';
 import { lines, mismatch, money, toNumber, vatCaption, type LineDraft, type LineTotals } from './invoiceLines';
 
 /**
@@ -124,6 +124,25 @@ export function modeConsequences(view: InvoiceView, drafts: readonly LineDraft[]
     parts.push(`разноска суммой у ${bySum.length === 1 ? 'строки' : 'строк'} ${bySum.join(', ')} разойдётся — проверьте её после сохранения`);
   const text = parts.join(', ');
   return parsed && allocated.length > 0 ? `${text}. Если разноска не сойдётся, счёт вернётся в черновик.` : `${text}.`;
+}
+
+/**
+ * Доказательство режима, поставленного распознаванием (issue #1501): «строки 1 500,00 + НДС 330,00 = к
+ * оплате 1 830,00». Числа — рядом с «Верно», чтобы его нажимали, сверив с файлом, а не наугад. НДС — у
+ * строк, когда он у каждой, иначе из шапки; «=» — только когда сходится: равенство, которого нет, было бы
+ * неправдой ровно там, где человек сверяет.
+ */
+export function modeProof(
+  sums: Pick<InvoiceLineTotals, 'count' | 'amount' | 'vat' | 'vatMissing' | 'net'>, paperVat: unknown, total: unknown,
+  format: (value: number) => string,
+): string {
+  const net = sums.net ?? sums.amount;
+  const vat = sums.count > 0 && sums.vatMissing === 0 ? sums.vat : typeof paperVat === 'number' ? paperVat : null;
+  const lines = vat === null ? `строки ${format(net)}` : `строки ${format(net)} + НДС ${format(vat)}`;
+  if (typeof total !== 'number') return lines;
+  return vat !== null && money(net + vat) === total
+    ? `${lines} = к оплате ${format(total)}`
+    : `${lines} · к оплате ${format(total)}`;
 }
 
 /** Подсказка полосы сверки (issue #1500): что сказать и какой режим предложить. */
