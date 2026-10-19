@@ -195,7 +195,7 @@ public sealed class InvoiceScanReading(
     /// <param name="VatNote">НДС строк снят, потому что прочитан не у всех (issue #1410), — почему.</param>
     /// <param name="StrayNote">Прочитанное, что в поля строк не легло, — по колонкам (issue #1480).</param>
     private sealed record ScanLines(
-        IReadOnlyList<InvoiceLineValues> Rows, IReadOnlyDictionary<Guid, RecallAnswer> Recalled, bool RecallFailed,
+        IReadOnlyList<InvoiceScanLines.ScanLine> Rows, IReadOnlyDictionary<Guid, RecallAnswer> Recalled, bool RecallFailed,
         string? VatNote, string? StrayNote);
 
     /// <summary>
@@ -221,8 +221,10 @@ public sealed class InvoiceScanReading(
 
         try
         {
+            // Запомненное узнаёт строку по наименованию и артикулу — режим НДС ему не нужен.
+            var keys = rows.Select(r => r.Values).ToList();
             foreach (var supplier in new[] { invoice.SupplierId, matched.Supplier?.Match }.OfType<Guid>().Distinct())
-                recalled[supplier] = await SupplierMatching.RecallAsync(db, catalog, supplier, rows, ct);
+                recalled[supplier] = await SupplierMatching.RecallAsync(db, catalog, supplier, keys, ct);
             return new(rows, recalled, false, vatNote, strayNote);
         }
         catch (Exception failure) when (failure is not OperationCanceledException)
@@ -422,16 +424,15 @@ public sealed class InvoiceScanReading(
                 offeredLines = JsonSerializer.SerializeToDocument(read.Rows);
                 notes.Add($"Распознано строк: {rows.Count}. У счёта уже есть свои строки — распознанные не добавлены.");
             }
-            else if (invoice.VatMode == VatMode.OnTop)
+            else if (await ModeAsync(invoice, read, rows, notes, ct) is not { } mode)
             {
-                // Режим «сверху» поставил человек, а распознавание пока читает строки «в том числе» (issue
-                // #1497; режим со скана — #1501): положи мы их, НДС у каждой строки был бы посчитан не по
-                // той формуле. Режим человека распознавание не перезаписывает — строки предлагаются, как
-                // строки счёта, у которого свои уже есть.
+                // Человек отметил «сверху», а бумага сходится «в том числе»: положить её строки сверху значило
+                // бы прибавить НДС к суммам, где он уже есть. Режим человека распознавание не перезаписывает
+                // (issue #1501) — строки предлагаются, как строки счёта, у которого свои уже есть.
                 offeredLines = JsonSerializer.SerializeToDocument(read.Rows);
-                notes.Add($"Распознано строк: {rows.Count}. У счёта стоит «НДС сверху», а распознавание пока " +
-                          "читает строки с НДС «в том числе» — распознанные не добавлены. Введите строки вручную " +
-                          "или снимите режим и распознайте заново.");
+                notes.Add($"Распознано строк: {rows.Count}. В файле суммы строк уже с НДС и сходятся с суммой к " +
+                          "оплате, а у счёта отмечено «Цены без НДС, НДС сверху» — распознанные не добавлены. " +
+                          "Снимите отметку над строками и распознайте файл заново или введите строки вручную.");
             }
             else
             {
@@ -441,14 +442,18 @@ public sealed class InvoiceScanReading(
                 // этим же сканом. Строки ложатся с пометкой «запомнено» — той же, что ставит форма.
                 // Сам вопрос задан до замка (LinesAsync); здесь — только выбор ответа по поставщику.
                 var answer = invoice.SupplierId is { } supplier ? lines.Recalled.GetValueOrDefault(supplier) : null;
+                // Досчёт — после режима (issue #1501): «в том числе» и сверху считают НДС от суммы по-разному.
+                var completed = InvoiceScanLines.Complete(rows, mode,
+                    RecognizedValues.VatRate(read.Fields.GetValueOrDefault(CostsRecognitionProfiles.DocumentVatRate)));
+                if (completed.RateNote is { } rateNote) notes.Add(rateNote);
 
-                foreach (var (values, index) in rows.Select((values, index) => (values, index)))
+                foreach (var (values, index) in completed.Lines.Select((values, index) => (values, index)))
                 {
                     var known = answer?.Lines[index];
                     var line = InvoiceLine.Create(invoice.Id);
                     line.Apply(index + 1, CompletedLine.Scanned(known is null
                         ? values
-                        : values with { NomenclatureId = known.Position, MatchedBy = known.Match }));
+                        : values with { NomenclatureId = known.Position, MatchedBy = known.Match }, mode));
                     db.InvoiceLines.Add(line);
                     if (known is not null) recalled++;
                 }
@@ -475,6 +480,45 @@ public sealed class InvoiceScanReading(
             offeredLines, notes, readImage);
 
         return (filled.Count, added, recalled);
+    }
+
+    /// <summary>
+    /// В каком режиме лягут строки скана (issue #1501) — после слияния шапки: сумма к оплате и НДС уже те,
+    /// что стоят в счёте (прочитанные в пустые поля или вписанные человеком с той же бумаги).
+    ///
+    /// <para><b>Режим человека не перезаписывается.</b> «Задавал» — значит, у счёта стоит «сверху»:
+    /// «в том числе» — умолчание, и у счёта без строк (а строки скана ложатся только в такой) оно ничего
+    /// человеческого не значит (разбор Архитектора, §5.1). Стоит «сверху», а бумага сходится «в том числе»
+    /// — <c>null</c>: строки не кладутся.</para>
+    ///
+    /// <para>Сверху, найденное распознаванием, помечается «распознано, не подтверждено»
+    /// (<see cref="VatModes.Mark" />) и объясняется в примечаниях — числами, чтобы «Верно» нажимали, сверив.
+    /// Не определилось — ложится «в том числе», как до #1501, и это тоже сказано.</para>
+    /// </summary>
+    private async Task<VatMode?> ModeAsync(
+        Invoice invoice, ModuleRecognitionResult read, IReadOnlyList<InvoiceScanLines.ScanLine> rows,
+        List<string> notes, CancellationToken ct)
+    {
+        var tolerance = await desk.ToleranceAsync(ct);
+        var subtotal = read.Fields.GetValueOrDefault(CostsRecognitionProfiles.Subtotal) is { } text
+            ? RecognizedValues.Money(text)
+            : null;
+        var found = InvoiceScanLines.ModeOf(rows, invoice.VatTotal, invoice.Total, subtotal, tolerance);
+
+        if (invoice.VatMode == VatMode.OnTop) return found == VatMode.Included ? null : VatMode.OnTop;
+
+        if (found == VatMode.OnTop)
+        {
+            invoice.ChangeVatMode(VatMode.OnTop);
+            invoice.AddUnconfirmed([VatModes.Mark]);
+            notes.Add("Цены в строках файла без НДС, НДС начислен сверху — отмечено «Цены без НДС, НДС сверху». " +
+                      "Сверьте с файлом и нажмите «Верно» у отметки над строками.");
+        }
+        else if (found is null && invoice.Total is not null && rows.All(r => r.Values.Amount is not null))
+            notes.Add("Сумма строк не сходится с суммой к оплате, и по НДС файла не видно, что цены в строках без " +
+                      "НДС, — строки положены как суммы с НДС («в том числе»). Если в файле цены без НДС, отметьте " +
+                      "«Цены без НДС, НДС сверху».");
+        return invoice.VatMode;
     }
 
     private static bool IsBlank(JsonNode? node) =>

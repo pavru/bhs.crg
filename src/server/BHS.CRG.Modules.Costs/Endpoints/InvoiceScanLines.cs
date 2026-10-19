@@ -15,9 +15,33 @@ public static class InvoiceScanLines
     private static readonly CultureInfo Russian = CultureInfo.GetCultureInfo("ru-RU");
 
     /// <summary>Разобранные строки и примечания распознавания к ним.</summary>
+    /// <param name="Paper">Строки КАК В БУМАГЕ, ещё без режима НДС (issue #1501): сумма — прочитанная либо
+    /// количество × цена, НДС — только прочитанный. Досчитывает их <see cref="Complete" />, когда режим
+    /// известен: порядок разбора скана — шапка → режим → досчёт строк.</param>
     /// <param name="VatNote">НДС пришлось снять — почему (issue #1410).</param>
     /// <param name="StrayNote">Что прочитано и в счёт не легло — по колонкам (issue #1480).</param>
-    public sealed record Reading(IReadOnlyList<InvoiceLineValues> Lines, string? VatNote, string? StrayNote = null);
+    public sealed record Reading(IReadOnlyList<ScanLine> Paper, string? VatNote, string? StrayNote = null)
+    {
+        /// <summary>Строки, досчитанные «в том числе», — как их клали до #1501.</summary>
+        public IReadOnlyList<InvoiceLineValues> Lines => Complete(Paper, VatMode.Included, null).Lines;
+    }
+
+    /// <summary>
+    /// Строка скана как в бумаге (issue #1501): <see cref="InvoiceLineValues.Amount" /> — бумажная сумма
+    /// (прочитанная либо количество × цена, когда графы суммы нет), <see cref="InvoiceLineValues.VatAmount" />
+    /// — только прочитанная сумма НДС. Сумма бумаги одна для обоих режимов; режим меняет только то, что
+    /// досчитывается от неё.
+    /// </summary>
+    /// <param name="VatCellEmpty">Графа суммы НДС пуста (или с прочерком): НДС тогда досчитывается по
+    /// ставке. Стояло, но не прочиталось — не досчитывается: посчитанное выглядело бы прочитанным.</param>
+    public sealed record ScanLine(InvoiceLineValues Values, bool VatCellEmpty)
+    {
+        /// <summary>Сумма НДС прочитана в файле, а не досчитывается по ставке.</summary>
+        public bool VatAmountRead => Values.VatAmount is not null;
+
+        /// <summary>У строки будет сумма НДС — прочитанная либо досчитанная по ставке от её суммы.</summary>
+        public bool HasVat => VatAmountRead || (VatCellEmpty && Values.Amount is not null && Values.VatRate is >= 0);
+    }
 
     /// <summary>
     /// Ключи колонок строки счёта: колонка профиля с таким ключом заполняет это поле строки (issue
@@ -67,12 +91,14 @@ public static class InvoiceScanLines
     public static Reading Read(IEnumerable<IReadOnlyDictionary<string, string?>> rows)
     {
         var read = rows.Select(Cells).ToList();
-        var lines = read.Select(r => Line(r.Cells)).OfType<Scanned>().ToList();
+        var lines = read.Select(r => Line(r.Cells)).OfType<ScanLine>().ToList();
         var stray = StrayNote([.. read.SelectMany(r => r.Stray)]);
 
-        var named = lines.Count(l => l.Values.VatAmount is not null);
-        var touched = lines.Any(l => l.Values.VatAmount is not null || l.Values.VatRate is not null);
-        if (!touched || named == lines.Count) return new([.. lines.Select(l => l.Values)], null, stray);
+        // «Есть НДС» — у строки будет сумма НДС, прочитанная или досчитанная по ставке: правило одно для
+        // обоих режимов — досчёт от суммы есть и «в том числе», и сверху.
+        var named = lines.Count(l => l.HasVat);
+        var touched = lines.Any(l => l.VatAmountRead || l.Values.VatRate is not null);
+        if (!touched || named == lines.Count) return new(lines, null, stray);
 
         return new([.. lines.Select(Strip)],
             $"НДС прочитан не у всех строк (у {named} из {lines.Count}) — в строки не положен ни у одной: " +
@@ -80,29 +106,91 @@ public static class InvoiceScanLines
             "строк; впишите недостающее, если НДС нужен по строкам.", stray);
     }
 
-    /// <summary>Строка и то, прочитана ли её сумма НДС в файле, — или досчитана по ставке.</summary>
-    private sealed record Scanned(InvoiceLineValues Values, bool VatAmountRead);
-
     /// <summary>
     /// Снять НДС со строки, оставив в примечании ПРОЧИТАННОЕ. Досчитанная по ставке сумма туда не
     /// пишется: в файле её нет, а «НДС в файле: сумма 100,00» человек перенёс бы как число с бумаги.
     /// </summary>
-    private static InvoiceLineValues Strip(Scanned scanned)
+    private static ScanLine Strip(ScanLine scanned)
     {
         var line = scanned.Values;
         var read = new List<string>();
         // Разбор отдаёт «22» как 22,0 — в примечании число пишется так, как его пишет бумага.
         if (line.VatRate is { } rate) read.Add($"ставка {rate.ToString("0.##", Russian)} %");
-        if (scanned.VatAmountRead && line.VatAmount is { } vat) read.Add($"сумма {vat.ToString("0.00", Russian)}");
-        if (read.Count == 0) return line;
+        if (line.VatAmount is { } vat) read.Add($"сумма {vat.ToString("0.00", Russian)}");
+        if (read.Count == 0) return scanned;
 
         var note = $"НДС в файле: {string.Join(", ", read)} — не положен: НДС прочитан не у всех строк";
-        return line with
+        return scanned with
         {
-            VatRate = null,
-            VatAmount = null,
-            Note = line.Note is null ? note : $"{line.Note}; {note}",
+            Values = line with
+            {
+                VatRate = null,
+                VatAmount = null,
+                Note = line.Note is null ? note : $"{line.Note}; {note}",
+            },
         };
+    }
+
+    /// <summary>Строки, досчитанные по режиму, и что сказать о ставке документа.</summary>
+    /// <param name="RateNote">Ставка строкам взята из итогов файла — сказано, какая.</param>
+    public sealed record Completed(IReadOnlyList<InvoiceLineValues> Lines, string? RateNote);
+
+    /// <summary>
+    /// Досчитать строки скана по режиму счёта (issue #1501) — то, чего в бумаге НЕТ: сумму НДС по ставке
+    /// от суммы строки и, сверху, сумму с НДС. Тем же правилом, что строка формы
+    /// (<see cref="InvoiceLineValues.Completed" />), но выборочно: стояло в бумаге и не прочиталось —
+    /// остаётся пустым.
+    ///
+    /// <para><b>Ставка документа</b> («НДС 22 %» в итогах) ложится строкам, только когда она ПРОЧИТАНА
+    /// (ключ <see cref="CostsRecognitionProfiles.DocumentVatRate" />), только при НДС сверху и только если о
+    /// НДС молчат все строки. Выводить её делением НДС на сумму нельзя — это выдумка числа (разбор
+    /// Архитектора, §5.3). «В том числе» её не получает: там НДС шапки уже берут отчёты, и счёт ложится как
+    /// до #1501.</para>
+    /// </summary>
+    public static Completed Complete(IReadOnlyList<ScanLine> paper, VatMode mode, decimal? documentRate)
+    {
+        string? rateNote = null;
+        if (mode == VatMode.OnTop && documentRate is >= 0 and <= 100 && paper.Count > 0
+            && paper.All(l => l.Values.VatRate is null && !l.VatAmountRead))
+        {
+            paper = [.. paper.Select(l => l with { Values = l.Values with { VatRate = documentRate } })];
+            rateNote = $"Ставка НДС строк — из итогов файла: {documentRate.Value.ToString("0.##", Russian)} %. " +
+                       "Своей ставки у строк в файле нет; если у какой-то строки она другая — поправьте.";
+        }
+
+        return new([.. paper.Select(l => One(l, mode))], rateNote);
+
+        static InvoiceLineValues One(ScanLine line, VatMode mode)
+        {
+            var values = line.Values;
+            var vat = values.VatAmount
+                ?? (line.HasVat && values.Amount is { } sum && values.VatRate is { } rate
+                    ? InvoiceLineValues.Money(mode == VatMode.OnTop ? sum * rate / 100 : sum * rate / (100 + rate))
+                    : null);
+            return mode == VatMode.OnTop
+                ? values with { NetAmount = values.Amount, VatAmount = vat, Amount = values.Amount + vat }
+                : values with { VatAmount = vat };
+        }
+    }
+
+    /// <summary>
+    /// Режим НДС бумаги скана (issue #1501) — по арифметике, а не по словам в шапке колонок:
+    /// <see cref="VatModeGuess" />, та же функция, что подсказывает форме. Когда строки не сходятся ни так,
+    /// ни так, помогает «Итого без НДС» (<see cref="CostsRecognitionProfiles.Subtotal" />): строки сошлись с
+    /// ним, а к оплате больше — суммы строк без НДС.
+    /// </summary>
+    /// <returns><c>null</c> — не определить: строк нет, суммы к оплате нет или у строки нет суммы.</returns>
+    public static VatMode? ModeOf(IReadOnlyList<ScanLine> paper, decimal? headerVat, decimal? total, decimal? subtotal,
+        decimal tolerance)
+    {
+        if (total is not { } due || paper.Count == 0 || paper.Any(l => l.Values.Amount is null)) return null;
+
+        var lines = paper.Select(l => new VatGuessLine(l.Values.Amount!.Value, l.Values.VatRate)).ToList();
+        if (VatModeGuess.Of(lines, headerVat, due, tolerance) is { } guess) return guess;
+
+        return subtotal is { } net && Math.Abs(lines.Sum(l => l.Paper) - net) <= tolerance && due - net > tolerance
+            ? VatMode.OnTop
+            : null;
     }
 
     /// <summary>
@@ -119,7 +207,7 @@ public static class InvoiceScanLines
     /// <para>Ячейки приходят уже по полям строки (<see cref="Cells" />): разбор знает, КАК читать
     /// количество или артикул, а каким ключом колонка названа — решает <see cref="Targets" />.</para>
     /// </summary>
-    private static Scanned? Line(IReadOnlyDictionary<ScanLineField, string> cells)
+    private static ScanLine? Line(IReadOnlyDictionary<ScanLineField, string> cells)
     {
         // Строка, в которой движок не прочитал ни одного поля счёта, — не строка счёта: подзаголовок
         // раздела или хвост таблицы, где заполнена только колонка вроде «№» (ревью PR #1485).
@@ -189,22 +277,19 @@ public static class InvoiceScanLines
             Quantity: quantity, Price: price, VatRate: rate, VatAmount: vat, Amount: amount,
             Note: unread.Count > 0 ? "В файле не прочитано: " + string.Join(", ", unread) : null);
 
-        // Досчитываем только то, чего в скане НЕТ: сумму — по количеству и цене, сумму НДС — по ставке.
-        // Стояло, но не прочиталось — оставляем пустым: посчитанное выглядело бы прочитанным, а на бумаге
-        // написано другое. Досчёт — «в том числе»: строки скана ложатся только в такой счёт (issue #1497;
-        // режим со скана — #1501), и потому же лягут они CompletedLine.Scanned.
+        // Сумма бумаги — прочитанная либо, когда графы суммы нет, количество × цена: это одно число в обоих
+        // режимах. Стояло, но не прочиталось — оставляем пустым: посчитанное выглядело бы прочитанным, а на
+        // бумаге написано другое. НДС здесь не досчитывается вовсе — режим ещё неизвестен (issue #1501):
+        // «в том числе» и сверху считают его от этой суммы по-разному (Complete).
+        //
+        // ⚠️ НДС потом — только от суммы, которая ЕСТЬ у строки (ревью PR #1444). Не прочиталась сумма — нет
+        // и НДС: досчитанный от «количество × цена», он стоял бы у строки без суммы, из числа, которого
+        // никто не видел.
         var total = string.IsNullOrWhiteSpace(Cell(ScanLineField.Amount))
-            ? values.Completed(VatMode.Included).Values.Amount
+            ? (quantity is { } count && price is { } each ? InvoiceLineValues.Money(count * each) : null)
             : amount;
-        values = values with { Amount = total };
 
-        // ⚠️ НДС — только от суммы, которая ЕСТЬ у строки (ревью PR #1444). Не прочиталась сумма — нет и
-        // НДС: Completed досчитал бы его от «количество × цена», и у строки без суммы стоял бы НДС,
-        // посчитанный из числа, которого никто не видел.
-        if (vatEmpty && total is not null)
-            values = values with { VatAmount = values.Completed(VatMode.Included).Values.VatAmount };
-
-        return new(values, VatAmountRead: !vatEmpty && vat is not null);
+        return new(values with { Amount = total }, VatCellEmpty: vatEmpty);
     }
 
     /// <summary>Прочитанное, что в поле строки не легло: ключ колонки, значение и почему.</summary>

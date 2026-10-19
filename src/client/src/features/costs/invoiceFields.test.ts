@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   BLOCKS, K, READ_ONLY_KEYS, SCAN_BESIDE_MIN_WIDTH,
   asInput, catalogRef, duplicateLabel, fromInput, refEntryId, sameFileLabel, twinsOf,
-  isMarked, moneyInput, scanFitsBeside, toRequisites, unconfirmedInBlock, unconfirmedOutsideBlocks,
+  isMarked, moneyInput, scanFitsBeside, toRequisites, unconfirmedInBlock, unconfirmedOutsideBlocks, VAT_MODE_MARK,
   extraBlock, extraFields,
 } from './invoiceFields';
 import type { SchemaField } from '@/shared/api/schema';
@@ -75,6 +75,9 @@ describe('блоки формы', () => {
 
   it('поле блока «Дополнительно» — уже в блоке: строка о непоказанных его не называет', () => {
     expect(unconfirmedOutsideBlocks([K.number, 'ЦентрЗатрат', 'Договор'], ['ЦентрЗатрат'])).toEqual(['Договор']);
+    // Метка режима НДС — не поле: её показывает флажок над строками (#1501), а не строка «у полей, которых
+    // форма не показывает» со своим «Всё верно».
+    expect(unconfirmedOutsideBlocks([VAT_MODE_MARK, 'Договор'])).toEqual(['Договор']);
   });
 });
 
