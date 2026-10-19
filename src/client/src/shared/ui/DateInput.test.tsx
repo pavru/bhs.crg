@@ -34,7 +34,7 @@ function Controlled({ initial = '', onChange, field = false, calendar = false }:
     <>
       {field
         ? <DateField label="Дата платежа" value={value} onChange={change} hint="от неё считается срок" />
-        : <DateInput value={value} onChange={change} calendar={calendar} />}
+        : <DateInput label="Дата" value={value} onChange={change} calendar={calendar} />}
       <output data-testid="value">{value}</output>
       <button type="button">дальше</button>
     </>
@@ -169,28 +169,28 @@ describe('DateInput: двузначный год и недописанное', (
 
   it('значение сменили снаружи — набранное к прежнему не держится', () => {
     vi.useFakeTimers();
-    const { rerender } = render(<DateInput value="2026-10-18" onChange={() => {}} calendar={false} />);
+    const { rerender } = render(<DateInput label="Дата" value="2026-10-18" onChange={() => {}} calendar={false} />);
     fireEvent.focus(seg('ГГГГ'));
     fireEvent.change(seg('ГГГГ'), { target: { value: '202' } });
     leave();
     expect(seg('ГГГГ').value).toBe('202');
-    rerender(<DateInput value="2025-01-05" onChange={() => {}} calendar={false} />);
+    rerender(<DateInput label="Дата" value="2025-01-05" onChange={() => {}} calendar={false} />);
     expect([seg('ДД').value, seg('ММ').value, seg('ГГГГ').value]).toEqual(['05', '01', '2025']);
   });
 });
 
 describe('DateInput: значение показывается, а не пропадает', () => {
   it('ISO со временем и ДД.ММ.ГГГГ из ячейки — не пустое поле', () => {
-    render(<DateInput value="2026-10-18T00:00:00" onChange={() => {}} calendar={false} />);
+    render(<DateInput label="Дата" value="2026-10-18T00:00:00" onChange={() => {}} calendar={false} />);
     expect([seg('ДД').value, seg('ММ').value, seg('ГГГГ').value]).toEqual(['18', '10', '2026']);
     cleanup();
-    render(<DateInput value="18.10.2026" onChange={() => {}} compact />);
+    render(<DateInput label="Дата" value="18.10.2026" onChange={() => {}} compact />);
     expect(seg('ДД').value).toBe('18');
   });
 
   it('не дата — текстом с пометкой; переписать её можно', () => {
     const onChange = vi.fn();
-    render(<DateInput value="вчера" onChange={onChange} calendar={false} />);
+    render(<DateInput label="Дата" value="вчера" onChange={onChange} calendar={false} />);
     const text = screen.getByRole('button', { name: /вчера — не дата/ });
     expect(text.getAttribute('aria-describedby')).toBeTruthy();
     expect(document.getElementById(text.getAttribute('aria-describedby')!)?.textContent).toMatch(/не дата/);
@@ -209,7 +209,7 @@ describe('DateInput: значение показывается, а не проп
 describe('DateInput: правки по ревью PR #1542', () => {
   it('не дата у поля только для чтения — текстом, без ошибки «наберите заново»', () => {
     const onProblem = vi.fn();
-    render(<DateInput value="вчера" onChange={() => {}} onProblem={onProblem} readOnly />);
+    render(<DateInput label="Дата" value="вчера" onChange={() => {}} onProblem={onProblem} readOnly />);
     expect(screen.getByText('вчера')).toBeTruthy();
     expect(onProblem).not.toHaveBeenCalledWith(expect.stringMatching(/не дата/));
     cleanup();
@@ -229,8 +229,8 @@ describe('DateInput: правки по ревью PR #1542', () => {
     const onChange = vi.fn();
     const outer = vi.fn();
     // Значение пришло после монтирования — как данные формы, загруженные позже.
-    const { rerender } = render(<div onKeyDown={outer}><DateInput value="" onChange={onChange} /></div>);
-    rerender(<div onKeyDown={outer}><DateInput value="2026-10-18" onChange={onChange} /></div>);
+    const { rerender } = render(<div onKeyDown={outer}><DateInput label="Дата" value="" onChange={onChange} /></div>);
+    rerender(<div onKeyDown={outer}><DateInput label="Дата" value="2026-10-18" onChange={onChange} /></div>);
     fireEvent.keyDown(screen.getByRole('button', { name: 'Открыть календарь' }), { key: 'Escape' });
     expect(onChange).not.toHaveBeenCalled();
     expect(outer).toHaveBeenCalledTimes(1);
@@ -261,14 +261,14 @@ describe('DateInput: маска по языку пользователя (issue 
     ['de-DE', 'day', ['TT', 'MM', 'JJJJ'], '.'], ['de-DE', 'month', ['MM', 'JJJJ'], '.'], ['de-DE', 'year', ['JJJJ'], ''],
   ] as const)('%s, точность %s: сегменты %j через «%s»', (lang, precision, order, sep) => {
     locale = lang;
-    render(<DateInput value="" onChange={() => {}} precision={precision} calendar={false} />);
+    render(<DateInput label="Дата" value="" onChange={() => {}} precision={precision} calendar={false} />);
     expect(placeholders()).toEqual(order);
     expect(new Set(separators())).toEqual(new Set(sep ? [sep] : []));
   });
 
   it.each([['ru-RU'], ['en-US'], ['en-GB'], ['de-DE']])('%s: хранимое значение одно и то же, сегменты — в порядке языка', lang => {
     locale = lang;
-    render(<DateInput value="2026-10-18" onChange={() => {}} calendar={false} />);
+    render(<DateInput label="Дата" value="2026-10-18" onChange={() => {}} calendar={false} />);
     const shown = [...document.querySelectorAll('input')].map(i => i.value);
     expect(shown).toEqual(lang === 'en-US' ? ['10', '18', '2026'] : ['18', '10', '2026']);
   });
@@ -343,5 +343,97 @@ describe('DateInput: цифра в полный сегмент', () => {
     act(() => { vi.runAllTimers(); });
     expect(month.value).toBe('0');
     expect([month.selectionStart, month.selectionEnd]).toEqual([1, 1]);
+  });
+});
+
+// Имя поля и сегментов (issue #1463): поле находится по подписи, а не по подсказке «ДД», которой у
+// en-US нет; сегменты называются словами языка. Снимешь имя — краснеют и эти тесты, и живые прогоны.
+describe('DateInput: имя для чтения с экрана', () => {
+  it('DateField: группа названа подписью, сегменты — словами языка', () => {
+    render(<Controlled initial="2026-10-19" field />);
+    const group = screen.getByRole('group', { name: 'Дата платежа' });
+    expect(within(group).getAllByRole('textbox').map(t => t.getAttribute('aria-label'))).toEqual(['день', 'месяц', 'год']);
+  });
+
+  it('en-US: сегменты в порядке языка и по-английски', () => {
+    locale = 'en-US';
+    render(<DateInput label="Payment date" value="2026-10-19" onChange={() => {}} calendar={false} />);
+    const group = screen.getByRole('group', { name: 'Payment date' });
+    expect(within(group).getByRole('textbox', { name: 'month' }).value).toBe('10');
+    expect(within(group).getAllByRole('textbox').map(t => t.getAttribute('aria-label'))).toEqual(['month', 'day', 'year']);
+  });
+
+  it('кнопка календаря — не меньше 32 px', () => {
+    render(<Controlled initial="2026-10-19" calendar />);
+    expect(screen.getByRole('button', { name: 'Открыть календарь' }).className).toMatch(/\bh-8 w-8\b/);
+  });
+});
+
+// Стрелки как у нативного поля даты (issue #1463): ↑/↓ — значение на шаг, ←/→ с края — сосед.
+describe('DateInput: стрелки', () => {
+  const key = (el: HTMLElement, k: string, extra = {}) => fireEvent.keyDown(el, { key: k, ...extra });
+
+  it('↑/↓ меняют день и месяц по кругу и отдают дату', () => {
+    const onChange = vi.fn();
+    render(<Controlled initial="2026-10-31" onChange={onChange} />);
+    key(seg('ДД'), 'ArrowUp');
+    expect(seg('ДД').value).toBe('01');
+    expect(onChange).toHaveBeenLastCalledWith('2026-10-01');
+    key(seg('ДД'), 'ArrowDown');
+    expect(seg('ДД').value).toBe('31');
+    key(seg('ММ'), 'ArrowUp');
+    expect(seg('ММ').value).toBe('11');
+    // 31.11 не существует: показано, помечено и наружу не отдано.
+    expect(seg('ДД').getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByTestId('value').textContent).toBe('2026-10-31');
+    key(seg('ММ'), 'ArrowDown'); key(seg('ММ'), 'ArrowDown');
+    expect(seg('ММ').value).toBe('09');
+  });
+
+  it('пустой сегмент: ↑ — первый, ↓ — последний; пустой год — год компании', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2027-03-05T12:00:00Z'));
+    render(<Controlled />);
+    key(seg('ДД'), 'ArrowUp');
+    expect(seg('ДД').value).toBe('01');
+    key(seg('ММ'), 'ArrowDown');
+    expect(seg('ММ').value).toBe('12');
+    key(seg('ГГГГ'), 'ArrowUp');
+    expect(seg('ГГГГ').value).toBe('2027');
+    expect(screen.getByTestId('value').textContent).toBe('2027-12-01');
+  });
+
+  it('Alt+↓ — календарь, а не шаг', () => {
+    render(<Controlled initial="2026-10-19" calendar />);
+    key(seg('ДД'), 'ArrowDown', { altKey: true });
+    expect(seg('ДД').value).toBe('19');
+    expect(screen.getByRole('grid', { name: 'Календарь' })).toBeTruthy();
+  });
+
+  it('←/→ с края сегмента — к соседу, посреди — нет', () => {
+    render(<Controlled initial="2026-10-19" />);
+    const month = seg('ММ');
+    month.focus();
+    month.setSelectionRange(1, 1);
+    key(month, 'ArrowRight');
+    expect(document.activeElement).toBe(month);
+    month.setSelectionRange(2, 2);
+    key(month, 'ArrowRight');
+    expect(document.activeElement).toBe(seg('ГГГГ'));
+    const year = seg('ГГГГ');
+    year.setSelectionRange(0, 0);
+    key(year, 'ArrowLeft');
+    expect(document.activeElement).toBe(month);
+    month.select();
+    key(month, 'ArrowLeft');
+    expect(document.activeElement).toBe(seg('ДД'));
+    key(seg('ДД'), 'ArrowLeft');
+    expect(document.activeElement).toBe(seg('ДД'));
+  });
+
+  it('у поля только для чтения стрелки значение не меняют', () => {
+    render(<DateInput label="Дата" value="2026-10-19" onChange={() => {}} readOnly calendar={false} />);
+    key(seg('ДД'), 'ArrowUp');
+    expect(seg('ДД').value).toBe('19');
   });
 });

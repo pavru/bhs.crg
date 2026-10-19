@@ -155,6 +155,17 @@ const calendarNumber = `ОПЛ-К-${stamp}`;
 await invoice(calendarNumber, 100, 100);
 
 /**
+ * Сегменты поля даты — по имени поля и имени части (issue #1463), а не по подсказке «ДД»: подсказка —
+ * слово языка, у en-US её нет, а имя поля — подпись, которую видит человек. Сняли имя — прогон
+ * красный. `exact`: имя «С» иначе совпало бы с любым полем, где есть эта буква.
+ */
+function dateField(scope, name) {
+  const group = scope.getByRole('group', { name, exact: true });
+  const part = n => group.getByRole('textbox', { name: n, exact: true });
+  return { group, d: part('день'), m: part('месяц'), y: part('год') };
+}
+
+/**
  * Рамка элемента календаря, когда календарь встал на место. До первого замера Radix держит обёртку
  * поппера за экраном (`translate(0, -200%)`), и Playwright считает её видимой: рамка, снятая сразу
  * после `waitFor`, на медленной машине указывала бы выше экрана (ревью PR #1526). Ждём, пока рамка
@@ -217,7 +228,7 @@ async function lastDayIsReachable() {
   const day = (await last.innerText()).trim().padStart(2, '0');
   await last.click();
   await grid.waitFor({ state: 'hidden', timeout: 5_000 });
-  const shown = await dialog.getByPlaceholder('ДД').inputValue();
+  const shown = await dateField(dialog, 'Дата платежа').d.inputValue();
   if (shown !== day) throw new Error(`щелчок по ${day} не дошёл до поля: в нём «${shown}»`);
   if (!(await dialog.isVisible())) throw new Error('щелчок по дню закрыл окно оплаты');
   await leavePayment(dialog);
@@ -260,9 +271,9 @@ await check('payment-date-escape-reverts-and-keeps-dialog', async () => {
   await page.getByRole('button', { name: 'Отметить оплату' }).click();
   const dialog = page.getByRole('dialog').first();
   await dialog.getByText(/Вся сумма войдёт в затраты/).waitFor({ timeout: 10_000 });
-  const day = dialog.getByPlaceholder('ДД');
-  const shown = async () => [await day.inputValue(), await dialog.getByPlaceholder('ММ').inputValue(),
-    await dialog.getByPlaceholder('ГГГГ').inputValue()].join('.');
+  const field = dateField(dialog, 'Дата платежа');
+  const day = field.d;
+  const shown = async () => [await day.inputValue(), await field.m.inputValue(), await field.y.inputValue()].join('.');
   const before = await shown();
   await day.click();
   await day.selectText();
@@ -275,8 +286,8 @@ await check('payment-date-escape-reverts-and-keeps-dialog', async () => {
   if (!(await dialog.isVisible())) throw new Error('Esc в поле даты закрыл окно оплаты');
   // Окно после правки «тронуто» и на свой Esc не закрывается, а уводит фокус к выходу (`focusExit`).
   // Поэтому признак того, что Esc достался полю, а не окну, — фокус остался в сегменте даты.
-  const at = await page.evaluate(() => document.activeElement?.getAttribute('placeholder') ?? document.activeElement?.textContent?.trim());
-  if (!['ДД', 'ММ', 'ГГГГ'].includes(at)) throw new Error(`Esc в поле даты достался окну: фокус ушёл на «${at}»`);
+  const at = await page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.textContent?.trim());
+  if (!['день', 'месяц', 'год'].includes(at)) throw new Error(`Esc в поле даты достался окну: фокус ушёл на «${at}»`);
   const after = await shown();
   if (after !== before) throw new Error(`Esc вернул ${after}, а при входе в поле было ${before}`);
   await leavePayment(dialog);
@@ -305,10 +316,11 @@ await check('closing-dialog-lists-what-it-records', async () => {
   // Ждём его с ПЕРВОГО поля: дата бывает готова раньше, чем введён год (см. проверку оплаты ниже).
   const listed = page.waitForResponse(r => r.url().includes('/periods/close/preview') && r.ok()
     && (r.request().postData() ?? '').includes(`"through":"${through}"`));
-  await dialog.getByPlaceholder('ДД').nth(1).fill(day);
-  await dialog.getByPlaceholder('ММ').nth(1).fill(month);
-  await dialog.getByPlaceholder('ГГГГ').nth(1).fill(year);
-  await dialog.getByPlaceholder('ГГГГ').nth(1).blur();
+  const field = dateField(dialog, 'По (включительно)');
+  await field.d.fill(day);
+  await field.m.fill(month);
+  await field.y.fill(year);
+  await field.y.blur();
   await listed;
   await dialog.getByText('Счета и накладные').waitFor({ timeout: 10_000 });
   await settled(page);
@@ -390,10 +402,11 @@ await check('preview-matches-recorded', async () => {
   // числа каждого месяца и до его конца.
   const previewed = page.waitForResponse(r => r.url().includes('/paid/preview') && r.ok()
     && (r.request().postData() ?? '').includes(`"paidOn":"${paidOn}"`));
-  await dialog.getByPlaceholder('ДД').fill(day);
-  await dialog.getByPlaceholder('ММ').fill(month);
-  await dialog.getByPlaceholder('ГГГГ').fill(year);
-  await dialog.getByPlaceholder('ГГГГ').blur();
+  const field = dateField(dialog, 'Дата платежа');
+  await field.d.fill(day);
+  await field.m.fill(month);
+  await field.y.fill(year);
+  await field.y.blur();
   await previewed;
 
   const button = dialog.getByRole('button', { name: 'Отметить оплату с переносом' });

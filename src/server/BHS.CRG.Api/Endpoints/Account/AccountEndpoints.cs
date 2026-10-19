@@ -34,6 +34,10 @@ public static class AccountEndpoints
             ModuleRegistry modules, IAppSettingsStore settings, CancellationToken ct) =>
         {
             var granted = await permissions.ForAsync(principal, ct);
+            // GetManyAsync, а не GetAsync: адрес зовёт каждый вошедший раз в полминуты, и чтение без
+            // отслеживания здесь дешевле (ревью PR #1306). Обе настройки — одним запросом.
+            var stored = await settings.GetManyAsync(
+                [AppSettingKeys.AccountingCurrency, AppSettingKeys.CompanyTimeZone], ct);
             return Results.Ok(new
             {
                 // Валюта учёта (issue #1248) — здесь, потому что знак суммы рисует клиент на любом
@@ -42,11 +46,15 @@ public static class AccountEndpoints
                 // в Intl.NumberFormat, а тот на строке не по форме роняет экран.
                 accounting = new
                 {
-                    // GetManyAsync, а не GetAsync: адрес зовёт каждый вошедший раз в полминуты, и
-                    // чтение без отслеживания здесь дешевле (ревью PR #1306).
-                    currency = AccountingCurrencies.Effective(
-                        (await settings.GetManyAsync([AppSettingKeys.AccountingCurrency], ct))
-                            .GetValueOrDefault(AppSettingKeys.AccountingCurrency)),
+                    currency = AccountingCurrencies.Effective(stored.GetValueOrDefault(AppSettingKeys.AccountingCurrency)),
+                },
+                // Пояс компании (issue #1463) — по той же причине, что валюта: «сегодня» в календаре
+                // нужно каждому, а адрес настройки открыт администратору. Пояс, а не готовый день:
+                // календарь, открытый в полночь, обязан перейти на новый день без нового запроса.
+                // Имя — IANA, для Intl браузера; не переводится — null, и клиент берёт свои часы.
+                company = new
+                {
+                    timeZone = CompanyZone.IanaId(CompanyZone.Of(stored.GetValueOrDefault(AppSettingKeys.CompanyTimeZone))),
                 },
                 permissions = granted.Order(StringComparer.Ordinal).ToArray(),
                 // Модули экземпляра целиком: и доступные, и нет. Клиенту нужны оба списка —

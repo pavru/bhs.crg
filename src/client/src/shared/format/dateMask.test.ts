@@ -25,6 +25,12 @@ describe('dateMask: язык × точность', () => {
     expect(mask.order).toEqual(['d', 'm', 'y']);
   });
 
+  it('имена сегментов — словами языка, для чтения с экрана (issue #1463)', () => {
+    expect(dateMask('ru-RU').names).toEqual({ d: 'день', m: 'месяц', y: 'год' });
+    expect(dateMask('en-US').names).toEqual({ d: 'day', m: 'month', y: 'year' });
+    expect(dateMask('de-DE').names.d).toBe('Tag');
+  });
+
   it('inMask: хранимая дата в записи маски, с точностью; не ISO — как есть', () => {
     expect(inMask('2026-07-01', 'ru-RU')).toBe('01.07.2026');
     expect(inMask('2026-07-01', 'en-US')).toBe('07/01/2026');

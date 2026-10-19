@@ -37,7 +37,7 @@ export function DateField({
       <div className={`h-14 rounded-md px-4 flex items-center text-sm text-fg1 ${disabled ? 'opacity-50' : ''}`}
         onFocus={() => setFocused(true)}
         onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>
-        <DateInput value={value} onChange={onChange} onProblem={setProblem} precision={precision}
+        <DateInput label={label} value={value} onChange={onChange} onProblem={setProblem} precision={precision}
           disabled={disabled} readOnly={readOnly} required={required} />
       </div>
     </OutlinedField>

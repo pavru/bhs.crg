@@ -101,7 +101,7 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
       return label != null
         ? <DateField label={label} required={askRequired} hint={hint ?? primitiveTypeDef.description}
             invalid={invalid} value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} readOnly={readOnly} />
-        : <DateInput value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} className={cls} readOnly={readOnly} />;
+        : <DateInput label={field.title} value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} className={cls} readOnly={readOnly} />;
     }
     const step = bt === 'number' && primitiveTypeDef.constraints.integer ? 1 : undefined;
     const onCh = (v: string) => onChange(bt === 'number' ? (v === '' ? '' : Number(v)) : v);
@@ -118,7 +118,7 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
     return label != null
       ? <DateField label={label} required={askRequired} hint={hint} invalid={invalid}
           value={dateForDisplay(strVal)} onChange={v => onChange(v)} readOnly={readOnly} />
-      : <DateInput value={dateForDisplay(strVal)} onChange={v => onChange(v)} className={cls} readOnly={readOnly} />;
+      : <DateInput label={field.title} value={dateForDisplay(strVal)} onChange={v => onChange(v)} className={cls} readOnly={readOnly} />;
   }
   const onCh = (v: string) => onChange(field.type === 'number' ? (v === '' ? '' : Number(v)) : v);
   if (label != null)

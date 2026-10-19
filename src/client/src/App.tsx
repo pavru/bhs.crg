@@ -5,6 +5,7 @@ import { useLocale } from '@/shared/hooks/useLocale';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useAccess } from '@/shared/api/access';
 import { DEFAULT_CURRENCY, setFormatCurrency } from '@/shared/format/format';
+import { setCompanyTimeZone } from '@/shared/format/companyDay';
 import { LocaleProvider } from '@/shared/ui/LocaleProvider';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
 import { NavigationGuardProvider } from '@/shared/ui/NavigationGuardProvider';
@@ -107,6 +108,8 @@ function AppRoutes() {
   // клиент новее сервера ждал бы валюту при каждой загрузке, так её и не узнав.
   const access = useAccess(!!user).data;
   if (access) setFormatCurrency(access.accounting?.currency ?? DEFAULT_CURRENCY);
+  // Пояс компании (issue #1463) — тем же путём: «сегодня» в календаре — день компании.
+  if (access) setCompanyTimeZone(access.company?.timeZone);
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
