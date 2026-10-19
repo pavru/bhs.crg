@@ -49,8 +49,11 @@ public sealed record LineWord(string Text, int Start, bool Found);
 
 /// <summary>Кандидат для строки бумаги.</summary>
 /// <param name="Why">Причины одной фразой каждая, старшая первой.</param>
-/// <param name="Strong">«Лучшее совпадение»: артикул или то же наименование — и такая позиция ОДНА.
-/// Только его окно выбирает по Enter, поэтому признак ставит функция, а не экран по тексту причины.</param>
+/// <param name="Strong">«Лучшее совпадение»: артикул или то же наименование — и такая ДЕЙСТВУЮЩАЯ позиция
+/// одна (архивные в счёт не идут). Только его окно выбирает по Enter, поэтому признак ставит функция, а
+/// не экран по тексту причины. ⚠️ «Одна» — среди того, что видела функция: кто добавляет кандидатов
+/// из своих источников (модуль счетов — соответствия поставщика, правило B), обязан снять признак, если
+/// добавленная позиция — другая. Иначе у строки два «лучших», и Enter выбирает одного из них наугад.</param>
 public sealed record LineHit(SimilarRecord Record, IReadOnlyList<string> Why, bool Strong, LineMatched Matched);
 
 /// <summary>Ответ подбора для строки.</summary>
@@ -179,7 +182,8 @@ public static class NomenclatureSimilarity
     /// <item><b>C, то же наименование</b> — название позиции или её альтернативное имя.</item>
     /// <item><b>D, название целиком</b> — все слова названия позиции (не меньше двух) есть в строке. Это
     /// правило бумаги: «большинство» короткую позицию в длинной строке не находит — 3 слова из 9.</item>
-    /// <item><b>E, большинство слов строки</b> — правило <see cref="Find"/>.</item>
+    /// <item><b>E, большинство слов строки</b> — порог <see cref="Find"/> (больше половины слов), но
+    /// сравнение слов шире, см. ниже.</item>
     /// </list>
     /// (B — «так выбрали у другого поставщика» — считает модуль счетов: соответствия лежат у него.)
     ///
@@ -189,15 +193,22 @@ public static class NomenclatureSimilarity
     ///
     /// <para><b>D и E — один уровень</b>, и внутри него решает доля слов строки, найденных в имени
     /// позиции; D лишь выигрывает равенство. Иначе «Кабель ВВГ», который целиком есть почти в любой
-    /// строке про кабель, вставал бы выше позиции, совпавшей со строкой слово в слово. Слова сравниваются
-    /// одним правилом (<see cref="Matches"/>) — в D, в E, в доле и в подсветке.</para>
+    /// строке про кабель, вставал бы выше позиции, совпавшей со строкой слово в слово. Действующая при этом
+    /// всегда выше архивной того же уровня: архивную не выбрать, и большая доля слов этого не меняет.</para>
+    ///
+    /// <para><b>Слова сравниваются шире, чем у <see cref="Find"/>,</b> — и одним правилом
+    /// (<see cref="Matches"/>) в D, в E, в доле и в подсветке. Началом — в обе стороны: бумага пишет
+    /// «щита» и «ВВГнг», справочник — «щит» и «ВВГ». Число — со слитной единицей: «20мм» бумаги — это
+    /// «20» позиции. У <see cref="Find"/> сравнение прежнее: там набирает человек, а не поставщик.</para>
     ///
     /// <para>⚠️ <b>Сильный — только единственный.</b> Артикул «00-0029» бывает внутренним кодом 1С
     /// продавца, имя «Кабель ВВГ» — у трёх позиций разного сечения. Нашлось артикулом или тем же
     /// наименованием больше одной ДЕЙСТВУЮЩЕЙ позиции — сильного нет вовсе: Enter выбрал бы одну из них
     /// наугад. Архивные в этот счёт не идут: позицию заменили, старую убрали в архив, — и единственная
     /// действующая остаётся «лучшим совпадением». Сами архивная и позиция подтипа со своими полями ключа
-    /// сильными не бывают: первую не выбрать, вторую надо сверить глазами.</para>
+    /// сильными не бывают: первую не выбрать, вторую надо сверить глазами. Но вторая в счёт идёт: позиция
+    /// того же наименования со своим сечением может оказаться той самой. Кандидатов модуля (B) функция
+    /// не видит — что с ними делать, сказано у <see cref="LineHit.Strong"/>.</para>
     /// </summary>
     /// <param name="titles">Заголовки полей ключа по виду записи, в порядке ключа, — для причины
     /// «совпадает артикул «…»». Вида нет в словаре — «поле ключа».</param>
@@ -225,7 +236,9 @@ public static class NomenclatureSimilarity
             int level = 0;
             bool sure = false, whole = false;
             string? field = null;
+            // Имя, которым позиция нашлась, его слова: по ним доля и подсветка.
             var by = key[0];
+            List<string>? own = null;
 
             var at = code.Length == 0 ? -1 : Array.IndexOf(key, code, 1);
             if (at > 0 && shared[code] <= RareLimit)
@@ -254,18 +267,17 @@ public static class NomenclatureSimilarity
                 // Лучшее из названия и альтернативных имён: позиция подходит, если подходит любое её имя.
                 var names = aliases.Prepend(key[0]).Select(n => (Name: n, Own: Words(n))).ToList();
                 var full = names.FirstOrDefault(n => n.Own.Count >= 2 && n.Own.All(o => words.Any(w => Matches(w, o))));
-                var best = names.MaxBy(n => Counted(words, n.Own));
-                var found = Counted(words, best.Own);
+                var best = names.Select(n => (n.Name, n.Own, Found: Counted(words, n.Own))).MaxBy(n => n.Found);
                 if (full.Name is not null)
                 {
                     why.Add("название позиции целиком есть в строке");
-                    (level, whole, by) = (Math.Max(level, ByWords), true, full.Name);
+                    (level, whole, by, own) = (Math.Max(level, ByWords), true, full.Name, full.Own);
                 }
                 // Больше половины слов: одно общее «кабель» из четырёх — не сходство, а раздел справочника.
-                else if (found * 2 > words.Count || (words.Count == 1 && found == 1))
+                else if (best.Found * 2 > words.Count || (words.Count == 1 && best.Found == 1))
                 {
                     why.Add("большинство слов строки");
-                    (level, by) = (Math.Max(level, ByWords), best.Name);
+                    (level, by, own) = (Math.Max(level, ByWords), best.Name, best.Own);
                 }
             }
             if (level == 0) continue;
@@ -273,7 +285,7 @@ public static class NomenclatureSimilarity
 
             // Доля слов строки, найденных в имени, и подсветка — тем же сравнением, что правила: карточка
             // показывает ровно то, по чему подбирали.
-            var own = Words(by);
+            own ??= Words(by);
             var share = words.Count == 0 ? 0 : 100 * Counted(words, own) / words.Count;
             var matched = new LineMatched(
                 [.. shown.Select(s => new LineWord(s.Text, s.Start, IsWord(s.Lower) && own.Any(o => Matches(s.Lower, o))))],
@@ -286,11 +298,12 @@ public static class NomenclatureSimilarity
         var sureOnes = hits.Count(h => h.Level >= ByName && !h.Record.Archived);
         var ordered = hits
             .OrderByDescending(h => h.Level)
+            // Действующая раньше архивной того же уровня: долей слов архивная выбираемую не обгоняет.
+            .ThenBy(h => h.Record.Archived)
             // Внутри «слов» решает доля слов строки, а не правило: «Кабель ВВГ» есть почти в любой строке
             // про кабель, и правилом D он вставал бы выше позиции, совпавшей со строкой целиком.
             .ThenByDescending(h => h.Share)
             .ThenByDescending(h => h.Whole)
-            .ThenBy(h => h.Record.Archived)
             .ThenBy(h => h.Record.Name, StringComparer.CurrentCultureIgnoreCase)
             .ThenBy(h => h.Record.Id)
             .Select(h => new LineHit(h.Record, h.Why, h.Sure && sureOnes == 1, h.Matched))
@@ -315,9 +328,20 @@ public static class NomenclatureSimilarity
 
     /// <summary>
     /// Слово строки и слово позиции — одно слово, в любую сторону: «ВВГ» строки — это «ВВГнг» позиции,
-    /// и «ВВГ» позиции — это «ВВГнг» строки. Одно сравнение на правила D и E, долю и подсветку.
+    /// и «ВВГ» позиции — это «ВВГнг» строки. Число — и со слитной единицей: «20мм» — это «20». Одно
+    /// сравнение на правила D и E, долю и подсветку.
     /// </summary>
-    private static bool Matches(string word, string own) => Same(word, own) || Same(own, word);
+    private static bool Matches(string word, string own) =>
+        Same(word, own) || Same(own, word) || WithUnit(word, own) || WithUnit(own, word);
+
+    /// <summary>
+    /// Длинное — короткое число и буквы после него: «20мм» и «3х2,5мм» не «20» и «3х2,5» с хвостом, а они
+    /// же с единицей. Хвост с цифрой — уже другое число: «160А» не «16», «3х16» не «3».
+    /// </summary>
+    private static bool WithUnit(string longer, string shorter) =>
+        shorter.Length > 0 && char.IsDigit(shorter[^1]) && longer.Length > shorter.Length &&
+        longer.StartsWith(shorter, StringComparison.Ordinal) && char.IsLetter(longer[shorter.Length]) &&
+        !longer.AsSpan(shorter.Length).ContainsAny("0123456789");
 
     /// <summary>Сколько слов строки нашлось среди слов имени.</summary>
     private static int Counted(IReadOnlyList<string> words, IReadOnlyList<string> own) =>
@@ -332,8 +356,11 @@ public static class NomenclatureSimilarity
     private static List<(string Text, int Start, string Lower)> Shown(string? text)
     {
         if (string.IsNullOrEmpty(text)) return [];
-        // Любой пробельный знак — пробел той же длины: места слов в исходной строке не сдвигаются.
-        var spaced = new string([.. text.Select(c => char.IsWhiteSpace(c) ? ' ' : c)]);
+        // Любой пробельный знак — пробел той же длины: места слов в исходной строке не сдвигаются. Маркер
+        // «🔗» — тоже пробелы: его убирает нормализация, по которой строят слова правил, и подсветка,
+        // считавшая его частью слова, не совпала бы с ними.
+        var spaced = new string([.. text.Replace("🔗", "  ", StringComparison.Ordinal)
+            .Select(c => char.IsWhiteSpace(c) ? ' ' : c)]);
         var result = new List<(string, int, string)>();
         var from = 0;
         foreach (var token in Split(spaced))

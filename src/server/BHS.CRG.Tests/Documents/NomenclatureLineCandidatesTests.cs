@@ -263,6 +263,83 @@ public class NomenclatureLineCandidatesTests
         Assert.Contains("сверьте по карточке", hit.Why[^1]);
     }
 
+    /// <summary>
+    /// Позиция со своими полями ключа сильной не бывает, но и единственную обычную позицию того же
+    /// наименования не оставляет сильной: «Кабель ВВГ» своего сечения может оказаться той самой.
+    /// </summary>
+    [Fact]
+    public void Позиция_со_своими_полями_ключа_делает_находку_спорной()
+    {
+        var plain = Lying("Кабель ВВГ");
+        var sized = Lying("Кабель ВВГ", ownKey: true);
+
+        var answer = For([plain, sized], "Кабель ВВГ");
+
+        Assert.Equal(2, answer.Hits.Count);
+        Assert.All(answer.Hits, h => Assert.False(h.Strong));
+    }
+
+    /// <summary>
+    /// Редкость считается по ВСЕМ позициям, архивным тоже: артикул, который нёс десяток убранных в архив
+    /// позиций, — код поставщика, а не артикул изделия, хоть действующая с ним и одна.
+    /// </summary>
+    [Fact]
+    public void Редкость_артикула_считается_и_по_архивным()
+    {
+        var old = Enumerable.Range(0, NomenclatureSimilarity.RareLimit)
+            .Select(i => Lying($"Изделие {i}", article: "00-0029", archived: true));
+        var live = Lying("Лоток 100х50", article: "00-0029");
+
+        Assert.Empty(For([.. old, live], "Что-то от поставщика", "00-0029").Hits);
+    }
+
+    [Fact]
+    public void Действующая_выше_архивной_даже_с_меньшей_долей_слов()
+    {
+        var archived = Lying("Кабель ВВГнг 3х2,5 ГОСТ", archived: true);
+        var live = Lying("Кабель ВВГнг медный");
+
+        var answer = For([archived, live], "Кабель ВВГнг 3х2,5");
+
+        Assert.Equal([live.Id, archived.Id], answer.Hits.Select(h => h.Record.Id));
+    }
+
+    /// <summary>Бумага пишет слово длиннее справочника: «щита» — это «щит» позиции.</summary>
+    [Fact]
+    public void Слово_позиции_находится_началом_слова_строки()
+    {
+        var shield = Lying("Щит ЩРН-12");
+
+        var hit = Assert.Single(For([shield], "Корпус щита ЩРН-12 навесной").Hits);
+
+        Assert.Equal(["название позиции целиком есть в строке"], hit.Why);
+        Assert.Equal(["щита", "ЩРН-12"], hit.Matched.Words.Where(w => w.Found).Select(w => w.Text));
+    }
+
+    /// <summary>«20мм» — это «20» со слитной единицей; «160А» — другое число, не «16».</summary>
+    [Fact]
+    public void Число_со_слитной_единицей_то_же_число()
+    {
+        var pipe = Lying("Труба ПНД 20");
+
+        var hit = Assert.Single(For([pipe], "Труба ПНД 20мм").Hits);
+        Assert.Equal(["Труба", "ПНД", "20мм"], hit.Matched.Words.Where(w => w.Found).Select(w => w.Text));
+
+        Assert.Empty(For([Lying("Автомат 16")], "Автомат 160А").Hits);
+        Assert.Empty(For([Lying("Хомут 3")], "Хомут 3х16").Hits);
+    }
+
+    /// <summary>Маркер «🔗» правила не видят — и подсветка не считает его частью слова.</summary>
+    [Fact]
+    public void Маркер_ссылки_не_часть_слова()
+    {
+        const string paper = "🔗Кабель ВВГ";
+
+        var hit = Assert.Single(For([Lying("Кабель ВВГ")], paper).Hits);
+
+        Assert.Equal(new LineWord[] { new("Кабель", 2, true), new("ВВГ", 9, true) }, hit.Matched.Words);
+    }
+
     [Fact]
     public void Пустая_строка_пустой_ответ_а_несверенные_названы()
     {
