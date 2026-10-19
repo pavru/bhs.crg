@@ -361,6 +361,7 @@ public sealed class CostsModule : IAppModule
         OrganizationEndpoints.MapOrganizations(endpoints);
         NomenclatureEndpoints.MapNomenclature(endpoints);
         NomenclatureCandidateEndpoints.Map(endpoints);
+        NomenclatureCardEndpoints.Map(endpoints);
         ArticleEndpoints.MapArticles(endpoints);
         WaybillEndpoints.MapWaybills(endpoints);
     }
