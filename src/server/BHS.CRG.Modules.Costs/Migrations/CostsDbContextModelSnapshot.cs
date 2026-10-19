@@ -704,6 +704,9 @@ namespace BHS.CRG.Modules.Costs.Migrations
                     b.HasIndex("NomenclatureId")
                         .HasDatabaseName("ix_supplier_matches_nomenclature");
 
+                    b.HasIndex("Kind", "KeyHash")
+                        .HasDatabaseName("ix_supplier_matches_kind_key");
+
                     b.HasIndex("SupplierId", "Kind", "KeyHash")
                         .IsUnique()
                         .HasDatabaseName("ux_supplier_matches_key");

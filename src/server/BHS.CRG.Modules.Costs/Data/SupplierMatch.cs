@@ -141,6 +141,10 @@ public sealed class SupplierMatch
             .IsUnique()
             .HasDatabaseName("ux_supplier_matches_key");
 
+        // Тот же ключ у ЛЮБОГО поставщика — кандидаты окна выбора позиции (issue #1515): единственный
+        // индекс начинается с поставщика, и вопрос «кто ещё так называл» по нему шёл бы всей таблицей.
+        match.HasIndex(m => new { m.Kind, m.KeyHash }).HasDatabaseName("ix_supplier_matches_kind_key");
+
         // Удаление позиции спрашивает, кто её держит, — по этой колонке (ТЗ CORE-34.1).
         match.HasIndex(m => m.NomenclatureId).HasDatabaseName("ix_supplier_matches_nomenclature");
     }
