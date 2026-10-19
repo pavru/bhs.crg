@@ -51,6 +51,15 @@ export interface InvoicePartyOffer {
   entryId: string;
 }
 
+/**
+ * Предложение по полю шапки (issue #1483): прочитанный текст и значение, разобранное СЕРВЕРОМ по виду
+ * поля. Нет `value` — разобрать не удалось: только показать.
+ */
+export interface InvoiceValueOffer {
+  text: string;
+  value?: unknown;
+}
+
 export type RecognitionState = 'none' | 'running' | 'done' | 'failed';
 
 export interface InvoiceRecognition {
@@ -63,8 +72,11 @@ export interface InvoiceRecognition {
   progress: string | null;
   /** Что прочитано в шапке, как есть: «ключ профиля → текст». */
   values: Record<string, string | null> | null;
-  /** Прочитано, но в поле не записано: поле было занято или значение не разобрать. */
-  offers: Record<string, string | InvoicePartyOffer> | null;
+  /**
+   * Прочитано, но в поле не записано: поле было занято, значение не разобрать или его отклонила охрана.
+   * Строка — запись распознавания до #1483: значение тогда не разобрано, «Взять» нечем.
+   */
+  offers: Record<string, string | InvoicePartyOffer | InvoiceValueOffer> | null;
   /** Распознанные строки, которые в счёт не легли: у него уже были свои. */
   lines: Record<string, string | null>[] | null;
   notes: string[];

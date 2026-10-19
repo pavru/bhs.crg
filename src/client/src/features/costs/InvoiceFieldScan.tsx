@@ -5,7 +5,6 @@ import { catalogRef, refEntryId } from './invoiceFields';
 import { InvoicePartyNote } from './InvoicePartyNote';
 import { OfferLine } from './InvoiceRecognitionNote';
 import { SIDE_OF, fieldOffer } from './recognition';
-import { useExtraField } from './invoiceExtras';
 import { useRecognition } from './recognitionWatch';
 
 /**
@@ -21,15 +20,13 @@ export function InvoiceFieldScan({ fieldKey, view, edits, set, organizations }: 
 }) {
   const recognition = useRecognition();
   const qc = useQueryClient();
-  const extra = useExtraField(fieldKey);
   if (!recognition) return null;
 
   const side = SIDE_OF[fieldKey];
   const party = side ? recognition.parties?.[side] ?? null : null;
   const offer = fieldOffer(fieldKey, view, edits, recognition,
     id => organizations.find(o => o.id === id)?.name
-      ?? party?.candidates.find(c => c.id === id)?.name ?? null,
-    extra?.type === 'string' || extra?.type === 'text');
+      ?? party?.candidates.find(c => c.id === id)?.name ?? null);
   const chosen = refEntryId(fieldKey in edits ? edits[fieldKey] : view.requisites[fieldKey]);
 
   return (

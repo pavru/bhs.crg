@@ -372,7 +372,8 @@ public static class InvoiceScanLines
         return bare.All(c => c is '-' or '—' or '–') || bare is "Х" or "х" or "X" or "x";
     }
 
-    private static string Short(string text) => text.Length > 40 ? text[..40] + "…" : text;
+    /// <summary>Прочитанное в замечании — не длиннее 40 знаков; одно правило на строки и шапку (ревью PR #1523).</summary>
+    internal static string Short(string text) => text.Length > 40 ? text[..40] + "…" : text;
 }
 
 /// <summary>
