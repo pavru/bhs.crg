@@ -359,7 +359,7 @@ describe('DateInput: имя для чтения с экрана', () => {
     locale = 'en-US';
     render(<DateInput label="Payment date" value="2026-10-19" onChange={() => {}} calendar={false} />);
     const group = screen.getByRole('group', { name: 'Payment date' });
-    expect(within(group).getByRole('textbox', { name: 'month' }).value).toBe('10');
+    expect((within(group).getByRole('textbox', { name: 'month' }) as HTMLInputElement).value).toBe('10');
     expect(within(group).getAllByRole('textbox').map(t => t.getAttribute('aria-label'))).toEqual(['month', 'day', 'year']);
   });
 
