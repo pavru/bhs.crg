@@ -171,6 +171,49 @@ public class InvoiceReadinessTests(InvoiceLineHost host) : InvoiceLineTestBase(h
         Assert.Contains("строка 2 ждёт позиции номенклатуры", await response.Content.ReadAsStringAsync());
     }
 
+    /// <summary>
+    /// НДС у всех строк или ни у одной (issue #1445, решение владельца 19.10.2026): отчёт берёт НДС шапки,
+    /// только когда строки молчат все, и строка без НДС среди названных ушла бы в затраты полной суммой.
+    /// Сохранить частичный НДС можно — черновик доводят строку за строкой; не пускает только «Разобран».
+    /// </summary>
+    [Fact]
+    public async Task НДС_у_части_строк_не_пускает_в_разобран()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client, complete: true);
+        await AllocatedLinesAsync(client, invoice,
+        [
+            Line(cable, quantity: 1, price: 100m, rate: 20),
+            Line(cable, quantity: 2, price: 50m),
+            Line(cable, quantity: 3, price: 10m, rate: 0),
+        ]);
+
+        var (gaps, response) = await PressAsync(client, invoice);
+
+        // «Без НДС» (ставка 0) — НДС назван нулём: пункт называет только молчащую строку.
+        var gap = Assert.Single(gaps);
+        Assert.Equal("vat", gap.GetProperty("kind").GetString());
+        Assert.Equal("НДС не указан: строка 2", gap.GetProperty("label").GetString());
+        Assert.Equal([2], gap.GetProperty("lines").EnumerateArray().Select(l => l.GetInt32()));
+        Assert.Contains("НДС указан не у всех строк — у строки 2 его нет", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task НДС_ни_у_одной_строки_разобрать_можно()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client, complete: true);
+        await AllocatedLinesAsync(client, invoice,
+        [
+            Line(cable, quantity: 1, price: 100m),
+            Line(cable, quantity: 2, price: 50m),
+        ]);
+
+        var (gaps, _) = await PressAsync(client, invoice);
+
+        Assert.Empty(gaps);
+    }
+
     [Fact]
     public async Task Не_хватает_только_живой_позиции()
     {
