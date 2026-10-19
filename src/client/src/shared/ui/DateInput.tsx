@@ -145,10 +145,18 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
     emit(got.d, got.m, got.y);
   }
 
+  /**
+   * Выделение — сразу за фокусом: следующая цифра заменит сегмент. Таймер только повторяет его, если в
+   * сегмент ещё не набрали: на медленной машине он срабатывал после первой цифры и выделял её, и
+   * «3102» поверх 19.10 давало месяц «2» (живые прогоны PR #1544).
+   */
   function advance(ref: React.RefObject<HTMLInputElement | null>) {
-    ref.current?.focus();
-    // Schedule select so it runs after focus
-    setTimeout(() => ref.current?.select(), 0);
+    const el = ref.current;
+    if (!el) return;
+    el.focus();
+    el.select();
+    const was = el.value;
+    setTimeout(() => { if (document.activeElement === el && el.value === was) el.select(); }, 0);
   }
 
   const refs: Record<DatePart, React.RefObject<HTMLInputElement | null>> = { d: dayRef, m: monRef, y: yrRef };
@@ -194,8 +202,6 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
   /**
    * Разделитель переводит к следующему сегменту, Backspace в пустом — к предыдущему. Цифра в полный
    * сегмент без выделения заменяет его, как в нативном поле даты: иначе её молча съедал `maxLength`.
-   * Так и при автопереходе: выделение `advance` ставит таймером, а Chrome пускает ввод раньше таймеров —
-   * в CI «3102» поверх 19.10 давало месяц «2» (живые прогоны PR #1544).
    */
   const onSegmentKey = (part: DatePart) => (e: React.KeyboardEvent<HTMLInputElement>) => {
     const cur = shown[part];

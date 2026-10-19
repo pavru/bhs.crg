@@ -305,7 +305,7 @@ describe('DateInput: маска по языку пользователя (issue 
 });
 
 // Цифра в полный сегмент без выделения заменяет его (живые прогоны PR #1544): иначе её съедает
-// `maxLength`, и при автопереходе, когда выделение ещё не поставлено таймером, «3102» давало месяц «2».
+// `maxLength`.
 describe('DateInput: цифра в полный сегмент', () => {
   it('без выделения — сегмент выделяется, и цифра его заменит', () => {
     render(<Controlled initial="2026-10-19" />);
@@ -325,5 +325,23 @@ describe('DateInput: цифра в полный сегмент', () => {
     expect([month.selectionStart, month.selectionEnd]).toEqual([1, 2]);
     fireEvent.keyDown(month, { key: 'ArrowLeft' });
     expect([month.selectionStart, month.selectionEnd]).toEqual([1, 2]);
+  });
+
+  // Настоящая причина «31.2.2026» в CI: выделение после автоперехода ставилось только таймером, и на
+  // медленной машине он срабатывал ПОСЛЕ первой цифры месяца — выделял «0», и «2» его заменяла.
+  it('автопереход выделяет сразу, а запоздавший таймер не выделяет набранное', () => {
+    vi.useFakeTimers();
+    render(<Controlled initial="2026-10-19" />);
+    const day = seg('ДД');
+    const month = seg('ММ');
+    day.focus();
+    fireEvent.change(day, { target: { value: '3' } });
+    fireEvent.change(day, { target: { value: '31' } });
+    expect(document.activeElement).toBe(month);
+    expect([month.selectionStart, month.selectionEnd]).toEqual([0, 2]);
+    fireEvent.change(month, { target: { value: '0' } });
+    act(() => { vi.runAllTimers(); });
+    expect(month.value).toBe('0');
+    expect([month.selectionStart, month.selectionEnd]).toEqual([1, 1]);
   });
 });
