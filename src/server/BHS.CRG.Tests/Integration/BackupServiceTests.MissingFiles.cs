@@ -238,6 +238,59 @@ public partial class BackupServiceTests
         Assert.DoesNotContain(report.Warnings, w => w.Contains("скан не восстановлен"));
     }
 
+    /// <summary>
+    /// Паспорт копии называет пропавшие части PDF-наборов по набору и с тем же выходом, что у
+    /// восстановления: «Разбиение» → «Сохранить». Прежде он говорил одно «файлов не оказалось: N из M»
+    /// — и на продовой копии 50 таких файлов оставались безымянными, хотя все 50 вырезаются заново.
+    /// Оценка веса пишет те же слова: её паспорт обязан весить столько же (#1425).
+    /// </summary>
+    [Fact]
+    public async Task Copy_MissingParts_NamesSets_AndRecut()
+    {
+        var (_, _, parts) = await SeedSplitDataSetAsync();
+        foreach (var part in parts.Keys) await DropStoredAsync(part);
+
+        BackupSizeEstimate estimate;
+        using (var scope = fixture.Services.CreateScope())
+            estimate = await Backup(scope).EstimateSizeAsync(long.MaxValue, BackupScope.Full);
+        var zipBytes = await ExportFullAsync();
+        using var zip = new ZipArchive(new MemoryStream(zipBytes), ZipArchiveMode.Read);
+        var warnings = SummaryOf(zip).Warnings ?? [];
+
+        Assert.Contains(warnings, w =>
+            w.StartsWith("Вырезанных PDF документов не оказалось в хранилище: «Альбом ЭМ» — 2 из 2.") &&
+            w.Contains("откройте у набора «Разбиение» и сохраните его") && w.Contains("снимите копию заново"));
+        Assert.DoesNotContain(warnings, w => w.Contains("вырезать их заново не из чего"));
+        // Других потерь нет — и общей фразы нет: она сосчитала бы те же части второй раз.
+        Assert.DoesNotContain(warnings, w => w.Contains("Файлов не оказалось") || w.Contains("Других файлов"));
+        Assert.Equal(2, estimate.Variant.MissingBlobCount);
+        AssertEstimateMatchesArchive(estimate.Variant.TotalBytes, zipBytes.LongLength);
+    }
+
+    /// <summary>
+    /// Нет и файла набора — «Разбиение» частей не вернёт: выход — сначала вернуть файл. Сам файл набора
+    /// назван общей фразой, «других», и в счёт частей не попадает.
+    /// </summary>
+    [Fact]
+    public async Task Copy_MissingPartsAndSetFile_SaysReturnTheFileFirst()
+    {
+        var (fileId, _, parts) = await SeedSplitDataSetAsync();
+        string filePath;
+        using (var scope = fixture.Services.CreateScope())
+            filePath = (await scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.AppDbContext>()
+                .DataSetFiles.FindAsync(fileId))!.BlobPath;
+        foreach (var path in parts.Keys.Append(filePath)) await DropStoredAsync(path);
+
+        using var zip = new ZipArchive(new MemoryStream(await ExportFullAsync()), ZipArchiveMode.Read);
+        var warnings = SummaryOf(zip).Warnings ?? [];
+
+        Assert.Contains(warnings, w =>
+            w.Contains("вырезать их заново не из чего") && w.Contains("«Альбом ЭМ» — 2 из 2") &&
+            w.Contains("Верните файл набора (загрузите заново)"));
+        Assert.DoesNotContain(warnings, w => w.Contains("Части вырезаются заново"));
+        Assert.Contains(warnings, w => w.StartsWith("Других файлов не оказалось в хранилище: 1 из 3"));
+    }
+
     // ── Помощники ─────────────────────────────────────────────────────────────
 
     private async Task DropStoredAsync(string path)

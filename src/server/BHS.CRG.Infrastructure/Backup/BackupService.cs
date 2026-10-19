@@ -132,7 +132,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             }
 
             WarnAboutScan(selection, missingBlobs, warnings);
-            if (missingBlobs.Count > 0) warnings.Add(MissingBlobsWarning(missingBlobs.Count, blobPaths.Count));
+            WarnAboutMissingBlobs(selection, missingBlobs, manifest, warnings);
 
             // Паспорт пишем ПОСЛЕДНИМ, хотя читается он первым: до конца прогона по блобам не
             // известно, чего в хранилище не оказалось, а поле «что пропущено» заведено именно
@@ -144,11 +144,6 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
 
         return summary;
     }
-
-    /// <summary>Одна фраза на экспорт и на оценку: паспорт оценки обязан весить столько же.</summary>
-    private static string MissingBlobsWarning(int missing, int total) =>
-        $"Файлов не оказалось в хранилище: {missing} из {total} — " +
-        "в копию они не попали, и после восстановления ссылки на них останутся битыми.";
 
     /// <summary>
     /// Копия одним потоком, без каталога на сервере. Прямого потребителя у этой формы больше нет —
@@ -319,7 +314,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
         // ПОСЛЕ размеров файлов, как и копия пишет паспорт последним: о пропавших файлах тоже
         // говорит паспорт.
         WarnAboutScan(selection, missing, warnings);
-        if (missing.Count > 0) warnings.Add(MissingBlobsWarning(missing.Count, paths.Count));
+        WarnAboutMissingBlobs(selection, missing, manifest, warnings);
         var summaryCounter = new CountingStream();
         await using (var deflate = new DeflateStream(summaryCounter, CompressionLevel.Fastest, leaveOpen: true))
             await deflate.WriteAsync(BackupFileStore.SummaryBytes(BuildSummary(manifest, paths.Count, warnings)), ct);
