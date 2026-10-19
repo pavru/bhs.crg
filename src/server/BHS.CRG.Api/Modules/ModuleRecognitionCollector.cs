@@ -56,10 +56,12 @@ public static class ModuleRecognitionCollector
                                "которого ядро не знает");
                     continue;
                 }
+                if (profile.Targets is { } targets)
+                    faults.AddRange(TargetFaults(module, profile.Code, targets));
                 declarations.Add(new RecognitionProfileDeclaration(
                     profile.Code, profile.Name, kind,
                     Map(profile.Fields), Map(profile.RowColumns), Map(profile.Shape),
-                    module.Code, profile.DocumentTag));
+                    module.Code, profile.DocumentTag, Map(profile.Targets)));
             }
         }
 
@@ -71,4 +73,51 @@ public static class ModuleRecognitionCollector
 
     private static RecognitionTableShape? Map(ModuleRecognitionShape? shape) =>
         shape is null ? null : new RecognitionTableShape(shape.TwoTierHeader, shape.PairedSections, shape.SkipTotals);
+
+    private static RecognitionTargets? Map(ModuleRecognitionTargets? targets) =>
+        targets is null
+            ? null
+            : new RecognitionTargets(targets.RecordType, [.. targets.Fields.Select(t => new RecognitionTargetDeclaration(
+                t.Key, Map(t.Use), t.Why, t.LegacyKeys))]);
+
+    // Явным перечнем, а не приведением числа: зеркала разошлись бы порядком молча.
+    private static RecognitionTargetUse Map(ModuleTargetUse use) => use switch
+    {
+        ModuleTargetUse.Field => RecognitionTargetUse.Field,
+        ModuleTargetUse.Input => RecognitionTargetUse.Input,
+        ModuleTargetUse.Unavailable => RecognitionTargetUse.Unavailable,
+        _ => throw new ArgumentOutOfRangeException(nameof(use), use, "Неизвестное назначение цели распознавания."),
+    };
+
+    /// <summary>
+    /// Изъяны объявления целей (issue #1483). Каждый — отказ старта, а не тихий пропуск: цель, которой нет
+    /// среди полей типа, значила бы «номер со скана перестал заполняться» у заказчика, а повтор ключа —
+    /// одно значение в двух полях.
+    /// </summary>
+    private static IEnumerable<string> TargetFaults(IAppModule module, string profile, ModuleRecognitionTargets targets)
+    {
+        var where = $"цели профиля «{profile}» модуля «{module.Title}»";
+        var type = module.RecordTypes.FirstOrDefault(t => t.Code == targets.RecordType);
+        if (type is null)
+        {
+            yield return $"{where} называют тип «{targets.RecordType}», которого модуль не объявляет";
+            yield break;
+        }
+
+        var fields = type.Fields.Select(f => f.Key).ToHashSet(StringComparer.Ordinal);
+        // Служебный вход полем быть не обязан (ИНН — реквизит организации, а не счёта); поле и недоступное — обязаны.
+        foreach (var target in targets.Fields.Where(t => t.Use != ModuleTargetUse.Input && !fields.Contains(t.Key)))
+            yield return $"{where}: поля «{target.Key}» у типа «{type.Code}» нет";
+        foreach (var target in targets.Fields.Where(t => t.Use == ModuleTargetUse.Unavailable && string.IsNullOrWhiteSpace(t.Why)))
+            yield return $"{where}: у недоступного поля «{target.Key}» не названа причина";
+
+        var keys = targets.Fields.Select(t => t.Key).ToList();
+        var legacy = targets.Fields.SelectMany(t => t.LegacyKeys).ToList();
+        foreach (var g in keys.GroupBy(k => k, StringComparer.Ordinal).Where(g => g.Count() > 1))
+            yield return $"{where}: ключ «{g.Key}» объявлен {g.Count()} раза";
+        foreach (var g in legacy.GroupBy(k => k, StringComparer.Ordinal).Where(g => g.Count() > 1))
+            yield return $"{where}: прежний ключ «{g.Key}» ведёт в {g.Count()} поля";
+        foreach (var key in legacy.Where(keys.Contains))
+            yield return $"{where}: прежний ключ «{key}» совпадает с ключом цели";
+    }
 }
