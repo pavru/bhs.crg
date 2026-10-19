@@ -145,9 +145,21 @@ public class NomenclatureLineCandidatesTests
         var hit = Assert.Single(For([cable], "Кабель  ВВГнг 3х2,5 медный").Hits);
 
         Assert.Equal(
-            new LineWord[] { new("Кабель", true), new("ВВГнг", true), new("3х2,5", true), new("медный", false) },
+            new LineWord[] { new("Кабель", 0, true), new("ВВГнг", 8, true), new("3х2,5", 14, true), new("медный", 20, false) },
             hit.Matched.Words);
         Assert.Null(hit.Matched.Field);
+    }
+
+    /// <summary>Место слова — в строке поставщика как она есть: со скобками и переводом строки.</summary>
+    [Fact]
+    public void Слово_строки_названо_местом_в_исходном_тексте()
+    {
+        const string paper = "Кабель ВВГнг(А)-LS\t3х2,5 (код mb-71)";
+
+        var hit = Assert.Single(For([Lying("Кабель ВВГнг 3х2,5")], paper).Hits);
+
+        Assert.All(hit.Matched.Words, w => Assert.Equal(w.Text, paper.Substring(w.Start, w.Text.Length)));
+        Assert.Equal(["Кабель", "ВВГнг", "3х2,5"], hit.Matched.Words.Where(w => w.Found).Select(w => w.Text));
     }
 
     [Fact]
@@ -160,6 +172,84 @@ public class NomenclatureLineCandidatesTests
         var live = Lying("Лоток 100х50 перфорированный");
         var answer = For([archived, live], "Лоток 100х50 перфорированный");
         Assert.Equal(live.Id, answer.Hits[0].Record.Id);
+    }
+
+    /// <summary>
+    /// Позицию заменили, старую убрали в архив: единственная ДЕЙСТВУЮЩАЯ остаётся лучшим совпадением —
+    /// и по имени, и по артикулу. Проверено поломкой: со счётом архивных сильного здесь нет.
+    /// </summary>
+    [Fact]
+    public void Архивный_двойник_не_отнимает_лучшее_совпадение_у_действующей()
+    {
+        var old = Lying("Лоток 100х50", article: "LT-100", archived: true);
+        var live = Lying("Лоток 100х50", article: "LT-100");
+
+        var byName = For([old, live], "Лоток 100х50");
+        Assert.True(byName.Hits.Single(h => h.Record.Id == live.Id).Strong);
+        Assert.False(byName.Hits.Single(h => h.Record.Id == old.Id).Strong);
+
+        var byCode = For([old, live], "Лоток металлический", "LT-100");
+        var hit = byCode.Hits.Single(h => h.Record.Id == live.Id);
+        Assert.True(hit.Strong);
+        Assert.Equal("совпадает артикул «LT-100»", hit.Why[0]);
+        // Архивной сказано честно: артикул у неё не один.
+        Assert.StartsWith("артикул «LT-100» совпадает у 2 позиций", byCode.Hits.Single(h => h.Record.Id == old.Id).Why[0]);
+    }
+
+    /// <summary>
+    /// D и E — один уровень, решает доля слов строки: общая «Кабель ВВГ» (D — оба её слова в строке) не
+    /// встаёт выше позиции, совпавшей со строкой во всех словах. Проверено поломкой: с D уровнем выше
+    /// первой шла общая.
+    /// </summary>
+    [Fact]
+    public void Общая_позиция_целиком_в_строке_не_выше_совпавшей_во_всех_словах()
+    {
+        var generic = Lying("Кабель ВВГ");
+        var exact = Lying("Кабель силовой ВВГнг(А)-LS 3х2,5 ГОСТ");
+
+        var answer = For([generic, exact], "Кабель ВВГнг(А)-LS 3х2,5");
+
+        Assert.Equal([exact.Id, generic.Id], answer.Hits.Select(h => h.Record.Id));
+        Assert.Equal("название позиции целиком есть в строке", answer.Hits[1].Why[0]);
+    }
+
+    /// <summary>
+    /// Слово строки, продолжающее слово позиции («Короба» — «Короб»), засчитано правилом и подсвечено
+    /// одинаково: подсветка не обещает того, по чему не подбирали.
+    /// </summary>
+    [Fact]
+    public void Подсвечено_ровно_то_что_засчитано()
+    {
+        var box = Lying("Короб 40х25 ДКС");
+
+        var hit = Assert.Single(For([box], "Короба 40х25 пластиковые").Hits);
+
+        Assert.Equal(["большинство слов строки"], hit.Why);
+        Assert.Equal(["Короба", "40х25"], hit.Matched.Words.Where(w => w.Found).Select(w => w.Text));
+    }
+
+    [Fact]
+    public void Название_целиком_находится_и_альтернативным_именем()
+    {
+        var shield = Lying("Щиток", aliases: ["Щит распределительный ЩРН-12"]);
+
+        var hit = Assert.Single(For([shield], "Щит распределительный ЩРН-12 навесной IP31").Hits);
+
+        Assert.Equal(["название позиции целиком есть в строке"], hit.Why);
+        Assert.Equal(3, hit.Matched.Words.Count(w => w.Found));
+    }
+
+    /// <summary>Запись, у которой в ключе одно название, с артикулом строки сверяется без отказа.</summary>
+    [Fact]
+    public void Ключ_из_одного_названия_и_артикул_строки()
+    {
+        var bare = new SimilarRecord(Guid.NewGuid(), Kind, "Номенклатура", "Реле РП-21", false, ["Реле РП-21"], []);
+        var empty = new SimilarRecord(Guid.NewGuid(), Kind, "Номенклатура", "Реле РП-21", false, [], []);
+
+        var answer = For([bare, empty], "Реле РП-21", "RP-21");
+
+        Assert.Equal(2, answer.Hits.Count);
+        Assert.All(answer.Hits, h => Assert.Equal(["то же наименование"], h.Why));
     }
 
     [Fact]

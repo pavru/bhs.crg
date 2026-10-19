@@ -43,7 +43,9 @@ public sealed record LineQuestion(string? Name, string? Code);
 public sealed record LineMatched(IReadOnlyList<LineWord> Words, string? Field);
 
 /// <summary>Слово строки бумаги так, как оно в ней написано.</summary>
-public sealed record LineWord(string Text, bool Found);
+/// <param name="Start">Где слово начинается в исходной строке (<see cref="LineQuestion.Name" />): карточка
+/// подсвечивает его в тексте поставщика как есть — со скобками, косыми и кавычками, которых в словах нет.</param>
+public sealed record LineWord(string Text, int Start, bool Found);
 
 /// <summary>Кандидат для строки бумаги.</summary>
 /// <param name="Why">Причины одной фразой каждая, старшая первой.</param>
@@ -185,11 +187,17 @@ public static class NomenclatureSimilarity
     /// остаётся одна, старшая: «то же наименование» уже значит, что слова совпали, и три фразы об одном
     /// причину не проясняют.</para>
     ///
+    /// <para><b>D и E — один уровень</b>, и внутри него решает доля слов строки, найденных в имени
+    /// позиции; D лишь выигрывает равенство. Иначе «Кабель ВВГ», который целиком есть почти в любой
+    /// строке про кабель, вставал бы выше позиции, совпавшей со строкой слово в слово. Слова сравниваются
+    /// одним правилом (<see cref="Matches"/>) — в D, в E, в доле и в подсветке.</para>
+    ///
     /// <para>⚠️ <b>Сильный — только единственный.</b> Артикул «00-0029» бывает внутренним кодом 1С
     /// продавца, имя «Кабель ВВГ» — у трёх позиций разного сечения. Нашлось артикулом или тем же
-    /// наименованием больше одной позиции — сильного нет вовсе: Enter выбрал бы одну из них наугад.
-    /// Архивная и позиция подтипа со своими полями ключа сильными не бывают: первую не выбрать, вторую
-    /// надо сверить глазами.</para>
+    /// наименованием больше одной ДЕЙСТВУЮЩЕЙ позиции — сильного нет вовсе: Enter выбрал бы одну из них
+    /// наугад. Архивные в этот счёт не идут: позицию заменили, старую убрали в архив, — и единственная
+    /// действующая остаётся «лучшим совпадением». Сами архивная и позиция подтипа со своими полями ключа
+    /// сильными не бывают: первую не выбрать, вторую надо сверить глазами.</para>
     /// </summary>
     /// <param name="titles">Заголовки полей ключа по виду записи, в порядке ключа, — для причины
     /// «совпадает артикул «…»». Вида нет в словаре — «поле ключа».</param>
@@ -202,34 +210,35 @@ public static class NomenclatureSimilarity
         if (name.Length == 0 && code.Length == 0) return new([], false, unreadable);
 
         var lying = records.Select(r => (Record: r, Key: KeyOf(r, Math.Max(1, r.Identity.Count)))).ToList();
-        // Сколько позиций несут значение в каком-либо поле ключа, кроме названия, — для «редкого».
-        var shared = lying
-            .SelectMany(x => x.Key.Skip(1).Where(v => v.Length > 0).Distinct())
-            .GroupBy(v => v).ToDictionary(g => g.Key, g => g.Count());
+        // Сколько позиций несут значение в каком-либо поле ключа, кроме названия: всех — для «редкого»,
+        // действующих — для «единственного». Архивный двойник артикула выбрать нельзя, и единственную
+        // действующую позицию он не делает спорной.
+        var shared = code.Length == 0 ? [] : SharedValues(lying);
+        var sharedLive = code.Length == 0 ? [] : SharedValues(lying.Where(x => !x.Record.Archived));
         var words = Words(name);
-        var shown = Split(string.Join(' ', (line.Name ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)));
+        var shown = Shown(line.Name);
 
-        var hits = new List<(SimilarRecord Record, int Level, int Share, bool Sure, List<string> Why, LineMatched Matched)>();
+        var hits = new List<LineCandidate>();
         foreach (var (record, key) in lying)
         {
             var why = new List<string>();
-            int level = 0, share = 0;
-            var sure = false;
+            int level = 0;
+            bool sure = false, whole = false;
             string? field = null;
             var by = key[0];
 
             var at = code.Length == 0 ? -1 : Array.IndexOf(key, code, 1);
             if (at > 0 && shared[code] <= RareLimit)
             {
+                var many = record.Archived ? shared[code] : sharedLive[code];
                 field = Title(titles, record.TypeId, at);
                 var what = $"{field.ToLowerInvariant()} «{line.Code!.Trim()}»";
-                why.Add(shared[code] == 1 ? $"совпадает {what}" : $"{what} совпадает у {shared[code]} позиций — сверьте");
+                why.Add(many == 1 ? $"совпадает {what}" : $"{what} совпадает у {many} позиций — сверьте");
                 level = ByCode;
-                sure = shared[code] == 1;
+                sure = many == 1;
             }
 
             var aliases = record.Aliases.Select(MatchKeyNormalizer.Normalize).Where(a => a.Length > 0).ToList();
-            var names = aliases.Prepend(key[0]).ToList();
             if (name.Length > 0 && key[0] == name)
             {
                 why.Add("то же наименование");
@@ -243,34 +252,44 @@ public static class NomenclatureSimilarity
             else if (words.Count > 0)
             {
                 // Лучшее из названия и альтернативных имён: позиция подходит, если подходит любое её имя.
-                var whole = names.FirstOrDefault(n => Words(n) is { Count: >= 2 } own && Found(own, name) == own.Count);
-                var best = names.MaxBy(n => Found(words, n))!;
-                var found = Found(words, whole ?? best);
-                if (whole is not null)
+                var names = aliases.Prepend(key[0]).Select(n => (Name: n, Own: Words(n))).ToList();
+                var full = names.FirstOrDefault(n => n.Own.Count >= 2 && n.Own.All(o => words.Any(w => Matches(w, o))));
+                var best = names.MaxBy(n => Counted(words, n.Own));
+                var found = Counted(words, best.Own);
+                if (full.Name is not null)
                 {
                     why.Add("название позиции целиком есть в строке");
-                    (level, share, by) = (Math.Max(level, WholeName), 100 * found / words.Count, whole);
+                    (level, whole, by) = (Math.Max(level, ByWords), true, full.Name);
                 }
                 // Больше половины слов: одно общее «кабель» из четырёх — не сходство, а раздел справочника.
                 else if (found * 2 > words.Count || (words.Count == 1 && found == 1))
                 {
                     why.Add("большинство слов строки");
-                    (level, share, by) = (Math.Max(level, MostWords), 100 * found / words.Count, best);
+                    (level, by) = (Math.Max(level, ByWords), best.Name);
                 }
             }
             if (level == 0) continue;
             if (record.OwnKey) why.Add("у позиции свои поля ключа — сверьте по карточке");
 
+            // Доля слов строки, найденных в имени, и подсветка — тем же сравнением, что правила: карточка
+            // показывает ровно то, по чему подбирали.
             var own = Words(by);
-            var matched = new LineMatched([.. shown.Select(w => new LineWord(w, IsFound(w.ToLowerInvariant(), own)))], field);
-            hits.Add((record, level, share, sure && !record.Archived && !record.OwnKey, why, matched));
+            var share = words.Count == 0 ? 0 : 100 * Counted(words, own) / words.Count;
+            var matched = new LineMatched(
+                [.. shown.Select(s => new LineWord(s.Text, s.Start, IsWord(s.Lower) && own.Any(o => Matches(s.Lower, o))))],
+                field);
+            hits.Add(new(record, level, share, whole, sure && !record.Archived && !record.OwnKey, why, matched));
         }
 
-        // Сильный — только если артикулом или тем же наименованием нашлась ОДНА позиция, какая угодно.
-        var sureOnes = hits.Count(h => h.Level >= ByName);
+        // Сильный — только если артикулом или тем же наименованием нашлась ОДНА действующая позиция:
+        // архивную не выбрать, и спорной находку она не делает.
+        var sureOnes = hits.Count(h => h.Level >= ByName && !h.Record.Archived);
         var ordered = hits
             .OrderByDescending(h => h.Level)
+            // Внутри «слов» решает доля слов строки, а не правило: «Кабель ВВГ» есть почти в любой строке
+            // про кабель, и правилом D он вставал бы выше позиции, совпавшей со строкой целиком.
             .ThenByDescending(h => h.Share)
+            .ThenByDescending(h => h.Whole)
             .ThenBy(h => h.Record.Archived)
             .ThenBy(h => h.Record.Name, StringComparer.CurrentCultureIgnoreCase)
             .ThenBy(h => h.Record.Id)
@@ -280,18 +299,51 @@ public static class NomenclatureSimilarity
         return new([.. ordered.Take(Limit)], ordered.Count > Limit, unreadable);
     }
 
-    private const int ByCode = 4, ByName = 3, WholeName = 2, MostWords = 1;
+    private const int ByCode = 3, ByName = 2, ByWords = 1;
+
+    /// <summary>Кандидат до упорядочения; <c>Sure</c> — сильный, если окажется единственным.</summary>
+    private sealed record LineCandidate(
+        SimilarRecord Record, int Level, int Share, bool Whole, bool Sure, List<string> Why, LineMatched Matched);
+
+    private static Dictionary<string, int> SharedValues(IEnumerable<(SimilarRecord Record, string[] Key)> lying) =>
+        lying.SelectMany(x => x.Key.Skip(1).Where(v => v.Length > 0).Distinct())
+            .GroupBy(v => v).ToDictionary(g => g.Key, g => g.Count());
 
     private static string Title(IReadOnlyDictionary<Guid, IReadOnlyList<string>> titles, Guid type, int at) =>
         titles.TryGetValue(type, out var list) && at < list.Count && !string.IsNullOrWhiteSpace(list[at])
             ? list[at] : "поле ключа";
 
     /// <summary>
-    /// Слово строки нашлось в имени позиции — в любую сторону: «ВВГ» строки — это «ВВГнг» позиции, и
-    /// «ВВГ» позиции — это «ВВГнг» строки (правило D сравнивает слова позиции со строкой).
+    /// Слово строки и слово позиции — одно слово, в любую сторону: «ВВГ» строки — это «ВВГнг» позиции,
+    /// и «ВВГ» позиции — это «ВВГнг» строки. Одно сравнение на правила D и E, долю и подсветку.
     /// </summary>
-    private static bool IsFound(string word, IReadOnlyList<string> own) =>
-        (word.Length >= 3 || word.Any(char.IsDigit)) && own.Any(o => Same(word, o) || Same(o, word));
+    private static bool Matches(string word, string own) => Same(word, own) || Same(own, word);
+
+    /// <summary>Сколько слов строки нашлось среди слов имени.</summary>
+    private static int Counted(IReadOnlyList<string> words, IReadOnlyList<string> own) =>
+        words.Count(w => own.Any(o => Matches(w, o)));
+
+    private static bool IsWord(string token) => token.Length >= 3 || token.Any(char.IsDigit);
+
+    /// <summary>
+    /// Слова строки так, как они в ней написаны, с местом в исходной строке: карточка подсвечивает их в
+    /// тексте поставщика, со скобками и знаками, а не в списке слов. Разбиение — то же, что у правил.
+    /// </summary>
+    private static List<(string Text, int Start, string Lower)> Shown(string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return [];
+        // Любой пробельный знак — пробел той же длины: места слов в исходной строке не сдвигаются.
+        var spaced = new string([.. text.Select(c => char.IsWhiteSpace(c) ? ' ' : c)]);
+        var result = new List<(string, int, string)>();
+        var from = 0;
+        foreach (var token in Split(spaced))
+        {
+            var start = spaced.IndexOf(token, from, StringComparison.Ordinal);
+            result.Add((token, start, token.ToLowerInvariant()));
+            from = start + token.Length;
+        }
+        return result;
+    }
 
     /// <summary>
     /// Ключ лежащей записи. Названием служит первое поле ключа, а если оно пусто — название самой
