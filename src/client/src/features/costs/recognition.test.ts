@@ -82,6 +82,8 @@ describe('предложение под полем', () => {
   it('совпало с полем — предлагать нечего', () => {
     const offers = { [K.total]: { text: '1 234,50', value: 1234.5 } };
     expect(fieldOffer(K.total, view({ [K.total]: 1234.5 }), {}, recognition({ offers }), noNames)).toBeNull();
+    // Набранное число лежит в правке строкой — сравнивается числом (ревью PR #1523).
+    expect(fieldOffer(K.total, view({ [K.total]: 100 }), { [K.total]: '1 234,5' }, recognition({ offers }), noNames)).toBeNull();
   });
 
   it('значение не разобрано сервером — показано, «Взять» нет: клиент сам не разбирает', () => {

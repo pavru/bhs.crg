@@ -115,6 +115,9 @@ public class InvoiceScanHeaderTests
     [InlineData("1 234,567 8", "1234.5678")]
     [InlineData("0,125", "0.125")]
     [InlineData("1.234,5", "1234.5")]
+    // Тысячи отделены пробелом — дробь однозначна (ревью PR #1523).
+    [InlineData("1 234,567", "1234.567")]
+    [InlineData("1 234 567,891", "1234567.891")]
     [InlineData("7", "7")]
     public void Число_поля_заказчика(string text, string? expected) =>
         Assert.Equal(expected is null ? null : decimal.Parse(expected, System.Globalization.CultureInfo.InvariantCulture),
@@ -148,6 +151,24 @@ public class InvoiceScanHeaderTests
         Assert.Contains(plan.Notes, n => n.Contains("«Оплатить до» «01.11.2026» — срок считает правило"));
         Assert.Contains(plan.Notes, n => n.Contains("«Опечатка» «что-то»") && n.Contains("нет поля с таким ключом"));
         Assert.DoesNotContain(plan.Notes, n => n.Contains("Пусто") || n.Contains("7701234567"));
+    }
+
+    /// <summary>
+    /// Ревью PR #1523: предложения, записанные до #1483 строкой, отдаются с разобранным значением — тем же
+    /// разбором, — иначе у них пропало бы «Взять». Не разобранное — только текст; сторона — как лежит.
+    /// </summary>
+    [Fact]
+    public void Прежние_предложения_строкой_разбираются_при_показе()
+    {
+        using var stored = System.Text.Json.JsonDocument.Parse(
+            """{"Номер":"СЧ-1","Итого":"1.234","Назначение":"Договор № 5","Поставщик":{"text":"ООО","entryId":"b"}}""");
+        var shown = InvoiceScanHeader.Shown(stored.RootElement)!.Value;
+
+        Assert.Equal("СЧ-1", shown.GetProperty("Номер").GetProperty("value").GetString());
+        Assert.Equal("1.234", shown.GetProperty("Итого").GetProperty("text").GetString());
+        Assert.False(shown.GetProperty("Итого").TryGetProperty("value", out _));
+        Assert.Equal("Договор № 5", shown.GetProperty("Назначение").GetProperty("value").GetString());
+        Assert.Equal("b", shown.GetProperty("Поставщик").GetProperty("entryId").GetString());
     }
 
     [Fact]

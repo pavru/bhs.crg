@@ -29,14 +29,20 @@ public sealed class ModuleRecognitionTargetsPort(
 
         IReadOnlyList<SchemaFieldInfo> fields = [];
         IReadOnlyDictionary<Guid, PrimitiveType> byPrimitive = new Dictionary<Guid, PrimitiveType>();
-        if (declaration.Targets is { } targets)
+        if (declaration.Targets is { } targets && (await types.FindAsync(t => t.Code == targets.RecordType, ct)) is [var type, ..])
         {
-            var all = await types.GetAllAsync(ct);
-            if (all.FirstOrDefault(t => t.Code == targets.RecordType) is { } type)
+            // Тип и его предки, а не весь справочник (ревью PR #1523): распознаётся каждый счёт из файла.
+            var chain = new Dictionary<Guid, DocumentType> { [type.Id] = type };
+            for (var parent = type.ParentId; parent is { } id && chain.Count < 32 && !chain.ContainsKey(id);)
             {
-                fields = DocumentTypeSchemaReader.EffectiveFields(type.Id, all.ToDictionary(t => t.Id));
-                byPrimitive = (await primitives.GetAllAsync(ct)).ToDictionary(p => p.Id);
+                if (await types.GetByIdAsync(id, ct) is not { } up) break;
+                chain[id] = up;
+                parent = up.ParentId;
             }
+            fields = DocumentTypeSchemaReader.EffectiveFields(type.Id, chain);
+            var used = fields.Where(f => f.Type == "primitive").Select(f => f.TypeId).OfType<Guid>().ToHashSet();
+            if (used.Count > 0)
+                byPrimitive = (await primitives.FindAsync(p => used.Contains(p.Id), ct)).ToDictionary(p => p.Id);
         }
 
         return RecognitionTargetMatcher.Resolve(keys, declaration.Targets, fields, byPrimitive)

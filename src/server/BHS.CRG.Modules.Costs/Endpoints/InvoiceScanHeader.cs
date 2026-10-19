@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Recognition;
@@ -123,6 +124,26 @@ public static class InvoiceScanHeader
         return offer;
     }
 
+    /// <summary>
+    /// Предложения, как их отдаёт вид распознавания (ревью PR #1523). Записанные до #1483 лежат строкой —
+    /// текстом скана без разобранного значения, и «Взять» у них пропало бы. Разбираются здесь, тем же
+    /// разбором, что при распознавании: ключи у них — поля модуля (номер, дата, суммы; «Назначение» — куда
+    /// тогда ложилось основание). Второго разборщика на клиенте так и нет.
+    /// </summary>
+    public static JsonElement? Shown(JsonElement? stored)
+    {
+        if (stored is not { ValueKind: JsonValueKind.Object } offers
+            || !offers.EnumerateObject().Any(p => p.Value.ValueKind == JsonValueKind.String))
+            return stored;
+
+        var result = new JsonObject();
+        foreach (var offer in offers.EnumerateObject())
+            result[offer.Name] = offer.Value.ValueKind == JsonValueKind.String && offer.Value.GetString() is { } text
+                ? Offer(text, Parsers.TryGetValue(offer.Name, out var parse) ? parse(text) : null)
+                : JsonNode.Parse(offer.Value.GetRawText());
+        return JsonSerializer.SerializeToElement(result);
+    }
+
     private static JsonNode TextNode(string text) => JsonValue.Create(text);
 
     private static JsonNode? DateNode(string text) => RecognizedValues.Date(text) is { } date
@@ -132,5 +153,5 @@ public static class InvoiceScanHeader
     private static JsonNode? MoneyNode(string text) =>
         RecognizedValues.Money(text) is { } money ? JsonValue.Create(money) : null;
 
-    private static string Short(string text) => text.Length > 40 ? text[..40] + "…" : text;
+    private static string Short(string text) => InvoiceScanLines.Short(text);
 }

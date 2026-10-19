@@ -490,6 +490,9 @@ public sealed class InvoiceScanReading(
         IReadOnlyDictionary<string, InvoiceScanHeader.Candidate> read, JsonObject offers, List<string> notes,
         CancellationToken ct)
     {
+        // Отсрочка из условий — один раз (ревью PR #1523): поставщика охрана по полям не снимает, и условия
+        // между попытками те же — перечитывать их под замком счёта незачем.
+        (int? Days, bool Termed)? terms = null;
         while (true)
         {
             using var incoming = JsonDocument.Parse(after.ToJsonString());
@@ -497,7 +500,14 @@ public sealed class InvoiceScanReading(
             var (columns, rest, landing) = InvoiceRequisites.Split(incoming.RootElement, before);
             // Узнанный поставщик приносит отсрочку из своих условий (ТЗ COST-9.2): скан её не читает.
             // До охраны — охрана судит то, что ляжет в счёт (ревью PR #1329).
-            (columns, var termed) = await desk.WithTermsAsync(columns, invoice, ct);
+            if (terms is null)
+            {
+                (columns, var substituted) = await desk.WithTermsAsync(columns, invoice, ct);
+                terms = (columns.DeferralDays, substituted);
+            }
+            else if (terms.Value.Termed)
+                columns = columns with { DeferralDays = terms.Value.Days, DeferralFromTerms = true };
+            var termed = terms.Value.Termed;
             var refusals = await guard.RefusalsAsync(invoice.DocumentTypeId, before.ToJsonString(),
                 InvoiceEndpoints.WithTerms(landing, termed, columns), ct);
             if (refusals.Count == 0) return (columns, rest, termed);

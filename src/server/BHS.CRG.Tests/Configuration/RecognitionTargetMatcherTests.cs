@@ -21,7 +21,7 @@ public class RecognitionTargetMatcherTests
         new("Номер", RecognitionTargetUse.Field, null, ["НомерСчёта"]),
         new("ИНН", RecognitionTargetUse.Input, null, []),
         new("Срок", RecognitionTargetUse.Unavailable, "срок считает правило", []),
-    ]);
+    ], new HashSet<string> { "Номер", "Срок" });
 
     private static readonly PrimitiveType Code = PrimitiveType.Create(
         "Код договора", "contract", "string", null, JsonDocument.Parse("""{"pattern":"^Д-\\d+$"}"""));
@@ -54,6 +54,21 @@ public class RecognitionTargetMatcherTests
         Assert.Equal(targets["Номер"], targets["НомерСчёта"]);
         Assert.Equal(RecognitionTargetOrigin.Input, targets["ИНН"]!.Origin);
         Assert.Equal("срок считает правило", targets["Срок"]!.Unavailable);
+    }
+
+    /// <summary>
+    /// Ревью PR #1523: заказчик назвал своё поле так же, как служебный вход или прежний ключ, — ключ совпал с
+    /// его полем точно, и поле заполняется. Объявленное старше только своих полей модуля.
+    /// </summary>
+    [Fact]
+    public void Поле_заказчика_старше_входа_и_прежнего_ключа()
+    {
+        IReadOnlyList<SchemaFieldInfo> fields = [.. Fields, new("ИНН", "string", null), new("НомерСчёта", "string", null)];
+        var targets = RecognitionTargetMatcher.Resolve(["ИНН", "НомерСчёта", "Номер"], Declared, fields,
+            new Dictionary<Guid, PrimitiveType>());
+        Assert.Equal(new ResolvedRecognitionTarget("ИНН", RecognitionTargetOrigin.Type, "string", Title: "ИНН"), targets["ИНН"]);
+        Assert.Equal("НомерСчёта", targets["НомерСчёта"]!.Key);
+        Assert.Equal(RecognitionTargetOrigin.Declared, targets["Номер"]!.Origin);
     }
 
     [Fact]

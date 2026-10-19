@@ -86,6 +86,9 @@ public static partial class RecognizedValues
 
         // Валюта и единицы в хвосте — «руб.», «₽», «р.» — и пробелы внутри числа, включая неразрывные.
         var cleaned = Tail().Replace(text.Trim(), string.Empty);
+        // Тысячи уже отделены пробелом («1 234,567») — разделитель после них дробный, гадать не о чем (ревью
+        // PR #1523). Смотреть надо ДО того, как пробелы уйдут: после «1234,567» неотличимо от «1,234».
+        var grouped = SpaceGroups().IsMatch(cleaned);
         cleaned = Spaces().Replace(cleaned, string.Empty);
         if (cleaned.Length == 0 || !Shape().IsMatch(cleaned)) return null;
 
@@ -108,7 +111,8 @@ public static partial class RecognizedValues
             if (whole.Contains(decimalMark)) return null;
             if (fraction.Length == 0 || fraction.Length > maxFraction) return null;
             // «0,125» — дробь при любом прочтении: тысяч с нулём впереди не пишут.
-            if (threeDigitsAmbiguous && fraction.Length == 3 && !whole.Contains(groupMark) && whole.TrimStart('-') != "0")
+            if (threeDigitsAmbiguous && fraction.Length == 3 && !grouped && !whole.Contains(groupMark)
+                && whole.TrimStart('-') != "0")
                 return null;
 
             if (whole.Contains(groupMark))
@@ -128,6 +132,9 @@ public static partial class RecognizedValues
 
     [GeneratedRegex(@"[\s  ]+")]
     private static partial Regex Spaces();
+
+    [GeneratedRegex(@"\d[\s  ]+\d{3}(?!\d)")]
+    private static partial Regex SpaceGroups();
 
     [GeneratedRegex(@"\s*(руб(лей|ля|\.)?|р\.|₽|RUB)\s*$", RegexOptions.IgnoreCase)]
     private static partial Regex Tail();

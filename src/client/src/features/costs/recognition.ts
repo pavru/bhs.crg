@@ -5,6 +5,7 @@ import type {
 import { formatDate, formatMoney } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
 import { K, catalogRef, refEntryId } from './invoiceFields';
+import { toNumber } from './invoiceLines';
 
 /**
  * Распознавание скана на экране счетов (issue #1077) — чистая логика: что написать в строке списка,
@@ -138,7 +139,16 @@ export function fieldOffer(
   const value = typeof offer === 'string' ? undefined : offer.value;
   if (!text) return null;
   if (value === undefined) return text === String(shown ?? '') ? null : { text: `«${text}»` };
-  return same(value, shown) ? null : { text: `«${text}»`, take: value };
+  return sameValue(value, shown) ? null : { text: `«${text}»`, take: value };
+}
+
+/**
+ * Совпадает ли значение сервера с тем, что в поле. Набранное число лежит в правке строкой («1 234,5»), а
+ * сервер прислал число — сравниваются числа, тем же разбором, каким форма читает набранное (ревью PR #1523).
+ */
+function sameValue(value: unknown, shown: unknown): boolean {
+  if (typeof value === 'number' && typeof shown === 'string') return toNumber(shown) === value;
+  return same(value, shown);
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);

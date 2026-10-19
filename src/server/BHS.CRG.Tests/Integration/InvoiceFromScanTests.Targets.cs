@@ -26,10 +26,13 @@ public sealed partial class InvoiceFromScanTests
         foreach (var field in fields) root["fields"]!.AsArray().Add(field);
         type.UpdateSchema(JsonDocument.Parse(root.ToJsonString()));
         await db.SaveChangesAsync();
-        return new Restore(host, type.Id, original);
+        return new Restore(host, type.Id, original, [.. fields
+            .Select(f => f["typeId"]?.GetValue<string>()).OfType<string>().Select(Guid.Parse)]);
     }
 
-    private sealed class Restore(InvoiceScanHost host, Guid typeId, string schema) : IAsyncDisposable
+    /// <summary>Схема типа — как была, а заведённые для теста типы полей убраны: реестр общий для стенда.</summary>
+    private sealed class Restore(InvoiceScanHost host, Guid typeId, string schema, IReadOnlyList<Guid> primitives)
+        : IAsyncDisposable
     {
         public async ValueTask DisposeAsync()
         {
@@ -37,6 +40,7 @@ public sealed partial class InvoiceFromScanTests
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             (await db.DocumentTypes.SingleAsync(t => t.Id == typeId)).UpdateSchema(JsonDocument.Parse(schema));
             await db.SaveChangesAsync();
+            await db.PrimitiveTypes.Where(p => primitives.Contains(p.Id)).ExecuteDeleteAsync();
         }
     }
 

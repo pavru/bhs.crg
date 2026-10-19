@@ -61,7 +61,7 @@ public static class ModuleRecognitionCollector
                 declarations.Add(new RecognitionProfileDeclaration(
                     profile.Code, profile.Name, kind,
                     Map(profile.Fields), Map(profile.RowColumns), Map(profile.Shape),
-                    module.Code, profile.DocumentTag, Map(profile.Targets)));
+                    module.Code, profile.DocumentTag, Map(profile.Targets, module)));
             }
         }
 
@@ -74,11 +74,14 @@ public static class ModuleRecognitionCollector
     private static RecognitionTableShape? Map(ModuleRecognitionShape? shape) =>
         shape is null ? null : new RecognitionTableShape(shape.TwoTierHeader, shape.PairedSections, shape.SkipTotals);
 
-    private static RecognitionTargets? Map(ModuleRecognitionTargets? targets) =>
+    private static RecognitionTargets? Map(ModuleRecognitionTargets? targets, IAppModule module) =>
         targets is null
             ? null
             : new RecognitionTargets(targets.RecordType, [.. targets.Fields.Select(t => new RecognitionTargetDeclaration(
-                t.Key, Map(t.Use), t.Why, t.LegacyKeys))]);
+                    t.Key, Map(t.Use), t.Why, t.LegacyKeys))],
+                // Свои поля типа — из объявления модуля: всё прочее в схеме дописал заказчик.
+                (module.RecordTypes.FirstOrDefault(t => t.Code == targets.RecordType)?.Fields ?? [])
+                    .Select(f => f.Key).ToHashSet(StringComparer.Ordinal));
 
     // Явным перечнем, а не приведением числа: зеркала разошлись бы порядком молча.
     private static RecognitionTargetUse Map(ModuleTargetUse use) => use switch

@@ -11,7 +11,10 @@ public sealed record RecognitionTargetDeclaration(
     string Key, RecognitionTargetUse Use, string? Why, IReadOnlyList<string> LegacyKeys);
 
 /// <summary>Куда владелец раскладывает шапку профиля: код своего типа записи и объявленные цели.</summary>
-public sealed record RecognitionTargets(string RecordType, IReadOnlyList<RecognitionTargetDeclaration> Fields);
+/// <param name="OwnFields">Ключи полей, которые тип объявляет сам владелец. Всё прочее в схеме дописал
+/// заказчик — по этому перечню их и отличают.</param>
+public sealed record RecognitionTargets(
+    string RecordType, IReadOnlyList<RecognitionTargetDeclaration> Fields, IReadOnlySet<string> OwnFields);
 
 /// <summary>Откуда цель: объявлена владельцем, дописана в тип заказчиком, служебный вход.</summary>
 public enum RecognitionTargetOrigin { Declared, Type, Input }
@@ -86,7 +89,12 @@ public static class RecognitionTargetMatcher
 
         foreach (var key in keys)
         {
-            if ((byKey.GetValueOrDefault(key) ?? byLegacy.GetValueOrDefault(key)) is { } target)
+            // Поле, которое дописал заказчик, старше служебного входа и прежнего ключа (ревью PR #1523): назвал
+            // он своё поле «ИННПоставщика» или «НомерСчёта» — ключ совпал с его полем точно, и молча не
+            // заполнять его значило бы переодеть отказ в результат. Вход модуль читает и так — из ответа.
+            if (schema.TryGetValue(key, out var own) && !declared.OwnFields.Contains(key))
+                result[key] = Classify(own, primitives);
+            else if ((byKey.GetValueOrDefault(key) ?? byLegacy.GetValueOrDefault(key)) is { } target)
             {
                 var field = schema.GetValueOrDefault(target.Key);
                 var (type, title) = (field?.Type ?? "string", field?.Title ?? target.Key);
@@ -99,7 +107,7 @@ public static class RecognitionTargetMatcher
                 };
             }
             else
-                result[key] = schema.TryGetValue(key, out var field) ? Classify(field, primitives) : null;
+                result[key] = null;
         }
         return result;
     }
