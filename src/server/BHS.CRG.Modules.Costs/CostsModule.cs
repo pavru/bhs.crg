@@ -360,6 +360,7 @@ public sealed class CostsModule : IAppModule
         LostReferencesEndpoints.Map(endpoints);
         OrganizationEndpoints.MapOrganizations(endpoints);
         NomenclatureEndpoints.MapNomenclature(endpoints);
+        NomenclatureCandidateEndpoints.Map(endpoints);
         ArticleEndpoints.MapArticles(endpoints);
         WaybillEndpoints.MapWaybills(endpoints);
     }
