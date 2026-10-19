@@ -30,8 +30,12 @@ public sealed record IntakeField(
 /// Вид позиции — «Номенклатура» или её подтип — и можно ли завести его коротким окном.
 /// </summary>
 /// <param name="Refusals">Почему нельзя — словами для человека. Пусто — можно.</param>
+/// <param name="Mapped">Тэги полей справочника, которые в нём СОПОСТАВЛЕНЫ (артикул, единица), — даже если
+/// поле окно не спрашивает (ревью PR #1525). Тэг сопоставлен — окно поле по названию не угадывает: угаданное
+/// «Артикул поставщика» при размеченном «Коде изготовителя» — та самая догадка, которую тэг заменил.</param>
 public sealed record IntakeKind(
-    Guid TypeId, string Code, string Name, IReadOnlyList<IntakeField> Fields, IReadOnlyList<string> Refusals);
+    Guid TypeId, string Code, string Name, IReadOnlyList<IntakeField> Fields, IReadOnlyList<string> Refusals,
+    IReadOnlyList<string>? Mapped = null);
 
 /// <summary>Что завести: вид, тексты по ключам полей и выбранные записи по ключам полей-ссылок.</summary>
 public sealed record NomenclatureIntakeRequest(
@@ -88,7 +92,11 @@ public static class NomenclatureIntakeLayout
         var kind = DescribeFields(type, types);
         return tagged is null || tagged.Count == 0
             ? kind
-            : kind with { Fields = [.. kind.Fields.Select(f => f with { Tag = tagged.GetValueOrDefault(f.Key) })] };
+            : kind with
+            {
+                Fields = [.. kind.Fields.Select(f => f with { Tag = tagged.GetValueOrDefault(f.Key) })],
+                Mapped = [.. tagged.Values.Order(StringComparer.Ordinal)],
+            };
     }
 
     private static IntakeKind DescribeFields(DocumentType type, IReadOnlyDictionary<Guid, DocumentType> types)

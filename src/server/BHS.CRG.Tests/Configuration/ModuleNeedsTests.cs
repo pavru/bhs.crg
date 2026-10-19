@@ -150,6 +150,30 @@ public class ModuleNeedsTests
     }
 
     /// <summary>
+    /// Необязательное поле, которого нет, журнал не засоряет: его не ставит обновление, и строка на
+    /// каждом старте каждой установки читалась бы как неудавшийся перенос (ревью PR #1525). А размеченное
+    /// неверно — называется: разметку поставил человек, и она молча не работает.
+    /// </summary>
+    [Fact]
+    public void Необязательное_поле_без_разметки_молчит_а_неверно_размеченное_названо()
+    {
+        var needs = Needs(new ModuleRoleNeed(Role, "Зачем", "Счёт не завести.",
+            [new(FunctionalTag.OrgTaxId, false, "Беднее без ИНН.")]));
+
+        DocumentType Type(string schema) => DocumentType.Create("Организация", "Организация",
+            DocumentTypeKind.Composite, null, System.Text.Json.JsonDocument.Parse(schema), TypeOwner.Core, TypeVisibility.Shared);
+
+        Assert.Empty(needs.Unmet(Tags, [Type($$"""{"tags":["{{Role}}"],"fields":[]}""")]));
+
+        var twice = Assert.Single(needs.Unmet(Tags, [Type($$"""
+            {"tags":["{{Role}}"],"fields":[
+              {"key":"ИНН","type":"string","tags":["org.inn"]},
+              {"key":"ИННСтарый","type":"string","tags":["org.inn"]}]}
+            """)]));
+        Assert.Contains("Беднее без ИНН.", twice);
+    }
+
+    /// <summary>
     /// Настоящее объявление модуля счетов проходит проверку — и называет ровно то, что его код читает:
     /// два справочника, два обязательных поля организаций и два НЕобязательных поля номенклатуры —
     /// артикул и единицу для карточки позиции (issue #1512): без них выбор позиции работает, беднее.

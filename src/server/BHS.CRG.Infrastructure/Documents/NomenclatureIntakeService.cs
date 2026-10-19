@@ -37,12 +37,14 @@ public sealed class NomenclatureIntakeService(
     {
         var (all, family) = await FamilyAsync(ct);
         var options = new Dictionary<Guid, IReadOnlyList<IntakeOption>?>();
+        // Тэги — один расчёт на все виды: справочник один, и поле роли у всей семьи одно.
+        var tagged = Tagged(all);
 
         var kinds = new List<IntakeKind>();
         // Корень семейства первым, подтипы — по названию: порядок списка «Вид» в окне.
         foreach (var type in family.OrderBy(t => t.ParentId is not null && family.Any(p => p.Id == t.ParentId))
                      .ThenBy(t => t.Name, StringComparer.CurrentCultureIgnoreCase))
-            kinds.Add(await DescribeAsync(type, all, options, ct));
+            kinds.Add(await DescribeAsync(type, all, options, tagged, ct));
         return kinds;
     }
 
@@ -60,7 +62,8 @@ public sealed class NomenclatureIntakeService(
         var (all, family) = await FamilyAsync(ct);
         var type = family.FirstOrDefault(t => t.Id == request.TypeId) ?? throw NotAKind();
         // Описывается только запрошенный вид: остальные виды и их справочники созданию ни к чему.
-        var kind = await DescribeAsync(type, all, [], ct);
+        // Тэги созданию не нужны: они только для подстановки в окне.
+        var kind = await DescribeAsync(type, all, [], null, ct);
 
         // Ссылка обязана стоять среди записей НА ВЫБОР: архивная либо чужого вида запись, присланная
         // мимо окна, иначе легла бы в данные как выбранная человеком.
@@ -102,9 +105,10 @@ public sealed class NomenclatureIntakeService(
     /// <summary>Описание вида вместе с записями на выбор; справочники одного запроса читаются один раз.</summary>
     private async Task<IntakeKind> DescribeAsync(
         DocumentType type, IReadOnlyDictionary<Guid, DocumentType> all,
-        Dictionary<Guid, IReadOnlyList<IntakeOption>?> options, CancellationToken ct)
+        Dictionary<Guid, IReadOnlyList<IntakeOption>?> options, IReadOnlyDictionary<string, string>? tagged,
+        CancellationToken ct)
     {
-        var kind = NomenclatureIntakeLayout.Describe(type, all, Tagged(all));
+        var kind = NomenclatureIntakeLayout.Describe(type, all, tagged);
         var fields = new List<IntakeField>();
         var refusals = kind.Refusals.ToList();
         foreach (var field in kind.Fields)
@@ -126,16 +130,21 @@ public sealed class NomenclatureIntakeService(
     /// Поля справочника, сопоставленные тэгами артикула и единицы (issue #1512), — тем же расчётом,
     /// что у порта модулей: окно, узнавшее поле иначе, чем карточка, подставило бы артикул в одно поле,
     /// а сравнивало по другому.
+    ///
+    /// <para>Оба тэга на ОДНОМ поле — противоречие: поле не бывает и артикулом, и единицей. Тогда не
+    /// сопоставлен ни один, и окно ведёт себя как на неразмеченном справочнике, а не выбирает тэг молча.</para>
     /// </summary>
     private Dictionary<string, string> Tagged(IReadOnlyDictionary<Guid, DocumentType> all)
     {
         var list = all.Values.ToList();
         var role = RoleResolution.Role(FunctionalTag.RoleNomenclature, list);
-        var tagged = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var code in (string[])[FunctionalTag.NomenclatureArticle, FunctionalTag.NomenclatureUnit])
-            if (tags.Find(code) is { } tag && RoleResolution.Field(role, tag, list).Key is { } key)
-                tagged.TryAdd(key, code);
-        return tagged;
+        var found = ((string[])[FunctionalTag.NomenclatureArticle, FunctionalTag.NomenclatureUnit])
+            .Select(code => (Code: code, Key: tags.Find(code) is { } tag ? RoleResolution.Field(role, tag, list).Key : null))
+            .Where(x => x.Key is not null)
+            .ToList();
+        return found.GroupBy(x => x.Key!, StringComparer.Ordinal)
+            .Where(g => g.Count() == 1)
+            .ToDictionary(g => g.Key, g => g.Single().Code, StringComparer.Ordinal);
     }
 
     private async Task<SimilarAnswer> SimilarAsync(

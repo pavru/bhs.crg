@@ -37,6 +37,11 @@ export interface IntakeKind {
   fields: IntakeField[];
   /** Почему вид отсюда не завести. Пусто — можно. */
   refusals: string[];
+  /**
+   * Тэги полей, СОПОСТАВЛЕННЫЕ в справочнике, — даже если поле окно не спрашивает. Сопоставлен — поле по
+   * названию не угадывается: угаданное было бы не тем, что размечено.
+   */
+  mapped?: string[];
 }
 
 export interface NomenclaturePosition {

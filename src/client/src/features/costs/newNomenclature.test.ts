@@ -48,14 +48,38 @@ describe('новая позиция номенклатуры из строки �
           options: [{ id: 'u-1', name: 'шт' }, { id: 'u-2', name: 'м' }], tag: 'nomenclature.unit',
         },
       ],
+      mapped: ['nomenclature.article', 'nomenclature.unit'],
     });
     expect(prefill(tagged, { name: 'Кабель', code: 'RZ-2W', unit: 'шт' })).toEqual({
       values: { Наименование: 'Кабель', Код: 'RZ-2W' },
       refs: { ЕдиницаИзмерения: 'u-1' },
     });
     // Без тэга «шт» легла бы и в «Тару»: поле выбора, где нашлась такая запись.
-    const untagged = kind({ fields: tagged.fields.map(f => ({ ...f, tag: null })) });
+    const untagged = kind({ fields: tagged.fields.map(f => ({ ...f, tag: null })), mapped: [] });
     expect(prefill(untagged, { unit: 'шт' }).refs).toEqual({ Тара: 'p-1', ЕдиницаИзмерения: 'u-1' });
+  });
+
+  it('тэг стоит на поле, которого окно не спрашивает, — по названию поле не угадывается', () => {
+    // Размечены «Код изготовителя» и единица, но оба поля необязательные и не в ключе — окно их не
+    // спрашивает. «Артикул поставщика» по названию похож, но это не то поле, что размечено (ревью #1525).
+    const elsewhere = kind({
+      fields: [
+        { key: 'Наименование', title: 'Наименование', required: true, identity: true, options: null },
+        { key: 'АртикулПоставщика', title: 'Артикул поставщика', required: false, identity: true, options: null },
+        { key: 'Тара', title: 'Тара', required: true, identity: false, options: [{ id: 'p-1', name: 'шт' }, { id: 'p-2', name: 'уп' }] },
+      ],
+      mapped: ['nomenclature.article', 'nomenclature.unit'],
+    });
+
+    expect(prefill(elsewhere, { name: 'Кабель', code: 'RZ-2W', unit: 'шт' })).toEqual({
+      values: { Наименование: 'Кабель' },
+      refs: {},
+    });
+    // Тот же вид без разметки — по-прежнему по названию и в любое поле выбора.
+    expect(prefill({ ...elsewhere, mapped: [] }, { name: 'Кабель', code: 'RZ-2W', unit: 'шт' })).toEqual({
+      values: { Наименование: 'Кабель', АртикулПоставщика: 'RZ-2W' },
+      refs: { Тара: 'p-1' },
+    });
   });
 
   it('подставленное из счёта оговорено, набираемое с нуля — нет', () => {
