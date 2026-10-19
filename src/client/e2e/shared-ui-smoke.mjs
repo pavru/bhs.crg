@@ -191,27 +191,38 @@ await check('date-input-shows-stored-value', async () => {
     throw new Error(`ни одно поле даты не показывает сохранённый год: ${JSON.stringify(values)}`);
 });
 
-await check('date-input-discards-partial-input-on-blur', async () => {
-  // Берём ГОД: незаконченные день и месяц при потере фокуса дополняются нулём (blurD/blurM) и
-  // уезжают в значение, и на них откат был бы неотличим от дополнения.
+await check('date-input-keeps-partial-input-with-error-on-blur', async () => {
+  // Недописанная дата при уходе из поля ОСТАЁТСЯ видимой, с ошибкой, и не сохраняется (issue #1460,
+  // решение владельца). Раньше она молча откатывалась к прежней, и человек считал ввод принятым.
+  // Берём ГОД, и три разряда: день и месяц из одной цифры при уходе дополняются нулём (blurD/blurM),
+  // а двузначный год становится 20ГГ — ни то ни другое недописанным не останется.
   const values = await yearSegs.evaluateAll(els => els.map(e => e.value));
   const idx = values.findIndex(v => /^\d{4}$/.test(v));
-  if (idx < 0) throw new Error('нет заполненного года — нечего откатывать');
+  if (idx < 0) throw new Error('нет заполненного года — нечего проверять');
   const seg = yearSegs.nth(idx);
   const before = await seg.inputValue();
   await seg.click();
-  await seg.fill('20');   // два разряда из четырёх — значение так не соберётся
+  await seg.fill('202');
   await settled(page);
-  if ((await seg.inputValue()) !== '20') throw new Error('набранное не показывается, пока поле в фокусе');
-  // Уводим фокус, не закрывая редактор: щелчок по заголовку раздела.
+  // Уводим фокус, не закрывая редактор: щелчок по заголовку раздела. Набранное снимается ТАЙМЕРОМ
+  // (120 мс — поле ждёт, не вернётся ли фокус в соседний сегмент), а таймеров `settled()` не видит:
+  // ждём саму пометку ошибки.
   await editor.getByRole('button', { name: /Даты работ/ }).first().click();
-  // Откат идёт ТАЙМЕРОМ (120 мс после потери фокуса — поле ждёт, не вернётся ли фокус в соседний
-  // сегмент), а таймеров `settled()` не видит. Ждём само значение: до потери фокуса в сегменте
-  // стояло «20», так что раньше отката утверждение истинным не станет.
   await until(async () => {
-    const after = await yearSegs.nth(idx).inputValue();
-    if (after !== before) throw new Error(`после потери фокуса в сегменте «${after}», а в значении «${before}»`);
+    if ((await seg.getAttribute('aria-invalid')) !== 'true') throw new Error('поле с недописанной датой не помечено ошибкой');
   });
+  const after = await seg.inputValue();
+  if (after !== '202') throw new Error(`после ухода в сегменте «${after}» вместо набранного «202» — ввод откатился молча`);
+  if (!(await editor.getByText('Дата не дописана').first().isVisible().catch(() => false)))
+    throw new Error('под полем нет ошибки «Дата не дописана»');
+  // Esc в поле возвращает прежнее значение — и редактор не закрывает.
+  await seg.click();
+  await page.keyboard.press('Escape');
+  await until(async () => {
+    const back = await seg.inputValue();
+    if (back !== before) throw new Error(`Esc не вернул прежнее: в сегменте «${back}», было «${before}»`);
+  });
+  if (!(await editor.isVisible())) throw new Error('Esc в поле даты закрыл редактор');
 });
 
 } finally {
