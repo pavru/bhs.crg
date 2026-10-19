@@ -106,7 +106,7 @@ public sealed record InvoiceLineTotals(
 {
     public static InvoiceLineTotals Of(Invoice invoice, IReadOnlyCollection<InvoiceLine> lines)
     {
-        var missing = lines.Count(l => l.VatAmount is null);
+        var missing = lines.Count(l => !LineVat.Named(l.VatAmount));
         return new(
             lines.Count,
             lines.Count(l => l.NomenclatureId is null),
