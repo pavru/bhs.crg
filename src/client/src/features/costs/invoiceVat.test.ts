@@ -5,7 +5,7 @@ import { correctionBody } from './correction';
 import {
   emptyDraft, guessRoles, parseTable, pastedWithoutVat, preview, toDrafts, toPayload, totals, type LineDraft,
 } from './invoiceLines';
-import { modeConsequences, modeHint, reconcile, savedExplains, withMode } from './invoiceVat';
+import { modeConsequences, modeHint, modeProof, reconcile, savedExplains, withMode } from './invoiceVat';
 
 /** Режим НДС в форме счёта (issue #1499, #1500). */
 
@@ -177,5 +177,28 @@ describe('подсказка «похоже, цены без НДС» (#1500)', 
     expect(savedExplains({ readiness: { required: [], gaps: [] } } as unknown as InvoiceView)).toBeNull();
     expect(modeHint('onTop')).toMatchObject({ action: 'Считать НДС сверху', to: 'OnTop' });
     expect(modeHint('included')).toMatchObject({ action: 'Считать НДС в сумме', to: 'Included' });
+  });
+});
+
+describe('доказательство режима со скана (#1501)', () => {
+  const rated = [draft({ amount: '1000', vatRate: '22' }), draft({ amount: '500', vatRate: '22' })];
+  const silent = [draft({ amount: '1000' }), draft({ amount: '500' })];
+
+  it('строки + НДС = к оплате — числами, чтобы «Верно» нажимали, сверив', () => {
+    expect(modeProof(totals(rated, 'OnTop'), null, 1830, format)).toBe('строки #1500 + НДС #330 = к оплате #1830');
+  });
+
+  it('НДС строк молчит — из шапки', () => {
+    expect(modeProof(totals(silent, 'OnTop'), 330, 1830, format)).toBe('строки #1500 + НДС #330 = к оплате #1830');
+  });
+
+  it('итоги сервера — те же числа (ревью PR #1509)', () => {
+    const server = { count: 2, withoutNomenclature: 0, amount: 1830, vat: 330, vatMissing: 0, mode: 'OnTop' as const, net: 1500 };
+    expect(modeProof(server, null, 1830, format)).toBe('строки #1500 + НДС #330 = к оплате #1830');
+  });
+
+  it('не сходится — без «=»: равенство, которого нет, было бы неправдой', () => {
+    expect(modeProof(totals(rated, 'OnTop'), null, 1900, format)).toBe('строки #1500 + НДС #330 · к оплате #1900');
+    expect(modeProof(totals(silent, 'OnTop'), null, 1830, format)).toBe('строки #1500 · к оплате #1830');
   });
 });

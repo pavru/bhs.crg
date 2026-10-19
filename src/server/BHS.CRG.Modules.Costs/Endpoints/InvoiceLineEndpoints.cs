@@ -113,7 +113,8 @@ public static class InvoiceLineEndpoints
             // Режим — до строк: строки досчитываются по НОВОМУ режиму, в той же правке (issue #1497).
             var before = invoice.VatMode;
             var modeChanged = body.VatMode is { } mode && invoice.ChangeVatMode(mode);
-            if (modeChanged) modeWas = before;
+            // Сменил человек — метку распознавания режима снимает его решение (issue #1501), как правка поля.
+            if (modeChanged) { modeWas = before; invoice.Confirm([VatModes.Mark]); }
 
             var placed = await PlaceLinesAsync(db, catalog, invoice, parsed, remember, ct);
 

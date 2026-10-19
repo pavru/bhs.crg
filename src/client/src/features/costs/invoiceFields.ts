@@ -32,6 +32,12 @@ export const K = {
  *  сессии и означает «только что распознали», здесь — сохранённая на сервере и переживает открытие. */
 export const UNCONFIRMED_HINT = 'Распознано, не подтверждено';
 
+/**
+ * Метка «распознано, не подтверждено» у режима НДС (issue #1501) — в том же перечне, что метки полей
+ * шапки. Это не поле: её показывает и снимает флажок «Цены без НДС» над строками, а не блок формы.
+ */
+export const VAT_MODE_MARK = 'vatMode';
+
 /** Состояния счёта — теми словами, какими их отдаёт сервер в реквизите «Состояние». */
 export const PARSED = 'Разобран';
 export const REJECTED = 'Отклонён';
@@ -111,7 +117,7 @@ export function isMarked(
  * «Дополнительно» (`shown` — его поля). Снять их можно только «Всё верно» у этой строки.
  */
 export function unconfirmedOutsideBlocks(unconfirmed: readonly string[], shown: readonly string[] = []): string[] {
-  const known = new Set([...BLOCKS.flatMap(b => [...b.fields]), ...shown]);
+  const known = new Set([...BLOCKS.flatMap(b => [...b.fields]), ...shown, VAT_MODE_MARK]);
   return unconfirmed.filter(key => !known.has(key));
 }
 
