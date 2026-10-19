@@ -6,6 +6,9 @@ import ts from 'typescript';
 const COLORS = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
 const UTILITIES = 'bg|text|border|ring|ring-offset|outline|divide|fill|stroke|from|via|to|shadow|accent|caret|decoration|placeholder';
 
+/** Каталог файлов из корня src/ (App.tsx, main.tsx) — для `countViolations({ dir })` и `dirsToScan`. */
+export const ROOT = '.';
+
 /**
  * Классы нарушений. У каждого — куда идти вместо: сообщение отказа обязано называть выход, иначе
  * его обходят первым попавшимся способом. `dirs` — каталоги src/, которые правило смотрит; без него —
@@ -131,6 +134,22 @@ export const RULES = [
     dirs: ['features', 'shared'],
     instead: 'всплывающий слой (календарь, Select, меню, подсказка) — портал в body без container: над окном и затемнением, краем окна не обрезается; фокус и Esc внутри окна держит дерево React (docs/UI.md, «Слои над окном»)',
   },
+  {
+    id: 'native-date',
+    // Нативное поле даты, месяца или времени (#1459, эпик #1458): формат у него — по языку ОС, а не
+    // пользователя (на Windows с английской локалью — MM/DD/YYYY и AM/PM), вид — браузерный. По
+    // синтаксическому дереву: `type` бывает выражением (`type={c ? 'date' : 'text'}` — так в отборе
+    // реестров), и считается литерал, которым выражение может СТАТЬ (ветвь условия, правая часть
+    // `&&`), а не литерал из сравнения в условии. Тег — `<input>` и `TextField` (с именем при импорте):
+    // он отдаёт `type` полю как есть. Смотрит ВЕСЬ src/: законных мест нет и в shared/ — DateInput сам
+    // рисует `type="text"`. ⚠️ Не видит `type`, пришедший переменной или разворотом `{...props}`, и
+    // обёртку, которая отдаёт `type` полю под своим именем.
+    count: countNativeDates,
+    everywhere: true,
+    // Отбор с рамкой (DateInput size, #1464) и TimeField (#1468) ещё не написаны — сообщение говорит
+    // это прямо: совет идти к несуществующему компоненту толкает к обходу через переменную.
+    instead: 'дата — DateField (форма) / DateInput compact (ячейка); месяц и год — тот же компонент с precision="month" | "year". Отбор и строка настроек — DateInput в рамке обвязки, пока у него нет size (#1464). Время суток — TimeField ещё не написан (#1468): до него новое нативное время не заводится без согласования, а поднятый уровень объясняют в PR (docs/UI.md, «Дата и время»)',
+  },
 ];
 
 // Классы оформления пишутся строкой, шаблоном или выражением — правило читает текст значения
@@ -240,6 +259,56 @@ function countPortalContainers(text) {
   return n;
 }
 
+const NATIVE_DATE = new Set(['date', 'month', 'time', 'datetime-local', 'week']);
+
+/**
+ * Может ли выражение `type` дать нативный тип даты: литерал — сам, условие — любой своей ветвью,
+ * `a && b` — правой частью, `a || b` и `a ?? b` — любой. Условие и сравнения не в счёт:
+ * `kind === 'date' ? 'text' : 'number'` для даты рисует как раз текстовое поле.
+ */
+function yieldsNativeDate(node) {
+  if (!node) return false;
+  if (ts.isJsxExpression(node) || ts.isParenthesizedExpression(node)) return yieldsNativeDate(node.expression);
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return NATIVE_DATE.has(node.text);
+  if (ts.isConditionalExpression(node)) return yieldsNativeDate(node.whenTrue) || yieldsNativeDate(node.whenFalse);
+  if (ts.isBinaryExpression(node)) {
+    const op = node.operatorToken.kind;
+    if (op === ts.SyntaxKind.AmpersandAmpersandToken) return yieldsNativeDate(node.right);
+    if (op === ts.SyntaxKind.BarBarToken || op === ts.SyntaxKind.QuestionQuestionToken)
+      return yieldsNativeDate(node.left) || yieldsNativeDate(node.right);
+  }
+  return false;
+}
+
+/** Теги, отдающие `type` полю как есть: `input`, `TextField` и его имена при импорте (`TextField as X`). */
+function typedInputTags(sf) {
+  const tags = new Set(['input', 'TextField']);
+  for (const st of sf.statements) {
+    const named = ts.isImportDeclaration(st) && st.importClause?.namedBindings;
+    if (named && ts.isNamedImports(named))
+      for (const el of named.elements)
+        if ((el.propertyName ?? el.name).text === 'TextField') tags.add(el.name.text);
+  }
+  return tags;
+}
+
+/** `<input type="date">` и `type`, который может им стать — см. правило `native-date`. */
+function countNativeDates(text) {
+  if (!/date|month|time|week/.test(text)) return 0;
+  const sf = parse(text);
+  const tags = typedInputTags(sf);
+  let n = 0;
+  const visit = node => {
+    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && tags.has(node.tagName.getText(sf))
+      && node.attributes.properties.some(p => ts.isJsxAttribute(p) && p.name.getText(sf) === 'type'
+        && yieldsNativeDate(p.initializer)))
+      n++;
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return n;
+}
+
 /** Сколько элементов разметки (тег со строчной буквы) подходят под `match`. */
 function countElements(text, match) {
   if (!text.includes('<')) return 0;
@@ -292,16 +361,33 @@ function countNativeTitles(text) {
   return n;
 }
 
-/** Каталоги, которые смотрит правило (см. `dirs` у RULES). */
+/** Каталоги, которые правило называет (см. `dirs` у RULES); правило с `everywhere` смотрит любой. */
 export const dirsOf = rule => rule.dirs ?? ['features'];
+export const watches = (rule, dir) => rule.everywhere === true || dirsOf(rule).includes(dir);
+
+/**
+ * Какие каталоги src/ обходить. `topDirs` — каталоги в корне src/ с диска: правило с `everywhere`
+ * добавляет их все и корень (`ROOT`), чтобы новый каталог не выпал из надзора молча.
+ */
+export function dirsToScan(rules, topDirs) {
+  if (rules.some(r => r.everywhere === true)) return [ROOT, ...topDirs];
+  return [...new Set(rules.flatMap(dirsOf))];
+}
+
+/** Область правила шире features/ — строкой для сводки (`white-on-fill — ещё в shared/`); иначе null. */
+export function scopeNote(rule) {
+  if (rule.everywhere === true) return `${rule.id} — весь src/`;
+  const more = dirsOf(rule).filter(d => d !== 'features');
+  return more.length ? `${rule.id} — ещё в ${more.join(', ')}/` : null;
+}
 
 /**
  * Сколько нарушений каждого класса в тексте одного файла. Нулевые классы не возвращаются.
- * `dir` — каталог src/, из которого файл: считаются только правила, которые его смотрят.
+ * `dir` — каталог src/, из которого файл (`ROOT` — его корень): считаются только правила, которые его смотрят.
  */
 export function countViolations(text, { dir = 'features' } = {}) {
   const counts = {};
-  for (const rule of RULES.filter(r => dirsOf(r).includes(dir))) {
+  for (const rule of RULES.filter(r => watches(r, dir))) {
     const n = rule.count ? rule.count(text) : text.match(rule.pattern)?.length ?? 0;
     if (n > 0) counts[rule.id] = n;
   }
