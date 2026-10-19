@@ -51,7 +51,7 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
   const [focused, setFocused] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  /** Календарь закрыт Tab'ом вперёд с последней остановки — фокус идёт дальше по форме. */
+  /** Календарь закрыт Tab'ом с края — фокус уже перенесён, возвращать его на значок не нужно. */
   const tabbedOut = useRef(false);
 
   const showMonth = precision !== 'year';
@@ -248,22 +248,29 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
    * <p>Календарь лежит в конце body, вне порядка Tab формы. Без этого Tab с его последней остановки
    * возвращался на первую кнопку календаря (проверено живым прогоном): по кругу внутри, и уйти к
    * следующему полю можно было только через Esc. Внутри календаря Tab ходит как обычно. С последней
-   * остановки вперёд — календарь закрывается, фокус встаёт на следующее поле после значка; с первой
-   * назад — на сам значок (это и есть умолчание Radix при закрытии).</p>
+   * остановки вперёд фокус встаёт на следующее поле после значка, с первой назад — на сам значок, и
+   * календарь закрывается.</p>
+   *
+   * <p>Фокус переносится СРАЗУ, в обработчике клавиши. Отдать его Radix при закрытии нельзя: тот
+   * возвращает фокус таймером, и до таймера фокус лежит на body — живой прогон в CI успевал увидеть
+   * именно body.</p>
    */
   function onCalendarTab(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.key !== 'Tab') return;
     const stops = tabStops(e.currentTarget);
     if (document.activeElement !== (e.shiftKey ? stops[0] : stops.at(-1))) return;
     e.preventDefault();
-    tabbedOut.current = !e.shiftKey;
+    const trigger = triggerRef.current;
+    const target = (!e.shiftKey && trigger && nextTabStop(trigger)) || trigger;
+    tabbedOut.current = true;
+    target?.focus();
     setPickerOpen(false);
   }
+  /** Фокус уже перенесён Tab'ом — Radix не возвращает его на значок. */
   function onCalendarClosed(e: Event) {
     if (!tabbedOut.current) return;
     tabbedOut.current = false;
-    const next = triggerRef.current && nextTabStop(triggerRef.current);
-    if (next) { e.preventDefault(); next.focus(); }
+    e.preventDefault();
   }
 
   // Календарь — слой над окном, как Select и меню: портал в body (issue #1521, docs/UI.md «Слои над
@@ -280,6 +287,7 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6} collisionPadding={8} hideWhenDetached
           onKeyDown={onCalendarTab} onCloseAutoFocus={onCalendarClosed}
+          onOpenAutoFocus={() => { tabbedOut.current = false; }}
           className="z-50 rounded-2xl bg-surface border border-stroke focus:outline-none"
           style={{ boxShadow: 'var(--f-shadow16)' }}>
           <Calendar value={value} precision={precision}

@@ -238,8 +238,11 @@ await check('payment-date-calendar-tab-goes-to-next-field', async () => {
   await placedBox(grid);
   for (let i = 0; i < 6 && await grid.isVisible(); i++) await page.keyboard.press('Tab');
   if (await grid.isVisible()) throw new Error('шесть нажатий Tab не вывели фокус из календаря');
-  const next = dialog.getByLabel('Платёжный документ');
-  const onNext = await next.evaluate(el => el === document.activeElement);
+  // Фокус ждём, а не снимаем мгновенно: закрытие слоя — несколько кадров, и мгновенный снимок на
+  // медленной машине CI видел промежуточное состояние (body).
+  const next = await dialog.getByLabel('Платёжный документ').elementHandle();
+  const onNext = await page.waitForFunction(el => el === document.activeElement, next, { timeout: 3_000 })
+    .then(() => true, () => false);
   if (!onNext) {
     const at = await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 160) ?? 'нигде');
     throw new Error(`Tab из календаря не дошёл до «Платёжного документа» — фокус: ${at}`);
