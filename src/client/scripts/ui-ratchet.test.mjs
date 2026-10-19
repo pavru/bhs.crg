@@ -143,7 +143,27 @@ describe('храповик интерфейса: счёт', () => {
     ].join('\n'))).toEqual({ 'white-on-fill': 6 });
   });
 
-  it('в shared/ считается только белое на заливке', () => {
+  /** Календарь, портированный внутрь окна (issue #1521): его резал край окна. */
+  it('портал слоя в свой контейнер — в features/ и в shared/', () => {
+    const text = [
+      '<Popover.Portal container={portalContainer ?? undefined}><i /></Popover.Portal>',
+      '<DropdownMenu.Portal\n  forceMount={open && n > 0}\n  onX={() => go()}\n  container={el}><i /></DropdownMenu.Portal>',
+      '<Portal container={host} />',
+      '{createPortal(node, dialogEl)} {ReactDOM.createPortal(node, el)}',
+    ].join('\n');
+    expect(countViolations(text)).toEqual({ 'portal-container': 5 });
+    expect(countViolations(text, { dir: 'shared' })).toEqual({ 'portal-container': 5 });
+  });
+
+  it('портал в body, data-container и чужой container= порталом не считаются', () => {
+    expect(countViolations([
+      '<Popover.Portal><i /></Popover.Portal> <Select.Portal><i /></Select.Portal>',
+      '<Tooltip.Portal data-container="x"><i /></Tooltip.Portal>',
+      '<Panel container={el} /> <div data-portal="1" />',
+    ].join('\n'), { dir: 'shared' })).toEqual({});
+  });
+
+  it('в shared/ считаются только правила, которые его смотрят (dirs)', () => {
     const text = '<table /> <select /> <button className="bg-danger text-white">x</button>';
     expect(countViolations(text, { dir: 'shared' })).toEqual({ 'white-on-fill': 1 });
     expect(countViolations(text)).toEqual({ table: 1, select: 1, 'white-on-fill': 1 });

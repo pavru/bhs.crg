@@ -153,5 +153,8 @@
     "features/templates/UserLibFileList.tsx": 2
   },
   "tabs": {},
-  "white-on-fill": {}
+  "white-on-fill": {},
+  "portal-container": {
+    "shared/ui/WindowStep.tsx": 2
+  }
 }

@@ -50,11 +50,9 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
   const [typed, setTyped] = useState<{ d: string; m: string; y: string } | null>(null);
   const [focused, setFocused] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const anchorRef = useRef<HTMLDivElement>(null);
-  // Контейнер портала календаря: если поле внутри нашей модалки (Radix Dialog) — портируем В неё,
-  // чтобы поповер жил ВНУТРИ её focus-scope (иначе trap модалки выдёргивает фокус, клавиатура мертва).
-  // Вне модалки — обычный портал в body (undefined). Считаем при открытии (issue #338).
-  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  /** Календарь закрыт Tab'ом с края — фокус уже перенесён, возвращать его на значок не нужно. */
+  const tabbedOut = useRef(false);
 
   const showMonth = precision !== 'year';
   const showDay = precision === 'day';
@@ -183,7 +181,7 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
   }
 
   const segments = (
-    <div ref={anchorRef} className={`flex items-center group ${className}`} onKeyDown={onContainerKey}>
+    <div className={`flex items-center group ${className}`} onKeyDown={onContainerKey}>
       {showDay && (
         <>
           <input
@@ -232,7 +230,7 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
       />
       {showCalendar && (
         <Popover.Trigger asChild>
-          <button type="button" disabled={disabled} aria-label="Открыть календарь"
+          <button ref={triggerRef} type="button" disabled={disabled} aria-label="Открыть календарь"
             className={`ml-1 shrink-0 flex items-center justify-center h-5 w-5 rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
               compact ? 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100' : ''}`}>
             <CalendarDays size={compact ? 13 : 14} />
@@ -244,16 +242,52 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
 
   if (!showCalendar) return segments;
 
-  function handleOpenChange(o: boolean) {
-    if (o) setPortalContainer((anchorRef.current?.closest('[role="dialog"]') as HTMLElement) ?? null);
-    setPickerOpen(o);
+  /**
+   * Tab с края календаря — дальше по форме (ревью PR #1526).
+   *
+   * <p>Календарь лежит в конце body, вне порядка Tab формы. Без этого Tab с его последней остановки
+   * возвращался на первую кнопку календаря (проверено живым прогоном): по кругу внутри, и уйти к
+   * следующему полю можно было только через Esc. Внутри календаря Tab ходит как обычно. С последней
+   * остановки вперёд фокус встаёт на следующее поле после значка, с первой назад — на сам значок, и
+   * календарь закрывается.</p>
+   *
+   * <p>Фокус переносится СРАЗУ, в обработчике клавиши. Отдать его Radix при закрытии нельзя: тот
+   * возвращает фокус таймером, и до таймера фокус лежит на body — живой прогон в CI успевал увидеть
+   * именно body.</p>
+   */
+  function onCalendarTab(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== 'Tab') return;
+    const stops = tabStops(e.currentTarget);
+    if (document.activeElement !== (e.shiftKey ? stops[0] : stops.at(-1))) return;
+    e.preventDefault();
+    const trigger = triggerRef.current;
+    const target = (!e.shiftKey && trigger && nextTabStop(trigger)) || trigger;
+    tabbedOut.current = true;
+    target?.focus();
+    setPickerOpen(false);
+  }
+  /** Фокус уже перенесён Tab'ом — Radix не возвращает его на значок. */
+  function onCalendarClosed(e: Event) {
+    if (!tabbedOut.current) return;
+    tabbedOut.current = false;
+    e.preventDefault();
   }
 
+  // Календарь — слой над окном, как Select и меню: портал в body (issue #1521, docs/UI.md «Слои над
+  // окном»). Внутри окна его резали бы `overflow-hidden` и `transform` окна, а разворот вверх не
+  // спасал бы: место Radix считает по экрану. Раньше портировали ВНУТРЬ окна (#338) — это обходило
+  // дубль слоёв Radix (свои копии focus-scope и dismissable-layer у popover), которого больше нет:
+  // единственную копию сторожит `scripts/radix-single-copy.test.mjs`.
+  //
+  // `hideWhenDetached`: поле прокрутили из видимой части тела окна — календарь прячется. Внутри окна
+  // его прятал край окна; в body он висел бы над шапкой, указывая на невидимое поле.
   return (
-    <Popover.Root open={pickerOpen} onOpenChange={handleOpenChange}>
+    <Popover.Root open={pickerOpen} onOpenChange={setPickerOpen}>
       <Popover.Anchor asChild>{segments}</Popover.Anchor>
-      <Popover.Portal container={portalContainer ?? undefined}>
-        <Popover.Content align="start" sideOffset={6}
+      <Popover.Portal>
+        <Popover.Content align="start" sideOffset={6} collisionPadding={8} hideWhenDetached
+          onKeyDown={onCalendarTab} onCloseAutoFocus={onCalendarClosed}
+          onOpenAutoFocus={() => { tabbedOut.current = false; }}
           className="z-50 rounded-2xl bg-surface border border-stroke focus:outline-none"
           style={{ boxShadow: 'var(--f-shadow16)' }}>
           <Calendar value={value} precision={precision}
@@ -262,4 +296,23 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
       </Popover.Portal>
     </Popover.Root>
   );
+}
+
+const STOP = 'button, input, select, textarea, a[href], [tabindex]';
+
+/** Остановки Tab внутри `root` в порядке документа: видимые, доступные, без `tabindex="-1"`. */
+function tabStops(root: ParentNode): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLElement>(STOP)]
+    .filter(el => el.tabIndex >= 0 && !el.matches(':disabled') && !el.closest('[hidden], [inert]')
+      && el.getClientRects().length > 0);
+}
+
+/**
+ * Следующая остановка Tab после `from` — в пределах его окна (`[role="dialog"]`: окно или поповер,
+ * где стоит поле) или страницы. Только для фокуса: где рисовать календарь, это место не решает.
+ */
+function nextTabStop(from: HTMLElement): HTMLElement | undefined {
+  const stops = tabStops(from.closest<HTMLElement>('[role="dialog"]') ?? document.body);
+  const at = stops.indexOf(from);
+  return at < 0 ? undefined : stops[at + 1];
 }
