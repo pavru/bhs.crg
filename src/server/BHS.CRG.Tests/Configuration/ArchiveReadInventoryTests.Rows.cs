@@ -1,4 +1,4 @@
-using BHS.CRG.Tests.Integration;
+﻿using BHS.CRG.Tests.Integration;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -326,6 +326,12 @@ public partial class ArchiveReadInventoryTests
                 nameof(InvoiceArchiveTests.Накладная_стоявшую_архивную_позицию_держит_новую_не_принимает)),
         ["BHS.CRG.Modules.Costs/Endpoints/NomenclatureEndpoints.cs|var found = await catalog.SearchAsync(CostsDirectories.Nomenclature, query, Limit + 1, ct)"] =
             Choice("выбор позиции в строке счёта и накладной", nameof(ArchiveReadPurposeTests.Выбор_позиции_номенклатуры_в_счёте_архивную_не_предлагает)),
+        ["BHS.CRG.Modules.Costs/Endpoints/NomenclatureCandidateEndpoints.cs|: (await catalog.RefsAsync(CostsDirectories.Nomenclature, positions, ct))?.ToDictionary(r => r.Id)"] =
+            Choice("кандидаты окна выбора (#1515): чужой выбор архивной позиции кандидатом не идёт; своё запомненное " +
+                   "архивное названо отдельно, не на выбор",
+                nameof(NomenclatureIntakeTests.Своё_запомненное_в_архиве_названо_а_чужой_выбор_архивной_не_показан)),
+        ["BHS.CRG.Modules.Costs/Endpoints/NomenclatureCandidateEndpoints.cs|ids.Count == 0 ? [] : (await catalog.RefsAsync(CostsDirectories.Organization, ids, ct) ?? [])"] =
+            Shown("кандидаты окна выбора: название поставщика, уже выбиравшего позицию, — подпись причины, архивный назван так же"),
         ["BHS.CRG.Modules.Costs/Endpoints/SupplierMatchEndpoints.cs|var refs = await catalog.RefsAsync(CostsDirectories.Nomenclature, positions, ct);"] =
             Choice("подстановка запомненного в строку счёта: архивная позиция названа с причиной, но не подставляется",
                 nameof(SupplierMatchTests.Архивная_позиция_не_подставляется_и_это_названо)),

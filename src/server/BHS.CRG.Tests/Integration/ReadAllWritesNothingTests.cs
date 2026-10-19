@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -41,7 +41,11 @@ public class ReadAllWritesNothingTests(ModulePortsHost fixture) : IClassFixture<
     /// Изменяющие адреса, которые владелец одного «читать всё» проходит по описанию ворот, — с
     /// причиной, почему это не правка. Ключ — «МЕТОД путь».
     /// </summary>
-    private static readonly Dictionary<string, string> Deliberate = new();
+    private static readonly Dictionary<string, string> Deliberate = new()
+    {
+        ["POST /api/costs/nomenclature/candidates"] =
+            "кандидаты окна выбора позиции (issue #1515): только читает, POST — ради длинных наименований строк",
+    };
 
     /// <summary>
     /// Главный сторож: ни один изменяющий адрес не открывается одним составным правом.

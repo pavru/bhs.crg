@@ -5273,4 +5273,11 @@ GET    /api/costs/nomenclature?query=  → ПОИСК позиции для ст
                                       ищет по названию И альтернативным именам, найденное по имени
                                       называет в «matchedAlias»
                                       списком целиком не отдаётся: справочник самый большой в системе
+POST   /api/costs/nomenclature/candidates  { supplierId?, lines: [{ supplierText, supplierCode }] }
+                                      → { lines: [{ items: [{ id, name, type, matchedAlias, why[],
+                                      strong, matched }], more, inArchive, unreadable,
+                                      recalledUnusable }] } — КАНДИДАТЫ для строки (issue #1515):
+                                      подбор ядра + выбор ДРУГИХ поставщиков (никогда не strong;
+                                      другую позицию указал — strong снят у всех); ≤ 5 на строку,
+                                      ≤ 50 строк. Правом счетов ИЛИ накладных, как поиск
 ```
