@@ -342,6 +342,19 @@ public static class DataSetEndpoints
             catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
+        // Вырезать документы заново по текущему разбиению (issue #1534): выход, который называют копия
+        // и восстановление, когда частей нет в хранилище. Тела нет — режется то, что лежит на наборе.
+        g.MapPost("/files/{fileId:guid}/grouping/recut", async (Guid fileId, IDataSetService svc, CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await svc.RecutGroupingAsync(fileId, ct);
+                return result is null ? Results.NotFound() : Results.Ok(result);
+            }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
+        });
+
         // Лёгкая установка тэгов документа (тип таблицы) — без пересборки разбиения.
         g.MapPut("/files/{fileId:guid}/document-tags", async (
             Guid fileId, SetDocumentTagsRequest req, IDataSetService svc, CancellationToken ct) =>

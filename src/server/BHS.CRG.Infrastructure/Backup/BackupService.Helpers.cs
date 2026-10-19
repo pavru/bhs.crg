@@ -198,23 +198,11 @@ public partial class BackupService
     /// </summary>
     private static void CollectRowFilePaths(BackupDataSetSource source, HashSet<string> paths, List<string> warnings)
     {
-        if (string.IsNullOrEmpty(source.CachedData)) return;
-        try
-        {
-            using var doc = JsonDocument.Parse(source.CachedData);
-            if (doc.RootElement.ValueKind != JsonValueKind.Array) return;
-            foreach (var row in doc.RootElement.EnumerateArray())
-                if (row.ValueKind == JsonValueKind.Object &&
-                    row.TryGetProperty(GostGroupingProjection.FilePathColumn, out var path) &&
-                    path.ValueKind == JsonValueKind.String && path.GetString() is { Length: > 0 } part &&
-                    BlobPathShape.IsExactPath(part))
-                    paths.Add(part);
-        }
-        catch (JsonException)
-        {
+        if (GostGroupingSerialization.ReadRowFilePaths(source.CachedData) is { } rows)
+            paths.UnionWith(rows);
+        else
             warnings.Add($"Источник «{source.Name}»: строки реестра документов не прочитаны, и пути " +
                          "вложений из них в копию не вошли.");
-        }
     }
 
     private static void CollectBlobPaths(JsonElement element, HashSet<string> paths)
