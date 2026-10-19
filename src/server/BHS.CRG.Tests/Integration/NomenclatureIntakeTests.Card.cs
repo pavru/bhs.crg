@@ -86,7 +86,8 @@ public partial class NomenclatureIntakeTests
 
     /// <summary>
     /// Карточку получает читатель счетов или накладных без прав справочника; запись не из номенклатуры
-    /// (организация) и несуществующая — 404, модуль без документов — 403. Выбор в счёте посчитан.
+    /// (организация) и несуществующая — 404, модуль без документов — 403. Выбор в счёте посчитан тому, кто
+    /// счета читает.
     /// </summary>
     [Fact]
     public async Task Карточка_открыта_читателю_документов_а_чужая_запись_не_найдена()
@@ -98,12 +99,14 @@ public partial class NomenclatureIntakeTests
         var (buyer, _) = await SignInAsync("Supplier");
         await LinesAsync(buyer, await CreateAsync(buyer), [Line(position, 2, 10m, text: "Розетка двойная")]);
 
-        foreach (var right in new[] { "costs.invoice.read", "costs.waybill.read" })
+        // Выбор считается по документам, открытым спрашивающему: читатель накладных о счетах не узнаёт и
+        // так (COST-29). Дата — документа, а не правки строки.
+        foreach (var (right, times, last) in new[] { ("costs.invoice.read", 1, "2026-09-29"), ("costs.waybill.read", 0, null) })
         {
             var (reader, _) = await SignInAsync(await RoleAsync(right));
             var card = await reader.GetFromJsonAsync<JsonElement>($"/api/costs/nomenclature/{position}/card");
-            Assert.Equal(1, card.GetProperty("chosen").GetProperty("times").GetInt32());
-            Assert.NotEqual(JsonValueKind.Null, card.GetProperty("chosen").GetProperty("lastAt").ValueKind);
+            Assert.Equal(times, card.GetProperty("chosen").GetProperty("times").GetInt32());
+            Assert.Equal(last, card.GetProperty("chosen").GetProperty("lastOn").GetString());
 
             Assert.Equal(HttpStatusCode.NotFound, (await reader.GetAsync($"/api/costs/nomenclature/{organization}/card")).StatusCode);
             Assert.Equal(HttpStatusCode.NotFound, (await reader.GetAsync($"/api/costs/nomenclature/{Guid.NewGuid()}/card")).StatusCode);

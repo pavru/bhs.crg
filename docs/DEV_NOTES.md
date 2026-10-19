@@ -5283,9 +5283,11 @@ POST   /api/costs/nomenclature/candidates  { supplierId?, lines: [{ supplierText
 GET    /api/costs/nomenclature/{id}/card  → КАРТОЧКА позиции (issue #1516): { lines: [{ title, text,
                                       kind, identity, inheritedFrom, unreadable, archived }], aliases,
                                       notShown, emptyCount, article, unit, scope, chosen: { times,
-                                      lastAt } }. Ключ первым и всегда, _baseRef разрешён, ссылки —
-                                      названием, картинок и файлов нет (только заголовки в notShown).
-                                      Правом счетов ИЛИ накладных, БЕЗ core.catalog.read — решение
-                                      владельца. Не номенклатура / удалена — 404. Для человека:
-                                      сравнивать по этим строкам код не должен (FieldValuesAsync)
+                                      lastOn } }. Ключ первым и всегда (с картинкой — kind «hidden»),
+                                      _baseRef разрешён, ссылки — названием, картинки, файлы и таблицы
+                                      из базы не читаются (заголовки в notShown). chosen — по
+                                      документам, открытым читающему, дата — документа. Правом счетов
+                                      ИЛИ накладных, БЕЗ core.catalog.read — решение владельца. Не
+                                      номенклатура / удалена — 404, справочник не назначен — 409. Для
+                                      человека: сравнивать по этим строкам код не должен
 ```

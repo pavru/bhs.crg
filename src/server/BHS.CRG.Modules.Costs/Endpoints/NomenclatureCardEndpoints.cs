@@ -18,7 +18,7 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// разграничены по пользователям). Картинки, файлы и составные поля не едут — только их заголовки.</para>
 ///
 /// <para>Собирает карточку ядро (порт <see cref="IModuleCatalog.CardAsync" />); модуль добавляет своё — сколько
-/// раз позицию выбирали в счетах и накладных. Ядро о счетах не знает.</para>
+/// раз позицию выбирали в счетах и накладных (тех, что читающему открыты). Ядро о счетах не знает.</para>
 /// </summary>
 public static class NomenclatureCardEndpoints
 {
@@ -29,24 +29,48 @@ public static class NomenclatureCardEndpoints
             .WithTags("Счета на оплату");
 
     private static async Task<Ok<NomenclatureCard>> CardAsync(
-        Guid id, CostsDbContext db, IModuleCatalog catalog, CancellationToken ct)
+        Guid id, CostsDbContext db, IModuleCatalog catalog, IModuleUser user, CancellationToken ct)
     {
-        var card = await catalog.CardAsync(CostsDirectories.Nomenclature, id,
-                [CostsDirectories.Article, CostsDirectories.Unit], ct)
-            // Удалена, другого вида или справочник не назначен — в справочнике номенклатуры её нет.
-            ?? throw new NotFoundException("Этой позиции в справочнике номенклатуры нет: её могли удалить.");
-
-        // Строки, где позиция стоит, — обеих таблиц: «выбирали» — это и счёт, и накладная.
-        var stamps = db.InvoiceLines.AsNoTracking().Where(l => l.NomenclatureId == id).Select(l => l.UpdatedAt)
-            .Concat(db.WaybillLines.AsNoTracking().Where(l => l.NomenclatureId == id).Select(l => l.UpdatedAt));
-        var times = await stamps.CountAsync(ct);
-        var last = times == 0 ? null : await stamps.MaxAsync(s => (DateTimeOffset?)s, ct);
+        if (await catalog.CardAsync(CostsDirectories.Nomenclature, id,
+                [CostsDirectories.Article, CostsDirectories.Unit], ct) is not { } card)
+            // Порт отвечает одним «нет» и на удалённую позицию, и на неназначенный справочник; второе — не
+            // «позицию удалили», и спросить порт, есть ли справочник, дешевле, чем объяснять человеку не то.
+            throw await catalog.RefsAsync(CostsDirectories.Nomenclature, [id], ct) is null
+                ? new ConflictException(CostsDirectories.NoNomenclature("показать позицию нечем"))
+                : new NotFoundException("Этой позиции в справочнике номенклатуры нет: её могли удалить.");
 
         return TypedResults.Ok(new NomenclatureCard(
             card.Ref.Id, card.Ref.DisplayName, card.Ref.EntityType, card.TypeName, card.Ref.Archived, card.Lines,
             card.Aliases, card.NotShown, card.EmptyCount,
             card.Tagged.GetValueOrDefault(CostsDirectories.Article), card.Tagged.GetValueOrDefault(CostsDirectories.Unit),
-            card.Scope, new NomenclatureChosen(times, last)));
+            card.Scope, await ChosenAsync(db, user, id, ct)));
+    }
+
+    /// <summary>
+    /// Сколько строк документов держат позицию и дата последнего такого документа — только по документам,
+    /// которые спрашивающему открыты: право на накладные счетов не открывает (COST-29), и число покупок с
+    /// датой — уже сведения о счетах.
+    ///
+    /// <para>Дата — документа (<c>IssuedOn</c>), а не правки строки: строку правят и переставляют долго после
+    /// выбора, и «последний раз» по ней показывал бы день правки количества.</para>
+    /// </summary>
+    private static async Task<NomenclatureChosen> ChosenAsync(
+        CostsDbContext db, IModuleUser user, Guid id, CancellationToken ct)
+    {
+        IQueryable<DateOnly?>? dates = null;
+        if (await user.HasAsync("costs.invoice.read", ct))
+            dates = db.InvoiceLines.AsNoTracking().Where(l => l.NomenclatureId == id)
+                .Join(db.Invoices, l => l.InvoiceId, i => i.Id, (_, i) => i.IssuedOn);
+        if (await user.HasAsync("costs.waybill.read", ct))
+        {
+            var waybills = db.WaybillLines.AsNoTracking().Where(l => l.NomenclatureId == id)
+                .Join(db.Waybills, l => l.WaybillId, w => w.Id, (_, w) => w.IssuedOn);
+            dates = dates is null ? waybills : dates.Concat(waybills);
+        }
+        if (dates is null) return new(0, null);
+
+        var times = await dates.CountAsync(ct);
+        return new(times, times == 0 ? null : await dates.MaxAsync(ct));
     }
 }
 
@@ -63,6 +87,7 @@ public sealed record NomenclatureCard(
     IReadOnlyList<string> Aliases, IReadOnlyList<string> NotShown, int EmptyCount,
     ModuleCardLine? Article, ModuleCardLine? Unit, string? Scope, NomenclatureChosen Chosen);
 
-/// <summary>Сколько раз позицию ставили в строки счетов и накладных.</summary>
-/// <param name="LastAt">Когда строку с ней правили последней; <c>null</c> — не выбирали ни разу.</param>
-public sealed record NomenclatureChosen(int Times, DateTimeOffset? LastAt);
+/// <summary>Сколько строк счетов и накладных держат позицию — по документам, открытым спрашивающему.</summary>
+/// <param name="LastOn">Дата последнего такого документа; <c>null</c> — не выбирали ни разу либо у
+/// документов даты нет.</param>
+public sealed record NomenclatureChosen(int Times, DateOnly? LastOn);

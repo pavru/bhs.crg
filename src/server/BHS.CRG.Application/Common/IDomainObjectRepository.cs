@@ -94,9 +94,10 @@ public interface IDomainObjectRepository : IRepository<DomainObject>
 
     /// <summary>
     /// Запись с данными и её достижимые основы — для карточки (issue #1516), см. <see cref="CardChain" />.
-    /// <c>null</c> — записи нет.
+    /// <c>null</c> — записи нет. Содержимое полей <paramref name="opaque" /> (картинки, файлы, таблицы,
+    /// вложенные объекты) из базы не читается: вместо него — признак «заполнено», число элементов или ссылка.
     /// </summary>
-    Task<CardChain?> CardChainAsync(Guid id, CancellationToken ct = default);
+    Task<CardChain?> CardChainAsync(Guid id, IReadOnlyCollection<string> opaque, CancellationToken ct = default);
 
     /// <summary>
     /// Сохранить правку объекта, собранную по версии <paramref name="seen" /> (issue #1214): строка

@@ -21,6 +21,12 @@ public enum CardLineKind
 
     /// <summary>Ссылка на другую запись: в тексте — её название.</summary>
     Reference = 6,
+
+    /// <summary>
+    /// Заполнено, но содержимое не показывается (картинка, файл, таблица) — так стоит поле КЛЮЧА такого
+    /// вида: ключ в карточке всегда, а «не заполнено» про заполненное было бы ложью.
+    /// </summary>
+    Hidden = 7,
 }
 
 /// <summary>Строка карточки — поле записи, как его прочтёт человек.</summary>
@@ -58,7 +64,10 @@ public sealed record CommonDataCard(
 /// Карточка записи общих данных одного из названных видов; <c>null</c> — записи нет, она другого вида или
 /// это документ. Виды называет звавший: адрес по идентификатору иначе открыл бы любую запись ядра.
 /// </summary>
-public sealed record CommonDataCardQuery(Guid Id, IReadOnlyCollection<Guid> TypeIds) : IRequest<CommonDataCard?>;
+/// <param name="Types">Все типы, если звавший их уже прочёл (порт — ради семейства роли); <c>null</c> —
+/// прочтёт обработчик.</param>
+public sealed record CommonDataCardQuery(
+    Guid Id, IReadOnlyCollection<Guid> TypeIds, IReadOnlyList<DocumentType>? Types = null) : IRequest<CommonDataCard?>;
 
 /// <summary>Одно звено цепочки наследования записи: она сама, затем её основы по порядку.</summary>
 public sealed record CardSource(
@@ -81,14 +90,23 @@ public sealed class CommonDataCardHandler(
 
     public async Task<CommonDataCard?> Handle(CommonDataCardQuery q, CancellationToken ct)
     {
-        if (await objects.CardChainAsync(q.Id, ct) is not { } chain) return null;
-        var record = chain.Links[0];
-        if (record.IsDocument || !q.TypeIds.Contains(record.CompositeTypeId)) return null;
+        // Вид — до чтения данных: запись чужого вида или документ не читаются вовсе.
+        if ((await objects.RefsAmongAsync([q.Id], ct)).FirstOrDefault() is not { } head
+            || !q.TypeIds.Contains(head.CompositeTypeId)) return null;
 
-        var all = (await types.GetAllAsync(ct)).ToDictionary(t => t.Id);
-        if (all.GetValueOrDefault(record.CompositeTypeId) is not { } type) return null;
-        var fields = DocumentTypeSchemaReader.EffectiveFields(type.Id, all, (await enums.GetAllAsync(ct)).ToDictionary(e => e.Id));
-        var identity = SchemaTags.OrderedKeysWithTag(type, [.. all.Values], FunctionalTag.Identity).ToHashSet(StringComparer.Ordinal);
+        var list = q.Types ?? await types.GetAllAsync(ct);
+        var all = list.ToDictionary(t => t.Id);
+        if (all.GetValueOrDefault(head.CompositeTypeId) is not { } type) return null;
+        var fields = DocumentTypeSchemaReader.EffectiveFields(type.Id, all);
+        // Перечисления реестра — только если они в схеме есть: подписи нужны им одним.
+        if (fields.Any(f => f.Type == "enum" && f.Options is null && f.TypeId is not null))
+            fields = DocumentTypeSchemaReader.EffectiveFields(type.Id, all, (await enums.GetAllAsync(ct)).ToDictionary(e => e.Id));
+        var identity = SchemaTags.OrderedKeysWithTag(type, [.. list], FunctionalTag.Identity).ToHashSet(StringComparer.Ordinal);
+
+        var opaque = fields.Where(f => Opaque(f.Type)).Select(f => f.Key).ToList();
+        if (await objects.CardChainAsync(q.Id, opaque, ct) is not { } chain) return null;
+        var record = chain.Links[0];
+        if (record.IsDocument || record.CompositeTypeId != type.Id) return null;
 
         var resolved = fields.Where(f => !f.Computed).Select(f => (Field: f, Value: Resolve(chain, f.Key))).ToList();
         var targets = await TargetsAsync(resolved.Select(r => r.Value.Value), ct);
@@ -119,7 +137,9 @@ public sealed class CommonDataCardHandler(
             var element = value.Value!.Value;
             if (Hidden(field, element, title) is { } caption)
             {
-                notShown.Add(caption);
+                // Ключ — в строках всегда; содержимое и тогда не показывается.
+                if (key) lines.Add(new(field.Key, title, null, CardLineKind.Hidden, key, from, Unreadable: false));
+                else notShown.Add(caption);
                 continue;
             }
 
@@ -132,6 +152,7 @@ public sealed class CommonDataCardHandler(
                 continue;
             }
 
+            // В простом поле лежит не скаляр — данные не по схеме: «не прочитано», а не пусто и не скрыто.
             var text = Text(field, element);
             lines.Add(new(field.Key, title, text, Kind(field), key, from, Unreadable: text is null));
         }
@@ -171,17 +192,23 @@ public sealed class CommonDataCardHandler(
     };
 
     /// <summary>
-    /// Подпись поля, содержимое которого не показывается никогда: картинка и файл — это base64, составное и
-    /// таблица — не одно значение. <c>null</c> — поле показывается строкой.
+    /// Поля, содержимое которых карточке не нужно и из базы не читается: картинка и файл — это base64,
+    /// таблица и вложенный объект — не одно значение и могут нести те же картинки.
+    /// </summary>
+    private static bool Opaque(string type) =>
+        type is "image" or "file" || DocumentTypeSchemaReader.IsMultiValued(type) || DocumentTypeSchemaReader.IsSingleComposite(type);
+
+    /// <summary>
+    /// Подпись непрозрачного поля для <see cref="CommonDataCard.NotShown" />; <c>null</c> — поле показывается
+    /// строкой (составное ссылкой на запись — её названием). Значение здесь уже признак из базы
+    /// (<see cref="IDomainObjectRepository.CardChainAsync" />): у списка — число элементов.
     /// </summary>
     private static string? Hidden(SchemaFieldInfo field, JsonElement value, string title) => field.Type switch
     {
         "image" or "file" => title,
-        _ when DocumentTypeSchemaReader.IsMultiValued(field.Type) || value.ValueKind == JsonValueKind.Array =>
-            value.ValueKind == JsonValueKind.Array ? $"{title} ({value.GetArrayLength()})" : title,
-        // Составное ссылкой на запись — строка с её названием; вложенный объект — не показывается.
-        _ when DocumentTypeSchemaReader.IsSingleComposite(field.Type) || value.ValueKind == JsonValueKind.Object =>
-            Reference(value) is null ? title : null,
+        _ when DocumentTypeSchemaReader.IsMultiValued(field.Type) =>
+            value.ValueKind == JsonValueKind.Number ? $"{title} ({value.GetRawText()})" : title,
+        _ when DocumentTypeSchemaReader.IsSingleComposite(field.Type) => Reference(value) is null ? title : null,
         _ => null,
     };
 

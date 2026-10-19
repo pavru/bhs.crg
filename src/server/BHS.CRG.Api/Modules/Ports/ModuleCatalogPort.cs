@@ -173,7 +173,7 @@ public sealed class ModuleCatalogPort(
         var codes = resolved.Family;
 
         // Семейство роли называет ПОРТ: запрос ядра по идентификатору открыл бы любую запись.
-        if (await mediator.Send(new CommonDataCardQuery(id, [.. codes.Keys]), ct) is not { } card) return null;
+        if (await mediator.Send(new CommonDataCardQuery(id, [.. codes.Keys], all), ct) is not { } card) return null;
 
         var lines = card.Lines.ToDictionary(l => l.Key, Line, StringComparer.Ordinal);
         // Поле тэга — тем же расчётом, что у значений поля и окна «Новая позиция»: карточка, узнавшая
@@ -199,6 +199,7 @@ public sealed class ModuleCatalogPort(
             CardLineKind.Boolean => "boolean",
             CardLineKind.Choice => "choice",
             CardLineKind.Reference => "reference",
+            CardLineKind.Hidden => "hidden",
             _ => "text",
         },
         line.Identity, line.InheritedFrom, line.Unreadable, line.Archived);

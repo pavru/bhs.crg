@@ -53,6 +53,12 @@ public partial class ArchiveReadInventoryTests
             Shown("какие из стоящих в форме ссылок — в архиве: ответ и есть признак"),
         ["BHS.CRG.Application/Documents/CommonDataCard.cs|return ids.Count == 0 ? [] : (await objects.RefsAmongAsync(ids, ct)).ToDictionary(r => r.Id);"] =
             Seen("карточка записи (#1516): названия записей, на которые уже ссылаются её поля, — архивная с признаком"),
+        ["BHS.CRG.Application/Documents/CommonDataCard.cs|if ((await objects.RefsAmongAsync([q.Id], ct)).FirstOrDefault() is not { } head"] =
+            Seen("карточка записи (#1516): вид записи до чтения данных — показ, архивная с признаком"),
+        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.Card.cs|FROM domain_objects o WHERE o.\"Id\" = {{id}}"] =
+            Seen("карточка записи (#1516): данные звена без содержимого картинок и таблиц — показ"),
+        ["BHS.CRG.Modules.Costs/Endpoints/NomenclatureCardEndpoints.cs|throw await catalog.RefsAsync(CostsDirectories.Nomenclature, [id], ct) is null"] =
+            Seen("карточка позиции: есть ли справочник вовсе — чтобы не назвать неназначенный «позицию удалили»"),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.Card.cs|var found = await Db.Set<DomainObject>().AsNoTracking()"] =
             Seen("карточка записи (#1516): запись по идентификатору и её основы — показ, архивная с признаком"),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.FieldValues.cs|(Db.Set<DomainObject>().AsNoTracking().Where(o =>"] =
