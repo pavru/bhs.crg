@@ -51,6 +51,10 @@ public partial class ArchiveReadInventoryTests
             Seen("отказ «есть в архиве» при создании: название архивной записи для текста отказа"),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.cs|return await Db.Set<DomainObject>().AsNoTracking()"] =
             Shown("какие из стоящих в форме ссылок — в архиве: ответ и есть признак"),
+        ["BHS.CRG.Application/Documents/CommonDataCard.cs|return ids.Count == 0 ? [] : (await objects.RefsAmongAsync(ids, ct)).ToDictionary(r => r.Id);"] =
+            Seen("карточка записи (#1516): названия записей, на которые уже ссылаются её поля, — архивная с признаком"),
+        ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.Card.cs|var found = await Db.Set<DomainObject>().AsNoTracking()"] =
+            Seen("карточка записи (#1516): запись по идентификатору и её основы — показ, архивная с признаком"),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.FieldValues.cs|(Db.Set<DomainObject>().AsNoTracking().Where(o =>"] =
             Shown("значения поля у записей вида (сопоставление по ИНН, issue #1077): назначение называет звавший, выбор архивные скрывает, показ отдаёт с признаком"),
         ["BHS.CRG.Infrastructure/Persistence/DomainObjectRepository.FieldValues.cs|(Db.Set<DomainObject>().AsNoTracking().Where(o => wanted.Contains(o.Id)))"] =

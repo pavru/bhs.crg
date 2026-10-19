@@ -161,6 +161,56 @@ public sealed class ModuleCatalogPort(
         })];
     }
 
+    public async Task<ModuleCatalogCard?> CardAsync(
+        string role, Guid id, IReadOnlyList<string> fieldTags, CancellationToken ct = default)
+    {
+        foreach (var tag in fieldTags) needs.EnsureDeclared(role, tag);
+        needs.EnsureDeclared(role);
+
+        var all = await types.GetAllAsync(ct);
+        var resolved = RoleResolution.Role(role, all);
+        if (resolved.Root is null) return null;
+        var codes = resolved.Family;
+
+        // Семейство роли называет ПОРТ: запрос ядра по идентификатору открыл бы любую запись.
+        if (await mediator.Send(new CommonDataCardQuery(id, [.. codes.Keys]), ct) is not { } card) return null;
+
+        var lines = card.Lines.ToDictionary(l => l.Key, Line, StringComparer.Ordinal);
+        // Поле тэга — тем же расчётом, что у значений поля и окна «Новая позиция»: карточка, узнавшая
+        // артикул иначе, сравнивала бы строку не с тем полем, по которому подбирали.
+        var tagged = new Dictionary<string, ModuleCardLine>(StringComparer.Ordinal);
+        foreach (var code in fieldTags)
+            if (tags.Find(code) is { } tag && RoleResolution.Field(resolved, tag, all).Key is { } key
+                && lines.TryGetValue(key, out var line))
+                tagged[code] = line;
+
+        return new ModuleCatalogCard(
+            new ModuleCatalogRef(card.Record.Id, codes.GetValueOrDefault(card.Record.CompositeTypeId, string.Empty),
+                card.Record.DisplayName, card.Record.Archived),
+            card.TypeName, [.. card.Lines.Select(l => lines[l.Key])], card.Aliases, card.NotShown, card.EmptyCount,
+            tagged, Scope(card.Scope));
+    }
+
+    private static ModuleCardLine Line(CommonDataCardLine line) => new(
+        line.Title, line.Text, line.Kind switch
+        {
+            CardLineKind.Number => "number",
+            CardLineKind.Date => "date",
+            CardLineKind.Boolean => "boolean",
+            CardLineKind.Choice => "choice",
+            CardLineKind.Reference => "reference",
+            _ => "text",
+        },
+        line.Identity, line.InheritedFrom, line.Unreadable, line.Archived);
+
+    private static string? Scope(BHS.CRG.Domain.Catalog.CatalogScope scope) => scope switch
+    {
+        BHS.CRG.Domain.Catalog.CatalogScope.Construction => "construction",
+        BHS.CRG.Domain.Catalog.CatalogScope.Section => "section",
+        BHS.CRG.Domain.Catalog.CatalogScope.Set => "set",
+        _ => null,
+    };
+
     /// <summary>
     /// Назначение модуля — в назначение ядра ПЕРЕБОРОМ, а не приведением числа: у двух перечислений
     /// порядок значений ничем не связан, и приведение пережило бы перестановку молча.

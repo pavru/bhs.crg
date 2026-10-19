@@ -5280,4 +5280,12 @@ POST   /api/costs/nomenclature/candidates  { supplierId?, lines: [{ supplierText
                                       подбор ядра + выбор ДРУГИХ поставщиков (никогда не strong;
                                       другую позицию указал — strong снят у всех); ≤ 5 на строку,
                                       ≤ 50 строк. Правом счетов ИЛИ накладных, как поиск
+GET    /api/costs/nomenclature/{id}/card  → КАРТОЧКА позиции (issue #1516): { lines: [{ title, text,
+                                      kind, identity, inheritedFrom, unreadable, archived }], aliases,
+                                      notShown, emptyCount, article, unit, scope, chosen: { times,
+                                      lastAt } }. Ключ первым и всегда, _baseRef разрешён, ссылки —
+                                      названием, картинок и файлов нет (только заголовки в notShown).
+                                      Правом счетов ИЛИ накладных, БЕЗ core.catalog.read — решение
+                                      владельца. Не номенклатура / удалена — 404. Для человека:
+                                      сравнивать по этим строкам код не должен (FieldValuesAsync)
 ```

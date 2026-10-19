@@ -247,4 +247,18 @@ public interface IModuleCatalog
     /// отказ: «кандидатов больше» над пустым списком ничего не значит.</param>
     Task<IReadOnlyList<ModuleLineCandidates>?> SimilarAsync(
         string role, IReadOnlyList<ModuleLineWords> lines, int limit, CancellationToken ct = default);
+
+    /// <summary>
+    /// Карточка записи справочника для человека (issue #1516): поля по схеме вида записи, наследование
+    /// <c>_baseRef</c> разрешено, ссылки — названиями, картинок и файлов нет.
+    ///
+    /// <para><c>null</c> — записи нет в справочнике роли: удалена, другого вида или это документ. Адрес по
+    /// идентификатору иначе открыл бы читателю модуля любую запись ядра. Роль не обеспечена — тоже
+    /// <c>null</c>: в справочнике, которого нет, записи нет.</para>
+    ///
+    /// <para><paramref name="fieldTags" /> — тэги полей, которые модуль хочет видеть отдельно (артикул и
+    /// единица для сравнения со строкой), каждый обязан быть в его потребностях.</para>
+    /// </summary>
+    Task<ModuleCatalogCard?> CardAsync(
+        string role, Guid id, IReadOnlyList<string> fieldTags, CancellationToken ct = default);
 }
