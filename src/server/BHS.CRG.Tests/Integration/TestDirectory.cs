@@ -1,6 +1,7 @@
 using BHS.CRG.Api.Modules;
 using BHS.CRG.Api.Modules.Ports;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Modules;
@@ -61,7 +62,7 @@ internal sealed class TestDirectory
 
     public IModuleCatalog Port(IServiceProvider services) => new ModuleCatalogPort(
         services.GetRequiredService<IMediator>(), services.GetRequiredService<IRepository<DocumentType>>(),
-        _needs, _tags);
+        _needs, _tags, services.GetRequiredService<ISimilarityRecordsLoader>());
 
     /// <summary>Модуль, объявивший потребность: без объявления порт не читает ничего.</summary>
     private sealed class Probe(string role, string fieldTag) : IAppModule

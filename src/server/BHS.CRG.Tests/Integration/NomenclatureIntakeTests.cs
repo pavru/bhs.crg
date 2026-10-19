@@ -28,7 +28,7 @@ namespace BHS.CRG.Tests.Integration;
 /// <para>База у класса общая с соседями: названия и артикулы у каждого теста свои.</para>
 /// </summary>
 [Collection("Integration")]
-public class NomenclatureIntakeTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
+public partial class NomenclatureIntakeTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
 {
     private readonly InvoiceLineHost host = host;
 

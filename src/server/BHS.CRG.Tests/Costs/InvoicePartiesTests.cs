@@ -365,5 +365,9 @@ public class InvoicePartiesTests
         public Task<IReadOnlyList<ModuleCatalogRef>?> RefsAsync(
             string entityType, IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
             throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ModuleLineCandidates>?> SimilarAsync(
+            string entityType, IReadOnlyList<ModuleLineWords> lines, int limit, CancellationToken ct = default) =>
+            throw new NotSupportedException();
     }
 }

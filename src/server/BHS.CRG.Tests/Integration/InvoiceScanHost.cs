@@ -167,6 +167,10 @@ public sealed class InvoiceScanHost : InvoiceLineHost
         public Task<ModuleCatalogFieldValues?> FieldValuesAsync(
             string entityType, string fieldKey, RecordsFor purpose, CancellationToken ct = default) =>
             inner.FieldValuesAsync(entityType, fieldKey, purpose, ct);
+
+        public Task<IReadOnlyList<ModuleLineCandidates>?> SimilarAsync(
+            string entityType, IReadOnlyList<ModuleLineWords> lines, int limit, CancellationToken ct = default) =>
+            inner.SimilarAsync(entityType, lines, limit, ct);
     }
 
     /// <summary>
