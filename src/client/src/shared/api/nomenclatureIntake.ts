@@ -19,7 +19,16 @@ export interface IntakeField {
   identity: boolean;
   /** `null` — поле текстовое; список (хоть и пустой) — поле ВЫБОРА записи справочника. */
   options: IntakeOption[] | null;
+  /**
+   * Тэг, которым поле сопоставлено в справочнике (issue #1512): `nomenclature.article` или
+   * `nomenclature.unit`. Нет — не сопоставлено, и поле узнаётся по-старому.
+   */
+  tag?: string | null;
 }
+
+/** Тэги полей справочника номенклатуры — коды реестра ядра (`FunctionalTag`). */
+export const NOMENCLATURE_ARTICLE = 'nomenclature.article';
+export const NOMENCLATURE_UNIT = 'nomenclature.unit';
 
 export interface IntakeKind {
   typeId: string;

@@ -27,7 +27,8 @@ public class FieldMappingTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
             .GetProperty("modules").EnumerateArray().Single(m => m.GetProperty("code").GetString() == "costs")
             .GetProperty("mapping");
 
-        // Два справочника и два обязательных поля организаций — всё, что модуль читает.
+        // Два справочника и два обязательных поля организаций. Необязательные поля номенклатуры (артикул
+        // и единица, issue #1512) в счёт незакрытого не идут: без них модуль работает, только беднее.
         Assert.Equal(4, screen.GetProperty("total").GetInt32());
         Assert.Equal(screen.GetProperty("total").GetInt32(), signal.GetProperty("total").GetInt32());
         Assert.Equal(screen.GetProperty("unmet").GetInt32(), signal.GetProperty("unmet").GetInt32());
@@ -42,6 +43,13 @@ public class FieldMappingTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
         Assert.Equal(
             new[] { "org.inn", "org.name" },
             organizations.GetProperty("rows").EnumerateArray().Select(r => r.GetProperty("tag").GetString()));
+
+        // Артикул и единицу номенклатуры администратор видит на экране — иначе их негде назначить.
+        var nomenclature = screen.GetProperty("groups").EnumerateArray()
+            .Single(g => g.GetProperty("role").GetString() == "role.nomenclature");
+        Assert.Equal(
+            new[] { "nomenclature.article", "nomenclature.unit" },
+            nomenclature.GetProperty("rows").EnumerateArray().Select(r => r.GetProperty("tag").GetString()));
     }
 
     /// <summary>Экран правит схему типов — и закрыт тем же правом, что запись схемы.</summary>

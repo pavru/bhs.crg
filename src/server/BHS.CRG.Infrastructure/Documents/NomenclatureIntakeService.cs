@@ -30,7 +30,7 @@ namespace BHS.CRG.Infrastructure.Documents;
 /// сверку придётся переносить в базу.</para>
 /// </summary>
 public sealed class NomenclatureIntakeService(
-    AppDbContext db, ISender mediator, IRepository<DocumentType> types, IActivityLog journal)
+    AppDbContext db, ISender mediator, IRepository<DocumentType> types, IActivityLog journal, TagCatalog tags)
     : INomenclatureIntake
 {
     public async Task<IReadOnlyList<IntakeKind>> DescribeAsync(CancellationToken ct = default)
@@ -104,7 +104,7 @@ public sealed class NomenclatureIntakeService(
         DocumentType type, IReadOnlyDictionary<Guid, DocumentType> all,
         Dictionary<Guid, IReadOnlyList<IntakeOption>?> options, CancellationToken ct)
     {
-        var kind = NomenclatureIntakeLayout.Describe(type, all);
+        var kind = NomenclatureIntakeLayout.Describe(type, all, Tagged(all));
         var fields = new List<IntakeField>();
         var refusals = kind.Refusals.ToList();
         foreach (var field in kind.Fields)
@@ -120,6 +120,22 @@ public sealed class NomenclatureIntakeService(
             fields.Add(field with { Options = known ?? [] });
         }
         return kind with { Fields = fields, Refusals = refusals };
+    }
+
+    /// <summary>
+    /// Поля справочника, сопоставленные тэгами артикула и единицы (issue #1512), — тем же расчётом,
+    /// что у порта модулей: окно, узнавшее поле иначе, чем карточка, подставило бы артикул в одно поле,
+    /// а сравнивало по другому.
+    /// </summary>
+    private Dictionary<string, string> Tagged(IReadOnlyDictionary<Guid, DocumentType> all)
+    {
+        var list = all.Values.ToList();
+        var role = RoleResolution.Role(FunctionalTag.RoleNomenclature, list);
+        var tagged = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var code in (string[])[FunctionalTag.NomenclatureArticle, FunctionalTag.NomenclatureUnit])
+            if (tags.Find(code) is { } tag && RoleResolution.Field(role, tag, list).Key is { } key)
+                tagged.TryAdd(key, code);
+        return tagged;
     }
 
     private async Task<SimilarAnswer> SimilarAsync(

@@ -36,6 +36,28 @@ describe('новая позиция номенклатуры из строки �
     expect(prefill(kind(), {})).toEqual({ values: {}, refs: {} });
   });
 
+  it('поле, сопоставленное тэгом, берёт артикул и единицу; без тэга — по названию, как прежде', () => {
+    // Артикул лежит в «Коде поставщика», а поле «Артикул» значит другое — тэг решает, не название.
+    const tagged = kind({
+      fields: [
+        ...kind().fields.filter(f => f.key !== 'ЕдиницаИзмерения'),
+        { key: 'Код', title: 'Код поставщика', required: false, identity: true, options: null, tag: 'nomenclature.article' },
+        { key: 'Тара', title: 'Тара', required: false, identity: false, options: [{ id: 'p-1', name: 'шт' }] },
+        {
+          key: 'ЕдиницаИзмерения', title: 'Единица измерения', required: true, identity: false,
+          options: [{ id: 'u-1', name: 'шт' }, { id: 'u-2', name: 'м' }], tag: 'nomenclature.unit',
+        },
+      ],
+    });
+    expect(prefill(tagged, { name: 'Кабель', code: 'RZ-2W', unit: 'шт' })).toEqual({
+      values: { Наименование: 'Кабель', Код: 'RZ-2W' },
+      refs: { ЕдиницаИзмерения: 'u-1' },
+    });
+    // Без тэга «шт» легла бы и в «Тару»: поле выбора, где нашлась такая запись.
+    const untagged = kind({ fields: tagged.fields.map(f => ({ ...f, tag: null })) });
+    expect(prefill(untagged, { unit: 'шт' }).refs).toEqual({ Тара: 'p-1', ЕдиницаИзмерения: 'u-1' });
+  });
+
   it('подставленное из счёта оговорено, набираемое с нуля — нет', () => {
     const k = kind();
     expect(prefillHint(k, k.fields[0], { name: 'Кабель' })).toContain('слова поставщика');

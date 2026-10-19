@@ -162,6 +162,20 @@ public static class FunctionalTag
     /// </summary>
     public const string OrgName = "org.name";
 
+    // ── Тэги поля: справочник номенклатуры (issue #1512, эпик #1511) ────────────
+
+    /// <summary>
+    /// Артикул позиции — с ним сравнивается артикул строки счёта в карточке позиции. Без тэга поле
+    /// узнавалось по названию, и только ради подстановки: сравнивать по догадке нельзя.
+    /// </summary>
+    public const string NomenclatureArticle = "nomenclature.article";
+
+    /// <summary>
+    /// Единица измерения позиции — с ней сравнивается единица строки: «в счёте м, в позиции бухта»
+    /// ломает количества и деньги дальше.
+    /// </summary>
+    public const string NomenclatureUnit = "nomenclature.unit";
+
     // ── Тэги набора данных (структура PDF-источника) ────────────────────────────
     /// <summary>PDF содержит обложку (первая страница пропускается при распознавании).</summary>
     public const string DatasetHasCover = "dataset.hasCover";

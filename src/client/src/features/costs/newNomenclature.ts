@@ -1,4 +1,6 @@
-import type { IntakeBody, IntakeField, IntakeKind } from '@/shared/api/nomenclatureIntake';
+import {
+  NOMENCLATURE_ARTICLE, NOMENCLATURE_UNIT, type IntakeBody, type IntakeField, type IntakeKind,
+} from '@/shared/api/nomenclatureIntake';
 
 /**
  * Новая позиция номенклатуры из строки счёта (задача C3, issue #1079) — то, что можно проверить без
@@ -28,10 +30,13 @@ export function namingField(kind: IntakeKind): IntakeField | null {
 }
 
 /**
- * Поле артикула. Ключей полей ядро не знает (схему ведёт человек), поэтому поле узнаётся по
- * названию — и только ради ПОДСТАНОВКИ: не узнали — человек впишет сам, ничего не сломано.
+ * Поле артикула. Сопоставлено тэгом (issue #1512) — оно, и только оно. Не сопоставлено — узнаётся
+ * по названию, как до тэга, и только ради ПОДСТАНОВКИ: не узнали — человек впишет сам, ничего не
+ * сломано, а неразмеченный справочник подставлять не перестал.
  */
 export function articleField(kind: IntakeKind): IntakeField | null {
+  const tagged = kind.fields.find(f => f.tag === NOMENCLATURE_ARTICLE);
+  if (tagged) return tagged.options === null ? tagged : null;
   const naming = namingField(kind);
   return kind.fields.find(f => f.options === null && f !== naming && /артикул/i.test(`${f.key} ${f.title}`)) ?? null;
 }
@@ -54,9 +59,12 @@ export function prefill(kind: IntakeKind, from: LineWords): IntakeDraft {
   if (article && text(from.code)) draft.values[article.key] = text(from.code);
 
   const wanted = unitKey(from.unit);
+  // Поле единицы сопоставлено тэгом — единица строки ложится только в него: запись «шт» нашлась бы и
+  // в другом поле выбора, где она значит не единицу.
+  const unit = kind.fields.find(f => f.tag === NOMENCLATURE_UNIT);
   for (const field of kind.fields) {
     if (field.options === null) continue;
-    const same = wanted ? field.options.filter(o => unitKey(o.name) === wanted) : [];
+    const same = wanted && (!unit || field === unit) ? field.options.filter(o => unitKey(o.name) === wanted) : [];
     // Единственная запись в справочнике — выбирать не из чего, и требовать выбора незачем.
     if (same.length === 1) draft.refs[field.key] = same[0].id;
     else if (field.options.length === 1 && field.required) draft.refs[field.key] = field.options[0].id;
