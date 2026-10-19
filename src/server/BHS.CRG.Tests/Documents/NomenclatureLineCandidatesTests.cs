@@ -64,6 +64,8 @@ public class NomenclatureLineCandidatesTests
         var hit = Assert.Single(For([one], " кабель  ВВГНГ 3х2,5. ").Hits);
         Assert.True(hit.Strong);
         Assert.Equal(["то же наименование"], hit.Why);
+        // Нашлась названием — альтернативного имени в ответе нет.
+        Assert.Null(hit.Matched.Alias);
 
         var twins = For([one, Lying("Кабель ВВГнг 3х2,5", "Севкабель")], "Кабель ВВГнг 3х2,5");
         Assert.Equal(2, twins.Hits.Count);
@@ -79,6 +81,7 @@ public class NomenclatureLineCandidatesTests
 
         Assert.True(hit.Strong);
         Assert.Equal(["так названа альтернативным именем"], hit.Why);
+        Assert.Equal("ВВГ 3*2.5", hit.Matched.Alias);
     }
 
     [Fact]
@@ -237,6 +240,8 @@ public class NomenclatureLineCandidatesTests
 
         Assert.Equal(["название позиции целиком есть в строке"], hit.Why);
         Assert.Equal(3, hit.Matched.Words.Count(w => w.Found));
+        // Нашлась альтернативным именем — оно названо, как записано: слова строки отмечены по нему.
+        Assert.Equal("Щит распределительный ЩРН-12", hit.Matched.Alias);
     }
 
     /// <summary>Запись, у которой в ключе одно название, с артикулом строки сверяется без отказа.</summary>

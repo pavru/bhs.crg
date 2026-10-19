@@ -15,22 +15,20 @@ namespace BHS.CRG.Infrastructure.Documents;
 /// <summary>
 /// Создание позиции номенклатуры коротким окном и поиск похожих (задача C3, issue #1079).
 ///
-/// <para>Значения полей ключа отдаёт запрос ядра (<see cref="CommonDataFieldValuesQuery" />): он
-/// разрешает наследование от основы. Своих чтений два, оба лёгкой строкой: записи на выбор в
-/// поле-ссылке и альтернативные имена позиций. И замок: сверка «такой ещё нет» и создание идут в
-/// одной транзакции.</para>
+/// <para>Лежащие позиции читает общий загрузчик сверки (<see cref="ISimilarityRecordsLoader" />, issue
+/// #1514) — тот же, что у подбора для строки бумаги. Своё чтение одно, лёгкой строкой: записи на выбор
+/// в поле-ссылке. И замок: сверка «такой ещё нет» и создание идут в одной транзакции.</para>
 ///
 /// <para>⚠️ <b>Сверяются позиции ВСЕГО семейства «Номенклатуры»</b>, а не только выбранного вида:
 /// «Кабель», заведённый рядом с такой же «Номенклатурой», — похожая позиция. Полями ключа служат
 /// поля выбранного вида. Запись подтипа, у которой заполнены СВОИ поля ключа, «той же» не считается
 /// (<see cref="SimilarRecord.OwnKey" />) — только похожей.</para>
 ///
-/// <para>Цена сверки — по запросу на поле ключа, каждый читает все позиции семейства лёгкой строкой.
-/// Позиций — тысячи, а спрашивает окно после паузы в наборе. Вырастет справочник на порядок —
-/// сверку придётся переносить в базу.</para>
+/// <para>Спрашивает окно после паузы в наборе; цена сверки названа у загрузчика.</para>
 /// </summary>
 public sealed class NomenclatureIntakeService(
-    AppDbContext db, ISender mediator, IRepository<DocumentType> types, IActivityLog journal, TagCatalog tags)
+    AppDbContext db, ISender mediator, IRepository<DocumentType> types, IActivityLog journal, TagCatalog tags,
+    ISimilarityRecordsLoader records)
     : INomenclatureIntake
 {
     public async Task<IReadOnlyList<IntakeKind>> DescribeAsync(CancellationToken ct = default)
@@ -156,68 +154,13 @@ public sealed class NomenclatureIntakeService(
             throw new InvalidRequestException(
                 $"Позиции вида «{kind.Name}» сверить с лежащими нечем: {string.Join("; ", kind.Refusals)}.");
 
-        var typeIds = family.Select(t => t.Id).ToList();
-        var records = new Dictionary<Guid, (CommonDataRef Ref, string?[] Key)>();
-        var unreadable = new HashSet<Guid>();
-        for (var i = 0; i < identity.Count; i++)
-        {
-            // Показ, а не выбор: архивный двойник — тоже двойник, и окно о нём говорит.
-            foreach (var value in await mediator.Send(
-                         new CommonDataFieldValuesQuery(typeIds, identity[i].Key, RecordsFor.Display), ct))
-            {
-                if (!records.TryGetValue(value.Record.Id, out var known))
-                    records[value.Record.Id] = known = (value.Record, new string?[identity.Count]);
-                known.Key[i] = value.Value;
-                if (value.Unreadable) unreadable.Add(value.Record.Id);
-            }
-        }
-
-        var ownKey = await OwnKeyAsync(identity, all, family, unreadable, ct);
-        var aliases = await AliasesAsync(typeIds, ct);
-
+        // Тем же загрузчиком, что подбор для строки бумаги (issue #1514): окно не скажет «похожих нет» о
+        // позиции, которую подбор находит.
+        var lying = await records.LoadAsync(all, family, [.. identity.Select(f => f.Key)], ct);
         return NomenclatureSimilarity.Find(
             [.. identity.Select(f => (f.Title, values.TryGetValue(f.Key, out var typed) ? typed : null))],
-            // Нечитаемая запись в сверку не идёт: о ней нельзя сказать ни «совпала», ни «не совпала».
-            [.. records.Values.Where(r => !unreadable.Contains(r.Ref.Id))
-                .Select(r => new SimilarRecord(
-                    r.Ref.Id, r.Ref.CompositeTypeId, all.GetValueOrDefault(r.Ref.CompositeTypeId)?.Name ?? "",
-                    r.Ref.DisplayName, r.Ref.Archived, r.Key,
-                    aliases.GetValueOrDefault(r.Ref.Id) ?? [], ownKey.Contains(r.Ref.Id)))],
-            unreadable.Count);
+            lying.Records, lying.Unreadable);
     }
-
-    /// <summary>
-    /// Записи, у которых заполнены поля ключа их СОБСТВЕННОГО подтипа, не входящие в ключ выбранного
-    /// вида. Обычно таких полей нет вовсе, и запросов здесь ноль.
-    /// </summary>
-    private async Task<HashSet<Guid>> OwnKeyAsync(
-        IReadOnlyList<IntakeField> identity, IReadOnlyDictionary<Guid, DocumentType> all,
-        IReadOnlyList<DocumentType> family, HashSet<Guid> unreadable, CancellationToken ct)
-    {
-        var shared = identity.Select(f => f.Key).ToHashSet(StringComparer.Ordinal);
-        var everything = all.Values.ToList();
-        var typesByKey = family
-            .SelectMany(t => SchemaTags.OrderedKeysWithTag(t, everything, FunctionalTag.Identity)
-                .Where(k => !shared.Contains(k)).Select(k => (Key: k, Type: t.Id)))
-            .GroupBy(x => x.Key, x => x.Type);
-
-        var own = new HashSet<Guid>();
-        foreach (var group in typesByKey)
-            foreach (var value in await mediator.Send(
-                         new CommonDataFieldValuesQuery([.. group.Distinct()], group.Key, RecordsFor.Display), ct))
-            {
-                if (value.Unreadable) unreadable.Add(value.Record.Id);
-                else if (!string.IsNullOrWhiteSpace(value.Value)) own.Add(value.Record.Id);
-            }
-        return own;
-    }
-
-    /// <summary>Альтернативные имена позиций семейства — только тех, у кого они есть.</summary>
-    private async Task<Dictionary<Guid, List<string>>> AliasesAsync(IReadOnlyCollection<Guid> typeIds, CancellationToken ct) =>
-        await db.DomainObjects.AsNoTracking()
-            .Where(o => o.Facet == null && typeIds.Contains(o.CompositeTypeId) && o.Aliases.Any())
-            .Select(o => new { o.Id, o.Aliases })
-            .ToDictionaryAsync(o => o.Id, o => o.Aliases, ct);
 
     /// <summary>
     /// Записи на выбор; <c>null</c> — их больше, чем окно может показать списком.
