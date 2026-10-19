@@ -191,11 +191,18 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
     setY(v); emit(d, m, v);
   }
 
-  /** Разделитель переводит к следующему сегменту, Backspace в пустом — к предыдущему. */
-  const onSegmentKey = (part: DatePart) => (e: React.KeyboardEvent) => {
+  /**
+   * Разделитель переводит к следующему сегменту, Backspace в пустом — к предыдущему. Цифра в полный
+   * сегмент без выделения заменяет его, как в нативном поле даты: иначе её молча съедал `maxLength`.
+   * Так и при автопереходе: выделение `advance` ставит таймером, а Chrome пускает ввод раньше таймеров —
+   * в CI «3102» поверх 19.10 давало месяц «2» (живые прогоны PR #1544).
+   */
+  const onSegmentKey = (part: DatePart) => (e: React.KeyboardEvent<HTMLInputElement>) => {
     const cur = shown[part];
+    const input = e.currentTarget;
     if (e.key === 'Backspace' && cur === '') go(part, -1);
     else if (SEPARATORS.includes(e.key) && cur) { e.preventDefault(); go(part, 1); }
+    else if (/^\d$/.test(e.key) && input.value.length >= input.maxLength && input.selectionStart === input.selectionEnd) input.select();
   };
 
   // Pad single digits on blur — read DOM value via ref to avoid stale closure

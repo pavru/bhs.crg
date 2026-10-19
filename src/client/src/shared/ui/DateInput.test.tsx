@@ -303,3 +303,27 @@ describe('DateInput: маска по языку пользователя (issue 
     expect(pasted('en-US', '18/10/2026')).toBeUndefined();    // месяца 18 нет — не дата, не догадка
   });
 });
+
+// Цифра в полный сегмент без выделения заменяет его (живые прогоны PR #1544): иначе её съедает
+// `maxLength`, и при автопереходе, когда выделение ещё не поставлено таймером, «3102» давало месяц «2».
+describe('DateInput: цифра в полный сегмент', () => {
+  it('без выделения — сегмент выделяется, и цифра его заменит', () => {
+    render(<Controlled initial="2026-10-19" />);
+    const month = seg('ММ');
+    month.focus();
+    month.setSelectionRange(2, 2);
+    fireEvent.keyDown(month, { key: '0' });
+    expect([month.selectionStart, month.selectionEnd]).toEqual([0, 2]);
+  });
+
+  it('с выделением и в неполном сегменте — не трогает', () => {
+    render(<Controlled initial="2026-10-19" />);
+    const month = seg('ММ');
+    month.focus();
+    month.setSelectionRange(1, 2);
+    fireEvent.keyDown(month, { key: '5' });
+    expect([month.selectionStart, month.selectionEnd]).toEqual([1, 2]);
+    fireEvent.keyDown(month, { key: 'ArrowLeft' });
+    expect([month.selectionStart, month.selectionEnd]).toEqual([1, 2]);
+  });
+});
