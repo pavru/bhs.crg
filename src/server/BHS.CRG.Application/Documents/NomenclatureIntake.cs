@@ -18,16 +18,24 @@ public sealed record IntakeOption(Guid Id, string? Name);
 /// <param name="TargetTypeId">Не <c>null</c> — поле заполняется ВЫБОРОМ записи этого типа, а не
 /// текстом.</param>
 /// <param name="Options">Записи на выбор; у текстового поля пусто. Заполняет служба.</param>
+/// <param name="Tag">Тэг поля справочника номенклатуры — <see cref="FunctionalTag.NomenclatureArticle" />
+/// или <see cref="FunctionalTag.NomenclatureUnit" />, — если поле им сопоставлено (issue #1512). Тем же
+/// расчётом, что у порта модулей: тэг на двух полях — ни одному. <c>null</c> — не сопоставлено, и окно
+/// узнаёт поле по-старому, по названию.</param>
 public sealed record IntakeField(
     string Key, string Title, bool Required, bool Identity, Guid? TargetTypeId,
-    IReadOnlyList<IntakeOption> Options);
+    IReadOnlyList<IntakeOption> Options, string? Tag = null);
 
 /// <summary>
 /// Вид позиции — «Номенклатура» или её подтип — и можно ли завести его коротким окном.
 /// </summary>
 /// <param name="Refusals">Почему нельзя — словами для человека. Пусто — можно.</param>
+/// <param name="Mapped">Тэги полей справочника, которые в нём СОПОСТАВЛЕНЫ (артикул, единица), — даже если
+/// поле окно не спрашивает (ревью PR #1525). Тэг сопоставлен — окно поле по названию не угадывает: угаданное
+/// «Артикул поставщика» при размеченном «Коде изготовителя» — та самая догадка, которую тэг заменил.</param>
 public sealed record IntakeKind(
-    Guid TypeId, string Code, string Name, IReadOnlyList<IntakeField> Fields, IReadOnlyList<string> Refusals);
+    Guid TypeId, string Code, string Name, IReadOnlyList<IntakeField> Fields, IReadOnlyList<string> Refusals,
+    IReadOnlyList<string>? Mapped = null);
 
 /// <summary>Что завести: вид, тексты по ключам полей и выбранные записи по ключам полей-ссылок.</summary>
 public sealed record NomenclatureIntakeRequest(
@@ -75,7 +83,23 @@ public static class NomenclatureIntakeLayout
     /// <summary>Справочник в поле-ссылке длиннее этого — выбором в коротком окне его не заполнить.</summary>
     public const int OptionsLimit = 200;
 
-    public static IntakeKind Describe(DocumentType type, IReadOnlyDictionary<Guid, DocumentType> types)
+    /// <param name="tagged">Ключ поля → тэг справочника номенклатуры, которым поле сопоставлено (см.
+    /// <see cref="IntakeField.Tag" />). Считает служба: реестр тэгов знает она.</param>
+    public static IntakeKind Describe(
+        DocumentType type, IReadOnlyDictionary<Guid, DocumentType> types,
+        IReadOnlyDictionary<string, string>? tagged = null)
+    {
+        var kind = DescribeFields(type, types);
+        return tagged is null || tagged.Count == 0
+            ? kind
+            : kind with
+            {
+                Fields = [.. kind.Fields.Select(f => f with { Tag = tagged.GetValueOrDefault(f.Key) })],
+                Mapped = [.. tagged.Values.Order(StringComparer.Ordinal)],
+            };
+    }
+
+    private static IntakeKind DescribeFields(DocumentType type, IReadOnlyDictionary<Guid, DocumentType> types)
     {
         var refusals = new List<string>();
         if (!TypeStorageRules.KeptInCommonTable(type))

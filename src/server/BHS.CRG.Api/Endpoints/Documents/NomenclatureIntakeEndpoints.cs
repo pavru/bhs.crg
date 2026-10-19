@@ -79,16 +79,19 @@ public static class NomenclatureIntakeEndpoints
     }
 
     public sealed record FieldDto(
-        string Key, string Title, bool Required, bool Identity, IReadOnlyList<IntakeOption>? Options);
+        string Key, string Title, bool Required, bool Identity, IReadOnlyList<IntakeOption>? Options, string? Tag);
 
     public sealed record KindDto(
-        Guid TypeId, string Code, string Name, IReadOnlyList<FieldDto> Fields, IReadOnlyList<string> Refusals)
+        Guid TypeId, string Code, string Name, IReadOnlyList<FieldDto> Fields, IReadOnlyList<string> Refusals,
+        IReadOnlyList<string> Mapped)
     {
         public static KindDto From(IntakeKind kind) => new(
             kind.TypeId, kind.Code, kind.Name,
             // «options: null» — поле текстовое; список (хоть и пустой) — поле выбора.
             [.. kind.Fields.Select(f => new FieldDto(
-                f.Key, f.Title, f.Required, f.Identity, f.TargetTypeId is null ? null : f.Options))],
-            kind.Refusals);
+                f.Key, f.Title, f.Required, f.Identity, f.TargetTypeId is null ? null : f.Options, f.Tag))],
+            kind.Refusals,
+            // Сопоставленные тэги — даже у полей, которых окно не спрашивает: тогда оно не угадывает поле.
+            kind.Mapped ?? []);
     }
 }

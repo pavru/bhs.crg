@@ -230,6 +230,21 @@ public static class TagRegistry
             TagScope.Field, ["string", "text", "complex"], Multiple: false,
             Group: "Организации", Role: FunctionalTag.RoleOrganization),
 
+        // ── Field: справочник номенклатуры (issue #1512) ──
+        //
+        // Виды сверены с живой базой: «Единица измерения» у номенклатуры там — ССЫЛКА на справочник
+        // единиц (complex), а не строка. Тэг «только на простое поле» не ставился бы ровно тому полю,
+        // ради которого заведён. Порт значение ссылки скаляром не читает — карточка показывает её
+        // названием записи.
+        new(FunctionalTag.NomenclatureArticle, "Артикул позиции",
+            "Артикул позиции номенклатуры. В это поле ложится артикул строки, когда позицию заводят из строки счёта; без тэга поле угадывается по названию «Артикул».",
+            TagScope.Field, ["string", "text", "number", "primitive"], Multiple: false,
+            Group: "Номенклатура", Role: FunctionalTag.RoleNomenclature),
+        new(FunctionalTag.NomenclatureUnit, "Единица измерения позиции",
+            "Единица измерения позиции номенклатуры — строка или ссылка на справочник единиц. В это поле ложится единица строки, когда позицию заводят из строки счёта; без тэга она ложится в любое поле выбора, где нашлась запись с таким названием.",
+            TagScope.Field, ["string", "text", "primitive", "complex"], Multiple: false,
+            Group: "Номенклатура", Role: FunctionalTag.RoleNomenclature),
+
         // ── Dataset: структура PDF-источника ──
         new(FunctionalTag.DatasetHasCover, "Имеет обложку",
             "PDF-источник содержит обложку (первая страница пропускается при распознавании основных надписей).",
