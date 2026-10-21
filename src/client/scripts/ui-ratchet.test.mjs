@@ -215,6 +215,18 @@ describe('храповик интерфейса: счёт', () => {
     ].join('\n'))).toEqual({});
   });
 
+  it('рамка, вынесенная в константу файла, — по её значению; пометка border-…! в константе — нет', () => {
+    expect(countViolations([
+      "const frame = 'border border-stroke rounded';",
+      '<DateInput label="Дата" className={frame} />',
+      '<DateInput label="Дата" className={`w-full ${frame}`} />',
+    ].join('\n'))).toEqual({ 'date-frame': 2 });
+    expect(countViolations([
+      "const selectCls = hasDv ? 'border-brand-subtle!' : '';",
+      '<DateInput label="Дата" size="sm" className={`w-full ${selectCls}`} />',
+    ].join('\n'))).toEqual({});
+  });
+
   it('в shared/ считаются только правила, которые его смотрят (dirs)', () => {
     const text = '<table /> <select /> <button className="bg-danger text-white">x</button>';
     expect(countViolations(text, { dir: 'shared' })).toEqual({ 'white-on-fill': 1 });

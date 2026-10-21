@@ -173,10 +173,14 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
   const prevOff = view === 'days' ? !!min && toISO(fy, fm, 1) <= min : (view === 'years' ? pageStart : fy) <= minY;
   const nextOff = view === 'days' ? !!max && toISO(fy, fm, daysInMonth(fy, fm)) >= max : lastShown >= maxY;
   /** Лента периода: место клетки в ней по точности вида — начало, середина, конец или вне. */
+  // Концы ленты усечены по точности вида один раз на рисунок, а не в каждой клетке.
   const [rFrom, rTo] = range ?? ['', ''];
+  const ends = (level: DatePrecision) => rFrom && rTo ? [truncISO(rFrom, level), truncISO(rTo, level)] as const : null;
+  const bandEnds = { day: ends('day'), month: ends('month'), year: ends('year') };
   const band = (iso: string, level: DatePrecision): 'start' | 'mid' | 'end' | null => {
-    if (!rFrom || !rTo) return null;
-    const v = truncISO(iso, level), a = truncISO(rFrom, level), b = truncISO(rTo, level);
+    const e = bandEnds[level];
+    if (!e) return null;
+    const [a, b] = e, v = truncISO(iso, level);
     if (a >= b || v < a || v > b) return null;
     return v === a ? 'start' : v === b ? 'end' : 'mid';
   };

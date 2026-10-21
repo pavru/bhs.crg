@@ -189,6 +189,32 @@ describe('Calendar: границы min/max', () => {
     const months = within(screen.getByRole('grid', { name: 'Выбор месяца' })).getAllByRole('button');
     expect(months.filter(b => (b as HTMLButtonElement).disabled).map(b => b.textContent)).toEqual(['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн']);
   });
+
+  it('«Вперёд» неактивна, если следующий месяц целиком за max', () => {
+    render(<Calendar value="2026-11-14" min="2026-10-10" max="2026-11-25" onSelect={() => {}} />);
+    expect((screen.getByRole('button', { name: 'Вперёд' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Назад' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('месяцы: стрелка за max упирается в месяц границы', () => {
+    render(<Calendar value="2027-02-01" precision="month" max="2027-03-10" onSelect={() => {}} />);
+    const grid = screen.getByRole('grid', { name: 'Выбор месяца' });
+    fireEvent.keyDown(grid, { key: 'ArrowRight' });
+    fireEvent.keyDown(grid, { key: 'ArrowRight' });
+    expect(document.activeElement?.textContent).toBe('Мар');
+    fireEvent.keyDown(grid, { key: 'PageDown' });
+    expect(document.activeElement?.textContent).toBe('Мар');
+  });
+
+  it('годы: за границами неактивны, PageDown упирается в год max', () => {
+    render(<Calendar value="2025-01-01" precision="year" min="2024-05-01" max="2026-03-10" onSelect={() => {}} />);
+    const grid = screen.getByRole('grid', { name: /год/i });
+    const years = within(grid).getAllByRole('button');
+    const off = (y: string) => (years.find(b => b.textContent === y) as HTMLButtonElement).disabled;
+    expect([off('2023'), off('2024'), off('2026'), off('2027')]).toEqual([true, false, false, true]);
+    fireEvent.keyDown(grid, { key: 'PageDown' });
+    expect(document.activeElement?.textContent).toBe('2026');
+  });
 });
 
 // Лента периода (#1464, лента из варианта Б): границы залиты, дни между ними — на ленте.

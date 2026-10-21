@@ -33,6 +33,8 @@ export function DateRange({
   className?: string;
 }) {
   // Поправка приходит из таймера ухода — границы читаются на сейчас, а не из замыкания того рендера.
+  // Только после правки: поле не фиксирует нетронутое значение, и сохранённая пара «наоборот»
+  // при проходе Tab'ом остаётся как есть.
   const cur = useRef({ from, to });
   useEffect(() => { cur.current = { from, to }; });
   const later = (a: string, b: string) => truncISO(a, precision) > truncISO(b, precision);

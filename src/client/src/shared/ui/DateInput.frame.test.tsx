@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { DateInput } from './DateInput';
 
 vi.mock('@/shared/hooks/useLocale', async importOriginal => ({
@@ -33,6 +33,16 @@ describe('DateInput: обвязка size', () => {
     render(<DateInput label="Дата" value="2026-11-03" onChange={() => {}} size="md" readOnly />);
     expect(classes()).toContain('bg-muted');
     expect(screen.queryByRole('button', { name: 'Открыть календарь' })).toBeNull();
+  });
+
+  it('ошибка остаётся красной и при открытом календаре; у sm значок 24 px с зоной нажатия 32 px', () => {
+    globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
+    render(<DateInput label="Дата" value="2026-11-03" onChange={() => {}} size="sm" invalid />);
+    const trigger = screen.getByRole('button', { name: 'Открыть календарь' });
+    expect(trigger.className.split(/\s+/)).toEqual(expect.arrayContaining(['h-6', 'w-6', 'before:-inset-1']));
+    fireEvent.click(trigger);
+    expect(classes()).toContain('ring-danger');
+    expect(classes()).not.toContain('ring-brand');
   });
 
   it('без size рамки нет — её рисует оболочка или ячейка', () => {

@@ -318,15 +318,34 @@ function countNativeDates(text) {
   return n;
 }
 
-/** `<DateInput>` со своей рамкой в className — см. правило `date-frame`. */
+/**
+ * `<DateInput>` со своей рамкой в className — см. правило `date-frame`. Класс, вынесенный в константу
+ * файла (`className={cls}`, `` `w-full ${cls}` ``), читается по её значению: иначе рамка уходила бы
+ * от правила одним переименованием (ревью PR #1553). Константы из других файлов не видны.
+ */
 function countDateFrames(text) {
   if (!text.includes('DateInput')) return 0;
   const sf = parse(text);
+  const consts = new Map();
+  const collect = node => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      consts.set(node.name.text, node.initializer.getText(sf));
+    }
+    ts.forEachChild(node, collect);
+  };
+  collect(sf);
   let n = 0;
   const visit = node => {
     if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText(sf) === 'DateInput') {
       const cls = node.attributes.properties.find(p => ts.isJsxAttribute(p) && p.name.getText(sf) === 'className');
-      const tokens = cls?.initializer ? cls.initializer.getText(sf).split(/[\s'"`{}()]+/) : [];
+      const named = [];
+      const names = node => {
+        if (ts.isIdentifier(node)) named.push(consts.get(node.text) ?? '');
+        ts.forEachChild(node, names);
+      };
+      if (cls?.initializer) names(cls.initializer);
+      const raw = cls?.initializer ? cls.initializer.getText(sf) : '';
+      const tokens = [raw, ...named].join(' ').split(/[\s'"`{}()?:]+/);
       if (tokens.some(t => /^border(?:-[\w/-]+)?$/.test(t))) n++;
     }
     ts.forEachChild(node, visit);

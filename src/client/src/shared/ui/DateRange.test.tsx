@@ -70,6 +70,31 @@ describe('DateRange: поправка другой границы', () => {
     expect(shown()).toBe('2026-10-12|2026-10-12');
   });
 
+  it('шаг Tab\'ом на значок календаря — ещё поле: поправка — когда ушли и со значка', () => {
+    vi.useFakeTimers();
+    render(<Period />);
+    const trigger = within(field('с')).getByRole('button', { name: 'Открыть календарь' });
+    fireEvent.focus(seg('с', 'ДД'));
+    fireEvent.change(seg('с', 'ДД'), { target: { value: '28' } });
+    fireEvent.blur(seg('с', 'ГГГГ'), { relatedTarget: trigger });
+    fireEvent.focus(trigger);
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(shown()).toBe('2026-10-28|2026-10-24');
+    fireEvent.blur(trigger);
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(shown()).toBe('2026-10-28|2026-10-28');
+  });
+
+  it('нетронутая сохранённая пара «наоборот» при проходе Tab\'ом не правится', () => {
+    vi.useFakeTimers();
+    render(<Period from="2026-10-28" to="2026-10-24" />);
+    fireEvent.focus(seg('с', 'ДД'));
+    leave(seg('с', 'ДД'));
+    fireEvent.focus(seg('по', 'ДД'));
+    leave(seg('по', 'ДД'));
+    expect(shown()).toBe('2026-10-28|2026-10-24');
+  });
+
   it('стёртая граница другую не сдвигает', () => {
     vi.useFakeTimers();
     render(<Period />);
