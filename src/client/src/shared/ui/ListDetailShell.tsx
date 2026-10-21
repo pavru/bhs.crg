@@ -69,7 +69,10 @@ export function ListDetailShell({ overlay, nav, navWidth = 'w-80', detail, view,
                 <ArrowLeft size={16} className="shrink-0" />
                 {backLabel ?? 'К списку'}
               </button>
-              <div className="flex-1 min-h-0 flex">{detail}</div>
+              {/* `*:min-w-0` — карточке, а не каждой странице: без него широкая таблица в карточке
+                  растягивает её за экран (накладная на телефоне — 584 px при 375, #1557). Прокрутку
+                  вбок берёт на себя рамка таблицы. */}
+              <div className="flex-1 min-h-0 flex *:min-w-0">{detail}</div>
             </div>
           </div>
         </ViewContext.Provider>
