@@ -334,7 +334,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
             <p className="text-xs text-fg4">Справочник номенклатуры пуст.</p>
           )}
 
-          {searching && fresh && !found.isError && results.length === 0 && (
+          {searching && fresh && found.isSuccess && !found.isFetching && results.length === 0 && (
             <p className="text-xs text-fg4">
               {looksLikeArticle(query) && question
                 ? 'Поиск идёт по наименованию; по артикулу подбирает блок «Подходящие» — очистите поле.'

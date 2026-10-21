@@ -22,6 +22,7 @@
 
 import { BASE, launchBrowser, login, createChecks, pickOption } from './harness.mjs';
 import { vatOnTopChecks } from './invoice-vat-on-top-checks.mjs';
+import { candidateChecks } from './invoice-candidates-checks.mjs';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
@@ -611,6 +612,9 @@ try {
     if ((await page.getByRole('button', { name: 'позиция удалена' }).count()) !== 0)
       throw new Error('после снятия ссылки строка всё ещё считает позицию потерянной');
   });
+
+  // ── Подходящие для строки в окне выбора позиции (#1518) — своим файлом ──────
+  await candidateChecks({ page, check, stamp, invoice, open, cell, addRow, position });
 
   // ── Счёт с НДС сверху (эпик #1496) — своим файлом: прогон и так велик ────────
   await vatOnTopChecks({ page, check, stamp, invoice, open, cell, addRow, saveLines, cable, pickOption });

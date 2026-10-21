@@ -734,8 +734,9 @@ export function useNomenclature(query: string) {
       .get<NomenclatureSearchResult>('/costs/nomenclature', { params: query ? { query } : {} })
       .then(r => r.data),
     // Прошлый ответ показываем, пока едет новый: иначе список мигает пустотой на каждой набранной
-    // букве, и человек читает это как «ничего не нашлось».
-    placeholderData: previous => previous,
+    // букве, и человек читает это как «ничего не нашлось». Кроме ответа на пустой запрос: это голова
+    // алфавита, окно её не показывает (issue #1518), и на первой букве она мелькнула бы находками.
+    placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[1] ? previous : undefined),
   });
 }
 

@@ -223,10 +223,16 @@ async function supplierPart() {
   await check('supplier-no-request-was-refused', () => noDenials(supplier));
 }
 
-/** Позиция номенклатуры в строке накладной — первой из найденных: какая именно, проверке не важно. */
+/**
+ * Позиция номенклатуры в строке накладной — первой из найденных: какая именно, проверке не важно.
+ *
+ * ⚠️ Ищется по «посев», а не берётся из пустого запроса: с #1518 пустой запрос показывает кандидатов для
+ * слов строки, а не голову алфавита, — и у «Хомута прогона» их может не быть вовсе.
+ */
 async function pickPosition(seat, row) {
   await row.getByRole('button', { name: 'выбрать позицию' }).click();
   const picker = seat.page.getByRole('dialog', { name: 'Позиция номенклатуры' });
+  await picker.getByPlaceholder('часть наименования').fill('посев');
   const first = picker.getByRole('option').first();
   await first.waitFor({ timeout: 10_000 })
     .catch(() => { throw new Error('в выборе позиции пусто — посев номенклатуры не отработал'); });
