@@ -23,11 +23,12 @@ beforeAll(() => {
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
-function Period({ from = '2026-10-12', to = '2026-10-24' }: { from?: string; to?: string }) {
+function Period({ from = '2026-10-12', to = '2026-10-24', ordered }: { from?: string; to?: string; ordered?: boolean }) {
   const [range, setRange] = useState({ from, to });
   return (
     <>
-      <DateRange label="Дата счёта" from={range.from} to={range.to} onChange={(f, t) => setRange({ from: f, to: t })} />
+      <DateRange label="Дата счёта" from={range.from} to={range.to} ordered={ordered}
+        onChange={(f, t) => setRange({ from: f, to: t })} />
       <output data-testid="range">{`${range.from}|${range.to}`}</output>
     </>
   );
@@ -101,6 +102,33 @@ describe('DateRange: поправка другой границы', () => {
     fireEvent.click(within(field('с')).getByRole('button', { name: 'Очистить дату' }));
     leave(seg('с', 'ДД'));
     expect(shown()).toBe('|2026-10-24');
+  });
+});
+
+// Приёмник, который пару «наоборот» отвергает (адрес отчёта «Затраты по стройке», issue #1466).
+describe('DateRange: ordered', () => {
+  it('«по» раньше «с» наружу не отдаётся, но видна в поле; уход отдаёт поправленную', () => {
+    vi.useFakeTimers();
+    render(<Period ordered />);
+    fireEvent.focus(seg('по', 'ДД'));
+    fireEvent.change(seg('по', 'ДД'), { target: { value: '05' } });
+    expect(shown()).toBe('2026-10-12|2026-10-24');
+    expect(seg('по', 'ДД').value).toBe('05');
+    leave(seg('по', 'ДД'));
+    expect(shown()).toBe('2026-10-05|2026-10-05');
+    expect(seg('с', 'ДД').value).toBe('05');
+  });
+
+  it('вернули по порядку до ухода — отдаётся как есть, другая граница на месте', () => {
+    vi.useFakeTimers();
+    render(<Period ordered />);
+    fireEvent.focus(seg('с', 'ДД'));
+    fireEvent.change(seg('с', 'ДД'), { target: { value: '28' } });
+    expect(shown()).toBe('2026-10-12|2026-10-24');
+    fireEvent.change(seg('с', 'ДД'), { target: { value: '20' } });
+    expect(shown()).toBe('2026-10-20|2026-10-24');
+    leave(seg('с', 'ДД'));
+    expect(shown()).toBe('2026-10-20|2026-10-24');
   });
 });
 

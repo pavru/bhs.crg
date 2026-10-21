@@ -419,25 +419,27 @@ function RegistryLink({ to, label, note }: { to: string; label: string; note?: s
 /**
  * Учётный период — `DateRange` с точностью месяца (issue #1466). В адресе месяц — ГГГГ-ММ, у поля — ГГГГ-ММ-01;
  * перевод здесь, на границе экрана: отданный в адрес ГГГГ-ММ-01 сервер отвергает «месяц назван не так».
+ * Пару «наоборот» он отвергает тоже — её до фиксации держит `DateRange ordered`.
  *
- * <p>В адрес уходит только упорядоченная пара: «по» раньше «с» сервер отвергает, а `DateRange` поправляет
- * границы при фиксации, а не на каждой цифре или стрелке. Пара «наоборот» до фиксации живёт здесь —
- * и только при том адресе, при котором набрана: «назад» и ссылка показывают свой период. Стёртая граница
- * в адрес не уходит: отчёт без периода не строится, и поле при уходе возвращает прежний месяц.</p>
+ * <p>Стёртая граница в адрес не уходит: отчёт без периода не строится, и поле при уходе возвращает прежний
+ * месяц. Но пустая с самого начала — отчёт не построился, а в адресе периода нет — не стёрта: набранный
+ * месяц встаёт за обе границы, иначе выбрать период и переспросить отчёт было бы нечем.</p>
  */
 function MonthRange({ from, to, onChange }: { from: string; to: string; onChange: (from: string, to: string) => void }) {
-  const [pending, setPending] = useState<{ base: string; from: string; to: string } | null>(null);
-  const base = `${from}|${to}`;
-  const pair = pending?.base === base ? pending : { from: day(from), to: day(to) };
   return (
-    <DateRange label="Учётный период" precision="month" size="md" required from={pair.from} to={pair.to} className="w-96"
+    <DateRange label="Учётный период" precision="month" size="md" required ordered className="w-full max-w-96"
+      from={monthStart(from)} to={monthStart(to)}
       onChange={(f, t) => {
-        if (!f || !t) return;
-        if (f > t) { setPending({ base, from: f, to: t }); return; }
-        setPending(null);
-        onChange(f.slice(0, 7), t.slice(0, 7));
+        if (!f && !t) return;
+        if (!f || !t) {
+          if (from && to) return;
+          f = t = f || t;
+        }
+        onChange(monthOf(f), monthOf(t));
       }} />
   );
 }
 
-const day = (month: string) => month ? `${month}-01` : '';
+/** ГГГГ-ММ адреса → ГГГГ-ММ-01 поля и обратно. */
+const monthStart = (month: string) => month ? `${month}-01` : '';
+const monthOf = (iso: string) => iso.slice(0, 7);

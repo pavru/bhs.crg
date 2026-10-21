@@ -144,6 +144,22 @@ describe('учётный период', () => {
     expect(segment('с')).toHaveProperty('value', '08');
   });
 
+  it('отчёт не построился, а периода в адресе нет — набранный месяц встаёт за обе границы', async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (url: string, config?: unknown) => {
+      if (url === '/costs/constructions') return { data: SITES.map(s => ({ ...s, sections: [] })) };
+      const params = (config as { params: { from?: string; to?: string } }).params;
+      if (!params.from) throw new Error('сеть');
+      return { data: report(params.from, params.to!) };
+    });
+    mount(filterOf([]), '');
+    await screen.findByRole('alert');
+    fireEvent.focus(segment('с'));
+    fireEvent.change(segment('с'), { target: { value: '09' } });
+    const year = within(screen.getByRole('group', { name: 'Учётный период, с' })).getByRole('textbox', { name: 'год' });
+    fireEvent.change(year, { target: { value: '2026' } });
+    await waitFor(() => expect(asked()).toContain('2026-09|2026-09'));
+  });
+
   it('стёртую границу на сервер не отдаёт: отчёт без периода не строится', async () => {
     mount(filterOf([]));
     await screen.findByRole('row', { name: /Итого затраты/ });

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { DatePrecision } from '@/shared/api/types';
 import { truncISO } from '@/shared/utils/date';
 import { DateInput } from './DateInput';
@@ -15,7 +15,7 @@ import { DateInput } from './DateInput';
  * вперёд можно было бы, только начав с «по». Оба календаря рисуют ленту периода.</p>
  */
 export function DateRange({
-  label, labelHidden = false, from, to, onChange, precision = 'day', size = 'md', min, max, disabled, readOnly, required, className = '',
+  label, labelHidden = false, from, to, onChange, precision = 'day', size = 'md', min, max, disabled, readOnly, required, ordered = false, className = '',
 }: {
   /** Подпись группы — legend над парой; полям она же с «с» / «по» для чтения с экрана. */
   label: string;
@@ -37,29 +37,45 @@ export function DateRange({
   readOnly?: boolean;
   /** Пустой границы не бывает (период отчёта, issue #1466): ни крестика, ни «Очистить» в календаре. */
   required?: boolean;
+  /**
+   * Наружу — только упорядоченная пара (issue #1466): «по» раньше «с» держится здесь до фиксации, которая
+   * её и поправит. Для приёмника, который пару «наоборот» отвергает, — адрес отчёта, который сервер
+   * переспрашивает на каждой отданной паре. Без него пара уходит как набрана: форма отбора её хранит.
+   */
+  ordered?: boolean;
   className?: string;
 }) {
   // Поправка приходит из таймера ухода — границы читаются на сейчас, а не из замыкания того рендера.
   // Только после правки: поле не фиксирует нетронутое значение, и сохранённая пара «наоборот»
   // при проходе Tab'ом остаётся как есть.
-  const cur = useRef({ from, to });
-  useEffect(() => { cur.current = { from, to }; });
   const later = (a: string, b: string) => truncISO(a, precision) > truncISO(b, precision);
-  const commitFrom = (v: string) => { const t = cur.current.to; if (v && t && later(v, t)) onChange(v, v); };
-  const commitTo = (v: string) => { const f = cur.current.from; if (v && f && later(f, v)) onChange(v, v); };
+  // Удержанная пара «наоборот» (`ordered`) — только при тех границах, при которых набрана: пришли другие
+  // («назад», ссылка) — показываются они.
+  const [held, setHeld] = useState<{ base: string; from: string; to: string } | null>(null);
+  const base = `${from}|${to}`;
+  const pair = ordered && held?.base === base ? held : { from, to };
+  const cur = useRef(pair);
+  useEffect(() => { cur.current = pair; });
+  const give = (f: string, t: string) => {
+    if (ordered && f && t && later(f, t)) { setHeld({ base, from: f, to: t }); return; }
+    setHeld(null);
+    onChange(f, t);
+  };
+  const commitFrom = (v: string) => { const t = cur.current.to; if (v && t && later(v, t)) give(v, v); };
+  const commitTo = (v: string) => { const f = cur.current.from; if (v && f && later(f, v)) give(v, v); };
 
-  const range: [string, string] | undefined = from && to ? [from, to] : undefined;
-  const toMin = from && (!min || from > min) ? from : min;
+  const range: [string, string] | undefined = pair.from && pair.to ? [pair.from, pair.to] : undefined;
+  const toMin = pair.from && (!min || pair.from > min) ? pair.from : min;
   const common = { precision, size, max, disabled, readOnly, required, range, className: 'w-full' } as const;
   return (
     <fieldset className={`min-w-0 ${className}`}>
       <legend className={labelHidden ? 'sr-only' : size === 'sm' ? 'mb-0.5 text-xs text-fg3' : 'mb-1 text-sm font-medium text-fg1'}>{label}</legend>
       <div className="@container">
         <div className="grid gap-1.5 items-center @[24rem]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-          <DateInput label={`${label}, с`} value={from} onChange={v => onChange(v, to)} onCommit={commitFrom}
+          <DateInput label={`${label}, с`} value={pair.from} onChange={v => give(v, pair.to)} onCommit={commitFrom}
             {...common} min={min} />
           <span aria-hidden className="hidden @[24rem]:block text-fg3">—</span>
-          <DateInput label={`${label}, по`} value={to} onChange={v => onChange(from, v)} onCommit={commitTo}
+          <DateInput label={`${label}, по`} value={pair.to} onChange={v => give(pair.from, v)} onCommit={commitTo}
             {...common} min={toMin} />
         </div>
       </div>
