@@ -90,4 +90,45 @@ describe('RowFilterValue: дата', () => {
     expect(shown()).toHaveLength(1);
     expect(shown()[0]).toMatch(/^\d{4}-\d{2}-15$/);
   });
+
+  // Ревью PR #1554: фиксация по таймеру опаздывала к щелчку «Добавить» и брала список из замыкания.
+  it('список: уход на кнопку добавляет дату сразу, в том же событии', () => {
+    vi.useFakeTimers();
+    render(<><Condition initial={{ type: 'condition', column: 'Дата', op: 'in', values: [] }} /><button>Применить</button></>);
+    type('Добавить значение', ['12', '10', '2026']);
+    fireEvent.blur(seg('Добавить значение', 'ГГГГ'), { relatedTarget: screen.getByRole('button', { name: 'Применить' }) });
+    expect(shown()).toEqual(['2026-10-12']);
+  });
+
+  it('список: снятое крестиком, пока фиксация ждёт таймера, не возвращается', () => {
+    vi.useFakeTimers();
+    render(<Condition initial={{ type: 'condition', column: 'Дата', op: 'in', values: ['2026-10-01'] }} />);
+    type('Добавить значение', ['12', '10', '2026']);
+    fireEvent.blur(seg('Добавить значение', 'ГГГГ'));
+    fireEvent.click(screen.getByRole('button', { name: 'Убрать «01.10.2026»' }));
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(shown()).toEqual(['2026-10-12']);
+  });
+
+  it('список: Enter дописывает двузначный год и добавляет; недописанное не добавляет и фокус не уводит', () => {
+    render(<Condition initial={{ type: 'condition', column: 'Дата', op: 'in', values: [] }} />);
+    type('Добавить значение', ['12', '10', '26']);
+    fireEvent.keyDown(seg('Добавить значение', 'ГГГГ'), { key: 'Enter' });
+    expect(shown()).toEqual(['2026-10-12']);
+    expect(seg('Добавить значение', 'ГГГГ').value).toBe('');
+    fireEvent.focus(seg('Добавить значение', 'ДД'));
+    fireEvent.change(seg('Добавить значение', 'ДД'), { target: { value: '15' } });
+    seg('Добавить значение', 'ММ').focus();
+    fireEvent.keyDown(seg('Добавить значение', 'ММ'), { key: 'Enter' });
+    expect(shown()).toEqual(['2026-10-12']);
+    expect(document.activeElement).toBe(seg('Добавить значение', 'ММ'));
+  });
+
+  it('«между»: Enter поправляет период сразу — отправка формы следом видит поправленный', () => {
+    render(<Condition initial={{ type: 'condition', column: 'Дата', op: 'between', values: ['2026-10-12', '2026-10-24'] }} />);
+    fireEvent.focus(seg('Границы, по', 'ДД'));
+    fireEvent.change(seg('Границы, по', 'ДД'), { target: { value: '05' } });
+    fireEvent.keyDown(seg('Границы, по', 'ДД'), { key: 'Enter' });
+    expect(shown()).toEqual(['2026-10-05', '2026-10-05']);
+  });
 });

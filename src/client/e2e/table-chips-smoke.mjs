@@ -219,6 +219,46 @@ try {
     await chips.getByRole('button', { name: chip, exact: true }).waitFor({ state: 'hidden', timeout: 5000 });
   });
 
+  // Ревью PR #1554: фиксация поля даты опаздывала к отправке окошка — Enter уносил период «наоборот»,
+  // а «Добавить» сразу после набора — список без набранной даты.
+  await check('Enter отправляет уже поправленный период, «Добавить» сразу после набора дату не теряет', async () => {
+    const chipEditor = page.getByRole('dialog').filter({ has: page.getByLabel('Оператор') });
+    const day = name => chipEditor.getByRole('group', { name, exact: true }).getByRole('textbox', { name: 'день', exact: true });
+    const put = async (chip) => {
+      await chips.getByRole('button', { name: chip, exact: true }).waitFor({ timeout: 5000 });
+      await chips.getByRole('button', { name: `Снять условие «${chip}»` }).click();
+      await chips.getByRole('button', { name: chip, exact: true }).waitFor({ state: 'hidden', timeout: 5000 });
+    };
+
+    await addChip.click();
+    await chipEditor.getByLabel('Колонка').selectOption({ label: 'Дата счёта' });
+    await chipEditor.getByLabel('Оператор').selectOption({ label: 'между' });
+    await day('Границы, с').click();
+    await page.keyboard.type('12102026');
+    await day('Границы, по').click();
+    await page.waitForTimeout(300);
+    await page.keyboard.type('051026');
+    await page.keyboard.press('Enter');
+    await put('Дата счёта: 05.10.2026 — 05.10.2026');
+
+    await addChip.click();
+    await chipEditor.getByLabel('Колонка').selectOption({ label: 'Дата счёта' });
+    await chipEditor.getByLabel('Оператор').selectOption({ label: 'в списке' });
+    await day('Добавить значение').click();
+    await page.keyboard.type('15102026');
+    const submit = chipEditor.getByRole('button', { name: 'Добавить', exact: true }).last();
+    await submit.click();
+    // Уход из поля добавляет дату в список уже на нажатии кнопки — строка значений растёт, кнопка
+    // съезжает, и отпускание приходится мимо неё. Набранное при этом не пропадает: оно в списке, окошко
+    // открыто. Молча потерять его — вот провал.
+    if (await chipEditor.isVisible()) {
+      if (!(await chipEditor.getByRole('button', { name: 'Убрать «15.10.2026»' }).isVisible()))
+        throw new Error('набранная дата не попала в список, а «Добавить» окошко не закрыла');
+      await submit.click();
+    }
+    await put('Дата счёта: 15.10.2026');
+  });
+
   await check('отбор с «ИЛИ» назван сложным и чипами не подменён', async () => {
     await chips.getByRole('button', { name: 'Расширенный' }).click();
     const dialog = page.getByRole('dialog');

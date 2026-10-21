@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import type { FilterCondition } from '@/shared/api/types';
 import { opArity, valueFits, type FilterColumn } from './rowFilterModel';
@@ -6,7 +6,7 @@ import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { DateInput } from '@/shared/ui/DateInput';
 import { DateRange } from '@/shared/ui/DateRange';
-import { formatDatePrecise } from '@/shared/format/format';
+import { shownValue } from './chipsModel';
 
 const FIELD_CLS = 'border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1';
 
@@ -26,14 +26,13 @@ type ValueColumn = Pick<FilterColumn, 'kind' | 'options'>;
  * есть. Решается это один раз, при появлении поля, а не на каждом нажатии: иначе поле меняло бы вид
  * посреди ввода («1.» — ещё не число).
  */
-function ValueInput({ column, value, onChange, placeholder, onEnter, onLeave }: {
+function ValueInput({ column, value, onChange, placeholder, onEnter, onBlur }: {
   column?: ValueColumn;
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
   onEnter?: () => void;
-  /** Человек ушёл из поля; у даты — со значением на этот момент (уход дописывает год). */
-  onLeave?: (value?: string) => void;
+  onBlur?: () => void;
 }) {
   const kind = column?.kind;
   const cls = `${FIELD_CLS} flex-1 min-w-0`;
@@ -47,7 +46,7 @@ function ValueInput({ column, value, onChange, placeholder, onEnter, onLeave }: 
 
   if ((kind === 'boolean' || kind === 'choice') && typed)
     return (
-      <select value={value} onChange={e => change(e.target.value)} onBlur={() => onLeave?.()} className={cls} aria-label={placeholder}>
+      <select value={value} onChange={e => change(e.target.value)} onBlur={onBlur} className={cls} aria-label={placeholder}>
         <option value="">— значение —</option>
         {kind === 'boolean'
           ? <><option value="true">да</option><option value="false">нет</option></>
@@ -55,20 +54,8 @@ function ValueInput({ column, value, onChange, placeholder, onEnter, onLeave }: 
       </select>
     );
 
-  if (kind === 'date' && typed) {
-    const field = <DateInput size="sm" label={placeholder} value={value} onChange={change}
-      onCommit={onLeave} className="w-full" />;
-    // Enter всплывает из сегмента: у значка календаря и календаря он свой — открыть и выбрать.
-    // Следующую дату набирают с начала маски, а не с года, где остался фокус.
-    return onEnter
-      ? <div className="flex-1 min-w-0" onKeyDown={e => {
-          if (e.key !== 'Enter' || !(e.target instanceof HTMLInputElement)) return;
-          e.preventDefault();
-          onEnter();
-          e.currentTarget.querySelector('input')?.focus();
-        }}>{field}</div>
-      : <div className="flex-1 min-w-0">{field}</div>;
-  }
+  if (kind === 'date' && typed)
+    return <DateInput size="sm" label={placeholder} value={value} onChange={change} className="flex-1 min-w-0" />;
 
   return (
     <input
@@ -77,7 +64,7 @@ function ValueInput({ column, value, onChange, placeholder, onEnter, onLeave }: 
       value={value}
       onChange={e => change(e.target.value)}
       onKeyDown={e => { if (e.key === 'Enter' && onEnter) { e.preventDefault(); onEnter(); } }}
-      onBlur={() => onLeave?.()}
+      onBlur={onBlur}
       placeholder={placeholder}
       aria-label={placeholder}
       className={cls}
@@ -98,14 +85,42 @@ function ValueList({ column, values, onChange }: {
 }) {
   const [draft, setDraft] = useState('');
   const date = column?.kind === 'date';
-  // Дата в списке — той же маской, что в поле, а не записью для сервера.
-  const shown = (v: string) => (date && valueFits('date', v) ? formatDatePrecise(v) : v);
+  // Дата в списке — той же маской, что в поле и на чипе, а не записью для сервера.
+  const shown = (v: string) => (date ? shownValue(v, column) : v);
+  // На сейчас, а не из замыкания: дату добавляет фиксация поля, а она бывает и таймером — за это время
+  // крестик мог снять значение из списка, и старый список вернул бы его (ревью PR #1554).
+  const now = useRef({ draft, values });
+  useEffect(() => { now.current.values = values; });
+  /** Сколько раз добавляли — Enter переводит фокус к началу маски, только если дата ушла в список. */
+  const adds = useRef(0);
+  const addsAtEnter = useRef(0);
+  const dateBox = useRef<HTMLDivElement>(null);
+  /**
+   * Фокус к началу маски — после отрисовки, а не в обработчике Enter: там в сегменте года ещё «26»,
+   * и уход с него дописал бы год второй раз — вернув добавленную дату в поле.
+   */
+  const refocus = useRef(false);
+  useEffect(() => {
+    if (!refocus.current) return;
+    refocus.current = false;
+    dateBox.current?.querySelector('input')?.focus();
+  });
 
-  function add(typed = draft) {
+  function edit(next: string) {
+    now.current.draft = next;
+    setDraft(next);
+  }
+
+  function add(typed = now.current.draft) {
     const value = typed.trim();
     if (!value) return;
-    if (!values.includes(value)) onChange([...values, value]);
-    setDraft('');
+    const { values: current } = now.current;
+    if (!current.includes(value)) {
+      now.current.values = [...current, value];
+      onChange(now.current.values);
+    }
+    edit('');
+    adds.current++;
   }
 
   return (
@@ -124,8 +139,22 @@ function ValueList({ column, values, onChange }: {
         </span>
       ))}
       <div className="flex items-center gap-1 flex-1" style={{ minWidth: date ? '200px' : '120px' }}>
-        <ValueInput column={column} value={draft} onChange={setDraft} placeholder="Добавить значение"
-          onEnter={add} onLeave={add} />
+        {date ? (
+          // Дату добавляет фиксация поля: уход, Enter, выбор в календаре. Enter здесь только не даёт
+          // отправить форму и, если дата ушла в список, ведёт к началу маски, а не оставляет на годе.
+          <div ref={dateBox} className="flex-1 min-w-0"
+            onKeyDownCapture={e => { if (e.key === 'Enter') addsAtEnter.current = adds.current; }}
+            onKeyDown={e => {
+              if (e.key !== 'Enter' || !(e.target instanceof HTMLInputElement)) return;
+              e.preventDefault();
+              if (adds.current !== addsAtEnter.current) refocus.current = true;
+            }}>
+            <DateInput size="sm" label="Добавить значение" value={draft} onChange={edit} onCommit={add} className="w-full" />
+          </div>
+        ) : (
+          <ValueInput column={column} value={draft} onChange={edit} placeholder="Добавить значение"
+            onEnter={add} onBlur={add} />
+        )}
         <button
           type="button"
           onClick={() => add()}

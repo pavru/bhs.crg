@@ -190,7 +190,8 @@ export function chipText(cond: FilterCondition, columns: FilterColumn[]): string
   }
 }
 
-function shownValue(value: string, column: FilterColumn | undefined): string {
+/** Значение условия, как его читает человек: дата — маской языка, флаг — «да» / «нет», строка — в «». */
+export function shownValue(value: string, column: Pick<FilterColumn, 'kind' | 'options'> | undefined): string {
   const kind = column?.kind;
   if (value === '') return kind === undefined || kind === 'text' || kind === 'list' ? '«»' : '…';
   if (!valueFits(kind, value, column?.options)) return `«${value}»`;
