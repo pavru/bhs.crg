@@ -120,7 +120,7 @@ function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs text-fg3">
-          <span className="block mb-1">Время (часы сервера)</span>
+          <span className="block mb-1">Время (пояс компании)</span>
           <input type="time" value={form.timeOfDay} disabled={!form.enabled}
             onChange={e => setForm({ ...form, timeOfDay: e.target.value })}
             className="h-8 px-2 rounded-md border border-stroke bg-surface text-sm text-fg1 disabled:opacity-50" />
