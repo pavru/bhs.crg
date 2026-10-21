@@ -1,3 +1,5 @@
+import type { DatePrecision } from '@/shared/api/types';
+
 /** Converts ISO date (YYYY-MM-DD) → Russian display format (DD.MM.YYYY). Passes through anything else. */
 export function isoToRu(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -23,7 +25,6 @@ export function toISO(y: number, m: number, d: number): string {
   return `${p(y)}-${p(m)}-${p(d)}`;
 }
 
-/** Число дней в месяце (m — 1..12). */
 /**
  * Годы, которые показывает календарь и до которых доводят стрелки поля (issue #1463): одна граница на
  * оба способа ввода, иначе стрелка ставила бы год, которого календарь не покажет.
@@ -31,6 +32,22 @@ export function toISO(y: number, m: number, d: number): string {
 export const MIN_YEAR = 1900;
 export const MAX_YEAR = 2100;
 
+/**
+ * Дата, усечённая до точности (issue #1464): 'month' — ГГГГ-ММ-01, 'year' — ГГГГ-01-01. Так
+ * сравниваются границы min/max: при min 15.07.2026 месяц 07.2026 допустим, хотя хранится он как 01.07.
+ */
+export function truncISO(iso: string, precision: DatePrecision = 'day'): string {
+  const v = iso.slice(0, 10);
+  return precision === 'year' ? `${v.slice(0, 4)}-01-01` : precision === 'month' ? `${v.slice(0, 7)}-01` : v;
+}
+
+/** Дата вне границ min/max — по точности (`truncISO`); пустая граница не ограничивает. */
+export function outOfRange(iso: string, min: string | undefined, max: string | undefined, precision: DatePrecision = 'day'): boolean {
+  const v = truncISO(iso, precision);
+  return (!!min && v < truncISO(min, precision)) || (!!max && v > truncISO(max, precision));
+}
+
+/** Число дней в месяце (m — 1..12). */
 export function daysInMonth(y: number, m: number): number {
   return new Date(y, m, 0).getDate();
 }

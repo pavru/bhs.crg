@@ -12,7 +12,7 @@ import { useDirtyGuard } from '@/shared/ui/useDirtyGuard';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
 import { TextField } from '@/shared/ui/TextField';
-import { DateInput } from '@/shared/ui/DateInput';
+import { DateRange } from '@/shared/ui/DateRange';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { validateSample } from '@/features/document-sets/fields/fieldValidation';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -120,6 +120,13 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
     delete next[key];
     onChange(next);
   }
+  /** Обе границы дат одним изменением: поправка периода двигает их вместе (#1464). */
+  function setDates(from: string, to: string) {
+    const next: FieldConstraints = { ...constraints, minDate: from, maxDate: to };
+    if (!from) delete next.minDate;
+    if (!to) delete next.maxDate;
+    onChange(next);
+  }
   const inputCls = 'w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm';
 
   if (baseType === 'string') {
@@ -193,18 +200,9 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
         </div>
         <p className="text-xs text-fg3 mt-1">Управляет форматом ввода/отображения. Значение хранится как полная дата.</p>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-medium text-fg1 mb-1">Минимальная дата</label>
-          <DateInput label="Минимальная дата" value={constraints.minDate ?? ''} onChange={v => v ? set('minDate', v) : unset('minDate')}
-            precision={precision} className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-fg1 mb-1">Максимальная дата</label>
-          <DateInput label="Максимальная дата" value={constraints.maxDate ?? ''} onChange={v => v ? set('maxDate', v) : unset('maxDate')}
-            precision={precision} className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm" />
-        </div>
-      </div>
+      {/* Границы — одним периодом (#1464): «по» не раньше «с», и поправку делает поле, а не сохранение. */}
+      <DateRange label="Допустимые даты" from={constraints.minDate ?? ''} to={constraints.maxDate ?? ''}
+        onChange={setDates} precision={precision} />
     </div>
   );
 }

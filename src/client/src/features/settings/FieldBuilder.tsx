@@ -501,7 +501,7 @@ export function FieldCard({
             <DateInput label="Значение по умолчанию"
               value={field.defaultValue != null ? String(field.defaultValue) : ''}
               onChange={v => onChange({ defaultValue: v || undefined })}
-              className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand"
+              size="sm" className="flex-1"
             />
           ) : (
             <input
@@ -739,7 +739,7 @@ export function DefaultValueCell({ field, override, enumTypes, onOverrideDefault
       <DateInput label={`По умолчанию: ${field.title || field.key}`}
         value={hasDv ? String(cur) : ''}
         onChange={v => onOverrideDefaultValue(field.key, v || undefined)}
-        className={inputCls}
+        size="sm" className={`w-full ${selectCls}`}
       />
     );
   }

@@ -104,6 +104,7 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
   if (field.type === 'primitive' && primitiveTypeDef?.baseType === 'date') {
     return <DateInput label={field.title} value={strVal} onChange={v => onChange(v)} compact
       precision={primitiveTypeDef.constraints.datePrecision ?? 'day'}
+      min={primitiveTypeDef.constraints.minDate} max={primitiveTypeDef.constraints.maxDate}
       className="w-full h-full flex items-center px-1.5 focus-within:bg-brand-subtle" />;
   }
   return (

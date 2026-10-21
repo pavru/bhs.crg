@@ -97,11 +97,12 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
   if (field.type === 'primitive' && primitiveTypeDef) {
     const bt = primitiveTypeDef.baseType;
     if (bt === 'date') {
-      const prec = primitiveTypeDef.constraints.datePrecision ?? 'day';
+      const { datePrecision: prec = 'day', minDate: min, maxDate: max } = primitiveTypeDef.constraints;
       return label != null
         ? <DateField label={label} required={askRequired} hint={hint ?? primitiveTypeDef.description}
-            invalid={invalid} value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} readOnly={readOnly} />
-        : <DateInput label={field.title} value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} className={cls} readOnly={readOnly} required={askRequired} />;
+            invalid={invalid} value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} readOnly={readOnly} min={min} max={max} />
+        : <DateInput label={field.title} value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} size="md" invalid={invalid}
+            className="w-full" readOnly={readOnly} required={askRequired} min={min} max={max} />;
     }
     const step = bt === 'number' && primitiveTypeDef.constraints.integer ? 1 : undefined;
     const onCh = (v: string) => onChange(bt === 'number' ? (v === '' ? '' : Number(v)) : v);
@@ -118,7 +119,8 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
     return label != null
       ? <DateField label={label} required={askRequired} hint={hint} invalid={invalid}
           value={dateForDisplay(strVal)} onChange={v => onChange(v)} readOnly={readOnly} />
-      : <DateInput label={field.title} value={dateForDisplay(strVal)} onChange={v => onChange(v)} className={cls} readOnly={readOnly} required={askRequired} />;
+      : <DateInput label={field.title} value={dateForDisplay(strVal)} onChange={v => onChange(v)} size="md" invalid={invalid}
+          className="w-full" readOnly={readOnly} required={askRequired} />;
   }
   const onCh = (v: string) => onChange(field.type === 'number' ? (v === '' ? '' : Number(v)) : v);
   if (label != null)

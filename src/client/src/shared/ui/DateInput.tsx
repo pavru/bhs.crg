@@ -37,8 +37,33 @@ interface DateInputProps {
    * ДД.ММ.ГГГГ у ru-RU, MM/DD/YYYY у en-US; точность убирает лишние сегменты (ММ.ГГГГ, MM/YYYY).
    */
   precision?: DatePrecision;
-  /** Applied to the outer container div (border, bg, padding, focus-within:ring, width) */
+  /**
+   * Классы контейнера: ширина и место в раскладке. Рамку поля обвязки рисует `size`, а не экран —
+   * своей рамки здесь не заводят (issue #1464, храповик `date-frame`).
+   */
   className?: string;
+  /**
+   * Слой обвязки (issue #1464) — поле со своей рамкой, как `Select`: 'md' — h-9, крестик по наведению
+   * и фокусу, как у поля формы; 'sm' — h-7, без крестика (в отборе у чипа свой ×). Не задан — рамку
+   * рисует оболочка (`DateField`) или ячейка (`compact`).
+   */
+  size?: 'md' | 'sm';
+  /** Значение не прошло проверку формы — рамка обвязки красная, сегменты помечены для скринридера. */
+  invalid?: boolean;
+  /**
+   * Границы допустимых дат — полный ISO (issue #1464). Календарь не даёт выбрать за ними; набранное
+   * с клавиатуры поле принимает, ошибку называет форма — откатывать ввод поле не вправе (#1460).
+   */
+  min?: string;
+  max?: string;
+  /** Период, частью которого служит поле (`DateRange`): календарь рисует ленту от «с» до «по». */
+  range?: [string, string];
+  /**
+   * Человек закончил с полем: ушёл из него, изменив значение, или выбрал дату в календаре. Значок
+   * календаря, крестик и сам календарь — ещё поле. Отдаёт значение на этот момент — `DateRange`
+   * поправляет по нему другую границу, а не на каждой цифре и стрелке.
+   */
+  onCommit?: (value: string) => void;
   disabled?: boolean;
   /**
    * Значение показано, но не правится (issue #958) — в отличие от `disabled`, поле остаётся в
@@ -61,7 +86,8 @@ interface DateInputProps {
   compact?: boolean;
 }
 
-export function DateInput({ label, value, onChange, onProblem, precision = 'day', className = '', disabled = false, readOnly = false, required = false, calendar = true, compact = false }: DateInputProps) {
+export function DateInput({ label, value, onChange, onProblem, precision = 'day', className = '', disabled = false, readOnly = false, required = false, calendar = true, compact = false,
+  size, invalid = false, min, max, range, onCommit }: DateInputProps) {
   /**
    * Набранное человеком — вместе со значением, от которого его начали набирать (`base`). Показанные
    * сегменты ВЫЧИСЛЯЮТСЯ (issue #858): набранное, пока значение то же, иначе — прямо из значения.
@@ -107,6 +133,37 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
    * ошибкой, человек правит тот же ввод, и прежним остаётся прежнее.
    */
   const startValue = useRef(value ?? '');
+  /**
+   * Значение на сейчас — для `onCommit` из таймера ухода. Не из замыкания: уход сам дописывает
+   * сегмент («26» → 2026), и значение меняется уже после того, как таймер поставлен.
+   */
+  const latest = useRef(value ?? '');
+  useEffect(() => { latest.current = value ?? ''; });
+  /**
+   * Фиксация (`onCommit`) — уход из ПОЛЯ, а не из сегмента: значок календаря, крестик и сам календарь
+   * — ещё поле, и шаг Tab'ом на значок не поправлял бы другую границу периода посреди правки (ревью
+   * PR #1553). И только изменённого: проход Tab'ом по сохранённой паре форму не пачкает.
+   */
+  const groupRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const commitTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const inside = useRef(false);
+  const entered = useRef('');
+  const withinField = (to: EventTarget | null) => to instanceof Node
+    && (!!groupRef.current?.contains(to) || !!contentRef.current?.contains(to));
+  function onFieldFocus() {
+    clearTimeout(commitTimer.current);
+    if (!inside.current) { inside.current = true; entered.current = value ?? ''; }
+  }
+  function onFieldBlur(e: React.FocusEvent) {
+    if (withinField(e.relatedTarget)) return;
+    // Таймер — как у ухода сегмента: уход сам дописывает сегмент, и значение приходит после события.
+    commitTimer.current = setTimeout(() => {
+      inside.current = false;
+      if (latest.current !== entered.current) onCommit?.(latest.current);
+    }, 120);
+  }
+  useEffect(() => () => clearTimeout(commitTimer.current), []);
 
   const fromValue = segmentsOf(value);
   const draft = typed && typed.base === (value ?? '') ? typed : null;
@@ -386,7 +443,7 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
     // Выделенная Ctrl+A дата подсвечена целиком, как один текст.
     allSelected ? 'bg-brand-subtle' : '',
   ].join(' ');
-  const invalid = problem ? true : undefined;
+  const markInvalid = problem || invalid ? true : undefined;
   // Ошибка для скринридера — описанием сегментов (`aria-describedby`), и у `DateField` тоже: его
   // подпись под рамкой с полем не связана. Живая область объявляет только СМЕНУ ошибки: `role="alert"`
   // объявлял бы каждую ошибку при отрисовке, и таблица с двадцатью ячейками «не дата» зачитывалась бы
@@ -434,15 +491,23 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
     y: { ref: yrRef, change: handleY, blur: blurY, len: 4 },
   };
 
+  // Рамка обвязки (issue #1464) — как у `Select`: кольцо, пока фокус внутри или открыт календарь.
+  const frame = !size ? '' : [
+    FRAME[size], 'rounded-md border transition-colors',
+    readOnly ? 'bg-muted text-fg3 border-stroke' : `bg-surface text-fg1 ${markInvalid ? 'border-danger' : 'border-stroke-strong'}`,
+    readOnly || disabled ? '' : `focus-within:ring-2 ${markInvalid ? 'focus-within:ring-danger' : 'focus-within:ring-brand'}`,
+    pickerOpen ? `ring-2 ${markInvalid ? 'ring-danger' : 'ring-brand'}` : '', disabled ? 'opacity-50' : '',
+  ].join(' ');
+
   // Крестик поля формы — один на обе ветки: у «не даты» и у сегментов (макет #1463, вариант В).
-  const clearButton = !compact && clearable && (
+  const clearButton = !compact && size !== 'sm' && clearable && (
     <IconButton label="Очистить дату" size="sm" onClick={clear} className={`-my-1.5 ${CLEAR_REVEAL}`}>
       <X size={16} />
     </IconButton>
   );
 
   const segments = foreign ? (
-    <div role="group" aria-label={label} className={`flex items-center group min-w-0 ${className}`}>
+    <div role="group" aria-label={label} className={`flex items-center group min-w-0 ${frame} ${className}`}>
       {readOnly || disabled
         ? <span className="truncate text-fg2">{value}</span>
         // Ввод начинается щелчком, Enter или пробелом, а не фокусом: проход Tab'ом по форме не должен
@@ -457,8 +522,8 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
       {clearButton && <span className="flex items-center shrink-0 ml-auto pl-0.5">{clearButton}</span>}
     </div>
   ) : (
-    <div role="group" aria-label={label} className={`flex items-center group ${className}`} onKeyDown={onContainerKey} onPaste={onPaste}
-      onCopy={onCopy} onCut={onCut} onMouseDown={() => setAllSelected(false)}>
+    <div ref={groupRef} role="group" aria-label={label} className={`flex items-center group ${frame} ${className}`} onKeyDown={onContainerKey} onPaste={onPaste}
+      onCopy={onCopy} onCut={onCut} onMouseDown={() => setAllSelected(false)} onFocus={onFieldFocus} onBlur={onFieldBlur}>
       {mask.order.map((part, i) => {
         const { ref, change, blur, len } = SEGMENTS[part];
         return (
@@ -472,7 +537,7 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
                 ref={ref} type="text" inputMode="numeric"
                 placeholder={mask.labels[part]} aria-label={mask.names[part]} maxLength={len}
                 value={shown[part]}
-                disabled={disabled} readOnly={readOnly} aria-required={required || undefined} aria-invalid={invalid} aria-describedby={describedBy}
+                disabled={disabled} readOnly={readOnly} aria-required={required || undefined} aria-invalid={markInvalid} aria-describedby={describedBy}
                 onChange={e => change(e.target.value)}
                 onKeyDown={onSegmentKey(part)}
                 onFocus={onFocus}
@@ -492,9 +557,10 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
         {showCalendar && (
           <Popover.Trigger asChild>
             <button ref={triggerRef} type="button" disabled={disabled} aria-label="Открыть календарь"
-              className={`-my-1.5 shrink-0 flex items-center justify-center h-8 w-8 rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+              className={`shrink-0 flex items-center justify-center rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                size === 'sm' ? SM_TRIGGER : '-my-1.5 h-8 w-8'} ${
                 compact ? `${COMPACT_TRIGGER} opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100` : ''}`}>
-              <CalendarDays size={compact ? 14 : 16} />
+              <CalendarDays size={compact || size === 'sm' ? 14 : 16} />
             </button>
           </Popover.Trigger>
         )}
@@ -560,15 +626,16 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
     <Popover.Root open={pickerOpen} onOpenChange={setPickerOpen}>
       <Popover.Anchor asChild>{segments}</Popover.Anchor>
       <Popover.Portal>
-        <Popover.Content align="start" sideOffset={6} collisionPadding={8} hideWhenDetached
-          onKeyDown={onCalendarTab} onCloseAutoFocus={onCalendarClosed}
+        <Popover.Content ref={contentRef} align="start" sideOffset={6} collisionPadding={8} hideWhenDetached
+          onKeyDown={onCalendarTab} onCloseAutoFocus={onCalendarClosed} onFocus={onFieldFocus} onBlur={onFieldBlur}
           onOpenAutoFocus={() => { tabbedOut.current = false; }}
           className="z-50 rounded-2xl bg-surface border border-stroke focus:outline-none"
           style={{ boxShadow: 'var(--f-shadow16)' }}>
           <Calendar value={calendarValue} precision={precision}
             // Выбранный день снимает набранное: совпади он с текущим значением, значение не сменится,
             // и ошибка набранного осталась бы над выбранной датой (ревью PR #1542).
-            onSelect={iso => { setTyped(null); onChange(iso); }} onClose={() => setPickerOpen(false)}
+            onSelect={iso => { setTyped(null); onChange(iso); entered.current = iso; onCommit?.(iso); }} onClose={() => setPickerOpen(false)}
+            min={min} max={max} range={range}
             onClear={clearable ? clearFromCalendar : undefined} />
         </Popover.Content>
       </Popover.Portal>
@@ -589,6 +656,14 @@ const SIZER = 'invisible col-start-1 row-start-1 px-0.5 tabular-nums after:conte
  * поле — 140 px — держит `DEFAULT_COL_WIDTHS`.
  */
 const COMPACT_TRIGGER = '-mr-1.5';
+/**
+ * Кнопка календаря в рамке sm (h-7): видимый круг 24 px, нажимать — 32 px (docs/UI.md, кнопка-иконка
+ * не меньше 32 px; ревью PR #1553). Зона нажатия — псевдоэлемент на 4 px за круг: высоту рамки она
+ * не меняет.
+ */
+const SM_TRIGGER = "relative h-6 w-6 before:absolute before:-inset-1 before:content-['']";
+/** Высота и отступы рамки обвязки — те же, что у `Select` md / sm; справа место держит кнопка календаря. */
+const FRAME = { md: 'h-9 pl-3 pr-0.5 text-sm', sm: 'h-7 pl-2 pr-0.5 text-xs' } as const;
 const STOP = 'button, input, select, textarea, a[href], [tabindex]';
 /** Клавиши-модификаторы: нажатые сами по себе, выделение всей даты не снимают (путь к Ctrl+C). */
 const MODIFIERS = ['Control', 'Meta', 'Shift', 'Alt'];

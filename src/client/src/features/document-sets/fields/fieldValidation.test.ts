@@ -106,4 +106,14 @@ describe('validateSample: дата образца по языку пользов
     setFormatLocale('ru-RU');
     expect(validateConstraint('2026-06-30', limited)).toBe('Дата не ранее 01.07.2026');
   });
+
+  // #1464: предел сравнивается в точности типа — иначе 07.2026 при min 15.07.2026 отклонялся бы
+  // сообщением «не ранее 07.2026», которое ему же противоречит.
+  it('точность «месяц»: месяц предела допустим, хотя его 01 раньше дня предела', () => {
+    const month = { ...def, constraints: { minDate: '2026-07-15', maxDate: '2026-09-10', datePrecision: 'month' } } as PrimitiveTypeDef;
+    expect(validateConstraint('2026-07-01', month)).toBeNull();
+    expect(validateConstraint('2026-09-01', month)).toBeNull();
+    expect(validateConstraint('2026-06-01', month)).toBe('Дата не ранее 07.2026');
+    expect(validateConstraint('2026-10-01', month)).toBe('Дата не позднее 09.2026');
+  });
 });

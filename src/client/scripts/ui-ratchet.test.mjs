@@ -201,6 +201,32 @@ describe('храповик интерфейса: счёт', () => {
     expect(countViolations(text)).toEqual({ 'native-date': 1 });
   });
 
+  // #1464: рамку поля даты рисует size, а не экран.
+  it('своя рамка у DateInput — строкой и выражением; size, ширина и пометка border-…! — нет', () => {
+    expect(countViolations([
+      '<DateInput label="Дата" className="w-full border rounded px-2" />',
+      '<DateInput label="Дата"\n  className={`flex-1 ${on ? \'border-brand-subtle\' : \'border-stroke\'}`} />',
+    ].join('\n'))).toEqual({ 'date-frame': 2 });
+    expect(countViolations([
+      '<DateInput label="Дата" size="sm" className="flex-1" />',
+      "<DateInput label=\"Дата\" size=\"sm\" className={`w-full ${hasDv ? 'border-brand-subtle!' : ''}`} />",
+      '<DateInput label="Дата" compact className="w-full h-full focus-within:bg-brand-subtle" />',
+      '<div className="border rounded" />',
+    ].join('\n'))).toEqual({});
+  });
+
+  it('рамка, вынесенная в константу файла, — по её значению; пометка border-…! в константе — нет', () => {
+    expect(countViolations([
+      "const frame = 'border border-stroke rounded';",
+      '<DateInput label="Дата" className={frame} />',
+      '<DateInput label="Дата" className={`w-full ${frame}`} />',
+    ].join('\n'))).toEqual({ 'date-frame': 2 });
+    expect(countViolations([
+      "const selectCls = hasDv ? 'border-brand-subtle!' : '';",
+      '<DateInput label="Дата" size="sm" className={`w-full ${selectCls}`} />',
+    ].join('\n'))).toEqual({});
+  });
+
   it('в shared/ считаются только правила, которые его смотрят (dirs)', () => {
     const text = '<table /> <select /> <button className="bg-danger text-white">x</button>';
     expect(countViolations(text, { dir: 'shared' })).toEqual({ 'white-on-fill': 1 });
