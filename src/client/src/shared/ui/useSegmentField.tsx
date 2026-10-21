@@ -38,9 +38,9 @@ export interface SegmentModel<K extends string> {
   padAbove: Partial<Record<K, number>>;
   /** Клавиши, переводящие к следующему сегменту: «18.» или «4:». */
   separators: readonly string[];
-  /** Пустые сегменты — одним объектом на модель: с ним сравнивают и начинают заново. */
+  /** Пустые сегменты: их показывает пустое значение, с них начинают заново (копией — объект не меняют). */
   empty: SegmentValues<K>;
-  /** Значение → сегменты; null — значение не дата (не время): его показывают текстом. */
+  /** Значение → сегменты; null — значение чужого вида («вчера» у даты): его показывают текстом. */
   of(value: string | null | undefined): SegmentValues<K> | null;
   read(s: SegmentValues<K>): SegmentReading;
   /** Дописать сегмент при уходе из него («4» → 04, «26» → 2026); null — дописывать нечего. */
@@ -100,6 +100,12 @@ export function useSegmentField<K extends string>(model: SegmentModel<K>, {
   const [allSelected, setAllSelected] = useState(false);
 
   const inputs = useRef<Partial<Record<K, HTMLInputElement | null>>>({});
+  /**
+   * Ref сегмента — одна функция на сегмент на всю жизнь поля: новая на каждой отрисовке заставляла бы
+   * React отвязывать и привязывать каждый сегмент при каждом опросе и каждой цифре (ревью PR #1560).
+   */
+  const refFns = useRef<Partial<Record<K, (el: HTMLInputElement | null) => void>>>({});
+  const refOf = (part: K) => (refFns.current[part] ??= el => { inputs.current[part] = el; });
   const blurTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   /**
    * Значение, с которым человек вошёл в поле, — к нему возвращает Esc. Не текущее: сегменты отдают
@@ -152,7 +158,8 @@ export function useSegmentField<K extends string>(model: SegmentModel<K>, {
 
   const fromValue = model.of(value);
   const draft = typed && typed.base === (value ?? '') ? typed : null;
-  // Значение не дата («вчера», «2026/13») — показывается текстом, пока его не начали переписывать.
+  // Значение чужого вида («вчера» и «2026/13» у даты, «25:00» у времени) — показывается текстом, пока
+  // его не начали переписывать.
   const foreign = fromValue === null && draft === null;
   const shown: SegmentValues<K> = draft ?? fromValue ?? model.empty;
   // Функциональные апдейтеры: вставка пишет все сегменты разом, и сборка от отрендеренного `shown`
@@ -172,7 +179,7 @@ export function useSegmentField<K extends string>(model: SegmentModel<K>, {
   useEffect(() => { onIncomplete?.(incomplete); }, [onIncomplete, incomplete]);
 
   /**
-   * Есть что стирать (issue #1463): значение, «не дата» или недописанное поверх пустого. Кнопкам —
+   * Есть что стирать (issue #1463): значение, чужое значение или недописанное поверх пустого. Кнопкам —
    * крестику и «Очистить» календаря — только у необязательного правимого поля: обязательное стирают
    * сегментами или Ctrl+A → Delete, и пустоту называет форма.
    */
@@ -326,7 +333,7 @@ export function useSegmentField<K extends string>(model: SegmentModel<K>, {
     const cur = shown[part];
     const input = e.currentTarget;
     if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.code === 'KeyA' || e.key.toLowerCase() === 'a')) {
-      // Пустое поле выделять нечем: подсветка и «Выделена вся дата» обещали бы значение, которого нет.
+      // Пустое поле выделять нечем: подсветка и объявление `selectedAll` обещали бы значение, которого нет.
       e.preventDefault();
       if (hasContent) { input.select(); setAllSelected(true); }
       return;
@@ -377,7 +384,7 @@ export function useSegmentField<K extends string>(model: SegmentModel<K>, {
     setAllSelected(false);
     setTyped({ ...model.empty, base: value ?? '' });
     if ((value ?? '') !== '') give('');
-    // «Не дата» показана текстом: сегментов ещё нет — они появятся этим же рендером.
+    // Чужое значение показано текстом: сегментов ещё нет — они появятся этим же рендером.
     if (!firstInput) setTimeout(() => advance(first), 0);
   }
 
@@ -452,7 +459,7 @@ export function useSegmentField<K extends string>(model: SegmentModel<K>, {
               <span data-sizer={model.labels[part]} aria-hidden className={SIZER} />
               <span data-sizer={'0'.repeat(len)} aria-hidden className={SIZER} />
               <input
-                ref={el => { inputs.current[part] = el; }} type="text" inputMode="numeric"
+                ref={refOf(part)} type="text" inputMode="numeric"
                 placeholder={model.labels[part]} aria-label={model.names[part]} maxLength={len}
                 value={shown[part]}
                 disabled={disabled} readOnly={readOnly} aria-required={required || undefined} aria-invalid={markInvalid} aria-describedby={describedBy}
@@ -472,6 +479,8 @@ export function useSegmentField<K extends string>(model: SegmentModel<K>, {
 
   return {
     foreign, problem, problemId, describedBy, markInvalid, clearable, contentRef, segments, selectedAnnouncement,
+    /** Сегменты сохранённого значения (без набранного); null — значение чужого вида. */
+    fromValue,
     /** Обработчики группы сегментов. */
     groupProps: {
       ref: groupRef, role: 'group' as const, 'aria-label': label, onKeyDown: onGroupKey, onPaste, onCopy, onCut,

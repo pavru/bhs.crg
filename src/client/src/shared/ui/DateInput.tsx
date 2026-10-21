@@ -4,7 +4,7 @@ import { CalendarDays, X } from 'lucide-react';
 import type { DatePrecision } from '@/shared/api/types';
 import { IconButton } from './Button';
 import { Calendar } from './Calendar';
-import { readSegments, segmentsOf } from './dateSegments';
+import { readSegments } from './dateSegments';
 import { dateSegmentModel } from './dateSegmentModel';
 import { SegmentProblemMark } from './SegmentProblemMark';
 import { useSegmentField } from './useSegmentField';
@@ -115,7 +115,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   // только своё у даты: Alt+↓ из любого сегмента открывает календарь (штатный MD3-жест).
   const {
     foreign, problem, problemId, markInvalid, describedBy, clearable, groupProps, segments: segmentInputs,
-    selectedAnnouncement, contentRef, fieldFocus, pick, clear, startOver,
+    selectedAnnouncement, fromValue, contentRef, fieldFocus, pick, clear, startOver,
   } = useSegmentField(model, {
     label, value, onChange, onProblem, onIncomplete, onCommit, disabled, readOnly, required, invalid,
     onKey: e => {
@@ -183,7 +183,6 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   if (!showCalendar) return segments;
 
   // Календарю — только существующая дата: с «2026-02-31» он рисовал заголовок «undefined 2026».
-  const fromValue = segmentsOf(value);
   const shownDate = fromValue && readSegments(fromValue, 'day');
   const calendarValue = shownDate && shownDate.kind === 'date' ? shownDate.iso : '';
 
