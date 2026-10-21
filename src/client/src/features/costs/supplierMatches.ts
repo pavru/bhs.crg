@@ -28,9 +28,9 @@ export type MemoryFate =
  * Разойдись правила — подсказка соврёт, а данные нет; ответ сохранения называет число запомненного.
  */
 export function lineKey(code: string | null, text: string | null): { by: 'code' | 'name'; value: string } | null {
-  const byCode = normalize(code);
+  const byCode = matchKeyText(code);
   if (byCode) return { by: 'code', value: byCode };
-  const byName = normalize(text);
+  const byName = matchKeyText(text);
   return byName ? { by: 'name', value: byName } : null;
 }
 
@@ -39,7 +39,11 @@ export function sameKey(a: ReturnType<typeof lineKey>, b: ReturnType<typeof line
   return a?.by === b?.by && a?.value === b?.value;
 }
 
-function normalize(text: string | null): string {
+/**
+ * Приведение к ключу — как `SupplierMatchKey.Normalize` сервера: регистр, «ё» и пробелы, и только.
+ * Совпадение правил сверяет общий набор `supplierKeyCases.json` — его считают тест сервера и этот.
+ */
+export function matchKeyText(text: string | null | undefined): string {
   return (text ?? '').trim().replace(/\s+/g, ' ').toLowerCase().replaceAll('ё', 'е');
 }
 

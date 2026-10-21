@@ -100,7 +100,16 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
             {rows.map(row => (
               <div key={row.key} className="contents">
                 <dt className="text-xs text-fg3">{row.label}</dt>
-                <dd className={COMPARE_TONE[row.tone]}>{row.text}</dd>
+                <dd className={COMPARE_TONE[row.tone]}>
+                  {row.text}
+                  {row.marks && (
+                    <span className="mt-0.5 block text-xs leading-relaxed text-fg2 break-words">
+                      {row.marks.map((mark, i) => (mark.hit
+                        ? <mark key={i} className="rounded-sm bg-brand-subtle px-0.5 text-on-brand-subtle">{mark.text}</mark>
+                        : <span key={i}>{mark.text}</span>))}
+                    </span>
+                  )}
+                </dd>
               </div>
             ))}
           </dl>
