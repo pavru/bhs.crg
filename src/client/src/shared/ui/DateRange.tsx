@@ -15,7 +15,7 @@ import { DateInput } from './DateInput';
  * вперёд можно было бы, только начав с «по». Оба календаря рисуют ленту периода.</p>
  */
 export function DateRange({
-  label, labelHidden = false, from, to, onChange, precision = 'day', size = 'md', min, max, disabled, readOnly, className = '',
+  label, labelHidden = false, from, to, onChange, precision = 'day', size = 'md', min, max, disabled, readOnly, required, className = '',
 }: {
   /** Подпись группы — legend над парой; полям она же с «с» / «по» для чтения с экрана. */
   label: string;
@@ -35,6 +35,8 @@ export function DateRange({
   max?: string;
   disabled?: boolean;
   readOnly?: boolean;
+  /** Пустой границы не бывает (период отчёта, issue #1466): ни крестика, ни «Очистить» в календаре. */
+  required?: boolean;
   className?: string;
 }) {
   // Поправка приходит из таймера ухода — границы читаются на сейчас, а не из замыкания того рендера.
@@ -48,7 +50,7 @@ export function DateRange({
 
   const range: [string, string] | undefined = from && to ? [from, to] : undefined;
   const toMin = from && (!min || from > min) ? from : min;
-  const common = { precision, size, max, disabled, readOnly, range, className: 'w-full' } as const;
+  const common = { precision, size, max, disabled, readOnly, required, range, className: 'w-full' } as const;
   return (
     <fieldset className={`min-w-0 ${className}`}>
       <legend className={labelHidden ? 'sr-only' : size === 'sm' ? 'mb-0.5 text-xs text-fg3' : 'mb-1 text-sm font-medium text-fg1'}>{label}</legend>

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ArrowUpRight, ChartNoAxesColumn, History } from 'lucide-react';
 import { EmptyState } from '@/shared/ui/EmptyState';
@@ -17,6 +17,7 @@ import { correctionsText, foldSites, foldedText, invoicesText, siteCostsLinks, t
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { COST_VIEWS_ID, CostViewsBand } from './CostViewsBand';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { DateRange } from '@/shared/ui/DateRange';
 
 const ALL = 'all';
 
@@ -52,14 +53,22 @@ export function SiteCostsPage() {
   const report = useSiteCosts(query);
   const data = report.data;
 
-  /** Параметр в адрес — заменой записи истории: «назад» уводит с отчёта, а не листает его настройки. */
-  const set = (changes: Record<string, string | null>) => setParams(prev => {
-    const next = new URLSearchParams(prev);
+  /**
+   * Параметр в адрес — заменой записи истории: «назад» уводит с отчёта, а не листает его настройки.
+   * Следующая запись строится на предыдущей, а не на адресе отрисовки: уход из поля периода поправляет
+   * границы, и щелчок «без НДС» в том же событии иначе вернул бы прежний период (issue #1466) — `prev`
+   * у `setParams` — адрес на момент вызова, записи одного такта он не копит.
+   */
+  const written = useRef(params);
+  useEffect(() => { written.current = params; }, [params]);
+  const set = (changes: Record<string, string | null>) => {
+    const next = new URLSearchParams(written.current);
     for (const [key, value] of Object.entries(changes)) {
       if (value === null) next.delete(key); else next.set(key, value);
     }
-    return next;
-  }, { replace: true });
+    written.current = next;
+    setParams(next, { replace: true });
+  };
 
   // Период в полях — тот, что посчитал сервер: без параметров это текущий месяц компании, и назвать
   // его может только он («сегодня» у компании своё).
@@ -73,9 +82,10 @@ export function SiteCostsPage() {
           subtitle="Отчёт построен по счетам на оплату. Расходные накладные в него пока не входят." />
 
         <div className="flex flex-wrap items-end gap-3">
-          {/* Подпись над полем — своя, а не рамочная у Select: рядом стоят поля месяца той же высоты. */}
+          {/* Подпись над полем — своя, а не рамочная у Select: рядом период той же высоты, и подпись у него
+              та же — legend `DateRange` размера md. */}
           <div>
-            <span className="block text-xs text-fg3 mb-1">Стройка</span>
+            <span className="block mb-1 text-sm font-medium text-fg1">Стройка</span>
             <Select aria-label="Стройка" className="w-64 h-8 rounded-md border border-stroke bg-surface px-2 text-sm"
               value={site ?? ALL} stayOpenOn={REVEAL_CHOICE} onValueChange={value => value === REVEAL_CHOICE ? choices.reveal()
                 : set({ site: value === ALL ? null : value })}>
@@ -90,13 +100,7 @@ export function SiteCostsPage() {
               сворачивать нечего. */}
           {site === null && <div className="h-8 flex items-center"><SitesFilter /></div>}
 
-          <fieldset className="flex items-end gap-1.5">
-            <legend className="sr-only">Учётный период</legend>
-            <MonthField label="Учётный период, с" value={from}
-              onChange={value => set({ from: value, to: value > to ? value : to })} />
-            <MonthField label="по" value={to}
-              onChange={value => set({ to: value, from: value < from ? value : from })} />
-          </fieldset>
+          <MonthRange from={from} to={to} onChange={(f, t) => set({ from: f, to: t })} />
 
           <Segmented label="Суммы" value={withVat} options={[['с НДС', true], ['без НДС', false]]}
             onChange={value => set({ vat: value ? null : 'without' })} />
@@ -412,24 +416,28 @@ function RegistryLink({ to, label, note }: { to: string; label: string; note?: s
   );
 }
 
-const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
-
-function MonthField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  // Поле месяца есть не во всех браузерах: в настольных Firefox и Safari это обычная строка, и
-  // человек печатает «2026-09» посимвольно. Поэтому набираемое живёт здесь, а в адрес (и на сервер)
-  // уходит только готовый месяц — иначе каждый символ сменял бы отчёт отказом «месяц назван не так».
-  const [draft, setDraft] = useState(value);
-  const [shown, setShown] = useState(value);
-  if (shown !== value) { setShown(value); setDraft(value); }
-
+/**
+ * Учётный период — `DateRange` с точностью месяца (issue #1466). В адресе месяц — ГГГГ-ММ, у поля — ГГГГ-ММ-01;
+ * перевод здесь, на границе экрана: отданный в адрес ГГГГ-ММ-01 сервер отвергает «месяц назван не так».
+ *
+ * <p>В адрес уходит только упорядоченная пара: «по» раньше «с» сервер отвергает, а `DateRange` поправляет
+ * границы при фиксации, а не на каждой цифре или стрелке. Пара «наоборот» до фиксации живёт здесь —
+ * и только при том адресе, при котором набрана: «назад» и ссылка показывают свой период. Стёртая граница
+ * в адрес не уходит: отчёт без периода не строится, и поле при уходе возвращает прежний месяц.</p>
+ */
+function MonthRange({ from, to, onChange }: { from: string; to: string; onChange: (from: string, to: string) => void }) {
+  const [pending, setPending] = useState<{ base: string; from: string; to: string } | null>(null);
+  const base = `${from}|${to}`;
+  const pair = pending?.base === base ? pending : { from: day(from), to: day(to) };
   return (
-    <label className="block">
-      <span className="block text-xs text-fg3 mb-1">{label}</span>
-      <input type="month" value={draft} required placeholder="ГГГГ-ММ" pattern="\d{4}-(0[1-9]|1[0-2])"
-        onChange={e => { setDraft(e.target.value); if (MONTH.test(e.target.value)) onChange(e.target.value); }}
-        // Недописанное или стёртое — не «без периода»: отчёт без периода не строится, поле возвращает прежнее.
-        onBlur={() => setDraft(value)}
-        className="h-8 rounded-md border border-stroke bg-surface px-2 text-sm text-fg1 focus-visible:outline-2" />
-    </label>
+    <DateRange label="Учётный период" precision="month" size="md" required from={pair.from} to={pair.to} className="w-96"
+      onChange={(f, t) => {
+        if (!f || !t) return;
+        if (f > t) { setPending({ base, from: f, to: t }); return; }
+        setPending(null);
+        onChange(f.slice(0, 7), t.slice(0, 7));
+      }} />
   );
 }
+
+const day = (month: string) => month ? `${month}-01` : '';
