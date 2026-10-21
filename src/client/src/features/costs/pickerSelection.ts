@@ -24,9 +24,14 @@ export function stepIndex(current: number, delta: 1 | -1, length: number): numbe
  *
  * <p>Выделенной позиции может не оказаться в списке — набор сменил находки. Выделение тогда держится
  * (`index` = -1): карточка показанной остаётся, а Enter её не выберет — её больше нет среди найденного.</p>
+ *
+ * <p>`fallback` — что выделено, пока человек не выделил ничего сам: «лучшее совпадение» при открытии
+ * (issue #1518). Выводится, а не ставится эффектом: ответ о кандидатах приходит после открытия, и
+ * поставленное эффектом выделение мигнуло бы пустым кадром.</p>
  */
-export function usePickerSelection(ids: readonly string[]) {
-  const [active, setActive] = useState<string | null>(null);
+export function usePickerSelection(ids: readonly string[], fallback: string | null = null) {
+  const [chosen, setActive] = useState<string | null>(null);
+  const active = chosen ?? fallback;
   const timer = useRef<number | null>(null);
 
   function settle() {

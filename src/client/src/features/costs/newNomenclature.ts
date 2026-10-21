@@ -25,7 +25,7 @@ export interface IntakeDraft {
 export const trimText = (value: string | null | undefined) => (value ?? '').trim();
 
 /** «шт.» и «ШТ» — одна единица: так же её сравнивает ядро. */
-const unitKey = (value: string | null | undefined) => trimText(value).replace(/[.\s]+$/, '').toLowerCase();
+export const unitKey = (value: string | null | undefined) => trimText(value).replace(/[.\s]+$/, '').toLowerCase();
 
 /** Поле названия — первое поле ключа: им сервер называет запись. */
 export function namingField(kind: IntakeKind): IntakeField | null {

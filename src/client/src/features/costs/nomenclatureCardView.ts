@@ -63,4 +63,6 @@ export interface CompareRow {
   label: string;
   text: string;
   tone: 'ok' | 'differs' | 'plain';
+  /** Строка бумаги кусками под текстом: совпавшие с позицией слова подсвечены (issue #1518). */
+  marks?: { text: string; hit: boolean }[];
 }

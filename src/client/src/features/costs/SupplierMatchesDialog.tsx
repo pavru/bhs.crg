@@ -105,7 +105,8 @@ export function SupplierMatchesDialog({ initial, onClose }: {
         <>
           {/* Тот же выбор позиции, что в строке счёта: смена сохраняется сразу. Снять позицию
               здесь нельзя — соответствие без позиции есть забытое соответствие. */}
-          <NomenclaturePicker chosen name={item.nomenclatureName} clearable={false}
+          <NomenclaturePicker chosen chosenId={item.nomenclatureId} name={item.nomenclatureName} clearable={false}
+            supplierId={item.supplierId}
             lost={item.issue === 'lost'} archived={item.issue === 'archived'}
             from={item.by === 'code' ? { code: item.source } : { name: item.source }}
             line={{ where: supplierMatchWhere(item.supplierName) }}

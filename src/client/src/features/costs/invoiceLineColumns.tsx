@@ -9,6 +9,7 @@ import { applyOffer, cancelMatch, lineKey, memoryFate, pickByHand, sameKey, type
 import { LineMatchChip } from './LineMatchChip';
 import { NomenclaturePicker } from './NomenclaturePicker';
 import { invoiceLineWhere } from './pickerLine';
+import { neighboursOf } from './pickerCandidates';
 import { LineAllocationCell } from './LineAllocation';
 import { Cell, LockedPosition } from './InvoiceLineCells';
 
@@ -21,11 +22,18 @@ import { Cell, LockedPosition } from './InvoiceLineCells';
  * неё — посмотреть.</p>
  */
 
+/** Позиция строки для соседей в окне выбора; потерянная и архивная — не кандидат. */
+const chosenPosition = (d: LineDraft) => (d.nomenclatureId && !d.nomenclatureLost && !d.nomenclatureArchived
+  ? { name: d.supplierText, code: d.supplierCode, positionId: d.nomenclatureId, positionName: d.nomenclatureName }
+  : null);
+
 /** Пометки ссылки относятся к ПРЕЖНЕЙ позиции: выбор и снятие их сбрасывают разом. */
 const NO_MARKS = { nomenclatureLost: false, nomenclatureMoved: false, nomenclatureArchived: false } as const;
 
 export interface InvoiceLineContext {
   view: InvoiceView;
+  /** Строки черновика — соседи строки в окне выбора позиции (issue #1518). */
+  drafts: readonly LineDraft[];
   /** Строки только читаются: счёт заперт либо права вводить счета нет. */
   still: boolean;
   /** Режим НДС черновика (issue #1499): от него — подписи цены и суммы и досчёт НДС. */
@@ -110,7 +118,9 @@ export function useInvoiceLineColumns(ctx: InvoiceLineContext): EditGridColumn<L
         // Потерю называет СЕРВЕР: у формы на все случаи пустого названия один признак, и выбранная
         // только что позиция без имени краснела бы как потерянная. Выбор и снятие потерю снимают —
         // ссылка меняется здесь же, и прежний ответ сервера к ней уже не относится.
-        <NomenclaturePicker chosen={draft.nomenclatureId !== null} name={draft.nomenclatureName}
+        <NomenclaturePicker chosen={draft.nomenclatureId !== null} chosenId={draft.nomenclatureId}
+          name={draft.nomenclatureName} supplierId={refEntryId(view.requisites[K.supplier])}
+          neighbours={() => neighboursOf(ctx.drafts, index, chosenPosition)}
           lost={draft.nomenclatureLost} lostText={draft.nomenclatureMoved ? LOST.movedPosition : undefined}
           archived={draft.nomenclatureArchived}
           clearable={draft.matchedBy === null}

@@ -69,4 +69,19 @@ describe('выделение в окне выбора (#1517)', () => {
     act(() => { result.current.step(1); });
     expect(result.current.active).toBe('c');
   });
+
+  it('лучшее выделено по умолчанию, пока человек не выделил сам; стрелка идёт от него (#1518)', () => {
+    let best: string | null = null;
+    const { result, rerender } = renderHook(() => usePickerSelection(['a', 'b', 'c'], best));
+    expect(result.current.index).toBe(-1);
+    best = 'b';
+    rerender();
+    expect(result.current.active).toBe('b');
+    expect(result.current.index).toBe(1);
+    act(() => { result.current.step(1); });
+    expect(result.current.active).toBe('c');
+    best = null;
+    rerender();
+    expect(result.current.active).toBe('c');
+  });
 });

@@ -218,15 +218,22 @@ async function supplierPart() {
 
   await check('supplier-enters-and-posts-a-waybill', () => waybillPart(supplier));
   await check('supplier-deletes-a-mistaken-waybill', () => waybillDeletePart(supplier));
+  await check('supplier-sees-a-neighbour-line-choice-in-waybill', () => waybillNeighbourPart(supplier));
   await check('supplier-keeps-typed-waybill-when-reread-fails', () => waybillRereadPart(supplier));
 
   await check('supplier-no-request-was-refused', () => noDenials(supplier));
 }
 
-/** Позиция номенклатуры в строке накладной — первой из найденных: какая именно, проверке не важно. */
+/**
+ * Позиция номенклатуры в строке накладной — первой из найденных: какая именно, проверке не важно.
+ *
+ * ⚠️ Ищется по «посев», а не берётся из пустого запроса: с #1518 пустой запрос показывает кандидатов для
+ * слов строки, а не голову алфавита, — и у «Хомута прогона» их может не быть вовсе.
+ */
 async function pickPosition(seat, row) {
   await row.getByRole('button', { name: 'выбрать позицию' }).click();
   const picker = seat.page.getByRole('dialog', { name: 'Позиция номенклатуры' });
+  await picker.getByPlaceholder('часть наименования').fill('посев');
   const first = picker.getByRole('option').first();
   await first.waitFor({ timeout: 10_000 })
     .catch(() => { throw new Error('в выборе позиции пусто — посев номенклатуры не отработал'); });
@@ -369,6 +376,43 @@ async function waybillDeletePart(seat) {
  * Неудачное перечитывание открытой накладной (issue #1287): форма остаётся с набранным, отказ — полосой
  * с «Повторить». Сохранение отвечает «изменили», форма перечитывает накладную, а чтение падает.
  */
+/**
+ * Соседняя строка накладной (issue #1518): позиция, выбранная строке с тем же наименованием, предложена
+ * следующей — «выбрана в строке 1». Артикула у накладной нет, сосед узнаётся по наименованию, с тем же
+ * приведением регистра и пробелов, что ключ соответствия на сервере.
+ */
+async function waybillNeighbourPart(seat) {
+  const { page } = seat;
+  seat.screen = 'соседняя строка накладной';
+  const waybill = `РН-СТРОКИ-${Date.now()}`;
+  await page.getByRole('button', { name: 'Новая накладная' }).click();
+  await page.getByText('Строки накладной').waitFor({ timeout: 10_000 });
+  await page.getByLabel('Номер', { exact: true }).fill(waybill);
+  for (const name of ['Кабель соседа', 'кабель  СОСЕДА']) {
+    await page.getByRole('button', { name: 'Добавить строку', exact: true }).click();
+    const row = page.locator('tbody tr').last();
+    await row.getByLabel(/Наименование в накладной/).fill(name);
+    await row.getByLabel(/Количество/).fill('1');
+  }
+  await pickPosition(seat, page.locator('tbody tr').first());
+
+  await page.locator('tbody tr').last().getByRole('button', { name: 'выбрать позицию' }).click();
+  const picker = page.getByRole('dialog', { name: 'Позиция номенклатуры' });
+  await picker.getByRole('option', { name: /выбрана в строке 1/ }).waitFor({ timeout: 15_000 })
+    .catch(() => { throw new Error('позиция строки 1 с тем же наименованием не предложена строке 2'); });
+  await page.keyboard.press('Escape');
+  await picker.waitFor({ state: 'hidden', timeout: 10_000 });
+
+  // Черновик сохраняется: следующая проверка заводит новую накладную, и несохранённое её бы остановило.
+  // ⚠️ И экран возвращается к проведённой: следующая ждёт «Черновик» как знак новой формы, а при открытом
+  // черновике он уже на экране — и номер набирался бы в старую форму.
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await page.getByRole('heading', { name: new RegExp(waybill) }).waitFor({ timeout: 10_000 });
+  await page.getByRole('button', { name: /РН-\d+/ }).first().click();
+  await page.getByText('Проведена', { exact: true }).waitFor({ timeout: 10_000 });
+  await settled(page);
+}
+
 async function waybillRereadPart(seat) {
   const { page } = seat;
   seat.screen = 'перечитывание накладной';

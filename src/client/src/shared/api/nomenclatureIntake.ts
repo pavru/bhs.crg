@@ -111,9 +111,10 @@ export function useCreateNomenclature() {
   return useMutation({
     mutationFn: (body: IntakeBody) =>
       apiClient.post<NomenclaturePosition>('/nomenclature', body).then(r => r.data),
-    // Поиск в окне выбора и ответ о похожих устарели оба: в справочнике новая позиция.
+    // Поиск в окне выбора, кандидаты строк и ответ о похожих устарели все: в справочнике новая позиция.
     onSettled: () => Promise.all([
       queryClient.invalidateQueries({ queryKey: ['costs-nomenclature'] }),
+      queryClient.invalidateQueries({ queryKey: ['nomenclature-candidates'] }),
       queryClient.invalidateQueries({ queryKey: ['nomenclature-similar'] }),
     ]),
   });

@@ -245,7 +245,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
   const settled = readiness?.length === 0 && !dirty && !headerDirty;
 
   const columns = useInvoiceLineColumns({
-    view, still, mode, allocationLocked: locked || correcting !== null,
+    view, drafts, still, mode, allocationLocked: locked || correcting !== null,
     blocked: dirty ? 'Разносить можно сохранённые строки: сохраните правки строк' : null,
     offerFor, hasSupplier: supplierId !== null, supplierName, onBorn: draft => void suggest([draft]),
     onAllocating: setAllocating, onEdit: edit,
