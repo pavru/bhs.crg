@@ -37,10 +37,12 @@ public static class BackupEndpoints
         // только их, и человек вправе видеть это до того, как удивится.
         g.MapGet("/files", async (
             BackupFileStore store, IIntegrationSettings settings, ServiceStateStore stateStore,
-            IJobService jobs, CancellationToken ct) =>
+            IJobService jobs, IAppSettingsStore appSettings, TimeProvider clock, CancellationToken ct) =>
         {
             var schedule = (await settings.GetEffectiveAsync(ct)).Backup;
             var state = await stateStore.LoadAsync<BackupScheduleState>(BackupScheduleStateKeys.Schedule, ct);
+            // Ближайшая копия (issue #1468) — тем же правилом и в том же поясе, что у службы.
+            var zone = await appSettings.GetCompanyTimeZoneAsync(ct);
             return Results.Ok(new
             {
                 files = store.List(),
@@ -57,6 +59,7 @@ public static class BackupEndpoints
                     state.LastFileName,
                     state.LastError,
                     state.LastErrorAt,
+                    nextRun = BackupScheduleService.NextRunAt(schedule, state.LastRunAt, clock.GetUtcNow(), zone),
                     running = await jobs.HasActiveOfKindAsync(JobKind.CreateBackup, ct),
                 },
             });

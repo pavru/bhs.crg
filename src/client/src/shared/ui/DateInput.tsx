@@ -56,6 +56,8 @@ interface DateInputProps {
   size?: 'md' | 'sm';
   /** Значение не прошло проверку формы — рамка обвязки красная, сегменты помечены для скринридера. */
   invalid?: boolean;
+  /** id подписи под рамкой (`DateField`) — сегменты описываются ею: см. `useSegmentField`. */
+  hintId?: string;
   /**
    * Границы допустимых дат — полный ISO (issue #1464). Календарь не даёт выбрать за ними; набранное
    * с клавиатуры поле принимает, ошибку называет форма — откатывать ввод поле не вправе (#1460).
@@ -93,7 +95,7 @@ interface DateInputProps {
 }
 
 export function DateInput({ label, value, onChange, onProblem, onIncomplete, precision = 'day', className = '', disabled = false, readOnly = false, required = false, calendar = true, compact = false,
-  size, invalid = false, min, max, range, onCommit }: DateInputProps) {
+  size, invalid = false, hintId, min, max, range, onCommit }: DateInputProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   /** Календарь закрыт Tab'ом с края — фокус уже перенесён, возвращать его на значок не нужно. */
@@ -117,7 +119,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
     foreign, problem, problemId, markInvalid, describedBy, clearable, groupProps, segments: segmentInputs,
     selectedAnnouncement, fromValue, contentRef, fieldFocus, pick, clear, startOver,
   } = useSegmentField(model, {
-    label, value, onChange, onProblem, onIncomplete, onCommit, disabled, readOnly, required, invalid,
+    label, value, onChange, onProblem, onIncomplete, onCommit, disabled, readOnly, required, invalid, hintId,
     onKey: e => {
       if (!(showCalendar && !disabled && e.altKey && e.key === 'ArrowDown')) return false;
       e.preventDefault(); setPickerOpen(true);

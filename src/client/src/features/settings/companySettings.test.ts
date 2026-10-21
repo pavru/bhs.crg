@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CompanyTimeZoneView } from '@/shared/api/companyTimeZone';
-import { SERVER_ZONE, backupZoneHint, companyNow, zoneChoices, zoneNotice } from './companySettings';
+import { SERVER_ZONE, backupZoneHint, companyNow, nextBackupText, zoneChoices, zoneNotice } from './companySettings';
 
 /**
  * Часовой пояс компании на экране (issue #1148): что предложить и что сказать, когда действует не
@@ -93,4 +93,24 @@ describe('пояс плановой копии (issue #1468)', () => {
     expect(backupZoneHint(view({ timeZoneId: 'Asia/Tokyo', effectiveTimeZoneId: 'Asia/Tokyo', effectiveOffset: 'UTC+09:00' })))
       .toBe('По поясу компании: Asia/Tokyo (UTC+09:00)');
   });
+});
+
+describe('ближайшая плановая копия (issue #1468)', () => {
+  const next = (at: string, today: string, due = false) => ({ at, due, today });
+
+  it('«сегодня» — день компании от сервера, не браузера', () => {
+    expect(nextBackupText(next('2026-10-22T04:00:00+03:00', '2026-10-21'))).toBe('завтра, 04:00');
+    expect(nextBackupText(next('2026-10-21T23:45:00+03:00', '2026-10-21'))).toBe('сегодня, 23:45');
+    expect(nextBackupText(next('2026-10-22T07:00:00+10:00', '2026-10-22'))).toBe('сегодня, 07:00');
+  });
+
+  it('через месяц «завтра» тоже узнаётся', () =>
+    expect(nextBackupText(next('2026-11-01T03:00:00+03:00', '2026-10-31'))).toBe('завтра, 03:00'));
+
+  it('дальше завтра — датой; срок настал — в течение минуты, сколько бы ни показывали часы', () => {
+    expect(nextBackupText(next('2026-10-24T04:00:00+03:00', '2026-10-21'))).toBe('24.10.2026, 04:00');
+    expect(nextBackupText(next('2026-10-21T03:00:00+03:00', '2026-10-21', true))).toBe('в течение минуты');
+  });
+
+  it('нечитаемое — без строки', () => expect(nextBackupText(next('завтра', '2026-10-21'))).toBeNull());
 });

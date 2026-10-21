@@ -146,9 +146,7 @@ export const RULES = [
     // обёртку, которая отдаёт `type` полю под своим именем.
     count: countNativeDates,
     everywhere: true,
-    // TimeField (#1468) ещё не написан — сообщение говорит это прямо: совет идти к несуществующему
-    // компоненту толкает к обходу через переменную.
-    instead: 'дата — DateField (форма) / DateInput compact (ячейка) / DateInput size="md" | "sm" (отбор и строка настроек); период — DateRange; месяц и год — тот же компонент с precision="month" | "year". Время суток — TimeField ещё не написан (#1468): до него новое нативное время не заводится без согласования, а поднятый уровень объясняют в PR (docs/UI.md, «Дата и время»)',
+    instead: 'дата — DateField (форма) / DateInput compact (ячейка) / DateInput size="md" | "sm" (отбор и строка настроек); период — DateRange; месяц и год — тот же компонент с precision="month" | "year"; время суток ЧЧ:ММ — TimeField (форма) / TimeInput (docs/UI.md, «Дата и время»)',
   },
   {
     id: 'date-frame',

@@ -1,4 +1,4 @@
-using BHS.CRG.Application.Settings;
+﻿using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.Backup;
 
 namespace BHS.CRG.Tests.Configuration;
@@ -168,6 +168,48 @@ public class BackupScheduleServiceTests
         Assert.False(BackupScheduleService.IsDue(Schedule(), Utc(8, 20, 0, 0), Utc(8, 20, 9, 0), Vladivostok));
         Assert.True(BackupScheduleService.IsDue(Schedule(), Utc(8, 20, 0, 0), Utc(8, 20, 9, 0), Kaliningrad));
     }
+
+    /// <summary>
+    /// Ближайшая копия (issue #1468): до срока — сегодняшний срок, после копии — завтрашний. Смещение
+    /// момента — пояса компании: по нему клиент читает «03:00» как есть; «сегодня» — день компании.
+    /// </summary>
+    [Fact]
+    public void NextRunAt_TodayBeforeTheHour_TomorrowAfterTheCopy()
+    {
+        var beforeTheHour = BackupScheduleService.NextRunAt(Schedule(), At(19, 3, 0), Utc(8, 19, 23, 0), Moscow)!;
+        Assert.Equal(new BackupNextRun(At(20, 3, 0), false, new DateOnly(2026, 8, 20)), beforeTheHour);
+        Assert.Equal(Msk, beforeTheHour.At.Offset);
+
+        Assert.Equal(new BackupNextRun(At(21, 3, 0), false, new DateOnly(2026, 8, 20)),
+            BackupScheduleService.NextRunAt(Schedule(), At(20, 3, 0), At(20, 9, 0), Moscow));
+    }
+
+    /// <summary>
+    /// Срок прошёл, копию не ставили (сервер был выключен) — признак «срок настал», а не момент
+    /// «сейчас»: момент клиент сравнивал бы со своими часами (ревью PR #1561).
+    /// </summary>
+    [Fact]
+    public void NextRunAt_MissedRun_IsDue()
+        => Assert.Equal(new BackupNextRun(At(20, 3, 0), true, new DateOnly(2026, 8, 20)),
+            BackupScheduleService.NextRunAt(Schedule(), At(19, 3, 0), At(20, 9, 30), Moscow));
+
+    /// <summary>Правило и строка не расходятся: признак «срок настал» — ровно когда служба поставит копию.</summary>
+    [Theory]
+    [InlineData(null, 2, 59)]
+    [InlineData(null, 3, 0)]
+    [InlineData(19, 9, 30)]
+    [InlineData(20, 9, 30)]
+    public void NextRunAt_DueExactlyWhenIsDue(int? lastDay, int hour, int minute)
+    {
+        DateTimeOffset? last = lastDay is { } d ? At(d, 3, 0) : null;
+        var now = At(20, hour, minute);
+        Assert.Equal(BackupScheduleService.IsDue(Schedule(), last, now, Vladivostok),
+            BackupScheduleService.NextRunAt(Schedule(), last, now, Vladivostok)!.Due);
+    }
+
+    [Fact]
+    public void NextRunAt_Disabled_None()
+        => Assert.Null(BackupScheduleService.NextRunAt(Schedule(enabled: false), null, At(20, 1, 0), Moscow));
 
     [Theory]
     [InlineData("03:00", 3, 0)]

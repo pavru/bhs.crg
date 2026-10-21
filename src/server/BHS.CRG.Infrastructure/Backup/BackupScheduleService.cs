@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using BHS.CRG.Application.Jobs;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Common;
@@ -155,6 +155,32 @@ public class BackupScheduleService(
     }
 
     /// <summary>
+    /// Когда служба поставит следующую плановую копию (issue #1468) — для строки «Ближайшая копия» у
+    /// формы расписания. Тем же правилом, что <see cref="IsDue" />, и в том же поясе: строка, считанная
+    /// отдельно, разошлась бы с тем, что служба сделает на самом деле.
+    ///
+    /// Срок настал, а копию не ставили — <see cref="BackupNextRun.Due" />: служба поставит её на
+    /// ближайшем тике. Признаком, а не моментом «сейчас»: сравнивать момент с часами браузера клиент
+    /// не может — их расхождение с сервером превращало «сейчас» в «сегодня, 09:30» (ревью PR #1561).
+    /// По той же причине «сегодня» компании считает сервер. <c>null</c> — расписание выключено или
+    /// время негодное: копии не будет.
+    /// </summary>
+    public static BackupNextRun? NextRunAt(BackupScheduleSettings schedule, DateTimeOffset? lastRunAt,
+        DateTimeOffset now, TimeZoneInfo zone)
+    {
+        if (!schedule.Enabled) return null;
+        if (ParseTimeOfDay(schedule.TimeOfDay) is not { } time) return null;
+
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
+        var dueToday = DueOn(today, time, zone);
+        if (now < dueToday) return new BackupNextRun(dueToday, false, today);
+        // Срок сегодняшних суток прошёл: копии после него не было — она сейчас, была — завтра.
+        return lastRunAt is { } last && last >= dueToday
+            ? new BackupNextRun(DueOn(today.AddDays(1), time, zone), false, today)
+            : new BackupNextRun(dueToday, true, today);
+    }
+
+    /// <summary>
     /// Срок суток <paramref name="day" /> в поясе <paramref name="zone" /> — момент. Смещение берётся
     /// у СРОКА, а не у «сейчас»: иначе в день перевода часов срок, назначенный до перевода, после него
     /// сдвигался на час, и копия снималась второй раз.
@@ -182,3 +208,10 @@ public class BackupScheduleService(
             ? t
             : null;
 }
+
+/// <summary>
+/// Ближайшая плановая копия (issue #1468): срок со смещением пояса компании — клиент читает день и час
+/// из записи как есть; <paramref name="Due" /> — срок прошёл, копия будет на ближайшем тике;
+/// <paramref name="Today" /> — сегодня у компании, чтобы клиент сказал «сегодня» или «завтра».
+/// </summary>
+public sealed record BackupNextRun(DateTimeOffset At, bool Due, DateOnly Today);

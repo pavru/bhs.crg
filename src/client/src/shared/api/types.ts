@@ -345,12 +345,24 @@ export interface BackupScheduleSettings {
 }
 
 /** Расписание вместе со следом службы: когда снимали, чем кончилось, идёт ли прямо сейчас. */
+/** Ближайшая плановая копия — всё посчитано сервером тем же правилом, что у службы (issue #1468). */
+export interface BackupNextRun {
+  /** Срок со смещением пояса компании: день и час читаются из записи как есть. */
+  at: string;
+  /** Срок прошёл, копию не ставили — служба поставит её на ближайшем тике. */
+  due: boolean;
+  /** Сегодня у компании, ГГГГ-ММ-ДД — для «сегодня» и «завтра». */
+  today: string;
+}
+
 export interface BackupScheduleStatus extends BackupScheduleSettings {
   lastRunAt: string | null;
   lastSuccessAt: string | null;
   lastFileName: string | null;
   lastError: string | null;
   lastErrorAt: string | null;
+  /** Когда служба поставит следующую плановую копию (issue #1468); null — расписание выключено. */
+  nextRun: BackupNextRun | null;
   running: boolean;
 }
 

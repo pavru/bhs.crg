@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { DateInput } from './DateInput';
 import { OutlinedField } from './OutlinedField';
 import type { DatePrecision } from '@/shared/api/types';
@@ -32,19 +32,21 @@ export function DateField({
   max?: string;
 }) {
   const [focused, setFocused] = useState(false);
+  const hintId = useId();
   // Ошибка набранного (issue #1460) — под рамкой, красным. Подсказка формы при этом не теряется: она
   // бывает её же ошибкой (отказ проводки по дате у оплаты), и пропасть ей нельзя.
   const [problem, setProblem] = useState<string | null>(null);
   const error = problem ? (hint ? `${problem}. ${hint[0].toUpperCase()}${hint.slice(1)}` : problem) : undefined;
   return (
-    <OutlinedField label={label} required={required} invalid={invalid} hint={hint} error={error}
+    <OutlinedField label={label} required={required} invalid={invalid} hint={hint} error={error} hintId={hintId}
       raise="always" focused={focused} readOnly={readOnly}>
       <div className={`h-14 rounded-md px-4 flex items-center text-sm text-fg1 ${disabled ? 'opacity-50' : ''}`}
         onFocus={() => setFocused(true)}
         onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>
         {/* Во всю ширину: хвост поля — крестик и календарь — стоит у правого края рамки (#1463). */}
         <DateInput label={label} value={value} onChange={onChange} onProblem={setProblem} onIncomplete={onIncomplete} precision={precision}
-          disabled={disabled} readOnly={readOnly} required={required} className="w-full" min={min} max={max} />
+          disabled={disabled} readOnly={readOnly} required={required} className="w-full" min={min} max={max}
+          hintId={hint || problem ? hintId : undefined} />
       </div>
     </OutlinedField>
   );

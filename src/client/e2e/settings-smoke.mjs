@@ -171,10 +171,26 @@ await check('company-time-zone-names-what-is-in-force', async () => {
 await check('backup-schedule-form-shows-saved-values', async () => {
   const t = await openSection('РЕЗЕРВНОЕ КОПИРОВАНИЕ');
   if (!/расписан|Хранить|копи/i.test(t)) throw new Error(`раздел копий не раскрылся: ${t.slice(-200)}`);
-  const times = await page.locator('input[type=time]').evaluateAll(els => els.map(e => e.value));
-  if (times.length && !times.some(v => /^\d{2}:\d{2}/.test(v)))
-    throw new Error(`время в расписании пусто: ${JSON.stringify(times)}`);
+  // Время — сегментами ЧЧ:ММ (issue #1468): нативного `type=time` больше нет, и поле обязано быть.
+  const time = await backupTime();
+  if (!/^\d{2}:\d{2}$/.test(time)) throw new Error(`время в расписании пусто: «${time}»`);
+  // Пояс — подписью под полем, и скринридер её слышит: сегменты ею описаны.
+  const hour = backupTimeGroup().locator('input').first();
+  const hintId = await hour.getAttribute('aria-describedby');
+  const hint = hintId ? await page.locator(`[id="${hintId}"]`).innerText() : '';
+  if (!/по поясу/i.test(hint)) throw new Error(`под временем нет пояса: «${hint}»`);
+  if (/Снимать копию автоматически/.test(t) && (await page.getByLabel('Снимать копию автоматически').isChecked())
+    && !/Ближайшая копия: (в течение минуты|(сегодня|завтра|\d{2}\.\d{2}\.\d{4}), \d{2}:\d{2})/.test(await page.locator('body').innerText()))
+    throw new Error('у включённого расписания нет строки «Ближайшая копия»');
 });
+
+/** Группа сегментов «Время копии» — по имени, как её находит скринридер. */
+function backupTimeGroup() { return page.getByRole('group', { name: 'Время копии' }); }
+/** Показанное время расписания: «ЧЧ:ММ» из двух сегментов. */
+async function backupTime() {
+  const [h, m] = await backupTimeGroup().locator('input').evaluateAll(els => els.map(e => e.value));
+  return `${h ?? ''}:${m ?? ''}`;
+}
 
 /**
  * Запрос копий опрашивается каждые 15 секунд, и перечитывание, ничего не изменившее, правку
@@ -187,11 +203,11 @@ await check('backup-schedule-form-shows-saved-values', async () => {
  * а не поверх всего ответа» проверена чтением, живой проверки под ней нет.</p>
  */
 await check('backup-schedule-edit-survives-refetch', async () => {
-  const time = page.locator('input[type=time]').first();
-  if (!(await time.count())) throw new Error('поля времени в расписании нет');
-  const before = await time.inputValue();
-  const probe = before === '04:44' ? '05:55' : '04:44';
-  await time.fill(probe);
+  const hour = backupTimeGroup().locator('input').first();
+  if (!(await hour.count())) throw new Error('поля времени в расписании нет');
+  const before = await hour.inputValue();
+  const probe = before === '05' ? '06' : '05';
+  await hour.fill(probe);
   // Ждём САМ опрос, а не «дольше 15 с»: ответ на перечитывание копий, пришедший ПОСЛЕ правки, и
   // есть событие, после которого поломка возможна. Пауза в 18 с платилась целиком, а обещала
   // меньше: задержись опрос — проверка прочла бы поле до него и позеленела, ничего не проверив.
@@ -200,9 +216,9 @@ await check('backup-schedule-edit-survives-refetch', async () => {
     { timeout: 30_000 },
   ).catch(() => { throw new Error('за 30 с копии не перечитались ни разу — проверять правку не на чем'); });
   await settled(page);   // ответ — ещё не экран: форме нужно его принять
-  const after = await time.inputValue();
-  if (after !== probe) throw new Error(`перечитывание выбросило правку: набрано «${probe}», стало «${after}»`);
-  await time.fill(before);   // ничего не сохраняем — возвращаем как было
+  const after = await hour.inputValue();
+  if (after !== probe) throw new Error(`перечитывание выбросило правку: набрано час «${probe}», стало «${after}»`);
+  await hour.fill(before);   // ничего не сохраняем — возвращаем как было
   await settled(page);
 });
 

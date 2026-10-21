@@ -1,5 +1,7 @@
 import type { CompanyTimeZoneView } from '@/shared/api/companyTimeZone';
 import { formatDay } from '@/shared/format/format';
+import { parseISO } from '@/shared/utils/date';
+import type { BackupNextRun } from '@/shared/api/types';
 import type { AccountingCurrencyView } from '@/shared/api/accountingCurrency';
 
 /**
@@ -65,6 +67,23 @@ export function backupZoneHint(view: CompanyTimeZoneView): string {
   if (!view.resolved) return `Пояс «${view.timeZoneId}» этой машине неизвестен — время по поясу сервера: ${server}`;
   const city = view.timeZones.find(z => z.id === view.effectiveTimeZoneId)?.city ?? view.effectiveTimeZoneId;
   return `По поясу компании: ${withOffset(city, view.effectiveOffset)}`;
+}
+
+/**
+ * Ближайшая плановая копия словами: «сегодня, 04:00», «завтра, 04:00», «24.10.2026, 04:00»; срок
+ * настал — «в течение минуты» (служба проверяет срок раз в минуту). Всё нужное посчитал сервер
+ * (`BackupScheduleService.NextRunAt`): признак срока, «сегодня» компании и срок со смещением её пояса —
+ * день и час читаются из записи как есть. Часов браузера здесь нет нарочно: их расхождение с сервером
+ * превращало «сейчас» в «сегодня, 09:30» (ревью PR #1561). Нечитаемое — null: строки не будет.
+ */
+export function nextBackupText(next: BackupNextRun): string | null {
+  if (next.due) return 'в течение минуты';
+  const at = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(next.at);
+  const today = parseISO(next.today);
+  if (!at || !today) return null;
+  const tomorrow = new Date(Date.UTC(today.y, today.m - 1, today.d + 1)).toISOString().slice(0, 10);
+  const day = at[1] === next.today ? 'сегодня' : at[1] === tomorrow ? 'завтра' : formatDay(at[1]);
+  return `${day}, ${at[2]}`;
 }
 
 /** «2026-10-13T14:32» → «13.10.2026, 14:32». Число и час пришли уже в поясе компании — не пересчитываем. */

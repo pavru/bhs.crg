@@ -68,6 +68,12 @@ interface SegmentFieldOptions {
   required: boolean;
   invalid: boolean;
   /**
+   * id подписи под полем (`OutlinedField.hintId`) — сегменты описываются ею, а не своей ошибкой: у поля
+   * формы ошибка уходит в ту же подпись (`onProblem`), и ссылка на обе читала бы её дважды. Без неё
+   * пояснение под рамкой скринридер с полем не связывал вовсе (issue #1468).
+   */
+  hintId?: string;
+  /**
    * Свои клавиши поля — раньше движка (Alt+↓ открывает календарь); true — обработана. Движок их не
    * знает: у времени календаря нет.
    */
@@ -75,7 +81,7 @@ interface SegmentFieldOptions {
 }
 
 export function useSegmentField<K extends string>(model: SegmentModel<K>, {
-  label, value, onChange, onProblem, onIncomplete, onCommit, disabled, readOnly, required, invalid, onKey,
+  label, value, onChange, onProblem, onIncomplete, onCommit, disabled, readOnly, required, invalid, hintId, onKey,
 }: SegmentFieldOptions) {
   /**
    * Набранное человеком — вместе со значением, от которого его начали набирать (`base`). Показанные
@@ -430,12 +436,12 @@ export function useSegmentField<K extends string>(model: SegmentModel<K>, {
   }
 
   const markInvalid = problem || invalid ? true : undefined;
-  // Ошибка для скринридера — описанием сегментов (`aria-describedby`), и у `DateField` тоже: его
-  // подпись под рамкой с полем не связана. Живая область объявляет только СМЕНУ ошибки: `role="alert"`
+  // Ошибка для скринридера — описанием сегментов (`aria-describedby`): своей живой областью у поля без
+  // подписи, подписью под рамкой у поля формы (`hintId`). Живая область объявляет только СМЕНУ ошибки: `role="alert"`
   // объявлял бы каждую ошибку при отрисовке, и таблица с двадцатью ячейками «не дата» зачитывалась бы
   // подряд (ревью PR #1542).
   const problemId = useId();
-  const describedBy = problem ? problemId : undefined;
+  const describedBy = hintId ?? (problem ? problemId : undefined);
 
   const segClass = [
     'border-0 outline-none bg-transparent text-center min-w-0 p-0',
