@@ -27,6 +27,12 @@ export interface RecordRoute {
 /** Счёт на оплату — на экране счетов; он же читает параметр, чтобы открыть названный счёт. */
 export const INVOICE_RECORD: RecordRoute = { screen: '/invoices', param: 'invoice', label: 'Открыть счёт' };
 
+/**
+ * Запись общих данных системного уровня — на странице «Общие данные» (issue #1517): экран открывает
+ * названную окном записи. Записи стройки, раздела и комплекта там нет — на них ссылки не дают.
+ */
+export const CATALOG_RECORD: RecordRoute = { screen: '/common-data', param: 'entry', label: 'Открыть в справочнике' };
+
 /** Ключ — код типа записи, тем же письмом, что у модуля на сервере (`CostsRecordTypes`). */
 export const RECORD_ROUTES: Readonly<Record<string, RecordRoute>> = {
   'СчётНаОплату': INVOICE_RECORD,
@@ -44,7 +50,11 @@ export interface RecordLink {
 export function recordScreen(recordType: string | null | undefined, access: AccessInfo): RecordRoute | null {
   // Свой ключ, а не унаследованный: код типа приходит с сервера, и «constructor» нашёл бы функцию.
   const route = recordType && Object.hasOwn(RECORD_ROUTES, recordType) ? RECORD_ROUTES[recordType] : undefined;
-  if (!route) return null;
+  return route ? openTo(route, access) : null;
+}
+
+/** Экран открыт этому человеку — правом его раздела (`navConfig`), тем же, что закрывает маршрут. */
+export function openTo(route: RecordRoute, access: AccessInfo): RecordRoute | null {
   const section = [...workNav, ...settingsNav].find(item => item.to === route.screen);
   return section && allowed(section, access) ? route : null;
 }

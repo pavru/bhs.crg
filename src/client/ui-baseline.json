@@ -13,7 +13,6 @@
     "features/costs/InvoicePartyNote.tsx": 2,
     "features/costs/InvoicesPage.tsx": 2,
     "features/costs/LineMatchChip.tsx": 2,
-    "features/costs/NomenclaturePicker.tsx": 1,
     "features/costs/SiteCostsPage.tsx": 1,
     "features/costs/SupplierMatchesDialog.tsx": 2,
     "features/costs/SupplierTermsDialog.tsx": 1,

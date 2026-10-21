@@ -28,7 +28,7 @@ export async function vatOnTopChecks({ page, check, stamp, invoice, open, cell, 
       await cell('Ставка НДС', row).fill('22');
       await page.getByRole('button', { name: 'выбрать позицию' }).first().click();
       await page.getByPlaceholder('часть наименования').fill(stamp);
-      await page.getByRole('button', { name: cable }).click();
+      await page.getByRole('option', { name: cable }).click();
     }
     await saveLines();
 
