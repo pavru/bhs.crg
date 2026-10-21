@@ -4,6 +4,9 @@ import type { FilterCondition } from '@/shared/api/types';
 import { opArity, valueFits, type FilterColumn } from './rowFilterModel';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { DateInput } from '@/shared/ui/DateInput';
+import { DateRange } from '@/shared/ui/DateRange';
+import { formatDatePrecise } from '@/shared/format/format';
 
 const FIELD_CLS = 'border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1';
 
@@ -15,18 +18,22 @@ type ValueColumn = Pick<FilterColumn, 'kind' | 'options'>;
  * сервер: дата — ГГГГ-ММ-ДД, число — с точкой, флаг — true / false, выбор — слово из перечня колонки
  * (issue #1091): набрать произвольную строку в таком поле нечем.
  *
+ * Дата — полем даты (issue #1465): маска языка пользователя, а не ОС, как было у нативного поля;
+ * запись та же, ГГГГ-ММ-ДД.
+ *
  * Значение, сохранённое раньше и в поле вида не помещающееся («1,5» у числа, слово вне перечня у
  * выбора), показывается ТЕКСТОМ: спрятать его значило бы показать условие пустым, хотя в базе оно
  * есть. Решается это один раз, при появлении поля, а не на каждом нажатии: иначе поле меняло бы вид
  * посреди ввода («1.» — ещё не число).
  */
-function ValueInput({ column, value, onChange, placeholder, onEnter, onBlur }: {
+function ValueInput({ column, value, onChange, placeholder, onEnter, onLeave }: {
   column?: ValueColumn;
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
   onEnter?: () => void;
-  onBlur?: () => void;
+  /** Человек ушёл из поля; у даты — со значением на этот момент (уход дописывает год). */
+  onLeave?: (value?: string) => void;
 }) {
   const kind = column?.kind;
   const cls = `${FIELD_CLS} flex-1 min-w-0`;
@@ -40,7 +47,7 @@ function ValueInput({ column, value, onChange, placeholder, onEnter, onBlur }: {
 
   if ((kind === 'boolean' || kind === 'choice') && typed)
     return (
-      <select value={value} onChange={e => change(e.target.value)} onBlur={onBlur} className={cls} aria-label={placeholder}>
+      <select value={value} onChange={e => change(e.target.value)} onBlur={() => onLeave?.()} className={cls} aria-label={placeholder}>
         <option value="">— значение —</option>
         {kind === 'boolean'
           ? <><option value="true">да</option><option value="false">нет</option></>
@@ -48,14 +55,29 @@ function ValueInput({ column, value, onChange, placeholder, onEnter, onBlur }: {
       </select>
     );
 
+  if (kind === 'date' && typed) {
+    const field = <DateInput size="sm" label={placeholder} value={value} onChange={change}
+      onCommit={onLeave} className="w-full" />;
+    // Enter всплывает из сегмента: у значка календаря и календаря он свой — открыть и выбрать.
+    // Следующую дату набирают с начала маски, а не с года, где остался фокус.
+    return onEnter
+      ? <div className="flex-1 min-w-0" onKeyDown={e => {
+          if (e.key !== 'Enter' || !(e.target instanceof HTMLInputElement)) return;
+          e.preventDefault();
+          onEnter();
+          e.currentTarget.querySelector('input')?.focus();
+        }}>{field}</div>
+      : <div className="flex-1 min-w-0">{field}</div>;
+  }
+
   return (
     <input
-      type={typed && kind === 'number' ? 'number' : typed && kind === 'date' ? 'date' : 'text'}
+      type={typed && kind === 'number' ? 'number' : 'text'}
       step="any"
       value={value}
       onChange={e => change(e.target.value)}
       onKeyDown={e => { if (e.key === 'Enter' && onEnter) { e.preventDefault(); onEnter(); } }}
-      onBlur={onBlur}
+      onBlur={() => onLeave?.()}
       placeholder={placeholder}
       aria-label={placeholder}
       className={cls}
@@ -66,7 +88,7 @@ function ValueInput({ column, value, onChange, placeholder, onEnter, onBlur }: {
 /**
  * Список значений: введённое добавляется по Enter или кнопкой, каждое убирается своим крестиком.
  *
- * Набранное, но не добавленное значение добавляется и при уходе из поля. Иначе «набрал второе
+ * Набранное, но не добавленное значение добавляется и при уходе из поля, дата — и выбором в календаре. Иначе «набрал второе
  * значение и нажал „Сохранить“» сохраняло отбор без него — уже́ задуманного и без единого сигнала.
  */
 function ValueList({ column, values, onChange }: {
@@ -75,9 +97,12 @@ function ValueList({ column, values, onChange }: {
   onChange: (v: string[]) => void;
 }) {
   const [draft, setDraft] = useState('');
+  const date = column?.kind === 'date';
+  // Дата в списке — той же маской, что в поле, а не записью для сервера.
+  const shown = (v: string) => (date && valueFits('date', v) ? formatDatePrecise(v) : v);
 
-  function add() {
-    const value = draft.trim();
+  function add(typed = draft) {
+    const value = typed.trim();
     if (!value) return;
     if (!values.includes(value)) onChange([...values, value]);
     setDraft('');
@@ -87,23 +112,23 @@ function ValueList({ column, values, onChange }: {
     <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1">
       {values.map(v => (
         <span key={v} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs bg-brand-subtle text-fg1">
-          {v}
+          {shown(v)}
           <button
             type="button"
             onClick={() => onChange(values.filter(x => x !== v))}
             className="text-fg4 hover:text-danger"
-            aria-label={`Убрать «${v}»`}
+            aria-label={`Убрать «${shown(v)}»`}
           >
             <X size={10} />
           </button>
         </span>
       ))}
-      <div className="flex items-center gap-1 flex-1" style={{ minWidth: '120px' }}>
+      <div className="flex items-center gap-1 flex-1" style={{ minWidth: date ? '200px' : '120px' }}>
         <ValueInput column={column} value={draft} onChange={setDraft} placeholder="Добавить значение"
-          onEnter={add} onBlur={add} />
+          onEnter={add} onLeave={add} />
         <button
           type="button"
-          onClick={add}
+          onClick={() => add()}
           disabled={!draft.trim()}
           className="text-xs px-2 py-1 rounded text-fg2 bg-muted hover:bg-brand-subtle disabled:opacity-40"
         >
@@ -157,6 +182,29 @@ function OptionList({ options, values, onChange }: {
 }
 
 /**
+ * Две границы «между». У даты — `DateRange` (issue #1465): «до» раньше «от» поправляется при уходе из
+ * поля, как в любом периоде. Сохранённая граница, которая не дата, — повод показать обе по
+ * отдельности, как одно значение: период из текста и даты поправлять не по чему.
+ */
+function Bounds({ column, from, to, onChange }: {
+  column?: ValueColumn;
+  from: string;
+  to: string;
+  onChange: (from: string, to: string) => void;
+}) {
+  const [period] = useState(() => column?.kind === 'date' && [from, to].every(v => v === '' || valueFits('date', v)));
+  if (period)
+    return <DateRange size="sm" label="Границы" labelHidden from={from} to={to} onChange={onChange} className="flex-1" />;
+  return (
+    <div className="flex-1 min-w-0 flex items-center gap-1">
+      <ValueInput column={column} value={from} placeholder="от" onChange={v => onChange(v, to)} />
+      <span className="text-xs text-fg4">—</span>
+      <ValueInput column={column} value={to} placeholder="до" onChange={v => onChange(from, v)} />
+    </div>
+  );
+}
+
+/**
  * Поле значения условия — по оператору: ничего, одно значение, две границы или список. Форму
  * значения (`value` или `values`) здесь не меняем: её выставляет смена оператора (`withOperator`).
  */
@@ -180,15 +228,8 @@ export function RowFilterValue({ cond, column, onChange }: {
 
     case 'two': {
       const [from = '', to = ''] = cond.values ?? [];
-      return (
-        <div className="flex-1 min-w-0 flex items-center gap-1">
-          <ValueInput key={`${field}:from`} column={column} value={from} placeholder="от"
-            onChange={v => onChange({ ...cond, values: [v, to] })} />
-          <span className="text-xs text-fg4">—</span>
-          <ValueInput key={`${field}:to`} column={column} value={to} placeholder="до"
-            onChange={v => onChange({ ...cond, values: [from, v] })} />
-        </div>
-      );
+      return <Bounds key={field} column={column} from={from} to={to}
+        onChange={(f, t) => onChange({ ...cond, values: [f, t] })} />;
     }
 
     case 'list':

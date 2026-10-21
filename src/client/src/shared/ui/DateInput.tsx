@@ -166,6 +166,10 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
   useEffect(() => () => clearTimeout(commitTimer.current), []);
 
   const fromValue = segmentsOf(value);
+  // Значение ушло от того, с которого набирали, — набранное отжило насовсем. Иначе, вернись значение
+  // к прежнему, оно ожило бы поверх него: список дат отбора добавил дату и стёр черновик — а поле
+  // показывало добавленную (issue #1465).
+  if (typed && typed.base !== (value ?? '')) setTyped(null);
   const draft = typed && typed.base === (value ?? '') ? typed : null;
   // Значение не дата («вчера», «2026/13») — показывается текстом, пока его не начали переписывать.
   const foreign = fromValue === null && draft === null;
