@@ -326,7 +326,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
                 cell: (line, index) => canEdit && !closed ? (
                   <NomenclaturePicker chosen={line.nomenclatureId !== null} chosenId={line.nomenclatureId}
                     name={line.nomenclatureName}
-                    neighbours={neighboursOf(draft.lines, index, l => (l.nomenclatureId && !l.nomenclatureLost && !l.nomenclatureArchived
+                    neighbours={() => neighboursOf(draft.lines, index, l => (l.nomenclatureId && !l.nomenclatureLost && !l.nomenclatureArchived
                       ? { name: l.sourceText, positionId: l.nomenclatureId, positionName: l.nomenclatureName } : null))}
                     lost={line.nomenclatureLost} archived={line.nomenclatureArchived}
                     from={{ name: line.sourceText, unit: line.unit }}

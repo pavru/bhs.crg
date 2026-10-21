@@ -614,7 +614,7 @@ try {
   });
 
   // ── Подходящие для строки в окне выбора позиции (#1518) — своим файлом ──────
-  await candidateChecks({ page, check, stamp, invoice, open, cell, addRow, position });
+  await candidateChecks({ page, check, stamp, invoice, open, cell, addRow, saveLines, position });
 
   // ── Счёт с НДС сверху (эпик #1496) — своим файлом: прогон и так велик ────────
   await vatOnTopChecks({ page, check, stamp, invoice, open, cell, addRow, saveLines, cable, pickOption });

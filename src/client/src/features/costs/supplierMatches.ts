@@ -40,11 +40,31 @@ export function sameKey(a: ReturnType<typeof lineKey>, b: ReturnType<typeof line
 }
 
 /**
+ * Пробел — как `char.IsWhiteSpace` в .NET. У `\s` и `trim()` набор свой: BOM для них пробел, NEL — нет.
+ */
+const SPACE = /[\t-\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]/;
+
+/**
  * Приведение к ключу — как `SupplierMatchKey.Normalize` сервера: регистр, «ё» и пробелы, и только.
  * Совпадение правил сверяет общий набор `supplierKeyCases.json` — его считают тест сервера и этот.
+ *
+ * <p>Посимвольно, как сервер: `toLowerCase()` строки целиком знает конечную сигму и делает из «İ» две
+ * буквы, а `char.ToLowerInvariant` — нет, и «İ» оставляет как есть.</p>
  */
 export function matchKeyText(text: string | null | undefined): string {
-  return (text ?? '').trim().replace(/\s+/g, ' ').toLowerCase().replaceAll('ё', 'е');
+  let result = '';
+  let gap = false;
+  for (const symbol of text ?? '') {
+    if (SPACE.test(symbol)) {
+      gap = true;
+      continue;
+    }
+    if (gap && result !== '') result += ' ';
+    gap = false;
+    const lower = symbol === 'İ' ? symbol : symbol.toLowerCase();
+    result += lower === 'ё' ? 'е' : lower;
+  }
+  return result;
 }
 
 /** Можно ли подставить запомненное: архивную и удалённую позицию не подставляем. */

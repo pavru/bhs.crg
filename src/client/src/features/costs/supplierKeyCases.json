@@ -1,5 +1,5 @@
 {
-  "about": "Приведение текста строки к ключу соответствия — общий набор C# (SupplierMatchKey.Normalize) и TS (matchKeyText), issue #1518. Отставший тест краснеет.",
+  "about": "Приведение текста строки к ключу соответствия — общий набор C# (SupplierMatchKey.Normalize) и TS (matchKeyText), issue #1518. Отставший тест краснеет. Невидимые знаки — только экранированными: иначе случай не прочесть.",
   "cases": [
     { "name": "регистр", "input": "Кабель ВВГнг-LS", "expect": "кабель ввгнг-ls" },
     { "name": "ё как е", "input": "Жёлто-зелёный", "expect": "желто-зеленый" },
@@ -9,6 +9,11 @@
     { "name": "кириллица и латиница не сводятся", "input": "3х2,5", "expect": "3х2,5" },
     { "name": "латинская x и точка не сводятся", "input": "3x2.5", "expect": "3x2.5" },
     { "name": "артикул", "input": " MCB10-1-06C ", "expect": "mcb10-1-06c" },
+    { "name": "BOM — не пробел", "input": "\ufeffКабель\ufeffВВГ", "expect": "\ufeffкабель\ufeffввг" },
+    { "name": "NEL — пробел", "input": "Кабель\u0085ВВГ\u0085", "expect": "кабель ввг" },
+    { "name": "разделитель записей — не пробел", "input": "a\u001fb", "expect": "a\u001fb" },
+    { "name": "İ не меняется — как ToLowerInvariant", "input": "İSTANBUL", "expect": "İstanbul" },
+    { "name": "сигма — без конечной формы", "input": "ΣΟΣ", "expect": "σοσ" },
     { "name": "пусто", "input": "   ", "expect": "" }
   ]
 }

@@ -8,7 +8,7 @@ import { WindowStep } from '@/shared/ui/WindowStep';
 import { apiError } from '@/shared/utils/apiError';
 import { isNotFound, useNomenclature } from '@/shared/api/invoices';
 import { useNomenclatureCard, type NomenclatureCard } from '@/shared/api/nomenclatureCard';
-import { useNomenclatureCandidates } from '@/shared/api/nomenclatureCandidates';
+import { useNomenclatureCandidates, type LineMatched } from '@/shared/api/nomenclatureCandidates';
 import { WIDE, useMedia } from '@/shared/hooks/useMedia';
 import { useCan } from '@/shared/api/access';
 import { NewNomenclatureStep } from './NewNomenclatureStep';
@@ -71,8 +71,11 @@ export function NomenclaturePicker({
   line?: PickerLine;
   /** Поставщик документа: его соответствия кандидатами не идут, запомненное в архиве — названо. */
   supplierId?: string | null;
-  /** Соседние строки этого же документа с выбранной позицией — кандидаты по тому же артикулу или имени. */
-  neighbours?: readonly NeighbourLine[];
+  /**
+   * Соседние строки этого же документа с выбранной позицией — кандидаты по тому же артикулу или имени.
+   * Функцией: считается при открытии окна, а не каждой строкой таблицы на каждой перерисовке.
+   */
+  neighbours?: () => readonly NeighbourLine[];
   onPick: (id: string, name: string | null) => void;
   onClear: () => void;
 }) {
@@ -107,7 +110,7 @@ export function NomenclaturePicker({
       </div>
 
       {open && (
-        <PickerDialog from={from ?? NO_WORDS} line={line} supplierId={supplierId} neighbours={neighbours}
+        <PickerDialog from={from ?? NO_WORDS} line={line} supplierId={supplierId} neighbours={neighbours()}
           current={chosen ? { id: chosenId, name, archived, lost, lostText } : null}
           onClose={() => setOpen(false)}
           onPick={(id, picked) => { onPick(id, picked); setOpen(false); }} />
@@ -117,7 +120,7 @@ export function NomenclaturePicker({
 }
 
 const NO_WORDS: LineWords = {};
-const NO_NEIGHBOURS: readonly NeighbourLine[] = [];
+const NO_NEIGHBOURS = (): readonly NeighbourLine[] => [];
 
 /**
  * Окно уже этой ширины — карточке рядом со списком места нет (issue #1517): она открывается шагом окна
@@ -181,6 +184,9 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
   const { ref, narrow } = useNarrow();
   const phone = !useMedia(WIDE);
   const listId = useId();
+  const allId = `${listId}-all`;
+  const headingId = `${listId}-heading`;
+  const allHeadingId = `${listId}-all-heading`;
   // Удалённую или убранную в архив за время показа в строку не выбрать — кнопки в подвале шага нет.
   const openedCard = useNomenclatureCard(opened?.id ?? null);
   const openedPickable = !(openedCard.isError && isNotFound(openedCard.error)) && !openedCard.data?.archived;
@@ -212,15 +218,19 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
   const whole = !!head && !head.more;
   const shown = new Set([...picked.rows.map(r => r.id), current?.id]);
   const directory = whole ? foundRows(head!.items, []).filter(r => !shown.has(r.id)) : [];
-  // Пока задержка не отпустила набранное, на экране ответ на прежний запрос — пустой, если прежний был «».
-  const results = searching && query !== '' ? foundRows(found.data?.items ?? [], picked.rows) : [];
+  // Ответ на набранное, а не на пустой запрос: пока задержка не отпустила первую букву, в `found` лежит
+  // ответ на «», и его «есть ещё» и архив читались бы оговорками о набранном.
+  const answered = searching && query !== '' ? found.data : undefined;
+  const results = answered ? foundRows(answered.items, picked.rows) : [];
   const rows = searching ? results : [...picked.rows, ...directory];
   const best = searching ? null : picked.rows.find(r => r.best)?.id ?? null;
   const selection = usePickerSelection(rows.map(r => r.id), best);
   const optionId = (id: string) => `${listId}-${id}`;
   // Вид у строки — только когда в выдаче их больше одного: одинаковая метка у всех ничего не различает.
   const kinds = new Set(rows.map(r => r.type).filter(Boolean)).size > 1;
-  const active = rows.find(r => r.id === selection.active) ?? null;
+  // Выделенная могла уйти из списка — набор сменил находки, а карточка осталась. Кандидат и тогда
+  // сохраняет причину и сверку со строкой.
+  const active = rows.find(r => r.id === selection.active) ?? picked.rows.find(r => r.id === selection.active) ?? null;
   // Enter выбирает выделенную, только пока она среди ЭТОГО ответа: прошлый ответ стоит на экране, пока
   // едет новый, и Enter по нему выбрал бы строку, которой под набранным уже нет.
   const fresh = !searching || (query === typed.trim() && !found.isPlaceholderData);
@@ -253,8 +263,8 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
 
   const plate = <LinePlate from={from} line={line} />;
   // Сравнение со строкой — у любой позиции: артикул и единицу сверяет карточка по тэгам полей, слова — сервер.
-  const compare = (row: PickerRow | null) => (row && (row.matched || code || trimText(from.unit))
-    ? { title: 'Строка ↔ позиция', rows: (card: NomenclatureCard) => lineVsCard(source, from, row.matched, card) }
+  const compare = (matched: LineMatched | null) => (matched || code || trimText(from.unit)
+    ? { title: 'Строка ↔ позиция', rows: (card: NomenclatureCard) => lineVsCard(source, from, matched, card) }
     : undefined);
   const option = (row: PickerRow) => (
     <PickerOption key={row.id} row={row} id={optionId(row.id)} active={row.id === selection.active}
@@ -263,6 +273,17 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
   );
   // Подбор ничего не нашёл — заводить новую становится вероятным следующим шагом, и кнопка это показывает.
   const nothing = !searching && candidates.isSuccess && picked.rows.length === 0;
+
+  // Курсор ставим ссылкой на узел, а не атрибутом `autoFocus`: пикер открывают, чтобы искать, но атрибут
+  // ругает линтер (он бьёт по фокусу на загрузке страницы), а эффект рисовал бы лишний кадр. Ссылка —
+  // одна, пока не сменилось решение: новая на каждой перерисовке ставила бы курсор заново и отнимала его
+  // у кнопок окна. На телефоне при кандидатах курсора нет — клавиатура закрыла бы их; подбор не дал
+  // ничего — следующий шаг поиск, и курсор встаёт в поле.
+  const typing = !phone || !question || candidates.isError || nothing;
+  const focus = useCallback((node: HTMLInputElement | null) => { if (typing) node?.focus(); }, [typing]);
+  // Списков два, когда под кандидатами стоит справочник: поле управляет обоими.
+  const lists = searching ? listId
+    : [picked.rows.length > 0 ? listId : null, directory.length > 0 ? allId : null].filter(Boolean).join(' ');
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Позиция номенклатуры" wide flushBody nothingToLose
@@ -288,13 +309,10 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
           {plate}
           <div className="flex items-center gap-2 rounded-md border border-stroke-strong px-2.5 h-10">
             <Search size={15} className="text-fg4 shrink-0" />
-            {/* Курсор ставим ссылкой на узел, а не атрибутом `autoFocus`: пикер открывают, чтобы
-                искать, но атрибут ругает линтер (он бьёт по фокусу на загрузке страницы), а эффект
-                рисовал бы лишний кадр. На телефоне при кандидатах — нет: клавиатура закрыла бы их. */}
-            <input ref={node => { if (!(phone && question)) node?.focus(); }} value={typed}
+            <input ref={focus} value={typed}
               onChange={e => type(e.target.value)} onKeyDown={keys}
               placeholder="наименование или часть наименования" aria-label="Поиск позиции" data-search=""
-              role="combobox" aria-expanded aria-controls={listId} aria-autocomplete="list"
+              role="combobox" aria-expanded={lists !== ''} aria-controls={lists || undefined} aria-autocomplete="list"
               aria-activedescendant={activeOption}
               className="flex-1 bg-transparent text-sm outline-none text-fg1 placeholder:text-fg4" />
           </div>
@@ -307,20 +325,32 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
             </p>
           )}
 
-          <div id={listId} role="listbox" aria-label={searching ? 'Найденные позиции' : 'Подходящие позиции'}
-            onMouseLeave={selection.leave} className="space-y-3">
+          {/* В списке — только строки: заголовки, оговорки и «Повторить» стоят вне его, иначе экранное
+              чтение не дошло бы до кнопки и читало бы оговорку вариантом выбора. */}
+          <div onMouseLeave={selection.leave} className="space-y-3">
             {searching ? (
-              <div className="-mx-2 space-y-0.5">{results.map(option)}</div>
+              <div id={listId} role="listbox" aria-label="Найденные позиции" className="-mx-2 space-y-0.5">
+                {results.map(option)}
+              </div>
             ) : (
               <>
                 <CandidatesBlock asked={question !== null} answer={candidates} rows={picked.rows.length}
-                  more={picked.more} current={current}>
-                  {picked.rows.length > 0 && <div className="-mx-2 space-y-0.5">{picked.rows.map(option)}</div>}
+                  more={picked.more} current={current} headingId={headingId}>
+                  {picked.rows.length > 0 && (
+                    <div id={listId} role="listbox" aria-labelledby={headingId} className="-mx-2 space-y-0.5">
+                      {picked.rows.map(option)}
+                    </div>
+                  )}
                 </CandidatesBlock>
                 {directory.length > 0 && (
                   <div className="space-y-1.5">
-                    <h4 className="text-xs font-medium text-fg2">Весь справочник ({head!.items.length})</h4>
-                    <div className="-mx-2 space-y-0.5">{directory.map(option)}</div>
+                    {/* Число — строк под заголовком: кандидаты и выбранная стоят выше и здесь не повторяются. */}
+                    <h4 id={allHeadingId} className="text-xs font-medium text-fg2">
+                      Остальные позиции справочника ({directory.length})
+                    </h4>
+                    <div id={allId} role="listbox" aria-labelledby={allHeadingId} className="-mx-2 space-y-0.5">
+                      {directory.map(option)}
+                    </div>
                   </div>
                 )}
               </>
@@ -348,15 +378,15 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
           {/* Архивные позиции в выбор не попадают — и молчать о них нельзя: не найдя позицию,
               человек заведёт её заново, а она есть. Действия здесь нет нарочно: вернуть из архива
               отсюда пока нечем. */}
-          {searching && !!found.data?.inArchive && (
+          {!!answered?.inArchive && (
             <p className="text-xs text-fg3">
-              В архиве под этот запрос: {found.data.inArchive}. В выборе архивных позиций нет — заводить
+              В архиве под этот запрос: {answered.inArchive}. В выборе архивных позиций нет — заводить
               такую же заново не нужно.
             </p>
           )}
 
           {/* ⚠️ Оговорка о неполноте — обязательна: см. описание пикера. Только на запросе человека. */}
-          {searching && found.data?.more && (
+          {answered?.more && (
             <p className="text-xs text-warning">
               Показаны первые {results.length} — подходящих больше. Уточните запрос: по неполному списку
               нельзя решить, что позиции в справочнике нет.
@@ -370,7 +400,8 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
         {/* Карточка остаётся, когда курсор ушёл со списка: её уводят читать, а не терять. */}
         {!narrow && (
           <aside aria-label="Карточка позиции" className="overflow-y-auto border-l border-stroke px-5 py-4">
-            <NomenclatureCardPanel id={selection.active} compare={compare(active)}
+            <NomenclatureCardPanel id={selection.active}
+              compare={selection.active ? compare(active?.matched ?? null) : undefined}
               head={active ? { name: active.name, type: active.type, why: active.why } : null} onPick={onPick} />
           </aside>
         )}
@@ -389,7 +420,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
             </div>
           )}>
           <NomenclatureCardPanel id={opened.id} head={{ name: opened.name, type: opened.type, why: opened.why }}
-            compare={compare(opened)} pick={null} onPick={onPick} />
+            compare={compare(opened.matched)} pick={null} onPick={onPick} />
         </WindowStep>
       )}
 

@@ -120,7 +120,7 @@ export function useInvoiceLineColumns(ctx: InvoiceLineContext): EditGridColumn<L
         // ссылка меняется здесь же, и прежний ответ сервера к ней уже не относится.
         <NomenclaturePicker chosen={draft.nomenclatureId !== null} chosenId={draft.nomenclatureId}
           name={draft.nomenclatureName} supplierId={refEntryId(view.requisites[K.supplier])}
-          neighbours={neighboursOf(ctx.drafts, index, chosenPosition)}
+          neighbours={() => neighboursOf(ctx.drafts, index, chosenPosition)}
           lost={draft.nomenclatureLost} lostText={draft.nomenclatureMoved ? LOST.movedPosition : undefined}
           archived={draft.nomenclatureArchived}
           clearable={draft.matchedBy === null}

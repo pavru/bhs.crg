@@ -47,6 +47,7 @@ export function PickerOption({ row, id, active, enter, narrow, kinds, onChoose, 
 
 /** Позиция, уже стоящая в строке, — первой строкой и без кнопки: выбирать её заново незачем. */
 export interface PickerCurrent {
+  id?: string | null;
   name: string | null;
   archived?: boolean;
   lost?: boolean;
@@ -58,7 +59,7 @@ export interface PickerCurrent {
  * своими словами: «подбираем», «не нашлось», «не сработал» — разные вещи, и пустой блок на месте любого
  * из них читался бы как «подходящих нет», а за ним — вторая такая же позиция в справочнике.
  */
-export function CandidatesBlock({ asked, answer, rows, more, current, children }: {
+export function CandidatesBlock({ asked, answer, rows, more, current, headingId, children }: {
   /** Спросить было о чём: у строки есть наименование или артикул. */
   asked: boolean;
   answer: UseQueryResult<NomenclatureCandidates>;
@@ -66,11 +67,15 @@ export function CandidatesBlock({ asked, answer, rows, more, current, children }
   rows: number;
   more: boolean;
   current: PickerCurrent | null;
-  /** Строки кандидатов — в общем списке окна, им ведёт одно выделение. */
+  /** Заголовок блока подписывает список кандидатов. */
+  headingId: string;
+  /** Список кандидатов — строки окна, им ведёт одно выделение. */
   children: ReactNode;
 }) {
   const data = answer.data;
-  const unusable = data?.recalledUnusable;
+  // Запомненная позиция и есть выбранная (окно соответствий, строка с архивной позицией): о ней уже
+  // сказано «Сейчас: … (в архиве)», второй абзац повторил бы то же другими словами.
+  const unusable = data?.recalledUnusable?.id === current?.id ? null : data?.recalledUnusable;
   return (
     <div className="space-y-1.5">
       {current && (
@@ -94,7 +99,7 @@ export function CandidatesBlock({ asked, answer, rows, more, current, children }
         <p className="text-xs text-fg4">В строке нет наименования — подобрать нечего. Найдите позицию поиском.</p>
       ) : (
         <>
-          <h4 className="text-xs font-medium text-fg2">Подходящие для этой строки</h4>
+          <h4 id={headingId} className="text-xs font-medium text-fg2">Подходящие для этой строки</h4>
           {answer.isPending && (
             <div aria-busy="true" className="space-y-1">
               <div className="h-9 rounded-md bg-muted animate-pulse" />

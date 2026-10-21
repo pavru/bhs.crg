@@ -3,12 +3,13 @@
 // Проверяется глазами человека, а не ответом сервера: кандидат виден с причиной; «Лучшее совпадение» —
 // только у сильного, и Enter выбирает его, а строка обещает «запомнится»; строку, подходящую лишь по
 // словам, Enter НЕ выбирает (выбор запоминается для поставщика — догадка запомнилась бы вместе с ним);
-// отказ подбора сказан отказом, и «не нашлось» не мелькает ни на кадр.
+// отказ подбора сказан отказом, и «не нашлось» не мелькает ни на кадр; Enter, нажатый до ответа, не
+// выбирает пришедшее после; в окне соответствий выбранная позиция стоит «Сейчас», а не кандидатом.
 
 /**
  * @param ctx то, чем живёт прогон строк счёта: страница, проверка, свои помощники.
  */
-export async function candidateChecks({ page, check, stamp, invoice, open, cell, addRow, position }) {
+export async function candidateChecks({ page, check, stamp, invoice, open, cell, addRow, saveLines, position }) {
   const name = `Шина подбора ${stamp}`;
   const picker = () => page.getByRole('dialog', { name: 'Позиция номенклатуры' });
   const choose = () => page.getByRole('button', { name: 'выбрать позицию' }).first();
@@ -55,6 +56,58 @@ export async function candidateChecks({ page, check, stamp, invoice, open, cell,
     await page.keyboard.press('Enter');
     await picker().waitFor({ state: 'hidden', timeout: 10_000 })
       .catch(() => { throw new Error('↓ и Enter не выбрали первого кандидата'); });
+    // Сохранённые строки запоминаются для поставщика — по ним проверяется окно соответствий.
+    await saveLines();
+  });
+
+  await check('окно соответствий: выбранная позиция — «Сейчас», среди подходящих её нет', async () => {
+    await page.goto(new URL('/invoices', page.url()).href, { waitUntil: 'networkidle' });
+    await page.getByRole('button', { name: 'Соответствия', exact: true }).click();
+    const matches = page.getByRole('dialog', { name: 'Соответствия наименований' });
+    await matches.getByLabel('Поиск по артикулу или наименованию у поставщика').fill(name);
+    const trigger = matches.getByRole('button', { name: new RegExp(`^${name}`) }).first();
+    await trigger.waitFor({ timeout: 10_000 })
+      .catch(() => { throw new Error('сохранённая строка не запомнилась соответствием поставщика'); });
+    const current = (await trigger.innerText()).trim();
+    await trigger.click();
+    const now = picker().getByText(/^Сейчас:/);
+    await now.waitFor({ timeout: 10_000 })
+      .catch(() => { throw new Error('у соответствия не названа позиция «Сейчас»'); });
+    if (!(await now.innerText()).includes(current))
+      throw new Error(`«${await now.innerText()}» — не та позиция, что в соответствии («${current}»)`);
+    await picker().getByText('Подбираем по словам строки…').waitFor({ state: 'detached', timeout: 15_000 });
+    if (await picker().getByRole('listbox').getByText(current, { exact: true }).count())
+      throw new Error('выбранная позиция повторена среди подходящих');
+    await page.keyboard.press('Escape');
+    await picker().waitFor({ state: 'hidden', timeout: 10_000 });
+    await page.keyboard.press('Escape');
+    await matches.waitFor({ state: 'hidden', timeout: 10_000 });
+  });
+
+  await check('Enter, нажатый до ответа подбора, не выбирает пришедшее после', async () => {
+    const slow = '**/api/costs/nomenclature/candidates';
+    await page.route(slow, async route => {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      await route.continue().catch(() => {});
+    });
+    try {
+      const number = `СЧ-ПЖ${stamp}`;
+      await invoice(number);
+      await open(number);
+      await addRow(1);
+      // Своё наименование у позиции есть, соответствия для него нет — ответ придёт с «Лучшим совпадением».
+      await cell('Наименование в счёте', 1).fill(`${name} медная`);
+      await choose().click();
+      await picker().getByText('Подбираем по словам строки…').waitFor({ timeout: 10_000 });
+      await page.keyboard.press('Enter');
+      await picker().getByRole('option', { name: /Лучшее совпадение/ }).waitFor({ timeout: 15_000 })
+        .catch(() => { throw new Error('после ответа подбора нет «Лучшего совпадения»'); });
+      await page.waitForTimeout(500);
+      if (!(await picker().isVisible())) throw new Error('Enter, нажатый до ответа, выбрал позицию задним числом');
+    } finally {
+      await page.unroute(slow);
+      await page.keyboard.press('Escape');
+    }
   });
 
   await check('подбор отказал — сказано отказом, «не нашлось» не появляется ни на кадр', async () => {
