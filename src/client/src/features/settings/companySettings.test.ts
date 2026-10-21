@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CompanyTimeZoneView } from '@/shared/api/companyTimeZone';
-import { SERVER_ZONE, companyNow, zoneChoices, zoneNotice } from './companySettings';
+import { SERVER_ZONE, backupZoneHint, companyNow, zoneChoices, zoneNotice } from './companySettings';
 
 /**
  * Часовой пояс компании на экране (issue #1148): что предложить и что сказать, когда действует не
@@ -71,5 +71,26 @@ describe('число и час у компании', () => {
   it('показаны как пришли — пояс браузера их не двигает', () => {
     expect(companyNow('2026-10-13T14:32')).toBe('13.10.2026, 14:32');
     expect(companyNow('2026-01-01T00:05')).toBe('01.01.2026, 00:05');
+  });
+});
+
+describe('пояс плановой копии (issue #1468)', () => {
+  it('выбран — назван городом и смещением', () => {
+    expect(backupZoneHint(view())).toBe('По поясу компании: Москва (UTC+03:00)');
+  });
+
+  it('не выбран — время по поясу сервера, и это сказано', () => {
+    expect(backupZoneHint(view({ timeZoneId: null, effectiveTimeZoneId: 'Etc/UTC', effectiveOffset: 'UTC+00:00' })))
+      .toBe('Пояс компании не выбран — время по поясу сервера: Etc/UTC (UTC+00:00)');
+  });
+
+  it('неизвестен машине — назван выбранный, время по серверу', () => {
+    expect(backupZoneHint(view({ timeZoneId: 'Asia/Atlantis', resolved: false, effectiveTimeZoneId: 'Etc/UTC' })))
+      .toBe('Пояс «Asia/Atlantis» этой машине неизвестен — время по поясу сервера: Etc/UTC (UTC+00:00)');
+  });
+
+  it('пояса нет в списке — назван идентификатором, а не пустотой', () => {
+    expect(backupZoneHint(view({ timeZoneId: 'Asia/Tokyo', effectiveTimeZoneId: 'Asia/Tokyo', effectiveOffset: 'UTC+09:00' })))
+      .toBe('По поясу компании: Asia/Tokyo (UTC+09:00)');
   });
 });

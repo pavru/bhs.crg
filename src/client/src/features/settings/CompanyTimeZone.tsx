@@ -60,8 +60,8 @@ export function CompanyTimeZone({ onDirty }: {
       {notice && <p role="status" className="text-xs text-warning max-w-xl">{notice}</p>}
       <p className="text-xs text-fg3 max-w-xl">
         Сейчас у компании: <span data-testid="company-now" className="text-fg1">{companyNow(data.effectiveNow)}</span>. По этому
-        поясу система считает сутки: от него зависят «Осталось дней» и «Просрочен» у счетов и то,
-        какое число считается сегодняшним в учёте.
+        поясу система считает сутки: от него зависят «Осталось дней» и «Просрочен» у счетов, то,
+        какое число считается сегодняшним в учёте, и время резервной копии.
       </p>
       <div className="flex items-center gap-3">
         <Button variant="filled" onClick={() => void submit()} disabled={!dirty} loading={save.isPending}>

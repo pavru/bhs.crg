@@ -15,6 +15,7 @@ using BHS.CRG.Infrastructure.Backup;
 using BHS.CRG.Infrastructure.Generation;
 using BHS.CRG.Infrastructure.Http;
 using BHS.CRG.Infrastructure.Persistence;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using static BHS.CRG.Api.Configuration.OutboundClients;
 
 namespace BHS.CRG.Api.Configuration;
@@ -108,6 +109,9 @@ internal static class DomainRegistration
     // прогона служба сняла бы копию ТЕСТОВОЙ базы в каталог рядом с исходниками: гигабайты мусора,
     // чтение базы под чужим TRUNCATE и записи в notifications посреди чужого теста. В поставке эту
     // переменную не задают — расписанием управляет администратор из интерфейса.
+    // Часы службы — TimeProvider (issue #1468): иначе срок по поясу компании проверялся бы только
+    // ожиданием ночи. TryAdd — та же регистрация есть у портов модулей; от неё служба ядра не зависит.
+    builder.Services.TryAddSingleton(TimeProvider.System);
     if (cfg.GetValue("Backup:SchedulerEnabled", true))
         builder.Services.AddHostedService<BHS.CRG.Infrastructure.Backup.BackupScheduleService>();
     builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.ImageBlobMigration>();
