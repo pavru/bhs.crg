@@ -54,6 +54,19 @@ export function zoneNotice(view: CompanyTimeZoneView): string | null {
   return null;
 }
 
+/**
+ * По какому поясу снимается плановая копия (issue #1468) — подпись под полем времени. Пояс назван
+ * всегда: «03:00» без пояса читается как время сервера, а им копия больше не живёт. Невыбранный и
+ * неизвестный машине пояс сказаны прямо — время тогда действительно идёт по серверу.
+ */
+export function backupZoneHint(view: CompanyTimeZoneView): string {
+  const server = withOffset(view.serverTimeZoneId, view.serverOffset);
+  if (view.timeZoneId === null) return `Пояс компании не выбран — время по поясу сервера: ${server}`;
+  if (!view.resolved) return `Пояс «${view.timeZoneId}» этой машине неизвестен — время по поясу сервера: ${server}`;
+  const city = view.timeZones.find(z => z.id === view.effectiveTimeZoneId)?.city ?? view.effectiveTimeZoneId;
+  return `По поясу компании: ${withOffset(city, view.effectiveOffset)}`;
+}
+
 /** «2026-10-13T14:32» → «13.10.2026, 14:32». Число и час пришли уже в поясе компании — не пересчитываем. */
 export function companyNow(effectiveNow: string): string {
   const [day, time = ''] = effectiveNow.split('T');

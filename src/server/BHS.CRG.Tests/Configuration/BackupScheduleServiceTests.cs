@@ -20,7 +20,7 @@ public class BackupScheduleServiceTests
     private static readonly TimeZoneInfo Kaliningrad = TimeZoneInfo.FindSystemTimeZoneById("Europe/Kaliningrad");
 
     /// <summary>Правило по поясу компании «Москва» — так считались все проверки до issue #1468.</summary>
-    private static bool IsDue(BackupScheduleSettings schedule, DateTimeOffset? lastRunAt, DateTimeOffset now)
+    private static bool DueInMoscow(BackupScheduleSettings schedule, DateTimeOffset? lastRunAt, DateTimeOffset now)
         => BackupScheduleService.IsDue(schedule, lastRunAt, now, Moscow);
 
     private static DateTimeOffset Utc(int month, int day, int hour, int minute = 0)
@@ -35,7 +35,7 @@ public class BackupScheduleServiceTests
 
     [Fact]
     public void BeforeTheHour_NotDue()
-        => Assert.False(IsDue(Schedule(), lastRunAt: null, At(20, 2, 59)));
+        => Assert.False(DueInMoscow(Schedule(), lastRunAt: null, At(20, 2, 59)));
 
     /// <summary>
     /// Свежая установка: копий не было никогда. Ждать до завтрашней ночи нельзя — система,
@@ -43,15 +43,15 @@ public class BackupScheduleServiceTests
     /// </summary>
     [Fact]
     public void NeverRun_DueOnceTheHourPassed()
-        => Assert.True(IsDue(Schedule(), lastRunAt: null, At(20, 3, 1)));
+        => Assert.True(DueInMoscow(Schedule(), lastRunAt: null, At(20, 3, 1)));
 
     [Fact]
     public void AlreadyRunToday_NotDueAgain()
-        => Assert.False(IsDue(Schedule(), At(20, 3, 0), At(20, 23, 59)));
+        => Assert.False(DueInMoscow(Schedule(), At(20, 3, 0), At(20, 23, 59)));
 
     [Fact]
     public void RunYesterday_DueToday()
-        => Assert.True(IsDue(Schedule(), At(19, 3, 0), At(20, 3, 0)));
+        => Assert.True(DueInMoscow(Schedule(), At(19, 3, 0), At(20, 3, 0)));
 
     /// <summary>
     /// Сервер был выключен ночью и включён утром: срок сегодняшних суток прошёл, копию не ставили —
@@ -59,7 +59,7 @@ public class BackupScheduleServiceTests
     /// </summary>
     [Fact]
     public void ServerWasOffAtNight_DueAtMorningStart()
-        => Assert.True(IsDue(Schedule(), At(19, 3, 0), At(20, 9, 30)));
+        => Assert.True(DueInMoscow(Schedule(), At(19, 3, 0), At(20, 9, 30)));
 
     /// <summary>
     /// Неделя простоя — ОДНА копия, а не семь. Правило «сегодняшний срок прошёл, последняя
@@ -70,17 +70,17 @@ public class BackupScheduleServiceTests
     public void WeekOfDowntime_CatchesUpOnlyOnce()
     {
         var now = At(20, 9, 30);
-        Assert.True(IsDue(Schedule(), At(13, 3, 0), now));
+        Assert.True(DueInMoscow(Schedule(), At(13, 3, 0), now));
         // Служба отметила срок — второй раз в те же сутки не сработает.
-        Assert.False(IsDue(Schedule(), now, now.AddMinutes(1)));
-        Assert.False(IsDue(Schedule(), now, At(20, 23, 59)));
+        Assert.False(DueInMoscow(Schedule(), now, now.AddMinutes(1)));
+        Assert.False(DueInMoscow(Schedule(), now, At(20, 23, 59)));
         // ...а завтра — снова да.
-        Assert.True(IsDue(Schedule(), now, At(21, 3, 0)));
+        Assert.True(DueInMoscow(Schedule(), now, At(21, 3, 0)));
     }
 
     [Fact]
     public void Disabled_NeverDue()
-        => Assert.False(IsDue(Schedule(enabled: false), lastRunAt: null, At(20, 23, 0)));
+        => Assert.False(DueInMoscow(Schedule(enabled: false), lastRunAt: null, At(20, 23, 0)));
 
     /// <summary>
     /// Негодное время — НЕ срабатывание «когда-нибудь», а молчание: подставлять умолчание вместо
@@ -92,7 +92,7 @@ public class BackupScheduleServiceTests
     [InlineData("25:00")]
     [InlineData("03:60")]
     public void InvalidTime_NeverDue(string time)
-        => Assert.False(IsDue(Schedule(time: time), lastRunAt: null, At(20, 23, 0)));
+        => Assert.False(DueInMoscow(Schedule(time: time), lastRunAt: null, At(20, 23, 0)));
 
     /// <summary>
     /// Сторож задачи (issue #1468): время — по поясу КОМПАНИИ. Владивосток (UTC+10), 03:00 — это
@@ -118,8 +118,8 @@ public class BackupScheduleServiceTests
         var offset = TimeSpan.FromHours(offsetHours);
         var before = Utc(8, 20, 23, 59).ToOffset(offset);   // 02:59 МСК 21-го
         var after = Utc(8, 21, 0, 0).ToOffset(offset);      // 03:00 МСК 21-го
-        Assert.False(IsDue(Schedule(), Utc(8, 20, 0, 0), before));
-        Assert.True(IsDue(Schedule(), Utc(8, 20, 0, 0), after));
+        Assert.False(DueInMoscow(Schedule(), Utc(8, 20, 0, 0), before));
+        Assert.True(DueInMoscow(Schedule(), Utc(8, 20, 0, 0), after));
     }
 
     /// <summary>
