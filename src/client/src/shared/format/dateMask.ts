@@ -97,6 +97,19 @@ export function inMask(iso: string, locale: string, precision: DatePrecision = '
   return order.map(p => v[p]).join(sep);
 }
 
+/**
+ * Дата словами для чтения с экрана, по точности: «1 ноября 2026», «ноябрь 2026», «2026» — так кнопка
+ * «Сегодня» календаря называет день, который поставит (issue #1463). Не ISO — как есть.
+ */
+export function spokenDate(iso: string, locale: string, precision: DatePrecision = 'day'): string {
+  const g = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!g) return iso;
+  if (precision === 'year') return g[1];
+  const parts: Intl.DateTimeFormatOptions = precision === 'month'
+    ? { month: 'long', year: 'numeric' } : { day: 'numeric', month: 'long', year: 'numeric' };
+  return new Intl.DateTimeFormat(locale, parts).format(new Date(+g[1], +g[2] - 1, +g[3]));
+}
+
 const capitalize = (s: string, locale: string) => s.charAt(0).toLocaleUpperCase(locale) + s.slice(1);
 
 /**

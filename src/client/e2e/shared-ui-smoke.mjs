@@ -229,6 +229,34 @@ await check('date-input-keeps-partial-input-with-error-on-blur', async () => {
   if (at !== 'год') throw new Error(`после Esc фокус не в поле даты, а на «${at}»`);
 });
 
+await check('date-calendar-has-today-and-clear-returns-by-esc', async () => {
+  // Строка действий календаря (issue #1463, вариант В): «Сегодня» есть всегда и называет дату. У
+  // необязательного поля есть «Очистить»: дата стирается, фокус — в первом сегменте, Esc возвращает её.
+  // Обязательное поле «Очистить» не показывает — тогда проверяется только «Сегодня».
+  const values = await yearSegs.evaluateAll(els => els.map(e => e.value));
+  const idx = values.findIndex(v => /^\d{4}$/.test(v));
+  if (idx < 0) throw new Error('нет заполненного года — нечего проверять');
+  const seg = yearSegs.nth(idx);
+  const before = await seg.inputValue();
+  const field = seg.locator('xpath=ancestor::*[@role="group"][1]');
+  await field.getByRole('button', { name: 'Открыть календарь' }).click();
+  const today = page.getByRole('button', { name: /^Сегодня, \d/ });
+  await today.waitFor({ timeout: 5000 });
+  const clear = page.getByRole('button', { name: 'Очистить', exact: true });
+  if (!(await clear.isVisible().catch(() => false))) { await page.keyboard.press('Escape'); return; }
+  await clear.click();
+  await until(async () => {
+    if ((await seg.inputValue()) !== '') throw new Error('«Очистить» не стёрло год');
+    const at = await page.evaluate(() => document.activeElement?.getAttribute('aria-label'));
+    if (at !== 'день') throw new Error(`после «Очистить» фокус не в первом сегменте, а на «${at}»`);
+  });
+  await page.keyboard.press('Escape');
+  await until(async () => {
+    const back = await seg.inputValue();
+    if (back !== before) throw new Error(`Esc после очистки не вернул дату: год «${back}», было «${before}»`);
+  });
+});
+
 } finally {
   await browser.close();
 }

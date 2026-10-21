@@ -2,9 +2,10 @@ import { useState, useRef, useLayoutEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import type { DatePrecision } from '@/shared/api/types';
 import { parseISO, toISO, daysInMonth, monthMatrix, dayInWeek, MIN_YEAR, MAX_YEAR } from '@/shared/utils/date';
-import { firstDayOfWeek, monthNames, weekdayNames } from '@/shared/format/dateMask';
+import { firstDayOfWeek, monthNames, spokenDate, weekdayNames } from '@/shared/format/dateMask';
 import { companyToday } from '@/shared/format/companyDay';
 import { resolveLocale, useLocale } from '@/shared/hooks/useLocale';
+import { Button } from './Button';
 import { Tooltip } from './Tooltip';
 
 /**
@@ -17,12 +18,19 @@ import { Tooltip } from './Tooltip';
  * «Сегодня» — день компании, а не браузера (issue #1463): подсветка и месяц, с которого открывается
  * пустое поле, — по `companyToday`. Разметка — APG grid: строки `row`, клетки `gridcell` с
  * `aria-selected`, у дней — строка заголовков `columnheader`.
+ *
+ * Внизу — строка действий (issue #1463, макет «Очистить и Сегодня», вариант В): «Очистить» слева,
+ * «Сегодня» справа. Выбор календарь не подтверждает — щелчок по дню сразу ставит дату, — поэтому
+ * «Отмена/OK» из MD3 здесь нет, только эти два действия.
  */
 const clampYear = (y: number) => Math.min(MAX_YEAR, Math.max(MIN_YEAR, y));
 
 type View = 'days' | 'months' | 'years';
 
-export function Calendar({ value, onSelect, precision = 'day', onClose }: {
+/** «Сегодня» по точности поля, а не по открытому виду: иначе кнопка обещала бы день, а ставила 01. */
+const TODAY_LABEL: Record<DatePrecision, string> = { day: 'Сегодня', month: 'Этот месяц', year: 'Этот год' };
+
+export function Calendar({ value, onSelect, precision = 'day', onClose, onClear }: {
   /** Текущее значение — полный ISO YYYY-MM-DD или ''. */
   value: string;
   /** Выбор завершён → полный ISO (скрытые точностью части = 01, как в сегментном вводе). */
@@ -30,6 +38,11 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
   precision?: DatePrecision;
   /** Закрыть поповер (Esc / выбор в терминальном виде). */
   onClose?: () => void;
+  /**
+   * «Очистить» в строке действий; не передан — кнопки нет. Можно ли стирать, решает поле, а не
+   * календарь: обязательность и «не дату» знает оно.
+   */
+  onClear?: () => void;
 }) {
   const todayISO = companyToday();
   const today = parseISO(todayISO)!;
@@ -243,10 +256,23 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
     );
   }
 
+  // «Сегодня» — день компании, скрытые точностью части — 01, как у выбора. Имя для чтения с экрана
+  // называет дату: около полуночи день компании расходится с часами компьютера, и голое «Сегодня» не
+  // говорит, какой день встанет. Видимой подписи хватает слова — день показывает кольцо в сетке.
+  const todayLabel = TODAY_LABEL[precision];
+  const todayPick = precision === 'year' ? toISO(today.y, 1, 1) : precision === 'month' ? toISO(today.y, today.m, 1) : todayISO;
+
   return (
     <div className="w-72 p-2 select-none">
       {header}
       {body}
+      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-stroke">
+        {onClear && <Button variant="text" size="sm" onClick={onClear}>Очистить</Button>}
+        <Button variant="text" size="sm" className="ml-auto" aria-label={`${todayLabel}, ${spokenDate(todayISO, locale, precision)}`}
+          onClick={() => { onSelect(todayPick); onClose?.(); }}>
+          {todayLabel}
+        </Button>
+      </div>
     </div>
   );
 }

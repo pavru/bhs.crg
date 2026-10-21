@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
-import { AlertCircle, CalendarDays } from 'lucide-react';
+import { AlertCircle, CalendarDays, X } from 'lucide-react';
 import type { DatePrecision } from '@/shared/api/types';
+import { IconButton } from './Button';
 import { Calendar } from './Calendar';
 import { Tooltip } from './Tooltip';
 import { EMPTY_SEGMENTS, SEGMENT_PROBLEMS, fullYear, parsePasted, readSegments, segmentsOf, type Segments } from './dateSegments';
@@ -52,7 +53,11 @@ interface DateInputProps {
   required?: boolean;
   /** Показывать иконку-триггер календаря (docked date picker, issue #338). По умолчанию — да. */
   calendar?: boolean;
-  /** Компактный режим (ячейка таблицы): иконка появляется по hover/focus, не занимает место постоянно. */
+  /**
+   * Компактный режим (ячейка таблицы): иконка появляется по hover/focus, не занимает место постоянно.
+   * Крестика «Очистить дату» у ячейки нет (issue #1463, вариант В): второй кнопке в колонке места нет,
+   * очищают её подвалом календаря или Ctrl+A → Delete.
+   */
   compact?: boolean;
 }
 
@@ -72,6 +77,14 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
    */
   const [typed, setTyped] = useState<(Segments & { base: string }) | null>(null);
   const [focused, setFocused] = useState(false);
+  /**
+   * Ctrl+A выделил всю дату (issue #1463): у сегментов общего выделения нет, поэтому оно своё. Delete
+   * или Backspace стирают дату, цифра начинает её заново, Ctrl+C копирует в маске языка, Esc, стрелка и
+   * щелчок выделение снимают.
+   */
+  const [allSelected, setAllSelected] = useState(false);
+  /** Цифра, набранная поверх выделенной даты, — уходит в первый сегмент после очистки (эффект ниже). */
+  const pendingDigit = useRef<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   /** Календарь закрыт Tab'ом с края — фокус уже перенесён, возвращать его на значок не нужно. */
@@ -129,6 +142,7 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
     // дало дату или пустоту, уходит вместе с фокусом; недописанное и несуществующее — остаётся с ошибкой.
     blurTimer.current = setTimeout(() => {
       setFocused(false);
+      setAllSelected(false);
       setTyped(prev => {
         const kind = prev && readSegments(prev, precision).kind;
         return kind === 'partial' || kind === 'impossible' ? prev : null;
@@ -233,6 +247,24 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
   }
 
   /**
+   * Клавиша поверх выделенной Ctrl+A даты; true — обработана здесь. Стирание работает и у обязательного
+   * поля: это ввод, а не кнопка, — пустоту назовёт форма. Ctrl+C уходит в `onCopy`, клавиши-модификаторы
+   * выделения не снимают; Esc снимает только его — окно, где стоит поле, не закрывается.
+   */
+  function onSelectedKey(e: React.KeyboardEvent<HTMLInputElement>): boolean {
+    if (MODIFIERS.includes(e.key) || ((e.ctrlKey || e.metaKey) && (e.code === 'KeyC' || e.key.toLowerCase() === 'c'))) return true;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setAllSelected(false); return true; }
+    const wipe = e.key === 'Delete' || e.key === 'Backspace';
+    const digit = /^\d$/.test(e.key);
+    if (!wipe && !digit) { setAllSelected(false); return false; }
+    e.preventDefault();
+    if (readOnly || disabled) return true;
+    if (digit) pendingDigit.current = e.key;
+    clear();
+    return true;
+  }
+
+  /**
    * Разделитель переводит к следующему сегменту, Backspace в пустом — к предыдущему, ←/→ с края — к
    * соседнему (issue #1463). Цифра в полный сегмент без выделения заменяет его, как в нативном поле
    * даты: иначе её молча съедал `maxLength`. Alt+↓ — не шаг, а календарь (`onContainerKey`).
@@ -240,6 +272,10 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
   const onSegmentKey = (part: DatePart) => (e: React.KeyboardEvent<HTMLInputElement>) => {
     const cur = shown[part];
     const input = e.currentTarget;
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.code === 'KeyA' || e.key.toLowerCase() === 'a')) {
+      e.preventDefault(); input.select(); setAllSelected(true); return;
+    }
+    if (allSelected && onSelectedKey(e)) return;
     if (e.key === 'Backspace' && cur === '') go(part, -1);
     else if (SEPARATORS.includes(e.key) && cur) { e.preventDefault(); go(part, 1); }
     else if (/^\d$/.test(e.key) && input.value.length >= input.maxLength && input.selectionStart === input.selectionEnd) input.select();
@@ -277,11 +313,49 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
     setTimeout(() => advance(firstRef), 0);
   }
 
+  /**
+   * Есть что стирать (issue #1463): значение, «не дата» или недописанное поверх пустого. Кнопкам —
+   * крестику и «Очистить» календаря — только у необязательного правимого поля: обязательное стирают
+   * сегментами или Ctrl+A → Delete, и пустоту называет форма.
+   */
+  const hasContent = (value ?? '') !== '' || (!!draft && !!(draft.d || draft.m || draft.y));
+  const clearable = hasContent && !required && !readOnly && !disabled;
+
+  /**
+   * Стереть дату целиком: крестик, «Очистить» календаря, Ctrl+A → Delete. Фокус — в первый сегмент,
+   * и СРАЗУ, пока крестик не исчез вместе со значением: удалённому элементу браузер не шлёт blur, и
+   * фокус упал бы на body (урок `TypePickerField`, #572). Значение до очистки запоминается для Esc,
+   * если человек пришёл не из сегмента; таймер ухода отменяется, иначе он вернул бы ошибку прежнего
+   * набранного.
+   */
+  function clear() {
+    if (!focused) startValue.current = value ?? '';
+    const first = firstRef.current;
+    first?.focus();
+    clearTimeout(blurTimer.current);
+    setFocused(true);
+    setAllSelected(false);
+    setTyped({ ...EMPTY_SEGMENTS, base: value ?? '' });
+    if ((value ?? '') !== '') onChange('');
+    // «Не дата» показана текстом: сегментов ещё нет — они появятся этим же рендером.
+    if (!first) setTimeout(() => advance(firstRef), 0);
+  }
+
+  /** Вся дата текстом в маске языка — для Ctrl+C поверх выделенной даты. */
+  const asText = () => mask.order.map(part => shown[part]).join(mask.sep);
+  function onCopy(e: React.ClipboardEvent) {
+    if (!allSelected) return;
+    e.preventDefault();
+    e.clipboardData.setData('text/plain', asText());
+  }
+
   const seg = [
     'border-0 outline-none bg-transparent text-center min-w-0 p-0',
     disabled ? 'cursor-not-allowed' : 'focus:bg-brand-subtle',
     'rounded-sm tabular-nums',
     problem ? 'text-danger' : '',
+    // Выделенная Ctrl+A дата подсвечена целиком, как один текст.
+    allSelected ? 'bg-brand-subtle' : '',
   ].join(' ');
   const invalid = problem ? true : undefined;
   // Ошибка для скринридера — описанием сегментов (`aria-describedby`), и у `DateField` тоже: его
@@ -331,6 +405,16 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
     y: { ref: yrRef, change: handleY, blur: blurY, len: 4 },
   };
 
+  // Цифра поверх выделенной даты — первая цифра новой: в первый сегмент, уже очищенный, теми же
+  // правилами, что набор (4–9 в дне дополняются нулём и уводят дальше). После рендера: обработчик
+  // сегмента читает показанное, а до него показана прежняя дата.
+  useEffect(() => {
+    const digit = pendingDigit.current;
+    if (digit === null) return;
+    pendingDigit.current = null;
+    SEGMENTS[mask.order[0]].change(digit);
+  });
+
   const segments = foreign ? (
     <div role="group" aria-label={label} className={`flex items-center group min-w-0 ${className}`}>
       {readOnly || disabled
@@ -343,9 +427,16 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
             {value}
           </button>}
       {problemMark}
+      {/* «Не дата» тоже стирается крестиком: календаря у неё нет, а выход иначе один — набрать заново. */}
+      {!compact && clearable && (
+        <IconButton label="Очистить дату" size="sm" onClick={clear} className={`-my-1.5 ml-auto ${CLEAR_REVEAL}`}>
+          <X size={16} />
+        </IconButton>
+      )}
     </div>
   ) : (
-    <div role="group" aria-label={label} className={`flex items-center group ${className}`} onKeyDown={onContainerKey} onPaste={onPaste}>
+    <div role="group" aria-label={label} className={`flex items-center group ${className}`} onKeyDown={onContainerKey} onPaste={onPaste}
+      onCopy={onCopy} onMouseDown={() => setAllSelected(false)}>
       {mask.order.map((part, i) => {
         const { ref, change, blur, len } = SEGMENTS[part];
         return (
@@ -371,15 +462,25 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
         );
       })}
       {problemMark}
-      {showCalendar && (
-        <Popover.Trigger asChild>
-          <button ref={triggerRef} type="button" disabled={disabled} aria-label="Открыть календарь"
-            className={`-my-1.5 shrink-0 flex items-center justify-center h-8 w-8 rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
-              compact ? `${COMPACT_TRIGGER} opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100` : 'ml-0.5'}`}>
-            <CalendarDays size={compact ? 14 : 16} />
-          </button>
-        </Popover.Trigger>
-      )}
+      <span className="sr-only" aria-live="polite">{allSelected ? 'Выделена вся дата' : ''}</span>
+      {/* Хвост поля формы — у правого края, крестик слева от календаря (макет #1463, вариант В):
+          появляясь, крестик не сдвигает ни календарь, ни цифры. */}
+      <span className={`flex items-center shrink-0 ${compact ? '' : 'ml-auto pl-0.5'}`}>
+        {!compact && clearable && (
+          <IconButton label="Очистить дату" size="sm" onClick={clear} className={`-my-1.5 ${CLEAR_REVEAL}`}>
+            <X size={16} />
+          </IconButton>
+        )}
+        {showCalendar && (
+          <Popover.Trigger asChild>
+            <button ref={triggerRef} type="button" disabled={disabled} aria-label="Открыть календарь"
+              className={`-my-1.5 shrink-0 flex items-center justify-center h-8 w-8 rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                compact ? `${COMPACT_TRIGGER} opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100` : ''}`}>
+              <CalendarDays size={compact ? 14 : 16} />
+            </button>
+          </Popover.Trigger>
+        )}
+      </span>
     </div>
   );
 
@@ -413,6 +514,15 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
     target?.focus();
     setPickerOpen(false);
   }
+  /**
+   * «Очистить» календаря: фокус — в первый сегмент, набирать новую дату, а не на значок, как после
+   * выбора дня. Возврат Radix гасится тем же признаком, что у ухода Tab'ом.
+   */
+  function clearFromCalendar() {
+    tabbedOut.current = true;
+    setPickerOpen(false);
+    clear();
+  }
   /** Фокус уже перенесён Tab'ом — Radix не возвращает его на значок. */
   function onCalendarClosed(e: Event) {
     if (!tabbedOut.current) return;
@@ -440,7 +550,8 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
           <Calendar value={calendarValue} precision={precision}
             // Выбранный день снимает набранное: совпади он с текущим значением, значение не сменится,
             // и ошибка набранного осталась бы над выбранной датой (ревью PR #1542).
-            onSelect={iso => { setTyped(null); onChange(iso); }} onClose={() => setPickerOpen(false)} />
+            onSelect={iso => { setTyped(null); onChange(iso); }} onClose={() => setPickerOpen(false)}
+            onClear={clearable ? clearFromCalendar : undefined} />
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
@@ -461,6 +572,18 @@ const SIZER = 'invisible col-start-1 row-start-1 px-0.5 tabular-nums after:conte
  */
 const COMPACT_TRIGGER = '-mr-1.5';
 const STOP = 'button, input, select, textarea, a[href], [tabindex]';
+/** Клавиши-модификаторы: нажатые сами по себе, выделение всей даты не снимают (путь к Ctrl+C). */
+const MODIFIERS = ['Control', 'Meta', 'Shift', 'Alt'];
+/**
+ * Крестик поля формы — ускоритель (issue #1463, вариант В): виден при наведении на поле и при фокусе в
+ * нём, а где наведения нет — всегда. Прозрачный он не ловит нажатий (`pointer-events-none`), иначе
+ * касание у края поля стирало бы дату вместо открытия календаря (тот же урок у `TypePickerField`).
+ * Фокус Tab'ом его показывает: остановка полноценная, зрячий с клавиатурой видит, куда пришёл.
+ */
+const CLEAR_REVEAL = 'opacity-0 pointer-events-none transition-opacity '
+  + 'group-hover:opacity-100 group-hover:pointer-events-auto '
+  + 'group-focus-within:opacity-100 group-focus-within:pointer-events-auto '
+  + '[@media(pointer:coarse)]:opacity-100 [@media(pointer:coarse)]:pointer-events-auto';
 /** Клавиши-разделители: набрав «18.» или «10/», человек ждёт следующий сегмент при любом языке. */
 const SEPARATORS = ['.', '/', '-'];
 
