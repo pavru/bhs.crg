@@ -1,4 +1,4 @@
-import { ruToISO } from '@/shared/utils/date';
+import { ruToISO, truncISO } from '@/shared/utils/date';
 import type { SchemaField } from '@/shared/api/schema';
 import type { PrimitiveTypeDef, FieldConstraints } from '@/shared/api/types';
 import { isFieldRef } from '@/shared/api/types';
@@ -57,8 +57,10 @@ export function validateConstraint(value: unknown, def: PrimitiveTypeDef): strin
     const prec = c.datePrecision ?? 'day';
     // Предел — в записи маски поля, под которым стоит сообщение (ревью PR #1544): у en-US
     // «01.07.2026» под полем MM/DD/YYYY читалось бы как 7 января.
-    if (c.minDate && iso < c.minDate) return `Дата не ранее ${formatDateInMask(c.minDate, prec)}`;
-    if (c.maxDate && iso > c.maxDate) return `Дата не позднее ${formatDateInMask(c.maxDate, prec)}`;
+    // Сравнение — по точности (#1464): при min 15.07.2026 и точности «месяц» 07.2026 допустим —
+    // сообщение «не ранее 07.2026» под ним противоречило бы само себе.
+    if (c.minDate && truncISO(iso, prec) < truncISO(c.minDate, prec)) return `Дата не ранее ${formatDateInMask(c.minDate, prec)}`;
+    if (c.maxDate && truncISO(iso, prec) > truncISO(c.maxDate, prec)) return `Дата не позднее ${formatDateInMask(c.maxDate, prec)}`;
   }
   return null;
 }

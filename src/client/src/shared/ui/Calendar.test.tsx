@@ -148,3 +148,58 @@ describe('Calendar: строка действий', () => {
     expect(onClear).toHaveBeenCalledOnce();
   });
 });
+
+// Границы min/max (issue #1464): за ними не выбрать, фокус и стрелки шапки туда не заходят.
+describe('Calendar: границы min/max', () => {
+  const grid = () => screen.getByRole('grid', { name: 'Календарь' });
+  const day = (n: string) => within(grid()).getAllByRole('button').find(b => b.textContent === n)!;
+
+  it('дни вне границ неактивны, «Назад» неактивна, если прошлый месяц целиком за min', () => {
+    render(<Calendar value="2026-10-14" min="2026-10-10" max="2026-11-25" onSelect={() => {}} />);
+    expect((day('9') as HTMLButtonElement).disabled).toBe(true);
+    expect((day('10') as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole('button', { name: 'Назад' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Вперёд' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('фокус стрелкой упирается в границу, а не уходит на неактивный день', () => {
+    render(<Calendar value="2026-10-11" min="2026-10-10" onSelect={() => {}} />);
+    fireEvent.keyDown(grid(), { key: 'ArrowUp' });
+    expect(document.activeElement?.textContent).toBe('10');
+  });
+
+  it('пустое поле при сегодня вне границ открывается на ближайшей, «Сегодня» скрыта', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 21, 12));
+    render(<Calendar value="" min="2027-01-01" onSelect={() => {}} onClear={() => {}} />);
+    expect(screen.getByRole('button', { name: /^Январь 2027/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Сегодня/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Очистить' })).toBeTruthy();
+  });
+
+  it('без «Очистить» и «Сегодня» строки действий нет', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 21, 12));
+    const { container } = render(<Calendar value="" max="2026-01-31" onSelect={() => {}} />);
+    expect(container.querySelector('.border-t')).toBeNull();
+  });
+
+  it('точность «месяц»: месяц границы доступен, хотя её день позже 01', () => {
+    render(<Calendar value="2026-09-01" precision="month" min="2026-07-15" max="2027-03-10" onSelect={() => {}} />);
+    const months = within(screen.getByRole('grid', { name: 'Выбор месяца' })).getAllByRole('button');
+    expect(months.filter(b => (b as HTMLButtonElement).disabled).map(b => b.textContent)).toEqual(['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн']);
+  });
+});
+
+// Лента периода (#1464, лента из варианта Б): границы залиты, дни между ними — на ленте.
+describe('Calendar: лента периода', () => {
+  it('обе границы залиты, между ними — лента, за ними — нет', () => {
+    const { container } = render(<Calendar value="2026-10-24" range={['2026-10-12', '2026-10-24']} onSelect={() => {}} />);
+    const grid = screen.getByRole('grid', { name: 'Календарь' });
+    const day = (n: string) => within(grid).getAllByRole('button').find(b => b.textContent === n)!;
+    expect(day('12').className).toContain('bg-brand ');
+    expect(day('24').className).toContain('bg-brand ');
+    // Полоса ленты — у каждого дня с 12 по 24 включительно: 13 дней.
+    expect(container.querySelectorAll('span.bg-brand-subtle')).toHaveLength(13);
+  });
+});

@@ -146,9 +146,18 @@ export const RULES = [
     // обёртку, которая отдаёт `type` полю под своим именем.
     count: countNativeDates,
     everywhere: true,
-    // Отбор с рамкой (DateInput size, #1464) и TimeField (#1468) ещё не написаны — сообщение говорит
-    // это прямо: совет идти к несуществующему компоненту толкает к обходу через переменную.
-    instead: 'дата — DateField (форма) / DateInput compact (ячейка); месяц и год — тот же компонент с precision="month" | "year". Отбор и строка настроек — DateInput в рамке обвязки, пока у него нет size (#1464). Время суток — TimeField ещё не написан (#1468): до него новое нативное время не заводится без согласования, а поднятый уровень объясняют в PR (docs/UI.md, «Дата и время»)',
+    // TimeField (#1468) ещё не написан — сообщение говорит это прямо: совет идти к несуществующему
+    // компоненту толкает к обходу через переменную.
+    instead: 'дата — DateField (форма) / DateInput compact (ячейка) / DateInput size="md" | "sm" (отбор и строка настроек); период — DateRange; месяц и год — тот же компонент с precision="month" | "year". Время суток — TimeField ещё не написан (#1468): до него новое нативное время не заводится без согласования, а поднятый уровень объясняют в PR (docs/UI.md, «Дата и время»)',
+  },
+  {
+    id: 'date-frame',
+    // Своя рамка у поля даты (#1464): `<DateInput className="border …">`. Рамку, высоту и кольцо
+    // фокуса рисует сам компонент по `size`, как Select, — свои рамки экранов разъезжались по высоте,
+    // радиусу и цвету ошибки. Считается класс `border` и `border-*` без модификатора; `border-…!` —
+    // законная пометка поверх рамки компонента (переопределённое значение в FieldBuilder), как у Select.
+    count: countDateFrames,
+    instead: 'рамку поля даты рисует DateInput size="md" (h-9) | "sm" (h-7) — как у Select; ошибка — invalid, только чтение — readOnly; className — ширина и место в раскладке (docs/UI.md, «Дата и время»)',
   },
 ];
 
@@ -303,6 +312,23 @@ function countNativeDates(text) {
       && node.attributes.properties.some(p => ts.isJsxAttribute(p) && p.name.getText(sf) === 'type'
         && yieldsNativeDate(p.initializer)))
       n++;
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+/** `<DateInput>` со своей рамкой в className — см. правило `date-frame`. */
+function countDateFrames(text) {
+  if (!text.includes('DateInput')) return 0;
+  const sf = parse(text);
+  let n = 0;
+  const visit = node => {
+    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText(sf) === 'DateInput') {
+      const cls = node.attributes.properties.find(p => ts.isJsxAttribute(p) && p.name.getText(sf) === 'className');
+      const tokens = cls?.initializer ? cls.initializer.getText(sf).split(/[\s'"`{}()]+/) : [];
+      if (tokens.some(t => /^border(?:-[\w/-]+)?$/.test(t))) n++;
+    }
     ts.forEachChild(node, visit);
   };
   visit(sf);

@@ -246,7 +246,9 @@ export function CloseDialog({ state, name, today, sites, onDone }: {
             <DateField label="С" value={firstFrom} onChange={v => { setFirstFrom(v); setError(null); }} required
               hint="всё до этого дня закроется тоже" />
           )}
-          <DateField label="По (включительно)" value={through} onChange={v => { setThrough(v); setError(null); }} required />
+          {/* Конец периода не раньше начала — календарь не даст его выбрать (#1464); набранное проверит сервер. */}
+          <DateField label="По (включительно)" value={through} onChange={v => { setThrough(v); setError(null); }} required
+            min={(state.expectedFrom ?? firstFrom) || undefined} />
         </div>
         <p className="text-note text-fg2">
           {through

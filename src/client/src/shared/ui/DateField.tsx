@@ -11,7 +11,7 @@ import type { DatePrecision } from '@/shared/api/types';
  * подсказкой. Фокус ловим сами: он приходит на любой из сегментов, а не на единственный input.
  */
 export function DateField({
-  label, value, onChange, precision, required, hint, invalid, disabled, readOnly,
+  label, value, onChange, precision, required, hint, invalid, disabled, readOnly, min, max,
 }: {
   label: string;
   value: string;
@@ -25,6 +25,9 @@ export function DateField({
    *  отмечается: поле не отключено, а отличается фоном и отсутствием календаря, как соседние
    *  read-only поля формы. */
   readOnly?: boolean;
+  /** Границы допустимых дат — календарь не даст выбрать за ними (#1464); ошибку набранного называет форма. */
+  min?: string;
+  max?: string;
 }) {
   const [focused, setFocused] = useState(false);
   // Ошибка набранного (issue #1460) — под рамкой, красным. Подсказка формы при этом не теряется: она
@@ -39,7 +42,7 @@ export function DateField({
         onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>
         {/* Во всю ширину: хвост поля — крестик и календарь — стоит у правого края рамки (#1463). */}
         <DateInput label={label} value={value} onChange={onChange} onProblem={setProblem} precision={precision}
-          disabled={disabled} readOnly={readOnly} required={required} className="w-full" />
+          disabled={disabled} readOnly={readOnly} required={required} className="w-full" min={min} max={max} />
       </div>
     </OutlinedField>
   );
