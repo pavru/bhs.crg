@@ -25,7 +25,7 @@ describe('Calendar: язык пользователя', () => {
   ])('%s: заголовок «%s», неделя с «%s» по «%s»', (lang, title, first, last) => {
     locale = lang;
     render(<Calendar value="2026-10-18" onSelect={() => {}} />);
-    expect(screen.getByRole('button', { name: new RegExp(title) })).toBeTruthy();
+    expect(screen.getByRole('button', { name: new RegExp(`^${title}`) })).toBeTruthy();
     const days = weekdays();
     expect(days).toHaveLength(7);
     expect(days[0]).toBe(first);
@@ -111,5 +111,40 @@ describe('Calendar: сегодня по поясу компании', () => {
     const today = within(screen.getByRole('grid', { name: 'Календарь' })).getAllByRole('button')
       .filter(b => b.getAttribute('aria-current') === 'date');
     expect(today.map(b => b.textContent)).toEqual([day]);
+  });
+});
+
+// Строка действий (issue #1463, вариант В): «Сегодня» по точности поля и дню компании, «Очистить» —
+// только когда поле его разрешило.
+describe('Calendar: строка действий', () => {
+  const at = (zone: string) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-31T20:00:00Z'));
+    setCompanyTimeZone(zone);
+  };
+
+  it.each([
+    ['day' as const, 'Сегодня', 'Сегодня, 1 ноября 2026', '2026-11-01'],
+    ['month' as const, 'Этот месяц', 'Этот месяц, ноябрь 2026', '2026-11-01'],
+    ['year' as const, 'Этот год', 'Этот год, 2026', '2026-01-01'],
+  ])('%s: «%s» ставит день компании и закрывает календарь', (precision, text, name, iso) => {
+    at('Asia/Vladivostok');
+    const onSelect = vi.fn(), onClose = vi.fn();
+    render(<Calendar value="2026-03-15" precision={precision} onSelect={onSelect} onClose={onClose} />);
+    const button = screen.getByRole('button', { name: new RegExp(`^${name}`) });
+    expect(button.textContent).toBe(text);
+    fireEvent.click(button);
+    expect(onSelect).toHaveBeenCalledWith(iso);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('«Очистить» — только с onClear', () => {
+    render(<Calendar value="2026-10-18" onSelect={() => {}} />);
+    expect(screen.queryByRole('button', { name: 'Очистить' })).toBeNull();
+    cleanup();
+    const onClear = vi.fn();
+    render(<Calendar value="2026-10-18" onSelect={() => {}} onClear={onClear} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Очистить' }));
+    expect(onClear).toHaveBeenCalledOnce();
   });
 });
