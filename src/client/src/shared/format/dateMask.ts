@@ -22,6 +22,8 @@ export interface DateMask {
   labels: Record<DatePart, string>;
   /** Маска текстом — для подписей и сообщений: «ДД.ММ.ГГГГ», «MM/YYYY». */
   text: string;
+  /** Имена сегментов для чтения с экрана: «день», «месяц», «год» / «day» (issue #1463). */
+  names: Record<DatePart, string>;
 }
 
 // Обозначения сегментов `Intl` не знает — это слова языка. Нет языка в таблице — английские.
@@ -36,6 +38,24 @@ const FULL: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', yea
 const PART: Partial<Record<Intl.DateTimeFormatPartTypes, DatePart>> = { day: 'd', month: 'm', year: 'y' };
 
 const masks = new Map<string, { order: DatePart[]; sep: string }>();
+const segmentNames = new Map<string, Record<DatePart, string>>();
+const NAMES_EN: Record<DatePart, string> = { d: 'day', m: 'month', y: 'year' };
+
+/**
+ * Имена частей даты словами языка — у `Intl.DisplayNames` («день», «Tag»): обозначения ДД / TT
+ * скринридер читал бы по буквам. Браузер без них — английские.
+ */
+function namesOf(locale: string): Record<DatePart, string> {
+  let names = segmentNames.get(locale);
+  if (!names) {
+    try {
+      const of = new Intl.DisplayNames(locale, { type: 'dateTimeField' });
+      names = { d: of.of('day') ?? NAMES_EN.d, m: of.of('month') ?? NAMES_EN.m, y: of.of('year') ?? NAMES_EN.y };
+    } catch { names = NAMES_EN; }
+    segmentNames.set(locale, names);
+  }
+  return names;
+}
 
 /** Порядок и разделитель полной даты языка. Неизвестный язык — как у `Intl` по умолчанию. */
 function fullMask(locale: string): { order: DatePart[]; sep: string } {
@@ -61,7 +81,7 @@ export function dateMask(locale: string, precision: DatePrecision = 'day'): Date
   const shown: DatePart[] = precision === 'year' ? ['y'] : precision === 'month' ? ['m', 'y'] : ['d', 'm', 'y'];
   const order = full.filter(p => shown.includes(p));
   const labels = LABELS[locale.slice(0, 2).toLowerCase()] ?? LABELS.en;
-  return { order, sep, labels, text: order.map(p => labels[p]).join(sep) };
+  return { order, sep, labels, text: order.map(p => labels[p]).join(sep), names: namesOf(locale) };
 }
 
 /**

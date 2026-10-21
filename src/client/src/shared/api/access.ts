@@ -31,6 +31,11 @@ export interface AccessInfo {
    * Необязательное: `NO_ACCESS` и ответ старого сервера его не несут — тогда действует зеркало.
    */
   accounting?: { currency: string };
+  /**
+   * Пояс компании именем IANA (issue #1463) — по нему календарь считает «сегодня». `null` — сервер не
+   * смог назвать пояс этим именем; поля нет — ответ старого сервера. В обоих случаях — день браузера.
+   */
+  company?: { timeZone: string | null };
 }
 
 export const ACCESS_KEY = ['account', 'access'] as const;

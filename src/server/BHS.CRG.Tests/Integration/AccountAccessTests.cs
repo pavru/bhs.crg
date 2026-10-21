@@ -1,8 +1,9 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
@@ -152,6 +153,48 @@ public class AccountAccessTests(IntegrationTestFixture fixture)
         var response = await fixture.CreateClient().GetAsync("/api/account/permissions");
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
+
+    /// <summary>
+    /// Пояс компании — каждому вошедшему, не только администратору (issue #1463): «сегодня» в календаре
+    /// считает по нему любой экран. Имя — IANA: клиент отдаёт его прямо в <c>Intl</c>. Сохранённый пояс
+    /// задан Windows-именем — переводится; неизвестный машине — действует пояс сервера, как у часов
+    /// модулей, а не «пусто».
+    /// </summary>
+    [Fact]
+    public async Task Пояс_компании_доходит_до_каждого_именем_IANA()
+    {
+        var engineer = await SignInAsync(SystemRoles.IdEngineer);
+        // Настройка общая для всей коллекции: возвращаем ту, что была, а не «пусто» (ревью PR #1548).
+        var before = await StoredZoneAsync();
+        try
+        {
+            await StoreZoneAsync("Asia/Vladivostok");
+            Assert.Equal("Asia/Vladivostok", await ZoneAsync(engineer));
+
+            await StoreZoneAsync("Russian Standard Time");
+            Assert.Equal("Europe/Moscow", await ZoneAsync(engineer));
+
+            await StoreZoneAsync("Mars/Olympus");
+            Assert.Equal(CompanyZone.IanaId(TimeZoneInfo.Local), await ZoneAsync(engineer));
+        }
+        finally { await StoreZoneAsync(before); }
+    }
+
+    private async Task<string?> StoredZoneAsync()
+    {
+        using var scope = fixture.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<IAppSettingsStore>().GetAsync(AppSettingKeys.CompanyTimeZone);
+    }
+
+    private async Task StoreZoneAsync(string? zone)
+    {
+        using var scope = fixture.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<IAppSettingsStore>().SetAsync(AppSettingKeys.CompanyTimeZone, zone);
+    }
+
+    private static async Task<string?> ZoneAsync(HttpClient client) =>
+        (await client.GetFromJsonAsync<JsonElement>("/api/account/access"))
+            .GetProperty("company").GetProperty("timeZone").GetString();
 
     private sealed record PermissionDto(string Code, string Gives, string Opens, string[] UsuallyWith);
     private sealed record PermissionGroupDto(string Module, string Title, PermissionDto[] Permissions);

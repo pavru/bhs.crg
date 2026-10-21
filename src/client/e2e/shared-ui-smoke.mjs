@@ -179,10 +179,11 @@ await settled(page);
 await editor.getByRole('button', { name: /Даты работ/ }).first().click();
 await settled(page);
 
-// Сегменты поля даты адресуем по их собственным плейсхолдерам, а не «любой input с четырьмя
-// цифрами»: под ту примету попадёт и обычное числовое поле, и проверка покраснела бы на исправном
-// компоненте, ткнув в чужое поле (поймано ревью PR #863).
-const yearSegs = editor.locator('input[placeholder="ГГГГ"]');
+// Сегменты поля даты адресуем по их собственному имени («год», issue #1463), а не «любой input с
+// четырьмя цифрами»: под ту примету попадёт и обычное числовое поле, и проверка покраснела бы на
+// исправном компоненте, ткнув в чужое поле (поймано ревью PR #863). Не по подсказке «ГГГГ»: она —
+// слово языка, а имя сторожит, что поле названо.
+const yearSegs = editor.getByRole('textbox', { name: 'год', exact: true });
 
 await check('date-input-shows-stored-value', async () => {
   if ((await yearSegs.count()) < 1) throw new Error('на разделе «Даты работ» нет полей даты');
@@ -224,8 +225,8 @@ await check('date-input-keeps-partial-input-with-error-on-blur', async () => {
   });
   // Редактор — страница, Esc её не закрыл бы и так. Признак того, что Esc достался полю, — фокус
   // остался в сегменте: окно на этом месте увело бы его к выходу (это сторожит invoice-payment-smoke).
-  const at = await page.evaluate(() => document.activeElement?.getAttribute('placeholder'));
-  if (at !== 'ГГГГ') throw new Error(`после Esc фокус не в поле даты, а на «${at}»`);
+  const at = await page.evaluate(() => document.activeElement?.getAttribute('aria-label'));
+  if (at !== 'год') throw new Error(`после Esc фокус не в поле даты, а на «${at}»`);
 });
 
 } finally {

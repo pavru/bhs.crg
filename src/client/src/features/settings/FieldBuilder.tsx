@@ -498,7 +498,7 @@ export function FieldCard({
                   ))}
             </Select>
           ) : field.type === 'date' ? (
-            <DateInput
+            <DateInput label="Значение по умолчанию"
               value={field.defaultValue != null ? String(field.defaultValue) : ''}
               onChange={v => onChange({ defaultValue: v || undefined })}
               className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand"
@@ -736,7 +736,7 @@ export function DefaultValueCell({ field, override, enumTypes, onOverrideDefault
   }
   if (field.type === 'date') {
     return (
-      <DateInput
+      <DateInput label={`По умолчанию: ${field.title || field.key}`}
         value={hasDv ? String(cur) : ''}
         onChange={v => onOverrideDefaultValue(field.key, v || undefined)}
         className={inputCls}

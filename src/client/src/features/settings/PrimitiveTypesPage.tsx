@@ -196,12 +196,12 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium text-fg1 mb-1">Минимальная дата</label>
-          <DateInput value={constraints.minDate ?? ''} onChange={v => v ? set('minDate', v) : unset('minDate')}
+          <DateInput label="Минимальная дата" value={constraints.minDate ?? ''} onChange={v => v ? set('minDate', v) : unset('minDate')}
             precision={precision} className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm" />
         </div>
         <div>
           <label className="block text-sm font-medium text-fg1 mb-1">Максимальная дата</label>
-          <DateInput value={constraints.maxDate ?? ''} onChange={v => v ? set('maxDate', v) : unset('maxDate')}
+          <DateInput label="Максимальная дата" value={constraints.maxDate ?? ''} onChange={v => v ? set('maxDate', v) : unset('maxDate')}
             precision={precision} className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm" />
         </div>
       </div>

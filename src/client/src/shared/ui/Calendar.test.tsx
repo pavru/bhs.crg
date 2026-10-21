@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { Calendar } from './Calendar';
+import { setCompanyTimeZone } from '@/shared/format/companyDay';
 
 // Названия месяцев и дней недели и первый день недели — по языку пользователя (issue #1461).
 let locale = 'ru-RU';
@@ -10,9 +11,9 @@ vi.mock('@/shared/hooks/useLocale', async importOriginal => ({
   useLocale: () => [locale, () => {}, 'idle'],
 }));
 
-afterEach(() => { cleanup(); locale = 'ru-RU'; });
+afterEach(() => { cleanup(); locale = 'ru-RU'; vi.useRealTimers(); setCompanyTimeZone(null); });
 
-const weekdays = () => [...screen.getByRole('grid', { name: 'Календарь' }).querySelectorAll('.grid.grid-cols-7.mb-1 > div')]
+const weekdays = () => within(screen.getByRole('grid', { name: 'Календарь' })).getAllByRole('columnheader')
   .map(d => d.textContent);
 
 describe('Calendar: язык пользователя', () => {
@@ -34,9 +35,10 @@ describe('Calendar: язык пользователя', () => {
   it('en-US: 1 октября 2026 (четверг) стоит в пятой колонке недели с воскресенья', () => {
     locale = 'en-US';
     render(<Calendar value="2026-10-18" onSelect={() => {}} />);
-    const firstRow = within(screen.getByRole('grid', { name: 'Календарь' })).getAllByRole('row')[0];
-    const cells = firstRow.querySelectorAll('.h-9');
-    expect([...cells].findIndex(c => c.textContent === '1')).toBe(4);
+    // Строка 0 — заголовки дней недели, первая неделя — строка 1.
+    const firstWeek = within(screen.getByRole('grid', { name: 'Календарь' })).getAllByRole('row')[1];
+    const cells = within(firstWeek).getAllByRole('gridcell');
+    expect(cells.findIndex(c => c.textContent === '1')).toBe(4);
   });
 
   it('Home и End — к первому и последнему дню недели языка', () => {
@@ -65,5 +67,49 @@ describe('Calendar: язык пользователя', () => {
     locale = 'ru-RU';
     render(<Calendar value="2026-10-01" precision="month" onSelect={() => {}} />);
     expect(within(screen.getByRole('grid', { name: 'Выбор месяца' })).getAllByRole('button').map(b => b.textContent)).toContain('Окт');
+  });
+});
+
+// Разметка APG grid (issue #1463): клетки в строках, выбранное — `aria-selected` у клетки, у дней —
+// строка заголовков. Без строк чтение с экрана не называет ни строку, ни столбец.
+describe('Calendar: разметка сетки', () => {
+  it('дни: заголовки недели и выбранная клетка', () => {
+    render(<Calendar value="2026-10-18" onSelect={() => {}} />);
+    const grid = screen.getByRole('grid', { name: 'Календарь' });
+    const [head, ...weeks] = within(grid).getAllByRole('row');
+    expect(within(head).getAllByRole('columnheader')).toHaveLength(7);
+    for (const week of weeks) expect(within(week).getAllByRole('gridcell')).toHaveLength(7);
+    const selected = within(grid).getAllByRole('gridcell').filter(c => c.getAttribute('aria-selected') === 'true');
+    expect(selected.map(c => c.textContent)).toEqual(['18']);
+  });
+
+  it.each([
+    ['month' as const, 'Выбор месяца', '2026-10-01', 'Окт'],
+    ['year' as const, 'Выбор года', '2026-01-01', '2026'],
+  ])('%s: клетки по четыре в строке, выбранная — aria-selected', (precision, name, value, label) => {
+    render(<Calendar value={value} precision={precision} onSelect={() => {}} />);
+    const grid = screen.getByRole('grid', { name });
+    const rows = within(grid).getAllByRole('row');
+    for (const row of rows) expect(within(row).getAllByRole('gridcell').length).toBeLessThanOrEqual(4);
+    const selected = within(grid).getAllByRole('gridcell').filter(c => c.getAttribute('aria-selected') === 'true');
+    expect(selected.map(c => c.textContent)).toEqual([label]);
+  });
+});
+
+// «Сегодня» — день компании (issue #1463): 31 октября 20:00 UTC — во Владивостоке уже 1 ноября, в
+// Нью-Йорке ещё 31 октября. Браузер прогона стоит в своём поясе, и календарь обязан его не слушать.
+describe('Calendar: сегодня по поясу компании', () => {
+  it.each([
+    ['Asia/Vladivostok', 'Ноябрь 2026', '1'],
+    ['America/New_York', 'Октябрь 2026', '31'],
+  ])('%s: открывается «%s», сегодня — %s', (zone, title, day) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-31T20:00:00Z'));
+    setCompanyTimeZone(zone);
+    render(<Calendar value="" onSelect={() => {}} />);
+    expect(screen.getByRole('button', { name: new RegExp(title) })).toBeTruthy();
+    const today = within(screen.getByRole('grid', { name: 'Календарь' })).getAllByRole('button')
+      .filter(b => b.getAttribute('aria-current') === 'date');
+    expect(today.map(b => b.textContent)).toEqual([day]);
   });
 });

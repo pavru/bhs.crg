@@ -1,4 +1,4 @@
-using BHS.CRG.Application.Settings;
+﻿using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Settings;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -31,13 +31,6 @@ public class AppSettingsStore(AppDbContext db) : IAppSettingsStore
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task<TimeZoneInfo> GetCompanyTimeZoneAsync(CancellationToken ct = default)
-    {
-        var stored = await GetAsync(AppSettingKeys.CompanyTimeZone, ct);
-        // Сохранённый пояс может не разбираться на ДРУГОЙ машине: база переезжает между системами,
-        // а список поясов у них разный. Тихо подставить серверный — значит посчитать сутки не по
-        // тому поясу и не сказать об этом; поэтому возвращаем серверный, но это видно в настройках.
-        if (stored is not null && TimeZoneInfo.TryFindSystemTimeZoneById(stored, out var zone)) return zone;
-        return TimeZoneInfo.Local;
-    }
+    public async Task<TimeZoneInfo> GetCompanyTimeZoneAsync(CancellationToken ct = default) =>
+        CompanyZone.Of(await GetAsync(AppSettingKeys.CompanyTimeZone, ct));
 }

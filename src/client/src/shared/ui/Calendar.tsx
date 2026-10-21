@@ -1,8 +1,9 @@
 import { useState, useRef, useLayoutEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import type { DatePrecision } from '@/shared/api/types';
-import { parseISO, toISO, daysInMonth, monthMatrix, dayInWeek } from '@/shared/utils/date';
+import { parseISO, toISO, daysInMonth, monthMatrix, dayInWeek, MIN_YEAR, MAX_YEAR } from '@/shared/utils/date';
 import { firstDayOfWeek, monthNames, weekdayNames } from '@/shared/format/dateMask';
+import { companyToday } from '@/shared/format/companyDay';
 import { resolveLocale, useLocale } from '@/shared/hooks/useLocale';
 import { Tooltip } from './Tooltip';
 
@@ -12,9 +13,11 @@ import { Tooltip } from './Tooltip';
  * Вся APG-клавиатура (стрелки/PageUp-Down/Shift+Page/Home/End/Enter/Esc), тема на токенах. Названия
  * месяцев и дней недели и первый день недели — по языку пользователя (issue #1461), не таблицей.
  * Аддитивен к сегментному вводу — сюда приходит текущее value, отсюда уходит выбранный полный ISO.
+ *
+ * «Сегодня» — день компании, а не браузера (issue #1463): подсветка и месяц, с которого открывается
+ * пустое поле, — по `companyToday`. Разметка — APG grid: строки `row`, клетки `gridcell` с
+ * `aria-selected`, у дней — строка заголовков `columnheader`.
  */
-const MIN_YEAR = 1900;
-const MAX_YEAR = 2100;
 const clampYear = (y: number) => Math.min(MAX_YEAR, Math.max(MIN_YEAR, y));
 
 type View = 'days' | 'months' | 'years';
@@ -28,7 +31,8 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
   /** Закрыть поповер (Esc / выбор в терминальном виде). */
   onClose?: () => void;
 }) {
-  const now = new Date();
+  const todayISO = companyToday();
+  const today = parseISO(todayISO)!;
   const sel = parseISO(value);
   const [stored] = useLocale();
   const locale = resolveLocale(stored);
@@ -36,7 +40,7 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
     months: monthNames(locale, 'long'), monthsShort: monthNames(locale, 'short'),
     weekdays: weekdayNames(locale), firstDay: firstDayOfWeek(locale),
   }), [locale]);
-  const start = sel ?? { y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate() };
+  const start = sel ?? today;
 
   // Терминальный вид точности: year → только годы; month → месяцы; day → дни.
   const terminalView: View = precision === 'year' ? 'years' : precision === 'month' ? 'months' : 'days';
@@ -51,8 +55,6 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
   useLayoutEffect(() => {
     gridRef.current?.querySelector<HTMLElement>('[data-focus="true"]')?.focus();
   }, [fy, fm, fd, view]);
-
-  const todayISO = toISO(now.getFullYear(), now.getMonth() + 1, now.getDate());
 
   function selectDay(y: number, m: number, d: number) { onSelect(toISO(y, m, d)); onClose?.(); }
   function selectMonth(y: number, m: number) { onSelect(toISO(y, m, 1)); onClose?.(); }
@@ -165,21 +167,21 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
     const weeks = monthMatrix(fy, fm, firstDay);
     body = (
       <div ref={gridRef} role="grid" aria-label="Календарь" onKeyDown={onDaysKey}>
-        <div className="grid grid-cols-7 mb-1">
-          {weekdays.map(w => <div key={w} className="h-7 flex items-center justify-center text-xs text-fg4">{w}</div>)}
+        <div role="row" className="grid grid-cols-7 mb-1">
+          {weekdays.map(w => <div key={w} role="columnheader" className="h-7 flex items-center justify-center text-xs text-fg4">{w}</div>)}
         </div>
         {weeks.map((week, wi) => (
           <div key={wi} role="row" className="grid grid-cols-7">
             {week.map((d, di) => {
-              if (d == null) return <div key={di} className="h-9" />;
+              if (d == null) return <div key={di} role="gridcell" className="h-9" />;
               const iso = toISO(fy, fm, d);
               const isSel = !!sel && sel.y === fy && sel.m === fm && sel.d === d;
               const isToday = iso === todayISO;
               const isFocus = d === fd;
               return (
-                <div key={di} role="gridcell" className="h-9 flex items-center justify-center">
+                <div key={di} role="gridcell" aria-selected={isSel} className="h-9 flex items-center justify-center">
                   <button type="button" data-focus={isFocus} tabIndex={isFocus ? 0 : -1}
-                    aria-selected={isSel} aria-current={isToday ? 'date' : undefined}
+                    aria-current={isToday ? 'date' : undefined}
                     onClick={() => selectDay(fy, fm, d)}
                     className={`${cellBase} h-9 w-9 ${focusRing(isFocus, isSel)} ${
                       isSel ? 'bg-brand text-on-brand font-medium'
@@ -196,43 +198,47 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
     );
   } else if (view === 'months') {
     body = (
-      <div ref={gridRef} role="grid" aria-label="Выбор месяца" onKeyDown={onMonthsKey} className="grid grid-cols-4 gap-1">
-        {monthsShort.map((mn, i) => {
+      <div ref={gridRef} role="grid" aria-label="Выбор месяца" onKeyDown={onMonthsKey} className={ROWS}>
+        {gridRows(monthsShort.map((mn, i) => {
           const m = i + 1;
           const isSel = !!sel && sel.y === fy && sel.m === m && precision === 'month';
-          const isCur = now.getFullYear() === fy && now.getMonth() + 1 === m;
+          const isCur = today.y === fy && today.m === m;
           const isFocus = m === fm;
           return (
-            <button key={mn} type="button" data-focus={isFocus} tabIndex={isFocus ? 0 : -1}
-              aria-selected={isSel} onClick={() => selectMonth(fy, m)}
-              className={`${cellBase} h-11 ${focusRing(isFocus, isSel)} ${
+            <div key={mn} role="gridcell" aria-selected={isSel} className="flex">
+            <button type="button" data-focus={isFocus} tabIndex={isFocus ? 0 : -1}
+              aria-current={isCur ? 'date' : undefined} onClick={() => selectMonth(fy, m)}
+              className={`${cellBase} flex-1 h-11 ${focusRing(isFocus, isSel)} ${
                 isSel ? 'bg-brand text-on-brand font-medium'
                 : isCur ? `text-brand hover:bg-brand-subtle ${isFocus ? '' : 'ring-1 ring-brand'}`
                 : 'text-fg1 hover:bg-black/5 dark:hover:bg-white/10'}`}>
               {mn}
             </button>
+            </div>
           );
-        })}
+        }))}
       </div>
     );
   } else {
     body = (
-      <div ref={gridRef} role="grid" aria-label="Выбор года" onKeyDown={onYearsKey} className="grid grid-cols-4 gap-1">
-        {Array.from({ length: YEARS_PER_PAGE }, (_, i) => pageStart + i).filter(y => y <= MAX_YEAR).map(y => {
+      <div ref={gridRef} role="grid" aria-label="Выбор года" onKeyDown={onYearsKey} className={ROWS}>
+        {gridRows(Array.from({ length: YEARS_PER_PAGE }, (_, i) => pageStart + i).filter(y => y <= MAX_YEAR).map(y => {
           const isSel = !!sel && sel.y === y && precision === 'year';
-          const isCur = y === now.getFullYear();
+          const isCur = y === today.y;
           const isFocus = y === fy;
           return (
-            <button key={y} type="button" data-focus={isFocus} tabIndex={isFocus ? 0 : -1}
-              aria-selected={isSel} onClick={() => selectYear(y)}
-              className={`${cellBase} h-11 tabular-nums ${focusRing(isFocus, isSel)} ${
+            <div key={y} role="gridcell" aria-selected={isSel} className="flex">
+            <button type="button" data-focus={isFocus} tabIndex={isFocus ? 0 : -1}
+              aria-current={isCur ? 'date' : undefined} onClick={() => selectYear(y)}
+              className={`${cellBase} flex-1 h-11 tabular-nums ${focusRing(isFocus, isSel)} ${
                 isSel ? 'bg-brand text-on-brand font-medium'
                 : isCur ? `text-brand hover:bg-brand-subtle ${isFocus ? '' : 'ring-1 ring-brand'}`
                 : 'text-fg1 hover:bg-black/5 dark:hover:bg-white/10'}`}>
               {y}
             </button>
+            </div>
           );
-        })}
+        }))}
       </div>
     );
   }
@@ -243,4 +249,13 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
       {body}
     </div>
   );
+}
+
+/** Сетка месяцев и лет — строками по четыре: у `grid` клетки лежат в `row`, а не прямо в нём (APG). */
+const ROWS = 'flex flex-col gap-1';
+function gridRows(cells: React.ReactNode[]): React.ReactNode {
+  const rows: React.ReactNode[] = [];
+  for (let i = 0; i < cells.length; i += 4)
+    rows.push(<div key={i} role="row" className="grid grid-cols-4 gap-1">{cells.slice(i, i + 4)}</div>);
+  return rows;
 }

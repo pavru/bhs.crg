@@ -6,9 +6,17 @@ import { Calendar } from './Calendar';
 import { Tooltip } from './Tooltip';
 import { EMPTY_SEGMENTS, SEGMENT_PROBLEMS, fullYear, parsePasted, readSegments, segmentsOf, type Segments } from './dateSegments';
 import { dateMask, type DatePart } from '@/shared/format/dateMask';
+import { companyToday } from '@/shared/format/companyDay';
+import { daysInMonth, MIN_YEAR, MAX_YEAR } from '@/shared/utils/date';
 import { resolveLocale, useLocale } from '@/shared/hooks/useLocale';
 
 interface DateInputProps {
+  /**
+   * Имя поля для чтения с экрана — у группы сегментов (issue #1463): «Дата платежа». Обязательное:
+   * без него скринридер слышал три безымянных «день, месяц, год», а живые прогоны искали поле по
+   * подсказке «ДД», которой у en-US нет. Видимую подпись рисует вызывающий, это — её же текст.
+   */
+  label: string;
   /** Stored value: ISO YYYY-MM-DD or '' (always full ISO, независимо от точности) */
   value: string;
   /**
@@ -48,7 +56,7 @@ interface DateInputProps {
   compact?: boolean;
 }
 
-export function DateInput({ value, onChange, onProblem, precision = 'day', className = '', disabled = false, readOnly = false, required = false, calendar = true, compact = false }: DateInputProps) {
+export function DateInput({ label, value, onChange, onProblem, precision = 'day', className = '', disabled = false, readOnly = false, required = false, calendar = true, compact = false }: DateInputProps) {
   /**
    * Набранное человеком — вместе со значением, от которого его начали набирать (`base`). Показанные
    * сегменты ВЫЧИСЛЯЮТСЯ (issue #858): набранное, пока значение то же, иначе — прямо из значения.
@@ -200,8 +208,34 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
   }
 
   /**
-   * Разделитель переводит к следующему сегменту, Backspace в пустом — к предыдущему. Цифра в полный
-   * сегмент без выделения заменяет его, как в нативном поле даты: иначе её молча съедал `maxLength`.
+   * ↑/↓ — значение сегмента на шаг, как у нативного поля даты (issue #1463): день и месяц по кругу,
+   * пустой сегмент — с края (↑ — 1, ↓ — последний), пустой год — год компании. День ходит по кругу
+   * своего месяца, если месяц набран: иначе ↑ с 30.11 давал бы 31.11 — «такой даты нет». Год — в
+   * границах календаря; недописанный (1 или 3 цифры) стрелка не трогает, чтобы не стереть набранное.
+   * Значение выделяется снова: следующая стрелка или цифра работает со всем сегментом.
+   */
+  function step(part: DatePart, delta: 1 | -1, input: HTMLInputElement) {
+    const cur = shown[part];
+    let next: string;
+    if (part === 'y') {
+      if (cur.length === 1 || cur.length === 3) return;
+      const year = cur === '' ? +companyToday().slice(0, 4) : +(cur.length === 2 ? fullYear(cur) : cur) + delta;
+      next = String(Math.min(MAX_YEAR, Math.max(MIN_YEAR, year)));
+    } else {
+      const top = part === 'm' ? 12 : dayTop(shown);
+      const n = cur === '' || +cur > top ? (delta > 0 ? 1 : top) : ((+cur - 1 + delta + top) % top) + 1;
+      next = String(n).padStart(2, '0');
+    }
+    const segs = { ...shown, [part]: next };
+    setSeg(part, next);
+    emit(segs.d, segs.m, segs.y);
+    setTimeout(() => { if (document.activeElement === input) input.select(); }, 0);
+  }
+
+  /**
+   * Разделитель переводит к следующему сегменту, Backspace в пустом — к предыдущему, ←/→ с края — к
+   * соседнему (issue #1463). Цифра в полный сегмент без выделения заменяет его, как в нативном поле
+   * даты: иначе её молча съедал `maxLength`. Alt+↓ — не шаг, а календарь (`onContainerKey`).
    */
   const onSegmentKey = (part: DatePart) => (e: React.KeyboardEvent<HTMLInputElement>) => {
     const cur = shown[part];
@@ -209,6 +243,11 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
     if (e.key === 'Backspace' && cur === '') go(part, -1);
     else if (SEPARATORS.includes(e.key) && cur) { e.preventDefault(); go(part, 1); }
     else if (/^\d$/.test(e.key) && input.value.length >= input.maxLength && input.selectionStart === input.selectionEnd) input.select();
+    else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.altKey && !readOnly && !disabled) {
+      e.preventDefault(); step(part, e.key === 'ArrowUp' ? 1 : -1, input);
+    }
+    else if (e.key === 'ArrowLeft' && atEdge(input, 'start')) { e.preventDefault(); go(part, -1); }
+    else if (e.key === 'ArrowRight' && atEdge(input, 'end')) { e.preventDefault(); go(part, 1); }
   };
 
   // Pad single digits on blur — read DOM value via ref to avoid stale closure
@@ -293,7 +332,7 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
   };
 
   const segments = foreign ? (
-    <div className={`flex items-center group min-w-0 ${className}`}>
+    <div role="group" aria-label={label} className={`flex items-center group min-w-0 ${className}`}>
       {readOnly || disabled
         ? <span className="truncate text-fg2">{value}</span>
         // Ввод начинается щелчком, Enter или пробелом, а не фокусом: проход Tab'ом по форме не должен
@@ -306,7 +345,7 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
       {problemMark}
     </div>
   ) : (
-    <div className={`flex items-center group ${className}`} onKeyDown={onContainerKey} onPaste={onPaste}>
+    <div role="group" aria-label={label} className={`flex items-center group ${className}`} onKeyDown={onContainerKey} onPaste={onPaste}>
       {mask.order.map((part, i) => {
         const { ref, change, blur, len } = SEGMENTS[part];
         return (
@@ -318,7 +357,7 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
               <span data-sizer={len === 4 ? '0000' : '00'} aria-hidden className={SIZER} />
               <input
                 ref={ref} type="text" inputMode="numeric"
-                placeholder={mask.labels[part]} maxLength={len}
+                placeholder={mask.labels[part]} aria-label={mask.names[part]} maxLength={len}
                 value={shown[part]}
                 disabled={disabled} readOnly={readOnly} aria-required={required || undefined} aria-invalid={invalid} aria-describedby={describedBy}
                 onChange={e => change(e.target.value)}
@@ -335,9 +374,9 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
       {showCalendar && (
         <Popover.Trigger asChild>
           <button ref={triggerRef} type="button" disabled={disabled} aria-label="Открыть календарь"
-            className={`ml-1 shrink-0 flex items-center justify-center h-5 w-5 rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
-              compact ? 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100' : ''}`}>
-            <CalendarDays size={compact ? 13 : 14} />
+            className={`-my-1.5 shrink-0 flex items-center justify-center h-8 w-8 rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+              compact ? `${COMPACT_TRIGGER} opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100` : 'ml-0.5'}`}>
+            <CalendarDays size={compact ? 14 : 16} />
           </button>
         </Popover.Trigger>
       )}
@@ -415,9 +454,32 @@ export function DateInput({ value, onChange, onProblem, precision = 'day', class
  * (около 20 знаков) оно в ячейку не вносит.
  */
 const SIZER = 'invisible col-start-1 row-start-1 px-0.5 tabular-nums after:content-[attr(data-sizer)]';
+/**
+ * Кнопка календаря в ячейке: нажимать — те же 32 px, а места в строке на 6 px меньше (ревью PR #1548):
+ * зона нажатия заходит на правое поле ячейки (`px-1.5`), а не на цифры года слева. Ширину колонки под
+ * поле — 140 px — держит `DEFAULT_COL_WIDTHS`.
+ */
+const COMPACT_TRIGGER = '-mr-1.5';
 const STOP = 'button, input, select, textarea, a[href], [tabindex]';
 /** Клавиши-разделители: набрав «18.» или «10/», человек ждёт следующий сегмент при любом языке. */
 const SEPARATORS = ['.', '/', '-'];
+
+/**
+ * Последний день для стрелок: дней в набранном месяце; год не дописан — по високосному (29 февраля
+ * не отсекается раньше, чем год известен); месяца нет — 31.
+ */
+function dayTop({ m, y }: Segments): number {
+  const month = +m;
+  if (!month || month > 12) return 31;
+  return daysInMonth(y.length === 4 ? +y : 2000, month);
+}
+
+/** Курсор у края сегмента или выделен весь сегмент — стрелка уводит к соседнему. */
+function atEdge(input: HTMLInputElement, side: 'start' | 'end'): boolean {
+  const { selectionStart: from, selectionEnd: to, value } = input;
+  if (from === 0 && to === value.length) return true;
+  return side === 'start' ? to === 0 : from === value.length;
+}
 
 /** Остановки Tab внутри `root` в порядке документа: видимые, доступные, без `tabindex="-1"`. */
 function tabStops(root: ParentNode): HTMLElement[] {
