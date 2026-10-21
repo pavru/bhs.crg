@@ -24,9 +24,9 @@ import {
   type WaybillDraft, type WaybillLineDraft,
 } from './waybills';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { TextField } from '@/shared/ui/TextField';
+import { DateField } from '@/shared/ui/DateField';
 
-const input = 'w-full rounded border border-stroke bg-surface px-2 py-1.5 text-sm text-fg1 outline-none '
-  + 'focus:border-brand placeholder:text-fg4 disabled:bg-muted disabled:text-fg3';
 const cell = 'w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg1 outline-none '
   + 'focus:border-brand placeholder:text-fg4 disabled:bg-muted disabled:text-fg3';
 
@@ -276,38 +276,34 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-5">
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Field label="Номер">
-            <input className={input} value={draft.number} disabled={locked}
-              onChange={e => edit({ number: e.target.value })} />
-          </Field>
-          <Field label="Дата отпуска">
-            <input type="date" className={input} value={draft.issuedOn} disabled={locked}
-              onChange={e => edit({ issuedOn: e.target.value })} />
-          </Field>
-          <Field label="Склад">
-            <input className={input} value={draft.warehouse} disabled={locked}
-              placeholder="Как в накладной" onChange={e => edit({ warehouse: e.target.value })} />
-          </Field>
-          <Field label="Получатель — стройка"
-            problem={view.constructionLost && orphan ? 'Стройки больше нет — выберите заново'
-              : sitesFailed ? 'Список строек не пришёл: это отказ чтения, а не пустой список' : undefined}>
-            <Select value={draft.construction} disabled={locked} aria-label="Получатель — стройка"
-              emptyItem="не выбрана" stayOpenOn={REVEAL_CHOICE}
-              onValueChange={choice => pickSite(choice, choices.reveal, construction => edit({ construction }))}>
-              {orphan && <SelectItem value={draft.construction}>{view.constructionName ?? MISSING.construction}</SelectItem>}
-              <SiteSelectItems choices={choices} />
-              <RevealItem hidden={choices.hidden} />
-            </Select>
-          </Field>
-          <Field label="Получил">
-            <input className={input} value={draft.receivedBy} disabled={locked}
-              placeholder="Кто принял на объекте" onChange={e => edit({ receivedBy: e.target.value })} />
-          </Field>
-          <Field label="Примечание">
-            <input className={input} value={draft.note} disabled={locked}
-              onChange={e => edit({ note: e.target.value })} />
-          </Field>
+        {/* Шапка — в слое формы, как у счёта (issue #1467): запертая накладная показывает значения
+            полями для чтения, а не отключёнными — приглушённое поле читается как «здесь ничего нет». */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <TextField label="Номер" value={draft.number} readOnly={locked}
+            onChange={e => edit({ number: e.target.value })} />
+          <DateField label="Дата отпуска" value={draft.issuedOn} readOnly={locked}
+            onChange={issuedOn => edit({ issuedOn })} />
+          <TextField label="Склад" value={draft.warehouse} readOnly={locked} hint={locked ? undefined : 'Как в накладной'}
+            onChange={e => edit({ warehouse: e.target.value })} />
+          {locked
+            ? <TextField label="Получатель — стройка" readOnly onChange={() => {}}
+                value={sites.find(s => s.id === draft.construction)?.name
+                  ?? (draft.construction ? view.constructionName ?? MISSING.construction : '')} />
+            : (
+              <Select label="Получатель — стройка" value={draft.construction}
+                emptyItem="не выбрана" stayOpenOn={REVEAL_CHOICE}
+                error={view.constructionLost && orphan ? 'Стройки больше нет — выберите заново'
+                  : sitesFailed ? 'Список строек не пришёл: это отказ чтения, а не пустой список' : undefined}
+                onValueChange={choice => pickSite(choice, choices.reveal, construction => edit({ construction }))}>
+                {orphan && <SelectItem value={draft.construction}>{view.constructionName ?? MISSING.construction}</SelectItem>}
+                <SiteSelectItems choices={choices} />
+                <RevealItem hidden={choices.hidden} />
+              </Select>
+            )}
+          <TextField label="Получил" value={draft.receivedBy} readOnly={locked} hint={locked ? undefined : 'Кто принял на объекте'}
+            onChange={e => edit({ receivedBy: e.target.value })} />
+          <TextField label="Примечание" value={draft.note} readOnly={locked}
+            onChange={e => edit({ note: e.target.value })} />
         </section>
 
         <section className="space-y-2">
@@ -374,15 +370,5 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
         </section>
       </div>
     </div>
-  );
-}
-
-function Field({ label, problem, children }: { label: string; problem?: string; children: React.ReactNode }) {
-  return (
-    <label className="block space-y-1">
-      <span className="text-xs text-fg3">{label}</span>
-      {children}
-      {problem && <span className="block text-xs text-danger">{problem}</span>}
-    </label>
   );
 }
