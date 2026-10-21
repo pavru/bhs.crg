@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { AlertTriangle, XCircle } from 'lucide-react';
 import { useServerForm } from '@/shared/hooks/useServerForm';
 import { Button } from '@/shared/ui/Button';
@@ -56,16 +56,25 @@ export function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
    * не сказала бы почему.
    */
   const [timeProblem, setTimeProblem] = useState<string | null>(null);
+  /** Время исправлено — отказ по нему больше не правда и уходит (ревью PR #1561). Постоянная: её зовёт эффект поля. */
+  const onTimeIncomplete = useCallback((message: string | null) => {
+    setTimeProblem(message);
+    if (!message) setError('');
+  }, []);
   const zone = useCompanyTimeZone().data;
+  /** Правка формы снимает прежний отказ: он говорил о том, чего на экране уже нет. */
+  const edit = (patch: Partial<BackupScheduleSettings>) => { setError(''); setForm({ ...form, ...patch }); };
 
   const dirty = form.enabled !== status.enabled
     || form.timeOfDay !== status.timeOfDay
     || form.keepCount !== status.keepCount;
   // Ближайшая — у сохранённого расписания: при неотправленной правке она говорила бы о том, чего
   // служба делать не будет.
-  const nextRun = !dirty && status.nextRunAt ? nextBackupText(status.nextRunAt) : null;
-  // У выключенного расписания время не действует — и сохранению не мешает.
-  const blocked = form.enabled ? timeProblem : null;
+  const nextRun = !dirty && status.nextRun ? nextBackupText(status.nextRun) : null;
+  // Время обязательно, но стереть его можно (Ctrl+A → Delete) — пустое отказывает здесь, с причиной, а
+  // не сервером (ревью PR #1561). У выключенного расписания время не действует и сохранению не мешает.
+  const missing = form.enabled && form.timeOfDay === '';
+  const blocked = form.enabled ? timeProblem ?? (missing ? 'Время копии не задано' : null) : null;
 
   async function submit() {
     setError('');
@@ -74,7 +83,9 @@ export function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
       return;
     }
     try {
-      await save.mutateAsync(form);
+      // Выключая расписание со стёртым временем, пишем прежнее: сервер принимает только ЧЧ:ММ, а
+      // выключить расписание должно быть можно всегда.
+      await save.mutateAsync(form.timeOfDay ? form : { ...form, timeOfDay: status.timeOfDay });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
@@ -84,7 +95,7 @@ export function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
 
   return (
     <div className="rounded-md border border-muted p-3 space-y-3">
-      <Checkbox checked={form.enabled} onChange={enabled => setForm({ ...form, enabled })}
+      <Checkbox checked={form.enabled} onChange={enabled => edit({ enabled })}
         label="Снимать копию автоматически"
         description={'Раз в сутки. Пропущенный запуск (сервер был выключен) выполняется при следующем старте; '
           + 'за неделю простоя снимается одна копия, а не семь.'} />
@@ -92,12 +103,15 @@ export function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
       {/* Выключенное расписание — disabled, а не readOnly: значение не действует, а не «кладёт не
           человек» (макет #1468, 0a). Подпись пояса при этом не гаснет. */}
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-start gap-3 pt-1">
-        <TimeField label="Время копии" required value={form.timeOfDay} disabled={!form.enabled}
-          onChange={timeOfDay => setForm({ ...form, timeOfDay })} onIncomplete={setTimeProblem}
+        {/* Ключ по выключателю: выключили расписание — набранное с ошибкой уходит вместе с ней, а не
+            краснеет в поле, которое уже не правится (ревью PR #1561). */}
+        <TimeField key={String(form.enabled)} label="Время копии" required value={form.timeOfDay}
+          disabled={!form.enabled} invalid={missing}
+          onChange={timeOfDay => edit({ timeOfDay })} onIncomplete={onTimeIncomplete}
           hint={zone ? backupZoneHint(zone) : undefined} className="w-full sm:w-64" />
         <TextField label="Хранить плановых" type="number" inputMode="numeric" min={1} max={1000}
           value={form.keepCount} disabled={!form.enabled}
-          onChange={e => setForm({ ...form, keepCount: Number(e.target.value) })}
+          onChange={e => edit({ keepCount: Number(e.target.value) })}
           trailing={<span className="text-sm text-fg4">копий</span>}
           containerClassName="w-full sm:w-44" className="tabular-nums" />
         <div className="flex items-center gap-2 sm:h-14">

@@ -20,7 +20,6 @@ export interface TimeMask {
 // Обозначения сегментов `Intl` не знает — это слова языка. Нет языка в таблице — английские.
 const LABELS: Record<string, Record<TimePart, string>> = {
   ru: { h: 'ЧЧ', min: 'ММ' },
-  de: { h: 'HH', min: 'MM' },
   en: { h: 'HH', min: 'MM' },
 };
 const NAMES_EN: Record<TimePart, string> = { h: 'hour', min: 'minute' };

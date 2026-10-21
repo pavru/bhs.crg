@@ -59,7 +59,7 @@ public static class BackupEndpoints
                     state.LastFileName,
                     state.LastError,
                     state.LastErrorAt,
-                    nextRunAt = BackupScheduleService.NextRunAt(schedule, state.LastRunAt, clock.GetUtcNow(), zone),
+                    nextRun = BackupScheduleService.NextRunAt(schedule, state.LastRunAt, clock.GetUtcNow(), zone),
                     running = await jobs.HasActiveOfKindAsync(JobKind.CreateBackup, ct),
                 },
             });

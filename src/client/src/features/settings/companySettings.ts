@@ -1,5 +1,7 @@
 import type { CompanyTimeZoneView } from '@/shared/api/companyTimeZone';
 import { formatDay } from '@/shared/format/format';
+import { parseISO } from '@/shared/utils/date';
+import type { BackupNextRun } from '@/shared/api/types';
 import type { AccountingCurrencyView } from '@/shared/api/accountingCurrency';
 
 /**
@@ -69,21 +71,20 @@ export function backupZoneHint(view: CompanyTimeZoneView): string {
 
 /**
  * Ближайшая плановая копия словами: «сегодня, 04:00», «завтра, 04:00», «24.10.2026, 04:00»; срок
- * настал — «в течение минуты» (служба проверяет срок раз в минуту). Момент пришёл со смещением пояса,
- * по которому служба считает срок (`BackupScheduleService.NextRunAt`): день и час читаются из записи как
- * есть, «сегодня» — в том же смещении, а не по часам браузера. Нечитаемое — null: строки не будет.
+ * настал — «в течение минуты» (служба проверяет срок раз в минуту). Всё нужное посчитал сервер
+ * (`BackupScheduleService.NextRunAt`): признак срока, «сегодня» компании и срок со смещением её пояса —
+ * день и час читаются из записи как есть. Часов браузера здесь нет нарочно: их расхождение с сервером
+ * превращало «сейчас» в «сегодня, 09:30» (ревью PR #1561). Нечитаемое — null: строки не будет.
  */
-export function nextBackupText(nextRunAt: string, now: number = Date.now()): string | null {
-  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::[\d.]+)?(Z|([+-])(\d{2}):(\d{2}))$/.exec(nextRunAt);
-  if (!m) return null;
-  if (Date.parse(nextRunAt) <= now) return 'в течение минуты';
-  const offset = m[3] === 'Z' ? 0 : (m[4] === '-' ? -1 : 1) * (+m[5] * 60 + +m[6]) * 60_000;
-  const dayAt = (shift: number) => new Date(now + offset + shift).toISOString().slice(0, 10);
-  const day = m[1] === dayAt(0) ? 'сегодня' : m[1] === dayAt(DAY_MS) ? 'завтра' : formatDay(m[1]);
-  return `${day}, ${m[2]}`;
+export function nextBackupText(next: BackupNextRun): string | null {
+  if (next.due) return 'в течение минуты';
+  const at = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(next.at);
+  const today = parseISO(next.today);
+  if (!at || !today) return null;
+  const tomorrow = new Date(Date.UTC(today.y, today.m - 1, today.d + 1)).toISOString().slice(0, 10);
+  const day = at[1] === next.today ? 'сегодня' : at[1] === tomorrow ? 'завтра' : formatDay(at[1]);
+  return `${day}, ${at[2]}`;
 }
-
-const DAY_MS = 86_400_000;
 
 /** «2026-10-13T14:32» → «13.10.2026, 14:32». Число и час пришли уже в поясе компании — не пересчитываем. */
 export function companyNow(effectiveNow: string): string {
