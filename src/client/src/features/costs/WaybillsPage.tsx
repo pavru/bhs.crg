@@ -211,7 +211,7 @@ export function WaybillsPage() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col">
             {opened.rereadFailed != null && (
               <RereadFailedNotice what="Накладная не перечиталась" error={opened.rereadFailed}
                 retrying={view.isFetching} onRetry={() => void view.refetch()} />

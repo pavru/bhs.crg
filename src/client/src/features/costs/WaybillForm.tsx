@@ -181,7 +181,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
   const choices = useSiteChoices(sites, draft.construction);
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col">
+    <div className="flex-1 min-w-0 min-h-0 flex flex-col">
       <LeaveGuardDialog open={leave !== null} saving={save.isPending}
         onCancel={() => setLeave(null)}
         onDiscard={() => { const go = leave; setLeave(null); go?.(); }}
