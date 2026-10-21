@@ -115,8 +115,18 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
   const editLine = (key: string, patch: Partial<WaybillLineDraft>) =>
     setDraft(d => ({ ...d, lines: d.lines.map(l => l.key === key ? { ...l, ...patch } : l) }));
 
+  // Недописанная дата отпуска наружу не уходит: в черновике осталась прежняя. Записать её молча значило бы
+  // сохранить или провести не ту дату, что на экране (ревью PR #1556).
+  const [dateProblem, setDateProblem] = useState<string | null>(null);
+  const refusedForDate = () => {
+    if (!dateProblem) return false;
+    toast.error(`Накладная не записана: в дате отпуска ошибка — «${dateProblem}».`);
+    return true;
+  };
+
   /** Сохранить черновик; возвращает записанное — следующему действию нужна его версия — либо null. */
   async function saveDraft(): Promise<WaybillView | null> {
+    if (refusedForDate()) return null;
     // Пустые заготовки уходят и с экрана: номер строки в отказе сервера обязан совпасть с номером здесь.
     const sent = withoutBlanks(draft);
     if (sent !== draft) setDraft(sent);
@@ -133,6 +143,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
     // Проводится то, что на экране: несохранённая правка, оставшаяся в форме, иначе пропала бы молча,
     // а проведённым оказалось бы прежнее состояние.
     // Версию называет то, что только что записано: у сохранённого она уже другая.
+    if (refusedForDate()) return;
     const saved = dirty ? await saveDraft() : view;
     if (!saved) return;
     try { await state.mutateAsync({ id: view.id, seen: saved.version, to: 'posted' }); }
@@ -279,10 +290,11 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
         {/* Шапка — в слое формы, как у счёта (issue #1467): запертая накладная показывает значения
             полями для чтения, а не отключёнными — приглушённое поле читается как «здесь ничего нет». */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <TextField label="Номер" value={draft.number} readOnly={locked}
+          {/* Обязательны поля, без которых накладную не провести: черновик сохраняется и без них. */}
+          <TextField label="Номер" value={draft.number} readOnly={locked} required
             onChange={e => edit({ number: e.target.value })} />
-          <DateField label="Дата отпуска" value={draft.issuedOn} readOnly={locked}
-            onChange={issuedOn => edit({ issuedOn })} />
+          <DateField label="Дата отпуска" value={draft.issuedOn} readOnly={locked} required
+            onChange={issuedOn => edit({ issuedOn })} onIncomplete={setDateProblem} />
           <TextField label="Склад" value={draft.warehouse} readOnly={locked} hint={locked ? undefined : 'Как в накладной'}
             onChange={e => edit({ warehouse: e.target.value })} />
           {locked
@@ -290,7 +302,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
                 value={sites.find(s => s.id === draft.construction)?.name
                   ?? (draft.construction ? view.constructionName ?? MISSING.construction : '')} />
             : (
-              <Select label="Получатель — стройка" value={draft.construction}
+              <Select label="Получатель — стройка" value={draft.construction} required
                 emptyItem="не выбрана" stayOpenOn={REVEAL_CHOICE}
                 error={view.constructionLost && orphan ? 'Стройки больше нет — выберите заново'
                   : sitesFailed ? 'Список строек не пришёл: это отказ чтения, а не пустой список' : undefined}

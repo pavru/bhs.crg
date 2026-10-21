@@ -310,15 +310,23 @@ async function waybillPart(seat) {
  * а отключённое поле читалось бы «здесь ничего нет». Дата — набранная сегментами, в маске языка.
  */
 async function lockedHeader(page, waybill) {
+  for (const label of ['Номер', 'Склад', 'Получил', 'Примечание', 'Получатель — стройка']) {
+    const field = page.getByLabel(label, { exact: true });
+    if (await field.isDisabled() || await field.getAttribute('readonly') === null)
+      throw new Error(`«${label}» проведённой накладной не поле для чтения`);
+  }
+  const segments = page.getByRole('group', { name: 'Дата отпуска', exact: true }).getByRole('textbox');
+  if (!(await segments.evaluateAll(els => els.length > 0 && els.every(e => e.readOnly && !e.disabled))))
+    throw new Error('дата отпуска проведённой накладной не поле для чтения');
+
   const number = page.getByLabel('Номер', { exact: true });
-  if (await number.isDisabled() || await number.getAttribute('readonly') === null)
-    throw new Error('номер проведённой накладной не поле для чтения');
   if (await number.inputValue() !== waybill) throw new Error(`номер на шапке не тот: ${await number.inputValue()}`);
   const site = page.getByLabel('Получатель — стройка', { exact: true });
   if (await site.inputValue() !== SITE) throw new Error(`стройка на запертой шапке: «${await site.inputValue()}»`);
-  const date = await page.getByRole('group', { name: 'Дата отпуска', exact: true }).getByRole('textbox')
-    .evaluateAll(els => els.map(e => e.value).join('.'));
-  if (date !== '01.09.2026') throw new Error(`дата отпуска на шапке: «${date}»`);
+  // Дату сверяет сервер, а не склейка сегментов: в чужой маске (ММ.ДД) те же цифры — другая дата.
+  const id = new URL(page.url()).searchParams.get('waybill');
+  const saved = await api(page, 'GET', `/costs/waybills/${id}`);
+  if (saved.issuedOn !== '2026-09-01') throw new Error(`дата отпуска записана как ${saved.issuedOn}`);
   if (await page.locator('input[type="date"]').count()) throw new Error('на форме накладной нативное поле даты');
 }
 
@@ -339,6 +347,23 @@ async function waybillDeletePart(seat) {
   await page.getByLabel('Номер', { exact: true }).fill(waybill);
   await page.getByRole('button', { name: 'Добавить строку', exact: true }).click();
   await page.locator('tbody tr').last().getByLabel(/Наименование в накладной/).fill('Заведено по ошибке');
+
+  // Недописанная дата не записывается молча (ревью PR #1556): наружу она не уходит, и сохранение без
+  // отказа записало бы прежнюю — здесь пустую — при «Дата не дописана» на экране.
+  seat.screen = 'недописанная дата накладной';
+  const date = page.getByRole('group', { name: 'Дата отпуска', exact: true });
+  await date.getByRole('textbox', { name: 'день', exact: true }).click();
+  await page.keyboard.type('0109');
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await page.getByText(/Накладная не записана: в дате отпуска ошибка/).first().waitFor({ timeout: 10_000 })
+    .catch(() => { throw new Error('накладная с недописанной датой сохранена без отказа'); });
+  // Заголовок называет записанный номер: набранный, но не записанный, в нём не появляется.
+  if (await page.getByRole('heading', { name: new RegExp(waybill) }).count())
+    throw new Error('накладная с недописанной датой записана');
+  await date.getByRole('textbox', { name: 'год', exact: true }).click();
+  await page.keyboard.type('2026');
+
+  seat.screen = 'удаление накладной';
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await page.getByRole('heading', { name: new RegExp(waybill) }).waitFor({ timeout: 10_000 });
   const id = new URL(page.url()).searchParams.get('waybill');
