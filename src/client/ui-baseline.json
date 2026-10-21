@@ -54,7 +54,6 @@
     "features/document-sets/fields/PrimitiveInput.tsx": 1,
     "features/quality-docs/QualityDocLinks.tsx": 1,
     "features/reconciliations/ReconciliationsPage.tsx": 1,
-    "features/settings/BackupScheduleForm.tsx": 1,
     "features/settings/CreateForm.tsx": 1,
     "features/settings/EmailSettingsSection.tsx": 2,
     "features/settings/FieldBuilder.tsx": 3,
@@ -156,8 +155,6 @@
   "portal-container": {
     "shared/ui/WindowStep.tsx": 2
   },
-  "native-date": {
-    "features/settings/BackupScheduleForm.tsx": 1
-  },
+  "native-date": {},
   "date-frame": {}
 }

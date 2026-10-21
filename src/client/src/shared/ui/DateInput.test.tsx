@@ -217,11 +217,11 @@ describe('DateInput: правки по ревью PR #1542', () => {
     expect(screen.queryByText(/наберите дату заново/)).toBeNull();
   });
 
-  it('ошибка связана с сегментами описанием — и у DateField, чья подпись с полем не связана', () => {
+  it('ошибка связана с сегментами описанием — у DateField это подпись под рамкой с ошибкой (#1468)', () => {
     render(<Controlled initial="2026-11-18" field />);
     typeDate('31', '02', '2026');
     const id = seg('ДД').getAttribute('aria-describedby');
-    expect(id && document.getElementById(id)?.textContent).toBe('Такой даты нет');
+    expect(id && document.getElementById(id)?.textContent).toBe('Такой даты нет. От неё считается срок');
     expect(document.querySelectorAll('[role="alert"]').length).toBe(0);
   });
 

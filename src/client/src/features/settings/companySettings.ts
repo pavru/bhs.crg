@@ -67,6 +67,24 @@ export function backupZoneHint(view: CompanyTimeZoneView): string {
   return `По поясу компании: ${withOffset(city, view.effectiveOffset)}`;
 }
 
+/**
+ * Ближайшая плановая копия словами: «сегодня, 04:00», «завтра, 04:00», «24.10.2026, 04:00»; срок
+ * настал — «в течение минуты» (служба проверяет срок раз в минуту). Момент пришёл со смещением пояса,
+ * по которому служба считает срок (`BackupScheduleService.NextRunAt`): день и час читаются из записи как
+ * есть, «сегодня» — в том же смещении, а не по часам браузера. Нечитаемое — null: строки не будет.
+ */
+export function nextBackupText(nextRunAt: string, now: number = Date.now()): string | null {
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::[\d.]+)?(Z|([+-])(\d{2}):(\d{2}))$/.exec(nextRunAt);
+  if (!m) return null;
+  if (Date.parse(nextRunAt) <= now) return 'в течение минуты';
+  const offset = m[3] === 'Z' ? 0 : (m[4] === '-' ? -1 : 1) * (+m[5] * 60 + +m[6]) * 60_000;
+  const dayAt = (shift: number) => new Date(now + offset + shift).toISOString().slice(0, 10);
+  const day = m[1] === dayAt(0) ? 'сегодня' : m[1] === dayAt(DAY_MS) ? 'завтра' : formatDay(m[1]);
+  return `${day}, ${m[2]}`;
+}
+
+const DAY_MS = 86_400_000;
+
 /** «2026-10-13T14:32» → «13.10.2026, 14:32». Число и час пришли уже в поясе компании — не пересчитываем. */
 export function companyNow(effectiveNow: string): string {
   const [day, time = ''] = effectiveNow.split('T');

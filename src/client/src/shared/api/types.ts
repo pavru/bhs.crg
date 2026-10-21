@@ -351,6 +351,11 @@ export interface BackupScheduleStatus extends BackupScheduleSettings {
   lastFileName: string | null;
   lastError: string | null;
   lastErrorAt: string | null;
+  /**
+   * Когда служба поставит следующую плановую копию (issue #1468): момент со смещением пояса, по
+   * которому она считает срок; срок настал — «сейчас». null — расписание выключено.
+   */
+  nextRunAt: string | null;
   running: boolean;
 }
 

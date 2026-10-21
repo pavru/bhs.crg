@@ -155,6 +155,27 @@ public class BackupScheduleService(
     }
 
     /// <summary>
+    /// Когда служба поставит следующую плановую копию (issue #1468) — для строки «Ближайшая копия» у
+    /// формы расписания. Тем же правилом, что <see cref="IsDue" />, и в том же поясе: строка, считанная
+    /// отдельно, разошлась бы с тем, что служба сделает на самом деле.
+    ///
+    /// Срок настал, а копию не ставили — <paramref name="now" />: служба поставит её на ближайшем тике.
+    /// Смещение момента — пояса <paramref name="zone" />: по нему клиент читает день и час как есть, не
+    /// пересчитывая. <c>null</c> — расписание выключено или время негодное: копии не будет.
+    /// </summary>
+    public static DateTimeOffset? NextRunAt(BackupScheduleSettings schedule, DateTimeOffset? lastRunAt,
+        DateTimeOffset now, TimeZoneInfo zone)
+    {
+        if (!schedule.Enabled) return null;
+        if (ParseTimeOfDay(schedule.TimeOfDay) is not { } time) return null;
+        if (IsDue(schedule, lastRunAt, now, zone)) return TimeZoneInfo.ConvertTime(now, zone);
+
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
+        var dueToday = DueOn(today, time, zone);
+        return now < dueToday ? dueToday : DueOn(today.AddDays(1), time, zone);
+    }
+
+    /// <summary>
     /// Срок суток <paramref name="day" /> в поясе <paramref name="zone" /> — момент. Смещение берётся
     /// у СРОКА, а не у «сейчас»: иначе в день перевода часов срок, назначенный до перевода, после него
     /// сдвигался на час, и копия снималась второй раз.

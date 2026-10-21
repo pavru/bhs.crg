@@ -169,6 +169,41 @@ public class BackupScheduleServiceTests
         Assert.True(BackupScheduleService.IsDue(Schedule(), Utc(8, 20, 0, 0), Utc(8, 20, 9, 0), Kaliningrad));
     }
 
+    /// <summary>
+    /// Ближайшая копия (issue #1468): до срока — сегодняшний срок, после копии — завтрашний. Смещение
+    /// момента — пояса компании: по нему клиент читает «04:00» как есть.
+    /// </summary>
+    [Fact]
+    public void NextRunAt_TodayBeforeTheHour_TomorrowAfterTheCopy()
+    {
+        var beforeTheHour = BackupScheduleService.NextRunAt(Schedule(), At(19, 3, 0), Utc(8, 19, 23, 0), Moscow);
+        Assert.Equal(At(20, 3, 0), beforeTheHour);
+        Assert.Equal(Msk, beforeTheHour!.Value.Offset);
+
+        Assert.Equal(At(21, 3, 0), BackupScheduleService.NextRunAt(Schedule(), At(20, 3, 0), At(20, 9, 0), Moscow));
+    }
+
+    /// <summary>Срок прошёл, копию не ставили (сервер был выключен) — копия сейчас, а не завтра.</summary>
+    [Fact]
+    public void NextRunAt_MissedRun_IsNow()
+    {
+        var now = At(20, 9, 30);
+        Assert.Equal(now, BackupScheduleService.NextRunAt(Schedule(), At(19, 3, 0), now, Moscow));
+    }
+
+    /// <summary>Правило и строка не расходятся: ближайшая копия — первый момент, когда срок настал.</summary>
+    [Fact]
+    public void NextRunAt_IsWhenIsDueTurnsTrue()
+    {
+        var next = BackupScheduleService.NextRunAt(Schedule(time: "04:00"), At(20, 4, 0), At(20, 12, 0), Vladivostok)!.Value;
+        Assert.False(BackupScheduleService.IsDue(Schedule(time: "04:00"), At(20, 4, 0), next.AddMinutes(-1), Vladivostok));
+        Assert.True(BackupScheduleService.IsDue(Schedule(time: "04:00"), At(20, 4, 0), next, Vladivostok));
+    }
+
+    [Fact]
+    public void NextRunAt_Disabled_None()
+        => Assert.Null(BackupScheduleService.NextRunAt(Schedule(enabled: false), null, At(20, 1, 0), Moscow));
+
     [Theory]
     [InlineData("03:00", 3, 0)]
     [InlineData("00:00", 0, 0)]

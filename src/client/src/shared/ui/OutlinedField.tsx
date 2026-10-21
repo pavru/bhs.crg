@@ -39,6 +39,11 @@ export interface OutlinedFieldProps {
   error?: string;
   /** Вспомогательный текст под полем (напр. пример ввода) — скрывается при наличии `error`. */
   hint?: string;
+  /**
+   * id подписи под полем — контрол ссылается на неё `aria-describedby` (issue #1468): иначе пояснение
+   * и ошибку под рамкой скринридер с полем не связывает. Стоит на той подписи, что видна.
+   */
+  hintId?: string;
   raise?: 'auto' | 'always';
   /** Только для `raise="always"`: подсветить рамку и метку как при фокусе. */
   focused?: boolean;
@@ -64,7 +69,7 @@ export interface OutlinedFieldProps {
 }
 
 export function OutlinedField({
-  label, required, invalid, error, hint, raise = 'auto', focused, htmlFor, labelId,
+  label, required, invalid, error, hint, hintId, raise = 'auto', focused, htmlFor, labelId,
   readOnly, trailing, containerClassName = '', children,
 }: OutlinedFieldProps) {
   const bad = !!error || invalid;
@@ -126,8 +131,8 @@ export function OutlinedField({
         {trailing && <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10">{trailing}</div>}
       </div>
       {error
-        ? <p className="mt-1 px-1 text-xs text-danger">{error}</p>
-        : hint ? <p className="mt-1 px-1 text-xs text-fg4">{hint}</p> : null}
+        ? <p id={hintId} className="mt-1 px-1 text-xs text-danger">{error}</p>
+        : hint ? <p id={hintId} className="mt-1 px-1 text-xs text-fg4">{hint}</p> : null}
     </div>
   );
 }

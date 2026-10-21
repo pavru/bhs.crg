@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CompanyTimeZoneView } from '@/shared/api/companyTimeZone';
-import { SERVER_ZONE, backupZoneHint, companyNow, zoneChoices, zoneNotice } from './companySettings';
+import { SERVER_ZONE, backupZoneHint, companyNow, nextBackupText, zoneChoices, zoneNotice } from './companySettings';
 
 /**
  * Часовой пояс компании на экране (issue #1148): что предложить и что сказать, когда действует не
@@ -92,5 +92,27 @@ describe('пояс плановой копии (issue #1468)', () => {
   it('пояса нет в списке — назван идентификатором, а не пустотой', () => {
     expect(backupZoneHint(view({ timeZoneId: 'Asia/Tokyo', effectiveTimeZoneId: 'Asia/Tokyo', effectiveOffset: 'UTC+09:00' })))
       .toBe('По поясу компании: Asia/Tokyo (UTC+09:00)');
+  });
+});
+
+describe('ближайшая плановая копия (issue #1468)', () => {
+  // 21.10.2026, 23:30 по Москве — у Гринвича ещё 20:30.
+  const now = Date.parse('2026-10-21T20:30:00Z');
+
+  it('день — в поясе срока, а не браузера', () => {
+    expect(nextBackupText('2026-10-22T04:00:00+03:00', now)).toBe('завтра, 04:00');
+    expect(nextBackupText('2026-10-21T23:45:00+03:00', now)).toBe('сегодня, 23:45');
+    // У Владивостока (UTC+10) уже 22-е: та же минута — «сегодня».
+    expect(nextBackupText('2026-10-22T07:00:00+10:00', now)).toBe('сегодня, 07:00');
+  });
+
+  it('дальше завтра — датой; срок настал — в течение минуты', () => {
+    expect(nextBackupText('2026-10-24T04:00:00+03:00', now)).toBe('24.10.2026, 04:00');
+    expect(nextBackupText('2026-10-21T23:30:00+03:00', now)).toBe('в течение минуты');
+  });
+
+  it('по Гринвичу и нечитаемое', () => {
+    expect(nextBackupText('2026-10-22T04:00:00Z', now)).toBe('завтра, 04:00');
+    expect(nextBackupText('завтра', now)).toBeNull();
   });
 });
