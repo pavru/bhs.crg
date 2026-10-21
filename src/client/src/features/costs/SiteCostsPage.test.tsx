@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { apiClient } from '@/shared/api/client';
@@ -16,6 +16,13 @@ import { SiteCostsPage } from './SiteCostsPage';
  */
 
 vi.mock('@/shared/api/client', () => ({ apiClient: { get: vi.fn(), post: vi.fn() } }));
+vi.mock('@/shared/hooks/useLocale', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/shared/hooks/useLocale')>()),
+  useLocale: () => ['ru-RU', () => {}, 'idle'],
+}));
+beforeAll(() => {
+  globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
+});
 
 const SITES = [{ id: 'a', name: 'Комарова 36' }, { id: 'b', name: 'Ленина 5' }, { id: 'c', name: 'Склад' }];
 
@@ -40,12 +47,12 @@ function report(from: string, to: string): SiteCosts {
   };
 }
 
-function mount(filter: SiteFilterValue) {
+function mount(filter: SiteFilterValue, query = 'from=2026-09&to=2026-09') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <SiteFilterContext.Provider value={filter}>
-        <MemoryRouter initialEntries={['/site-costs?from=2026-09&to=2026-09']}><SiteCostsPage /></MemoryRouter>
+        <MemoryRouter initialEntries={[`/site-costs?${query}`]}><SiteCostsPage /></MemoryRouter>
       </SiteFilterContext.Provider>
     </QueryClientProvider>,
   );
@@ -60,6 +67,18 @@ beforeEach(() => {
   });
 });
 afterEach(cleanup);
+
+/** Сегмент месяца границы периода. */
+const segment = (side: 'с' | 'по') =>
+  within(screen.getByRole('group', { name: `Учётный период, ${side}` })).getByRole('textbox', { name: 'месяц' });
+function month(side: 'с' | 'по', mm: string) {
+  fireEvent.focus(segment(side));
+  fireEvent.change(segment(side), { target: { value: mm } });
+}
+/** Периоды, о которых спросили сервер, — «с|по». */
+const asked = () => vi.mocked(apiClient.get).mock.calls
+  .map(([, c]) => (c as { params?: { from?: string; to?: string } } | undefined)?.params)
+  .filter(p => p?.from).map(p => `${p!.from}|${p!.to}`);
 
 describe('отчёт всех строек под фильтром', () => {
   it('неизбранные — одной строкой без числа счетов; итог тот же', async () => {
@@ -77,10 +96,77 @@ describe('отчёт всех строек под фильтром', () => {
     await screen.findByText('Ленина 5');
     expect(screen.queryByTestId('site-costs-folded')).toBeNull();
 
-    fireEvent.change(screen.getByLabelText('по'), { target: { value: '2026-10' } });
+    month('по', '10');
     await waitFor(() => expect(vi.mocked(apiClient.get).mock.calls.some(([, c]) =>
       (c as { params?: { to?: string } } | undefined)?.params?.to === '2026-10')).toBe(true));
     await screen.findByTestId('site-costs-folded');
     expect(screen.queryByText('Ленина 5')).toBeNull();
+  });
+});
+
+/**
+ * Учётный период (issue #1466): поле месяца маской языка, а не нативное. В адрес и на сервер — ГГГГ-ММ:
+ * ГГГГ-ММ-01 сервер отвергает «месяц назван не так», «по» раньше «с» — «период задан наоборот».
+ */
+describe('учётный период', () => {
+  it('месяц уходит на сервер как ГГГГ-ММ', async () => {
+    mount(filterOf([]));
+    await screen.findByRole('row', { name: /Итого затраты/ });
+    expect(screen.getByRole('group', { name: 'Учётный период, с' }).querySelector('input[type="month"]')).toBeNull();
+    month('по', '11');
+    await waitFor(() => expect(asked()).toContain('2026-09|2026-11'));
+    expect(asked().every(p => /^\d{4}-\d{2}\|\d{4}-\d{2}$/.test(p))).toBe(true);
+  });
+
+  it('«по» раньше «с» на сервер не уходит; уход из поля поправляет «с»', async () => {
+    mount(filterOf([]), 'from=2026-09&to=2026-10');
+    await screen.findByRole('row', { name: /Итого затраты/ });
+    month('по', '08');
+    expect(segment('по')).toHaveProperty('value', '08');
+    fireEvent.blur(segment('по'), { relatedTarget: screen.getByRole('button', { name: 'с НДС' }) });
+    await waitFor(() => expect(asked()).toContain('2026-08|2026-08'));
+    expect(asked()).not.toContain('2026-09|2026-08');
+    expect(segment('с')).toHaveProperty('value', '08');
+  });
+
+  it('поправка при уходе на «без НДС» не теряется щелчком по ней', async () => {
+    mount(filterOf([]), 'from=2026-09&to=2026-10');
+    await screen.findByRole('row', { name: /Итого затраты/ });
+    month('по', '08');
+    const without = screen.getByRole('button', { name: 'без НДС' });
+    // Одним тактом, без отрисовки между: в браузере щелчок приходит раньше, чем адрес перерисован.
+    act(() => {
+      fireEvent.blur(segment('по'), { relatedTarget: without });
+      fireEvent.click(without);
+    });
+    await waitFor(() => expect(without).toHaveProperty('ariaPressed', 'true'));
+    expect(asked().at(-1)).toBe('2026-08|2026-08');
+    expect(segment('с')).toHaveProperty('value', '08');
+  });
+
+  it('отчёт не построился, а периода в адресе нет — набранный месяц встаёт за обе границы', async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (url: string, config?: unknown) => {
+      if (url === '/costs/constructions') return { data: SITES.map(s => ({ ...s, sections: [] })) };
+      const params = (config as { params: { from?: string; to?: string } }).params;
+      if (!params.from) throw new Error('сеть');
+      return { data: report(params.from, params.to!) };
+    });
+    mount(filterOf([]), '');
+    await screen.findByRole('alert');
+    fireEvent.focus(segment('с'));
+    fireEvent.change(segment('с'), { target: { value: '09' } });
+    const year = within(screen.getByRole('group', { name: 'Учётный период, с' })).getByRole('textbox', { name: 'год' });
+    fireEvent.change(year, { target: { value: '2026' } });
+    await waitFor(() => expect(asked()).toContain('2026-09|2026-09'));
+  });
+
+  it('стёртую границу на сервер не отдаёт: отчёт без периода не строится', async () => {
+    mount(filterOf([]));
+    await screen.findByRole('row', { name: /Итого затраты/ });
+    const before = asked().length;
+    month('с', '');
+    fireEvent.blur(segment('с'), { relatedTarget: screen.getByRole('button', { name: 'с НДС' }) });
+    expect(asked().slice(before).filter(p => p !== '2026-09|2026-09')).toEqual([]);
+    expect(screen.queryByRole('button', { name: 'Очистить дату' })).toBeNull();
   });
 });

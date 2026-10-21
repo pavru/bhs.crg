@@ -17,6 +17,9 @@
 //      неизбранные стройки — одной строкой, видной без прокрутки на 1366×768; итог тот же, столбец
 //      сходится с ним; «Показать построчно» раскрывает на месте. Реестр под фильтром открывается БЕЗ
 //      отбора и только предлагает чип «Объект: избранные стройки».
+//   5. `period-month-field-keeps-the-address-and-pulls-from` — период вводится полем месяца маской языка
+//      (issue #1466), а не нативным `type="month"`: «по» раньше «с» подтягивает «с» при уходе из поля
+//      щелчком «без НДС» — и щелчок поправку не затирает; адрес остаётся ГГГГ-ММ, отказов сервера нет.
 //
 // ⚠️ Данные прогон заводит СЕБЕ САМ: стройку «Объект прогона затрат» (один раз, по имени), оплаченный и
 // неоплаченный счёт на запуск. Счета копятся от запуска к запуску — числа растут, равенства остаются:
@@ -280,6 +283,36 @@ await check('all-sites-folds-non-favorite-and-keeps-the-total', async () => {
   } finally {
     await api('PUT', '/account/settings', { favoriteConstructions: null, favoritesFilter: null });
     await page.setViewportSize({ width: 1500, height: 1000 });
+  }
+});
+
+// ── 5. Период — поле месяца маской языка (issue #1466): ранняя «по» тянет «с», адрес — ГГГГ-ММ ────────
+await check('period-month-field-keeps-the-address-and-pulls-from', async () => {
+  const [y, m] = month.split('-').map(Number);
+  const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+  const refused = [];
+  const watch = r => { if (r.url().includes('/api/costs/site-costs') && r.status() >= 400) refused.push(`${r.status()} ${r.url()}`); };
+  page.on('response', watch);
+  try {
+    await open(`from=${month}&to=${month}`);
+    if (await page.locator('input[type="month"]').count()) throw new Error('на странице осталось нативное поле месяца');
+    const to = page.getByRole('group', { name: 'Учётный период, по', exact: true });
+    await to.getByRole('textbox', { name: 'месяц' }).click();
+    await page.keyboard.type(`${prev.slice(5)}${prev.slice(0, 4)}`);
+    // Уход щелчком по «без НДС» — фиксация: «по» раньше «с», и «с» подтягивается к ней. Тот же щелчок
+    // пишет в адрес свой параметр — поправка периода не должна им затереться (гонка записи адреса).
+    await page.getByRole('button', { name: 'без НДС' }).click();
+    // Адрес меняется заменой записи истории, без навигации — waitForURL ждал бы загрузки, которой нет.
+    await page.waitForFunction(p => location.search.includes(`from=${p}&to=${p}`) && location.search.includes('vat=without'),
+      prev, { timeout: 5_000 })
+      .catch(() => { throw new Error(`адрес не стал периодом ${prev} без НДС: ${page.url()}`); });
+    await report.getByText('Не входит в затраты').waitFor({ timeout: 10_000 });
+    const from = await page.getByRole('group', { name: 'Учётный период, с', exact: true }).getByRole('textbox')
+      .evaluateAll(els => els.map(e => e.value).join('.'));
+    if (from !== `${prev.slice(5)}.${prev.slice(0, 4)}`) throw new Error(`«с» не подтянулась к «по»: ${from}`);
+    if (refused.length) throw new Error(`сервер отказал отчёту: ${refused.join('; ')}`);
+  } finally {
+    page.off('response', watch);
   }
 });
 } finally {
