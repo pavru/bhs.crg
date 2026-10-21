@@ -455,11 +455,11 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
  */
 const SIZER = 'invisible col-start-1 row-start-1 px-0.5 tabular-nums after:content-[attr(data-sizer)]';
 /**
- * Кнопка календаря в ячейке: нажимать — те же 32 px, а места в строке — как у прежнего значка в 20 px
- * (ревью PR #1548). Колонка даты в таблицах документов — 118 px, и лишние 12 px срезали бы год.
- * Зона нажатия заходит на поле ячейки справа и на разделитель слева — не на цифры.
+ * Кнопка календаря в ячейке: нажимать — те же 32 px, а места в строке на 6 px меньше (ревью PR #1548):
+ * зона нажатия заходит на правое поле ячейки (`px-1.5`), а не на цифры года слева. Ширину колонки под
+ * поле — 140 px — держит `DEFAULT_COL_WIDTHS`.
  */
-const COMPACT_TRIGGER = '-mx-1.5';
+const COMPACT_TRIGGER = '-mr-1.5';
 const STOP = 'button, input, select, textarea, a[href], [tabindex]';
 /** Клавиши-разделители: набрав «18.» или «10/», человек ждёт следующий сегмент при любом языке. */
 const SEPARATORS = ['.', '/', '-'];

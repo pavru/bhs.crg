@@ -59,8 +59,13 @@ export function showsArrayTable(subFields: SchemaField[], isUnionItem: boolean):
   return !isUnionItem && subFields.some(f => TABLE_SHOWN_TYPES.has(f.type));
 }
 
+/**
+ * Дата — 140 px, как колонка без своей ширины (и дата пользовательского типа): поле с кнопкой
+ * календаря в 32 px (#1463) помещается в неё целиком при любом языке — у en-US маска MM/DD/YYYY шире
+ * всех. При 118 px кнопка уходила за край ячейки и до #1463 (замер, ревью PR #1548).
+ */
 export const DEFAULT_COL_WIDTHS: Partial<Record<string, number>> = {
-  number: 80, date: 118, boolean: 52, enum: 130, complex: 170,
+  number: 80, date: 140, boolean: 52, enum: 130, complex: 170,
 };
 export function defaultColWidth(f: SchemaField) {
   return DEFAULT_COL_WIDTHS[f.type] ?? 140;

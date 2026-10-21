@@ -366,7 +366,7 @@ describe('DateInput: имя для чтения с экрана', () => {
   it('в ячейке кнопка 32 px занимает в строке место прежнего значка', () => {
     render(<DateInput label="Дата" value="2026-10-19" onChange={() => {}} compact />);
     const classes = screen.getByRole('button', { name: 'Открыть календарь' }).className.split(' ');
-    expect(classes).toEqual(expect.arrayContaining(['h-8', 'w-8', '-mx-1.5']));
+    expect(classes).toEqual(expect.arrayContaining(['h-8', 'w-8', '-mr-1.5']));
   });
 
   it('кнопка календаря — не меньше 32 px', () => {
