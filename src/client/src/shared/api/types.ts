@@ -338,7 +338,7 @@ export interface BackupFileInfo {
 /** Расписание копирования — то, что задал администратор (issue #832). */
 export interface BackupScheduleSettings {
   enabled: boolean;
-  /** «ЧЧ:ММ» по часам сервера. */
+  /** «ЧЧ:ММ» по поясу компании (issue #1468). */
   timeOfDay: string;
   /** Сколько ПЛАНОВЫХ копий хранить; ручных и принесённых уборка не касается. */
   keepCount: number;

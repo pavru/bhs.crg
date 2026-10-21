@@ -22,6 +22,10 @@ namespace BHS.CRG.Infrastructure.Backup;
 /// ставили ли мы копию после него»: включённый утром сервер снимет копию утром. Догонять несколько
 /// пропущенных суток она не будет — за неделю простоя нужна одна копия, а не семь.</para>
 ///
+/// <para><b>Сутки и время — пояса компании</b> (issue #1468), а не часов сервера: сервер в поставке
+/// живёт в UTC, и «03:00» по его часам приходилось бы пересчитывать в уме. Пояс читается на каждом
+/// тике, поэтому смена пояса компании сдвигает ближайший запуск со следующей минуты.</para>
+///
 /// <para><b>Свою работу служба не делает сама:</b> она ставит ту же задачу
 /// <see cref="JobKind.CreateBackup" />, что и кнопка в интерфейсе. Один путь снятия копии на
 /// систему — значит, плановая копия не может однажды разойтись с ручной ни составом, ни поведением
@@ -29,7 +33,8 @@ namespace BHS.CRG.Infrastructure.Backup;
 /// </summary>
 public class BackupScheduleService(
     IServiceScopeFactory scopeFactory,
-    ILogger<BackupScheduleService> logger) : BackgroundService
+    ILogger<BackupScheduleService> logger,
+    TimeProvider time) : BackgroundService
 {
     /// <summary>
     /// Как часто смотреть на часы. Минута — потому что срок задан с точностью до минуты, а стоит
@@ -51,7 +56,7 @@ public class BackupScheduleService(
         using var timer = new PeriodicTimer(Tick);
         do
         {
-            try { await TickAsync(DateTimeOffset.Now, ct); }
+            try { await TickAsync(ct); }
             catch (OperationCanceledException) { break; }
             catch (Exception ex) { logger.LogWarning(ex, "Сбой цикла планового копирования"); }
         }
@@ -64,17 +69,28 @@ public class BackupScheduleService(
         catch (OperationCanceledException) { return false; }
     }
 
-    private async Task TickAsync(DateTimeOffset now, CancellationToken ct)
+    /// <summary>
+    /// Одна проверка срока. Открыта ради теста, что служба берёт пояс КОМПАНИИ: правило <see
+    /// cref="IsDue" /> проверено отдельно, но без этого теста служба могла бы звать его с поясом
+    /// сервера — и все проверки правила остались бы зелёными.
+    /// </summary>
+    public async Task TickAsync(CancellationToken ct)
     {
+        var now = time.GetUtcNow();
         using var scope = scopeFactory.CreateScope();
         var sp = scope.ServiceProvider;
 
         var schedule = (await sp.GetRequiredService<IIntegrationSettings>().GetEffectiveAsync(ct)).Backup;
         if (!schedule.Enabled) return;
 
+        // Пояс — на каждом тике и не из снимка интеграций: тот кэшируется, а смена пояса
+        // (PUT /api/settings/company) его не сбрасывает. Служба — синглтон, и пояс, снятый однажды,
+        // пережил бы смену до перезапуска.
+        var zone = await sp.GetRequiredService<IAppSettingsStore>().GetCompanyTimeZoneAsync(ct);
+
         var stateStore = sp.GetRequiredService<ServiceStateStore>();
         var state = await stateStore.LoadAsync<BackupScheduleState>(BackupScheduleStateKeys.Schedule, ct);
-        if (!IsDue(schedule, state.LastRunAt, now)) return;
+        if (!IsDue(schedule, state.LastRunAt, now, zone)) return;
 
         var jobs = sp.GetRequiredService<IJobService>();
         // Копия уже снимается — вручную или прошлой плановой, застрявшей дольше суток. Второй такой
@@ -116,20 +132,47 @@ public class BackupScheduleService(
     ///
     /// Правило: сегодняшний срок уже прошёл, а последняя постановка была раньше него. Отсюда само
     /// собой следует и «одна копия в сутки», и «пропущенное за ночь снимается при первом запуске»,
-    /// и «за неделю простоя копия одна, а не семь».
+    /// и «за неделю простоя копия одна, а не семь». «Сегодня» и срок — в поясе <paramref name="zone" />,
+    /// сравнение — моментами: смещение у <paramref name="now" /> значения не имеет.
+    ///
+    /// Следствие правила, принятое сознательно: перенос пояса на запад после сегодняшней копии даёт
+    /// ещё одну — по новому поясу срок прошёл, а копии после него не было. Лишняя копия, а не
+    /// потерянная; пропуска суток не бывает ни в какую сторону.
     /// </summary>
-    public static bool IsDue(BackupScheduleSettings schedule, DateTimeOffset? lastRunAt, DateTimeOffset now)
+    public static bool IsDue(BackupScheduleSettings schedule, DateTimeOffset? lastRunAt,
+        DateTimeOffset now, TimeZoneInfo zone)
     {
         if (!schedule.Enabled) return false;
         if (ParseTimeOfDay(schedule.TimeOfDay) is not { } time) return false;
 
-        var dueToday = new DateTimeOffset(now.Year, now.Month, now.Day,
-            time.Hours, time.Minutes, 0, now.Offset);
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
+        var dueToday = DueOn(today, time, zone);
         if (now < dueToday) return false;
 
         // Копию не ставили никогда — свежая установка. Ждать до завтрашней ночи не будем: система,
         // проработавшая день без единой копии, — ровно то состояние, ради которого всё это заведено.
         return lastRunAt is not { } last || last < dueToday;
+    }
+
+    /// <summary>
+    /// Срок суток <paramref name="day" /> в поясе <paramref name="zone" /> — момент. Смещение берётся
+    /// у СРОКА, а не у «сейчас»: иначе в день перевода часов срок, назначенный до перевода, после него
+    /// сдвигался на час, и копия снималась второй раз.
+    ///
+    /// Весной часы переводят вперёд, и времени из разрыва в эти сутки нет — копия в первую минуту
+    /// после него. Шаг — минута, а не час: разрывы бывают и по 30 минут. Осенью время бывает дважды —
+    /// копия в первый раз (большее смещение — более ранний момент); второй раз она не снимется:
+    /// срок у суток один.
+    /// </summary>
+    public static DateTimeOffset DueOn(DateOnly day, TimeSpan time, TimeZoneInfo zone)
+    {
+        // Kind = Unspecified обязательно: с Kind.Local TimeZoneInfo считал бы от пояса сервера.
+        var local = day.ToDateTime(TimeOnly.FromTimeSpan(time), DateTimeKind.Unspecified);
+        while (zone.IsInvalidTime(local)) local = local.AddMinutes(1);
+        var offset = zone.IsAmbiguousTime(local)
+            ? zone.GetAmbiguousTimeOffsets(local).Max()
+            : zone.GetUtcOffset(local);
+        return new DateTimeOffset(local, offset);
     }
 
     /// <summary>«ЧЧ:ММ» → время суток; <c>null</c> — запись негодная.</summary>
