@@ -11,11 +11,13 @@ import type { DatePrecision } from '@/shared/api/types';
  * подсказкой. Фокус ловим сами: он приходит на любой из сегментов, а не на единственный input.
  */
 export function DateField({
-  label, value, onChange, precision, required, hint, invalid, disabled, readOnly, min, max,
+  label, value, onChange, onIncomplete, precision, required, hint, invalid, disabled, readOnly, min, max,
 }: {
   label: string;
   value: string;
   onChange: (iso: string) => void;
+  /** Набранное — не дата, и наружу не ушло: см. `DateInput.onIncomplete` (ревью PR #1556). */
+  onIncomplete?: (message: string | null) => void;
   precision?: DatePrecision;
   required?: boolean;
   hint?: string;
@@ -41,7 +43,7 @@ export function DateField({
         onFocus={() => setFocused(true)}
         onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>
         {/* Во всю ширину: хвост поля — крестик и календарь — стоит у правого края рамки (#1463). */}
-        <DateInput label={label} value={value} onChange={onChange} onProblem={setProblem} precision={precision}
+        <DateInput label={label} value={value} onChange={onChange} onProblem={setProblem} onIncomplete={onIncomplete} precision={precision}
           disabled={disabled} readOnly={readOnly} required={required} className="w-full" min={min} max={max} />
       </div>
     </OutlinedField>

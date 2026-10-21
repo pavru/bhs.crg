@@ -33,6 +33,12 @@ interface DateInputProps {
    */
   onProblem?: (message: string | null) => void;
   /**
+   * Набранное — не дата: недописанное или несуществующее, и наружу оно не ушло (ревью PR #1556). Сразу,
+   * а не после ухода, как `onProblem`: форма, пишущая по кнопке, читает его в щелчке, а ошибка ухода
+   * встаёт таймером позже щелчка — и в Safari, где кнопка фокуса не берёт, ухода к ней нет вовсе.
+   */
+  onIncomplete?: (message: string | null) => void;
+  /**
    * Точность ввода: 'day' (по умолч.), 'month', 'year'. Маска — по языку пользователя (issue #1461):
    * ДД.ММ.ГГГГ у ru-RU, MM/DD/YYYY у en-US; точность убирает лишние сегменты (ММ.ГГГГ, MM/YYYY).
    */
@@ -86,7 +92,7 @@ interface DateInputProps {
   compact?: boolean;
 }
 
-export function DateInput({ label, value, onChange, onProblem, precision = 'day', className = '', disabled = false, readOnly = false, required = false, calendar = true, compact = false,
+export function DateInput({ label, value, onChange, onProblem, onIncomplete, precision = 'day', className = '', disabled = false, readOnly = false, required = false, calendar = true, compact = false,
   size, invalid = false, min, max, range, onCommit }: DateInputProps) {
   /**
    * Набранное человеком — вместе со значением, от которого его начали набирать (`base`). Показанные
@@ -195,6 +201,9 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
     : reading?.kind === 'partial' && !focused ? SEGMENT_PROBLEMS.partial
       : foreign && !readOnly && !disabled ? SEGMENT_PROBLEMS.foreign : null;
   useEffect(() => { onProblem?.(problem); }, [onProblem, problem]);
+  const incomplete = reading?.kind === 'impossible' ? SEGMENT_PROBLEMS.impossible
+    : reading?.kind === 'partial' ? SEGMENT_PROBLEMS.partial : null;
+  useEffect(() => { onIncomplete?.(incomplete); }, [onIncomplete, incomplete]);
 
   /**
    * Есть что стирать (issue #1463): значение, «не дата» или недописанное поверх пустого. Кнопкам —
