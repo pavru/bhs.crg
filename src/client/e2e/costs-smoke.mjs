@@ -255,7 +255,10 @@ async function waybillPart(seat) {
   await page.getByRole('button', { name: 'Новая накладная' }).click();
   await page.getByText('Строки накладной').waitFor({ timeout: 10_000 });
   await page.getByLabel('Номер', { exact: true }).fill(waybill);
-  await page.getByLabel('Дата отпуска').fill('2026-09-01');
+  // Дата — сегментами в маске языка (issue #1467): нативного поля с ISO-строкой у шапки больше нет.
+  const issued = page.getByRole('group', { name: 'Дата отпуска', exact: true });
+  await issued.getByRole('textbox', { name: 'день', exact: true }).click();
+  await page.keyboard.type('01092026');
   await pickOption(page.getByLabel('Получатель — стройка').first(), SITE);
 
   for (const [name, quantity] of [['Кабель прогона', '12,5'], ['Хомут прогона', '4']]) {
@@ -271,6 +274,7 @@ async function waybillPart(seat) {
   await page.getByText('Проведена', { exact: true }).waitFor({ timeout: 10_000 });
   await page.getByText(/Не сопоставлено: 1 строка\./).waitFor({ timeout: 10_000 });
   await absent(seat, ['Сохранить', 'Провести']);
+  await lockedHeader(page, waybill);
 
   seat.screen = 'материалы на объекте';
   await page.getByRole('button', { name: 'Материалы на объекте' }).click();
@@ -282,13 +286,13 @@ async function waybillPart(seat) {
   // Несопоставленная строка в перечень не попадает. Искать её наименование из бумаги бессмысленно —
   // перечень показывает название ПОЗИЦИИ, и текста строки в нём нет ни при каком исходе (ревью
   // PR #1206). Попавшая строка — это запись без позиции: её и ищем, в ответе и на экране.
-  const issued = await api(page, 'GET', `/costs/materials?constructionId=${site.id}`);
-  const stray = issued.items.filter(i => !i.nomenclatureId || /^0{8}-/.test(i.nomenclatureId) || i.name === null);
+  const given = await api(page, 'GET', `/costs/materials?constructionId=${site.id}`);
+  const stray = given.items.filter(i => !i.nomenclatureId || /^0{8}-/.test(i.nomenclatureId) || i.name === null);
   if (stray.length) throw new Error(`в перечне материалов запись без позиции номенклатуры: ${JSON.stringify(stray)}`);
-  if (issued.unmatchedLines < 1) throw new Error('сервер не называет несопоставленную строку числом');
+  if (given.unmatchedLines < 1) throw new Error('сервер не называет несопоставленную строку числом');
   const rows = await materials.locator('tbody tr').count();
-  if (rows !== issued.items.length)
-    throw new Error(`на экране строк перечня ${rows}, а позиций в ответе ${issued.items.length}`);
+  if (rows !== given.items.length)
+    throw new Error(`на экране строк перечня ${rows}, а позиций в ответе ${given.items.length}`);
   if (/₽|руб/i.test(await materials.innerText())) throw new Error('в перечне материалов видны деньги');
   await page.keyboard.press('Escape');
   await materials.waitFor({ state: 'hidden', timeout: 10_000 });
@@ -299,6 +303,31 @@ async function waybillPart(seat) {
   await page.getByText(/Не сопоставлено:/).waitFor({ state: 'hidden', timeout: 10_000 });
   await page.getByText('Проведена', { exact: true }).waitFor({ timeout: 10_000 });
   await settled(page);
+}
+
+/**
+ * Шапка проведённой накладной — поля для чтения, как у запертого счёта (issue #1467): значения видны,
+ * а отключённое поле читалось бы «здесь ничего нет». Дата — набранная сегментами, в маске языка.
+ */
+async function lockedHeader(page, waybill) {
+  for (const label of ['Номер', 'Склад', 'Получил', 'Примечание', 'Получатель — стройка']) {
+    const field = page.getByLabel(label, { exact: true });
+    if (await field.isDisabled() || await field.getAttribute('readonly') === null)
+      throw new Error(`«${label}» проведённой накладной не поле для чтения`);
+  }
+  const segments = page.getByRole('group', { name: 'Дата отпуска', exact: true }).getByRole('textbox');
+  if (!(await segments.evaluateAll(els => els.length > 0 && els.every(e => e.readOnly && !e.disabled))))
+    throw new Error('дата отпуска проведённой накладной не поле для чтения');
+
+  const number = page.getByLabel('Номер', { exact: true });
+  if (await number.inputValue() !== waybill) throw new Error(`номер на шапке не тот: ${await number.inputValue()}`);
+  const site = page.getByLabel('Получатель — стройка', { exact: true });
+  if (await site.inputValue() !== SITE) throw new Error(`стройка на запертой шапке: «${await site.inputValue()}»`);
+  // Дату сверяет сервер, а не склейка сегментов: в чужой маске (ММ.ДД) те же цифры — другая дата.
+  const id = new URL(page.url()).searchParams.get('waybill');
+  const saved = await api(page, 'GET', `/costs/waybills/${id}`);
+  if (saved.issuedOn !== '2026-09-01') throw new Error(`дата отпуска записана как ${saved.issuedOn}`);
+  if (await page.locator('input[type="date"]').count()) throw new Error('на форме накладной нативное поле даты');
 }
 
 /**
@@ -318,6 +347,23 @@ async function waybillDeletePart(seat) {
   await page.getByLabel('Номер', { exact: true }).fill(waybill);
   await page.getByRole('button', { name: 'Добавить строку', exact: true }).click();
   await page.locator('tbody tr').last().getByLabel(/Наименование в накладной/).fill('Заведено по ошибке');
+
+  // Недописанная дата не записывается молча (ревью PR #1556): наружу она не уходит, и сохранение без
+  // отказа записало бы прежнюю — здесь пустую — при «Дата не дописана» на экране.
+  seat.screen = 'недописанная дата накладной';
+  const date = page.getByRole('group', { name: 'Дата отпуска', exact: true });
+  await date.getByRole('textbox', { name: 'день', exact: true }).click();
+  await page.keyboard.type('0109');
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await page.getByText(/Накладная не записана: в дате отпуска ошибка/).first().waitFor({ timeout: 10_000 })
+    .catch(() => { throw new Error('накладная с недописанной датой сохранена без отказа'); });
+  // Заголовок называет записанный номер: набранный, но не записанный, в нём не появляется.
+  if (await page.getByRole('heading', { name: new RegExp(waybill) }).count())
+    throw new Error('накладная с недописанной датой записана');
+  await date.getByRole('textbox', { name: 'год', exact: true }).click();
+  await page.keyboard.type('2026');
+
+  seat.screen = 'удаление накладной';
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await page.getByRole('heading', { name: new RegExp(waybill) }).waitFor({ timeout: 10_000 });
   const id = new URL(page.url()).searchParams.get('waybill');
