@@ -59,8 +59,8 @@ interface DateInputProps {
   /** Период, частью которого служит поле (`DateRange`): календарь рисует ленту от «с» до «по». */
   range?: [string, string];
   /**
-   * Человек закончил с полем: ушёл из него, изменив значение, или выбрал дату в календаре. Значок
-   * календаря, крестик и сам календарь — ещё поле. Отдаёт значение на этот момент — `DateRange`
+   * Человек закончил с полем: ушёл из него, изменив значение, нажал Enter в сегменте или выбрал дату
+   * в календаре. Значок календаря, крестик и сам календарь — ещё поле. Отдаёт значение на этот момент — `DateRange`
    * поправляет по нему другую границу, а не на каждой цифре и стрелке.
    */
   onCommit?: (value: string) => void;
@@ -155,13 +155,22 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
     clearTimeout(commitTimer.current);
     if (!inside.current) { inside.current = true; entered.current = value ?? ''; }
   }
+  /** Зафиксировать значение на сейчас, если оно отличается от того, с которым вошли или фиксировали. */
+  function commit() {
+    clearTimeout(commitTimer.current);
+    if (latest.current === entered.current) return;
+    entered.current = latest.current;
+    onCommit?.(latest.current);
+  }
   function onFieldBlur(e: React.FocusEvent) {
     if (withinField(e.relatedTarget)) return;
-    // Таймер — как у ухода сегмента: уход сам дописывает сегмент, и значение приходит после события.
-    commitTimer.current = setTimeout(() => {
-      inside.current = false;
-      if (latest.current !== entered.current) onCommit?.(latest.current);
-    }, 120);
+    const leave = () => { inside.current = false; commit(); };
+    // Фокус ушёл на известный элемент (кнопка, крестик, поле рядом) — фиксация сразу, в этом же
+    // событии: щелчок «Добавить» / «Применить» читает уже поправленное, а таймер окошко, закрывшись,
+    // погасило бы вовсе (issue #1465). Куда — неизвестно (щелчок мимо, окно браузера) — таймером:
+    // фокус может вернуться в поле, и тогда ухода не было.
+    if (e.relatedTarget) leave();
+    else commitTimer.current = setTimeout(leave, 120);
   }
   useEffect(() => () => clearTimeout(commitTimer.current), []);
 
@@ -213,11 +222,23 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
     }, 120);
   }
 
+  /**
+   * Отдать значение. Фиксация видит его сразу, не дожидаясь отрисовки: уход и Enter дописывают
+   * сегмент («26» → 2026) в том же событии, где фиксируют (issue #1465). Отданное другое значение
+   * снимает набранное: иначе, вернись значение к прежнему, набранное ожило бы поверх него — список дат
+   * отбора добавил дату и стёр черновик, а поле показывало добавленную.
+   */
+  function give(iso: string) {
+    latest.current = iso;
+    if (iso !== (value ?? '')) setTyped(null);
+    onChange(iso);
+  }
+
   // Отдаём дату, только если она есть; пустой ввод — явная очистка, остальное не отдаётся вовсе.
   function emit(dd: string, mm: string, yyyy: string) {
     const r = readSegments({ d: dd, m: mm, y: yyyy }, precision);
-    if (r.kind === 'date') onChange(r.iso);
-    else if (r.kind === 'empty') onChange('');
+    if (r.kind === 'date') give(r.iso);
+    else if (r.kind === 'empty') give('');
   }
 
   /** Вставка даты целиком — в любой сегмент (issue #1460); не дата — сегмент разберёт её сам. */
@@ -408,7 +429,7 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
     setFocused(true);
     setAllSelected(false);
     setTyped({ ...EMPTY_SEGMENTS, base: value ?? '' });
-    if ((value ?? '') !== '') onChange('');
+    if ((value ?? '') !== '') give('');
     // «Не дата» показана текстом: сегментов ещё нет — они появятся этим же рендером.
     if (!first) setTimeout(() => advance(firstRef), 0);
   }
@@ -467,7 +488,13 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
       && (draft || (value ?? '') !== startValue.current)) {
       e.preventDefault(); e.stopPropagation();
       setTyped(null);
-      if ((value ?? '') !== startValue.current) onChange(startValue.current);
+      if ((value ?? '') !== startValue.current) give(startValue.current);
+    } else if (e.key === 'Enter' && isSegment(e.target)) {
+      // Enter — «готово» (issue #1465): дописать сегмент, как при уходе, и зафиксировать. Действие
+      // формы по Enter (отправка) идёт следом и видит поправленный период, а не прежний.
+      const part = mask.order.find(p => SEGMENTS[p].ref.current === e.target);
+      if (part) SEGMENTS[part].blur?.();
+      commit();
     }
   }
 
@@ -634,7 +661,7 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
           <Calendar value={calendarValue} precision={precision}
             // Выбранный день снимает набранное: совпади он с текущим значением, значение не сменится,
             // и ошибка набранного осталась бы над выбранной датой (ревью PR #1542).
-            onSelect={iso => { setTyped(null); onChange(iso); entered.current = iso; onCommit?.(iso); }} onClose={() => setPickerOpen(false)}
+            onSelect={iso => { give(iso); setTyped(null); entered.current = iso; onCommit?.(iso); }} onClose={() => setPickerOpen(false)}
             min={min} max={max} range={range}
             onClear={clearable ? clearFromCalendar : undefined} />
         </Popover.Content>

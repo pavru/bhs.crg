@@ -171,6 +171,94 @@ try {
       throw new Error('чип остался на экране');
   });
 
+  // Issue #1465: дата в отборе — поле маской языка, а не нативное; календарь — слой поверх окошка
+  // чипа, и щелчок по нему окошко закрывать не вправе (для Radix это щелчок снаружи окошка).
+  await check('«Дата счёта — между»: ранняя «по» тянет «с», выбор дня в календаре окошко не закрывает', async () => {
+    const chipEditor = page.getByRole('dialog').filter({ has: page.getByLabel('Оператор') });
+    await addChip.click();
+    await chipEditor.getByLabel('Колонка').selectOption({ label: 'Дата счёта' });
+    await chipEditor.getByLabel('Оператор').selectOption({ label: 'между' });
+    if (await chipEditor.locator('input[type=date]').count()) throw new Error('у даты нативное поле');
+
+    const bound = name => {
+      const group = chipEditor.getByRole('group', { name, exact: true });
+      return { group, day: group.getByRole('textbox', { name: 'день', exact: true }) };
+    };
+    const shown = ({ group }) => group.getByRole('textbox').evaluateAll(els => els.map(e => e.value).join('.'));
+    const from = bound('Границы, с');
+    const to = bound('Границы, по');
+    await from.day.click();
+    await page.keyboard.type('12102026');
+    await to.day.click();
+    // Пауза — уход из «с» фиксируется таймером, и набор в «по» не должен его опередить.
+    await page.waitForTimeout(300);
+    await page.keyboard.type('05102026');
+    // Год → значок календаря «по» (ещё поле) → «Добавить»: поле оставлено.
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    await page.waitForTimeout(300);
+    if (await shown(from) !== '05.10.2026') throw new Error(`ранняя «по» не потянула «с»: «с» — ${await shown(from)}`);
+
+    await to.group.getByRole('button', { name: 'Открыть календарь' }).click();
+    const grid = page.locator('[data-radix-popper-content-wrapper]').getByRole('grid', { name: 'Календарь' });
+    await grid.waitFor({ timeout: 5000 });
+    await grid.getByRole('button', { name: '20', exact: true }).click();
+    await grid.waitFor({ state: 'hidden', timeout: 5000 });
+    await page.waitForTimeout(300);
+    if (!(await chipEditor.isVisible())) throw new Error('выбор дня в календаре закрыл окошко условия');
+    if (await shown(to) !== '20.10.2026') throw new Error(`выбранный день не встал в «по»: ${await shown(to)}`);
+
+    const before = requests.length;
+    await chipEditor.getByRole('button', { name: 'Добавить' }).click();
+    const chip = 'Дата счёта: 05.10.2026 — 20.10.2026';
+    await chips.getByRole('button', { name: chip, exact: true }).waitFor({ timeout: 5000 });
+    await requestAfter(before);
+    if (!lastRequest().includes('"values":["2026-10-05","2026-10-20"]'))
+      throw new Error(`в запрос ушли не те границы: ${lastRequest()}`);
+    await chips.getByRole('button', { name: `Снять условие «${chip}»` }).click();
+    await chips.getByRole('button', { name: chip, exact: true }).waitFor({ state: 'hidden', timeout: 5000 });
+  });
+
+  // Ревью PR #1554: фиксация поля даты опаздывала к отправке окошка — Enter уносил период «наоборот»,
+  // а «Добавить» сразу после набора — список без набранной даты.
+  await check('Enter отправляет уже поправленный период, «Добавить» сразу после набора дату не теряет', async () => {
+    const chipEditor = page.getByRole('dialog').filter({ has: page.getByLabel('Оператор') });
+    const day = name => chipEditor.getByRole('group', { name, exact: true }).getByRole('textbox', { name: 'день', exact: true });
+    const put = async (chip) => {
+      await chips.getByRole('button', { name: chip, exact: true }).waitFor({ timeout: 5000 });
+      await chips.getByRole('button', { name: `Снять условие «${chip}»` }).click();
+      await chips.getByRole('button', { name: chip, exact: true }).waitFor({ state: 'hidden', timeout: 5000 });
+    };
+
+    await addChip.click();
+    await chipEditor.getByLabel('Колонка').selectOption({ label: 'Дата счёта' });
+    await chipEditor.getByLabel('Оператор').selectOption({ label: 'между' });
+    await day('Границы, с').click();
+    await page.keyboard.type('12102026');
+    await day('Границы, по').click();
+    await page.waitForTimeout(300);
+    await page.keyboard.type('051026');
+    await page.keyboard.press('Enter');
+    await put('Дата счёта: 05.10.2026 — 05.10.2026');
+
+    await addChip.click();
+    await chipEditor.getByLabel('Колонка').selectOption({ label: 'Дата счёта' });
+    await chipEditor.getByLabel('Оператор').selectOption({ label: 'в списке' });
+    await day('Добавить значение').click();
+    await page.keyboard.type('15102026');
+    const submit = chipEditor.getByRole('button', { name: 'Добавить', exact: true }).last();
+    await submit.click();
+    // Уход из поля добавляет дату в список уже на нажатии кнопки — строка значений растёт, кнопка
+    // съезжает, и отпускание приходится мимо неё. Набранное при этом не пропадает: оно в списке, окошко
+    // открыто. Молча потерять его — вот провал.
+    if (await chipEditor.isVisible()) {
+      if (!(await chipEditor.getByRole('button', { name: 'Убрать «15.10.2026»' }).isVisible()))
+        throw new Error('набранная дата не попала в список, а «Добавить» окошко не закрыла');
+      await submit.click();
+    }
+    await put('Дата счёта: 15.10.2026');
+  });
+
   await check('отбор с «ИЛИ» назван сложным и чипами не подменён', async () => {
     await chips.getByRole('button', { name: 'Расширенный' }).click();
     const dialog = page.getByRole('dialog');

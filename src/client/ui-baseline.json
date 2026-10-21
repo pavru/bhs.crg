@@ -159,7 +159,7 @@
   "native-date": {
     "features/costs/SiteCostsPage.tsx": 1,
     "features/costs/WaybillForm.tsx": 1,
-    "features/settings/BackupSection.tsx": 1,
-    "shared/filter/RowFilterValue.tsx": 1
-  }
+    "features/settings/BackupSection.tsx": 1
+  },
+  "date-frame": {}
 }
