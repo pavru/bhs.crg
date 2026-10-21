@@ -244,11 +244,13 @@ await check('date-calendar-has-today-and-clear-returns-by-esc', async () => {
   await today.waitFor({ timeout: 5000 });
   const clear = page.getByRole('button', { name: 'Очистить', exact: true });
   if (!(await clear.isVisible().catch(() => false))) { await page.keyboard.press('Escape'); return; }
+  // Первый сегмент — по полю, а не словом «день»: у точности «месяц» и у en-US первым идёт месяц.
+  const first = await field.locator('input').first().getAttribute('aria-label');
   await clear.click();
   await until(async () => {
     if ((await seg.inputValue()) !== '') throw new Error('«Очистить» не стёрло год');
     const at = await page.evaluate(() => document.activeElement?.getAttribute('aria-label'));
-    if (at !== 'день') throw new Error(`после «Очистить» фокус не в первом сегменте, а на «${at}»`);
+    if (at !== first) throw new Error(`после «Очистить» фокус не в первом сегменте («${first}»), а на «${at}»`);
   });
   await page.keyboard.press('Escape');
   await until(async () => {

@@ -561,13 +561,57 @@ describe('DateInput: очистка', () => {
     expect(screen.queryByText('Выделена вся дата')).toBeNull();
   });
 
-  it('Ctrl+A → цифра начинает дату заново с первого сегмента', () => {
+  it('Ctrl+A → цифра начинает дату заново с первого сегмента; прежняя держится до новой, Esc её возвращает', () => {
     render(<Form />);
     selectAll(seg('ГГГГ'));
     fireEvent.keyDown(seg('ГГГГ'), { key: '2' });
     expect(seg('ДД').value).toBe('2');
     expect(seg('ММ').value).toBe('');
+    expect(document.activeElement).toBe(seg('ДД'));
+    // Посреди набора форма пустоты не получает: значение — прежнее, пока новая дата не сложится.
+    expect(value()).toBe('2026-11-03');
+    fireEvent.keyDown(seg('ДД'), { key: 'Escape' });
+    expect(seg('ДД').value).toBe('03');
+    expect(value()).toBe('2026-11-03');
+  });
+
+  it('Ctrl+A → цифра 4–9 дополняет день нулём и уводит дальше, как обычный набор', () => {
+    render(<Form />);
+    selectAll();
+    fireEvent.keyDown(seg('ММ'), { key: '5' });
+    expect(seg('ДД').value).toBe('05');
+    expect(document.activeElement).toBe(seg('ММ'));
+    expect(seg('ММ').value).toBe('');
+  });
+
+  it('Ctrl+A в пустом поле ничего не выделяет', () => {
+    render(<Form initial="" />);
+    selectAll();
+    expect(screen.queryByText('Выделена вся дата')).toBeNull();
+    expect(seg('ММ').className.split(' ')).not.toContain('bg-brand-subtle'); // `focus:` — не в счёт
+  });
+
+  it('Ctrl+A → Ctrl+X: дата в буфер, поле стёрто целиком', () => {
+    render(<Form />);
+    selectAll();
+    const setData = vi.fn();
+    fireEvent.keyDown(seg('ММ'), { key: 'x', code: 'KeyX', ctrlKey: true });
+    expect(screen.getByText('Выделена вся дата')).toBeTruthy(); // Ctrl+X выделения не снимает
+    fireEvent.cut(seg('ММ'), { clipboardData: { setData } });
+    expect(setData).toHaveBeenCalledWith('text/plain', '03.11.2026');
     expect(value()).toBe('');
+    expect(document.activeElement).toBe(seg('ДД'));
+  });
+
+  it('Ctrl+A → Ctrl+C у недописанной даты не подменяет копирование браузера', () => {
+    vi.useFakeTimers();
+    render(<Form initial="" />);
+    fireEvent.focus(seg('ДД'));
+    fireEvent.change(seg('ДД'), { target: { value: '18' } });
+    selectAll();
+    const setData = vi.fn();
+    fireEvent.copy(seg('ММ'), { clipboardData: { setData } });
+    expect(setData).not.toHaveBeenCalled();
   });
 
   it('Ctrl+A → Esc снимает выделение, дату не трогает, окну Esc не уходит', () => {

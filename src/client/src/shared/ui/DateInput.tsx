@@ -79,12 +79,10 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
   const [focused, setFocused] = useState(false);
   /**
    * Ctrl+A выделил всю дату (issue #1463): у сегментов общего выделения нет, поэтому оно своё. Delete
-   * или Backspace стирают дату, цифра начинает её заново, Ctrl+C копирует в маске языка, Esc, стрелка и
-   * щелчок выделение снимают.
+   * или Backspace стирают дату, цифра начинает её заново, Ctrl+C копирует в маске языка, Ctrl+X
+   * копирует и стирает, Esc, стрелка и щелчок выделение снимают.
    */
   const [allSelected, setAllSelected] = useState(false);
-  /** Цифра, набранная поверх выделенной даты, — уходит в первый сегмент после очистки (эффект ниже). */
-  const pendingDigit = useRef<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   /** Календарь закрыт Tab'ом с края — фокус уже перенесён, возвращать его на значок не нужно. */
@@ -131,6 +129,14 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
     : reading?.kind === 'partial' && !focused ? SEGMENT_PROBLEMS.partial
       : foreign && !readOnly && !disabled ? SEGMENT_PROBLEMS.foreign : null;
   useEffect(() => { onProblem?.(problem); }, [onProblem, problem]);
+
+  /**
+   * Есть что стирать (issue #1463): значение, «не дата» или недописанное поверх пустого. Кнопкам —
+   * крестику и «Очистить» календаря — только у необязательного правимого поля: обязательное стирают
+   * сегментами или Ctrl+A → Delete, и пустоту называет форма.
+   */
+  const hasContent = (value ?? '') !== '' || (!!draft && !!(draft.d || draft.m || draft.y));
+  const clearable = hasContent && !required && !readOnly && !disabled;
 
   function onFocus() {
     clearTimeout(blurTimer.current);
@@ -188,7 +194,10 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
     if (next) advance(refs[next]);
   }
 
-  function handleD(raw: string) {
+  // Обработчики сегментов читают соседние сегменты из `from` — по умолчанию показанных. Явная основа
+  // нужна цифре поверх выделенной даты: она начинает новую дату, а показана ещё прежняя.
+  function handleD(raw: string, from: Segments = shown) {
+    const { d, m, y } = from;
     const v = raw.replace(/\D/g, '').slice(0, 2);
     // Auto-advance only when filling in new digits (segment was not already full)
     if (v.length === 2 && d.length < 2) {
@@ -201,7 +210,8 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
     }
   }
 
-  function handleM(raw: string) {
+  function handleM(raw: string, from: Segments = shown) {
+    const { d, m, y } = from;
     const v = raw.replace(/\D/g, '').slice(0, 2);
     // Auto-advance only when filling in new digits (segment was not already full)
     if (v.length === 2 && m.length < 2) {
@@ -214,7 +224,8 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
     }
   }
 
-  function handleY(raw: string) {
+  function handleY(raw: string, from: Segments = shown) {
+    const { d, m, y } = from;
     const v = raw.replace(/\D/g, '').slice(0, 4);
     // Год не последний бывает у языка с порядком «год, месяц, день» — тогда дальше идёт месяц.
     if (v.length === 4 && y.length < 4) go('y', 1);
@@ -248,19 +259,28 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
 
   /**
    * Клавиша поверх выделенной Ctrl+A даты; true — обработана здесь. Стирание работает и у обязательного
-   * поля: это ввод, а не кнопка, — пустоту назовёт форма. Ctrl+C уходит в `onCopy`, клавиши-модификаторы
-   * выделения не снимают; Esc снимает только его — окно, где стоит поле, не закрывается.
+   * поля: это ввод, а не кнопка, — пустоту назовёт форма. Ctrl+C и Ctrl+X уходят в `onCopy` / `onCut`,
+   * клавиши-модификаторы выделения не снимают; Esc снимает только его — окно, где стоит поле, не
+   * закрывается.
+   *
+   * <p>Цифра начинает дату заново, но значение не стирает: прежняя дата остаётся, пока новая не
+   * сложится, — как при наборе поверх сегмента. Иначе форма получила бы пустоту посреди набора, а уход
+   * с недописанным оставлял бы поле пустым вместо прежней даты. Esc возвращает её и здесь.</p>
    */
   function onSelectedKey(e: React.KeyboardEvent<HTMLInputElement>): boolean {
-    if (MODIFIERS.includes(e.key) || ((e.ctrlKey || e.metaKey) && (e.code === 'KeyC' || e.key.toLowerCase() === 'c'))) return true;
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (MODIFIERS.includes(e.key) || (ctrl && CLIPBOARD_KEYS.some(k => e.code === `Key${k}` || e.key.toUpperCase() === k))) return true;
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setAllSelected(false); return true; }
     const wipe = e.key === 'Delete' || e.key === 'Backspace';
     const digit = /^\d$/.test(e.key);
     if (!wipe && !digit) { setAllSelected(false); return false; }
     e.preventDefault();
     if (readOnly || disabled) return true;
-    if (digit) pendingDigit.current = e.key;
-    clear();
+    if (wipe) { clear(); return true; }
+    setAllSelected(false);
+    firstRef.current?.focus();
+    setTyped({ ...EMPTY_SEGMENTS, base: value ?? '' });
+    ({ d: handleD, m: handleM, y: handleY })[mask.order[0]](e.key, EMPTY_SEGMENTS);
     return true;
   }
 
@@ -273,7 +293,10 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
     const cur = shown[part];
     const input = e.currentTarget;
     if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.code === 'KeyA' || e.key.toLowerCase() === 'a')) {
-      e.preventDefault(); input.select(); setAllSelected(true); return;
+      // Пустое поле выделять нечем: подсветка и «Выделена вся дата» обещали бы дату, которой нет.
+      e.preventDefault();
+      if (hasContent) { input.select(); setAllSelected(true); }
+      return;
     }
     if (allSelected && onSelectedKey(e)) return;
     if (e.key === 'Backspace' && cur === '') go(part, -1);
@@ -314,14 +337,6 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
   }
 
   /**
-   * Есть что стирать (issue #1463): значение, «не дата» или недописанное поверх пустого. Кнопкам —
-   * крестику и «Очистить» календаря — только у необязательного правимого поля: обязательное стирают
-   * сегментами или Ctrl+A → Delete, и пустоту называет форма.
-   */
-  const hasContent = (value ?? '') !== '' || (!!draft && !!(draft.d || draft.m || draft.y));
-  const clearable = hasContent && !required && !readOnly && !disabled;
-
-  /**
    * Стереть дату целиком: крестик, «Очистить» календаря, Ctrl+A → Delete. Фокус — в первый сегмент,
    * и СРАЗУ, пока крестик не исчез вместе со значением: удалённому элементу браузер не шлёт blur, и
    * фокус упал бы на body (урок `TypePickerField`, #572). Значение до очистки запоминается для Esc,
@@ -341,12 +356,26 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
     if (!first) setTimeout(() => advance(firstRef), 0);
   }
 
-  /** Вся дата текстом в маске языка — для Ctrl+C поверх выделенной даты. */
-  const asText = () => mask.order.map(part => shown[part]).join(mask.sep);
+  /**
+   * Вся дата текстом в маске языка — для Ctrl+C и Ctrl+X поверх выделенной даты. Только целая дата:
+   * недописанная склеилась бы в «18..2026», которую не примет ни одно поле даты, — её копирует
+   * браузер, выделенным сегментом.
+   */
+  const asText = () => readSegments(shown, precision).kind === 'date'
+    ? mask.order.map(part => shown[part]).join(mask.sep) : null;
   function onCopy(e: React.ClipboardEvent) {
+    const text = allSelected ? asText() : null;
+    if (text === null) return;
+    e.preventDefault();
+    e.clipboardData.setData('text/plain', text);
+  }
+  /** Ctrl+X поверх выделенной даты: целая — в буфер, и поле стирается целиком, а не одним сегментом. */
+  function onCut(e: React.ClipboardEvent) {
     if (!allSelected) return;
     e.preventDefault();
-    e.clipboardData.setData('text/plain', asText());
+    const text = asText();
+    if (text !== null) e.clipboardData.setData('text/plain', text);
+    if (!readOnly && !disabled) clear();
   }
 
   const seg = [
@@ -405,15 +434,12 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
     y: { ref: yrRef, change: handleY, blur: blurY, len: 4 },
   };
 
-  // Цифра поверх выделенной даты — первая цифра новой: в первый сегмент, уже очищенный, теми же
-  // правилами, что набор (4–9 в дне дополняются нулём и уводят дальше). После рендера: обработчик
-  // сегмента читает показанное, а до него показана прежняя дата.
-  useEffect(() => {
-    const digit = pendingDigit.current;
-    if (digit === null) return;
-    pendingDigit.current = null;
-    SEGMENTS[mask.order[0]].change(digit);
-  });
+  // Крестик поля формы — один на обе ветки: у «не даты» и у сегментов (макет #1463, вариант В).
+  const clearButton = !compact && clearable && (
+    <IconButton label="Очистить дату" size="sm" onClick={clear} className={`-my-1.5 ${CLEAR_REVEAL}`}>
+      <X size={16} />
+    </IconButton>
+  );
 
   const segments = foreign ? (
     <div role="group" aria-label={label} className={`flex items-center group min-w-0 ${className}`}>
@@ -428,15 +454,11 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
           </button>}
       {problemMark}
       {/* «Не дата» тоже стирается крестиком: календаря у неё нет, а выход иначе один — набрать заново. */}
-      {!compact && clearable && (
-        <IconButton label="Очистить дату" size="sm" onClick={clear} className={`-my-1.5 ml-auto ${CLEAR_REVEAL}`}>
-          <X size={16} />
-        </IconButton>
-      )}
+      {clearButton && <span className="flex items-center shrink-0 ml-auto pl-0.5">{clearButton}</span>}
     </div>
   ) : (
     <div role="group" aria-label={label} className={`flex items-center group ${className}`} onKeyDown={onContainerKey} onPaste={onPaste}
-      onCopy={onCopy} onMouseDown={() => setAllSelected(false)}>
+      onCopy={onCopy} onCut={onCut} onMouseDown={() => setAllSelected(false)}>
       {mask.order.map((part, i) => {
         const { ref, change, blur, len } = SEGMENTS[part];
         return (
@@ -466,11 +488,7 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
       {/* Хвост поля формы — у правого края, крестик слева от календаря (макет #1463, вариант В):
           появляясь, крестик не сдвигает ни календарь, ни цифры. */}
       <span className={`flex items-center shrink-0 ${compact ? '' : 'ml-auto pl-0.5'}`}>
-        {!compact && clearable && (
-          <IconButton label="Очистить дату" size="sm" onClick={clear} className={`-my-1.5 ${CLEAR_REVEAL}`}>
-            <X size={16} />
-          </IconButton>
-        )}
+        {clearButton}
         {showCalendar && (
           <Popover.Trigger asChild>
             <button ref={triggerRef} type="button" disabled={disabled} aria-label="Открыть календарь"
@@ -574,6 +592,8 @@ const COMPACT_TRIGGER = '-mr-1.5';
 const STOP = 'button, input, select, textarea, a[href], [tabindex]';
 /** Клавиши-модификаторы: нажатые сами по себе, выделение всей даты не снимают (путь к Ctrl+C). */
 const MODIFIERS = ['Control', 'Meta', 'Shift', 'Alt'];
+/** Ctrl+C и Ctrl+X поверх выделенной даты — к `onCopy` / `onCut`, выделение не снимают. */
+const CLIPBOARD_KEYS = ['C', 'X'];
 /**
  * Крестик поля формы — ускоритель (issue #1463, вариант В): виден при наведении на поле и при фокусе в
  * нём, а где наведения нет — всегда. Прозрачный он не ловит нажатий (`pointer-events-none`), иначе
