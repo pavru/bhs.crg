@@ -24,6 +24,13 @@ export function toISO(y: number, m: number, d: number): string {
 }
 
 /** Число дней в месяце (m — 1..12). */
+/**
+ * Годы, которые показывает календарь и до которых доводят стрелки поля (issue #1463): одна граница на
+ * оба способа ввода, иначе стрелка ставила бы год, которого календарь не покажет.
+ */
+export const MIN_YEAR = 1900;
+export const MAX_YEAR = 2100;
+
 export function daysInMonth(y: number, m: number): number {
   return new Date(y, m, 0).getDate();
 }

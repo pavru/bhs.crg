@@ -164,6 +164,8 @@ public class AccountAccessTests(IntegrationTestFixture fixture)
     public async Task Пояс_компании_доходит_до_каждого_именем_IANA()
     {
         var engineer = await SignInAsync(SystemRoles.IdEngineer);
+        // Настройка общая для всей коллекции: возвращаем ту, что была, а не «пусто» (ревью PR #1548).
+        var before = await StoredZoneAsync();
         try
         {
             await StoreZoneAsync("Asia/Vladivostok");
@@ -175,7 +177,13 @@ public class AccountAccessTests(IntegrationTestFixture fixture)
             await StoreZoneAsync("Mars/Olympus");
             Assert.Equal(CompanyZone.IanaId(TimeZoneInfo.Local), await ZoneAsync(engineer));
         }
-        finally { await StoreZoneAsync(null); }
+        finally { await StoreZoneAsync(before); }
+    }
+
+    private async Task<string?> StoredZoneAsync()
+    {
+        using var scope = fixture.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<IAppSettingsStore>().GetAsync(AppSettingKeys.CompanyTimeZone);
     }
 
     private async Task StoreZoneAsync(string? zone)

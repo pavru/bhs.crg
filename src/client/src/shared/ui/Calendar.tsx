@@ -1,7 +1,7 @@
 import { useState, useRef, useLayoutEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import type { DatePrecision } from '@/shared/api/types';
-import { parseISO, toISO, daysInMonth, monthMatrix, dayInWeek } from '@/shared/utils/date';
+import { parseISO, toISO, daysInMonth, monthMatrix, dayInWeek, MIN_YEAR, MAX_YEAR } from '@/shared/utils/date';
 import { firstDayOfWeek, monthNames, weekdayNames } from '@/shared/format/dateMask';
 import { companyToday } from '@/shared/format/companyDay';
 import { resolveLocale, useLocale } from '@/shared/hooks/useLocale';
@@ -18,8 +18,6 @@ import { Tooltip } from './Tooltip';
  * пустое поле, — по `companyToday`. Разметка — APG grid: строки `row`, клетки `gridcell` с
  * `aria-selected`, у дней — строка заголовков `columnheader`.
  */
-const MIN_YEAR = 1900;
-const MAX_YEAR = 2100;
 const clampYear = (y: number) => Math.min(MAX_YEAR, Math.max(MIN_YEAR, y));
 
 type View = 'days' | 'months' | 'years';

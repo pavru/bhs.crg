@@ -363,6 +363,12 @@ describe('DateInput: имя для чтения с экрана', () => {
     expect(within(group).getAllByRole('textbox').map(t => t.getAttribute('aria-label'))).toEqual(['month', 'day', 'year']);
   });
 
+  it('в ячейке кнопка 32 px занимает в строке место прежнего значка', () => {
+    render(<DateInput label="Дата" value="2026-10-19" onChange={() => {}} compact />);
+    const classes = screen.getByRole('button', { name: 'Открыть календарь' }).className.split(' ');
+    expect(classes).toEqual(expect.arrayContaining(['h-8', 'w-8', '-mx-1.5']));
+  });
+
   it('кнопка календаря — не меньше 32 px', () => {
     render(<Controlled initial="2026-10-19" calendar />);
     expect(screen.getByRole('button', { name: 'Открыть календарь' }).className).toMatch(/\bh-8 w-8\b/);
@@ -401,6 +407,29 @@ describe('DateInput: стрелки', () => {
     key(seg('ГГГГ'), 'ArrowUp');
     expect(seg('ГГГГ').value).toBe('2027');
     expect(screen.getByTestId('value').textContent).toBe('2027-12-01');
+  });
+
+  it('день ходит по кругу своего месяца; недописанный год стрелка не трогает; год — в границах календаря', () => {
+    const onChange = vi.fn();
+    render(<Controlled initial="2026-11-30" onChange={onChange} />);
+    key(seg('ДД'), 'ArrowUp');
+    expect(seg('ДД').value).toBe('01');
+    expect(onChange).toHaveBeenLastCalledWith('2026-11-01');
+    key(seg('ДД'), 'ArrowDown');
+    expect(seg('ДД').value).toBe('30');
+    // Февраль без года — по високосному: 29 не отсекается раньше, чем год известен.
+    cleanup();
+    render(<Controlled />);
+    fireEvent.change(seg('ММ'), { target: { value: '02' } });
+    key(seg('ДД'), 'ArrowDown');
+    expect(seg('ДД').value).toBe('29');
+    fireEvent.change(seg('ГГГГ'), { target: { value: '202' } });
+    key(seg('ГГГГ'), 'ArrowUp');
+    expect(seg('ГГГГ').value).toBe('202');
+    cleanup();
+    render(<Controlled initial="2100-01-01" />);
+    key(seg('ГГГГ'), 'ArrowUp');
+    expect(seg('ГГГГ').value).toBe('2100');
   });
 
   it('Alt+↓ — календарь, а не шаг', () => {

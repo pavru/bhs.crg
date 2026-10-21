@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { companyToday, setCompanyTimeZone } from './companyDay';
 
 afterEach(() => setCompanyTimeZone(null));
@@ -21,5 +21,16 @@ describe('companyToday', () => {
     expect(companyToday(local)).toBe('2026-10-31');
     setCompanyTimeZone('Mars/Olympus');
     expect(companyToday(local)).toBe('2026-10-31');
+  });
+
+  // Зовут в каждой перерисовке корня: отвергнутое имя не строит форматтер заново (ревью PR #1548).
+  it('то же имя — и принятое, и отвергнутое — второй раз ничего не строит', () => {
+    const built = vi.spyOn(Intl, 'DateTimeFormat');
+    setCompanyTimeZone('Mars/Olympus');
+    setCompanyTimeZone('Mars/Olympus');
+    setCompanyTimeZone('Europe/Moscow');
+    setCompanyTimeZone('Europe/Moscow');
+    expect(built).toHaveBeenCalledTimes(2);
+    built.mockRestore();
   });
 });

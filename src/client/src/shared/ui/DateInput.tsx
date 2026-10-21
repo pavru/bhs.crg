@@ -7,6 +7,7 @@ import { Tooltip } from './Tooltip';
 import { EMPTY_SEGMENTS, SEGMENT_PROBLEMS, fullYear, parsePasted, readSegments, segmentsOf, type Segments } from './dateSegments';
 import { dateMask, type DatePart } from '@/shared/format/dateMask';
 import { companyToday } from '@/shared/format/companyDay';
+import { daysInMonth, MIN_YEAR, MAX_YEAR } from '@/shared/utils/date';
 import { resolveLocale, useLocale } from '@/shared/hooks/useLocale';
 
 interface DateInputProps {
@@ -208,18 +209,21 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
 
   /**
    * ↑/↓ — значение сегмента на шаг, как у нативного поля даты (issue #1463): день и месяц по кругу,
-   * пустой сегмент — с края (↑ — 1, ↓ — 31 или 12), пустой год — год компании. Значение выделяется
-   * снова: следующая стрелка или цифра работает со всем сегментом.
+   * пустой сегмент — с края (↑ — 1, ↓ — последний), пустой год — год компании. День ходит по кругу
+   * своего месяца, если месяц набран: иначе ↑ с 30.11 давал бы 31.11 — «такой даты нет». Год — в
+   * границах календаря; недописанный (1 или 3 цифры) стрелка не трогает, чтобы не стереть набранное.
+   * Значение выделяется снова: следующая стрелка или цифра работает со всем сегментом.
    */
   function step(part: DatePart, delta: 1 | -1, input: HTMLInputElement) {
     const cur = shown[part];
     let next: string;
     if (part === 'y') {
-      const year = cur.length === 4 ? +cur + delta : cur.length === 2 ? +fullYear(cur) + delta : +companyToday().slice(0, 4);
-      next = String(Math.min(9999, Math.max(1000, year)));
+      if (cur.length === 1 || cur.length === 3) return;
+      const year = cur === '' ? +companyToday().slice(0, 4) : +(cur.length === 2 ? fullYear(cur) : cur) + delta;
+      next = String(Math.min(MAX_YEAR, Math.max(MIN_YEAR, year)));
     } else {
-      const top = part === 'd' ? 31 : 12;
-      const n = cur === '' ? (delta > 0 ? 1 : top) : ((+cur - 1 + delta + top) % top) + 1;
+      const top = part === 'm' ? 12 : dayTop(shown);
+      const n = cur === '' || +cur > top ? (delta > 0 ? 1 : top) : ((+cur - 1 + delta + top) % top) + 1;
       next = String(n).padStart(2, '0');
     }
     const segs = { ...shown, [part]: next };
@@ -370,8 +374,8 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
       {showCalendar && (
         <Popover.Trigger asChild>
           <button ref={triggerRef} type="button" disabled={disabled} aria-label="Открыть календарь"
-            className={`ml-0.5 -my-1.5 shrink-0 flex items-center justify-center h-8 w-8 rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
-              compact ? 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100' : ''}`}>
+            className={`-my-1.5 shrink-0 flex items-center justify-center h-8 w-8 rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+              compact ? `${COMPACT_TRIGGER} opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100` : 'ml-0.5'}`}>
             <CalendarDays size={compact ? 14 : 16} />
           </button>
         </Popover.Trigger>
@@ -450,9 +454,25 @@ export function DateInput({ label, value, onChange, onProblem, precision = 'day'
  * (около 20 знаков) оно в ячейку не вносит.
  */
 const SIZER = 'invisible col-start-1 row-start-1 px-0.5 tabular-nums after:content-[attr(data-sizer)]';
+/**
+ * Кнопка календаря в ячейке: нажимать — те же 32 px, а места в строке — как у прежнего значка в 20 px
+ * (ревью PR #1548). Колонка даты в таблицах документов — 118 px, и лишние 12 px срезали бы год.
+ * Зона нажатия заходит на поле ячейки справа и на разделитель слева — не на цифры.
+ */
+const COMPACT_TRIGGER = '-mx-1.5';
 const STOP = 'button, input, select, textarea, a[href], [tabindex]';
 /** Клавиши-разделители: набрав «18.» или «10/», человек ждёт следующий сегмент при любом языке. */
 const SEPARATORS = ['.', '/', '-'];
+
+/**
+ * Последний день для стрелок: дней в набранном месяце; год не дописан — по високосному (29 февраля
+ * не отсекается раньше, чем год известен); месяца нет — 31.
+ */
+function dayTop({ m, y }: Segments): number {
+  const month = +m;
+  if (!month || month > 12) return 31;
+  return daysInMonth(y.length === 4 ? +y : 2000, month);
+}
 
 /** Курсор у края сегмента или выделен весь сегмент — стрелка уводит к соседнему. */
 function atEdge(input: HTMLInputElement, side: 'start' | 'end'): boolean {
