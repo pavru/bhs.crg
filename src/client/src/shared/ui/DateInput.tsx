@@ -1,14 +1,14 @@
-import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
-import { AlertCircle, CalendarDays, X } from 'lucide-react';
+import { CalendarDays, X } from 'lucide-react';
 import type { DatePrecision } from '@/shared/api/types';
 import { IconButton } from './Button';
 import { Calendar } from './Calendar';
-import { Tooltip } from './Tooltip';
-import { EMPTY_SEGMENTS, SEGMENT_PROBLEMS, fullYear, parsePasted, readSegments, segmentsOf, type Segments } from './dateSegments';
-import { dateMask, type DatePart } from '@/shared/format/dateMask';
-import { companyToday } from '@/shared/format/companyDay';
-import { daysInMonth, MIN_YEAR, MAX_YEAR } from '@/shared/utils/date';
+import { readSegments, segmentsOf } from './dateSegments';
+import { dateSegmentModel } from './dateSegmentModel';
+import { SegmentProblemMark } from './SegmentProblemMark';
+import { useSegmentField } from './useSegmentField';
+import { dateMask } from '@/shared/format/dateMask';
 import { resolveLocale, useLocale } from '@/shared/hooks/useLocale';
 
 interface DateInputProps {
@@ -94,27 +94,6 @@ interface DateInputProps {
 
 export function DateInput({ label, value, onChange, onProblem, onIncomplete, precision = 'day', className = '', disabled = false, readOnly = false, required = false, calendar = true, compact = false,
   size, invalid = false, min, max, range, onCommit }: DateInputProps) {
-  /**
-   * Набранное человеком — вместе со значением, от которого его начали набирать (`base`). Показанные
-   * сегменты ВЫЧИСЛЯЮТСЯ (issue #858): набранное, пока значение то же, иначе — прямо из значения.
-   *
-   * <p>Раньше сегменты были копией значения, которую эффект переливал «когда не редактируют».
-   * Копия жила своей жизнью между приходом нового значения и запуском эффекта — то есть кадр поле
-   * показывало прежнюю дату.</p>
-   *
-   * <p>Недописанное и несуществующее при уходе из поля ОСТАЮТСЯ видимыми, с ошибкой под полем
-   * (issue #1460, решение владельца): раньше они молча откатывались к прежней дате, и человек считал
-   * ввод принятым. Отданная дата меняет значение — и набранное уходит само, по `base`. Значение
-   * сменили снаружи (сброс формы, другая запись) — тоже: набранное относилось к прежнему.</p>
-   */
-  const [typed, setTyped] = useState<(Segments & { base: string }) | null>(null);
-  const [focused, setFocused] = useState(false);
-  /**
-   * Ctrl+A выделил всю дату (issue #1463): у сегментов общего выделения нет, поэтому оно своё. Delete
-   * или Backspace стирают дату, цифра начинает её заново, Ctrl+C копирует в маске языка, Ctrl+X
-   * копирует и стирает, Esc, стрелка и щелчок выделение снимают.
-   */
-  const [allSelected, setAllSelected] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   /** Календарь закрыт Tab'ом с края — фокус уже перенесён, возвращать его на значок не нужно. */
@@ -123,409 +102,30 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   // Порядок сегментов, разделитель и обозначения — языка пользователя (issue #1461). Хранимое значение
   // от языка не зависит. Полный порядок нужен вставке: дату целиком вставляют и в поле месяца.
   const [storedLocale] = useLocale();
-  const { mask, fullOrder } = useMemo(() => {
+  const model = useMemo(() => {
     const locale = resolveLocale(storedLocale);
-    return { mask: dateMask(locale, precision), fullOrder: dateMask(locale, 'day').order };
+    return dateSegmentModel(dateMask(locale, precision), dateMask(locale, 'day').order, precision);
   }, [storedLocale, precision]);
-
-  const dayRef = useRef<HTMLInputElement>(null);
-  const monRef = useRef<HTMLInputElement>(null);
-  const yrRef  = useRef<HTMLInputElement>(null);
-  const blurTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  /**
-   * Значение, с которым человек вошёл в поле, — к нему возвращает Esc. Не текущее: сегменты отдают
-   * дату, как только она складывается, и «31» поверх 10.2026 успевает отдать 31.10 по пути к 31.02
-   * (поймано живой пробой окна оплаты). Запоминается при входе без набранного: вернувшись к полю с
-   * ошибкой, человек правит тот же ввод, и прежним остаётся прежнее.
-   */
-  const startValue = useRef(value ?? '');
-  /**
-   * Значение на сейчас — для `onCommit` из таймера ухода. Не из замыкания: уход сам дописывает
-   * сегмент («26» → 2026), и значение меняется уже после того, как таймер поставлен.
-   */
-  const latest = useRef(value ?? '');
-  useEffect(() => { latest.current = value ?? ''; });
-  /**
-   * Фиксация (`onCommit`) — уход из ПОЛЯ, а не из сегмента: значок календаря, крестик и сам календарь
-   * — ещё поле, и шаг Tab'ом на значок не поправлял бы другую границу периода посреди правки (ревью
-   * PR #1553). И только изменённого: проход Tab'ом по сохранённой паре форму не пачкает.
-   */
-  const groupRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const commitTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const inside = useRef(false);
-  const entered = useRef('');
-  const withinField = (to: EventTarget | null) => to instanceof Node
-    && (!!groupRef.current?.contains(to) || !!contentRef.current?.contains(to));
-  function onFieldFocus() {
-    clearTimeout(commitTimer.current);
-    if (!inside.current) { inside.current = true; entered.current = value ?? ''; }
-  }
-  /** Зафиксировать значение на сейчас, если оно отличается от того, с которым вошли или фиксировали. */
-  function commit() {
-    clearTimeout(commitTimer.current);
-    if (latest.current === entered.current) return;
-    entered.current = latest.current;
-    onCommit?.(latest.current);
-  }
-  function onFieldBlur(e: React.FocusEvent) {
-    if (withinField(e.relatedTarget)) return;
-    const leave = () => { inside.current = false; commit(); };
-    // Фокус ушёл на известный элемент (кнопка, крестик, поле рядом) — фиксация сразу, в этом же
-    // событии: щелчок «Добавить» / «Применить» читает уже поправленное, а таймер окошко, закрывшись,
-    // погасило бы вовсе (issue #1465). Куда — неизвестно (щелчок мимо, окно браузера) — таймером:
-    // фокус может вернуться в поле, и тогда ухода не было.
-    if (e.relatedTarget) leave();
-    else commitTimer.current = setTimeout(leave, 120);
-  }
-  useEffect(() => () => clearTimeout(commitTimer.current), []);
-
-  const fromValue = segmentsOf(value);
-  const draft = typed && typed.base === (value ?? '') ? typed : null;
-  // Значение не дата («вчера», «2026/13») — показывается текстом, пока его не начали переписывать.
-  const foreign = fromValue === null && draft === null;
-  const shown = draft ?? fromValue ?? EMPTY_SEGMENTS;
-  const { d, m, y } = shown;
-  // Функциональные апдейтеры: вставка пишет все сегменты разом, и сборка от отрендеренного `shown`
-  // молча потеряла бы первую правку (поймано ревью PR #863).
-  const setSeg = (key: 'd' | 'm' | 'y', v: string) =>
-    setTyped(prev => ({ ...(prev && prev.base === (value ?? '') ? prev : { ...shown, base: value ?? '' }), [key]: v }));
-  const setD = (v: string) => setSeg('d', v);
-  const setM = (v: string) => setSeg('m', v);
-  const setY = (v: string) => setSeg('y', v);
-
-  // Ошибка набранного. «Не дописана» — только после ухода из поля: посреди ввода дата и должна быть
-  // недописанной. Несуществующая — сразу, как только все сегменты набраны.
-  const reading = draft ? readSegments(draft, precision) : null;
-  const problem = reading?.kind === 'impossible' ? SEGMENT_PROBLEMS.impossible
-    : reading?.kind === 'partial' && !focused ? SEGMENT_PROBLEMS.partial
-      : foreign && !readOnly && !disabled ? SEGMENT_PROBLEMS.foreign : null;
-  useEffect(() => { onProblem?.(problem); }, [onProblem, problem]);
-  const incomplete = reading?.kind === 'impossible' ? SEGMENT_PROBLEMS.impossible
-    : reading?.kind === 'partial' ? SEGMENT_PROBLEMS.partial : null;
-  useEffect(() => { onIncomplete?.(incomplete); }, [onIncomplete, incomplete]);
-
-  /**
-   * Есть что стирать (issue #1463): значение, «не дата» или недописанное поверх пустого. Кнопкам —
-   * крестику и «Очистить» календаря — только у необязательного правимого поля: обязательное стирают
-   * сегментами или Ctrl+A → Delete, и пустоту называет форма.
-   */
-  const hasContent = (value ?? '') !== '' || (!!draft && !!(draft.d || draft.m || draft.y));
-  const clearable = hasContent && !required && !readOnly && !disabled;
-
-  function onFocus() {
-    clearTimeout(blurTimer.current);
-    if (!focused && !draft) startValue.current = value ?? '';
-    setFocused(true);
-  }
-  function onBlur() {
-    // Delay so focus transitions between segments don't flicker focused=false. Набранное, которое
-    // дало дату или пустоту, уходит вместе с фокусом; недописанное и несуществующее — остаётся с ошибкой.
-    blurTimer.current = setTimeout(() => {
-      setFocused(false);
-      setAllSelected(false);
-      setTyped(prev => {
-        const kind = prev && readSegments(prev, precision).kind;
-        return kind === 'partial' || kind === 'impossible' ? prev : null;
-      });
-    }, 120);
-  }
-
-  /**
-   * Отдать значение. Фиксация видит его сразу, не дожидаясь отрисовки: уход и Enter дописывают
-   * сегмент («26» → 2026) в том же событии, где фиксируют (issue #1465). Отданное другое значение
-   * снимает набранное: иначе, вернись значение к прежнему, набранное ожило бы поверх него — список дат
-   * отбора добавил дату и стёр черновик, а поле показывало добавленную.
-   */
-  function give(iso: string) {
-    latest.current = iso;
-    if (iso !== (value ?? '')) setTyped(null);
-    onChange(iso);
-  }
-
-  // Отдаём дату, только если она есть; пустой ввод — явная очистка, остальное не отдаётся вовсе.
-  function emit(dd: string, mm: string, yyyy: string) {
-    const r = readSegments({ d: dd, m: mm, y: yyyy }, precision);
-    if (r.kind === 'date') give(r.iso);
-    else if (r.kind === 'empty') give('');
-  }
-
-  /** Вставка даты целиком — в любой сегмент (issue #1460); не дата — сегмент разберёт её сам. */
-  function onPaste(e: React.ClipboardEvent) {
-    if (readOnly || disabled) return;
-    const got = parsePasted(e.clipboardData.getData('text'), precision, fullOrder);
-    if (!got) return;
-    e.preventDefault();
-    setTyped({ ...got, base: value ?? '' });
-    emit(got.d, got.m, got.y);
-  }
-
-  /**
-   * Выделение — сразу за фокусом: следующая цифра заменит сегмент. Таймер только повторяет его, если в
-   * сегмент ещё не набрали: на медленной машине он срабатывал после первой цифры и выделял её, и
-   * «3102» поверх 19.10 давало месяц «2» (живые прогоны PR #1544).
-   */
-  function advance(ref: React.RefObject<HTMLInputElement | null>) {
-    const el = ref.current;
-    if (!el) return;
-    el.focus();
-    el.select();
-    const was = el.value;
-    setTimeout(() => { if (document.activeElement === el && el.value === was) el.select(); }, 0);
-  }
-
-  const refs: Record<DatePart, React.RefObject<HTMLInputElement | null>> = { d: dayRef, m: monRef, y: yrRef };
-  /** Сосед сегмента в порядке языка: у en-US за месяцем идёт день, у ru-RU — год. */
-  function go(part: DatePart, step: 1 | -1) {
-    const next = mask.order[mask.order.indexOf(part) + step];
-    if (next) advance(refs[next]);
-  }
-
-  // Обработчики сегментов читают соседние сегменты из `from` — по умолчанию показанных. Явная основа
-  // нужна цифре поверх выделенной даты: она начинает новую дату, а показана ещё прежняя.
-  function handleD(raw: string, from: Segments = shown) {
-    const { d, m, y } = from;
-    const v = raw.replace(/\D/g, '').slice(0, 2);
-    // Auto-advance only when filling in new digits (segment was not already full)
-    if (v.length === 2 && d.length < 2) {
-      setD(v); go('d', 1); emit(v, m, y);
-    } else if (v.length === 1 && d === '' && +v > 3) {
-      // digit 4–9 can't start a valid day — auto-pad "0X" and advance
-      const p = '0' + v; setD(p); go('d', 1); emit(p, m, y);
-    } else {
-      setD(v); emit(v, m, y);
-    }
-  }
-
-  function handleM(raw: string, from: Segments = shown) {
-    const { d, m, y } = from;
-    const v = raw.replace(/\D/g, '').slice(0, 2);
-    // Auto-advance only when filling in new digits (segment was not already full)
-    if (v.length === 2 && m.length < 2) {
-      setM(v); go('m', 1); emit(d, v, y);
-    } else if (v.length === 1 && m === '' && +v > 1) {
-      // digit 2–9 can't start a valid month — auto-pad "0X" and advance
-      const p = '0' + v; setM(p); go('m', 1); emit(d, p, y);
-    } else {
-      setM(v); emit(d, v, y);
-    }
-  }
-
-  function handleY(raw: string, from: Segments = shown) {
-    const { d, m, y } = from;
-    const v = raw.replace(/\D/g, '').slice(0, 4);
-    // Год не последний бывает у языка с порядком «год, месяц, день» — тогда дальше идёт месяц.
-    if (v.length === 4 && y.length < 4) go('y', 1);
-    setY(v); emit(d, m, v);
-  }
-
-  /**
-   * ↑/↓ — значение сегмента на шаг, как у нативного поля даты (issue #1463): день и месяц по кругу,
-   * пустой сегмент — с края (↑ — 1, ↓ — последний), пустой год — год компании. День ходит по кругу
-   * своего месяца, если месяц набран: иначе ↑ с 30.11 давал бы 31.11 — «такой даты нет». Год — в
-   * границах календаря; недописанный (1 или 3 цифры) стрелка не трогает, чтобы не стереть набранное.
-   * Значение выделяется снова: следующая стрелка или цифра работает со всем сегментом.
-   */
-  function step(part: DatePart, delta: 1 | -1, input: HTMLInputElement) {
-    const cur = shown[part];
-    let next: string;
-    if (part === 'y') {
-      if (cur.length === 1 || cur.length === 3) return;
-      const year = cur === '' ? +companyToday().slice(0, 4) : +(cur.length === 2 ? fullYear(cur) : cur) + delta;
-      next = String(Math.min(MAX_YEAR, Math.max(MIN_YEAR, year)));
-    } else {
-      const top = part === 'm' ? 12 : dayTop(shown);
-      const n = cur === '' || +cur > top ? (delta > 0 ? 1 : top) : ((+cur - 1 + delta + top) % top) + 1;
-      next = String(n).padStart(2, '0');
-    }
-    const segs = { ...shown, [part]: next };
-    setSeg(part, next);
-    emit(segs.d, segs.m, segs.y);
-    setTimeout(() => { if (document.activeElement === input) input.select(); }, 0);
-  }
-
-  /**
-   * Клавиша поверх выделенной Ctrl+A даты; true — обработана здесь. Стирание работает и у обязательного
-   * поля: это ввод, а не кнопка, — пустоту назовёт форма. Ctrl+C и Ctrl+X уходят в `onCopy` / `onCut`,
-   * клавиши-модификаторы выделения не снимают; Esc снимает только его — окно, где стоит поле, не
-   * закрывается.
-   *
-   * <p>Цифра начинает дату заново, но значение не стирает: прежняя дата остаётся, пока новая не
-   * сложится, — как при наборе поверх сегмента. Иначе форма получила бы пустоту посреди набора, а уход
-   * с недописанным оставлял бы поле пустым вместо прежней даты. Esc возвращает её и здесь.</p>
-   */
-  function onSelectedKey(e: React.KeyboardEvent<HTMLInputElement>): boolean {
-    const ctrl = e.ctrlKey || e.metaKey;
-    if (MODIFIERS.includes(e.key) || (ctrl && CLIPBOARD_KEYS.some(k => e.code === `Key${k}` || e.key.toUpperCase() === k))) return true;
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setAllSelected(false); return true; }
-    const wipe = e.key === 'Delete' || e.key === 'Backspace';
-    const digit = /^\d$/.test(e.key);
-    if (!wipe && !digit) { setAllSelected(false); return false; }
-    e.preventDefault();
-    if (readOnly || disabled) return true;
-    if (wipe) { clear(); return true; }
-    setAllSelected(false);
-    firstRef.current?.focus();
-    setTyped({ ...EMPTY_SEGMENTS, base: value ?? '' });
-    ({ d: handleD, m: handleM, y: handleY })[mask.order[0]](e.key, EMPTY_SEGMENTS);
-    return true;
-  }
-
-  /**
-   * Разделитель переводит к следующему сегменту, Backspace в пустом — к предыдущему, ←/→ с края — к
-   * соседнему (issue #1463). Цифра в полный сегмент без выделения заменяет его, как в нативном поле
-   * даты: иначе её молча съедал `maxLength`. Alt+↓ — не шаг, а календарь (`onContainerKey`).
-   */
-  const onSegmentKey = (part: DatePart) => (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const cur = shown[part];
-    const input = e.currentTarget;
-    if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.code === 'KeyA' || e.key.toLowerCase() === 'a')) {
-      // Пустое поле выделять нечем: подсветка и «Выделена вся дата» обещали бы дату, которой нет.
-      e.preventDefault();
-      if (hasContent) { input.select(); setAllSelected(true); }
-      return;
-    }
-    if (allSelected && onSelectedKey(e)) return;
-    if (e.key === 'Backspace' && cur === '') go(part, -1);
-    else if (SEPARATORS.includes(e.key) && cur) { e.preventDefault(); go(part, 1); }
-    else if (/^\d$/.test(e.key) && input.value.length >= input.maxLength && input.selectionStart === input.selectionEnd) input.select();
-    else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.altKey && !readOnly && !disabled) {
-      e.preventDefault(); step(part, e.key === 'ArrowUp' ? 1 : -1, input);
-    }
-    else if (e.key === 'ArrowLeft' && atEdge(input, 'start')) { e.preventDefault(); go(part, -1); }
-    else if (e.key === 'ArrowRight' && atEdge(input, 'end')) { e.preventDefault(); go(part, 1); }
-  };
-
-  // Pad single digits on blur — read DOM value via ref to avoid stale closure
-  // (onBlur fires synchronously before React re-renders when advance() moves focus)
-  function blurD() {
-    const cur = dayRef.current?.value ?? d;
-    if (cur.length === 1) { const p = '0' + cur; setD(p); emit(p, m, y); }
-  }
-  function blurM() {
-    const cur = monRef.current?.value ?? m;
-    if (cur.length === 1) { const p = '0' + cur; setM(p); emit(d, p, y); }
-  }
-  // «18.10.26» → 2026: раньше двузначный год при уходе молча отбрасывался вместе с датой.
-  function blurY() {
-    const cur = yrRef.current?.value ?? y;
-    if (cur.length === 2) { const p = fullYear(cur); setY(p); emit(d, m, p); }
-  }
-
-  const isSegment = (t: EventTarget) => t === dayRef.current || t === monRef.current || t === yrRef.current;
-
-  /** Первый видимый сегмент — с него начинают переписывать значение, которое не дата. */
-  const firstRef = refs[mask.order[0]];
-  function startOver() {
-    if (readOnly || disabled) return;
-    setTyped({ ...EMPTY_SEGMENTS, base: value ?? '' });
-    // Сегментов ещё нет — они появятся этим же рендером; фокус ставится после него.
-    setTimeout(() => advance(firstRef), 0);
-  }
-
-  /**
-   * Стереть дату целиком: крестик, «Очистить» календаря, Ctrl+A → Delete. Фокус — в первый сегмент,
-   * и СРАЗУ, пока крестик не исчез вместе со значением: удалённому элементу браузер не шлёт blur, и
-   * фокус упал бы на body (урок `TypePickerField`, #572). Значение до очистки запоминается для Esc,
-   * если человек пришёл не из сегмента; таймер ухода отменяется, иначе он вернул бы ошибку прежнего
-   * набранного.
-   */
-  function clear() {
-    if (!focused) startValue.current = value ?? '';
-    const first = firstRef.current;
-    first?.focus();
-    clearTimeout(blurTimer.current);
-    setFocused(true);
-    setAllSelected(false);
-    setTyped({ ...EMPTY_SEGMENTS, base: value ?? '' });
-    if ((value ?? '') !== '') give('');
-    // «Не дата» показана текстом: сегментов ещё нет — они появятся этим же рендером.
-    if (!first) setTimeout(() => advance(firstRef), 0);
-  }
-
-  /**
-   * Вся дата текстом в маске языка — для Ctrl+C и Ctrl+X поверх выделенной даты. Только целая дата:
-   * недописанная склеилась бы в «18..2026», которую не примет ни одно поле даты, — её копирует
-   * браузер, выделенным сегментом.
-   */
-  const asText = () => readSegments(shown, precision).kind === 'date'
-    ? mask.order.map(part => shown[part]).join(mask.sep) : null;
-  function onCopy(e: React.ClipboardEvent) {
-    const text = allSelected ? asText() : null;
-    if (text === null) return;
-    e.preventDefault();
-    e.clipboardData.setData('text/plain', text);
-  }
-  /** Ctrl+X поверх выделенной даты: целая — в буфер, и поле стирается целиком, а не одним сегментом. */
-  function onCut(e: React.ClipboardEvent) {
-    if (!allSelected) return;
-    e.preventDefault();
-    const text = asText();
-    if (text !== null) e.clipboardData.setData('text/plain', text);
-    if (!readOnly && !disabled) clear();
-  }
-
-  const seg = [
-    'border-0 outline-none bg-transparent text-center min-w-0 p-0',
-    disabled ? 'cursor-not-allowed' : 'focus:bg-brand-subtle',
-    'rounded-sm tabular-nums',
-    problem ? 'text-danger' : '',
-    // Выделенная Ctrl+A дата подсвечена целиком, как один текст.
-    allSelected ? 'bg-brand-subtle' : '',
-  ].join(' ');
-  const markInvalid = problem || invalid ? true : undefined;
-  // Ошибка для скринридера — описанием сегментов (`aria-describedby`), и у `DateField` тоже: его
-  // подпись под рамкой с полем не связана. Живая область объявляет только СМЕНУ ошибки: `role="alert"`
-  // объявлял бы каждую ошибку при отрисовке, и таблица с двадцатью ячейками «не дата» зачитывалась бы
-  // подряд (ревью PR #1542).
-  const problemId = useId();
-  const describedBy = problem ? problemId : undefined;
 
   // Иконка календаря у нередактируемого поля — приглашение к действию, которого нет: открыв её,
   // человек выберет дату, и ничего не произойдёт. Убираем её вместе с жестом Alt+↓ (issue #958).
   const showCalendar = calendar && !readOnly;
 
-  // Alt+↓ из любого сегмента открывает календарь (штатный MD3-жест).
-  // Esc при правке возвращает значение, с которым вошли в поле (issue #1460), — и только его: окно,
-  // где стоит поле, не закрывается (`Modal` решает о своём Esc после полей и не видит погашенного
-  // здесь). Правки нет — Esc принадлежит окну. Только из сегмента: на значке календаря `startValue`
-  // не снят (фокус туда приходит мимо `onFocus` сегментов) и мог устареть с монтирования — откат к нему
-  // стёр бы дату, пришедшую с данными формы (ревью PR #1542).
-  function onContainerKey(e: React.KeyboardEvent) {
-    if (showCalendar && !disabled && e.altKey && e.key === 'ArrowDown') { e.preventDefault(); setPickerOpen(true); }
-    else if (e.key === 'Escape' && !e.nativeEvent.isComposing && isSegment(e.target)
-      && (draft || (value ?? '') !== startValue.current)) {
-      e.preventDefault(); e.stopPropagation();
-      setTyped(null);
-      if ((value ?? '') !== startValue.current) give(startValue.current);
-    } else if (e.key === 'Enter' && isSegment(e.target)) {
-      // Enter — «готово» (issue #1465): дописать сегмент, как при уходе, и зафиксировать. Действие
-      // формы по Enter (отправка) идёт следом и видит поправленный период, а не прежний.
-      const part = mask.order.find(p => SEGMENTS[p].ref.current === e.target);
-      if (part) SEGMENTS[part].blur?.();
-      commit();
-    }
-  }
+  // Движок сегментов (issue #1468): набор, стрелки, вставка, Esc, Enter, фиксация при уходе. Здесь —
+  // только своё у даты: Alt+↓ из любого сегмента открывает календарь (штатный MD3-жест).
+  const {
+    foreign, problem, problemId, markInvalid, describedBy, clearable, groupProps, segments: segmentInputs,
+    selectedAnnouncement, contentRef, fieldFocus, pick, clear, startOver,
+  } = useSegmentField(model, {
+    label, value, onChange, onProblem, onIncomplete, onCommit, disabled, readOnly, required, invalid,
+    onKey: e => {
+      if (!(showCalendar && !disabled && e.altKey && e.key === 'ArrowDown')) return false;
+      e.preventDefault(); setPickerOpen(true);
+      return true;
+    },
+  });
 
-  // Значок ошибки — у поля без своей подписи (ячейка, отбор): у `DateField` ошибка стоит под рамкой.
-  const problemMark = (
-    <>
-      <span id={problemId} className="sr-only" aria-live="polite">{problem ?? ''}</span>
-      {problem && !onProblem && (
-        <Tooltip content={problem}>
-          <span className="ml-1 shrink-0 flex items-center text-danger">
-            <AlertCircle size={compact ? 13 : 14} aria-hidden />
-          </span>
-        </Tooltip>
-      )}
-    </>
-  );
-
-  const SEGMENTS: Record<DatePart, { ref: React.RefObject<HTMLInputElement | null>; change: (raw: string) => void; blur?: () => void; len: number }> = {
-    d: { ref: dayRef, change: handleD, blur: blurD, len: 2 },
-    m: { ref: monRef, change: handleM, blur: blurM, len: 2 },
-    y: { ref: yrRef, change: handleY, blur: blurY, len: 4 },
-  };
+  const problemMark = <SegmentProblemMark id={problemId} problem={problem} showIcon={!onProblem} compact={compact} />;
 
   // Рамка обвязки (issue #1464) — как у `Select`: кольцо, пока фокус внутри или открыт календарь.
   const frame = !size ? '' : [
@@ -558,34 +158,10 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
       {clearButton && <span className="flex items-center shrink-0 ml-auto pl-0.5">{clearButton}</span>}
     </div>
   ) : (
-    <div ref={groupRef} role="group" aria-label={label} className={`flex items-center group ${frame} ${className}`} onKeyDown={onContainerKey} onPaste={onPaste}
-      onCopy={onCopy} onCut={onCut} onMouseDown={() => setAllSelected(false)} onFocus={onFieldFocus} onBlur={onFieldBlur}>
-      {mask.order.map((part, i) => {
-        const { ref, change, blur, len } = SEGMENTS[part];
-        return (
-          <Fragment key={part}>
-            {i > 0 && <span className="text-fg4 select-none">{mask.sep}</span>}
-            {/* Ширина — по образцам (см. `SIZER`): обозначение и цифры. */}
-            <span className="inline-grid">
-              <span data-sizer={mask.labels[part]} aria-hidden className={SIZER} />
-              <span data-sizer={len === 4 ? '0000' : '00'} aria-hidden className={SIZER} />
-              <input
-                ref={ref} type="text" inputMode="numeric"
-                placeholder={mask.labels[part]} aria-label={mask.names[part]} maxLength={len}
-                value={shown[part]}
-                disabled={disabled} readOnly={readOnly} aria-required={required || undefined} aria-invalid={markInvalid} aria-describedby={describedBy}
-                onChange={e => change(e.target.value)}
-                onKeyDown={onSegmentKey(part)}
-                onFocus={onFocus}
-                onBlur={() => { blur?.(); onBlur(); }}
-                className={`${seg} col-start-1 row-start-1 w-0 min-w-full`}
-              />
-            </span>
-          </Fragment>
-        );
-      })}
+    <div {...groupProps} className={`flex items-center group ${frame} ${className}`}>
+      {segmentInputs}
       {problemMark}
-      <span className="sr-only" aria-live="polite">{allSelected ? 'Выделена вся дата' : ''}</span>
+      {selectedAnnouncement}
       {/* Хвост поля формы — у правого края, крестик слева от календаря (макет #1463, вариант В):
           появляясь, крестик не сдвигает ни календарь, ни цифры. */}
       <span className={`flex items-center shrink-0 ${compact ? '' : 'ml-auto pl-0.5'}`}>
@@ -607,6 +183,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   if (!showCalendar) return segments;
 
   // Календарю — только существующая дата: с «2026-02-31» он рисовал заголовок «undefined 2026».
+  const fromValue = segmentsOf(value);
   const shownDate = fromValue && readSegments(fromValue, 'day');
   const calendarValue = shownDate && shownDate.kind === 'date' ? shownDate.iso : '';
 
@@ -663,14 +240,12 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
       <Popover.Anchor asChild>{segments}</Popover.Anchor>
       <Popover.Portal>
         <Popover.Content ref={contentRef} align="start" sideOffset={6} collisionPadding={8} hideWhenDetached
-          onKeyDown={onCalendarTab} onCloseAutoFocus={onCalendarClosed} onFocus={onFieldFocus} onBlur={onFieldBlur}
+          onKeyDown={onCalendarTab} onCloseAutoFocus={onCalendarClosed} {...fieldFocus}
           onOpenAutoFocus={() => { tabbedOut.current = false; }}
           className="z-50 rounded-2xl bg-surface border border-stroke focus:outline-none"
           style={{ boxShadow: 'var(--f-shadow16)' }}>
           <Calendar value={calendarValue} precision={precision}
-            // Выбранный день снимает набранное: совпади он с текущим значением, значение не сменится,
-            // и ошибка набранного осталась бы над выбранной датой (ревью PR #1542).
-            onSelect={iso => { give(iso); setTyped(null); entered.current = iso; onCommit?.(iso); }} onClose={() => setPickerOpen(false)}
+            onSelect={pick} onClose={() => setPickerOpen(false)}
             min={min} max={max} range={range}
             onClear={clearable ? clearFromCalendar : undefined} />
         </Popover.Content>
@@ -679,13 +254,6 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   );
 }
 
-/**
- * Невидимый образец, растягивающий ячейку сегмента: ширина по содержимому, а не в `ch` — «MM» и «YYYY»
- * шире цифр, и у en-US подсказка обрезалась (проба стенда, PR #1544). Текст образца — в псевдоэлементе,
- * мимо `textContent` и скринридера. Поле в ячейке — `w-0 min-w-full`: своей ширины по умолчанию
- * (около 20 знаков) оно в ячейку не вносит.
- */
-const SIZER = 'invisible col-start-1 row-start-1 px-0.5 tabular-nums after:content-[attr(data-sizer)]';
 /**
  * Кнопка календаря в ячейке: нажимать — те же 32 px, а места в строке на 6 px меньше (ревью PR #1548):
  * зона нажатия заходит на правое поле ячейки (`px-1.5`), а не на цифры года слева. Ширину колонки под
@@ -701,10 +269,6 @@ const SM_TRIGGER = "relative h-6 w-6 before:absolute before:-inset-1 before:cont
 /** Высота и отступы рамки обвязки — те же, что у `Select` md / sm; справа место держит кнопка календаря. */
 const FRAME = { md: 'h-9 pl-3 pr-0.5 text-sm', sm: 'h-7 pl-2 pr-0.5 text-xs' } as const;
 const STOP = 'button, input, select, textarea, a[href], [tabindex]';
-/** Клавиши-модификаторы: нажатые сами по себе, выделение всей даты не снимают (путь к Ctrl+C). */
-const MODIFIERS = ['Control', 'Meta', 'Shift', 'Alt'];
-/** Ctrl+C и Ctrl+X поверх выделенной даты — к `onCopy` / `onCut`, выделение не снимают. */
-const CLIPBOARD_KEYS = ['C', 'X'];
 /**
  * Крестик поля формы — ускоритель (issue #1463, вариант В): виден при наведении на поле и при фокусе в
  * нём, а где наведения нет — всегда. Прозрачный он не ловит нажатий (`pointer-events-none`), иначе
@@ -715,25 +279,6 @@ const CLEAR_REVEAL = 'opacity-0 pointer-events-none transition-opacity '
   + 'group-hover:opacity-100 group-hover:pointer-events-auto '
   + 'group-focus-within:opacity-100 group-focus-within:pointer-events-auto '
   + '[@media(pointer:coarse)]:opacity-100 [@media(pointer:coarse)]:pointer-events-auto';
-/** Клавиши-разделители: набрав «18.» или «10/», человек ждёт следующий сегмент при любом языке. */
-const SEPARATORS = ['.', '/', '-'];
-
-/**
- * Последний день для стрелок: дней в набранном месяце; год не дописан — по високосному (29 февраля
- * не отсекается раньше, чем год известен); месяца нет — 31.
- */
-function dayTop({ m, y }: Segments): number {
-  const month = +m;
-  if (!month || month > 12) return 31;
-  return daysInMonth(y.length === 4 ? +y : 2000, month);
-}
-
-/** Курсор у края сегмента или выделен весь сегмент — стрелка уводит к соседнему. */
-function atEdge(input: HTMLInputElement, side: 'start' | 'end'): boolean {
-  const { selectionStart: from, selectionEnd: to, value } = input;
-  if (from === 0 && to === value.length) return true;
-  return side === 'start' ? to === 0 : from === value.length;
-}
 
 /** Остановки Tab внутри `root` в порядке документа: видимые, доступные, без `tabindex="-1"`. */
 function tabStops(root: ParentNode): HTMLElement[] {
