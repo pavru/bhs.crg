@@ -21,11 +21,11 @@
 ## 2. PR 2: модуль `work`
 
 - [ ] 2.1 `Closing/WorkClosingReport.cs`: правило даты по поясу стройки; «в окне подачи: N» в
-  `Blocking`; «ждут приёмки: N»; принятые — замороженное [WORK-15] [WORK-52] [CORE-35] [COST-24].
-  Проверка — `WorkClosingReportTests`: стройка западнее компании блокирует закрытие октября; ночная
+  `Blocking`; «ждут приёмки: N» тоже в `Blocking` [WORK-59]; принятые — замороженное [WORK-15] [WORK-52] [CORE-35] [COST-24].
+  Проверка — `WorkClosingReportTests`: стройка западнее компании блокирует закрытие октября; поданный непринятый отчёт блокирует; ночная
   смена 31.10, доставленная 01.11, — в октябре
-- [ ] 2.2 Отказ правки отчёта закрытого периода во всех пишущих адресах, раньше `If-Match`; приёмка
-  разрешена, возврат — 409 [WORK-15]. Проверка — `ReportClosedPeriodTests`; адреса вписаны в
+- [ ] 2.2 Отказ правки отчёта закрытого периода во всех пишущих адресах, раньше `If-Match`; приёмка,
+  возврат и ввод задним числом — тоже 409 [WORK-15] [WORK-59]. Проверка — `ReportClosedPeriodTests`; адреса вписаны в
   исключения порядка отказов с причиной
 - [ ] 2.3 `Data/ReportVersion.cs : ModuleRecordVersion`, миграция
   `dotnet ef migrations add ReportVersions --project src/server/BHS.CRG.Modules.Work --context WorkDbContext`
