@@ -42,3 +42,4 @@ operations:
   apply:
     guidance:
       - Если в ходе реализации шаг из tasks.md или решение из design.md нарушает архитектурные тесты (ModuleBoundaryTests, FileSizeRatchet, ui:ratchet, *InventoryTests) или не стыкуется с кодом — сначала явно обнови design.md и tasks.md в папке текущего change, и только потом пиши код.
+# проверка пропуска CI (тестовый PR, не сливать)
