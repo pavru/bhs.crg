@@ -39,9 +39,9 @@
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~InvoiceScan|FullyQualifiedName~InvoiceFromScan|FullyQualifiedName~BackupManifest|FullyQualifiedName~ModuleDbContextInventory"` — зелёный
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~InvoiceScan|FullyQualifiedName~InvoiceFromScan|FullyQualifiedName~BackupManifest|FullyQualifiedName~ModuleDbContextInventory"` — зелёный
 - [x] 3.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
 - [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 3.5 Живые прогоны со счётом из скана (`invoices-smoke`, `invoice-lines-smoke`) зелёные
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.5 Живые прогоны со счётом из скана (`invoices-smoke`, `invoice-lines-smoke`) зелёные
 - [x] 3.6 Оба PR — метка `version:minor`; PR 2 — «Closes #1484»

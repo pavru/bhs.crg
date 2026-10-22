@@ -28,13 +28,16 @@ export function UnplacedReads({ list }: { list: readonly UnplacedRead[] | null }
   const more = lineKeys.length - named.length;
 
   const columns: DataGridColumn<Line>[] = [
-    { key: 'key', label: 'Ключ', rowHeader: true, width: 'w-36',
+    { key: 'key', label: 'Ключ', rowHeader: true,
       cell: ({ group, read }) => {
-        if (read) return null;
-        const many = group.items.length > 1;
-        // Ключ — как прочитан: моноширинным и без обрезки пробелов, опечатка «Цена » видна.
+        // Строка файла под ключом названа им же для читалки экрана: иначе заголовок строки пуст.
+        if (read) return <span className="sr-only">{group.key}</span>;
+        const many = expandable(group);
+        // Ключ — как прочитан: моноширинным и без обрезки пробелов, опечатка «Цена » видна. Не переносится:
+        // ключ, разорванный посередине, читается как два; на узком экране таблица прокручивается вбок.
         const key = <span className="font-mono whitespace-pre">{group.key}</span>;
-        if (!many) return <span className="pl-4">{key}</span>;
+        // Отступ — на ширину шеврона с зазором: ключи стоят одной колонкой.
+        if (!many) return <span className="block pl-3.5">{key}</span>;
         return (
           <button type="button" aria-expanded={open.has(group.id)} onClick={() => setOpen(was => toggleInSet(was, group.id))}
             className="inline-flex items-center gap-0.5 text-left">
@@ -43,7 +46,8 @@ export function UnplacedReads({ list }: { list: readonly UnplacedRead[] | null }
           </button>
         );
       } },
-    { key: 'where', label: 'Где', width: 'w-28',
+    // «Где» не переносится: «строки 1–12», разорванное на дефисе, читается как две строки.
+    { key: 'where', label: 'Где',
       cell: ({ group, read }) => <span className="text-fg3">{read ? `строка ${read.row}` : unplacedWhere(group)}</span> },
     { key: 'value', label: 'Прочитано', wrap: true,
       cell: ({ group, read }) => read ? read.value : unplacedValues(group) },
@@ -58,11 +62,11 @@ export function UnplacedReads({ list }: { list: readonly UnplacedRead[] | null }
         {named.map((line, i) => (
           <Fragment key={line.key}>
             {i > 0 && ', '}
-            <b className="font-mono whitespace-pre text-fg2">{line.key}</b> ({inRows(line.rows)})
+            <span className="font-mono font-medium whitespace-pre text-fg2">{line.key}</span> ({inRows(line.rows)})
           </Fragment>
         ))}
         {more > 0 && ` и ещё ключей: ${more}`}
-        {header > 0 && <>{lineKeys.length > 0 ? ', и в шапке: ' : 'в шапке: '}<b className="text-fg2">{header}</b></>}
+        {header > 0 && <>{lineKeys.length > 0 ? ', и в шапке: ' : 'в шапке: '}<span className="font-medium text-fg2">{header}</span></>}
         {' '}
         <button type="button" aria-expanded={shown} onClick={() => setShown(s => !s)}
           className="inline-flex items-center gap-0.5 text-brand hover:underline">
@@ -88,10 +92,13 @@ interface Line {
   read: UnplacedRead | null;
 }
 
+/** Раскрывается только ключ строк файла, прочитанный не раз: у записей шапки номеров строк нет. */
+const expandable = (group: UnplacedGroup) => group.place === 'line' && group.items.length > 1;
+
 function lines(groups: UnplacedGroup[], open: ReadonlySet<string>): Line[] {
   return groups.flatMap(group => {
     const head: Line = { id: group.id, group, read: null };
-    return open.has(group.id) && group.items.length > 1
+    return open.has(group.id) && expandable(group)
       ? [head, ...group.items.map((read, i) => ({ id: `${group.id}#${i}`, group, read }))]
       : [head];
   });

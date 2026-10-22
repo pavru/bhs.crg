@@ -61,6 +61,13 @@ describe('свёрнутая строка', () => {
     expect(screen.getByRole('list').textContent).toContain('впишите вручную');
   });
 
+  it('ключей строк больше трёх — остальные числом, шапка после них', () => {
+    const many = ['А', 'Б', 'В', 'Г', 'Д'].map((key, i) => line(i + 1, key, 'v'));
+    render(<RecognitionNotes recognition={recognition({ unplaced: [...many, head('Код', '1', 'no-field')] })} />);
+    expect(screen.getByTestId('unplaced').textContent)
+      .toContain('А (в 1 строке), Б (в 1 строке), В (в 1 строке) и ещё ключей: 2, и в шапке: 1');
+  });
+
   it('только шапка — без перечня ключей', () => {
     render(<RecognitionNotes recognition={recognition({ unplaced: [head('КодКлиента', 'К-1', 'no-field')] })} />);
     expect(screen.getByTestId('unplaced').textContent).toContain('в счёт не положено: в шапке: 1');
@@ -82,7 +89,8 @@ describe('раскрытие', () => {
 
     fireEvent.click(within(table).getByRole('button', { name: /Артикл/ }));
     const opened = within(screen.getByRole('table')).getAllByRole('row').slice(1).map(r => r.textContent);
-    expect(opened.slice(3)).toEqual(['строка 2ВВГ-3х2,5', 'строка 5ГОФ-20']);
+    // Строка файла названа ключом для читалки экрана (скрытой подписью) — заголовок строки не пуст.
+    expect(opened.slice(3)).toEqual(['Артиклстрока 2ВВГ-3х2,5', 'Артиклстрока 5ГОФ-20']);
 
     fireEvent.click(screen.getByRole('button', { name: /Скрыть/ }));
     expect(screen.queryByRole('table')).toBeNull();
@@ -106,6 +114,19 @@ describe('сводка', () => {
     expect(where([1, 3, 5, 7, 9, 11, 13])).toBe('строки 1, 3, 5, 7, 9 и ещё 2');
   });
 
+  it('ключ шапки не раскрывается: номеров строк у неё нет', () => {
+    const twice = [head('Код', '1', 'no-field'), head('Код', '2', 'no-field')];
+    render(<RecognitionNotes recognition={recognition({ unplaced: twice })} />);
+    fireEvent.click(screen.getByRole('button', { name: /Показать/ }));
+    expect(within(screen.getByRole('table')).queryByRole('button')).toBeNull();
+  });
+
+  it('«Прочитано»: первые три разных значения и число остальных — не многоточием', () => {
+    render(<RecognitionNotes recognition={recognition({ unplaced: ['а', 'б', 'в', 'г', 'д'].map((v, i) => line(i + 1, 'К', v)) })} />);
+    fireEvent.click(screen.getByRole('button', { name: /Показать/ }));
+    expect(within(screen.getByRole('table')).getAllByRole('row')[1].textContent).toContain('а, б, в и ещё 2');
+  });
+
   it('у каждой причины свои слова; поле названо подписью', () => {
     expect(unplacedReason(head('Номер', '1', 'occupied', null, 'Номер счёта'))).toBe('поле «Номер счёта» уже заполнено — прочитанное предложено под полем');
     expect(unplacedReason(head('Сумма', 'x', 'unparsed', null, 'Сумма'))).toBe('значение не разобрано — предложено под полем «Сумма»');
@@ -114,5 +135,7 @@ describe('сводка', () => {
     expect(unplacedReason(head('НомерСчёта', '1', 'duplicate-key', 'Номер', 'Номер счёта')))
       .toBe('повторяет ключ «Номер» — поле «Номер счёта» уже заполнено им');
     expect(unplacedReason(head('КодКлиента', '1', 'no-field'))).toBe('у счёта нет поля с таким ключом');
+    // Код, которого клиент не знает (новый сервер), назван как есть, а не пустой клеткой.
+    expect(unplacedReason(head('Ключ', '1', 'new-reason' as UnplacedRead['reason']))).toBe('new-reason');
   });
 });

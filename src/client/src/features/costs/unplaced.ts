@@ -76,10 +76,14 @@ export function unplacedWhere(group: UnplacedGroup): string {
   return rows.length > ROWS_NAMED ? `строки ${named} и ещё ${rows.length - ROWS_NAMED}` : `строки ${named}`;
 }
 
-/** Клетка «Прочитано»: одно значение — как есть; несколько — первые разные. */
+/**
+ * Клетка «Прочитано»: одно значение — как есть; несколько — первые разные и число остальных. Не «…»:
+ * многоточием сервер уже помечает обрезанное значение, и два смысла одного знака не различить.
+ */
 export function unplacedValues(group: UnplacedGroup): string {
   const values = [...new Set(group.items.map(r => r.value))];
-  return values.slice(0, VALUES_NAMED).join(', ') + (values.length > VALUES_NAMED ? '…' : '');
+  const named = values.slice(0, VALUES_NAMED).join(', ');
+  return values.length > VALUES_NAMED ? `${named} и ещё ${values.length - VALUES_NAMED}` : named;
 }
 
 /**
