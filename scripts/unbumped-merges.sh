@@ -48,10 +48,16 @@ version_change() { # version_change РЕВИЗИЯ → последний ком
 # что слияние принесло. Ответ «не удалось» (код 2) — отказ всего скрипта, а не «обычное слияние»:
 # молча поднятая версия выглядела бы нормой, а Release на этом коммите отказал бы без объяснения.
 # Отказ проходит наружу через pipefail: `exit` внутри конвейера выходит лишь из его подоболочки.
+# Первый родитель у каждого слияния в диапазоне есть всегда: диапазоны здесь вида «граница..X», и
+# самое старое слияние в них — прямой потомок границы по первым родителям. Корень истории в них не
+# попадает. В мелком клоне без границы скрипт отказывает раньше, на её поиске.
+#
+# PLANNING_ONLY подменяет скрипт — для проверок отказа (bump-version.tests.sh).
+PLANNING_ONLY="${PLANNING_ONLY:-$DIR/planning-only.sh}"
 merges() { # merges ВИД ДИАПАЗОН
     git log --first-parent --format='%H %s' "$2" | while read -r sha subject; do
         case "$subject" in *"$SKIP"*) continue ;; esac
-        rc=0; "$DIR/planning-only.sh" "$sha^" "$sha" || rc=$?
+        rc=0; "$PLANNING_ONLY" "$sha^" "$sha" || rc=$?
         case $rc in
             0) continue ;;
             1) echo "$1 $sha $subject" ;;
@@ -61,7 +67,10 @@ merges() { # merges ВИД ДИАПАЗОН
 }
 
 tmp=$(mktemp)
-trap 'rm -f "$tmp"' EXIT
+# Ответ копится в файле и печатается только целиком: отказ на середине списка иначе оставил бы в
+# stdout его начало, и читающий без кода возврата принял бы обрывок за полный список.
+out=$(mktemp)
+trap 'rm -f "$tmp" "$out"' EXIT
 minor_at() { # minor_at КОММИТ → «MAJOR.MINOR» версии в этом коммите; пусто, если не разобралась
     git show "$1:./$name" > "$tmp" 2>/dev/null || return 0
     VERSION_FILE="$tmp" "$DIR/get-version.sh" 2>/dev/null | cut -d. -f1,2 || true
@@ -81,9 +90,10 @@ if ! git log -1 --format=%s "$base" | grep -qF "$SKIP" && git rev-parse -q --ver
         if [ -z "$was" ] || [ -z "$now" ]; then
             echo "unbumped-merges: версия в ${prev:0:8} или ${base:0:8} не разобралась — слияния до ручной правки не проверены" >&2
         elif [ "$was" = "$now" ]; then
-            merges before "$prev..$base^"
+            merges before "$prev..$base^" >> "$out"
         fi
     fi
 fi
 
-merges after "$base..HEAD"
+merges after "$base..HEAD" >> "$out"
+cat "$out"

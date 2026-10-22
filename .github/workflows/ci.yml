@@ -55,20 +55,37 @@ jobs:
 
       # Решает тот же скрипт, что и «Повышение версии» (через unbumped-merges.sh): разойдись они,
       # Release отказывал бы на коммите, который бот законно не повысил.
+      #
+      # ⚠️ Скрипт берём из БАЗЫ, а не из проверяемого изменения: иначе PR, сломавший скрипт (скажем,
+      # `exit 0` в начале), сам решил бы, что он «только планирование», — и все обязательные проверки
+      # отдали бы Skipped. Правка скрипта лежит в scripts/, то есть по базовой версии это обычный
+      # PR с полным прогоном. Нет скрипта в базе (первый PR, который его заводит) — тоже полный.
       - name: Только планирование (docs/tz, openspec)?
         id: diff
         env:
           EVENT: ${{ github.event_name }}
           BEFORE: ${{ github.event.before }}
         run: |
+          full() { echo "$1 — полный прогон."; echo "planning_only=false" >> "$GITHUB_OUTPUT"; exit 0; }
           if [ "$EVENT" = pull_request ]; then
             base=HEAD^1
           else
-            # push в master: всё, что принёс этот push, — от прежней головы ветки.
+            # push в master: всё, что принёс этот push, — от прежней головы ветки. Её может не быть
+            # на сервере (master пересоздан, история переписана) — тогда отвечать не по чему, и
+            # ответ «гонять всё»: красная «Что затронуто» сделала бы красным весь прогон, и Release
+            # отказал бы при зелёных тестах.
+            #
+            # Диф всего push, а не последнего коммита: push из нескольких коммитов с кодом в любом
+            # из них идёт полностью. Повышение и Release смотрят на каждое слияние отдельно (диф с
+            # первым родителем); для них такой push — коммиты без своего прогона, и Release на
+            # них отказывает («прогона CI нет»), а не выпускает молча. Слияния в master — по
+            # одному коммиту (squash), так что на деле ответы совпадают.
             base=$BEFORE
-            git fetch -q --depth=1 origin "$base"
+            git fetch -q --depth=1 origin "$base" || full "Прежняя голова master ($base) недоступна"
           fi
-          rc=0; bash scripts/planning-only.sh "$base" HEAD || rc=$?
+          git show "$base:scripts/planning-only.sh" > "$RUNNER_TEMP/planning-only.sh" 2>/dev/null \
+            || full "В базе нет scripts/planning-only.sh"
+          rc=0; bash "$RUNNER_TEMP/planning-only.sh" "$base" HEAD || rc=$?
           case $rc in
             0) echo "Тронуты только docs/tz и openspec — сборка, тесты и живые прогоны пропущены."
                echo "planning_only=true" >> "$GITHUB_OUTPUT" ;;

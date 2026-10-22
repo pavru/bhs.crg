@@ -32,8 +32,10 @@ fi
 # -z: имена без кавычек и восьмеричных escape — у ТЗ кириллические имена файлов, и с кавычками
 # (core.quotepath по умолчанию) строка начиналась бы с `"`, а не с `docs/tz/`: файл ТЗ стал бы
 # «чужим». --no-renames: перенос `src/x` в `openspec/y` иначе виден одним новым именем — и
-# удаление кода из src прошло бы за правку планирования.
-if ! files=$(git diff --no-renames --name-only -z "$1" "$2" | tr '\0' '\n'); then
+# удаление кода из src прошло бы за правку планирования. --no-relative: unbumped-merges.sh зовёт нас
+# из src/server, и при `diff.relative=true` в настройках git пути вне подкаталога из дифа исчезли бы
+# — ответ зависел бы от машины, а не от изменения.
+if ! files=$(git diff --no-renames --no-relative --name-only -z "$1" "$2" | tr '\0' '\n'); then
     echo "planning-only: git diff $1 $2 не удался" >&2
     exit 2
 fi

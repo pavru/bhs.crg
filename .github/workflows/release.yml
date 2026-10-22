@@ -105,8 +105,14 @@ jobs:
         # required status checks, красный master сливается молча — эта проверка закрывает дверь
         # именно на выпуске, где цена ошибки максимальная (issue #854).
         #
-        # Коммит, тронувший только docs/tz и openspec, проходит CI с пропущенными тяжёлыми работами,
-        # и итог такого прогона — success: код в нём тот же, что проверен на предыдущем коммите.
+        # Коммит, тронувший только docs/tz и openspec, проходит CI с пропущенными тяжёлыми работами, и
+        # итог такого прогона — success. Код в нём тот же, что у предыдущего коммита, — но «тот же»
+        # ещё не значит «проверен»: прогон предыдущего мог быть красным (живые прогоны не
+        # обязательны и слиянию не мешают) или вовсе отменённым — `concurrency` у master держит один
+        # ожидающий прогон, и push планирования вытесняет ожидающий прогон коммита с кодом. Поэтому
+        # спрашиваем ДВА прогона: на выпускаемом коммите и на последнем коммите master, который
+        # тронул что-то кроме планирования (решает тот же scripts/planning-only.sh, диф с первым
+        # родителем). Голова с кодом — это один и тот же коммит.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -117,22 +123,41 @@ jobs:
           # Присваивание через подстановку, а не heredoc: внутри блока `run: |` строки идут с
           # отступом, а закрывающий EOF шелл принимает только с начала строки — heredoc бы не
           # закрылся и шаг упал бы синтаксисом, а не проверкой.
-          runs="repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$sha&per_page=1"
-          out=$(gh api "$runs" --jq '.workflow_runs[0] | "\(.status // "нет") \(.conclusion // "нет")"')
-          status=${out%% *}
-          conclusion=${out##* }
-          echo "CI на $sha: status=$status conclusion=$conclusion"
-          if [ "$status" = "нет" ] || [ -z "$status" ]; then
-            echo "::error::Для коммита $sha прогона CI нет. Выпуск из непроверенного состояния не делаем."
-            exit 1
-          fi
-          if [ "$status" != "completed" ]; then
-            echo "::error::CI на коммите $sha ещё идёт ($status). Дождитесь и запустите выпуск снова."
-            exit 1
-          fi
-          if [ "$conclusion" != "success" ]; then
-            echo "::error::CI на коммите $sha завершился как «$conclusion». Чините и выпускайте заново."
-            exit 1
+          ci_passed() { # ci_passed КОММИТ ЧТО-ЭТО-ЗА-КОММИТ
+            local runs out status conclusion
+            runs="repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$1&per_page=1"
+            out=$(gh api "$runs" --jq '.workflow_runs[0] | "\(.status // "нет") \(.conclusion // "нет")"')
+            status=${out%% *}
+            conclusion=${out##* }
+            echo "CI на $1 ($2): status=$status conclusion=$conclusion"
+            if [ "$status" = "нет" ] || [ -z "$status" ]; then
+              echo "::error::Для коммита $1 ($2) прогона CI нет. Выпуск из непроверенного состояния не делаем."
+              exit 1
+            fi
+            if [ "$status" != "completed" ]; then
+              echo "::error::CI на коммите $1 ($2) ещё идёт ($status). Дождитесь и запустите выпуск снова."
+              exit 1
+            fi
+            if [ "$conclusion" != "success" ]; then
+              echo "::error::CI на коммите $1 ($2) завершился как «$conclusion». Если прогон отменён или упал по внешней причине — перезапустите его (Re-run jobs); иначе чините и выпускайте заново."
+              exit 1
+            fi
+          }
+
+          code=$sha
+          while :; do
+            rc=0; bash scripts/planning-only.sh "$code^" "$code" || rc=$?
+            case $rc in
+              0) code=$(git rev-parse "$code^") ;;
+              1) break ;;
+              *) echo "::error::Не удалось понять, что тронул коммит $code (причина строкой выше)."; exit 1 ;;
+            esac
+          done
+
+          ci_passed "$sha" 'выпускаемый'
+          if [ "$code" != "$sha" ]; then
+            echo "После ${code:0:8} в master слито только планирование (docs/tz, openspec)."
+            ci_passed "$code" 'последний с кодом'
           fi
 
       - name: Тег ещё не занят

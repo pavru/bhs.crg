@@ -224,6 +224,30 @@ check 'ревизии нет: код 2'               2 "$rc"
 check 'ревизии нет: причина названа'     да "$(grep -q 'не удался' err.txt && echo да || echo нет)"
 bash "$PLAN" HEAD > /dev/null 2>&1; rc=$?
 check 'одна ревизия вместо двух: код 2'  2 "$rc"
+
+# Ручная правка версии без смены MINOR: слияния до неё идут видом before — и планирование среди
+# них так же не в счёт.
+put 'Код (#13)' src/c.cs
+put 'ТЗ (#14)' docs/tz/d.md
+version 1.0.6 'PR со своим повышением (#15)'
+check 'before: планирование отсеяно и там' 'before Код (#13);' "$(pending)"
+
+# Отказ planning-only.sh на середине списка: весь ответ — отказ, и в stdout ни строки. Первый вызов
+# подделки отвечает «обычное слияние» — его строка уже готова к печати, когда приходит отказ.
+put 'Фикс (#16)' src/d.cs
+printf '%s\n' '#!/usr/bin/env bash' \
+    "n=\$(cat '$SB/calls' 2>/dev/null || echo 0); echo \$((n + 1)) > '$SB/calls'" \
+    '[ "$n" -eq 0 ] && exit 1; echo "подделка: отказ" >&2; exit 2' > "$SB/fake-plan.sh"
+rm -f "$SB/calls"
+PLANNING_ONLY="$SB/fake-plan.sh" bash "$UNBUMPED" > out.txt 2> err.txt; rc=$?
+check 'отказ на середине: код не ноль'   да "$([ $rc -ne 0 ] && echo да || echo нет)"
+check 'отказ на середине: stdout пуст'   '' "$(cat out.txt)"
+check 'отказ на середине: причина названа' да "$(grep -q 'не удалось понять' err.txt && echo да || echo нет)"
+check 'подделку и правда звали дважды'   2 "$(cat "$SB/calls")"
+
+# diff.relative в настройках git не меняет ответа: unbumped-merges.sh зовёт скрипт из подкаталога.
+mkdir -p sub && cd sub || exit 1
+check 'diff.relative=true: ответ тот же' 0 "$(GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=diff.relative GIT_CONFIG_VALUE_0=true bash "$PLAN" HEAD~3 HEAD~2; echo $?)"
 cd "$SB" || exit 1
 
 echo
