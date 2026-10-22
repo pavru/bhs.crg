@@ -49,6 +49,8 @@ src/
                             что положено (ModuleBoundaryTests падает на любой ProjectReference)
     BHS.CRG.Modules.Costs/ — модуль «Счета и накладные»: своя схема базы `costs`, свой набор миграций
                             (Migrations/), ссылки только на контракты и домен
+    BHS.CRG.Modules.Plan/ — модуль «Планирование» (этап 3): схема `plan`, устроен как `costs`.
+                            Клиент — features/planning: «plan» в клиенте уже значит план документов (#796)
   client/
     package.json          — React SPA (Vite + Tailwind v4)
     src/
@@ -94,8 +96,8 @@ dotnet run --project src/server/BHS.CRG.Api
 # Frontend (dev-сервер на :5173, proxy /api → :5000)
 cd src/client && npm run dev
 
-# Создать EF-миграцию ЯДРА. ⚠️ Контекст называем ЯВНО: их в решении больше одного — у модуля `costs`
-# своя схема и свой набор миграций (issue #1072). Без --context команда всё равно берёт нужный
+# Создать EF-миграцию ЯДРА. ⚠️ Контекст называем ЯВНО: их в решении больше одного — у модулей `costs`
+# и `plan` свои схемы и свои наборы миграций (issue #1072). Без --context команда всё равно берёт нужный
 # контекст (его определяет --project), но перепутанный --project тогда молча положит миграцию в чужой
 # набор — и это обнаружится тем, что она не применяется ни при каком старте. С явным контекстом та же
 # перестановка — отказ: «target project doesn't match your migrations assembly» (проверено).
@@ -108,6 +110,10 @@ dotnet ef migrations add <Name> --project src/server/BHS.CRG.Infrastructure \
 # того, включён ли модуль в Modules__Enabled у разработчика.
 dotnet ef migrations add <Name> --project src/server/BHS.CRG.Modules.Costs \
                                 --context CostsDbContext
+# То же для модуля `plan` (схема `plan`, фабрика PlanDbContextFactory); remove и update — по образцу
+# `costs` ниже, с этими --project и --context.
+dotnet ef migrations add <Name> --project src/server/BHS.CRG.Modules.Plan \
+                                --context PlanDbContext
 # Откатить только что созданную миграцию модуля — с --force: без него remove идёт в базу выяснять,
 # применена ли она, а базы у фабрики нет (см. ниже), и команда падает, оставив файлы на месте.
 dotnet ef migrations remove --force --project src/server/BHS.CRG.Modules.Costs \

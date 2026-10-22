@@ -61,21 +61,40 @@ public static class SystemRoles
 
         new("Installer", "Монтажник",
             "Подача своих отчётов о работах",
-            ["work.report.own", CorePermissions.FilesUse, .. ReferenceReads]),
+            [
+                "work.report.own", CorePermissions.FilesUse, .. ReferenceReads,
+                // Право контракта (PLAN-23, WORK-59): наименования материалов сметы стройки без цен и
+                // количеств — ярус «смета» подсказки в отчёте. Модуль `plan` монтажнику оно не открывает
+                // (AUTH-8.1, D11 зонтика plan-00-epic): признак права контракта строит plan-21, объявляет
+                // право plan-23 — до тех пор код пропускается при наполнении.
+                "plan.estimate.hint",
+            ]),
 
         new("ProjectManager", "Менеджер проекта",
-            "Назначение монтажников на свои стройки, приёмка отчётов, графики",
+            "Коммерческие предложения и графики, назначение монтажников на свои стройки, приёмка отчётов",
             [
                 "core.employees.read", "core.constructions.edit", CorePermissions.PeriodClose, CorePermissions.FilesUse,
                 .. ReferenceReads,
                 "work.report.review", "work.assign", "work.crew.approve", "work.devices.manage",
                 "costs.materials.read", "costs.request.read", "costs.request.edit",
+                // Планирование (PLAN-23): КП, прайс-лист и графики — его дело, а не сметчика. Сметы он
+                // ЧИТАЕТ — КП и график строятся из редакции сметы (решение В-1, PLAN-Q9, 22.10.2026), — но
+                // без plan.estimate.cost: себестоимость видит сметчик (PLAN-2). plan.labor.read — право
+                // контракта: нормы чел.-ч для «по смете — фактически» (WORK-42).
+                "plan.estimate.read", "plan.offer.read", "plan.offer.edit", "plan.offer.send",
+                "plan.pricelist.edit", "plan.schedule.read", "plan.schedule.edit", "plan.labor.read",
             ]),
 
         new("Estimator", "Сметчик",
             "Сметы и обмен с ГРАНД-Сметой, классификатор видов работ",
-            ["core.worktypes.edit", "core.nomenclature.edit", "plan.estimate.edit", "plan.offer.edit",
-             CorePermissions.FilesUse, .. ReferenceReads]),
+            [
+                "core.worktypes.edit", "core.nomenclature.edit", CorePermissions.FilesUse, .. ReferenceReads,
+                // Сметы и себестоимость (PLAN-23). Коммерческих предложений НЕТ — ни чтения, ни правки:
+                // КП — дело «Менеджера проекта», а сметчик без права на КП не видит цен продажи (PLAN-2).
+                // plan.offer.edit стоял здесь до plan-01 и молча пропускался, пока право не объявлено;
+                // после объявления (plan-13) он выдал бы цены продажи живым сметчикам.
+                "plan.estimate.read", "plan.estimate.edit", "plan.estimate.cost",
+            ]),
 
         // «Руководитель» — роль с ОДНИМ составным правом на данные (ТЗ AUTH-5.2), и вторым правом
         // на данные её наделять нельзя. core.files.use — не право на данные, а обиходный доступ к

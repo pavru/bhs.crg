@@ -107,6 +107,7 @@ public class ModuleBoundaryTests
     [InlineData("", "id")]
     [InlineData("   ", "id")]
     [InlineData("costs", "costs")]
+    [InlineData("plan", "plan")]
     [InlineData("id,costs", "id|costs")]
     [InlineData("id, costs ; work", "id|costs|work")]
     [InlineData("id,ID,id", "id")]

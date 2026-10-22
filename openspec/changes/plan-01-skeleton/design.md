@@ -10,7 +10,9 @@
 Модули перечисляет `DeliveredModules.All()` (`Api/Modules/DeliveredModules.cs:24`). Переписи, которые
 перечисляют модули поимённо и требуют дописать `plan`: `ModuleDbContextInventoryTests.cs:34-41`,
 `ModuleReferenceInventoryTests.cs:25-28`, `ModuleFileInventoryTests.cs:33`, `CoreSectionsTests.cs:21`,
-`ModuleBoundaryTests.cs:109`; остальные находят проекты `BHS.CRG.Modules.*` сами (`SolutionModules.cs`).
+`ModuleBoundaryTests.cs:109`, а также покрытия копии и сброса фикстур — `BackupManifestCoverageTests.ContextCoverage`
+и `FixtureResetCoverageTests.ContextCoverage` (их требует `ModuleDbContextInventoryTests` на каждый контекст;
+найдены при реализации); остальные находят проекты `BHS.CRG.Modules.*` сами (`SolutionModules.cs`).
 
 ## Goals / Non-Goals
 
