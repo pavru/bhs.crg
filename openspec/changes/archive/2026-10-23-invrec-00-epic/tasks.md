@@ -11,14 +11,15 @@
 
 - [x] 1.1 `invrec-05-unplaced` (2) — «прочитано, в счёт не положено» с причиной, хранится всегда, #1484
   [COST-8]. Проверка — change заархивирован (`archive/2026-10-23-invrec-05-unplaced`; PR #1576, #1577)
-- [ ] 1.2 Закрыть #1479, когда закрыт #1484. Проверка — issue закрыт с перечнем PR
+- [x] 1.2 Закрыть #1479, когда закрыт #1484. Проверка — issue закрыт с перечнем PR (23.10.2026: #1485, #1503,
+  #1506, #1523, #1576, #1577)
 
 ## 2. Верификация эпика
 
-- [ ] 2.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~InvoiceScan|FullyQualifiedName~InvoiceFromScan"` — зелёный
-- [ ] 2.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 2.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 2.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 2.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~InvoiceScan|FullyQualifiedName~InvoiceFromScan"` — зелёный
+- [x] 2.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 2.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 2.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
 
 ## Workflow follow-up
 
