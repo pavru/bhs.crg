@@ -2,25 +2,14 @@
 
 ## 0. Условие
 
-- [ ] 0.1 Проверить master: есть ли `BHS.CRG.Modules/Exchange` от этапа 3 [CORE-34]. Проверка — если
-  есть, группа 1 снимается с пометкой в `design.md`, core-дельта сокращается до разницы и
-  `openspec validate work-09-module-exchange --strict` зелёный
+- [ ] 0.1 Условие сработало: механизм заводит `plan-22-module-exchange` (D18 зонтика), группа 1 снята,
+  core-дельта снята целиком [CORE-34]. Перед стартом — сверить `BHS.CRG.Modules/Exchange` в master с
+  `design.md` этого change; проверка — `openspec validate work-09-module-exchange --strict` зелёный
 
-## 1. PR 1: механизм контракта
+## 1. ~~PR 1: механизм контракта~~ — снят, строит `plan-22-module-exchange` (D18 зонтика)
 
-- [ ] 1.1 `BHS.CRG.Modules/Exchange/ModuleContractAttribute.cs`, `IModuleContracts.cs`
-  (`Connected` | `NotConnected`), общие «скрыто правами» и отказ системы; регистрация
-  `AddModuleContract<T, Impl>(module)` [CORE-34] [OVW-12]. Проверка — `ModuleBoundaryTests` зелёный
-- [ ] 1.2 `Api/Modules/ModuleContractCatalog.cs` — проверка при старте: одна реализация у включённого
-  поставщика, регистрирует названный модуль [CORE-34]. Проверка — `ModuleContractCatalogTests` на
-  пробных модулях: без реализации, две реализации, чужая регистрация — отказ старта с названиями
-- [ ] 1.3 Порт потребителю: выключенный поставщик — `NotConnected` с названием модуля; прямой запрос
-  интерфейса контракта из DI ловит перепись [CORE-34]. Проверка — тест: хост без поставщика отвечает
-  «не подключено», образец прямого запроса — перепись красная
-- [ ] 1.4 Контракт принимает `ModuleReader` (`work-07`); система — отказ с причиной [CORE-34]
-  [WORK-40]. Проверка — тест пробного контракта: без права — «скрыто правами», система — отказ
-- [ ] 1.5 `docs/DEV_NOTES.md`: как завести контракт, почему поставщик назван у интерфейса. Проверка —
-  ревью PR
+Задачи 1.1–1.5 (атрибут и порт контракта, проверка при старте, `NotConnected`, параметр доступа,
+`docs/DEV_NOTES.md`) переходят в `plan-22-module-exchange`; здесь их нет.
 
 ## 2. PR 2: поставщик `costs` и права контракта
 
@@ -29,7 +18,7 @@
   Проверка — `MaterialsOnSiteContractTests`: две накладные — количество и даты; только `hint` — без
   количеств; черновик не входит; ни одного права — «скрыто»
 - [ ] 2.2 `CostsModule.cs`: `costs.materials.read` и `costs.materials.hint` — права контракта
-  (`work-02`), `ReadAllMark.Out` с причиной; комментарий `CostsModule.cs:79-83` переписан [COST-28]
+  (`plan-21`), `ReadAllMark.Out` с причиной; комментарий `CostsModule.cs:79-83` переписан [COST-28]
   [WORK-48] [AUTH-8.1]. Проверка — тест состава `/api/account/access` по системным ролям: у
   «Инженера ИД» и «Монтажника» нет модуля `costs`, `/api/costs/*` им — 403
 - [ ] 2.3 `SystemRoles.cs:64` — «Монтажнику» `costs.materials.hint` [WORK-48]. Проверка — тот же тест

@@ -43,7 +43,7 @@
     - `src/client/src/shared/ui/ShiftDateHeader.tsx` — `DateField` и «День | Ночь» на `Tabs segmented`,
       знак ☾.
     - «Ввести за сотрудника» — `EmployeePicker` (`work-12`).
-    - Пункт «Мои отчёты» — в `navConfig.ts`, раздел `work-03`.
+    - Пункт «Мои отчёты» — в `navConfig.ts`, раздел и ранг входа — из `work-03`.
   - **PR 2 — строки, вид работы, материалы.**
     - `features/work/entry/ReportLines.tsx` — по форме Р3.
     - `src/client/src/shared/ui/WorkTypePicker.tsx` — вид работы с признаками `requires*` и вариантами.

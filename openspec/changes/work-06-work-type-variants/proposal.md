@@ -19,7 +19,7 @@
 
 Попутно: право `core.worktypes.edit` объявлено (`CorePermissions.cs:138`), но ни один адрес его не
 проверяет — вид работы правится общим `/api/common-data` под `core.catalog.edit`
-(`CommonDataEndpoints.cs:17`). Варианты получают свою дверь, и право впервые что-то открывает.
+(`CommonDataEndpoints.cs:17`). Первой его открывает дверь видов работ `plan-03`; варианты получают вторую дверь под тем же правом.
 
 ## What Changes
 
@@ -29,11 +29,12 @@
   под `core.worktypes.edit`, каждый пишущий адрес, кроме заведения, — с `If-Match`. Ссылка варианта на
   вид постоянна.
 - `/api/common-data` записи типа `ВариантРаботы` не пишет — отказ с адресом двери.
-- Дверь видов работ `/api/work-types` под `core.worktypes.edit` по тому же образцу (`WORK-59`): сметчик
-  правит классификатор; «Инженер ИД» получает право, чтобы не потерять правку видов работ.
+- ~~Дверь видов работ `/api/work-types` под `core.worktypes.edit` и право «Инженеру ИД»~~ — строит
+  `plan-03-work-types-door` (D18 зонтика).
 - Удаление занятого варианта — отказ (`CORE-34.1`), архив вместо удаления (`CORE-34.4`).
-- Типизированный порт модулю: вид работы с признаками по тэгам `work.*` и его варианты; «справочник не
-  заведён» отличается от «пусто». Порт — чтение; первый потребитель — `work-13`.
+- Варианты в порту видов работ: `IModuleWorkTypes` (`plan-03`) получает у вида список вариантов с
+  признаком архива и принадлежность варианта виду. ~~Сам порт, признаки по тэгам, «справочник не
+  заведён»~~ — `plan-03`. Первый потребитель вариантов — `work-13`.
 
 ## Capabilities
 
@@ -41,7 +42,8 @@
 - Нет.
 
 ### Modified Capabilities
-- `core`: справочник вариантов вида работ, его дверь и порт видов работ для модулей.
+- `core`: справочник вариантов вида работ, его дверь, варианты в порту видов работ. ~~Порт видов работ
+  для модулей~~ — `plan-03` (D18 зонтика).
 - `types-and-tags`: тип ядра `ВариантРаботы`; список типов опоры ядра пополняется им.
 
 ## Impact
@@ -50,8 +52,11 @@
   - `Application/Documents/CoreRecordTypes.cs` — объявление `WorkVariant`;
   - новый `Api/Endpoints/Core/WorkVariantEndpoints.cs` (по образцу `EmployeeEndpoints.cs`);
   - отказ записи типа в `Api/Endpoints/Documents/CommonDataEndpoints.cs`;
-  - новый порт `BHS.CRG.Modules/Ports/IModuleWorkTypes.cs` и реализация `Api/Modules/Ports/ModuleWorkTypesPort.cs`.
+  - порт `BHS.CRG.Modules/Ports/IModuleWorkTypes.cs` и реализация `Api/Modules/Ports/ModuleWorkTypesPort.cs`
+    (заводит `plan-03`) — поле `Variants`.
 - **Клиент:** `shared/api/commonData.ts`, `document-sets/catalog/CatalogResource.tsx` — запись варианта
   адресами двери. Экран каталога тот же, макеты не нужны (см. design).
-- **Тесты:** `WorkVariantEndpointsTests`, `ModuleWorkTypesPortTests`, `EndpointGateInventoryTests`, `ArchiveReadInventoryTests`.
+- **Тесты:** `WorkVariantEndpointsTests`, `ModuleWorkTypesPortTests` (дополняется), `EndpointGateInventoryTests`, `ArchiveReadInventoryTests`.
+- **Зависит от:** `plan-03-work-types-door` — дверь видов работ, порт `IModuleWorkTypes`, константа
+  `core.worktypes.edit`.
 - **Документы:** `docs/ADMIN_GUIDE.md` — раздел о видах работ и вариантах.

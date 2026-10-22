@@ -73,13 +73,13 @@
     `work-15`, вводится сейчас, чтобы правило суток жило в одном месте.
 
   Незнакомая стройка — `null`.
-- Новый `BHS.CRG.Modules/Ports/IModuleEmployees.cs`:
-  - `ListAsync(RecordsFor)` и `GetManyAsync(ids)`;
-  - запись `ModuleEmployee(Id, FullName, PersonnelNumber, EmployedFrom, EmployedTo, Archived, Account)`,
-    где `Account` — `{ State: linked | none | deleted, UserId?, Name? }` из таблицы связи `work-01`.
-
-  Тип ищется по коду `CoreRecordTypes.EmployeeCode`, поля — по тэгам `employee.*`. Справочника нет —
-  ответ `null`, как у `IModuleCatalog.ListAsync`. Реализация — `BHS.CRG.Api/Modules/Ports/ModuleEmployeesPort.cs`.
+- Порт `BHS.CRG.Modules/Ports/IModuleEmployees.cs` строит `plan-03` (D18 зонтика): `GetAsync(ids)`,
+  `SearchAsync(q, onDate)` → `ModuleEmployee(Id, FullName, PersonnelNumber, EmployedFrom, EmployedTo,
+  Archived)`, поля — по тэгам `employee.*`, справочника нет — `null`. Здесь запись получает
+  `Account` — `{ State: linked | none | deleted, UserId?, Name? }` из таблицы связи `work-01`, а
+  реализация `ModuleEmployeesPort.cs` — чтение этой таблицы. Если массовому назначению понадобится
+  список без строки поиска, `ListAsync(RecordsFor)` дописывается сюда же с местом в
+  `ArchiveReadInventoryTests`.
 
 ### Носители (D15)
 - У стройки в чтении назначений — `canAssign` и `reason`, у назначения — `canChange` и `canRemove` с
@@ -103,13 +103,13 @@
 
 ### Зависимости
 - `work-10` (модуль), `work-01` (связь сотрудника), `work-07` (тип параметра доступа: этот change его
-  наполняет).
-- От этапа 3 не зависит.
+  наполняет), `plan-03` (порт сотрудника).
+- От этапа 3 — только порт сотрудника `plan-03`.
 
 ## Risks / Trade-offs
 
 - [Менеджер снял сам себя и потерял стройку] → снять последнее назначение «менеджер» на стройке может
   только владелец `work.sites.all`. Иначе 409 «на стройке не останется менеджера». Правило — решение
   сессии, а не владельца: при разборе Р2 подтвердить.
-- [Нарезка относит порт сотрудника к `work-06`] → путь `10 → 02 → 07 → 11 → 06` ставит этот change раньше.
-  Порт сотрудника строится здесь, `work-06` добавляет вид работы и варианты тем же приёмом.
+- [Порт сотрудника устроен в `plan-03` иначе, чем здесь ожидается] → перед стартом сверяется master,
+  расхождение правится в этом `design.md` до кода (D18 зонтика).

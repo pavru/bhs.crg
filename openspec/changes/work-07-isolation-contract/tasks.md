@@ -2,7 +2,7 @@
 
 ## 1. PR 1: параметр доступа и граница выдачи
 
-- [ ] 1.1 `BHS.CRG.Modules/Access/ModuleReader.cs` и `ModuleReach.cs`; построение `ModuleReader` из
+- [ ] 1.1 `BHS.CRG.Modules/Access/ModuleReach.cs`; построение `ModuleReader` (готовый, из `plan-22`) из
   `DataAccess` в `Api` [WORK-40] [CORE-24.1]. Проверка — `ModulePortMirrorTests` сверяет зеркало,
   `ModuleBoundaryTests` зелёный
 - [ ] 1.2 `ModuleTableQuery.UserId` → `Reader`; `ModuleTableService.cs:74` и `ModuleTableService.Shortcuts.cs:44`

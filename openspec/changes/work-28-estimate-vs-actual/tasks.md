@@ -24,22 +24,25 @@
 - [ ] 1.8 Тест состава `/api/account/access` по ролям, если `plan.labor.read` объявлено (D2) [WORK-57].
   Проверка — тест зелёный; без права у «Менеджера проекта» ответ `hidden`
 
-## 2. PR 2: полоса в «Ходе работ» (макеты Р6)
+## 2. PR 2: вклады в «Ход работ» и в график (макеты Р6)
 
-- [ ] 2.1 Хук в `src/client/src/shared/api/` и `src/client/src/features/work/labor/EstimateVsActualStrip.tsx`
-  по выбранному макету Р6: «по смете N чел.-ч — фактически M ч», «расчётная» при разделе, строка
-  несметных [WORK-42] [PLAN-21]. Проверка — vitest: пометка из `distributed`, клиент не пересчитывает
-- [ ] 2.2 Состояния — строкой с причиной, а не прочерком [WORK-42] [CORE-34]. Проверка — vitest на
-  каждое `state`
-- [ ] 2.3 Вклад полосы в «Ход работ» механизмом вклада модулей этапа 3; нет механизма — первым коммитом
-  по образцу панелей карточки стройки (`work-03`) [PLAN-21]. Проверка — полоса пропадает при
-  выключенном `work`, экран при этом цел
-- [ ] 2.4 `docs/USER_GUIDE.md` — полоса, «расчётная», «данных мало»; содержание — `npm run toc` в
+- [ ] 2.1 Макеты Р6 — полоса «по смете — фактически» и выработка у работы графика: выбор владельца
+  ссылкой в `design.md` [WORK-42] [PLAN-16]. Проверка — ссылка вписана до 2.2
+- [ ] 2.2 `IProgressContribution` (`plan-25`) в `RegisterServices` модуля `work`: полоса «по смете N
+  чел.-ч — фактически M ч», «расчётная» при разделе, строка несметных, состояние строкой с причиной
+  [WORK-42] [PLAN-21] [CORE-34]. Проверка — `ConstructionProgressTests` на хосте `plan` + `work`: полоса
+  есть, при отборе по разделу — «расчётная»; без `plan.labor.read` — состояние с кодом права; при
+  выключенном `work` полосы нет, экран цел
+- [ ] 2.3 Ответ графика `plan` (`plan-19`): у работы `productivity` из контракта «Выработка» с состоянием;
+  экран графика (`plan-20`) — рядом с объёмом работы по макету Р6 [PLAN-16] [WORK-43]. Проверка — тест
+  ответа графика: выключенный `work` — «не подключено», без `work.facts.read` — «скрыто правами», ниже
+  порога — «данных мало»; vitest экрана графика на каждое состояние
+- [ ] 2.4 `docs/USER_GUIDE.md` — полоса, «расчётная», «данных мало», выработка у работы графика; содержание — `npm run toc` в
   `docs/tools`. Проверка — проверка содержания в «Frontend» зелёная
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~WorkLabor|FullyQualifiedName~WorkProductivity|FullyQualifiedName~ModuleBoundary|FullyQualifiedName~EndpointGateInventory"` — зелёный
+- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~WorkLabor|FullyQualifiedName~WorkProductivity|FullyQualifiedName~ConstructionProgress|FullyQualifiedName~Schedule|FullyQualifiedName~ModuleBoundary|FullyQualifiedName~EndpointGateInventory"` — зелёный
 - [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок
 - [ ] 3.3 `cd src/client && npm run ui:ratchet` — без роста
 - [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

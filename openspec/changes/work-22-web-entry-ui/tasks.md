@@ -28,8 +28,9 @@
   `paletteActions.test.ts` зелёный
 - [ ] 2.5 «Ввести за сотрудника»: `EmployeePicker`, шапка «вводит Иванов за Петрова», действие только
   при `work.report.review` [WORK-31]. Проверка — vitest: у монтажника действия нет
-- [ ] 2.6 Пункт «Мои отчёты» в `navConfig.ts` раздела `work` [AUTH-16.1]. Проверка — `railSections.test.ts`
-  и `navAccess.test.ts` зелёные
+- [ ] 2.6 Пункт «Мои отчёты» в `navConfig.ts` раздела `work` с рангом входа из таблицы `work-03`
+  [AUTH-16.1] [WORK-2]. Проверка — `railSections.test.ts`, `navAccess.test.ts` и `entryPage.test.ts`
+  зелёные; `limited-smoke` под «Монтажником»: после входа `/` ведёт на «Мои отчёты»
 - [ ] 2.7 Живой прогон `src/client/e2e/work-entry-smoke.mjs` (список и шапка), вписать в `test:e2e:ci`
   и `e2e/README.md` [WORK-31]. Проверка — прогон зелёный на стенде
 - [ ] 2.8 `docs/USER_GUIDE.md`: раздел «Отчёт о работах» — дата и смена, ночная смена после полуночи,

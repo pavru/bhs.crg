@@ -1,6 +1,6 @@
 # Tasks: закрытие периода в учёте работ
 
-## 1. PR 1: ядро — запрещающие строки и базовый тип версии
+## 1. PR 1: ядро — запрещающие строки (базовый тип версии — `plan-12`)
 
 - [ ] 1.1 `IModuleClosingReport.cs`: `ModuleClosingSection.Blocking`; `ClosingReport.cs` и
   `ModuleClosingReports.cs` переносят его в перечень и отпечаток [CORE-35] [WORK-52]. Проверка —
