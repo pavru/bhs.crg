@@ -25,7 +25,16 @@
 - **Состав PR.**
   - `BHS.CRG.Modules.Plan.csproj` ссылается на `BHS.CRG.Modules` и `BHS.CRG.Domain`.
   - `PlanModule.cs` — по образцу `CostsModule.cs`: код, название, права, `Schema`,
-    `RoutePrefixes = ["/api/plan"]`, пустые `MapEndpoints` и `InitializeAsync`.
+    `RoutePrefixes = ["/api/plan"]`, `UsesSections`, пустые `MapEndpoints` и `InitializeAsync`.
+- **Разделы ядра (`UsesSections`).** `[CoreSections.Constructions, CoreSections.Catalog]` (П0, Архитектор):
+  - стройки — карточка стройки с блоком «Работы» («Сметы», «График») в пространстве «Планирование»;
+    без них в пространстве нет «Строек»;
+  - справочники — «Общие данные» с классификатором видов работ (`core.worktypes.edit`, `plan-03`) и
+    номенклатурой (`core.nomenclature.edit` у «Сметчика»).
+
+  `periods`, `datasets` и `reconciliations` модулю не нужны; `progress` дописывает `plan-25`, когда
+  заведёт константу. Пустое объявление уронило бы задачу 3.3: `CoreSectionsTests` требует
+  `Assert.NotEmpty(m.UsesSections)` у каждого включённого модуля.
   - `Data/PlanDbContext.cs` (схема `plan`, `xmin` как версия строки, 409 при конфликте — как
     `CostsDbContext`) и `Data/PlanDbContextFactory.cs` без строки подключения.
   - `Migrations/*_Initial`.
