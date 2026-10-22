@@ -5,7 +5,7 @@
 - [ ] 1.1 `Data/ConjunctureAnalysis.cs`, `ConjunctureItem`, `ConjunctureOffer`, миграция `Conjuncture`
   (`--context PlanDbContext`); файл — `IModuleBlobs`, колонка в `IAppModule.Files` [PLAN-9]. Проверка —
   `ModuleFileInventoryTests` зелёный; на пересозданной базе старт применяет миграцию
-- [ ] 1.1а `Data/VolumeStatement.cs` — ВОР приложением к смете тем же путём (ждёт решения В-7) [PLAN-7].
+- [ ] 1.1а `Data/VolumeStatement.cs` — ВОР приложением к смете тем же путём (решение В-7) [PLAN-7].
   Проверка — `VolumeStatementTests`: образец ВОР принят, план стройки не изменился
 - [ ] 1.2 Загрузка: разбор `plan-05` фоновой операцией, отчёт, `accept` создаёт запись [PLAN-9] [PLAN-7].
   Проверка — `ConjunctureImportTests`: образец КА (из 0.2 зонтика) даёт позиции, предложения и выбранные

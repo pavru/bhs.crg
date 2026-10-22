@@ -15,8 +15,8 @@
 ## 2. Составы ролей
 
 - [ ] 2.1 `SystemRoles.cs` по `PLAN-23`: у «Сметчика» убрать `plan.offer.edit`, добавить
-  `plan.estimate.read`, `plan.estimate.cost`; «Менеджеру проекта» — права `plan` по `PLAN-23` и В-1 (ждёт
-  решения В-1); «Монтажнику» — `plan.estimate.hint` [PLAN-2] [PLAN-23]. Проверка — тест состава
+  `plan.estimate.read`, `plan.estimate.cost`; «Менеджеру проекта» — права `plan` по `PLAN-23` и решению
+  В-1 (`PLAN-Q9`); «Монтажнику» — `plan.estimate.hint` [PLAN-2] [PLAN-23]. Проверка — тест состава
   `/api/account/access` по системным ролям: «Инженер ИД», «Бухгалтер», «Монтажник» модуля `plan` не
   получают; у «Сметчика» нет `plan.offer.*`
 

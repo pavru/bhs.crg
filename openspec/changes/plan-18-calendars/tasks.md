@@ -3,7 +3,7 @@
 ## 0. Условие
 
 - [ ] 0.1 Ответ владельца на В-4 вписан в `docs/tz/50-планирование.md`; при «в ядре» таблицы и служба
-  переносятся в ядро до кода, `design.md` правится. Проверка — в `design.md` нет «ждёт решения В-4»
+  переносятся в ядро до кода, `design.md` правится. Проверка — в `design.md` нет «решение В-4»
 - [ ] 0.2 Образец файла производственного календаря на год лежит в тестовых данных. Проверка — файл в
   `src/server/BHS.CRG.Tests/TestData/Calendars/`
 
@@ -22,7 +22,7 @@
   заголовка 400, устаревшая 409, менеджер на календарь компании — 403, модуль выключен — отказ;
   `RecordWriteGuardCoverageTests` и `EndpointGateInventoryTests` зелёные
 - [ ] 1.5 Объявить `plan.calendar.edit`, `plan.schedule.read`, `plan.schedule.edit` с `ReadAllMark`;
-  «Менеджеру проекта» — `plan.schedule.*` по `PLAN-23` (ждёт решения В-4) [PLAN-23]. Проверка — тест состава
+  «Менеджеру проекта» — `plan.schedule.*` по `PLAN-23` (решение В-4) [PLAN-23]. Проверка — тест состава
   `/api/account/access` по системным ролям; `PlanOnlyHostTests` — число прав обновлено
 - [ ] 1.6 Зонтик `plan-00-epic/design.md`, D12: права графиков объявляет `plan-18`, а не `plan-19`.
   Проверка — `openspec validate plan-00-epic --strict` зелёный

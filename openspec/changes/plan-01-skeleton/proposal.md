@@ -22,8 +22,7 @@
   Остальные права `PLAN-23` объявляют change, открывающие их первый адрес (`design.md` зонтика, D12).
 - Составы системных ролей приводятся к `PLAN-23`:
   - «Сметчик» — `plan.estimate.read`, `plan.estimate.edit`, `plan.estimate.cost`, без `plan.offer.edit`;
-  - «Менеджер проекта» — права КП, прайс-листа, графиков, `plan.labor.read` и, по рекомендации В-1,
-    `plan.estimate.read` (ждёт решения В-1);
+  - «Менеджер проекта» — права КП, прайс-листа, графиков, `plan.labor.read` и `plan.estimate.read` (решение В-1, `PLAN-Q9`);
   - «Монтажник» — `plan.estimate.hint`;
   - коды, которые ещё не объявлены, пропускаются при наполнении, как сегодня.
 - `PlanDbContext : ModuleDbContext`, схема `plan`, миграция `Initial`, фабрика для `dotnet ef`.

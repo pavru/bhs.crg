@@ -73,8 +73,8 @@
 - **Документы:**
   - `CLAUDE.md` и `AGENTS.md` (команда миграции `PlanDbContext`, тем же коммитом);
   - `docs/USER_GUIDE.md`, `docs/ADMIN_GUIDE.md` (оглавления — `npm run toc`), `docs/DEV_NOTES.md`;
-  - `docs/tz` — решения нарезки этапа 3 вписываются после ответов владельца (`design.md`, «Open
-    Questions»), `STG-19`.
+  - `docs/tz` — открытые вопросы нарезки `PLAN-Q9`…`PLAN-Q25` с решениями владельца
+    22.10.2026 и решения `PLAN-24`…`PLAN-27`, `STG-19`.
 - **Этап 4:** зонтик `work-00-epic` и change `work-02`, `work-03`, `work-06`, `work-07`, `work-09`,
   `work-13`, `work-19`, `work-27`, `work-28` получают пометку о том, что взял на себя этап 3.
 - **Поставка:** `deploy/.env.example` (`Modules__Enabled`).

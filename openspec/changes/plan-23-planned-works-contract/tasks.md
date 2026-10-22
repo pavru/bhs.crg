@@ -18,7 +18,7 @@
 
 ## 2. Права контракта
 
-- [ ] 2.1 `PlanModule.Permissions`: `plan.estimate.materials` (ждёт решения В-2), `plan.labor.read`,
+- [ ] 2.1 `PlanModule.Permissions`: `plan.estimate.materials` (решение В-2), `plan.labor.read`,
   `plan.estimate.hint` с признаком контракта и `ReadAllMark.Out` [PLAN-23] [AUTH-8.1] [WORK-57]
   [WORK-59]. Проверка — тест состава `/api/account/access` по системным ролям: «Снабженец» и
   «Монтажник» модуля `plan` не получают, права у них в составе есть

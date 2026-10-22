@@ -34,7 +34,7 @@
 ## 4. PR 3: печать списка и проверка
 
 - [ ] 4.1 `Printing/ScheduleWorksPrintContext.cs`, объявление формы в `PlanModule.PrintForms` (право
-  `plan.schedule.read`), шаблон по умолчанию, кнопка «Печать» (ждёт решения В-10) [PLAN-17] [CORE-21].
+  `plan.schedule.read`), шаблон по умолчанию, кнопка «Печать» (решение В-10) [PLAN-17] [CORE-21].
   Проверка — серверный тест контекста печати; `PlanOnlyHostTests` печатает график
 - [ ] 4.2 Живой прогон `src/client/e2e/plan-schedule-smoke.mjs`, посев графика в `e2e/seed.mjs`; вписать
   в `test:e2e:ci` и `e2e/README.md` [PLAN-17]. Проверка — прогон зелёный на стенде

@@ -31,7 +31,7 @@
     Только просмотр и переход к строке списка; правка — в списке.
 - **PR 3 — печать списка и проверка.**
   - Печать списка работ графика шаблоном Typst через печать записи модуля (`plan-15`); диаграмма в печать
-    не идёт (ждёт решения В-10).
+    не идёт (решение В-10).
   - Живой прогон «построить из сметы → связь → предупреждение → печать», раздел инструкции.
 
 ## Capabilities
@@ -49,7 +49,7 @@
   `ScheduleWorksGrid.tsx`, `ScheduleGantt.tsx`, `ScheduleLinksCell.tsx`, `RebuildByDistributionDialog.tsx`),
   `shared/ui/EmployeePicker.tsx`, API-хуки `shared/api/planningSchedules.ts`.
 - **Сервер, модуль:** печатная форма списка работ (`Printing/ScheduleWorksPrintContext.cs`), объявление в
-  `PlanModule.PrintForms` — PR 3 (ждёт решения В-10).
+  `PlanModule.PrintForms` — PR 3 (решение В-10).
 - **Живые прогоны:** `src/client/e2e/plan-schedule-smoke.mjs`, посев графика в `e2e/seed.mjs`, `test:e2e:ci`.
 - **Документы:** `docs/USER_GUIDE.md` — график, зависимости, предупреждения, печать; `npm run toc`.
 - **Зависит от:** `plan-02`, `plan-15`, `plan-18`, `plan-19`.

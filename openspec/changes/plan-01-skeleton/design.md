@@ -35,8 +35,8 @@
 - **Составы ролей.** `SystemRoles.cs`:
   - «Сметчик» — `plan.estimate.read`, `plan.estimate.edit`, `plan.estimate.cost`; `plan.offer.edit`
     убирается;
-  - «Менеджер проекта» — `plan.offer.*`, `plan.pricelist.edit`, `plan.schedule.*`, `plan.labor.read` и, по
-    рекомендации В-1, `plan.estimate.read` (ждёт решения В-1);
+  - «Менеджер проекта» — `plan.offer.*`, `plan.pricelist.edit`, `plan.schedule.*`, `plan.labor.read` и
+    `plan.estimate.read` (решение В-1, `PLAN-Q9`);
   - «Снабженец» сохраняет `plan.estimate.materials`, «Монтажник» получает `plan.estimate.hint`.
   Не объявленные ещё коды пропускаются при наполнении: роль дописывается один раз, а не в каждом change.
 - **Сторож.** `PlanOnlyHostTests` — живой хост с `Modules__Enabled=plan` на своей базе; число прав `plan.`
@@ -50,4 +50,3 @@
 ## Risks / Trade-offs
 
 - [Объявление прав молча меняет навигацию ролей] → тест состава доступа по ролям в этом же PR.
-- [В-1 решится иначе] → правка одной строки состава роли и теста; модуль от неё не зависит.
