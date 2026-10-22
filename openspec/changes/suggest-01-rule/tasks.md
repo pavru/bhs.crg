@@ -4,7 +4,7 @@ PR закрывает #1529 («Closes #1529»), метка `version:minor`. `<Ve
 
 ## 0. До кода
 
-- [ ] 0.1 Решение В-4 зонтика (`nomenclature.article`, `org.name`) записано в `../suggest-00-epic/design.md`
+- [x] 0.1 Решение В-4 зонтика (22.10.2026: (а) — оба тэга однозначны, коды `article` и `orgName`) (`nomenclature.article`, `org.name`) записано в `../suggest-00-epic/design.md`
   с пометкой «Решено». Проверка — пометка есть
 
 ## 1. Тэг
@@ -21,7 +21,7 @@ PR закрывает #1529 («Closes #1529»), метка `version:minor`. `<Ve
 
 - [ ] 2.1 Общий файл случаев `src/client/src/shared/api/suggestableCases.json`: случай на каждый код
   (`type` для `text`, `primitive`, `boolean`; `computed`; `locked`; `identity` с номером; `inn`;
-  `docNumber`; `personnelNumber`; `manual`; «подсказывается»), случай порядка проверок, итог В-4 [TYPE-2].
+  `docNumber`; `personnelNumber`; `article`; `orgName`; `manual`; «подсказывается»), случай порядка проверок [TYPE-2].
   Проверка — файл читают оба теста ниже
 - [ ] 2.2 `Application/Objects/FieldSuggestions/Suggestable.cs` — код причины по виду, `Computed`,
   `Locked` и тэгам (по коду тэга, без номера) и тест `Tests/Schema/SuggestableCasesTests.cs` на общем файле
