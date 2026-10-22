@@ -203,10 +203,10 @@ public sealed class InvoiceScanReading(
     /// <param name="Recalled">Ответ по поставщику. Пусто — спрашивать было не о ком или нечем.</param>
     /// <param name="RecallFailed">Спросить запомненное НЕ УДАЛОСЬ — это не «ничего не запомнено».</param>
     /// <param name="VatNote">НДС строк снят, потому что прочитан не у всех (issue #1410), — почему.</param>
-    /// <param name="StrayNote">Прочитанное, что в поля строк не легло, — по колонкам (issue #1480).</param>
+    /// <param name="Unplaced">Прочитанное, что в поля строк не легло, — по строкам файла (issue #1480, #1484).</param>
     private sealed record ScanLines(
         IReadOnlyList<InvoiceScanLines.ScanLine> Rows, IReadOnlyDictionary<Guid, RecallAnswer> Recalled, bool RecallFailed,
-        string? VatNote, string? StrayNote);
+        string? VatNote, IReadOnlyList<UnplacedRead> Unplaced);
 
     /// <summary>
     /// Разобрать строки скана и спросить запомненное для них (задача C3, issue #1079) — ДО слияния и
@@ -225,9 +225,9 @@ public sealed class InvoiceScanReading(
     private async Task<ScanLines> LinesAsync(
         Invoice invoice, ModuleRecognitionResult read, InvoicePartiesView matched, CancellationToken ct)
     {
-        var (rows, vatNote, strayNote) = InvoiceScanLines.Read(read.Rows);
+        var (rows, vatNote, unplaced) = InvoiceScanLines.Read(read.Rows);
         var recalled = new Dictionary<Guid, RecallAnswer>();
-        if (rows.Count == 0) return new(rows, recalled, false, vatNote, strayNote);
+        if (rows.Count == 0) return new(rows, recalled, false, vatNote, unplaced);
 
         try
         {
@@ -235,14 +235,14 @@ public sealed class InvoiceScanReading(
             var keys = rows.Select(r => r.Values).ToList();
             foreach (var supplier in new[] { invoice.SupplierId, matched.Supplier?.Match }.OfType<Guid>().Distinct())
                 recalled[supplier] = await SupplierMatching.RecallAsync(db, catalog, supplier, keys, ct);
-            return new(rows, recalled, false, vatNote, strayNote);
+            return new(rows, recalled, false, vatNote, unplaced);
         }
         catch (Exception failure) when (failure is not OperationCanceledException)
         {
             logs.CreateLogger<InvoiceScanReading>().LogWarning(failure,
                 "Счёт {InvoiceId}: запомненные позиции для строк файла спросить не удалось — строки лягут без них.",
                 invoice.Id);
-            return new(rows, new Dictionary<Guid, RecallAnswer>(), true, vatNote, strayNote);
+            return new(rows, new Dictionary<Guid, RecallAnswer>(), true, vatNote, unplaced);
         }
     }
 
@@ -324,11 +324,14 @@ public sealed class InvoiceScanReading(
         var filled = new List<string>();
         var offers = new JsonObject();
         var notes = new List<string>();
+        // Прочитанное, что в счёт не легло, — с причиной, при любом исходе строк (issue #1484). Строки файла
+        // — сразу, ДО ветвления по строкам: ушли они в предложение или таблица не прочитана, колонка без
+        // поля всё равно названа.
+        List<UnplacedRead> unplaced = [.. header.Unplaced, .. lines.Unplaced];
 
         // Шапка по правилу «ключ поля профиля = ключ поля счёта» (issue #1483): разобрано — в пустое поле,
         // занятое — в предложение, не разобранное — в предложение с замечанием. Предложение несёт и
         // разобранное значение: «Взять» кладёт его, а не разбирает текст второй раз на клиенте.
-        notes.AddRange(header.Notes);
         var landed = new Dictionary<string, InvoiceScanHeader.Candidate>(StringComparer.Ordinal);
         foreach (var candidate in header.Candidates)
         {
@@ -336,6 +339,8 @@ public sealed class InvoiceScanReading(
             {
                 offers[candidate.Key] = InvoiceScanHeader.Offer(candidate.Text, null);
                 notes.Add($"{candidate.Title}: «{candidate.Text}» не прочитано как значение поля — впишите вручную.");
+                unplaced.Add(InvoiceScanUnplaced.InHeader(candidate.ProfileKey, candidate.Text, InvoiceScanUnplaced.Unparsed,
+                    field: candidate.Title));
                 continue;
             }
 
@@ -344,7 +349,11 @@ public sealed class InvoiceScanReading(
             {
                 // Занято: значение человека побеждает. Совпало с распознанным — и предлагать нечего.
                 if (!JsonNode.DeepEquals(was, candidate.Value))
+                {
                     offers[candidate.Key] = InvoiceScanHeader.Offer(candidate.Text, candidate.Value);
+                    unplaced.Add(InvoiceScanUnplaced.InHeader(candidate.ProfileKey, candidate.Text, InvoiceScanUnplaced.Occupied,
+                        field: candidate.Title));
+                }
                 continue;
             }
 
@@ -387,7 +396,7 @@ public sealed class InvoiceScanReading(
         PutParty(matched.Supplier, InvoiceRequisites.SupplierKey);
         PutParty(matched.Payer, InvoiceRequisites.PayerKey);
 
-        if (filled.Count > 0 && await GuardedAsync(invoice, before, after, filled, landed, offers, notes, ct)
+        if (filled.Count > 0 && await GuardedAsync(invoice, before, after, filled, landed, offers, notes, unplaced, ct)
                 is (var columns, var rest, var termed))
         {
             // Срок оплаты распознавание не трогает, значит и «вписан рукой» ему ставить нечему.
@@ -463,7 +472,6 @@ public sealed class InvoiceScanReading(
                     notes.Add($"Строк, для которых запомнена позиция в архиве или удалённая: {answer.Unusable}. " +
                               "Она не подставлена — выберите действующую, и она заменит запомненное.");
                 if (lines.VatNote is { } vatNote) notes.Add(vatNote);
-                if (lines.StrayNote is { } strayNote) notes.Add(strayNote);
                 invoice.ContentChanged();
                 added = rows.Count;
             }
@@ -472,7 +480,7 @@ public sealed class InvoiceScanReading(
         stored.Finish(read.Engine,
             JsonSerializer.SerializeToDocument(read.Fields),
             offers.Count > 0 ? JsonDocument.Parse(offers.ToJsonString()) : null,
-            offeredLines, notes, readImage);
+            offeredLines, notes, InvoiceScanUnplaced.Stored(unplaced), readImage);
 
         return (filled.Count, added, recalled, invoice.VatMode != modeBefore ? invoice.VatMode : null);
     }
@@ -490,7 +498,7 @@ public sealed class InvoiceScanReading(
     private async Task<(InvoiceColumns Columns, JsonDocument Extra, bool Termed)?> GuardedAsync(
         Invoice invoice, JsonObject before, JsonObject after, List<string> filled,
         IReadOnlyDictionary<string, InvoiceScanHeader.Candidate> read, JsonObject offers, List<string> notes,
-        CancellationToken ct)
+        List<UnplacedRead> unplaced, CancellationToken ct)
     {
         // Отсрочка из условий — один раз (ревью PR #1523): поставщика охрана по полям не снимает, и условия
         // между попытками те же — перечитывать их под замком счёта незачем.
@@ -529,6 +537,8 @@ public sealed class InvoiceScanReading(
                 var candidate = read[key!];
                 offers[key!] = InvoiceScanHeader.Offer(candidate.Text, candidate.Value);
                 notes.Add($"{candidate.Title}: «{candidate.Text}» не записано — охрана записи: {refusal.Message}");
+                unplaced.Add(InvoiceScanUnplaced.InHeader(candidate.ProfileKey, candidate.Text, InvoiceScanUnplaced.Guard,
+                    refusal.Message, candidate.Title));
             }
             if (filled.Count == 0) return null;
         }

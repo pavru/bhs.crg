@@ -3,6 +3,8 @@ using System.Text.Json.Nodes;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules.Costs;
+using BHS.CRG.Modules.Costs.Data;
+using BHS.CRG.Modules.Costs.Endpoints;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -104,6 +106,11 @@ public sealed partial class InvoiceFromScanTests
         Assert.Equal("X-1", offer.GetProperty("text").GetString());
         Assert.Equal("X-1", offer.GetProperty("value").GetString());
         Assert.Contains(HeaderNotes(recognition), n => n.Contains("Код1483") && n.Contains("охрана записи"));
+        // Отказ охраны — и в списке не положенного, с её словами (issue #1484).
+        var guarded = Assert.Single(Unplaced(recognition));
+        Assert.Equal(("Код1483", "X-1", InvoiceScanUnplaced.Guard, "Код1483"),
+            (guarded.Key, guarded.Value, guarded.Reason, guarded.Field));
+        Assert.Contains("Код договора", guarded.Detail);
     }
 
     /// <summary>
@@ -122,12 +129,16 @@ public sealed partial class InvoiceFromScanTests
         var recognition = await OutcomeAsync(client, id);
 
         Assert.Equal("СЧ-1483-2b", (await ReadAsync(client, id)).GetProperty("requisites").GetProperty("Номер").GetString());
-        Assert.Contains(HeaderNotes(recognition), n => n.Contains("два поля профиля") && n.Contains("СЧ-1483-2a"));
+        Assert.Equal(
+            [InvoiceScanUnplaced.InHeader(CostsRecognitionProfiles.Number, "СЧ-1483-2a", InvoiceScanUnplaced.DuplicateKey, "Номер",
+                InvoiceRequisites.TitleOf(InvoiceRequisites.NumberKey))],
+            Unplaced(recognition));
+        NoMovedNotes(recognition);
     }
 
     /// <summary>
     /// «Назначение» со скана не заполняется (решение владельца 18.10.2026), но колонка профиля с этим
-    /// ключом заполняет его, как любое поле. Ключ с опечаткой назван в замечаниях, а не потерян молча.
+    /// ключом заполняет его, как любое поле. Ключ с опечаткой назван в списке не положенного, а не потерян молча.
     /// </summary>
     [Fact]
     public async Task Назначение_своим_ключом_а_опечатка_названа()
@@ -145,6 +156,6 @@ public sealed partial class InvoiceFromScanTests
         var requisites = (await ReadAsync(client, id)).GetProperty("requisites");
         Assert.Equal("кабель для СКС", requisites.GetProperty("Назначение").GetString());
         Assert.Equal("Договор № 9", requisites.GetProperty("Основание").GetString());
-        Assert.Contains(HeaderNotes(recognition), n => n.Contains("«Основанье» «опечатка»") && n.Contains("нет поля с таким ключом"));
+        Assert.Equal([InvoiceScanUnplaced.InHeader("Основанье", "опечатка", InvoiceScanUnplaced.NoField)], Unplaced(recognition));
     }
 }

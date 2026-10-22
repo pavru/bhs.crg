@@ -589,6 +589,10 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("started_at");
 
+                    b.Property<JsonDocument>("Unplaced")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("unplaced");
+
                     b.Property<JsonDocument>("Values")
                         .HasColumnType("jsonb")
                         .HasColumnName("values");

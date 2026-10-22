@@ -19,8 +19,8 @@ public static class InvoiceScanLines
     /// количество × цена, НДС — только прочитанный. Досчитывает их <see cref="Complete" />, когда режим
     /// известен: порядок разбора скана — шапка → режим → досчёт строк.</param>
     /// <param name="VatNote">НДС пришлось снять — почему (issue #1410).</param>
-    /// <param name="StrayNote">Что прочитано и в счёт не легло — по колонкам (issue #1480).</param>
-    public sealed record Reading(IReadOnlyList<ScanLine> Paper, string? VatNote, string? StrayNote = null)
+    /// <param name="Unplaced">Что прочитано и в поля строк не легло — по строкам файла (issue #1480, #1484).</param>
+    public sealed record Reading(IReadOnlyList<ScanLine> Paper, string? VatNote, IReadOnlyList<UnplacedRead> Unplaced)
     {
         /// <summary>
         /// Строки, досчитанные «в том числе», — как их клали до #1501. Считаются один раз, при создании:
@@ -56,11 +56,11 @@ public static class InvoiceScanLines
     /// <para><b>Общее правило, а не перечисление заводских ключей</b> (решение владельца 18.10.2026).
     /// Профиль правит администратор, и раньше колонка, которой разбор не знал, читалась моделью и молча
     /// терялась: так на продакшене пропадал добавленный «Артикул». Теперь у каждого поля строки есть
-    /// ключ, а колонка с другим ключом не теряется молча — она названа в примечании распознавания (и
+    /// ключ, а колонка с другим ключом не теряется молча — она названа в итоге распознавания (и
     /// остаётся в наборах данных, которые читают тот же профиль).</para>
     ///
     /// <para>Ключ сравнивается точно, после обрезки краевых пробелов: «артикул» со строчной — другой
-    /// ключ, и это видно в примечании, а не угадывается. С этой таблицей тест сверяет таблицу ключей в
+    /// ключ, и это видно в итоге распознавания, а не угадывается. С этой таблицей тест сверяет таблицу ключей в
     /// ADMIN_GUIDE (§7, «ключи строк»).</para>
     /// </summary>
     public static readonly IReadOnlyDictionary<string, ScanLineField> Targets = new Dictionary<string, ScanLineField>(StringComparer.Ordinal)
@@ -96,9 +96,9 @@ public static class InvoiceScanLines
     /// </summary>
     public static Reading Read(IEnumerable<IReadOnlyDictionary<string, string?>> rows)
     {
-        var read = rows.Select(Cells).ToList();
+        var read = rows.Select((row, index) => Cells(row, index + 1)).ToList();
         var lines = read.Select(r => Line(r.Cells)).OfType<ScanLine>().ToList();
-        var stray = StrayNote([.. read.SelectMany(r => r.Stray)]);
+        IReadOnlyList<UnplacedRead> stray = [.. read.SelectMany(r => r.Stray)];
 
         // «Есть НДС» — у строки будет сумма НДС, прочитанная или досчитанная по ставке: правило одно для
         // обоих режимов — досчёт от суммы есть и «в том числе», и сверху.
@@ -304,30 +304,32 @@ public static class InvoiceScanLines
         return new(values with { Amount = total }, VatCellEmpty: vatEmpty);
     }
 
-    /// <summary>Прочитанное, что в поле строки не легло: ключ колонки, значение и почему.</summary>
-    /// <param name="Repeats">Ключ, чьё поле уже занято; <c>null</c> — у строки счёта нет поля с этим ключом.</param>
-    private sealed record Stray(string Key, string Value, string? Repeats);
-
     /// <summary>
     /// Ячейки строки по полям (<see cref="Targets" />) — только непустые — и то, что в поля не легло.
     ///
     /// <para>Два ключа одного поля после обрезки пробелов («Цена» и «Цена ») — поле берёт первый
     /// непустой, а второй непустой назван, а не отброшен молча (ревью PR #1485): прочитаны два разных
     /// числа, и человек должен узнать о втором. Пустой дубль не называется — ему нечего терять.</para>
+    ///
+    /// <para>⚠️ <b>В итог распознавания, а не в примечание строки</b> (ревью PR #1485). Примечание строки —
+    /// поле человека: оно едет в версии счёта и книгу исправлений, и служебная фраза у каждой строки
+    /// каждого счёта осталась бы в данных навсегда, в том числе у запертых закрытым периодом. Колонка
+    /// «только для наборов данных» законна, поэтому это сведение, а не предупреждение.</para>
     /// </summary>
-    private static (Dictionary<ScanLineField, string> Cells, List<Stray> Stray) Cells(IReadOnlyDictionary<string, string?> row)
+    /// <param name="number">Номер строки в прочитанной таблице, с 1 — им запись называет строку файла.</param>
+    private static (Dictionary<ScanLineField, string> Cells, List<UnplacedRead> Stray) Cells(
+        IReadOnlyDictionary<string, string?> row, int number)
     {
         var cells = new Dictionary<ScanLineField, string>();
         var owners = new Dictionary<ScanLineField, string>();
-        var stray = new List<Stray>();
+        var stray = new List<UnplacedRead>();
         foreach (var (key, text) in row)
         {
             if (string.IsNullOrWhiteSpace(text)) continue;
-            var bare = key.Trim();
-            if (!Targets.TryGetValue(bare, out var field))
-                stray.Add(new(bare, text, null));
+            if (!Targets.TryGetValue(key.Trim(), out var field))
+                stray.Add(InvoiceScanUnplaced.InLine(number, key, text, InvoiceScanUnplaced.NoField));
             else if (owners.TryGetValue(field, out var owner))
-                stray.Add(new(key, text, owner));
+                stray.Add(InvoiceScanUnplaced.InLine(number, key, text, InvoiceScanUnplaced.DuplicateKey, owner));
             else
             {
                 cells[field] = text;
@@ -335,29 +337,6 @@ public static class InvoiceScanLines
             }
         }
         return (cells, stray);
-    }
-
-    /// <summary>
-    /// Одно примечание распознавания на все строки: по колонке — сколько строк и пример значения.
-    ///
-    /// <para>⚠️ <b>В примечание распознавания, а не строки</b> (ревью PR #1485). Примечание строки —
-    /// поле человека: оно едет в версии счёта и книгу исправлений, и служебная фраза у каждой строки
-    /// каждого счёта осталась бы в данных навсегда, в том числе у запертых закрытым периодом. Колонка
-    /// «только для наборов данных» законна, поэтому это сведение, а не предупреждение.</para>
-    /// </summary>
-    private static string? StrayNote(IReadOnlyList<Stray> stray)
-    {
-        if (stray.Count == 0) return null;
-        var columns = stray.GroupBy(s => (s.Key, s.Repeats)).Select(g =>
-        {
-            var why = g.Key.Repeats is { } owner
-                ? $"повторяет ключ «{owner.Trim()}», поле уже заполнено им"
-                : "у строки счёта нет поля с таким ключом";
-            return $"«{g.Key.Key}» — {why} (строк: {g.Count()}, например «{Short(g.First().Value)}»)";
-        });
-        return "Прочитано, в счёт не положено: " + string.Join("; ", columns) +
-               ". Такие колонки получают только наборы данных; чтобы колонка заполняла строку счёта, назовите " +
-               "её ключом поля строки (инструкция администратора, «Счёт на оплату: ключи строк»).";
     }
 
     /// <summary>
@@ -372,7 +351,7 @@ public static class InvoiceScanLines
         return bare.All(c => c is '-' or '—' or '–') || bare is "Х" or "х" or "X" or "x";
     }
 
-    /// <summary>Прочитанное в замечании — не длиннее 40 знаков; одно правило на строки и шапку (ревью PR #1523).</summary>
+    /// <summary>Прочитанное в замечании и в итоге — не длиннее 40 знаков; одно правило на строки и шапку (ревью PR #1523).</summary>
     internal static string Short(string text) => text.Length > 40 ? text[..40] + "…" : text;
 }
 
