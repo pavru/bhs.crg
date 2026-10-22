@@ -4,7 +4,7 @@ using BHS.CRG.Domain.Common;
 namespace BHS.CRG.Domain.Catalog;
 
 /// <summary>
-/// Аналог сущностей КаталогОбщихДанных старой системы:
+/// Запись каталога сущностей:
 /// Organization, Person, ConstructionObject, Project.
 /// Тип определяется EntityType, данные хранятся в JSONB.
 /// </summary>
