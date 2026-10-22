@@ -21,9 +21,9 @@
 
 ## What Changes
 
-- **PR 1 — контракт.** Тип параметра доступа в контрактах: кто спрашивает, его ключи, «система с
-  причиной» — зеркало `DataAccess`; охват «свои / стройки / все» со списком строек — языком контрактов
-  для модуля. `ModuleTableQuery` получает параметр вместо `Guid`. Таблица объявляет строку границы на
+- **PR 1 — контракт.** ~~Тип параметра доступа в контрактах: кто спрашивает, его ключи, «система с
+  причиной»~~ — `ModuleReader` заводит `plan-22-module-exchange` (D18 зонтика); здесь он строится и из
+  `DataAccess` пути таблиц. Охват «свои / стройки / все» со списком строек — языком контрактов для модуля. `ModuleTableQuery` получает параметр вместо `Guid`. Таблица объявляет строку границы на
   каждый исход отбора, служба строк называет применившийся исход и число строек. Граница — полем ответа
   таблицы, первой строкой XLSX, в наборе данных и в MCP. Чтение изолированной таблицы от имени системы —
   отказ с причиной.
@@ -43,7 +43,8 @@
 ## Impact
 
 - **Сервер:** `BHS.CRG.Modules/Tables/ModuleTable.cs`, `ModuleTableQuery.cs`; новые
-  `BHS.CRG.Modules/Access/ModuleReader.cs`, `ModuleReach.cs`, `BHS.CRG.Modules/Data/IIsolatedRecord.cs`;
+  `BHS.CRG.Modules/Access/ModuleReach.cs`, `BHS.CRG.Modules/Data/IIsolatedRecord.cs` (`ModuleReader.cs` —
+  готовый, из `plan-22`);
   `Api/Modules/Tables/ModuleTableService.cs`, `ModuleTableService.Shortcuts.cs`, `ModuleTableExport.cs`,
   `ModuleTableDataProvider.cs`; `Modules.Costs/Tables/InvoiceTable.cs` (объявление одной границы).
 - **Клиент:** `shared/api/tables.ts` — поле `boundaryOutcome`; экран таблицы уже показывает `boundary`.

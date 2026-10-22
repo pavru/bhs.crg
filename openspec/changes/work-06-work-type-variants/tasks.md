@@ -25,20 +25,16 @@
 - [ ] 2.5 `CommonDataEndpoints.cs`: create, update, delete, archive записи типа `ВариантРаботы` — 409 с
   адресом двери; `/purge` не трогается [WORK-49]. Проверка — тест на каждый из четырёх адресов
 
-- [ ] 2.6 `Api/Endpoints/Core/WorkTypeEndpoints.cs` — дверь `/api/work-types` под `core.worktypes.edit`
-  по тому же правилу, `If-Match` на `PUT`, `DELETE`, `archive`, `unarchive`; `/api/common-data`
-  отказывает 409 для `ВидРаботы` [WORK-59] [CORE-8] [AUTH-9]. Проверка — `WorkTypeEndpointsTests`: 403
-  с одним `core.catalog.edit`, 400/409 по `If-Match`, отказ общего адреса; `EndpointGateInventoryTests`
-- [ ] 2.7 «Инженер ИД» получает `core.worktypes.edit` (`SystemRoles.cs:56`) [WORK-59]. Проверка — тест
-  состава `/api/account/access` по системным ролям; клиент показывает действия видов работ по праву
-  двери (`CatalogResource.tsx`)
+- [ ] 2.6 ~~Дверь `/api/work-types` и `core.worktypes.edit` у «Инженера ИД»~~ — строит
+  `plan-03-work-types-door` (D18 зонтика). Здесь: дверь вариантов — на общем помощнике двери `plan-03`
+  [WORK-59]. Проверка — `WorkTypeEndpointsTests` (`plan-03`) зелёные без правки
 
 ## 3. Порт модулю
 
-- [ ] 3.1 `BHS.CRG.Modules/Ports/IModuleWorkTypes.cs` и `Api/Modules/Ports/ModuleWorkTypesPort.cs`:
-  вид с признаками по тэгам и вариантами, `null` — справочник не заведён [WORK-25] [CORE-20.4].
-  Проверка — `ModuleWorkTypesPortTests`: признак по тэгу при переименованном ключе; вид без вариантов —
-  пустой список; без `ВидаРаботы` — `null`; `ModuleBoundaryTests` зелёный
+- [ ] 3.1 `IModuleWorkTypes` и `ModuleWorkTypesPort` (заводит `plan-03`): `Variants` у вида,
+  `GetVariantsAsync(ids)` с видом-владельцем; ~~порт, признаки по тэгам, «не заведён»~~ — `plan-03`
+  [WORK-25] [CORE-20.4]. Проверка — `ModuleWorkTypesPortTests`: вид без вариантов — пустой список;
+  архивный вариант — с признаком; вариант чужого вида назван; `ModuleBoundaryTests` зелёный
 
 ## 4. Клиент и документы
 

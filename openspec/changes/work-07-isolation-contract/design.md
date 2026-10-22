@@ -26,16 +26,17 @@
 перепись, на которой `work-13` и `work-20` заводят изолированные записи и таблицы.
 
 **Non-Goals:** чьи стройки у менеджера (`work-11`); таблицы `work` (`work-20`); проверка нарушением по
-месту хранения (`work-25`); межмодульные контракты (`work-09` берёт отсюда тип параметра).
+месту хранения (`work-25`); межмодульные контракты и сам `ModuleReader` — `plan-22-module-exchange`
+(D18 зонтика): контракты `work-*` берут отсюда охват `ModuleReach`.
 
 ## Decisions
 
 - **PR 1 — контракт.**
-  - `BHS.CRG.Modules/Access/ModuleReader.cs` — что знает ядро: `UserId?`, `Who`, `Keys`, `SystemReason`,
-    `IsSystem`. Зеркало `DataAccess`: контракты ни на что не ссылаются, поэтому тип свой, а сверку
-    имён держит `ModulePortMirrorTests` (как у `ModuleJobStatus`). Строит его `Api` из `DataAccess`.
+  - `BHS.CRG.Modules/Access/ModuleReader.cs` — готовый, из `plan-22` (D18 зонтика): `UserId?`, `Who`,
+    `Keys`, `SystemReason`, `IsSystem`. Здесь его строит `Api` и из `DataAccess` — для пути таблиц; это
+    зеркало, и сверку имён держит `ModulePortMirrorTests` (как у `ModuleJobStatus`).
   - `BHS.CRG.Modules/Access/ModuleReach.cs` — что вычисляет модуль: `Own` | `Sites(ids)` | `All` — общий
-    язык охвата для таблиц, контрактов (`work-09`) и адресов модуля. Ядро охват не вычисляет: стройки
+    язык охвата для таблиц, контрактов `work-*` и адресов модуля. Ядро охват не вычисляет: стройки
     менеджера — данные модуля (D5).
   - `ModuleTableQuery.UserId` → `Reader: ModuleReader`. `ModuleTablePage` получает
     `Outcome: ModuleTableOutcome(Code, Sites?)`.

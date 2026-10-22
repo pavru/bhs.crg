@@ -25,7 +25,8 @@
 
 ## What Changes
 
-- **PR 1 — механизм** (если его нет). Интерфейс контракта — в `BHS.CRG.Modules/Exchange/*` с названием
+- ~~**PR 1 — механизм** (если его нет)~~ — снят: механизм заводит `plan-22-module-exchange` (D18
+  зонтика). Прежнее описание для сверки: интерфейс контракта — в `BHS.CRG.Modules/Exchange/*` с названием
   модуля-поставщика; реализацию регистрирует поставщик в своём `RegisterServices`. Потребитель получает
   контракт портом ядра: «не подключено» — ответом, а не исключением. Контракт принимает явный параметр
   доступа (`work-07`) и отвечает в правах спрашивающего. Сторожа при старте: не больше одного поставщика
@@ -34,7 +35,7 @@
 - **PR 2 — поставщик `costs`.** Контракт «Материалы на объекте» над `IssuedMaterials`: по
   `costs.materials.read` — позиции с количествами, датами и числом не вошедших строк; по
   `costs.materials.hint` — только позиции номенклатуры. Оба права объявляются **правами контракта**
-  (`work-02`): модуль `costs` и его навигацию они не открывают. «Монтажник» получает
+  (`plan-21`): модуль `costs` и его навигацию они не открывают. «Монтажник» получает
   `costs.materials.hint`.
 
 ## Capabilities
@@ -49,11 +50,11 @@
 
 ## Impact
 
-- **Сервер:** новые `BHS.CRG.Modules/Exchange/ModuleContractAttribute.cs`, `IModuleContracts.cs`,
-  `MaterialsOnSite.cs`; `Api/Modules/ModuleContractCatalog.cs` (проверка при старте);
-  `Modules.Costs/Exchange/MaterialsOnSiteContract.cs`, `CostsModule.cs` (права, регистрация);
+- **Сервер:** новый `BHS.CRG.Modules/Exchange/MaterialsOnSite.cs` (механизм `Exchange/*` и
+  `ModuleContractCatalog.cs` — из `plan-22`); `Modules.Costs/Exchange/MaterialsOnSiteContract.cs`,
+  `CostsModule.cs` (права, регистрация);
   `Api/Auth/SystemRoles.cs:64` («Монтажник»).
-- **Тесты:** `ModuleContractCatalogTests`, `MaterialsOnSiteContractTests`, тест состава
+- **Тесты:** `MaterialsOnSiteContractTests`, тест состава
   `/api/account/access` по ролям, `ModuleBoundaryTests`, `CostsOnlyHostTests`, живой хост `work` без `costs`.
 - **Документы:** `docs/ADMIN_GUIDE.md` — права контракта у ролей; `docs/DEV_NOTES.md` — как завести контракт.
 - Адрес `GET /api/costs/materials` не меняется.
