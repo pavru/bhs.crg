@@ -1,5 +1,6 @@
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Domain.Storage;
 using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.Backup;
@@ -92,7 +93,7 @@ public partial class BackupService
     private async Task EnsureAbsentAsync(string path, Exception failure, CancellationToken ct)
     {
         long? size;
-        try { size = await blob.GetSizeAsync(path, ct); }
+        try { size = await blob.GetSizeAsync(path, BlobOwner.Any, ct); }
         catch (BlobStorageUnavailableException refused)
         {
             logger.LogWarning(refused, "Копия: хранилище отказало в выдаче файла {BlobPath}", path);

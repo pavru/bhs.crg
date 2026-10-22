@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.Activity;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Api.Modules.Ports;
 using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Modules.Costs;
@@ -13,6 +14,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -86,13 +88,17 @@ public sealed class InvoiceScanHost : InvoiceLineHost
             services.AddSingleton(_ => Renditions.RenditionFixtures.Client(
                 (request, ct) => Converter(request, ct), version: "8.37.0"));
 
+            // Порты файлов и образов — по ключу модуля (ТЗ CORE-37.2): подмена встаёт под тот же ключ, что
+            // и настоящий порт, иначе адреса costs своего порта не нашли бы.
+            const string costs = BHS.CRG.Modules.Costs.CostsModule.ModuleCode;
             services.RemoveAll<IModuleRenditions>();
-            services.AddScoped<ModuleRenditionsPort>();
-            services.AddScoped<IModuleRenditions>(sp => new FailingRenditions(sp.GetRequiredService<ModuleRenditionsPort>(), this));
+            services.AddKeyedScoped<IModuleRenditions>(costs, (sp, _) => new FailingRenditions(new ModuleRenditionsPort(
+                sp.GetRequiredService<BHS.CRG.Api.Renditions.RenditionStore>(), costs,
+                sp.GetRequiredService<ILogger<ModuleRenditionsPort>>()), this));
 
             services.RemoveAll<IModuleBlobs>();
-            services.AddScoped<ModuleBlobsPort>();
-            services.AddScoped<IModuleBlobs>(sp => new FailingBlobs(sp.GetRequiredService<ModuleBlobsPort>(), this));
+            services.AddKeyedScoped<IModuleBlobs>(costs, (sp, _) => new FailingBlobs(
+                new ModuleBlobsPort(sp.GetRequiredService<IBlobStorage>(), costs), this));
 
             services.RemoveAll<IModuleActivityLog>();
             services.AddScoped<ModuleActivityLogPort>();

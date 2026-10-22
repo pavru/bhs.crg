@@ -83,7 +83,7 @@ public sealed class InvoiceDeletionTests(InvoiceScanHost host)
             Assert.False(await db.InvoiceLines.AnyAsync(l => l.InvoiceId == invoice));
             Assert.False(await db.InvoiceAllocations.AnyAsync(a => a.InvoiceId == invoice));
             // Файл убран из хранилища: путь больше не открывается.
-            Assert.Null(await scope.ServiceProvider.GetRequiredService<IModuleBlobs>().SizeAsync(path));
+            Assert.Null(await scope.ServiceProvider.GetRequiredKeyedService<IModuleBlobs>(BHS.CRG.Modules.Costs.CostsModule.ModuleCode).SizeAsync(path));
         }
 
         var record = Assert.Single(await JournalAsync(invoice, InvoiceActions.Deleted.Code));
@@ -233,7 +233,7 @@ public sealed class InvoiceDeletionTests(InvoiceScanHost host)
         Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
         Assert.Null(await StoredAsync(invoice));
         using var scope = host.Services.CreateScope();
-        Assert.Null(await scope.ServiceProvider.GetRequiredService<IModuleBlobs>().SizeAsync(path));
+        Assert.Null(await scope.ServiceProvider.GetRequiredKeyedService<IModuleBlobs>(BHS.CRG.Modules.Costs.CostsModule.ModuleCode).SizeAsync(path));
     }
 
     /// <summary>

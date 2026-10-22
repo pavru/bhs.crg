@@ -23,35 +23,45 @@ namespace BHS.CRG.Infrastructure.Generation;
 /// <see cref="TypstFileMaterializer"/>, и его контракт (<c>fileName/mimeType/pageCount</c>) другой —
 /// свести их значило бы отнять у поля-картинки <c>width/align/fit</c> и сломать <c>img()</c>.
 /// </para>
+/// <para>
+/// Картинка, файл которой не прочитан, остаётся ссылкой, а её поле называется (ТЗ CORE-37.2): адрес
+/// поля уходит в <c>unreadable</c>, и генерация отказывает с ним, не компилируя. Отладочный комплект
+/// адреса не собирает — он воспроизводит вход как есть.
+/// Файл модуля, вписанный в реквизиты, сюда же: хранилище отдаёт генерации только файлы ядра, и
+/// такой файл для неё неотличим от отсутствующего.
+/// </para>
 /// </summary>
 public static class TypstImageMaterializer
 {
     /// <summary>
     /// Возвращает JSON для data.json, попутно записав изображения в <paramref name="targetDir"/>/<paramref name="assetsSubdir"/>.
     /// </summary>
+    /// <param name="unreadable">Куда сложить адреса полей, чью картинку не удалось прочитать из хранилища.</param>
     public static Task<string> MaterializeAsync(IReadOnlyDictionary<string, object?> data, string targetDir,
         IBlobStorage? blob = null, string assetsSubdir = "assets", JsonSerializerOptions? outputOptions = null,
-        CancellationToken ct = default)
+        ICollection<string>? unreadable = null, CancellationToken ct = default)
         => MaterializeNodeAsync(JsonSerializer.SerializeToNode(data) ?? new JsonObject(),
-            targetDir, blob, assetsSubdir, outputOptions, ct);
+            targetDir, blob, assetsSubdir, outputOptions, unreadable, ct);
 
     /// <summary>То же, но на входе готовый JSON-текст (для отладочного комплекта).</summary>
     public static Task<string> MaterializeJsonAsync(string json, string targetDir,
         IBlobStorage? blob = null, string assetsSubdir = "assets", JsonSerializerOptions? outputOptions = null,
         CancellationToken ct = default)
         => MaterializeNodeAsync(JsonNode.Parse(json) ?? new JsonObject(),
-            targetDir, blob, assetsSubdir, outputOptions, ct);
+            targetDir, blob, assetsSubdir, outputOptions, null, ct);
 
     private static async Task<string> MaterializeNodeAsync(JsonNode root, string targetDir, IBlobStorage? blob,
-        string assetsSubdir, JsonSerializerOptions? outputOptions, CancellationToken ct)
+        string assetsSubdir, JsonSerializerOptions? outputOptions, ICollection<string>? unreadable, CancellationToken ct)
     {
-        var ctx = new Context(Path.Combine(targetDir, assetsSubdir), assetsSubdir, blob);
-        await WalkAsync(root, ctx, ct);
+        var ctx = new Context(Path.Combine(targetDir, assetsSubdir), assetsSubdir, blob, unreadable);
+        await WalkAsync(root, ctx, "", ct);
         return outputOptions is null ? root.ToJsonString() : root.ToJsonString(outputOptions);
     }
 
-    private sealed class Context(string assetsDir, string assetsSubdir, IBlobStorage? blob)
+    private sealed class Context(string assetsDir, string assetsSubdir, IBlobStorage? blob, ICollection<string>? unreadable)
     {
+        /// <summary>Адреса полей, чью картинку хранилище не отдало; null — не собираем.</summary>
+        public ICollection<string>? Unreadable { get; } = unreadable;
         public string AssetsDir { get; } = assetsDir;
         public string AssetsSubdir { get; } = assetsSubdir;
         /// <summary>Хранилище для узлов-ссылок; null — их просто не будет чем прочитать (тесты без блобов).</summary>
@@ -59,25 +69,27 @@ public static class TypstImageMaterializer
         public int Count;
     }
 
-    private static async Task WalkAsync(JsonNode? node, Context ctx, CancellationToken ct)
+    /// <param name="at">Адрес узла от корня данных: «Подпись», «Фото[2].Снимок».</param>
+    private static async Task WalkAsync(JsonNode? node, Context ctx, string at, CancellationToken ct)
     {
         switch (node)
         {
             case JsonObject obj:
                 foreach (var key in obj.Select(kv => kv.Key).ToList())
-                    await ReplaceAsync(ctx, v => obj[key] = v, obj[key], ct);
+                    await ReplaceAsync(ctx, v => obj[key] = v, obj[key], at.Length == 0 ? key : $"{at}.{key}", ct);
                 break;
             case JsonArray arr:
                 for (var i = 0; i < arr.Count; i++)
                 {
                     var idx = i;
-                    await ReplaceAsync(ctx, v => arr[idx] = v, arr[idx], ct);
+                    await ReplaceAsync(ctx, v => arr[idx] = v, arr[idx], $"{at}[{i}]", ct);
                 }
                 break;
         }
     }
 
-    private static async Task ReplaceAsync(Context ctx, Action<JsonNode?> set, JsonNode? child, CancellationToken ct)
+    private static async Task ReplaceAsync(
+        Context ctx, Action<JsonNode?> set, JsonNode? child, string at, CancellationToken ct)
     {
         // Голая data-URI строка (легаси / только что загруженная) — без размера.
         if (child is JsonValue val && val.TryGetValue<string>(out var s) && ImageValues.IsDataImage(s))
@@ -93,6 +105,7 @@ public static class TypstImageMaterializer
             var mime = blobNode["mimeType"] is JsonValue mv && mv.TryGetValue<string>(out var m) ? m : null;
             var path = await WriteBlobImageAsync(blobPath, mime, ctx, ct);
             if (path is not null) set(BuildImageNode(path, blobNode));
+            else if (ctx.Blob is not null) ctx.Unreadable?.Add(at);
             return; // не спускаемся внутрь — это лист-значение
         }
         // Объект-значение картинки {src, width, ...} — размер из него самого (issue #246).
@@ -102,7 +115,7 @@ public static class TypstImageMaterializer
             if (path is not null) set(BuildImageNode(path, obj));
             return; // не спускаемся внутрь — это лист-значение
         }
-        await WalkAsync(child, ctx, ct);
+        await WalkAsync(child, ctx, at, ct);
     }
 
     /// <summary>

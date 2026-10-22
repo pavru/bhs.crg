@@ -67,12 +67,20 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
             [nameof(IModuleClosingReport)] = "раздел диалога закрытия периода регистрирует сам модуль",
         };
 
+        // Выдаётся по ключу — коду модуля (ТЗ CORE-37.2): порт знает, от чьего имени работать с файлами.
+        // Такой порт обязан быть у КАЖДОГО включённого модуля и не выдаваться без ключа вовсе.
+        HashSet<Type> keyedByModule = [typeof(IModuleBlobs), typeof(IModuleRenditions)];
+
         using var scope = host.Services.CreateScope();
+        var codes = scope.ServiceProvider.GetRequiredService<IEnabledModules>().Codes;
+        var keyed = (IKeyedServiceProvider)scope.ServiceProvider;
 
         var missing = typeof(IEnabledModules).Assembly.GetTypes()
             .Where(t => t.IsInterface && t.Namespace == typeof(IEnabledModules).Namespace)
             .Where(t => !providedByModules.ContainsKey(t.Name))
-            .Where(t => scope.ServiceProvider.GetService(t) is null)
+            .Where(t => keyedByModule.Contains(t)
+                ? codes.Any(code => keyed.GetKeyedService(t, code) is null)
+                : scope.ServiceProvider.GetService(t) is null)
             .Select(t => t.Name)
             .Order(StringComparer.Ordinal)
             .ToList();
@@ -83,6 +91,11 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
             "Модуль попросит службу, которой в контейнере нет, и отказ придёт первым обращением в " +
             "бою. Добавьте переходник в ModulePorts.AddModulePorts — либо, если порт реализует сам " +
             "модуль, впишите его в providedByModules с причиной.");
+
+        var unkeyed = keyedByModule.Where(t => scope.ServiceProvider.GetService(t) is not null).Select(t => t.Name).ToList();
+        Assert.True(unkeyed.Count == 0,
+            "Порт файлов выдаётся без ключа модуля: " + string.Join(", ", unkeyed) + ". Модуль, забывший " +
+            "метку, получил бы порт, не знающий, от чьего имени он читает (ТЗ CORE-37.2).");
     }
 
     // ── Журнал действий ───────────────────────────────────────────────────────
@@ -211,7 +224,7 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
     public async Task Файл_модуля_кладётся_читается_и_виден_реестру()
     {
         using var scope = host.Services.CreateScope();
-        var blobs = scope.ServiceProvider.GetRequiredService<IModuleBlobs>();
+        var blobs = scope.ServiceProvider.GetRequiredKeyedService<IModuleBlobs>(BHS.CRG.Modules.Costs.CostsModule.ModuleCode);
         var content = Encoding.UTF8.GetBytes("скан");
 
         var path = await blobs.PutAsync("Счёт.pdf", new MemoryStream(content), "application/pdf");
@@ -221,9 +234,11 @@ public class ModulePortsTests(ModulePortsHost host) : IClassFixture<ModulePortsH
             Assert.Equal("скан", await read.ReadToEndAsync());
 
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        Assert.True(await db.BlobRegistry.AnyAsync(b => b.Path == path),
+        var entry = await db.BlobRegistry.AsNoTracking().SingleOrDefaultAsync(b => b.Path == path);
+        Assert.True(entry is not null,
             "Файл модуля лёг мимо реестра блобов: резервная копия его не заметит, а выдача не " +
             "признает своим.");
+        Assert.Equal(BHS.CRG.Modules.Costs.CostsModule.ModuleCode, entry.Owner);
 
         await blobs.DeleteAsync(path);
         Assert.Null(await blobs.SizeAsync(path));

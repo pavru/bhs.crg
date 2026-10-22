@@ -4,6 +4,7 @@ using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Infrastructure.DataSets;
+using BHS.CRG.Infrastructure.Storage;
 
 namespace BHS.CRG.Tests.DataSets;
 
@@ -15,21 +16,21 @@ namespace BHS.CRG.Tests.DataSets;
 public class DataSetRowLoaderTests
 {
     /// <summary>Блоб-хранилище одного файла; считает скачивания и падает, если файла нет.</summary>
-    private sealed class FakeBlob(byte[]? content = null) : IBlobStorage
+    private sealed class FakeBlob(byte[]? content = null) : OwnerBlindBlobStorage
     {
         public int Downloads;
-        public Task<Stream> DownloadAsync(string blobPath, CancellationToken ct = default)
+        public override Task<Stream> DownloadAsync(string blobPath, CancellationToken ct = default)
         {
             Downloads++;
             if (content is null) throw new InvalidOperationException("Блоб недоступен — скачивания не ожидалось.");
             return Task.FromResult<Stream>(new MemoryStream(content));
         }
-        public Task<string> UploadAsync(string fileName, Stream s, string contentType, CancellationToken ct = default)
+        public override Task<string> UploadAsync(string fileName, Stream s, string contentType, CancellationToken ct = default)
             => throw new NotSupportedException();
-        public Task DeleteAsync(string blobPath, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task PutAsync(string blobPath, Stream s, string contentType, CancellationToken ct = default)
+        public override Task DeleteAsync(string blobPath, CancellationToken ct = default) => throw new NotSupportedException();
+        public override Task PutAsync(string blobPath, Stream s, string contentType, CancellationToken ct = default)
             => throw new NotSupportedException();
-        public Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
+        public override Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
             => Task.FromResult(content?.LongLength);
     }
 

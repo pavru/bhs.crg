@@ -12,8 +12,12 @@ namespace BHS.CRG.Api.Modules.Ports;
 /// <para>Порт отдельный, а не три метода у <see cref="IModuleBlobs" /> или
 /// <see cref="IModuleRecognition" />: просмотру образ нужен без распознавания, а распознаванию — без
 /// знания о том, где и как он хранится.</para>
+///
+/// <para>Код модуля порт знает по построению, как и порт файлов (ТЗ CORE-37.2): оригинал служба читает
+/// от его имени, образ кладёт его файлом, а образ чужого файла для порта не существует.</para>
 /// </summary>
-public sealed class ModuleRenditionsPort(RenditionStore store, ILogger<ModuleRenditionsPort> log) : IModuleRenditions
+public sealed class ModuleRenditionsPort(RenditionStore store, string module, ILogger<ModuleRenditionsPort> log)
+    : IModuleRenditions
 {
     /// <remarks>
     /// Записанный образ — одним запросом вместе с профилем (<see cref="RenditionStore.FindShownAsync" />):
@@ -21,16 +25,16 @@ public sealed class ModuleRenditionsPort(RenditionStore store, ILogger<ModuleRen
     /// </remarks>
     public async Task<ModuleRendition> EnsureAsync(string originalPath, CancellationToken ct = default)
     {
-        if (await store.FindShownAsync(originalPath, ct) is { } known) return Shown(known.Record, known.Profile);
-        return await BuiltNowAsync(await store.EnsureAsync(originalPath, ct), ct);
+        if (await store.FindShownAsync(originalPath, module, ct) is { } known) return Shown(known.Record, known.Profile);
+        return await BuiltNowAsync(await store.EnsureAsync(originalPath, module, ct), ct);
     }
 
     public async Task<ModuleRendition?> FindAsync(string originalPath, CancellationToken ct = default) =>
-        await store.FindShownAsync(originalPath, ct) is { } known ? Shown(known.Record, known.Profile) : null;
+        await store.FindShownAsync(originalPath, module, ct) is { } known ? Shown(known.Record, known.Profile) : null;
 
     public async Task<ModuleRendition> RebuildAsync(
         string originalPath, Guid? layoutProfileId = null, CancellationToken ct = default) =>
-        await BuiltNowAsync(await store.RebuildAsync(originalPath, layoutProfileId, ct), ct);
+        await BuiltNowAsync(await store.RebuildAsync(originalPath, module, layoutProfileId, ct), ct);
 
     /// <summary>Только что построенный образ: профиль — отдельным вопросом, построение и так дорогое.</summary>
     private async Task<ModuleRendition> BuiltNowAsync(RenditionRecord record, CancellationToken ct) =>

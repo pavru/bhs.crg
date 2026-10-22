@@ -36,6 +36,12 @@ namespace BHS.CRG.Infrastructure.Storage;
 /// и в копию, в которой его нет. Громкий отказ сейчас честнее: остаётся осиротевший объект в
 /// хранилище — плата заметно меньшая.</para>
 ///
+/// <para><b>Владелец</b> (ТЗ CORE-37.2) сверяется тем же замком: путь должен не просто значиться в
+/// реестре, а значиться за тем, кто спрашивает. Методы без владельца спрашивают от имени ядра — так
+/// общий адрес вложений, генерация и прочие службы ядра не видят файлов модулей, ничего о них не
+/// зная. Файл чужого владельца — тот же ответ, что незнакомый путь: «файла нет», без разницы, по
+/// которой одно отличалось бы от другого.</para>
+///
 /// <para><b>Время жизни.</b> Хранилище — синглтон, <c>AppDbContext</c> — scoped, поэтому контекст
 /// берётся через <see cref="IServiceScopeFactory" /> на каждую операцию. Своего состояния у класса
 /// нет.</para>
@@ -45,30 +51,44 @@ public class RegisteredBlobStorage(
     IServiceScopeFactory scopes,
     ILogger<RegisteredBlobStorage> log) : IBlobStorage
 {
-    public async Task<string> UploadAsync(
+    public Task<string> UploadAsync(
         string fileName, Stream content, string contentType, CancellationToken ct = default)
+        => UploadAsync(fileName, content, contentType, BlobOwner.Core, ct);
+
+    public async Task<string> UploadAsync(
+        string fileName, Stream content, string contentType, string owner, CancellationToken ct = default)
     {
         var path = await inner.UploadAsync(fileName, content, contentType, ct);
-        await RegisterAsync(path, fileName, contentType);
+        await RegisterAsync(path, owner, fileName, contentType, restoring: false);
         return path;
     }
 
+    public Task PutAsync(string blobPath, Stream content, string contentType, CancellationToken ct = default)
+        => PutAsync(blobPath, content, contentType, BlobOwner.Core, ct);
+
     public async Task PutAsync(
-        string blobPath, Stream content, string contentType, CancellationToken ct = default)
+        string blobPath, Stream content, string contentType, string owner, CancellationToken ct = default)
     {
         await inner.PutAsync(blobPath, content, contentType, ct);
         // Сюда приходит восстановление из бэкапа: путь задан манифестом, объект возвращается на своё
         // прежнее место. Без этой строки восстановленная система не отдавала бы ни одного файла.
-        await RegisterAsync(blobPath, fileName: null, contentType);
+        await RegisterAsync(blobPath, owner, fileName: null, contentType, restoring: true);
     }
 
-    public async Task<Stream> DownloadAsync(string blobPath, CancellationToken ct = default)
+    public Task<Stream> DownloadAsync(string blobPath, CancellationToken ct = default)
+        => DownloadAsync(blobPath, BlobOwner.Core, ct);
+
+    public async Task<Stream> DownloadAsync(string blobPath, string owner, CancellationToken ct = default)
     {
-        if (!await IsKnownAsync(blobPath, ct))
+        if (!await OwnsAsync(blobPath, owner, ct))
         {
             // Путь пишем только в лог. Клиенту — обычное «не найдено»: разница между «объекта нет»
-            // и «объект есть, но не наш» сама по себе сведения, по которым бакет и перебирают.
-            log.LogWarning("Отказ в выдаче объекта хранилища: путь не значится в реестре ({Path})", blobPath);
+            // и «объект есть, но не наш» сама по себе сведения, по которым бакет и перебирают. Так
+            // же — «объект есть, но другого владельца»: файл модуля общим адресом неотличим от
+            // отсутствующего (ТЗ CORE-37.2).
+            log.LogWarning(
+                "Отказ в выдаче объекта хранилища: путь не значится в реестре за владельцем {Owner} ({Path})",
+                owner, blobPath);
             throw new NotFoundException("Файл не найден.");
         }
 
@@ -80,8 +100,11 @@ public class RegisteredBlobStorage(
     /// размера не имеет: иначе появился бы способ узнать о чужом объекте по разнице ответов, а
     /// «всё чтение хранилища идёт через одну дверь» перестало бы быть правдой.
     /// </summary>
-    public async Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
-        => await IsKnownAsync(blobPath, ct) ? await inner.GetSizeAsync(blobPath, ct) : null;
+    public Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
+        => GetSizeAsync(blobPath, BlobOwner.Core, ct);
+
+    public async Task<long?> GetSizeAsync(string blobPath, string owner, CancellationToken ct = default)
+        => await OwnsAsync(blobPath, owner, ct) ? await inner.GetSizeAsync(blobPath, ct) : null;
 
     /// <summary>
     /// Отсутствующие пути — с тем же замком, что у <see cref="GetSizeAsync" />, но реестр спрашивается
@@ -92,8 +115,12 @@ public class RegisteredBlobStorage(
     /// путей вне архива тысячи, и ни один из них не зарегистрирован — прежде это были тысячи пар
     /// «запрос к реестру + запрос к хранилищу», теперь один запрос к базе.</para>
     /// </summary>
-    public async Task<IReadOnlySet<string>> FindAbsentAsync(
+    public Task<IReadOnlySet<string>> FindAbsentAsync(
         IEnumerable<string> blobPaths, CancellationToken ct = default)
+        => FindAbsentAsync(blobPaths, BlobOwner.Core, ct);
+
+    public async Task<IReadOnlySet<string>> FindAbsentAsync(
+        IEnumerable<string> blobPaths, string owner, CancellationToken ct = default)
     {
         var asked = blobPaths.ToHashSet(StringComparer.Ordinal);
         if (asked.Count == 0) return asked;
@@ -103,7 +130,7 @@ public class RegisteredBlobStorage(
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var list = asked.ToList();
-            known = (await db.BlobRegistry.AsNoTracking()
+            known = (await Owned(db, owner)
                     .Where(e => list.Contains(e.Path)).Select(e => e.Path).ToListAsync(ct))
                 .ToHashSet(StringComparer.Ordinal);
         }
@@ -114,7 +141,40 @@ public class RegisteredBlobStorage(
         return asked;
     }
 
-    public async Task DeleteAsync(string blobPath, CancellationToken ct = default)
+    public Task DeleteAsync(string blobPath, CancellationToken ct = default)
+        => DeleteAsync(blobPath, BlobOwner.Core, ct);
+
+    /// <summary>
+    /// Удалить файл этого владельца. Файл другого владельца остаётся на месте — молча для
+    /// вызывающего, с записью в журнал: пути в реквизитах пишет клиент, и удаление документа, в который
+    /// вписан путь скана счёта, иначе удалило бы скан (ТЗ CORE-37.2).
+    ///
+    /// <para>Путь вне реестра ядро удаляет, как прежде: он ничей, и беречь его не для кого. Модуль — нет:
+    /// его файлы ложатся портом и значатся в реестре всегда, а путь без записи — не его (чужая загрузка
+    /// между хранилищем и реестром, объект, выпавший из реестра), и стирать его модулю незачем.</para>
+    ///
+    /// <para>«Любой» не принимается: резервной копии удалять нечего, а удаление мимо владельца было бы
+    /// той самой дверью, которую владелец закрывает.</para>
+    /// </summary>
+    public async Task DeleteAsync(string blobPath, string owner, CancellationToken ct = default)
+    {
+        if (owner == BlobOwner.Any)
+            throw new ArgumentException("Файл удаляется от имени владельца, а не «любого».", nameof(owner));
+
+        var holder = await OwnerOfAsync(blobPath, ct);
+        if (holder is null ? owner != BlobOwner.Core : holder != owner)
+        {
+            log.LogWarning(
+                "Удаление объекта хранилища от имени {Owner} отклонено: его владелец {Holder} ({Path})",
+                owner, holder ?? "не значится в реестре", blobPath);
+            return;
+        }
+
+        await RemoveAsync(blobPath, ct);
+    }
+
+    /// <summary>Удалить объект, его запись в реестре и его читаемый образ — без вопроса о владельце.</summary>
+    private async Task RemoveAsync(string blobPath, CancellationToken ct)
     {
         await inner.DeleteAsync(blobPath, ct);
 
@@ -153,8 +213,9 @@ public class RegisteredBlobStorage(
             try
             {
                 // Тем же путём, что и любой файл: образ — такой же объект с записью в реестре.
-                // Своего образа у него нет, так что глубже одного шага это не уходит.
-                await DeleteAsync(image, CancellationToken.None);
+                // Своего образа у него нет, так что глубже одного шага это не уходит. Владелец
+                // образа — владелец оригинала, а право удалить оригинал уже проверено.
+                await RemoveAsync(image, CancellationToken.None);
             }
             catch (Exception ex)
             {
@@ -163,16 +224,41 @@ public class RegisteredBlobStorage(
         }
     }
 
-    /// <summary>Значится ли путь за приложением. Единственный вопрос, ради которого заведён реестр.</summary>
-    private async Task<bool> IsKnownAsync(string blobPath, CancellationToken ct)
+    /// <summary>
+    /// Значится ли путь за приложением — и за этим владельцем. Единственный вопрос, ради которого
+    /// заведён реестр.
+    /// </summary>
+    private async Task<bool> OwnsAsync(string blobPath, string owner, CancellationToken ct)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        return await db.BlobRegistry.AsNoTracking().AnyAsync(e => e.Path == blobPath, ct);
+        return await Owned(db, owner).AnyAsync(e => e.Path == blobPath, ct);
     }
 
-    private async Task RegisterAsync(string path, string? fileName, string? mimeType)
+    private async Task<string?> OwnerOfAsync(string blobPath, CancellationToken ct)
     {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.BlobRegistry.AsNoTracking()
+            .Where(e => e.Path == blobPath).Select(e => e.Owner).FirstOrDefaultAsync(ct);
+    }
+
+    /// <summary>Записи этого владельца; <see cref="BlobOwner.Any" /> — все (резервная копия).</summary>
+    private static IQueryable<BlobRegistryEntry> Owned(AppDbContext db, string owner)
+    {
+        var entries = db.BlobRegistry.AsNoTracking();
+        return owner == BlobOwner.Any ? entries : entries.Where(e => e.Owner == owner);
+    }
+
+    /// <param name="restoring">Восстановление копии: запись, уцелевшая на этом пути, получает владельца
+    /// из копии. Обычная запись путь не повторяет (он новый), и владельца не меняет никто.</param>
+    private async Task RegisterAsync(string path, string owner, string? fileName, string? mimeType, bool restoring)
+    {
+        // «Любой» — вопрос копии, а не владелец: записать его значило бы открыть файл всем дверям. Отказ
+        // ДО записи в реестр, но уже после хранилища: объект ляжет сиротой, его заберёт уборка.
+        if (owner == BlobOwner.Any)
+            throw new ArgumentException("Файл кладётся от имени владельца, а не «любого».", nameof(owner));
+
         // Токена запроса здесь СОЗНАТЕЛЬНО нет. Объект к этому моменту уже в хранилище, и отмена
         // (клиент отключился сразу после того, как большая загрузка дошла) сорвала бы ровно ту
         // запись, ради которой выбран порядок «сначала хранилище, потом реестр»: файл лёг бы
@@ -185,9 +271,17 @@ public class RegisteredBlobStorage(
             // Повтор — не ошибка: PutAsync восстановления кладёт объект на прежний путь, а он мог
             // быть записан раньше. Проверяем до вставки, чтобы не ловить нарушение уникальности как
             // исключение там, где это штатный ход.
-            if (await db.BlobRegistry.AnyAsync(e => e.Path == path)) return;
+            if (await db.BlobRegistry.FirstOrDefaultAsync(e => e.Path == path) is { } known)
+            {
+                if (restoring && known.Owner != owner)
+                {
+                    known.RestoreOwner(owner);
+                    await db.SaveChangesAsync();
+                }
+                return;
+            }
 
-            db.BlobRegistry.Add(BlobRegistryEntry.Create(path, fileName, mimeType));
+            db.BlobRegistry.Add(BlobRegistryEntry.Create(path, owner, fileName, mimeType));
             await db.SaveChangesAsync();
         }
         catch (DbUpdateException ex) when (DbFailure.IsUniqueViolation(ex))

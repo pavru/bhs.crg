@@ -27,6 +27,9 @@ namespace BHS.CRG.Tests.Integration;
 [Collection("Integration")]
 public class PrintProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
 {
+    // Оригиналы тесты кладут от имени ядра; служба читает от имени того, кто спрашивает (ТЗ CORE-37.2).
+    private const string Owner = BlobOwner.Core;
+
     public async Task InitializeAsync()
     {
         await fixture.ResetDatabaseAsync();
@@ -239,19 +242,19 @@ public class PrintProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var original = await UploadWideBookAsync();
         var own = await CreateAsync("Узкий");
 
-        Assert.Equal(RenditionLayoutProfile.SystemId, (await store.EnsureAsync(original, default)).LayoutProfileId);
+        Assert.Equal(RenditionLayoutProfile.SystemId, (await store.EnsureAsync(original, Owner, default)).LayoutProfileId);
 
-        var named = await store.RebuildAsync(original, own.Id, default);
+        var named = await store.RebuildAsync(original, Owner, own.Id, default);
         Assert.Equal((own.Id, own.Stamp), (named.LayoutProfileId, named.LayoutStamp));
         Assert.Contains("Узкий", named.LayoutApplied);
 
-        Assert.Equal(own.Id, (await store.RebuildAsync(original, null, default)).LayoutProfileId);
+        Assert.Equal(own.Id, (await store.RebuildAsync(original, Owner, null, default)).LayoutProfileId);
 
-        await Assert.ThrowsAsync<NotFoundException>(() => store.RebuildAsync(original, Guid.NewGuid(), default));
+        await Assert.ThrowsAsync<NotFoundException>(() => store.RebuildAsync(original, Owner, Guid.NewGuid(), default));
         Assert.Equal(own.Id, (await RecordAsync(original)).LayoutProfileId);
 
         await DeleteAsync(own.Id);
-        Assert.Equal(RenditionLayoutProfile.SystemId, (await store.RebuildAsync(original, null, default)).LayoutProfileId);
+        Assert.Equal(RenditionLayoutProfile.SystemId, (await store.RebuildAsync(original, Owner, null, default)).LayoutProfileId);
     }
 
     /// <summary>
@@ -262,10 +265,10 @@ public class PrintProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
     public async Task Правка_профиля_старит_вид_при_чтении_а_запись_не_трогает()
     {
         var store = Store();
-        var port = new ModuleRenditionsPort(store, NullLogger<ModuleRenditionsPort>.Instance);
+        var port = new ModuleRenditionsPort(store, Owner, NullLogger<ModuleRenditionsPort>.Instance);
         var original = await UploadWideBookAsync();
         var own = await CreateAsync("Узкий");
-        var built = await store.RebuildAsync(original, own.Id, default);
+        var built = await store.RebuildAsync(original, Owner, own.Id, default);
 
         Assert.Equal(new ModuleRenditionLayout(ModuleLayoutOutcome.Applied, own.Id, "Узкий", ModuleLayoutProfileState.Current),
             Layout(await port.FindAsync(original)));
@@ -291,10 +294,10 @@ public class PrintProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
     public async Task Удаление_своего_профиля_оставляет_записи_видов()
     {
         var store = Store();
-        var port = new ModuleRenditionsPort(store, NullLogger<ModuleRenditionsPort>.Instance);
+        var port = new ModuleRenditionsPort(store, Owner, NullLogger<ModuleRenditionsPort>.Instance);
         var original = await UploadWideBookAsync();
         var own = await CreateAsync("Узкий");
-        await store.RebuildAsync(original, own.Id, default);
+        await store.RebuildAsync(original, Owner, own.Id, default);
 
         await DeleteAsync(own.Id);
 
@@ -311,10 +314,10 @@ public class PrintProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
     public async Task Книга_со_своей_раскладкой_профиля_не_помнит()
     {
         var store = Store();
-        var port = new ModuleRenditionsPort(store, NullLogger<ModuleRenditionsPort>.Instance);
+        var port = new ModuleRenditionsPort(store, Owner, NullLogger<ModuleRenditionsPort>.Instance);
         var original = await Blobs.UploadAsync("счёт.xlsx", new MemoryStream(Workbook(Words)), "application/octet-stream");
 
-        var record = await store.EnsureAsync(original, default);
+        var record = await store.EnsureAsync(original, Owner, default);
         await UpdateAsync(RenditionLayoutProfile.SystemId, RenditionLayoutProfile.SystemName, 9);
 
         Assert.Equal((RenditionLayout.BookOwn, (Guid?)null), (record.Layout, record.LayoutProfileId));
@@ -328,11 +331,13 @@ public class PrintProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
     [Fact]
     public async Task Вписанный_до_профилей_вид_называется_построенным_до_профилей()
     {
-        var port = new ModuleRenditionsPort(Store(), NullLogger<ModuleRenditionsPort>.Instance);
+        var port = new ModuleRenditionsPort(Store(), Owner, NullLogger<ModuleRenditionsPort>.Instance);
         const string original = "files/2026/10/вписан-константой.xlsx";
         using (var scope = fixture.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            // Оригинал значится в реестре за владельцем: запись образа показывается только владельцу (ТЗ CORE-37.2).
+            db.BlobRegistry.Add(BlobRegistryEntry.Create(original, Owner));
             db.Renditions.Add(RenditionRecord.Built(original, "files/2026/10/rendition.pdf", 1, [], "gotenberg 8.37.0",
                 RenditionLayout.Applied, """{"profile":"default","fit":"width"}"""));
             await db.SaveChangesAsync();
@@ -349,12 +354,14 @@ public class PrintProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
     [Fact]
     public async Task Потерянный_текст_у_книги_со_своей_раскладкой_объяснён()
     {
-        var port = new ModuleRenditionsPort(Store(), NullLogger<ModuleRenditionsPort>.Instance);
+        var port = new ModuleRenditionsPort(Store(), Owner, NullLogger<ModuleRenditionsPort>.Instance);
         var lost = $"{RenditionPostconditions.LostTextNote}: из слов в ячейках найдено 80 %. Сверяйте с исходным файлом.";
         const string authored = "files/2026/10/своя-раскладка.xlsx", laid = "files/2026/10/по-профилю.xlsx";
         using (var scope = fixture.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.BlobRegistry.Add(BlobRegistryEntry.Create(authored, Owner));
+            db.BlobRegistry.Add(BlobRegistryEntry.Create(laid, Owner));
             db.Renditions.Add(RenditionRecord.Built(authored, "files/2026/10/a.pdf", 1,
                 [lost, "Страниц: 2, из них без текста: 1."], "gotenberg 8.37.0", RenditionLayout.BookOwn));
             db.Renditions.Add(RenditionRecord.Built(laid, "files/2026/10/b.pdf", 1, [lost], "gotenberg 8.37.0",
@@ -372,10 +379,10 @@ public class PrintProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
     public async Task Не_книга_профиля_не_помнит()
     {
         var store = Store();
-        var port = new ModuleRenditionsPort(store, NullLogger<ModuleRenditionsPort>.Instance);
+        var port = new ModuleRenditionsPort(store, Owner, NullLogger<ModuleRenditionsPort>.Instance);
         var word = await Blobs.UploadAsync("письмо.docx", new MemoryStream(Document()), "application/octet-stream");
 
-        var record = await store.EnsureAsync(word, default);
+        var record = await store.EnsureAsync(word, Owner, default);
 
         Assert.Equal((RenditionLayout.NotBook, (Guid?)null, (string?)null), (record.Layout, record.LayoutProfileId, record.LayoutStamp));
         Assert.Equal(new ModuleRenditionLayout(ModuleLayoutOutcome.NotBook, null, null, null), Layout(await port.FindAsync(word)));

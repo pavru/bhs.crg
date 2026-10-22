@@ -20,16 +20,27 @@ namespace BHS.CRG.Domain.Storage;
 /// на вид. Реестр же наполняется в самом хранилище, на записи, поэтому покрывает всё, что записано,
 /// по построению.
 ///
-/// Владельца здесь сознательно НЕТ. Уровни каталога правами не управляют (решение по разделу 5
-/// аудита, записано в CLAUDE.md): пользователи суть сотрудники одной компании с равным допуском.
-/// Значит, вопрос стоит «наш ли это объект», а не «чей он», и хранить ответ на второй вопрос
-/// означало бы завести половину модели доступа, которой в системе нет. Когда учётная запись будет
-/// выдана кому-то вне компании, изоляция появится здесь — но целиком и осознанно.
+/// <para><b>Владелец — ядро или код модуля</b> (ТЗ CORE-37.2). Сначала его здесь сознательно не было:
+/// пользователи суть сотрудники одной компании с равным допуском (решение #675, записано в
+/// CLAUDE.md), и вопрос стоял «наш ли это объект», а не «чей он». Условие пересмотра тогда же было
+/// записано — изоляция появится «целиком и осознанно». Для файлов МОДУЛЕЙ оно исполнено: модуль
+/// <c>work</c> изолирует отчёты построчно (WORK-39), и фото чужого отчёта не должно открываться общим
+/// адресом ядра. Решение #675 для данных ядра в силе — файлы ядра между пользователями не делятся.</para>
+///
+/// <para>Владельца назначает тот, кто кладёт файл, и после записи он не меняется — кроме
+/// восстановления копии, которое возвращает файлу владельца из архива. Файлы, лежавшие до перехода,
+/// получили владельца разовым сбором (<c>BlobRegistryOwnerBackfill</c>).</para>
 /// </summary>
 public class BlobRegistryEntry : Entity
 {
     /// <summary>Полный путь вида <c>{бакет}/{ГГГГ/ММ/ДД}/{guid}_{имя}</c> — то, что отдаёт хранилище.</summary>
     public string Path { get; private set; } = default!;
+
+    /// <summary>
+    /// Чей файл: <see cref="BlobOwner.Core" /> или код модуля. Выдача сверяет его на каждом чтении
+    /// (<c>RegisteredBlobStorage</c>): общий адрес отдаёт только файлы ядра, порт модуля — только свои.
+    /// </summary>
+    public string Owner { get; private set; } = BlobOwner.Core;
 
     /// <summary>Имя файла и тип — только для разбора инцидентов и уборки; на проверку не влияют.</summary>
     public string? FileName { get; private set; }
@@ -37,15 +48,29 @@ public class BlobRegistryEntry : Entity
 
     private BlobRegistryEntry() { }
 
-    public static BlobRegistryEntry Create(string path, string? fileName = null, string? mimeType = null)
+    public static BlobRegistryEntry Create(
+        string path, string owner = BlobOwner.Core, string? fileName = null, string? mimeType = null)
         => new()
         {
             Path = path,
+            Owner = ValidOwner(owner),
             // Длину режем здесь, а не в конфигурации EF: обрезка на сохранении молча испортила бы
             // путь, по которому потом ищут, — а имя и тип на поиск не влияют, их обрезать безопасно.
             FileName = Truncate(fileName, 512),
             MimeType = Truncate(mimeType, 128),
         };
+
+    /// <summary>
+    /// Вернуть владельца из резервной копии: восстановление кладёт файл на прежний путь, и запись о
+    /// нём могла уцелеть с другим владельцем. Больше владельца не меняет никто.
+    /// </summary>
+    public void RestoreOwner(string owner) => Owner = ValidOwner(owner);
+
+    // «Любой» — вопрос, а не владелец: записанный, он открыл бы файл всем дверям сразу.
+    private static string ValidOwner(string owner) =>
+        BlobOwner.IsValid(owner)
+            ? owner
+            : throw new ArgumentException($"Недопустимый владелец файла: «{owner}».", nameof(owner));
 
     private static string? Truncate(string? value, int max)
         => value is null || value.Length <= max ? value : value[..max];

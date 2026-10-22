@@ -31,7 +31,13 @@ public class TypstGenerator(IBlobStorage blob, ILogger<TypstGenerator> log) : ID
             // Поля-изображения (data-URI) декодируем в файлы assets/ и подставляем пути,
             // чтобы шаблон мог обращаться к ним через image(it.Поле). Размер/выравнивание — из самого
             // значения-объекта {src, width, ...} (issue #246).
-            var dataJson = await TypstImageMaterializer.MaterializeAsync(request.Context.Data, tmpDir, blob, ct: ct);
+            // Картинка, которой хранилище не отдало, — отказ с именем поля, и ДО компиляции (ТЗ CORE-37.2):
+            // шаблон, выводящий её под условием, собрался бы, и PDF без подписи вышел бы молча.
+            var unreadable = new List<string>();
+            var dataJson = await TypstImageMaterializer.MaterializeAsync(
+                request.Context.Data, tmpDir, blob, unreadable: unreadable, ct: ct);
+            if (unreadable.Count > 0)
+                throw new UnreadableImagesException(unreadable);
 
             // Поля-вложения ({$type:"file"}) скачиваем из blob-хранилища в assets/ и подставляем путь+
             // pageCount, чтобы шаблон вставлял их через image(it.Поле.src[, page: n]) — в т.ч. страницы PDF.

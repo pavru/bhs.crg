@@ -102,7 +102,7 @@ public class OrphanBlobCleanup(
         // Реестр тянем проекцией: путь, дата и имя — всё, что нужно, а строк там столько же, сколько
         // объектов в бакете.
         var registered = await db.BlobRegistry.AsNoTracking()
-            .Select(e => new { e.Path, e.CreatedAt, e.FileName })
+            .Select(e => new { e.Path, e.CreatedAt, e.FileName, e.Owner })
             .ToListAsync(ct);
 
         var unreferenced = registered.Where(e => !live.IsLive(e.Path)).ToList();
@@ -141,7 +141,7 @@ public class OrphanBlobCleanup(
         foreach (var entry in batch)
         {
             long? value;
-            try { value = await blobs.GetSizeAsync(entry.Path, ct); }
+            try { value = await blobs.GetSizeAsync(entry.Path, entry.Owner, ct); }
             catch (BlobStorageUnavailableException ex)
             {
                 firstRefusal ??= ex;
@@ -175,7 +175,7 @@ public class OrphanBlobCleanup(
         // Различаем пробой по ЗАВЕДОМО живому объекту: на него ссылается база, значит он должен
         // быть на месте. Не нашлась ни одна проба — перед нами не то хранилище, о котором говорит
         // база, а не пропавшие файлы.
-        if (missing > 0 && !await StorageAnswersAsync(registered.Where(e => live.IsLive(e.Path)).Select(e => e.Path), ct))
+        if (missing > 0 && !await StorageAnswersAsync(registered.Where(e => live.IsLive(e.Path)).Select(e => (e.Path, e.Owner)), ct))
         {
             log.LogWarning("Уборка хранилища отменена: хранилище не отвечает (не удалось получить размер "
                 + "ни одного из проверенных объектов, на которые ссылается база)");
@@ -199,7 +199,7 @@ public class OrphanBlobCleanup(
             {
                 // Через то же хранилище, что и вся остальная работа: оно убирает объект и снимает
                 // запись реестра одним действием. Обойди мы его — реестр обещал бы удалённое.
-                await blobs.DeleteAsync(entry.Path, ct);
+                await blobs.DeleteAsync(entry.Path, entry.Owner, ct);
                 deleted++;
                 // Байты считаем ТОЛЬКО за удалённое. Складывать их заранее было ошибкой: отказ
                 // хранилища на каждом объекте давал «удалено 0, освобождено 1,2 ГБ».
@@ -229,15 +229,15 @@ public class OrphanBlobCleanup(
     /// нет вовсе) — считаем, что доступно: иначе первая же уборка на пустой системе встала бы.
     /// Отказ на пробе — как молчание этой пробы, но не всех (issue #1427).
     /// </summary>
-    private async Task<bool> StorageAnswersAsync(IEnumerable<string> livePaths, CancellationToken ct)
+    private async Task<bool> StorageAnswersAsync(IEnumerable<(string Path, string Owner)> live, CancellationToken ct)
     {
         var probed = 0;
-        foreach (var path in livePaths.Take(ProbeSize))
+        foreach (var (path, owner) in live.Take(ProbeSize))
         {
             probed++;
             try
             {
-                if (await blobs.GetSizeAsync(path, ct) is not null) return true;
+                if (await blobs.GetSizeAsync(path, owner, ct) is not null) return true;
             }
             catch (BlobStorageUnavailableException ex)
             {

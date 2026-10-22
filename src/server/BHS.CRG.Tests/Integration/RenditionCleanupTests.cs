@@ -33,6 +33,9 @@ namespace BHS.CRG.Tests.Integration;
 [Collection("Integration")]
 public class RenditionCleanupTests(IntegrationTestFixture fixture) : IAsyncLifetime
 {
+    // Оригиналы тесты кладут от имени ядра; служба читает от имени того, кто спрашивает (ТЗ CORE-37.2).
+    private const string Owner = BlobOwner.Core;
+
     public async Task InitializeAsync() => await fixture.ResetDatabaseAsync();
     public Task DisposeAsync() => Task.CompletedTask;
 
@@ -76,7 +79,7 @@ public class RenditionCleanupTests(IntegrationTestFixture fixture) : IAsyncLifet
     public async Task Оригинал_от_которого_отказался_владелец_осиротевает_вместе_с_образом()
     {
         var original = await UploadBookAsync();
-        var record = await Store(StubConverter.Converts(Words)).EnsureAsync(original, CancellationToken.None);
+        var record = await Store(StubConverter.Converts(Words)).EnsureAsync(original, Owner, CancellationToken.None);
 
         var report = await CleanAsync();
 
@@ -94,7 +97,7 @@ public class RenditionCleanupTests(IntegrationTestFixture fixture) : IAsyncLifet
     {
         var original = await UploadBookAsync();
         await HoldAsync(original);
-        var record = await Store(StubConverter.Converts(Words)).EnsureAsync(original, CancellationToken.None);
+        var record = await Store(StubConverter.Converts(Words)).EnsureAsync(original, Owner, CancellationToken.None);
 
         var report = await CleanAsync();
 
@@ -113,8 +116,8 @@ public class RenditionCleanupTests(IntegrationTestFixture fixture) : IAsyncLifet
         var original = await UploadBookAsync();
         await HoldAsync(original);
         var store = Store(StubConverter.Converts(Words));
-        var before = await store.EnsureAsync(original, CancellationToken.None);
-        var after = await store.RebuildAsync(original, null, CancellationToken.None);
+        var before = await store.EnsureAsync(original, Owner, CancellationToken.None);
+        var after = await store.RebuildAsync(original, Owner, null, CancellationToken.None);
         Assert.True(Storage.Exists(before.ImageBlobPath!));
 
         var report = await CleanAsync();
@@ -130,7 +133,7 @@ public class RenditionCleanupTests(IntegrationTestFixture fixture) : IAsyncLifet
     {
         var original = await UploadBookAsync();
         await HoldAsync(original);
-        var record = await Store(StubConverter.Converts(Words)).EnsureAsync(original, CancellationToken.None);
+        var record = await Store(StubConverter.Converts(Words)).EnsureAsync(original, Owner, CancellationToken.None);
 
         var copy = new MemoryStream();
         using (var scope = fixture.Services.CreateScope())
@@ -163,7 +166,7 @@ public class RenditionCleanupTests(IntegrationTestFixture fixture) : IAsyncLifet
         Assert.Equal(0, await RecordsAsync());
 
         var converter = StubConverter.Converts(Words, version: "9.0.0");
-        var rebuilt = await Store(converter).EnsureAsync(original, CancellationToken.None);
+        var rebuilt = await Store(converter).EnsureAsync(original, Owner, CancellationToken.None);
 
         Assert.Equal(1, converter.Conversions);
         Assert.Equal(RenditionState.Built, rebuilt.State);

@@ -5,7 +5,7 @@ using BHS.CRG.Infrastructure.Storage;
 namespace BHS.CRG.Tests.Integration;
 
 /// <summary>In-memory blob storage substitute for integration tests.</summary>
-public class FakeBlobStorage : IBlobStorage
+public class FakeBlobStorage : OwnerBlindBlobStorage
 {
     private readonly ConcurrentDictionary<string, byte[]> _store = new();
 
@@ -54,7 +54,7 @@ public class FakeBlobStorage : IBlobStorage
     public int Uploads => _uploads;
     private int _uploads;
 
-    public async Task<string> UploadAsync(string fileName, Stream content, string contentType, CancellationToken ct = default)
+    public override async Task<string> UploadAsync(string fileName, Stream content, string contentType, CancellationToken ct = default)
     {
         Interlocked.Increment(ref _uploads);
         // Раскладка — та же, что у настоящего хранилища (issue #672). Прежняя выдумка
@@ -68,7 +68,7 @@ public class FakeBlobStorage : IBlobStorage
         return path;
     }
 
-    public Task<Stream> DownloadAsync(string blobPath, CancellationToken ct = default)
+    public override Task<Stream> DownloadAsync(string blobPath, CancellationToken ct = default)
     {
         // Режимы недоступности — и для чтения: подделка, у которой размер «нет», а файл отдаётся,
         // проверяла бы поведение, которого у настоящего хранилища не бывает.
@@ -81,14 +81,14 @@ public class FakeBlobStorage : IBlobStorage
         throw new KeyNotFoundException($"Blob not found: {blobPath}");
     }
 
-    public Task DeleteAsync(string blobPath, CancellationToken ct = default)
+    public override Task DeleteAsync(string blobPath, CancellationToken ct = default)
     {
         if (Offline || FailDeletes) throw new IOException("Хранилище недоступно");
         _store.TryRemove(blobPath, out _);
         return Task.CompletedTask;
     }
 
-    public async Task PutAsync(string blobPath, Stream content, string contentType, CancellationToken ct = default)
+    public override async Task PutAsync(string blobPath, Stream content, string contentType, CancellationToken ct = default)
     {
         using var ms = new MemoryStream();
         await content.CopyToAsync(ms, ct);
@@ -102,7 +102,7 @@ public class FakeBlobStorage : IBlobStorage
     public int SizeQueries => _sizeQueries;
     private int _sizeQueries;
 
-    public Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
+    public override Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
     {
         Interlocked.Increment(ref _sizeQueries);
         if (Offline || blobPath == RefuseSizeOf)

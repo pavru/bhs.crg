@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Domain.Storage;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -106,7 +107,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
                 Stream? blobStream = null;
                 try
                 {
-                    blobStream = await blob.DownloadAsync(blobPath, ct);
+                    blobStream = await blob.DownloadAsync(blobPath, BlobOwner.Any, ct);
                 }
                 catch (Exception ex) when (!ct.IsCancellationRequested)
                 {
@@ -290,7 +291,7 @@ public partial class BackupService(AppDbContext db, IBlobStorage blob, ILogger<B
             // — то, что администратор обязан увидеть до копии, а не в её паспорте после. Ловится
             // только отказ хранилища: сбой базы в реестре хранилищем не назван и уходит как есть.
             long? size;
-            try { size = await blob.GetSizeAsync(path, ct); }
+            try { size = await blob.GetSizeAsync(path, BlobOwner.Any, ct); }
             catch (BlobStorageUnavailableException ex)
             {
                 // Человеку — наш текст, причина (403, бакета нет, обрыв) — только здесь: отказ 409
