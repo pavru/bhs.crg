@@ -25,6 +25,14 @@
 - [ ] 2.5 `CommonDataEndpoints.cs`: create, update, delete, archive записи типа `ВариантРаботы` — 409 с
   адресом двери; `/purge` не трогается [WORK-49]. Проверка — тест на каждый из четырёх адресов
 
+- [ ] 2.6 `Api/Endpoints/Core/WorkTypeEndpoints.cs` — дверь `/api/work-types` под `core.worktypes.edit`
+  по тому же правилу, `If-Match` на `PUT`, `DELETE`, `archive`, `unarchive`; `/api/common-data`
+  отказывает 409 для `ВидРаботы` [WORK-59] [CORE-8] [AUTH-9]. Проверка — `WorkTypeEndpointsTests`: 403
+  с одним `core.catalog.edit`, 400/409 по `If-Match`, отказ общего адреса; `EndpointGateInventoryTests`
+- [ ] 2.7 «Инженер ИД» получает `core.worktypes.edit` (`SystemRoles.cs:56`) [WORK-59]. Проверка — тест
+  состава `/api/account/access` по системным ролям; клиент показывает действия видов работ по праву
+  двери (`CatalogResource.tsx`)
+
 ## 3. Порт модулю
 
 - [ ] 3.1 `BHS.CRG.Modules/Ports/IModuleWorkTypes.cs` и `Api/Modules/Ports/ModuleWorkTypesPort.cs`:
