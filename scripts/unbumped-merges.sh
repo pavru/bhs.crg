@@ -18,6 +18,10 @@
 # `[skip bump]` в заголовке коммита — «это слияние версию не двигает». Так помечен коммит самого
 # повышения; так же можно пометить слияние в окне «Squash and merge».
 #
+# Слияние, тронувшее ТОЛЬКО `docs/tz/**` и `openspec/**`, версию не двигает само, без пометки
+# (scripts/planning-only.sh): планирование идёт сериями PR, и пометку в окне слияния забывали бы.
+# Метки на таком PR не спрашиваются — `version:minor` на нём ничего не значит.
+#
 # ЗАЧЕМ `before`. Ручная правка версии — тоже граница, и всё слитое до неё считается учтённым. Для
 # PATCH это верно: номер вырос. Но метка `version:minor` на PR, слитом ДО ручной правки и не
 # дождавшемся повышения (прогон был красным, или правку слили следом), пропала бы без следа — если
@@ -40,13 +44,33 @@ version_change() { # version_change РЕВИЗИЯ → последний ком
     git log -1 --first-parent --format=%H -G'^[[:space:]]*<Version>[0-9]' "$1" -- "$name"
 }
 
-# `|| true`: grep, отсеявший всё, выходит с 1, а скрипт идёт под errexit.
+# Слияние сравниваем с ПЕРВЫМ родителем: у merge-коммита это master до слияния, и диф — ровно то,
+# что слияние принесло. Ответ «не удалось» (код 2) — отказ всего скрипта, а не «обычное слияние»:
+# молча поднятая версия выглядела бы нормой, а Release на этом коммите отказал бы без объяснения.
+# Отказ проходит наружу через pipefail: `exit` внутри конвейера выходит лишь из его подоболочки.
+# Первый родитель у каждого слияния в диапазоне есть всегда: диапазоны здесь вида «граница..X», и
+# самое старое слияние в них — прямой потомок границы по первым родителям. Корень истории в них не
+# попадает. В мелком клоне без границы скрипт отказывает раньше, на её поиске.
+#
+# PLANNING_ONLY подменяет скрипт — для проверок отказа (bump-version.tests.sh).
+PLANNING_ONLY="${PLANNING_ONLY:-$DIR/planning-only.sh}"
 merges() { # merges ВИД ДИАПАЗОН
-    git log --first-parent --format='%H %s' "$2" | { grep -vF "$SKIP" || true; } | sed "s/^/$1 /"
+    git log --first-parent --format='%H %s' "$2" | while read -r sha subject; do
+        case "$subject" in *"$SKIP"*) continue ;; esac
+        rc=0; "$PLANNING_ONLY" "$sha^" "$sha" || rc=$?
+        case $rc in
+            0) continue ;;
+            1) echo "$1 $sha $subject" ;;
+            *) echo "unbumped-merges: не удалось понять, что тронуло слияние ${sha:0:8}" >&2; exit 1 ;;
+        esac
+    done
 }
 
 tmp=$(mktemp)
-trap 'rm -f "$tmp"' EXIT
+# Ответ копится в файле и печатается только целиком: отказ на середине списка иначе оставил бы в
+# stdout его начало, и читающий без кода возврата принял бы обрывок за полный список.
+out=$(mktemp)
+trap 'rm -f "$tmp" "$out"' EXIT
 minor_at() { # minor_at КОММИТ → «MAJOR.MINOR» версии в этом коммите; пусто, если не разобралась
     git show "$1:./$name" > "$tmp" 2>/dev/null || return 0
     VERSION_FILE="$tmp" "$DIR/get-version.sh" 2>/dev/null | cut -d. -f1,2 || true
@@ -66,9 +90,10 @@ if ! git log -1 --format=%s "$base" | grep -qF "$SKIP" && git rev-parse -q --ver
         if [ -z "$was" ] || [ -z "$now" ]; then
             echo "unbumped-merges: версия в ${prev:0:8} или ${base:0:8} не разобралась — слияния до ручной правки не проверены" >&2
         elif [ "$was" = "$now" ]; then
-            merges before "$prev..$base^"
+            merges before "$prev..$base^" >> "$out"
         fi
     fi
 fi
 
-merges after "$base..HEAD"
+merges after "$base..HEAD" >> "$out"
+cat "$out"
