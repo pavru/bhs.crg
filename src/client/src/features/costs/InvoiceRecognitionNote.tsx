@@ -5,6 +5,7 @@ import { useStartRecognition, type InvoiceRecognition } from '@/shared/api/invoi
 import { useInvoiceDelete } from './invoiceDelete';
 import { failureNote, unusedLinesNote, type FieldOffer } from './recognition';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { UnplacedReads } from './UnplacedReads';
 
 /**
  * Распознавание скана в форме счёта (issue #1077): чип «Распознаётся…», полоса отказа, замечания.
@@ -119,18 +120,27 @@ export function RecognitionStart({ invoiceId, recognition, explain }: {
   );
 }
 
-/** Замечания распознавания и строки, которые в счёт не легли, — первым блоком прокручиваемой части. */
+/**
+ * Замечания распознавания, строки, которые в счёт не легли, и прочитанное без места в счёте (#1484) —
+ * первым блоком прокручиваемой части. Блок показан и ради одного непустого списка: распознавание без
+ * замечаний, но с колонкой «для наборов данных», иначе молчало бы.
+ */
 export function RecognitionNotes({ recognition }: { recognition: InvoiceRecognition | undefined }) {
-  const notes = recognition?.state === 'done' ? recognition.notes : [];
+  const done = recognition?.state === 'done';
+  const notes = done ? recognition.notes : [];
   const lines = unusedLinesNote(recognition);
-  if (notes.length === 0 && !lines) return null;
+  const unplaced = done ? recognition.unplaced : null;
+  if (notes.length === 0 && !lines && !unplaced?.length) return null;
   return (
-    <section className="space-y-1 text-xs text-warning">
+    <section className="space-y-1 text-xs">
       <h2 className="text-sm font-medium text-fg2">Замечания распознавания</h2>
-      <ul className="list-disc pl-4 space-y-0.5">
-        {notes.map(note => <li key={note}>{note}</li>)}
-        {lines && <li>{lines}</li>}
-      </ul>
+      {(notes.length > 0 || lines) && (
+        <ul className="list-disc pl-4 space-y-0.5 text-warning">
+          {notes.map(note => <li key={note}>{note}</li>)}
+          {lines && <li>{lines}</li>}
+        </ul>
+      )}
+      <UnplacedReads list={unplaced} />
     </section>
   );
 }
