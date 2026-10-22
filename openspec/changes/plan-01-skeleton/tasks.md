@@ -6,8 +6,9 @@
   `BHS.CRG.Domain`), вписать в `BHS.CRG.slnx` и `BHS.CRG.Api.csproj` [CORE-1]. Проверка —
   `cd src/server && dotnet build BHS.CRG.slnx` без ошибок, `ModuleBoundaryTests` (с `plan` в `InlineData`)
   зелёный
-- [ ] 1.2 `PlanModule.cs`: код `plan`, название «Планирование», `RoutePrefixes = ["/api/plan"]`, пустая
-  группа за воротами; вписать в `DeliveredModules.cs` и `deploy/.env.example` [CORE-1] [AUTH-17].
+- [ ] 1.2 `PlanModule.cs`: код `plan`, название «Планирование», `RoutePrefixes = ["/api/plan"]`,
+  `UsesSections = [Constructions, Catalog]`, пустая группа за воротами; вписать в `DeliveredModules.cs` и
+  `deploy/.env.example` [CORE-1] [AUTH-17] [AUTH-16.1].
   Проверка — `EndpointGateInventoryTests` и `ModulePrefixCoverageTests` зелёные
 - [ ] 1.3 Объявить `plan.estimate.read`, `plan.estimate.edit` с объяснениями и `ReadAllMark` [PLAN-23].
   Проверка — `PlanOnlyHostTests`: число прав `plan.` названо в тесте с объяснением
@@ -28,7 +29,8 @@
 - [ ] 3.2 Миграция `Initial`:
   `dotnet ef migrations add Initial --project src/server/BHS.CRG.Modules.Plan --context PlanDbContext`.
   Проверка — на пересозданной базе старт применяет миграции ядра, затем `plan`
-- [ ] 3.3 Дописать `plan` в `ModuleReferenceInventoryTests`, `ModuleFileInventoryTests`, `CoreSectionsTests`.
+- [ ] 3.3 Дописать `plan` в `ModuleReferenceInventoryTests`, `ModuleFileInventoryTests`, `CoreSectionsTests`
+  (точное утверждение, как у `costs`: `Assert.Equal(["constructions", "catalog"], …)`).
   Проверка — переписи зелёные
 - [ ] 3.4 Команду миграции модуля вписать в `CLAUDE.md` и `AGENTS.md` одним коммитом. Проверка —
   `AgentRulesCopyTests` зелёный
