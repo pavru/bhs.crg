@@ -41,8 +41,8 @@ Issue #1473 (в организации, если есть, показываем 
   `Application/Schema/DirectoryRoleDefaults.cs`; порт `BHS.CRG.Modules/Ports/IModuleCatalog.cs` и его
   реализации `Api/Modules/Ports/ModuleCatalogPort.cs`, `ModuleCatalogIntakePort.cs`,
   `ModuleOwnCatalogPort.cs`; `Modules.Costs/CostsDirectories.cs` (тэг в нуждах модуля, необязательный).
-- **Клиент:** выбор поставщика и плательщика (`features/costs/InvoiceForm.tsx`) — полное название вторым
-  планом, по ответу В1; редактор схем показывает новый тэг сам (`GET /api/tags`).
+- **Клиент:** выбор поставщика и плательщика (`features/costs/InvoiceForm.tsx`) — полное название второй
+  строкой пункта (решение В1); редактор схем показывает новый тэг сам (`GET /api/tags`).
 - **Данные:** миграции нет — тэг ставит правило умолчаний при старте; на копии базы заказчика сверить
   форму поля названия до слияния.
 - **Документы:** `docs/ADMIN_GUIDE.md` — тэг «Сокращённое название организации».
