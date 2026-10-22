@@ -26,22 +26,22 @@
 
 ## 2. PR 2: клиент — показ
 
-- [ ] 2.1 Три варианта макета свёрнутой строки и таблицы в Claude Design по разбору Дизайнера от
+- [x] 2.1 Три варианта макета свёрнутой строки и таблицы в Claude Design по разбору Дизайнера от
   18.10.2026; выбор владельца; ссылку вписать в `design.md` (`docs/UI.md`, «Новый экран: порядок»).
   Проверка — ссылка и выбранный вариант в `design.md`
-- [ ] 2.2 `InvoiceRecognitionNote.tsx`: строка «Ещё прочитано, в счёт не положено: N — Показать» без
+- [x] 2.2 `InvoiceRecognitionNote.tsx`: строка «Ещё прочитано, в счёт не положено: N — Показать» без
   окраски предупреждения; «Показать» раскрывает таблицу общим компонентом «где — ключ — значение —
   причина»; слова причин по коду; блок замечаний показывается и при одном непустом списке [COST-8].
   Проверка — компонентный тест: число, раскрытие, `null` и `[]` — строки нет
-- [ ] 2.3 `docs/ADMIN_GUIDE.md`, профиль «Счёт на оплату»: где в счёте видно, что колонка или поле не
+- [x] 2.3 `docs/ADMIN_GUIDE.md`, профиль «Счёт на оплату»: где в счёте видно, что колонка или поле не
   легли, и что значит каждая причина (оглавление — `cd docs/tools && npm run toc`, если менялись главы).
   Проверка — ревью PR
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~InvoiceScan|FullyQualifiedName~InvoiceFromScan|FullyQualifiedName~BackupManifest|FullyQualifiedName~ModuleDbContextInventory"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 3.5 Живые прогоны со счётом из скана (`invoices-smoke`, `invoice-lines-smoke`) зелёные
-- [ ] 3.6 Оба PR — метка `version:minor`; PR 2 — «Closes #1484»
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~InvoiceScan|FullyQualifiedName~InvoiceFromScan|FullyQualifiedName~BackupManifest|FullyQualifiedName~ModuleDbContextInventory"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.5 Живые прогоны со счётом из скана (`invoices-smoke`, `invoice-lines-smoke`) зелёные
+- [x] 3.6 Оба PR — метка `version:minor`; PR 2 — «Closes #1484»
