@@ -81,7 +81,9 @@ public class InvoiceScanHeaderTests
 
         var only = Assert.Single(plan.Candidates);
         Assert.Equal("СЧ-2", only.Value!.GetValue<string>());
-        Assert.Contains(plan.Notes, n => n.Contains("два поля профиля") && n.Contains("«НомерСчёта» «СЧ-1»"));
+        Assert.Equal(
+            InvoiceScanUnplaced.InHeader("НомерСчёта", "СЧ-1", InvoiceScanUnplaced.DuplicateKey, "Номер"),
+            Assert.Single(plan.Unplaced));
     }
 
     [Fact]
@@ -124,8 +126,8 @@ public class InvoiceScanHeaderTests
             RecognizedValues.Decimal(text));
 
     /// <summary>
-    /// О не легшем сказано: поля нет — одним замечанием; поле не заполняется — с причиной; служебный вход
-    /// и пустое — молча.
+    /// О не легшем сказано записями (issue #1484): поля нет — «no-field» с ключом как прочитан; поле не
+    /// заполняется — с причиной поля; служебный вход и пустое — молча.
     /// </summary>
     [Fact]
     public void О_не_легшем_сказано_с_причиной()
@@ -133,24 +135,26 @@ public class InvoiceScanHeaderTests
         var plan = InvoiceScanHeader.Of(
             new Dictionary<string, string?>
             {
-                ["Опечатка"] = "что-то",
+                ["Опечатка "] = "что-то",
                 ["Срок"] = "01.11.2026",
                 ["ИННПоставщика"] = "7701234567",
                 ["Пусто"] = null,
             },
             new Dictionary<string, ModuleFieldTarget?>
             {
-                ["Опечатка"] = null,
+                ["Опечатка "] = null,
                 ["Срок"] = new("Срок", ModuleTargetOrigin.Module, "date", "срок считает правило", "Оплатить до"),
                 ["ИННПоставщика"] = new("ИННПоставщика", ModuleTargetOrigin.Input, "string"),
                 ["Пусто"] = null,
             });
 
         Assert.Empty(plan.Candidates);
-        Assert.Equal(2, plan.Notes.Count);
-        Assert.Contains(plan.Notes, n => n.Contains("«Оплатить до» «01.11.2026» — срок считает правило"));
-        Assert.Contains(plan.Notes, n => n.Contains("«Опечатка» «что-то»") && n.Contains("нет поля с таким ключом"));
-        Assert.DoesNotContain(plan.Notes, n => n.Contains("Пусто") || n.Contains("7701234567"));
+        Assert.Equal(
+        [
+            new UnplacedRead(InvoiceScanUnplaced.Header, null, "Опечатка ", "что-то", InvoiceScanUnplaced.NoField),
+            new UnplacedRead(InvoiceScanUnplaced.Header, null, "Срок", "01.11.2026", InvoiceScanUnplaced.NotRecognizable,
+                "срок считает правило"),
+        ], plan.Unplaced);
     }
 
     /// <summary>

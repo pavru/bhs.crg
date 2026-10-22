@@ -91,6 +91,13 @@ public sealed class InvoiceRecognition
     /// </summary>
     public JsonDocument? Lines { get; private set; }
 
+    /// <summary>
+    /// Прочитанное, что в счёт не легло, — записями с причиной (issue #1484): где, ключ профиля, значение,
+    /// код причины. Пишется при каждом завершённом распознавании, при любом исходе строк.
+    /// <c>null</c> — распознавание до этого списка: «не знаем», а не «пусто».
+    /// </summary>
+    public JsonDocument? Unplaced { get; private set; }
+
     /// <summary>Оговорки исхода словами: «таблица не разобрана», «дата не прочитана».</summary>
     // Массивом, а не списком «только для чтения» над полем: EF заполняет свойство через найденное по
     // имени поле, и значение иного вида, чем само поле, при чтении строки даёт отказ приведения.
@@ -118,7 +125,7 @@ public sealed class InvoiceRecognition
         JobId = null;
         Outcome = InvoiceRecognitionOutcome.Pending;
         Reason = Error = Engine = null;
-        Values = Offers = Lines = null;
+        Values = Offers = Lines = Unplaced = null;
         Notes = [];
         StartedAt = DateTimeOffset.UtcNow;
         FinishedAt = null;
@@ -136,7 +143,7 @@ public sealed class InvoiceRecognition
 
     public void Finish(
         string? engine, JsonDocument values, JsonDocument? offers, JsonDocument? lines, IEnumerable<string> remarks,
-        string? imageBlobPath = null)
+        JsonDocument unplaced, string? imageBlobPath = null)
     {
         Outcome = InvoiceRecognitionOutcome.Done;
         ImageBlobPath = imageBlobPath;
@@ -145,6 +152,7 @@ public sealed class InvoiceRecognition
         Offers = offers;
         Lines = lines;
         Notes = [.. remarks];
+        Unplaced = unplaced;
         FinishedAt = DateTimeOffset.UtcNow;
     }
 }

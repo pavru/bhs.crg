@@ -2,25 +2,25 @@
 
 ## 1. PR 1: сервер — сбор и хранение
 
-- [ ] 1.1 `Endpoints/InvoiceScanUnplaced.cs`: запись `UnplacedRead` (место, номер строки, ключ, значение,
+- [x] 1.1 `Endpoints/InvoiceScanUnplaced.cs`: запись `UnplacedRead` (место, номер строки, ключ, значение,
   код причины, подробность) и шесть кодов причин [COST-8]. Проверка — `InvoiceScanUnplacedTests`
   компилируется и покрывает каждый код
-- [ ] 1.2 `InvoiceScanHeader.Of` отдаёт записи `no-field`, `not-recognizable`, `duplicate-key` вместо трёх
+- [x] 1.2 `InvoiceScanHeader.Of` отдаёт записи `no-field`, `not-recognizable`, `duplicate-key` вместо трёх
   текстовых замечаний; `Input`-цели молча пропускаются, как прежде [COST-8]. Проверка —
   `InvoiceScanHeaderTests` на записях, а не на текстах
-- [ ] 1.3 `InvoiceScanLines.Read` отдаёт записи `no-field`/`duplicate-key` с номером строки файла вместо
+- [x] 1.3 `InvoiceScanLines.Read` отдаёт записи `no-field`/`duplicate-key` с номером строки файла вместо
   `StrayNote`; примечание строки «В файле не прочитано» не меняется [COST-8]. Проверка —
   `InvoiceScanLineKeysTests`, `InvoiceScanLinesTests`
-- [ ] 1.4 `InvoiceScanReading.ApplyAsync`/`GuardedAsync`: записи `unparsed`, `occupied` (значение
+- [x] 1.4 `InvoiceScanReading.ApplyAsync`/`GuardedAsync`: записи `unparsed`, `occupied` (значение
   отличается), `guard` с текстом отказа; записи строк — до ветвления по строкам; замечания «впишите
   вручную» и «охрана записи» остаются [COST-8]. Проверка — `InvoiceScanUnplacedTests`: список хранится
   при легших строках, при строках в предложении (свои строки; режим человека) и при `RowsProblem`
-- [ ] 1.5 `InvoiceRecognition.Unplaced` (`jsonb`, `null` — до change) и `Finish(…, unplaced)`; миграция
+- [x] 1.5 `InvoiceRecognition.Unplaced` (`jsonb`, `null` — до change) и `Finish(…, unplaced)`; миграция
   `dotnet ef migrations add InvoiceRecognitionUnplaced --project src/server/BHS.CRG.Modules.Costs
   --context CostsDbContext` [COST-8]. Проверка — на пересозданной базе старт применяет миграции ядра и
   `costs`; `BackupManifestCoverageTests` зелёный
-- [ ] 1.6 Вид распознавания (`InvoiceScanRecognition.cs`) отдаёт `unplaced`; тип клиента в
-  `features/costs/recognition.ts` дополнен полем (без показа) [COST-8]. Проверка —
+- [x] 1.6 Вид распознавания (`InvoiceScanRecognition.cs`) отдаёт `unplaced`; тип клиента в
+  `shared/api/invoiceRecognition.ts` дополнен полем (без показа) [COST-8]. Проверка —
   `InvoiceFromScanTests.Targets`: колонка с опечаткой в ключе приходит записью с `no-field` и номерами
   строк; `npx tsc -b`
 

@@ -60,6 +60,23 @@ export interface InvoiceValueOffer {
   value?: unknown;
 }
 
+/** Почему прочитанное не легло в счёт (issue #1484). Слова — у показа, по коду. */
+export type UnplacedReason = 'no-field' | 'not-recognizable' | 'unparsed' | 'guard' | 'occupied' | 'duplicate-key';
+
+/** Прочитанное, что в счёт не легло, — запись с причиной (issue #1484). */
+export interface UnplacedRead {
+  place: 'header' | 'line';
+  /** Номер строки в прочитанной таблице файла, с 1; только у строк. */
+  row: number | null;
+  /** Ключ профиля как прочитан — без обрезки. */
+  key: string;
+  /** Прочитанное, не длиннее 40 знаков. */
+  value: string;
+  reason: UnplacedReason;
+  /** Причина поля у `not-recognizable`, текст отказа у `guard`, ключ-владелец у `duplicate-key`. */
+  detail: string | null;
+}
+
 export type RecognitionState = 'none' | 'running' | 'done' | 'failed';
 
 export interface InvoiceRecognition {
@@ -92,6 +109,11 @@ export interface InvoiceRecognition {
    * распознанное не прячется, — но на экране сейчас другая перевёрстка, и сверять надо внимательнее.
    */
   byFormerImage: boolean;
+  /**
+   * Прочитанное, что в счёт не легло, с причиной (issue #1484). `null` — распознавание до этого списка
+   * или не завершённое: «не знаем», а не «пусто».
+   */
+  unplaced: UnplacedRead[] | null;
 }
 
 export const recognitionKey = (id: string) => [QK, id, 'recognition'] as const;

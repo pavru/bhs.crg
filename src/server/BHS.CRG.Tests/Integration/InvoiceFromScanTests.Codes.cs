@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Costs.Data;
+using BHS.CRG.Modules.Costs.Endpoints;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -13,8 +14,8 @@ public sealed partial class InvoiceFromScanTests
 {
     /// <summary>
     /// Колонка «Артикул», добавленная в профиль, ложится в строку; длинный артикул — в примечание строки;
-    /// колонка, которой в счёте некуда лечь, названа в примечаниях распознавания, а не потеряна молча и не
-    /// дописана в примечание строки — то поле человека (ревью PR #1485).
+    /// колонка, которой в счёте некуда лечь, названа в итоге распознавания — записью с номером строки файла
+    /// (issue #1484), — а не потеряна молча и не дописана в примечание строки — то поле человека (ревью PR #1485).
     /// </summary>
     [Fact]
     public async Task Артикул_из_профиля_ложится_а_лишняя_колонка_названа()
@@ -30,8 +31,8 @@ public sealed partial class InvoiceFromScanTests
         var id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
         var recognition = await OutcomeAsync(client, id);
         Assert.Equal("done", recognition.GetProperty("state").GetString());
-        Assert.Contains(recognition.GetProperty("notes").EnumerateArray(),
-            n => n.GetString()!.StartsWith("Прочитано, в счёт не положено: «Страна» — у строки счёта нет поля с таким ключом"));
+        Assert.Equal(Country((3, "Россия")), Unplaced(recognition));
+        NoMovedNotes(recognition);
 
         var lines = (await ReadAsync(client, id)).GetProperty("lines");
         Assert.Equal("ВВГ-325", lines[0].GetProperty("supplierCode").GetString());

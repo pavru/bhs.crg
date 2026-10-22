@@ -23,6 +23,8 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="Offers">Прочитано, но в поле не записано: поле было занято или значение не разобрать.
 /// «Ключ реквизита → текст из скана».</param>
 /// <param name="Lines">Распознанные строки, которые в счёт не легли: у него уже были свои.</param>
+/// <param name="Unplaced">Прочитанное, что в счёт не легло, с причиной (issue #1484); <c>null</c> —
+/// распознавание до этого списка или не завершённое.</param>
 /// <param name="Parties">Поставщик и плательщик из скана и что о них говорит справочник — считается
 /// при каждом чтении (<see cref="InvoiceParties" />); есть только у <c>done</c> и только пока счёт —
 /// черновик.</param>
@@ -32,7 +34,7 @@ public sealed record InvoiceRecognitionView(
     string State, string? Reason, string? Error, string? Engine, string? Progress,
     JsonElement? Values, JsonElement? Offers, JsonElement? Lines, IReadOnlyList<string> Notes,
     DateTimeOffset? StartedAt, DateTimeOffset? FinishedAt, bool CanStart, string? WhyNot,
-    InvoicePartiesView? Parties = null, bool ByFormerImage = false);
+    InvoicePartiesView? Parties = null, bool ByFormerImage = false, IReadOnlyList<UnplacedRead>? Unplaced = null);
 
 /// <summary>
 /// Распознавание скана счёта: постановка и состояние (ТЗ COST-8, задача B1b, issue #1077). Само чтение
@@ -164,7 +166,8 @@ public sealed class InvoiceScanRecognition(
             // Прочитано по образу, а на экране теперь ДРУГОЙ образ. Образа нет вовсе (его ещё не
             // построили заново после восстановления копии, либо построение отказало) — не тот случай:
             // сказать «вид построен заново» было бы не о чем.
-            ByFormerImage: done && stored.ImageBlobPath is { } read && currentImage is { } now && read != now);
+            ByFormerImage: done && stored.ImageBlobPath is { } read && currentImage is { } now && read != now,
+            Unplaced: InvoiceScanUnplaced.Shown(stored.Unplaced));
     }
 
     /// <summary>

@@ -12,7 +12,8 @@ const item = (recognition: InvoiceListItem['recognition']) => ({ recognition }) 
 
 const recognition = (patch: Partial<InvoiceRecognition> = {}): InvoiceRecognition => ({
   state: 'done', reason: null, error: null, engine: null, progress: null, values: null, offers: null,
-  lines: null, notes: [], startedAt: null, finishedAt: null, canStart: true, whyNot: null, parties: null, byFormerImage: false, ...patch,
+  lines: null, notes: [], startedAt: null, finishedAt: null, canStart: true, whyNot: null, parties: null, byFormerImage: false,
+  unplaced: null, ...patch,
 });
 
 const view = (requisites: Record<string, unknown>, unconfirmed: string[] = []) =>

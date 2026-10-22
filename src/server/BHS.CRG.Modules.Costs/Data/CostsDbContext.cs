@@ -325,6 +325,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         recognition.Property(r => r.Values).HasColumnName("values").HasColumnType("jsonb");
         recognition.Property(r => r.Offers).HasColumnName("offers").HasColumnType("jsonb");
         recognition.Property(r => r.Lines).HasColumnName("lines").HasColumnType("jsonb");
+        recognition.Property(r => r.Unplaced).HasColumnName("unplaced").HasColumnType("jsonb");
         recognition.Property(r => r.Notes).HasColumnName("notes");
         recognition.Property(r => r.StartedAt).HasColumnName("started_at");
         recognition.Property(r => r.FinishedAt).HasColumnName("finished_at");
