@@ -23,6 +23,7 @@ rules:
     - Сохранять сквозную разметку требований метками ТЗ ([CORE-*], [AUTH-*], [COST-*], [PLAN-*], [WORK-*], [MOB-*], [OZHR-*], [ID-*], [TYPE-*], а также [OVW-*], [STG-*]); новое требование получает метку своей области
     - Не планировать правку <Version> в src/server/Directory.Build.props — версию поднимает CI после слияния (MINOR — меткой version:minor на PR)
     - Каждое новое пишущее API для сущностей модулей и общих данных защищено проверкой If-Match и воротами прав и модуля (AUTH-8, AUTH-9)
+    - Для крупных этапов используй зонтичную задачу `<module>-00-epic` (общая архитектура и список PR в tasks.md) и дочерние задачи `<module>-01-<name>`, ссылающиеся на `../<module>-00-epic/design.md`.
   specs:
     - Сохранять сквозную разметку требований метками ТЗ ([CORE-*], [AUTH-*], [COST-*], [PLAN-*], [WORK-*], [MOB-*], [OZHR-*], [ID-*], [TYPE-*], а также [OVW-*], [STG-*]) в заголовках требований
     - Каждое новое пишущее API для сущностей модулей и общих данных описывает отказы If-Match (без заголовка — 400, устаревший — 409) и ворота прав и модуля (AUTH-8, AUTH-9) отдельными сценариями
@@ -35,3 +36,9 @@ rules:
     - Не заводить задачу на правку <Version> в Directory.Build.props — версию поднимает CI
     - Задача на новое пишущее API включает проверку If-Match и ворот прав и модуля (AUTH-8, AUTH-9) с тестами отказов
     - "Последним разделом всегда идёт верификация: профильные тесты dotnet test (cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter …), cd src/client && npx tsc -b, cd src/client && npm run ui:ratchet и проверка лимита 500 строк кода (dotnet test … --filter FileSizeRatchet)"
+
+# Указания фазам, а не артефактам: rules.apply OpenSpec не читает (ключи rules — только proposal/specs/design/tasks).
+operations:
+  apply:
+    guidance:
+      - Если в ходе реализации шаг из tasks.md или решение из design.md нарушает архитектурные тесты (ModuleBoundaryTests, FileSizeRatchet, ui:ratchet, *InventoryTests) или не стыкуется с кодом — сначала явно обнови design.md и tasks.md в папке текущего change, и только потом пиши код.
