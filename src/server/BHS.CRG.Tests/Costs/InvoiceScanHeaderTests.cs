@@ -82,7 +82,8 @@ public class InvoiceScanHeaderTests
         var only = Assert.Single(plan.Candidates);
         Assert.Equal("СЧ-2", only.Value!.GetValue<string>());
         Assert.Equal(
-            InvoiceScanUnplaced.InHeader("НомерСчёта", "СЧ-1", InvoiceScanUnplaced.DuplicateKey, "Номер"),
+            InvoiceScanUnplaced.InHeader("НомерСчёта", "СЧ-1", InvoiceScanUnplaced.DuplicateKey, "Номер",
+                InvoiceRequisites.TitleOf(InvoiceRequisites.NumberKey)),
             Assert.Single(plan.Unplaced));
     }
 
@@ -152,8 +153,9 @@ public class InvoiceScanHeaderTests
         Assert.Equal(
         [
             new UnplacedRead(InvoiceScanUnplaced.Header, null, "Опечатка ", "что-то", InvoiceScanUnplaced.NoField),
+            // Поле названо подписью (ревью PR #1576): по ключу «Срок» не узнать, что задето «Оплатить до».
             new UnplacedRead(InvoiceScanUnplaced.Header, null, "Срок", "01.11.2026", InvoiceScanUnplaced.NotRecognizable,
-                "срок считает правило"),
+                "срок считает правило", "Оплатить до"),
         ], plan.Unplaced);
     }
 

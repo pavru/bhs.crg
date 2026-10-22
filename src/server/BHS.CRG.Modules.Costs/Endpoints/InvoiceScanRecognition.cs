@@ -34,7 +34,7 @@ public sealed record InvoiceRecognitionView(
     string State, string? Reason, string? Error, string? Engine, string? Progress,
     JsonElement? Values, JsonElement? Offers, JsonElement? Lines, IReadOnlyList<string> Notes,
     DateTimeOffset? StartedAt, DateTimeOffset? FinishedAt, bool CanStart, string? WhyNot,
-    InvoicePartiesView? Parties = null, bool ByFormerImage = false, IReadOnlyList<UnplacedRead>? Unplaced = null);
+    InvoicePartiesView? Parties = null, bool ByFormerImage = false, JsonElement? Unplaced = null);
 
 /// <summary>
 /// Распознавание скана счёта: постановка и состояние (ТЗ COST-8, задача B1b, issue #1077). Само чтение
@@ -167,7 +167,7 @@ public sealed class InvoiceScanRecognition(
             // построили заново после восстановления копии, либо построение отказало) — не тот случай:
             // сказать «вид построен заново» было бы не о чем.
             ByFormerImage: done && stored.ImageBlobPath is { } read && currentImage is { } now && read != now,
-            Unplaced: InvoiceScanUnplaced.Shown(stored.Unplaced));
+            Unplaced: stored.Unplaced?.RootElement);
     }
 
     /// <summary>

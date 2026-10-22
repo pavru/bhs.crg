@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Modules.Costs;
+using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Endpoints;
 using BHS.CRG.Modules.Ports;
 
@@ -17,10 +18,8 @@ namespace BHS.CRG.Tests.Integration;
 /// </summary>
 public sealed partial class InvoiceFromScanTests
 {
-    private static readonly JsonSerializerOptions Api = new(JsonSerializerDefaults.Web);
-
     private static UnplacedRead[] Unplaced(JsonElement recognition) =>
-        recognition.GetProperty("unplaced").Deserialize<UnplacedRead[]>(Api)!;
+        recognition.GetProperty("unplaced").Deserialize<UnplacedRead[]>(InvoiceScanUnplaced.Json)!;
 
     /// <summary>Фразы, переехавшие в список: в замечаниях их больше нет.</summary>
     private static void NoMovedNotes(JsonElement recognition) =>
@@ -129,9 +128,33 @@ public sealed partial class InvoiceFromScanTests
         var recognition = await OutcomeAsync(client, id);
         Assert.Equal(
         [
-            InvoiceScanUnplaced.InHeader(CostsRecognitionProfiles.Total, "1.234", InvoiceScanUnplaced.Unparsed),
-            InvoiceScanUnplaced.InHeader(CostsRecognitionProfiles.Number, "СЧ-1484-5", InvoiceScanUnplaced.Occupied),
+            InvoiceScanUnplaced.InHeader(CostsRecognitionProfiles.Total, "1.234", InvoiceScanUnplaced.Unparsed,
+                field: InvoiceRequisites.TitleOf(InvoiceRequisites.TotalKey)),
+            InvoiceScanUnplaced.InHeader(CostsRecognitionProfiles.Number, "СЧ-1484-5", InvoiceScanUnplaced.Occupied,
+                field: InvoiceRequisites.TitleOf(InvoiceRequisites.NumberKey)),
         ], Unplaced(recognition).OrderByDescending(u => u.Reason));
         Assert.Contains(recognition.GetProperty("notes").EnumerateArray(), n => n.GetString()!.Contains("впишите вручную"));
+    }
+
+    /// <summary>
+    /// Ключ профиля совпал с полем-файлом «Скан» — сквозь настоящие цели ядра (ревью PR #1576): запись с
+    /// причиной поля и его подписью. Ломается тем, что ядро пометило поле иначе (например, входом), и
+    /// запись пропала молча.
+    /// </summary>
+    [Fact]
+    public async Task Поле_которое_распознавание_не_заполняет_в_списке_с_причиной()
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var scan = Scan();
+        var header = Header(number: "СЧ-1484-6");
+        header[InvoiceRequisites.ScanKey] = "счёт.pdf";
+        host.Recognition.On(scan, () => Task.FromResult(Read(header)));
+
+        var id = (await FromScanAsync(client, scan)).GetProperty("invoice").GetProperty("id").GetGuid();
+        var only = Assert.Single(Unplaced(await OutcomeAsync(client, id)));
+        Assert.Equal(
+            (InvoiceRequisites.ScanKey, InvoiceScanUnplaced.NotRecognizable, InvoiceRequisites.TitleOf(InvoiceRequisites.ScanKey)),
+            (only.Key, only.Reason, only.Field));
+        Assert.Contains("прикладывают", only.Detail);
     }
 }

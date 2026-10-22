@@ -78,8 +78,9 @@ public static class InvoiceScanHeader
                 // Прочитанное для сопоставления сторон (название, ИНН) использовано — не «не положено».
                 case { Origin: ModuleTargetOrigin.Input }:
                     break;
-                case { Unavailable: { } why }:
-                    unplaced.Add(InvoiceScanUnplaced.InHeader(key, text, InvoiceScanUnplaced.NotRecognizable, why));
+                case { Unavailable: { } why } target:
+                    unplaced.Add(InvoiceScanUnplaced.InHeader(key, text, InvoiceScanUnplaced.NotRecognizable, why,
+                        target.Title ?? target.Key));
                     break;
                 case var target:
                     var value = target.Origin == ModuleTargetOrigin.Module && Parsers.TryGetValue(target.Key, out var parse)
@@ -99,7 +100,7 @@ public static class InvoiceScanHeader
             chosen.Add(ordered[0]);
             foreach (var other in ordered.Skip(1))
                 unplaced.Add(InvoiceScanUnplaced.InHeader(other.ProfileKey, other.Text,
-                    InvoiceScanUnplaced.DuplicateKey, ordered[0].ProfileKey));
+                    InvoiceScanUnplaced.DuplicateKey, ordered[0].ProfileKey, other.Title));
         }
 
         return new(chosen, unplaced);

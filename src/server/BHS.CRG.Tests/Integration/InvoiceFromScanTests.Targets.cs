@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules.Costs;
+using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Costs.Endpoints;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -107,7 +108,8 @@ public sealed partial class InvoiceFromScanTests
         Assert.Contains(HeaderNotes(recognition), n => n.Contains("Код1483") && n.Contains("охрана записи"));
         // Отказ охраны — и в списке не положенного, с её словами (issue #1484).
         var guarded = Assert.Single(Unplaced(recognition));
-        Assert.Equal(("Код1483", "X-1", InvoiceScanUnplaced.Guard), (guarded.Key, guarded.Value, guarded.Reason));
+        Assert.Equal(("Код1483", "X-1", InvoiceScanUnplaced.Guard, "Код1483"),
+            (guarded.Key, guarded.Value, guarded.Reason, guarded.Field));
         Assert.Contains("Код договора", guarded.Detail);
     }
 
@@ -128,7 +130,8 @@ public sealed partial class InvoiceFromScanTests
 
         Assert.Equal("СЧ-1483-2b", (await ReadAsync(client, id)).GetProperty("requisites").GetProperty("Номер").GetString());
         Assert.Equal(
-            [InvoiceScanUnplaced.InHeader(CostsRecognitionProfiles.Number, "СЧ-1483-2a", InvoiceScanUnplaced.DuplicateKey, "Номер")],
+            [InvoiceScanUnplaced.InHeader(CostsRecognitionProfiles.Number, "СЧ-1483-2a", InvoiceScanUnplaced.DuplicateKey, "Номер",
+                InvoiceRequisites.TitleOf(InvoiceRequisites.NumberKey))],
             Unplaced(recognition));
         NoMovedNotes(recognition);
     }

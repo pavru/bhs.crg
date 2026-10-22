@@ -75,6 +75,8 @@ export interface UnplacedRead {
   reason: UnplacedReason;
   /** Причина поля у `not-recognizable`, текст отказа у `guard`, ключ-владелец у `duplicate-key`. */
   detail: string | null;
+  /** Подпись поля счёта, в которое ключ вёл; `null` — поля нет или запись строки. */
+  field: string | null;
 }
 
 export type RecognitionState = 'none' | 'running' | 'done' | 'failed';

@@ -339,7 +339,8 @@ public sealed class InvoiceScanReading(
             {
                 offers[candidate.Key] = InvoiceScanHeader.Offer(candidate.Text, null);
                 notes.Add($"{candidate.Title}: «{candidate.Text}» не прочитано как значение поля — впишите вручную.");
-                unplaced.Add(InvoiceScanUnplaced.InHeader(candidate.ProfileKey, candidate.Text, InvoiceScanUnplaced.Unparsed));
+                unplaced.Add(InvoiceScanUnplaced.InHeader(candidate.ProfileKey, candidate.Text, InvoiceScanUnplaced.Unparsed,
+                    field: candidate.Title));
                 continue;
             }
 
@@ -350,7 +351,8 @@ public sealed class InvoiceScanReading(
                 if (!JsonNode.DeepEquals(was, candidate.Value))
                 {
                     offers[candidate.Key] = InvoiceScanHeader.Offer(candidate.Text, candidate.Value);
-                    unplaced.Add(InvoiceScanUnplaced.InHeader(candidate.ProfileKey, candidate.Text, InvoiceScanUnplaced.Occupied));
+                    unplaced.Add(InvoiceScanUnplaced.InHeader(candidate.ProfileKey, candidate.Text, InvoiceScanUnplaced.Occupied,
+                        field: candidate.Title));
                 }
                 continue;
             }
@@ -536,7 +538,7 @@ public sealed class InvoiceScanReading(
                 offers[key!] = InvoiceScanHeader.Offer(candidate.Text, candidate.Value);
                 notes.Add($"{candidate.Title}: «{candidate.Text}» не записано — охрана записи: {refusal.Message}");
                 unplaced.Add(InvoiceScanUnplaced.InHeader(candidate.ProfileKey, candidate.Text, InvoiceScanUnplaced.Guard,
-                    refusal.Message));
+                    refusal.Message, candidate.Title));
             }
             if (filled.Count == 0) return null;
         }

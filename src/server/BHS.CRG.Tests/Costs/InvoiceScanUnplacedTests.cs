@@ -16,34 +16,37 @@ public class InvoiceScanUnplacedTests
     public void Шесть_кодов_причин()
     {
         Assert.Equal(["no-field", "not-recognizable", "unparsed", "guard", "occupied", "duplicate-key"],
-            InvoiceScanUnplaced.Reasons);
+        [
+            InvoiceScanUnplaced.NoField, InvoiceScanUnplaced.NotRecognizable, InvoiceScanUnplaced.Unparsed,
+            InvoiceScanUnplaced.Guard, InvoiceScanUnplaced.Occupied, InvoiceScanUnplaced.DuplicateKey,
+        ]);
     }
 
-    /// <summary>Хранится именами API: вид отдаёт записанное как есть, клиент читает те же имена.</summary>
+    /// <summary>Хранится именами API: вид отдаёт записанное как лежит, клиент читает те же имена.</summary>
     [Fact]
-    public void Хранится_и_отдаётся_именами_API()
+    public void Хранится_именами_API()
     {
         UnplacedRead[] list =
         [
             InvoiceScanUnplaced.InLine(3, " Артикл", "А-1", InvoiceScanUnplaced.NoField),
-            InvoiceScanUnplaced.InHeader("Код", "X-1", InvoiceScanUnplaced.Guard, "Код договора — «Д-» и цифры"),
+            InvoiceScanUnplaced.InHeader("Код", "X-1", InvoiceScanUnplaced.Guard, "Код договора — «Д-» и цифры", "Код договора"),
         ];
 
         using var stored = InvoiceScanUnplaced.Stored(list);
         var first = stored.RootElement[0];
         Assert.Equal(("line", 3, " Артикл", "no-field"), (first.GetProperty("place").GetString(), first.GetProperty("row").GetInt32(),
             first.GetProperty("key").GetString(), first.GetProperty("reason").GetString()));
-        Assert.Equal(list, InvoiceScanUnplaced.Shown(stored));
+        Assert.Equal("Код договора", stored.RootElement[1].GetProperty("field").GetString());
+        Assert.Equal(list, stored.Deserialize<UnplacedRead[]>(InvoiceScanUnplaced.Json));
     }
 
-    /// <summary>Нет записи — «не знаем» (распознавание до списка), а не «пусто»; пустой список — пусто.</summary>
+    /// <summary>Пустой список — пустой массив: «не знаем» (null) бывает только у прежних распознаваний.</summary>
     [Fact]
-    public void Нет_списка_не_то_же_что_пустой()
+    public void Пустой_список_хранится_массивом()
     {
-        Assert.Null(InvoiceScanUnplaced.Shown(null));
         using var empty = InvoiceScanUnplaced.Stored([]);
         Assert.Equal(JsonValueKind.Array, empty.RootElement.ValueKind);
-        Assert.Empty(InvoiceScanUnplaced.Shown(empty)!);
+        Assert.Equal(0, empty.RootElement.GetArrayLength());
     }
 
     /// <summary>Значение — не длиннее 40 знаков, тем же правилом, что у замечаний.</summary>

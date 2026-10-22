@@ -20,7 +20,11 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="Reason">Код причины — константа <see cref="InvoiceScanUnplaced" />.</param>
 /// <param name="Detail">Причина поля у <see cref="InvoiceScanUnplaced.NotRecognizable" />, текст отказа у
 /// <see cref="InvoiceScanUnplaced.Guard" />, ключ-владелец у <see cref="InvoiceScanUnplaced.DuplicateKey" />.</param>
-public sealed record UnplacedRead(string Place, int? Row, string Key, string Value, string Reason, string? Detail = null);
+/// <param name="Field">Подпись поля счёта, в которое ключ вёл (ревью PR #1576): ключ профиля бывает прежним или
+/// синонимом, и по нему одному не узнать, какое поле задето. <c>null</c> — поля нет (<see
+/// cref="InvoiceScanUnplaced.NoField" />) или запись строки.</param>
+public sealed record UnplacedRead(
+    string Place, int? Row, string Key, string Value, string Reason, string? Detail = null, string? Field = null);
 
 /// <summary>Коды места и причины записи <see cref="UnplacedRead" /> и её хранение.</summary>
 public static class InvoiceScanUnplaced
@@ -46,23 +50,18 @@ public static class InvoiceScanUnplaced
     /// <summary>Ключ повторяет другой: поле уже заполнено им.</summary>
     public const string DuplicateKey = "duplicate-key";
 
-    public static readonly IReadOnlyList<string> Reasons = [NoField, NotRecognizable, Unparsed, Guard, Occupied, DuplicateKey];
-
-    public static UnplacedRead InHeader(string key, string text, string reason, string? detail = null) =>
-        new(Header, null, key, InvoiceScanLines.Short(text), reason, detail);
+    public static UnplacedRead InHeader(string key, string text, string reason, string? detail = null, string? field = null) =>
+        new(Header, null, key, InvoiceScanLines.Short(text), reason, detail, field);
 
     public static UnplacedRead InLine(int row, string key, string text, string reason, string? detail = null) =>
         new(Line, row, key, InvoiceScanLines.Short(text), reason, detail);
 
     /// <summary>
-    /// Хранится и отдаётся одной формой — именами API (camelCase): вид распознавания читает записанное
-    /// обратно в записи, а не передаёт JSON как лежит.
+    /// Хранится сразу именами API (camelCase), и вид отдаёт записанное как лежит, без разбора обратно в
+    /// записи (ревью PR #1576): как <c>values</c> и <c>lines</c>, и запись, сменившая форму, не роняет
+    /// чтение прежних распознаваний.
     /// </summary>
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     public static JsonDocument Stored(IReadOnlyList<UnplacedRead> unplaced) => JsonSerializer.SerializeToDocument(unplaced, Json);
-
-    /// <summary><c>null</c> — распознавание до issue #1484: «не знаем», а не «пусто».</summary>
-    public static IReadOnlyList<UnplacedRead>? Shown(JsonDocument? stored) =>
-        stored?.Deserialize<UnplacedRead[]>(Json);
 }
