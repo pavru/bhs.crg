@@ -15,9 +15,10 @@
 ## 2. Право контракта
 
 - [ ] 2.1 `CostsModule.Permissions`: `costs.totals.read` с признаком контракта и `ReadAllMark.Out`;
-  ответ по `costs.totals.read` или `costs.report.read`, иначе `Hidden` (решение В-3) [COST-28]
-  [AUTH-8.1]. Проверка — тот же тест: только `costs.totals.read` — итоги; без прав — `Hidden`; система —
-  отказ
+  ответ по `costs.totals.read` или `costs.report.read`, иначе `Hidden` (решение В-3); оба кода поставщик
+  называет явно — из них `plan-25` соберёт ворота «Хода работ» [COST-28] [AUTH-8.1]. Проверка — тот же
+  тест: только `costs.totals.read` — итоги; без прав — `Hidden`; система — отказ; поставщик называет оба
+  кода
 - [ ] 2.2 `SystemRoles.cs`: «Менеджеру проекта» — `costs.totals.read` (решение В-3) [PLAN-21.1].
   Проверка — тест состава `/api/account/access` по системным ролям; `CostsOnlyHostTests` — число прав
   `costs.` и объяснение обновлены

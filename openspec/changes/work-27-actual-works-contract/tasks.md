@@ -35,6 +35,9 @@
   `work` `available: false`; Менеджер проекта — право есть
 - [ ] 3.2 Пользователь только с `work.facts.read` не получает ни одного адреса `/api/work` [AUTH-8]
   [AUTH-9]. Проверка — тест: любой адрес модуля — 403; `EndpointGateInventoryTests` зелёный
+- [ ] 3.3 Поставщик называет `work.facts.read` правом ответа; `progress` в `WorkModule.UsesSections` (П0
+  этапа 3) [PLAN-21] [AUTH-16.1]. Проверка — `ConstructionProgressTests` на хосте `plan` + `work`:
+  носитель одного `work.facts.read` получает 200; `CoreSectionsTests` — точный состав `work` с `progress`
 
 ## 4. «Ход работ» на живом поставщике
 
