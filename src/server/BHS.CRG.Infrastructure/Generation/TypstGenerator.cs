@@ -31,14 +31,13 @@ public class TypstGenerator(IBlobStorage blob, ILogger<TypstGenerator> log) : ID
             // Поля-изображения (data-URI) декодируем в файлы assets/ и подставляем пути,
             // чтобы шаблон мог обращаться к ним через image(it.Поле). Размер/выравнивание — из самого
             // значения-объекта {src, width, ...} (issue #246).
-            // Картинка, которой хранилище не отдало, документ не роняет — но поле называется (ТЗ CORE-37.2):
-            // в отказе компиляции, если он будет, и в журнале в любом случае.
+            // Картинка, которой хранилище не отдало, — отказ с именем поля, и ДО компиляции (ТЗ CORE-37.2):
+            // шаблон, выводящий её под условием, собрался бы, и PDF без подписи вышел бы молча.
             var unreadable = new List<string>();
             var dataJson = await TypstImageMaterializer.MaterializeAsync(
                 request.Context.Data, tmpDir, blob, unreadable: unreadable, ct: ct);
             if (unreadable.Count > 0)
-                log.LogWarning("Картинки полей не прочитаны из хранилища и в документ не вошли: {Fields}",
-                    string.Join(", ", unreadable));
+                throw new UnreadableImagesException(unreadable);
 
             // Поля-вложения ({$type:"file"}) скачиваем из blob-хранилища в assets/ и подставляем путь+
             // pageCount, чтобы шаблон вставлял их через image(it.Поле.src[, page: n]) — в т.ч. страницы PDF.
@@ -149,10 +148,7 @@ public class TypstGenerator(IBlobStorage blob, ILogger<TypstGenerator> log) : ID
                 // Разобрали — отказ наш и адресован пользователю. Не разобрали — исключение остаётся
                 // чужим: 500 с идентификатором запроса. «Компилятор сказал непонятное» — это про
                 // установку, а не про шаблон, и человеку тут исправлять нечего.
-                var described = TypstCompileFailure.TryDescribe(err, tmpDir);
-                if (described is not null && unreadable.Count > 0)
-                    described = new TemplateCompilationException(described.Message + "\n" + UnreadableNote(unreadable));
-                throw described
+                throw TypstCompileFailure.TryDescribe(err, tmpDir)
                       ?? (Exception)new InvalidOperationException($"Typst compilation failed (exit {exitCode}):\n{err}");
             }
 
@@ -169,15 +165,6 @@ public class TypstGenerator(IBlobStorage blob, ILogger<TypstGenerator> log) : ID
     }
 
     private const long MaxAssetBytes = 100L * 1024 * 1024;
-
-    /// <summary>
-    /// Чем дополнить отказ компиляции, когда картинки части полей не прочитаны. Причину не различаем:
-    /// файла нет и файл не документа (файл модуля, ТЗ CORE-37.2) — для генерации одно и то же, и разница
-    /// между ними сама по себе была бы сведением о чужом файле.
-    /// </summary>
-    public static string UnreadableNote(IEnumerable<string> fields) =>
-        "Картинки этих полей не прочитаны — файла нет или он недоступен документу; шаблон мог споткнуться " +
-        "о них: " + string.Join(", ", fields) + ". Загрузите картинку в поле заново.";
 
     // Скачивание ассета шаблона из blob — тот же толерантный паттерн, что и
     // TypstFileMaterializer.TryDownload (отсутствие/превышение размера — не критично, просто

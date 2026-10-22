@@ -4,7 +4,9 @@ using System.Text.Json.Nodes;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Modules.Ports;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.Common;
+using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Storage;
 using BHS.CRG.Infrastructure.Generation;
 using BHS.CRG.Infrastructure.Persistence;
@@ -12,6 +14,7 @@ using BHS.CRG.Modules.Ports;
 using BHS.CRG.Tests.Support;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -99,11 +102,38 @@ public class BlobOwnerTests(IntegrationTestFixture fixture) : IAsyncLifetime
             Assert.Equal(module, (string?)node["Скан"]!["blobPath"]);
             Assert.NotNull(node["Подпись"]!["src"]);
             Assert.Single(Directory.GetFiles(Path.Combine(dir, "assets")));
-            Assert.Contains("Скан", TypstGenerator.UnreadableNote(unreadable));
         }
         finally
         {
             Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Генерация с непрочитанной картинкой отказывает и называет поле — даже когда шаблон картинку не
+    /// выводит и собрался бы: PDF без подписи, выданный молча, был бы отказом, переодетым в результат.
+    /// Та же картинка ядра документ не останавливает — отказ про владельца, а не про шаблон.
+    /// </summary>
+    [Fact]
+    public async Task Генерация_с_картинкой_файла_модуля_отказывает_и_называет_поле()
+    {
+        var module = await PutAsync(Costs);
+        var core = await Blobs.UploadAsync("подпись.png", Content("подпись"), "image/png");
+        var generator = new TypstGenerator(Blobs, NullLogger<TypstGenerator>.Instance);
+
+        var refusal = await Assert.ThrowsAsync<UnreadableImagesException>(
+            () => generator.GenerateAsync(Request(module)));
+
+        Assert.Equal(["Подпись"], refusal.Fields);
+        Assert.Contains("Подпись", refusal.Message);
+
+        Assert.NotEmpty(await generator.GenerateAsync(Request(core)));
+
+        static GenerationRequest Request(string blobPath)
+        {
+            var context = new GenerationContext();
+            context.Set("Подпись", new Dictionary<string, object?> { ["$type"] = "image", ["blobPath"] = blobPath });
+            return new GenerationRequest("Документ без картинок.", OutputFormat.Pdf, context);
         }
     }
 
