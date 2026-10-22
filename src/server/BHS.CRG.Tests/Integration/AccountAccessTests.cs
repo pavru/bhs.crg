@@ -1,11 +1,8 @@
 ﻿using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.Settings;
-using BHS.CRG.Infrastructure.Persistence;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
@@ -21,8 +18,6 @@ namespace BHS.CRG.Tests.Integration;
 [Collection("Integration")]
 public class AccountAccessTests(IntegrationTestFixture fixture)
 {
-    private const string Password = "Passw0rd!";
-
     [Fact]
     public async Task Access_lists_the_rights_of_this_user_and_not_of_another()
     {
@@ -207,36 +202,7 @@ public class AccountAccessTests(IntegrationTestFixture fixture)
             new JsonSerializerOptions(JsonSerializerDefaults.Web)))!;
     }
 
-    private sealed record ModuleDto(string Code, string Title, bool Available, string[] Sections);
-    private sealed record AccessDto(string[] Permissions, ModuleDto[] Modules);
+    private static Task<AccessProbe.AccessDto> AccessAsync(HttpClient client) => AccessProbe.AccessAsync(client);
 
-    private static async Task<AccessDto> AccessAsync(HttpClient client)
-    {
-        var response = await client.GetAsync("/api/account/access");
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<AccessDto>(
-            new JsonSerializerOptions(JsonSerializerDefaults.Web)))!;
-    }
-
-    private async Task<HttpClient> SignInAsync(string role)
-    {
-        var email = $"acc_{role.ToLowerInvariant()}_{Guid.NewGuid():N}@test.local";
-        using (var scope = fixture.Services.CreateScope())
-        {
-            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var user = new ApplicationUser
-            {
-                UserName = email, Email = email, DisplayName = "Тест", EmailConfirmed = true,
-            };
-            Assert.True((await users.CreateAsync(user, Password)).Succeeded);
-            Assert.True((await users.AddToRoleAsync(user, role)).Succeeded);
-        }
-
-        var client = fixture.CreateClient();
-        var login = await client.PostAsJsonAsync("/api/auth/login", new { email, password = Password });
-        login.EnsureSuccessStatusCode();
-        var token = (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        return client;
-    }
+    private Task<HttpClient> SignInAsync(string role) => AccessProbe.SignInAsync(fixture, role, "acc");
 }

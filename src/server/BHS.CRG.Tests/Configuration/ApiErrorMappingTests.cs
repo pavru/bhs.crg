@@ -42,6 +42,24 @@ public class ApiErrorMappingTests
         Assert.Contains(TraceId, message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Запись, проигравшая одновременной, — 409 с общими словами, а не 500 (ревью PR #1580): так
+    /// отвечает любой контекст, в том числе контекст модуля, не переводящий исключение сам. Текст исключения EF (имена
+    /// сущностей, число строк) наружу не уходит.
+    /// </summary>
+    [Fact]
+    public void ConcurrentWrite_IsConflict_WithoutInternals()
+    {
+        var ex = new Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException(
+            "The database operation was expected to affect 1 row(s), but actually affected 0 row(s). НЕЧТО");
+
+        var (status, message) = ApiErrorMapping.Describe(ex, TraceId);
+
+        Assert.Equal(StatusCodes.Status409Conflict, status);
+        Assert.Equal(ApiErrorMapping.ConcurrentWriteMessage, message);
+        Assert.DoesNotContain("НЕЧТО", message, StringComparison.Ordinal);
+    }
+
     public static TheoryData<DomainException, int> DomainRefusals() => new()
     {
         { new InvalidRequestException("Укажите название профиля."), StatusCodes.Status400BadRequest },

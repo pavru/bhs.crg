@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Api.Auth;
@@ -8,11 +7,9 @@ using BHS.CRG.Modules;
 using BHS.CRG.Modules.Plan;
 using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Tests.Support;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -32,8 +29,6 @@ namespace BHS.CRG.Tests.Integration;
 [Collection(PlanOnlyCollection.Name)]
 public class PlanOnlyHostTests(PlanOnlyHost host)
 {
-    private const string Password = "Passw0rd!";
-
     /// <summary>
     /// Приложение поднимается без <c>id</c> и <c>costs</c>, а их адреса отвечают отказом выключенного
     /// модуля с его названием (501, ТЗ OVW-10, AUTH-15, AUTH-19).
@@ -72,9 +67,13 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     }
 
     /// <summary>
-    /// Схема модуля мигрирована при старте — в ней своя история с начальной миграцией, — а в истории ядра
-    /// миграций модуля нет (ТЗ CORE-4). Порядок «ядро, затем модуль» задаёт <c>StartupTasks</c>; здесь
-    /// видно, что до модуля дело дошло на базе, где нет ни <c>id</c>, ни <c>costs</c>.
+    /// Схема модуля создана при старте — с нуля: хост сносит её до запуска (<see cref="PlanOnlyHost" />),
+    /// поэтому схема и история с начальной миграцией могли появиться только от миграции модуля в этом
+    /// старте, а не остаться от прошлого прогона. В истории ядра миграций модуля нет (ТЗ CORE-4).
+    ///
+    /// <para>Порядок «ядро, затем модуль» — код <c>StartupTasks</c>: миграции модулей идут после
+    /// миграции ядра. Здесь видно, что до модуля дело дошло на экземпляре без <c>id</c> и <c>costs</c>;
+    /// на пустой базе CI проходят обе.</para>
     /// </summary>
     [Fact]
     public async Task Plan_schema_is_migrated_with_its_own_history()
@@ -85,6 +84,7 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
         var plan = scope.ServiceProvider.GetRequiredService<PlanDbContext>();
 
         Assert.Contains("_plan", plan.Database.GetConnectionString() ?? string.Empty);
+        Assert.True(host.SchemaDroppedBeforeStart, "Хост не снёс схему до старта — проверка шла бы вхолостую.");
         Assert.Empty(await plan.Database.GetPendingMigrationsAsync());
         Assert.Contains(await plan.Database.GetAppliedMigrationsAsync(), m => m.EndsWith("_Initial", StringComparison.Ordinal));
 
@@ -181,6 +181,7 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     /// «содержит»: лишнее право здесь — пункт меню, которого роль не должна была получить.</para>
     ///
     /// <list type="bullet">
+    ///   <item>«Администратор» — всё объявленное, на экземпляре с <c>plan</c> — и права <c>plan</c>.</item>
     ///   <item>«Сметчик» — сметы; ни одного <c>plan.offer.*</c>: без права на КП он не видит цен продажи
     ///   (PLAN-2). Себестоимость (<c>plan.estimate.cost</c>) придёт к нему с <c>plan-06</c>.</item>
     ///   <item>«Менеджер проекта» — только чтение смет (решение В-1, PLAN-Q9): КП, прайс-лист и графики
@@ -198,6 +199,7 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     /// одним правилом (<c>ModuleAccess</c>), это сверяет <c>AccountAccessTests.Module_flag_matches_the_module_gate</c>.</para>
     /// </summary>
     [Theory]
+    [InlineData(SystemRoles.Admin, true, PlanModule.EstimateEdit, PlanModule.EstimateRead)]
     [InlineData("Estimator", true, PlanModule.EstimateEdit, PlanModule.EstimateRead)]
     [InlineData("ProjectManager", true, PlanModule.EstimateRead)]
     [InlineData("Executive", true, PlanModule.EstimateRead)]
@@ -220,38 +222,45 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
         Assert.Equal(new PlanModule().UsesSections, module.Sections);
     }
 
-    private sealed record ModuleDto(string Code, string Title, bool Available, string[] Sections);
-    private sealed record AccessDto(string[] Permissions, ModuleDto[] Modules);
-
-    private static async Task<AccessDto> AccessAsync(HttpClient client)
+    /// <summary>
+    /// Права КОНТРАКТА модуль не открывают (AUTH-8.1, D11 зонтика <c>plan-00-epic</c>): роль, у которой
+    /// из прав <c>plan</c> в составе только они, не получает ни признака модуля, ни его ворот.
+    ///
+    /// <para>Роли отбираются по СОСТАВУ в <c>SystemRoles</c>, а не по ответу доступа, — нарочно (ревью
+    /// PR #1580). Сегодня права контракта ещё не объявлены, и «Монтажник» со «Снабженцем» модуля не
+    /// получают просто потому, что получать нечего. Объявит их <c>plan-23</c>; признак права контракта,
+    /// без которого любое <c>plan.*</c> открывает модуль (<c>ModuleAccess.IsOpen</c>), строит <c>plan-21</c>.
+    /// Если порядок перепутают, этот тест покраснеет сам — не дожидаясь, пока кто-то поправит ожидания в
+    /// таблице ролей выше.</para>
+    /// </summary>
+    [Fact]
+    public async Task Contract_rights_alone_do_not_open_the_module()
     {
-        var response = await client.GetAsync("/api/account/access");
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<AccessDto>(
-            new JsonSerializerOptions(JsonSerializerDefaults.Web)))!;
-    }
+        string[] contract = ["plan.estimate.materials", "plan.labor.read", "plan.estimate.hint"];
 
-    private async Task<HttpClient> SignInAsync(string role)
-    {
-        var email = $"plan_{role.ToLowerInvariant()}_{Guid.NewGuid():N}@test.local";
-        using (var scope = host.Services.CreateScope())
+        var contractOnly = SystemRoles.All
+            .Where(r => !r.AllPermissions)
+            .Where(r => r.Permissions.Any(c => c.StartsWith("plan.", StringComparison.Ordinal)))
+            .Where(r => r.Permissions.Where(c => c.StartsWith("plan.", StringComparison.Ordinal)).All(contract.Contains))
+            .Select(r => r.Name)
+            .ToList();
+
+        // Проверка обязана до кого-то доходить: пустой отбор сделал бы тест зелёным навсегда.
+        Assert.Equal(["Installer", "Supplier"], contractOnly.Order(StringComparer.Ordinal));
+
+        foreach (var role in contractOnly)
         {
-            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var user = new ApplicationUser
-            {
-                UserName = email, Email = email, DisplayName = "Тест", EmailConfirmed = true,
-            };
-            Assert.True((await users.CreateAsync(user, Password)).Succeeded);
-            Assert.True((await users.AddToRoleAsync(user, role)).Succeeded);
+            var module = Assert.Single((await AccessAsync(await SignInAsync(role))).Modules,
+                m => m.Code == PlanModule.ModuleCode);
+            Assert.False(module.Available,
+                $"Роль «{role}» получила модуль plan, имея из его прав только права контракта. Признак права " +
+                "контракта (plan-21) обязан появиться раньше, чем права контракта объявят (plan-23).");
         }
-
-        var client = host.CreateClient();
-        var login = await client.PostAsJsonAsync("/api/auth/login", new { email, password = Password });
-        login.EnsureSuccessStatusCode();
-        var token = (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        return client;
     }
+
+    private static Task<AccessProbe.AccessDto> AccessAsync(HttpClient client) => AccessProbe.AccessAsync(client);
+
+    private Task<HttpClient> SignInAsync(string role) => AccessProbe.SignInAsync(host, role, "plan");
 }
 
 /// <summary>Один хост «только планирование» на все классы, которым он нужен (как у счетов, issue #1077).</summary>
@@ -262,28 +271,33 @@ public sealed class PlanOnlyCollection : ICollectionFixture<PlanOnlyHost>
 }
 
 /// <summary>
-/// Хост «только планирование»: <c>Modules__Enabled=plan</c> и отдельная база. Устроен как
-/// <see cref="CostsOnlyHost" />: переопределения добавляются ПОСЛЕ базовых — последний слой
-/// конфигурации выигрывает.
+/// Хост «только планирование»: <c>Modules__Enabled=plan</c> и своя база «…_plan» (как он держится —
+/// <see cref="ModuleOnlyHost" />).
+///
+/// <para>⚠️ Схема <c>plan</c> СНОСИТСЯ до запуска (ревью PR #1580). Без этого проверка «схема
+/// мигрирована при старте» проходила бы на схеме, оставшейся от прошлого прогона, — и с вырезанной
+/// миграцией модуля тоже. Так же устроен <see cref="ModuleSchemaHost" /> для <c>costs</c>. Снос — после
+/// того, как база занята (<see cref="TestRunDatabase.ClaimAsync" />): чужой прогон на ней же обязан
+/// получить отказ раньше первой правки. Заодно база создаётся, если её нет.</para>
 /// </summary>
-public sealed class PlanOnlyHost : IntegrationTestFixture
+public sealed class PlanOnlyHost : ModuleOnlyHost
 {
-    /// <summary>Своя база — «…_plan» рядом с общей тестовой; создаётся сама миграцией при старте.</summary>
-    private static string ConnectionString { get; } = TestDatabases.ConnectionString("plan");
+    protected override string ModuleCode => PlanModule.ModuleCode;
 
-    protected override string HostConnectionString => ConnectionString;
+    protected override string DatabaseSuffix => "plan";
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    /// <summary>Снос схемы до старта действительно был — тест опирается на него и проверяет это.</summary>
+    internal bool SchemaDroppedBeforeStart { get; }
+
+    public PlanOnlyHost()
     {
-        base.ConfigureWebHost(builder);
+        // Task.Run — чтобы ожидание в конструкторе не зависело от контекста синхронизации xUnit.
+        Task.Run(() => TestRunDatabase.ClaimAsync(ConnectionString, ClaimPatience)).GetAwaiter().GetResult();
 
-        var overrides = new Dictionary<string, string?>
-        {
-            ["Modules:Enabled"] = "plan",
-            ["ConnectionStrings:Postgres"] = ConnectionString,
-        };
-
-        foreach (var (key, value) in overrides) builder.UseSetting(key, value);
-        builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(overrides));
+        using var conn = new NpgsqlConnection(ConnectionString);
+        conn.Open();
+        using var cmd = new NpgsqlCommand($"DROP SCHEMA IF EXISTS {PlanDbContext.SchemaName} CASCADE", conn);
+        cmd.ExecuteNonQuery();
+        SchemaDroppedBeforeStart = true;
     }
 }

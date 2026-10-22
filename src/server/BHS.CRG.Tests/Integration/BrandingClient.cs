@@ -1,9 +1,4 @@
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
-using System.Text.Json;
-using BHS.CRG.Infrastructure.Persistence;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -14,29 +9,9 @@ namespace BHS.CRG.Tests.Integration;
 /// </summary>
 internal static class BrandingClient
 {
-    private const string Password = "Passw0rd!";
-
-    public static async Task<HttpClient> SignInAsync(IntegrationTestFixture fixture, string role)
-    {
-        var email = $"brand_{role.ToLowerInvariant()}_{Guid.NewGuid():N}@test.local";
-        using (var scope = fixture.Services.CreateScope())
-        {
-            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var user = new ApplicationUser
-            {
-                UserName = email, Email = email, DisplayName = "Тест", EmailConfirmed = true,
-            };
-            Assert.True((await users.CreateAsync(user, Password)).Succeeded);
-            Assert.True((await users.AddToRoleAsync(user, role)).Succeeded);
-        }
-
-        var client = fixture.CreateClient();
-        var login = await client.PostAsJsonAsync("/api/auth/login", new { email, password = Password });
-        login.EnsureSuccessStatusCode();
-        var token = (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        return client;
-    }
+    /// <summary>Вход с ролью — общим помощником (<see cref="AccessProbe" />).</summary>
+    public static Task<HttpClient> SignInAsync(IntegrationTestFixture fixture, string role) =>
+        AccessProbe.SignInAsync(fixture, role, "brand");
 
     public static async Task<HttpResponseMessage> UploadLogoAsync(HttpClient client, string fileName, byte[] bytes)
     {

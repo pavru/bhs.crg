@@ -4,8 +4,9 @@
 
 - [x] 1.1 Создать `src/server/BHS.CRG.Modules.Plan` (csproj со ссылками только на `BHS.CRG.Modules` и
   `BHS.CRG.Domain`), вписать в `BHS.CRG.slnx` и `BHS.CRG.Api.csproj` [CORE-1]. Проверка —
-  `cd src/server && dotnet build BHS.CRG.slnx` без ошибок, `ModuleBoundaryTests` (с `plan` в `InlineData`)
-  зелёный
+  `cd src/server && dotnet build BHS.CRG.slnx` без ошибок, `ModuleBoundaryTests` зелёный (проект модуля он
+  находит сам; что модуль в поставке — `InventoryScopeTests`; строка `plan` в `InlineData` разбора настройки
+  ничего о модуле не проверяла и снята ревью PR #1580)
 - [x] 1.2 `PlanModule.cs`: код `plan`, название «Планирование», `RoutePrefixes = ["/api/plan"]`,
   `UsesSections = [Constructions, Catalog]`, пустая группа за воротами; вписать в `DeliveredModules.cs` и
   `deploy/.env.example` [CORE-1] [AUTH-17] [AUTH-16.1].
@@ -23,7 +24,8 @@
 
 ## 3. Схема модуля
 
-- [x] 3.1 `PlanDbContext : ModuleDbContext` (схема `plan`, `xmin`, 409 при конфликте) и
+- [x] 3.1 `PlanDbContext : ModuleDbContext` (схема `plan`; 409 при конфликте — общим `ApiErrorMapping` для
+  любого контекста, ревью PR #1580) и
   `PlanDbContextFactory` без строки подключения [CORE-4]. Проверка — `ModuleSchemaDeclarationTests` и
   `ModuleDbContextInventoryTests` (с `plan`) зелёные
 - [x] 3.2 Миграция `Initial`:

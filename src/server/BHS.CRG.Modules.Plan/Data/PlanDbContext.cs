@@ -1,4 +1,3 @@
-using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,6 +13,11 @@ namespace BHS.CRG.Modules.Plan.Data;
 ///
 /// <para>Начальная миграция при этом не пустая по смыслу: она создаёт саму схему и историю миграций
 /// модуля в ней — то, что включается на чистой и на рабочей базе и переживает выключение модуля.</para>
+///
+/// <para>Запись, проигравшая одновременной, отвечает 409 без кода здесь: исключение EF переводит общий
+/// обработчик API (<c>ApiErrorMapping</c>) для любого контекста. Таблица, которой нужны свои слова
+/// («смету изменили…»), переведёт его в <c>ConflictException</c> сама — как счёт у <c>CostsDbContext</c>.
+/// Версия строки — системная колонка <c>xmin</c> (<c>IsRowVersion()</c>), как у счёта.</para>
 /// </summary>
 public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : ModuleDbContext(options)
 {
@@ -22,14 +26,6 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
 
     /// <summary>Имя таблицы истории миграций — то же, что у EF по умолчанию; своё только место.</summary>
     public const string HistoryTableName = "__EFMigrationsHistory";
-
-    /// <summary>
-    /// Имя теневого свойства с версией строки. Версия — системная колонка PostgreSQL <c>xmin</c>, как у
-    /// счёта и накладной: её меняет любая запись строки, и забыть её поднять нельзя. Таблица модуля,
-    /// которую правят с экрана, объявляет у себя <c>Property&lt;uint&gt;(RowVersion).IsRowVersion()</c> —
-    /// и её одновременная правка отвечает отказом 409 (см. <see cref="SaveChangesAsync" />).
-    /// </summary>
-    internal const string RowVersion = "RowVersion";
 
     protected override string Schema => SchemaName;
 
@@ -44,42 +40,4 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
     public static void Configure(DbContextOptionsBuilder options, string? connectionString) =>
         options.UseNpgsql(connectionString, npgsql => npgsql
             .MigrationsHistoryTable(HistoryTableName, SchemaName));
-
-    /// <summary>
-    /// Запись, проигравшая одновременной, отвечает отказом 409, а не 500 — одним местом на весь модуль,
-    /// а не у каждого адреса: адрес, который забыл бы перевести исключение EF, отвечал бы «внутренней
-    /// ошибкой сервера» о ситуации, где человеку надо перечитать и повторить.
-    ///
-    /// <para>Стоит с каркаса, хотя таблиц ещё нет: первая таблица модуля получает перевод, не вспоминая
-    /// о нём. Слова отказа общие; таблица, которой нужны свои («смету изменили…»), уточнит их здесь же,
-    /// как счёт и накладная у <c>CostsDbContext</c>.</para>
-    /// </summary>
-    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken ct = default)
-    {
-        try
-        {
-            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, ct);
-        }
-        catch (DbUpdateConcurrencyException e)
-        {
-            throw Concurrent(e);
-        }
-    }
-
-    public override int SaveChanges(bool acceptAllChangesOnSuccess)
-    {
-        try
-        {
-            return base.SaveChanges(acceptAllChangesOnSuccess);
-        }
-        catch (DbUpdateConcurrencyException e)
-        {
-            throw Concurrent(e);
-        }
-    }
-
-    private static ConflictException Concurrent(DbUpdateConcurrencyException e) =>
-        new("Запись изменили одновременно с этой правкой, и она не записана — целиком, ни одной частью. " +
-            "Перечитайте её и повторите: записанная поверх, она затёрла бы чужую правку.",
-            e);
 }
