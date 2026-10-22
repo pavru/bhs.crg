@@ -447,7 +447,7 @@ public class InvoiceRecordTests(InvoiceHost host) : IClassFixture<InvoiceHost>, 
         Assert.NotEqual(first, second);
 
         using var scope = host.Services.CreateScope();
-        var blobs = scope.ServiceProvider.GetRequiredService<IModuleBlobs>();
+        var blobs = scope.ServiceProvider.GetRequiredKeyedService<IModuleBlobs>(BHS.CRG.Modules.Costs.CostsModule.ModuleCode);
 
         Assert.Null(await blobs.SizeAsync(first));
         Assert.NotNull(await blobs.SizeAsync(second));

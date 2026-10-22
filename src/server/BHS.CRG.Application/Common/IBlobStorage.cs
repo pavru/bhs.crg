@@ -1,5 +1,20 @@
+using BHS.CRG.Domain.Storage;
+
 namespace BHS.CRG.Application.Common;
 
+/// <summary>
+/// Хранилище файлов.
+///
+/// <para><b>Владелец файла</b> (ТЗ CORE-37.2): у каждого файла он есть — ядро
+/// (<see cref="BlobOwner.Core" />) или код модуля. Методы без владельца работают ТОЛЬКО с файлами
+/// ядра: на файл модуля они отвечают так же, как на незнакомый путь. Владельца называют порт модуля,
+/// службы ядра, читающие файл от имени модуля, и резервная копия (<see cref="BlobOwner.Any" />);
+/// кто называет его и откуда берёт, сверяет <c>BlobReaderInventoryTests</c>.</para>
+///
+/// <para>Перегрузки с владельцем по умолчанию владельца не знают: так ведёт себя само хранилище,
+/// которому владелец не нужен. Проверяет его обёртка с реестром (<c>RegisteredBlobStorage</c>), и
+/// только через неё хранилище достаётся остальному приложению.</para>
+/// </summary>
 public interface IBlobStorage
 {
     Task<string> UploadAsync(string fileName, Stream content, string contentType, CancellationToken ct = default);
@@ -7,6 +22,35 @@ public interface IBlobStorage
     Task DeleteAsync(string blobPath, CancellationToken ct = default);
     /// <summary>Restores a blob to its exact original path (used by backup restore).</summary>
     Task PutAsync(string blobPath, Stream content, string contentType, CancellationToken ct = default);
+
+    /// <summary>Положить файл от имени владельца — порт модуля, образ файла модуля.</summary>
+    Task<string> UploadAsync(
+        string fileName, Stream content, string contentType, string owner, CancellationToken ct = default)
+        => UploadAsync(fileName, content, contentType, ct);
+
+    /// <summary>Вернуть файл на прежний путь с владельцем из копии.</summary>
+    Task PutAsync(string blobPath, Stream content, string contentType, string owner, CancellationToken ct = default)
+        => PutAsync(blobPath, content, contentType, ct);
+
+    /// <summary>
+    /// Открыть файл этого владельца. Файл другого владельца — тот же отказ «файл не найден», что у
+    /// незнакомого пути.
+    /// </summary>
+    Task<Stream> DownloadAsync(string blobPath, string owner, CancellationToken ct = default)
+        => DownloadAsync(blobPath, ct);
+
+    /// <summary>Удалить файл этого владельца; файл другого остаётся на месте.</summary>
+    Task DeleteAsync(string blobPath, string owner, CancellationToken ct = default)
+        => DeleteAsync(blobPath, ct);
+
+    /// <summary>Размер файла этого владельца; файл другого — <c>null</c>, как отсутствующий.</summary>
+    Task<long?> GetSizeAsync(string blobPath, string owner, CancellationToken ct = default)
+        => GetSizeAsync(blobPath, ct);
+
+    /// <summary>Какие из путей отсутствуют у этого владельца — см. <see cref="FindAbsentAsync(IEnumerable{string}, CancellationToken)" />.</summary>
+    Task<IReadOnlySet<string>> FindAbsentAsync(
+        IEnumerable<string> blobPaths, string owner, CancellationToken ct = default)
+        => FindAbsentAsync(blobPaths, ct);
 
     /// <summary>
     /// Размер объекта в байтах; <c>null</c> — хранилище ответило, что объекта НЕТ (issue #711).

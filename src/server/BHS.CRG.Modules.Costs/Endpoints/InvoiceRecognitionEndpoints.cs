@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
@@ -47,7 +48,8 @@ public static class InvoiceRecognitionEndpoints
     /// причина видна в ответе.</para>
     /// </summary>
     private static async Task<Created<InvoiceFromScanView>> FromScanAsync(
-        IFormFile file, CostsDbContext db, IModuleTypes types, IModuleUser user, IModuleBlobs blobs,
+        IFormFile file, CostsDbContext db, IModuleTypes types, IModuleUser user,
+        [FromKeyedServices(CostsModule.ModuleCode)] IModuleBlobs blobs,
         IModuleActivityLog log, InvoiceDesk desk, InvoiceScanRecognition scan, ILoggerFactory logs,
         CancellationToken ct)
     {

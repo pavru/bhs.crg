@@ -1,5 +1,6 @@
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Domain.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -55,7 +56,7 @@ public partial class BackupService
                 .ToList();
             // Все пути одним вопросом (issue #1439): по одному у копии, снятой при недоступном
             // хранилище, — тысячи вопросов и десятки секунд внутри запроса восстановления.
-            var absent = await blob.FindAbsentAsync(asked.Select(h => h.Key), ct);
+            var absent = await blob.FindAbsentAsync(asked.Select(h => h.Key), BlobOwner.Any, ct);
             var missing = asked.Where(h => absent.Contains(h.Key)).Select(h => (Path: h.Key, Holder: h.Value)).ToList();
 
             var copyKnew = manifest.KnowsCoreFileScan == true;

@@ -55,6 +55,9 @@ public class InventoryScopeTests
             (1, "читает один названный файл службы настроек интеграций — не обход проекта"),
         ["BHS.CRG.Tests/Configuration/ModuleRawSqlTests.cs"] =
             (1, "читает снимок модели ядра ради имён его таблиц; исходники, которые он проверяет, — как раз модулей"),
+        ["BHS.CRG.Tests/Configuration/BlobReaderInventoryTests.cs"] =
+            (3, "каталоги-исключения, а не список проектов: обёртка хранилища и файлы резервной копии ядра. " +
+                "Обход сам — через WithCore, и модули читаются"),
         ["BHS.CRG.Tests/Recognition/PageTimeoutToleranceTests.cs"] =
             (1, "читает каталог распознавания наборов данных: распознавание — служба ядра, модуль зовёт её портом"),
     };

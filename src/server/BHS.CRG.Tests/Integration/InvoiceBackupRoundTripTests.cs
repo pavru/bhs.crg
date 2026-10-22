@@ -4,7 +4,9 @@ using System.Text.Json;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Infrastructure.Backup;
+using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Costs.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -114,6 +116,12 @@ public class InvoiceBackupRoundTripTests(InvoiceLineHost host) : InvoiceLineTest
         var content = await client.GetAsync($"/api/costs/invoices/{invoice}/scan");
         Assert.True(content.IsSuccessStatusCode, $"файл после восстановления не открылся: {(int)content.StatusCode}");
         Assert.Contains("скан для копии", await content.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        // Владелец вернулся из копии (ТЗ CORE-37.2): файл ядра модуль своим портом не открыл бы.
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BHS.CRG.Infrastructure.Persistence.AppDbContext>();
+        Assert.Equal(CostsModule.ModuleCode,
+            await db.BlobRegistry.Where(e => e.Path == path).Select(e => e.Owner).SingleAsync());
     }
 
     /// <summary>Оценка веса копии считает файл счёта: она берёт пути из того же места, что и архив.</summary>
@@ -304,7 +312,8 @@ public class InvoiceBackupRoundTripTests(InvoiceLineHost host) : InvoiceLineTest
     {
         await ExecuteAsync($"TRUNCATE {CostsDbContext.SchemaName}.\"invoices\" CASCADE");
         using var scope = _host.Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<IBlobStorage>().DeleteAsync(path);
+        // От имени модуля: удаление от имени ядра файл costs не тронуло бы (ТЗ CORE-37.2).
+        await scope.ServiceProvider.GetRequiredService<IBlobStorage>().DeleteAsync(path, CostsModule.ModuleCode);
     }
 
     private async Task<RestoreReport> ImportAsync(Stream archive)

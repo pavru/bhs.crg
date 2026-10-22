@@ -1803,6 +1803,11 @@ namespace BHS.CRG.Infrastructure.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
+                    b.Property<string>("Owner")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("Path")
                         .IsRequired()
                         .HasMaxLength(1024)

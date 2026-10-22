@@ -1,4 +1,8 @@
+using BHS.CRG.Api.Renditions;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Jobs;
+using BHS.CRG.Domain.Storage;
+using BHS.CRG.Modules;
 using BHS.CRG.Modules.Ports;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -39,7 +43,16 @@ public static class ModulePorts
         services.AddSingleton<Activity.ActivityActionCatalog>();
 
         services.AddScoped<IModuleActivityLog, ModuleActivityLogPort>();
-        services.AddScoped<IModuleBlobs, ModuleBlobsPort>();
+        // Файлы и их образы — по ключу, коду модуля (ТЗ CORE-37.2): у каждого включённого модуля свой
+        // экземпляр, и порт знает, от чьего имени читать. Без ключа этих портов в контейнере нет.
+        foreach (var code in ModuleCodes(services))
+        {
+            services.AddKeyedScoped<IModuleBlobs>(code,
+                (sp, _) => new ModuleBlobsPort(sp.GetRequiredService<IBlobStorage>(), code));
+            services.AddKeyedScoped<IModuleRenditions>(code,
+                (sp, _) => new ModuleRenditionsPort(sp.GetRequiredService<RenditionStore>(), code,
+                    sp.GetRequiredService<ILogger<ModuleRenditionsPort>>()));
+        }
         services.AddScoped<IModuleNotifications, ModuleNotificationsPort>();
         services.AddScoped<IModuleJobs, ModuleJobsPort>();
         services.AddScoped<IModuleUser, ModuleUserPort>();
@@ -59,7 +72,7 @@ public static class ModulePorts
         // Куда ложатся поля профиля (issue #1483): объявленное модулем плюс поля, дописанные в его тип.
         services.AddScoped<IModuleRecognitionTargets, ModuleRecognitionTargetsPort>();
         // Читаемые образы файлов (issue #1269): образом владеет ядро, модуль спрашивает по пути оригинала.
-        services.AddScoped<IModuleRenditions, ModuleRenditionsPort>();
+        // Порт — по ключу модуля, выше вместе с файлами: образ читает файл от имени модуля.
 
         // Границы закрытия периода — из службы ядра (ТЗ CORE-35). Сама служба регистрируется с
         // остальными службами ядра: она работает и при пустом составе модулей.
@@ -97,5 +110,27 @@ public static class ModulePorts
         // AddAppModules — вторая реализация означала бы второй источник истины о составе поставки.
 
         return services;
+    }
+
+    /// <summary>
+    /// Коды включённых модулей — из реестра, который <c>AddAppModules</c> положил в контейнер. Порты
+    /// по ключу регистрируются при сборке, а не лениво: модуль, попросивший порт со своим ключом, обязан
+    /// получить его на старте, а не узнать о его отсутствии первым запросом.
+    ///
+    /// <para>Код «core» модулю запрещён здесь же: им назван владелец файлов ядра
+    /// (<see cref="BlobOwner.Core" />), и такой модуль читал бы своим портом все вложения.</para>
+    /// </summary>
+    private static IReadOnlyList<string> ModuleCodes(IServiceCollection services)
+    {
+        var registry = services
+                           .Where(d => !d.IsKeyedService && d.ServiceType == typeof(ModuleRegistry))
+                           .Select(d => d.ImplementationInstance).OfType<ModuleRegistry>().SingleOrDefault()
+                       ?? throw new InvalidOperationException(
+                           "Порты модулей регистрируются после AddAppModules: без реестра модулей порту " +
+                           "файлов не назвать, от чьего имени он читает.");
+        if (registry.Codes.FirstOrDefault(c => c == BlobOwner.Core || c == BlobOwner.Any) is { } bad)
+            throw new InvalidOperationException(
+                $"Модуль назван кодом «{bad}», которым названы файлы ядра: его порт читал бы все вложения.");
+        return registry.Codes;
     }
 }

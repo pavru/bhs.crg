@@ -16,6 +16,9 @@ public class BlobRegistryConfiguration : IEntityTypeConfiguration<BlobRegistryEn
         b.Property(e => e.Path).HasMaxLength(1024).IsRequired();
         b.Property(e => e.FileName).HasMaxLength(512);
         b.Property(e => e.MimeType).HasMaxLength(128);
+        // Владелец (ТЗ CORE-37.2). Умолчание базы «core» — только ради строк, лежавших до колонки, и
+        // ради сбора #672, который вставляет пути без владельца; EF пишет владельца всегда сам.
+        b.Property(e => e.Owner).HasMaxLength(BlobOwner.MaxLength).IsRequired();
 
         // Уникальность — не украшение: наполнение идёт из двух источников (запись в хранилище и
         // разовый сбор по существующим данным), и обе стороны обязаны быть идемпотентны. Индекс
