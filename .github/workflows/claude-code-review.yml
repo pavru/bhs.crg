@@ -3,12 +3,14 @@ name: Claude Code Review
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
+    # PR, тронувший ТОЛЬКО планирование — ТЗ и спецификации, — не ревьюим: кода в нём нет, а такие PR
+    # идут сериями. Фильтр путей здесь допустим, потому что проверка не обязательная: у обязательной
+    # не запущенный workflow оставил бы её ждать вечно (почему ci.yml делает то же через `if:` —
+    # в его заголовке). Фильтр сравнивает весь диф PR, а не последний push: PR, где есть хоть один
+    # файл вне этих каталогов, ревьюится целиком.
+    paths-ignore:
+      - 'docs/tz/**'
+      - 'openspec/**'
 
 jobs:
   claude-review:

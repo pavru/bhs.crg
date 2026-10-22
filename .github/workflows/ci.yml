@@ -16,6 +16,14 @@
 # проверку по имени, и переименование блокирует слияние навсегда (см. комментарий у самой работы).
 #
 # Выпуск прикрыт отдельно: release.yml спрашивает у API итог прогона CI на своём коммите.
+#
+# PR, тронувший ТОЛЬКО `docs/tz/**` и `openspec/**` (планирование: ТЗ и спецификации), тяжёлых
+# работ не гоняет — их пропускает `if:` по ответу первой работы «Что затронуто». Именно `if:`, а не
+# `paths-ignore` у workflow: пропущенная по условию работа отдаёт статус Skipped, и обязательная
+# проверка его засчитывает, а workflow, не запущенный фильтром путей, не отдаёт НИЧЕГО — проверка
+# висит в «Expected — waiting», и слияние заперто навсегда (документация GitHub, «Handling skipped
+# but required checks»). Прогон с пропущенными работами завершается как success — release.yml
+# выпускает с такого коммита так же, как с любого другого.
 name: CI
 
 on:
@@ -30,8 +38,53 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    # Не обязательная проверка и не должна ею стать: при отказе этой работы тяжёлые всё равно идут
+    # (см. их `if:`), а красный прогон говорит, что ответа не было.
+    name: Что затронуто
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      planning_only: ${{ steps.diff.outputs.planning_only }}
+    steps:
+      # Глубина 2: на PR checkout берёт пробное слияние, и его первый родитель — master, в который
+      # PR вливается. Диф с ним — ровно то, что принесёт слияние.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+
+      # Решает тот же скрипт, что и «Повышение версии» (через unbumped-merges.sh): разойдись они,
+      # Release отказывал бы на коммите, который бот законно не повысил.
+      - name: Только планирование (docs/tz, openspec)?
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            base=HEAD^1
+          else
+            # push в master: всё, что принёс этот push, — от прежней головы ветки.
+            base=$BEFORE
+            git fetch -q --depth=1 origin "$base"
+          fi
+          rc=0; bash scripts/planning-only.sh "$base" HEAD || rc=$?
+          case $rc in
+            0) echo "Тронуты только docs/tz и openspec — сборка, тесты и живые прогоны пропущены."
+               echo "planning_only=true" >> "$GITHUB_OUTPUT" ;;
+            1) echo "Тронуто не только планирование — полный прогон."
+               echo "planning_only=false" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::Не удалось понять, что тронуто (причина строкой выше). Тяжёлые работы идут полностью."
+               exit 1 ;;
+          esac
+
   backend:
     name: Backend (сборка + тесты)
+    # `!cancelled()`, а не умолчание: по умолчанию работа, чья зависимость упала, ПРОПУСКАЕТСЯ — а
+    # пропуск обязательная проверка засчитывает. Отказ «Что затронуто» открыл бы слияние без
+    # единого теста. Так он даёт пустой ответ, и пустой ответ — «гонять». То же у всех тяжёлых работ.
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.planning_only != 'true' }}
     runs-on: ubuntu-latest
 
     # Интеграционные тесты ходят в ЖИВОЙ Postgres: IntegrationTestFixture прибит к
@@ -196,6 +249,8 @@ jobs:
 
   frontend:
     name: Frontend (типы + тесты + линт)
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.planning_only != 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -250,6 +305,8 @@ jobs:
     # правилом в настройках репозитория, и в таком порядке: сначала правило принимает новое имя,
     # потом workflow. То же верно для «Backend (сборка + тесты)» и «Frontend (типы + тесты + линт)».
     name: Скрипт обновления (логика)
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.planning_only != 'true' }}
     runs-on: ubuntu-latest
 
     # Секунды, но закрывают класс поломок, который никто не заметит: эти скрипты запускают на
@@ -342,6 +399,8 @@ jobs:
 
   e2e:
     name: Живые прогоны (браузер)
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.planning_only != 'true' }}
     runs-on: ubuntu-latest
 
     # Единственная работа, которая поднимает ПРИЛОЖЕНИЕ ЦЕЛИКОМ и смотрит на него браузером.

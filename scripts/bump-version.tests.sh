@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# Проверка скриптов версии — get-version.sh, bump-version.sh, unbumped-merges.sh — в песочнице,
-# без сети и без правки репозитория.
+# Проверка скриптов версии — get-version.sh, bump-version.sh, unbumped-merges.sh, planning-only.sh —
+# в песочнице, без сети и без правки репозитория.
 #
-# Зачем набор для трёх коротких скриптов. Запускает их не человек, а workflow после слияния, и
+# Зачем набор для четырёх коротких скриптов. Запускает их не человек, а workflow после слияния, и
 # результат сразу уходит коммитом в master: ошибку здесь никто не увидит глазами до тех пор, пока
 # версия не окажется в выпуске. Набор гоняется в CI на каждый PR (issue #1153).
 
@@ -159,6 +159,71 @@ bash "$UNBUMPED" > out.txt 2> err.txt; rc=$?
 check 'границы нет: код не ноль'         да "$([ $rc -ne 0 ] && echo да || echo нет)"
 check 'границы нет: stdout пуст'         '' "$(cat out.txt)"
 check 'границы нет: причина названа'     да "$(grep -q 'не нашёлся коммит' err.txt && echo да || echo нет)"
+cd "$SB" || exit 1
+
+echo
+echo '── Только планирование: docs/tz и openspec версию не двигают ──'
+# Тот же скрипт решает в ci.yml, пропускать ли тяжёлые работы, — поэтому граница каталогов
+# проверяется здесь со всех сторон: соседний каталог, перенос, merge-коммит, кириллица в имени.
+mkdir plan && cd plan || exit 1
+git init -q -b master . && git config core.autocrlf false
+export VERSION_FILE="$SB/plan/props.xml"
+PLAN="$HERE/planning-only.sh"
+put() { # put ЗАГОЛОВОК ФАЙЛ… — слияние, дописавшее строку в каждый файл
+    local msg="$1"; shift
+    for f in "$@"; do mkdir -p "$(dirname "$f")"; echo "$msg" >> "$f"; done
+    g add -A; g commit -q -m "$msg"
+}
+mkdir src && echo код > src/a.cs
+version 1.0.0 'Начало (#1)'
+
+put 'ТЗ (#2)' 'docs/tz/50-планирование.md'
+put 'OpenSpec (#3)' openspec/changes/plan-00-epic/tasks.md openspec/specs/core/spec.md
+put 'ТЗ и OpenSpec вместе (#4)' docs/tz/README.md openspec/config.yaml
+check 'только docs/tz и openspec — не повод повышать' '' "$(pending)"
+check 'planning-only: да — код 0'        0 "$(bash "$PLAN" HEAD^ HEAD; echo $?)"
+
+put 'ТЗ и CLAUDE.md (#5)' 'docs/tz/50-планирование.md' CLAUDE.md
+check 'один файл вне — обычное слияние'   'after ТЗ и CLAUDE.md (#5);' "$(pending)"
+check 'planning-only: нет — код 1'       1 "$(bash "$PLAN" HEAD^ HEAD; echo $?)"
+version 1.0.1 'chore: bump version to 1.0.1 [skip bump]'
+
+put 'Рядом с ТЗ (#6)' docs/README.md
+put 'Похожий каталог (#7)' docs/tz-old/a.md
+put 'Похожий каталог в корне (#8)' openspec2/a.md
+check 'docs/, docs/tz-old/, openspec2/ — не планирование' \
+    'after Похожий каталог в корне (#8);after Похожий каталог (#7);after Рядом с ТЗ (#6);' "$(pending)"
+version 1.0.2 'chore: bump version to 1.0.2 [skip bump]'
+
+# Без --no-renames перенос был бы виден одним новым именем — под openspec/.
+g mv src/a.cs openspec/a.cs; g commit -q -m 'Перенос кода в openspec (#9)'
+check 'перенос из src в openspec — обычное слияние' 'after Перенос кода в openspec (#9);' "$(pending)"
+version 1.0.3 'chore: bump version to 1.0.3 [skip bump]'
+
+g commit -q --allow-empty -m 'Пустое слияние (#10)'
+check 'пустое изменение — не планирование' 'after Пустое слияние (#10);' "$(pending)"
+version 1.0.4 'chore: bump version to 1.0.4 [skip bump]'
+
+# Merge-коммит сравнивается с первым родителем — с master до слияния, а не с последним коммитом
+# ветки: иначе ветка «код, потом спецификация» прошла бы за планирование.
+g checkout -q -b code-then-spec
+put 'в ветке: код' src/b.cs; put 'в ветке: спецификация' openspec/b.md
+g checkout -q master
+g merge -q --no-ff code-then-spec -m 'Merge pull request #11'
+check 'merge-коммит с кодом внутри — обычное слияние' 'after Merge pull request #11;' "$(pending)"
+version 1.0.5 'chore: bump version to 1.0.5 [skip bump]'
+g checkout -q -b spec-only
+put 'в ветке: ТЗ' docs/tz/c.md; put 'в ветке: спецификация' openspec/c.md
+g checkout -q master
+g merge -q --no-ff spec-only -m 'Merge pull request #12'
+check 'merge-коммит только с планированием — пропущен' '' "$(pending)"
+
+# Ответить не удалось — код 2 и причина, а не «нет»: иначе вызывающий не отличил бы отказ от ответа.
+bash "$PLAN" нет-такой HEAD > out.txt 2> err.txt; rc=$?
+check 'ревизии нет: код 2'               2 "$rc"
+check 'ревизии нет: причина названа'     да "$(grep -q 'не удался' err.txt && echo да || echo нет)"
+bash "$PLAN" HEAD > /dev/null 2>&1; rc=$?
+check 'одна ревизия вместо двух: код 2'  2 "$rc"
 cd "$SB" || exit 1
 
 echo
