@@ -11,7 +11,7 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 ///
 /// <para>Куда ведёт каждое поле профиля, решает ядро (<c>IModuleRecognitionTargets</c>): объявленное
 /// модулем (<see cref="CostsRecognitionProfiles.InvoiceTargets" />) плюс поля, которые заказчик дописал в
-/// тип. Здесь — разбор значений и что сказать о не легшем. Сами поля счёта, слияние в пустые и охрана —
+/// тип. Здесь — разбор значений и что из прочитанного не ляжет (<see cref="UnplacedRead" />). Сами поля счёта, слияние в пустые и охрана —
 /// в <see cref="InvoiceScanReading" />.</para>
 ///
 /// <para>Отдельно — затем же, зачем <see cref="InvoiceScanLines" />: правил много, и каждое проверяется
@@ -55,8 +55,8 @@ public static class InvoiceScanHeader
     /// <param name="Value">Разобранное значение; <c>null</c> — не разобрано.</param>
     public sealed record Candidate(string Key, string Title, string ProfileKey, string Text, JsonNode? Value);
 
-    /// <summary>Что ложится в поля и что сказать о прочитанном, которое в поля не ляжет.</summary>
-    public sealed record Plan(IReadOnlyList<Candidate> Candidates, IReadOnlyList<string> Notes);
+    /// <summary>Что ложится в поля и что прочитано, но в поля не ляжет (issue #1484).</summary>
+    public sealed record Plan(IReadOnlyList<Candidate> Candidates, IReadOnlyList<UnplacedRead> Unplaced);
 
     /// <param name="fields">Прочитанное по ключам профиля; <c>null</c> — спросили, в документе не нашлось.</param>
     /// <param name="targets">Цели ключей от ядра; ключа нет или <c>null</c> — у счёта такого поля нет.</param>
@@ -64,8 +64,7 @@ public static class InvoiceScanHeader
         IReadOnlyDictionary<string, string?> fields, IReadOnlyDictionary<string, ModuleFieldTarget?> targets)
     {
         var candidates = new List<Candidate>();
-        var unplaced = new List<string>();
-        var off = new List<string>();
+        var unplaced = new List<UnplacedRead>();
 
         foreach (var (key, text) in fields)
         {
@@ -74,12 +73,14 @@ public static class InvoiceScanHeader
             switch (targets.GetValueOrDefault(key))
             {
                 case null:
-                    unplaced.Add($"«{key}» «{Short(text)}»");
+                    unplaced.Add(InvoiceScanUnplaced.InHeader(key, text, InvoiceScanUnplaced.NoField));
                     break;
+                // Прочитанное для сопоставления сторон (название, ИНН) использовано — не «не положено».
                 case { Origin: ModuleTargetOrigin.Input }:
                     break;
                 case { Unavailable: { } why } target:
-                    off.Add($"«{target.Title ?? target.Key}» «{Short(text)}» — {why}");
+                    unplaced.Add(InvoiceScanUnplaced.InHeader(key, text, InvoiceScanUnplaced.NotRecognizable, why,
+                        target.Title ?? target.Key));
                     break;
                 case var target:
                     var value = target.Origin == ModuleTargetOrigin.Module && Parsers.TryGetValue(target.Key, out var parse)
@@ -90,7 +91,6 @@ public static class InvoiceScanHeader
             }
         }
 
-        var notes = new List<string>();
         var chosen = new List<Candidate>();
         // Одно поле — одно значение: точный ключ старше прежнего (НомерСчёта → Номер). Второе прочитанное
         // не теряется молча — оно названо, человек сверит с файлом.
@@ -99,18 +99,11 @@ public static class InvoiceScanHeader
             var ordered = group.OrderByDescending(c => c.ProfileKey == c.Key).ToList();
             chosen.Add(ordered[0]);
             foreach (var other in ordered.Skip(1))
-                notes.Add($"{ordered[0].Title}: в поле ведут два поля профиля — взято «{ordered[0].ProfileKey}» " +
-                          $"«{Short(ordered[0].Text)}», а «{other.ProfileKey}» «{Short(other.Text)}» не положено. " +
-                          "Оставьте в профиле одно из них.");
+                unplaced.Add(InvoiceScanUnplaced.InHeader(other.ProfileKey, other.Text,
+                    InvoiceScanUnplaced.DuplicateKey, ordered[0].ProfileKey, other.Title));
         }
 
-        if (off.Count > 0)
-            notes.Add("Прочитано, но распознаванием не заполняется: " + string.Join("; ", off) + ".");
-        if (unplaced.Count > 0)
-            notes.Add("Прочитано, в счёт не положено: " + string.Join("; ", unplaced) + " — у счёта нет поля с " +
-                      "таким ключом. Такие поля получают только наборы данных; чтобы поле заполнялось, назовите " +
-                      "его в профиле ключом поля счёта или допишите поле в тип «Счёт на оплату».");
-        return new(chosen, notes);
+        return new(chosen, unplaced);
     }
 
     /// <summary>
@@ -152,6 +145,4 @@ public static class InvoiceScanHeader
 
     private static JsonNode? MoneyNode(string text) =>
         RecognizedValues.Money(text) is { } money ? JsonValue.Create(money) : null;
-
-    private static string Short(string text) => InvoiceScanLines.Short(text);
 }

@@ -7,8 +7,8 @@ namespace BHS.CRG.Tests.Costs;
 
 /// <summary>
 /// Строки скана раскладываются по ключам колонок профиля (issue #1480): колонка с ключом поля строки
-/// заполняет это поле, колонка с другим ключом не теряется молча — она названа в примечании
-/// распознавания.
+/// заполняет это поле, колонка с другим ключом не теряется молча — она названа в итоге распознавания
+/// записью с номером строки файла (issue #1484).
 ///
 /// <para><b>Сторож задачи</b> — первые тесты: новое поле строки без решения «цель или нет» краснеет,
 /// таблица ключей не расходится ни с разбором, ни с инструкцией администратора. Ломается он тем, что
@@ -108,7 +108,7 @@ public class InvoiceScanLineKeysTests
         var line = Assert.Single(reading.Lines);
         Assert.Equal("ВВГ-3х2,5", line.SupplierCode);
         Assert.Null(line.Note);
-        Assert.Null(reading.StrayNote);
+        Assert.Empty(reading.Unplaced);
     }
 
     /// <summary>
@@ -136,7 +136,7 @@ public class InvoiceScanLineKeysTests
 
         var lower = InvoiceScanLines.Read([new Dictionary<string, string?> { ["артикул"] = "А-1", [CostsRecognitionProfiles.LineName] = "Кабель" }]);
         Assert.Null(Assert.Single(lower.Lines).SupplierCode);
-        Assert.Contains("«артикул» — у строки счёта нет поля с таким ключом (строк: 1, например «А-1»)", lower.StrayNote);
+        Assert.Equal(InvoiceScanUnplaced.InLine(1, "артикул", "А-1", InvoiceScanUnplaced.NoField), Assert.Single(lower.Unplaced));
     }
 
     /// <summary>Длинный артикул не обрезается и не роняет разбор — он в примечании, как непрочитанное число.</summary>
@@ -151,12 +151,12 @@ public class InvoiceScanLineKeysTests
     }
 
     /// <summary>
-    /// Колонка без поля в счёте названа одним примечанием распознавания на все строки, а не в
-    /// примечании каждой строки (ревью PR #1485): примечание строки — поле человека, оно едет в версии
-    /// счёта. Пустая колонка не названа: ей нечего терять.
+    /// Колонка без поля в счёте названа в итоге распознавания — записью на строку файла, с её номером, —
+    /// а не в примечании строки (ревью PR #1485): примечание строки — поле человека, оно едет в версии
+    /// счёта. Пустая колонка не названа: ей нечего терять; неразобранное число — в примечании строки.
     /// </summary>
     [Fact]
-    public void Колонка_без_поля_названа_в_примечании_распознавания_а_не_строки()
+    public void Колонка_без_поля_названа_в_итоге_распознавания_а_не_в_строке()
     {
         var reading = InvoiceScanLines.Read(
         [
@@ -172,10 +172,11 @@ public class InvoiceScanLineKeysTests
 
         Assert.Equal("В файле не прочитано: количество «много»", reading.Lines[0].Note);
         Assert.Null(reading.Lines[1].Note);
-        Assert.StartsWith(
-            "Прочитано, в счёт не положено: «Страна» — у строки счёта нет поля с таким ключом (строк: 2, например «Россия»).",
-            reading.StrayNote);
-        Assert.DoesNotContain("ГТД", reading.StrayNote);
+        Assert.Equal(
+        [
+            InvoiceScanUnplaced.InLine(1, "Страна", "Россия", InvoiceScanUnplaced.NoField),
+            InvoiceScanUnplaced.InLine(2, "Страна", "Китай", InvoiceScanUnplaced.NoField),
+        ], reading.Unplaced);
     }
 
     /// <summary>
@@ -192,7 +193,9 @@ public class InvoiceScanLineKeysTests
         ]);
 
         Assert.Equal("Кабель", Assert.Single(reading.Lines).SupplierText);
-        Assert.Contains("«№» — у строки счёта нет поля с таким ключом (строк: 2", reading.StrayNote);
+        // Номер — строки ТАБЛИЦЫ файла: строка, не ставшая строкой счёта, его тоже занимает.
+        Assert.Equal([1, 2], reading.Unplaced.Select(u => u.Row!.Value));
+        Assert.All(reading.Unplaced, u => Assert.Equal(("№", InvoiceScanUnplaced.NoField), (u.Key, u.Reason)));
     }
 
     /// <summary>
@@ -210,7 +213,8 @@ public class InvoiceScanLineKeysTests
         }]);
 
         Assert.Equal(5m, Assert.Single(reading.Lines).Price);
-        Assert.Contains("«Цена » — повторяет ключ «Цена», поле уже заполнено им (строк: 1, например «50,00»)", reading.StrayNote);
+        Assert.Equal(InvoiceScanUnplaced.InLine(1, "Цена ", "50,00", InvoiceScanUnplaced.DuplicateKey, "Цена"),
+            Assert.Single(reading.Unplaced));
     }
 
     /// <summary>Строка без колонки «Артикул» — как раньше: артикула нет, примечаний нет.</summary>
@@ -228,7 +232,7 @@ public class InvoiceScanLineKeysTests
         Assert.Null(line.SupplierCode);
         Assert.Equal(10m, line.Amount);
         Assert.Null(line.Note);
-        Assert.Null(reading.StrayNote);
+        Assert.Empty(reading.Unplaced);
     }
 
     private static Dictionary<string, string?> Full(
