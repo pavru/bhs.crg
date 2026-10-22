@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BHS.CRG.Infrastructure.Generation;
 
 /// <summary>
-/// C#-аналог NewElementResolverStyles.xsl: разрешает $ref-объекты в реквизитах,
+/// Разрешает $ref-объекты в реквизитах,
 /// подмешивает данные сущностей каталога в контекст генерации.
 /// </summary>
 public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEvaluator) : IEntityResolver

@@ -76,9 +76,9 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
         "POST /api/common-data/purge-batch/preview",
         "POST /api/common-data/purge-batch",
 
-        // CatalogEntity — прежнее хранилище того же справочника (аналог «КаталогОбщихДанных»
-        // старой системы). Потребителей у него не осталось, но адреса живы и закрыты теми же
-        // воротами, поэтому под присмотром тоже: пока дверь есть, она обязана быть дверью ядра.
+        // CatalogEntity — прежнее хранилище того же справочника. Потребителей у него не осталось,
+        // но адреса живы и закрыты теми же воротами, поэтому под присмотром тоже: пока дверь есть,
+        // она обязана быть дверью ядра.
         "GET /api/catalog/",
         "GET /api/catalog/{id:guid}",
         "POST /api/catalog/",
