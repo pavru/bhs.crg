@@ -1,7 +1,7 @@
 namespace BHS.CRG.Application.Generation;
 
 /// <summary>
-/// C#-аналог ref/merge механизма из NewElementResolverStyles.xsl старой системы.
+/// Разворачивает ссылки ($ref) и наследование (_baseRef) в реквизитах документа.
 /// Принимает <see cref="DocumentView"/>, разрешает ссылки на сущности каталога,
 /// возвращает собранный GenerationContext.
 /// </summary>
