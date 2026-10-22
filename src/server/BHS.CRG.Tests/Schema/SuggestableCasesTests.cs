@@ -44,7 +44,7 @@ public class SuggestableCasesTests
         var expected = Cases().Select(c => c.GetProperty("expect").GetString()).ToHashSet();
         string[] codes =
         [
-            Suggestable.Yes, Suggestable.Type, Suggestable.Computed, Suggestable.Locked, Suggestable.Manual,
+            Suggestable.Yes, Suggestable.NotString, Suggestable.Computed, Suggestable.Locked, Suggestable.Manual,
             .. Suggestable.UniqueTags.Select(u => u.Reason),
         ];
 

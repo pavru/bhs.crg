@@ -18,7 +18,7 @@ Issue #1529 (подсказки 1/5: правило `Suggestable` и тэг `inp
 
 - `Suggestable` в ядре (C#) и в клиенте (TS) с общим файлом случаев: оба набора тестов читают один JSON.
 - Правило возвращает **код причины**: подсказывается | `type` | `computed` | `locked` | `identity` |
-  `inn` | `docNumber` | `personnelNumber` | `manual` — точный список по реестру тэгов на момент PR
+  `inn` | `docNumber` | `personnelNumber` | `article` | `orgName` | `account` | `manual` — точный список по реестру тэгов на момент PR
   (`nomenclature.article` и `org.name` — тэги однозначности, решение В-4 от 22.10.2026). Подсказывается только `string`;
   `text`, `primitive` и прочие виды — `type`. `work.producesId` отдельного кода не получает: поле с ним —
   `boolean`, его отсекает `type`.

@@ -1,5 +1,5 @@
 import type { SchemaField } from './schema';
-import { FUNCTIONAL_TAG, tagCode } from './tags';
+import { FUNCTIONAL_TAG, hasTag } from './tags';
 
 /**
  * Подсказывается ли поле значениями, введёнными ранее (issue #1529) — зеркало серверного `Suggestable`.
@@ -8,11 +8,14 @@ import { FUNCTIONAL_TAG, tagCode } from './tags';
  * показывал причину вместо флажка. Расхождение двух копий ловит общий файл `suggestableCases.json`:
  * его считают и `suggestable.test.ts`, и `SuggestableCasesTests` на сервере.
  */
-export type SuggestReason =
-  | 'suggested'
-  | 'type' | 'computed' | 'locked'
-  | 'identity' | 'inn' | 'docNumber' | 'personnelNumber' | 'article' | 'orgName'
-  | 'manual';
+export const SUGGEST_REASONS = [
+  'suggested',
+  'type', 'computed', 'locked',
+  'identity', 'inn', 'docNumber', 'personnelNumber', 'article', 'orgName', 'account',
+  'manual',
+] as const;
+
+export type SuggestReason = (typeof SUGGEST_REASONS)[number];
 
 /**
  * Тэги однозначности В ПОРЯДКЕ проверки — у поля с несколькими код первого из них. Значение у каждой
@@ -25,6 +28,7 @@ const UNIQUE_TAGS: readonly (readonly [string, SuggestReason])[] = [
   [FUNCTIONAL_TAG.employeePersonnelNumber, 'personnelNumber'],
   [FUNCTIONAL_TAG.nomenclatureArticle, 'article'],
   [FUNCTIONAL_TAG.orgName, 'orgName'],
+  [FUNCTIONAL_TAG.employeeAccount, 'account'],
 ];
 
 /** Код причины; порядок проверок: вид → вычисляемое → запертое → однозначность → выключено вручную. */
@@ -33,9 +37,8 @@ export function suggestReason(field: Pick<SchemaField, 'type' | 'computed' | 'lo
   if (field.computed) return 'computed';
   if (field.locked) return 'locked';
 
-  const codes = new Set((field.tags ?? []).map(tagCode));
-  for (const [tag, reason] of UNIQUE_TAGS)
-    if (codes.has(tag)) return reason;
+  const unique = UNIQUE_TAGS.find(([tag]) => hasTag(field.tags, tag));
+  if (unique) return unique[1];
 
-  return codes.has(FUNCTIONAL_TAG.inputNoSuggest) ? 'manual' : 'suggested';
+  return hasTag(field.tags, FUNCTIONAL_TAG.inputNoSuggest) ? 'manual' : 'suggested';
 }

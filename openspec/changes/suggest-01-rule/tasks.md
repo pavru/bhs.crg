@@ -23,14 +23,14 @@ PR закрывает #1529 («Closes #1529»), метка `version:minor`. `<Ve
 
 - [x] 2.1 Общий файл случаев `src/client/src/shared/api/suggestableCases.json`: случай на каждый код
   (`type` для `text`, `primitive`, `boolean`; `computed`; `locked`; `identity` с номером; `inn`;
-  `docNumber`; `personnelNumber`; `article`; `orgName`; `manual`; «подсказывается»), случай порядка проверок [TYPE-2].
+  `docNumber`; `personnelNumber`; `article`; `orgName`; `account`; `manual`; «подсказывается»), случай порядка проверок [TYPE-2].
   Проверка — файл читают оба теста ниже
 - [x] 2.2 `Application/Objects/FieldSuggestions/Suggestable.cs` — код причины по виду, `Computed`,
   `Locked` и тэгам (по коду тэга, без номера) и тест `Tests/Schema/SuggestableCasesTests.cs` на общем файле
   [TYPE-2]. Проверка — `dotnet test --filter SuggestableCases` зелёный; поломка порядка в C# его роняет
 - [x] 2.3 `shared/api/suggestable.ts` и `suggestable.test.ts` на том же файле [TYPE-2]. Проверка —
   `npm test -- suggestable` зелёный; поломка порядка в TS его роняет
-- [x] 2.4 Перепись строковых тэгов поля ядра: тест перечисляет тэги реестра с видом `string` и требует
+- [x] 2.4 Перепись строковых тэгов поля ядра и модулей поставки: тест перечисляет тэги реестра с видом `string` и требует
   для каждого решение «однозначный (код) / нет» [TYPE-2]. Проверка — новый строковый тэг без решения
   роняет тест с названием тэга
 

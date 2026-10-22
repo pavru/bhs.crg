@@ -20,7 +20,7 @@ public static class Suggestable
     /// <summary>Поле подсказывается.</summary>
     public const string Yes = "suggested";
     /// <summary>Вид поля — не строка: в <c>text</c> пишут абзацы, в <c>primitive</c> — ИНН, КПП, телефоны.</summary>
-    public const string Type = "type";
+    public const string NotString = "type";
     /// <summary>Значение вычисляется, человек его не вводит.</summary>
     public const string Computed = "computed";
     /// <summary>Поле заперто модулем или ядром — значение кладёт код.</summary>
@@ -45,6 +45,9 @@ public static class Suggestable
         // Решение В-4 эпика (22.10.2026): оба — тэги однозначности.
         (FunctionalTag.NomenclatureArticle, "article"),
         (FunctionalTag.OrgName, "orgName"),
+        // Поле ядра с этим тэгом заперто и отсекается раньше, но тэг ставится любому строковому
+        // полю — и там подсказка чужой учётной записи привязала бы к ней второго сотрудника.
+        (FunctionalTag.EmployeeAccount, "account"),
     ];
 
     /// <summary>
@@ -55,7 +58,7 @@ public static class Suggestable
     /// <param name="tags">Записи тэгов поля как в схеме — с номером или без (<c>identity:1</c>).</param>
     public static string Reason(string type, bool computed, bool locked, IReadOnlyCollection<string> tags)
     {
-        if (type != "string") return Type;
+        if (type != "string") return NotString;
         if (computed) return Computed;
         if (locked) return Locked;
 

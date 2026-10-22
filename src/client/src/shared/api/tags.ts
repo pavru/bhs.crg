@@ -22,6 +22,7 @@ export const FUNCTIONAL_TAG = {
   orgInn: 'org.inn',
   orgName: 'org.name',
   employeePersonnelNumber: 'employee.personnelNumber',
+  employeeAccount: 'employee.account',
   nomenclatureArticle: 'nomenclature.article',
   inputNoSuggest: 'input.noSuggest',
 } as const;
