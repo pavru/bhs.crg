@@ -14,9 +14,9 @@
 - [ ] 1.4 Клиент: `features/periods/ClosingSections.tsx` — блок запрещающих строк; `PeriodsPage.tsx` —
   «Закрыть» заперта с причиной; правило ядра «граница — по поясу компании»; `shared/api/periods.ts`
   [CORE-35]. Проверка — vitest `closing.test.ts`: `canClose: false` запирает кнопку и называет строку
-- [ ] 1.5 `BHS.CRG.Modules/Data/ModuleRecordVersion.cs` и `Tests/Configuration/RecordVersionInventoryTests.cs`;
-  `InvoiceVersion` — исключение с причиной [CORE-36]. Проверка — перепись красная на образцах
-  (`ExecuteUpdate`, сырой SQL, чтение истории файлом итогов), зелёная на решении
+- [ ] 1.5 ~~Базовый тип версии и перепись~~ — строит этап 3 (`plan-12-record-versions`, D18 зонтика); здесь
+  только проверить, что `RecordVersionInventoryTests` видит наследника `work` [CORE-36]. Проверка —
+  перепись зелёная с отчётом `work` среди наследников
 
 ## 2. PR 2: модуль `work`
 
