@@ -1,0 +1,48 @@
+# Proposal: контракт изоляции — параметр доступа, граница выдачи, перепись
+
+Дочерний change зонтика `work-00-epic`, общая архитектура — `../work-00-epic/design.md` (D4, D12).
+
+## Why
+
+Монтажник видит только свои отчёты, менеджер — отчёты своих строек (`WORK-39`), и доступ передаётся в
+каждый запрос явным параметром, без глобального фильтра (`WORK-40`). Сегодня контракт таблиц модуля
+этого не несёт:
+- служба строк получает только `Guid UserId` (`BHS.CRG.Modules/Tables/ModuleTableQuery.cs:149`), а ядро
+  вынимает его из параметра восклицательным знаком (`Api/Modules/Tables/ModuleTableService.cs:74`): чтение
+  от имени системы упало бы исключением, а не отказом с причиной;
+- граница выдачи таблицы — одна постоянная строка объявления (`ModuleTable.cs:152`), хотя набор данных
+  уже умеет выбирать исход (`SystemDataSetDeclaration.BoundaryFor`) — таблица его просто не называет.
+  «Отчёты ваших строек (4)» (`CORE-24.3`) сказать нечем;
+- ничто не мешает модулю прочитать изолированную запись мимо параметра — `Set<T>()` или сырым SQL.
+
+## What Changes
+
+- **PR 1 — контракт.** Тип параметра доступа в контрактах: кто спрашивает, его ключи, «система с
+  причиной» — зеркало `DataAccess`; охват «свои / стройки / все» со списком строек — языком контрактов
+  для модуля. `ModuleTableQuery` получает параметр вместо `Guid`. Таблица объявляет строку границы на
+  каждый исход отбора, служба строк называет применившийся исход и число строек. Граница — полем ответа
+  таблицы, первой строкой XLSX, в наборе данных и в MCP. Чтение изолированной таблицы от имени системы —
+  отказ с причиной.
+- **PR 2 — перепись.** Пометка изолированной записи модуля. Перепись по исходникам: у такой записи нет
+  свойства набора в контексте, `Set<T>()` и сырой SQL по её таблице — только в объявленном файле чтения.
+- Разрешение «стройки менеджера» сюда не входит — это данные назначений (`work-11`).
+
+## Capabilities
+
+### New Capabilities
+- Нет.
+
+### Modified Capabilities
+- `core`: параметр доступа в чтении таблиц модулей, граница выдачи по исходу отбора, перепись чтения
+  изолированных записей.
+
+## Impact
+
+- **Сервер:** `BHS.CRG.Modules/Tables/ModuleTable.cs`, `ModuleTableQuery.cs`; новые
+  `BHS.CRG.Modules/Access/ModuleReader.cs`, `ModuleReach.cs`, `BHS.CRG.Modules/Data/IIsolatedRecord.cs`;
+  `Api/Modules/Tables/ModuleTableService.cs`, `ModuleTableService.Shortcuts.cs`, `ModuleTableExport.cs`,
+  `ModuleTableDataProvider.cs`; `Modules.Costs/Tables/InvoiceTable.cs` (объявление одной границы).
+- **Клиент:** `shared/api/tables.ts` — поле `boundaryOutcome`; экран таблицы уже показывает `boundary`.
+- **Тесты:** `ModuleTableIsolationTests`, `IsolatedReadInventoryTests`, `ModuleTableCatalogTests`,
+  `SystemDataSetDeclarationTests`, `McpGateInventoryTests`.
+- **Документы:** `docs/DEV_NOTES.md` — как модуль читает изолированные записи.
