@@ -15,6 +15,7 @@
 *.xls  binary
 *.docx binary
 *.zip  binary
+*.gsfx binary
 *.woff  binary
 *.woff2 binary
 *.ttf  binary
