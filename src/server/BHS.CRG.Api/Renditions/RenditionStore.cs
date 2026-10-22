@@ -34,6 +34,12 @@ namespace BHS.CRG.Api.Renditions;
 /// <para>Блокировка по пути — в процессе: два одновременных вопроса об одном файле не запустят
 /// конвертер дважды. От второго процесса защищает уникальность ключа в таблице: проигравший убирает
 /// свой образ и отдаёт запись победителя.</para>
+///
+/// <para><b>Владелец</b> (ТЗ CORE-37.2). Оригинал служба читает от имени того, кто спрашивает, — его
+/// называет порт модуля (<c>ModuleRenditionsPort</c> знает код модуля по построению), а не строка в
+/// коде службы. Образ ложится с тем же владельцем: модуль открывает его своим портом. Запись образа
+/// показывается, только если оригинал принадлежит спрашивающему, — иначе по ней узнавали бы о чужом
+/// файле.</para>
 /// </summary>
 public sealed class RenditionStore(
     IServiceScopeFactory scopes, IBlobStorage blobs, RenditionService builder, ILogger<RenditionStore> log)
@@ -43,28 +49,37 @@ public sealed class RenditionStore(
 
     private readonly PathLocks _locks = new();
 
-    /// <summary>Что записано об образе этого файла; <c>null</c> — ничего. Не строит ничего никогда.</summary>
-    public async Task<RenditionRecord?> FindAsync(string originalPath, CancellationToken ct)
+    /// <summary>
+    /// Что записано об образе этого файла; <c>null</c> — ничего, или оригинал не принадлежит
+    /// <paramref name="owner" />. Не строит ничего никогда.
+    /// </summary>
+    public async Task<RenditionRecord?> FindAsync(string originalPath, string owner, CancellationToken ct)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        return await db.Renditions.AsNoTracking().FirstOrDefaultAsync(e => e.OriginalBlobPath == originalPath, ct);
+        return await Owned(db, owner).FirstOrDefaultAsync(e => e.OriginalBlobPath == originalPath, ct);
     }
+
+    /// <summary>Записи образов, чей оригинал принадлежит владельцу, — одним запросом с самой записью.</summary>
+    private static IQueryable<RenditionRecord> Owned(AppDbContext db, string owner) =>
+        db.Renditions.AsNoTracking()
+            .Where(e => db.BlobRegistry.Any(b => b.Path == e.OriginalBlobPath && b.Owner == owner));
 
     /// <summary>
     /// Образ этого файла: записанный, а если записи нет — построенный сейчас. Оригинала по пути нет —
     /// отказ «файл не найден», как у любого чтения хранилища.
     /// </summary>
-    public async Task<RenditionRecord> EnsureAsync(string originalPath, CancellationToken ct)
+    /// <param name="owner">От чьего имени читать оригинал — его владелец.</param>
+    public async Task<RenditionRecord> EnsureAsync(string originalPath, string owner, CancellationToken ct)
     {
-        if (await FindAsync(originalPath, ct) is { } known) return known;
+        if (await FindAsync(originalPath, owner, ct) is { } known) return known;
 
         using var held = await _locks.EnterAsync(originalPath, ct);
         // Пока ждали блокировку, образ мог построить тот, кто её держал.
-        if (await FindAsync(originalPath, ct) is { } built) return built;
+        if (await FindAsync(originalPath, owner, ct) is { } built) return built;
 
-        var (fresh, remember) = await BuildAsync(originalPath, await ProfileAsync(null, null, ct), ct);
-        return remember ? await SaveAsync(fresh, replace: false) : fresh;
+        var (fresh, remember) = await BuildAsync(originalPath, owner, await ProfileAsync(null, null, ct), ct);
+        return remember ? await SaveAsync(fresh, owner, replace: false) : fresh;
     }
 
     /// <summary>
@@ -82,18 +97,21 @@ public sealed class RenditionStore(
     /// <param name="profileId">Профиль печати, выбранный человеком. Не назван — тот, по которому строился
     /// прежний образ, пока он есть, иначе системный. Назван несуществующий — «не найдено», а не молча
     /// системный: человек выбрал раскладку и должен узнать, что её нет.</param>
-    public async Task<RenditionRecord> RebuildAsync(string originalPath, Guid? profileId, CancellationToken ct)
+    /// <param name="owner">От чьего имени читать оригинал — его владелец.</param>
+    public async Task<RenditionRecord> RebuildAsync(
+        string originalPath, string owner, Guid? profileId, CancellationToken ct)
     {
         using var held = await _locks.EnterAsync(originalPath, ct);
-        var remembered = profileId is null ? (await FindAsync(originalPath, ct))?.LayoutProfileId : null;
-        var (fresh, remember) = await BuildAsync(originalPath, await ProfileAsync(profileId, remembered, ct), ct);
+        var remembered = profileId is null ? (await FindAsync(originalPath, owner, ct))?.LayoutProfileId : null;
+        var (fresh, remember) = await BuildAsync(
+            originalPath, owner, await ProfileAsync(profileId, remembered, ct), ct);
         if (fresh.State == RenditionState.Refused
-            && await FindAsync(originalPath, ct) is { State: RenditionState.Built })
+            && await FindAsync(originalPath, owner, ct) is { State: RenditionState.Built })
         {
             log.LogWarning("Перестроить образ не удалось ({Kind}): прежний образ оставлен", fresh.RefusalKind);
             return fresh;
         }
-        return remember ? await SaveAsync(fresh, replace: true) : fresh;
+        return remember ? await SaveAsync(fresh, owner, replace: true) : fresh;
     }
 
     /// <summary>Профиль печати, если он есть; <c>null</c> — удалён (или не было). Для показа записи.</summary>
@@ -114,12 +132,12 @@ public sealed class RenditionStore(
     /// опрос был бы платой за строку, которую показывают раз. Профиль ищется по идентификатору без
     /// отбора — тем же правилом, что <see cref="RenditionLayoutProfiles.FindAsync" />.
     /// </summary>
-    public async Task<Shown?> FindShownAsync(string originalPath, CancellationToken ct)
+    public async Task<Shown?> FindShownAsync(string originalPath, string owner, CancellationToken ct)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var row = await (
-                from record in db.Renditions.AsNoTracking().Where(e => e.OriginalBlobPath == originalPath)
+                from record in Owned(db, owner).Where(e => e.OriginalBlobPath == originalPath)
                 join profile in db.RenditionLayoutProfiles.AsNoTracking() on record.LayoutProfileId equals (Guid?)profile.Id
                     into profiles
                 from profile in profiles.DefaultIfEmpty()
@@ -147,10 +165,10 @@ public sealed class RenditionStore(
 
     /// <summary>Построить и, если образ есть, положить его в хранилище. В базу не пишет.</summary>
     private async Task<(RenditionRecord Record, bool Remember)> BuildAsync(
-        string originalPath, Chosen profile, CancellationToken ct)
+        string originalPath, string owner, Chosen profile, CancellationToken ct)
     {
         Rendition result;
-        await using (var original = await blobs.DownloadAsync(originalPath, ct))
+        await using (var original = await blobs.DownloadAsync(originalPath, owner, ct))
         {
             // Сначала — только начало: скану или PDF его хватает, и тянуть из хранилища десятки
             // мегабайт ради ответа «читается сам» незачем.
@@ -180,7 +198,8 @@ public sealed class RenditionStore(
                 // обещает образ и не открывает его.
                 using (var pdf = new MemoryStream(image.Pdf, writable: false))
                 {
-                    var path = await blobs.UploadAsync(ImageFileName, pdf, "application/pdf", ct);
+                    // Образ — того же владельца, что оригинал: модуль открывает его своим портом.
+                    var path = await blobs.UploadAsync(ImageFileName, pdf, "application/pdf", owner, ct);
                     // Профиль помнит только книга, которой его раскладку подставили. Word и .xls по
                     // нему не строятся, книга со своей раскладкой его не получала, а неудавшаяся
                     // правка ушла как есть — у всех них «профиль изменён» обещал бы перестроением
@@ -211,7 +230,7 @@ public sealed class RenditionStore(
     /// нашего вопроса — убираем за собой сами; сняло после — наша запись уже лежит, и удаление её
     /// найдёт.</para>
     /// </summary>
-    private async Task<RenditionRecord> SaveAsync(RenditionRecord fresh, bool replace)
+    private async Task<RenditionRecord> SaveAsync(RenditionRecord fresh, string owner, bool replace)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -227,19 +246,19 @@ public sealed class RenditionStore(
             if (await db.BlobRegistry.AnyAsync(e => e.Path == saved.OriginalBlobPath)) return saved;
 
             await db.Renditions.Where(e => e.Id == saved.Id).ExecuteDeleteAsync();
-            if (saved.ImageBlobPath is { } late) await blobs.DeleteAsync(late);
+            if (saved.ImageBlobPath is { } late) await blobs.DeleteAsync(late, owner);
             // Оригинала больше нет, и отвечает на это хранилище — своим «файл не найден», тем же,
             // что получил бы вопрос об этом файле, заданный секундой позже. Своего отказа служба
             // не придумывает. Строка после — для компилятора: сюда доходят, только если путь за
             // это мгновение вернули на место, а тогда и ответ «записи нет, спросите снова» верен.
-            await using var gone = await blobs.DownloadAsync(saved.OriginalBlobPath);
+            await using var gone = await blobs.DownloadAsync(saved.OriginalBlobPath, owner);
             return saved;
         }
         catch (DbUpdateException ex) when (DbFailure.IsUniqueViolation(ex))
         {
             // Запись успел сделать другой процесс. Его образ и остаётся: у пути запись одна, и
             // «как есть» значит — та, что легла первой.
-            if (fresh.ImageBlobPath is { } own) await blobs.DeleteAsync(own);
+            if (fresh.ImageBlobPath is { } own) await blobs.DeleteAsync(own, owner);
             db.ChangeTracker.Clear();
             return await db.Renditions.AsNoTracking().FirstAsync(e => e.OriginalBlobPath == fresh.OriginalBlobPath);
         }

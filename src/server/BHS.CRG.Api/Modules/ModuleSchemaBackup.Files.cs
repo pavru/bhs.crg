@@ -1,5 +1,6 @@
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Domain.Storage;
 using BHS.CRG.Modules;
 
 namespace BHS.CRG.Api.Modules;
@@ -65,7 +66,7 @@ public sealed partial class ModuleSchemaBackup
         // недоступном хранилище, это тысячи вопросов внутри запроса восстановления.
         var absent = await blobs.FindAbsentAsync(
             sections.SelectMany(s => s.found.Paths).Where(p => !inArchive.Contains(p)),
-            ct);
+            BlobOwner.Any, ct);
 
         foreach (var (section, module, found) in sections)
         {

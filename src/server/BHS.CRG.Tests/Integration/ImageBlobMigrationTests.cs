@@ -52,6 +52,16 @@ public class ImageBlobMigrationTests(IntegrationTestFixture fx)
         public Task DeleteAsync(string blobPath, CancellationToken ct = default) => inner.DeleteAsync(blobPath, ct);
         public Task PutAsync(string blobPath, Stream content, string contentType, CancellationToken ct = default) => inner.PutAsync(blobPath, content, contentType, ct);
         public Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default) => inner.GetSizeAsync(blobPath, ct);
+
+        public Task<string> UploadAsync(string fileName, Stream content, string contentType, string owner, CancellationToken ct = default)
+            => inner.UploadAsync(fileName, content, contentType, owner, ct);
+        public Task PutAsync(string blobPath, Stream content, string contentType, string owner, CancellationToken ct = default)
+            => inner.PutAsync(blobPath, content, contentType, owner, ct);
+        public Task<Stream> DownloadAsync(string blobPath, string owner, CancellationToken ct = default) => inner.DownloadAsync(blobPath, owner, ct);
+        public Task DeleteAsync(string blobPath, string owner, CancellationToken ct = default) => inner.DeleteAsync(blobPath, owner, ct);
+        public Task<long?> GetSizeAsync(string blobPath, string owner, CancellationToken ct = default) => inner.GetSizeAsync(blobPath, owner, ct);
+        public Task<IReadOnlySet<string>> FindAbsentAsync(IEnumerable<string> blobPaths, string owner, CancellationToken ct = default)
+            => inner.FindAbsentAsync(blobPaths, owner, ct);
     }
 
     /// <summary>

@@ -3,6 +3,7 @@ using BHS.CRG.Modules;
 using BHS.CRG.Modules.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace BHS.CRG.Api.Modules;
 
@@ -179,6 +180,11 @@ public static class ModuleSchemaMigrator
     /// таблицу с историей ядра. Выглядит это исправной работой: миграции применяются, приложение
     /// поднимается, тесты зелёные. А потом обновление ЯДРА встречает в своей истории строки, которых
     /// нет в его сборке, и останавливается у заказчика, называя чужую миграцию.</para>
+    ///
+    /// <para>Имя таблицы — стандартное (<see cref="HistoryRepository.DefaultTableName" />): по ней разовый
+    /// сбор владельцев файлов (<c>BlobRegistryOwnerBackfill</c>) узнаёт схему модуля среди прочих
+    /// непубличных. Модуль со своим именем истории остался бы для него чужой схемой, а его файлы —
+    /// файлами ядра, которые его порт не откроет.</para>
     /// </summary>
     /// <remarks>Открыт для прогона по той же причине, что и <see cref="EnsureModelStaysInSchema" />:
     /// настоящий контекст схему истории называет, и сломать его можно только правкой кода — а сторож
@@ -189,7 +195,13 @@ public static class ModuleSchemaMigrator
             .OfType<RelationalOptionsExtension>().FirstOrDefault();
 
         if (string.Equals(relational?.MigrationsHistoryTableSchema, schema.Name, StringComparison.Ordinal))
-            return;
+        {
+            if (relational!.MigrationsHistoryTableName is null or HistoryRepository.DefaultTableName) return;
+            throw new InvalidOperationException(
+                $"Контекст модуля «{code}» назвал историю миграций «{relational.MigrationsHistoryTableName}», " +
+                $"а не «{HistoryRepository.DefaultTableName}». По стандартному имени ядро узнаёт схему модуля, " +
+                "раздавая владельцев файлам; со своим — файлы модуля остались бы файлами ядра.");
+        }
 
         throw new InvalidOperationException(
             $"Контекст модуля «{code}» не назвал схему для истории миграций " +

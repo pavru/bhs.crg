@@ -2,6 +2,7 @@ using BHS.CRG.Modules.Costs.Data;
 using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -39,7 +40,8 @@ public static class InvoiceDeletion
     /// читает его как «уже удалён».
     /// </summary>
     public static async Task<NoContent> DeleteAsync(
-        Guid id, CostsDbContext db, InvoiceDesk desk, IModuleCatalog catalog, IModuleBlobs blobs,
+        Guid id, CostsDbContext db, InvoiceDesk desk, IModuleCatalog catalog,
+        [FromKeyedServices(CostsModule.ModuleCode)] IModuleBlobs blobs,
         IModuleActivityLog log, ILoggerFactory logs, CancellationToken ct)
     {
         Gone gone;

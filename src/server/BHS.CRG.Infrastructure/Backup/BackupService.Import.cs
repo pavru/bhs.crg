@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using System.IO.Compression;
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
+using BHS.CRG.Domain.Storage;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace BHS.CRG.Infrastructure.Backup;
@@ -49,6 +50,9 @@ public partial class BackupService
         // Положенное на самом деле: скан, который в архиве был, но записать его не удалось, — всё равно
         // документ без сертификата, и сказать об этом нужно словами документа (ревью PR #1440).
         var restored = new HashSet<string>(StringComparer.Ordinal);
+        // Владелец файла — из копии (ТЗ CORE-37.2): путь, названный в секции модуля, — файл этого модуля,
+        // остальное — файлы ядра. Без этого скан счёта вернулся бы файлом ядра, и модуль его не открыл бы.
+        var owners = FileOwners(manifest);
         int blobsRestored = 0;
         foreach (var entry in blobEntries)
         {
@@ -61,7 +65,8 @@ public partial class BackupService
                 await using (var es = entry.Open())
                     await es.CopyToAsync(entryMs, ct);
                 entryMs.Position = 0;
-                await blob.PutAsync(blobPath, entryMs, contentType, ct);
+                await blob.PutAsync(
+                    blobPath, entryMs, contentType, owners.GetValueOrDefault(blobPath, BlobOwner.Core), ct);
                 restored.Add(blobPath);
                 blobsRestored++;
             }
@@ -255,5 +260,19 @@ public partial class BackupService
                 "Данные восстановлены, но проверить, на месте ли файлы модулей (файлы счетов), не " +
                 $"удалось: {CheckFailure(ex)}. Откройте файл у нескольких счетов из копии.");
         }
+    }
+
+    /// <summary>
+    /// Чьи файлы в архиве (ТЗ CORE-37.2): путь из перечня секции модуля (<see cref="BackupModuleSchema.Files" />)
+    /// — файл этого модуля. Это и есть «владелец рядом с путём»: перечень несёт код модуля, отдельного
+    /// поля в копии владельцу не нужно. У копии без перечня файлов модулей в архиве нет вовсе.
+    /// </summary>
+    private static Dictionary<string, string> FileOwners(BackupManifest manifest)
+    {
+        var owners = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var section in manifest.ModuleData ?? [])
+            foreach (var path in section.Files ?? [])
+                owners.TryAdd(path, section.Module);
+        return owners;
     }
 }

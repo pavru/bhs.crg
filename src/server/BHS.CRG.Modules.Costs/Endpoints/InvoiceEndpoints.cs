@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -346,7 +347,8 @@ public static class InvoiceEndpoints
     /// Отказала запись — выгруженный файл убирается.</para>
     /// </summary>
     private static async Task<Ok<InvoiceView>> AttachScanAsync(
-        Guid id, IFormFile file, CostsDbContext db, IModuleBlobs blobs, IModuleActivityLog log,
+        Guid id, IFormFile file, CostsDbContext db,
+        [FromKeyedServices(CostsModule.ModuleCode)] IModuleBlobs blobs, IModuleActivityLog log,
         InvoiceDesk desk, InvoiceScanRecognition scan, InvoiceScanImage image, ILoggerFactory logs,
         CancellationToken ct)
     {
@@ -435,7 +437,7 @@ public static class InvoiceEndpoints
     /// этого адреса есть — <c>costs.invoice.read</c>.
     /// </summary>
     private static async Task<IResult> ScanAsync(
-        Guid id, CostsDbContext db, IModuleBlobs blobs, CancellationToken ct)
+        Guid id, CostsDbContext db, [FromKeyedServices(CostsModule.ModuleCode)] IModuleBlobs blobs, CancellationToken ct)
     {
         var invoice = await FindAsync(db, id, ct);
 

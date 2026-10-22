@@ -166,6 +166,7 @@ internal static class WorkerRegistration
         sp.GetRequiredService<IServiceScopeFactory>(),
         sp.GetRequiredService<ILogger<RegisteredBlobStorage>>()));
     builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.BlobRegistryBackfill>();
+    builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.BlobRegistryOwnerBackfill>();
 
     // ── Plugins ───────────────────────────────────────────────────────────────────
     var pluginOpts = cfg.GetSection("Plugins").Get<PluginHostOptions>() ?? new();

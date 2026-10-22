@@ -5,9 +5,9 @@ using Minio.Exceptions;
 
 namespace BHS.CRG.Infrastructure.Storage;
 
-public class MinIOBlobStorage(IMinioClient minio, BlobStorageOptions options) : IBlobStorage
+public class MinIOBlobStorage(IMinioClient minio, BlobStorageOptions options) : OwnerBlindBlobStorage
 {
-    public async Task<string> UploadAsync(string fileName, Stream content, string contentType, CancellationToken ct = default)
+    public override async Task<string> UploadAsync(string fileName, Stream content, string contentType, CancellationToken ct = default)
     {
         await EnsureBucketAsync(ct);
         // Раскладка пути — не здесь: её же должен знать разовый сбор реестра и подделка в тестах
@@ -17,7 +17,7 @@ public class MinIOBlobStorage(IMinioClient minio, BlobStorageOptions options) : 
         return $"{options.Bucket}/{objectName}";
     }
 
-    public async Task PutAsync(string blobPath, Stream content, string contentType, CancellationToken ct = default)
+    public override async Task PutAsync(string blobPath, Stream content, string contentType, CancellationToken ct = default)
     {
         var (bucket, objectName) = ParsePath(blobPath);
         await EnsureBucketAsync(ct);
@@ -35,7 +35,7 @@ public class MinIOBlobStorage(IMinioClient minio, BlobStorageOptions options) : 
             .WithContentType(contentType), ct);
     }
 
-    public async Task<Stream> DownloadAsync(string blobPath, CancellationToken ct = default)
+    public override async Task<Stream> DownloadAsync(string blobPath, CancellationToken ct = default)
     {
         var (bucket, obj) = ParsePath(blobPath);
         var ms = new MemoryStream();
@@ -90,7 +90,7 @@ public class MinIOBlobStorage(IMinioClient minio, BlobStorageOptions options) : 
         }
     }
 
-    public async Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
+    public override async Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
     {
         var (bucket, obj) = ParsePath(blobPath);
         try
@@ -122,7 +122,7 @@ public class MinIOBlobStorage(IMinioClient minio, BlobStorageOptions options) : 
         }
     }
 
-    public Task DeleteAsync(string blobPath, CancellationToken ct = default)
+    public override Task DeleteAsync(string blobPath, CancellationToken ct = default)
     {
         var (bucket, obj) = ParsePath(blobPath);
         return minio.RemoveObjectAsync(new RemoveObjectArgs()

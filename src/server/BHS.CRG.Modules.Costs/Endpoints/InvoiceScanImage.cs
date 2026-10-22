@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
 
@@ -57,7 +58,9 @@ public sealed class InvoiceImageRefusedException(string message) : ConflictExcep
 /// <para><b>Документ — оригинал.</b> Образ — приближённая перевёрстка для чтения; скачивается,
 /// запирается закрытым периодом и уходит в копию именно файл, приложенный человеком.</para>
 /// </summary>
-public sealed class InvoiceScanImage(IModuleRenditions renditions, IModuleBlobs blobs)
+public sealed class InvoiceScanImage(
+    [FromKeyedServices(CostsModule.ModuleCode)] IModuleRenditions renditions,
+    [FromKeyedServices(CostsModule.ModuleCode)] IModuleBlobs blobs)
 {
     public const string Original = "original";
     public const string Built = "built";

@@ -6,6 +6,7 @@ using BHS.CRG.Modules.Files;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Modules.Recognition;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
@@ -29,7 +30,8 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 public sealed class InvoiceScanReading(
     CostsDbContext db, InvoiceDesk desk, IModuleRecognition recognition, InvoiceScanImage image,
     IModuleWriteGuard guard, IModuleActivityLog log, ILoggerFactory logs, InvoiceParties parties,
-    IModuleCatalog catalog, IModuleBlobs blobs, IModuleRecognitionTargets targets)
+    IModuleCatalog catalog, [FromKeyedServices(CostsModule.ModuleCode)] IModuleBlobs blobs,
+    IModuleRecognitionTargets targets)
 {
     /// <summary>Сколько раз слияние повторяется, проиграв одновременной правке формы.</summary>
     private const int MergeAttempts = 3;

@@ -22,6 +22,9 @@ namespace BHS.CRG.Tests.Integration;
 [Collection("Integration")]
 public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetime
 {
+    // Оригиналы тесты кладут от имени ядра; служба читает от имени того, кто спрашивает (ТЗ CORE-37.2).
+    private const string Owner = BlobOwner.Core;
+
     public async Task InitializeAsync()
     {
         await fixture.ResetDatabaseAsync();
@@ -61,7 +64,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var converter = StubConverter.Converts(Words);
         var original = await UploadBookAsync();
 
-        var record = await Store(converter).EnsureAsync(original, CancellationToken.None);
+        var record = await Store(converter).EnsureAsync(original, Owner, CancellationToken.None);
 
         Assert.Equal(RenditionState.Built, record.State);
         Assert.Equal(1, record.Pages);
@@ -70,6 +73,38 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
         // Образ — такой же файл хранилища, с записью в реестре: без неё его не отдали бы на чтение.
         Assert.True(await InRegistryAsync(record.ImageBlobPath!));
         Assert.Equal(original, Assert.Single(await RecordsAsync()).OriginalBlobPath);
+    }
+
+    /// <summary>
+    /// Файл модуля (ТЗ CORE-37.2): оригинал читается от имени модуля, образ ложится ЕГО файлом — модуль
+    /// открывает образ своим портом, — а спросивший от чужого имени не видит ни записи, ни оригинала.
+    /// </summary>
+    [Fact]
+    public async Task Образ_файла_модуля_принадлежит_модулю_и_чужому_не_виден()
+    {
+        const string costs = "costs";
+        var original = await Blobs.UploadAsync(
+            "счёт.xlsx", new MemoryStream(Workbook(Words)), "application/octet-stream", costs);
+        var store = Store(StubConverter.Converts(Words));
+
+        var record = await store.EnsureAsync(original, costs, CancellationToken.None);
+
+        Assert.Equal(RenditionState.Built, record.State);
+        Assert.Equal(costs, await OwnerAsync(record.ImageBlobPath!));
+        await using (var image = await new ModuleBlobsPort(Blobs, costs).OpenAsync(record.ImageBlobPath!))
+            Assert.True(image.CanRead);
+
+        Assert.Null(await store.FindAsync(original, "work", CancellationToken.None));
+        Assert.Null(await store.FindShownAsync(original, BlobOwner.Core, CancellationToken.None));
+        await Assert.ThrowsAsync<NotFoundException>(
+            () => store.EnsureAsync(original, BlobOwner.Core, CancellationToken.None));
+    }
+
+    private async Task<string> OwnerAsync(string path)
+    {
+        using var scope = fixture.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().BlobRegistry
+            .Where(e => e.Path == path).Select(e => e.Owner).SingleAsync();
     }
 
     /// <summary>
@@ -83,7 +118,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
             ownLayout: false);
         var original = await Blobs.UploadAsync("счёт.xlsx", new MemoryStream(book), "application/octet-stream");
 
-        await Store(StubConverter.Converts(Words)).EnsureAsync(original, CancellationToken.None);
+        await Store(StubConverter.Converts(Words)).EnsureAsync(original, Owner, CancellationToken.None);
 
         var record = Assert.Single(await RecordsAsync());
         Assert.Equal(RenditionLayout.Applied, record.Layout);
@@ -104,8 +139,8 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var store = Store(converter);
         var original = await UploadBookAsync();
 
-        var first = await store.EnsureAsync(original, CancellationToken.None);
-        var second = await store.EnsureAsync(original, CancellationToken.None);
+        var first = await store.EnsureAsync(original, Owner, CancellationToken.None);
+        var second = await store.EnsureAsync(original, Owner, CancellationToken.None);
 
         Assert.Equal(1, converter.Conversions);
         Assert.Equal(first.ImageBlobPath, second.ImageBlobPath);
@@ -119,10 +154,10 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
     public async Task Обновление_конвертера_образ_молча_не_перестраивает()
     {
         var original = await UploadBookAsync();
-        var before = await Store(StubConverter.Converts(Words)).EnsureAsync(original, CancellationToken.None);
+        var before = await Store(StubConverter.Converts(Words)).EnsureAsync(original, Owner, CancellationToken.None);
 
         var newer = StubConverter.Converts(Words, version: "9.0.0");
-        var after = await Store(newer).EnsureAsync(original, CancellationToken.None);
+        var after = await Store(newer).EnsureAsync(original, Owner, CancellationToken.None);
 
         Assert.Equal(0, newer.Conversions);
         Assert.Equal(before.ImageBlobPath, after.ImageBlobPath);
@@ -137,8 +172,8 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var original = await UploadBookAsync();
 
         var both = await Task.WhenAll(
-            store.EnsureAsync(original, CancellationToken.None),
-            store.EnsureAsync(original, CancellationToken.None));
+            store.EnsureAsync(original, Owner, CancellationToken.None),
+            store.EnsureAsync(original, Owner, CancellationToken.None));
 
         Assert.Equal(1, converter.Conversions);
         Assert.Equal(both[0].ImageBlobPath, both[1].ImageBlobPath);
@@ -151,7 +186,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var converter = new StubConverter(MustNotBeCalled);
         var original = await Blobs.UploadAsync("скан.pdf", new MemoryStream(Pdf("anything")), "application/pdf");
 
-        var record = await Store(converter).EnsureAsync(original, CancellationToken.None);
+        var record = await Store(converter).EnsureAsync(original, Owner, CancellationToken.None);
 
         Assert.Equal(RenditionState.AsIs, record.State);
         Assert.Equal("application/pdf", record.Mime);
@@ -163,9 +198,9 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
     public async Task Отказ_о_файле_запоминается()
     {
         var original = await UploadBookAsync();
-        var first = await Store(new StubConverter(Answers(HttpStatusCode.BadRequest))).EnsureAsync(original, CancellationToken.None);
+        var first = await Store(new StubConverter(Answers(HttpStatusCode.BadRequest))).EnsureAsync(original, Owner, CancellationToken.None);
 
-        var second = await Store(new StubConverter(MustNotBeCalled)).EnsureAsync(original, CancellationToken.None);
+        var second = await Store(new StubConverter(MustNotBeCalled)).EnsureAsync(original, Owner, CancellationToken.None);
 
         Assert.Equal(RenditionState.Refused, first.State);
         Assert.Equal("Failed", second.RefusalKind);
@@ -188,12 +223,12 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
             new RenditionService(new(Client(Answers(status), baseUrl), NullLogger<BHS.CRG.Infrastructure.Renditions.OfficeRenditionBuilder>.Instance)),
             NullLogger<RenditionStore>.Instance);
 
-        var refused = await down.EnsureAsync(original, CancellationToken.None);
+        var refused = await down.EnsureAsync(original, Owner, CancellationToken.None);
 
         Assert.Equal(kind, refused.RefusalKind);
         Assert.Empty(await RecordsAsync());
 
-        var built = await Store(StubConverter.Converts(Words)).EnsureAsync(original, CancellationToken.None);
+        var built = await Store(StubConverter.Converts(Words)).EnsureAsync(original, Owner, CancellationToken.None);
         Assert.Equal(RenditionState.Built, built.State);
     }
 
@@ -206,7 +241,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
     {
         var original = await Blobs.UploadAsync("заметка.txt", new MemoryStream("просто текст"u8.ToArray()), "text/plain");
 
-        var refused = await Store(new StubConverter(MustNotBeCalled)).EnsureAsync(original, CancellationToken.None);
+        var refused = await Store(new StubConverter(MustNotBeCalled)).EnsureAsync(original, Owner, CancellationToken.None);
 
         Assert.Equal("WrongFormat", refused.RefusalKind);
         Assert.Empty(await RecordsAsync());
@@ -226,7 +261,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
             return PdfReply(Pdf(string.Join(" ", Words)));
         });
 
-        await Assert.ThrowsAsync<NotFoundException>(() => Store(converter).EnsureAsync(original, CancellationToken.None));
+        await Assert.ThrowsAsync<NotFoundException>(() => Store(converter).EnsureAsync(original, Owner, CancellationToken.None));
 
         Assert.Empty(await RecordsAsync());
         using var scope = fixture.Services.CreateScope();
@@ -245,7 +280,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
             fixture.Services.GetRequiredService<IServiceScopeFactory>(), tapped,
             Service(MustNotBeCalled), NullLogger<RenditionStore>.Instance);
 
-        var record = await store.EnsureAsync(original, CancellationToken.None);
+        var record = await store.EnsureAsync(original, Owner, CancellationToken.None);
 
         Assert.Equal(RenditionState.AsIs, record.State);
         Assert.InRange(tapped.BytesRead, 1, 64 * 1024);
@@ -259,7 +294,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
     public async Task Не_удалившийся_образ_удаление_оригинала_не_роняет()
     {
         var original = await UploadBookAsync();
-        var record = await Store(StubConverter.Converts(Words)).EnsureAsync(original, CancellationToken.None);
+        var record = await Store(StubConverter.Converts(Words)).EnsureAsync(original, Owner, CancellationToken.None);
         var stubborn = new BHS.CRG.Infrastructure.Storage.RegisteredBlobStorage(
             new TappedBlobs(Storage) { FailDeleteOf = record.ImageBlobPath },
             fixture.Services.GetRequiredService<IServiceScopeFactory>(),
@@ -278,7 +313,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var converter = new StubConverter(MustNotBeCalled);
         var original = await UploadBookAsync();
 
-        Assert.Null(await Store(converter).FindAsync(original, CancellationToken.None));
+        Assert.Null(await Store(converter).FindAsync(original, Owner, CancellationToken.None));
         Assert.Empty(await RecordsAsync());
     }
 
@@ -287,7 +322,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
     {
         var store = Store(new StubConverter(MustNotBeCalled));
 
-        await Assert.ThrowsAsync<NotFoundException>(() => store.EnsureAsync("bucket/2026/10/10/нет.xlsx", CancellationToken.None));
+        await Assert.ThrowsAsync<NotFoundException>(() => store.EnsureAsync("bucket/2026/10/10/нет.xlsx", Owner, CancellationToken.None));
         Assert.Empty(await RecordsAsync());
     }
 
@@ -299,7 +334,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
     public async Task Удаление_оригинала_убирает_образ_и_запись()
     {
         var original = await UploadBookAsync();
-        var record = await Store(StubConverter.Converts(Words)).EnsureAsync(original, CancellationToken.None);
+        var record = await Store(StubConverter.Converts(Words)).EnsureAsync(original, Owner, CancellationToken.None);
 
         await Blobs.DeleteAsync(original);
 
@@ -314,16 +349,16 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var converter = StubConverter.Converts(Words);
         var store = Store(converter);
         var original = await UploadBookAsync();
-        var before = await store.EnsureAsync(original, CancellationToken.None);
+        var before = await store.EnsureAsync(original, Owner, CancellationToken.None);
 
-        var after = await Store(StubConverter.Converts(Words, version: "9.0.0")).RebuildAsync(original, null, CancellationToken.None);
+        var after = await Store(StubConverter.Converts(Words, version: "9.0.0")).RebuildAsync(original, Owner, null, CancellationToken.None);
 
         Assert.NotEqual(before.ImageBlobPath, after.ImageBlobPath);
         Assert.True(Storage.Exists(after.ImageBlobPath!));
         Assert.Equal("gotenberg 9.0.0", after.Converter);
         // Запись у пути по-прежнему одна, и отвечает она новым образом.
         Assert.Equal(after.ImageBlobPath, Assert.Single(await RecordsAsync()).ImageBlobPath);
-        Assert.Equal(after.ImageBlobPath, (await store.EnsureAsync(original, CancellationToken.None)).ImageBlobPath);
+        Assert.Equal(after.ImageBlobPath, (await store.EnsureAsync(original, Owner, CancellationToken.None)).ImageBlobPath);
     }
 
     /// <summary>
@@ -338,9 +373,9 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
     public async Task Отказ_при_перестроении_построенный_образ_не_затирает(HttpStatusCode status)
     {
         var original = await UploadBookAsync();
-        var before = await Store(StubConverter.Converts(Words)).EnsureAsync(original, CancellationToken.None);
+        var before = await Store(StubConverter.Converts(Words)).EnsureAsync(original, Owner, CancellationToken.None);
 
-        var refused = await Store(new StubConverter(Answers(status))).RebuildAsync(original, null, CancellationToken.None);
+        var refused = await Store(new StubConverter(Answers(status))).RebuildAsync(original, Owner, null, CancellationToken.None);
 
         Assert.Equal(RenditionState.Refused, refused.State);
         var kept = Assert.Single(await RecordsAsync());
@@ -356,7 +391,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
     public async Task Построение_пишет_только_в_реестр_файлов_и_в_таблицу_образов()
     {
         var original = await UploadBookAsync();
-        await Store(StubConverter.Converts(Words)).EnsureAsync(original, CancellationToken.None);
+        await Store(StubConverter.Converts(Words)).EnsureAsync(original, Owner, CancellationToken.None);
 
         using var scope = fixture.Services.CreateScope();
         var touched = await IntegrationTestFixture.TouchedTablesAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>());
@@ -369,7 +404,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
     [Fact]
     public async Task Модуль_получает_путь_образа_а_у_читаемого_файла_путь_самого_файла()
     {
-        var port = new ModuleRenditionsPort(Store(StubConverter.Converts(Words)), NullLogger<ModuleRenditionsPort>.Instance);
+        var port = new ModuleRenditionsPort(Store(StubConverter.Converts(Words)), Owner, NullLogger<ModuleRenditionsPort>.Instance);
         var book = await UploadBookAsync();
         var scan = await Blobs.UploadAsync("скан.pdf", new MemoryStream(Pdf("anything")), "application/pdf");
 
@@ -389,7 +424,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
     [InlineData(HttpStatusCode.NotFound, false)]
     public async Task Модуль_узнаёт_поможет_ли_повтор(HttpStatusCode status, bool retryHelps)
     {
-        var port = new ModuleRenditionsPort(Store(new StubConverter(Answers(status))), NullLogger<ModuleRenditionsPort>.Instance);
+        var port = new ModuleRenditionsPort(Store(new StubConverter(Answers(status))), Owner, NullLogger<ModuleRenditionsPort>.Instance);
 
         var refused = Assert.IsType<ModuleRendition.Refused>(await port.EnsureAsync(await UploadBookAsync()));
 
@@ -408,7 +443,7 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
             db.Renditions.Add(RenditionRecord.Refused(original, "ВидИзДругойВерсии", "Причина словами."));
             await db.SaveChangesAsync();
         }
-        var port = new ModuleRenditionsPort(Store(new StubConverter(MustNotBeCalled)), NullLogger<ModuleRenditionsPort>.Instance);
+        var port = new ModuleRenditionsPort(Store(new StubConverter(MustNotBeCalled)), Owner, NullLogger<ModuleRenditionsPort>.Instance);
 
         var refused = Assert.IsType<ModuleRendition.Refused>(await port.EnsureAsync(original));
 
@@ -451,6 +486,26 @@ internal sealed class TappedBlobs(IBlobStorage inner) : IBlobStorage
 
     public async Task<Stream> DownloadAsync(string blobPath, CancellationToken ct = default) =>
         new Tap(await inner.DownloadAsync(blobPath, ct), this);
+
+    // Владельца обёртка передаёт дальше, а не теряет: служба образов читает от имени модуля (ТЗ CORE-37.2),
+    // и подслушивание не должно превращать его в ядро.
+    public Task<string> UploadAsync(string fileName, Stream content, string contentType, string owner, CancellationToken ct = default) =>
+        inner.UploadAsync(fileName, content, contentType, owner, ct);
+
+    public Task PutAsync(string blobPath, Stream content, string contentType, string owner, CancellationToken ct = default) =>
+        inner.PutAsync(blobPath, content, contentType, owner, ct);
+
+    public Task<long?> GetSizeAsync(string blobPath, string owner, CancellationToken ct = default) =>
+        inner.GetSizeAsync(blobPath, owner, ct);
+
+    public Task<IReadOnlySet<string>> FindAbsentAsync(IEnumerable<string> blobPaths, string owner, CancellationToken ct = default) =>
+        inner.FindAbsentAsync(blobPaths, owner, ct);
+
+    public Task DeleteAsync(string blobPath, string owner, CancellationToken ct = default) =>
+        blobPath == FailDeleteOf ? throw new IOException("Хранилище отказало") : inner.DeleteAsync(blobPath, owner, ct);
+
+    public async Task<Stream> DownloadAsync(string blobPath, string owner, CancellationToken ct = default) =>
+        new Tap(await inner.DownloadAsync(blobPath, owner, ct), this);
 
     private sealed class Tap(Stream source, TappedBlobs owner) : Stream
     {
