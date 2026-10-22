@@ -46,7 +46,7 @@
 
 ## 5. Верификация
 
-- [ ] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~PlanOnlyHost|FullyQualifiedName~ModuleBoundary|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ModuleSchema|FullyQualifiedName~AccountAccess"` — зелёный
+- [x] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~PlanOnlyHost|FullyQualifiedName~ModuleBoundary|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ModuleSchema|FullyQualifiedName~AccountAccess"` — зелёный
 - [x] 5.2 `cd src/client && npx tsc -b` — без ошибок (клиент не менялся, проверка на всякий случай)
 - [x] 5.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
