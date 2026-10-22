@@ -19,6 +19,11 @@ export const FUNCTIONAL_TAG = {
   profileConstruction: 'profile.construction',
   profileSection: 'profile.section',
   profileSet: 'profile.set',
+  orgInn: 'org.inn',
+  orgName: 'org.name',
+  employeePersonnelNumber: 'employee.personnelNumber',
+  nomenclatureArticle: 'nomenclature.article',
+  inputNoSuggest: 'input.noSuggest',
 } as const;
 
 /**
