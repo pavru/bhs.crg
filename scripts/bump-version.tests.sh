@@ -238,6 +238,9 @@ put 'Фикс (#16)' src/d.cs
 printf '%s\n' '#!/usr/bin/env bash' \
     "n=\$(cat '$SB/calls' 2>/dev/null || echo 0); echo \$((n + 1)) > '$SB/calls'" \
     '[ "$n" -eq 0 ] && exit 1; echo "подделка: отказ" >&2; exit 2' > "$SB/fake-plan.sh"
+# Без права на исполнение Linux отвечает 126, и отказ скрипта был бы зелёным по чужой причине —
+# Git Bash на Windows запускает файл с shebang и так. Это ловит счётчик вызовов ниже.
+chmod +x "$SB/fake-plan.sh"
 rm -f "$SB/calls"
 PLANNING_ONLY="$SB/fake-plan.sh" bash "$UNBUMPED" > out.txt 2> err.txt; rc=$?
 check 'отказ на середине: код не ноль'   да "$([ $rc -ne 0 ] && echo да || echo нет)"
