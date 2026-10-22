@@ -83,6 +83,22 @@ public class ModuleSchemaIsolationTests
         Assert.Contains("историю рядом с историей ядра", ex.Message);
     }
 
+    /// <summary>
+    /// История в своей схеме, но под своим именем — тоже отказ: по стандартному имени разовый сбор
+    /// владельцев файлов узнаёт схему модуля (ТЗ CORE-37.2), и со своим её файлы остались бы ядру.
+    /// </summary>
+    [Fact]
+    public void History_table_under_its_own_name_is_refused()
+    {
+        using var db = Build<TidyContext>(o => new TidyContext(o), historyName: "migrations");
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => ModuleSchemaMigrator.EnsureHistoryStaysInSchema(
+                "probe", new ModuleSchema("probe", typeof(TidyContext)), db));
+
+        Assert.Contains("«migrations»", ex.Message);
+    }
+
     /// <summary>Названная схема истории проходит.</summary>
     [Fact]
     public void History_table_in_the_module_schema_passes()
@@ -145,13 +161,14 @@ public class ModuleSchemaIsolationTests
     /// модель и настройка, а не данные.
     /// </summary>
     private static TContext Build<TContext>(
-        Func<DbContextOptions<TContext>, TContext> create, bool history = true)
+        Func<DbContextOptions<TContext>, TContext> create, bool history = true,
+        string historyName = "__EFMigrationsHistory")
         where TContext : ModuleDbContext
     {
         var options = new DbContextOptionsBuilder<TContext>();
         options.UseNpgsql("Host=нет;Database=нет", npgsql =>
         {
-            if (history) npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "probe");
+            if (history) npgsql.MigrationsHistoryTable(historyName, "probe");
         });
         return create(options.Options);
     }

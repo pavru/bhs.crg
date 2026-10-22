@@ -68,9 +68,9 @@ public class BlobRegistryEntry : Entity
 
     // «Любой» — вопрос, а не владелец: записанный, он открыл бы файл всем дверям сразу.
     private static string ValidOwner(string owner) =>
-        string.IsNullOrWhiteSpace(owner) || owner == BlobOwner.Any || owner.Length > BlobOwner.MaxLength
-            ? throw new ArgumentException($"Недопустимый владелец файла: «{owner}».", nameof(owner))
-            : owner;
+        BlobOwner.IsValid(owner)
+            ? owner
+            : throw new ArgumentException($"Недопустимый владелец файла: «{owner}».", nameof(owner));
 
     private static string? Truncate(string? value, int max)
         => value is null || value.Length <= max ? value : value[..max];

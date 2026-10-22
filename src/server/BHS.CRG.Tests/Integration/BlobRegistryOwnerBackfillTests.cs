@@ -13,12 +13,15 @@ namespace BHS.CRG.Tests.Integration;
 ///
 /// <para>Схема модуля здесь своя, временная — <c>costs_ownertest</c>: имя схемы модуля начинается с
 /// его кода и подчёркивания (<c>ModuleSchema.Validate</c>), и сбор обязан понимать обе формы. Таблица
-/// несёт путь и текстом, и внутри JSONB — модуль хранит путь где хочет, и копия находит его так же.</para>
+/// несёт путь и текстом, и внутри JSONB — модуль хранит путь где хочет, и копия находит его так же.
+/// Схемой модуля её делает таблица истории миграций; соседняя схема без неё — чужая (расширение,
+/// оставленная руками), и путь вложения ядра в ней ничего не меняет.</para>
 /// </summary>
 [Collection("Integration")]
 public class BlobRegistryOwnerBackfillTests(IntegrationTestFixture fixture) : IAsyncLifetime
 {
     private const string Schema = "costs_ownertest";
+    private const string Stray = "stray_ownertest";
 
     public Task InitializeAsync() => fixture.ResetDatabaseAsync();
 
@@ -27,6 +30,7 @@ public class BlobRegistryOwnerBackfillTests(IntegrationTestFixture fixture) : IA
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.ExecuteSqlRawAsync($"DROP SCHEMA IF EXISTS {Schema} CASCADE");
+        await db.Database.ExecuteSqlRawAsync($"DROP SCHEMA IF EXISTS {Stray} CASCADE");
     }
 
     private static Stream Content(string text) => new MemoryStream(Encoding.UTF8.GetBytes(text));
@@ -46,12 +50,16 @@ public class BlobRegistryOwnerBackfillTests(IntegrationTestFixture fixture) : IA
 
         await db.Database.ExecuteSqlRawAsync($"""
             CREATE SCHEMA {Schema};
+            CREATE TABLE {Schema}."__EFMigrationsHistory" ("MigrationId" varchar(150) PRIMARY KEY, "ProductVersion" varchar(32));
             CREATE TABLE {Schema}.invoices ("Id" uuid PRIMARY KEY, "ScanPath" text, "Extra" jsonb);
+            CREATE SCHEMA {Stray};
+            CREATE TABLE {Stray}.notes ("Id" uuid PRIMARY KEY, "Path" text);
             """);
         await db.Database.ExecuteSqlAsync($"""
             INSERT INTO costs_ownertest.invoices VALUES
                 (gen_random_uuid(), {scan}, jsonb_build_object('files', jsonb_build_array({inJson})))
             """);
+        await db.Database.ExecuteSqlAsync($"INSERT INTO stray_ownertest.notes VALUES (gen_random_uuid(), {attachment})");
         db.Renditions.Add(RenditionRecord.Built(scan, image, 1, [], "test"));
         await db.SaveChangesAsync();
 

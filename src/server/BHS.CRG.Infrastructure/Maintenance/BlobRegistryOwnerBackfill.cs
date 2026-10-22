@@ -3,6 +3,7 @@ using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Persistence.Configurations;
 using BHS.CRG.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.Maintenance;
@@ -16,7 +17,13 @@ namespace BHS.CRG.Infrastructure.Maintenance;
 ///
 /// <para><b>Чей путь.</b> Путь, найденный в колонке схемы модуля, — файл этого модуля; остальные
 /// остаются ядру. Схема называется кодом модуля либо кодом и подчёркиванием (<c>ModuleSchema.Validate</c>),
-/// поэтому код — часть имени до первого подчёркивания; кодов с подчёркиванием среди модулей нет.
+/// поэтому код — часть имени до первого подчёркивания; кодов с подчёркиванием среди модулей нет.</para>
+///
+/// <para><b>Какая схема — модуля.</b> Та, где лежит история миграций EF: модуль обязан держать её в
+/// своей схеме и под стандартным именем (<c>ModuleSchemaMigrator.EnsureHistoryStaysInSchema</c>), а
+/// ядро держит свою в <c>public</c>. Списка модулей у миграции нет — она статична, — а брать любую
+/// непубличную схему нельзя: схема расширения или оставленная руками отдала бы «владельцу» со своим
+/// именем вложения ядра, и вернуть их было бы нечем — сбор разовый.
 /// Образ файла (<c>renditions</c>) лежит в таблице ЯДРА, но принадлежит владельцу оригинала: модуль
 /// открывает образ своего скана своим портом.</para>
 ///
@@ -79,6 +86,8 @@ public class BlobRegistryOwnerBackfill(AppDbContext db, ILogger<BlobRegistryOwne
                   ON t.table_schema = c.table_schema AND t.table_name = c.table_name
                 WHERE c.table_schema NOT IN ('public', 'information_schema')
                   AND c.table_schema NOT LIKE 'pg\_%'
+                  AND EXISTS (SELECT 1 FROM information_schema.tables h
+                              WHERE h.table_schema = c.table_schema AND h.table_name = '{{History}}')
                   AND t.table_type = 'BASE TABLE'
                   AND c.data_type IN ('jsonb', 'text', 'character varying')
                 ORDER BY c.table_schema, c.table_name, c.column_name
@@ -114,6 +123,9 @@ public class BlobRegistryOwnerBackfill(AppDbContext db, ILogger<BlobRegistryOwne
               AND original."Owner" <> '{{BlobOwner.Core}}';
         END $$;
         """;
+
+    /// <summary>Таблица истории миграций под стандартным именем — признак схемы модуля.</summary>
+    private const string History = HistoryRepository.DefaultTableName;
 
     private const string SqlShape = $"'{BlobPathShape.Pattern}'";
     private const string SqlRough = $"'{BlobPathShape.RoughPattern}'";

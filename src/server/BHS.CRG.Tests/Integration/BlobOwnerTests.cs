@@ -139,6 +139,28 @@ public class BlobOwnerTests(IntegrationTestFixture fixture) : IAsyncLifetime
         Assert.NotNull(await Blobs.GetSizeAsync(module, Costs));
     }
 
+    /// <summary>
+    /// Объект без записи в реестре модуль не удаляет: его файлы ложатся портом и значатся в реестре
+    /// всегда, а путь без записи — чужая загрузка на полпути или выпавший объект. Ядро удаляет его, как
+    /// прежде. «Любой» на удалении — отказ: удалять мимо владельца некому.
+    /// </summary>
+    [Fact]
+    public async Task Модуль_не_удаляет_объект_вне_реестра_а_любой_не_удаляет_ничего()
+    {
+        var storage = fixture.Services.GetRequiredService<FakeBlobStorage>();
+        var stray = "fake/" + BHS.CRG.Infrastructure.Storage.BlobPathShape.NewObjectName("ничей.png");
+        await storage.PutAsync(stray, Content("ничей"), "image/png");
+
+        await new ModuleBlobsPort(Blobs, Work).DeleteAsync(stray);
+        Assert.True(storage.Exists(stray));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => Blobs.DeleteAsync(stray, BlobOwner.Any));
+        Assert.True(storage.Exists(stray));
+
+        await Blobs.DeleteAsync(stray);
+        Assert.False(storage.Exists(stray));
+    }
+
     [Fact]
     public async Task Копия_читает_всех_а_восстановление_возвращает_владельца()
     {

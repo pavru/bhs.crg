@@ -22,4 +22,12 @@ public static class BlobOwner
 
     /// <summary>Предел длины кода в реестре: код модуля короче, предел — с запасом.</summary>
     public const int MaxLength = 64;
+
+    /// <summary>
+    /// Может ли это значение стоять владельцем в записи реестра. Одно правило на запись и на старт:
+    /// код модуля, которому запись откажет, проверка портов обязана отвергнуть ДО первой загрузки, а
+    /// не первой загрузкой, оставив объект в хранилище сиротой.
+    /// </summary>
+    public static bool IsValid(string? owner) =>
+        !string.IsNullOrWhiteSpace(owner) && owner != Any && owner.Length <= MaxLength;
 }

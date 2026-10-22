@@ -5,6 +5,7 @@ using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Infrastructure.DataSets;
+using BHS.CRG.Infrastructure.Storage;
 
 namespace BHS.CRG.Tests.DataSets;
 
@@ -269,16 +270,16 @@ public class SystemDataSetAccessTests
 
     // ── Загрузчик строк: ворота стоят ДО обращения к поставщику ────────────────
 
-    private sealed class NoBlob : IBlobStorage
+    private sealed class NoBlob : OwnerBlindBlobStorage
     {
-        public Task<Stream> DownloadAsync(string blobPath, CancellationToken ct = default)
+        public override Task<Stream> DownloadAsync(string blobPath, CancellationToken ct = default)
             => throw new NotSupportedException("системный набор блоба не читает");
-        public Task<string> UploadAsync(string fileName, Stream s, string contentType, CancellationToken ct = default)
+        public override Task<string> UploadAsync(string fileName, Stream s, string contentType, CancellationToken ct = default)
             => throw new NotSupportedException();
-        public Task DeleteAsync(string blobPath, CancellationToken ct = default) => Task.CompletedTask;
-        public Task PutAsync(string blobPath, Stream s, string contentType, CancellationToken ct = default)
+        public override Task DeleteAsync(string blobPath, CancellationToken ct = default) => Task.CompletedTask;
+        public override Task PutAsync(string blobPath, Stream s, string contentType, CancellationToken ct = default)
             => throw new NotSupportedException();
-        public Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
+        public override Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
             => Task.FromResult<long?>(null);
     }
 

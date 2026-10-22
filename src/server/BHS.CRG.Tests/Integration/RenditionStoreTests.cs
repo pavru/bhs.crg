@@ -76,6 +76,38 @@ public class RenditionStoreTests(IntegrationTestFixture fixture) : IAsyncLifetim
     }
 
     /// <summary>
+    /// Файл модуля (ТЗ CORE-37.2): оригинал читается от имени модуля, образ ложится ЕГО файлом — модуль
+    /// открывает образ своим портом, — а спросивший от чужого имени не видит ни записи, ни оригинала.
+    /// </summary>
+    [Fact]
+    public async Task Образ_файла_модуля_принадлежит_модулю_и_чужому_не_виден()
+    {
+        const string costs = "costs";
+        var original = await Blobs.UploadAsync(
+            "счёт.xlsx", new MemoryStream(Workbook(Words)), "application/octet-stream", costs);
+        var store = Store(StubConverter.Converts(Words));
+
+        var record = await store.EnsureAsync(original, costs, CancellationToken.None);
+
+        Assert.Equal(RenditionState.Built, record.State);
+        Assert.Equal(costs, await OwnerAsync(record.ImageBlobPath!));
+        await using (var image = await new ModuleBlobsPort(Blobs, costs).OpenAsync(record.ImageBlobPath!))
+            Assert.True(image.CanRead);
+
+        Assert.Null(await store.FindAsync(original, "work", CancellationToken.None));
+        Assert.Null(await store.FindShownAsync(original, BlobOwner.Core, CancellationToken.None));
+        await Assert.ThrowsAsync<NotFoundException>(
+            () => store.EnsureAsync(original, BlobOwner.Core, CancellationToken.None));
+    }
+
+    private async Task<string> OwnerAsync(string path)
+    {
+        using var scope = fixture.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().BlobRegistry
+            .Where(e => e.Path == path).Select(e => e.Owner).SingleAsync();
+    }
+
+    /// <summary>
     /// Книга без своей раскладки: в записи — след раскладки и снимок профиля (issue #1453), а оригинал
     /// в хранилище побайтно тот же — вписывается КОПИЯ.
     /// </summary>
@@ -454,6 +486,26 @@ internal sealed class TappedBlobs(IBlobStorage inner) : IBlobStorage
 
     public async Task<Stream> DownloadAsync(string blobPath, CancellationToken ct = default) =>
         new Tap(await inner.DownloadAsync(blobPath, ct), this);
+
+    // Владельца обёртка передаёт дальше, а не теряет: служба образов читает от имени модуля (ТЗ CORE-37.2),
+    // и подслушивание не должно превращать его в ядро.
+    public Task<string> UploadAsync(string fileName, Stream content, string contentType, string owner, CancellationToken ct = default) =>
+        inner.UploadAsync(fileName, content, contentType, owner, ct);
+
+    public Task PutAsync(string blobPath, Stream content, string contentType, string owner, CancellationToken ct = default) =>
+        inner.PutAsync(blobPath, content, contentType, owner, ct);
+
+    public Task<long?> GetSizeAsync(string blobPath, string owner, CancellationToken ct = default) =>
+        inner.GetSizeAsync(blobPath, owner, ct);
+
+    public Task<IReadOnlySet<string>> FindAbsentAsync(IEnumerable<string> blobPaths, string owner, CancellationToken ct = default) =>
+        inner.FindAbsentAsync(blobPaths, owner, ct);
+
+    public Task DeleteAsync(string blobPath, string owner, CancellationToken ct = default) =>
+        blobPath == FailDeleteOf ? throw new IOException("Хранилище отказало") : inner.DeleteAsync(blobPath, owner, ct);
+
+    public async Task<Stream> DownloadAsync(string blobPath, string owner, CancellationToken ct = default) =>
+        new Tap(await inner.DownloadAsync(blobPath, owner, ct), this);
 
     private sealed class Tap(Stream source, TappedBlobs owner) : Stream
     {

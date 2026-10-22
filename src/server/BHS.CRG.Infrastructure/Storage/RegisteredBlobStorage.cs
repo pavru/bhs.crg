@@ -147,16 +147,26 @@ public class RegisteredBlobStorage(
     /// <summary>
     /// Удалить файл этого владельца. Файл другого владельца остаётся на месте — молча для
     /// вызывающего, с записью в журнал: пути в реквизитах пишет клиент, и удаление документа, в который
-    /// вписан путь скана счёта, иначе удалило бы скан (ТЗ CORE-37.2). Путь вне реестра удаляется, как
-    /// прежде: он ничей, и беречь его не для кого.
+    /// вписан путь скана счёта, иначе удалило бы скан (ТЗ CORE-37.2).
+    ///
+    /// <para>Путь вне реестра ядро удаляет, как прежде: он ничей, и беречь его не для кого. Модуль — нет:
+    /// его файлы ложатся портом и значатся в реестре всегда, а путь без записи — не его (чужая загрузка
+    /// между хранилищем и реестром, объект, выпавший из реестра), и стирать его модулю незачем.</para>
+    ///
+    /// <para>«Любой» не принимается: резервной копии удалять нечего, а удаление мимо владельца было бы
+    /// той самой дверью, которую владелец закрывает.</para>
     /// </summary>
     public async Task DeleteAsync(string blobPath, string owner, CancellationToken ct = default)
     {
-        if (owner != BlobOwner.Any && await OwnerOfAsync(blobPath, ct) is { } holder && holder != owner)
+        if (owner == BlobOwner.Any)
+            throw new ArgumentException("Файл удаляется от имени владельца, а не «любого».", nameof(owner));
+
+        var holder = await OwnerOfAsync(blobPath, ct);
+        if (holder is null ? owner != BlobOwner.Core : holder != owner)
         {
             log.LogWarning(
                 "Удаление объекта хранилища от имени {Owner} отклонено: его владелец {Holder} ({Path})",
-                owner, holder, blobPath);
+                owner, holder ?? "не значится в реестре", blobPath);
             return;
         }
 
