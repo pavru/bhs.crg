@@ -279,29 +279,10 @@ public partial class CommonDataHandlers(
     {
         // Разрешаем родительскую цепочку скопа: Set→Section→Construction→System (issue #82).
         // Неразрешённые уровни — Guid.Empty: ни одна запись со ScopeId==Empty не совпадёт.
-        Guid setId = Guid.Empty, sectionId = Guid.Empty, constructionId = Guid.Empty;
-        switch (q.Scope)
-        {
-            case CatalogScope.Set when q.ScopeId is { } sid:
-                setId = sid;
-                var set = await setRepo.GetByIdAsync(sid, ct);
-                if (set is not null)
-                {
-                    sectionId = set.SectionId;
-                    var sec = await sectionRepo.GetByIdAsync(set.SectionId, ct);
-                    if (sec is not null) constructionId = sec.ConstructionId;
-                }
-                break;
-            case CatalogScope.Section when q.ScopeId is { } secId:
-                sectionId = secId;
-                var section = await sectionRepo.GetByIdAsync(secId, ct);
-                if (section is not null) constructionId = section.ConstructionId;
-                break;
-            case CatalogScope.Construction when q.ScopeId is { } cid:
-                constructionId = cid;
-                break;
-            // System — родителей нет.
-        }
+        var chain = await ScopeAncestry.ResolveAsync(q.Scope, q.ScopeId, setRepo, sectionRepo, ct);
+        var setId = chain.SetId ?? Guid.Empty;
+        var sectionId = chain.SectionId ?? Guid.Empty;
+        var constructionId = chain.ConstructionId ?? Guid.Empty;
         var typeId = q.CompositeTypeId;
         var live = q.For.HidesArchive();
         var archivedOnly = q.ArchivedOnly;

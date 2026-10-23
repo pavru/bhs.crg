@@ -129,6 +129,10 @@ public static class SchemaTags
         return keys;
     }
 
+    /// <summary>Записи тэгов собственного поля схемы как они лежат (с номером: <c>identity:1</c>).</summary>
+    public static IReadOnlyList<string> TagsOfOwnField(JsonDocument schema, string key) =>
+        FieldTags(schema).FirstOrDefault(f => f.Key == key).Tags ?? [];
+
     /// <summary>Несёт ли сам тип (его собственная схема) тэг типа.</summary>
     public static bool SchemaHasTypeTag(JsonDocument schema, string tag)
     {
