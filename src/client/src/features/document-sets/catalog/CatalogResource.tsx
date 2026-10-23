@@ -13,6 +13,7 @@ import { PickRow } from './PickRow';
 import { usePurgeBatchControls } from './usePurgeBatchControls';
 import {
   useListCommonData, useDeleteCommonDataEntry, useCommonDataForScope, useCommonDataEntry, archiveOffered,
+  ownDoorCode, recordWritePermission,
 } from '@/shared/api/commonData';
 import { useCan } from '@/shared/api/access';
 import { isConflict } from '@/shared/utils/apiError';
@@ -96,12 +97,15 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
   const documentTypes = allDocTypes.filter(dt => dt.kind === 'Document' && !dt.isAbstract);
   const allSelectableTypes = [...compositeTypes, ...documentTypes];
   const isDocType = (id: string) => documentTypes.some(dt => dt.id === id);
-  // Архив (issue #1185): действие — тем, кто ведёт общие данные, и только записям ядра.
-  const canEdit = useCan().permission('core.catalog.edit');
+  // Архив (issue #1185): действие — тем, кто ведёт записи этого типа, и только записям ядра. Право — по
+  // типу записи: виды работ ведут правом на классификатор, а не правкой общих данных (WORK-59).
+  const can = useCan();
+  const doorOf = (e: CommonDataEntry) => ownDoorCode(e.compositeTypeId, allDocTypes);
+  const canEdit = (e: CommonDataEntry) => can.permission(recordWritePermission(doorOf(e)));
   // Типы — ВСЕ, а не только выбираемые: у записи абстрактного или чужого типа владелец тот же вопрос.
   const archive = useRecordArchive(allDocTypes);
   const archiveAction = (e: CommonDataEntry) =>
-    canEdit && archive.allowed(e) ? (target: CommonDataEntry) => void archive.act(target, !target.archived) : undefined;
+    canEdit(e) && archive.allowed(e) ? (target: CommonDataEntry) => void archive.act(target, !target.archived) : undefined;
 
   // Профиль уровня (issue #258): составной тип, помеченный тэгом profile-* для этого scope, — его
   // единственный объект здесь несёт «данные уровня», амбиентно попадающие в шаблон (data.уровень.<key>).
@@ -152,7 +156,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
       onToggle={() => batch.toggle(entry.id)} className={border ? 'border-t border-muted' : ''} />
   ) : (
     <ObjectRow key={entry.id} entry={entry} siblings={siblings} resolvePool={scopeChain}
-      onEdit={setEditEntry} onDelete={setDeleteTarget} deleteDisabled={deleteMutation.isPending}
+      onEdit={setEditEntry} onDelete={canEdit(entry) ? setDeleteTarget : undefined} deleteDisabled={deleteMutation.isPending}
       onArchive={archiveAction(entry)} archiveDisabled={archive.pending}
       showPreview className={border ? 'border-t border-muted' : ''} />
   );
@@ -178,7 +182,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
     const secondary = purgeExit(e, target);
     if (target.archived)
       return { note: 'Запись уже в архиве: в списках выбора её нет. Больше ничего делать не нужно.', secondary };
-    if (!canEdit || !archiveOffered(e)) return secondary ? { note: null, secondary } : null;
+    if (!canEdit(target) || !archiveOffered(e)) return secondary ? { note: null, secondary } : null;
     return {
       note: 'Запись можно отправить в архив: из списков выбора она пропадёт, а в уже сохранённых документах и счетах останется.',
       action: {
@@ -346,7 +350,10 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
       </Modal>
       <ConfirmDialog open={!!deleteTarget} onOpenChange={o => { if (!o) setDeleteTarget(null); }}
         title={`Удалить «${deleteTarget?.displayName ?? ''}»?`} confirmLabel="Удалить"
-        onConfirm={() => { if (deleteTarget) return deleteMutation.mutateAsync(deleteTarget.id); }}
+        onConfirm={() => {
+          if (deleteTarget)
+            return deleteMutation.mutateAsync({ id: deleteTarget.id, doorCode: doorOf(deleteTarget), version: deleteTarget.version });
+        }}
         onRefused={e => (deleteTarget ? refusalExit(e, deleteTarget) : null)} />
       {batch.dialog}
       {purging && (

@@ -46,7 +46,8 @@ export function ObjectRow({
   /** Пул для резолва прокси-цели (scope-цепочка) — покрывает кросс-scope прокси; см. ProxyRoleMarker. */
   resolvePool?: CommonDataEntry[];
   onEdit: (e: CommonDataEntry) => void;
-  onDelete: (e: CommonDataEntry) => void;
+  /** Не задан — удалять запись человеку нечем (нет права на её справочник): кнопки нет. */
+  onDelete?: (e: CommonDataEntry) => void;
   deleteDisabled?: boolean;
   /**
    * «В архив» у действующей записи, «Вернуть из архива» у архивной (issue #1185). Не задано — кнопки
@@ -96,10 +97,12 @@ export function ObjectRow({
             {entry.archived ? <ArchiveRestore size={icon} /> : <Archive size={icon} />}
           </IconButton>
         )}
-        <IconButton label="Удалить" size="sm" danger
-          onClick={e => { e.stopPropagation(); onDelete(entry); }} disabled={deleteDisabled}>
-          <Trash2 size={icon} />
-        </IconButton>
+        {onDelete && (
+          <IconButton label="Удалить" size="sm" danger
+            onClick={e => { e.stopPropagation(); onDelete(entry); }} disabled={deleteDisabled}>
+            <Trash2 size={icon} />
+          </IconButton>
+        )}
       </div>
     </div>
   );

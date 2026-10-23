@@ -1,11 +1,12 @@
-import { useSetCommonDataArchive } from '@/shared/api/commonData';
+import { ownDoorCode, useSetCommonDataArchive } from '@/shared/api/commonData';
 import type { DocumentType } from '@/shared/api/types';
 import { useToast } from '@/shared/ui/Toast';
 
 /** Код типа «Сотрудник» в ядре (зеркало серверного `CoreRecordTypes.EmployeeCode`). */
 const EMPLOYEE_TYPE_CODE = 'Сотрудник';
 
-type Target = { id: string; displayName: string; compositeTypeId: string; archived?: boolean };
+/** Версия нужна двери видов работ: в архив вид работы уходит только с ней (WORK-59). */
+type Target = { id: string; displayName: string; compositeTypeId: string; archived?: boolean; version?: string };
 
 /**
  * Действие «в архив» / «вернуть из архива» у записи справочника (issue #1185).
@@ -23,7 +24,9 @@ export function useRecordArchive(types: DocumentType[]) {
    * Сменить состояние; отказ летит наружу — его показывает тот, кто звал (диалог удаления).
    */
   async function set(entry: Target, archived: boolean): Promise<void> {
-    await mutation.mutateAsync({ id: entry.id, archived });
+    const done = await mutation.mutateAsync({ id: entry.id, archived, doorCode: ownDoorCode(entry.compositeTypeId, types), version: entry.version });
+    // Архив сдвигает версию: «Вернуть» из тоста называет уже новую, иначе дверь откажет на своё же действие.
+    const after = { ...entry, version: done.version ?? entry.version };
     if (!archived) {
       toast.success(`Запись «${entry.displayName}» возвращена из архива.`);
       return;
@@ -35,7 +38,7 @@ export function useRecordArchive(types: DocumentType[]) {
       : 'В списках выбора её больше не будет.';
     toast.success(`Запись «${entry.displayName}» — в архиве. ${tail}`, {
       duration: 8000,
-      action: { label: 'Вернуть', onClick: () => void act(entry, false) },
+      action: { label: 'Вернуть', onClick: () => void act(after, false) },
     });
   }
 

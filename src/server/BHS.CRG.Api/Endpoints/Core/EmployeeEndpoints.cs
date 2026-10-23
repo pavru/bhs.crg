@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Endpoints.Documents;
 using BHS.CRG.Application.Common;
@@ -49,7 +48,7 @@ public static class EmployeeEndpoints
             // Страница сотрудников — показ: архивная карточка на месте, с признаком (issue #1185).
             return Results.Ok((await m.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId)))
                 .Select(CommonDataEntryDto.From)
-                .Select(Elide));
+                .Select(RecordRequests.Elide));
         });
 
         // По идентификатору — карточка ЦЕЛИКОМ, без отсечения тяжёлых листьев: этот путь кормит
@@ -71,9 +70,9 @@ public static class EmployeeEndpoints
                 return Results.Conflict(new { error = DirectoryMissing });
 
             // Новая карточка без данных осмысленна: реквизиты заполнят следом. Негодный JSON — нет:
-            // это 400 с указанием поля, а не 500 «внутренняя ошибка» (см. ParseData).
-            if (ParseData(req.Data, "{}") is not { } data)
-                return Results.BadRequest(new { error = DataNotJson });
+            // это 400 с указанием поля, а не 500 «внутренняя ошибка» (см. RecordRequests.ParseData).
+            if (RecordRequests.ParseData(req.Data) is not { } data)
+                return Results.BadRequest(new { error = RecordRequests.DataNotJson });
 
             try
             {
@@ -84,14 +83,7 @@ public static class EmployeeEndpoints
             // Тот же ответ, что у общего адреса создания (issue #1185): сотрудник с таким табельным
             // номером лежит в архиве. Без полей и без createAnyway отказ был бы тупиком — текст
             // предлагает «создать, подтвердив», а подтвердить было бы нечем (ревью PR #1229).
-            catch (ArchivedTwinException ex)
-            {
-                return Results.Conflict(new
-                {
-                    error = ex.Message, code = "archived-twin",
-                    archivedId = ex.ArchivedId, archivedName = ex.ArchivedName, archivedScope = ex.ArchivedScope,
-                });
-            }
+            catch (ArchivedTwinException ex) { return RecordRequests.ArchivedTwin(ex); }
         });
 
         edit.MapPut("/{id:guid}", async (
@@ -110,8 +102,8 @@ public static class EmployeeEndpoints
             // период работы и унаследованное ФИО. Охрана записи тут не спасает — обязательность она
             // не проверяет, а замок на связи срабатывает только если значение там БЫЛО.
             if (req.Data is null) return Results.BadRequest(new { error = DataRequired });
-            if (ParseData(req.Data, "{}") is not { } data)
-                return Results.BadRequest(new { error = DataNotJson });
+            if (RecordRequests.ParseData(req.Data) is not { } data)
+                return Results.BadRequest(new { error = RecordRequests.DataNotJson });
 
             return Results.Ok(CommonDataEntryDto.From(await m.Send(new UpdateCommonDataEntryCommand(
                 // Псевдонимы, о которых запрос молчит, ОСТАЮТСЯ: null здесь означает «очистить»
@@ -142,24 +134,6 @@ public static class EmployeeEndpoints
         "значение стёрло бы её — включая табельный номер и период работы. Пришлите реквизиты, " +
         "которые должны остаться.";
 
-    private const string DataNotJson =
-        "Поле «data» — строка с JSON, а разобрать её не удалось. Обратите внимание: это строка, " +
-        "а не вложенный объект.";
-
-    /// <summary>
-    /// Реквизиты из запроса — или <c>null</c>, если это не JSON (нашло ревью PR #1053).
-    ///
-    /// <para>Без разбора здесь негодная строка уходила бы наружу как 500 «внутренняя ошибка сервера»
-    /// с предложением сообщить об ошибке и записью в журнале ошибок — то есть ошибка ввода
-    /// выглядела бы поломкой сервера. Тот же изъян есть у соседней двери общих данных; здесь он
-    /// заметнее, потому что о форме поля уже думали.</para>
-    /// </summary>
-    private static JsonDocument? ParseData(string? raw, string whenMissing)
-    {
-        try { return JsonDocument.Parse(string.IsNullOrWhiteSpace(raw) ? whenMissing : raw); }
-        catch (JsonException) { return null; }
-    }
-
     private const string DirectoryMissing =
         "Справочник сотрудников ещё не заведён: нет типа-родителя «Персона», от которого он " +
         "производен. Заведите справочник лиц — сотрудники появятся при следующем запуске.";
@@ -189,10 +163,6 @@ public static class EmployeeEndpoints
     /// </summary>
     private static async Task<bool> IsEmployeeAsync(DomainObject entry, IRepository<DocumentType> types)
         => await EmployeeTypeIdAsync(types) is { } id && entry.CompositeTypeId == id;
-
-    /// <summary>Списочный ответ без тяжёлой полезной нагрузки — как у общего каталога (issue #520).</summary>
-    private static CommonDataEntryDto Elide(CommonDataEntryDto dto) =>
-        dto with { Data = HeavyLeafElision.WithoutHeavyLeaves(dto.Data) };
 
     /// <summary>
     /// Тип в запросе НЕ принимается: он один и известен двери. Приди он снаружи — дверь сотрудников

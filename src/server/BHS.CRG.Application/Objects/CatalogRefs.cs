@@ -41,10 +41,7 @@ public static class CatalogRefs
         switch (el.ValueKind)
         {
             case JsonValueKind.Object:
-                if (el.TryGetProperty("$ref", out var kind) && kind.ValueKind == JsonValueKind.String
-                    && kind.GetString() == "catalog"
-                    && el.TryGetProperty("entryId", out var id) && id.ValueKind == JsonValueKind.String
-                    && Guid.TryParse(id.GetString(), out var parsed))
+                if (EntryId(el) is { } parsed)
                     found.Add(new Placed(parsed, path, Text(el, "displayName")));
                 foreach (var prop in el.EnumerateObject())
                 {
@@ -65,6 +62,18 @@ public static class CatalogRefs
                 break;
         }
     }
+
+    /// <summary>
+    /// Запись, которую называет само значение: <c>{"$ref":"catalog","entryId":…}</c>; иначе <c>null</c>.
+    /// Признак ссылки — здесь один на всех: и обход, и чтение одного поля (карточка, справочники ядра).
+    /// </summary>
+    public static Guid? EntryId(JsonElement el) =>
+        el.ValueKind == JsonValueKind.Object
+        && el.TryGetProperty("$ref", out var kind) && kind.ValueKind == JsonValueKind.String && kind.GetString() == "catalog"
+        && el.TryGetProperty("entryId", out var id) && id.ValueKind == JsonValueKind.String
+        && Guid.TryParse(id.GetString(), out var entry)
+            ? entry
+            : null;
 
     public const string BaseRefKey = "_baseRef";
 
