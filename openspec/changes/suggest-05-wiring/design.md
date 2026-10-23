@@ -20,8 +20,10 @@
   свёрнутой карточке (`:337-340`) и в списке выбора (`fieldTags`, `:305`).
 - Храповик размера: `FieldBuilder.tsx` 654, `RequisitesTab.tsx` 653, `ComplexFields.tsx` 779 строк кода
   (`src/file-size-baseline.json`) — расти им нельзя.
-- e2e — `src/client/e2e/*.mjs` на общем `harness.mjs`; новый сценарий вписывается в список живых
-  прогонов CI.
+- e2e — `src/client/e2e/*.mjs` на общем `harness.mjs`. Входы всех прогонов CI делят предел частоты
+  (`suites.test.mjs`: 30 за пять минут, запас 4), и запаса на новый вход нет — поэтому сценарий живёт
+  проверками `e2e/suggest-checks.mjs` внутри прогона строк счёта (уже вошедшего админом с модулем
+  `costs`), как `invoice-candidates-checks` и `invoice-vat-on-top-checks`.
 
 ## Goals / Non-Goals
 
@@ -85,8 +87,8 @@
 - **`aria-label` у текстовой ячейки** — `field.title`, попутно.
 - **Документы.** `USER_GUIDE` — как работает подсказка (свои сверху, «С других строек», Tab не
   принимает); `ADMIN_GUIDE` — флажок поля и причины; оглавления — `npm run toc` в `docs/tools`.
-- **Чем ломается.** Подключение в `PrimitiveInput` без условия контекста — e2e «дописанные поля счёта —
-  запросов нет» краснеет. Чип тэга в карточке — e2e флажка краснеет. Рост `FieldBuilder.tsx` —
+- **Чем ломается.** Подключение в `PrimitiveInput` без условия контекста — тест «дописанное поле счёта
+  запросов не шлёт» (`suggestWiring.test.tsx`) краснеет — проверено мутацией. Чип тэга в карточке — e2e флажка краснеет. Рост `FieldBuilder.tsx` —
   `FileSizeRatchet`.
 
 ## Risks / Trade-offs

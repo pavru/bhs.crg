@@ -23,6 +23,7 @@
 import { BASE, launchBrowser, login, createChecks, pickOption } from './harness.mjs';
 import { vatOnTopChecks } from './invoice-vat-on-top-checks.mjs';
 import { candidateChecks } from './invoice-candidates-checks.mjs';
+import { suggestChecks } from './suggest-checks.mjs';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
@@ -618,6 +619,9 @@ try {
 
   // ── Счёт с НДС сверху (эпик #1496) — своим файлом: прогон и так велик ────────
   await vatOnTopChecks({ page, check, stamp, invoice, open, cell, addRow, saveLines, cable, pickOption });
+
+  // ── Подсказки по введённому ранее (#1533) — своим файлом: входа отдельного прогона в пределе нет ──
+  await suggestChecks({ page, check, stamp, api });
 
 } finally {
   await browser.close();

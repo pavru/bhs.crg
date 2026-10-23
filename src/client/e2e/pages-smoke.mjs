@@ -184,7 +184,9 @@ await check('document-page-browser-back-asks-on-phone', async () => {
     await page.locator('tbody tr, [data-testid=ld-nav] button').filter({ hasText: /АОСР/ }).first().click();
     await page.waitForURL(url => url.pathname === DOC_PATH, { timeout: 15000 });
     const editor = page.getByTestId('document-editor');
-    const input = editor.getByRole('textbox').first();
+    // Первое поле ввода текста: строковое поле с подсказкой по введённому ранее (#1533) — поле со
+    // списком (роль combobox, а не textbox), поэтому ищутся обе роли; кнопка-список под `input` не попадёт.
+    const input = editor.getByRole('textbox').or(editor.locator('input[role="combobox"]')).first();
     await input.fill(`${await input.inputValue()} 7`);
     await editor.locator('[aria-description="Есть несохранённые изменения"]').waitFor({ timeout: 5000 });
 

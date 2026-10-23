@@ -1,103 +1,85 @@
-// Живой прогон ПОДСКАЗОК ПО ВВЕДЁННОМУ РАНЕЕ (issue #1533, эпик #1527, ТЗ CORE-8, CORE-9, TYPE-2).
+// Проверки ПОДСКАЗОК ПО ВВЕДЁННОМУ РАНЕЕ (issue #1533, эпик #1527, ТЗ CORE-8, CORE-9, TYPE-2) — идут
+// внутри прогона строк счёта (`invoice-lines-smoke.mjs`).
 //
-// ЗАЧЕМ ОН ЕСТЬ. Юнит-тесты проверяют поле на подменённом ответе: кого оно спрашивает и как ведёт себя
+// ЗАЧЕМ ОНИ ЕСТЬ. Юнит-тесты проверяют поле на подменённом ответе: кого оно спрашивает и как ведёт себя
 // список. Не проверяют они главного — что ответ НАСТОЯЩЕГО сервера по настоящим записям доходит до
 // поля: своя стройка первой, чужая — только встреченная дважды и под чертой, флажок в редакторе типа
 // переживает сохранение и действительно гасит запросы. Каждое из этого — про связку клиента, адреса и
 // базы целиком, и в браузере видно только оно.
 //
-// ⚠️ ДАННЫЕ ПРОГОН ГОТОВИТ СЕБЕ САМ — тип документа, подтип номенклатуры, две стройки, документы,
+// ⚠️ Своим прогоном они не живут нарочно: входы всех прогонов CI делят один предел частоты (30 за пять
+// минут, `suites.test.mjs`), и отдельный набор занял бы последний запасной вход. Прогону строк счёта
+// нужно то же — админ и включённый модуль `costs`, — и он уже вошёл.
+//
+// ⚠️ ДАННЫЕ ПРОВЕРКИ ГОТОВЯТ СЕБЕ САМИ — тип документа, подтип номенклатуры, две стройки, документы,
 // позицию и счёт, все с приметой прогона в имени. Посеянные не годятся: проверка флажка снимает его, и
 // второй запуск на той же базе проверял бы уже выключенное поле.
 //
 // ⚠️ Элементы ищутся по видимому тексту, ролям и подписям — так заодно проверяется, что человек видит
 // нужные слова, а читалка экрана — роль поля со списком.
-//
-// Требует поднятых фронта и бэка, посеянной организации и ВКЛЮЧЁННОГО модуля `costs`
-// (`Modules__Enabled=id,costs`) — см. e2e/README.md.
-//
-// Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/suggest-smoke.mjs
-// Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled, until, pickOption } from './harness.mjs';
+import { BASE, settled, until, pickOption } from './harness.mjs';
 
-const browser = await launchBrowser();
-const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
-page.on('pageerror', e => console.log('  ! ошибка страницы:', e.message));
+/**
+ * @param ctx то, чем живёт прогон строк счёта: страница, проверка, примета и запрос к приложению.
+ */
+export async function suggestChecks({ page, check, stamp, api }) {
+  /** Запросы к адресу подсказок — по ним проверка флажка судит «зовёт / не зовёт». */
+  const suggestRequests = [];
+  page.on('request', r => { if (r.url().includes('/api/field-suggestions')) suggestRequests.push(r.url()); });
 
-const { check, summarize } = createChecks();
-const stamp = Date.now().toString().slice(-6);
+  const field = (key, type = 'string', extra = {}) => ({ key, title: key, type, required: false, ...extra });
 
-/** Запросы к адресу подсказок с начала прогона — по ним проверка флажка судит «зовёт / не зовёт». */
-const suggestRequests = [];
-page.on('request', r => { if (r.url().includes('/api/field-suggestions')) suggestRequests.push(r.url()); });
-
-await login(page);
-
-/** Запрос к приложению ТЕМ ЖЕ токеном, что у открытой страницы; отказ — исключение с телом. */
-async function api(method, path, body) {
-  return page.evaluate(async ([method, path, body]) => {
-    const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
-    const res = await fetch(`/api${path}`, {
-      method,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: body === null ? undefined : JSON.stringify(body),
+  /**
+   * Тип документа прогона: строка с подсказкой, текст, вычисляемое и поле однозначности.
+   * ⚠️ Имя — на «П», а не «Акт…»: страница типов выбирает первый по имени сама, и `types-smoke` ждёт
+   * там АОСР — тип прогона, вставший раньше, ронял бы его на стенде, где этот прогон уже ходил.
+   */
+  async function documentType() {
+    const created = await api('POST', '/document-types', {
+      name: `Подсказки — акт ${stamp}`, code: `ПодсказкиАкт${stamp}`, kind: 'Document', parentId: null,
+      schema: JSON.stringify({
+        fields: [
+          field('Марка'),
+          field('Примечание', 'text'),
+          field('Код', 'string', { computed: true, expression: '1' }),
+          field('Номер', 'string', { tags: ['doc.number'] }),
+        ],
+      }),
+      isAbstract: false, module: 'core',
     });
-    const text = await res.text();
-    if (!res.ok) throw new Error(`${method} ${path} → ${res.status} ${text.slice(0, 200)}`);
-    return text ? JSON.parse(text) : null;
-  }, [method, path, body ?? null]);
-}
+    return created.id;
+  }
 
-const field = (key, type = 'string', extra = {}) => ({ key, title: key, type, required: false, ...extra });
+  /** Стройка с одним комплектом — тем, где лежат документы прогона. */
+  async function constructionWithSet(name) {
+    const construction = await api('POST', '/constructions', { name: `${name} ${stamp}` });
+    await api('POST', `/constructions/${construction.id}/sections`, { name: 'Раздел' });
+    const section = (await api('GET', `/constructions/${construction.id}`)).sections[0];
+    const set = await api('POST', '/document-sets', { sectionId: section.id, name: 'Комплект' });
+    return { constructionId: construction.id, setId: set.id };
+  }
 
-/** Тип документа прогона: строка с подсказкой, текст, вычисляемое и поле однозначности. */
-async function documentType() {
-  const created = await api('POST', '/document-types', {
-    name: `Акт подсказок ${stamp}`, code: `АктПодсказок${stamp}`, kind: 'Document', parentId: null,
-    schema: JSON.stringify({
-      fields: [
-        field('Марка'),
-        field('Примечание', 'text'),
-        field('Код', 'string', { computed: true, expression: '1' }),
-        field('Номер', 'string', { tags: ['doc.number'] }),
-      ],
-    }),
-    isAbstract: false, module: 'core',
-  });
-  return created.id;
-}
+  async function documentIn(where, typeId, name, requisites) {
+    const inst = await api('POST', `/document-sets/${where.setId}/documents`, { documentTypeId: typeId });
+    await api('PUT', `/document-sets/${where.setId}/documents/${inst.id}/name`, { name });
+    if (requisites) await api('PUT', `/document-sets/${where.setId}/documents/${inst.id}/requisites`, requisites);
+    return inst.id;
+  }
 
-/** Стройка с одним комплектом — тем, где лежат документы прогона. */
-async function constructionWithSet(name) {
-  const construction = await api('POST', '/constructions', { name: `${name} ${stamp}` });
-  await api('POST', `/constructions/${construction.id}/sections`, { name: 'Раздел' });
-  const section = (await api('GET', `/constructions/${construction.id}`)).sections[0];
-  const set = await api('POST', '/document-sets', { sectionId: section.id, name: 'Комплект' });
-  return { constructionId: construction.id, setId: set.id };
-}
+  async function openDocument(where, instanceId) {
+    await page.goto(`${BASE}/document-sets/${where.constructionId}/sets/${where.setId}/docs/${instanceId}`);
+    await page.getByTestId('document-editor').waitFor({ timeout: 20_000 });
+    await settled(page);
+  }
 
-async function documentIn(where, typeId, name, requisites) {
-  const inst = await api('POST', `/document-sets/${where.setId}/documents`, { documentTypeId: typeId });
-  await api('PUT', `/document-sets/${where.setId}/documents/${inst.id}/name`, { name });
-  if (requisites) await api('PUT', `/document-sets/${where.setId}/documents/${inst.id}/requisites`, requisites);
-  return inst.id;
-}
+  /** Пункты открытого списка подсказок — текстом, в порядке показа, вместе с чертой «С других строек». */
+  async function shownList() {
+    const list = page.getByRole('listbox', { name: /^Введённое ранее/ });
+    await list.waitFor({ timeout: 10_000 });
+    return (await list.innerText()).split('\n').map(s => s.trim()).filter(Boolean);
+  }
 
-async function openDocument(where, instanceId) {
-  await page.goto(`${BASE}/document-sets/${where.constructionId}/sets/${where.setId}/docs/${instanceId}`);
-  await page.getByTestId('document-editor').waitFor({ timeout: 20_000 });
-  await settled(page);
-}
-
-/** Пункты открытого списка подсказок — текстом, в порядке показа, вместе с чертой «С других строек». */
-async function shownList() {
-  const list = page.getByRole('listbox', { name: /^Введённое ранее/ });
-  await list.waitFor({ timeout: 10_000 });
-  return (await list.innerText()).split('\n').map(s => s.trim()).filter(Boolean);
-}
-
-try {
   const own = `ВВГнг ${stamp} своя`;
   const otherOnce = `ВВГнг ${stamp} одна`;
   const otherTwice = `ВВГнг ${stamp} две`;
@@ -176,7 +158,7 @@ try {
     // Прошлая позиция — заведённая той же дверью, что зовёт шаг.
     await api('POST', '/nomenclature', { typeId: kindId, values: { Название: `Кабель ${stamp}`, Производитель: maker } });
 
-    const number = `СЧ-П${stamp}`;
+    const number = `СЧ-ПП${stamp}`;
     await api('POST', '/costs/invoices', {
       requisites: {
         'Номер': number, 'Дата': '2026-10-23',
@@ -274,9 +256,4 @@ try {
     // «Идентификатор» — компонент ключа, не однозначность (решение 23.10.2026): флажок стоит.
     if (!(await flag().isChecked())) throw new Error('у производителя (компонент ключа) флажок не стоит');
   });
-} finally {
-  await browser.close();
 }
-
-// ⚠️ Значение `summarize` отдаётся КАК ЕСТЬ: это готовый код возврата (0 — прошло). Сверяет `suites.test.mjs`.
-process.exitCode = summarize('Подсказки по введённому ранее');
