@@ -1,5 +1,5 @@
 import type { SchemaField } from './schema';
-import { FUNCTIONAL_TAG, hasTag } from './tags';
+import { FUNCTIONAL_TAG, hasTag, tagCode, type TagDefinition } from './tags';
 
 /**
  * Подсказывается ли поле значениями, введёнными ранее (issue #1529) — зеркало серверного `Suggestable`.
@@ -61,3 +61,38 @@ export const SUGGEST_REFUSAL_TEXT: Record<SuggestRefusal, string> = {
   orgName: 'Не подсказывается: чужое название организации ведёт к дублю записи справочника.',
   account: 'Не подсказывается: учётная запись привязывается к одному сотруднику.',
 };
+
+type SuggestFields = Pick<SchemaField, 'type' | 'computed' | 'locked' | 'tags'>;
+
+/**
+ * Показан ли у поля флажок «Подсказывать введённое ранее» (коды `suggested` и `manual`, issue #1533).
+ * Пока показан, тэг `input.noSuggest` — это он, и чипом тэг не рисуется: два входа в одно значение
+ * расходились бы на экране. Не показан (однозначное, запертое, не строка) — тэг остаётся обычным чипом:
+ * спрятанный, он стал бы невидимым и неснимаемым.
+ */
+export function noSuggestIsFlag(field: SuggestFields): boolean {
+  const reason = suggestReason(field);
+  return reason === 'suggested' || reason === 'manual';
+}
+
+/** Записи тэгов поля для чипов карточки — без `input.noSuggest`, когда его показывает флажок. */
+export function chipTagEntries(field: SuggestFields): string[] {
+  const tags = field.tags ?? [];
+  return noSuggestIsFlag(field) ? tags.filter(t => tagCode(t) !== FUNCTIONAL_TAG.inputNoSuggest) : tags;
+}
+
+/** Тэги в списке выбора карточки — без `input.noSuggest`, когда его показывает флажок. */
+export function withoutFlagTag(field: SuggestFields, offered: TagDefinition[]): TagDefinition[] {
+  return noSuggestIsFlag(field) ? offered.filter(t => t.code !== FUNCTIONAL_TAG.inputNoSuggest) : offered;
+}
+
+/**
+ * Тэги поля после смены его вида. `input.noSuggest` бывает только у строки, и флажок — тоже: ушедшее
+ * со строки поле несло бы тэг, который ничего не выключает и которого в карточке не снять, а вернувшись
+ * к строке, молча оказалось бы «без подсказки».
+ */
+export function tagsForKind(tags: string[] | undefined, type: string): string[] | undefined {
+  if (type === 'string' || !hasTag(tags, FUNCTIONAL_TAG.inputNoSuggest)) return tags;
+  const kept = (tags ?? []).filter(t => tagCode(t) !== FUNCTIONAL_TAG.inputNoSuggest);
+  return kept.length ? kept : undefined;
+}

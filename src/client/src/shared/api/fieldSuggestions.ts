@@ -54,6 +54,9 @@ export function useFieldSuggestions(source: SuggestSource | null, q: string | nu
       })
       .then(r => r.data.items),
     enabled: asked,
+    // Закрытое поле на кэш не подписано: в таблице строк каждая клетка — такое поле, и тысяча клеток
+    // держала бы тысячу подписок на ключ, который не спрашивают.
+    subscribed: asked,
     staleTime: SUGGESTIONS_STALE_MS,
     // 503 — сервер не успел; повтор той же буквы только догонял бы следующую.
     retry: false,

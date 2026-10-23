@@ -60,8 +60,12 @@ try {
 // (составные типы, типы полей, перечисления), каждый приходит своим запросом, и до их ответов
 // колонка типов пуста. Раньше на это стояла пауза 1,5 с — поверх ожидания текста.
 await page.goto(`${BASE}/document-types`, { waitUntil: 'networkidle' });
+// АОСР открываем АДРЕСОМ, а не ждём, что он первый по имени и выберется сам: тип другого прогона,
+// вставший в списке раньше («Акт подсказок…», issue #1533), ронял пять проверок ниже без поломки в коде.
+const aosr = (await api('GET', '/document-types')).find(t => /^АОСР/.test(t.name));
+if (aosr) await page.goto(`${BASE}/document-types?type=${aosr.id}`, { waitUntil: 'networkidle' });
 // Ждём не время, а состояние: на холодном API первый запрос типов доходит позже 3,5 секунды, и
-// проверка падала с «тип АОСР не выбрался сам» — то есть красным без поломки. Трижды за сессию.
+// проверка падала с «тип АОСР не открылся» — то есть красным без поломки. Трижды за сессию.
 await page.waitForFunction(() => document.body.innerText.includes('ПАРАМЕТРЫ ТИПА'), null,
   { timeout: 30000 }).catch(() => {});
 
@@ -73,7 +77,7 @@ await page.waitForFunction(() => document.body.innerText.includes('ПАРАМЕ�
  */
 await check('field-summary-covers-three-kinds', async () => {
   const t = await page.locator('body').innerText();
-  if (!/АОСР/.test(t)) throw new Error('тип АОСР не выбрался сам — проверять нечего');
+  if (!aosr || !/АОСР/.test(t)) throw new Error('тип АОСР не открылся — проверять нечего');
   for (const [kind, sample] of [
     ['составной', 'Организация'],
     ['из реестра типов полей', 'Цело число'],

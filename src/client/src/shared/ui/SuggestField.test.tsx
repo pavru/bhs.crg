@@ -29,12 +29,12 @@ function answer(items: FieldSuggestion[]) {
 
 let changes: string[] = [];
 
-function Field({ label = 'Марка', compact = false, initial = '', source = SOURCE }: {
-  label?: string; compact?: boolean; initial?: string; source?: SuggestSource;
+function Field({ label = 'Марка', compact = false, arrowOpens, initial = '', source = SOURCE }: {
+  label?: string; compact?: boolean; arrowOpens?: boolean; initial?: string; source?: SuggestSource;
 }) {
   const [value, setValue] = useState(initial);
   return (
-    <SuggestField label={label} source={source} compact={compact} value={value}
+    <SuggestField label={label} source={source} compact={compact} arrowOpens={arrowOpens} value={value}
       onChange={v => { changes.push(v); setValue(v); }} />
   );
 }
@@ -98,6 +98,14 @@ describe('SuggestField: когда зовётся адрес (UI-1, UI-5)', () =
     await pause(250);
     expect(apiClient.get).not.toHaveBeenCalled();
     fireEvent.keyDown(box(), { key: 'ArrowDown', altKey: true });
+    await opened();
+  });
+
+  it('голое поле формы (compact + arrowOpens) — ↓ открывает, как у поля с подписью', async () => {
+    answer(ITEMS);
+    wrap(<Field compact arrowOpens />);
+    box().focus();
+    fireEvent.keyDown(box(), { key: 'ArrowDown' });
     await opened();
   });
 

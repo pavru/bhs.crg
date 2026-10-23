@@ -131,7 +131,8 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
     return label != null
       ? <SuggestField source={source} label={label} required={askRequired} hint={hint} invalid={invalid}
           value={strVal} onChange={v => onChange(v)} />
-      : <SuggestField source={source} compact label={field.title} value={strVal} onChange={v => onChange(v)} className={cls} />;
+      // Голое поле формы, не клетка: ↓ открывает список, как у поля с подписью.
+      : <SuggestField source={source} compact arrowOpens label={field.title} value={strVal} onChange={v => onChange(v)} className={cls} />;
   const onCh = (v: string) => onChange(field.type === 'number' ? (v === '' ? '' : Number(v)) : v);
   if (label != null)
     return <TextField label={label} required={askRequired} hint={hint}

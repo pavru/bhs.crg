@@ -32,9 +32,15 @@ export interface SuggestFieldProps
   source: SuggestSource | null;
   /**
    * Ячейка сетки: без рамки и подписи в вырезе (клетку рисует сетка), `label` — `aria-label`; ↓ при
-   * закрытом списке остаётся сетке.
+   * закрытом списке остаётся сетке, если не задан `arrowOpens`.
    */
   compact?: boolean;
+  /**
+   * ↓ при закрытом списке открывает его. По умолчанию — вне сетки (`!compact`): в клетке стрелка — переход
+   * по строкам. Голое поле ФОРМЫ (`compact` без сетки вокруг) передаёт `true` — ведёт себя как поле с
+   * подписью рядом, а не как клетка.
+   */
+  arrowOpens?: boolean;
   ref?: Ref<HTMLInputElement>;
 }
 
@@ -52,7 +58,7 @@ function cellProps(rest: Omit<SuggestFieldProps, 'value' | 'onChange' | 'source'
   return cell;
 }
 
-function PlainField({ value, onChange, source: _source, compact = false, label, ref, ...rest }: SuggestFieldProps) {
+function PlainField({ value, onChange, source: _source, compact = false, arrowOpens: _arrowOpens, label, ref, ...rest }: SuggestFieldProps) {
   return compact
     ? <input {...cellProps(rest)} ref={ref} aria-label={label} value={value} onChange={e => onChange(e.target.value)} />
     : <TextField {...rest} ref={ref} label={label} value={value} onChange={e => onChange(e.target.value)} />;
@@ -62,7 +68,7 @@ function PlainField({ value, onChange, source: _source, compact = false, label, 
 interface Shown { q: string; items: FieldSuggestion[]; of: string }
 
 function SuggestingField({
-  value, onChange, source, compact = false, label, onKeyDown, onBlur, className = '', ref, ...rest
+  value, onChange, source, compact = false, arrowOpens = !compact, label, onKeyDown, onBlur, className = '', ref, ...rest
 }: SuggestFieldProps & { source: SuggestSource }) {
   const listId = `${useId()}-list`;
   const input = useRef<HTMLInputElement>(null);
@@ -145,7 +151,7 @@ function SuggestingField({
       return;
     }
     if (!shown) {
-      if (e.key === 'ArrowDown' && !compact && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+      if (e.key === 'ArrowDown' && arrowOpens && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         e.preventDefault();
         openNow();
       }

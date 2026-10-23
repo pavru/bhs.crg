@@ -83,9 +83,8 @@ public static class SuggestionSources
         if (visible is null)
             return new SuggestionPlan.Unknown($"У типа «{type.Name}» нет поля «{field}».");
 
-        var reason = ReasonOf(typeId, visible, types);
+        var (reason, declarer) = Judge(typeId, visible, types);
         if (reason != Suggestable.Yes) return new SuggestionPlan.Silent(reason);
-        var declarer = DeclarerOf(typeId, field, types)!;
 
         // Семья — без оглядки на хранение: строка массива сама в таблице не лежит, но поле у неё есть.
         var members = types.Values
@@ -135,12 +134,17 @@ public static class SuggestionSources
     /// по тэгам объявившего его типа. Нужен и плану, и описанию двери номенклатуры (issue #1533): шаг
     /// «Новая позиция» схемы не разбирает и узнаёт, подсказывается ли поле, из описания.
     /// </summary>
-    public static string ReasonOf(Guid typeId, SchemaFieldInfo visible, IReadOnlyDictionary<Guid, DocumentType> types)
+    public static string ReasonOf(Guid typeId, SchemaFieldInfo visible, IReadOnlyDictionary<Guid, DocumentType> types) =>
+        Judge(typeId, visible, types).Reason;
+
+    /// <summary>Код причины вместе с объявившим поле типом: плану нужен и он — по нему собирается семья.</summary>
+    private static (string Reason, DocumentType Declarer) Judge(
+        Guid typeId, SchemaFieldInfo visible, IReadOnlyDictionary<Guid, DocumentType> types)
     {
         // Видимое поле объявил кто-то в цепочке — иначе его не было бы в эффективной схеме.
         var declarer = DeclarerOf(typeId, visible.Key, types)!;
-        return Suggestable.Reason(visible.Type, visible.Computed, visible.Locked,
-            SchemaTags.TagsOfOwnField(declarer.Schema, visible.Key));
+        return (Suggestable.Reason(visible.Type, visible.Computed, visible.Locked,
+            SchemaTags.TagsOfOwnField(declarer.Schema, visible.Key)), declarer);
     }
 
     /// <summary>

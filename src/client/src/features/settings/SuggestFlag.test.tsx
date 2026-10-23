@@ -2,8 +2,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { SchemaField } from '@/shared/api/schema';
-import { SUGGEST_REFUSAL_TEXT, type SuggestRefusal } from '@/shared/api/suggestable';
-import { offeredInRoles, shownTagEntries, type TagDefinition } from '@/shared/api/tags';
+import { SUGGEST_REFUSAL_TEXT, chipTagEntries, tagsForKind, withoutFlagTag, type SuggestRefusal } from '@/shared/api/suggestable';
+import type { TagDefinition } from '@/shared/api/tags';
 import { SuggestFlag, SuggestOffBadge } from './SuggestFlag';
 
 /** Флажок «Подсказывать введённое ранее» в карточке поля (issue #1533, вариант В макета). */
@@ -66,17 +66,30 @@ describe('пометка в шапке карточки', () => {
   });
 });
 
-describe('тэг со своим контролом чипом не показывается', () => {
+describe('тэг input.noSuggest — флажок, пока флажок показан', () => {
   const tag = (code: string): TagDefinition => ({ code, scope: 'Field', appliesTo: [] }) as unknown as TagDefinition;
+  const offered = [tag('identity'), tag('input.noSuggest')];
 
-  it('чипы карточки — без input.noSuggest, запись с номером у прочих сохраняется', () => {
-    expect(shownTagEntries(['identity:2', 'input.noSuggest'])).toEqual(['identity:2']);
-    expect(shownTagEntries(undefined)).toEqual([]);
+  it('у подсказываемой строки — не чип и не пункт выбора; запись с номером у прочих сохраняется', () => {
+    const f = field({ tags: ['identity:2', 'input.noSuggest'] });
+    expect(chipTagEntries(f)).toEqual(['identity:2']);
+    expect(withoutFlagTag(f, offered).map(t => t.code)).toEqual(['identity']);
+    expect(chipTagEntries(field())).toEqual([]);
   });
 
-  it('в списке выбора тэгов его нет — и при отборе по ролям, и без него', () => {
-    const all = [tag('identity'), tag('input.noSuggest')];
-    expect(offeredInRoles(all).map(t => t.code)).toEqual(['identity']);
-    expect(offeredInRoles(all, [], ['input.noSuggest']).map(t => t.code)).toEqual(['identity']);
+  it('флажка нет (однозначное, запертое, не строка) — тэг остаётся чипом, его можно снять', () => {
+    for (const f of [field({ tags: ['org.inn', 'input.noSuggest'] }), field({ locked: true, tags: ['input.noSuggest'] }),
+      field({ type: 'text', tags: ['input.noSuggest'] })]) {
+      expect(chipTagEntries(f)).toContain('input.noSuggest');
+      expect(withoutFlagTag(f, offered).map(t => t.code)).toContain('input.noSuggest');
+    }
+  });
+
+  it('смена вида со строки снимает тэг, прочие тэги целы; строка его сохраняет', () => {
+    expect(tagsForKind(['identity:2', 'input.noSuggest'], 'text')).toEqual(['identity:2']);
+    expect(tagsForKind(['input.noSuggest'], 'number')).toBeUndefined();
+    const kept = ['identity:2', 'input.noSuggest'];
+    expect(tagsForKind(kept, 'string')).toBe(kept);
+    expect(tagsForKind(undefined, 'text')).toBeUndefined();
   });
 });

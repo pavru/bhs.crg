@@ -13,7 +13,9 @@
 //
 // ⚠️ ДАННЫЕ ПРОВЕРКИ ГОТОВЯТ СЕБЕ САМИ — тип документа, подтип номенклатуры, две стройки, документы,
 // позицию и счёт, все с приметой прогона в имени. Посеянные не годятся: проверка флажка снимает его, и
-// второй запуск на той же базе проверял бы уже выключенное поле.
+// второй запуск на той же базе проверял бы уже выключенное поле. И САМИ ЖЕ УБИРАЮТ — последней
+// проверкой: базу делят все прогоны работы CI, и оставленный тип стоял бы в чужих списках («Вид» в шаге
+// «Новая позиция», список типов документов).
 //
 // ⚠️ Элементы ищутся по видимому тексту, ролям и подписям — так заодно проверяется, что человек видит
 // нужные слова, а читалка экрана — роль поля со списком.
@@ -30,11 +32,10 @@ export async function suggestChecks({ page, check, stamp, api }) {
 
   const field = (key, type = 'string', extra = {}) => ({ key, title: key, type, required: false, ...extra });
 
-  /**
-   * Тип документа прогона: строка с подсказкой, текст, вычисляемое и поле однозначности.
-   * ⚠️ Имя — на «П», а не «Акт…»: страница типов выбирает первый по имени сама, и `types-smoke` ждёт
-   * там АОСР — тип прогона, вставший раньше, ронял бы его на стенде, где этот прогон уже ходил.
-   */
+  /** Заведённое прогоном — для уборки в конце. */
+  const made = { documents: [], constructions: [], position: null, invoice: null };
+
+  /** Тип документа прогона: строка с подсказкой, текст, вычисляемое и поле однозначности. */
   async function documentType() {
     const created = await api('POST', '/document-types', {
       name: `Подсказки — акт ${stamp}`, code: `ПодсказкиАкт${stamp}`, kind: 'Document', parentId: null,
@@ -57,11 +58,13 @@ export async function suggestChecks({ page, check, stamp, api }) {
     await api('POST', `/constructions/${construction.id}/sections`, { name: 'Раздел' });
     const section = (await api('GET', `/constructions/${construction.id}`)).sections[0];
     const set = await api('POST', '/document-sets', { sectionId: section.id, name: 'Комплект' });
+    made.constructions.push(construction.id);
     return { constructionId: construction.id, setId: set.id };
   }
 
   async function documentIn(where, typeId, name, requisites) {
     const inst = await api('POST', `/document-sets/${where.setId}/documents`, { documentTypeId: typeId });
+    made.documents.push({ setId: where.setId, id: inst.id });
     await api('PUT', `/document-sets/${where.setId}/documents/${inst.id}/name`, { name });
     if (requisites) await api('PUT', `/document-sets/${where.setId}/documents/${inst.id}/requisites`, requisites);
     return inst.id;
@@ -156,10 +159,11 @@ export async function suggestChecks({ page, check, stamp, api }) {
       isAbstract: false, module: 'core',
     })).id;
     // Прошлая позиция — заведённая той же дверью, что зовёт шаг.
-    await api('POST', '/nomenclature', { typeId: kindId, values: { Название: `Кабель ${stamp}`, Производитель: maker } });
+    made.position = (await api('POST', '/nomenclature',
+      { typeId: kindId, values: { Название: `Кабель ${stamp}`, Производитель: maker } })).id;
 
     const number = `СЧ-ПП${stamp}`;
-    await api('POST', '/costs/invoices', {
+    made.invoice = await api('POST', '/costs/invoices', {
       requisites: {
         'Номер': number, 'Дата': '2026-10-23',
         'Поставщик': { $ref: 'catalog', entryId: organizations[0].id },
@@ -255,5 +259,27 @@ export async function suggestChecks({ page, check, stamp, api }) {
     await openCard(kinds, 'Производитель');
     // «Идентификатор» — компонент ключа, не однозначность (решение 23.10.2026): флажок стоит.
     if (!(await flag().isChecked())) throw new Error('у производителя (компонент ключа) флажок не стоит');
+  });
+
+  // ── 4. Уборка ───────────────────────────────────────────────────────────────
+  // Проверкой, а не молча: не убранное копится в общей базе прогонов и роняет чужие проверки — так
+  // тип этого прогона уже ронял `types-smoke`. Порядок — от держащих к держимым: тип не удаляется,
+  // пока есть его документы и подтипы.
+  await check('уборка: типы, документы, позиция, счёт и стройки прогона удалены', async () => {
+    if (made.invoice) await page.evaluate(async ([id, seen]) => {
+      const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
+      const res = await fetch(`/api/costs/invoices/${id}`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${token}`, 'If-Match': seen },
+      });
+      if (res.status !== 204) throw new Error(`счёт не удалён: ${res.status} ${(await res.text()).slice(0, 200)}`);
+    }, [made.invoice.id, made.invoice.version]);
+    for (const d of made.documents) await api('DELETE', `/document-sets/${d.setId}/documents/${d.id}`);
+    await api('DELETE', `/document-types/${docType}`);
+    if (made.position) await api('DELETE', `/common-data/${made.position}`);
+    if (kindId) await api('DELETE', `/document-types/${kindId}`);
+    for (const id of made.constructions) await api('DELETE', `/constructions/${id}`);
+    const left = (await api('GET', '/document-types')).filter(t => t.code.endsWith(stamp)
+      && (t.code.startsWith('ПодсказкиАкт') || t.code.startsWith('ПозицияПодсказок')));
+    if (left.length) throw new Error(`остались типы прогона: ${left.map(t => t.name).join(', ')}`);
   });
 }

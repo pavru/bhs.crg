@@ -163,7 +163,7 @@ export function NewNomenclatureStep({ from, plate, narrow, onBack, onPick }: {
                 // Подсказка по введённому ранее (issue #1533): производитель, встреченный в прошлом счёте.
                 // Записи номенклатуры — уровня «вся система»; выбранное идёт тем же `type`, что набор,
                 // и так же запускает поиск похожих.
-                <SuggestField compact label={f.title} value={draft.values[f.key] ?? ''} onChange={v => type(f.key, v)}
+                <SuggestField compact arrowOpens label={f.title} value={draft.values[f.key] ?? ''} onChange={v => type(f.key, v)}
                   source={f.suggest === 'suggested' ? { type: kind.typeId, field: f.key, scope: 'System' } : null}
                   className={field} />
               ) : (

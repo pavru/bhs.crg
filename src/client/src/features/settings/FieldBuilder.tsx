@@ -13,9 +13,8 @@ import { useAccess } from '@/shared/api/access';
 import { ModuleFieldBadge } from './ModuleFieldBadge';
 import { SuggestFlag, SuggestOffBadge } from './SuggestFlag';
 import { similarKeyOf } from './schemaKeyChecks';
-import {
-  useTagRegistry, fieldTags, findTagEntry, hasTag, offeredInRoles, tagCode, withTagOrder, unknownTagCodes, shownTagEntries,
-} from '@/shared/api/tags';
+import { useTagRegistry, fieldTags, findTagEntry, hasTag, offeredInRoles, tagCode, withTagOrder, unknownTagCodes } from '@/shared/api/tags';
+import { chipTagEntries, tagsForKind, withoutFlagTag } from '@/shared/api/suggestable';
 import { FunctionalTagBadge, FunctionalTagChip } from './FunctionalTagChip';
 import { evalComputed, validateComputed, findComputedCycles, referencedKeys } from '@/shared/utils/computedExpression';
 import { moveItem } from '@/shared/utils/moveItem';
@@ -228,8 +227,8 @@ export function FieldCard({
 }: FieldCardProps) {
   const { primitiveTypes, enumTypes, tagRegistry } = reg;
   const tags = field.tags ?? [];
-  // Чипы — без тэгов со своим контролом (`input.noSuggest` — флажок, issue #1533); правка идёт по `tags`.
-  const chips = shownTagEntries(tags);
+  // Чипы — без `input.noSuggest`, пока его показывает флажок (issue #1533); правка идёт по `tags`.
+  const chips = chipTagEntries(field);
   // Тэги вне реестра этого экземпляра — их не предлагают, но и не прячут (issue #959).
   const unknownTags = unknownTagCodes(field.tags, tagRegistry);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -298,15 +297,15 @@ export function FieldCard({
     onChange({ tags: withTagOrder(tags, code, digits.length ? Number(digits) : null) });
   };
   // Для поля type="primitive" применимые тэги берём из самого типа поля (allowedTags),
-  // для встроенных типов — из реестра по типу поля.
-  const applicableTags = (() => {
+  // для встроенных типов — из реестра по типу поля. `input.noSuggest` при показанном флажке — не чип (#1533).
+  const applicableTags = withoutFlagTag(field, (() => {
     if (field.type === 'primitive') {
       const pt = primitiveTypes.find(p => p.id === field.typeId);
       const codes = new Set(pt?.allowedTags ?? []);
       return offeredInRoles((tagRegistry ?? []).filter(t => t.scope === 'Field' && codes.has(t.code)), reg.roles, tags);
     }
     return fieldTags(tagRegistry, field.type, reg.roles, tags);
-  })();
+  })());
   // Легаси enum-поле (issue #59): options инлайн, typeId не выбран.
   const isLegacyEnum = field.type === 'enum' && !field.typeId && (field.options?.length ?? 0) > 0;
   const enumTypeDef = field.type === 'enum' ? enumTypes.find(et => et.id === field.typeId) : undefined;
@@ -605,7 +604,8 @@ export function FieldCard({
         onSelect={id => {
           const dec = decodeFieldType(id);
           const changed = dec.type !== field.type || dec.typeId !== field.typeId;
-          onChange(changed ? { ...dec, defaultValue: undefined, options: undefined } : dec);
+          // `input.noSuggest` — только у строки: ушедшее с неё поле его теряет (issue #1533).
+          onChange(changed ? { ...dec, defaultValue: undefined, options: undefined, tags: tagsForKind(field.tags, dec.type) } : dec);
         }}
       />
     </div>
