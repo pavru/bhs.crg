@@ -357,9 +357,9 @@ export function CatalogEntryForm({
 
     try {
       if (entry) {
-        await updateMutation.mutateAsync({ displayName, data: JSON.stringify(values), aliases });
+        await updateMutation.mutateAsync({ displayName, data: JSON.stringify(values), aliases, typeCode: selectedType?.code });
       } else {
-        await createMutation.mutateAsync({ displayName, compositeTypeId: typeId, data: JSON.stringify(values), scope, scopeId, aliases, createAnyway });
+        await createMutation.mutateAsync({ displayName, compositeTypeId: typeId, data: JSON.stringify(values), scope, scopeId, aliases, createAnyway, typeCode: selectedType?.code });
       }
       onClose();
     } catch (err: unknown) {

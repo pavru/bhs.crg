@@ -241,6 +241,7 @@ export function ExtractToCommonDataModal({
         // Ссылки внутри выносимого значения в объекте уже стояли — сервер сверит это сам, по
         // сохранённым данным объекта, и не примет их за новые ссылки на архивные записи.
         refsStandIn: refsOwnerId,
+        typeCode: compositeType.code,
       });
       onExtracted({
         $ref: 'catalog', entryId: entry.id, displayName: entry.displayName, scope: effectiveTarget,

@@ -3,7 +3,10 @@ using BHS.CRG.Api.Auth;
 using BHS.CRG.Modules;
 using System.Text.Json;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Api.Endpoints.Core;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.Documents;
 using MediatR;
 
 namespace BHS.CRG.Api.Endpoints.Documents;
@@ -106,8 +109,11 @@ public static class CommonDataEndpoints
             catch (NotFoundException) { return Results.NotFound(); }
         });
 
-        edit.MapPost("/", async (CreateRequest req, IMediator m) =>
+        // Виды работ этими адресами не пишутся — у них своя дверь под своим правом (WORK-59).
+        edit.MapPost("/", async (CreateRequest req, IMediator m, IRepository<DocumentType> types, CancellationToken ct) =>
         {
+            if (await WorkTypeEndpoints.RefuseCommonPathAsync(null, req.CompositeTypeId, m, types, ct) is { } door)
+                return door;
             var scope = req.Scope switch
             {
                 "Section"      => CatalogScope.Section,
@@ -137,8 +143,9 @@ public static class CommonDataEndpoints
         // Правка называет версию записи, по которой собрана (issue #1214): заменяется запись целиком,
         // и без версии из двух открытых форм молча побеждала сохранённая последней.
         edit.MapPut("/{id:guid}", async (Guid id, UpdateRequest req, HttpRequest http, IMediator m,
-            ClaimsPrincipal user, DataAccessResolver access, CancellationToken ct) =>
+            ClaimsPrincipal user, DataAccessResolver access, IRepository<DocumentType> types, CancellationToken ct) =>
         {
+            if (await WorkTypeEndpoints.RefuseCommonPathAsync(id, null, m, types, ct) is { } door) return door;
             if (RecordIfMatch.Refuse(http, out var seen) is { } refused) return refused;
             return Results.Ok(CommonDataEntryDto.From(await m.Send(new UpdateCommonDataEntryCommand(
                 id, req.DisplayName, JsonDocument.Parse(req.Data),
@@ -146,8 +153,10 @@ public static class CommonDataEndpoints
         });
 
         edit.MapDelete("/{id:guid}", async (
-            Guid id, IMediator m, ClaimsPrincipal user, IUserPermissions permissions, CancellationToken ct) =>
+            Guid id, IMediator m, ClaimsPrincipal user, IUserPermissions permissions, IRepository<DocumentType> types,
+            CancellationToken ct) =>
         {
+            if (await WorkTypeEndpoints.RefuseCommonPathAsync(id, null, m, types, ct) is { } door) return door;
             try { await m.Send(new DeleteCommonDataEntryCommand(id)); return Results.NoContent(); }
             catch (NotFoundException) { return Results.NotFound(); }
             // Выходы из отказа — полями, а не словами причины: экран предлагает их кнопками и не
@@ -182,7 +191,9 @@ public static class CommonDataEndpoints
         // Архив — отдельными адресами, а не полем правки (issue #1185): форма, не знающая признака,
         // сняла бы его обычным сохранением. Право то же, что у правки: архив слабее удаления, и
         // своё право породило бы роль, которой удалять можно, а убрать из выбора нельзя.
-        edit.MapPost("/{id:guid}/archive", (Guid id, IMediator m) => SetArchiveAsync(id, true, m));
+        // Возврат из архива вида работы общим адресом не отвергается — см. WorkTypeEndpoints.RefuseCommonPathAsync.
+        edit.MapPost("/{id:guid}/archive", async (Guid id, IMediator m, IRepository<DocumentType> types, CancellationToken ct) =>
+            await WorkTypeEndpoints.RefuseCommonPathAsync(id, null, m, types, ct) ?? await SetArchiveAsync(id, true, m));
         edit.MapPost("/{id:guid}/unarchive", (Guid id, IMediator m) => SetArchiveAsync(id, false, m));
     }
 
@@ -202,14 +213,14 @@ public static class CommonDataEndpoints
     /// запись в выбор, либо оставил бы сохранённую ссылку без названия — и оба исхода выглядели бы
     /// исправной работой.</para>
     /// </summary>
-    private static RecordsFor? Purpose(string? purpose) => purpose switch
+    internal static RecordsFor? Purpose(string? purpose) => purpose switch
     {
         "choice" => RecordsFor.Choice,
         "display" => RecordsFor.Display,
         _ => null,
     };
 
-    private static IResult PurposeRequired() => Results.BadRequest(new
+    internal static IResult PurposeRequired() => Results.BadRequest(new
     {
         error = "Не названо назначение чтения: параметр purpose обязателен и принимает choice " +
                 "(список на выбор — архивные записи скрыты) либо display (показ — архивные на месте).",

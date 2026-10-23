@@ -61,6 +61,11 @@ public static class ModulePorts
         // каталог действий: состав модулей не меняется, а объявления проверяются при старте.
         services.AddSingleton<ModuleNeeds>();
         services.AddScoped<IModuleCatalog, ModuleCatalogPort>();
+        // Справочники ядра, которые модуль читает по смыслу, а не данными строкой (plan-03, CORE-20.4):
+        // вид работы с единицей и признаками, единица, сотрудник.
+        services.AddScoped<IModuleWorkTypes, ModuleWorkTypesPort>();
+        services.AddScoped<IModuleUnits, ModuleUnitsPort>();
+        services.AddScoped<IModuleEmployees, ModuleEmployeesPort>();
         services.AddScoped<IModuleOwnCatalog, ModuleOwnCatalogPort>();
         // Заведение записи справочника ЯДРА модулем (issue #1077): только создание, только объявленные типы.
         services.AddScoped<IModuleCatalogIntake, ModuleCatalogIntakePort>();

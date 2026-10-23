@@ -56,6 +56,12 @@ public static class CorePermissions
     /// </summary>
     public const string CatalogPurge = "core.catalog.purge";
 
+    /// <summary>
+    /// Ведение классификатора видов работ (ТЗ CORE-8, WORK-59): дверь <c>/api/work-types</c>. Своё
+    /// право, а не <see cref="CatalogEdit" />: классификатор ведёт сметчик, а общих данных он не правит.
+    /// </summary>
+    public const string WorkTypesEdit = "core.worktypes.edit";
+
     /// <summary>Чтение справочника сотрудников (ТЗ CORE-7).</summary>
     public const string EmployeesRead = "core.employees.read";
 
@@ -135,7 +141,7 @@ public static class CorePermissions
             "схемы всех типов, включая типы модулей: поля, тэги, печатные формы",
             [TypesRead, "core.nomenclature.edit"]),
 
-        new("core.worktypes.edit",
+        new(WorkTypesEdit,
             "вести классификатор видов работ компании",
             "справочник видов работ — на него ссылаются сметы, отчёты и исполнительная документация",
             ["core.nomenclature.edit"]),

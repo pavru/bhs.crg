@@ -4995,6 +4995,19 @@ DELETE /api/common-data/{id}                409 несёт { error, canArchive, 
                                     holders[] } | null — не null, только если запись держат ОДНИ
                                     данные выключенного или снятого модуля (#1187); без права
                                     core.catalog.purge — allowed:false и пустая разбивка.
+GET    /api/work-types?purpose=choice|display&q=  — классификатор видов работ (WORK-59, plan-03): дверь
+                                    ядра, чтение под core.catalog.read; q — часть кода, наименования,
+                                    названия или псевдонима. GET /{id} — запись целиком.
+POST   /api/work-types                      { displayName, data, aliases?, createAnyway?, scope?, scopeId?,
+                                    refsStandIn? } — заведение под core.worktypes.edit, без версии;
+                                    уровень по умолчанию System. Нет классификатора (нет справочника
+                                    единиц) — 409. PUT /{id}, DELETE /{id}, POST /{id}/archive и
+                                    /{id}/unarchive — под тем же правом и ТОЛЬКО с If-Match: без него 400,
+                                    с устаревшим 409 «вид работы тем временем изменили». Ответ архива
+                                    несёт новую version. Чужая запись за дверью — 404.
+                                    /api/common-data записи типа ВидРаботы НЕ заводит, не правит, не
+                                    удаляет и не архивирует: 409 { error, door: "/api/work-types" }.
+                                    Возврат из архива и /purge общим адресом — как у любой записи.
 POST   /api/common-data/{id}/purge          { references } → { id, name, references, untraceable } —
                                     удалить запись, потеряв ссылки выключенных модулей (#1187).
                                     Право core.catalog.purge. references — число из отказа: не

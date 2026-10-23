@@ -4,6 +4,24 @@ import { apiClient } from './client';
 import type { CatalogScope, CommonDataEntry, CommonDataEntryWithScope, RecordsPurpose } from './types';
 
 const QK = 'common-data';
+
+/** Код классификатора видов работ — зеркало серверного `CoreRecordTypes.WorkTypeCode`. */
+export const WORK_TYPE_CODE = 'ВидРаботы';
+
+/**
+ * Адрес записи по коду типа (WORK-59): виды работ пишутся своей дверью под `core.worktypes.edit`, а
+ * общий адрес справочников их отвергает (409 с адресом двери). Остальное — общим адресом.
+ *
+ * Возврат из архива сюда не смотрит: общий адрес возвращает любую запись — снять признак всегда благо.
+ */
+export function recordWriteBase(typeCode: string | null | undefined): '/work-types' | '/common-data' {
+  return typeCode === WORK_TYPE_CODE ? '/work-types' : '/common-data';
+}
+
+/** Право, которым пишется запись этого типа: у классификатора видов работ оно своё (WORK-59). */
+export function recordWritePermission(typeCode: string | null | undefined): string {
+  return typeCode === WORK_TYPE_CODE ? 'core.worktypes.edit' : 'core.catalog.edit';
+}
 /** Ключ действия «в архив / из архива»: по нему правка записи узнаёт, что оно ещё в пути. */
 const ARCHIVE_KEY = [QK, 'archive'];
 
@@ -144,7 +162,17 @@ export function useCreateCommonDataEntry() {
       createAnyway?: boolean;
       /** Вынос в общие данные: объект, из сохранённых данных которого переезжают ссылки. */
       refsStandIn?: string;
-    }) => apiClient.post<CommonDataEntry>('/common-data', payload).then(r => r.data),
+      /** Код типа: по нему выбирается адрес (см. {@link recordWriteBase}). Тип дверь знает сама. */
+      typeCode?: string;
+    }) => {
+      const { typeCode, ...body } = payload;
+      if (recordWriteBase(typeCode) === '/common-data')
+        return apiClient.post<CommonDataEntry>('/common-data', body).then(r => r.data);
+      // Дверь тип знает сама — его в теле нет.
+      const { displayName, data, scope, scopeId, aliases, createAnyway, refsStandIn } = body;
+      return apiClient.post<CommonDataEntry>(recordWriteBase(typeCode),
+        { displayName, data, scope, scopeId, aliases, createAnyway, refsStandIn }).then(r => r.data);
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
 }
@@ -192,7 +220,11 @@ export function useUpdateCommonDataEntry(entry: CommonDataEntry | null | undefin
   // Состояние правится в рендере — приём React для состояния, выведенного из пропсов.
   if (next !== base) setBase(next);
   return useMutation({
-    mutationFn: async ({ displayName, data, aliases }: { displayName: string; data: string; aliases?: string[] }) => {
+    mutationFn: async ({ displayName, data, aliases, typeCode }: {
+      displayName: string; data: string; aliases?: string[];
+      /** Код типа записи: по нему выбирается адрес (см. {@link recordWriteBase}). */
+      typeCode?: string;
+    }) => {
       if (!next) throw new Error('Правка без записи: форма новой записи создаёт, а не правит.');
       const { id } = next.entry;
       const key = [QK, 'by-id', id];
@@ -205,7 +237,7 @@ export function useUpdateCommonDataEntry(entry: CommonDataEntry | null | undefin
       if (qc.isFetching({ queryKey: key }) > 0 || qc.getQueryState(key)?.isInvalidated)
         await qc.refetchQueries({ queryKey: key }, { cancelRefetch: false });
       const seen = seenStep(next, qc.getQueryData<CommonDataEntry>(key)).version;
-      return apiClient.put<CommonDataEntry>(`/common-data/${id}`, { displayName, data, aliases },
+      return apiClient.put<CommonDataEntry>(`${recordWriteBase(typeCode)}/${id}`, { displayName, data, aliases },
         { headers: { 'If-Match': seen } }).then(r => r.data);
     },
     // Отказ 409 — запись изменили: копия в кэше перечитывается, чтобы форма, открытая заново,
@@ -274,6 +306,34 @@ export interface RecordArchiveResult {
   archived: boolean;
   /** false — запись уже была в этом состоянии: повтор, а не событие. */
   changed: boolean;
+  /**
+   * Новая версия записи — её отдаёт дверь видов работ: архив версию сдвигает, и «Вернуть» следом
+   * обязано назвать уже её. Общий адрес версии не отдаёт — и не спрашивает.
+   */
+  version?: string;
+}
+
+/** Что архивируют: запись, а для двери видов работ — ещё её тип и версия (дверь требует `If-Match`). */
+export interface ArchiveTarget {
+  id: string;
+  archived: boolean;
+  typeCode?: string;
+  version?: string;
+}
+
+/**
+ * Адрес и заголовки действия «в архив / из архива». В архив вид работы уходит только дверью, с
+ * версией; вернуть дверью — тоже, когда версия известна. Без версии возврат идёт общим адресом: он
+ * возвращает любую запись.
+ */
+export function archiveRequest({ id, archived, typeCode, version }: ArchiveTarget): {
+  url: string; headers?: Record<string, string>;
+} {
+  const action = archived ? 'archive' : 'unarchive';
+  const door = recordWriteBase(typeCode) === '/work-types' && (archived || !!version);
+  return door
+    ? { url: `/work-types/${id}/${action}`, headers: version ? { 'If-Match': version } : undefined }
+    : { url: `/common-data/${id}/${action}` };
 }
 
 /**
@@ -284,8 +344,10 @@ export function useSetCommonDataArchive() {
   const qc = useQueryClient();
   return useMutation({
     mutationKey: ARCHIVE_KEY,
-    mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
-      apiClient.post<RecordArchiveResult>(`/common-data/${id}/${archived ? 'archive' : 'unarchive'}`).then(r => r.data),
+    mutationFn: (target: ArchiveTarget) => {
+      const { url, headers } = archiveRequest(target);
+      return apiClient.post<RecordArchiveResult>(url, undefined, { headers }).then(r => r.data);
+    },
     // Сбрасывается ВСЁ прочитанное, а не один список общих данных (ревью PR #1227): от признака
     // зависят и списки на выбор у модулей, и состояние ссылок в уже открытом счёте. Со старым
     // списком форма счёта предложила бы архивного поставщика, а со старым счётом — назвала бы его
@@ -324,7 +386,10 @@ export function archiveOffered(e: unknown): boolean {
 export function useDeleteCommonDataEntry() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => apiClient.delete(`/common-data/${id}`),
+    /** Дверь видов работ удаляет по версии (`If-Match`): удаление, собранное по устаревшей записи, — 409. */
+    mutationFn: ({ id, typeCode, version }: { id: string; typeCode?: string; version?: string }) =>
+      apiClient.delete(`${recordWriteBase(typeCode)}/${id}`,
+        recordWriteBase(typeCode) === '/work-types' && version ? { headers: { 'If-Match': version } } : undefined),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
 }
