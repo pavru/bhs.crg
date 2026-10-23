@@ -60,7 +60,7 @@ await check('tab-icon-link-carries-the-icons-version', async () => {
   if (status !== 200) throw new Error(`адрес оформления ответил ${status}`);
   const expected = `?v=${encodeURIComponent(body.icons.version)}`;
 
-  const links = () => page.evaluate(() => ({
+  const links = (on = page) => on.evaluate(() => ({
     tab: document.querySelector('link[rel="icon"]')?.getAttribute('href'),
     apple: document.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href'),
     stored: localStorage.getItem('crg-brand-icons'),
@@ -72,21 +72,32 @@ await check('tab-icon-link-carries-the-icons-version', async () => {
 
   // Следующая загрузка: ссылку ставит ранний скрипт — до приложения и до запроса оформления.
   // Запрос оформления придерживаем, иначе не отличить скрипт от приложения.
+  //
+  // ⚠️ Загрузка — в ОТДЕЛЬНОМ контексте с памятью этой страницы, а не перезагрузкой её самой под
+  // `page.route` со снятием следом. Перехват в Chromium — это домен Fetch: пока он включён,
+  // Playwright собирает каждый запрос из двух событий браузера и решает, как их сводить, по флагу
+  // перехвата В МИГ ПРИХОДА каждого. Снятие перехвата посреди загрузки рвёт эту сводку, и запрос,
+  // начатый в это окно, для страницы так и не завершается. После перезагрузки окно попадало ровно
+  // на шрифты: приложение дорисовывается, когда оформление отпущено, и roboto уходят рядом с
+  // `unrouteAll`. Итог — «страница не затихла: в полёте roboto-cyrillic-*.woff2» у этой проверки
+  // и у семи следующих по той же странице, пока переход её не сбросит (раз в несколько десятков
+  // прогонов CI; master 22.10.2026, PR #1597). Контекст здесь закрывается целиком, и перехват на
+  // странице, по которой идут остальные проверки, не включается вовсе.
+  const next = await browser.newContext({ storageState: await page.context().storageState() });
   let release;
   const held = new Promise(resolve => { release = resolve; });
-  await page.route('**/api/branding', async route => { await held; await route.continue(); });
+  // Отказ продолжения — у закрытого контекста: ответ там уже никому не нужен.
+  await next.route('**/api/branding', async route => { await held; await route.continue().catch(() => {}); });
   try {
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    const early = await links();
+    const fresh = await next.newPage();
+    await fresh.goto(`${BASE}/settings`, { waitUntil: 'domcontentloaded' });
+    const early = await links(fresh);
     if (early.tab !== `/api/branding/icons/tab${expected}`)
       throw new Error(`до ответа об оформлении ссылка значка — «${early.tab}»: ранний скрипт её не поставил`);
   } finally {
     release();
-    // С ожиданием: придержанный запрос ещё в обработчике, и снятая под ним подмена обернулась бы
-    // необработанным «Route is already handled» — падением всего набора, а не одной проверки.
-    await page.unrouteAll({ behavior: 'wait' });
+    await next.close();
   }
-  await settled(page);
 
   // И адрес с меткой — живой: отвечает картинкой и длинным кешем.
   const served = await page.evaluate(async url => {
