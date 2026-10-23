@@ -263,6 +263,8 @@ services:
       # Сети, чьему X-Forwarded-For доверяем (CIDR через запятую). Пусто — петля и частные
       # диапазоны: этого хватает, пока API виден только из сети Compose.
       ForwardedHeaders__TrustedNetworks: ${FORWARDED_TRUSTED_NETWORKS:-}
+      # Предел запросов оформления за пять минут с одного адреса. Пусто — 300.
+      RateLimits__Branding: ${BRANDING_RATE_LIMIT:-}
       # Публичный адрес системы — для ссылок в письмах (сброс пароля, подтверждение почты,
       # ссылка на большой комплект). Без него ссылки в письмах собрать нельзя.
       App__PublicUrl: ${APP_PUBLIC_URL:-}

@@ -183,6 +183,8 @@ internal static class HostRegistration
     // опечатка в CIDR валила бы каждый запрос на первом же middleware при внешне успешном старте. Ключ
     // конфигурации негодного вида должен останавливать запуск — как с ключом подписи ниже.
     var trustedProxyNetworks = ParseTrustedNetworks(cfg["ForwardedHeaders:TrustedNetworks"]);
+    // По той же причине здесь, а не в AddRateLimiter: опции ограничителя строятся лениво.
+    var branding = BrandingRateLimit.FromConfiguration(cfg);
 
     builder.Services.Configure<ForwardedHeadersOptions>(o =>
     {
@@ -251,12 +253,14 @@ internal static class HostRegistration
         // десятки людей: жёсткий предел оставил бы контору без шапки и логотипа. От шторма и от
         // выкачивания файла в цикле этого хватает, а обычная работа до него не доходит — браузер
         // держит картинку неделю по метке версии.
-        o.AddPolicy("branding", PerClient(300, TimeSpan.FromMinutes(5)));
+        // Число — из конфигурации (RateLimits:Branding, по умолчанию 300): кому мало — офису за одним
+        // адресом и стенду живых прогонов CI — поднимают его там, а не пересборкой (BrandingRateLimit).
+        o.AddPolicy("branding", PerClient(branding.PermitLimit, BrandingRateLimit.Window));
         // Значки вкладки и приложения и манифест (issue #1315) — отдельной корзиной. Это запросы
         // сверх названия и логотипа (манифест — при каждой загрузке страницы, значки — когда
         // браузер решит их перечитать), и в общей с названием корзине отказ достался бы адресу, без
         // которого у экрана нет шапки. Отдаются из памяти, поэтому предел вчетверо щедрее.
-        o.AddPolicy("branding-icons", PerClient(1200, TimeSpan.FromMinutes(5)));
+        o.AddPolicy("branding-icons", PerClient(branding.IconsPermitLimit, BrandingRateLimit.Window));
         // Сообщения об ошибках (issue #834): по ПОЛЬЗОВАТЕЛЮ, а не по адресу. Эндпоинт закрыт входом,
         // и за общим адресом офиса сидят разные люди — предел по адресу заткнул бы рот всем, кроме
         // первого. Десяти сообщений за десять минут хватает и человеку в плохой день, и от заливки
