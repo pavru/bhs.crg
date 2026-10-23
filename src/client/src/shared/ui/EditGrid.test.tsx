@@ -1,9 +1,16 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { useState } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { EditGrid, type EditGridColumn } from './EditGrid';
+import { Select, SelectItem } from './Select';
 
+// Radix Select зовёт API указателя и прокрутки, которых в jsdom нет.
+beforeAll(() => {
+  Element.prototype.hasPointerCapture ??= () => false;
+  Element.prototype.releasePointerCapture ??= () => {};
+  Element.prototype.scrollIntoView ??= () => {};
+});
 afterEach(cleanup);
 
 interface Line { key: string; name: string; unit: string; quantity: string }
@@ -38,6 +45,25 @@ function Draft({ initial, readOnly = false }: { initial: Line[]; readOnly?: bool
 }
 
 const field = (name: string) => screen.getByLabelText(name) as HTMLInputElement;
+
+/** Поле со списком, который открывается вводом и закрывается Esc, — стрелок само не гасит: проверяется
+ *  именно условие сетки «уступать только при aria-expanded="true"». */
+function SuggestCell({ label }: { label: string }) {
+  const [value, setValue] = useState('');
+  const [open, setOpen] = useState(false);
+  return (
+    <input role="combobox" aria-label={label} aria-expanded={open} value={value}
+      onChange={e => { setValue(e.target.value); setOpen(e.target.value !== ''); }}
+      onKeyDown={e => { if (e.key === 'Escape') setOpen(false); }} />
+  );
+}
+
+function SuggestDraft() {
+  return (
+    <EditGrid rows={[line(), line(), line()]} rowKey={r => r.key}
+      columns={[{ key: 'mark', label: 'Марка', cell: (_, i) => <SuggestCell label={`Марка, строка ${i + 1}`} /> }]} />
+  );
+}
 
 describe('EditGrid (#1354)', () => {
   it('добавленная строка получает фокус в первом поле', () => {
@@ -90,16 +116,59 @@ describe('EditGrid (#1354)', () => {
     expect(document.activeElement).toBe(field('Количество, строка 1'));
   });
 
-  it('стрелки выпадающего списка сетка не трогает: ими листают пункты', () => {
+  it('стрелки, которые триггер списка забрал себе, сетка не трогает', () => {
+    // Так ведёт себя триггер Radix Select: открывается на ↓ и сам зовёт preventDefault.
     render(
       <EditGrid rows={[line(), line()]} rowKey={r => r.key} columns={[{
-        key: 'pick', label: 'Выбор', cell: (_, i) => <button type="button" role="combobox" aria-label={`Выбор ${i + 1}`} />,
+        key: 'pick', label: 'Выбор', cell: (_, i) => (
+          <button type="button" role="combobox" aria-expanded="false" aria-label={`Выбор ${i + 1}`}
+            onKeyDown={e => { if (e.key === 'ArrowDown') e.preventDefault(); }} />
+        ),
       }]} />,
     );
     const first = screen.getByRole('combobox', { name: 'Выбор 1' });
     first.focus();
     fireEvent.keyDown(first, { key: 'ArrowDown' });
     expect(document.activeElement).toBe(first);
+  });
+
+  it('ячейка с живым Select открывается на ↓, фокус остаётся в ней', () => {
+    render(
+      <EditGrid rows={[line(), line()]} rowKey={r => r.key} columns={[{
+        key: 'unit', label: 'Ед.', cell: (_, i) => (
+          <Select aria-label={`Ед., строка ${i + 1}`} value="" onValueChange={() => {}} emptyItem="—">
+            <SelectItem value="m">м</SelectItem>
+          </Select>
+        ),
+      }]} />,
+    );
+    const first = screen.getByRole('combobox', { name: 'Ед., строка 1' });
+    const second = screen.getByRole('combobox', { name: 'Ед., строка 2' });
+    first.focus();
+    fireEvent.keyDown(first, { key: 'ArrowDown' });
+    // Открытый Select прячет остальное от читалки (aria-hidden), поэтому дальше — по ссылкам.
+    expect(screen.getByRole('listbox')).toBeTruthy();
+    expect(first.getAttribute('aria-expanded')).toBe('true');
+    expect(document.activeElement).not.toBe(second);
+  });
+
+  it('текстовая ячейка со списком: закрытый список стрелок не забирает, открытый — забирает', () => {
+    render(<SuggestDraft />);
+    const first = field('Марка, строка 1');
+    first.focus();
+    fireEvent.keyDown(first, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(field('Марка, строка 2'));
+
+    const second = field('Марка, строка 2');
+    fireEvent.change(second, { target: { value: 'ВВГ' } });
+    expect(second.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.keyDown(second, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(second);
+
+    fireEvent.keyDown(second, { key: 'Escape' });
+    expect(second.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.keyDown(second, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(field('Марка, строка 3'));
   });
 
   it('итоговая строка есть, когда итог есть хоть у одной колонки', () => {

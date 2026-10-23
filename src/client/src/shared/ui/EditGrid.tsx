@@ -154,7 +154,11 @@ export function EditGrid<Row>({
     const c = Number(cell.dataset.c);
 
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-      if (target.getAttribute('role') === 'combobox' || target instanceof HTMLTextAreaElement) return;
+      // Уступаем только ОТКРЫТОМУ списку: у поля с подсказкой (`SuggestField`) список закрыт почти
+      // всегда, и уступка по одной роли отняла бы у ячейки переход по строкам. Триггер `Select`
+      // открывается на ↑↓ сам и зовёт preventDefault — его отсекает проверка выше.
+      if (target.getAttribute('role') === 'combobox' && target.getAttribute('aria-expanded') === 'true') return;
+      if (target instanceof HTMLTextAreaElement) return;
       const next = e.key === 'ArrowUp' ? r - 1 : r + 1;
       if (next >= 0 && next < rows.length && focusCell(next, c)) e.preventDefault();
       return;
