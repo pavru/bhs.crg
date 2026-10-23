@@ -11,6 +11,17 @@ public sealed class PermissionRequirement(string code) : IAuthorizationRequireme
     public override string ToString() => AppPolicies.Permission(Code);
 }
 
+/// <summary>
+/// Требование «у пользователя есть хотя бы одно из прав <paramref name="codes" />» (plan-02, AUTH-8).
+/// Строится из имени <c>perm:&lt;а&gt;|&lt;б&gt;</c>; список из одного права становится обычным
+/// <see cref="PermissionRequirement" />.
+/// </summary>
+public sealed class AnyPermissionRequirement(IReadOnlyList<string> codes) : IAuthorizationRequirement
+{
+    public IReadOnlyList<string> Codes { get; } = codes;
+    public override string ToString() => AppPolicies.AnyPermission([.. Codes]);
+}
+
 /// <summary>Требование «у пользователя есть доступ к модулю <paramref name="code" />».</summary>
 public sealed class ModuleAccessRequirement(string code) : IAuthorizationRequirement
 {
@@ -30,6 +41,10 @@ public sealed class ModuleAccessRequirement(string code) : IAuthorizationRequire
 /// <c>perm:</c> с обрезанным кодом выглядит как закрытая дверь и при этом не проверяет ничего;
 /// заметить такую дверь по ответу приложения нельзя — она отвечает так же, как настоящая.
 ///
+/// ⚠️ В «любом из» (<c>perm:&lt;а&gt;|&lt;б&gt;</c>) так проверяется КАЖДЫЙ код списка: дверь
+/// с одним необъявленным правом выглядела бы рабочей — её открывает второе право, — а опечатка в
+/// первом лишала бы доступа его носителей молча.
+///
 /// ⚠️ Необъявленное право — тоже ОТКАЗ. Дверь на право, которого нет в справочнике, не откроется
 /// никому: её не выдать ни одной роли, и даже «Администратор», получающий ВСЁ объявленное, не
 /// получит несуществующего. Отвечает такая дверь обычным «нельзя» — то есть опечатка в коде права
@@ -47,7 +62,7 @@ public sealed class AppPolicyProvider(IOptions<AuthorizationOptions> options, Pe
     {
         if (policyName.StartsWith(AppPolicies.PermissionPrefix, StringComparison.OrdinalIgnoreCase))
             return Task.FromResult<AuthorizationPolicy?>(_built.GetOrAdd(policyName,
-                name => Build(new PermissionRequirement(Declared(Tail(name, AppPolicies.PermissionPrefix))))));
+                name => Build(PermissionRequirementOf(name))));
 
         if (policyName.StartsWith(AppPolicies.ModulePrefix, StringComparison.OrdinalIgnoreCase))
             return Task.FromResult<AuthorizationPolicy?>(_built.GetOrAdd(policyName,
@@ -61,6 +76,21 @@ public sealed class AppPolicyProvider(IOptions<AuthorizationOptions> options, Pe
             .RequireAuthenticatedUser()
             .AddRequirements(requirement)
             .Build();
+
+    /// <summary>Одно право — <see cref="PermissionRequirement" />, список — «любое из».</summary>
+    private IAuthorizationRequirement PermissionRequirementOf(string policyName)
+    {
+        var codes = AppPolicies.PermissionCodes(policyName)!;
+        if (codes.Any(c => c.Length == 0))
+            throw new InvalidOperationException(
+                $"Политика «{policyName}» не называет права (или в её списке пустое место). Ворота с " +
+                "пустым именем ничего не проверяют, а выглядят как проверка.");
+
+        var declared = codes.Select(Declared).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        return declared.Length == 1
+            ? new PermissionRequirement(declared[0])
+            : new AnyPermissionRequirement(declared);
+    }
 
     /// <summary>
     /// Право обязано быть объявлено — иначе дверь заперта навсегда и молча.
@@ -105,6 +135,22 @@ public sealed class PermissionHandler(IUserPermissions permissions)
     {
         var granted = await permissions.ForAsync(context.User, CancellationToken.None);
         if (granted.Contains(requirement.Code, StringComparer.OrdinalIgnoreCase))
+            context.Succeed(requirement);
+    }
+}
+
+/// <summary>
+/// «Любое из прав»: хотя бы одно из <see cref="AnyPermissionRequirement.Codes" /> есть среди
+/// действующих прав пользователя. Набор приходит раскрытым, как у <see cref="PermissionHandler" />.
+/// </summary>
+public sealed class AnyPermissionHandler(IUserPermissions permissions)
+    : AuthorizationHandler<AnyPermissionRequirement>
+{
+    protected override async Task HandleRequirementAsync(
+        AuthorizationHandlerContext context, AnyPermissionRequirement requirement)
+    {
+        var granted = await permissions.ForAsync(context.User, CancellationToken.None);
+        if (requirement.Codes.Any(code => granted.Contains(code, StringComparer.OrdinalIgnoreCase)))
             context.Succeed(requirement);
     }
 }

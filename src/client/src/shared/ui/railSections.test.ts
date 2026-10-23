@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { railSections, settingsNav, workNav, type NavItem } from './navConfig';
+import { ClipboardList } from 'lucide-react';
 import { activeRail, buildRail, groupItems, panelAt, railDef } from './railSections';
 
 const labels = (items: NavItem[]) => items.map(i => i.label);
@@ -36,7 +37,7 @@ describe('рейл разделов', () => {
     expect(shape).toEqual({
       'Стройки': [['', 'Стройки']],
       'Данные': [['', 'Общие данные', 'Наборы данных', 'Документы качества', 'Сверка']],
-      'Учёт': [['', 'Счета', 'Накладные'],
+      'Затраты': [['', 'Счета', 'Накладные'],
         ['Отчёты и закрытие месяца', 'Реестр счетов', 'Затраты по стройке', 'Учётный период']],
       'Система': [
         ['Документы', 'Типы документов', 'Шаблоны', 'Составные типы', 'Типы полей', 'Сопоставление полей',
@@ -51,8 +52,19 @@ describe('рейл разделов', () => {
   it('раздел без открытых страниц в рейле не показывается, а ведёт он на первую свою', () => {
     const work = workNav.filter(i => i.to === '/waybills' || i.to === '/document-sets');
     const rail = buildRail(work, []);
-    expect(rail.map(s => s.def.label)).toEqual(['Стройки', 'Учёт']);
+    expect(rail.map(s => s.def.label)).toEqual(['Стройки', 'Затраты']);
     expect(rail[1].home).toBe('/waybills');
+  });
+
+  // Раздел модуля «Планирование» (plan-02, макет П0): последним рабочим, после «Затрат».
+  it('раздел «Планы» — последний рабочий; без видимых пунктов его нет', () => {
+    // Пунктов модуля ещё нет (их вписывают plan-09, plan-20): раздел из одних пунктов `navConfig` пуст.
+    expect(buildRail(workNav, settingsNav).map(s => s.def.id)).not.toContain('plan');
+
+    const estimates: NavItem = { to: '/estimates', label: 'Сметы', icon: ClipboardList, module: 'plan', rail: 'plan' };
+    const rail = buildRail([...workNav, estimates], settingsNav);
+    expect(rail.map(s => s.def.label)).toEqual(['Стройки', 'Данные', 'Затраты', 'Планы', 'Система']);
+    expect(railDef('plan').title).toBe('Планирование');
   });
 
   it('адрес принадлежит разделу по самому длинному пункту', () => {

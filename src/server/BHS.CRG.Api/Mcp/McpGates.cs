@@ -22,14 +22,17 @@ namespace BHS.CRG.Api.Mcp;
 /// ⚠️ Право у инструмента объявляется НА МЕТОДЕ, а не на классе. Атрибут класса SDK учитывает и
 /// работал бы, но тогда новый инструмент в существующем классе молча получал бы соседские ворота —
 /// и сторож (<c>McpGateInventoryTests</c>) не смог бы отличить «объявили» от «не подумали».
+///
+/// Список прав — «любое из» (<see cref="AppPolicies.AnyPermission" />, plan-02): та же политика, что
+/// у адреса под тем же списком, иначе инструмент и его адрес открывались бы разным людям.
 /// </summary>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 public sealed class McpPermissionAttribute : AuthorizeAttribute
 {
-    public McpPermissionAttribute(string code) : base(AppPolicies.Permission(code)) => Code = code;
+    public McpPermissionAttribute(params string[] codes) : base(AppPolicies.AnyPermission(codes)) => Codes = codes;
 
-    /// <summary>Код права — его читает сторож: имя политики он разбирал бы строкой обратно.</summary>
-    public string Code { get; }
+    /// <summary>Коды прав — их читает сторож: имя политики он разбирал бы строкой обратно.</summary>
+    public IReadOnlyList<string> Codes { get; }
 }
 
 /// <summary>

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { visibleNav, allowed, missingFor } from './navAccess';
-import { workNav, settingsNav } from './navConfig';
+import { ClipboardList } from 'lucide-react';
+import { workNav, settingsNav, type NavItem } from './navConfig';
 import type { AccessInfo } from '@/shared/api/access';
 
 function access(permissions: string[], modules: { code: string; available: boolean }[] = []): AccessInfo {
@@ -17,7 +18,7 @@ function access(permissions: string[], modules: { code: string; available: boole
 describe('навигация по правам', () => {
   it('администратор без права на типы не видит раздела типов', () => {
     // Все права администратора, КРОМЕ права на типы. Имени роли здесь нет — и в этом суть.
-    const all = settingsNav.map(i => i.permission!).filter(Boolean);
+    const all = settingsNav.flatMap(i => i.permission ?? []);
     const withoutTypes = all.filter(p => p !== 'core.types.edit');
 
     const visible = visibleNav(settingsNav, access(withoutTypes));
@@ -49,7 +50,7 @@ describe('навигация по правам', () => {
     const users = settingsNav.find(i => i.to === '/users')!;
     const quality = workNav.find(i => i.to === '/quality-docs')!;
 
-    expect(missingFor(users, access([]))).toEqual({ kind: 'permission', code: 'core.users.manage' });
+    expect(missingFor(users, access([]))).toEqual({ kind: 'permission', codes: ['core.users.manage'] });
     expect(missingFor(quality, access([], [{ code: 'id', available: false }])))
       .toEqual({ kind: 'module', code: 'id', title: 'id' });
   });
@@ -57,6 +58,46 @@ describe('навигация по правам', () => {
   it('когда всё на месте, причины отказа нет', () => {
     const users = settingsNav.find(i => i.to === '/users')!;
     expect(missingFor(users, access(['core.users.manage']))).toBeNull();
+  });
+});
+
+/**
+ * «Любое из прав» (plan-02, ТЗ AUTH-16): пункт под списком виден носителю любого права списка — как
+ * «Ход работ», который видят носители прав любой из своих колонок. Пункт тестовый: настоящий вписывает
+ * `plan-25`.
+ */
+describe('пункт под списком прав', () => {
+  const progress: NavItem = {
+    to: '/progress', label: 'Ход работ', icon: ClipboardList, rail: 'plan',
+    permission: ['plan.estimate.read', 'costs.report.read'],
+  };
+  const both = [{ code: 'plan', available: false }, { code: 'costs', available: false }];
+
+  it('виден при любом праве списка и скрыт без обоих', () => {
+    expect(allowed(progress, access(['plan.estimate.read'], both))).toBe(true);
+    expect(allowed(progress, access(['costs.report.read'], both))).toBe(true);
+    expect(allowed(progress, access(['core.catalog.read'], both))).toBe(false);
+    expect(visibleNav([progress], access(['costs.report.read'], both)).map(i => i.label)).toEqual(['Ход работ']);
+  });
+
+  it('отказ называет весь список', () => {
+    expect(missingFor(progress, access([], both)))
+      .toEqual({ kind: 'permission', codes: ['plan.estimate.read', 'costs.report.read'] });
+  });
+
+  it('право модуля, которого нет на экземпляре, отказ не называет', () => {
+    // На экземпляре только «Счета и накладные»: право `plan.*` не выдать никому.
+    expect(missingFor(progress, access([], [{ code: 'costs', available: false }])))
+      .toEqual({ kind: 'permission', codes: ['costs.report.read'] });
+  });
+
+  it('права ядра называются всегда — ядро есть на любом экземпляре', () => {
+    const item: NavItem = { ...progress, permission: ['core.constructions.read', 'plan.estimate.read'] };
+    expect(missingFor(item, access([]))).toEqual({ kind: 'permission', codes: ['core.constructions.read'] });
+  });
+
+  it('выпали все права — причина неизвестна, а не пустой список', () => {
+    expect(missingFor(progress, access([]))).toBeNull();
   });
 });
 

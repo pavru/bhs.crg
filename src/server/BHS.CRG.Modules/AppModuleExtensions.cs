@@ -116,6 +116,7 @@ public static class AppModuleExtensions
         // Обработчики — scoped: счётчик прав приложения ходит в базу и живёт в области запроса.
         services.AddSingleton<IAuthorizationPolicyProvider, AppPolicyProvider>();
         services.AddScoped<IAuthorizationHandler, PermissionHandler>();
+        services.AddScoped<IAuthorizationHandler, AnyPermissionHandler>();
         services.AddScoped<IAuthorizationHandler, ModuleAccessHandler>();
 
         return services;

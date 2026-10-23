@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
@@ -65,12 +66,7 @@ public class ReadAllWritesNothingTests(ModulePortsHost fixture) : IClassFixture<
         Assert.True(granted.Count > 1,
             "В «читать всё» не входит ни одно право: раскрывать нечего, и проверка ниже не смотрит ни на что.");
 
-        var open = EndpointInventory.Routes(fixture.Services)
-            .Where(e => EndpointInventory.IsGated(e) && Writes(e) && Passes(e, granted))
-            .Select(e => $"{EndpointInventory.Verbs(e)} {EndpointInventory.Route(e)}")
-            .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal)
-            .ToList();
+        var open = OpenWrites(EndpointInventory.Routes(fixture.Services), granted);
 
         var unlisted = open.Where(key => !Deliberate.ContainsKey(key)).ToList();
         Assert.True(unlisted.Count == 0,
@@ -137,6 +133,35 @@ public class ReadAllWritesNothingTests(ModulePortsHost fixture) : IClassFixture<
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/costs/invoices")).StatusCode);
     }
 
+    /// <summary>
+    /// «Любое из прав» (plan-02): изменяющий адрес под списком, где хоть одно право входит в «читать
+    /// всё», открыт владельцу составного права — как если бы стояло одно это право. Сторож обязан
+    /// назвать такой адрес, а не прочитать список как один несуществующий код и счесть дверь закрытой.
+    /// </summary>
+    [Fact]
+    public void Пишущий_адрес_под_любым_из_с_правом_из_читать_всё_называется()
+    {
+        var catalog = fixture.Services.GetRequiredService<PermissionCatalog>();
+        var granted = catalog.Expand([PermissionCatalog.ReadAllCode]);
+        Assert.Contains("costs.report.read", granted);
+        Assert.DoesNotContain(CorePermissions.UsersManage, granted);
+
+        var endpoint = new RouteEndpoint(_ => Task.CompletedTask, RoutePatternFactory.Parse("/api/test/any-of"), 0,
+            new EndpointMetadataCollection(
+                new HttpMethodMetadata(["POST"]),
+                new AuthorizeAttribute(AppPolicies.AnyPermission(CorePermissions.UsersManage, "costs.report.read"))),
+            "any-of");
+
+        Assert.Equal(["POST /api/test/any-of"], OpenWrites([endpoint], granted));
+    }
+
+    private static List<string> OpenWrites(IEnumerable<RouteEndpoint> routes, IReadOnlyCollection<string> granted) =>
+        [.. routes
+            .Where(e => EndpointInventory.IsGated(e) && Writes(e) && Passes(e, granted))
+            .Select(e => $"{EndpointInventory.Verbs(e)} {EndpointInventory.Route(e)}")
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)];
+
     private static bool Writes(Endpoint endpoint) =>
         (endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? ["*"])
         .Any(m => !HttpMethods.IsGet(m) && !HttpMethods.IsHead(m) && !HttpMethods.IsOptions(m));
@@ -151,8 +176,8 @@ public class ReadAllWritesNothingTests(ModulePortsHost fixture) : IClassFixture<
             .Where(a => a.Policy is not null || a.Roles is not null)
             .All(a => a.Roles is null && a.Policy switch
             {
-                { } p when p.StartsWith(AppPolicies.PermissionPrefix, StringComparison.OrdinalIgnoreCase) =>
-                    granted.Contains(p[AppPolicies.PermissionPrefix.Length..].Trim(), StringComparer.OrdinalIgnoreCase),
+                { } p when AppPolicies.PermissionCodes(p) is { } codes =>
+                    codes.Any(code => granted.Contains(code, StringComparer.OrdinalIgnoreCase)),
                 { } p when p.StartsWith(AppPolicies.ModulePrefix, StringComparison.OrdinalIgnoreCase) =>
                     ModuleAccess.IsOpen(p[AppPolicies.ModulePrefix.Length..].Trim(), granted),
                 _ => false,
