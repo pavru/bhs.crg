@@ -40,4 +40,4 @@ PR закрывает #1529 («Closes #1529»), метка `version:minor`. `<Ve
 - [x] 3.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
 - [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
 - [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 3.5 Перед архивацией: требование «Действующие тэги ядра — поля записей» правит и `core-org-short-name` (тэг `org.shortName`). Кто архивируется вторым, сверяет MODIFIED с действующей спекой и переносит оба тэга, иначе архивация затрёт первый
+- [x] 3.5 Перед архивацией: требование «Действующие тэги ядра — поля записей» правит и `core-org-short-name` (тэг `org.shortName`). Кто архивируется вторым, сверяет MODIFIED с действующей спекой и переносит оба тэга, иначе архивация затрёт первый. Архивирован первым (23.10.2026): действующая спека совпала с основой MODIFIED; `input.noSuggest` вписан и в MODIFIED `core-org-short-name`

@@ -7,11 +7,15 @@
 `employee.personnelNumber`, `employee.position`, `employee.employedFrom`, `employee.employedTo`,
 `employee.account`, `cert.validUntil`, `ref.workType`, `work.requiresLocation`,
 `work.requiresMaterials`, `work.producesId`, `org.inn`, `org.name`, `org.shortName`,
-`nomenclature.article`, `nomenclature.unit`.
+`nomenclature.article`, `nomenclature.unit`, `input.noSuggest`.
 
 #### Scenario: Тэги ядра без модулей
 - **WHEN** экземпляр запущен с любым набором модулей
 - **THEN** тэги ядра доступны в редакторе схем
+
+#### Scenario: Тэг «не подсказывать» в реестре
+- **WHEN** клиент читает `GET /api/tags`
+- **THEN** в ответе есть `input.noSuggest` с описанием, владелец — ядро, допустимый вид поля — `string`, кратность — любое число полей
 
 ## ADDED Requirements
 
