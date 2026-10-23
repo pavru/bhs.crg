@@ -39,6 +39,16 @@ public class SuggestionRankingTests
     }
 
     [Fact]
+    public void Граница_слова_не_только_пробел()
+    {
+        Assert.Equal(["ООО «Ромашка»"], Values(SuggestionRanking.Rank([Seen("ООО «Ромашка»", true)], "ром", 8)));
+        Assert.Equal(["Альфа-Кабель"], Values(SuggestionRanking.Rank([Seen("Альфа-Кабель", true)], "кабель", 8)));
+        // Внутри слова — по-прежнему нет, и первое вхождение внутри слова не прячет второе с начала.
+        Assert.Empty(SuggestionRanking.Rank([Seen("Пром", true)], "ром", 8));
+        Assert.Equal(["Хром-Ромб"], Values(SuggestionRanking.Rank([Seen("Хром-Ромб", true)], "ром", 8)));
+    }
+
+    [Fact]
     public void Порог_чужой_стройки_две_разные_записи()
     {
         var items = SuggestionRanking.Rank(

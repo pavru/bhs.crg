@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Security.Claims;
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Api.Endpoints.Common;
 using BHS.CRG.Application.Objects.FieldSuggestions;
 using BHS.CRG.Domain.Catalog;
 using MediatR;
@@ -28,22 +30,24 @@ public static class FieldSuggestionEndpoints
     public static void MapFieldSuggestionEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/api/field-suggestions", async (string? type, string? field, string? q, string? scope,
-            string? scopeId, int? limit, ClaimsPrincipal user, DataAccessResolver access, IMediator m,
+            string? scopeId, string? limit, ClaimsPrincipal user, DataAccessResolver access, IMediator m,
             CancellationToken ct) =>
         {
             if (!Guid.TryParse(type, out var typeId))
                 return Bad("Назовите тип параметром type — идентификатором типа.");
             if (string.IsNullOrWhiteSpace(field))
                 return Bad("Назовите поле параметром field — ключом поля в схеме типа.");
-            if (limit is < 1 or > MaxLimit)
+
+            // limit — строкой, как type и scopeId: число отвергла бы привязка, пустым 400 без нашего текста.
+            var take = DefaultLimit;
+            if (!string.IsNullOrEmpty(limit)
+                && (!int.TryParse(limit, NumberStyles.None, CultureInfo.InvariantCulture, out take) || take is < 1 or > MaxLimit))
                 return Bad($"Параметр limit — от 1 до {MaxLimit}.");
 
             CatalogScope? level = null;
             if (!string.IsNullOrEmpty(scope))
             {
-                // Имена уровней — как у /api/common-data/for-scope; число вместо имени не принимаем.
-                if (!Enum.TryParse<CatalogScope>(scope, out var parsedLevel) || !Enum.IsDefined(parsedLevel)
-                    || char.IsDigit(scope[0]))
+                if (!ScopeParameter.TryParse(scope, out var parsedLevel))
                     return Bad($"Неизвестный уровень scope: «{scope}».");
                 level = parsedLevel;
             }
@@ -59,7 +63,7 @@ public static class FieldSuggestionEndpoints
             try
             {
                 var items = await m.Send(new FieldSuggestionsQuery(typeId, field, q, level, scopeGuid,
-                    limit ?? DefaultLimit, await access.ForAsync(user, ct)), ct);
+                    take, await access.ForAsync(user, ct)), ct);
                 return Results.Ok(new { items });
             }
             catch (SuggestionsTimedOutException ex)

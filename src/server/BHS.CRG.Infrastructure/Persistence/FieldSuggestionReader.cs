@@ -17,6 +17,11 @@ namespace BHS.CRG.Infrastructure.Persistence;
 /// размер — <c>pg_column_size</c>: он виден по заголовку значения, без распаковки. Нарастающая сумма
 /// размеров режет окно по объёму.</para>
 ///
+/// <para>⚠️ <b>Самая свежая запись входит в окно всегда</b>, даже если она одна тяжелее предела
+/// (<c>Total = Size</c> — только у первой строки: порядок окна однозначен). Иначе нарастающая сумма
+/// с первой же строки выше предела отсекала бы ВСЁ окно, и поле молча отвечало бы «пусто» у каждого
+/// поля типа, пока не поправят другую запись, — отказ, переодетый в «ничего не вводили» (D10).</para>
+///
 /// <para><b>Поле читается только у записей окна</b> — подзапросом в списке выборки, который база
 /// исполняет на каждую прошедшую строку по первичному ключу. Соединение здесь не годится: планировщик
 /// волен выполнить его хешем с последовательным просмотром всей таблицы, и фильтр по полю снаружи окна
@@ -44,9 +49,15 @@ public sealed class FieldSuggestionReader(AppDbContext db) : IFieldSuggestionRea
         """;
 
     /// <summary>
-    /// Запрос окна для <paramref name="types" /> типов семьи. Параметры: <c>@t0…</c> — типы, <c>@field</c>
-    /// — ключ поля, <c>@rows</c> и <c>@bytes</c> — пределы окна. Открыт для теста плана: он объясняет
-    /// ровно этот текст.
+    /// Запрос окна для <paramref name="types" /> типов семьи.
+    ///
+    /// <para>Ветки сливаются по одной свежести (Merge Append над Limit каждой ветки) и останавливаются
+    /// на пределе записей всего окна, а не типа. Добивки по <c>Id</c> в слиянии нет нарочно: ветки ею не
+    /// упорядочены, и база доупорядочивает слитое, дочитывая группу равных по времени. Однозначный
+    /// порядок нужен только нарастающей сумме — он задан в ней.</para>
+    ///
+    /// <para>Параметры: <c>@t0…</c> — типы, <c>@field</c> — ключ поля, <c>@rows</c> и <c>@bytes</c> —
+    /// пределы окна. Открыт для теста плана: он объясняет ровно этот текст.</para>
     /// </summary>
     public static string Sql(int types) => $"""
         SELECT w."Id", w."ScopeLevel", w."ScopeId", w."UpdatedAt",
@@ -58,11 +69,11 @@ public sealed class FieldSuggestionReader(AppDbContext db) : IFieldSuggestionRea
                 SELECT l.* FROM (
                     {string.Join("\nUNION ALL\n", Enumerable.Range(0, types).Select(i => string.Format(CultureInfo.InvariantCulture, Branch, i)))}
                 ) l
-                ORDER BY l."UpdatedAt" DESC, l."Id"
+                ORDER BY l."UpdatedAt" DESC
                 LIMIT @rows
             ) r
         ) w
-        WHERE w."Total" <= @bytes
+        WHERE w."Total" <= @bytes OR w."Total" = w."Size"
         """;
 
     /// <inheritdoc />
@@ -71,21 +82,23 @@ public sealed class FieldSuggestionReader(AppDbContext db) : IFieldSuggestionRea
     {
         if (typeIds.Count == 0) return [];
 
-        // Предел времени ставится на СВОЮ транзакцию: SET LOCAL в чужой пережил бы этот запрос и
-        // ограничил бы чужие. В чужой пределы задаёт её хозяин (приём ModuleReferenceScan).
-        await using var own = db.Database.CurrentTransaction is null
-            ? await db.Database.BeginTransactionAsync(ct)
-            : null;
+        // Предел времени — SET LOCAL, и живёт он до конца транзакции. Своей — открываем свою. В чужой
+        // чтение идёт под точкой сохранения и ВСЕГДА откатывается к ней (приём ModuleReferenceScan,
+        // ревью PR #1188): откат снимает и предел, который иначе ограничил бы следующие запросы хозяина,
+        // и прерванное состояние — отказ базы иначе обрушил бы его транзакцию «current transaction is
+        // aborted». Чтение ничего не пишет, так что откатывать нечего, кроме этого.
+        var foreign = db.Database.CurrentTransaction;
+        await using var own = foreign is null ? await db.Database.BeginTransactionAsync(ct) : null;
+        if (foreign is not null) await foreign.CreateSavepointAsync(Savepoint, ct);
         var connection = (NpgsqlConnection)db.Database.GetDbConnection();
         try
         {
-            if (own is not null)
-                await using (var limit = connection.CreateCommand())
-                {
-                    var ms = ((int)window.Timeout.TotalMilliseconds).ToString(CultureInfo.InvariantCulture);
-                    limit.CommandText = $"SET LOCAL statement_timeout = '{ms}ms'";
-                    await limit.ExecuteNonQueryAsync(ct);
-                }
+            await using (var limit = connection.CreateCommand())
+            {
+                var ms = ((int)window.Timeout.TotalMilliseconds).ToString(CultureInfo.InvariantCulture);
+                limit.CommandText = $"SET LOCAL statement_timeout = '{ms}ms'";
+                await limit.ExecuteNonQueryAsync(ct);
+            }
 
             var rows = new List<SuggestionRow>();
             await using (var cmd = connection.CreateCommand())
@@ -112,7 +125,17 @@ public sealed class FieldSuggestionReader(AppDbContext db) : IFieldSuggestionRea
         {
             throw new SuggestionsTimedOutException(ex);
         }
+        finally
+        {
+            if (foreign is not null)
+            {
+                await foreign.RollbackToSavepointAsync(Savepoint, CancellationToken.None);
+                await foreign.ReleaseSavepointAsync(Savepoint, CancellationToken.None);
+            }
+        }
     }
+
+    private const string Savepoint = "field_suggestions_window";
 
     /// <summary>Параметры <see cref="Sql" /> — общие у чтения и у теста плана.</summary>
     public static void AddParameters(

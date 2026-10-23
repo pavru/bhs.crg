@@ -11,6 +11,8 @@ using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Infrastructure.Persistence;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
@@ -98,6 +100,16 @@ public class FieldSuggestionTests(InvoiceLineHost host) : InvoiceLineTestBase(ho
             (await client.GetAsync($"/api/field-suggestions?type={Guid.NewGuid()}&field={Maker}")).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest,
             (await client.GetAsync($"/api/field-suggestions?type={type}&field={Maker}&scope=Construction")).StatusCode);
+
+        // Отказы параметров — нашим текстом, а не пустым 400 привязки (ревью PR #1585); уровень — по
+        // имени без учёта регистра, число — нет.
+        foreach (var bad in new[] { "limit=abc", "limit=0", "limit=51", "scope=1", "scope=Section,Construction" })
+        {
+            var response = await client.GetAsync($"/api/field-suggestions?type={type}&field={Maker}&{bad}");
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.False(string.IsNullOrEmpty((await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString()), bad);
+        }
+        Assert.Empty(await ItemsAsync(client, $"type={type}&field=Комментарий&scope=system&limit=3"));
     }
 
     /// <summary>Живой тест строки «выбор» переписи мест чтения (ТЗ CORE-34.4).</summary>
@@ -205,18 +217,58 @@ public class FieldSuggestionTests(InvoiceLineHost host) : InvoiceLineTestBase(ho
         await RecordAsync(type, "Хи", CatalogScope.System, null);
         var (client, _) = await SignInAsync("Admin");
 
-        await using var blocker = new NpgsqlConnection(TestDatabases.ConnectionString("lines"));
-        await blocker.OpenAsync();
-        await using var tx = await blocker.BeginTransactionAsync();
-        await using (var lockCmd = new NpgsqlCommand("LOCK TABLE domain_objects IN ACCESS EXCLUSIVE MODE", blocker, tx))
-            await lockCmd.ExecuteNonQueryAsync();
-
+        await using var blocker = await LockedAsync();
         using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         var response = await client.GetAsync($"/api/field-suggestions?type={type}&field={Maker}", guard.Token);
-        await tx.RollbackAsync();
+        await blocker.DisposeAsync();
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.Contains("не успевают", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+    }
+
+    /// <summary>
+    /// Чтение внутри ЧУЖОЙ транзакции тоже под пределом времени, а отказ её не рушит: следующий запрос
+    /// хозяина проходит, и предел у него — прежний (ревью PR #1585). Без точки сохранения отказ оставил
+    /// бы транзакцию прерванной, а без предела чтение ждало бы замок, сколько тот держится.
+    /// </summary>
+    [Fact]
+    public async Task В_чужой_транзакции_предел_есть_и_отказ_её_не_рушит()
+    {
+        var type = await FamilyAsync();
+        await RecordAsync(type, "Пси", CatalogScope.System, null);
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var reader = scope.ServiceProvider.GetRequiredService<IFieldSuggestionReader>();
+        await using var outer = await db.Database.BeginTransactionAsync();
+        var before = await StatementTimeoutAsync(db);
+
+        await using (await LockedAsync())
+        {
+            using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await Assert.ThrowsAsync<SuggestionsTimedOutException>(
+                () => reader.ReadAsync([type], Maker, SuggestionWindow.Default, guard.Token));
+        }
+
+        Assert.Equal(before, await StatementTimeoutAsync(db));
+        Assert.Equal("Пси", Assert.Single(await reader.ReadAsync([type], Maker, SuggestionWindow.Default)).Value);
+        Assert.Equal(before, await StatementTimeoutAsync(db));
+    }
+
+    private static Task<string> StatementTimeoutAsync(AppDbContext db) =>
+        db.Database.SqlQueryRaw<string>("SELECT current_setting('statement_timeout') AS \"Value\"").SingleAsync();
+
+    /// <summary>
+    /// Таблица записей под исключительным замком соседней транзакции: запрос к ней ждёт, и предел времени
+    /// ожидание замка тоже считает. Замок снимается освобождением.
+    /// </summary>
+    private async Task<IAsyncDisposable> LockedAsync()
+    {
+        var blocker = new NpgsqlConnection(host.Services.GetRequiredService<IConfiguration>().GetConnectionString("Postgres"));
+        await blocker.OpenAsync();
+        var tx = await blocker.BeginTransactionAsync();
+        await using (var lockCmd = new NpgsqlCommand("LOCK TABLE domain_objects IN ACCESS EXCLUSIVE MODE", blocker, tx))
+            await lockCmd.ExecuteNonQueryAsync();
+        return blocker;
     }
 
     // ── Подготовка ─────────────────────────────────────────────────────────────

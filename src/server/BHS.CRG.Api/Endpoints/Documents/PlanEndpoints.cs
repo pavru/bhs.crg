@@ -1,3 +1,4 @@
+using BHS.CRG.Api.Endpoints.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Common;
@@ -44,10 +45,9 @@ public static class PlanEndpoints
 
         plans.MapGet("/summary", async (string? scope, Guid? scopeId, IMediator m, CancellationToken ct) =>
         {
-            // IsDefined обязателен рядом с TryParse: без него «?scope=99» разбирается успешно и
-            // доезжает до обработчика неопределённым значением перечисления — то есть уровнем,
-            // которого нет, и ответом «плана нет» вместо отказа.
-            if (!Enum.TryParse<CatalogScope>(scope, ignoreCase: true, out var parsed) || !Enum.IsDefined(parsed))
+            // «?scope=99» без проверки доехал бы до обработчика уровнем, которого нет, и ответом «плана
+            // нет» вместо отказа — разбор общий и это отсекает (ScopeParameter).
+            if (!ScopeParameter.TryParse(scope, out var parsed))
                 return Results.BadRequest(new { error = $"Неизвестная область: «{scope}»." });
 
             // Уровень без идентификатора (кроме System) — не «пустая стройка», а вопрос ни о чём:

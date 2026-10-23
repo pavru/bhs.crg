@@ -35,7 +35,6 @@ public class SuggestionSourcesTests
 
         var plan = Read(SuggestionSources.For(copper.Id, "Производитель", types, TestAccess.All));
 
-        Assert.Equal(Base.Id, plan.Declarer);
         Assert.Equal(new[] { Base.Id, cable.Id, copper.Id }.Order(), plan.Types.Order());
     }
 
@@ -49,7 +48,6 @@ public class SuggestionSourcesTests
         Assert.Equal([Base.Id], Read(SuggestionSources.For(Base.Id, "Производитель", types, TestAccess.All)).Types);
         // Спрошенный по своему ключу — своя семья, без родителя.
         var plan = Read(SuggestionSources.For(under.Id, "Производитель", types, TestAccess.All));
-        Assert.Equal(own.Id, plan.Declarer);
         Assert.Equal(new[] { own.Id, under.Id }.Order(), plan.Types.Order());
     }
 

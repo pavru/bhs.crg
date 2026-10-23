@@ -33,7 +33,8 @@ public static partial class SuggestionRanking
     /// <summary>
     /// Подсказки по набранному <paramref name="q" />, не больше <paramref name="limit" />.
     ///
-    /// <para>Совпадение — с начала любого слова ключа: «пром» находит «Ёлка Пром», «ром» — нет.
+    /// <para>Совпадение — с начала любого слова ключа: «пром» находит «Ёлка Пром», «ром» — нет, а
+    /// «ром» находит «ООО «Ромашка»» (граница слова — не только пробел).
     /// Значение, равное набранному целиком, не отдаётся: человек его уже ввёл. Пустой набор — без
     /// отбора, самые частые.</para>
     ///
@@ -60,9 +61,19 @@ public static partial class SuggestionRanking
             .ToList();
     }
 
-    private static bool Matches(string key, string typed) =>
-        typed.Length == 0 || key.StartsWith(typed, StringComparison.Ordinal)
-        || key.Contains(" " + typed, StringComparison.Ordinal);
+    /// <summary>
+    /// Набранное стоит в ключе с начала слова. Граница слова — любой знак, не буква и не цифра, а не
+    /// только пробел: производители и организации пишутся в кавычках и через дефис, и «ром» обязан
+    /// находить «ООО «Ромашка»», а «кабель» — «Альфа-Кабель».
+    /// </summary>
+    private static bool Matches(string key, string typed)
+    {
+        if (typed.Length == 0) return true;
+        for (var at = key.IndexOf(typed, StringComparison.Ordinal); at >= 0;
+             at = key.IndexOf(typed, at + 1, StringComparison.Ordinal))
+            if (at == 0 || !char.IsLetterOrDigit(key[at - 1])) return true;
+        return false;
+    }
 
     private sealed record Group(string Value, bool Here, int Own, int Foreign, DateTimeOffset Freshest);
 

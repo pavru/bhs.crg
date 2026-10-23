@@ -34,7 +34,9 @@ public sealed class FieldSuggestionsHandler(
 {
     public async Task<IReadOnlyList<FieldSuggestion>> Handle(FieldSuggestionsQuery q, CancellationToken ct)
     {
-        var byId = (await types.GetAllAsync(ct)).ToDictionary(t => t.Id);
+        // Без отслеживания: адрес зовут после каждой набранной буквы, и трекинг всех типов со схемами
+        // на каждый вызов — память и время впустую (GetAllAsync отслеживает).
+        var byId = (await types.FindAsync(_ => true, ct)).ToDictionary(t => t.Id);
         switch (SuggestionSources.For(q.TypeId, q.Field, byId, q.Access))
         {
             case SuggestionPlan.Unknown unknown: throw new InvalidRequestException(unknown.Reason);
@@ -54,20 +56,14 @@ public sealed class FieldSuggestionsHandler(
     /// для любого читателя (решение В-3): у номенклатуры стройки нет, и порог «чужих» выключил бы
     /// ровно главный выигрыш — производителя, встреченного однажды.
     ///
-    /// <para>Стройку находим по цепочке вверх, как <c>/api/common-data/for-scope</c>; комплекты под
+    /// <para>Стройку находим общим подъёмом (<see cref="ScopeAncestry" />) — тем же, что у
+    /// <c>/api/common-data/for-scope</c>; комплекты под
     /// ней — общим спуском (<see cref="IScopeSubtree" />), которым считают и каскад удаления, и
     /// счётчик замечаний. Неизвестный уровень своих областей не даёт: всё, кроме системы, — чужое.</para>
     /// </summary>
     private async Task<Func<CatalogScope, Guid?, bool>> HereAsync(CatalogScope? scope, Guid? scopeId, CancellationToken ct)
     {
-        Guid? construction = scope switch
-        {
-            CatalogScope.Construction => scopeId,
-            CatalogScope.Section when scopeId is { } id => (await sections.GetByIdAsync(id, ct))?.ConstructionId,
-            CatalogScope.Set when scopeId is { } id && await sets.GetByIdAsync(id, ct) is { } set =>
-                (await sections.GetByIdAsync(set.SectionId, ct))?.ConstructionId,
-            _ => null,
-        };
+        var construction = (await ScopeAncestry.ResolveAsync(scope, scopeId, sets, sections, ct)).ConstructionId;
         if (construction is not { } cid) return (level, _) => level == CatalogScope.System;
 
         var ownSections = (await sections.FindAsync(s => s.ConstructionId == cid, ct)).Select(s => s.Id).ToHashSet();

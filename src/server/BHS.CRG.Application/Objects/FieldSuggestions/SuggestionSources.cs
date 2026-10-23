@@ -24,8 +24,11 @@ public abstract record SuggestionPlan
     /// <summary>Источники есть, но читателю закрыты все (403).</summary>
     public sealed record Forbidden(string Reason) : SuggestionPlan;
 
-    /// <summary>Читать записи этих типов. Пустой список — законный ответ: читать нечего.</summary>
-    public sealed record Read(Guid Declarer, IReadOnlyList<Guid> Types) : SuggestionPlan;
+    /// <summary>
+    /// Читать записи этих типов — семьи объявившего поле (он в ней всегда, если не закрыт правами).
+    /// Пустой список — законный ответ: читать нечего.
+    /// </summary>
+    public sealed record Read(IReadOnlyList<Guid> Types) : SuggestionPlan;
 }
 
 /// <summary>
@@ -106,7 +109,7 @@ public static class SuggestionSources
                 $"Подсказки поля «{field}» берутся из записей, читать которые у вас нет права: "
                 + $"документы — «{DocumentRead}», общие данные — «{CatalogRead}».");
         if (allowed.Count == 0 && byModule > 0) return new SuggestionPlan.Silent(ModuleOff);
-        return new SuggestionPlan.Read(declarer.Id, allowed);
+        return new SuggestionPlan.Read(allowed);
     }
 
     /// <summary>

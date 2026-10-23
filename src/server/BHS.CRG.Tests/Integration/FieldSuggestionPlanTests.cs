@@ -8,6 +8,7 @@ using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Persistence.Configurations;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
@@ -43,6 +44,10 @@ public partial class FieldSuggestionPlanTests(InvoiceLineHost host) : InvoiceLin
     [GeneratedRegex(@"Index Scan using ""PK_domain_objects""[^\n]*loops=(\d+)")]
     private static partial Regex FieldReads();
 
+    /// <summary>Строк, прочитанных индексом окна, — у каждой ветки семьи свой узел.</summary>
+    [GeneratedRegex(@"Index Scan using ""IX_domain_objects_CompositeTypeId_UpdatedAt_Live""[^\n]*rows=(\d+)")]
+    private static partial Regex WindowReads();
+
     [Fact]
     public async Task Окно_берётся_индексом_а_поле_читается_только_у_записей_окна()
     {
@@ -65,15 +70,50 @@ public partial class FieldSuggestionPlanTests(InvoiceLineHost host) : InvoiceLin
         Assert.InRange(reads, 1, Window.MaxRecords - 1);
     }
 
-    private async Task<string> ExplainAsync(Guid type)
+    /// <summary>
+    /// Семья из нескольких больших типов читает окно, а не по окну на тип: ветки сливаются по свежести
+    /// и останавливаются на пределе записей. Сортировка всех веток вместо слияния прочитала бы предел
+    /// записей У КАЖДОГО типа — у справочника с десятками видов это десятки тысяч чтений на букву.
+    /// </summary>
+    [Fact]
+    public async Task Семья_из_нескольких_типов_читает_одно_окно_а_не_окно_на_тип()
     {
-        await using var connection = new NpgsqlConnection(TestDatabases.ConnectionString("lines"));
+        var family = new List<Guid>();
+        for (var i = 0; i < 3; i++) family.Add(await LightTypeAsync(SuggestionWindow.Default.MaxRecords + 100));
+
+        var plan = await ExplainAsync(family, SuggestionWindow.Default);
+
+        var read = WindowReads().Matches(plan).Sum(m => int.Parse(m.Groups[1].Value));
+        Assert.True(read <= SuggestionWindow.Default.MaxRecords + family.Count, $"Прочитано {read}:\n{plan}");
+    }
+
+    /// <summary>
+    /// Самая свежая запись тяжелее предела по объёму не обнуляет окно (D10): без неё нарастающая сумма
+    /// с первой строки выше предела, и адрес отвечал бы «пусто» у каждого поля типа.
+    /// </summary>
+    [Fact]
+    public async Task Запись_тяжелее_предела_объёма_всё_равно_в_окне()
+    {
+        var type = await LightTypeAsync(3);
+        using var scope = host.Services.CreateScope();
+
+        var rows = await scope.ServiceProvider.GetRequiredService<IFieldSuggestionReader>()
+            .ReadAsync([type], "Производитель", Window with { MaxBytes = 1 });
+
+        Assert.Equal("Лёгкий 3", Assert.Single(rows).Value);
+    }
+
+    private async Task<string> ExplainAsync(Guid type) => await ExplainAsync([type], Window);
+
+    private async Task<string> ExplainAsync(IReadOnlyCollection<Guid> types, SuggestionWindow window)
+    {
+        await using var connection = new NpgsqlConnection(ConnectionString);
         await connection.OpenAsync();
         await using (var analyze = new NpgsqlCommand("ANALYZE domain_objects", connection))
             await analyze.ExecuteNonQueryAsync();
 
-        await using var cmd = new NpgsqlCommand("EXPLAIN (ANALYZE, COSTS OFF) " + FieldSuggestionReader.Sql(1), connection);
-        FieldSuggestionReader.AddParameters(cmd, [type], "Производитель", Window);
+        await using var cmd = new NpgsqlCommand("EXPLAIN (ANALYZE, COSTS OFF) " + FieldSuggestionReader.Sql(types.Count), connection);
+        FieldSuggestionReader.AddParameters(cmd, types, "Производитель", window);
         var lines = new StringBuilder();
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync()) lines.AppendLine(reader.GetString(0));
@@ -108,20 +148,51 @@ public partial class FieldSuggestionPlanTests(InvoiceLineHost host) : InvoiceLin
         await objects.SaveChangesAsync();
 
         // Старые лёгкие записи — одним запросом: по одной через EF их заводить дольше самого теста.
-        await using var connection = new NpgsqlConnection(TestDatabases.ConnectionString("lines"));
+        await InsertLightAsync(type.Id, Old, at, -1, "Старый");
+        return type.Id;
+    }
+
+    /// <summary>Тип с <paramref name="count" /> лёгкими записями; самая свежая — «Лёгкий {count}».</summary>
+    private async Task<Guid> LightTypeAsync(int count)
+    {
+        using var scope = host.Services.CreateScope();
+        var types = scope.ServiceProvider.GetRequiredService<IRepository<DocumentType>>();
+        var mark = Guid.NewGuid().ToString("N")[..8];
+        var type = DocumentType.Create($"Лёгкий {mark}", $"Лёгкий{mark}", DocumentTypeKind.Composite, null,
+            JsonDocument.Parse("""{"fields":[{"key":"Производитель","type":"string"}]}"""),
+            TypeOwner.Core, TypeVisibility.Shared);
+        await types.AddAsync(type);
+        await types.SaveChangesAsync();
+        await InsertLightAsync(type.Id, count, new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero), 1, "Лёгкий");
+        return type.Id;
+    }
+
+    /// <summary>
+    /// Лёгкие записи одним запросом: по одной через EF их заводить дольше самого теста. Запись № g правлена
+    /// в <paramref name="at" /> + <paramref name="step" />·g минут, значение поля — «{prefix} {g}» (у старых
+    /// — по модулю 5: повторы, как у давних позиций справочника).
+    /// </summary>
+    private async Task InsertLightAsync(Guid type, int count, DateTimeOffset at, int step, string prefix)
+    {
+        await using var connection = new NpgsqlConnection(ConnectionString);
         await connection.OpenAsync();
         await using var old = new NpgsqlCommand("""
             INSERT INTO domain_objects ("Id", "CompositeTypeId", "DisplayName", "Aliases", "Data", "ScopeLevel",
                                         "CreatedAt", "UpdatedAt")
-            SELECT gen_random_uuid(), @type, 'Старая ' || g, '{}',
-                   jsonb_build_object('Производитель', 'Старый ' || (g % 5)), 'System',
-                   @at - g * interval '1 minute', @at - g * interval '1 minute'
-            FROM generate_series(1, @old) AS g
+            SELECT gen_random_uuid(), @type, @prefix || ' ' || g, '{}',
+                   jsonb_build_object('Производитель', @prefix || ' ' || CASE WHEN @step < 0 THEN g % 5 ELSE g END),
+                   'System', @at + g * @step * interval '1 minute', @at + g * @step * interval '1 minute'
+            FROM generate_series(1, @count) AS g
             """, connection);
-        old.Parameters.AddWithValue("type", type.Id);
+        old.Parameters.AddWithValue("type", type);
         old.Parameters.AddWithValue("at", at);
-        old.Parameters.AddWithValue("old", Old);
+        old.Parameters.AddWithValue("count", count);
+        old.Parameters.AddWithValue("step", step);
+        old.Parameters.AddWithValue("prefix", prefix);
         await old.ExecuteNonQueryAsync();
-        return type.Id;
     }
+
+    /// <summary>Строка подключения хоста — у него самого, а не собранная заново по его суффиксу.</summary>
+    private string ConnectionString =>
+        host.Services.GetRequiredService<IConfiguration>().GetConnectionString("Postgres")!;
 }
