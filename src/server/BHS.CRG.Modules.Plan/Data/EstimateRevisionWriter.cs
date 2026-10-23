@@ -1,6 +1,5 @@
 using System.Text.Json;
 using BHS.CRG.Domain.Common;
-using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Ports;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,7 +7,7 @@ namespace BHS.CRG.Modules.Plan.Data;
 
 /// <summary>Строка будущей редакции — как её разобрал импорт (<c>plan-07</c>).</summary>
 /// <param name="Data">Сметное наполнение по схеме <c>ПозицияСметы</c> — JSON-объект; <c>null</c> — пусто.</param>
-/// <param name="Labor">Трудозатраты рабочих, чел.-ч на объём строки.</param>
+/// <param name="Labor">Трудозатраты рабочих, чел.-ч на объём строки, — в порядке файла.</param>
 public sealed record EstimateRowDraft(
     string Name,
     string? LsrSectionCode = null, string? LsrSectionName = null, string? NumberInSection = null,
@@ -29,8 +28,8 @@ public sealed record EstimateMaterialDraft(
 /// <list type="bullet">
 ///   <item>сметное наполнение каждой строки проходит охрану записи ядра (<c>IModuleWriteGuard</c>,
 ///   ТЗ CORE-20) — тип <c>ПозицияСметы</c> открыт, и поля заказчика проверяются по его схеме;</item>
-///   <item>новые ссылки на записи ядра ведут к записям на месте и не в архиве (ТЗ CORE-34.4) — все
-///   ссылки редакции новые: она заводится целиком;</item>
+///   <item>ссылки строк проверены (<see cref="EstimateRowReferences" />): на месте, не в архиве (ТЗ
+///   CORE-34.4), нужного вида, а позиция перечня — этой стройки и того же вида работы и единицы;</item>
 ///   <item>номер редакции растёт в смете, а первая редакция становится действующей сама (решение В-5,
 ///   ТЗ PLAN-5.2).</item>
 /// </list>
@@ -40,7 +39,7 @@ public sealed record EstimateMaterialDraft(
 /// </summary>
 public sealed class EstimateRevisionWriter(
     PlanDbContext db, IModuleTypes types, IModuleWriteGuard writeGuard, IModuleWorkTypes workTypes,
-    IModuleUnits units, IModuleReferenceTargets targets, IModuleUser user)
+    IModuleUnits units, IModulePlanItems planItems, IModuleCatalog catalog, IModuleUser user)
 {
     /// <summary>Записать редакцию со строками; ответ — заведённая редакция.</summary>
     public async Task<EstimateRevision> AddAsync(
@@ -53,7 +52,7 @@ public sealed class EstimateRevisionWriter(
             if (string.IsNullOrWhiteSpace(row.Name))
                 throw new InvalidRequestException($"Строка {i + 1}: нет наименования.");
 
-        await EnsureReferencesAsync(rows, ct);
+        await EstimateRowReferences.EnsureAsync(estimate, rows, workTypes, units, planItems, catalog, ct);
         var typeId = await types.FindAsync(PlanRecordTypes.EstimateRowCode, ct)
             ?? throw new ConflictException(
                 $"Тип «{PlanRecordTypes.EstimateRow.Name}» на экземпляре не заведён — сметное наполнение строк " +
@@ -64,19 +63,19 @@ public sealed class EstimateRevisionWriter(
             .MaxAsync(r => (int?)r.Number, ct) ?? 0) + 1;
         var revision = EstimateRevision.Create(estimateId, number, source, user.Id, user.Name, DateTimeOffset.UtcNow);
 
-        // Сметное наполнение каждой строки проходит охрану записи. Одинаковое спрашивается один раз:
-        // строк в редакции тысячи, а наполнение у них часто совпадает. Отказ называет все строки разом,
-        // поэтому строки копятся, а в контекст попадают, только если отказов нет.
+        // Сметное наполнение проходит охрану записи одним пакетом: тип и справочники схемы читаются раз
+        // на редакцию, а не на строку, и одинаковое наполнение спрашивается один раз. Отказ называет все
+        // строки разом, поэтому строки копятся, а в контекст попадают, только если отказов нет.
+        var data = rows.Select((r, i) => Normalized(r.Data, i + 1)).ToList();
+        var distinct = data.Distinct(StringComparer.Ordinal).ToList();
+        var verdicts = distinct.Zip(await writeGuard.CreationRefusalsAsync(typeId, distinct, ct))
+            .ToDictionary(v => v.First, v => v.Second, StringComparer.Ordinal);
         var refusals = new List<string>();
-        var guarded = new Dictionary<string, IReadOnlyList<ModuleWriteRefusal>>(StringComparer.Ordinal);
         var created = new List<(EstimateRow Row, EstimateRowDraft Draft)>();
         foreach (var (draft, i) in rows.Select((r, i) => (r, i)))
         {
-            var data = Normalized(draft.Data, i + 1);
-            if (!guarded.TryGetValue(data, out var found))
-                guarded[data] = found = await writeGuard.RefusalsAsync(typeId, null, data, ct);
-            refusals.AddRange(found.Select(r => $"Строка {i + 1}{(r.Path is null ? "" : $", поле {r.Path}")}: {r.Message}"));
-            created.Add((EstimateRow.CreateEstimateRow(revision.Id, i + 1, draft, data), draft));
+            refusals.AddRange(verdicts[data[i]].Select(r => $"Строка {i + 1}{(r.Path is null ? "" : $", поле {r.Path}")}: {r.Message}"));
+            created.Add((EstimateRow.CreateEstimateRow(revision.Id, i + 1, draft, data[i]), draft));
         }
 
         if (refusals.Count > 0)
@@ -88,8 +87,8 @@ public sealed class EstimateRevisionWriter(
             db.EstimateRows.Add(row);
             foreach (var (material, m) in (draft.Materials ?? []).Select((x, m) => (x, m)))
                 db.EstimateRowMaterials.Add(EstimateRowMaterial.Create(row.Id, m + 1, material));
-            foreach (var hours in draft.Labor ?? [])
-                db.EstimateRowLabor.Add(EstimateRowLabor.Create(row.Id, hours));
+            foreach (var (hours, l) in (draft.Labor ?? []).Select((x, l) => (x, l)))
+                db.EstimateRowLabor.Add(EstimateRowLabor.Create(row.Id, l + 1, hours));
         }
 
         if (estimate.CurrentRevisionId is null) estimate.MakeCurrent(revision);
@@ -111,59 +110,6 @@ public sealed class EstimateRevisionWriter(
         catch (JsonException e)
         {
             throw new InvalidRequestException($"Строка {number}: сметное наполнение — не JSON.", e);
-        }
-    }
-
-    /// <summary>
-    /// Новые ссылки редакции (ТЗ CORE-34.4): вид работы и единица — записи своих справочников, позиция
-    /// перечня и номенклатура — записи ядра; каждая на месте и не в архиве. Отказ называет все строки разом.
-    /// </summary>
-    private async Task EnsureReferencesAsync(IReadOnlyList<EstimateRowDraft> rows, CancellationToken ct)
-    {
-        var numbered = rows.Select((r, i) => (Number: i + 1, Row: r)).ToList();
-        var workTypeRefs = numbered.Select(x => (x.Number, x.Row.WorkTypeId)).ToList();
-        var unitRefs = numbered.Select(x => (x.Number, x.Row.UnitId)).ToList();
-        var planItemRefs = numbered.Select(x => (x.Number, x.Row.PlanItemId)).ToList();
-        var materialRefs = numbered.SelectMany(x => (x.Row.Materials ?? []).Select(m => (x.Number, m.NomenclatureId))).ToList();
-
-        var problems = new List<string>();
-        if (Ids(workTypeRefs) is { Count: > 0 } workTypeIds)
-            problems.AddRange(Judge(workTypeRefs, (await workTypes.GetAsync(workTypeIds, ct))?.ToDictionary(w => w.Id, w => w.Archived)
-                ?? throw new InvalidRequestException(IModuleWorkTypes.NotSetUp), "вид работы"));
-        if (Ids(unitRefs) is { Count: > 0 } unitIds)
-            problems.AddRange(Judge(unitRefs, (await units.GetAsync(unitIds, ct))?.ToDictionary(u => u.Id, u => u.Archived)
-                ?? throw new InvalidRequestException(IModuleUnits.NotSetUp), "единица измерения"));
-        problems.AddRange(Judge(planItemRefs,
-            await StatesAsync(ReferenceTarget.WorkPlanItem, Ids(planItemRefs), ct), "позиция перечня работ"));
-        problems.AddRange(Judge(materialRefs,
-            await StatesAsync(ReferenceTarget.Record, Ids(materialRefs), ct), "позиция номенклатуры материала"));
-
-        if (problems.Count > 0)
-            throw new InvalidRequestException(string.Join("\n", problems.Distinct()));
-    }
-
-    private async Task<Dictionary<Guid, bool>> StatesAsync(ReferenceTarget target, List<Guid> ids, CancellationToken ct)
-    {
-        if (ids.Count == 0) return [];
-        var states = await targets.StatesAsync(target, ids, ct);
-        // Потерянная запись в словарь не попадает — её Judge назовёт «нет».
-        return states.Where(s => s.Value != ReferenceState.Lost).ToDictionary(s => s.Key, s => s.Value == ReferenceState.Archived);
-    }
-
-    private static List<Guid> Ids(IEnumerable<(int Number, Guid? Id)> refs) => [.. refs.Select(r => r.Id).OfType<Guid>().Distinct()];
-
-    /// <param name="found">Записи, найденные справочником: идентификатор → в архиве ли.</param>
-    private static IEnumerable<string> Judge(
-        IEnumerable<(int Number, Guid? Id)> refs, IReadOnlyDictionary<Guid, bool> found, string what)
-    {
-        foreach (var (number, id) in refs)
-        {
-            if (id is not { } value) continue;
-            if (!found.TryGetValue(value, out var archived))
-                yield return $"Строка {number}, {what}: записи нет — её удалили либо это запись другого вида.";
-            else if (archived)
-                yield return $"Строка {number}, {what}: запись в архиве — новая ссылка на неё не записывается. Выберите " +
-                             "действующую запись либо верните эту из архива.";
         }
     }
 }

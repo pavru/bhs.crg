@@ -54,14 +54,15 @@ public class RecordWriteGuardCoverageTests
 
     /// <summary>
     /// Вызов охраны: у ядра — <c>WriteGuard.EnsureAllowedAsync</c>, у модуля — метод порта
-    /// <c>RefusalsAsync</c> либо обёртка над ним (отказы порт возвращает, а не бросает, и превращает
+    /// <c>RefusalsAsync</c> (или его пакет для новых записей <c>CreationRefusalsAsync</c>, plan-06) либо
+    /// обёртка над ним (отказы порт возвращает, а не бросает, и превращает
     /// их в отказ запросу модуль). По имени метода, а не переменной: порт вправе зваться как угодно.
     /// Обёртку счёта зовут и из соседнего класса — фоновое распознавание скана (issue #1077). Само
     /// распознавание охраняет шапку ПО ПОЛЯМ своей обёрткой <c>GuardedAsync</c> (issue #1483): отказанное
     /// поле уходит в предложение, остальное ложится, — и зовёт её в условии записи.
     /// </summary>
     private static readonly Regex GuardCall = new(
-        @"WriteGuard\.EnsureAllowedAsync|\bawait\s+(InvoiceEndpoints\.)?EnsureAllowedAsync\(|\.RefusalsAsync\(|\bawait\s+GuardedAsync\(",
+        @"WriteGuard\.EnsureAllowedAsync|\bawait\s+(InvoiceEndpoints\.)?EnsureAllowedAsync\(|\.(Creation)?RefusalsAsync\(|\bawait\s+GuardedAsync\(",
         RegexOptions.Compiled);
 
     /// <summary>Сколько строк выше места записи ищется вызов охраны.</summary>
@@ -95,7 +96,7 @@ public class RecordWriteGuardCoverageTests
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|invoice.ApplyRequisites(columns, rest, dueDateByHand: true, rule);"] =
             (Guarded, "правка шапки счёта — проверяется против лежащего, дополненного неприсланным состоянием"),
 
-        ["BHS.CRG.Modules.Plan/Data/EstimateRevisionWriter.cs|created.Add((EstimateRow.CreateEstimateRow(revision.Id, i + 1, draft, data), draft));"] =
+        ["BHS.CRG.Modules.Plan/Data/EstimateRevisionWriter.cs|created.Add((EstimateRow.CreateEstimateRow(revision.Id, i + 1, draft, data[i]), draft));"] =
             (Guarded, "строка новой редакции сметы (plan-06): сметное наполнение по схеме «Позиция сметы» вносится " +
                       "впервые — редакция заводится целиком, лежащего нет; единственное место записи строк"),
         ["BHS.CRG.Application/Documents/DocumentTypeHandlers.cs|inst.SetData(System.Text.Json.JsonDocument.Parse(root.ToJsonString()));"] =

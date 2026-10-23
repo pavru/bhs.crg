@@ -12,8 +12,11 @@ public sealed class EstimateRowLabor
 
     public Guid RowId { get; private set; }
 
+    /// <summary>Порядок в строке, как в файле: идентификатор случаен, и порядок по нему потерял бы файл.</summary>
+    public int Order { get; private set; }
+
     public decimal ManHours { get; private set; }
 
-    internal static EstimateRowLabor Create(Guid rowId, decimal manHours) =>
-        new() { Id = Guid.NewGuid(), RowId = rowId, ManHours = manHours };
+    internal static EstimateRowLabor Create(Guid rowId, int order, decimal manHours) =>
+        new() { Id = Guid.NewGuid(), RowId = rowId, Order = order, ManHours = manHours };
 }

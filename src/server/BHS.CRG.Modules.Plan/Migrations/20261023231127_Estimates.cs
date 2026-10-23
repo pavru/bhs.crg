@@ -109,6 +109,7 @@ namespace BHS.CRG.Modules.Plan.Migrations
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
                     row_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    order = table.Column<int>(type: "integer", nullable: false),
                     man_hours = table.Column<decimal>(type: "numeric(18,4)", precision: 18, scale: 4, nullable: false)
                 },
                 constraints: table =>

@@ -107,21 +107,35 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
         }
     }
 
-    /// <summary>Отказ базы словами сметы; <c>null</c> — отказ не наш, пусть идёт как есть.</summary>
-    private static ConflictException? Refusal(DbUpdateException e)
+    /// <summary>
+    /// Отказ базы словами сметы; <c>null</c> — отказ не наш, пусть идёт как есть.
+    ///
+    /// <para>⚠️ Один внешний ключ отказывает с двух сторон: удаление того, на что ссылаются, и запись
+    /// ссылки на то, чего уже нет. Слова выбираются по тому, ЧТО делала эта фиксация (удаляла ли она
+    /// редакцию или смету), а не по одному имени ключа: иначе сделавший редакцию действующей прочитал бы
+    /// «редакцию нельзя удалить», хотя ничего не удалял.</para>
+    /// </summary>
+    private ConflictException? Refusal(DbUpdateException e)
     {
         if (e is DbUpdateConcurrencyException)
             return new ConflictException(
                 "Смету тем временем изменили, и эта правка не записана — целиком, ни одной частью. Перечитайте " +
                 "смету и повторите: записанная поверх, правка затёрла бы чужую.", e);
 
+        bool Deleting<T>() where T : class => ChangeTracker.Entries<T>().Any(x => x.State == EntityState.Deleted);
+
         return (e.InnerException as PostgresException)?.ConstraintName switch
         {
-            CurrentRevisionKey => new ConflictException(
+            CurrentRevisionKey when Deleting<EstimateRevision>() => new ConflictException(
                 "Редакцию нельзя удалить: она действующая — по ней считается план стройки. Сначала сделайте " +
                 "действующей другую редакцию.", e),
-            RevisionEstimateKey => new ConflictException(
+            CurrentRevisionKey => new ConflictException(
+                "Редакцию тем временем удалили, и действующей она не стала. Перечитайте смету и выберите " +
+                "действующую из оставшихся.", e),
+            RevisionEstimateKey when Deleting<Estimate>() => new ConflictException(
                 "Смету нельзя удалить: у неё есть редакции. Удаляется только смета без редакций.", e),
+            RevisionEstimateKey => new ConflictException(
+                "Смету тем временем удалили, и редакция в неё не записана. Заведите смету заново и повторите.", e),
             RevisionNumberKey => new ConflictException(
                 "В смету одновременно записывалась другая редакция, и эта не записана. Повторите — она получит " +
                 "следующий номер.", e),

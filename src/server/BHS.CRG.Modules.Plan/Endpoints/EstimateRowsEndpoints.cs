@@ -60,7 +60,7 @@ public static class EstimateRowsEndpoints
                 .Where(m => rowIds.Contains(m.RowId)).OrderBy(m => m.Order).ToListAsync(ct))
             .ToLookup(m => m.RowId);
         var labor = (await db.EstimateRowLabor.AsNoTracking()
-                .Where(x => rowIds.Contains(x.RowId)).OrderBy(x => x.Id).ToListAsync(ct))
+                .Where(x => rowIds.Contains(x.RowId)).OrderBy(x => x.Order).ToListAsync(ct))
             .ToLookup(x => x.RowId);
 
         var hidden = await EstimateViews.HiddenAsync(user, ct);

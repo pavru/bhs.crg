@@ -8,6 +8,12 @@ namespace BHS.CRG.Modules.Plan.Data;
 /// </summary>
 public sealed class EstimateRowMaterial
 {
+    /// <summary>Пределы кода и единицы ресурса из файла — те же числа, что у колонок базы.</summary>
+    public const int SourceCodeLength = 200;
+
+    /// <inheritdoc cref="SourceCodeLength"/>
+    public const int SourceUnitLength = 100;
+
     private EstimateRowMaterial() { }
 
     public Guid Id { get; private set; }
@@ -41,13 +47,10 @@ public sealed class EstimateRowMaterial
         Order = order,
         NomenclatureId = draft.NomenclatureId,
         SourceName = draft.SourceName,
-        SourceCode = Clip(draft.SourceCode, EstimateRow.RateCodeLength),
-        SourceUnit = Clip(draft.SourceUnit, EstimateRow.UnitLength),
+        SourceCode = PlanText.Clip(draft.SourceCode, SourceCodeLength),
+        SourceUnit = PlanText.Clip(draft.SourceUnit, SourceUnitLength),
         Quantity = draft.Quantity,
         UnitPrice = draft.UnitPrice,
         Amount = draft.Amount,
     };
-
-    private static string? Clip(string? value, int length) =>
-        value is null ? null : value.Length <= length ? value : value[..length];
 }

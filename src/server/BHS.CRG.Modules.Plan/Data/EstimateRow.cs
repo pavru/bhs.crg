@@ -94,13 +94,13 @@ public sealed class EstimateRow
             Id = Guid.NewGuid(),
             RevisionId = revisionId,
             Order = order,
-            LsrSectionCode = Clip(draft.LsrSectionCode, SectionCodeLength),
-            LsrSectionName = Clip(draft.LsrSectionName, SectionNameLength),
-            NumberInSection = Clip(draft.NumberInSection, NumberLength),
-            RateCode = Clip(draft.RateCode, RateCodeLength),
+            LsrSectionCode = PlanText.Clip(draft.LsrSectionCode, SectionCodeLength),
+            LsrSectionName = PlanText.Clip(draft.LsrSectionName, SectionNameLength),
+            NumberInSection = PlanText.Clip(draft.NumberInSection, NumberLength),
+            RateCode = PlanText.Clip(draft.RateCode, RateCodeLength),
             Name = draft.Name,
             SourceVolume = draft.SourceVolume,
-            SourceUnit = Clip(draft.SourceUnit, UnitLength),
+            SourceUnit = PlanText.Clip(draft.SourceUnit, UnitLength),
             WorkTypeId = draft.WorkTypeId,
             UnitId = draft.UnitId,
             Factor = draft.Factor,
@@ -110,7 +110,4 @@ public sealed class EstimateRow
             Total = draft.Total,
             Data = data,
         };
-
-    private static string? Clip(string? value, int length) =>
-        value is null ? null : value.Length <= length ? value : value[..length];
 }

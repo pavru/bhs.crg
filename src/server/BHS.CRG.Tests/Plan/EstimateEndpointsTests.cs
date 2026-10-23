@@ -28,7 +28,7 @@ public class EstimateEndpointsTests(PlanOnlyHost host)
         await EstimateSeed.RevisionAsync(host, estimate, await EstimateSeed.MatchedRowAsync(host, site, 10m));
         var matched = await EstimateSeed.MatchedRowAsync(host, site, 20m);
         var second = await EstimateSeed.RevisionAsync(host, estimate,
-            matched with { Labor = [1.5m] },
+            matched with { Labor = [2.5m, 1.5m] },
             new EstimateRowDraft("Без вида работы", LsrSectionCode: "1", LsrSectionName: "Электромонтаж",
                 Materials: [new("Кабель ВВГнг 3х2,5", 105m, SourceCode: "21.2.01", SourceUnit: "м")]));
         var reader = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.EstimateRead);
@@ -48,7 +48,8 @@ public class EstimateEndpointsTests(PlanOnlyHost host)
             .GetProperty("items").EnumerateArray().ToList();
         Assert.Equal(2, rows.Count);
         Assert.Empty(rows[0].GetProperty("marks").EnumerateArray());
-        Assert.Equal(1.5m, Assert.Single(rows[0].GetProperty("labor").EnumerateArray()).GetProperty("manHours").GetDecimal());
+        // Трудозатраты — в порядке файла, а не случайных идентификаторов.
+        Assert.Equal([2.5m, 1.5m], rows[0].GetProperty("labor").EnumerateArray().Select(l => l.GetProperty("manHours").GetDecimal()));
 
         var mark = Assert.Single(rows[1].GetProperty("marks").EnumerateArray());
         Assert.Equal("unmatched", mark.GetProperty("code").GetString());

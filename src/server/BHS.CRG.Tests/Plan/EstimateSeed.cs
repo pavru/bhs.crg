@@ -27,8 +27,11 @@ internal static class EstimateSeed
     private static readonly SemaphoreSlim Gate = new(1, 1);
     private static Classifier? classifier;
 
-    /// <summary>Вид работы и единица классификатора — ссылки сопоставленной строки; типы — для новых записей.</summary>
-    internal sealed record Classifier(Guid WorkType, Guid Unit, Guid WorkTypeClass);
+    /// <summary>
+    /// Вид работы и единица классификатора — ссылки сопоставленной строки; тип вида работы — для новых
+    /// записей; позиция номенклатуры — ссылка материала.
+    /// </summary>
+    internal sealed record Classifier(Guid WorkType, Guid Unit, Guid WorkTypeClass, Guid Nomenclature);
 
     /// <summary>Стройка с разделом — у каждого теста своя.</summary>
     internal sealed record Site(Guid Construction, Guid Section);
@@ -59,10 +62,16 @@ internal static class EstimateSeed
             await scope.ServiceProvider.ProjectModuleTypesAsync();
             var workType = (await seed.SendAsync(new ProjectModuleTypeCommand(CoreRecordTypes.WorkType)))!;
 
+            // Номенклатура — справочник по роли, как на базе заказчика (issue #1101).
+            var nomenclatureType = (await types.FindAsync(t => t.Code == TestDirectories.NomenclatureCode)).FirstOrDefault()
+                ?? await seed.TypeAsync(TestDirectories.NomenclatureCode, "Номенклатура");
+            await TestDirectories.AssignRolesAsync(scope.ServiceProvider);
+
             var unit = await seed.RecordAsync(unitType.Id, "м");
             var work = await seed.RecordAsync(workType.Id, "Прокладка кабеля",
                 WorkTypeSeed.WorkTypeData("01.02", "Прокладка кабеля", unit));
-            return new Classifier(work.Id, unit.Id, workType.Id);
+            var cable = await seed.RecordAsync(nomenclatureType.Id, "Кабель ВВГнг-LS 3х2,5");
+            return new Classifier(work.Id, unit.Id, workType.Id, cable.Id);
         }
     }
 
@@ -95,12 +104,12 @@ internal static class EstimateSeed
     }
 
     /// <summary>Позиция перечня стройки — портом ядра, как её заведёт сопоставление.</summary>
-    public static async Task<Guid> PlanItemAsync(PlanOnlyHost host, Site site)
+    public static async Task<Guid> PlanItemAsync(PlanOnlyHost host, Site site, Guid? workType = null)
     {
         var c = await ClassifierAsync(host);
         using var scope = host.Services.CreateScope();
         var outcome = await scope.ServiceProvider.GetRequiredService<IModulePlanItems>()
-            .FindOrCreateAsync(new PlanItemKey(c.WorkType, site.Construction, site.Section, c.Unit));
+            .FindOrCreateAsync(new PlanItemKey(workType ?? c.WorkType, site.Construction, site.Section, c.Unit));
         return outcome.Item?.Id ?? throw new InvalidOperationException(outcome.Refusal?.Reason);
     }
 

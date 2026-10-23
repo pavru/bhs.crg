@@ -280,6 +280,10 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("man_hours");
 
+                    b.Property<int>("Order")
+                        .HasColumnType("integer")
+                        .HasColumnName("order");
+
                     b.Property<Guid>("RowId")
                         .HasColumnType("uuid")
                         .HasColumnName("row_id");

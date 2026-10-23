@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BHS.CRG.Modules.Plan.Migrations
 {
     [DbContext(typeof(PlanDbContext))]
-    [Migration("20261023122900_Estimates")]
+    [Migration("20261023231127_Estimates")]
     partial class Estimates
     {
         /// <inheritdoc />
@@ -282,6 +282,10 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("man_hours");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer")
+                        .HasColumnName("order");
 
                     b.Property<Guid>("RowId")
                         .HasColumnType("uuid")

@@ -106,8 +106,8 @@ internal static class EstimateModel
         material.Property(m => m.Order).HasColumnName("order");
         material.Property(m => m.NomenclatureId).HasColumnName("nomenclature_id");
         material.Property(m => m.SourceName).HasColumnName("source_name");
-        material.Property(m => m.SourceCode).HasColumnName("source_code").HasMaxLength(EstimateRow.RateCodeLength);
-        material.Property(m => m.SourceUnit).HasColumnName("source_unit").HasMaxLength(EstimateRow.UnitLength);
+        material.Property(m => m.SourceCode).HasColumnName("source_code").HasMaxLength(EstimateRowMaterial.SourceCodeLength);
+        material.Property(m => m.SourceUnit).HasColumnName("source_unit").HasMaxLength(EstimateRowMaterial.SourceUnitLength);
         material.Property(m => m.Quantity).HasColumnName("quantity").HasPrecision(18, 6);
         material.Property(m => m.UnitPrice).HasColumnName("unit_price").HasPrecision(18, 2);
         material.Property(m => m.Amount).HasColumnName("amount").HasPrecision(18, 2);
@@ -122,6 +122,7 @@ internal static class EstimateModel
         labor.HasKey(l => l.Id);
         labor.Property(l => l.Id).HasColumnName("id");
         labor.Property(l => l.RowId).HasColumnName("row_id");
+        labor.Property(l => l.Order).HasColumnName("order");
         labor.Property(l => l.ManHours).HasColumnName("man_hours").HasPrecision(18, 4);
         labor.HasOne<EstimateRow>().WithMany().HasForeignKey(l => l.RowId).OnDelete(DeleteBehavior.Cascade);
         labor.HasIndex(l => l.RowId).HasDatabaseName("ix_estimate_row_labor_row_id");

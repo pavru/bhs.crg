@@ -38,16 +38,13 @@ internal static class EstimateViews
             .ToListAsync(ct);
         var revisionIds = revisions.Select(r => r.Revision.Id).ToList();
 
-        var stats = await db.EstimateRows.AsNoTracking()
-            .Where(row => revisionIds.Contains(row.RevisionId))
-            .GroupBy(row => row.RevisionId)
-            .Select(g => new
-            {
-                g.Key,
-                Rows = g.Count(),
-                Unmatched = g.Count(x => x.WorkTypeId == null || x.PlanItemId == null),
-                Total = g.Sum(x => x.Total ?? 0m),
-            })
+        // Итог редакции — только тому, кто его увидит: без права сумма по строкам не считается вовсе.
+        var rows = db.EstimateRows.AsNoTracking().Where(row => revisionIds.Contains(row.RevisionId));
+        var stats = await (cost
+                ? rows.GroupBy(row => row.RevisionId).Select(g => new RevisionStats(
+                    g.Key, g.Count(), g.Count(x => x.WorkTypeId == null || x.PlanItemId == null), g.Sum(x => x.Total ?? 0m)))
+                : rows.GroupBy(row => row.RevisionId).Select(g => new RevisionStats(
+                    g.Key, g.Count(), g.Count(x => x.WorkTypeId == null || x.PlanItemId == null), null)))
             .ToDictionaryAsync(s => s.Key, ct);
 
         return [.. heads.Select(h =>
@@ -83,4 +80,7 @@ internal static class EstimateViews
     public static Domain.Common.NotFoundException NotFound() => new("Смета не найдена — возможно, её удалили.");
 
     private static string Text(uint version) => version.ToString(CultureInfo.InvariantCulture);
+
+    /// <param name="Total">Итог по строкам; <c>null</c> — не считался: у читающего нет права.</param>
+    private sealed record RevisionStats(Guid Key, int Rows, int Unmatched, decimal? Total);
 }

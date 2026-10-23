@@ -79,9 +79,9 @@ public sealed class EstimateRevision
             EstimateId = estimateId,
             Number = number,
             SourceBlobPath = source.BlobPath,
-            SourceFileName = Clip(source.FileName, FileNameLength),
-            SchemaVersion = Clip(source.SchemaVersion, SchemaVersionLength),
-            ImportKey = Clip(source.ImportKey, ImportKeyLength),
+            SourceFileName = PlanText.Clip(source.FileName, FileNameLength),
+            SchemaVersion = PlanText.Clip(source.SchemaVersion, SchemaVersionLength),
+            ImportKey = PlanText.Clip(source.ImportKey, ImportKeyLength),
             ImportedAt = now,
             ImportedBy = importedBy,
             ImportedByName = importedByName,
@@ -102,7 +102,7 @@ public sealed class EstimateRevision
 
         FrozenAt = now;
         FrozenCode = reason.Code;
-        FrozenLabel = Clip(reason.Label, FreezeLabelLength);
+        FrozenLabel = PlanText.Clip(reason.Label, FreezeLabelLength);
     }
 
     /// <summary>
@@ -118,9 +118,6 @@ public sealed class EstimateRevision
             "читает редакцию такой, какой её сделали; для изменений импортируйте смету заново — появится " +
             "новая редакция.");
     }
-
-    private static string? Clip(string? value, int length) =>
-        value is null ? null : value.Length <= length ? value : value[..length];
 }
 
 /// <summary>Откуда редакция: файл, версия его схемы и ключ импорта (заполняет импорт, <c>plan-07</c>).</summary>

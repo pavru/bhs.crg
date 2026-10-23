@@ -93,6 +93,18 @@ public sealed class PlanModule : IAppModule
     /// <summary>Тип сметного наполнения строки — <see cref="PlanRecordTypes" /> (ТЗ TYPE-16).</summary>
     public IReadOnlyList<ModuleRecordType> RecordTypes => PlanRecordTypes.All;
 
+    /// <summary>
+    /// Справочник номенклатуры — по роли, как у счетов (ТЗ TYPE-23, PLAN-9.1): на позицию ссылается
+    /// материал строки сметы. Порт справочников отвечает только на объявленные роли.
+    /// </summary>
+    public IReadOnlyList<ModuleRoleNeed> Needs =>
+    [
+        new(BHS.CRG.Domain.Schema.FunctionalTag.RoleNomenclature,
+            "Позиция материала в строке сметы",
+            "Материалы строк сметы не сослаться на номенклатуру: редакция, где у материала выбрана позиция, " +
+            "не записывается; материалы без позиции записываются и ждут сопоставления."),
+    ];
+
     public IReadOnlyList<ModuleReference> References => PlanReferences.All;
 
     public IReadOnlyList<ModuleFile> Files => PlanFiles.All;
