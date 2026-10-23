@@ -24,7 +24,7 @@ PR закрывает #1531 («Closes #1531»), метки `ui` и `version:mino
 
 ## 2. Компонент
 
-- [ ] 2.1 `shared/api/fieldSuggestions.ts` — хук React Query по контракту D10: ключ с `q`, `staleTime`
+- [x] 2.1 `shared/api/fieldSuggestions.ts` — хук React Query по контракту D10: ключ с `q`, `staleTime`
   60 с, отмена через `signal` [UI-5]. Проверка — тест: два одинаковых запроса в пределах 60 с — один вызов
 - [ ] 2.2 `shared/ui/SuggestField.tsx`: `TextField` + Popover с порталом в body, открытие вводом / ↓ в
   форме / Alt+↓, задержка 200 мс, вариант `compact` для ячейки [UI-1] [UI-5]. Проверка — тесты: фокус
