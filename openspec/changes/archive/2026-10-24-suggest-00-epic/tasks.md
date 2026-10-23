@@ -41,13 +41,17 @@ change заархивирован. Архитектура — `design.md`. По�
 
 ## 4. Верификация эпика
 
-- [ ] 4.1 Профильные тесты: `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~FieldSuggestion|FullyQualifiedName~Suggestable|FullyQualifiedName~ArchiveRead|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~AgentRulesCopy"` — зелёный
-- [ ] 4.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 4.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
-- [ ] 4.4 Лимит 500 строк кода: `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 4.5 «Не входит» соблюдено: `InvoiceExtraFields` адрес не зовёт, `text` и `primitive` не
-  подсказываются. Проверка — `grep -rn "field-suggestions" src/client/src/features/costs` находит только
-  шаг «Новая позиция»
+- [x] 4.1 Профильные тесты: `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~FieldSuggestion|FullyQualifiedName~Suggestable|FullyQualifiedName~ArchiveRead|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~AgentRulesCopy"` — зелёный
+  (24.10.2026, master `221f838d`: вместе с 4.4 — 115 из 115)
+- [x] 4.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный (215 файлов, 2544 теста)
+- [x] 4.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
+- [x] 4.4 Лимит 500 строк кода: `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 4.5 «Не входит» соблюдено: `InvoiceExtraFields` адрес не зовёт, `text` и `primitive` не
+  подсказываются (случаи `type` в `shared/api/suggestableCases.json`). Проверка —
+  `grep -rln "fieldSuggestions\|SuggestField" src/client/src/features/costs` находит только
+  `NewNomenclatureStep.tsx`. Строкой `field-suggestions` искать нельзя: адрес назван один раз, в
+  `shared/api/fieldSuggestions.ts`, и в `features/costs` такой grep находит лишь тест шага — проверка
+  молчала бы и при вызове из `InvoiceExtraFields`
 
 ## Workflow follow-up
 
