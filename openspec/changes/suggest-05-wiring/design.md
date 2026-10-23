@@ -1,7 +1,7 @@
 # Design: подключение подсказок — шаг «Новая позиция», формы, ячейки, флажок
 
 Общая архитектура — `../suggest-00-epic/design.md` (D3, D4, D9, D10, D12); компонент —
-`../suggest-03-field/design.md`. Здесь только решения этого change.
+`../archive/2026-10-23-suggest-03-field/design.md`. Здесь только решения этого change.
 
 ## Context
 

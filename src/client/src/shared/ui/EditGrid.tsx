@@ -17,8 +17,10 @@ import { Tooltip } from './Tooltip';
  *
  * Что сетка делает сама:
  * - **переход по клеткам с клавиатуры**: ↑↓ — та же колонка соседней строки, ←→ — соседняя клетка
- *   с полем, у текстового поля — только с края текста (иначе стрелка двигает каретку). Выпадающие
- *   списки (`role="combobox"`) свои стрелки оставляют себе: ими листают пункты;
+ *   с полем, у текстового поля — только с края текста (иначе стрелка двигает каретку). Стрелки
+ *   уступаются открытому списку (`role="combobox"` с `aria-expanded="true"`: ими листают пункты) и
+ *   контролу, который уже забрал клавишу себе (`preventDefault`, как триггер `Select`). У закрытого
+ *   списка подсказки (`SuggestField`) ↑↓ — переход по строкам;
  * - **фокус после добавления и удаления**: новая строка получает фокус в первом поле, после удаления
  *   фокус встаёт на ту же кнопку соседней строки — иначе он падал бы на `body`, и с клавиатуры
  *   приходилось бы идти от начала страницы;
@@ -154,7 +156,11 @@ export function EditGrid<Row>({
     const c = Number(cell.dataset.c);
 
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-      if (target.getAttribute('role') === 'combobox' || target instanceof HTMLTextAreaElement) return;
+      // Уступаем только ОТКРЫТОМУ списку: у поля с подсказкой (`SuggestField`) список закрыт почти
+      // всегда, и уступка по одной роли отняла бы у ячейки переход по строкам. Триггер `Select`
+      // открывается на ↑↓ сам и зовёт preventDefault — его отсекает проверка выше.
+      if (target.getAttribute('role') === 'combobox' && target.getAttribute('aria-expanded') === 'true') return;
+      if (target instanceof HTMLTextAreaElement) return;
       const next = e.key === 'ArrowUp' ? r - 1 : r + 1;
       if (next >= 0 && next < rows.length && focusCell(next, c)) e.preventDefault();
       return;
