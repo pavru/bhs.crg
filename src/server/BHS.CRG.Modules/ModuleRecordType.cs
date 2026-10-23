@@ -140,6 +140,12 @@ public enum ModuleStorage
 /// останавливает старт. Перенос данных из общей таблицы в таблицу модуля — миграция, а не
 /// свойство, которое подтверждают каждым запуском; молча он означал бы, что прежние объекты
 /// остались лежать там, где их больше никто не читает.</para></param>
+/// <param name="Kind">Род типа (ТЗ TYPE-7): тип документа или составной. Умолчание — документ: им были
+/// все типы модулей до первого составного — <c>ПозицияСметы</c> модуля <c>plan</c> (change
+/// <c>plan-06-estimate-model</c>, ТЗ TYPE-16), сметное наполнение строки, а не документ.
+///
+/// <para>⚠️ Род, как и носитель, объявляется, но не переносится: у заведённого типа он остаётся тем,
+/// каким тип заведён.</para></param>
 public sealed record ModuleRecordType(
     string Code,
     string Name,
@@ -147,4 +153,18 @@ public sealed record ModuleRecordType(
     IReadOnlyList<ModuleSystemField> Fields,
     string? Group = null,
     ModuleStorage Storage = ModuleStorage.SharedObject,
-    bool SkipWhenBlocked = false);
+    bool SkipWhenBlocked = false,
+    ModuleTypeKind Kind = ModuleTypeKind.Document);
+
+/// <summary>
+/// Род типа модуля (ТЗ TYPE-7). ⚠️ ЗЕРКАЛО доменного <c>DocumentTypeKind</c> — по той же причине и с тем
+/// же сторожем, что <see cref="ModuleSchemaLevel" />: ссылок на наши проекты в этом проекте нет вовсе.
+/// </summary>
+public enum ModuleTypeKind
+{
+    /// <summary>Тип документа: у него реквизиты, печатная форма, место в комплекте.</summary>
+    Document,
+
+    /// <summary>Составной тип — переиспользуемая структура полей: справочник или строка записи.</summary>
+    Composite,
+}

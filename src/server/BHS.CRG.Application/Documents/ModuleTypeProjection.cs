@@ -190,6 +190,7 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
         // прежней цепочке сказала бы про набор полей, которого уже не будет.
         if (spec.Parent is { Length: > 0 }) type.SetParent(parentId);
         EnsureCarrierUnchanged(type, spec);
+        EnsureKindUnchanged(type, spec);
         EnsureCardinalityHolds(type.WithSchema(projected), all, spec);
         type.UpdateSchema(projected);
         // Уровень и владелец — свойства модуля, и он их подтверждает каждым стартом.
@@ -223,6 +224,21 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
             "из одного носителя в другой — миграция модуля, а не свойство, которое подтверждают " +
             "запуском. Перенесите данные своей миграцией, и тогда объявление сойдётся; до тех пор " +
             "записи прежнего носителя читать было бы некому.");
+    }
+
+    /// <summary>
+    /// Род у заведённого типа не меняется проекцией (change <c>plan-06-estimate-model</c>) — по той же
+    /// причине, что носитель. Род решает, где тип живёт: составной — в справочниках и полях, документ — в
+    /// комплектах и печати. Пропусти мы смену молча, тип остался бы в прежнем месте, а объявление
+    /// говорило бы другое, и ни один журнал не объяснил бы, почему.
+    /// </summary>
+    private static void EnsureKindUnchanged(DocumentType type, ModuleTypeSpec spec)
+    {
+        if (type.Kind == spec.Kind) return;
+        throw new ConflictException(
+            $"{Who(spec)} объявляет тип «{spec.Code}» родом «{spec.Kind}», а заведён он родом «{type.Kind}». " +
+            "Проекция род не меняет: объекты прежнего рода живут в своих местах (справочник или комплект), и " +
+            "перенос их — миграция модуля, а не свойство, которое подтверждают запуском.");
     }
 
     /// <summary>

@@ -364,6 +364,9 @@ public partial class ArchiveReadInventoryTests
             Seen("названия позиций в стоящих строках счёта; признак строке даёт состояние ссылок"),
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|var states = await targets.StatesAsync(ReferenceTarget.Record, [.. named.Select(p => p.Id!.Value)], ct);"] =
             Seen("новая сторона счёта: есть ли запись вовсе; архивную отвергает правило новых ссылок следом"),
+        ["BHS.CRG.Modules.Plan/Data/EstimateRowReferences.cs|(await catalog.RefsAsync(FunctionalTag.RoleNomenclature, nomenclatureIds, ct))?.ToDictionary(r => r.Id, r => r.Archived)"] =
+            Choice("новые материалы строк редакции сметы (plan-06): архивная позиция номенклатуры отвергается, запись другого вида — тоже",
+                nameof(BHS.CRG.Tests.Plan.EstimateRowReferencesTests.Архивная_номенклатура_материала_отвергается)),
         ["BHS.CRG.Modules.Costs/Endpoints/NewReferences.cs|if (await catalog.RefsAsync(typeCode, fresh, ct) is not { } found) return null;"] =
             Choice("правило новых ссылок модуля: сторона счёта, позиция строки счёта и накладной — архивная отвергается",
                 nameof(InvoiceArchiveTests.Счёт_с_архивным_поставщиком_читается_и_правится_а_новым_поставщиком_архивный_не_ставится),
