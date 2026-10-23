@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router';
-import { Plus, Trash2, Pencil, FolderOpen, Layers, Database, Table2, Users } from 'lucide-react';
+import { Plus, Trash2, Pencil, FolderOpen, Layers } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
@@ -10,37 +10,31 @@ import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
 import { NotFavoriteNote } from '@/shared/siteFilter/SiteFilterNotes';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
-import { CatalogResource } from './catalog/CatalogResource';
-import { DataSetsResource } from '@/features/datasets/DataSetsResource';
 import { problemOf } from '@/shared/api/reconciliations';
 import { planOf, planTitle } from '@/shared/api/plans';
 import { PlanProgressBadge } from './PlanProgressBadge';
-import { SubscribersResource } from './SubscribersResource';
 import { ruCount } from '@/shared/utils/pluralize';
-import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useGetConstruction, useRenameSection, useDeleteSection, useCreateDocumentSet } from '@/shared/api/constructions';
 import { useCan } from '@/shared/api/access';
 import { useIdIndicators } from './useIdIndicators';
 import { HiddenByWorkspace } from '@/shared/ui/WorkspaceNav';
-import { useWorkspace } from '@/shared/ui/workspaceContext';
+import { useScopePanels } from './scopePanels';
 
 // ── Экран раздела ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
 // экранами в одном файле на 1051 строку. Экраны ничего не разделяют между собой, кроме
 // импортов, — перенос без изменения поведения.
 
-type SectionPanel = 'catalog' | 'datasets' | 'subscribers';
-
 export function SectionDetail() {
 
-  const { constructionId, sectionId, panel } = useParams<{ constructionId: string; sectionId: string; panel?: string }>();
+  const { constructionId, sectionId } = useParams<{ constructionId: string; sectionId: string }>();
   const navigate = useNavigate();
-  const activePanel: SectionPanel = (['datasets', 'subscribers'].includes(panel ?? '') ? panel : 'catalog') as SectionPanel;
   const { data: construction, isLoading } = useGetConstruction(constructionId!);
-  const { data: docTypes = [] } = useListDocumentTypes();
+  // Панели «Работы» и «Этот раздел» — из того же реестра, что у карточки стройки (plan-02).
+  const base = `/document-sets/${constructionId}/sections/${sectionId}`;
+  const panels = useScopePanels('section', base, { constructionId: constructionId!, sectionId: sectionId! });
   // Пункты модуля ИД — комплекты, их счётчики, готовность и «требует разбора» — ещё и по пространству
   // (ТЗ AUTH-16.1, issue #1001): страница стройки показывает пункты модулей открытого пространства.
-  const datasetsShown = useWorkspace().showsSection('datasets');
   const { shown: idOn, plan, problems } = useIdIndicators('Section', sectionId);
   // Комплекты — модуль ИД, а раздел — ядро (issue #1128). Без модуля блок комплектов и кнопки
   // «Добавить комплект» не рисуются ВОВСЕ, а не пустым «Нет комплектов»: каждая дверь открывалась
@@ -76,8 +70,6 @@ export function SectionDetail() {
 
   const setsInSection = section.documentSets.length;
   const docsInSection = section.documentSets.reduce((acc, ds) => acc + (ds.documentCount ?? 0), 0);
-  const base = `/document-sets/${constructionId}/sections/${sectionId}`;
-  const goPanel = (p: SectionPanel) => navigate(p === 'catalog' ? base : `${base}/${p}`);
 
   async function handleAddSet(e: React.FormEvent) {
     e.preventDefault();
@@ -103,6 +95,7 @@ export function SectionDetail() {
 
   const nav = (
     <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2 space-y-0.5">
+      {panels.workNav}
       <HiddenByWorkspace module="id" what="Комплекты раздела" />
       {idOn && <>
         <NavSection label="Комплекты" />
@@ -124,14 +117,7 @@ export function SectionDetail() {
           </button>
         )}
       </>}
-      <NavSection label="Этот раздел" />
-      <NavItem icon={<Database size={17} />} label="Каталог" active={activePanel === 'catalog'} onClick={() => goPanel('catalog')} />
-      {/* Наборы данных — раздел ядра `datasets` (ревью PR #1330): в пространстве, которое его не
-          объявило, пункта нет, как и в главном меню; открытая по ссылке панель получает плашку. */}
-      {datasetsShown && (
-        <NavItem icon={<Table2 size={17} />} label="Наборы данных" active={activePanel === 'datasets'} onClick={() => goPanel('datasets')} />
-      )}
-      <NavItem icon={<Users size={17} />} label="Подписчики" active={activePanel === 'subscribers'} onClick={() => goPanel('subscribers')} />
+      {panels.ownNav('Этот раздел')}
     </div>
   );
 
@@ -149,13 +135,7 @@ export function SectionDetail() {
 
   const detail = (
     <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
-      {activePanel === 'catalog'
-        ? <CatalogResource scope="Section" scopeId={sectionId ?? null} allDocTypes={docTypes} />
-        : activePanel === 'datasets'
-        ? <DataSetsResource scope="Section" scopeId={sectionId} />
-        : <div className="mx-auto max-w-5xl">
-            <SubscribersResource scope="Section" scopeId={sectionId!} />
-          </div>}
+      {panels.detail}
     </div>
   );
 

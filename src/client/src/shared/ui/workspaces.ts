@@ -1,7 +1,8 @@
 import type { AccessInfo, ModuleAccess } from '@/shared/api/access';
 import type { UserSettings } from '@/shared/api/userSettings';
 import { ruCount, ruPlural } from '@/shared/utils/pluralize';
-import { pageOwners, type NavItem, type PageOwner } from './navConfig';
+import { allPageOwners } from './constructionPanels';
+import type { NavItem, PageOwner } from './navConfig';
 
 /**
  * Рабочие пространства (ТЗ AUTH-16.1, AUTH-16.3, AUTH-16.5, OVW-18.1; issue #1001) — правила без
@@ -214,12 +215,12 @@ export function splitNav(items: NavItem[], ws: Workspace, access: AccessInfo): {
  * Чему принадлежит адрес страницы, — если это вне пространства. Тогда на странице плашка «Открыто
  * вне пространства» (AUTH-16.1): ссылка из письма открывается, а пространство не меняется.
  *
- * Сначала страницы чужих модулей и разделов под адресом «Строек» (`pageOwners`: комплект, панель
- * наборов данных), затем пункт меню с самым длинным подходящим адресом: `/tables/costs.invoices/registry`
+ * Сначала страницы чужих модулей и разделов под адресом «Строек» (`allPageOwners`: комплект и панели
+ * карточки стройки из их реестра), затем пункт меню с самым длинным подходящим адресом: `/tables/costs.invoices/registry`
  * точнее `/tables`.
  */
 export function outsideItem(pathname: string, items: NavItem[], ws: Workspace, access: AccessInfo,
-  pages: PageOwner[] = pageOwners): { label: string } | null {
+  pages: PageOwner[] = allPageOwners): { label: string } | null {
   const page = pages.find(p => p.match.test(pathname));
   if (page) return inWorkspace(page, ws, access) ? null : { label: page.label };
   const owner = [...items]

@@ -16,10 +16,13 @@ export function DocumentSetsPage() {
   return (
     <Routes>
       <Route index element={<ConstructionsList />} />
+      {/* Панель — из реестра `constructionPanels.ts` (plan-02). `:panel/*`, а не `:panel`: адрес панели
+          не зависит от способа показа, а «смета → редакция → строки» требует вложенных адресов.
+          Голый адрес стройки и раздела перенаправляет на панель по умолчанию. */}
       <Route path=":constructionId" element={<ConstructionDetail />} />
-      <Route path=":constructionId/:panel" element={<ConstructionDetail />} />
+      <Route path=":constructionId/:panel/*" element={<ConstructionDetail />} />
       <Route path=":constructionId/sections/:sectionId" element={<SectionDetail />} />
-      <Route path=":constructionId/sections/:sectionId/:panel" element={<SectionDetail />} />
+      <Route path=":constructionId/sections/:sectionId/:panel/*" element={<SectionDetail />} />
       <Route path=":constructionId/sets/:setId" element={set} />
       <Route path=":constructionId/sets/:setId/:panel" element={set} />
       {/* Документ — страница, а не окно над комплектом (issue #1384). */}

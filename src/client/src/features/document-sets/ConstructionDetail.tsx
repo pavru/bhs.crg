@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router';
-import { Plus, Trash2, Pencil, Layers, Building2, Database, Table2, Users } from 'lucide-react';
+import { Plus, Trash2, Pencil, Layers, Building2 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
@@ -10,36 +10,31 @@ import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
 import { NotFavoriteNote } from '@/shared/siteFilter/SiteFilterNotes';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
-import { CatalogResource } from './catalog/CatalogResource';
-import { DataSetsResource } from '@/features/datasets/DataSetsResource';
 import { problemOf } from '@/shared/api/reconciliations';
 import { planOf, planTitle } from '@/shared/api/plans';
 import { PlanProgressBadge } from './PlanProgressBadge';
-import { SubscribersResource } from './SubscribersResource';
 import { ruCount } from '@/shared/utils/pluralize';
-import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useGetConstruction, useRenameConstruction, useDeleteConstruction, useCreateSection } from '@/shared/api/constructions';
 import { useCan } from '@/shared/api/access';
 import { useIdIndicators } from './useIdIndicators';
-import { useWorkspace } from '@/shared/ui/workspaceContext';
+import { useScopePanels } from './scopePanels';
 
 // ── Экран стройки ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
 // экранами в одном файле на 1051 строку. Экраны ничего не разделяют между собой, кроме
 // импортов, — перенос без изменения поведения.
 
-type ConstructionPanel = 'catalog' | 'datasets' | 'subscribers';
-
 export function ConstructionDetail() {
 
-  const { constructionId, panel } = useParams<{ constructionId: string; panel?: string }>();
+  const { constructionId } = useParams<{ constructionId: string }>();
   const navigate = useNavigate();
-  const activePanel: ConstructionPanel = (['datasets', 'subscribers'].includes(panel ?? '') ? panel : 'catalog') as ConstructionPanel;
   const { data: construction, isLoading } = useGetConstruction(constructionId!);
-  const { data: docTypes = [] } = useListDocumentTypes();
+  // Панели «Работы» и «Эта стройка» — из реестра (plan-02): отбор по правам и пространству, панель по
+  // умолчанию и перенаправление голого адреса на неё.
+  const base = `/document-sets/${constructionId}`;
+  const panels = useScopePanels('construction', base, { constructionId: constructionId! });
   // Пункты модуля ИД — комплекты, их счётчики, готовность и «требует разбора» — ещё и по пространству
   // (ТЗ AUTH-16.1, issue #1001): страница стройки показывает пункты модулей открытого пространства.
-  const datasetsShown = useWorkspace().showsSection('datasets');
   const { shown: idOn, plan, problems } = useIdIndicators('Construction', constructionId);
   // Счётчик комплектов у раздела — число модуля ИД (issue #1128): без модуля его нет, а не ноль.
   // Правка стройки и её разделов — право core.constructions.edit: без него кнопки отвечали бы 403.
@@ -73,8 +68,6 @@ export function ConstructionDetail() {
   if (isLoading) return <div className="p-6 text-sm text-fg4">Загрузка...</div>;
   if (!construction) return <div className="p-6 text-sm text-danger">Стройка не найдена</div>;
 
-  const base = `/document-sets/${constructionId}`;
-  const goPanel = (p: ConstructionPanel) => navigate(p === 'catalog' ? base : `${base}/${p}`);
   const sectionsN = construction.sections.length;
   const setsN = construction.sections.reduce((a, s) => a + s.documentSets.length, 0);
   const docsN = construction.sections.reduce((a, s) => a + s.documentSets.reduce((x, ds) => x + (ds.documentCount ?? 0), 0), 0);
@@ -90,6 +83,7 @@ export function ConstructionDetail() {
 
   const nav = (
     <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2 space-y-0.5">
+      {panels.workNav}
       <NavSection label="Разделы" />
       {construction.sections.length === 0 && <p className="px-3 py-1.5 text-xs text-fg4">Нет разделов</p>}
       {construction.sections.map(s => {
@@ -108,14 +102,7 @@ export function ConstructionDetail() {
           <Plus size={16} className="shrink-0" /> Добавить раздел
         </button>
       )}
-      <NavSection label="Эта стройка" />
-      <NavItem icon={<Database size={17} />} label="Каталог" active={activePanel === 'catalog'} onClick={() => goPanel('catalog')} />
-      {/* Наборы данных — раздел ядра `datasets` (ревью PR #1330): в пространстве, которое его не
-          объявило, пункта нет, как и в главном меню; открытая по ссылке панель получает плашку. */}
-      {datasetsShown && (
-        <NavItem icon={<Table2 size={17} />} label="Наборы данных" active={activePanel === 'datasets'} onClick={() => goPanel('datasets')} />
-      )}
-      <NavItem icon={<Users size={17} />} label="Подписчики" active={activePanel === 'subscribers'} onClick={() => goPanel('subscribers')} />
+      {panels.ownNav('Эта стройка')}
     </div>
   );
 
@@ -133,13 +120,7 @@ export function ConstructionDetail() {
 
   const detail = (
     <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
-      {activePanel === 'catalog'
-        ? <CatalogResource scope="Construction" scopeId={constructionId ?? null} allDocTypes={docTypes} />
-        : activePanel === 'datasets'
-        ? <DataSetsResource scope="Construction" scopeId={constructionId} />
-        : <div className="mx-auto max-w-5xl">
-            <SubscribersResource scope="Construction" scopeId={constructionId!} />
-          </div>}
+      {panels.detail}
     </div>
   );
 

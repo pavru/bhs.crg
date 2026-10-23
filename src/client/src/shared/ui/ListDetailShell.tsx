@@ -102,7 +102,7 @@ export function NavSection({ label }: { label: string }) {
  * `chevron` — «ребёнок» (уводит вглубь/роут): счётчик перед chevron, НИКОГДА не подсвечивается;
  * без `chevron` — ресурс/контент уровня (меняет detail на месте): тональный бейдж-счётчик, подсветка при active.
  */
-export function NavItem({ icon, label, count, active, chevron, filter, onClick, alert, alertDanger, progress, progressTitle }: {
+export function NavItem({ icon, label, count, active, chevron, filter, onClick, alert, alertDanger, progress, progressTitle, note }: {
   icon: ReactNode; label: string; count?: number; active?: boolean; chevron?: boolean; onClick: () => void;
   /** Пункт сужает СПИСОК (отбор по состоянию), а не меняет карточку: на узком месте он оставляет
    *  список на экране — показать карточку значило бы спрятать только что отобранное (issue #1355). */
@@ -121,6 +121,8 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
   /** Расхождение, посчитанное СИСТЕМОЙ. Красный зарезервирован за арифметикой: двести утверждений
    *  агента — не то же самое, что одно расхождение в числах. */
   alertDanger?: boolean;
+  /** Пометка на месте счётчика: панель открыта по ссылке вне пространства (plan-02, макет П0). */
+  note?: string;
 }) {
   const highlight = active && !chevron;
   // Пункт уровня меняет карточку на месте — на узком месте её и надо показать (issue #1355).
@@ -155,6 +157,8 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
           {count != null && <span className="text-xs text-fg4 shrink-0">{count}</span>}
           <ChevronRight size={14} className="shrink-0 text-fg4" />
         </>
+      ) : note ? (
+        <span className="text-caption px-1.5 py-0.5 rounded-full shrink-0 bg-muted text-fg3">{note}</span>
       ) : (
         count != null && count > 0 && (
           <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${highlight ? 'bg-white/50 text-brand-hover' : 'bg-brand-subtle text-brand'}`}>{count}</span>

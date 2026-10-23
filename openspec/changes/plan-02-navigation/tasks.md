@@ -32,7 +32,7 @@
 
 ## 2. PR 2: страница входа и панели карточки стройки (после выбора П0)
 
-- [ ] 2.1 `NavItem.entry?: number` и `shared/ui/entryPage.ts`: наименьший ранг среди видимых в текущем
+- [x] 2.1 `NavItem.entry?: number` и `shared/ui/entryPage.ts`: наименьший ранг среди видимых в текущем
   пространстве, иначе первый видимый, иначе страница `AUTH-15`; индекс-маршрут `App.tsx:122` зовёт её
   вместо `/document-sets` [AUTH-16.1] [AUTH-16.3]. Шкала рангов — с константой `HOME_ENTRY_RANK` для
   Главной (`shell-08-home`, вариант Б, решение 22.10.2026): пункт Главной в расчёт входит, когда он
@@ -42,32 +42,33 @@
   пункт вне пространства, пустая навигация; с объявленным пунктом Главной — пункт с рангом меньше
   `HOME_ENTRY_RANK` при одном модуле открывается вместо неё, при двух модулях и при всех правах — Главная, с
   большим рангом — уступает ей; тест `navConfig`: пункт ядра с рангом ниже Главной — ошибка
-- [ ] 2.2 `shared/ui/constructionPanels.ts` — реестр панелей с правом (или списком), разделом ядра или
+- [x] 2.2 `shared/ui/constructionPanels.ts` — реестр панелей с правом (или списком), разделом ядра или
   модулем, `block` («Работы» сверху или «Эта стройка») и `levels` (стройка, раздел);
   `ConstructionDetail.tsx` и `SectionDetail.tsx` строят по нему пункты и содержимое; «Каталог», «Наборы
   данных», «Подписчики» — в реестре; маршрут `:panel/*`; реестр даёт записи `pageOwners` панелей; панель
   вне пространства по ссылке — единственным пунктом с пометкой и плашкой над содержимым [AUTH-16.1]
   [AUTH-16.2]. Проверка — vitest `constructionPanels.test.ts`: отбор по доступу, пространству и уровню;
   `workspaceRoutes.test.ts`: адрес панели модуля открывается вне пространства с плашкой без ручной записи
-- [ ] 2.3 Панель по умолчанию — первая видимая: «Каталог» получает сегмент `/catalog`, голый адрес
+- [x] 2.3 Панель по умолчанию — первая видимая: «Каталог» получает сегмент `/catalog`, голый адрес
   стройки — перенаправление с заменой [AUTH-16.1]. Проверка — vitest: без модулей — «Каталог», с видимой
   панелью блока «Работы» — она
-- [ ] 2.4 Проверки реестра: не больше двух различных `id` панелей на модуль [PLAN-20]; `id` уникален и не
+- [x] 2.4 Проверки реестра: не больше двух различных `id` панелей на модуль [PLAN-20]; `id` уникален и не
   равен `sections`, `sets`; порядок блока «Работы» — ядро, модули подряд, модули в порядке `railSections`,
   все пункты модуля в одном разделе рейла. Проверка — тот же vitest: третья панель — ошибка с названием
   модуля; `id: 'sections'` — ошибка; перестановка модулей в блоке — ошибка
-- [ ] 2.5 Живые прогоны: `e2e/limited-smoke.mjs` — под каждой системной ролью `/` ведёт на видимую
-  страницу, видимые пункты открываются без 403; `e2e/routing-smoke.mjs` — прежние адреса панелей карточки
+- [x] 2.5 Живые прогоны: под каждой системной ролью `/` ведёт на видимую страницу, видимые пункты
+  открываются без 403 (проход — в `e2e/routing-smoke.mjs`: там открыты сессии администратора и
+  пользователя, а новых входов предел частоты не пускает, см. `design.md`); `e2e/routing-smoke.mjs` — прежние адреса панелей карточки
   стройки и раздела, `/catalog`, голый адрес стройки [AUTH-16] [AUTH-16.1]. Проверка — `cd src/client && MSYS_NO_PATHCONV=1 npm run test:e2e:ci`, весь
   список зелёный
-- [ ] 2.6 `docs/USER_GUIDE.md`: страница после входа, раздел модуля в рейле, блок «Работы» в карточке
+- [x] 2.6 `docs/USER_GUIDE.md`: страница после входа, раздел модуля в рейле, блок «Работы» в карточке
   стройки; `cd docs/tools && npm run toc` [AUTH-16.1]. Проверка — проверка содержания в «Frontend» зелёная
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~AnyPermissionPolicy|FullyQualifiedName~PermissionGate|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ReadAllWritesNothing|FullyQualifiedName~McpGateInventory|FullyQualifiedName~WorkspaceIsNotApiParameter"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 3.5 Весь список живых прогонов (`cd src/client && MSYS_NO_PATHCONV=1 npm run test:e2e:ci`) — зелёный под
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~AnyPermissionPolicy|FullyQualifiedName~PermissionGate|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ReadAllWritesNothing|FullyQualifiedName~McpGateInventory|FullyQualifiedName~WorkspaceIsNotApiParameter"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.5 Весь список живых прогонов (`cd src/client && MSYS_NO_PATHCONV=1 npm run test:e2e:ci`) — зелёный под
   ролями «Администратор», «Сметчик», «Менеджер проекта», «Снабженец», «Руководитель»

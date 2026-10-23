@@ -117,7 +117,9 @@ try {
     const card = page.locator('h3').first();
     if (!(await card.count())) throw new Error('нет ни одной стройки — нужны демо-данные');
     await card.click();
-    await page.waitForURL(u => /^\/document-sets\/[0-9a-f-]{36}$/.test(new URL(u).pathname), { timeout: 5000 });
+    // Голый адрес стройки уводит на панель по умолчанию (plan-02): у администратора блока «Работы»
+    // пока нет, поэтому это «Каталог».
+    await page.waitForURL(u => /^\/document-sets\/[0-9a-f-]{36}\/catalog$/.test(new URL(u).pathname), { timeout: 5000 });
     constructionUrl = page.url();
     await assertConstructionScreen();
   });
@@ -126,6 +128,43 @@ try {
     await page.waitForLoadState('networkidle');
     if (pathOf(page) !== new URL(constructionUrl).pathname) throw new Error('холодная загрузка увела с адреса');
     await assertConstructionScreen();
+  });
+
+  // ── Панели карточки стройки и раздела: прежние адреса, /catalog, голый адрес (plan-02) ──
+  //
+  // Панели переехали на общий реестр (`constructionPanels.ts`), маршрут — на `:panel/*`. Закладки
+  // обязаны открываться как раньше: каждая панель своим адресом и активным пунктом, голый адрес
+  // стройки и раздела — панелью по умолчанию, с ЗАМЕНОЙ: «назад» с неё не возвращает на адрес,
+  // который тут же перенаправит обратно.
+  await check('construction-panel-addresses-open-as-before', async () => {
+    const site = (await callApi(page, 'GET', '/constructions')).body.find(c => c.sections?.length)
+      ?? (await callApi(page, 'GET', '/constructions')).body[0];
+    const full = (await callApi(page, 'GET', `/constructions/${site.id}`)).body;
+    const section = full.sections?.[0];
+    if (!section) throw new Error('у строек нет ни одного раздела — нужны демо-данные');
+    const levels = [
+      [`/document-sets/${site.id}`, 'Эта стройка'],
+      [`/document-sets/${site.id}/sections/${section.id}`, 'Этот раздел'],
+    ];
+    for (const [base, block] of levels) {
+      for (const [panel, label] of [['catalog', 'Каталог'], ['datasets', 'Наборы данных'], ['subscribers', 'Подписчики']]) {
+        await page.goto(`${BASE}${base}/${panel}`);
+        await settled(page);
+        if (pathOf(page) !== `${base}/${panel}`) throw new Error(`${base}/${panel} увёл на ${pathOf(page)}`);
+        const active = page.locator('button[aria-current="true"]', { hasText: label });
+        await active.first().waitFor({ timeout: 5000 }).catch(() => {
+          throw new Error(`на ${base}/${panel} пункт «${label}» блока «${block}» не помечен открытым`);
+        });
+      }
+      await page.goto(`${BASE}/document-sets`);
+      await settled(page);
+      const before = await page.evaluate(() => history.length);
+      await page.goto(`${BASE}${base}`);
+      await page.waitForURL(atPath(`${base}/catalog`), { timeout: 5000 });
+      // goto добавляет одну запись; перенаправление с заменой — ни одной.
+      const after = await page.evaluate(() => history.length);
+      if (after !== before + 1) throw new Error(`перенаправление ${base} добавило запись в историю (${before} → ${after})`);
+    }
   });
 
   // ── useSearchParams: query читается страницей ───────────────────────────────
@@ -448,9 +487,91 @@ try {
         throw new Error(`на экране ${new URL(address).pathname} видны посеянные счета`);
     }
   });
+  // ── Вход и пункты меню под каждой системной ролью (plan-02, ТЗ AUTH-16.1, AUTH-15) ──
+  //
+  // `/` ведёт на страницу, вычисленную по доступу (`entryPage.ts`), а не на «Стройки» всем. Под
+  // каждой системной ролью он обязан привести на видимую страницу, а каждый пункт меню — открыться
+  // без отказа: пункт, который виден и отвечает 403, — худший из ответов.
+  //
+  // ⚠️ Без новых входов: входы прогонов считаны (`suites.test.mjs`), и лишних в пределе частоты нет.
+  // Роли меняет администратор той же учётной записи, под которой открыта страница пользователя:
+  // смена ролей обновляет отметку безопасности, клиент молча меняет токен по refresh и получает
+  // новые права (AUTH-7) — перелогин не нужен. Прежние роли возвращаются в любом случае: наборы
+  // после этого ходят под этой же учётной записью.
+  await check('every-system-role-enters-a-visible-page', async () => {
+    const roles = (await callApi(page, 'GET', '/roles')).body.filter(r => r.system);
+    // Список читается у сервера, а не записан здесь: новая системная роль попадает в проход сама.
+    // Нижняя граница — чтобы проход не прошёл на пустом списке.
+    if (roles.length < 9) throw new Error(`системных ролей ${roles.length} — проход проверял бы не всех`);
+    const users = (await callApi(page, 'GET', '/users')).body;
+    const me = (Array.isArray(users) ? users : users.items).find(u => u.email.toLowerCase() === USER_EMAIL.toLowerCase());
+    const before = me.roles.map(r => r.name);
+    const problems = [];
+    try {
+      for (const role of roles) {
+        const set = await callApi(page, 'PUT', `/users/${me.id}/roles`, { roles: [role.name] });
+        if (set.status !== 200) throw new Error(`роль «${role.title}» не выдана: ${set.status}`);
+        problems.push(...await walkAs(userPage, role.title));
+      }
+    } catch (e) {
+      problems.push(e.message);
+    }
+    // Возврат — с проверкой ответа: не вернулся — наборы после этого идут под последней ролью прохода и
+    // краснеют далеко от причины. Поэтому он назван первым, громче находок прохода.
+    const back = await callApi(page, 'PUT', `/users/${me.id}/roles`, { roles: before });
+    if (back.status !== 200)
+      problems.unshift(`ПРЕЖНИЕ РОЛИ (${before.join(', ')}) НЕ ВОЗВРАЩЕНЫ: ${back.status} — следующие наборы под ${USER_EMAIL} идут не под своей ролью`);
+    if (problems.length) throw new Error(problems.join('\n'));
+  });
   await userContext.close();
 } finally {
   await browser.close();
+}
+
+/**
+ * Вход и все пункты меню под текущими правами страницы: `/` ведёт на видимую страницу, каждый пункт
+ * открывается без отказа страницей и без ответа 403. Возвращает найденные расхождения, а не падает
+ * на первом: одна неверно закрытая дверь видна у многих ролей, и список «где именно» дешевле
+ * повторных кругов.
+ */
+async function walkAs(p, title) {
+  const problems = [];
+  const denied = [];
+  const on403 = r => { if (r.status() === 403) denied.push(`${r.request().method()} ${new URL(r.url()).pathname}`); };
+  const refused = async () => /Раздел .* недоступен|Нет доступных разделов|Для него нужн/.test(await p.locator('body').innerText());
+  p.on('response', on403);
+  try {
+    await p.goto(`${BASE}/`);
+    await p.waitForURL(u => new URL(u).pathname !== '/', { timeout: 10_000 }).catch(() => {});
+    await settled(p);
+    const landed = pathOf(p);
+    if (landed === '/') problems.push(`«${title}»: адрес «/» никуда не привёл`);
+    else if (await refused()) problems.push(`«${title}»: вход привёл на отказ (${landed})`);
+
+    // Пункты — обходом рейла: подпанель на экране одна.
+    const rail = p.getByRole('navigation', { name: 'Разделы' });
+    const names = (await rail.getByRole('link').allInnerTexts()).map(t => t.trim()).filter(Boolean);
+    const hrefs = new Set();
+    for (const name of names) {
+      await railSection(p, name).click();
+      await rail.locator('a[aria-current="true"]', { hasText: name }).waitFor({ timeout: 5000 });
+      const panel = p.getByTestId('section-panel');
+      await panel.waitFor({ timeout: 5000 });
+      for (const href of await panel.locator('a[href^="/"]').evaluateAll(as => as.map(a => a.getAttribute('href'))))
+        hrefs.add(href);
+    }
+    if (!hrefs.size) problems.push(`«${title}»: в меню нет ни одного пункта`);
+    for (const href of hrefs) {
+      denied.length = 0;
+      await p.goto(`${BASE}${href}`);
+      await settled(p);
+      if (await refused()) problems.push(`«${title}»: пункт ${href} отвечает отказом страницей`);
+      if (denied.length) problems.push(`«${title}»: на ${href} отказ 403 — ${[...new Set(denied)].join(', ')}`);
+    }
+  } finally {
+    p.off('response', on403);
+  }
+  return problems;
 }
 
 // Код возврата, а не process.exit(): тот обрывает недописанный stdout, и при перенаправлении

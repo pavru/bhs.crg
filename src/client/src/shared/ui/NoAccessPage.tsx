@@ -15,7 +15,9 @@ import type { MissingAccess } from './navAccess';
  * хватит любого, и выбрать, какое выдать, — дело администратора.
  */
 export function NoAccessPage({ what, missing }: {
-  what: string;
+  /** Что недоступно. Без него — «нет ни одного раздела» (страница входа, plan-02): человек вошёл, а
+   *  открыть ему нечего, и это тоже говорится, а не перенаправлением на раздел с отказом. */
+  what?: string;
   missing: MissingAccess;
 }) {
   return (
@@ -23,7 +25,9 @@ export function NoAccessPage({ what, missing }: {
       <div className="max-w-md space-y-4 text-center">
         <Lock size={40} className="mx-auto text-fg4" aria-hidden />
 
-        <h1 className="text-xl font-medium text-fg1">Раздел «{what}» недоступен</h1>
+        <h1 className="text-xl font-medium text-fg1">
+          {what === undefined ? 'Нет доступных разделов' : `Раздел «${what}» недоступен`}
+        </h1>
 
         {missing?.kind === 'module' && (
           <p className="text-sm text-fg3">
@@ -50,7 +54,13 @@ export function NoAccessPage({ what, missing }: {
 
         {/* Причина неизвестна — говорим и это. Придумать правдоподобную причину хуже, чем
             признаться: администратор пойдёт проверять не то. */}
-        {!missing && (
+        {what === undefined && (
+          <p className="text-sm text-fg3">
+            Вашей учётной записи не выдано прав ни на один раздел системы.
+          </p>
+        )}
+
+        {!missing && what !== undefined && (
           <p className="text-sm text-fg3">
             Права на него у вас нет. Если доступ нужен — назовите администратору адрес страницы.
           </p>
