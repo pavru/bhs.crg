@@ -65,7 +65,7 @@ public partial class FieldSuggestionPlanTests(InvoiceLineHost host) : InvoiceLin
         var reads = int.Parse(Assert.Single(FieldReads().Matches(plan)).Groups[1].Value);
         using var scope = host.Services.CreateScope();
         var rows = await scope.ServiceProvider.GetRequiredService<IFieldSuggestionReader>()
-            .ReadAsync([type], "Производитель", Window);
+            .ReadAsync([type], "Производитель", [], Window);
         Assert.Equal(rows.Count, reads);
         Assert.InRange(reads, 1, Window.MaxRecords - 1);
     }
@@ -98,7 +98,7 @@ public partial class FieldSuggestionPlanTests(InvoiceLineHost host) : InvoiceLin
         using var scope = host.Services.CreateScope();
 
         var rows = await scope.ServiceProvider.GetRequiredService<IFieldSuggestionReader>()
-            .ReadAsync([type], "Производитель", Window with { MaxBytes = 1 });
+            .ReadAsync([type], "Производитель", [], Window with { MaxBytes = 1 });
 
         Assert.Equal("Лёгкий 3", Assert.Single(rows).Value);
     }
@@ -113,7 +113,8 @@ public partial class FieldSuggestionPlanTests(InvoiceLineHost host) : InvoiceLin
             await analyze.ExecuteNonQueryAsync();
 
         await using var cmd = new NpgsqlCommand("EXPLAIN (ANALYZE, COSTS OFF) " + FieldSuggestionReader.Sql(types.Count), connection);
-        FieldSuggestionReader.AddParameters(cmd, types, "Производитель", window);
+        FieldSuggestionReader.AddParameters(cmd, types, "Производитель");
+        FieldSuggestionReader.AddWindow(cmd, window);
         var lines = new StringBuilder();
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync()) lines.AppendLine(reader.GetString(0));

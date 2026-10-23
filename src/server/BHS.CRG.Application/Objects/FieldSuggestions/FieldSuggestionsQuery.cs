@@ -9,7 +9,8 @@ namespace BHS.CRG.Application.Objects.FieldSuggestions;
 
 /// <summary>
 /// Подсказки поля по ранее введённому (issue #1530, эпик #1527, контракт D10): значения поля
-/// верхнего уровня записей семьи типа, уже в порядке показа.
+/// верхнего уровня записей семьи типа и строк массивов и составных полей чужих записей (issue #1532),
+/// уже в порядке показа.
 /// </summary>
 /// <param name="TypeId">Любой тип семьи, где поле видно (решение В-2).</param>
 /// <param name="Scope">Где стоит читатель — по нему решается «своя стройка». null — нигде.</param>
@@ -41,9 +42,9 @@ public sealed class FieldSuggestionsHandler(
         {
             case SuggestionPlan.Unknown unknown: throw new InvalidRequestException(unknown.Reason);
             case SuggestionPlan.Forbidden forbidden: throw new ForbiddenException(forbidden.Reason);
-            case SuggestionPlan.Read { Types.Count: > 0 } read:
+            case SuggestionPlan.Read { IsEmpty: false } read:
                 var here = await HereAsync(q.Scope, q.ScopeId, ct);
-                var rows = await reader.ReadAsync(read.Types, q.Field, q.Window ?? SuggestionWindow.Default, ct);
+                var rows = await reader.ReadAsync(read.Types, q.Field, read.Nested, q.Window ?? SuggestionWindow.Default, ct);
                 return SuggestionRanking.Rank(
                     rows.Select(r => new SuggestionSeen(r.RecordId, r.Value, here(r.ScopeLevel, r.ScopeId), r.UpdatedAt)),
                     q.Q, q.Limit);
