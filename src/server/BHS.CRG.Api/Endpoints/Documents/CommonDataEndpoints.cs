@@ -36,7 +36,7 @@ public static class CommonDataEndpoints
             };
             return Results.Ok((await m.Send(new ListCommonDataEntriesQuery(records, parsedScope, scopeId, typeId)))
                 .Select(CommonDataEntryDto.From)
-                .Select(Elide));
+                .Select(RecordRequests.Elide));
         });
 
         // Resolve all relevant entries for a document set (full hierarchy)
@@ -109,10 +109,10 @@ public static class CommonDataEndpoints
             catch (NotFoundException) { return Results.NotFound(); }
         });
 
-        // Виды работ этими адресами не пишутся — у них своя дверь под своим правом (WORK-59).
+        // Справочники со своей дверью (виды работ) этими адресами не пишутся (WORK-59, OwnDoorTypes).
         edit.MapPost("/", async (CreateRequest req, IMediator m, IRepository<DocumentType> types, CancellationToken ct) =>
         {
-            if (await WorkTypeEndpoints.RefuseCommonPathAsync(null, req.CompositeTypeId, m, types, ct) is { } door)
+            if (await OwnDoorTypes.RefuseCommonPathAsync(null, req.CompositeTypeId, m, types, ct) is { } door)
                 return door;
             var scope = req.Scope switch
             {
@@ -128,16 +128,7 @@ public static class CommonDataEndpoints
                     JsonDocument.Parse(req.Data), scope, req.ScopeId, req.Aliases, req.CreateAnyway ?? false,
                     req.RefsStandIn))));
             }
-            // «Есть в архиве» — полями, а не словами (issue #1185): экран предлагает вернуть запись
-            // кнопкой и повторить создание с createAnyway, и разбирать для этого фразу не должен.
-            catch (ArchivedTwinException ex)
-            {
-                return Results.Conflict(new
-                {
-                    error = ex.Message, code = "archived-twin",
-                    archivedId = ex.ArchivedId, archivedName = ex.ArchivedName, archivedScope = ex.ArchivedScope,
-                });
-            }
+            catch (ArchivedTwinException ex) { return RecordRequests.ArchivedTwin(ex); }
         });
 
         // Правка называет версию записи, по которой собрана (issue #1214): заменяется запись целиком,
@@ -145,7 +136,7 @@ public static class CommonDataEndpoints
         edit.MapPut("/{id:guid}", async (Guid id, UpdateRequest req, HttpRequest http, IMediator m,
             ClaimsPrincipal user, DataAccessResolver access, IRepository<DocumentType> types, CancellationToken ct) =>
         {
-            if (await WorkTypeEndpoints.RefuseCommonPathAsync(id, null, m, types, ct) is { } door) return door;
+            if (await OwnDoorTypes.RefuseCommonPathAsync(id, null, m, types, ct) is { } door) return door;
             if (RecordIfMatch.Refuse(http, out var seen) is { } refused) return refused;
             return Results.Ok(CommonDataEntryDto.From(await m.Send(new UpdateCommonDataEntryCommand(
                 id, req.DisplayName, JsonDocument.Parse(req.Data),
@@ -156,7 +147,7 @@ public static class CommonDataEndpoints
             Guid id, IMediator m, ClaimsPrincipal user, IUserPermissions permissions, IRepository<DocumentType> types,
             CancellationToken ct) =>
         {
-            if (await WorkTypeEndpoints.RefuseCommonPathAsync(id, null, m, types, ct) is { } door) return door;
+            if (await OwnDoorTypes.RefuseCommonPathAsync(id, null, m, types, ct) is { } door) return door;
             try { await m.Send(new DeleteCommonDataEntryCommand(id)); return Results.NoContent(); }
             catch (NotFoundException) { return Results.NotFound(); }
             // Выходы из отказа — полями, а не словами причины: экран предлагает их кнопками и не
@@ -191,9 +182,9 @@ public static class CommonDataEndpoints
         // Архив — отдельными адресами, а не полем правки (issue #1185): форма, не знающая признака,
         // сняла бы его обычным сохранением. Право то же, что у правки: архив слабее удаления, и
         // своё право породило бы роль, которой удалять можно, а убрать из выбора нельзя.
-        // Возврат из архива вида работы общим адресом не отвергается — см. WorkTypeEndpoints.RefuseCommonPathAsync.
+        // Возврат из архива вида работы общим адресом не отвергается — см. OwnDoorTypes.RefuseCommonPathAsync.
         edit.MapPost("/{id:guid}/archive", async (Guid id, IMediator m, IRepository<DocumentType> types, CancellationToken ct) =>
-            await WorkTypeEndpoints.RefuseCommonPathAsync(id, null, m, types, ct) ?? await SetArchiveAsync(id, true, m));
+            await OwnDoorTypes.RefuseCommonPathAsync(id, null, m, types, ct) ?? await SetArchiveAsync(id, true, m));
         edit.MapPost("/{id:guid}/unarchive", (Guid id, IMediator m) => SetArchiveAsync(id, false, m));
     }
 
@@ -226,14 +217,7 @@ public static class CommonDataEndpoints
                 "(список на выбор — архивные записи скрыты) либо display (показ — архивные на месте).",
     });
 
-    /// <summary>
-    /// Списочный ответ без тяжёлой полезной нагрузки (issue #520). Вызывается ЯВНО в трёх списочных
-    /// местах и никогда внутри <see cref="CommonDataEntryDto.From"/>: тот обслуживает и чтение одной
-    /// записи, и ответы POST/PUT — отсечение там молча обрезало бы редактор и round-trip записи.
-    /// </summary>
-    private static CommonDataEntryDto Elide(CommonDataEntryDto dto) =>
-        dto with { Data = HeavyLeafElision.WithoutHeavyLeaves(dto.Data) };
-
+    /// <summary>То же, что <see cref="RecordRequests.Elide" />, — для списков с уровнем записи.</summary>
     private static CommonDataEntryWithScope Elide(CommonDataEntryWithScope entry) =>
         entry with { Data = HeavyLeafElision.WithoutHeavyLeaves(entry.Data) };
 

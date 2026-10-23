@@ -4999,14 +4999,16 @@ GET    /api/work-types?purpose=choice|display&q=  — классификатор
                                     ядра, чтение под core.catalog.read; q — часть кода, наименования,
                                     названия или псевдонима. GET /{id} — запись целиком.
 POST   /api/work-types                      { displayName, data, aliases?, createAnyway?, scope?, scopeId?,
-                                    refsStandIn? } — заведение под core.worktypes.edit, без версии;
-                                    уровень по умолчанию System. Нет классификатора (нет справочника
-                                    единиц) — 409. PUT /{id}, DELETE /{id}, POST /{id}/archive и
+                                    refsStandIn?, compositeTypeId? } — заведение под core.worktypes.edit,
+                                    без версии; уровень по умолчанию System; тип — ВидРаботы или его
+                                    подтип (по умолчанию сам ВидРаботы, чужой тип — 400). Нет
+                                    классификатора (нет справочника единиц) — 409. PUT /{id}, DELETE /{id}, POST /{id}/archive и
                                     /{id}/unarchive — под тем же правом и ТОЛЬКО с If-Match: без него 400,
                                     с устаревшим 409 «вид работы тем временем изменили». Ответ архива
                                     несёт новую version. Чужая запись за дверью — 404.
-                                    /api/common-data записи типа ВидРаботы НЕ заводит, не правит, не
-                                    удаляет и не архивирует: 409 { error, door: "/api/work-types" }.
+                                    /api/common-data записи типа ВидРаботы и его подтипов НЕ заводит, не
+                                    правит, не удаляет и не архивирует: 409 { error, door: "/api/work-types" }
+                                    (реестр OwnDoorTypes; зеркало в клиенте — OWN_DOORS).
                                     Возврат из архива и /purge общим адресом — как у любой записи.
 POST   /api/common-data/{id}/purge          { references } → { id, name, references, untraceable } —
                                     удалить запись, потеряв ссылки выключенных модулей (#1187).

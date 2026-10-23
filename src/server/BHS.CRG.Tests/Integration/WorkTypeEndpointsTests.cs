@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Api.Endpoints.Core;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Tests.Support;
@@ -165,6 +166,48 @@ public class WorkTypeEndpointsTests(IntegrationTestFixture fixture) : IAsyncLife
         // Остальные записи общий адрес пишет как прежде — отказ стоит у вида работы, а не у адреса.
         var archivedUnit = await engineer.PostAsync($"/api/common-data/{metre.Id}/archive", null);
         Assert.Equal(HttpStatusCode.OK, archivedUnit.StatusCode);
+    }
+
+    /// <summary>
+    /// Подтип вида работы — тоже вид работы: общий адрес отвергает и его запись, а дверь её правит.
+    /// Клиент выбирает дверь по цепочке предков; разойдись он с сервером — запись подтипа не писалась
+    /// бы ни одним адресом.
+    /// </summary>
+    [Fact]
+    public async Task Подтип_вида_работы_пишется_только_дверью()
+    {
+        var (unit, type) = await seed.ClassifierAsync();
+        var sub = await seed.TypeAsync("ВидРаботыЭлектромонтаж", "Электромонтаж", parentId: type.Id);
+        var metre = await seed.RecordAsync(unit.Id, "м");
+        var work = await seed.RecordAsync(sub.Id, "Кабель", WorkTypeSeed.WorkTypeData("07", "Кабель", metre));
+        var engineer = await AccessProbe.SignInAsync(fixture, SystemRoles.IdEngineer, "wts");
+        engineer.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", work.Version);
+
+        var common = await engineer.PutAsJsonAsync($"/api/common-data/{work.Id}", new
+        {
+            displayName = "Подмена", data = WorkTypeSeed.WorkTypeData("07", "Подмена", metre),
+        });
+        Assert.Equal(HttpStatusCode.Conflict, common.StatusCode);
+        Assert.Equal(WorkTypeEndpoints.Door, (await common.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("door").GetString());
+
+        var door = await engineer.PutAsJsonAsync($"/api/work-types/{work.Id}", new
+        {
+            displayName = "Кабель в лотке", data = WorkTypeSeed.WorkTypeData("07", "Кабель в лотке", metre),
+        });
+        Assert.Equal(HttpStatusCode.OK, door.StatusCode);
+
+        // Заводит дверь запись именно подтипа, а тип чужого справочника не принимает вовсе.
+        var created = await engineer.PostAsJsonAsync("/api/work-types", new
+        {
+            displayName = "08 Лоток", compositeTypeId = sub.Id, data = WorkTypeSeed.WorkTypeData("08", "Лоток", metre),
+        });
+        Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+        Assert.Equal(sub.Id, (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("compositeTypeId").GetGuid());
+        var foreign = await engineer.PostAsJsonAsync("/api/work-types", new
+        {
+            displayName = "кг", compositeTypeId = unit.Id, data = "{}",
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, foreign.StatusCode);
     }
 
     /// <summary>Чужая запись за дверью видов работ не находится — 404, а не правка организации правом на классификатор.</summary>

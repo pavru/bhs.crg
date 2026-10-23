@@ -9,7 +9,7 @@ import { useToast } from '@/shared/ui/Toast';
 import type { CatalogScope, DocumentType, FieldRef, PrimitiveTypeDef } from '@/shared/api/types';
 import { SCOPE_LABELS } from '@/shared/api/types';
 import { identityFieldKeys, resolveEffectiveFields } from '@/shared/api/schema';
-import { archivedTwinOf, useCreateCommonDataEntry, useCommonDataForScope, useSetCommonDataArchive } from '@/shared/api/commonData';
+import { archivedTwinOf, ownDoorCode, useCreateCommonDataEntry, useCommonDataForScope, useSetCommonDataArchive } from '@/shared/api/commonData';
 import { useCan } from '@/shared/api/access';
 import { useGetDocumentSet } from '@/shared/api/documentSets';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
@@ -241,7 +241,7 @@ export function ExtractToCommonDataModal({
         // Ссылки внутри выносимого значения в объекте уже стояли — сервер сверит это сам, по
         // сохранённым данным объекта, и не примет их за новые ссылки на архивные записи.
         refsStandIn: refsOwnerId,
-        typeCode: compositeType.code,
+        doorCode: ownDoorCode(compositeType.id, allDocTypes),
       });
       onExtracted({
         $ref: 'catalog', entryId: entry.id, displayName: entry.displayName, scope: effectiveTarget,

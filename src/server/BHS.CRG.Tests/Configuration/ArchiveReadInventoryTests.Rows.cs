@@ -16,12 +16,12 @@ public partial class ArchiveReadInventoryTests
             Shown("страница сотрудников — показ: архивная карточка на месте"),
         ["BHS.CRG.Api/Endpoints/Core/EmployeeEndpoints.cs|var entry = await m.Send(new GetCommonDataEntryQuery(id));"] =
             Shown("карточка сотрудника по идентификатору: редактор и действия над ней").X(3),
-        ["BHS.CRG.Api/Endpoints/Core/WorkTypeEndpoints.cs|entries.AddRange(await m.Send(new ListCommonDataEntriesQuery(records, CompositeTypeId: typeId), ct));"] =
+        ["BHS.CRG.Api/Endpoints/Core/WorkTypeEndpoints.cs|var found = await m.Send(new ListCommonDataEntriesQuery(records, CompositeTypeId: typeId), ct);"] =
             ByPurpose("дверь видов работ: назначение называет клиент параметром purpose; без него — отказ", nameof(WorkTypeEndpointsTests.Список_двери_по_назначению_и_поиску)),
         ["BHS.CRG.Api/Endpoints/Core/WorkTypeEndpoints.cs|var entry = await m.Send(new GetCommonDataEntryQuery(id), ct);"] =
             Shown("вид работы по идентификатору: редактор и действия над ним, архивный — тоже"),
-        ["BHS.CRG.Api/Endpoints/Core/WorkTypeEndpoints.cs|typeId = (await m.Send(new GetCommonDataEntryQuery(id), ct))?.CompositeTypeId;"] =
-            Seen("тип записи для отказа общего адреса: архивный вид работы — тоже вид работы"),
+        ["BHS.CRG.Api/Endpoints/Core/OwnDoorTypes.cs|&& (await m.Send(new CommonDataRefsByIdsQuery([.. family.Keys], [id]), ct)).Count > 0;"] =
+            Seen("из семьи ли со своей дверью запись для отказа общего адреса: архивный вид работы — тоже вид работы"),
         ["BHS.CRG.Api/Endpoints/Core/WorkTypeEndpoints.cs|var after = await fresh.ServiceProvider.GetRequiredService<IMediator>().Send(new GetCommonDataEntryQuery(id), ct);"] =
             Seen("новая версия записи после архива — той самой, что только что отправили"),
         ["BHS.CRG.Api/Endpoints/Documents/CommonDataEndpoints.cs|return Results.Ok((await m.Send(new ListCommonDataEntriesQuery(records, parsedScope, scopeId, typeId)))"] =
@@ -46,7 +46,7 @@ public partial class ArchiveReadInventoryTests
             Shown("названия и запись по идентификаторам: то, что у модуля уже стоит"),
         ["BHS.CRG.Api/Modules/Ports/ModuleCatalogPort.cs|var found = await mediator.Send(new SearchCommonDataForChoiceQuery([.. codes.Keys], query, limit), ct);"] =
             Choice("поиск порта — всегда выбор", nameof(ArchiveReadPurposeTests.Порт_модулей_список_по_назначению_поиск_всегда_выбор_остальное_с_признаком)),
-        ["BHS.CRG.Api/Modules/Ports/ModuleEmployeesPort.cs|entries.AddRange(await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct));"] =
+        ["BHS.CRG.Api/Modules/Ports/ModuleEmployeesPort.cs|foreach (var e in await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct))"] =
             Shown("весь справочник сотрудников показом, с признаком: выбор порт отделяет сам — живые в выдаче, архивные числом (ModuleEmployeesPortTests)"),
         ["BHS.CRG.Api/Modules/Ports/ModuleUnitsPort.cs|return Units(await mediator.Send(new CommonDataRefsByIdsQuery(family, ids), ct));"] =
             Shown("единицы по идентификаторам: то, что у модуля уже стоит"),

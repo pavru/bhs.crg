@@ -1,4 +1,4 @@
-import { useSetCommonDataArchive } from '@/shared/api/commonData';
+import { ownDoorCode, useSetCommonDataArchive } from '@/shared/api/commonData';
 import type { DocumentType } from '@/shared/api/types';
 import { useToast } from '@/shared/ui/Toast';
 
@@ -24,7 +24,7 @@ export function useRecordArchive(types: DocumentType[]) {
    * Сменить состояние; отказ летит наружу — его показывает тот, кто звал (диалог удаления).
    */
   async function set(entry: Target, archived: boolean): Promise<void> {
-    const done = await mutation.mutateAsync({ id: entry.id, archived, typeCode: typeOf(entry)?.code, version: entry.version });
+    const done = await mutation.mutateAsync({ id: entry.id, archived, doorCode: ownDoorCode(entry.compositeTypeId, types), version: entry.version });
     // Архив сдвигает версию: «Вернуть» из тоста называет уже новую, иначе дверь откажет на своё же действие.
     const after = { ...entry, version: done.version ?? entry.version };
     if (!archived) {

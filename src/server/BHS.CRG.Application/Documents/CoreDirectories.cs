@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using BHS.CRG.Application.Objects;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Schema;
@@ -58,16 +59,14 @@ public static class CoreDirectories
     /// в поле объектом без ссылки, записи не называет — <c>null</c>.
     /// </summary>
     public static Guid? Reference(JsonElement data, string? key) =>
-        Value(data, key) is { ValueKind: JsonValueKind.Object } v
-        && v.TryGetProperty("$ref", out var kind) && kind.ValueKind == JsonValueKind.String && kind.GetString() == "catalog"
-        && v.TryGetProperty("entryId", out var id) && id.ValueKind == JsonValueKind.String
-        && Guid.TryParse(id.GetString(), out var entry)
-            ? entry
-            : null;
+        Value(data, key) is { } v ? CatalogRefs.EntryId(v) : null;
 
-    /// <summary>Ключ первого поля с тэгом — по цепочке наследования; ближний тип побеждает.</summary>
+    /// <summary>
+    /// Ключ первого поля с тэгом — в эффективном составе типа: тэги ближнего типа побеждают, а поле,
+    /// которое подтип исключил (<c>excludedFields</c>), не находится — его у типа нет, как нет в форме.
+    /// </summary>
     public static string? TaggedKey(DocumentType type, IReadOnlyList<DocumentType> all, string tag) =>
-        SchemaTags.TaggedFields(type, all).Where(f => f.Tag == tag).Select(f => f.Key).FirstOrDefault();
+        SchemaTags.TaggedFieldsInSchemaOrder(type, all).Where(f => f.Tag.Code == tag).Select(f => f.Key).FirstOrDefault();
 
     private static JsonElement? Value(JsonElement data, string? key) =>
         key is not null && data.ValueKind == JsonValueKind.Object && data.TryGetProperty(key, out var value)
@@ -87,6 +86,9 @@ public sealed record WorkTypeKeys(
     public static WorkTypeKeys Of(DocumentType type, IReadOnlyList<DocumentType> all, IReadOnlyCollection<Guid> unitTypes)
     {
         var identity = SchemaTags.OrderedKeysWithTag(type, all, FunctionalTag.Identity);
+        // Состав с тэгами — один на три признака: каждый вызов TaggedKey разбирал бы цепочку заново.
+        var tagged = SchemaTags.TaggedFieldsInSchemaOrder(type, all);
+        string? Tagged(string tag) => tagged.Where(f => f.Tag.Code == tag).Select(f => f.Key).FirstOrDefault();
         // Единица — по цели, а не по тэгу: тэга у поля нет, а цель ядро объявило само и заказчик её не
         // меняет (поле от ядра). По ключу искать нельзя — его переименуют.
         var unit = DocumentTypeSchemaReader.EffectiveFields(type.Id, all.ToDictionary(t => t.Id))
@@ -94,8 +96,7 @@ public sealed record WorkTypeKeys(
                 && f.TypeId is { } target && unitTypes.Contains(target))?.Key;
         return new(
             identity.ElementAtOrDefault(0), identity.ElementAtOrDefault(1), unit,
-            CoreDirectories.TaggedKey(type, all, FunctionalTag.WorkRequiresLocation),
-            CoreDirectories.TaggedKey(type, all, FunctionalTag.WorkRequiresMaterials),
-            CoreDirectories.TaggedKey(type, all, FunctionalTag.WorkProducesId));
+            Tagged(FunctionalTag.WorkRequiresLocation), Tagged(FunctionalTag.WorkRequiresMaterials),
+            Tagged(FunctionalTag.WorkProducesId));
     }
 }

@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Endpoints.Documents;
 using BHS.CRG.Application.Common;
@@ -20,7 +19,7 @@ namespace BHS.CRG.Api.Endpoints.Core;
 /// — <c>core.catalog.edit</c> у него нет, — и на общем адресе право <c>core.worktypes.edit</c> было бы
 /// галкой, которая ничего не открывает (до этой двери оно ею и было). Поэтому записи типа «ВидРаботы»
 /// пишутся только здесь, а общий адрес их отвергает с адресом этой двери
-/// (<see cref="RefuseCommonPathAsync" />).</para>
+/// (<see cref="OwnDoorTypes.RefuseCommonPathAsync" />).</para>
 ///
 /// <para>Дверь тонкая, как у сотрудников (<see cref="EmployeeEndpoints" />): вид работы — запись общих
 /// данных, и зовутся те же команды. Чтение — под <c>core.catalog.read</c>: классификатор читают все,
@@ -53,15 +52,17 @@ public static class WorkTypeEndpoints
             if (CoreDirectories.Family(all, CoreRecordTypes.WorkTypeCode) is not { } family)
                 return Results.Ok(Array.Empty<CommonDataEntryDto>());
 
+            // Ключи — по типу, а не по записи, и только под поиск: схема разбирается раз на тип.
             var units = CoreDirectories.Family(all, CoreRecordTypes.UnitCode)?.Keys.ToHashSet() ?? [];
             var entries = new List<DomainObject>();
             foreach (var typeId in family.Keys)
-                entries.AddRange(await m.Send(new ListCommonDataEntriesQuery(records, CompositeTypeId: typeId), ct));
-
-            return Results.Ok(entries
-                .Where(e => Matches(e, q, WorkTypeKeys.Of(family[e.CompositeTypeId], all, units)))
-                .Select(CommonDataEntryDto.From)
-                .Select(dto => dto with { Data = HeavyLeafElision.WithoutHeavyLeaves(dto.Data) }));
+            {
+                var found = await m.Send(new ListCommonDataEntriesQuery(records, CompositeTypeId: typeId), ct);
+                if (string.IsNullOrWhiteSpace(q)) { entries.AddRange(found); continue; }
+                var keys = WorkTypeKeys.Of(family[typeId], all, units);
+                entries.AddRange(found.Where(e => Matches(e, q.Trim(), keys)));
+            }
+            return Results.Ok(entries.Select(CommonDataEntryDto.From).Select(RecordRequests.Elide));
         });
 
         // По идентификатору — запись ЦЕЛИКОМ: этот путь кормит редактор (issue #520).
@@ -70,26 +71,23 @@ public static class WorkTypeEndpoints
 
         edit.MapPost("/", async (CreateWorkTypeRequest req, IMediator m, IRepository<DocumentType> types, CancellationToken ct) =>
         {
-            if ((await types.GetAllAsync(ct)).FirstOrDefault(t => t.Code == CoreRecordTypes.WorkTypeCode) is not { } type)
+            if (CoreDirectories.Family(await types.GetAllAsync(ct), CoreRecordTypes.WorkTypeCode) is not { } family)
                 return Results.Conflict(new { error = DirectoryMissing });
-            if (Parse(req.Data) is not { } data) return Results.BadRequest(new { error = DataNotJson });
+            // Тип — сам классификатор либо его подтип; иной тип дверь не заводит, иначе право на
+            // классификатор открывало бы заведение записей любого справочника.
+            var typeId = req.CompositeTypeId ?? family.Values.First(t => t.Code == CoreRecordTypes.WorkTypeCode).Id;
+            if (!family.ContainsKey(typeId)) return Results.BadRequest(new { error = NotAWorkType });
+            if (RecordRequests.ParseData(req.Data) is not { } data) return Results.BadRequest(new { error = RecordRequests.DataNotJson });
 
             try
             {
                 return Results.Ok(CommonDataEntryDto.From(await m.Send(new CreateCommonDataEntryCommand(
-                    req.DisplayName, type.Id, data, Scope(req.Scope), req.ScopeId, req.Aliases,
+                    req.DisplayName, typeId, data, Scope(req.Scope), req.ScopeId, req.Aliases,
                     req.CreateAnyway ?? false, req.RefsStandIn), ct)));
             }
             // Тот же ответ, что у общего адреса (issue #1185): вид с тем же кодом лежит в архиве, и экран
             // предлагает вернуть его кнопкой или завести, подтвердив.
-            catch (ArchivedTwinException ex)
-            {
-                return Results.Conflict(new
-                {
-                    error = ex.Message, code = "archived-twin",
-                    archivedId = ex.ArchivedId, archivedName = ex.ArchivedName, archivedScope = ex.ArchivedScope,
-                });
-            }
+            catch (ArchivedTwinException ex) { return RecordRequests.ArchivedTwin(ex); }
         });
 
         edit.MapPut("/{id:guid}", async (
@@ -101,7 +99,7 @@ public static class WorkTypeEndpoints
             // Отсутствующее «data» — отказ, а не пустой объект: правка заменяет запись целиком, и
             // подстановка «{}» стёрла бы код, единицу и признаки, ответив 200 (как у сотрудников).
             if (req.Data is null) return Results.BadRequest(new { error = DataRequired });
-            if (Parse(req.Data) is not { } data) return Results.BadRequest(new { error = DataNotJson });
+            if (RecordRequests.ParseData(req.Data) is not { } data) return Results.BadRequest(new { error = RecordRequests.DataNotJson });
 
             return Results.Ok(CommonDataEntryDto.From(await m.Send(new UpdateCommonDataEntryCommand(
                 // Псевдонимы, о которых запрос молчит, остаются: null команда читает как «очистить».
@@ -156,35 +154,6 @@ public static class WorkTypeEndpoints
     }
 
     /// <summary>
-    /// Отказ общего адреса записи вида работы (WORK-59) — или <c>null</c>, если запись не вид работы.
-    /// Общий адрес зовёт его на заведении (по типу), правке, удалении и отправке в архив (по записи).
-    ///
-    /// <para>Возврат из архива общим адресом НЕ отвергается: снять признак — всегда благо, и тем же
-    /// правилом общий путь возвращает даже записи справочников модулей (<c>RecordArchiveHandlers</c>).
-    /// Иначе окно выбора, вставка таблицы и «есть в архиве» при заведении, которые возвращают запись
-    /// общим адресом, перестали бы возвращать вид работы. Принудительное удаление (<c>/purge</c>,
-    /// CORE-34.2) тоже остаётся общим: это путь администратора, а не правка.</para>
-    /// </summary>
-    internal static async Task<IResult?> RefuseCommonPathAsync(
-        Guid? recordId, Guid? typeId, IMediator m, IRepository<DocumentType> types, CancellationToken ct)
-    {
-        if (recordId is { } id)
-            typeId = (await m.Send(new GetCommonDataEntryQuery(id), ct))?.CompositeTypeId;
-        if (typeId is null) return null;
-
-        var family = CoreDirectories.Family(await types.GetAllAsync(ct), CoreRecordTypes.WorkTypeCode);
-        return family is not null && family.ContainsKey(typeId.Value)
-            ? Results.Conflict(new
-            {
-                error = "Виды работ ведутся своим адресом — " + Door + ", под правом «вести классификатор " +
-                        "видов работ» (core.worktypes.edit). Общий адрес справочников их не заводит, не правит, " +
-                        "не удаляет и не отправляет в архив.",
-                door = Door,
-            })
-            : null;
-    }
-
-    /// <summary>
     /// Запись — если это вид работы; иначе <c>null</c> и 404 у звавшего. Проверка обязательна на КАЖДОМ
     /// адресе с идентификатором: без неё право на классификатор открывало бы правку любой записи общих
     /// данных. 404, а не 403: существование чужой записи за этой дверью не подтверждается.
@@ -210,13 +179,12 @@ public static class WorkTypeEndpoints
     }
 
     /// <summary>Совпадает ли вид работы с поиском: код, наименование, название записи, псевдонимы.</summary>
-    private static bool Matches(DomainObject entry, string? q, WorkTypeKeys keys)
+    private static bool Matches(DomainObject entry, string q, WorkTypeKeys keys)
     {
-        if (string.IsNullOrWhiteSpace(q)) return true;
         var data = entry.Data.RootElement;
         return new[] { CoreDirectories.Text(data, keys.Code), CoreDirectories.Text(data, keys.Name), entry.DisplayName }
             .Concat(entry.Aliases)
-            .Any(text => text?.Contains(q.Trim(), StringComparison.CurrentCultureIgnoreCase) == true);
+            .Any(text => text?.Contains(q, StringComparison.CurrentCultureIgnoreCase) == true);
     }
 
     /// <summary>
@@ -232,12 +200,6 @@ public static class WorkTypeEndpoints
         _ => CatalogScope.System,
     };
 
-    private static JsonDocument? Parse(string? raw)
-    {
-        try { return JsonDocument.Parse(string.IsNullOrWhiteSpace(raw) ? "{}" : raw); }
-        catch (JsonException) { return null; }
-    }
-
     private const string Moved =
         "Вид работы тем временем изменили, и действие не выполнено. Откройте его заново и повторите.";
 
@@ -249,14 +211,17 @@ public static class WorkTypeEndpoints
         "В запросе нет поля «data» с реквизитами. Правка заменяет вид работы целиком, поэтому пустое " +
         "значение стёрло бы его код, единицу и признаки. Пришлите реквизиты, которые должны остаться.";
 
-    private const string DataNotJson =
-        "Поле «data» — строка с JSON, а разобрать её не удалось. Обратите внимание: это строка, " +
-        "а не вложенный объект.";
+    private const string NotAWorkType =
+        "Названный тип — не вид работы: этим адресом заводятся только записи классификатора видов работ и его " +
+        "подтипов. Записи других справочников заводятся общим адресом /api/common-data.";
 
-    /// <summary>Тип в запросе НЕ принимается: он один и известен двери (как у сотрудников).</summary>
+    /// <summary>
+    /// Тип необязателен: без него — сам классификатор. Названный обязан быть им или его подтипом —
+    /// иначе форма каталога, заводящая запись подтипа, молча получила бы запись корневого типа.
+    /// </summary>
     private record CreateWorkTypeRequest(
         string DisplayName, string? Data, string[]? Aliases, bool? CreateAnyway = null, string? Scope = null, Guid? ScopeId = null,
-        Guid? RefsStandIn = null);
+        Guid? RefsStandIn = null, Guid? CompositeTypeId = null);
 
     private record UpdateWorkTypeRequest(string DisplayName, string? Data, string[]? Aliases);
 }

@@ -1,7 +1,6 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Documents;
-using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Schema;
 using BHS.CRG.Modules.Ports;
 using MediatR;
@@ -46,23 +45,22 @@ public sealed class ModuleEmployeesPort(IMediator mediator, IRepository<Document
         var all = await types.GetAllAsync(ct);
         if (CoreDirectories.Family(all, CoreRecordTypes.EmployeeCode) is not { } family) return null;
 
-        var entries = new List<DomainObject>();
-        foreach (var typeId in family.Keys)
-            entries.AddRange(await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct));
-
-        return [.. entries
-            .Select(e =>
+        var employees = new List<ModuleEmployee>();
+        foreach (var (typeId, type) in family)
+        {
+            // Ключи — раз на тип, а не на карточку: схема разбирается по цепочке наследования.
+            var number = CoreDirectories.TaggedKey(type, all, FunctionalTag.EmployeePersonnelNumber);
+            var from = CoreDirectories.TaggedKey(type, all, FunctionalTag.EmployeeEmployedFrom);
+            var to = CoreDirectories.TaggedKey(type, all, FunctionalTag.EmployeeEmployedTo);
+            foreach (var e in await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct))
             {
-                var type = family[e.CompositeTypeId];
                 var data = e.Data.RootElement;
-                return new ModuleEmployee(
-                    e.Id, e.DisplayName ?? "",
-                    CoreDirectories.Text(data, CoreDirectories.TaggedKey(type, all, FunctionalTag.EmployeePersonnelNumber)),
-                    CoreDirectories.Date(data, CoreDirectories.TaggedKey(type, all, FunctionalTag.EmployeeEmployedFrom)),
-                    CoreDirectories.Date(data, CoreDirectories.TaggedKey(type, all, FunctionalTag.EmployeeEmployedTo)),
-                    e.IsArchived);
-            })
-            .OrderBy(e => e.FullName, StringComparer.CurrentCulture)];
+                employees.Add(new ModuleEmployee(
+                    e.Id, e.DisplayName ?? "", CoreDirectories.Text(data, number),
+                    CoreDirectories.Date(data, from), CoreDirectories.Date(data, to), e.IsArchived));
+            }
+        }
+        return [.. employees.OrderBy(e => e.FullName, StringComparer.CurrentCulture)];
     }
 
     private static bool Matches(ModuleEmployee e, string? query) =>
