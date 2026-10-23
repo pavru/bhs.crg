@@ -11,6 +11,7 @@ import { toCamelKey, nextAutoKey, nextSavedKey } from './schemaConstants';
 import { buildFieldTypeOptions, decodeFieldType, fieldTypeSummary, type FieldRegistries } from './fieldTypeOptions';
 import { useAccess } from '@/shared/api/access';
 import { ModuleFieldBadge } from './ModuleFieldBadge';
+import { SuggestFlag, SuggestOffBadge } from './SuggestFlag';
 import { similarKeyOf } from './schemaKeyChecks';
 import {
   useTagRegistry, fieldTags, findTagEntry, hasTag, offeredInRoles, tagCode, withTagOrder, unknownTagCodes, shownTagEntries,
@@ -335,7 +336,7 @@ export function FieldCard({
             </span>
             <span className="block text-xs text-fg4 font-mono truncate">{field.key || '—'}</span>
           </span>
-          <ModuleFieldBadge field={field} />
+          <ModuleFieldBadge field={field} /><SuggestOffBadge field={field} />
           {chips.slice(0, 2).map(tc => <FunctionalTagBadge key={tc} registry={tagRegistry} entry={tc} />)}
           {chips.length > 2 && <span className="text-caption text-fg4 shrink-0">+{chips.length - 2}</span>}
           <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-fg3 shrink-0">{fieldTypeSummary(field, reg)}</span>
@@ -454,8 +455,7 @@ export function FieldCard({
       {SchemaFieldKinds_isComputable(field.type) && (
         <>
           <label className="flex items-center gap-2 cursor-pointer w-fit">
-            <input
-              type="checkbox"
+            <input type="checkbox"
               checked={!!field.computed}
               onChange={e => onChange(e.target.checked
                 ? { computed: true, required: false, defaultValue: undefined }
@@ -466,6 +466,8 @@ export function FieldCard({
               <FunctionSquare size={13} className="text-brand" /> Вычисляемое (формула)
             </span>
           </label>
+          {/* Подсказка по введённому ранее (issue #1533): флажок, причина вместо него или ничего. */}
+          <SuggestFlag field={field} onChange={onChange} />
           {field.computed && (
             <ComputedFieldEditor field={field} siblingFields={siblingFields ?? []} onChange={onChange} />
           )}

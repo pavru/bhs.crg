@@ -18,13 +18,13 @@ PR закрывает #1533 («Closes #1533»), метки `ui` и `version:mino
 
 ## 1. Контекст и формы
 
-- [ ] 1.1 `fields/suggestContext.tsx`; провайдеры в `RequisitesTab`, `ComplexFields`, `ArrayTableModal`,
+- [x] 1.1 `fields/suggestContext.tsx`; провайдеры в `RequisitesTab`, `ComplexFields`, `ArrayTableModal`,
   `catalog/index.tsx`, `QualityDocForm` — без роста файлов из храповика размера. Проверка — тест:
   поле составного зовёт адрес с типом составного; `FileSizeRatchet` зелёный
-- [ ] 1.2 `PrimitiveInput`: `SuggestField` при контексте и коде «подсказывается» по `field.type`;
+- [x] 1.2 `PrimitiveInput`: `SuggestField` при контексте и коде «подсказывается» по `field.type`;
   иначе — как было. Проверка — тесты: `text`, `primitive`, вычисляемое и поле без контекста адрес не
   зовут; `InvoiceExtraFields` запросов не шлёт
-- [ ] 1.3 `TableCell`: `SuggestField compact` для строковых ячеек, `aria-label={field.title}` у текстовой
+- [x] 1.3 `TableCell`: `SuggestField compact` для строковых ячеек, `aria-label={field.title}` у текстовой
   ячейки. Проверка — тест: при пустом ответе списка нет, ↑↓ переводят по строкам (`EditGrid`)
 
 ## 2. Шаг «Новая позиция»
@@ -32,17 +32,17 @@ PR закрывает #1533 («Closes #1533»), метки `ui` и `version:mino
 - [x] 2.1 Сервер: `FieldDto` описания `/api/nomenclature/intake` получает `suggest` — код причины
   `Suggestable` [CORE-8] [CORE-9]. Проверка — тест двери: строковое поле — «подсказывается», поле с
   `nomenclature.article` — `article`, `text` — `type`, компонент ключа `identity` — «подсказывается»
-- [ ] 2.2 `NewNomenclatureStep`: поле с кодом «подсказывается» — `SuggestField` в контексте вида и уровня
+- [x] 2.2 `NewNomenclatureStep`: поле с кодом «подсказывается» — `SuggestField` в контексте вида и уровня
   «вся система»; выбор идёт через `type(key, value)`; право — по В-1 [CORE-8] [CORE-9]. Проверка — тест
   шага: подстановка в поле ключа запускает поиск похожих; поле с кодом `article` адрес не зовёт
 
 ## 3. Флажок в редакторе типа
 
-- [ ] 3.1 `settings/SuggestFlag.tsx` (`Checkbox`, пояснение, строка причины по коду; вариант В — пометка
+- [x] 3.1 `settings/SuggestFlag.tsx` (`Checkbox`, пояснение, строка причины по коду; вариант В — пометка
   «без подсказки» в шапке карточки при `manual`) и одна строка вызова в `FieldBuilder` рядом с
   «Вычисляемое» [TYPE-2]. Проверка — тесты на каждый код; `FileSizeRatchet`
   зелёный
-- [ ] 3.2 `input.noSuggest` скрыт из чипов карточки поля и из списка выбора тэгов — фильтром в
+- [x] 3.2 `input.noSuggest` скрыт из чипов карточки поля и из списка выбора тэгов — фильтром в
   `shared/api/tags.ts` [TYPE-2]. Проверка — тест: поле с тэгом не показывает чип
 
 ## 4. e2e и документы
@@ -57,7 +57,7 @@ PR закрывает #1533 («Closes #1533»), метки `ui` и `version:mino
   запроса к адресу (сеть); в шапке — «без подсказки»; у `text` и вычисляемого флажка нет; у
   `nomenclature.article` — строка причины [TYPE-2].
   Проверка — сценарий зелёный в CI
-- [ ] 4.4 `docs/USER_GUIDE.md` (подсказки в полях) и `docs/ADMIN_GUIDE.md` (флажок поля, причины);
+- [x] 4.4 `docs/USER_GUIDE.md` (подсказки в полях) и `docs/ADMIN_GUIDE.md` (флажок поля, причины);
   `cd docs/tools && npm run toc`. Проверка — проверка оглавлений в «Frontend» зелёная
 
 ## 5. Верификация

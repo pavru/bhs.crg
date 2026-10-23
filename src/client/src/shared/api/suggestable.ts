@@ -44,3 +44,20 @@ export function suggestReason(field: Pick<SchemaField, 'type' | 'computed' | 'lo
 
   return hasTag(field.tags, FUNCTIONAL_TAG.inputNoSuggest) ? 'manual' : 'suggested';
 }
+
+/** Коды, у которых в редакторе типа вместо флажка стоит строка причины (issue #1533). */
+export type SuggestRefusal = Exclude<SuggestReason, 'suggested' | 'manual' | 'type' | 'computed'>;
+
+/**
+ * Почему поле не подсказывается — словами для редактора типа. `type` и `computed` строки не получают:
+ * у многострочного текста и формулы подсказки не ждут, и объяснение было бы шумом в каждой карточке.
+ */
+export const SUGGEST_REFUSAL_TEXT: Record<SuggestRefusal, string> = {
+  locked: 'Не подсказывается: значение кладёт модуль, поле заперто.',
+  inn: 'Не подсказывается: ИНН у каждой организации свой.',
+  docNumber: 'Не подсказывается: номер у каждого документа свой.',
+  personnelNumber: 'Не подсказывается: табельный номер у каждого сотрудника свой.',
+  article: 'Не подсказывается: артикул у каждой позиции свой — чужой привёл бы к дублю.',
+  orgName: 'Не подсказывается: чужое название организации ведёт к дублю записи справочника.',
+  account: 'Не подсказывается: учётная запись привязывается к одному сотруднику.',
+};
