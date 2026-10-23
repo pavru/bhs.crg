@@ -135,8 +135,17 @@ public static class ModuleTypeProjector
         moduleCode, declared.Code, declared.Name, Level(declared.Level),
         [.. declared.Fields.Select(f =>
             new ModuleFieldSpec(f.Key, f.Title, f.Type, f.Tags, f.Required, f.Locked, f.Target, f.TargetRole))],
-        declared.Group, Storage: Storage(declared.Storage),
+        declared.Group, Kind(declared.Kind), Storage: Storage(declared.Storage),
         SkipWhenBlocked: declared.SkipWhenBlocked);
+
+    /// <summary>Зеркало родов — тем же переключателем и по той же причине, что уровни (plan-06).</summary>
+    private static DocumentTypeKind Kind(ModuleTypeKind kind) => kind switch
+    {
+        ModuleTypeKind.Document => DocumentTypeKind.Document,
+        ModuleTypeKind.Composite => DocumentTypeKind.Composite,
+        _ => throw new InvalidOperationException(
+            $"Неизвестный род типа «{kind}» — зеркало разошлось с доменным перечислением."),
+    };
 
     /// <summary>
     /// Зеркало уровней. Переключатель, а не приведение по числу: значения совпадают по именам, и

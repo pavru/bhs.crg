@@ -42,6 +42,7 @@ public class DomainExceptionPolicyTests
     /// </summary>
     private static readonly Dictionary<string, string> DeliberatelyFramework = new()
     {
+        ["BHS.CRG.Modules.Plan/Data/EstimateRevision.cs"] = "фиксация редакции без вида или названия производной (plan-06): промах кода КП и графика, который фиксирует, — человек фиксацию не зовёт",
         ["BHS.CRG.Modules.Costs/Data/InvoiceLine.cs"] = "бумажная сумма строки не в поле своего режима НДС (issue #1497): промах кода, звавшего досчёт, — человеку тот же запрет раньше называет разбор запроса (InvoiceLineRequests.Complete) своим 400",
         ["BHS.CRG.Domain/Storage/BlobRegistryEntry.cs"] = "негодный владелец файла (пустой, «любой», длиннее предела, ТЗ CORE-37.2): промах кода, кладущего файл, — владельца называет порт или служба, а не человек",
         ["BHS.CRG.Infrastructure/Storage/RegisteredBlobStorage.cs"] = "файл кладётся от имени «любого» (ТЗ CORE-37.2): маркер резервной копии для чтения, записать его — промах кода, а не действие человека",

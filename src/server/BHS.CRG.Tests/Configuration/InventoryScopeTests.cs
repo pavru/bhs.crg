@@ -74,6 +74,8 @@ public class InventoryScopeTests
             "сторож одного модуля: книга проводок счёта — таблица модуля счетов (E2, issue #1100)",
         ["BHS.CRG.Tests/Configuration/VatModeInventoryTests.cs"] =
             "сторож одного модуля: режим НДС — признак счёта модуля счетов (issue #1497)",
+        ["BHS.CRG.Tests/Configuration/PlanRowsInventoryTests.cs"] =
+            "сторож одного модуля: строки смет — таблица модуля планирования (plan-06)",
     };
 
     /// <summary>

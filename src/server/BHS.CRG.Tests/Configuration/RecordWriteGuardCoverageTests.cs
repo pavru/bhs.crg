@@ -43,6 +43,7 @@ public class RecordWriteGuardCoverageTests
     private static readonly Dictionary<string, string> ModuleTableWrites = new()
     {
         ["СчётНаОплату"] = @"\.ApplyRequisites\(",
+        ["ПозицияСметы"] = @"\.CreateEstimateRow\(",
     };
 
     /// <summary>Как данные попадают в объект: присвоение или конструктор с готовыми данными.</summary>
@@ -94,6 +95,9 @@ public class RecordWriteGuardCoverageTests
         ["BHS.CRG.Modules.Costs/Endpoints/InvoiceEndpoints.cs|invoice.ApplyRequisites(columns, rest, dueDateByHand: true, rule);"] =
             (Guarded, "правка шапки счёта — проверяется против лежащего, дополненного неприсланным состоянием"),
 
+        ["BHS.CRG.Modules.Plan/Data/EstimateRevisionWriter.cs|created.Add((EstimateRow.CreateEstimateRow(revision.Id, i + 1, draft, data), draft));"] =
+            (Guarded, "строка новой редакции сметы (plan-06): сметное наполнение по схеме «Позиция сметы» вносится " +
+                      "впервые — редакция заводится целиком, лежащего нет; единственное место записи строк"),
         ["BHS.CRG.Application/Documents/DocumentTypeHandlers.cs|inst.SetData(System.Text.Json.JsonDocument.Parse(root.ToJsonString()));"] =
             (Free, "перенос ключа поля и починка аудита: их работа и есть трогать кривые данные; " +
                    "охрана сделала бы битую запись непочинимой, а правку схемы — обрывающейся на середине"),

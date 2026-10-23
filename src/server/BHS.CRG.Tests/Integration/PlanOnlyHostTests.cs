@@ -54,16 +54,16 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     }
 
     /// <summary>
-    /// Включённый модуль отказом «модуля нет» на своём пути НЕ отвечает: адресов у каркаса нет, и ответ —
-    /// обычный 404, а не 501. Получив 501 от включённого модуля, человек пошёл бы включать то, что уже
-    /// включено. Ждёт 404 ровно до первого адреса (<c>plan-04</c>), как ждал хост счетов до C1.
+    /// Включённый модуль отказом «модуля нет» на своём пути НЕ отвечает: адрес смет есть (<c>plan-06</c>),
+    /// и без входа ответ — 401, а не 501. Получив 501 от включённого модуля, человек пошёл бы включать то,
+    /// что уже включено.
     /// </summary>
     [Fact]
     public async Task Enabled_module_does_not_refuse_its_own_paths()
     {
         var response = await host.CreateClient().GetAsync("/api/plan/estimates");
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     /// <summary>
@@ -105,13 +105,14 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
         var catalog = host.Services.GetRequiredService<PermissionCatalog>();
         var plan = catalog.All.Where(p => p.Code.StartsWith("plan.", StringComparison.Ordinal)).ToList();
 
-        // Два из двенадцати прав PLAN-23 — правило этапа (D12 зонтика plan-00-epic): право объявляется
-        // вместе с первым адресом, который оно открывает; сметы — первая дверь модуля. Остальные приходят
-        // своими change (cost — 06, offer — 13, pricelist — 14, календарь и графики — 18, права контракта
-        // — 23). Число названо здесь нарочно: право, добавленное без своего change, обязано столкнуться с
-        // этой строкой и с объяснением рядом с ней.
-        Assert.Equal(2, plan.Count);
-        Assert.Equal([PlanModule.EstimateEdit, PlanModule.EstimateRead], plan.Select(p => p.Code).Order(StringComparer.Ordinal));
+        // Три из двенадцати прав PLAN-23 — правило этапа (D12 зонтика plan-00-epic): право объявляется
+        // вместе с первым адресом, который оно открывает; сметы — первая дверь модуля, себестоимость
+        // закрывает модель сметы (06). Остальные приходят своими change (offer — 13, pricelist — 14,
+        // календарь и графики — 18, права контракта — 23). Число названо здесь нарочно: право, добавленное
+        // без своего change, обязано столкнуться с этой строкой и с объяснением рядом с ней.
+        Assert.Equal(3, plan.Count);
+        Assert.Equal([PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateRead],
+            plan.Select(p => p.Code).Order(StringComparer.Ordinal));
         Assert.All(plan, p => Assert.Null(p.Validate()));
         Assert.DoesNotContain(catalog.Codes, c => c.StartsWith("id.", StringComparison.Ordinal));
         Assert.DoesNotContain(catalog.Codes, c => c.StartsWith("costs.", StringComparison.Ordinal));
@@ -143,11 +144,12 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     {
         _ = host.CreateClient();
 
+        // Пусто: двери смет пришли с моделью сметы (plan-06). Себестоимость (plan.estimate.cost) двери не
+        // открывает — она открывает часть ответа, — поэтому на воротах её нет и здесь она названа ниже.
         Dictionary<string, string> doorless = new()
         {
-            // Объявлены в каркасе ради составов ролей (PLAN-23), двери приходят с импортом сметы.
-            [PlanModule.EstimateRead] = "plan-04: импорт и чтение сметы",
-            [PlanModule.EstimateEdit] = "plan-04: импорт сметы",
+            [PlanModule.EstimateCost] =
+                "не дверь, а часть ответа: без права ответы смет и строк идут без денег (plan-06, PLAN-11)",
         };
 
         var catalog = host.Services.GetRequiredService<PermissionCatalog>();
@@ -182,27 +184,27 @@ public class PlanOnlyHostTests(PlanOnlyHost host)
     ///
     /// <list type="bullet">
     ///   <item>«Администратор» — всё объявленное, на экземпляре с <c>plan</c> — и права <c>plan</c>.</item>
-    ///   <item>«Сметчик» — сметы; ни одного <c>plan.offer.*</c>: без права на КП он не видит цен продажи
-    ///   (PLAN-2). Себестоимость (<c>plan.estimate.cost</c>) придёт к нему с <c>plan-06</c>.</item>
-    ///   <item>«Менеджер проекта» — только чтение смет (решение В-1, PLAN-Q9): КП, прайс-лист и графики
-    ///   объявят свои change.</item>
-    ///   <item>«Руководитель» — чтение смет через «читать всё»; правка в него не входит.</item>
+    ///   <item>«Сметчик» — сметы с себестоимостью (<c>plan.estimate.cost</c>, <c>plan-06</c>); ни одного
+    ///   <c>plan.offer.*</c>: без права на КП он не видит цен продажи (PLAN-2).</item>
+    ///   <item>«Менеджер проекта» — только чтение смет, БЕЗ себестоимости (решение В-1, PLAN-Q9): КП,
+    ///   прайс-лист и графики объявят свои change.</item>
+    ///   <item>«Руководитель» — чтение смет с деньгами через «читать всё» (D12 зонтика); правка в него не
+    ///   входит.</item>
     ///   <item>«Инженер ИД», «Бухгалтер», «Монтажник», «Снабженец» — модуля нет. У монтажника и
     ///   снабженца в составе стоят права контракта (<c>plan.estimate.hint</c>,
     ///   <c>plan.estimate.materials</c>) — они ещё не объявлены и пропускаются; модуль им не откроют и
     ///   после объявления (AUTH-8.1, <c>plan-21</c>).</item>
     /// </list>
     ///
-    /// <para>⚠️ Что ворота <c>/api/plan</c> закрыты ролям без прав модуля, здесь НЕ проверяется: у пустой
-    /// группы адресов нет, и путь отвечает 404 раньше авторизации — любой роли. Доказывает ворота первый
-    /// адрес под ними (<c>plan-04</c>), и проверяется это там же; признак модуля и ворота считаются
-    /// одним правилом (<c>ModuleAccess</c>), это сверяет <c>AccountAccessTests.Module_flag_matches_the_module_gate</c>.</para>
+    /// <para>Что ворота <c>/api/plan</c> закрыты ролям без прав модуля, проверяет первый адрес под ними —
+    /// сметы (<c>EstimateEndpointsTests</c>, <c>plan-06</c>); признак модуля и ворота считаются одним
+    /// правилом (<c>ModuleAccess</c>), это сверяет <c>AccountAccessTests.Module_flag_matches_the_module_gate</c>.</para>
     /// </summary>
     [Theory]
-    [InlineData(SystemRoles.Admin, true, PlanModule.EstimateEdit, PlanModule.EstimateRead)]
-    [InlineData("Estimator", true, PlanModule.EstimateEdit, PlanModule.EstimateRead)]
+    [InlineData(SystemRoles.Admin, true, PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateRead)]
+    [InlineData("Estimator", true, PlanModule.EstimateCost, PlanModule.EstimateEdit, PlanModule.EstimateRead)]
     [InlineData("ProjectManager", true, PlanModule.EstimateRead)]
-    [InlineData("Executive", true, PlanModule.EstimateRead)]
+    [InlineData("Executive", true, PlanModule.EstimateCost, PlanModule.EstimateRead)]
     [InlineData(SystemRoles.IdEngineer, false)]
     [InlineData("Accountant", false)]
     [InlineData("Installer", false)]
