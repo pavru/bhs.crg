@@ -40,7 +40,7 @@ export const fieldSuggestionsKey = (source: SuggestSource, q: string) =>
  */
 export function useFieldSuggestions(source: SuggestSource | null, q: string | null) {
   const asked = source !== null && q !== null;
-  return useQuery({
+  return useQuery<FieldSuggestion[]>({
     queryKey: asked ? fieldSuggestionsKey(source, q) : ['field-suggestions', 'none'],
     queryFn: ({ signal }) => apiClient
       .get<{ items: FieldSuggestion[] }>('/field-suggestions', {
