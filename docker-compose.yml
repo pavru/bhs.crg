@@ -160,7 +160,7 @@ services:
   # наружу, а из такой сети Docker порты не публикует вовсе. API на стенде запущен на хосте,
   # поэтому к конвертеру его проводит nginx ниже — http://127.0.0.1:3910.
   converter:
-    image: gotenberg/gotenberg:8.37.0-libreoffice
+    image: gotenberg/gotenberg:8.38.1-libreoffice
     environment:
       LANG: ru_RU.UTF-8
       LC_ALL: ru_RU.UTF-8
