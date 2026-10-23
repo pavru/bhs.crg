@@ -66,6 +66,8 @@ public static class ModulePorts
         services.AddScoped<IModuleWorkTypes, ModuleWorkTypesPort>();
         services.AddScoped<IModuleUnits, ModuleUnitsPort>();
         services.AddScoped<IModuleEmployees, ModuleEmployeesPort>();
+        // Позиции перечня работ — «найди или создай» по ключу (plan-04, CORE-12): заводит их только сервер.
+        services.AddScoped<IModulePlanItems, ModulePlanItemsPort>();
         services.AddScoped<IModuleOwnCatalog, ModuleOwnCatalogPort>();
         // Заведение записи справочника ЯДРА модулем (issue #1077): только создание, только объявленные типы.
         services.AddScoped<IModuleCatalogIntake, ModuleCatalogIntakePort>();

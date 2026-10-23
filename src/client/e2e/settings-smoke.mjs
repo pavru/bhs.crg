@@ -60,7 +60,7 @@ await check('tab-icon-link-carries-the-icons-version', async () => {
   if (status !== 200) throw new Error(`адрес оформления ответил ${status}`);
   const expected = `?v=${encodeURIComponent(body.icons.version)}`;
 
-  const links = () => page.evaluate(() => ({
+  const links = (on = page) => on.evaluate(() => ({
     tab: document.querySelector('link[rel="icon"]')?.getAttribute('href'),
     apple: document.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href'),
     stored: localStorage.getItem('crg-brand-icons'),
@@ -72,21 +72,54 @@ await check('tab-icon-link-carries-the-icons-version', async () => {
 
   // Следующая загрузка: ссылку ставит ранний скрипт — до приложения и до запроса оформления.
   // Запрос оформления придерживаем, иначе не отличить скрипт от приложения.
+  //
+  // ⚠️ Загрузка — в ОТДЕЛЬНОМ контексте с памятью этой страницы, а не перезагрузкой её самой под
+  // `page.route` со снятием следом. Так было до 23.10.2026, и раз в несколько десятков прогонов CI
+  // (master 22.10.2026, PR #1597) эта проверка и семь следующих по той же странице падали «страница
+  // не затихла: в полёте roboto-cyrillic-*.woff2» — пока переход не сбрасывал наблюдение.
+  //
+  // Причина ВЫВЕДЕНА ИЗ КОДА Playwright, воспроизвести её не удалось (55 кругов на стенде, в том
+  // числе с замедлением процессора). Перехват в Chromium — домен Fetch: пока он включён, Playwright
+  // собирает каждый запрос из двух событий браузера и решает, как их сводить, по флагу перехвата В
+  // МИГ ПРИХОДА каждого; снятие перехвата посреди загрузки рвёт сводку, и запрос, начатый в это
+  // окно, для страницы не завершается. После перезагрузки окно попадало на шрифты: приложение
+  // дорисовывается, когда оформление отпущено, и roboto уходят рядом с `unrouteAll`. Вернётся
+  // падение и с отдельным контекстом — значит, причина в другом.
+  //
+  // Контекст закрывается целиком, и перехват на странице, по которой идут остальные проверки, не
+  // включается вовсе. Окно — того же размера: следующая загрузка должна быть той же загрузкой.
+  const next = await browser.newContext({
+    storageState: await page.context().storageState(), viewport: page.viewportSize(),
+  });
   let release;
   const held = new Promise(resolve => { release = resolve; });
-  await page.route('**/api/branding', async route => { await held; await route.continue(); });
+  let continued = null;
+  await next.route('**/api/branding', async route => {
+    await held;
+    continued = route.continue();
+    await continued.catch(() => {});   // разбирается ниже, после закрытия контекста
+  });
   try {
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    const early = await links();
+    const fresh = await next.newPage();
+    await fresh.goto(`${BASE}/settings`, { waitUntil: 'domcontentloaded' });
+    // Память переносится не вся: `storageState` берёт localStorage, но не sessionStorage, а туда
+    // вход кладёт токен при снятом «Запомнить меня». Без токена пробная страница — гостевая, и
+    // проверка молча загружала бы экран входа вместо настроек: ранний скрипт работает на любом.
+    const signedIn = await fresh.evaluate(() =>
+      !!(localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token')));
+    if (!signedIn) throw new Error('вход в новый контекст не перенёсся — загружается экран входа, а не настройки');
+    const early = await links(fresh);
     if (early.tab !== `/api/branding/icons/tab${expected}`)
       throw new Error(`до ответа об оформлении ссылка значка — «${early.tab}»: ранний скрипт её не поставил`);
   } finally {
     release();
-    // С ожиданием: придержанный запрос ещё в обработчике, и снятая под ним подмена обернулась бы
-    // необработанным «Route is already handled» — падением всего набора, а не одной проверки.
-    await page.unrouteAll({ behavior: 'wait' });
+    await next.close();
   }
-  await settled(page);
+  // Продолжение вправе отказать только закрытому контексту — ответ там уже никому не нужен. Любой
+  // другой отказ — провал проверки, а не тишина.
+  const refusal = await continued?.then(() => null, e => e);
+  if (refusal && !/closed/i.test(refusal.message))
+    throw new Error(`придержанный запрос оформления не продолжен: ${refusal.message}`);
 
   // И адрес с меткой — живой: отвечает картинкой и длинным кешем.
   const served = await page.evaluate(async url => {

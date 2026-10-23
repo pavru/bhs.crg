@@ -76,10 +76,43 @@ export async function launchBrowser() {
     browser[open] = async (options = {}) => {
       const opened = await original({ locale: LOCALE, ...options });
       await opened.addInitScript(nameSeenVersion);
+      watchBranding(open === 'newPage' ? opened.context() : opened);
       return opened;
     };
   }
   return browser;
+}
+
+/**
+ * Отказы 429 оформления (`/api/branding…`), увиденные любой страницей прогона, — их предъявляет
+ * `summarize` провалом набора.
+ *
+ * Зачем. Оформление читает КАЖДАЯ загрузка страницы, а предел частоты у него один на адрес — и все
+ * наборы ходят с одного. Переполненный предел не роняет почти ни одну проверку: шапка молча
+ * показывает название по умолчанию, и красным становился только набор, собиравший любые отказы
+ * `/api/` (`invoice-payment`), — не тот, что добавил загрузок. Посчитать загрузки по тексту наборов,
+ * как входы в `suites.test.mjs`, честно нельзя, поэтому отказ ловится там, где он случается. На
+ * стенде живых прогонов предел поднят (`RateLimits__Branding` в `ci.yml`); упёрлись и в него —
+ * поднимайте там же, это решение о стенде, не о наборе.
+ *
+ * Изменяемый массив наружу — ради одной проверки обвязки, которая отказ вызывает нарочно и обязана
+ * за собой убрать.
+ */
+export const brandingRefusals = [];
+const watchedContexts = new WeakSet();
+
+/**
+ * Страница, открытая `browser.newPage`, приходит со своим контекстом, а Playwright заводит его тем же
+ * `newContext`, — поэтому слушаем контекст, и один раз: иначе каждый отказ считался бы дважды.
+ */
+function watchBranding(context) {
+  if (watchedContexts.has(context)) return;
+  watchedContexts.add(context);
+  context.on('response', response => {
+    if (response.status() !== 429) return;
+    const { pathname } = new URL(response.url());
+    if (pathname.startsWith('/api/branding')) brandingRefusals.push(pathname);
+  });
 }
 
 /**
@@ -475,6 +508,9 @@ export async function clearSession(page) {
  * распознанные страницы, то есть ИИ-движок, а в CI его нет. Пропуск ЗАЯВЛЕН, а не сделан молча:
  * зелёный прогон обязан говорить, сколько проверок он не делал, — иначе «69 из 82» незаметно
  * превращается в «69 из 69», и недостающие тринадцать перестают существовать.
+ *
+ * Отказ 429 оформления, увиденный любой страницей прогона (`brandingRefusals`), итог тоже делает
+ * провалом — даже когда все проверки прошли.
  */
 export function createChecks() {
   const results = [];
@@ -491,7 +527,14 @@ export function createChecks() {
     const failed = results.filter(([, ok]) => !ok);
     console.log(`\n${results.length - failed.length}/${results.length} проверок прошло`
       + (skipped.length ? `, ${skipped.length} пропущено: ${skipped.map(([n]) => n).join(', ')}` : ''));
-    if (failed.length) { console.error('ПРОВАЛ:', failed.map(([n]) => n).join(', ')); return 1; }
+    if (failed.length) console.error('ПРОВАЛ:', failed.map(([n]) => n).join(', '));
+    if (brandingRefusals.length) {
+      console.error(`ПРОВАЛ: оформление отвечало 429 — ${brandingRefusals.length} раз (`
+        + `${[...new Set(brandingRefusals)].join(', ')}). Исчерпан предел частоты оформления: шапка `
+        + 'этих страниц показывала название по умолчанию. На стенде живых прогонов предел задаёт '
+        + 'RateLimits__Branding в ci.yml (см. brandingRefusals в harness.mjs)');
+    }
+    if (failed.length || brandingRefusals.length) return 1;
     console.log(`${title} — OK`);
     return 0;
   }
