@@ -55,6 +55,24 @@ public class BrandingRateLimitTests
     public void OutOfRange_StopsStartup(string value)
         => Assert.Throws<InvalidOperationException>(() => BrandingRateLimit.Parse(value));
 
+    /// <summary>
+    /// Одни цифры, но больше int, — описка лишними нулями. Отказ называет диапазон, а не «не число»:
+    /// по второму человек ищет в строке невидимые знаки, а не лишний ноль.
+    /// </summary>
+    [Theory]
+    [InlineData("30000000000")]
+    [InlineData("300000000000000000000000000000")]
+    public void DigitsBeyondInt_NamedAsOutOfRange(string value)
+    {
+        var refusal = Assert.Throws<InvalidOperationException>(() => BrandingRateLimit.Parse(value));
+        Assert.Contains("вне допустимого диапазона", refusal.Message);
+    }
+
+    [Fact]
+    public void NotANumber_NamedAsSuch()
+        => Assert.Contains("не число",
+            Assert.Throws<InvalidOperationException>(() => BrandingRateLimit.Parse("3000/5m")).Message);
+
     [Theory]
     [InlineData("300")]
     [InlineData("30000")]

@@ -10,9 +10,9 @@ namespace BHS.CRG.Api.Configuration;
 /// <list type="bullet">
 /// <item>офис за общим внешним адресом — десятки людей в одной корзине. Упрётся в предел — экраны
 /// останутся без шапки и логотипа, а починить это без пересборки образа было бы нечем;</item>
-/// <item>стенд живых прогонов CI — все наборы с одного адреса подряд, сотни загрузок страниц за
-/// минуты. На пределе поставки 429 начинали получать наборы в конце списка, и красным становился
-/// тот, что проверяет отказы, а не тот, что добавил загрузок (замер 23.10.2026).</item>
+/// <item>стенд живых прогонов CI — все наборы с одного адреса подряд, под четыре сотни загрузок
+/// страниц за шесть минут. На пределе поставки 429 начинали получать наборы в конце списка, и красным
+/// становился тот, что проверяет отказы, а не тот, что добавил загрузок (замер 23.10.2026).</item>
 /// </list>
 ///
 /// <para>Значки и манифест (корзина <c>branding-icons</c>) идут с той же частотой — манифест
@@ -64,12 +64,16 @@ public sealed class BrandingRateLimit
     {
         if (string.IsNullOrWhiteSpace(value)) return new BrandingRateLimit(Default);
 
-        if (!int.TryParse(value.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var limit))
-            throw Fail($"Предел запросов оформления ({Key}) не число: «{value.Trim()}».");
+        var text = value.Trim();
+        if (!text.All(char.IsAsciiDigit))
+            throw Fail($"Предел запросов оформления ({Key}) не число: «{text}».");
 
-        if (limit < Min || limit > Max)
+        // Цифры, не влезшие в int, — тоже выход за диапазон (лишние нули), и отказ обязан назвать
+        // именно его, а не «не число»: человек видит цифры и ищет в строке невидимые знаки.
+        if (!int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var limit)
+            || limit < Min || limit > Max)
             throw Fail(
-                $"Предел запросов оформления ({Key}) вне допустимого диапазона: {limit}. " +
+                $"Предел запросов оформления ({Key}) вне допустимого диапазона: {text}. " +
                 $"Допустимо от {Min} до {Max}.");
 
         return new BrandingRateLimit(limit);
