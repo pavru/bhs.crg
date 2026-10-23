@@ -1,4 +1,4 @@
-import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Printer, Scale, Bug, History, ReceiptText, Table2, Truck, CalendarCheck, ChartNoAxesColumn, Link2, Building2, Calculator, Wrench } from 'lucide-react';
+import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Printer, Scale, Bug, History, ReceiptText, Table2, Truck, CalendarCheck, ChartNoAxesColumn, Link2, Building2, Calculator, Wrench, ClipboardList } from 'lucide-react';
 
 /**
  * Пункты навигации — общий источник для сайдбара (AppShell) и командной палитры (Ctrl+K).
@@ -15,8 +15,11 @@ export interface NavItem {
   to: string;
   label: string;
   icon: typeof FolderOpen;
-  /** Право, без которого пункт не показывается. */
-  permission?: string;
+  /**
+   * Право, без которого пункт не показывается. Список — «любое из» (plan-02): пункт виден при любом
+   * праве списка, а его адреса стоят под `AppPolicies.AnyPermission` с тем же списком.
+   */
+  permission?: string | string[];
   /** Модуль, без доступа к которому пункт не показывается. */
   module?: string;
   /**
@@ -39,7 +42,7 @@ export interface NavItem {
  * короток на любом экране, а двадцать пунктов перестают быть одним списком, который надо прочесть
  * целиком, чтобы найти нужное.
  */
-export type RailId = 'constructions' | 'data' | 'costs' | 'system';
+export type RailId = 'constructions' | 'data' | 'costs' | 'plan' | 'system';
 
 export interface RailSectionDef {
   id: RailId;
@@ -69,8 +72,14 @@ export const railSections: RailSectionDef[] = [
     hint: 'Объекты, разделы и комплекты документов', panelOnlyAt: '/document-sets' },
   { id: 'data',   label: 'Данные', icon: Database,   title: 'Данные',
     hint: 'Справочники, наборы данных и сверка' },
-  { id: 'costs',  label: 'Учёт',   icon: Calculator, title: 'Учёт затрат',
+  // Подпись «Затраты» (было «Учёт»), заголовок прежний — решение макета П0 (plan-02, 22.10.2026).
+  { id: 'costs',  label: 'Затраты', icon: Calculator, title: 'Учёт затрат',
     hint: 'Счета, накладные, закрытие месяца' },
+  // Модуль «Планирование» (plan-02, макет П0) — последним рабочим разделом: ни у кого привычное не
+  // сдвигается. Подпись «Планы»: «Планирование» в 80 px не помещается, «Сметы» сужает раздел, а «План»
+  // занят модулем ИД (% плана у разделов). Пока у раздела нет видимых пунктов, его нет в рейле.
+  { id: 'plan',   label: 'Планы',  icon: ClipboardList, title: 'Планирование',
+    hint: 'Сметы, коммерческие предложения, прайс-лист и календарь' },
   // Подпись «Система», заголовок «Администрирование»: полное слово в 80 px рейла не помещается
   // (решение владельца, 17.10.2026).
   { id: 'system', label: 'Система', icon: Wrench,    title: 'Администрирование',

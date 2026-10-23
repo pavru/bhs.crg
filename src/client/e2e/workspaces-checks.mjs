@@ -76,7 +76,7 @@ export async function workspaceChecks(page, check) {
       await choose(page, 'Счета и накладные');
       if (!(await railSection(page, 'Стройки').count()))
         throw new Error('нет «Строек» — раздела ядра, который объявил модуль счетов');
-      await railSection(page, 'Учёт').click();
+      await railSection(page, 'Затраты').click();
       await settled(page);
       const panel = page.getByTestId('section-panel');
       if (!(await panel.getByRole('link', { name: 'Счета', exact: true }).count()))

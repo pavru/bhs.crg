@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import type { AccessInfo } from '@/shared/api/access';
 import { CommandPalette } from './CommandPalette';
+import { paletteLabels as labels } from '@/shared/testing/palette';
 import { NavigationGuardProvider } from './NavigationGuardProvider';
 
 let access: AccessInfo;
@@ -38,12 +39,6 @@ function shown(who: AccessInfo, at = '/') {
 }
 
 const search = () => screen.getByRole('textbox', { name: 'Поиск и действия', hidden: true });
-/** Подпись пункта — без подсказки «Enter» и без группы, которую слышит только диктор. */
-const labels = () => screen.queryAllByRole('button', { hidden: true }).filter(b => b.closest('ul')).map(b => {
-  const copy = b.cloneNode(true) as HTMLElement;
-  copy.querySelectorAll('.sr-only').forEach(n => n.remove());
-  return copy.textContent?.trim().replace(/\s*Enter$/, '');
-});
 function type(text: string) { fireEvent.change(search(), { target: { value: text } }); }
 const address = () => screen.getByLabelText('адрес').textContent;
 

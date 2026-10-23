@@ -47,8 +47,8 @@
     заголовок подпанели «Планирование», место — последним рабочим разделом, после «Затрат». Подпись
     раздела `costs` — «Затраты» (было «Учёт»), значок и заголовок «Учёт затрат» прежние.
   - Сервер: `AppPolicies.AnyPermission(params string[] codes)` — имя `perm:<a>|<b>`; провайдер разбирает
-    список, каждый код проходит `Declared()`; `AnyPermissionRequirement` и обработчик; `McpPermission`
-    принимает тот же список (`AUTH-12.1`).
+    список, каждый код проходит `Declared()`; `PermissionRequirement` держит список кодов (одно право —
+    список из одного), обработчик один; `McpPermission` принимает тот же список (`AUTH-12.1`).
   - Переписи `PermissionGateTests`, `EndpointGateInventoryTests`, `ReadAllWritesNothingTests`,
     `McpGateInventoryTests` читают составное имя.
 - **PR 2 — вход и панели** (после выбора макета П0).

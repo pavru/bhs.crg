@@ -538,7 +538,7 @@ try {
     await page.setViewportSize({ width: 1500, height: 1000 });
     await page.goto(`${BASE}/document-sets`, { waitUntil: 'networkidle' });
     // «Реестр счетов» — в подпанели «Учёта» (issue #1429).
-    await railSection(page, 'Учёт').click();
+    await railSection(page, 'Затраты').click();
     await page.getByTestId('section-panel').getByRole('link', { name: 'Реестр счетов' }).click();
     await page.getByRole('heading', { name: 'Реестр счетов' }).waitFor({ timeout: 10000 });
     await dataRows(page).first().waitFor({ timeout: 8000 });
