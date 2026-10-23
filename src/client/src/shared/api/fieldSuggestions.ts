@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { apiClient } from './client';
 import type { CatalogScope } from './types';
 
@@ -35,8 +35,10 @@ export const fieldSuggestionsKey = (source: SuggestSource, q: string) =>
  * Подсказки по набранному `q`; `q === null` — спрашивать не о чем (поле без фокуса, ничего не набрано).
  * Задержку после последней клавиши держит поле: в ключ попадает уже отстоявшееся `q`.
  *
- * <p>Прошлый ответ придерживается, пока едет новый (`keepPreviousData`): иначе список мигал бы на каждую
- * клавишу. Смена `q` отменяет прошлый запрос через `signal`.</p>
+ * <p>Смена `q` отменяет прошлый запрос через `signal`. Прошлого ответа хук НЕ придерживает: `keepPreviousData`
+ * отдаёт последний ответ наблюдателя с данными — через закрытие поля и смену самого поля, и список
+ * показал бы значения другого набора или другого поля. Что держать, пока едет новый ответ, решает поле:
+ * оно знает, где кончается одно открытие.</p>
  */
 export function useFieldSuggestions(source: SuggestSource | null, q: string | null) {
   const asked = source !== null && q !== null;
@@ -53,7 +55,6 @@ export function useFieldSuggestions(source: SuggestSource | null, q: string | nu
       .then(r => r.data.items),
     enabled: asked,
     staleTime: SUGGESTIONS_STALE_MS,
-    placeholderData: keepPreviousData,
     // 503 — сервер не успел; повтор той же буквы только догонял бы следующую.
     retry: false,
   });

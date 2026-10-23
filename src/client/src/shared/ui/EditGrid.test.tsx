@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { EditGrid, type EditGridColumn } from './EditGrid';
 import { Select, SelectItem } from './Select';
 
@@ -132,7 +132,7 @@ describe('EditGrid (#1354)', () => {
     expect(document.activeElement).toBe(first);
   });
 
-  it('ячейка с живым Select открывается на ↓, фокус остаётся в ней', () => {
+  it('ячейка с живым Select открывается на ↓, фокус остаётся в ней', async () => {
     render(
       <EditGrid rows={[line(), line()]} rowKey={r => r.key} columns={[{
         key: 'unit', label: 'Ед.', cell: (_, i) => (
@@ -144,12 +144,15 @@ describe('EditGrid (#1354)', () => {
     );
     const first = screen.getByRole('combobox', { name: 'Ед., строка 1' });
     const second = screen.getByRole('combobox', { name: 'Ед., строка 2' });
+    const moved = vi.spyOn(second, 'focus');
     first.focus();
     fireEvent.keyDown(first, { key: 'ArrowDown' });
     // Открытый Select прячет остальное от читалки (aria-hidden), поэтому дальше — по ссылкам.
-    expect(screen.getByRole('listbox')).toBeTruthy();
+    const options = screen.getByRole('listbox');
     expect(first.getAttribute('aria-expanded')).toBe('true');
-    expect(document.activeElement).not.toBe(second);
+    // Сетка клавишу не тронула: на строку ниже она не переводила, фокус — в открытом выборе этой клетки.
+    expect(moved).not.toHaveBeenCalled();
+    await waitFor(() => expect(options.contains(document.activeElement)).toBe(true));
   });
 
   it('текстовая ячейка со списком: закрытый список стрелок не забирает, открытый — забирает', () => {

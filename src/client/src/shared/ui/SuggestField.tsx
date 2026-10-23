@@ -41,30 +41,63 @@ export interface SuggestFieldProps
 /** Задержка после последней клавиши: три быстрые клавиши — один запрос (UI-5). */
 const SUGGEST_DEBOUNCE_MS = 200;
 
-export function SuggestField({
-  value, onChange, source, compact = false, label, onKeyDown, onBlur, className = '', ref, ...rest
-}: SuggestFieldProps) {
-  // В клетке нет оболочки поля: её пропы до <input> не доходят.
+export function SuggestField(props: SuggestFieldProps) {
+  // Поле без источника — обычное: ни запроса, ни подписки на кэш (и без QueryClientProvider вокруг).
+  return props.source === null ? <PlainField {...props} /> : <SuggestingField {...props} source={props.source} />;
+}
+
+/** Пропы оболочки поля до голого `<input>` клетки не доходят. */
+function cellProps(rest: Omit<SuggestFieldProps, 'value' | 'onChange' | 'source' | 'compact' | 'label' | 'ref'>) {
   const { hint: _hint, error: _error, invalid: _invalid, containerClassName: _container, ...cell } = rest;
+  return cell;
+}
+
+function PlainField({ value, onChange, source: _source, compact = false, label, ref, ...rest }: SuggestFieldProps) {
+  return compact
+    ? <input {...cellProps(rest)} ref={ref} aria-label={label} value={value} onChange={e => onChange(e.target.value)} />
+    : <TextField {...rest} ref={ref} label={label} value={value} onChange={e => onChange(e.target.value)} />;
+}
+
+/** Показанный ответ адреса и о чём он: подсветка считается по его `q`, а не по набранному сейчас. */
+interface Shown { q: string; items: FieldSuggestion[]; of: string }
+
+function SuggestingField({
+  value, onChange, source, compact = false, label, onKeyDown, onBlur, className = '', ref, ...rest
+}: SuggestFieldProps & { source: SuggestSource }) {
   const listId = `${useId()}-list`;
   const input = useRef<HTMLInputElement>(null);
   /** Человек хочет список: набрал или позвал стрелкой. Виден он, только когда есть что показать. */
   const [open, setOpen] = useState(false);
-  /** Отстоявшееся набранное — то, о чём спрашиваем адрес. */
+  /** Отстоявшееся набранное этого открытия — о нём спрашиваем адрес; `null` — ещё не отстоялось. */
   const [asked, setAsked] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const of = [source.type, source.field, source.scope ?? '', source.scopeId ?? ''].join('|');
+  // Клетку отдали другому полю — открытие прежнего кончилось: его набранное о новом поле не спрашивают.
+  const [openOf, setOpenOf] = useState(of);
+  if (openOf !== of) {
+    setOpenOf(of);
+    setOpen(false);
+    setAsked(null);
+  }
 
   const query = useFieldSuggestions(open ? source : null, open ? asked : null);
-  const items = !query.isError ? query.data ?? [] : [];
-  const shown = open && source !== null && items.length > 0;
 
-  // Новый список (или список открыт заново) — снова ни один пункт не активен: активный прошлого ответа
-  // указывал бы на другое значение.
-  const list = shown ? query.data : undefined;
-  const [activeIn, setActiveIn] = useState(list);
+  // Пока едет ответ на новое набранное, держится прошлый ответ ЭТОГО ЖЕ открытия и этого же поля —
+  // иначе список мигал бы на каждую клавишу. Закрытие, отказ и смена поля его сбрасывают: прошлое
+  // открытие и чужое поле — уже другие значения.
+  const fresh: Shown | null = open && asked !== null && query.data ? { q: asked, items: query.data, of } : null;
+  const [held, setHeld] = useState<Shown | null>(null);
+  if (fresh && (held?.items !== fresh.items || held.q !== fresh.q || held.of !== of)) setHeld(fresh);
+  if (!fresh && held && (!open || query.isError)) setHeld(null);
+  const view = !open || query.isError ? null : fresh ?? (held?.of === of ? held : null);
+  const items = view?.items ?? [];
+  const shown = items.length > 0;
+
+  // Новый список — снова ни один пункт не активен: активный прошлого ответа указывал бы на другое.
+  const [activeIn, setActiveIn] = useState<FieldSuggestion[] | undefined>(undefined);
   const [active, setActive] = useState(-1);
-  if (activeIn !== list) {
-    setActiveIn(list);
+  if (activeIn !== view?.items) {
+    setActiveIn(view?.items);
     setActive(-1);
   }
 
@@ -76,6 +109,7 @@ export function SuggestField({
   function close() {
     clearTimeout(timer.current);
     setOpen(false);
+    setAsked(null);
   }
 
   /** Открыть сразу, без задержки: ↓ в форме или Alt+↓ (и в пустом поле — верх по полю). */
@@ -88,7 +122,9 @@ export function SuggestField({
   function type(next: string) {
     onChange(next);
     clearTimeout(timer.current);
-    if (next.trim() === '') { setOpen(false); return; }
+    // Пункт выбирали для прежнего текста: Enter после дописанного не должен подставить его молча.
+    setActive(-1);
+    if (next.trim() === '') { close(); return; }
     setOpen(true);
     timer.current = setTimeout(() => setAsked(next.trim()), SUGGEST_DEBOUNCE_MS);
   }
@@ -102,7 +138,7 @@ export function SuggestField({
 
   function keyDown(e: KeyboardEvent<HTMLInputElement>) {
     onKeyDown?.(e);
-    if (e.defaultPrevented || source === null || e.nativeEvent.isComposing) return;
+    if (e.defaultPrevented || e.nativeEvent.isComposing) return;
     if (e.key === 'ArrowDown' && e.altKey) {
       e.preventDefault();
       if (!shown) openNow();
@@ -150,14 +186,6 @@ export function SuggestField({
     close();
   }
 
-  if (source === null) {
-    return compact
-      ? <input {...cell} ref={ref} aria-label={label} value={value} onChange={e => onChange(e.target.value)}
-          onKeyDown={onKeyDown} onBlur={onBlur} className={className} />
-      : <TextField {...rest} ref={ref} label={label} value={value} onChange={e => onChange(e.target.value)}
-          onKeyDown={onKeyDown} onBlur={onBlur} className={className} />;
-  }
-
   const combobox = {
     role: 'combobox',
     'aria-autocomplete': 'list',
@@ -170,14 +198,18 @@ export function SuggestField({
     onKeyDown: keyDown,
     onBlur: blur,
   } as const;
+  // Живая область — внутри оболочки поля: соседом в разметке экрана поле перестало бы быть последним
+  // в стопке `space-y-*`. У клетки оболочки нет — там она ложится рядом с полем, в клетку.
+  const announce = <Announce shown={shown} count={items.length} />;
 
   return (
     <Popover.Root open={shown} onOpenChange={next => { if (!next) close(); }}>
       <Popover.Anchor asChild>
         {compact
-          ? <input {...cell} {...combobox} ref={composeRefs(input, ref)} aria-label={label} className={className} />
-          : <TextField {...rest} {...combobox} ref={composeRefs(input, ref)} label={label} className={className} />}
+          ? <input {...cellProps(rest)} {...combobox} ref={composeRefs(input, ref)} aria-label={label} className={className} />
+          : <TextField {...rest} {...combobox} ref={composeRefs(input, ref)} label={label} className={className}>{announce}</TextField>}
       </Popover.Anchor>
+      {compact && announce}
       <Popover.Portal>
         <Popover.Content id={listId} role="listbox" aria-label={`Введённое ранее: ${label}`}
           side="bottom" align="start" sideOffset={4} collisionPadding={8} hideWhenDetached
@@ -188,10 +220,9 @@ export function SuggestField({
           className="z-50 overflow-hidden rounded-md border border-stroke bg-surface p-1 shadow-[var(--f-shadow16)]"
           // Не уже поля; в узкой клетке сетки — не уже 18rem, чтобы марка кабеля не ложилась в столбик.
           style={{ width: 'max(var(--radix-popover-trigger-width), 18rem)', maxWidth: 'min(32rem, calc(100vw - 32px))' }}>
-          <SuggestOptions items={items} q={asked ?? ''} listId={listId} active={active} onPick={accept} />
+          <SuggestOptions items={items} q={view?.q ?? ''} listId={listId} active={active} onPick={accept} />
         </Popover.Content>
       </Popover.Portal>
-      <Announce shown={shown} count={items.length} />
     </Popover.Root>
   );
 }

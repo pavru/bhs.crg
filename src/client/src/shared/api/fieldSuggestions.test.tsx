@@ -55,4 +55,17 @@ describe('useFieldSuggestions (UI-5)', () => {
     expect(result.current.data).toBeUndefined();
     expect(apiClient.get).toHaveBeenCalledTimes(1);
   });
+
+  it('пока едет ответ на новый набор, прошлый не подставляется: что держать, решает поле', async () => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ data: { items: [{ value: 'ВВГ', here: true }] } })
+      .mockReturnValueOnce(new Promise(() => {}));
+    const { result, rerender } = renderHook(({ q }) => useFieldSuggestions(SOURCE, q),
+      { wrapper: wrapper(), initialProps: { q: 'вв' as string | null } });
+    await waitFor(() => expect(result.current.data).toHaveLength(1));
+
+    rerender({ q: null });
+    rerender({ q: 'р' });
+    expect(result.current.data).toBeUndefined();
+  });
 });

@@ -29,10 +29,12 @@ function answer(items: FieldSuggestion[]) {
 
 let changes: string[] = [];
 
-function Field({ label = 'Марка', compact = false, initial = '' }: { label?: string; compact?: boolean; initial?: string }) {
+function Field({ label = 'Марка', compact = false, initial = '', source = SOURCE }: {
+  label?: string; compact?: boolean; initial?: string; source?: SuggestSource;
+}) {
   const [value, setValue] = useState(initial);
   return (
-    <SuggestField label={label} source={SOURCE} compact={compact} value={value}
+    <SuggestField label={label} source={source} compact={compact} value={value}
       onChange={v => { changes.push(v); setValue(v); }} />
   );
 }
@@ -351,5 +353,98 @@ describe('SuggestField в сетке правки (UI-8)', () => {
     await waitFor(() => expect(list()).toBeNull());
     fireEvent.keyDown(second, { key: 'ArrowDown' });
     expect(document.activeElement).toBe(box('Марка, строка 3'));
+  });
+});
+
+describe('SuggestField: прошлый ответ не переживает своё открытие (ревью #1587)', () => {
+  /** Ответ по набранному; набор из `pending` не отвечает вовсе — «ответ ещё едет». */
+  function answerBy(byQ: Record<string, FieldSuggestion[]>, pending: string[] = []) {
+    vi.mocked(apiClient.get).mockImplementation((_url, config) => {
+      const q = (config?.params as { q: string }).q;
+      return pending.includes(q) ? new Promise(() => {}) : Promise.resolve({ data: { items: byQ[q] ?? [] } });
+    });
+  }
+  const asked = () => vi.mocked(apiClient.get).mock.calls.map(c => (c[1]?.params as { q: string }).q);
+  const ROADS: FieldSuggestion[] = [{ value: 'Рабочая документация', here: true }];
+
+  it('открытое заново поле не спрашивает о прошлом наборе и не показывает его ответ', async () => {
+    answerBy({ Каб: ITEMS, Р: ROADS });
+    wrap(<Field />);
+    box().focus();
+    typeFast(box(), 'Каб');
+    await opened();
+    fireEvent.keyDown(box(), { key: 'Escape' });
+    await waitFor(() => expect(list()).toBeNull());
+
+    fireEvent.change(box(), { target: { value: 'Р' } });
+    await pause(50);
+    expect(list()).toBeNull(); // до задержки — ни старого списка из кэша, ни запроса о «Каб»
+    await opened();
+    expect(asked()).toEqual(['Каб', 'Р']);
+    expect(options().map(o => o.textContent)).toEqual(['Рабочая документация']);
+  });
+
+  it('дописанный текст снимает выбор стрелкой: Enter не подставляет пункт прежнего списка', async () => {
+    answerBy({ Каб: ITEMS }, ['Кабельн']);
+    wrap(<Field />);
+    box().focus();
+    typeFast(box(), 'Каб');
+    await opened();
+    fireEvent.keyDown(box(), { key: 'ArrowDown' });
+    expect(box().getAttribute('aria-activedescendant')).not.toBeNull();
+
+    fireEvent.change(box(), { target: { value: 'Кабельн' } });
+    await pause(250);
+    expect(list()).not.toBeNull(); // ответ ещё едет — держится прошлый список
+    expect(box().getAttribute('aria-activedescendant')).toBeNull();
+    const typed = changes.length;
+    expect(fireEvent.keyDown(box(), { key: 'Enter' })).toBe(true);
+    expect(changes.length).toBe(typed);
+    expect(box().value).toBe('Кабельн');
+  });
+
+  it('пока едет новый ответ, подсветка — по набору показанного списка', async () => {
+    answerBy({ Каб: ITEMS }, ['Кабе']);
+    wrap(<Field />);
+    box().focus();
+    typeFast(box(), 'Каб');
+    await opened();
+    fireEvent.change(box(), { target: { value: 'Кабе' } });
+    await pause(250);
+    expect(asked()).toEqual(['Каб', 'Кабе']);
+    expect(options().map(o => o.querySelector('.font-semibold')?.textContent)).toEqual(['Каб', 'Каб', 'Каб']);
+  });
+
+  it('другое поле в той же клетке не показывает значений прежнего', async () => {
+    const other: SuggestSource = { ...SOURCE, field: 'route' };
+    answerBy({ Каб: ITEMS }, ['Л']);
+    const view = wrap(<Field source={SOURCE} />);
+    box().focus();
+    typeFast(box(), 'Каб');
+    await opened();
+
+    view.rerender(<QueryClientProvider client={new QueryClient()}><Field source={other} /></QueryClientProvider>);
+    box().focus();
+    fireEvent.change(box(), { target: { value: 'Л' } });
+    await pause(250);
+    expect(list()).toBeNull();
+  });
+});
+
+describe('SuggestField: разметка вокруг поля (ревью #1587)', () => {
+  it('живая область — внутри оболочки поля: в стопке экрана поле остаётся единственным', () => {
+    wrap(<div data-testid="stack"><Field /></div>);
+    const stack = screen.getByTestId('stack');
+    expect(stack.children.length).toBe(1);
+    expect(stack.querySelector('[aria-live="polite"]')).not.toBeNull();
+  });
+
+  it('поле без источника обходится без QueryClientProvider', () => {
+    function Plain() {
+      const [value, setValue] = useState('');
+      return <SuggestField label="Номер" source={null} value={value} onChange={setValue} />;
+    }
+    expect(() => render(<Plain />)).not.toThrow();
+    expect(screen.getByLabelText('Номер')).toBeTruthy();
   });
 });
