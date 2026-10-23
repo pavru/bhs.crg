@@ -10,9 +10,9 @@ context: |
     (ядро — контекст AppDbContext, модуль costs — CostsDbContext, контекст называть явно),
     храповики (npm run lint:ratchet, npm run ui:ratchet, FileSizeRatchet — 500 строк кода на файл)
     и CI — CLAUDE.md (его копия для других агентов — AGENTS.md).
-  - Действующие доменные спецификации (построенное, этапы 1–2) — openspec/specs/:
-    core, auth, costs, id, types-and-tags. Домены модулей будущих этапов — plan, work (появятся
-    при архивации первых change). Общие компоненты интерфейса (shared/ui, оболочка, храповик
+  - Действующие доменные спецификации (построенное) — openspec/specs/: этапы 1–2 — core, auth,
+    costs, id, types-and-tags; этап 3 — plan (растёт с каждым архивом plan-NN). Домен work
+    появится при архивации первого change этапа 4. Общие компоненты интерфейса (shared/ui, оболочка, храповик
     интерфейса) — домен sharedui, метки [UI-*]; правила — docs/UI.md.
   - Issue в трекере — только баги и внешние запросы; change, сделанный по issue, называет его номер
     в proposal (раздел Why), а в PR — «Closes #N» по-английски (русское «Закрывает» issue не закрывает).

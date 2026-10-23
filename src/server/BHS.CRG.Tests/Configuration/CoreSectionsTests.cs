@@ -1,6 +1,7 @@
 using BHS.CRG.Api.Modules;
 using BHS.CRG.Modules;
 using BHS.CRG.Modules.Costs;
+using BHS.CRG.Modules.Plan;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,11 +19,15 @@ public class CoreSectionsTests
     public void Объявления_модулей_сборки_годны()
     {
         // Реестр из настоящих модулей собирается — значит, их объявления прошли проверку.
-        var registry = new ModuleRegistry([new IdModule(), new CostsModule()], []);
+        var registry = new ModuleRegistry([new IdModule(), new CostsModule(), new PlanModule()], []);
 
         Assert.All(registry.Enabled, m => Assert.NotEmpty(m.UsesSections));
         // Счета без строек и справочников: пространство «Счета» не показало бы, куда разносить счёт.
         Assert.Equal(["constructions", "catalog", "periods"], new CostsModule().UsesSections);
+        // Планирование без строек — пространство без «Строек» и без карточки с «Работами» («Сметы»,
+        // «График»); без справочников — без видов работ и номенклатуры, с которыми сопоставляют смету.
+        // Учётного периода у смет нет; «Ход работ» дописывает plan-25 своей константой.
+        Assert.Equal(["constructions", "catalog"], new PlanModule().UsesSections);
     }
 
     [Fact]

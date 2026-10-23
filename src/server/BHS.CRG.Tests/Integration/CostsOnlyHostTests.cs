@@ -5,10 +5,8 @@ using BHS.CRG.Api.Auth;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules;
 using BHS.CRG.Tests.Support;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
@@ -233,37 +231,12 @@ public sealed class CostsOnlyCollection : ICollectionFixture<CostsOnlyHost>
 }
 
 /// <summary>
-/// Хост «только счета»: <c>Modules__Enabled=costs</c> и отдельная база.
-///
-/// Наследуется от <see cref="IntegrationTestFixture" />, чтобы не разойтись с ним в том, чем
-/// тестовый хост вообще держится (подставное хранилище, снятые расписания, ослабленные пределы
-/// частоты). Переопределения добавляются ПОСЛЕ базовых — слой конфигурации, добавленный последним,
-/// выигрывает, и одного <c>UseSetting</c> тут не хватило бы: базовый класс кладёт те же ключи ещё и
-/// слоем на <c>Build</c>, то есть поверх настроек хоста.
+/// Хост «только счета»: <c>Modules__Enabled=costs</c> и своя база «…_costs» рядом с общей тестовой.
+/// Как он держится — в <see cref="ModuleOnlyHost" />.
 /// </summary>
-public sealed class CostsOnlyHost : IntegrationTestFixture
+public sealed class CostsOnlyHost : ModuleOnlyHost
 {
-    /// <summary>
-    /// Своя база — «…_costs» рядом с общей тестовой. Создаётся сама: приложение мигрирует схему при
-    /// старте, а миграция создаёт базу.
-    /// </summary>
-    private static string ConnectionString { get; } = Dedicated();
+    protected override string ModuleCode => "costs";
 
-    private static string Dedicated() => TestDatabases.ConnectionString("costs");
-
-    protected override string HostConnectionString => ConnectionString;
-
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-
-        var overrides = new Dictionary<string, string?>
-        {
-            ["Modules:Enabled"] = "costs",
-            ["ConnectionStrings:Postgres"] = ConnectionString,
-        };
-
-        foreach (var (key, value) in overrides) builder.UseSetting(key, value);
-        builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(overrides));
-    }
+    protected override string DatabaseSuffix => "costs";
 }

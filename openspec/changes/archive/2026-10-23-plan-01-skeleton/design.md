@@ -10,7 +10,9 @@
 Модули перечисляет `DeliveredModules.All()` (`Api/Modules/DeliveredModules.cs:24`). Переписи, которые
 перечисляют модули поимённо и требуют дописать `plan`: `ModuleDbContextInventoryTests.cs:34-41`,
 `ModuleReferenceInventoryTests.cs:25-28`, `ModuleFileInventoryTests.cs:33`, `CoreSectionsTests.cs:21`,
-`ModuleBoundaryTests.cs:109`; остальные находят проекты `BHS.CRG.Modules.*` сами (`SolutionModules.cs`).
+`ModuleBoundaryTests.cs:109`, а также покрытия копии и сброса фикстур — `BackupManifestCoverageTests.ContextCoverage`
+и `FixtureResetCoverageTests.ContextCoverage` (их требует `ModuleDbContextInventoryTests` на каждый контекст;
+найдены при реализации); остальные находят проекты `BHS.CRG.Modules.*` сами (`SolutionModules.cs`).
 
 ## Goals / Non-Goals
 
@@ -35,8 +37,9 @@
   `periods`, `datasets` и `reconciliations` модулю не нужны; `progress` дописывает `plan-25`, когда
   заведёт константу. Пустое объявление уронило бы задачу 3.3: `CoreSectionsTests` требует
   `Assert.NotEmpty(m.UsesSections)` у каждого включённого модуля.
-  - `Data/PlanDbContext.cs` (схема `plan`, `xmin` как версия строки, 409 при конфликте — как
-    `CostsDbContext`) и `Data/PlanDbContextFactory.cs` без строки подключения.
+  - `Data/PlanDbContext.cs` (схема `plan`) и `Data/PlanDbContextFactory.cs` без строки подключения.
+    Запись, проигравшая одновременной, отвечает 409 через общий `ApiErrorMapping` — для любого контекста,
+    а не копией перехвата в каждом (ревью PR #1580); версия строки у первой таблицы — `xmin`, как у счёта.
   - `Migrations/*_Initial`.
 - **Права первой двери.** `plan.estimate.read` — «сметы стройки: строки, объёмы, редакции без денег»
   (деньги — `plan.estimate.cost`, `plan-06`); `plan.estimate.edit` — «импорт, сопоставление,
@@ -48,7 +51,8 @@
     `plan.estimate.read` (решение В-1, `PLAN-Q9`);
   - «Снабженец» сохраняет `plan.estimate.materials`, «Монтажник» получает `plan.estimate.hint`.
   Не объявленные ещё коды пропускаются при наполнении: роль дописывается один раз, а не в каждом change.
-- **Сторож.** `PlanOnlyHostTests` — живой хост с `Modules__Enabled=plan` на своей базе; число прав `plan.`
+- **Сторож.** `PlanOnlyHostTests` — живой хост с `Modules__Enabled=plan` на своей базе (общая основа с хостом
+  счетов — `ModuleOnlyHost`), схема `plan` сносится до старта; число прав `plan.`
   зашито в тест с объяснением, как в `CostsOnlyHostTests`. Тест состава `/api/account/access` по
   системным ролям: «Инженер ИД», «Бухгалтер», «Монтажник» не получают модуль `plan`.
 - **Чем ломается.** Ссылка модуля на `Infrastructure` или `Modules.Costs` — `ModuleBoundaryTests`
