@@ -35,10 +35,14 @@ public static class Suggestable
     ///
     /// ⚠️ Перечень сверяет перепись <c>SuggestableTagCensusTests</c>: строковый тэг ядра без решения
     /// «однозначен / нет» роняет её с названием тэга.
+    ///
+    /// <para><see cref="FunctionalTag.Identity" /> здесь НЕТ (решение владельца 23.10.2026, issue #1533):
+    /// это компонент составного ключа, сам по себе он не уникален — у заказчика его несёт «Номенклатура →
+    /// Производитель», главный потребитель подсказки. Повтор ключа целиком ловят «такая уже есть» и
+    /// сверка двойников.</para>
     /// </summary>
     public static readonly IReadOnlyList<(string Tag, string Reason)> UniqueTags =
     [
-        (FunctionalTag.Identity, "identity"),
         (FunctionalTag.OrgTaxId, "inn"),
         (FunctionalTag.DocNumber, "docNumber"),
         (FunctionalTag.EmployeePersonnelNumber, "personnelNumber"),

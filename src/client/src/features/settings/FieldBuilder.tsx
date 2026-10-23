@@ -13,7 +13,7 @@ import { useAccess } from '@/shared/api/access';
 import { ModuleFieldBadge } from './ModuleFieldBadge';
 import { similarKeyOf } from './schemaKeyChecks';
 import {
-  useTagRegistry, fieldTags, findTagEntry, hasTag, offeredInRoles, tagCode, withTagOrder, unknownTagCodes,
+  useTagRegistry, fieldTags, findTagEntry, hasTag, offeredInRoles, tagCode, withTagOrder, unknownTagCodes, shownTagEntries,
 } from '@/shared/api/tags';
 import { FunctionalTagBadge, FunctionalTagChip } from './FunctionalTagChip';
 import { evalComputed, validateComputed, findComputedCycles, referencedKeys } from '@/shared/utils/computedExpression';
@@ -227,6 +227,8 @@ export function FieldCard({
 }: FieldCardProps) {
   const { primitiveTypes, enumTypes, tagRegistry } = reg;
   const tags = field.tags ?? [];
+  // Чипы — без тэгов со своим контролом (`input.noSuggest` — флажок, issue #1533); правка идёт по `tags`.
+  const chips = shownTagEntries(tags);
   // Тэги вне реестра этого экземпляра — их не предлагают, но и не прячут (issue #959).
   const unknownTags = unknownTagCodes(field.tags, tagRegistry);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -334,10 +336,8 @@ export function FieldCard({
             <span className="block text-xs text-fg4 font-mono truncate">{field.key || '—'}</span>
           </span>
           <ModuleFieldBadge field={field} />
-          {tags.slice(0, 2).map(tc => (
-            <FunctionalTagBadge key={tc} registry={tagRegistry} entry={tc} />
-          ))}
-          {tags.length > 2 && <span className="text-caption text-fg4 shrink-0">+{tags.length - 2}</span>}
+          {chips.slice(0, 2).map(tc => <FunctionalTagBadge key={tc} registry={tagRegistry} entry={tc} />)}
+          {chips.length > 2 && <span className="text-caption text-fg4 shrink-0">+{chips.length - 2}</span>}
           <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-fg3 shrink-0">{fieldTypeSummary(field, reg)}</span>
           {open ? <ChevronUp size={16} className="text-fg4 shrink-0" /> : <ChevronDown size={16} className="text-fg4 shrink-0" />}
         </button>
@@ -574,7 +574,7 @@ export function FieldCard({
       {/* Функциональные тэги поля (для primitive — из типа поля, иначе из реестра) */}
       {applicableTags.length > 0 && (
         <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)] flex items-start gap-2">
-          <Cpu size={12} className={`mt-1 ${tags.length ? 'text-tertiary' : 'text-stroke-strong'}`} />
+          <Cpu size={12} className={`mt-1 ${chips.length ? 'text-tertiary' : 'text-stroke-strong'}`} />
           <span className="text-xs text-fg4 shrink-0 w-28 mt-1">Функц. тэги:</span>
           <div className="flex flex-wrap gap-1.5">
             {applicableTags.map(t => {

@@ -148,8 +148,21 @@ export function fieldTags(
  * `roles` не названы — отбора нет: так живёт форма создания типа, где ролей ещё не знают.
  */
 export function offeredInRoles(tags: TagDefinition[], roles?: string[], placed?: string[]): TagDefinition[] {
-  if (!roles) return tags;
-  return tags.filter(t => !t.role || roles.includes(t.role) || hasTag(placed, t.code));
+  const offered = tags.filter(t => !OWN_CONTROL_TAGS.has(t.code));
+  if (!roles) return offered;
+  return offered.filter(t => !t.role || roles.includes(t.role) || hasTag(placed, t.code));
+}
+
+/**
+ * Тэги поля, у которых в редакторе типа свой контрол (issue #1533): `input.noSuggest` — это флажок
+ * «Подсказывать введённое ранее». Хранится тэгом, но ни чипом в карточке поля, ни в списке выбора тэгов
+ * не показывается: два входа в одно значение расходились бы на экране — флажок стоит, чип снят.
+ */
+const OWN_CONTROL_TAGS: ReadonlySet<string> = new Set([FUNCTIONAL_TAG.inputNoSuggest]);
+
+/** Записи тэгов поля, которые показываются чипами, — без тэгов со своим контролом. */
+export function shownTagEntries(tags: string[] | undefined): string[] {
+  return (tags ?? []).filter(t => !OWN_CONTROL_TAGS.has(tagCode(t)));
 }
 
 /** Коды ролей справочников из реестра. */

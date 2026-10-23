@@ -11,7 +11,7 @@ import { FUNCTIONAL_TAG, hasTag } from './tags';
 export const SUGGEST_REASONS = [
   'suggested',
   'type', 'computed', 'locked',
-  'identity', 'inn', 'docNumber', 'personnelNumber', 'article', 'orgName', 'account',
+  'inn', 'docNumber', 'personnelNumber', 'article', 'orgName', 'account',
   'manual',
 ] as const;
 
@@ -20,9 +20,11 @@ export type SuggestReason = (typeof SUGGEST_REASONS)[number];
 /**
  * Тэги однозначности В ПОРЯДКЕ проверки — у поля с несколькими код первого из них. Значение у каждой
  * записи своё: подсказка чужого вела бы к дублю номера, ИНН или артикула.
+ *
+ * `identity` здесь нет (решение 23.10.2026, issue #1533): компонент составного ключа сам по себе не
+ * уникален — «Производитель» повторяется у многих позиций.
  */
 const UNIQUE_TAGS: readonly (readonly [string, SuggestReason])[] = [
-  [FUNCTIONAL_TAG.identity, 'identity'],
   [FUNCTIONAL_TAG.orgInn, 'inn'],
   [FUNCTIONAL_TAG.docNumber, 'docNumber'],
   [FUNCTIONAL_TAG.employeePersonnelNumber, 'personnelNumber'],

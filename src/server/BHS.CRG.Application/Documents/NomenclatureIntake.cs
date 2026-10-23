@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using BHS.CRG.Application.Objects.FieldSuggestions;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
@@ -22,9 +23,11 @@ public sealed record IntakeOption(Guid Id, string? Name);
 /// или <see cref="FunctionalTag.NomenclatureUnit" />, — если поле им сопоставлено (issue #1512). Тем же
 /// расчётом, что у порта модулей: тэг на двух полях — ни одному. <c>null</c> — не сопоставлено, и окно
 /// узнаёт поле по-старому, по названию.</param>
+/// <param name="Suggest">Код причины <see cref="Suggestable" /> (issue #1533): подсказывать ли в поле
+/// введённое ранее. Шаг схемы не разбирает — что зовёт адрес подсказок, узнаёт отсюда.</param>
 public sealed record IntakeField(
     string Key, string Title, bool Required, bool Identity, Guid? TargetTypeId,
-    IReadOnlyList<IntakeOption> Options, string? Tag = null);
+    IReadOnlyList<IntakeOption> Options, string? Tag = null, string Suggest = Suggestable.NotString);
 
 /// <summary>
 /// Вид позиции — «Номенклатура» или её подтип — и можно ли завести его коротким окном.
@@ -123,7 +126,8 @@ public static class NomenclatureIntakeLayout
                 continue;
             }
             if (IsText(field.Type) && !field.Locked && !field.Computed)
-                asked.Add(new(field.Key, Title(field), field.Required, Identity: true, null, []));
+                asked.Add(new(field.Key, Title(field), field.Required, Identity: true, null, [],
+                    Suggest: SuggestionSources.ReasonOf(type.Id, field, types)));
             else
                 refusals.Add($"поле ключа «{Title(field)}» — не строка, которую заполняет человек: " +
                     "сверить новую позицию с лежащими нечем");
@@ -136,7 +140,8 @@ public static class NomenclatureIntakeLayout
         {
             if (field.Locked) unfillable.Add(Title(field));
             else if (IsText(field.Type))
-                asked.Add(new(field.Key, Title(field), true, Identity: false, null, []));
+                asked.Add(new(field.Key, Title(field), true, Identity: false, null, [],
+                    Suggest: SuggestionSources.ReasonOf(type.Id, field, types)));
             else if (field is { Type: "complex", TypeId: { } target }
                      && types.TryGetValue(target, out var targetType)
                      && TypeStorageRules.KeptInCommonTable(targetType))

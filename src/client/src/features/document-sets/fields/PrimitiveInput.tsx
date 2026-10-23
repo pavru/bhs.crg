@@ -3,10 +3,12 @@ import { DateInput } from '@/shared/ui/DateInput';
 import { DateField } from '@/shared/ui/DateField';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
+import { SuggestField } from '@/shared/ui/SuggestField';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
 import type { SchemaField } from '@/shared/api/schema';
 import type { PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
 import { fieldInputClass } from './constants';
+import { useSuggestSource } from './suggestContext';
 
 /**
  * Значение для календарного контрола: тот понимает только полный ISO и на «12.05.2024» показывает
@@ -40,6 +42,9 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
    * Само требование при этом никуда не девается — его держит генерация, а не форма.
    */
   const askRequired = readOnly ? undefined : field.required;
+  // Подсказка по введённому ранее (issue #1533): только в форме записи, назвавшей тип-владелец, и
+  // только у поля, которое правило `Suggestable` подсказывает. Иначе — прежнее поле, адрес не зовётся.
+  const source = useSuggestSource(field);
 
   if (field.type === 'text')
     return label != null
@@ -122,6 +127,11 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
       : <DateInput label={field.title} value={dateForDisplay(strVal)} onChange={v => onChange(v)} size="md" invalid={invalid}
           className="w-full" readOnly={readOnly} required={askRequired} />;
   }
+  if (source && !readOnly)
+    return label != null
+      ? <SuggestField source={source} label={label} required={askRequired} hint={hint} invalid={invalid}
+          value={strVal} onChange={v => onChange(v)} />
+      : <SuggestField source={source} compact label={field.title} value={strVal} onChange={v => onChange(v)} className={cls} />;
   const onCh = (v: string) => onChange(field.type === 'number' ? (v === '' ? '' : Number(v)) : v);
   if (label != null)
     return <TextField label={label} required={askRequired} hint={hint}

@@ -15,6 +15,7 @@ import {
 import { NomenclatureCardPanel, Refusal } from './NomenclatureCardPanel';
 import { usePickerSelection } from './pickerSelection';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { SuggestField } from '@/shared/ui/SuggestField';
 
 const field = 'w-full rounded border border-stroke bg-surface px-2 py-1 text-sm text-fg1 outline-none';
 
@@ -159,7 +160,12 @@ export function NewNomenclatureStep({ from, plate, narrow, onBack, onPick }: {
             <label key={f.key} className="block space-y-1">
               <span className="text-xs text-fg3">{f.title}{f.required ? ' *' : ''}</span>
               {f.options === null ? (
-                <input value={draft.values[f.key] ?? ''} onChange={e => type(f.key, e.target.value)} className={field} />
+                // Подсказка по введённому ранее (issue #1533): производитель, встреченный в прошлом счёте.
+                // Записи номенклатуры — уровня «вся система»; выбранное идёт тем же `type`, что набор,
+                // и так же запускает поиск похожих.
+                <SuggestField compact label={f.title} value={draft.values[f.key] ?? ''} onChange={v => type(f.key, v)}
+                  source={f.suggest === 'suggested' ? { type: kind.typeId, field: f.key, scope: 'System' } : null}
+                  className={field} />
               ) : (
                 <Select aria-label={f.title} value={draft.refs[f.key] ?? ''} emptyItem="— не выбрано —"
                   onValueChange={id => setEdited({ ...draft, refs: { ...draft.refs, [f.key]: id } })}>

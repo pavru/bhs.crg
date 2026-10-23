@@ -15,7 +15,7 @@ import { useCommonDataForSet } from '@/shared/api/commonData';
 import { groupEffectiveFields, parseSchemaFields, getDefaultValues, isScalarField, type SchemaField } from '@/shared/api/schema';
 import { FieldSourceBinding } from './FieldSourceBinding';
 import { ContainerFieldBinding } from './ContainerFieldBinding';
-import { validateConstraint, isMissing, PrimitiveInput, FileField, ImageField, collectConstraintViolations, DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup, AutoFieldsSection, isWideField, isLockedField, bindableFields, LockedFieldIcon, LockedFieldValue, LOCKED_HINT, SCOPE_TIER, ancestorTypeIds, parseBaseRef, BaseCandidatePicker, candidateName, type BaseCandidate } from '../fields';
+import { validateConstraint, isMissing, PrimitiveInput, FileField, ImageField, collectConstraintViolations, DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup, AutoFieldsSection, isWideField, isLockedField, bindableFields, LockedFieldIcon, LockedFieldValue, LOCKED_HINT, SCOPE_TIER, ancestorTypeIds, parseBaseRef, BaseCandidatePicker, candidateName, SuggestOwner, type BaseCandidate } from '../fields';
 import { evalComputed, referencedKeys } from '@/shared/utils/computedExpression';
 import { DocumentPreviewPanel } from './DocumentPreviewPanel';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
@@ -649,8 +649,9 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
           );
     }
 
+    // Подсказка по введённому ранее (issue #1533): поля документа — его типа, «своя стройка» — по комплекту.
     function fieldGrid(fields: SchemaField[]) {
-      return <div className="grid grid-cols-2 gap-x-4 gap-y-4">{fields.map(renderCell)}</div>;
+      return <SuggestOwner type={instance.documentTypeId} scope="Set" scopeId={setId}><div className="grid grid-cols-2 gap-x-4 gap-y-4">{fields.map(renderCell)}</div></SuggestOwner>;
     }
 
     // Поля, заполняемые из источника данных (read-only), прячем под сворачиваемую секцию
