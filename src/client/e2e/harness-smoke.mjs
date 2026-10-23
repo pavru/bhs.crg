@@ -32,7 +32,7 @@ const LOGIN = (withButton) => `<!doctype html><meta charset="utf-8"><title>вх�
 </script>`;
 
 /** Чем отвечает подделка входа; меняют сами проверки. */
-const fake = { loginStatus: 200, loginButton: true };
+const fake = { loginStatus: 200, loginButton: true, brandingStatus: 200 };
 /** Какие «вечные» запросы дошли до сервера — проверке нужно знать, что запрос УЖЕ в полёте. */
 const hanging = new Set();
 
@@ -46,6 +46,7 @@ const server = http.createServer(async (req, res) => {
     case '/slow': res.writeHead(200, { 'content-type': 'text/plain' }); res.end('ok'); return;
     case '/login': html(LOGIN(fake.loginButton)); return;
     case '/api/auth/login': res.writeHead(fake.loginStatus); res.end(); return;
+    case '/api/branding': res.writeHead(fake.brandingStatus); res.end(); return;
     case '/frame': html(`${BLANK}<script>fetch('/hang?who=frame')</script>`); return;
     default: html(BLANK);
   }
@@ -55,7 +56,7 @@ const ORIGIN = `http://127.0.0.1:${server.address().port}`;
 
 // Обвязка читает адрес приложения из окружения В МИГ ЗАГРУЗКИ — поэтому подделку называем раньше.
 process.env.SMOKE_BASE = ORIGIN;
-const { launchBrowser, login, submitLogin, createChecks, watchRequests, settled, until }
+const { launchBrowser, login, submitLogin, createChecks, watchRequests, settled, until, brandingRefusals }
   = await import('./harness.mjs');
 
 const unhandled = [];
@@ -261,6 +262,30 @@ await check('until-gives-up-with-the-last-words-of-the-probe', async () => {
   const took = Date.now() - started;
   if (took < 300 || took > 1500) throw new Error(`срок 0,3 с, а отказ пришёл через ${took} мс`);
   if (calls < 2) throw new Error('утверждение проверено один раз — повторов не было');
+});
+
+// ── Сторож предела оформления ──────────────────────────────────────────────────
+// Отказ 429 оформления почти ни одной проверки не роняет — шапка молча показывает умолчание. Поэтому
+// его предъявляет итог набора, и здесь проверяется, что предъявляет: увиденный любой страницей отказ
+// делает итог провалом. Проба подводит СВОЙ итог (его слова в лог не идут), а за собой отказ убирает —
+// иначе провалом стал бы итог этого набора.
+await check('branding-refusal-fails-the-summary', async () => {
+  const { log, error } = console;
+  fake.brandingStatus = 429;
+  try {
+    await page.goto(`${ORIGIN}/blank`);
+    await page.evaluate(() => fetch('/api/branding'));
+    await until(async () => { if (!brandingRefusals.length) throw new Error('отказ оформления не замечен'); });
+    // Под другим именем: сторож в suites.test.mjs ищет итог набора по тексту вызова, и проба иначе
+    // сошла бы за второй итог.
+    const { summarize: verdictOf } = createChecks();
+    console.log = console.error = () => {};
+    if (verdictOf('проба') !== 1) throw new Error('итог с отказом оформления назвался успехом');
+  } finally {
+    Object.assign(console, { log, error });
+    fake.brandingStatus = 200;
+    brandingRefusals.length = 0;
+  }
 });
 
 // ── Вход ───────────────────────────────────────────────────────────────────────
