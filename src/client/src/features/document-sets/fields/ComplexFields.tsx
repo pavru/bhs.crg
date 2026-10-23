@@ -18,8 +18,7 @@ import { useOwnWindow } from '@/shared/ui/modalControl';
 import { SubfieldLabel } from './SubfieldLabel';
 import { Button } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
-import type { CatalogScope, DocumentInstance, DocumentType, EnumTypeDef, FieldRef, PrimitiveTypeDef } from '@/shared/api/types';
-import { isFieldRef } from '@/shared/api/types';
+import { isFieldRef, type CatalogScope, type DocumentInstance, type DocumentType, type EnumTypeDef, type FieldRef, type PrimitiveTypeDef } from '@/shared/api/types';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { resolveEffectiveFields, getDefaultValues, isUnionType, type SchemaField } from '@/shared/api/schema';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
@@ -31,6 +30,7 @@ import { VariantPicker } from './VariantPicker';
 import { ExtractToCommonDataModal } from './ExtractToCommonDataModal';
 import { ROW_DRAG_MIME, showsArrayTable } from './constants';
 import { PrimitiveInput } from './PrimitiveInput';
+import { SuggestOwner } from './suggestContext';
 import { isMissing } from './fieldValidation';
 import { ImageField } from './ImageField';
 import { FileField } from './FileField';
@@ -528,7 +528,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               <Button variant="filled" onClick={() => setRowModal(null)}>Готово</Button>
             </div>
           }>
-          <div className="space-y-3">
+          <SuggestOwner type={field.typeId}><div className="space-y-3">
             {isUnionComposite ? (
               <UnionFieldGroup field={field} allDocTypes={allDocTypes}
                 value={allItems[rowModal] as Record<string, unknown>}
@@ -571,7 +571,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                 </div>
               );
             })}
-          </div>
+          </div></SuggestOwner>
           {/* Шаг окна строки (issue #1384): «Отмена» возвращает к строке. Строка заменяется ссылкой
               НА СВОЁМ МЕСТЕ: порядок строк значим, вынесенное не уезжает в конец (issue #663). */}
           {compositeType && extractRow === rowModal && (
@@ -747,8 +747,9 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   );
 
   // Тело редактора подполей. Вложенные complex → nested (модалка), массивы → ArrayFieldEditor.
+  // Подполям — тип составного, а не внешней записи (issue #1533): у «Адреса» организации своё «Регион».
   const subfieldsBody = (
-    <div className="space-y-3">
+    <SuggestOwner type={field.typeId}><div className="space-y-3">
       {subFields.length === 0 ? (
         <p className="text-xs text-fg4">Поля не заданы</p>
       ) : subFields.map(sf => {
@@ -765,7 +766,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
           </div>
         );
       })}
-    </div>
+    </div></SuggestOwner>
   );
 
   // Вложенное составное (глубина ≥1) на странице: строка-сводка + правка в окне — глубина формы не растёт.
@@ -985,10 +986,10 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
     </Tooltip>
   );
   const activeEditor = activeSf && (
-    <SubfieldEditor sf={activeSf} value={subValues[activeSf.key]} onChange={setActiveValue}
+    <SuggestOwner type={field.typeId}><SubfieldEditor sf={activeSf} value={subValues[activeSf.key]} onChange={setActiveValue}
       allDocTypes={allDocTypes} showValidation={showValidation} setId={setId}
       otherInstances={otherInstances} scope={scope} scopeId={scopeId} docRefMode={docRefMode}
-      primitiveTypes={primitiveTypes} enumTypes={enumTypes} />
+      primitiveTypes={primitiveTypes} enumTypes={enumTypes} /></SuggestOwner>
   );
   const bar = (
     <div className="space-y-1.5">

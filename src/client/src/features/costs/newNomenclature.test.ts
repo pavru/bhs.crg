@@ -8,11 +8,11 @@ import type { CardLine } from '@/shared/api/nomenclatureCard';
 const kind = (patch: Partial<IntakeKind> = {}): IntakeKind => ({
   typeId: 't-1', code: 'Номенклатура', name: 'Номенклатура', refusals: [],
   fields: [
-    { key: 'Наименование', title: 'Наименование', required: true, identity: true, options: null },
-    { key: 'Производитель', title: 'Производитель', required: false, identity: true, options: null },
-    { key: 'Артикул', title: 'Артикул', required: false, identity: true, options: null },
+    { key: 'Наименование', title: 'Наименование', required: true, identity: true, suggest: 'suggested', options: null },
+    { key: 'Производитель', title: 'Производитель', required: false, identity: true, suggest: 'suggested', options: null },
+    { key: 'Артикул', title: 'Артикул', required: false, identity: true, suggest: 'suggested', options: null },
     {
-      key: 'ЕдиницаИзмерения', title: 'Единица измерения', required: true, identity: false,
+      key: 'ЕдиницаИзмерения', title: 'Единица измерения', required: true, identity: false, suggest: 'type',
       options: [{ id: 'u-1', name: 'шт' }, { id: 'u-2', name: 'м' }],
     },
   ],
@@ -42,10 +42,10 @@ describe('новая позиция номенклатуры из строки �
     const tagged = kind({
       fields: [
         ...kind().fields.filter(f => f.key !== 'ЕдиницаИзмерения'),
-        { key: 'Код', title: 'Код поставщика', required: false, identity: true, options: null, tag: 'nomenclature.article' },
-        { key: 'Тара', title: 'Тара', required: false, identity: false, options: [{ id: 'p-1', name: 'шт' }] },
+        { key: 'Код', title: 'Код поставщика', required: false, identity: true, suggest: 'suggested', options: null, tag: 'nomenclature.article' },
+        { key: 'Тара', title: 'Тара', required: false, identity: false, suggest: 'type', options: [{ id: 'p-1', name: 'шт' }] },
         {
-          key: 'ЕдиницаИзмерения', title: 'Единица измерения', required: true, identity: false,
+          key: 'ЕдиницаИзмерения', title: 'Единица измерения', required: true, identity: false, suggest: 'type',
           options: [{ id: 'u-1', name: 'шт' }, { id: 'u-2', name: 'м' }], tag: 'nomenclature.unit',
         },
       ],
@@ -65,9 +65,9 @@ describe('новая позиция номенклатуры из строки �
     // спрашивает. «Артикул поставщика» по названию похож, но это не то поле, что размечено (ревью #1525).
     const elsewhere = kind({
       fields: [
-        { key: 'Наименование', title: 'Наименование', required: true, identity: true, options: null },
-        { key: 'АртикулПоставщика', title: 'Артикул поставщика', required: false, identity: true, options: null },
-        { key: 'Тара', title: 'Тара', required: true, identity: false, options: [{ id: 'p-1', name: 'шт' }, { id: 'p-2', name: 'уп' }] },
+        { key: 'Наименование', title: 'Наименование', required: true, identity: true, suggest: 'suggested', options: null },
+        { key: 'АртикулПоставщика', title: 'Артикул поставщика', required: false, identity: true, suggest: 'suggested', options: null },
+        { key: 'Тара', title: 'Тара', required: true, identity: false, suggest: 'type', options: [{ id: 'p-1', name: 'шт' }, { id: 'p-2', name: 'уп' }] },
       ],
       mapped: ['nomenclature.article', 'nomenclature.unit'],
     });

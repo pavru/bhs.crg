@@ -34,7 +34,7 @@ import { computeBoundFieldKeys, mergeBindingPreviewsIntoValues, computeRecognize
 import { EntryDataSetBindings } from './EntryDataSetBindings';
 import {
   SCOPE_COLORS, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField,
-  PrimitiveInput, FileField, ImageField, AutoFieldsSection,
+  PrimitiveInput, FileField, ImageField, AutoFieldsSection, SuggestOwner,
   isLockedField, LockedFieldIcon, LockedFieldValue, LOCKED_HINT,
   BaseInstanceChip, SCOPE_TIER, candidateName, type BaseCandidate,
   SectionRail, collectConstraintViolations, describeViolationPath, violationRootKey,
@@ -548,12 +548,13 @@ export function CatalogEntryForm({
       // Пометка навешивается ОБЁРТКОЙ, а не внутрь renderCell: у него дюжина веток по типам поля,
       // и класс пришлось бы дописать в каждую — то есть завести дюжину мест, где о пометке надо
       // помнить. Стек вертикальный, лишний div раскладку не ломает.
+      // Тип-владелец подсказки (issue #1533) — тип записи, уровень — её собственный.
       return (
-        <div className="space-y-4">
+        <SuggestOwner type={typeId} scope={scope} scopeId={scopeId}><div className="space-y-4">
           {fields.map(f => recognizedKeys.has(f.key)
             ? <Tooltip key={f.key} content={RECOGNIZED_HINT}><div className="border-l-2 border-brand pl-2">{renderCell(f)}</div></Tooltip>
             : renderCell(f))}
-        </div>
+        </div></SuggestOwner>
       );
     }
 

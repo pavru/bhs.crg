@@ -8,54 +8,62 @@ PR закрывает #1533 («Closes #1533»), метки `ui` и `version:mino
 - [x] 0.1 (22.10.2026: приняты рекомендации (а)) Решения В-1 (право в шаге) и В-2 (что клиент называет в `type`) записаны в
   `../suggest-00-epic/design.md` с пометкой «Решено»; `design.md` этого change поправлен, если решение не
   совпало с рекомендацией. Проверка — пометки есть
-- [ ] 0.2 Макет флажка и строки причины в карточке поля — три варианта вместе с макетами `suggest-03`,
+- [x] 0.2 (23.10.2026: вариант В) Макет флажка и строки причины в карточке поля — три варианта вместе с макетами `suggest-03`,
   выбор владельца. Проверка — выбранный вариант и ссылка в `design.md` этого change
+- [x] 0.3 (решение владельца 23.10.2026) `identity` — не тэг однозначности: `Suggestable.cs`,
+  `suggestable.ts`, `suggestableCases.json` (компонент ключа — «подсказывается»), перепись
+  `SuggestableTagCensusTests` (`identity` в `NotUnique` с причиной), MODIFIED TYPE-2 в дельте
+  `types-and-tags`, пометка в зонтике. Проверка — `SuggestableCasesTests`, перепись и `suggestable.test.ts`
+  зелёные
 
 ## 1. Контекст и формы
 
-- [ ] 1.1 `fields/suggestContext.tsx`; провайдеры в `RequisitesTab`, `ComplexFields`, `ArrayTableModal`,
+- [x] 1.1 `fields/suggestContext.tsx`; провайдеры в `RequisitesTab`, `ComplexFields`, `ArrayTableModal`,
   `catalog/index.tsx`, `QualityDocForm` — без роста файлов из храповика размера. Проверка — тест:
   поле составного зовёт адрес с типом составного; `FileSizeRatchet` зелёный
-- [ ] 1.2 `PrimitiveInput`: `SuggestField` при контексте и коде «подсказывается» по `field.type`;
+- [x] 1.2 `PrimitiveInput`: `SuggestField` при контексте и коде «подсказывается» по `field.type`;
   иначе — как было. Проверка — тесты: `text`, `primitive`, вычисляемое и поле без контекста адрес не
   зовут; `InvoiceExtraFields` запросов не шлёт
-- [ ] 1.3 `TableCell`: `SuggestField compact` для строковых ячеек, `aria-label={field.title}` у текстовой
+- [x] 1.3 `TableCell`: `SuggestField compact` для строковых ячеек, `aria-label={field.title}` у текстовой
   ячейки. Проверка — тест: при пустом ответе списка нет, ↑↓ переводят по строкам (`EditGrid`)
 
 ## 2. Шаг «Новая позиция»
 
-- [ ] 2.1 Сервер: `FieldDto` описания `/api/nomenclature/intake` получает `suggest` — код причины
+- [x] 2.1 Сервер: `FieldDto` описания `/api/nomenclature/intake` получает `suggest` — код причины
   `Suggestable` [CORE-8] [CORE-9]. Проверка — тест двери: строковое поле — «подсказывается», поле с
-  `identity` — `identity`, `text` — `type`
-- [ ] 2.2 `NewNomenclatureStep`: поле с кодом «подсказывается» — `SuggestField` в контексте вида и уровня
+  `nomenclature.article` — `article`, `text` — `type`, компонент ключа `identity` — «подсказывается»
+- [x] 2.2 `NewNomenclatureStep`: поле с кодом «подсказывается» — `SuggestField` в контексте вида и уровня
   «вся система»; выбор идёт через `type(key, value)`; право — по В-1 [CORE-8] [CORE-9]. Проверка — тест
-  шага: подстановка запускает поиск похожих; поле `identity` адрес не зовёт
+  шага: подстановка в поле ключа запускает поиск похожих; поле с кодом `article` адрес не зовёт
 
 ## 3. Флажок в редакторе типа
 
-- [ ] 3.1 `settings/SuggestFlag.tsx` (`Checkbox`, пояснение, строка причины по коду) и одна строка
-  вызова в `FieldBuilder` рядом с «Вычисляемое» [TYPE-2]. Проверка — тесты на каждый код; `FileSizeRatchet`
+- [x] 3.1 `settings/SuggestFlag.tsx` (`Checkbox`, пояснение, строка причины по коду; вариант В — пометка
+  «без подсказки» в шапке карточки при `manual`) и одна строка вызова в `FieldBuilder` рядом с
+  «Вычисляемое» [TYPE-2]. Проверка — тесты на каждый код; `FileSizeRatchet`
   зелёный
-- [ ] 3.2 `input.noSuggest` скрыт из чипов карточки поля и из списка выбора тэгов — фильтром в
+- [x] 3.2 `input.noSuggest` скрыт из чипов карточки поля и из списка выбора тэгов — фильтром в
   `shared/api/tags.ts` [TYPE-2]. Проверка — тест: поле с тэгом не показывает чип
 
 ## 4. e2e и документы
 
-- [ ] 4.1 e2e на свежей базе, номенклатура: позиция с производителем из строки одного счёта; в шаге
+- [x] 4.1 e2e на свежей базе, номенклатура: позиция с производителем из строки одного счёта; в шаге
   «Новая позиция» другого счёта начало производителя — значение в списке, Enter подставляет [CORE-8].
-  Проверка — сценарий зелёный в CI, вписан в список живых прогонов
-- [ ] 4.2 e2e, реквизиты: значение одного документа стройки первым в другом её документе того же типа;
+  Проверка — сценарий зелёный в CI; живёт в `e2e/suggest-checks.mjs` внутри прогона строк счёта —
+  отдельному прогону не хватило бы входа в пределе частоты (`suites.test.mjs`)
+- [x] 4.2 e2e, реквизиты: значение одного документа стройки первым в другом её документе того же типа;
   значение другой стройки из одной записи не всплывает, из двух — под «С других строек»; равное
   набранному отсутствует. Проверка — сценарий зелёный в CI
-- [ ] 4.3 e2e, флажок: снять, сохранить, перезагрузить — флажок снят, чипа нет, в форме ни списка, ни
-  запроса к адресу (сеть); у `text` и вычисляемого флажка нет; у `identity` — строка причины [TYPE-2].
+- [x] 4.3 e2e, флажок: снять, сохранить, перезагрузить — флажок снят, чипа нет, в форме ни списка, ни
+  запроса к адресу (сеть); в шапке — «без подсказки»; у `text` и вычисляемого флажка нет; у
+  `nomenclature.article` — строка причины [TYPE-2].
   Проверка — сценарий зелёный в CI
-- [ ] 4.4 `docs/USER_GUIDE.md` (подсказки в полях) и `docs/ADMIN_GUIDE.md` (флажок поля, причины);
+- [x] 4.4 `docs/USER_GUIDE.md` (подсказки в полях) и `docs/ADMIN_GUIDE.md` (флажок поля, причины);
   `cd docs/tools && npm run toc`. Проверка — проверка оглавлений в «Frontend» зелёная
 
 ## 5. Верификация
 
-- [ ] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~NomenclatureIntake|FullyQualifiedName~Suggestable"` — зелёный
-- [ ] 5.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 5.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
-- [ ] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~NomenclatureIntake|FullyQualifiedName~Suggestable"` — зелёный
+- [x] 5.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 5.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
+- [x] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

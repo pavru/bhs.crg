@@ -11,10 +11,10 @@ import { toCamelKey, nextAutoKey, nextSavedKey } from './schemaConstants';
 import { buildFieldTypeOptions, decodeFieldType, fieldTypeSummary, type FieldRegistries } from './fieldTypeOptions';
 import { useAccess } from '@/shared/api/access';
 import { ModuleFieldBadge } from './ModuleFieldBadge';
+import { SuggestFlag, SuggestOffBadge } from './SuggestFlag';
 import { similarKeyOf } from './schemaKeyChecks';
-import {
-  useTagRegistry, fieldTags, findTagEntry, hasTag, offeredInRoles, tagCode, withTagOrder, unknownTagCodes,
-} from '@/shared/api/tags';
+import { useTagRegistry, fieldTags, findTagEntry, hasTag, offeredInRoles, tagCode, withTagOrder, unknownTagCodes } from '@/shared/api/tags';
+import { chipTagEntries, tagsForKind, withoutFlagTag } from '@/shared/api/suggestable';
 import { FunctionalTagBadge, FunctionalTagChip } from './FunctionalTagChip';
 import { evalComputed, validateComputed, findComputedCycles, referencedKeys } from '@/shared/utils/computedExpression';
 import { moveItem } from '@/shared/utils/moveItem';
@@ -227,6 +227,8 @@ export function FieldCard({
 }: FieldCardProps) {
   const { primitiveTypes, enumTypes, tagRegistry } = reg;
   const tags = field.tags ?? [];
+  // Чипы — без `input.noSuggest`, пока его показывает флажок (issue #1533); правка идёт по `tags`.
+  const chips = chipTagEntries(field);
   // Тэги вне реестра этого экземпляра — их не предлагают, но и не прячут (issue #959).
   const unknownTags = unknownTagCodes(field.tags, tagRegistry);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -295,15 +297,15 @@ export function FieldCard({
     onChange({ tags: withTagOrder(tags, code, digits.length ? Number(digits) : null) });
   };
   // Для поля type="primitive" применимые тэги берём из самого типа поля (allowedTags),
-  // для встроенных типов — из реестра по типу поля.
-  const applicableTags = (() => {
+  // для встроенных типов — из реестра по типу поля. `input.noSuggest` при показанном флажке — не чип (#1533).
+  const applicableTags = withoutFlagTag(field, (() => {
     if (field.type === 'primitive') {
       const pt = primitiveTypes.find(p => p.id === field.typeId);
       const codes = new Set(pt?.allowedTags ?? []);
       return offeredInRoles((tagRegistry ?? []).filter(t => t.scope === 'Field' && codes.has(t.code)), reg.roles, tags);
     }
     return fieldTags(tagRegistry, field.type, reg.roles, tags);
-  })();
+  })());
   // Легаси enum-поле (issue #59): options инлайн, typeId не выбран.
   const isLegacyEnum = field.type === 'enum' && !field.typeId && (field.options?.length ?? 0) > 0;
   const enumTypeDef = field.type === 'enum' ? enumTypes.find(et => et.id === field.typeId) : undefined;
@@ -333,11 +335,9 @@ export function FieldCard({
             </span>
             <span className="block text-xs text-fg4 font-mono truncate">{field.key || '—'}</span>
           </span>
-          <ModuleFieldBadge field={field} />
-          {tags.slice(0, 2).map(tc => (
-            <FunctionalTagBadge key={tc} registry={tagRegistry} entry={tc} />
-          ))}
-          {tags.length > 2 && <span className="text-caption text-fg4 shrink-0">+{tags.length - 2}</span>}
+          <ModuleFieldBadge field={field} /><SuggestOffBadge field={field} />
+          {chips.slice(0, 2).map(tc => <FunctionalTagBadge key={tc} registry={tagRegistry} entry={tc} />)}
+          {chips.length > 2 && <span className="text-caption text-fg4 shrink-0">+{chips.length - 2}</span>}
           <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-fg3 shrink-0">{fieldTypeSummary(field, reg)}</span>
           {open ? <ChevronUp size={16} className="text-fg4 shrink-0" /> : <ChevronDown size={16} className="text-fg4 shrink-0" />}
         </button>
@@ -454,8 +454,7 @@ export function FieldCard({
       {SchemaFieldKinds_isComputable(field.type) && (
         <>
           <label className="flex items-center gap-2 cursor-pointer w-fit">
-            <input
-              type="checkbox"
+            <input type="checkbox"
               checked={!!field.computed}
               onChange={e => onChange(e.target.checked
                 ? { computed: true, required: false, defaultValue: undefined }
@@ -466,6 +465,8 @@ export function FieldCard({
               <FunctionSquare size={13} className="text-brand" /> Вычисляемое (формула)
             </span>
           </label>
+          {/* Подсказка по введённому ранее (issue #1533): флажок, причина вместо него или ничего. */}
+          <SuggestFlag field={field} onChange={onChange} />
           {field.computed && (
             <ComputedFieldEditor field={field} siblingFields={siblingFields ?? []} onChange={onChange} />
           )}
@@ -574,7 +575,7 @@ export function FieldCard({
       {/* Функциональные тэги поля (для primitive — из типа поля, иначе из реестра) */}
       {applicableTags.length > 0 && (
         <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)] flex items-start gap-2">
-          <Cpu size={12} className={`mt-1 ${tags.length ? 'text-tertiary' : 'text-stroke-strong'}`} />
+          <Cpu size={12} className={`mt-1 ${chips.length ? 'text-tertiary' : 'text-stroke-strong'}`} />
           <span className="text-xs text-fg4 shrink-0 w-28 mt-1">Функц. тэги:</span>
           <div className="flex flex-wrap gap-1.5">
             {applicableTags.map(t => {
@@ -603,7 +604,8 @@ export function FieldCard({
         onSelect={id => {
           const dec = decodeFieldType(id);
           const changed = dec.type !== field.type || dec.typeId !== field.typeId;
-          onChange(changed ? { ...dec, defaultValue: undefined, options: undefined } : dec);
+          // `input.noSuggest` — только у строки: ушедшее с неё поле его теряет (issue #1533).
+          onChange(changed ? { ...dec, defaultValue: undefined, options: undefined, tags: tagsForKind(field.tags, dec.type) } : dec);
         }}
       />
     </div>

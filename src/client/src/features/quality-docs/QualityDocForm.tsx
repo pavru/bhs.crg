@@ -20,7 +20,7 @@ import { useListEnumTypes } from '@/shared/api/enumTypes';
 import {
   PrimitiveInput, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField, ImageField, FileField,
   validateConstraint, collectConstraintViolations, describeViolationPath,
-  isWideField, isLockedField, LockedFieldIcon, LockedFieldValue, LOCKED_HINT, AutoFieldsSection,
+  isWideField, isLockedField, LockedFieldIcon, LockedFieldValue, LOCKED_HINT, AutoFieldsSection, SuggestOwner,
 } from '@/features/document-sets/fields';
 import { useUploadsInFlight } from '@/shared/ui/uploadsInFlight';
 import { RECOGNIZED_HINT, recognizedFieldKeys, applyRecognized } from './recognizedMark';
@@ -266,8 +266,13 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
     );
   }
 
+  // Подсказка по введённому ранее (issue #1533): тип — выбранный тип документа, уровень — уровень библиотеки.
   function fieldGrid(list: SchemaField[]) {
-    return <div className="grid grid-cols-2 gap-x-4 gap-y-4">{list.map(renderCell)}</div>;
+    return (
+      <SuggestOwner type={typeId} scope={scope} scopeId={scopeId}>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-4">{list.map(renderCell)}</div>
+      </SuggestOwner>
+    );
   }
 
   /**

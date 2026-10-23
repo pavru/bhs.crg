@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import type { SuggestReason } from './suggestable';
 
 /**
  * Новая позиция номенклатуры коротким окном (задача C3, issue #1079) — дверь ЯДРА под
@@ -24,6 +25,11 @@ export interface IntakeField {
    * `nomenclature.unit`. Нет — не сопоставлено, и поле узнаётся по-старому.
    */
   tag?: string | null;
+  /**
+   * Код причины правила «поле подсказывается» (issue #1533), посчитанный сервером по схеме вида:
+   * `suggested` — шаг зовёт адрес подсказок. Шаг схемы не разбирает — узнаёт это только отсюда.
+   */
+  suggest: SuggestReason;
 }
 
 /** Тэги полей справочника номенклатуры — коды реестра ядра (`FunctionalTag`). */

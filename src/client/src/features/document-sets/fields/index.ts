@@ -3,6 +3,7 @@ export * from './FileField';
 export * from './ImageField';
 export * from './checkImageResult';
 export * from './PrimitiveInput';
+export * from './suggestContext';
 export * from './lockedFields';
 export * from './bindableFields';
 export * from './LockedFieldMarks';

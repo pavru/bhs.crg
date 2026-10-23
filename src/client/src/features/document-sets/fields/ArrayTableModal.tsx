@@ -22,6 +22,7 @@ import { ROW_DRAG_MIME, TABLE_SHOWN_TYPES, defaultColWidth } from './constants';
 import { PasteMappingModal } from './PasteMappingModal';
 import { newLocalId } from '@/shared/utils/localId';
 import { TableCell } from './ComplexCells';
+import { SuggestOwner } from './suggestContext';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
 // ─── Array table modal ────────────────────────────────────────────────────────
@@ -273,10 +274,13 @@ function ArrayTableModalBody({
           </div>
         </div>
       }>
-      <EditGrid sheet label={`Строки: ${compositeType?.name ?? field.title}`} rows={rows} rowKey={(_, i) => rowIds[i]}
-        columns={columns} selected={(_, i) => selected.has(rowIds[i])} drag={drag}
-        empty="Нет строк — нажмите «Добавить строку»"
-        add={{ label: 'Добавить строку', onAdd: addRow }} onRemove={(_, i) => removeRow(i)} />
+      {/* Клеткам — тип строки (issue #1533): уровень записи таблица берёт у формы вокруг. */}
+      <SuggestOwner type={field.typeId}>
+        <EditGrid sheet label={`Строки: ${compositeType?.name ?? field.title}`} rows={rows} rowKey={(_, i) => rowIds[i]}
+          columns={columns} selected={(_, i) => selected.has(rowIds[i])} drag={drag}
+          empty="Нет строк — нажмите «Добавить строку»"
+          add={{ label: 'Добавить строку', onAdd: addRow }} onRemove={(_, i) => removeRow(i)} />
+      </SuggestOwner>
       {hiddenFields.length > 0 && (
         <p className="text-xs text-fg4 mt-3">
           {hiddenFields.length === 1

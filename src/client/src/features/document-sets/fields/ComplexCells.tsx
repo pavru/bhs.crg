@@ -15,6 +15,8 @@ import { CELL_INPUT } from './constants';
 import { RefPickerModal } from './RefPickerModal';
 import { ArchivedRefMark } from './ArchivedRefs';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { SuggestField } from '@/shared/ui/SuggestField';
+import { useSuggestSource } from './suggestContext';
 
 // ─── Complex cell picker (inline table cell) ──────────────────────────────────
 
@@ -67,6 +69,9 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
   enumTypeDef?: EnumTypeDef;
 }) {
   const strVal = value == null ? '' : String(value);
+  // Подсказка — по виду поля схемы, а не контрола (issue #1533): `text` здесь однострочный, но абзацы
+  // не подсказываются и в клетке. Тип-владелец — тип строки, его задаёт таблица.
+  const source = useSuggestSource(field);
   if (field.type === 'complex') {
     return (
       <ComplexCellPicker value={value} onChange={onChange}
@@ -107,13 +112,12 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
       min={primitiveTypeDef.constraints.minDate} max={primitiveTypeDef.constraints.maxDate}
       className="w-full h-full flex items-center px-1.5 focus-within:bg-brand-subtle" />;
   }
+  // Без источника `SuggestField` — голый `<input>` клетки: подпись ему — `aria-label` (у клетки своей нет).
   return (
-    <input type={field.type === 'number' ? 'number' : 'text'}
+    <SuggestField source={source} compact label={field.title}
+      type={field.type === 'number' ? 'number' : 'text'}
       value={strVal}
-      onChange={e => {
-        const v = e.target.value;
-        onChange(field.type === 'number' ? (v === '' ? '' : Number(v)) : v);
-      }}
+      onChange={v => onChange(field.type === 'number' ? (v === '' ? '' : Number(v)) : v)}
       className={CELL_INPUT}
     />
   );
