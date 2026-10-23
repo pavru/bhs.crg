@@ -119,8 +119,8 @@ export const allPageOwners: PageOwner[] = [...pageOwners, ...panelPageOwners()];
  * Что в реестре нарушает правила (PLAN-20 и соседние маршруты). Пустой список — всё в порядке.
  *
  * Порядок блока «Работы»: панели ядра раньше панелей модулей, панели одного модуля подряд, модули — в
- * порядке рейла. Раздел рейла модуля берётся из его пунктов меню, поэтому заодно все пункты модуля
- * обязаны стоять в одном разделе: иначе «порядок рейла» для модуля не определён.
+ * порядке рейла. Раздел рейла модуля берётся из его пунктов меню, поэтому у модуля с панелью в блоке
+ * «Работы» все пункты обязаны стоять в одном разделе: иначе «порядок рейла» для модуля не определён.
  */
 export function panelRegistryProblems(panels: ConstructionPanel[], nav: NavItem[] = workNav,
   rails: RailId[] = railSections.map(r => r.id)): string[] {
@@ -142,8 +142,11 @@ export function panelRegistryProblems(panels: ConstructionPanel[], nav: NavItem[
       problems.push(`у модуля «${module}» ${own.size} панели карточки стройки (${[...own].join(', ')}): PLAN-20 разрешает ${MODULE_PANELS_MAX}`);
   }
 
+  // Порядок рейла нужен только блоку «Работы»: панель модуля в блоке «Эта стройка» пунктов меню не
+  // требует.
   const railOf = new Map<string, number>();
-  for (const module of modules) {
+  const workModules = [...new Set(panels.filter(p => p.block === 'work' && p.module).map(p => p.module!))];
+  for (const module of workModules) {
     const itemRails = [...new Set(nav.filter(i => i.module === module).map(i => i.rail))];
     if (itemRails.length === 0) problems.push(`у модуля «${module}» нет пунктов меню — порядок его панелей не определить`);
     else if (itemRails.length > 1) problems.push(`пункты модуля «${module}» стоят в разных разделах рейла: ${itemRails.join(', ')}`);

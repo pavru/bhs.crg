@@ -1,18 +1,17 @@
 import type { AccessInfo } from '@/shared/api/access';
-import { visibleNav } from './navAccess';
-import type { NavItem } from './navConfig';
-import { availableModules, inWorkspace, type Workspace } from './workspaces';
+import { railSections, type NavItem } from './navConfig';
+import { availableModules } from './workspaces';
 
 /**
  * Страница входа (ТЗ AUTH-16.1, AUTH-16.3, plan-02): куда вести после входа и по адресу `/`.
  *
  * <p>Раньше `/` вёл на «Стройки» всех — и роль без `core.constructions.read` (самодельная, с одними
- * правами модуля) после входа видела отказ. Теперь адрес вычисляется из того же ответа доступа, что
- * строит меню, и из открытого пространства: вход ведёт туда, куда человек может попасть и через меню.
- * Названий ролей правило не читает (AUTH-14).</p>
+ * правами модуля) после входа видела отказ. Теперь адрес вычисляется из того, что показывает меню
+ * (`useNavSections`: доступ и открытое пространство): вход ведёт туда, куда человек может попасть и
+ * через меню. Названий ролей правило не читает (AUTH-14).</p>
  *
- * <p>Порядок: видимый в пространстве пункт с наименьшим рангом (`NavItem.entry`), иначе первый
- * видимый, иначе никуда — тогда страница «нет доступа» (AUTH-15), а не раздел, отвечающий отказом.</p>
+ * <p>Порядок: показанный пункт с наименьшим рангом (`NavItem.entry`), иначе первый показанный, иначе
+ * никуда — тогда страница «нет доступа» (AUTH-15), а не раздел, отвечающий отказом.</p>
  */
 
 /**
@@ -21,6 +20,9 @@ import { availableModules, inWorkspace, type Workspace } from './workspaces';
  * Пока пункта Главной нет, константа в расчёт не входит.
  */
 export const HOME_ENTRY_RANK = 100;
+
+/** Адрес страницы входа: пункт меню с этим адресом не откроется — `/` отвечает перенаправлением. */
+const ENTRY_ADDRESS = '/';
 
 /** Пункт Главной — пункт ядра с рангом Главной. Его вписывает `shell-08`; механизм от этого не меняется. */
 export function isHomeItem(item: NavItem): boolean {
@@ -38,28 +40,40 @@ function soleModuleOf(item: NavItem, access: AccessInfo): boolean {
   return !!item.module && open.length === 1 && open[0].code === item.module;
 }
 
+const railIndex = (item: NavItem) => railSections.findIndex(r => r.id === item.rail);
+
 /**
- * Адрес входа: `null` — видимых пунктов нет, показывать страницу AUTH-15.
+ * Адрес входа: `null` — показанных пунктов нет, показывать страницу AUTH-15.
  *
- * @param items все пункты навигации по порядку меню (рабочие, затем «Система»): ничья при равных
- *   рангах решается этим порядком, то есть порядком рейла.
+ * @param shown пункты, которые меню показывает этому человеку в этом пространстве, по порядку меню
+ *   (`useNavSections`: рабочие, затем «Система») — отбор не повторяется здесь вторым экземпляром.
+ * @param declared все объявленные пункты: Главная «объявлена», даже если этому человеку не видна, — и
+ *   правило «одного модуля» от её видимости не зависит.
  */
-export function entryPage(items: NavItem[], ws: Workspace, access: AccessInfo): string | null {
-  const shown = visibleNav(items, access).filter(item => inWorkspace(item, ws, access));
-  const homeDeclared = shown.some(isHomeItem);
+export function entryPage(shown: NavItem[], access: AccessInfo, declared: NavItem[] = shown): string | null {
+  const homeDeclared = declared.some(isHomeItem);
   const ranked = shown.filter(item => item.entry !== undefined
     && (!homeDeclared || item.entry >= HOME_ENTRY_RANK || soleModuleOf(item, access)));
-  // Сортировка устойчива: при равных рангах выигрывает пункт, стоящий в меню раньше.
-  const best = [...ranked].sort((a, b) => a.entry! - b.entry!)[0];
+  // При равных рангах — порядок рейла (design plan-02); внутри раздела сортировка устойчива и
+  // оставляет порядок меню.
+  const best = [...ranked].sort((a, b) => a.entry! - b.entry! || railIndex(a) - railIndex(b))[0];
   return (best ?? shown[0])?.to ?? null;
 }
 
 /**
- * Что в объявлении рангов нарушает правило: пункт ядра с рангом ниже Главной. Ядро видно каждому, и
- * такой ранг увёл бы от Главной всех — правило «одного модуля» к пункту ядра неприменимо (П0).
+ * Что в объявлении рангов нарушает правила. Пункт ядра с рангом ниже Главной: ядро видно каждому, и
+ * такой ранг увёл бы от Главной всех — правило «одного модуля» к пункту ядра неприменимо (П0). Два
+ * пункта ядра с рангом Главной — две «Главные», и вход между ними решал бы порядок массива. Пункт по
+ * адресу `/`: этот адрес — страница входа, он отвечает перенаправлением, и пункт там не откроется.
  */
 export function entryRankProblems(items: NavItem[]): string[] {
-  return items
+  const problems = items
     .filter(item => !item.module && item.entry !== undefined && item.entry < HOME_ENTRY_RANK)
     .map(item => `«${item.label}»: пункт ядра с рангом входа ${item.entry} ниже Главной (${HOME_ENTRY_RANK})`);
+  const homes = items.filter(isHomeItem);
+  if (homes.length > 1)
+    problems.push(`ранг Главной (${HOME_ENTRY_RANK}) у нескольких пунктов ядра: ${homes.map(i => `«${i.label}»`).join(', ')}`);
+  for (const item of items.filter(i => i.to === ENTRY_ADDRESS))
+    problems.push(`«${item.label}»: адрес «${ENTRY_ADDRESS}» — страница входа, пункт там не откроется`);
+  return problems;
 }

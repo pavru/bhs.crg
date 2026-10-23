@@ -134,6 +134,14 @@ describe('реестр панелей', () => {
     expect(panelRegistryProblems([progress, invoices, estimates], nav)).toEqual([]);
   });
 
+  it('панели модуля в блоке «Эта стройка» пунктов меню не требуют: порядок рейла им не нужен', () => {
+    const notes: ConstructionPanel = { ...estimates, id: 'notes', block: 'own', module: 'id', permission: undefined };
+    expect(panelRegistryProblems([...constructionPanels, notes], workNav.filter(i => i.module !== 'id'))).toEqual([]);
+    // Та же панель в блоке «Работы» — уже ошибка: модуль без пунктов не поставить по рейлу.
+    expect(panelRegistryProblems([{ ...notes, block: 'work' }, ...constructionPanels], workNav.filter(i => i.module !== 'id')))
+      .toEqual(['у модуля «id» нет пунктов меню — порядок его панелей не определить']);
+  });
+
   it('пункты модуля в разных разделах рейла — ошибка: порядок модуля не определён', () => {
     const stray: NavItem = { ...planItem, to: '/prices', rail: 'costs' };
     expect(panelRegistryProblems([progress, estimates], [...nav, stray]))

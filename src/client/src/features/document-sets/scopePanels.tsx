@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
-import { panelAt, panelsAt, defaultPanel, type PanelLevel, type ShownPanel } from '@/shared/ui/constructionPanels';
+import {
+  constructionPanels, panelAt, panelsAt, defaultPanel, type ConstructionPanel, type PanelLevel, type ShownPanel,
+} from '@/shared/ui/constructionPanels';
 import { NavItem, NavSection } from '@/shared/ui/ListDetailShell';
 import { missingFor, allowed } from '@/shared/ui/navAccess';
 import { NoAccessPage } from '@/shared/ui/NoAccessPage';
@@ -39,17 +41,22 @@ export const panelViews: Record<string, (scope: PanelScope) => ReactNode> = {
  * Панели страницы стройки или раздела: пункты блоков «Работы» и «Эта стройка» («Этот раздел»),
  * содержимое открытой панели и перенаправление голого или неизвестного адреса на панель по умолчанию.
  *
- * Пока доступ в пути, ни пунктов, ни перенаправления нет: решить «первую видимую» по пустому доступу
- * значило бы увести человека с «Ходом работ» на «Каталог».
+ * Пока доступ в пути, ни содержимого, ни перенаправления нет: решить «первую видимую» по пустому
+ * доступу значило бы увести человека с «Ходом работ» на «Каталог». Пункты же рисуются сразу — те, что
+ * прав не требуют («Каталог», «Подписчики»), видны с первого кадра, как до реестра; остальные
+ * добавляются, когда доступ придёт.
+ *
+ * `panels` и `views` — для теста: настоящих панелей модулей ещё нет, а ветки хука нужны уже сейчас.
  */
-export function useScopePanels(level: PanelLevel, base: string, scope: PanelScope) {
+export function useScopePanels(level: PanelLevel, base: string, scope: PanelScope,
+  panels: ConstructionPanel[] = constructionPanels, views = panelViews) {
   const { panel } = useParams<{ panel?: string }>();
   const navigate = useNavigate();
   const { data, isPending } = useAccess();
   const access = data ?? NO_ACCESS;
   const workspace = useWorkspace();
-  const active = panelAt(level, panel);
-  const { work, own } = panelsAt(level, access, workspace.inside, active?.id);
+  const active = panelAt(level, panel, panels);
+  const { work, own } = panelsAt(level, access, workspace.inside, active?.id, panels);
 
   const items = (list: ShownPanel[]) => list.map(p => (
     <NavItem key={p.id} icon={<p.icon size={17} />} label={p.label} active={p.id === active?.id}
@@ -59,19 +66,19 @@ export function useScopePanels(level: PanelLevel, base: string, scope: PanelScop
   let detail: ReactNode = null;
   if (!isPending) {
     if (!active) {
-      const first = defaultPanel(level, access, workspace.inside);
+      const first = defaultPanel(level, access, workspace.inside, panels);
       detail = first ? <Navigate to={`${base}/${first.id}`} replace /> : null;
     } else if (!allowed(active, access)) {
       detail = <NoAccessPage what={active.label} missing={missingFor(active, access)} />;
     } else {
-      detail = panelViews[active.id]?.(scope) ?? null;
+      detail = views[active.id]?.(scope) ?? null;
     }
   }
 
   return {
     /** Блок «Работы» — над разделами; нет панелей — нет и блока. */
-    workNav: !isPending && work.length > 0 ? <><NavSection label="Работы" />{items(work)}</> : null,
-    ownNav: (label: string) => (isPending ? null : <><NavSection label={label} />{items(own)}</>),
+    workNav: work.length > 0 ? <><NavSection label="Работы" />{items(work)}</> : null,
+    ownNav: (label: string) => <><NavSection label={label} />{items(own)}</>,
     detail,
   };
 }

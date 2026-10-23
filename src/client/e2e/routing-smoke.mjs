@@ -513,9 +513,14 @@ try {
         if (set.status !== 200) throw new Error(`роль «${role.title}» не выдана: ${set.status}`);
         problems.push(...await walkAs(userPage, role.title));
       }
-    } finally {
-      await callApi(page, 'PUT', `/users/${me.id}/roles`, { roles: before });
+    } catch (e) {
+      problems.push(e.message);
     }
+    // Возврат — с проверкой ответа: не вернулся — наборы после этого идут под последней ролью прохода и
+    // краснеют далеко от причины. Поэтому он назван первым, громче находок прохода.
+    const back = await callApi(page, 'PUT', `/users/${me.id}/roles`, { roles: before });
+    if (back.status !== 200)
+      problems.unshift(`ПРЕЖНИЕ РОЛИ (${before.join(', ')}) НЕ ВОЗВРАЩЕНЫ: ${back.status} — следующие наборы под ${USER_EMAIL} идут не под своей ролью`);
     if (problems.length) throw new Error(problems.join('\n'));
   });
   await userContext.close();
