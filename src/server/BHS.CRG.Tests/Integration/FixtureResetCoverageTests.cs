@@ -72,6 +72,8 @@ public class FixtureResetCoverageTests(IntegrationTestFixture fixture)
         [nameof(AppDbContext)] = "по таблицам: TruncatedTables либо DeliberatelyKept в этом файле",
         [nameof(BHS.CRG.Modules.Costs.Data.CostsDbContext)] =
             "схема целиком: TRUNCATE по модели контекста (IntegrationTestFixture.ResetModuleSchemasAsync)",
+        [nameof(BHS.CRG.Modules.Plan.Data.PlanDbContext)] =
+            "схема целиком: TRUNCATE по модели контекста (IntegrationTestFixture.ResetModuleSchemasAsync)",
     };
 
     [Fact]

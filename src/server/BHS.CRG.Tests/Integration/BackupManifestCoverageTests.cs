@@ -128,6 +128,8 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
             "посущностно: карта CoveredByManifest плюс список DeliberatelyExcluded в этом файле",
         [nameof(BHS.CRG.Modules.Costs.Data.CostsDbContext)] =
             "схема целиком, секцией ModuleData манифеста — состав спрашивается у контекста модуля",
+        [nameof(BHS.CRG.Modules.Plan.Data.PlanDbContext)] =
+            "схема целиком, секцией ModuleData манифеста — как у счетов; таблиц у каркаса ещё нет",
     };
 
     /// <summary>
