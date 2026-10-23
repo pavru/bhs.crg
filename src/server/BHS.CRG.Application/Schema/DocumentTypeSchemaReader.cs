@@ -115,6 +115,9 @@ public static class DocumentTypeSchemaReader
         return fields.Any(f => f.Type == "primitive" && f.TypeId == primitiveTypeId);
     }
 
+    /// <summary>СОБСТВЕННЫЕ поля типа — объявленные в его схеме, без унаследованных.</summary>
+    public static IReadOnlyList<SchemaFieldInfo> OwnFields(JsonDocument schema) => ParseSchema(schema, null).Fields;
+
     /// <summary>true, если childId == ancestorId либо childId — потомок ancestorId по ParentId.</summary>
     public static bool IsSameOrDescendant(Guid childId, Guid ancestorId, IReadOnlyDictionary<Guid, DocumentType> byId)
     {

@@ -22,6 +22,9 @@ public class DomainObjectConfiguration : IEntityTypeConfiguration<DomainObject>
     /// </summary>
     public const string SearchTextFunction = "choice_search_text";
 
+    /// <summary>Индекс окна подсказок; его называет тест плана запроса (issue #1530).</summary>
+    public const string FieldSuggestionsIndex = "IX_domain_objects_CompositeTypeId_UpdatedAt_Live";
+
     public void Configure(EntityTypeBuilder<DomainObject> b)
     {
         b.ToTable("domain_objects");
@@ -60,6 +63,13 @@ public class DomainObjectConfiguration : IEntityTypeConfiguration<DomainObject>
         // стоит записи.
         b.HasIndex(e => e.CompositeTypeId, "IX_domain_objects_CompositeTypeId_Archived")
             .HasFilter("\"ArchivedAt\" IS NOT NULL");
+        // Окно подсказок (issue #1530): последние действующие записи типа по времени правки. Без него
+        // каждая буква в поле распаковывала бы картинки всех записей типа (замер #1528: 340 мс против
+        // 5). Условие «не в архиве» — в самом индексе: архивная запись в окно не попадает по
+        // устройству, а не по отбору, который можно забыть (ТЗ CORE-34.4).
+        b.HasIndex(e => new { e.CompositeTypeId, e.UpdatedAt }, FieldSuggestionsIndex)
+            .IsDescending(false, true)
+            .HasFilter("\"ArchivedAt\" IS NULL");
 
         // Признак архива (issue #1185) обычное сохранение НЕ пишет: после вставки колонка для него
         // не существует. Запись сохраняется целиком (Repository.Update — это DbSet.Update, а
