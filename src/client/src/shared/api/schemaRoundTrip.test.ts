@@ -50,6 +50,15 @@ describe('круг схемы', () => {
     expect(parsed[0].moduleTitle).toBe('Сумма по журналу');
   });
 
+  it('тэг «не подсказывать» остаётся на поле (issue #1529)', () => {
+    // Отдельным случаем: редактор показывает этот тэг флажком, а не чипом, — и пересборка тэгов
+    // поля без чипа обязана его всё равно сохранить.
+    const field = { key: 'Примечание', title: 'Примечание', type: 'string', tags: ['input.noSuggest'] };
+    const saved = JSON.parse(schemaToJson(parseSchemaFields({ fields: [field] }), [], {}));
+
+    expect(saved.fields[0].tags).toEqual(['input.noSuggest']);
+  });
+
   it('поле заказчика не обрастает метками из ниоткуда', () => {
     const parsed = parseSchemaFields({ fields: [{ key: 'Своё', title: 'Своё', type: 'string' }] });
     const saved = JSON.parse(schemaToJson(parsed, [], {}));

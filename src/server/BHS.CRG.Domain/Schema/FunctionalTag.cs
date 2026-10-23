@@ -8,6 +8,11 @@ namespace BHS.CRG.Domain.Schema;
 ///
 /// Уровень поля (в схеме: fields[].tags) и уровень типа (в схеме: tags).
 /// Реестр с метаданными — <see cref="BHS.CRG.Application.Schema.TagRegistry"/>.
+///
+/// ⚠️ Новый СТРОКОВЫЙ тэг поля — ещё и решение «однозначен ли он»: значение однозначного поля
+/// (номер, ИНН, артикул) другим записям не подсказывается. Решение записывается в правило
+/// <c>Suggestable</c> (Application/Objects/FieldSuggestions); без него тэг роняет перепись
+/// <c>SuggestableTagCensusTests</c> — иначе поле стало бы подсказываемым молча.
 /// </summary>
 public static class FunctionalTag
 {
@@ -175,6 +180,15 @@ public static class FunctionalTag
     /// ломает количества и деньги дальше.
     /// </summary>
     public const string NomenclatureUnit = "nomenclature.unit";
+
+    // ── Тэги поля: ввод (issue #1529, эпик #1527) ───────────────────────────────
+
+    /// <summary>
+    /// Не подсказывать полю значения, введённые ранее. Тэг, а не свойство поля: новые свойства
+    /// терялись на круге «разобрали → сохранили» схемы (#1004, #1008), тэги его проходят давно.
+    /// Умолчание вычисляется правилом <c>Suggestable</c> — тэга «подсказывать» нет.
+    /// </summary>
+    public const string InputNoSuggest = "input.noSuggest";
 
     // ── Тэги набора данных (структура PDF-источника) ────────────────────────────
     /// <summary>PDF содержит обложку (первая страница пропускается при распознавании).</summary>
