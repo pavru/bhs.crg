@@ -25,10 +25,14 @@ public abstract record SuggestionPlan
     public sealed record Forbidden(string Reason) : SuggestionPlan;
 
     /// <summary>
-    /// Читать записи этих типов — семьи объявившего поле (он в ней всегда, если не закрыт правами).
-    /// Пустой список — законный ответ: читать нечего.
+    /// Читать верхний уровень записей <paramref name="Types" /> — семьи объявившего поле (он в ней
+    /// всегда, если не закрыт правами) — и поле по путям <paramref name="Nested" /> внутри записей
+    /// типов-владельцев (issue #1532). Пустые оба — законный ответ: читать нечего.
     /// </summary>
-    public sealed record Read(IReadOnlyList<Guid> Types) : SuggestionPlan;
+    public sealed record Read(IReadOnlyList<Guid> Types, IReadOnlyList<NestedSource> Nested) : SuggestionPlan
+    {
+        public bool IsEmpty => Types.Count == 0 && Nested.Count == 0;
+    }
 }
 
 /// <summary>
@@ -61,6 +65,10 @@ public static class SuggestionSources
     /// <para><b>Потомок, объявивший ключ своим или исключивший его, из семьи выпадает</b> (D1): его
     /// «Производитель» — другое поле с тем же именем, и смешивать их значения нельзя.</para>
     ///
+    /// <para><b>Поле внутри чужих записей</b> (issue #1532): тип семьи, встреченный составным полем или
+    /// строкой массива в схеме другого типа, даёт тому путь до поля (<see cref="SuggestionPaths" />).
+    /// Читаются записи владельца, и права — его вида.</para>
+    ///
     /// <para><b>Права — по виду типа</b> (D5): документы — при праве на чтение документов и
     /// включённом модуле, остальное — при праве на справочники; справочник номенклатуры открыт ещё и
     /// держателю права шага «Новая позиция» (решение В-1) — так же, как дверь номенклатуры отдаёт ему
@@ -81,35 +89,47 @@ public static class SuggestionSources
             SchemaTags.TagsOfOwnField(declarer.Schema, field));
         if (reason != Suggestable.Yes) return new SuggestionPlan.Silent(reason);
 
-        var family = types.Values
-            .Where(t => t.Storage == TypeStorage.SharedObject
-                && DocumentTypeSchemaReader.IsSameOrDescendant(t.Id, declarer.Id, types)
+        // Семья — без оглядки на хранение: строка массива сама в таблице не лежит, но поле у неё есть.
+        var members = types.Values
+            .Where(t => DocumentTypeSchemaReader.IsSameOrDescendant(t.Id, declarer.Id, types)
                 && DeclarerOf(t.Id, field, types)?.Id == declarer.Id
                 && DocumentTypeSchemaReader.Field(t.Id, field, types) is not null)
+            .Select(t => t.Id)
             .ToList();
+        var nested = SuggestionPaths.For(members, field, types);
 
         var allowed = new List<Guid>();
+        var owners = new List<NestedSource>();
         int byRights = 0, byModule = 0;
-        foreach (var t in family)
+        foreach (var t in members.Select(id => types[id]).Where(t => t.Storage == TypeStorage.SharedObject))
+            if (Admits(t)) allowed.Add(t.Id);
+        foreach (var (owner, paths) in nested)
+            if (types[owner].Storage == TypeStorage.SharedObject && Admits(types[owner]))
+                owners.Add(new NestedSource(owner, paths));
+
+        if (allowed.Count == 0 && owners.Count == 0 && byRights > 0)
+            return new SuggestionPlan.Forbidden(
+                $"Подсказки поля «{field}» берутся из записей, читать которые у вас нет права: "
+                + $"документы — «{DocumentRead}», общие данные — «{CatalogRead}».");
+        if (allowed.Count == 0 && owners.Count == 0 && byModule > 0) return new SuggestionPlan.Silent(ModuleOff);
+        return new SuggestionPlan.Read(allowed, owners);
+
+        // Открыт ли тип читателю; закрытый считается — модулем или правами, — чтобы различить ответы.
+        bool Admits(DocumentType t)
         {
             if (t.Kind == DocumentTypeKind.Document)
             {
                 if (!access.EnabledModules.Contains(DocumentsModule)) byModule++;
                 else if (!access.Allows(DocumentRead)) byRights++;
-                else allowed.Add(t.Id);
+                else return true;
+                return false;
             }
-            else if (access.Allows(CatalogRead)
+            if (access.Allows(CatalogRead)
                 || (access.Allows(NomenclatureEdit) && SchemaTags.TypeHasTag(t, types, FunctionalTag.RoleNomenclature)))
-                allowed.Add(t.Id);
-            else byRights++;
+                return true;
+            byRights++;
+            return false;
         }
-
-        if (allowed.Count == 0 && byRights > 0)
-            return new SuggestionPlan.Forbidden(
-                $"Подсказки поля «{field}» берутся из записей, читать которые у вас нет права: "
-                + $"документы — «{DocumentRead}», общие данные — «{CatalogRead}».");
-        if (allowed.Count == 0 && byModule > 0) return new SuggestionPlan.Silent(ModuleOff);
-        return new SuggestionPlan.Read(allowed);
     }
 
     /// <summary>
