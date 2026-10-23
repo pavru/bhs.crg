@@ -1287,6 +1287,10 @@ namespace BHS.CRG.Infrastructure.Migrations
                     b.HasIndex(new[] { "CompositeTypeId" }, "IX_domain_objects_CompositeTypeId_Archived")
                         .HasFilter("\"ArchivedAt\" IS NOT NULL");
 
+                    b.HasIndex(new[] { "CompositeTypeId", "UpdatedAt" }, "IX_domain_objects_CompositeTypeId_UpdatedAt_Live")
+                        .IsDescending(false, true)
+                        .HasFilter("\"ArchivedAt\" IS NULL");
+
                     b.ToTable("domain_objects", (string)null);
                 });
 

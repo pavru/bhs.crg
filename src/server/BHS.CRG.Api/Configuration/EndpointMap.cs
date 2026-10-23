@@ -66,6 +66,8 @@ internal static class EndpointMap
     // Сотрудники — справочник ядра (CORE-7, issue #962). Дверь тонкая: хранение общее с каталогом,
     // своя она ради отдельного права core.employees.*.
     app.MapEmployeeEndpoints();
+    // Подсказки поля по ранее введённому (issue #1530): права — в службе, по виду типов семьи поля.
+    app.MapFieldSuggestionEndpoints();
     // Таблицы модулей (ТЗ CORE-33, G1b, issue #1089): ключ проверяет служба по объявлению таблицы.
     app.MapTableEndpoints();
     app.MapGenerationEndpoints();

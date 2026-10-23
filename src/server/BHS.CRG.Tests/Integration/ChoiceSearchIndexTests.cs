@@ -37,11 +37,14 @@ public class ChoiceSearchIndexTests(IntegrationTestFixture fixture)
         await using var tx = await db.Database.BeginTransactionAsync();
         var repository = new DomainObjectRepository(db);
 
-        // Проход и обход по ключу запрещены, индекс по типу снят (до отката транзакции): из путей
+        // Проход и обход по ключу запрещены, индексы по типу сняты (до отката транзакции): из путей
         // к строкам остаётся индекс поиска. Не может запрос им воспользоваться — в плане его не будет.
+        // Индексов по типу два: второй — окно подсказок (#1530), частичный по «не в архиве», и выбор с
+        // тем же условием ходит им так же охотно, как первым.
         await db.Database.ExecuteSqlRawAsync("""
             SET LOCAL enable_seqscan = off; SET LOCAL enable_indexscan = off;
             DROP INDEX "IX_domain_objects_CompositeTypeId";
+            DROP INDEX "IX_domain_objects_CompositeTypeId_UpdatedAt_Live";
             """);
         // Регистр набранного — третий, не совпадающий ни с названием, ни с именем.
         var viaIndex = await repository.SearchForChoiceAsync([type], $"кАбЕлЬ {tag}", 10);
