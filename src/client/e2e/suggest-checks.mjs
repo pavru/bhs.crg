@@ -200,21 +200,23 @@ export async function suggestChecks({ page, check, stamp, api }) {
   // ── 3. Флажок в редакторе типа ──────────────────────────────────────────────
   /**
    * Раскрыть карточку поля по подписи; раскрыта всегда одна, так что чтение страницы — про неё.
-   * ⚠️ Страница открывается заново: у раскрытой карточки чипы тэгов — тоже кнопки, и чип «Номер
-   * документа» начинается с «Номер» — щелчок по подписи попал бы в чип соседнего поля.
+   * ⚠️ Страница НЕ открывается заново на каждую карточку: каждая загрузка — запрос оформления, а его
+   * предел (300 за пять минут с адреса) делят все прогоны работы CI. Прогон оплаты счёта, идущий
+   * следом, получал 429 и краснел. Чип соседнего поля («Номер документа») щелчок не заденет — шапку
+   * ищет `header` по подписи и ключу подряд.
    */
-  async function openCard(url, title) {
-    await page.goto(url, { waitUntil: 'networkidle' });
+  async function openCard(title) {
     await header(title).click();
     await settled(page);
   }
+  const openTypePage = url => page.goto(url, { waitUntil: 'networkidle' });
   const flag = () => page.getByRole('checkbox', { name: /Подсказывать введённое ранее/ });
   /** Шапка карточки: подпись и ключ поля подряд — так её не спутать с чипом тэга. */
   const header = title => page.locator('button').filter({ hasText: new RegExp(`^${title}${title}`) }).first();
 
   await check('флажок: снят, сохранён и после перезагрузки снят — пометка в шапке, чипа нет', async () => {
-    const types = `${BASE}/document-types?type=${docType}`;
-    await openCard(types, 'Марка');
+    await openTypePage(`${BASE}/document-types?type=${docType}`);
+    await openCard('Марка');
     if (!(await flag().isChecked())) throw new Error('у строкового поля флажок не стоит по умолчанию');
     await flag().uncheck();
     const saved = page.waitForResponse(r => r.request().method() === 'PUT' && /\/schema$/.test(r.url()), { timeout: 15_000 });
@@ -226,7 +228,7 @@ export async function suggestChecks({ page, check, stamp, api }) {
     const collapsed = await header('Марка').innerText();
     if (!collapsed.includes('без подсказки')) throw new Error(`в шапке нет пометки «без подсказки»: ${collapsed}`);
     if (collapsed.includes('Не подсказывать')) throw new Error(`тэг показан чипом: ${collapsed}`);
-    await openCard(types, 'Марка');
+    await openCard('Марка');
     if (await flag().isChecked()) throw new Error('после перезагрузки флажок снова стоит');
   });
 
@@ -241,22 +243,22 @@ export async function suggestChecks({ page, check, stamp, api }) {
   });
 
   await check('флажок: у текста и вычисляемого его нет, у поля однозначности — причина', async () => {
-    const types = `${BASE}/document-types?type=${docType}`;
+    await openTypePage(`${BASE}/document-types?type=${docType}`);
     for (const title of ['Примечание', 'Код']) {
-      await openCard(types, title);
+      await openCard(title);
       if ((await flag().count()) !== 0) throw new Error(`у поля «${title}» есть флажок`);
       if ((await page.getByText(/^Не подсказывается/).count()) !== 0) throw new Error(`у поля «${title}» строка причины`);
     }
-    await openCard(types, 'Номер');
+    await openCard('Номер');
     if ((await flag().count()) !== 0) throw new Error('у номера документа есть флажок');
     await page.getByText('Не подсказывается: номер у каждого документа свой.').waitFor({ timeout: 5_000 });
 
     if (!kindId) throw new Error('вид позиции не заведён — шаг «Новая позиция» упал раньше');
-    const kinds = `${BASE}/composite-types?type=${kindId}`;
-    await openCard(kinds, 'Артикул');
+    await openTypePage(`${BASE}/composite-types?type=${kindId}`);
+    await openCard('Артикул');
     if ((await flag().count()) !== 0) throw new Error('у артикула есть флажок');
     await page.getByText(/^Не подсказывается: артикул/).waitFor({ timeout: 5_000 });
-    await openCard(kinds, 'Производитель');
+    await openCard('Производитель');
     // «Идентификатор» — компонент ключа, не однозначность (решение 23.10.2026): флажок стоит.
     if (!(await flag().isChecked())) throw new Error('у производителя (компонент ключа) флажок не стоит');
   });
