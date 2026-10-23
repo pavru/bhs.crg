@@ -16,10 +16,10 @@ change заархивирован. Архитектура — `design.md`. По�
 
 ## 1. Ядро
 
-- [ ] 1.1 `suggest-01-rule` (1) — правило `Suggestable` (C#/TS, общий файл случаев), тэг
+- [x] 1.1 `suggest-01-rule` (1) — правило `Suggestable` (C#/TS, общий файл случаев), тэг
   `input.noSuggest`; #1529 [TYPE-2] [TYPE-21] [TYPE-22]. Метка `version:minor`. Проверка — change
   заархивирован
-- [ ] 1.2 `suggest-02-endpoint` (1) — адрес `GET /api/field-suggestions`, источник верхнего уровня,
+- [x] 1.2 `suggest-02-endpoint` (1) — адрес `GET /api/field-suggestions`, источник верхнего уровня,
   индекс, окно, права, 503; #1530 [CORE-34.4] [AUTH-8] [AUTH-9]. Условие — 1.1 и 0.1 (В-1…В-3). Метка
   `version:minor`. Проверка — change заархивирован, замер p95 в PR
 
