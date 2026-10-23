@@ -56,6 +56,8 @@ public partial class ArchiveReadInventoryTests
             Shown("название единицы вида работы — ссылка уже стоит, архивная единица названа тоже"),
         ["BHS.CRG.Api/Modules/Ports/ModuleWorkTypesPort.cs|entries.AddRange(await mediator.Send(new ListCommonDataEntriesQuery(RecordsFor.Display, CompositeTypeId: typeId), ct));"] =
             Shown("весь классификатор показом, с признаком: выбор порт отделяет сам — живые в выдаче, архивные числом (ModuleWorkTypesPortTests)"),
+        ["BHS.CRG.Api/Modules/Ports/ModulePlanItemsPort.cs|var records = await db.DomainObjects.AsNoTracking().Where(o => recordIds.Contains(o.Id))"] =
+            Shown("вид работы и единица ключа позиции — с признаком архива, и архивная составляющая даёт отказ, а не позицию (CORE-34.4; ModulePlanItemsPortTests.Архивный_вид_работы_даёт_отказ_с_составляющей)"),
         ["BHS.CRG.Api/Modules/Ports/ModuleOwnCatalogPort.cs|var entries = await mediator.Send(new ListCommonDataEntriesQuery(records, null, null, type.Id), ct);"] =
             ByPurpose("свой справочник модуля: назначение называет модуль обязательным параметром порта", nameof(ArchiveReadPurposeTests.Свой_справочник_модуля_список_по_назначению)),
         ["BHS.CRG.Api/Modules/Ports/ModuleOwnCatalogPort.cs|var entry = await objects.GetByIdAsync(id, ct);"] =
