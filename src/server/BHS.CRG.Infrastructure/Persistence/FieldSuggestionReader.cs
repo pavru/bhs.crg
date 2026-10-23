@@ -27,7 +27,7 @@ namespace BHS.CRG.Infrastructure.Persistence;
 /// волен выполнить его хешем с последовательным просмотром всей таблицы, и фильтр по полю снаружи окна
 /// так и исполнился (264 мс, замер #1528).</para>
 /// </summary>
-public sealed class FieldSuggestionReader(AppDbContext db) : IFieldSuggestionReader
+public sealed partial class FieldSuggestionReader(AppDbContext db) : IFieldSuggestionReader
 {
     /// <summary>Код PostgreSQL «запрос отменён по statement_timeout».</summary>
     private const string QueryCanceled = "57014";
@@ -78,9 +78,10 @@ public sealed class FieldSuggestionReader(AppDbContext db) : IFieldSuggestionRea
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<SuggestionRow>> ReadAsync(
-        IReadOnlyCollection<Guid> typeIds, string field, SuggestionWindow window, CancellationToken ct = default)
+        IReadOnlyCollection<Guid> typeIds, string field, IReadOnlyList<NestedSource> nested,
+        SuggestionWindow window, CancellationToken ct = default)
     {
-        if (typeIds.Count == 0) return [];
+        if (typeIds.Count == 0 && nested.Count == 0) return [];
 
         // Предел времени — SET LOCAL, и живёт он до конца транзакции. Своей — открываем свою. В чужой
         // чтение идёт под точкой сохранения и ВСЕГДА откатывается к ней (приём ModuleReferenceScan,
@@ -103,8 +104,19 @@ public sealed class FieldSuggestionReader(AppDbContext db) : IFieldSuggestionRea
             var rows = new List<SuggestionRow>();
             await using (var cmd = connection.CreateCommand())
             {
-                cmd.CommandText = Sql(typeIds.Count);
-                AddParameters(cmd, typeIds, field, window);
+                // Одним запросом — под одним пределом времени: два запроса подряд стоили бы два предела.
+                var parts = new List<string>();
+                if (typeIds.Count > 0)
+                {
+                    parts.Add(Sql(typeIds.Count));
+                    AddParameters(cmd, typeIds, field, window);
+                }
+                if (nested.Count > 0)
+                {
+                    parts.Add(NestedSql(nested.Count));
+                    AddNestedParameters(cmd, nested, window);
+                }
+                cmd.CommandText = string.Join("\nUNION ALL\n", parts);
                 await using var reader = await cmd.ExecuteReaderAsync(ct);
                 while (await reader.ReadAsync(ct))
                 {
@@ -144,6 +156,13 @@ public sealed class FieldSuggestionReader(AppDbContext db) : IFieldSuggestionRea
         foreach (var (type, i) in typeIds.Select((t, i) => (t, i)))
             cmd.Parameters.Add(new NpgsqlParameter($"t{i}", NpgsqlDbType.Uuid) { Value = type });
         cmd.Parameters.Add(new NpgsqlParameter("field", NpgsqlDbType.Text) { Value = field });
+        AddWindow(cmd, window);
+    }
+
+    /// <summary>Пределы окна — общие у верхнего уровня и вложенных путей: добавляются однажды.</summary>
+    private static void AddWindow(NpgsqlCommand cmd, SuggestionWindow window)
+    {
+        if (cmd.Parameters.Contains("rows")) return;
         cmd.Parameters.Add(new NpgsqlParameter("rows", NpgsqlDbType.Integer) { Value = window.MaxRecords });
         cmd.Parameters.Add(new NpgsqlParameter("bytes", NpgsqlDbType.Bigint) { Value = window.MaxBytes });
     }

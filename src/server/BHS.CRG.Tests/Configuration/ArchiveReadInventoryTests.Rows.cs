@@ -296,6 +296,15 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Infrastructure/Persistence/FieldSuggestionReader.cs|FROM domain_objects o WHERE o.\"Id\" = w.\"Id\") AS \"Value\""] =
             Choice("значение поля подсказки — только у записей окна, а архивных в окне нет",
                 nameof(FieldSuggestionTests.Значение_архивной_записи_не_подсказывается)),
+        ["BHS.CRG.Infrastructure/Persistence/FieldSuggestionReader.Nested.cs|FROM domain_objects d"] =
+            Choice("окно подсказок по строкам массивов (#1532): архивная запись-владелец не попадает в окно по частичному индексу",
+                nameof(FieldSuggestionTests.Архив_и_наследованная_копия_строк_не_подсказывают)),
+        ["BHS.CRG.Infrastructure/Persistence/FieldSuggestionReader.Nested.cs|FROM domain_objects o, unnest(b.\"Sizes\") s, jsonb_path_query(o.\"Data\", s::jsonpath) n"] =
+            Choice("число строк массивов — только у записей окна, а архивных в окне нет",
+                nameof(FieldSuggestionTests.Архив_и_наследованная_копия_строк_не_подсказывают)),
+        ["BHS.CRG.Infrastructure/Persistence/FieldSuggestionReader.Nested.cs|FROM domain_objects o, unnest(w.\"Paths\") p, jsonb_path_query(o.\"Data\", p::jsonpath) v"] =
+            Choice("значения строк массивов — только у записей окна, а архивных в окне нет",
+                nameof(FieldSuggestionTests.Архив_и_наследованная_копия_строк_не_подсказывают)),
         ["BHS.CRG.Infrastructure/Persistence/MigrationCensus.cs|\"SELECT count(*) FROM domain_objects o WHERE o.\\\"ScopeId\\\" IS NOT NULL AND (\" +"] =
             Service("перепись перед миграцией"),
         ["BHS.CRG.Infrastructure/Persistence/MigrationCensus.cs|private const string Objects = \"domain_objects\";"] =

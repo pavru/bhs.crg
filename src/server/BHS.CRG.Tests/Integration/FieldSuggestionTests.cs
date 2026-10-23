@@ -25,7 +25,7 @@ namespace BHS.CRG.Tests.Integration;
 /// <para>База у класса общая с соседями хоста: у каждого теста свой тип, и значения не пересекаются.</para>
 /// </summary>
 [Collection("Integration")]
-public class FieldSuggestionTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
+public partial class FieldSuggestionTests(InvoiceLineHost host) : InvoiceLineTestBase(host)
 {
     private readonly InvoiceLineHost host = host;
 
@@ -78,22 +78,18 @@ public class FieldSuggestionTests(InvoiceLineHost host) : InvoiceLineTestBase(ho
     }
 
     [Fact]
-    public async Task Неподсказываемое_поле_и_тип_строки_массива_пусто_неизвестное_отказ()
+    public async Task Неподсказываемое_поле_пусто_неизвестное_отказ()
     {
-        // Тип строки массива: его записи лежат только внутри строк чужих записей.
-        var row = await CreateTypeAsync(null, DocumentTypeKind.Composite, """{"fields":[{"key":"Марка","type":"string"}]}""");
-        var type = await FamilyAsync(rowType: row);
+        var type = await FamilyAsync();
         await RecordAsync(type, "Лямбда", CatalogScope.System, null, extra: new()
         {
             ["ИНН"] = "7701234567",
             ["Комментарий"] = "Лямбда",
-            ["Строки"] = new[] { new Dictionary<string, string> { ["Марка"] = "Мю" } },
         });
         var (client, _) = await SignInAsync("Admin");
 
         Assert.Empty(await ItemsAsync(client, $"type={type}&field=ИНН"));
         Assert.Empty(await ItemsAsync(client, $"type={type}&field=Комментарий"));
-        Assert.Empty(await ItemsAsync(client, $"type={row}&field=Марка"));
 
         Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync($"/api/field-suggestions?type={type}&field=Цвет")).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest,
@@ -275,18 +271,14 @@ public class FieldSuggestionTests(InvoiceLineHost host) : InvoiceLineTestBase(ho
 
     private static string Mark() => Guid.NewGuid().ToString("N")[..8];
 
-    /// <summary>Свой тип семьи: подсказываемое поле, ИНН, выключенное вручную и массив строк.</summary>
-    private async Task<Guid> FamilyAsync(Guid? rowType = null)
-    {
-        var rows = rowType is { } r ? $$""",{"key":"Строки","type":"array","typeId":"{{r}}"}""" : "";
-        return await CreateTypeAsync(null, DocumentTypeKind.Composite, $$"""
-            {"fields":[
-              {"key":"{{Maker}}","type":"string"},
-              {"key":"ИНН","type":"string","tags":["org.inn"]},
-              {"key":"Комментарий","type":"string","tags":["input.noSuggest"]}{{rows}}
-            ]}
-            """);
-    }
+    /// <summary>Свой тип семьи: подсказываемое поле, ИНН и выключенное вручную.</summary>
+    private Task<Guid> FamilyAsync() => CreateTypeAsync(null, DocumentTypeKind.Composite, $$"""
+        {"fields":[
+          {"key":"{{Maker}}","type":"string"},
+          {"key":"ИНН","type":"string","tags":["org.inn"]},
+          {"key":"Комментарий","type":"string","tags":["input.noSuggest"]}
+        ]}
+        """);
 
     private Task<Guid> SubtypeAsync(Guid parent, string schema, DocumentTypeKind kind = DocumentTypeKind.Composite) =>
         CreateTypeAsync(parent, kind, schema);

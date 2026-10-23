@@ -6,33 +6,33 @@ PR закрывает #1532 («Closes #1532»), метка `version:minor`. `<Ve
 
 ## 0. До кода
 
-- [ ] 0.1 Подтверждение владельца, что задача взята в работу (приоритет понижен по замеру #1528).
+- [x] 0.1 Подтверждение владельца, что задача взята в работу (приоритет понижен по замеру #1528).
   Проверка — пометка в `../suggest-00-epic/tasks.md`, 3.1
 
 ## 1. Пути и чтение
 
-- [ ] 1.1 `SuggestionSources.For`: пути к полям типа-владельца из схем типов, где он встречается
+- [x] 1.1 `SuggestionSources.For`: пути к полям типа-владельца из схем типов, где он встречается
   (`complex`, `array`, вложенность ≤ 6, наследование схем), без ссылок на записи каталога. Проверка —
   модульные тесты: «Организация.Наименование» и «Работа.Наименование» дают разные пути; ссылка пути не
   порождает; глубина 7 отсекается
-- [ ] 1.2 `FieldSuggestionReader`: окно с пределом 8 МБ и ~10 000 строк (`jsonb_array_length`), значения
+- [x] 1.2 `FieldSuggestionReader`: окно с пределом 8 МБ и ~10 000 строк (`jsonb_array_length`), значения
   по выведенному пути только у записей окна, частота по записям-владельцам. Проверка — интеграционные
   тесты: значения из строк разных документов приходят; повтор в 50 строках одного журнала весит одну
   запись; тест плана — `Limit` над `Index Scan`, записи вне окна не читаются
-- [ ] 1.3 Права, архив, `_baseRef`, порог, нормализация, 503 — как у верхнего уровня. Проверка — те же
+- [x] 1.3 Права, архив, `_baseRef`, порог, нормализация, 503 — как у верхнего уровня. Проверка — те же
   интеграционные тесты `suggest-02`, параметризованные типом строки массива
 
 ## 2. Замер и спека
 
-- [ ] 2.1 Замер p95 на синтетике 2 000 документов × 40 строк (образец — #1528), цель ≤ 150 мс. Проверка
+- [x] 2.1 Замер p95 на синтетике 2 000 документов × 40 строк (образец — #1528), цель ≤ 150 мс. Проверка
   — числа в описании PR; не удержано — сказано в PR как условие перехода на производную таблицу
-- [ ] 2.2 Дельта спеки сверена с действующей `openspec/specs/core/spec.md` после архивации
+- [x] 2.2 Дельта спеки сверена с действующей `openspec/specs/core/spec.md` после архивации
   `suggest-02`: сценарий «Тип строки массива — 200 и пусто» заменён MODIFIED требования «Подсказки по
   ранее введённому — адрес и форма ответа». Проверка — `openspec validate suggest-04-nested --strict`
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~FieldSuggestion|FullyQualifiedName~Suggestion|FullyQualifiedName~ArchiveRead"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок (клиент не менялся)
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~FieldSuggestion|FullyQualifiedName~Suggestion|FullyQualifiedName~ArchiveRead"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок (клиент не менялся)
+- [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
