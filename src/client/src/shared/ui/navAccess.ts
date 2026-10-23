@@ -21,13 +21,16 @@ export function visibleNav(items: NavItem[], access: AccessInfo): NavItem[] {
   return items.filter(item => allowed(item, access));
 }
 
-export function allowed(item: NavItem, access: AccessInfo): boolean {
+/** Пункт или панель карточки стройки (`constructionPanels.ts`) — правило у них одно. */
+export type Gated = Pick<NavItem, 'module' | 'permission'>;
+
+export function allowed(item: Gated, access: AccessInfo): boolean {
   if (item.module && !hasModule(access, item.module)) return false;
   if (item.permission !== undefined && !grantsAny(item, access)) return false;
   return true;
 }
 
-function grantsAny(item: NavItem, access: AccessInfo): boolean {
+function grantsAny(item: Gated, access: AccessInfo): boolean {
   return permissionsOf(item).some(code => hasPermission(access, code));
 }
 
@@ -59,7 +62,7 @@ const CORE = 'core';
  * право не выдать никому, и страница предлагала бы просить у администратора несуществующее. Если
  * выпали все — причина неизвестна, и страница говорит это, а не называет пустой список.
  */
-export function missingFor(item: NavItem, access: AccessInfo): MissingAccess {
+export function missingFor(item: Gated, access: AccessInfo): MissingAccess {
   if (item.module && !hasModule(access, item.module)) {
     const known = access.modules.find(m => m.code === item.module);
     return { kind: 'module', code: item.module, title: known?.title ?? item.module };

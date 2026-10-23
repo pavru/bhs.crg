@@ -150,7 +150,8 @@ export async function favoritesChecks(page, check) {
       const wanted = names.map(c => `/document-sets/${c.id}`);
       if (wanted.some(href => !shown.includes(href))) throw new Error(`в подпанели ${shown.join(', ')}, ждали ${wanted.join(', ')}`);
       await links.filter({ hasText: names[0].name }).first().click();
-      await page.waitForURL(new RegExp(`/document-sets/${names[0].id}$`));
+      // Голый адрес стройки уводит на панель по умолчанию с заменой (plan-02) — «Каталог» без модулей.
+      await page.waitForURL(new RegExp(`/document-sets/${names[0].id}(/[a-z-]+)?$`));
       await settled(page);
     });
 

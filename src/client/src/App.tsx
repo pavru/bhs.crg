@@ -1,4 +1,4 @@
-﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
+﻿import { BrowserRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@/shared/ui/ThemeProvider';
 import { useLocale } from '@/shared/hooks/useLocale';
@@ -16,6 +16,7 @@ import { ToastProvider } from '@/shared/ui/ToastProvider';
 import { BugReportProvider } from '@/shared/ui/BugReportProvider';
 import { AuthProvider } from '@/shared/ui/AuthProvider';
 import { ProtectedRoute, RequireAccess } from '@/shared/ui/ProtectedRoute';
+import { EntryRedirect } from '@/shared/ui/EntryRedirect';
 import { AppShell } from '@/shared/ui/AppShell';
 import { LoginPage } from '@/features/catalog/LoginPage';
 import { DocumentTypesPage } from '@/features/settings/DocumentTypesPage';
@@ -119,7 +120,8 @@ function AppRoutes() {
       <Route path="/confirm-email-change" element={<ConfirmEmailChangePage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
-          <Route index element={<Navigate to="/document-sets" replace />} />
+          {/* Страница входа — по доступу и пространству (plan-02, ТЗ AUTH-16.1), а не «Стройки» всем. */}
+          <Route index element={<EntryRedirect />} />
           <Route path="document-sets/*" element={<DocumentSetsPage />} />
           {/* Свой профиль — без права: он и есть «своё» (см. корзину личных адресов). */}
           <Route path="profile" element={<ProfilePage />} />

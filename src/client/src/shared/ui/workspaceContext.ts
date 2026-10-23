@@ -33,8 +33,8 @@ export interface WorkspaceContextValue {
   shows: (module: string) => boolean;
   /** Раздел ядра показывается в этом пространстве (панель «Наборы данных» стройки). */
   showsSection: (section: string) => boolean;
-  /** Пункт навигации — в пространстве. */
-  inside: (item: NavItem) => boolean;
+  /** Пункт навигации или панель карточки стройки — в пространстве. */
+  inside: (item: Pick<NavItem, 'module' | 'section'>) => boolean;
 }
 
 const ALL_WORKSPACE: Workspace = { key: ALL, name: ALL_NAME, kind: 'all', modules: [] };
