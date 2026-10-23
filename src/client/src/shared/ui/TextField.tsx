@@ -19,10 +19,15 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   /** Правый адорнмент (например «глаз» пароля). */
   trailing?: ReactNode;
   containerClassName?: string;
+  /**
+   * Невидимое дополнение к полю внутри его оболочки — живая область читалки (`SuggestField`). Рядом с
+   * полем, а не соседом в разметке экрана: сосед сделал бы поле «не последним» в стопке `space-y-*`.
+   */
+  children?: ReactNode;
 }
 
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
-  { label, error, invalid, hint, trailing, className = '', containerClassName = '', id, required, ...rest },
+  { label, error, invalid, hint, trailing, className = '', containerClassName = '', id, required, children, ...rest },
   ref,
 ) {
   const autoId = useId();
@@ -39,6 +44,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
           `outline-none disabled:opacity-50 ${trailing ? 'pr-11' : ''} ${className}`}
         {...rest}
       />
+      {children}
     </OutlinedField>
   );
 });
