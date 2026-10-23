@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Text.Json;
 using BHS.CRG.Api.Modules.Ports;
 using BHS.CRG.Application.Common;
@@ -5,8 +6,11 @@ using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
+using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Modules.Ports;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
@@ -167,6 +171,99 @@ public class ModulePlanItemsPortTests(IntegrationTestFixture fixture) : IAsyncLi
         Assert.Equal(batch.Items.ToDictionary(i => i.Key, i => i.Value.Id), again.Items.ToDictionary(i => i.Key, i => i.Value.Id));
         Assert.All(again.Items.Values, i => Assert.False(i.Created));
         Assert.Equal(keys.Count, await CountAsync());
+    }
+
+    /// <summary>
+    /// Два импорта одной стройки с общими ключами в РАЗНОМ порядке не обрывают друг друга взаимной
+    /// блокировкой (ревью PR #1596): вставка берёт блокировки ключей по порядку строк, и встречный порядок
+    /// без сортировки — это A держит k1 и ждёт k2, B держит k2 и ждёт k1. Раундов несколько, на свежих
+    /// ключах: в одном раунде встречные вставки могли бы и разминуться.
+    /// </summary>
+    [Fact]
+    public async Task Встречные_пакеты_с_общими_ключами_не_обрывают_друг_друга()
+    {
+        var s = await SeedAsync();
+        var works = (await KeysAsync(s, 300)).Select(k => k.WorkTypeId).Distinct().ToList();
+
+        for (var round = 0; round < 5; round++)
+        {
+            var site = await SendAsync(new CreateConstructionCommand($"Стройка {round}", Guid.NewGuid()));
+            var keys = works.Select(w => new PlanItemKey(w, site.Id, null, s.Unit)).ToList();
+            var reversed = Enumerable.Reverse(keys).ToList();
+
+            var batches = await Task.WhenAll(
+                Task.Run(() => Port().FindOrCreateManyAsync(keys)),
+                Task.Run(() => Port().FindOrCreateManyAsync(reversed)));
+
+            Assert.All(batches, b => Assert.Equal(keys.Count, b.Items.Count));
+            Assert.Equal(batches[0].Items[keys[0]].Id, batches[1].Items[keys[0]].Id);
+        }
+    }
+
+    /// <summary>
+    /// Раздел удалили между проверкой ключа и вставкой — отказ внешнего ключа не роняет пакет, а
+    /// становится отказом «раздел» у своего ключа; остальные ключи части заведены (ревью PR #1596).
+    /// Удаление ставится ровно перед вставкой — перехватчиком команд: иначе окно в миллисекунды не поймать.
+    /// </summary>
+    [Fact]
+    public async Task Раздел_удалён_перед_вставкой_даёт_отказ_а_не_сбой_пакета()
+    {
+        var s = await SeedAsync();
+        var doomed = await SendAsync(new CreateSectionCommand(s.Construction, "Снос"));
+        PlanItemKey keep = new(s.WorkType, s.Construction, s.Section, s.Unit), lose = keep with { SectionId = doomed.Id };
+
+        var batch = await PortDeletingSectionBefore("INSERT INTO work_plan_items", doomed.Id)
+            .FindOrCreateManyAsync([keep, lose]);
+
+        Assert.True(batch.Items[keep].Created);
+        var refusal = Assert.Single(batch.Refusals);
+        Assert.Equal((lose, PlanItemKeyPart.Section), (refusal.Key, refusal.Part));
+        Assert.Equal(1, await CountAsync());
+    }
+
+    /// <summary>Раздел удалили между вставкой и чтением — каскад унёс позицию, и ключ становится отказом.</summary>
+    [Fact]
+    public async Task Позиция_унесённая_каскадом_до_чтения_даёт_отказ()
+    {
+        var s = await SeedAsync();
+        var doomed = await SendAsync(new CreateSectionCommand(s.Construction, "Снос"));
+        PlanItemKey keep = new(s.WorkType, s.Construction, s.Section, s.Unit), lose = keep with { SectionId = doomed.Id };
+
+        var batch = await PortDeletingSectionBefore("SELECT p.* FROM work_plan_items", doomed.Id)
+            .FindOrCreateManyAsync([keep, lose]);
+
+        Assert.Equal([keep], batch.Items.Keys);
+        Assert.Equal(PlanItemKeyPart.Section, Assert.Single(batch.Refusals).Part);
+    }
+
+    /// <summary>Порт на контексте, который удаляет раздел перед первой командой с этим текстом.</summary>
+    private ModulePlanItemsPort PortDeletingSectionBefore(string command, Guid sectionId)
+    {
+        var scope = fixture.Services.CreateScope();
+        scopes.Add(scope);
+        var options = new DbContextOptionsBuilder<AppDbContext>(
+                scope.ServiceProvider.GetRequiredService<DbContextOptions<AppDbContext>>())
+            .AddInterceptors(new DeleteSectionBefore(fixture, command, sectionId)).Options;
+        return new ModulePlanItemsPort(new AppDbContext(options), scope.ServiceProvider.GetRequiredService<IMediator>());
+    }
+
+    private sealed class DeleteSectionBefore(IntegrationTestFixture fixture, string command, Guid sectionId)
+        : DbCommandInterceptor
+    {
+        private bool done;
+
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand cmd,
+            CommandEventData data, InterceptionResult<DbDataReader> result, CancellationToken ct = default)
+        {
+            if (!done && cmd.CommandText.Contains(command, StringComparison.Ordinal))
+            {
+                done = true;
+                using var scope = fixture.Services.CreateScope();
+                await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database
+                    .ExecuteSqlInterpolatedAsync($"""DELETE FROM sections WHERE "Id" = {sectionId}""", ct);
+            }
+            return result;
+        }
     }
 
     private sealed record Seeded(Guid Construction, Guid Section, Guid WorkType, Guid WorkTypeClass, Guid Unit, Guid UnitType);

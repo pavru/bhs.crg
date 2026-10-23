@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace BHS.CRG.Modules.Ports;
 
 /// <summary>
@@ -29,8 +31,25 @@ public sealed record PlanItemResult(Guid Id, bool Created);
 /// <param name="Reason">Что сказать человеку — например, «вид работы в архиве».</param>
 public sealed record PlanItemRefusal(PlanItemKey Key, PlanItemKeyPart Part, string Reason);
 
-/// <summary>Ответ на один ключ: ровно одно из двух — позиция или отказ.</summary>
-public sealed record PlanItemOutcome(PlanItemResult? Item, PlanItemRefusal? Refusal);
+/// <summary>
+/// Ответ на один ключ: ровно одно из двух — позиция или отказ. Конструктор закрыт, чтобы «ни того, ни
+/// другого» нельзя было собрать: звавший разбирает ответ по <see cref="Found" />, а не проверкой двух полей.
+/// </summary>
+public sealed record PlanItemOutcome
+{
+    private PlanItemOutcome(PlanItemResult? item, PlanItemRefusal? refusal) => (Item, Refusal) = (item, refusal);
+
+    public PlanItemResult? Item { get; }
+    public PlanItemRefusal? Refusal { get; }
+
+    /// <summary>Позиция найдена или заведена; иначе — отказ.</summary>
+    [MemberNotNullWhen(true, nameof(Item))]
+    [MemberNotNullWhen(false, nameof(Refusal))]
+    public bool Found => Item is not null;
+
+    public static PlanItemOutcome Of(PlanItemResult item) => new(item, null);
+    public static PlanItemOutcome Of(PlanItemRefusal refusal) => new(null, refusal);
+}
 
 /// <summary>
 /// Ответ на пакет ключей: позиции по ключам — и отказы поимённо. Пакет из-за одной плохой строки
@@ -60,6 +79,11 @@ public sealed record ModulePlanItem(Guid Id, PlanItemKey Key);
 /// <para><b>Ключ проверяется</b>: вид работы и единица — существующие не архивные записи своих
 /// справочников (ТЗ CORE-34.4: новая ссылка на архивную запись — отказ), стройка есть, раздел принадлежит
 /// стройке ключа. Нарушение — <see cref="PlanItemRefusal" /> с составляющей, а не позиция.</para>
+///
+/// <para>⚠️ Архив проверяется и у ключа, позиция которого УЖЕ заведена: строки модуля, которые повесят на
+/// неё после ответа, — новые ссылки на архивный вид работы. Поэтому повтор импорта, между попытками которого
+/// вид работы отправили в архив, получает отказ, а не прежнюю позицию: человеку надо сказать про архив, а не
+/// дописать смету на работу, выведенную из выбора.</para>
 ///
 /// <para>⚠️ Ни адреса API, ни действия в интерфейсе у порта нет и быть не должно (ТЗ CORE-12): телефон и
 /// интерфейс позиций не заводят, иначе справочник разошёлся бы в написаниях. Правами порт не отбирает —
