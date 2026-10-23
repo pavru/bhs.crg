@@ -47,14 +47,14 @@ PR закрывает #1533 («Closes #1533»), метки `ui` и `version:mino
 
 ## 4. e2e и документы
 
-- [ ] 4.1 e2e на свежей базе, номенклатура: позиция с производителем из строки одного счёта; в шаге
+- [x] 4.1 e2e на свежей базе, номенклатура: позиция с производителем из строки одного счёта; в шаге
   «Новая позиция» другого счёта начало производителя — значение в списке, Enter подставляет [CORE-8].
   Проверка — сценарий зелёный в CI; живёт в `e2e/suggest-checks.mjs` внутри прогона строк счёта —
   отдельному прогону не хватило бы входа в пределе частоты (`suites.test.mjs`)
-- [ ] 4.2 e2e, реквизиты: значение одного документа стройки первым в другом её документе того же типа;
+- [x] 4.2 e2e, реквизиты: значение одного документа стройки первым в другом её документе того же типа;
   значение другой стройки из одной записи не всплывает, из двух — под «С других строек»; равное
   набранному отсутствует. Проверка — сценарий зелёный в CI
-- [ ] 4.3 e2e, флажок: снять, сохранить, перезагрузить — флажок снят, чипа нет, в форме ни списка, ни
+- [x] 4.3 e2e, флажок: снять, сохранить, перезагрузить — флажок снят, чипа нет, в форме ни списка, ни
   запроса к адресу (сеть); в шапке — «без подсказки»; у `text` и вычисляемого флажка нет; у
   `nomenclature.article` — строка причины [TYPE-2].
   Проверка — сценарий зелёный в CI
@@ -63,7 +63,7 @@ PR закрывает #1533 («Closes #1533»), метки `ui` и `version:mino
 
 ## 5. Верификация
 
-- [ ] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~NomenclatureIntake|FullyQualifiedName~Suggestable"` — зелёный
-- [ ] 5.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 5.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
-- [ ] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~NomenclatureIntake|FullyQualifiedName~Suggestable"` — зелёный
+- [x] 5.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 5.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
+- [x] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
