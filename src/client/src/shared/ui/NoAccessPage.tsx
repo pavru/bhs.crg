@@ -1,4 +1,5 @@
 import { Lock } from 'lucide-react';
+import type { MissingAccess } from './navAccess';
 
 /**
  * «Раздел недоступен» (ТЗ AUTH-15).
@@ -10,11 +11,12 @@ import { Lock } from 'lucide-react';
  *
  * Поэтому здесь три вещи: что недоступно, ЧЕГО именно не хватает и к кому идти. Код права
  * показывается как есть — его называет администратор в редакторе ролей, и совпадение строки
- * избавляет обоих от игры в угадайку.
+ * избавляет обоих от игры в угадайку. Раздел под «любым из» (plan-02) называет все права списка:
+ * хватит любого, и выбрать, какое выдать, — дело администратора.
  */
 export function NoAccessPage({ what, missing }: {
   what: string;
-  missing: { kind: 'module'; code: string; title: string } | { kind: 'permission'; code: string } | null;
+  missing: MissingAccess;
 }) {
   return (
     <div className="flex h-full items-center justify-center p-8">
@@ -30,13 +32,19 @@ export function NoAccessPage({ what, missing }: {
           </p>
         )}
 
-        {missing?.kind === 'permission' && (
+        {missing?.kind === 'permission' && missing.codes.length === 1 && (
           <p className="text-sm text-fg3">
-            Для него нужно право{' '}
-            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-fg2">
-              {missing.code}
-            </code>
-            , и его у вас нет.
+            Для него нужно право <Code>{missing.codes[0]}</Code>, и его у вас нет.
+          </p>
+        )}
+
+        {missing?.kind === 'permission' && missing.codes.length > 1 && (
+          <p className="text-sm text-fg3">
+            Для него нужно одно из прав:{' '}
+            {missing.codes.map((code, i) => (
+              <span key={code}>{i > 0 && ', '}<Code>{code}</Code></span>
+            ))}
+            {' '}— ни одного из них у вас нет.
           </p>
         )}
 
@@ -53,5 +61,11 @@ export function NoAccessPage({ what, missing }: {
         </p>
       </div>
     </div>
+  );
+}
+
+function Code({ children }: { children: string }) {
+  return (
+    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-fg2">{children}</code>
   );
 }

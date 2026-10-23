@@ -76,6 +76,17 @@ export async function railChecks(page, check) {
       if (current.trim() !== 'Стройки') throw new Error(`в карточке стройки текущим помечен раздел «${current.trim()}»`);
     });
 
+    // Подпись раздела счетов — «Затраты» (plan-02, макет П0). Запрет старой подписи держится на
+    // положительном якоре: без «Затрат» в рейле его отсутствие «Учёта» ничего бы не значило.
+    // Раздел «Планы» здесь не проверяется: пунктов модуля ещё нет, и проверка не могла бы упасть.
+    // Отбор раздела по модулю стережёт `railSections.test.ts`; живую проверку заводит plan-09
+    // вместе с первым пунктом раздела.
+    await check('rail-costs-section-labelled-zatraty', async () => {
+      const sections = (await page.locator('#app-rail-nav a').allInnerTexts()).map(t => t.trim());
+      if (!sections.includes('Затраты')) throw new Error(`в рейле нет раздела «Затраты»: [${sections}]`);
+      if (sections.includes('Учёт')) throw new Error(`раздел счетов подписан по-старому: [${sections}]`);
+    });
+
     await narrowChecks(page, check);
   } finally {
     await callApi(page, 'PUT', '/account/settings', RESET);

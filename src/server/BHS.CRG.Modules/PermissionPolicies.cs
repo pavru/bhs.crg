@@ -4,11 +4,16 @@ using Microsoft.Extensions.Options;
 
 namespace BHS.CRG.Modules;
 
-/// <summary>Требование «у пользователя есть право <paramref name="code" />».</summary>
-public sealed class PermissionRequirement(string code) : IAuthorizationRequirement
+/// <summary>
+/// Требование «у пользователя есть хотя бы одно из прав <paramref name="codes" />» (AUTH-8). Одно
+/// право — список из одного кода: «любое из» (plan-02) — то же правило, а не второе рядом, иначе его
+/// пришлось бы править в двух обработчиках, и забытая копия молча развела бы простые и составные
+/// ворота.
+/// </summary>
+public sealed class PermissionRequirement(IReadOnlyList<string> codes) : IAuthorizationRequirement
 {
-    public string Code { get; } = code;
-    public override string ToString() => AppPolicies.Permission(Code);
+    public IReadOnlyList<string> Codes { get; } = codes;
+    public override string ToString() => AppPolicies.AnyPermission([.. Codes]);
 }
 
 /// <summary>Требование «у пользователя есть доступ к модулю <paramref name="code" />».</summary>
@@ -30,6 +35,10 @@ public sealed class ModuleAccessRequirement(string code) : IAuthorizationRequire
 /// <c>perm:</c> с обрезанным кодом выглядит как закрытая дверь и при этом не проверяет ничего;
 /// заметить такую дверь по ответу приложения нельзя — она отвечает так же, как настоящая.
 ///
+/// ⚠️ В «любом из» (<c>perm:&lt;а&gt;|&lt;б&gt;</c>) так проверяется КАЖДЫЙ код списка: дверь
+/// с одним необъявленным правом выглядела бы рабочей — её открывает второе право, — а опечатка в
+/// первом лишала бы доступа его носителей молча.
+///
 /// ⚠️ Необъявленное право — тоже ОТКАЗ. Дверь на право, которого нет в справочнике, не откроется
 /// никому: её не выдать ни одной роли, и даже «Администратор», получающий ВСЁ объявленное, не
 /// получит несуществующего. Отвечает такая дверь обычным «нельзя» — то есть опечатка в коде права
@@ -47,7 +56,7 @@ public sealed class AppPolicyProvider(IOptions<AuthorizationOptions> options, Pe
     {
         if (policyName.StartsWith(AppPolicies.PermissionPrefix, StringComparison.OrdinalIgnoreCase))
             return Task.FromResult<AuthorizationPolicy?>(_built.GetOrAdd(policyName,
-                name => Build(new PermissionRequirement(Declared(Tail(name, AppPolicies.PermissionPrefix))))));
+                name => Build(PermissionRequirementOf(name))));
 
         if (policyName.StartsWith(AppPolicies.ModulePrefix, StringComparison.OrdinalIgnoreCase))
             return Task.FromResult<AuthorizationPolicy?>(_built.GetOrAdd(policyName,
@@ -61,6 +70,17 @@ public sealed class AppPolicyProvider(IOptions<AuthorizationOptions> options, Pe
             .RequireAuthenticatedUser()
             .AddRequirements(requirement)
             .Build();
+
+    private PermissionRequirement PermissionRequirementOf(string policyName)
+    {
+        var codes = AppPolicies.PermissionCodes(policyName)!;
+        if (codes.Any(c => c.Length == 0))
+            throw new InvalidOperationException(
+                $"Политика «{policyName}» не называет права (или в её списке пустое место). Ворота с " +
+                "пустым именем ничего не проверяют, а выглядят как проверка.");
+
+        return new PermissionRequirement([.. codes.Select(Declared).Distinct(StringComparer.OrdinalIgnoreCase)]);
+    }
 
     /// <summary>
     /// Право обязано быть объявлено — иначе дверь заперта навсегда и молча.
@@ -89,8 +109,8 @@ public sealed class AppPolicyProvider(IOptions<AuthorizationOptions> options, Pe
 }
 
 /// <summary>
-/// Проверка права: есть ли <see cref="PermissionRequirement.Code" /> среди действующих прав
-/// пользователя.
+/// Проверка права: есть ли хотя бы одно из <see cref="PermissionRequirement.Codes" /> среди
+/// действующих прав пользователя.
 ///
 /// ⚠️ Составное право <c>*.read.all</c> раскрывается НЕ здесь (AUTH-5.2), а там, где права
 /// считаются из ролей: набор от <see cref="IUserPermissions" /> приходит уже раскрытым — см.
@@ -104,7 +124,7 @@ public sealed class PermissionHandler(IUserPermissions permissions)
         AuthorizationHandlerContext context, PermissionRequirement requirement)
     {
         var granted = await permissions.ForAsync(context.User, CancellationToken.None);
-        if (granted.Contains(requirement.Code, StringComparer.OrdinalIgnoreCase))
+        if (requirement.Codes.Any(code => granted.Contains(code, StringComparer.OrdinalIgnoreCase)))
             context.Succeed(requirement);
     }
 }

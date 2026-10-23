@@ -10,24 +10,24 @@
 
 ## 1. PR 1: «любое из прав» и раздел рейла
 
-- [ ] 1.1 Сервер: `AppPolicies.AnyPermission(...)`, разбор списка в провайдере с `Declared()` по каждому
-  коду, `AnyPermissionRequirement` и обработчик; атрибут `McpPermission` со списком [AUTH-8] [AUTH-8.2]
+- [x] 1.1 Сервер: `AppPolicies.AnyPermission(...)`, разбор списка в провайдере с `Declared()` по каждому
+  коду, `PermissionRequirement` со списком кодов и один обработчик; атрибут `McpPermission` со списком [AUTH-8] [AUTH-8.2]
   [AUTH-12.1]. Проверка — новый `AnyPermissionPolicyTests` на тестовом модуле: адрес открыт носителю
   каждого права, закрыт без обоих; необъявленный код роняет сборку политики
-- [ ] 1.2 Переписи `PermissionGateTests`, `EndpointGateInventoryTests`, `ReadAllWritesNothingTests`,
+- [x] 1.2 Переписи `PermissionGateTests`, `EndpointGateInventoryTests`, `ReadAllWritesNothingTests`,
   `McpGateInventoryTests` понимают составное имя [AUTH-9] [AUTH-5.2]. Проверка — тестовый пишущий адрес под
   «любым из» с правом из `*.read.all` называется `ReadAllWritesNothingTests`
-- [ ] 1.3 Клиент: `NavItem.permission: string | string[]`, `allowed` и `missingFor` по списку,
+- [x] 1.3 Клиент: `NavItem.permission: string | string[]`, `allowed` и `missingFor` по списку,
   `NoAccessPage.tsx` — «нужно одно из прав: …»; `missingFor` не называет коды модулей, которых нет в
   `access.modules`; палитра команд отбирает тем же `visibleNav` [AUTH-16] [AUTH-15]. Проверка — vitest
   `navAccess.test.ts`: пункт виден при любом праве списка, `missingFor` называет все коды, а код модуля,
   которого нет в ответе доступа, — нет
-- [ ] 1.4 `RailId` += `'plan'`, строка в `railSections` по П0: подпись «Планы», значок `ClipboardList`,
+- [x] 1.4 `RailId` += `'plan'`, строка в `railSections` по П0: подпись «Планы», значок `ClipboardList`,
   заголовок «Планирование», последним рабочим разделом после `costs`; подпись `costs` — «Затраты»; раздел
   без видимых пунктов не строится [AUTH-16.1] [PLAN-20]. Проверка — `railSections.test.ts`: пустой раздел
   `plan` не попадает в рейл, порядок разделов — Стройки, Данные, Затраты, Планы, Система;
   `e2e/rail-checks.mjs` зелёный
-- [ ] 1.5 Весь список живых прогонов: `cd src/client && MSYS_NO_PATHCONV=1 npm run test:e2e:ci` — правка
+- [x] 1.5 Весь список живых прогонов: `cd src/client && MSYS_NO_PATHCONV=1 npm run test:e2e:ci` — правка
   оболочки [AUTH-16]. Проверка — все прогоны зелёные
 
 ## 2. PR 2: страница входа и панели карточки стройки (после выбора П0)

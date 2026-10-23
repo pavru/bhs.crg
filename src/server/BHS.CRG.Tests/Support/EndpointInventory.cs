@@ -43,14 +43,14 @@ internal static class EndpointInventory
             (p.StartsWith(AppPolicies.PermissionPrefix, StringComparison.OrdinalIgnoreCase)
              || p.StartsWith(AppPolicies.ModulePrefix, StringComparison.OrdinalIgnoreCase)));
 
-    /// <summary>Права, которые стоят хотя бы на одной двери.</summary>
+    /// <summary>
+    /// Права, которые стоят хотя бы на одной двери. Право из «любого из» (<c>perm:а|б</c>) — тоже:
+    /// оно открывает дверь своему носителю, как и одиночное.
+    /// </summary>
     internal static HashSet<string> GatingPermissions(IEnumerable<RouteEndpoint> routes) =>
         routes
             .SelectMany(e => e.Metadata.GetOrderedMetadata<IAuthorizeData>())
-            .Select(a => a.Policy)
-            .Where(p => p is not null
-                && p.StartsWith(AppPolicies.PermissionPrefix, StringComparison.OrdinalIgnoreCase))
-            .Select(p => p![AppPolicies.PermissionPrefix.Length..].Trim())
+            .SelectMany(a => AppPolicies.PermissionCodes(a.Policy) ?? [])
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     internal static string Route(RouteEndpoint endpoint) =>

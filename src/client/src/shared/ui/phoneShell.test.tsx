@@ -67,7 +67,7 @@ describe('нижняя навигация', () => {
     shown(<BottomNav sections={work} active="costs" />);
     const nav = screen.getByRole('navigation', { name: 'Разделы' });
     const links = nav.querySelectorAll('a');
-    expect([...links].map(a => a.textContent)).toEqual(['Стройки', 'Учёт']);
+    expect([...links].map(a => a.textContent)).toEqual(['Стройки', 'Затраты']);
     expect([...links].map(a => a.getAttribute('aria-current'))).toEqual([null, 'true']);
   });
 

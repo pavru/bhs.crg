@@ -96,8 +96,9 @@ public class McpGateInventoryTests(IntegrationTestFixture fixture)
 
         var unknownPermissions = Primitives()
             .Select(p => (p.Name, Attr: p.Method.GetCustomAttribute<McpPermissionAttribute>(false)))
-            .Where(x => x.Attr is not null && !catalog.Declares(x.Attr!.Code))
-            .Select(x => $"{x.Name} → {x.Attr!.Code}")
+            .SelectMany(x => x.Attr?.Codes.Select(code => (x.Name, Code: code)) ?? [])
+            .Where(x => !catalog.Declares(x.Code))
+            .Select(x => $"{x.Name} → {x.Code}")
             .Order(StringComparer.Ordinal).ToList();
 
         Assert.True(unknownPermissions.Count == 0,
@@ -160,7 +161,7 @@ public class McpGateInventoryTests(IntegrationTestFixture fixture)
         var open = writers
             .Where(x => Gate(x.Method) switch
             {
-                McpPermissionAttribute p => granted.Contains(p.Code),
+                McpPermissionAttribute p => p.Codes.Any(granted.Contains),
                 McpModuleAttribute m => ModuleAccess.IsOpen(m.Code, granted),
                 _ => false,   // без ворот — «личный» инструмент, у него свой сторож выше
             })
