@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Objects.FieldSuggestions;
@@ -26,9 +25,12 @@ public partial class FieldSuggestionPlanTests
 
         // Объём режет окно, строки — нет: обе выборки по ключу — у одних и тех же записей, их меньше предела.
         var wide = await ExplainNestedAsync(sources, Window with { MaxLines = int.MaxValue });
-        Assert.True(wide.Contains($"Index Scan using \"{DomainObjectConfiguration.FieldSuggestionsIndex}\""), wide);
-        Assert.True(wide.Contains("Limit"), wide);
-        Assert.False(wide.Contains("Seq Scan on domain_objects"), wide);
+        var nodes = Nodes(wide.RootElement.GetProperty("Plan"), underSubPlan: false).ToList();
+        Assert.True(nodes.Any(n => n.Node.TryGetProperty("Index Name", out var i)
+            && i.GetString() == DomainObjectConfiguration.FieldSuggestionsIndex), wide.RootElement.ToString());
+        Assert.True(nodes.Any(n => Type(n.Node) == "Limit"), wide.RootElement.ToString());
+        Assert.DoesNotContain(nodes, n => Type(n.Node) == "Seq Scan"
+            && n.Node.GetProperty("Relation Name").GetString() == "domain_objects");
         var (lines, values) = Lookups(wide);
         Assert.InRange(lines, 1, Window.MaxRecords - 1);
         Assert.Equal(lines, values);
@@ -39,29 +41,48 @@ public partial class FieldSuggestionPlanTests
     }
 
     /// <summary>
-    /// Обращения по первичному ключу — сначала счётчик строк (у окна по объёму), затем значения (у окна
-    /// по строкам): узлы идут в плане в этом порядке.
+    /// Обращения по первичному ключу: счётчик строк — подзапрос в списке выборки (узел под
+    /// <c>SubPlan</c>), значения — боковое соединение. Различаются местом в дереве плана, а не порядком
+    /// строк в выводе: порядок волен смениться с версией базы, и числа молча поменялись бы местами.
     /// </summary>
-    private static (int Lines, int Values) Lookups(string plan)
+    private static (int Lines, int Values) Lookups(JsonDocument plan)
     {
-        var loops = FieldReads().Matches(plan).Select(m => int.Parse(m.Groups[1].Value)).ToList();
-        Assert.True(loops.Count == 2, plan);
-        return (loops[0], loops[1]);
+        var lookups = Nodes(plan.RootElement.GetProperty("Plan"), underSubPlan: false)
+            .Where(n => Type(n.Node) == "Index Scan" && n.Node.GetProperty("Index Name").GetString() == "PK_domain_objects")
+            .ToList();
+        Assert.True(lookups.Count == 2, plan.RootElement.ToString());
+        var lines = Assert.Single(lookups, n => n.UnderSubPlan);
+        var values = Assert.Single(lookups, n => !n.UnderSubPlan);
+        return (Loops(lines.Node), Loops(values.Node));
     }
 
-    private async Task<string> ExplainNestedAsync(IReadOnlyList<NestedSource> sources, SuggestionWindow window)
+    private static string? Type(JsonElement node) => node.GetProperty("Node Type").GetString();
+
+    private static int Loops(JsonElement node) => node.GetProperty("Actual Loops").GetInt32();
+
+    /// <summary>Узлы плана и признак «под подзапросом списка выборки» — у узла или любого предка.</summary>
+    private static IEnumerable<(JsonElement Node, bool UnderSubPlan)> Nodes(JsonElement node, bool underSubPlan)
+    {
+        var here = underSubPlan || (node.TryGetProperty("Parent Relationship", out var r) && r.GetString() == "SubPlan");
+        yield return (node, here);
+        if (!node.TryGetProperty("Plans", out var children)) yield break;
+        foreach (var child in children.EnumerateArray())
+            foreach (var n in Nodes(child, here)) yield return n;
+    }
+
+    private async Task<JsonDocument> ExplainNestedAsync(IReadOnlyList<NestedSource> sources, SuggestionWindow window)
     {
         await using var connection = new NpgsqlConnection(ConnectionString);
         await connection.OpenAsync();
         await using (var analyze = new NpgsqlCommand("ANALYZE domain_objects", connection))
             await analyze.ExecuteNonQueryAsync();
 
-        await using var cmd = new NpgsqlCommand("EXPLAIN (ANALYZE, COSTS OFF) " + FieldSuggestionReader.NestedSql(sources.Count), connection);
-        FieldSuggestionReader.AddNestedParameters(cmd, sources, window);
-        var lines = new StringBuilder();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync()) lines.AppendLine(reader.GetString(0));
-        return lines.ToString();
+        await using var cmd = new NpgsqlCommand(
+            "EXPLAIN (ANALYZE, COSTS OFF, FORMAT JSON) " + FieldSuggestionReader.NestedSql(sources.Count), connection);
+        FieldSuggestionReader.AddNestedParameters(cmd, sources);
+        FieldSuggestionReader.AddWindow(cmd, window);
+        var json = (string)(await cmd.ExecuteScalarAsync())!;
+        return JsonDocument.Parse(JsonDocument.Parse(json).RootElement[0].GetRawText());
     }
 
     /// <summary>

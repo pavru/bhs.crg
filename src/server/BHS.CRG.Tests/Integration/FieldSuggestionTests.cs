@@ -242,11 +242,11 @@ public partial class FieldSuggestionTests(InvoiceLineHost host) : InvoiceLineTes
         {
             using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await Assert.ThrowsAsync<SuggestionsTimedOutException>(
-                () => reader.ReadAsync([type], Maker, SuggestionWindow.Default, guard.Token));
+                () => reader.ReadAsync([type], Maker, [], SuggestionWindow.Default, guard.Token));
         }
 
         Assert.Equal(before, await StatementTimeoutAsync(db));
-        Assert.Equal("Пси", Assert.Single(await reader.ReadAsync([type], Maker, SuggestionWindow.Default)).Value);
+        Assert.Equal("Пси", Assert.Single(await reader.ReadAsync([type], Maker, [], SuggestionWindow.Default)).Value);
         Assert.Equal(before, await StatementTimeoutAsync(db));
     }
 

@@ -102,10 +102,10 @@ public static class SuggestionSources
         var owners = new List<NestedSource>();
         int byRights = 0, byModule = 0;
         foreach (var t in members.Select(id => types[id]).Where(t => t.Storage == TypeStorage.SharedObject))
-            Admit(t, () => allowed.Add(t.Id));
+            if (Admits(t)) allowed.Add(t.Id);
         foreach (var (owner, paths) in nested)
-            if (types[owner].Storage == TypeStorage.SharedObject)
-                Admit(types[owner], () => owners.Add(new NestedSource(owner, paths)));
+            if (types[owner].Storage == TypeStorage.SharedObject && Admits(types[owner]))
+                owners.Add(new NestedSource(owner, paths));
 
         if (allowed.Count == 0 && owners.Count == 0 && byRights > 0)
             return new SuggestionPlan.Forbidden(
@@ -114,18 +114,21 @@ public static class SuggestionSources
         if (allowed.Count == 0 && owners.Count == 0 && byModule > 0) return new SuggestionPlan.Silent(ModuleOff);
         return new SuggestionPlan.Read(allowed, owners);
 
-        void Admit(DocumentType t, Action add)
+        // Открыт ли тип читателю; закрытый считается — модулем или правами, — чтобы различить ответы.
+        bool Admits(DocumentType t)
         {
             if (t.Kind == DocumentTypeKind.Document)
             {
                 if (!access.EnabledModules.Contains(DocumentsModule)) byModule++;
                 else if (!access.Allows(DocumentRead)) byRights++;
-                else add();
+                else return true;
+                return false;
             }
-            else if (access.Allows(CatalogRead)
+            if (access.Allows(CatalogRead)
                 || (access.Allows(NomenclatureEdit) && SchemaTags.TypeHasTag(t, types, FunctionalTag.RoleNomenclature)))
-                add();
-            else byRights++;
+                return true;
+            byRights++;
+            return false;
         }
     }
 

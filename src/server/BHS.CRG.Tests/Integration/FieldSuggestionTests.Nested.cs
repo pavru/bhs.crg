@@ -70,6 +70,27 @@ public partial class FieldSuggestionTests
     }
 
     /// <summary>
+    /// Массив в поле строки — порча данных, а не подсказка, как и у верхнего уровня: нестрогий jsonpath
+    /// развернул бы его фильтром и отдал элементы.
+    /// </summary>
+    [Fact]
+    public async Task Массив_в_поле_строки_не_подсказывается()
+    {
+        var (work, registry, _) = await RegistryAsync();
+        await RecordAsync(registry, null, CatalogScope.System, null, extra: new()
+        {
+            ["Работы"] = new object[]
+            {
+                new Dictionary<string, object> { [Name] = new[] { "Альфа", "Бета" } },
+                new Dictionary<string, object> { [Name] = "Ковка" },
+            },
+        });
+        var (client, _) = await SignInAsync("Admin");
+
+        Assert.Equal(["Ковка"], (await ItemsAsync(client, $"type={work}&field={Name}")).Select(i => i.Value));
+    }
+
+    /// <summary>
     /// Ссылка на запись справочника в составном поле — не источник: значение записи учтено верхним
     /// уровнем её типа. Посчитай ссылку — и одиночка с другой стройки прошла бы порог второй записью.
     /// </summary>
@@ -148,6 +169,26 @@ public partial class FieldSuggestionTests
         Assert.Equal(["Свежая 1", "Свежая 2", "Свежая 3", "Средняя 1", "Средняя 2", "Средняя 3"], await Values(6));
         Assert.Equal(["Свежая 1", "Свежая 2", "Свежая 3"], await Values(5));
         Assert.Equal(["Свежая 1", "Свежая 2", "Свежая 3"], await Values(1));
+    }
+
+    /// <summary>
+    /// Тип и со своими записями, и в строках чужих: две части делят бюджет окна поровну — у каждой
+    /// половина записей, а не полное окно (вдвое больше чтения под тем же пределом времени).
+    /// </summary>
+    [Fact]
+    public async Task Верхний_уровень_и_строки_делят_окно_пополам()
+    {
+        var (work, registry, _) = await RegistryAsync();
+        foreach (var i in new[] { 1, 2, 3 })
+            await RecordAsync(work, null, CatalogScope.System, null, extra: new() { [Name] = $"Своя {i}" });
+        foreach (var i in new[] { 1, 2, 3 }) await OwnerAsync(registry, CatalogScope.System, null, $"Строка {i}");
+        var plan = Assert.IsType<SuggestionPlan.Read>(await PlanAsync(work));
+        using var scope = host.Services.CreateScope();
+
+        var rows = await scope.ServiceProvider.GetRequiredService<IFieldSuggestionReader>()
+            .ReadAsync(plan.Types, Name, plan.Nested, SuggestionWindow.Default with { MaxRecords = 4 });
+
+        Assert.Equal(["Своя 2", "Своя 3", "Строка 2", "Строка 3"], rows.Select(r => r.Value).Order());
     }
 
     [Fact]

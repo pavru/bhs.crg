@@ -34,15 +34,11 @@ public sealed record SuggestionRow(Guid RecordId, string Value, CatalogScope Sco
 /// </summary>
 public interface IFieldSuggestionReader
 {
-    /// <summary>Только верхний уровень.</summary>
-    /// <exception cref="SuggestionsTimedOutException">Чтение не уложилось в предел времени.</exception>
-    Task<IReadOnlyList<SuggestionRow>> ReadAsync(
-        IReadOnlyCollection<Guid> typeIds, string field, SuggestionWindow window, CancellationToken ct = default)
-        => ReadAsync(typeIds, field, [], window, ct);
-
     /// <summary>
     /// Верхний уровень <paramref name="typeIds" /> и пути <paramref name="nested" /> — одним запросом, под
-    /// одним пределом времени. Окна у них свои: строки журналов не вытесняют записи верхнего уровня.
+    /// одним пределом времени. Окна у них свои (строки журналов не вытесняют записи верхнего уровня), а
+    /// бюджет <paramref name="window" /> общий: когда читаются обе части, пределы записей и объёма у
+    /// каждой — половина.
     /// </summary>
     /// <exception cref="SuggestionsTimedOutException">Чтение не уложилось в предел времени.</exception>
     Task<IReadOnlyList<SuggestionRow>> ReadAsync(

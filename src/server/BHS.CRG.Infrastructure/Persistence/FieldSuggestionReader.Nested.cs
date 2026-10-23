@@ -37,8 +37,14 @@ public sealed partial class FieldSuggestionReader
 
     /// <summary>
     /// Запрос окна для <paramref name="owners" /> типов-владельцев. Параметры: <c>@o0…</c> — типы,
-    /// <c>@p0…</c> — их пути, <c>@s0…</c> — счётчики строк, <c>@rows</c>, <c>@bytes</c>, <c>@lines</c> —
-    /// пределы. Открыт для теста плана: он объясняет ровно этот текст.
+    /// <c>@p0…</c> — их пути, <c>@s0…</c> — счётчики строк (<see cref="AddNestedParameters" />),
+    /// <c>@rows</c>, <c>@bytes</c>, <c>@lines</c> — пределы (<see cref="AddWindow" />). Открыт для теста
+    /// плана: он объясняет ровно этот текст.
+    ///
+    /// <para>⚠️ Данные записи читаются по ключу ДВАЖДЫ — счётчиком строк и значениями — нарочно. Один
+    /// разбор на оба означал бы извлечь значения у всего окна по объёму, до предела строк, — ровно ту
+    /// работу, которую предел строк срезает (замер: 394 мс против 90). Повторная распаковка записи окна
+    /// стоит меньше разбора её строк.</para>
     /// </summary>
     public static string NestedSql(int owners) => $$"""
         SELECT w."Id", w."ScopeLevel", w."ScopeId", w."UpdatedAt", x."Value"
@@ -72,7 +78,7 @@ public sealed partial class FieldSuggestionReader
         """;
 
     /// <summary>Параметры <see cref="NestedSql" /> — общие у чтения и у теста плана.</summary>
-    public static void AddNestedParameters(NpgsqlCommand cmd, IReadOnlyList<NestedSource> nested, SuggestionWindow window)
+    public static void AddNestedParameters(NpgsqlCommand cmd, IReadOnlyList<NestedSource> nested)
     {
         foreach (var (source, i) in nested.Select((s, i) => (s, i)))
         {
@@ -82,20 +88,24 @@ public sealed partial class FieldSuggestionReader
             cmd.Parameters.Add(new NpgsqlParameter($"s{i}", NpgsqlDbType.Array | NpgsqlDbType.Text)
                 { Value = source.Paths.Select(SizePath).OfType<string>().Distinct().ToArray() });
         }
-        cmd.Parameters.Add(new NpgsqlParameter("lines", NpgsqlDbType.Integer) { Value = window.MaxLines });
-        AddWindow(cmd, window);
     }
 
     /// <summary>
     /// Путь к значениям поля: каждый шаг — по ключу схемы, массив — все его строки, ссылка на запись
     /// (<c>{ $ref }</c>) отсекается на каждом шаге: её значение учтено верхним уровнем её типа. Значение —
-    /// только строка: число или объект в поле строки — порча данных, а не подсказка.
+    /// только строка: число, объект или массив в поле строки — порча данных, а не подсказка, — как у
+    /// верхнего уровня (<c>jsonb_typeof = 'string'</c>).
     ///
     /// <para>Режим — нестрогий (<c>lax</c>): в строгом недостающий ключ у ОДНОЙ строки обрывал бы разбор
     /// всей записи, а незаполненная ячейка — обычное дело.</para>
+    ///
+    /// <para>⚠️ Проверка строки стоит на ПОСЛЕДНЕМ шаге контейнера (<c>@."поле".type()</c>), а не фильтром
+    /// после ключа: нестрогий режим разворачивает массив перед фильтром, и массив строк в поле отдал бы
+    /// свои элементы. <c>.type()</c> не разворачивает.</para>
     /// </summary>
     public static string JsonPath(SuggestionPath path) =>
-        "$" + string.Concat(path.Steps.Select(Step)) + "." + Quote(path.Field) + " ? (@.type() == \"string\")";
+        "$" + string.Concat(path.Steps.Select((s, i) => Step(s, i == path.Steps.Count - 1 ? path.Field : null)))
+        + "." + Quote(path.Field);
 
     /// <summary>
     /// Счётчик строк пути: длина последнего массива на нём (у вложенных массивов — у каждого вхождения).
@@ -105,11 +115,13 @@ public sealed partial class FieldSuggestionReader
     {
         var last = path.Steps.ToList().FindLastIndex(s => s.IsArray);
         return last < 0 ? null
-            : "$" + string.Concat(path.Steps.Take(last).Select(Step)) + "." + Quote(path.Steps[last].Key) + ".size()";
+            : "$" + string.Concat(path.Steps.Take(last).Select(s => Step(s, null))) + "." + Quote(path.Steps[last].Key) + ".size()";
     }
 
-    private static string Step(PathStep step) =>
-        "." + Quote(step.Key) + (step.IsArray ? "[*]" : "") + " ? (!exists(@.\"$ref\"))";
+    /// <summary>Шаг пути: ключ, строки массива, отсев ссылок и — у последнего — проверка, что поле строка.</summary>
+    private static string Step(PathStep step, string? field) =>
+        "." + Quote(step.Key) + (step.IsArray ? "[*]" : "") + " ? (!exists(@.\"$ref\")"
+        + (field is null ? "" : " && @." + Quote(field) + ".type() == \"string\"") + ")";
 
     /// <summary>Ключ строкой <c>jsonpath</c>: кавычки и обратная косая — экранированы.</summary>
     private static string Quote(string key) => "\"" + key.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";

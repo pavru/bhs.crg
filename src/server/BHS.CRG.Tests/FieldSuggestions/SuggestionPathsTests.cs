@@ -103,12 +103,35 @@ public class SuggestionPathsTests
             SuggestionSources.For(Work.Id, "Наименование", types, TestAccess.With(SuggestionSources.NomenclatureEdit)));
     }
 
+    /// <summary>
+    /// Тип, вложенный в себя тремя полями, к глубине 6 дал бы больше тысячи путей. Набирается не больше
+    /// предела, и мелкие — первыми: глубокие срезаются, а не первый уровень.
+    /// </summary>
+    [Fact]
+    public void Путей_не_больше_предела_и_мелкие_первыми()
+    {
+        var tree = DocumentType.Create("Дерево", "Дерево", DocumentTypeKind.Composite, null, JsonDocument.Parse("{}"),
+            TypeOwner.Core, TypeVisibility.Shared);
+        tree.UpdateSchema(JsonDocument.Parse($$"""
+            {"fields":[{"key":"Наименование","type":"string"},
+              {{Field("Дети", "array", tree)}},{{Field("Родитель", "complex", tree)}},{{Field("Аналог", "complex", tree)}}]}
+            """));
+        var paths = Paths(Nested(tree.Id, Types(tree)), tree.Id);
+
+        Assert.Equal(SuggestionPaths.MaxPaths, paths.Length);
+        // Первые два уровня — целиком (3 + 9), третий — сколько влезло; четвёртого нет.
+        Assert.Subset(paths.ToHashSet(), new HashSet<string> { "Дети[*].Наименование", "Родитель.Наименование", "Аналог.Наименование" });
+        Assert.Equal(12, paths.Count(p => p.Count(c => c == '.') <= 2));
+        Assert.DoesNotContain(paths, p => p.Count(c => c == '.') > 3);
+    }
+
     [Fact]
     public void Путь_jsonpath_по_ключам_схемы_со_счётчиком_последнего_массива()
     {
         var path = new SuggestionPath([new("Разделы", true), new("Адрес \"юр\"", false), new("Работы", true)], "Наименование");
 
-        Assert.Equal("""$."Разделы"[*] ? (!exists(@."$ref"))."Адрес \"юр\"" ? (!exists(@."$ref"))."Работы"[*] ? (!exists(@."$ref"))."Наименование" ? (@.type() == "string")""",
+        // Сырая строка кавычкой кончаться не может — последняя дописана.
+        Assert.Equal("""$."Разделы"[*] ? (!exists(@."$ref"))."Адрес \"юр\"" ? (!exists(@."$ref"))."Работы"[*] ? (!exists(@."$ref") && @."Наименование".type() == "string")."Наименование""" + "\"",
             FieldSuggestionReader.JsonPath(path));
         Assert.Equal("""$."Разделы"[*] ? (!exists(@."$ref"))."Адрес \"юр\"" ? (!exists(@."$ref"))."Работы".size()""",
             FieldSuggestionReader.SizePath(path));
