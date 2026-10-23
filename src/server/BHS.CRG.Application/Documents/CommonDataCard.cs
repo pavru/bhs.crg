@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Objects;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
@@ -213,13 +214,7 @@ public sealed class CommonDataCardHandler(
     };
 
     /// <summary>Запись, на которую ссылается значение: <c>{"$ref":"catalog","entryId":…}</c>.</summary>
-    private static Guid? Reference(JsonElement? value) =>
-        value is { ValueKind: JsonValueKind.Object } v
-        && v.TryGetProperty("$ref", out var kind) && kind.ValueKind == JsonValueKind.String && kind.GetString() == "catalog"
-        && v.TryGetProperty("entryId", out var id) && id.ValueKind == JsonValueKind.String
-        && Guid.TryParse(id.GetString(), out var entry)
-            ? entry
-            : null;
+    private static Guid? Reference(JsonElement? value) => value is { } v ? CatalogRefs.EntryId(v) : null;
 
     private static CardLineKind Kind(SchemaFieldInfo field) => field.Type switch
     {

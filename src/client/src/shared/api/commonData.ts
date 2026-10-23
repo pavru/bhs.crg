@@ -1,9 +1,53 @@
 import { useMemo, useState } from 'react';
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import type { CatalogScope, CommonDataEntry, CommonDataEntryWithScope, RecordsPurpose } from './types';
+import type { CatalogScope, CommonDataEntry, CommonDataEntryWithScope, DocumentType, RecordsPurpose } from './types';
 
 const QK = 'common-data';
+
+/** Код классификатора видов работ — зеркало серверного `CoreRecordTypes.WorkTypeCode`. */
+export const WORK_TYPE_CODE = 'ВидРаботы';
+
+/**
+ * Справочники, которые пишутся СВОЕЙ дверью под своим правом (WORK-59), — зеркало серверного
+ * `OwnDoorTypes`. Ключ — код КОРНЯ семьи: подтип вида работы — тоже вид работы, и общий адрес сервер
+ * отвергает для всей семьи. Вторая такая группа (варианты работ, work-06) — строка здесь и там.
+ */
+const OWN_DOORS: Readonly<Record<string, { base: string; permission: string }>> = {
+  [WORK_TYPE_CODE]: { base: '/work-types', permission: 'core.worktypes.edit' },
+};
+
+const COMMON = { base: '/common-data', permission: 'core.catalog.edit' };
+
+/**
+ * Код семьи со своей дверью, к которой принадлежит тип, — по цепочке предков; `undefined` — запись
+ * пишется общим адресом. Тип не найден — тоже общий адрес: дверь по догадке не выбирается.
+ */
+export function ownDoorCode(
+  typeId: string | null | undefined, types: readonly Pick<DocumentType, 'id' | 'code' | 'parentId'>[],
+): string | undefined {
+  const seen = new Set<string>();
+  for (let t = types.find(x => x.id === typeId); t && !seen.has(t.id); t = types.find(x => x.id === t!.parentId)) {
+    if (Object.hasOwn(OWN_DOORS, t.code)) return t.code;
+    seen.add(t.id);
+  }
+  return undefined;
+}
+
+/**
+ * Адрес записи по коду её семьи ({@link ownDoorCode}): своя дверь либо общий адрес справочников —
+ * тот отвергает записи семей со своей дверью (409 с её адресом).
+ *
+ * Возврат из архива сюда не смотрит: общий адрес возвращает любую запись — снять признак всегда благо.
+ */
+export function recordWriteBase(doorCode: string | null | undefined): string {
+  return (doorCode && OWN_DOORS[doorCode] || COMMON).base;
+}
+
+/** Право, которым пишется запись этой семьи: у справочника со своей дверью оно своё (WORK-59). */
+export function recordWritePermission(doorCode: string | null | undefined): string {
+  return (doorCode && OWN_DOORS[doorCode] || COMMON).permission;
+}
 /** Ключ действия «в архив / из архива»: по нему правка записи узнаёт, что оно ещё в пути. */
 const ARCHIVE_KEY = [QK, 'archive'];
 
@@ -144,7 +188,13 @@ export function useCreateCommonDataEntry() {
       createAnyway?: boolean;
       /** Вынос в общие данные: объект, из сохранённых данных которого переезжают ссылки. */
       refsStandIn?: string;
-    }) => apiClient.post<CommonDataEntry>('/common-data', payload).then(r => r.data),
+      /** Код семьи со своей дверью ({@link ownDoorCode}): по нему выбирается адрес. */
+      doorCode?: string;
+    }) => {
+      const { doorCode, ...body } = payload;
+      // Тело у двери то же, с типом: запись подтипа дверь заводит подтипом, а не корнем семьи.
+      return apiClient.post<CommonDataEntry>(recordWriteBase(doorCode), body).then(r => r.data);
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
 }
@@ -192,7 +242,11 @@ export function useUpdateCommonDataEntry(entry: CommonDataEntry | null | undefin
   // Состояние правится в рендере — приём React для состояния, выведенного из пропсов.
   if (next !== base) setBase(next);
   return useMutation({
-    mutationFn: async ({ displayName, data, aliases }: { displayName: string; data: string; aliases?: string[] }) => {
+    mutationFn: async ({ displayName, data, aliases, doorCode }: {
+      displayName: string; data: string; aliases?: string[];
+      /** Код семьи записи со своей дверью ({@link ownDoorCode}): по нему выбирается адрес. */
+      doorCode?: string;
+    }) => {
       if (!next) throw new Error('Правка без записи: форма новой записи создаёт, а не правит.');
       const { id } = next.entry;
       const key = [QK, 'by-id', id];
@@ -205,7 +259,7 @@ export function useUpdateCommonDataEntry(entry: CommonDataEntry | null | undefin
       if (qc.isFetching({ queryKey: key }) > 0 || qc.getQueryState(key)?.isInvalidated)
         await qc.refetchQueries({ queryKey: key }, { cancelRefetch: false });
       const seen = seenStep(next, qc.getQueryData<CommonDataEntry>(key)).version;
-      return apiClient.put<CommonDataEntry>(`/common-data/${id}`, { displayName, data, aliases },
+      return apiClient.put<CommonDataEntry>(`${recordWriteBase(doorCode)}/${id}`, { displayName, data, aliases },
         { headers: { 'If-Match': seen } }).then(r => r.data);
     },
     // Отказ 409 — запись изменили: копия в кэше перечитывается, чтобы форма, открытая заново,
@@ -274,6 +328,34 @@ export interface RecordArchiveResult {
   archived: boolean;
   /** false — запись уже была в этом состоянии: повтор, а не событие. */
   changed: boolean;
+  /**
+   * Новая версия записи — её отдаёт дверь видов работ: архив версию сдвигает, и «Вернуть» следом
+   * обязано назвать уже её. Общий адрес версии не отдаёт — и не спрашивает.
+   */
+  version?: string;
+}
+
+/** Что архивируют: запись, а для своей двери — ещё код семьи и версия (дверь требует `If-Match`). */
+export interface ArchiveTarget {
+  id: string;
+  archived: boolean;
+  doorCode?: string;
+  version?: string;
+}
+
+/**
+ * Адрес и заголовки действия «в архив / из архива». В архив вид работы уходит только дверью, с
+ * версией; вернуть дверью — тоже, когда версия известна. Без версии возврат идёт общим адресом: он
+ * возвращает любую запись.
+ */
+export function archiveRequest({ id, archived, doorCode, version }: ArchiveTarget): {
+  url: string; headers?: Record<string, string>;
+} {
+  const action = archived ? 'archive' : 'unarchive';
+  const door = recordWriteBase(doorCode) !== COMMON.base && (archived || !!version);
+  return door
+    ? { url: `${recordWriteBase(doorCode)}/${id}/${action}`, headers: version ? { 'If-Match': version } : undefined }
+    : { url: `${COMMON.base}/${id}/${action}` };
 }
 
 /**
@@ -284,8 +366,10 @@ export function useSetCommonDataArchive() {
   const qc = useQueryClient();
   return useMutation({
     mutationKey: ARCHIVE_KEY,
-    mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
-      apiClient.post<RecordArchiveResult>(`/common-data/${id}/${archived ? 'archive' : 'unarchive'}`).then(r => r.data),
+    mutationFn: (target: ArchiveTarget) => {
+      const { url, headers } = archiveRequest(target);
+      return apiClient.post<RecordArchiveResult>(url, undefined, { headers }).then(r => r.data);
+    },
     // Сбрасывается ВСЁ прочитанное, а не один список общих данных (ревью PR #1227): от признака
     // зависят и списки на выбор у модулей, и состояние ссылок в уже открытом счёте. Со старым
     // списком форма счёта предложила бы архивного поставщика, а со старым счётом — назвала бы его
@@ -324,7 +408,10 @@ export function archiveOffered(e: unknown): boolean {
 export function useDeleteCommonDataEntry() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => apiClient.delete(`/common-data/${id}`),
+    /** Своя дверь удаляет по версии (`If-Match`): удаление, собранное по устаревшей записи, — 409. */
+    mutationFn: ({ id, doorCode, version }: { id: string; doorCode?: string; version?: string }) =>
+      apiClient.delete(`${recordWriteBase(doorCode)}/${id}`,
+        recordWriteBase(doorCode) !== COMMON.base && version ? { headers: { 'If-Match': version } } : undefined),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
 }

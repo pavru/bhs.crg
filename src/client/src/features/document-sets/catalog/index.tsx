@@ -9,8 +9,9 @@ import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { TextField } from '@/shared/ui/TextField';
 import {
   useListCommonData, useCommonDataForSet, useCreateCommonDataEntry,
-  useUpdateCommonDataEntry, useCheckBindings, archivedTwinOf, type ArchivedTwin,
+  useUpdateCommonDataEntry, useCheckBindings, archivedTwinOf, ownDoorCode, type ArchivedTwin,
 } from '@/shared/api/commonData';
+import { RecordWriteGate } from './RecordWriteGate';
 import type { CommonDataEntry, CatalogScope, DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
 import { SCOPE_LABELS, SCOPE_PRIORITY } from '@/shared/api/types';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
@@ -113,9 +114,7 @@ export function CatalogEntryForm({
   const allSelectableTypes = [...compositeTypes, ...documentTypes];
   const selectedType = allSelectableTypes.find(t => t.id === typeId) ?? null;
 
-  const parentType = selectedType?.parentId
-    ? allDocTypes.find(dt => dt.id === selectedType.parentId) ?? null
-    : null;
+  const parentType = selectedType?.parentId ? allDocTypes.find(dt => dt.id === selectedType.parentId) ?? null : null;
   const baseRefId = typeof values._baseRef === 'string' ? values._baseRef : undefined;
   const ownFields = selectedType ? parseSchemaFields(selectedType.schema) : [];
   const effectiveFields = selectedType ? resolveEffectiveFields(selectedType, allDocTypes) : [];
@@ -357,9 +356,9 @@ export function CatalogEntryForm({
 
     try {
       if (entry) {
-        await updateMutation.mutateAsync({ displayName, data: JSON.stringify(values), aliases });
+        await updateMutation.mutateAsync({ displayName, data: JSON.stringify(values), aliases, doorCode: ownDoorCode(typeId, allDocTypes) });
       } else {
-        await createMutation.mutateAsync({ displayName, compositeTypeId: typeId, data: JSON.stringify(values), scope, scopeId, aliases, createAnyway });
+        await createMutation.mutateAsync({ displayName, compositeTypeId: typeId, data: JSON.stringify(values), scope, scopeId, aliases, createAnyway, doorCode: ownDoorCode(typeId, allDocTypes) });
       }
       onClose();
     } catch (err: unknown) {
@@ -770,11 +769,12 @@ export function CatalogEntryForm({
       </div>
       </div>
       <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-2">
-        <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
+        <RecordWriteGate doorCode={ownDoorCode(typeId, allDocTypes)} onClose={onClose}>
         <Button type="submit" variant="filled" loading={isPending} disabled={isPending || recognizing || uploading}
           title={uploading ? "Дождитесь загрузки изображения" : undefined}>
           {isPending ? 'Сохранение…' : entry ? 'Сохранить' : 'Создать'}
         </Button>
+        </RecordWriteGate>
       </div>
       <ConfirmDialog
         open={!!pendingBase}

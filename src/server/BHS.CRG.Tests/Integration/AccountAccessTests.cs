@@ -90,6 +90,24 @@ public class AccountAccessTests(IntegrationTestFixture fixture)
         Assert.Contains("constructions", id.Sections);
     }
 
+    /// <summary>
+    /// Классификатор видов работ по системным ролям (WORK-59): ведут его администратор, сметчик и инженер
+    /// ИД — последний правил виды работ общим адресом под <c>core.catalog.edit</c>, и с дверью видов работ
+    /// без своего права потерял бы эту правку молча. Остальным ролям право не выдаётся.
+    /// </summary>
+    [Fact]
+    public async Task Классификатор_видов_работ_ведут_ровно_администратор_сметчик_и_инженер_ИД()
+    {
+        string[] keepers = [SystemRoles.Admin, SystemRoles.IdEngineer, "Estimator"];
+
+        foreach (var role in SystemRoles.All)
+        {
+            var access = await AccessAsync(await SignInAsync(role.Name));
+            Assert.True(keepers.Contains(role.Name) == access.Permissions.Contains(CorePermissions.WorkTypesEdit),
+                $"Роль «{role.Name}»: core.worktypes.edit {(keepers.Contains(role.Name) ? "не выдано" : "выдано лишним")}");
+        }
+    }
+
     /// <summary>Без входа адрес не отвечает: он рассказывает о конкретном пользователе.</summary>
     [Fact]
     public async Task Anonymous_gets_nothing()

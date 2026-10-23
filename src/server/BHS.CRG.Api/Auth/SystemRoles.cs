@@ -54,6 +54,9 @@ public static class SystemRoles
                 "id.document.read", "id.document.edit", "id.document.generate", "id.quality.edit",
                 "core.constructions.edit", "core.reconciliation.run", CorePermissions.FilesUse,
                 CorePermissions.CatalogEdit, CorePermissions.DataSetsEdit, .. ReferenceReads,
+                // Виды работ инженер правил общим адресом под core.catalog.edit; с дверью видов работ
+                // (WORK-59) этот адрес их не пишет, и без своего права правка пропала бы молча.
+                CorePermissions.WorkTypesEdit,
                 // Чужие модули: права появятся вместе с ними, до тех пор строка просто не находит
                 // объявления и пропускается.
                 "work.facts.read", "costs.materials.read",
@@ -88,7 +91,7 @@ public static class SystemRoles
         new("Estimator", "Сметчик",
             "Сметы и обмен с ГРАНД-Сметой, классификатор видов работ",
             [
-                "core.worktypes.edit", "core.nomenclature.edit", CorePermissions.FilesUse, .. ReferenceReads,
+                CorePermissions.WorkTypesEdit, "core.nomenclature.edit", CorePermissions.FilesUse, .. ReferenceReads,
                 // Сметы и себестоимость (PLAN-23). Коммерческих предложений НЕТ — ни чтения, ни правки:
                 // КП — дело «Менеджера проекта», а сметчик без права на КП не видит цен продажи (PLAN-2).
                 // plan.offer.edit стоял здесь до plan-01 и молча пропускался, пока право не объявлено;
