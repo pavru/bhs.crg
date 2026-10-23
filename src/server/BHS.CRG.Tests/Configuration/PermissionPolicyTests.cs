@@ -25,7 +25,7 @@ public class PermissionPolicyTests
         var policy = await Provider().GetPolicyAsync(AppPolicies.Permission("core.users.manage"));
 
         var requirement = Assert.Single(policy!.Requirements.OfType<PermissionRequirement>());
-        Assert.Equal("core.users.manage", requirement.Code);
+        Assert.Equal(["core.users.manage"], requirement.Codes);
     }
 
     [Fact]

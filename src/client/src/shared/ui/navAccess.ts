@@ -13,6 +13,9 @@ import type { NavItem } from './navConfig';
  * виден всем: таких немного и каждый — решение (свой профиль, свои уведомления). Список прав —
  * одно условие «любое из» (plan-02): пункт виден при любом праве списка, как и адрес под политикой
  * `AppPolicies.AnyPermission` на сервере.
+ *
+ * ⚠️ Пустой список — ЗАКРЫТ всем, а не «права не названо»: сервер такие ворота не строит вовсе, и
+ * список, собранный из вкладов модулей, на экземпляре без вкладчиков открыл бы пункт любому.
  */
 export function visibleNav(items: NavItem[], access: AccessInfo): NavItem[] {
   return items.filter(item => allowed(item, access));
@@ -20,15 +23,21 @@ export function visibleNav(items: NavItem[], access: AccessInfo): NavItem[] {
 
 export function allowed(item: NavItem, access: AccessInfo): boolean {
   if (item.module && !hasModule(access, item.module)) return false;
-  const codes = permissionsOf(item);
-  if (codes.length && !codes.some(code => hasPermission(access, code))) return false;
+  if (item.permission !== undefined && !grantsAny(item, access)) return false;
   return true;
 }
 
-/** Права пункта списком: одно право — список из одного, без права — пустой. */
+function grantsAny(item: NavItem, access: AccessInfo): boolean {
+  return permissionsOf(item).some(code => hasPermission(access, code));
+}
+
+/**
+ * Права пункта списком, без повторов (как `AppPolicies.AnyPermission` сервера): одно право — список
+ * из одного, без права — пустой.
+ */
 export function permissionsOf(item: Pick<NavItem, 'permission'>): string[] {
   if (item.permission === undefined) return [];
-  return typeof item.permission === 'string' ? [item.permission] : item.permission;
+  return [...new Set(typeof item.permission === 'string' ? [item.permission] : item.permission)];
 }
 
 /** Чего не хватает для раздела — причина на странице «нет доступа» (ТЗ AUTH-15). */
@@ -55,9 +64,8 @@ export function missingFor(item: NavItem, access: AccessInfo): MissingAccess {
     const known = access.modules.find(m => m.code === item.module);
     return { kind: 'module', code: item.module, title: known?.title ?? item.module };
   }
-  const codes = permissionsOf(item);
-  if (codes.length && !codes.some(code => hasPermission(access, code))) {
-    const issuable = codes.filter(code => onInstance(code, access));
+  if (item.permission !== undefined && !grantsAny(item, access)) {
+    const issuable = permissionsOf(item).filter(code => onInstance(code, access));
     return issuable.length ? { kind: 'permission', codes: issuable } : null;
   }
   return null;

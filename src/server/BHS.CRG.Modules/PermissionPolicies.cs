@@ -4,19 +4,13 @@ using Microsoft.Extensions.Options;
 
 namespace BHS.CRG.Modules;
 
-/// <summary>Требование «у пользователя есть право <paramref name="code" />».</summary>
-public sealed class PermissionRequirement(string code) : IAuthorizationRequirement
-{
-    public string Code { get; } = code;
-    public override string ToString() => AppPolicies.Permission(Code);
-}
-
 /// <summary>
-/// Требование «у пользователя есть хотя бы одно из прав <paramref name="codes" />» (plan-02, AUTH-8).
-/// Строится из имени <c>perm:&lt;а&gt;|&lt;б&gt;</c>; список из одного права становится обычным
-/// <see cref="PermissionRequirement" />.
+/// Требование «у пользователя есть хотя бы одно из прав <paramref name="codes" />» (AUTH-8). Одно
+/// право — список из одного кода: «любое из» (plan-02) — то же правило, а не второе рядом, иначе его
+/// пришлось бы править в двух обработчиках, и забытая копия молча развела бы простые и составные
+/// ворота.
 /// </summary>
-public sealed class AnyPermissionRequirement(IReadOnlyList<string> codes) : IAuthorizationRequirement
+public sealed class PermissionRequirement(IReadOnlyList<string> codes) : IAuthorizationRequirement
 {
     public IReadOnlyList<string> Codes { get; } = codes;
     public override string ToString() => AppPolicies.AnyPermission([.. Codes]);
@@ -77,8 +71,7 @@ public sealed class AppPolicyProvider(IOptions<AuthorizationOptions> options, Pe
             .AddRequirements(requirement)
             .Build();
 
-    /// <summary>Одно право — <see cref="PermissionRequirement" />, список — «любое из».</summary>
-    private IAuthorizationRequirement PermissionRequirementOf(string policyName)
+    private PermissionRequirement PermissionRequirementOf(string policyName)
     {
         var codes = AppPolicies.PermissionCodes(policyName)!;
         if (codes.Any(c => c.Length == 0))
@@ -86,10 +79,7 @@ public sealed class AppPolicyProvider(IOptions<AuthorizationOptions> options, Pe
                 $"Политика «{policyName}» не называет права (или в её списке пустое место). Ворота с " +
                 "пустым именем ничего не проверяют, а выглядят как проверка.");
 
-        var declared = codes.Select(Declared).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        return declared.Length == 1
-            ? new PermissionRequirement(declared[0])
-            : new AnyPermissionRequirement(declared);
+        return new PermissionRequirement([.. codes.Select(Declared).Distinct(StringComparer.OrdinalIgnoreCase)]);
     }
 
     /// <summary>
@@ -119,8 +109,8 @@ public sealed class AppPolicyProvider(IOptions<AuthorizationOptions> options, Pe
 }
 
 /// <summary>
-/// Проверка права: есть ли <see cref="PermissionRequirement.Code" /> среди действующих прав
-/// пользователя.
+/// Проверка права: есть ли хотя бы одно из <see cref="PermissionRequirement.Codes" /> среди
+/// действующих прав пользователя.
 ///
 /// ⚠️ Составное право <c>*.read.all</c> раскрывается НЕ здесь (AUTH-5.2), а там, где права
 /// считаются из ролей: набор от <see cref="IUserPermissions" /> приходит уже раскрытым — см.
@@ -132,22 +122,6 @@ public sealed class PermissionHandler(IUserPermissions permissions)
 {
     protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context, PermissionRequirement requirement)
-    {
-        var granted = await permissions.ForAsync(context.User, CancellationToken.None);
-        if (granted.Contains(requirement.Code, StringComparer.OrdinalIgnoreCase))
-            context.Succeed(requirement);
-    }
-}
-
-/// <summary>
-/// «Любое из прав»: хотя бы одно из <see cref="AnyPermissionRequirement.Codes" /> есть среди
-/// действующих прав пользователя. Набор приходит раскрытым, как у <see cref="PermissionHandler" />.
-/// </summary>
-public sealed class AnyPermissionHandler(IUserPermissions permissions)
-    : AuthorizationHandler<AnyPermissionRequirement>
-{
-    protected override async Task HandleRequirementAsync(
-        AuthorizationHandlerContext context, AnyPermissionRequirement requirement)
     {
         var granted = await permissions.ForAsync(context.User, CancellationToken.None);
         if (requirement.Codes.Any(code => granted.Contains(code, StringComparer.OrdinalIgnoreCase)))

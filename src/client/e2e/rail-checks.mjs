@@ -76,14 +76,14 @@ export async function railChecks(page, check) {
       if (current.trim() !== 'Стройки') throw new Error(`в карточке стройки текущим помечен раздел «${current.trim()}»`);
     });
 
-    // Раздел модуля «Планирование» (plan-02): без видимых пунктов его нет. Ждать его можно только у
-    // того, кому модуль открыт, — а в прогонах CI модуль выключен, и пустой раздел был бы дверью в
-    // пустую подпанель. Подпись раздела счетов — «Затраты» (макет П0).
-    await check('rail-plan-section-only-with-the-module', async () => {
-      const access = (await callApi(page, 'GET', '/account/access')).body;
-      const planOpen = (access?.modules ?? []).some(m => m.code === 'plan' && m.available);
+    // Подпись раздела счетов — «Затраты» (plan-02, макет П0). Запрет старой подписи держится на
+    // положительном якоре: без «Затрат» в рейле его отсутствие «Учёта» ничего бы не значило.
+    // Раздел «Планы» здесь не проверяется: пунктов модуля ещё нет, и проверка не могла бы упасть.
+    // Отбор раздела по модулю стережёт `railSections.test.ts`; живую проверку заводит plan-09
+    // вместе с первым пунктом раздела.
+    await check('rail-costs-section-labelled-zatraty', async () => {
       const sections = (await page.locator('#app-rail-nav a').allInnerTexts()).map(t => t.trim());
-      if (!planOpen && sections.includes('Планы')) throw new Error(`раздел «Планы» без доступа к модулю: [${sections}]`);
+      if (!sections.includes('Затраты')) throw new Error(`в рейле нет раздела «Затраты»: [${sections}]`);
       if (sections.includes('Учёт')) throw new Error(`раздел счетов подписан по-старому: [${sections}]`);
     });
 

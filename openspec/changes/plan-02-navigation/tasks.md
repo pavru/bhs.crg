@@ -11,7 +11,7 @@
 ## 1. PR 1: «любое из прав» и раздел рейла
 
 - [x] 1.1 Сервер: `AppPolicies.AnyPermission(...)`, разбор списка в провайдере с `Declared()` по каждому
-  коду, `AnyPermissionRequirement` и обработчик; атрибут `McpPermission` со списком [AUTH-8] [AUTH-8.2]
+  коду, `PermissionRequirement` со списком кодов и один обработчик; атрибут `McpPermission` со списком [AUTH-8] [AUTH-8.2]
   [AUTH-12.1]. Проверка — новый `AnyPermissionPolicyTests` на тестовом модуле: адрес открыт носителю
   каждого права, закрыт без обоих; необъявленный код роняет сборку политики
 - [x] 1.2 Переписи `PermissionGateTests`, `EndpointGateInventoryTests`, `ReadAllWritesNothingTests`,

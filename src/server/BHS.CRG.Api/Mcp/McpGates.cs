@@ -29,9 +29,18 @@ namespace BHS.CRG.Api.Mcp;
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 public sealed class McpPermissionAttribute : AuthorizeAttribute
 {
-    public McpPermissionAttribute(params string[] codes) : base(AppPolicies.AnyPermission(codes)) => Codes = codes;
+    /// <summary>
+    /// Право <paramref name="code" /> обязательно отдельным параметром: <c>[McpPermission]</c> без
+    /// права не должен собираться — иначе ошибка вышла бы только на первом вызове инструмента.
+    /// </summary>
+    public McpPermissionAttribute(string code, params string[] alternatives)
+        : base(AppPolicies.AnyPermission([code, .. alternatives])) =>
+        Codes = AppPolicies.PermissionCodes(Policy)!;
 
-    /// <summary>Коды прав — их читает сторож: имя политики он разбирал бы строкой обратно.</summary>
+    /// <summary>
+    /// Коды прав — их читает сторож. Взяты из имени политики тем же разбором, что у переписей
+    /// адресов: свой список атрибута разошёлся бы с воротами на пробелах и повторах.
+    /// </summary>
     public IReadOnlyList<string> Codes { get; }
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { visibleNav, allowed, missingFor } from './navAccess';
+import { visibleNav, allowed, missingFor, permissionsOf } from './navAccess';
 import { ClipboardList } from 'lucide-react';
 import { workNav, settingsNav, type NavItem } from './navConfig';
 import type { AccessInfo } from '@/shared/api/access';
@@ -99,6 +99,19 @@ describe('пункт под списком прав', () => {
   it('выпали все права — причина неизвестна, а не пустой список', () => {
     expect(missingFor(progress, access([]))).toBeNull();
   });
+
+  // Список «Хода работ» соберут из вкладов модулей (plan-25): без вкладчиков он пуст, и пустой
+  // список, прочитанный как «права не названо», открыл бы пункт любому вошедшему.
+  it('пустой список закрывает пункт, а не открывает его всем', () => {
+    const empty: NavItem = { ...progress, permission: [] };
+    expect(allowed(empty, access(['core.catalog.read'], both))).toBe(false);
+    expect(missingFor(empty, access([], both))).toBeNull();
+  });
+
+  it('повтор кода в списке называется один раз', () => {
+    const twice: NavItem = { ...progress, permission: ['costs.report.read', 'costs.report.read'] };
+    expect(missingFor(twice, access([], both))).toEqual({ kind: 'permission', codes: ['costs.report.read'] });
+  });
 });
 
 /**
@@ -111,12 +124,12 @@ describe('пункт под списком прав', () => {
  */
 describe('каждый пункт назвал, чем открывается', () => {
   it('в разделах настройки — у всех есть право', () => {
-    const nameless = settingsNav.filter(i => !i.permission && !i.module);
+    const nameless = settingsNav.filter(i => !permissionsOf(i).length && !i.module);
     expect(nameless.map(i => i.label)).toEqual([]);
   });
 
   it('в рабочих разделах — у всех есть право или модуль', () => {
-    const nameless = workNav.filter(i => !i.permission && !i.module);
+    const nameless = workNav.filter(i => !permissionsOf(i).length && !i.module);
     expect(nameless.map(i => i.label)).toEqual([]);
   });
 });

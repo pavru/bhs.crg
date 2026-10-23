@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using BHS.CRG.Api.Mcp;
 using BHS.CRG.Modules;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -93,6 +94,34 @@ public class AnyPermissionPolicyTests
             () => policies.GetPolicyAsync($"{AppPolicies.PermissionPrefix}{Alpha}||{Beta}"));
     }
 
+    /// <summary>
+    /// Код <c>null</c> или пустой в списке — названный отказ при построении имени: вклад модуля, не
+    /// назвавший права, иначе ронял бы запуск <see cref="NullReferenceException" /> без имени политики.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData(" ")]
+    public void Не_названное_право_в_списке_отвергается(string? code)
+    {
+        var ex = Assert.Throws<ArgumentException>(() => AppPolicies.AnyPermission(Alpha, code!));
+
+        Assert.Contains(Alpha, ex.Message);
+    }
+
+    /// <summary>
+    /// Сторож инструментов MCP читает <see cref="McpPermissionAttribute.Codes" />, ворота — имя
+    /// политики. Список обязан быть одним: пробел или повтор в атрибуте не должны давать сторожу
+    /// «необъявленное право», которого ворота не видят.
+    /// </summary>
+    [Fact]
+    public void Коды_ворот_инструмента_совпадают_с_именем_политики()
+    {
+        var gate = new McpPermissionAttribute($" {Alpha}", Beta, Alpha);
+
+        Assert.Equal(AppPolicies.AnyPermission(Alpha, Beta), gate.Policy);
+        Assert.Equal([Alpha, Beta], gate.Codes);
+    }
+
     private static async Task<HttpResponseMessage> SendAsync(IHost host, string? granted)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, Route);
@@ -107,8 +136,8 @@ public class AnyPermissionPolicyTests
         builder.Configuration.AddInMemoryCollection(
             new Dictionary<string, string?> { ["Modules:Enabled"] = ProbeModule.ModuleCode });
 
-        builder.Services.AddAuthentication(HeaderAuth.Scheme)
-            .AddScheme<AuthenticationSchemeOptions, HeaderAuth>(HeaderAuth.Scheme, _ => { });
+        builder.Services.AddAuthentication(HeaderAuth.SchemeName)
+            .AddScheme<AuthenticationSchemeOptions, HeaderAuth>(HeaderAuth.SchemeName, _ => { });
         builder.Services.AddAuthorization();
         builder.Services.AddSingleton<IUserPermissions, ClaimPermissions>();
         builder.Services.AddAppModules(builder.Configuration, new ProbeModule());
@@ -151,7 +180,7 @@ public class AnyPermissionPolicyTests
         IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
         : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
     {
-        public const string Scheme = "probe";
+        public const string SchemeName = "probe";
         public const string Header = "X-Probe-Permission";
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
@@ -159,9 +188,9 @@ public class AnyPermissionPolicyTests
             if (!Request.Headers.TryGetValue(Header, out var granted))
                 return Task.FromResult(AuthenticateResult.NoResult());
 
-            var identity = new ClaimsIdentity([new Claim(Header, granted.ToString())], Scheme);
+            var identity = new ClaimsIdentity([new Claim(Header, granted.ToString())], SchemeName);
             return Task.FromResult(AuthenticateResult.Success(
-                new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme)));
+                new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName)));
         }
     }
 

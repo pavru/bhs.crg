@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { ClipboardList } from 'lucide-react';
 import type { AccessInfo } from '@/shared/api/access';
 import { CommandPalette } from './CommandPalette';
+import { paletteLabels as labels } from '@/shared/testing/palette';
 import { NavigationGuardProvider } from './NavigationGuardProvider';
 
 let access: AccessInfo;
@@ -29,15 +30,6 @@ vi.mock('./navConfig', async importOriginal => {
 afterEach(cleanup);
 
 const modules = [{ code: 'costs', title: 'Счета и накладные', available: true }];
-
-/** Подписи найденного — без подсказки «Enter» и без группы, которую слышит только диктор. */
-function labels(): (string | undefined)[] {
-  return screen.queryAllByRole('button', { hidden: true }).filter(b => b.closest('ul')).map(b => {
-    const copy = b.cloneNode(true) as HTMLElement;
-    copy.querySelectorAll('.sr-only').forEach(n => n.remove());
-    return copy.textContent?.trim().replace(/\s*Enter$/, '');
-  });
-}
 
 function searchFor(who: AccessInfo, text: string) {
   access = who;

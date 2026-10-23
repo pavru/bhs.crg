@@ -33,9 +33,15 @@ public static class AppPolicies
     /// Список из одного кода — та же политика, что <see cref="Permission" />: список могут
     /// собирать из вкладов включённых модулей, и при одном вкладе имя не должно отличаться от
     /// обычного. Пустой список — отказ: ворота без права не проверяют ничего, а выглядят как проверка.
+    /// Так же — код <c>null</c> или пустой в списке: вклад модуля, не назвавший права, обязан
+    /// назвать себя при сборке, а не уронить запуск безымянным <see cref="NullReferenceException" />.
     /// </summary>
     public static string AnyPermission(params string[] codes)
     {
+        if (codes.Any(string.IsNullOrWhiteSpace))
+            throw new ArgumentException(
+                $"В «любом из прав» не названо право: [{string.Join(", ", codes.Select(c => c is null ? "null" : $"«{c}»"))}].",
+                nameof(codes));
         var distinct = codes.Select(c => c.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         return distinct.Length > 0
             ? PermissionPrefix + string.Join(AnySeparator, distinct)
