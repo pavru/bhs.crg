@@ -66,6 +66,9 @@ export function fromChoice(choice: string): Place {
   return NO_PLACE;
 }
 
+/** Группа статей рядом со стройками — в выборе места разноски, в отчёте и в подсказке отбора. */
+export const OUTSIDE_SITES = 'Вне строек';
+
 /** Название цели, пока справочник мест грузится. */
 export const LOADING_PLACE = '…';
 

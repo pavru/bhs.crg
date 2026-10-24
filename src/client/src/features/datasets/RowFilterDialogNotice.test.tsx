@@ -38,6 +38,27 @@ describe('RowFilterDialog: пометка в строке условия', () =>
     expect(screen.queryByText(/нет в справочнике/)).toBeNull();
   });
 
+  it('пока открыт список подсказки, поле на пометку не ссылается', () => {
+    render(<RowFilterDialog columns={[OBJECTS]} initial={filter('Ком')} onSave={() => {}} onClose={() => {}} />);
+    const box = screen.getByRole('combobox', { name: 'Значение' }) as HTMLInputElement;
+    expect(box.getAttribute('aria-describedby')).toBeTruthy();
+    fireEvent.change(box, { target: { value: 'Комарова' } });
+    expect(box.getAttribute('aria-expanded')).toBe('true');
+    expect(box.getAttribute('aria-describedby')).toBeNull();
+    fireEvent.keyDown(box, { key: 'Escape' });
+    expect(box.getAttribute('aria-describedby')).toBeTruthy();
+  });
+
+  it('значение вне перечня колонки-выбора — только пометкой, без красной строки «не выполнится»', () => {
+    const state: FilterColumn = { name: 'Состояние', kind: 'choice', options: ['Оплачен', 'Не оплачен'], operators: ['in'] };
+    const initial: FilterGroup = {
+      type: 'group', logic: 'and', children: [{ type: 'condition', column: 'Состояние', op: 'in', values: ['Оплачен', 'Частично'] }],
+    };
+    render(<RowFilterDialog columns={[state]} initial={initial} onSave={() => {}} onClose={() => {}} />);
+    expect(screen.getByText(/«Частично» — нет в перечне колонки/)).toBeTruthy();
+    expect(screen.queryByText(/не выполнится/)).toBeNull();
+  });
+
   it('помеченный отбор сохраняется как набран', async () => {
     const onSave = vi.fn<(f: RowFilterDef | null) => void>();
     render(<RowFilterDialog columns={[OBJECTS]} initial={filter('Ленина 5')} onSave={onSave} onClose={() => {}} />);

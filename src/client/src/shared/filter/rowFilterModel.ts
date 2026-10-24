@@ -154,6 +154,16 @@ export function withColumn(cond: FilterCondition, name: string, columns: FilterC
   };
 }
 
+/**
+ * Значения условия «из списка» по колонке-выбору, которых в её закрытом перечне нет (сохранены раньше).
+ * Их показывает сам список отметок — тоном пометки (UI-56); строке под условием повторять их незачем.
+ */
+export function choiceStrays(cond: FilterCondition, column: Pick<FilterColumn, 'kind' | 'options'> | undefined): string[] {
+  if (column?.kind !== 'choice' || opArity(cond.op) !== 'list') return [];
+  const options = column.options ?? [];
+  return (cond.values ?? []).filter(v => !options.includes(v));
+}
+
 const KIND_NAMES: Record<string, string> = {
   text: 'текст', number: 'число', date: 'дата', boolean: 'да / нет', list: 'перечень', choice: 'выбор',
 };

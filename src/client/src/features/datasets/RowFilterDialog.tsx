@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { Plus, Trash2, GitBranch } from 'lucide-react';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { useChangedSince } from '@/shared/hooks/useChangedSince';
@@ -57,12 +57,13 @@ function FilterConditionRow({
   onRemove: () => void;
 }) {
   const hintId = useId();
+  const valueRef = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="group/condition" data-condition>
+    <div className="group/condition">
       <div className="flex items-start gap-1.5 group/cond">
         <Tooltip content={`Условие ${path}`}><span className="w-6 shrink-0 pt-1.5 text-caption tabular-nums text-fg4">{path}</span></Tooltip>
-        <ConditionEditor cond={cond} columns={columns} onChange={onChange} hintId={hintId} />
+        <ConditionEditor cond={cond} columns={columns} onChange={onChange} hintId={hintId} valueRef={valueRef} />
 
         {/* Remove */}
         <Tooltip content="Удалить условие" name>
@@ -77,7 +78,7 @@ function FilterConditionRow({
       </div>
       {/* Подсказка, а не запрет (issue #1137): годен ли отбор, решает сервер при сохранении. Здесь —
           то, что видно сразу и без запроса; ошибись эта копия правил, она не запрёт годный отбор. */}
-      <ConditionHint id={hintId} cond={cond} columns={columns} onChange={onChange} className="mt-0.5" />
+      <ConditionHint id={hintId} cond={cond} columns={columns} onChange={onChange} className="mt-0.5" fieldRef={valueRef} />
     </div>
   );
 }

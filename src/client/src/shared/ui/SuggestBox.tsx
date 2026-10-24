@@ -150,6 +150,9 @@ export function SuggestBox({
     onChange: (e: { target: { value: string } }) => type(e.target.value),
     onKeyDown: keyDown,
     onBlur: blur,
+    // Пока список открыт, описание поля не зачитывается: человек выбирает пункт, а описание — о набранном
+    // (пометку отбора под полем в это время и не видно, UI-56).
+    ...(shown && rest['aria-describedby'] ? { 'aria-describedby': undefined } : {}),
   } as const;
   // Живая область — внутри оболочки поля: соседом в разметке экрана поле перестало бы быть последним
   // в стопке `space-y-*`. У клетки оболочки нет — там она ложится рядом с полем, в клетку.

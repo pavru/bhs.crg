@@ -22,7 +22,8 @@ export const upper = (text: string) => text.toUpperCase();
 
 const POSITIVE: Partial<Record<FilterOp, FilterOp>> = { neq: 'eq', not_in: 'in', not_contains: 'contains' };
 
-function textMatches(op: FilterOp, item: string, value: string): boolean {
+/** Сравнение уже поднятых в верхний регистр строк — как `TextMatches` сервера. */
+export function textMatches(op: FilterOp, item: string, value: string): boolean {
   switch (op) {
     case 'eq': return item === value;
     case 'contains': return item.includes(value);

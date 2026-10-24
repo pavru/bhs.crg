@@ -2,7 +2,7 @@ import { withArchiveWord } from '@/shared/ui/archive';
 import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
 import { pickSite, REVEAL_CHOICE, useSiteChoices } from '@/shared/siteFilter/siteReveal';
 import { RevealItem, SiteSelectItems } from '@/shared/siteFilter/SiteOptions';
-import { choiceOf, fromChoice, placeName, type Place, type Places } from './places';
+import { choiceOf, fromChoice, OUTSIDE_SITES, placeName, type Place, type Places } from './places';
 
 /**
  * Выбор цели разноски (задача F3, issue #1087): стройки и статьи вне строек — двумя группами, чтобы «Склад»
@@ -51,7 +51,7 @@ export function PlaceSelect({ value, places, label, placeholder = '— выбе�
       {orphan !== null && <SelectItem value={current}>{orphan}</SelectItem>}
       <SiteSelectItems choices={sites} valueFor={site => choiceOf({ construction: site, section: null, article: null })} />
       {!!articles?.length && (
-        <SelectGroup label="Вне строек">
+        <SelectGroup label={OUTSIDE_SITES}>
           {articles.map(a => (
             <SelectItem key={a.id} value={choiceOf({ construction: null, section: null, article: a.id })}>
               {withArchiveWord(a.name, a.archived)}

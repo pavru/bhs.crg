@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type Ref } from 'react';
 import { BookX, X } from 'lucide-react';
 import type { FilterCondition } from '@/shared/api/types';
-import { opArity, valueFits, type FilterColumn } from './rowFilterModel';
+import { choiceStrays, opArity, valueFits, type FilterColumn } from './rowFilterModel';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { DateInput } from '@/shared/ui/DateInput';
 import { DateRange } from '@/shared/ui/DateRange';
@@ -34,7 +34,7 @@ type ValueColumn = Omit<FilterColumn, 'name'>;
  * свободным текстом: «содержит Комарова» задаётся, как раньше. Есть ли поле с подсказкой, решает
  * объявление колонки, а не загрузка перечня: иначе поле сменилось бы посреди ввода и потеряло фокус.
  */
-function ValueInput({ column, value, onChange, placeholder, onEnter, onAccept, onBlur, describedBy }: {
+function ValueInput({ column, value, onChange, placeholder, onEnter, onAccept, onBlur, describedBy, inputRef }: {
   column?: ValueColumn;
   value: string;
   onChange: (v: string) => void;
@@ -45,6 +45,8 @@ function ValueInput({ column, value, onChange, placeholder, onEnter, onAccept, o
   onBlur?: () => void;
   /** Строка пометки под условием — полю в `aria-describedby`. */
   describedBy?: string;
+  /** Текстовое поле — пометке: после замены фокус возвращается сюда. */
+  inputRef?: Ref<HTMLInputElement>;
 }) {
   const kind = column?.kind;
   const cls = `${FIELD_CLS} flex-1 min-w-0`;
@@ -81,7 +83,7 @@ function ValueInput({ column, value, onChange, placeholder, onEnter, onAccept, o
     return (
       <SuggestField compact arrowOpens options={column.known.items} label={placeholder} placeholder={placeholder}
         value={value} onChange={change} onKeyDown={enter} onAccept={onAccept} onBlur={onBlur}
-        aria-describedby={describedBy} className={cls} />
+        aria-describedby={describedBy} className={cls} ref={inputRef} />
     );
 
   return (
@@ -91,6 +93,7 @@ function ValueInput({ column, value, onChange, placeholder, onEnter, onAccept, o
       value={value}
       onChange={e => change(e.target.value)}
       onKeyDown={enter}
+      ref={inputRef}
       onBlur={onBlur}
       placeholder={placeholder}
       aria-label={placeholder}
@@ -105,12 +108,13 @@ function ValueInput({ column, value, onChange, placeholder, onEnter, onAccept, o
  * Набранное, но не добавленное значение добавляется и при уходе из поля, дата — и выбором в календаре. Иначе «набрал второе
  * значение и нажал „Сохранить“» сохраняло отбор без него — уже́ задуманного и без единого сигнала.
  */
-function ValueList({ column, values, marked, describedBy, onChange }: {
+function ValueList({ column, values, marked, describedBy, inputRef, onChange }: {
   column?: ValueColumn;
   values: string[];
   /** Значения вне открытого перечня колонки — жетоном пометки (UI-56). */
   marked?: ReadonlySet<string>;
   describedBy?: string;
+  inputRef?: Ref<HTMLInputElement>;
   onChange: (v: string[]) => void;
 }) {
   const [draft, setDraft] = useState('');
@@ -185,7 +189,7 @@ function ValueList({ column, values, marked, describedBy, onChange }: {
           </div>
         ) : (
           <ValueInput column={column} value={draft} onChange={edit} placeholder="Добавить значение"
-            onEnter={add} onAccept={add} onBlur={add} describedBy={describedBy} />
+            onEnter={add} onAccept={add} onBlur={add} describedBy={describedBy} inputRef={inputRef} />
         )}
         <button
           type="button"
@@ -208,12 +212,13 @@ function ValueList({ column, values, marked, describedBy, onChange }: {
  * и снимается крестиком — иначе условие выглядело бы короче, чем оно есть в базе. Тон и форма — те же,
  * что у пометки «нет в справочнике» (UI-56): жетон предупреждения и строка под отметками, не красное.
  */
-function OptionList({ options, values, onChange }: {
+function OptionList({ options, values, strays, onChange }: {
   options: string[];
   values: string[];
+  /** Значения вне перечня — `choiceStrays`. */
+  strays: string[];
   onChange: (v: string[]) => void;
 }) {
-  const strays = values.filter(v => !options.includes(v));
   // Порядок значений в условии — порядок перечня, а не порядок щелчков: один и тот же выбор даёт
   // одно и то же условие.
   const toggle = (option: string) => onChange(values.includes(option)
@@ -275,11 +280,13 @@ function Bounds({ column, from, to, onChange }: {
  * Поле значения условия — по оператору: ничего, одно значение, две границы или список. Форму
  * значения (`value` или `values`) здесь не меняем: её выставляет смена оператора (`withOperator`).
  */
-export function RowFilterValue({ cond, column, hintId, onChange }: {
+export function RowFilterValue({ cond, column, hintId, valueRef, onChange }: {
   cond: FilterCondition;
   column?: ValueColumn;
   /** `id` строки под условием (`ConditionHint`): поле ссылается на неё, когда в ней пометка. */
   hintId?: string;
+  /** Текстовое поле значения (одно значение или добавление в список) — для фокуса после замены. */
+  valueRef?: Ref<HTMLInputElement>;
   onChange: (c: FilterCondition) => void;
 }) {
   // Сменили колонку — поле появляется заново: вид у новой колонки другой.
@@ -294,7 +301,7 @@ export function RowFilterValue({ cond, column, hintId, onChange }: {
     case 'one':
       return (
         <ValueInput key={field} column={column} value={cond.value ?? ''} placeholder="Значение"
-          describedBy={describedBy} onChange={value => onChange({ ...cond, value })} />
+          describedBy={describedBy} inputRef={valueRef} onChange={value => onChange({ ...cond, value })} />
       );
 
     case 'two': {
@@ -305,9 +312,9 @@ export function RowFilterValue({ cond, column, hintId, onChange }: {
 
     case 'list':
       return column?.kind === 'choice'
-        ? <OptionList key={field} options={column.options ?? []} values={cond.values ?? []}
+        ? <OptionList key={field} options={column.options ?? []} values={cond.values ?? []} strays={choiceStrays(cond, column)}
             onChange={values => onChange({ ...cond, values })} />
-        : <ValueList key={field} column={column} values={cond.values ?? []} describedBy={describedBy}
+        : <ValueList key={field} column={column} values={cond.values ?? []} describedBy={describedBy} inputRef={valueRef}
             marked={notice?.kind === 'values' ? new Set(notice.misses.map(m => m.value)) : undefined}
             onChange={values => onChange({ ...cond, values })} />;
   }

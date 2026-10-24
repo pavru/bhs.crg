@@ -4,6 +4,7 @@ import type { ColumnKnown, KnownExplain } from '@/shared/filter/rowFilterModel';
 import { GROUP_FAVORITES, GROUP_OTHERS } from '@/shared/siteFilter/siteChoices';
 import { withArchiveWord } from '@/shared/ui/archive';
 import type { SuggestItem } from '@/shared/ui/suggestMatch';
+import { OUTSIDE_SITES } from './places';
 import { REGISTRY_WORDS, sectionLabel } from './registryWords';
 
 /**
@@ -20,7 +21,7 @@ import { REGISTRY_WORDS, sectionLabel } from './registryWords';
  * Урезать перечень фильтр не может: отбор — условие, а не список.</p>
  */
 
-export const GROUP_OUTSIDE = 'Вне строек';
+export const GROUP_OUTSIDE = OUTSIDE_SITES;
 /** Приписка стройки, у которой есть тёзка-статья: под условием по названию попадут обе. */
 export const TWIN_NOTE = 'и статья вне строек';
 

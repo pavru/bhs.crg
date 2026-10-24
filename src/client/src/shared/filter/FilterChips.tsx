@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { BookX, Plus, SlidersHorizontal, TriangleAlert, X } from 'lucide-react';
 import type { FilterCondition, FilterNode } from '@/shared/api/types';
@@ -171,6 +171,7 @@ function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, ch
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(initial);
   const hintId = useId();
+  const valueRef = useRef<HTMLInputElement>(null);
 
   function toggle(next: boolean) {
     // Открыли заново — начинаем с того, что стоит в отборе, а не с брошенного черновика.
@@ -194,14 +195,14 @@ function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, ch
         <Popover.Content align="start" sideOffset={6}
           className="z-50 w-72 rounded-lg bg-surface border border-stroke p-3 focus:outline-none"
           style={{ boxShadow: 'var(--f-shadow16)' }}>
-          <form className="group/condition" data-condition onSubmit={e => { e.preventDefault(); apply(); }}>
-            <ConditionEditor stacked cond={draft} columns={columns} onChange={setDraft} hintId={hintId} />
+          <form className="group/condition" onSubmit={e => { e.preventDefault(); apply(); }}>
+            <ConditionEditor stacked cond={draft} columns={columns} onChange={setDraft} hintId={hintId} valueRef={valueRef} />
             {/* Подсказка, а не запрет — как в диалоге (issue #1137): годно ли условие, решает сервер, а его
                 отказ экран покажет на чипе. Пометка «нет в справочнике» тоже не запирает «Применить». */}
             {waiting
               ? <p className="mt-1.5 text-xs text-fg4">Введите значение — без него отбор не ставится.</p>
               : <ConditionHint id={hintId} cond={draft} columns={columns} onChange={setDraft} className="mt-1.5"
-                  problemOf={chipProblem} />}
+                  problemOf={chipProblem} fieldRef={valueRef} />}
             <div className="mt-2.5 flex justify-end">
               <button type="submit" disabled={!draft.column.trim() || waiting}
                 className="px-3 py-1 rounded-md text-xs font-medium text-on-brand bg-brand disabled:opacity-50">

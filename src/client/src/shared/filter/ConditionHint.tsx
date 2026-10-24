@@ -1,8 +1,8 @@
-import type { MouseEvent } from 'react';
+import type { RefObject } from 'react';
 import { BookX } from 'lucide-react';
 import type { FilterCondition } from '@/shared/api/types';
-import { conditionNotice, missActions, missText, NONE_FITS } from './conditionNotice';
-import { conditionProblem, type FilterColumn } from './rowFilterModel';
+import { conditionNotice, missActions, missText, noticeText } from './conditionNotice';
+import { choiceStrays, conditionProblem, type FilterColumn } from './rowFilterModel';
 
 /**
  * Строка под условием — одна на окошко чипа и строку расширенного диалога (UI-56): проблема («не
@@ -11,10 +11,13 @@ import { conditionProblem, type FilterColumn } from './rowFilterModel';
  * отборе» (выбор владельца 24.10.2026).
  *
  * <p>Пометка — не тревога: без `role="alert"` и без живой области; поле связано с ней `aria-describedby`
- * (`id`). Пока открыт список подсказки, её не видно — человек ещё выбирает. Для этого родитель условия
- * несёт класс `group/condition` и признак `data-condition`: после замены фокус возвращается в поле.</p>
+ * (`id`). Пока открыт список подсказки, её не видно — человек ещё выбирает: для этого родитель условия
+ * несёт класс `group/condition`. После замены фокус возвращается в поле значения (`fieldRef`).</p>
+ *
+ * <p>Значения вне закрытого перечня колонки-выбора здесь не повторяются: о них тоном пометки говорит сам
+ * список отметок (`OptionList`), и красная строка о том же значении рядом с жёлтой противоречила бы ей.</p>
  */
-export function ConditionHint({ cond, columns, onChange, id, className = '', problemOf = conditionProblem }: {
+export function ConditionHint({ cond, columns, onChange, id, fieldRef, className = '', problemOf = conditionProblem }: {
   cond: FilterCondition;
   columns: FilterColumn[];
   /** Чем искать проблему: у чипа таблицы сверх общих правил — колонка, которой в таблице нет (`chipProblem`). */
@@ -22,21 +25,26 @@ export function ConditionHint({ cond, columns, onChange, id, className = '', pro
   onChange: (c: FilterCondition) => void;
   /** Тот же `id`, что ушёл полю значения в `aria-describedby`. */
   id?: string;
+  /** Поле значения — в него возвращается фокус после замены. */
+  fieldRef?: RefObject<HTMLInputElement | null>;
   className?: string;
 }) {
-  const problem = problemOf(cond, columns);
+  const column = columns.find(c => c.name === cond.column);
+  const strays = choiceStrays(cond, column);
+  const rest = strays.length > 0 ? { ...cond, values: (cond.values ?? []).filter(v => !strays.includes(v)) } : cond;
+  // Остались одни значения вне перечня — сказать сверх списка отметок нечего.
+  const problem = strays.length > 0 && rest.values?.length === 0 ? null : problemOf(rest, columns);
   if (problem) return <p className={`${className} text-xs text-danger`}>Похоже, условие не выполнится: {problem}.</p>;
 
-  const notice = conditionNotice(cond, columns.find(c => c.name === cond.column));
+  const notice = conditionNotice(cond, column);
   if (!notice) return null;
   const lines = notice.kind === 'pattern'
-    ? [{ key: '', text: `${NONE_FITS[0].toUpperCase()}${NONE_FITS.slice(1)}`, actions: [] }]
+    ? [{ key: '', text: noticeText(notice), actions: [] }]
     : notice.misses.map(m => ({ key: m.value, text: `«${m.value}» — ${missText(m)}`, actions: missActions(cond, m) }));
 
-  function act(e: MouseEvent<HTMLButtonElement>, next: FilterCondition) {
-    const field = e.currentTarget.closest('[data-condition]')?.querySelector<HTMLInputElement>('input[role="combobox"]');
+  function act(next: FilterCondition) {
     onChange(next);
-    field?.focus();
+    fieldRef?.current?.focus();
   }
 
   return (
@@ -49,7 +57,7 @@ export function ConditionHint({ cond, columns, onChange, id, className = '', pro
             <span>{line.text}</span>
           </span>
           {line.actions.map(a => (
-            <button key={a.label} type="button" onClick={e => act(e, a.next)} className="text-brand hover:underline">
+            <button key={a.label} type="button" onClick={() => act(a.next)} className="text-brand hover:underline">
               {a.label}
             </button>
           ))}
