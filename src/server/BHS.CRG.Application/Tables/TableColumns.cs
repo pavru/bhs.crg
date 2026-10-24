@@ -149,10 +149,13 @@ public static class TableOperators
 /// входит. Экран по ней показывает её выключенной, пока человек не включит.</param>
 /// <param name="Sites">В клетках — названия строек справочника: экран предлагает по колонке отбор
 /// «избранные стройки» (issue #1223). Отбор ставит человек; сервер признаком не отбирает.</param>
+/// <param name="Sections">В клетках — разделы справочника в подписи «стройка / раздел»: экран подсказывает
+/// значение условия из справочника. Подсказка экрану; сервер признаком не отбирает.</param>
 public record TableColumnDto(
     string Key, string Label, string Kind, IReadOnlyList<string> Operators, bool System,
     string? Unavailable = null, string? Reason = null, bool DependsOnFilter = false, string? Note = null,
-    IReadOnlyList<string>? Options = null, string? Requires = null, bool OnDemand = false, bool Sites = false);
+    IReadOnlyList<string>? Options = null, string? Requires = null, bool OnDemand = false, bool Sites = false,
+    bool Sections = false);
 
 /// <summary>
 /// Таблица без строк — что она такое и из чего состоит (G1e, issue #1092). Экран спрашивает это

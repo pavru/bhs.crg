@@ -234,7 +234,8 @@ public static class InvoiceTable
             // Стройки в «Объекте» — вперемешку со статьями вне строек: экран предлагает по ней отбор
             // «избранные стройки» (issue #1223), неявно реестр не урезается.
             new(ObjectsKey, "Объект", ModuleTableColumnKind.List, Sites: true),
-            new(SectionsKey, "Раздел", ModuleTableColumnKind.List),
+            // Разделы — подписью «стройка / раздел»: экран подсказывает их из справочника строек.
+            new(SectionsKey, "Раздел", ModuleTableColumnKind.List, Sections: true),
             new(AmountKey, "Сумма", ModuleTableColumnKind.Number, "costs.invoice.read", Amounts,
                 DependsOnFilter: true),
             new(InvoiceRequisites.TotalKey, "Сумма к оплате", ModuleTableColumnKind.Number,

@@ -6,7 +6,7 @@ import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { FilterChips } from '@/shared/filter/FilterChips';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import {
-  defaultColumnKeys, tableExportBody, tableFilterColumns, useTable, useTableDeclaration, type TableData,
+  defaultColumnKeys, tableExportBody, tableFilterColumns, useTable, useTableDeclaration, type TableColumn, type TableData,
 } from '@/shared/api/tables';
 import { useSavedTableViews } from '@/shared/api/tableViews';
 import type { FilterGroup, FilterNode } from '@/shared/api/types';
@@ -22,6 +22,7 @@ import { TableViewHeader } from './TableViewHeader';
 import { isSavedId, lookupBase, lookupTitle, rowsWantedFor, viewLookup, viewModified } from './savedViews';
 import { withShortcut } from './tableShortcuts';
 import { withSitesChip } from './tableSites';
+import { useTableKnown } from './tableKnown';
 import { cellText, gridColumns, gridState, hiddenByRight, hiddenCountText, pageCount, shownOf } from './tableCells';
 import { hasShownTotals, totalText } from './tableTotals';
 import {
@@ -76,6 +77,10 @@ export function TablePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `lookup` новый на каждой отрисовке; основу определяют эти двое
   const base = useMemo(() => lookupBase(lookup), [preset, stored]);
   const [view, setView] = useTableView(base);
+  // Перечни «Объекта» и «Раздела» — подсказка значения в условии отбора (UI-56). Хук — до ранних выходов;
+  // у выключенного модуля справочников не спрашиваем: его адреса закрыты.
+  const known = useTableKnown(address,
+    declaration.data && declaration.data.state !== 'module-off' ? declaration.data.columns : NO_COLUMNS);
 
   const filter = view.filter ?? view.brokenFilter;
   // ⚠️ Под готовым представлением строки ждут описания: настройка приходит в нём, и запрос, ушедший
@@ -149,7 +154,7 @@ export function TablePage() {
     );
   const allKeys = defaultColumnKeys(decl.columns);
   const kinds = new Map(decl.columns.map(c => [c.key, c.kind]));
-  const filterColumns = tableFilterColumns(decl.columns);
+  const filterColumns = tableFilterColumns(decl.columns, known);
   // Сортируют по колонке с постоянным смыслом и видимыми значениями — остальным сервер откажет.
   const sortable = new Set(decl.columns.filter(c => !c.unavailable && !c.dependsOnFilter).map(c => c.key));
   const data = table.data;
@@ -347,6 +352,8 @@ function Pager({ view, data, onChange }: {
     </div>
   );
 }
+
+const NO_COLUMNS: TableColumn[] = [];
 
 const ADVANCED_WORDING = {
   title: 'Отбор: расширенный режим',

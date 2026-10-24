@@ -3,6 +3,7 @@ import { withArchiveWord } from '@/shared/ui/archive';
 import { useCostsArticles, type CostsArticle } from '@/shared/api/articles';
 import { useCostsConstructions, type AllocationPartView, type CostsConstruction } from '@/shared/api/invoices';
 import type { Place } from '@/shared/api/allocationMatrix';
+import { sectionLabel } from './registryWords';
 
 /**
  * Цели разноски (задача F3, issue #1087, ТЗ COST-10.1): стройка с разделом или статья вне строек.
@@ -86,7 +87,7 @@ export function placeName(place: Place, places: Places): string {
   const site = places.sites?.find(s => s.id === place.construction);
   if (!site) return place.construction ? LOST.construction : 'объект не выбран';
   if (!place.section) return site.name;
-  return `${site.name} / ${site.sections.find(s => s.id === place.section)?.name ?? missingSection(place.section, places)}`;
+  return sectionLabel(site.name, site.sections.find(s => s.id === place.section)?.name ?? missingSection(place.section, places));
 }
 
 /**

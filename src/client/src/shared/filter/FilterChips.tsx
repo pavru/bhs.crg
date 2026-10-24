@@ -1,8 +1,10 @@
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import * as Popover from '@radix-ui/react-popover';
-import { Plus, SlidersHorizontal, TriangleAlert, X } from 'lucide-react';
+import { BookX, Plus, SlidersHorizontal, TriangleAlert, X } from 'lucide-react';
 import type { FilterCondition, FilterNode } from '@/shared/api/types';
 import { ConditionEditor } from './ConditionEditor';
+import { ConditionHint } from './ConditionHint';
+import { conditionNotice, noticeText } from './conditionNotice';
 import {
   chipAdded, chipProblem, chipRemoved, chipReplaced, chipsView, chipText, conditionEntered, offeredColumns,
   offeredCondition, type FilterChange,
@@ -111,7 +113,12 @@ const CHIP_CLS = 'inline-flex items-center rounded-full border text-xs bg-surfac
 
 const NEW_CONDITION: FilterCondition = { type: 'condition', column: '', op: 'eq', value: '' };
 
-/** Один чип: текст открывает правку, крестик снимает условие. */
+/**
+ * Один чип: текст открывает правку, крестик снимает условие. Условие, которое не выполнится, — красным
+ * со значком предупреждения; условие, которое выполнится, но не найдёт (UI-56), — целиком в тоне
+ * предупреждения со значком справочника и подсказкой, без действия: замена — в окошке чипа. Значки
+ * разные, а не только цвет.
+ */
 function Chip({ cond, columns, onChange, onRemove }: {
   cond: FilterCondition;
   columns: FilterColumn[];
@@ -120,13 +127,17 @@ function Chip({ cond, columns, onChange, onRemove }: {
 }) {
   const text = chipText(cond, columns);
   const problem = chipProblem(cond, columns);
+  const notice = problem ? null : conditionNotice(cond, columns.find(c => c.name === cond.column));
+  const tone = problem ? 'border-danger text-danger'
+    : notice ? 'border-warning-border bg-warning-subtle text-warning' : 'border-stroke text-fg1';
 
   return (
-    <Tooltip content={problem ? `Условие не выполнится: ${problem}` : undefined}>
-      <span className={`${CHIP_CLS} ${problem ? 'border-danger text-danger' : 'border-stroke text-fg1'}`}>
+    <Tooltip content={problem ? `Условие не выполнится: ${problem}` : notice ? noticeText(notice) : undefined}>
+      <span className={`${CHIP_CLS} ${tone}`} data-notice={notice ? '' : undefined}>
         <ConditionPopover columns={columns} initial={cond} submit="Применить" onSubmit={onChange}>
           <button type="button" className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-l-full hover:bg-muted">
             {problem && <TriangleAlert size={12} aria-hidden />}
+            {notice && <BookX size={12} aria-label="нет в справочнике" />}
             {text}
           </button>
         </ConditionPopover>
@@ -159,9 +170,7 @@ function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, ch
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(initial);
-  // Подсказка, а не запрет — как в диалоге (issue #1137): годно ли условие, решает сервер, а его
-  // отказ экран покажет на чипе.
-  const problem = chipProblem(draft, columns);
+  const hintId = useId();
 
   function toggle(next: boolean) {
     // Открыли заново — начинаем с того, что стоит в отборе, а не с брошенного черновика.
@@ -185,11 +194,14 @@ function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, ch
         <Popover.Content align="start" sideOffset={6}
           className="z-50 w-72 rounded-lg bg-surface border border-stroke p-3 focus:outline-none"
           style={{ boxShadow: 'var(--f-shadow16)' }}>
-          <form onSubmit={e => { e.preventDefault(); apply(); }}>
-            <ConditionEditor stacked cond={draft} columns={columns} onChange={setDraft} />
+          <form className="group/condition" data-condition onSubmit={e => { e.preventDefault(); apply(); }}>
+            <ConditionEditor stacked cond={draft} columns={columns} onChange={setDraft} hintId={hintId} />
+            {/* Подсказка, а не запрет — как в диалоге (issue #1137): годно ли условие, решает сервер, а его
+                отказ экран покажет на чипе. Пометка «нет в справочнике» тоже не запирает «Применить». */}
             {waiting
               ? <p className="mt-1.5 text-xs text-fg4">Введите значение — без него отбор не ставится.</p>
-              : problem && <p className="mt-1.5 text-xs text-danger">Похоже, условие не выполнится: {problem}.</p>}
+              : <ConditionHint id={hintId} cond={draft} columns={columns} onChange={setDraft} className="mt-1.5"
+                  problemOf={chipProblem} />}
             <div className="mt-2.5 flex justify-end">
               <button type="submit" disabled={!draft.column.trim() || waiting}
                 className="px-3 py-1 rounded-md text-xs font-medium text-on-brand bg-brand disabled:opacity-50">

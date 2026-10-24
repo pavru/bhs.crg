@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Plus, Trash2, GitBranch } from 'lucide-react';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import type { FilterCondition, FilterGroup, RowFilterDef } from '@/shared/api/types';
 import { cleanFilterNode, isEditableFilterRoot } from '@/shared/api/datasetHelpers';
 import {
-  conditionProblem, fromDraft, newCondition, newGroup, pruneDraft, toDraft,
+  fromDraft, newCondition, newGroup, pruneDraft, toDraft,
   type DraftGroup, type FilterColumn,
 } from '@/shared/filter/rowFilterModel';
 import { ConditionEditor } from '@/shared/filter/ConditionEditor';
+import { ConditionHint } from '@/shared/filter/ConditionHint';
 import { useDialogSave } from './useDialogSave';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
@@ -55,15 +56,13 @@ function FilterConditionRow({
   onChange: (c: FilterCondition) => void;
   onRemove: () => void;
 }) {
-  // Подсказка, а не запрет (issue #1137): годен ли отбор, решает сервер при сохранении. Здесь —
-  // то, что видно сразу и без запроса; ошибись эта копия правил, она не запрёт годный отбор.
-  const problem = conditionProblem(cond, columns);
+  const hintId = useId();
 
   return (
-    <div>
+    <div className="group/condition" data-condition>
       <div className="flex items-start gap-1.5 group/cond">
         <Tooltip content={`Условие ${path}`}><span className="w-6 shrink-0 pt-1.5 text-caption tabular-nums text-fg4">{path}</span></Tooltip>
-        <ConditionEditor cond={cond} columns={columns} onChange={onChange} />
+        <ConditionEditor cond={cond} columns={columns} onChange={onChange} hintId={hintId} />
 
         {/* Remove */}
         <Tooltip content="Удалить условие" name>
@@ -76,7 +75,9 @@ function FilterConditionRow({
           </button>
         </Tooltip>
       </div>
-      {problem && <p className="mt-0.5 text-xs text-danger">Похоже, условие не выполнится: {problem}.</p>}
+      {/* Подсказка, а не запрет (issue #1137): годен ли отбор, решает сервер при сохранении. Здесь —
+          то, что видно сразу и без запроса; ошибись эта копия правил, она не запрёт годный отбор. */}
+      <ConditionHint id={hintId} cond={cond} columns={columns} onChange={onChange} className="mt-0.5" />
     </div>
   );
 }

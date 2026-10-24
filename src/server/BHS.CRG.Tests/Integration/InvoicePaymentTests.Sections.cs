@@ -222,6 +222,27 @@ public partial class InvoicePaymentTests
             .ReopenAsync(new ReopenPeriod(Contour.Company, seen, "для теста"));
     }
 
+    /// <summary>
+    /// <b>Колонки реестра называют справочник своих значений</b> (ТЗ CORE-33): «Раздел» — разделы,
+    /// «Объект» — стройки, прочие — ничего. По пометке экран подсказывает значение условия; выдачу она не
+    /// меняет — строки и итоги под отбором по разделу держит сторож выше.
+    /// </summary>
+    [Fact]
+    public async Task Колонки_реестра_помечают_стройки_и_разделы()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        var columns = (await admin.GetFromJsonAsync<JsonElement>("/api/tables/costs.invoices/columns"))
+            .GetProperty("columns").EnumerateArray().ToList();
+
+        static bool Flag(JsonElement column, string name) =>
+            column.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.True;
+        string[] Marked(string name) =>
+            [.. columns.Where(c => Flag(c, name)).Select(c => c.GetProperty("key").GetString()!)];
+
+        Assert.Equal(["РазделыРазноски"], Marked("sections"));
+        Assert.Equal(["ОбъектыРазноски"], Marked("sites"));
+    }
+
     /// <summary>Учётные дни всех долей счёта — у одной стройки их бывает несколько, по разделам.</summary>
     private async Task<DateOnly?[]> DaysAsync(Guid invoice)
     {
