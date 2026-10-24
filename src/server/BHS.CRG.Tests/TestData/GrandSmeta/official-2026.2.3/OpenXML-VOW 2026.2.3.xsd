@@ -1,0 +1,1204 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<!--Created with Liquid Studio (https://www.liquid-technologies.com)-->
+<xs:schema attributeFormDefault="unqualified" elementFormDefault="qualified" version="2026.2.3" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:element name="Document">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="Properties" type="TDocProperties" minOccurs="0">
+                    <xs:annotation>
+                        <xs:documentation>Свойства документа</xs:documentation>
+                    </xs:annotation>
+                </xs:element>
+                <xs:element name="Hyperlinks" type="THyperLinks" minOccurs="0">
+                    <xs:annotation>
+                        <xs:documentation>Гиперссылки</xs:documentation>
+                    </xs:annotation>
+                </xs:element>
+                <xs:element name="Attachments" minOccurs="0">
+                    <xs:annotation>
+                        <xs:documentation>Вложения</xs:documentation>
+                    </xs:annotation>
+                    <xs:complexType>
+                        <xs:sequence minOccurs="0" maxOccurs="unbounded">
+                            <xs:element name="Image" minOccurs="0" maxOccurs="unbounded">
+                                <xs:annotation>
+                                    <xs:documentation>Вложение типа изображение</xs:documentation>
+                                </xs:annotation>
+                                <xs:complexType>
+                                    <xs:attributeGroup ref="AAttachment" />
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="Binary" minOccurs="0" maxOccurs="unbounded">
+                                <xs:annotation>
+                                    <xs:documentation>Вложение любой тип файла</xs:documentation>
+                                </xs:annotation>
+                                <xs:complexType>
+                                    <xs:attributeGroup ref="AAttachment" />
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="IdsGenerator" minOccurs="0">
+                    <xs:annotation>
+                        <xs:documentation>Работа с идентификаторами</xs:documentation>
+                    </xs:annotation>
+                    <xs:complexType>
+                        <xs:attribute name="Active" use="optional">
+                            <xs:annotation>
+                                <xs:documentation>Автоматически генерировать идентификаторы</xs:documentation>
+                            </xs:annotation>
+                            <xs:simpleType>
+                                <xs:restriction base="xs:string">
+                                    <xs:enumeration value="Yes">
+                                        <xs:annotation>
+                                            <xs:documentation>Позиция неактивна</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:enumeration>
+                                </xs:restriction>
+                            </xs:simpleType>
+                        </xs:attribute>
+                        <xs:attribute name="KeepCount" use="optional">
+                            <xs:annotation>
+                                <xs:documentation>Запоминать номер последнего сгенерированного</xs:documentation>
+                            </xs:annotation>
+                            <xs:simpleType>
+                                <xs:restriction base="xs:string">
+                                    <xs:enumeration value="Yes">
+                                        <xs:annotation>
+                                            <xs:documentation>Позиция неактивна</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:enumeration>
+                                </xs:restriction>
+                            </xs:simpleType>
+                        </xs:attribute>
+                        <xs:attribute name="Counter" type="xs:string" use="optional">
+                            <xs:annotation>
+                                <xs:documentation>Номер следующего идентификатора</xs:documentation>
+                            </xs:annotation>
+                        </xs:attribute>
+                        <xs:attribute name="Prefix" type="xs:string" use="optional">
+                            <xs:annotation>
+                                <xs:documentation>Общий префикс в наименовании идентификатора</xs:documentation>
+                            </xs:annotation>
+                        </xs:attribute>
+                        <xs:attribute name="InternalCounter" type="xs:string" use="optional">
+                            <xs:annotation>
+                                <xs:documentation>Внутренний системный номер последнего идентификатора</xs:documentation>
+                            </xs:annotation>
+                        </xs:attribute>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="Variables" minOccurs="0">
+                    <xs:annotation>
+                        <xs:documentation>Список переменных в документе</xs:documentation>
+                        <xs:documentation>Document.LoadVars url</xs:documentation>
+                        <xs:documentation>Document.Variables.RefreshExternalLinks</xs:documentation>
+                    </xs:annotation>
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="Variable" minOccurs="0" maxOccurs="unbounded">
+                                <xs:annotation>
+                                    <xs:documentation>Переменная</xs:documentation>
+                                </xs:annotation>
+                                <xs:complexType>
+                                    <xs:attributeGroup ref="AVariable" />
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="Tables" minOccurs="0">
+                    <xs:annotation>
+                        <xs:documentation>Таблицы расчёта</xs:documentation>
+                    </xs:annotation>
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="Table" minOccurs="0" maxOccurs="unbounded">
+                                <xs:annotation>
+                                    <xs:documentation>Таблица</xs:documentation>
+                                </xs:annotation>
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="Header" minOccurs="0" maxOccurs="1">
+                                            <xs:annotation>
+                                                <xs:documentation>Настройки заголовков столбцов</xs:documentation>
+                                            </xs:annotation>
+                                            <xs:complexType>
+                                                <xs:sequence>
+                                                    <xs:element name="Item" minOccurs="0" maxOccurs="unbounded">
+                                                        <xs:annotation>
+                                                            <xs:documentation>Заголовок столбца</xs:documentation>
+                                                        </xs:annotation>
+                                                        <xs:complexType>
+                                                            <xs:attribute name="Caption" type="xs:string" use="optional">
+                                                                <xs:annotation>
+                                                                    <xs:documentation>Наименование столбца</xs:documentation>
+                                                                </xs:annotation>
+                                                            </xs:attribute>
+                                                            <xs:attribute name="Left" type="xs:unsignedByte">
+                                                                <xs:annotation>
+                                                                    <xs:documentation>Позиция наименования слева (0 - первый столбец)</xs:documentation>
+                                                                </xs:annotation>
+                                                            </xs:attribute>
+                                                            <xs:attribute name="Top" type="xs:unsignedByte">
+                                                                <xs:annotation>
+                                                                    <xs:documentation>Позиция наименования сверху (0 - первая строка)</xs:documentation>
+                                                                </xs:annotation>
+                                                            </xs:attribute>
+                                                            <xs:attribute name="Width" type="xs:unsignedByte">
+                                                                <xs:annotation>
+                                                                    <xs:documentation>Ширина заголовка (1 - один столбец)</xs:documentation>
+                                                                </xs:annotation>
+                                                            </xs:attribute>
+                                                            <xs:attribute name="Height" type="xs:unsignedByte">
+                                                                <xs:annotation>
+                                                                    <xs:documentation> Высота заголовка</xs:documentation>
+                                                                </xs:annotation>
+                                                            </xs:attribute>
+                                                        </xs:complexType>
+                                                    </xs:element>
+                                                </xs:sequence>
+                                            </xs:complexType>
+                                        </xs:element>
+                                        <xs:element name="Rows" minOccurs="0">
+                                            <xs:annotation>
+                                                <xs:documentation>Расчётные строки</xs:documentation>
+                                            </xs:annotation>
+                                            <xs:complexType>
+                                                <xs:sequence>
+                                                    <xs:element name="Item" minOccurs="0" maxOccurs="unbounded">
+                                                        <xs:annotation>
+                                                            <xs:documentation>строка расчёта</xs:documentation>
+                                                        </xs:annotation>
+                                                        <xs:complexType>
+                                                            <xs:attribute name="Caption" type="xs:string" use="optional">
+                                                                <xs:annotation>
+                                                                    <xs:documentation>Наименование строки</xs:documentation>
+                                                                </xs:annotation>
+                                                            </xs:attribute>
+                                                            <xs:attribute name="Value" type="xs:string" use="optional">
+                                                                <xs:annotation>
+                                                                    <xs:documentation>Значение</xs:documentation>
+                                                                </xs:annotation>
+                                                            </xs:attribute>
+                                                        </xs:complexType>
+                                                    </xs:element>
+                                                </xs:sequence>
+                                            </xs:complexType>
+                                        </xs:element>
+                                    </xs:sequence>
+                                    <xs:attribute name="Caption" type="xs:string" use="optional">
+                                        <xs:annotation>
+                                            <xs:documentation>Наименование таблицы расчёта</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                    <xs:attribute name="Identifier" type="xs:string" use="optional">
+                                        <xs:annotation>
+                                            <xs:documentation>Идентификатор расчетной строки таблицы</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                    <xs:attribute name="ColumnsCount" type="xs:unsignedByte" use="optional">
+                                        <xs:annotation>
+                                            <xs:documentation>Количество столбцов</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="GsDocSignatures" type="TGsDocSignatures" minOccurs="0">
+                    <xs:annotation>
+                        <xs:documentation>Подписи в документе</xs:documentation>
+                    </xs:annotation>
+                </xs:element>
+                <xs:element name="DocDates" minOccurs="0">
+                    <xs:annotation>
+                        <xs:documentation>Даты в документе</xs:documentation>
+                    </xs:annotation>
+                    <xs:complexType>
+                        <xs:attributeGroup ref="ADocDates" />
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="Parameters" minOccurs="1">
+                    <xs:annotation>
+                        <xs:documentation>Параметры документа</xs:documentation>
+                    </xs:annotation>
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="Numbering" minOccurs="0">
+                                <xs:annotation>
+                                    <xs:documentation>Нумерация позиций в документе</xs:documentation>
+                                </xs:annotation>
+                                <xs:complexType>
+                                    <xs:attributeGroup ref="aNumbering" />
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="Chapters" minOccurs="0">
+                    <xs:annotation>
+                        <xs:documentation>Разделы</xs:documentation>
+                    </xs:annotation>
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="Chapter" minOccurs="0" maxOccurs="unbounded">
+                                <xs:annotation>
+                                    <xs:documentation>Раздел</xs:documentation>
+                                </xs:annotation>
+                                <xs:complexType>
+                                    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+                                        <xs:element name="Comment" minOccurs="0" maxOccurs="unbounded">
+                                            <xs:annotation>
+                                                <xs:documentation>Строка-Комментарий</xs:documentation>
+                                            </xs:annotation>
+                                            <xs:complexType>
+                                                <xs:attribute name="Caption" type="xs:string">
+                                                    <xs:annotation>
+                                                        <xs:documentation>Текст комментария</xs:documentation>
+                                                    </xs:annotation>
+                                                </xs:attribute>
+                                                <xs:attribute name="ColorIndex">
+                                                    <xs:annotation>
+                                                        <xs:documentation>Цвет заливки строки, 0- заливка отсутсвует, при этом атрибут не пишется</xs:documentation>
+                                                    </xs:annotation>
+                                                    <xs:simpleType>
+                                                        <xs:restriction base="xs:positiveInteger">
+                                                            <xs:maxInclusive value="9" />
+                                                            <xs:minInclusive value="1" />
+                                                        </xs:restriction>
+                                                    </xs:simpleType>
+                                                </xs:attribute>
+                                                <xs:attribute name="SlaveRow" type="xs:string">
+                                                    <xs:annotation>
+                                                        <xs:documentation>Признак подчинённой строки</xs:documentation>
+                                                    </xs:annotation>
+                                                </xs:attribute>
+                                                <xs:attribute name="ItemFlags" type="xs:string">
+                                                    <xs:annotation>
+                                                        <xs:documentation>Флаг у комментария</xs:documentation>
+                                                    </xs:annotation>
+                                                </xs:attribute>
+                                            </xs:complexType>
+                                        </xs:element>
+                                        <xs:element name="Header" minOccurs="0" maxOccurs="unbounded">
+                                            <xs:annotation>
+                                                <xs:documentation>Заголовок</xs:documentation>
+                                            </xs:annotation>
+                                            <xs:complexType>
+                                                <xs:attribute name="Caption" type="xs:string">
+                                                    <xs:annotation>
+                                                        <xs:documentation>Текст заголовка</xs:documentation>
+                                                    </xs:annotation>
+                                                </xs:attribute>
+                                                <xs:attribute name="ColorIndex">
+                                                    <xs:annotation>
+                                                        <xs:documentation>Цвет заливки строки, 0 - заливка отсутсвует, при этом атрибут не пишется</xs:documentation>
+                                                    </xs:annotation>
+                                                    <xs:simpleType>
+                                                        <xs:restriction base="xs:positiveInteger">
+                                                            <xs:maxInclusive value="9" />
+                                                            <xs:minInclusive value="1" />
+                                                        </xs:restriction>
+                                                    </xs:simpleType>
+                                                </xs:attribute>
+                                            </xs:complexType>
+                                        </xs:element>
+                                        <xs:element name="Position" minOccurs="0" maxOccurs="unbounded">
+                                            <xs:annotation>
+                                                <xs:documentation>Позиция Ведомости объёмов работ</xs:documentation>
+                                            </xs:annotation>
+                                            <xs:complexType>
+                                                <xs:sequence>
+                                                    <xs:element name="Hyperlinks" type="THyperLinks" minOccurs="0">
+                                                        <xs:annotation>
+                                                            <xs:documentation>Гиперссылки</xs:documentation>
+                                                        </xs:annotation>
+                                                    </xs:element>
+                                                    <xs:element name="Quantity" type="TQuantity" minOccurs="0">
+                                                        <xs:annotation>
+                                                            <xs:documentation>Количество</xs:documentation>
+                                                        </xs:annotation>
+                                                    </xs:element>
+                                                    <xs:element name="SupportingDoc" minOccurs="0">
+                                                        <xs:annotation>
+                                                            <xs:documentation>Обосновывающий документ (в основной позиции)
+</xs:documentation>
+                                                        </xs:annotation>
+                                                        <xs:complexType>
+                                                            <xs:attribute name="URL" type="xs:string" use="optional">
+                                                                <xs:annotation>
+                                                                    <xs:documentation>Обосновывающий документ</xs:documentation>
+                                                                </xs:annotation>
+                                                            </xs:attribute>
+                                                            <xs:attribute name="PageNumber" type="xs:string" use="optional">
+                                                                <xs:annotation>
+                                                                    <xs:documentation>Номера страниц (через пробел)</xs:documentation>
+                                                                </xs:annotation>
+                                                            </xs:attribute>
+                                                            <xs:attribute name="Comment" type="xs:string" use="optional">
+                                                                <xs:annotation>
+                                                                    <xs:documentation>Ссылка на чертежи, спецификации в проектной документации</xs:documentation>
+                                                                </xs:annotation>
+                                                            </xs:attribute>
+                                                        </xs:complexType>
+                                                    </xs:element>
+                                                    <xs:element name="SupportingDocs" minOccurs="0">
+                                                        <xs:annotation>
+                                                            <xs:documentation>Обосновывающие документы
+</xs:documentation>
+                                                        </xs:annotation>
+                                                        <xs:complexType>
+                                                            <xs:sequence>
+                                                                <xs:element name="Item" minOccurs="0" maxOccurs="unbounded">
+                                                                    <xs:complexType>
+                                                                        <xs:attribute name="Comment" type="xs:string" use="optional">
+                                                                            <xs:annotation>
+                                                                                <xs:documentation>Ссылка на чертежи, спецификации в проектной документации</xs:documentation>
+                                                                            </xs:annotation>
+                                                                        </xs:attribute>
+                                                                        <xs:attribute name="URL" type="xs:string" use="optional">
+                                                                            <xs:annotation>
+                                                                                <xs:documentation>Обосновывающий документ</xs:documentation>
+                                                                            </xs:annotation>
+                                                                        </xs:attribute>
+                                                                        <xs:attribute name="PageNumber" type="xs:string" use="optional">
+                                                                            <xs:annotation>
+                                                                                <xs:documentation>Номера страниц (через пробел)</xs:documentation>
+                                                                            </xs:annotation>
+                                                                        </xs:attribute>
+                                                                    </xs:complexType>
+                                                                </xs:element>
+                                                            </xs:sequence>
+                                                        </xs:complexType>
+                                                    </xs:element>
+                                                </xs:sequence>
+                                                <xs:attributeGroup ref="APosition" />
+                                            </xs:complexType>
+                                        </xs:element>
+                                        <xs:element name="Attachments" minOccurs="0" maxOccurs="unbounded">
+                                            <xs:annotation>
+                                                <xs:documentation>Вложения</xs:documentation>
+                                            </xs:annotation>
+                                            <xs:complexType>
+                                                <xs:sequence>
+                                                    <xs:element name="Attachment" minOccurs="0" maxOccurs="unbounded">
+                                                        <xs:annotation>
+                                                            <xs:documentation>Вложение</xs:documentation>
+                                                        </xs:annotation>
+                                                        <xs:complexType>
+                                                            <xs:attribute name="Guid" type="xs:string" use="optional" />
+                                                        </xs:complexType>
+                                                    </xs:element>
+                                                </xs:sequence>
+                                            </xs:complexType>
+                                        </xs:element>
+                                    </xs:sequence>
+                                    <xs:attribute name="Caption" type="xs:string" use="optional">
+                                        <xs:annotation>
+                                            <xs:documentation>Наименовнаие раздела</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                    <xs:attribute name="CustomNumber" type="xs:string" use="optional">
+                                        <xs:annotation>
+                                            <xs:documentation>Произвольный номер раздела</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+            </xs:sequence>
+            <xs:attributeGroup ref="ADocument" />
+        </xs:complexType>
+    </xs:element>
+    <xs:attributeGroup name="ADocument">
+        <xs:attribute name="Generator" type="xs:string" use="required">
+            <xs:annotation>
+                <xs:documentation>ТОЛЬКО Наименование ПО, в котором создан документ</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="ProgramVersion" type="xs:string" use="required">
+            <xs:annotation>
+                <xs:documentation>НОМЕР ВЕРСИИ ПО, в котором создан документ</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="DocumentType" use="required">
+            <xs:annotation>
+                <xs:documentation>Тип документа</xs:documentation>
+            </xs:annotation>
+            <xs:simpleType>
+                <xs:restriction base="xs:string">
+                    <xs:pattern value="([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})|(\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\})" />
+                    <xs:enumeration value="{2B0470FD-477C-4359-9F34-EEBE36B7D350}" />
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+        <xs:attribute name="UID" use="optional">
+            <xs:annotation>
+                <xs:documentation>Уникальный идентификатор документа</xs:documentation>
+            </xs:annotation>
+            <xs:simpleType>
+                <xs:restriction base="xs:string">
+                    <xs:pattern value="([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})|(\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\})" />
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+        <xs:attribute name="Comment" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Комментарий к документу </xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="MaxSysID" type="xs:string">
+            <xs:annotation>
+                <xs:documentation>Максимальный SysID позиции в документе</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+    </xs:attributeGroup>
+    <xs:attributeGroup name="ADocProperties">
+        <xs:annotation>
+            <xs:documentation>Свойства документа (Параметры - Свойства)</xs:documentation>
+        </xs:annotation>
+        <xs:attribute name="LocNum" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Локальный номер сметы</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="RegNum" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Регистрационный номер сметы</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Object" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Наименование объекта строительства</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Constr" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Наименование стройки</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Stage" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Наименование пускового комплекса / очереди</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Comment" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Комментарии, пояснения к документу</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Description" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Наименование документа, передаваемое в печатную форму
+</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="ApprovalDoc" type="xs:string">
+            <xs:annotation>
+                <xs:documentation> Документ об утверждении</xs:documentation>
+                <xs:documentation>Document.Props.ApprDoc = Value </xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+    </xs:attributeGroup>
+    <xs:attributeGroup name="ADocDates">
+        <xs:annotation>
+            <xs:documentation>Свойства - Даты {документа}</xs:documentation>
+        </xs:annotation>
+        <xs:attribute name="СreationDate" type="xs:string">
+            <xs:annotation>
+                <xs:documentation>Дата составления сметы</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="ApprovalDate" type="xs:string">
+            <xs:annotation>
+                <xs:documentation>Дата утверждения документа</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="CurrPriceDate" type="xs:string">
+            <xs:annotation>
+                <xs:documentation>Дата текущего уровня цен</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="BasePriceDate" default="01.01.2000">
+            <xs:annotation>
+                <xs:documentation>Дата базисного уровня цен</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Options">
+            <xs:annotation>
+                <xs:documentation>Формат передачи в печатную форму/формат gge даты текущих цен день месяц год, или квартал год</xs:documentation>
+            </xs:annotation>
+            <xs:simpleType>
+                <xs:restriction base="xs:string">
+                    <xs:enumeration value="CurrFmtQr" />
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+    </xs:attributeGroup>
+    <xs:attributeGroup name="APosition">
+        <xs:attribute name="Caption" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Наименование</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Number" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Номер позиции в соответствии с принятой в документе нумерацией</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Identifier" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Идентификатор позиции (ссылка на расчет)</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Units" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Единица измерения</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="SysID" type="xs:string" use="required">
+            <xs:annotation>
+                <xs:documentation>Уникальный в пределах документа системный номер позиции</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="UserComment1" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Ссылка на чертежи, спецификации (Пользовательский комментарий 1)</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="UserComment2" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Заметки, пояснения (Пользовательский комментарий 2)</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Filename" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Наименование файла обосновывающего документа</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="PageNumber" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Номера страниц (через пробел)</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="PositionType">
+            <xs:annotation>
+                <xs:documentation>Тип позиции, по умолчанию, отсутствие атрибута = Не задано</xs:documentation>
+            </xs:annotation>
+            <xs:simpleType>
+                <xs:restriction base="xs:string">
+                    <xs:enumeration value="Tzr" />
+                    <xs:enumeration value="Mch" />
+                    <xs:enumeration value="Mat" />
+                    <xs:enumeration value="Equip" />
+                    <xs:enumeration value="Transp" />
+                    <xs:enumeration value="Other" />
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+        <xs:attribute name="Code" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Обоснование (шифр) позиции сметы. (Для совместимости)</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="ItemFlags" type="xs:string">
+            <xs:annotation>
+                <xs:documentation>Флаг у позиции (Информационный, пользовательский)</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="ColorIndex">
+            <xs:annotation>
+                <xs:documentation>Цвет заливки строки, 0- заливка отсутсвует, при этом атрибут не пишется</xs:documentation>
+            </xs:annotation>
+            <xs:simpleType>
+                <xs:restriction base="xs:positiveInteger">
+                    <xs:maxInclusive value="9" />
+                    <xs:minInclusive value="1" />
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+        <xs:attribute name="SlaveRow" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Признак подчиненной строки</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Inactive" use="optional">
+            <xs:annotation>
+                <xs:documentation>Позиция не учитывается в КА</xs:documentation>
+            </xs:annotation>
+            <xs:simpleType>
+                <xs:restriction base="xs:string">
+                    <xs:enumeration value="Yes">
+                        <xs:annotation>
+                            <xs:documentation>Позиция неактивна</xs:documentation>
+                        </xs:annotation>
+                    </xs:enumeration>
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+    </xs:attributeGroup>
+    <xs:attributeGroup name="AAttachment">
+        <xs:annotation>
+            <xs:documentation>Атрибуты вложения</xs:documentation>
+        </xs:annotation>
+        <xs:attribute name="Guid" use="optional">
+            <xs:annotation>
+                <xs:documentation>UID вложения</xs:documentation>
+            </xs:annotation>
+            <xs:simpleType>
+                <xs:restriction base="xs:string">
+                    <xs:pattern value="([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})|(\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\})" />
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+        <xs:attribute name="Filename" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Наименование файла - вложения</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Size" use="optional">
+            <xs:annotation>
+                <xs:documentation>Размер вложения:
+Общий лимит до 10мб
+Для файлов с расширениями docx, doc, xlsx, xls, pdf лимит 50мб</xs:documentation>
+            </xs:annotation>
+            <xs:simpleType>
+                <xs:restriction base="xs:unsignedInt">
+                    <xs:minInclusive value="1" />
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+        <xs:attribute name="AttachmentType" use="optional">
+            <xs:simpleType>
+                <xs:restriction base="xs:string">
+                    <xs:enumeration value="ImageRow" />
+                    <xs:enumeration value="Properties" />
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+        <xs:attribute name="Width" type="xs:unsignedShort" use="optional">
+            <xs:annotation>
+                <xs:documentation>Ширина изображения</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Height" type="xs:unsignedShort" use="optional">
+            <xs:annotation>
+                <xs:documentation>Высота изображения</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="ChangeDate" type="xs:string">
+            <xs:annotation>
+                <xs:documentation>Дата и время изменения файла</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="OriginalCaption" type="xs:string">
+            <xs:annotation>
+                <xs:documentation>Исходное наименовнаие файла</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+    </xs:attributeGroup>
+    <xs:complexType name="TDocProperties">
+        <xs:attributeGroup ref="ADocProperties" />
+    </xs:complexType>
+    <xs:complexType name="TQuantity">
+        <xs:annotation>
+            <xs:documentation>Расчёт</xs:documentation>
+        </xs:annotation>
+        <xs:sequence minOccurs="0">
+            <xs:element name="CalcRows" minOccurs="0" maxOccurs="unbounded">
+                <xs:annotation>
+                    <xs:documentation>Расчётные строки</xs:documentation>
+                </xs:annotation>
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:choice maxOccurs="unbounded">
+                            <xs:element name="Item" minOccurs="0" maxOccurs="unbounded">
+                                <xs:annotation>
+                                    <xs:documentation>Расчётная строка</xs:documentation>
+                                </xs:annotation>
+                                <xs:complexType>
+                                    <xs:attributeGroup ref="ACalcTableItem" />
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="Header" minOccurs="0" maxOccurs="unbounded">
+                                <xs:annotation>
+                                    <xs:documentation>Заголовок расчётной строки</xs:documentation>
+                                </xs:annotation>
+                                <xs:complexType>
+                                    <xs:attribute name="Caption" type="xs:string" use="optional">
+                                        <xs:annotation>
+                                            <xs:documentation>Наименование подзаголовка</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                    <xs:attribute name="Identifier" type="xs:string" use="optional">
+                                        <xs:annotation>
+                                            <xs:documentation>Идентификатор</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                    <xs:attribute name="TotalResult" type="xs:string">
+                                        <xs:annotation>
+                                            <xs:documentation>Признак результирующей строки (используется как результат расчёта)</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                    <xs:attribute name="UserComment1" type="xs:string">
+                                        <xs:annotation>
+                                            <xs:documentation>Ссылка на чертежи, спецификации</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                    <xs:attribute name="URL" type="xs:string">
+                                        <xs:annotation>
+                                            <xs:documentation>Гиперссылка</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="PickList" minOccurs="0" maxOccurs="unbounded">
+                                <xs:annotation>
+                                    <xs:documentation>Список выбора</xs:documentation>
+                                </xs:annotation>
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="Item" minOccurs="0" maxOccurs="unbounded">
+                                            <xs:annotation>
+                                                <xs:documentation>Элемент списка подбора</xs:documentation>
+                                            </xs:annotation>
+                                            <xs:complexType>
+                                                <xs:attribute name="Caption" type="xs:string" use="optional">
+                                                    <xs:annotation>
+                                                        <xs:documentation>Заголовок позиции</xs:documentation>
+                                                    </xs:annotation>
+                                                </xs:attribute>
+                                                <xs:attribute name="Value" type="xs:unsignedShort" use="optional">
+                                                    <xs:annotation>
+                                                        <xs:documentation>Значение</xs:documentation>
+                                                    </xs:annotation>
+                                                </xs:attribute>
+                                            </xs:complexType>
+                                        </xs:element>
+                                    </xs:sequence>
+                                    <xs:attribute name="Caption" type="xs:string" use="optional">
+                                        <xs:annotation>
+                                            <xs:documentation>Заголовок списка выбора значений</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                    <xs:attribute name="Identifier" type="xs:string" use="optional">
+                                        <xs:annotation>
+                                            <xs:documentation>Идентификатор (переменная)</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                    <xs:attribute name="ItemIndex" type="xs:unsignedShort" use="optional" />
+                                    <xs:attribute name="Filtered" type="xs:string" use="optional">
+                                        <xs:annotation>
+                                            <xs:documentation />
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                    <xs:attribute name="TotalResult" type="xs:string">
+                                        <xs:annotation>
+                                            <xs:documentation>Признак результирующей строки (используется как результат расчёта)</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                    <xs:attribute name="URL" type="xs:string">
+                                        <xs:annotation>
+                                            <xs:documentation>Гиперссылка</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                    <xs:attribute name="Units" type="xs:string">
+                                        <xs:annotation>
+                                            <xs:documentation>Единица измерения</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                    <xs:attribute name="UserComment1" type="xs:string">
+                                        <xs:annotation>
+                                            <xs:documentation>Ссылка на чертежи, спецификации</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="CheckBox" minOccurs="0" maxOccurs="unbounded">
+                                <xs:annotation>
+                                    <xs:documentation>Флажок</xs:documentation>
+                                </xs:annotation>
+                                <xs:complexType>
+                                    <xs:attribute name="Caption">
+                                        <xs:annotation>
+                                            <xs:documentation>Наименовнаие строки</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                    <xs:attribute name="Checked" type="TBooleanString" />
+                                    <xs:attribute name="ValueChecked" type="xs:string" />
+                                    <xs:attribute name="ValueUnChecked" type="xs:string" />
+                                    <xs:attribute name="TotalResult" type="xs:string">
+                                        <xs:annotation>
+                                            <xs:documentation>Признак результирующей строки (используется как результат расчёта)</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                    <xs:attribute name="URL" type="xs:string">
+                                        <xs:annotation>
+                                            <xs:documentation>Гиперссылка</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                    <xs:attribute name="Identifier" type="xs:string">
+                                        <xs:annotation>
+                                            <xs:documentation>Идентификатор расчётной строки</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                    <xs:attribute name="Units" type="xs:string">
+                                        <xs:annotation>
+                                            <xs:documentation>Единица измерения</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                    <xs:attribute name="UserComment1" type="xs:string">
+                                        <xs:annotation>
+                                            <xs:documentation>Ссылка на чертежи, спецификации</xs:documentation>
+                                        </xs:annotation>
+                                    </xs:attribute>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:choice>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
+        <xs:attribute name="Fx" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Формула расчета</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Precision" default="6">
+            <xs:annotation>
+                <xs:documentation>Количество знаков после запятой (точность расчета) 
+"6" - 6 знаков после запятой (значение по умолчанию, эквивалентно отсутствию атрибута), 
+"0" - целое число, 
+"-3" округление до тысяч</xs:documentation>
+            </xs:annotation>
+            <xs:simpleType>
+                <xs:restriction base="xs:integer">
+                    <xs:minInclusive value="-3" />
+                    <xs:maxInclusive value="7" />
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+        <xs:attribute name="Result" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Вычисленное значение формулы</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+    </xs:complexType>
+    <xs:complexType name="TGsDocSignatures">
+        <xs:annotation>
+            <xs:documentation>Подписи документа</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="Item" minOccurs="0" maxOccurs="unbounded">
+                <xs:annotation>
+                    <xs:documentation>Подпись</xs:documentation>
+                </xs:annotation>
+                <xs:complexType>
+                    <xs:complexContent>
+                        <xs:extension base="TGsDocSignatureItem">
+                            <xs:sequence minOccurs="0">
+                                <xs:element name="Attributes">
+                                    <xs:annotation>
+                                        <xs:documentation>Дополнительные подписи</xs:documentation>
+                                    </xs:annotation>
+                                    <xs:complexType>
+                                        <xs:sequence>
+                                            <xs:element name="Item" type="TGsDocSignatureItem" maxOccurs="unbounded">
+                                                <xs:annotation>
+                                                    <xs:documentation>Подпись</xs:documentation>
+                                                </xs:annotation>
+                                            </xs:element>
+                                        </xs:sequence>
+                                    </xs:complexType>
+                                </xs:element>
+                            </xs:sequence>
+                        </xs:extension>
+                    </xs:complexContent>
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="TGsDocSignatureItem">
+        <xs:attribute name="Caption" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Наименование подписи</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="ID" type="xs:unsignedShort" use="optional">
+            <xs:annotation>
+                <xs:documentation>Идентификатор подписи</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Value" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Значение подписи</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+    </xs:complexType>
+    <xs:complexType name="THyperLinks">
+        <xs:sequence>
+            <xs:element name="Item" minOccurs="0" maxOccurs="unbounded">
+                <xs:complexType>
+                    <xs:attributeGroup ref="AHyperLink" />
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:attributeGroup name="AHyperLink">
+        <xs:attribute name="Caption" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Наименование ссылки</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="URL" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Ссылка</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="LinkType" type="xs:unsignedByte" use="optional">
+            <xs:annotation>
+                <xs:documentation>Тип ссылки</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+    </xs:attributeGroup>
+    <xs:attributeGroup name="aNumbering">
+        <xs:annotation>
+            <xs:documentation>Атрибуты нумерации</xs:documentation>
+        </xs:annotation>
+        <xs:attribute name="Mode" use="optional">
+            <xs:annotation>
+                <xs:documentation>Режим нумерации позиций</xs:documentation>
+            </xs:annotation>
+            <xs:simpleType>
+                <xs:restriction base="TNumberingMode" />
+            </xs:simpleType>
+        </xs:attribute>
+        <xs:attribute name="Options" use="optional">
+            <xs:annotation>
+                <xs:documentation>Дополнительные настройки нумерации позиций</xs:documentation>
+            </xs:annotation>
+            <xs:simpleType>
+                <xs:list itemType="TNumberingOptions" />
+            </xs:simpleType>
+        </xs:attribute>
+        <xs:attribute name="StartingNumber" type="xs:unsignedByte" use="optional">
+            <xs:annotation>
+                <xs:documentation>Начальный номер для нумерации</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+    </xs:attributeGroup>
+    <xs:simpleType name="TNumberingMode">
+        <xs:annotation>
+            <xs:documentation>Режим нумерации позиций</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Sequential">
+                <xs:annotation>
+                    <xs:documentation>Нумерация по порядку</xs:documentation>
+                </xs:annotation>
+            </xs:enumeration>
+            <xs:enumeration value="ChapterFrac">
+                <xs:annotation>
+                    <xs:documentation>По разделам дробная (Раздел.Номер позиции внутри раздела)</xs:documentation>
+                </xs:annotation>
+            </xs:enumeration>
+            <xs:enumeration value="ChapterInt">
+                <xs:annotation>
+                    <xs:documentation>По разделам целая (Номер позиции внутри раздела)</xs:documentation>
+                </xs:annotation>
+            </xs:enumeration>
+            <xs:enumeration value="Replaced">
+                <xs:annotation>
+                    <xs:documentation>Замененный ресурс</xs:documentation>
+                </xs:annotation>
+            </xs:enumeration>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="TNumberingOptions">
+        <xs:annotation>
+            <xs:documentation>Дополнительные настройки нумерации позиций</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Auto">
+                <xs:annotation>
+                    <xs:documentation>Автоматическая перенумерация</xs:documentation>
+                </xs:annotation>
+            </xs:enumeration>
+            <xs:enumeration value="SlaveSubNum">
+                <xs:annotation>
+                    <xs:documentation>Доп. нумерация подчиненных позиций</xs:documentation>
+                </xs:annotation>
+            </xs:enumeration>
+            <xs:enumeration value="SkipEmptyNum">
+                <xs:annotation>
+                    <xs:documentation>Пропускать позиции без номера</xs:documentation>
+                </xs:annotation>
+            </xs:enumeration>
+            <xs:enumeration value="SkipInactive">
+                <xs:annotation>
+                    <xs:documentation>Пропускать неучитываемые в смете позиции</xs:documentation>
+                </xs:annotation>
+            </xs:enumeration>
+            <xs:enumeration value="SubPos">
+                <xs:annotation>
+                    <xs:documentation>Перенумерация подпозиций</xs:documentation>
+                </xs:annotation>
+            </xs:enumeration>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:attributeGroup name="AVariable">
+        <xs:annotation>
+            <xs:documentation>Параметры Переменной</xs:documentation>
+            <xs:documentation>
+                (**) Коллекция Document.Variables:
+                For i = 0 to Document.Variables.Count - 1
+                Set row = Document.Variables.GetItem(i)
+            </xs:documentation>
+            <xs:documentation>Set row = Document.Variables.Add </xs:documentation>
+        </xs:annotation>
+        <xs:attribute name="Caption" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Наименование переменной</xs:documentation>
+                <xs:documentation>(**) row.Caption </xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Value" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Значение переменной</xs:documentation>
+                <xs:documentation>(**) row.Fx </xs:documentation>
+                <xs:documentation>(**) row.Value </xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Identifier" type="xs:string" use="optional">
+            <xs:annotation>
+                <xs:documentation>Идентификатор переменной (должен начинаться с буквы, за исключением Г, К) список исключений приведен в документации</xs:documentation>
+                <xs:documentation>(**) row.Identifer </xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="ExternalLink" type="xs:string">
+            <xs:annotation>
+                <xs:documentation> Внешняя ссылка</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Kind" use="optional">
+            <xs:annotation>
+                <xs:documentation>Тип используемого к-та
+Formula - в виде формулы
+Header - Заголовок</xs:documentation>
+            </xs:annotation>
+            <xs:simpleType>
+                <xs:restriction base="xs:string">
+                    <xs:enumeration value="Formula" />
+                    <xs:enumeration value="Header" />
+                    <xs:enumeration value="ExternalLink" />
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+    </xs:attributeGroup>
+    <xs:attributeGroup name="ACalcTableItem">
+        <xs:annotation>
+            <xs:documentation>Расчётная строка из таблицы расчёта объёма</xs:documentation>
+        </xs:annotation>
+        <xs:attribute name="Caption" type="xs:string">
+            <xs:annotation>
+                <xs:documentation>Нименование расчётной строки</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Units" type="xs:string">
+            <xs:annotation>
+                <xs:documentation>Единица измерения</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Identifier" type="xs:string">
+            <xs:annotation>
+                <xs:documentation>Идентификатор расчётной строки</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Value" type="xs:string">
+            <xs:annotation>
+                <xs:documentation>Значение (формула расчета)</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="TotalResult" type="xs:string">
+            <xs:annotation>
+                <xs:documentation>Признак результирующей строки (используется как результат расчёта)</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="UserComment1" type="xs:string">
+            <xs:annotation>
+                <xs:documentation>Ссылка на чертежи, спецификации</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="URL" type="xs:string">
+            <xs:annotation>
+                <xs:documentation>Гиперссылка</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="Precision" default="7">
+            <xs:annotation>
+                <xs:documentation>Количество знаков после запятой (точность расчета) 
+"7" - 7 знаков после запятой (значение по умолчанию, эквивалентно отсутствию атрибута), 
+"0" - целое число, 
+"-3" округление до тысяч</xs:documentation>
+            </xs:annotation>
+            <xs:simpleType>
+                <xs:restriction base="xs:integer">
+                    <xs:minInclusive value="-3" />
+                    <xs:maxInclusive value="7" />
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+        <xs:attribute name="ExternalLink" type="xs:string">
+            <xs:annotation>
+                <xs:documentation>Ссылка на позицию документа Веомость объёмов работ, включая путь к документу или имя файла</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="LinkedPosNumber" type="xs:string">
+            <xs:annotation>
+                <xs:documentation>Номер позиции документа Ведомость объёмов работ</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+    </xs:attributeGroup>
+    <xs:simpleType name="TBooleanString">
+        <xs:annotation>
+            <xs:documentation>Варианты булевых выражений</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Yes">
+                <xs:annotation>
+                    <xs:documentation>Да</xs:documentation>
+                </xs:annotation>
+            </xs:enumeration>
+            <xs:enumeration value="No">
+                <xs:annotation>
+                    <xs:documentation>Нет</xs:documentation>
+                </xs:annotation>
+            </xs:enumeration>
+            <xs:enumeration value="true">
+                <xs:annotation>
+                    <xs:documentation>Да/Истина</xs:documentation>
+                </xs:annotation>
+            </xs:enumeration>
+            <xs:enumeration value="false">
+                <xs:annotation>
+                    <xs:documentation>Нет/Ложь</xs:documentation>
+                </xs:annotation>
+            </xs:enumeration>
+            <xs:enumeration value="True">
+                <xs:annotation>
+                    <xs:documentation>Да/Истина</xs:documentation>
+                </xs:annotation>
+            </xs:enumeration>
+            <xs:enumeration value="False">
+                <xs:annotation>
+                    <xs:documentation>Нет/Ложь</xs:documentation>
+                </xs:annotation>
+            </xs:enumeration>
+        </xs:restriction>
+    </xs:simpleType>
+</xs:schema>

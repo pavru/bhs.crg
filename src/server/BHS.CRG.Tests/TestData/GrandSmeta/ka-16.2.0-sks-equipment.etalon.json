@@ -1,0 +1,264 @@
+{
+  "$comment": "Контрольные точки сняты скриптом etalons_from_forms.py с печатной формы программы, не с XML образца (plan-05, вариант Г). Руками не править.",
+  "sample": "ka-16.2.0-sks-equipment.gsfx",
+  "form": "Конъюнктурный анализ",
+  "programVersion": "16.2.0",
+  "kind": "Conjuncture",
+  "requisites": {
+    "object": "ул. Прапорщика Комарова д. 36 в г. Владивостоке"
+  },
+  "counts": {
+    "chapters": 1,
+    "positions": 12,
+    "offers": 36,
+    "suppliers": 3
+  },
+  "chapters": [
+    {
+      "caption": "СКС (оборудование)",
+      "positions": 12
+    }
+  ],
+  "positions": [
+    {
+      "chapter": 1,
+      "number": "1",
+      "caption": "Коммутатор управляемый 4x10GE SFP+ports, PoE 48x10/100/1000Base-T в комплекте с ПО Huawei S57S-M-Lic S53XX-S Series Basic SW, Per Device, S5731-S48P4X + S57S-M-LicS53XX-S",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_61.1.03.03_97_6659099112_12.04.2026_02_1.1",
+          "caption": "Коммутатор Huawei S5731-S48P4X",
+          "priceWithVat": "272035.4",
+          "priceWithoutVat": "222979.84",
+          "supplier": "NAG",
+          "inn": "6659099112",
+          "kpp": "254301001",
+          "country": "Российская Федерация",
+          "year": 2026,
+          "quarter": 2
+        },
+        {
+          "number": "2",
+          "code": "ТЦ_61.1.03.03_97_7702680818_13.04.2026_02_1.2",
+          "caption": "Коммутатор управляемый 4x10GE SFP+ports, PoE 48x10/100/1000Base-T в комплекте с ПО Huawei S57S-M-Lic S5731-S",
+          "priceWithVat": "285065",
+          "priceWithoutVat": "233659.84",
+          "supplier": "ТД ТИНКО",
+          "inn": "7702680818",
+          "kpp": "774950001",
+          "country": "Российская Федерация",
+          "year": 2026,
+          "quarter": 2
+        },
+        {
+          "number": "3",
+          "code": "ТЦ_61.1.03.03_25_2536296709_15.04.2026_02_1.3",
+          "caption": "Коммутатор управляемый Huawei  S5731-S48P4X",
+          "priceWithVat": "325608.4",
+          "priceWithoutVat": "266892.13",
+          "supplier": "Луис+ДВ",
+          "inn": "2536296709",
+          "kpp": "254301001",
+          "country": "Российская Федерация",
+          "year": 2026,
+          "quarter": 2
+        }
+      ],
+      "minPriceWithoutVat": "222979.84"
+    },
+    {
+      "chapter": 1,
+      "number": "5",
+      "caption": "Шкаф настенный 15U, Ш600хГ 600, TWC-156060-R-M-BK",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_61.1.04.08_97_6659099112_12.04.2026_02_5.1",
+          "caption": "Шкаф настенный TWC-156060-R-M-BK",
+          "priceWithVat": "44865.6",
+          "priceWithoutVat": "36775.08",
+          "supplier": "NAG",
+          "inn": "6659099112",
+          "kpp": "254301001",
+          "country": "Российская Федерация",
+          "year": 2026,
+          "quarter": 2
+        },
+        {
+          "number": "2",
+          "code": "ТЦ_61.1.04.08_97_7702680818_13.04.2026_02_5.2",
+          "caption": "Шкаф телекомуникационный 15U, Ш600хГ 600, TWC-156060-R-M-BK",
+          "priceWithVat": "53390.06",
+          "priceWithoutVat": "43762.34",
+          "supplier": "ТД ТИНКО",
+          "inn": "7702680818",
+          "kpp": "774950001",
+          "country": "Российская Федерация",
+          "year": 2026,
+          "quarter": 2
+        },
+        {
+          "number": "3",
+          "code": "ТЦ_61.1.04.08_25_2536296709_15.04.2026_02_5.3",
+          "caption": "Шкаф настенный телекомуникационный TWC-156060-R-M-BK",
+          "priceWithVat": "63000.27",
+          "priceWithoutVat": "51639.57",
+          "supplier": "Луис+ДВ",
+          "inn": "2536296709",
+          "kpp": "254301001",
+          "country": "Российская Федерация",
+          "year": 2026,
+          "quarter": 2
+        }
+      ],
+      "minPriceWithoutVat": "36775.08"
+    },
+    {
+      "chapter": 1,
+      "number": "8",
+      "caption": "Настенная наборная патч-панель, 12 портов, NMC-WP12-BLANK-BK",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_61.3.05.03_97_6659099112_12.04.2026_02_8.1",
+          "caption": "Настенная патч-панель, 12 портов, NMC-WP12-BLANK-BK",
+          "priceWithVat": "1222.36",
+          "priceWithoutVat": "1001.93",
+          "supplier": "NAG",
+          "inn": "6659099112",
+          "kpp": "254301001",
+          "country": "Российская Федерация",
+          "year": 2026,
+          "quarter": 2
+        },
+        {
+          "number": "2",
+          "code": "ТЦ_61.3.05.03_97_7702680818_13.04.2026_02_8.2",
+          "caption": "Патч-панель, 12 портов, NMC-WP12-BLANK-BK (Nikomax)",
+          "priceWithVat": "1035.9",
+          "priceWithoutVat": "849.1",
+          "supplier": "ТД ТИНКО",
+          "inn": "7702680818",
+          "kpp": "774950001",
+          "country": "Российская Федерация",
+          "year": 2026,
+          "quarter": 2
+        },
+        {
+          "number": "3",
+          "code": "ТЦ_61.3.05.03_25_2536296709_15.04.2026_02_8.3",
+          "caption": "Настенная наборная патч-панель, 12 портов, NMC-WP12-BLANK-BK",
+          "priceWithVat": "933.24",
+          "priceWithoutVat": "764.95",
+          "supplier": "Луис+ДВ",
+          "inn": "2536296709",
+          "kpp": "254301001",
+          "country": "Российская Федерация",
+          "year": 2026,
+          "quarter": 2
+        }
+      ],
+      "minPriceWithoutVat": "764.95"
+    },
+    {
+      "chapter": 1,
+      "number": "10",
+      "caption": "Модуль SFP+ FiberTrade FT-SFP+-WDM-LR-10-A-D, FT-SFP+-WDM-LR-10-A-D",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_89.1.61.01_97_6659099112_12.04.2026_02_10.1",
+          "caption": "Модуль оптический SFP+ FiberTrade FT-SFP+-WDM-LR-10-A-D, FT-SFP+-WDM-LR-10-A-D",
+          "priceWithVat": "3390.4",
+          "priceWithoutVat": "2779.02",
+          "supplier": "NAG",
+          "inn": "6659099112",
+          "kpp": "254301001",
+          "country": "Российская Федерация",
+          "year": 2026,
+          "quarter": 2
+        },
+        {
+          "number": "2",
+          "code": "ТЦ_89.1.61.01_97_7702680818_13.04.2026_02_10.2",
+          "caption": "SFP+ FiberTrade FT-SFP+-WDM-LR-10-A-D, FT-SFP+-WDM-LR-10-A-D",
+          "priceWithVat": "4068.49",
+          "priceWithoutVat": "3334.83",
+          "supplier": "ТД ТИНКО",
+          "inn": "7702680818",
+          "kpp": "774950001",
+          "country": "Российская Федерация",
+          "year": 2026,
+          "quarter": 2
+        },
+        {
+          "number": "3",
+          "code": "ТЦ_89.1.61.01_25_2536296709_15.04.2026_02_10.3",
+          "caption": "Отпический трансивер SFP+ FiberTrade FT-SFP+-WDM-LR-10-A-D, FT-SFP+-WDM-LR-10-A-D",
+          "priceWithVat": "4638.07",
+          "priceWithoutVat": "3801.7",
+          "supplier": "Луис+ДВ",
+          "inn": "2536296709",
+          "kpp": "254301001",
+          "country": "Российская Федерация",
+          "year": 2026,
+          "quarter": 2
+        }
+      ],
+      "minPriceWithoutVat": "2779.02"
+    },
+    {
+      "chapter": 1,
+      "number": "13",
+      "caption": "Кабельный органайзер с крышкой, 58мм, черный, 19\", 1U, NMC-OK580C-1U-BK",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_89.1.77.03_97_6659099112_12.04.2026_02_13.1",
+          "caption": "Органайзер кабельный с крышкой, 58мм, черный, 19\", 1U, NMC-OK580C-1U-BK",
+          "priceWithVat": "1381.14",
+          "priceWithoutVat": "1132.08",
+          "supplier": "NAG",
+          "inn": "6659099112",
+          "kpp": "254301001",
+          "country": "Российская Федерация",
+          "year": 2026,
+          "quarter": 2
+        },
+        {
+          "number": "2",
+          "code": "ТЦ_89.1.77.03_97_7702680818_13.04.2026_02_13.2",
+          "caption": "Кабельный органайзер Nikomax с крышкой, 58мм, черный, 19\", 1U, NMC-OK580C-1U-BK",
+          "priceWithVat": "1190.63",
+          "priceWithoutVat": "975.93",
+          "supplier": "ТД ТИНКО",
+          "inn": "7702680818",
+          "kpp": "774950001",
+          "country": "Российская Федерация",
+          "year": 2026,
+          "quarter": 2
+        },
+        {
+          "number": "3",
+          "code": "ТЦ_89.1.77.03_25_2536296709_15.04.2026_02_13.3",
+          "caption": "Кабельный органайзер с крышкой, NMC-OK580C-1U-BK",
+          "priceWithVat": "1615.93",
+          "priceWithoutVat": "1324.53",
+          "supplier": "Луис+ДВ",
+          "inn": "2536296709",
+          "kpp": "254301001",
+          "country": "Российская Федерация",
+          "year": 2026,
+          "quarter": 2
+        }
+      ],
+      "minPriceWithoutVat": "975.93"
+    }
+  ]
+}

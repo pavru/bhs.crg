@@ -34,6 +34,15 @@
     </PackageReference>
   </ItemGroup>
 
+  <!--
+    Своя редакция схем ГРАНД-Сметы (plan-05): разбор проверяет файл по ним, а поставляются они ресурсом
+    сборки — рядом с кодом, который их читает. Имя ресурса — без пространства имён проекта, его ищет
+    GrandSmetaSchemas.Load.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="GrandSmeta\Schemas\*.xsd" LogicalName="GrandSmeta.Schemas.%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <!-- Домен — ради общего языка отказов решения (ConflictException и соседи), как у `costs`. -->
   <ItemGroup>
     <ProjectReference Include="..\BHS.CRG.Modules\BHS.CRG.Modules.csproj" />
