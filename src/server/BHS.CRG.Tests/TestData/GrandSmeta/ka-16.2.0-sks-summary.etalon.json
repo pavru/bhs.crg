@@ -1,0 +1,145 @@
+{
+  "$comment": "Контрольные точки сняты скриптом etalons_from_forms.py с печатной формы программы, не с XML образца (plan-05, вариант Г). Руками не править.",
+  "sample": "ka-16.2.0-sks-summary.gsfx",
+  "form": "Конъюнктурный анализ",
+  "programVersion": "16.2.0",
+  "kind": "Conjuncture",
+  "requisites": {
+    "object": "ул. Прапорщика Комарова д. 36 в г. Владивостоке"
+  },
+  "counts": {
+    "chapters": 5,
+    "positions": 97,
+    "offers": 97,
+    "suppliers": 1
+  },
+  "chapters": [
+    {
+      "caption": "Оборудование шкафов",
+      "positions": 25
+    },
+    {
+      "caption": "КНС",
+      "positions": 40
+    },
+    {
+      "caption": "Кабельныя продукция",
+      "positions": 6
+    },
+    {
+      "caption": "Рабочие места",
+      "positions": 25
+    },
+    {
+      "caption": "Оборудование доступа WiFi",
+      "positions": 1
+    }
+  ],
+  "positions": [
+    {
+      "chapter": 1,
+      "number": "1",
+      "caption": "Шкаф настенный 15U, Ш600хГ 600, TWC-156060-R-M-BK",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_61.1.04.08_25_0000000000_11.03.2026_02_1.1",
+          "caption": "Шкаф настенный 15U, Ш600хГ 600, TWC-156060-R-M-BK",
+          "priceWithVat": "44865.6",
+          "priceWithoutVat": "36775.08",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": "Российская Федерация",
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "36775.08"
+    },
+    {
+      "chapter": 1,
+      "number": "57",
+      "caption": "Соединительный шнур, двойной, SM 9/125, OS2, LC/UPC-LC/UPC, LSZH, 10м, NMF-PC2S2C2-LCU-LCU-010",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_21.1.01.00_25_0000000000_11.03.2026_02_57.1",
+          "caption": "Соединительный шнур, двойной, SM 9/125, OS2, LC/UPC-LC/UPC, LSZH, 10м, NMF-PC2S2C2-LCU-LCU-010",
+          "priceWithVat": "868.56",
+          "priceWithoutVat": "711.93",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": null,
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "711.93"
+    },
+    {
+      "chapter": 2,
+      "number": "38",
+      "caption": "Ответвитель DL 100х50 в комплекте с крепежными элементами и соединительными пластинами, необходимыми для монтажа, 36235K",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_20.2.07.04_25_0000000000_11.03.2026_02_38.1",
+          "caption": "Ответвитель DL 100х50 в комплекте с крепежными элементами и соединительными пластинами, необходимыми для монтажа, 36235K",
+          "priceWithVat": "3587.86",
+          "priceWithoutVat": "2940.87",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": null,
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "2940.87"
+    },
+    {
+      "chapter": 4,
+      "number": "91",
+      "caption": "Настенная наборная патч-панель, 12 портов, NMC-WP12-BLANK-BK",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_61.3.05.03_25_0000000000_11.03.2026_02_91.1",
+          "caption": "Настенная наборная патч-панель, 12 портов, NMC-WP12-BLANK-BK",
+          "priceWithVat": "933.24",
+          "priceWithoutVat": "764.95",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": null,
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "764.95"
+    },
+    {
+      "chapter": 5,
+      "number": "99",
+      "caption": "Беспроводная точка доступа, WEP-30L",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_61.1.03.03_25_0000000000_11.03.2026_02_99.1",
+          "caption": "Беспроводная точка доступа, WEP-30L",
+          "priceWithVat": "45000",
+          "priceWithoutVat": "36885.25",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": null,
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "36885.25"
+    }
+  ]
+}

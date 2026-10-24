@@ -1,0 +1,133 @@
+{
+  "$comment": "Контрольные точки сняты скриптом etalons_from_forms.py с печатной формы программы, не с XML образца (plan-05, вариант Г). Руками не править.",
+  "sample": "ka-16.2.0-vn-summary.gsfx",
+  "form": "Конъюнктурный анализ",
+  "programVersion": "16.2.0",
+  "kind": "Conjuncture",
+  "requisites": {
+    "object": "ул. Прапорщика Комарова д. 36 в г. Владивостоке"
+  },
+  "counts": {
+    "chapters": 2,
+    "positions": 14,
+    "offers": 14,
+    "suppliers": 1
+  },
+  "chapters": [
+    {
+      "caption": "Оборудование",
+      "positions": 5
+    },
+    {
+      "caption": "Материалы",
+      "positions": 9
+    }
+  ],
+  "positions": [
+    {
+      "chapter": 1,
+      "number": "1",
+      "caption": "Коммутатор доступа, 24 порта PoE/PoE+ 1G, 4 порта 10G, MES2424P",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_61.1.03.03_25_0000000000_11.03.2026_02_1.1",
+          "caption": "Коммутатор доступа, 24 порта PoE/PoE+ 1G, 4 порта 10G, MES2424P",
+          "priceWithVat": "231613",
+          "priceWithoutVat": "189846.72",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": null,
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "189846.72"
+    },
+    {
+      "chapter": 1,
+      "number": "2",
+      "caption": "Кабельный органайзер с крышкой, 58мм, черный, 19\", 1U, NMC-OK580C-1U-BK",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_89.1.77.03_25_0000000000_11.03.2026_02_2.1",
+          "caption": "Кабельный органайзер с крышкой, 58мм, черный, 19\", 1U, NMC-OK580C-1U-BK",
+          "priceWithVat": "1190.64",
+          "priceWithoutVat": "975.93",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": null,
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "975.93"
+    },
+    {
+      "chapter": 2,
+      "number": "6",
+      "caption": "Соединительный шнур, двойной, SM 9/125, OS2, LC/UPC-LC/UPC, LSZH, 2м, NMF-PC2S2C2-LCU-LCU-002",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_21.1.01.00_25_0000000000_11.03.2026_02_6.1",
+          "caption": "Соединительный шнур, двойной, SM 9/125, OS2, LC/UPC-LC/UPC, LSZH, 2м, NMF-PC2S2C2-LCU-LCU-002",
+          "priceWithVat": "657.36",
+          "priceWithoutVat": "538.82",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": null,
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "538.82"
+    },
+    {
+      "chapter": 2,
+      "number": "10",
+      "caption": "Кабель U/UTP, 4 пары, Кат.5e, нг( А)-HF, внутр., Оранжевый, 305м, NMC 4100C-OR",
+      "units": "м",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_21.1.04.01_25_0000000000_11.03.2026_02_10.1",
+          "caption": "Кабель U/UTP, 4 пары, Кат.5e, нг( А)-HF, внутр., Оранжевый, 305м, NMC 4100C-OR",
+          "priceWithVat": "110.51",
+          "priceWithoutVat": "90.58",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": null,
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "90.58"
+    },
+    {
+      "chapter": 2,
+      "number": "14",
+      "caption": "Кронштейн для камер, СОКОЛ Dome",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_20.2.06.05_25_0000000000_11.03.2026_02_14.1",
+          "caption": "Кронштейн для камер, СОКОЛ Dome",
+          "priceWithVat": "2848",
+          "priceWithoutVat": "2334.43",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": null,
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "2334.43"
+    }
+  ]
+}

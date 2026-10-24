@@ -1,0 +1,141 @@
+{
+  "$comment": "Контрольные точки сняты скриптом etalons_from_forms.py с печатной формы программы, не с XML образца (plan-05, вариант Г). Руками не править.",
+  "sample": "ka-16.2.0-eom-summary.gsfx",
+  "form": "Конъюнктурный анализ",
+  "programVersion": "16.2.0",
+  "kind": "Conjuncture",
+  "requisites": {
+    "object": "ул. Прапорщика Комарова д. 36 в г. Владивостоке"
+  },
+  "counts": {
+    "chapters": 4,
+    "positions": 86,
+    "offers": 86,
+    "suppliers": 1
+  },
+  "chapters": [
+    {
+      "caption": "Оборудование",
+      "positions": 13
+    },
+    {
+      "caption": "Материалы",
+      "positions": 35
+    },
+    {
+      "caption": "Осветительные приборы",
+      "positions": 27
+    },
+    {
+      "caption": "Электроустановочные изделия",
+      "positions": 11
+    }
+  ],
+  "positions": [
+    {
+      "chapter": 1,
+      "number": "1",
+      "caption": "Автоматический выключатель модульный YON макс (YON max) типа MD63N, 6кА, 3 полюса, хар-ка C, 50А, MD63N-3PC50",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_62.1.01.00_25_0000000000_03.03.2026_02_1.1",
+          "caption": "Автоматический выключатель модульный YON макс (YON max) типа MD63N, 6кА, 3 полюса, хар-ка C, 50А, MD63N-3PC50",
+          "priceWithVat": "1916.14",
+          "priceWithoutVat": "1570.61",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": "Российская Федерация",
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "1570.61"
+    },
+    {
+      "chapter": 2,
+      "number": "33",
+      "caption": "Крышка на лоток с заземлением осн. 300 L 2000, горячеоцинкованная, 35515HDZ",
+      "units": "м",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_20.2.03.06_25_0000000000_03.03.2026_02_33.1",
+          "caption": "Крышка на лоток с заземлением осн. 300 L 2000, горячеоцинкованная, 35515HDZ",
+          "priceWithVat": "3008.02",
+          "priceWithoutVat": "2465.59",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": null,
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "2465.59"
+    },
+    {
+      "chapter": 2,
+      "number": "43",
+      "caption": "Кабель медный силовой ППГнг(А)-HF 3х1,5-0,66",
+      "units": "м",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_21.1.06.10_25_0000000000_03.03.2026_02_43.1",
+          "caption": "Кабель медный силовой ППГнг(А)-HF 3х1,5-0,66",
+          "priceWithVat": "86.12",
+          "priceWithoutVat": "70.59",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": null,
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "70.59"
+    },
+    {
+      "chapter": 3,
+      "number": "65",
+      "caption": "Лампа напольная 1",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_20.3.03.07_25_0000000000_03.03.2026_02_65.1",
+          "caption": "Лампа напольная 1",
+          "priceWithVat": "1",
+          "priceWithoutVat": "0.82",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": null,
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "0.82"
+    },
+    {
+      "chapter": 4,
+      "number": "85",
+      "caption": "РКС-20-30-П-К Розетка с з/к 2к (на 2 модуля) ПРАЙМЕР белая IEK, CKK-40D-RSZB2-K01-K",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_20.4.03.06_25_0000000000_03.03.2026_02_85.1",
+          "caption": "РКС-20-30-П-К Розетка с з/к 2к (на 2 модуля) ПРАЙМЕР белая IEK, CKK-40D-RSZB2-K01-K",
+          "priceWithVat": "490.04",
+          "priceWithoutVat": "401.67",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": null,
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "401.67"
+    }
+  ]
+}
