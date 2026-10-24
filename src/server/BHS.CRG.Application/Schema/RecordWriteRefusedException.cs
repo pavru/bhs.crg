@@ -72,6 +72,41 @@ public static class WriteGuard
         if (refusals.Count > 0) throw new RecordWriteRefusedException(refusals);
     }
 
+    /// <summary>
+    /// Те же два вопроса для ПАКЕТА новых записей одного типа — находки каждой записи своим списком,
+    /// в порядке пакета (change <c>plan-06-estimate-model</c>). Тип, уровень его схемы, справочник
+    /// типов и примитивов читаются один раз на пакет, а не на запись: редакция сметы — тысячи строк, и
+    /// вопрос на строку стоил бы тысяч обращений к базе. База трогается на запись только там, где в ней
+    /// есть ссылки — правилу архива надо спросить, не в архиве ли они.
+    /// </summary>
+    public static async Task<IReadOnlyList<IReadOnlyList<AuditIssue>>> CreationRefusalsAsync(
+        IReadOnlyList<JsonDocument> incoming, Guid typeId,
+        IRepository<DocumentType> types, IRepository<PrimitiveType> primitives,
+        IDomainObjectRepository objects, CancellationToken ct)
+    {
+        IReadOnlyDictionary<Guid, DocumentType>? loaded = null;
+        async Task<IReadOnlyDictionary<Guid, DocumentType>> TypesById() =>
+            loaded ??= (await types.GetAllAsync(ct)).ToDictionary(t => t.Id);
+
+        // Тот же дешёвый выход, что у одиночной охраны: открытой схеме сверять нечего.
+        var type = await types.GetByIdAsync(typeId, ct);
+        var guarded = type is not null && !(type.EditLevel == SchemaEditLevel.Open && type.ParentId is null)
+            && RecordWriteGuard.EffectiveLevel(typeId, await TypesById()) != SchemaEditLevel.Open;
+        var primitivesById = guarded ? (await primitives.GetAllAsync(ct)).ToDictionary(p => p.Id) : null;
+
+        var result = new List<IReadOnlyList<AuditIssue>>(incoming.Count);
+        foreach (var doc in incoming)
+        {
+            List<AuditIssue> issues = guarded
+                ? [.. RecordWriteGuard.Refusals(Nothing.RootElement, doc.RootElement, typeId, await TypesById(), primitivesById!)]
+                : [];
+            issues.AddRange(await ArchivedRefRule.RefusalsAsync(
+                Nothing.RootElement, doc.RootElement, typeId, null, TypesById, objects, ct));
+            result.Add(issues);
+        }
+        return result;
+    }
+
     private static async Task<IReadOnlyList<AuditIssue>> SchemaRefusalsAsync(
         JsonElement was, JsonElement incoming, Guid typeId, IRepository<DocumentType> types,
         Func<Task<IReadOnlyDictionary<Guid, DocumentType>>> typesById,

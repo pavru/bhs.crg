@@ -26,6 +26,16 @@ public class ModuleRecordTypeTests
         Assert.Equal(domain, mirrored);
     }
 
+    /// <summary>Зеркало родов типа (plan-06) — тот же сторож, что у уровней.</summary>
+    [Fact]
+    public void Зеркало_родов_типа_совпадает_с_доменным()
+    {
+        var mirrored = Enum.GetNames<ModuleTypeKind>().OrderBy(x => x, StringComparer.Ordinal);
+        var domain = Enum.GetNames<DocumentTypeKind>().OrderBy(x => x, StringComparer.Ordinal);
+
+        Assert.Equal(domain, mirrored);
+    }
+
     /// <summary>
     /// Команду проекции зовёт РОВНО ОДИН файл — тот, что проецирует объявления при старте.
     ///

@@ -41,4 +41,20 @@ public interface IModuleWriteGuard
     /// <param name="incomingJson">Данные, которые просят сохранить.</param>
     Task<IReadOnlyList<ModuleWriteRefusal>> RefusalsAsync(
         Guid typeId, string? storedJson, string incomingJson, CancellationToken ct = default);
+
+    /// <summary>
+    /// То же для ПАКЕТА новых записей одного типа (как <see cref="RefusalsAsync" /> с <c>storedJson</c>
+    /// = <c>null</c>): находки каждой записи — своим списком, в порядке пакета. Нужен записи редакции
+    /// сметы (<c>plan-06</c>): тысячи строк, и вопрос на строку стоил бы тысяч обращений к базе.
+    ///
+    /// <para>Умолчание — одиночный вопрос на каждую запись: подмена порта в тестах обязана остаться
+    /// честной, не реализуя пакет отдельно. Порт ядра отвечает на пакет одним чтением схемы.</para>
+    /// </summary>
+    async Task<IReadOnlyList<IReadOnlyList<ModuleWriteRefusal>>> CreationRefusalsAsync(
+        Guid typeId, IReadOnlyList<string> incomingJson, CancellationToken ct = default)
+    {
+        var result = new List<IReadOnlyList<ModuleWriteRefusal>>(incomingJson.Count);
+        foreach (var json in incomingJson) result.Add(await RefusalsAsync(typeId, null, json, ct));
+        return result;
+    }
 }

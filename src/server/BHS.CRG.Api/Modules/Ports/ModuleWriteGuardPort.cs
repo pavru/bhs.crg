@@ -50,6 +50,32 @@ public sealed class ModuleWriteGuardPort(
     }
 
     /// <summary>
+    /// Пакет новых записей одного типа (change <c>plan-06-estimate-model</c>): тип и справочники схемы
+    /// читаются один раз на пакет (<see cref="WriteGuard.CreationRefusalsAsync" />). Неизвестный тип —
+    /// отказ, как у одиночной записи.
+    /// </summary>
+    public async Task<IReadOnlyList<IReadOnlyList<ModuleWriteRefusal>>> CreationRefusalsAsync(
+        Guid typeId, IReadOnlyList<string> incomingJson, CancellationToken ct = default)
+    {
+        var docs = incomingJson.Select((json, i) => Parse(json, $"{nameof(incomingJson)}[{i}]")).ToList();
+        try
+        {
+            if (await types.GetByIdAsync(typeId, ct) is null)
+                throw new InvalidOperationException(
+                    $"Охране записи передан неизвестный тип {typeId}: проверять нечего, а пустой список " +
+                    "находок модуль прочитал бы как «запись разрешена».");
+
+            var found = await WriteGuard.CreationRefusalsAsync(docs, typeId, types, primitives, objects, ct);
+            return [.. found.Select(issues => (IReadOnlyList<ModuleWriteRefusal>)
+                [.. issues.Select(i => new ModuleWriteRefusal(i.Code, i.Path, i.Message))])];
+        }
+        finally
+        {
+            foreach (var doc in docs) doc.Dispose();
+        }
+    }
+
+    /// <summary>
     /// Негодный JSON — отказ, называющий ПАРАМЕТР. Без имени сообщение платформы («'i' is an invalid
     /// start of a value») равно годится и для того, что лежит, и для того, что пришло, — а это разные
     /// неполадки: первая означает испорченные данные в базе, вторая — ошибку вызывающего.

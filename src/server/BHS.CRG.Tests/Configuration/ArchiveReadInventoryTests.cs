@@ -271,7 +271,8 @@ public partial class ArchiveReadInventoryTests
         var probes = new[] { typeof(ArchiveReadPurposeTests), typeof(LevelProfileTests), typeof(InvoiceArchiveTests),
                 typeof(SupplierMatchTests), typeof(SupplierMatchListTests), typeof(SupplierTermsTests),
                 typeof(NomenclatureIntakeTests), typeof(FieldSuggestionTests),
-                typeof(WorkTypeEndpointsTests), typeof(ModuleWorkTypesPortTests) }
+                typeof(WorkTypeEndpointsTests), typeof(ModuleWorkTypesPortTests),
+                typeof(BHS.CRG.Tests.Plan.EstimateRowReferencesTests) }
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance))
             .Where(m => m.GetCustomAttributes<FactAttribute>().Any())
             .Select(m => m.Name).ToHashSet(StringComparer.Ordinal);
