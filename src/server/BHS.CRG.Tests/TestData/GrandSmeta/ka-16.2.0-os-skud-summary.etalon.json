@@ -1,0 +1,141 @@
+{
+  "$comment": "Контрольные точки сняты скриптом etalons_from_forms.py с печатной формы программы, не с XML образца (plan-05, вариант Г). Руками не править.",
+  "sample": "ka-16.2.0-os-skud-summary.gsfx",
+  "form": "Конъюнктурный анализ",
+  "programVersion": "16.2.0",
+  "kind": "Conjuncture",
+  "requisites": {
+    "object": "ул. Прапорщика Комарова д. 36 в г. Владивостоке"
+  },
+  "counts": {
+    "chapters": 4,
+    "positions": 20,
+    "offers": 20,
+    "suppliers": 1
+  },
+  "chapters": [
+    {
+      "caption": "Общие",
+      "positions": 4
+    },
+    {
+      "caption": "ОС",
+      "positions": 6
+    },
+    {
+      "caption": "СКУД",
+      "positions": 5
+    },
+    {
+      "caption": "Кабели",
+      "positions": 5
+    }
+  ],
+  "positions": [
+    {
+      "chapter": 1,
+      "number": "1",
+      "caption": "TMC 30x10 Миниканал, 00311",
+      "units": "м",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_20.2.05.05_25_0000000000_24.03.2026_02_1.1",
+          "caption": "TMC 30x10 Миниканал, 00311",
+          "priceWithVat": "107.29",
+          "priceWithoutVat": "87.94",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": null,
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "87.94"
+    },
+    {
+      "chapter": 2,
+      "number": "9",
+      "caption": "Адресный силовой блок питания, PB10",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_62.4.02.01_25_0000000000_24.03.2026_02_9.1",
+          "caption": "Адресный силовой блок питания, PB10",
+          "priceWithVat": "11250",
+          "priceWithoutVat": "9221.31",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": null,
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "9221.31"
+    },
+    {
+      "chapter": 3,
+      "number": "16",
+      "caption": "Контроллер СКУД (1 дверь), A1D0",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_61.2.06.02_25_0000000000_24.03.2026_02_16.1",
+          "caption": "Контроллер СКУД (1 дверь), A1D0",
+          "priceWithVat": "12009.4",
+          "priceWithoutVat": "9843.77",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": null,
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "9843.77"
+    },
+    {
+      "chapter": 3,
+      "number": "20",
+      "caption": "Доводчик механический для двери весом до 120 кг, Dorma TS-73",
+      "units": "шт",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_01.7.04.01_25_0000000000_24.03.2026_02_20.1",
+          "caption": "Доводчик механический для двери весом до 120 кг, Dorma TS-73",
+          "priceWithVat": "11901.12",
+          "priceWithoutVat": "9755.02",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": null,
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "9755.02"
+    },
+    {
+      "chapter": 4,
+      "number": "15",
+      "caption": "Кабель передачи информации внутренний огнестойкий ParLan U/UTP Cat5e ZH нг(А)-FRHF 4х2х0,52",
+      "units": "м",
+      "offers": [
+        {
+          "number": "1",
+          "code": "ТЦ_21.1.04.01_25_0000000000_24.03.2026_02_15.1",
+          "caption": "Кабель передачи информации внутренний огнестойкий ParLan U/UTP Cat5e ZH нг(А)-FRHF 4х2х0,52",
+          "priceWithVat": "115.7",
+          "priceWithoutVat": "94.84",
+          "supplier": "ООО \"Свобода выбора\"",
+          "inn": "0000000000",
+          "kpp": "000000001",
+          "country": null,
+          "month": "03.2026"
+        }
+      ],
+      "minPriceWithoutVat": "94.84"
+    }
+  ]
+}
