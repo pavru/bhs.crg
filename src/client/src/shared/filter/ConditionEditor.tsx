@@ -1,3 +1,4 @@
+import type { Ref } from 'react';
 import type { FilterCondition, FilterOp } from '@/shared/api/types';
 import { columnLabel, operatorsFor, opLabel, withColumn, withOperator, type FilterColumn } from './rowFilterModel';
 import { RowFilterValue } from './RowFilterValue';
@@ -11,12 +12,16 @@ const FIELD_CLS = 'border border-stroke rounded px-2 py-1 text-xs bg-surface tex
  *
  * `stacked` — поля столбиком (в окошке чипа); иначе они встают в строку родителя.
  */
-export function ConditionEditor({ cond, columns, onChange, stacked = false }: {
+export function ConditionEditor({ cond, columns, onChange, stacked = false, hintId, valueRef }: {
   cond: FilterCondition;
   /** Колонки с их видами; пусто (шаблон обработки без источника) — колонка вписывается текстом. */
   columns: FilterColumn[];
   onChange: (c: FilterCondition) => void;
   stacked?: boolean;
+  /** `id` строки под условием (`ConditionHint`) — поле значения ссылается на неё, когда в ней пометка. */
+  hintId?: string;
+  /** Текстовое поле значения — строке под условием: после замены фокус возвращается в него. */
+  valueRef?: Ref<HTMLInputElement>;
 }) {
   const column = columns.find(c => c.name === cond.column);
   // Колонке — её операторы (issue #1133). Оператор сохранённого условия, который к ней не подходит,
@@ -73,7 +78,7 @@ export function ConditionEditor({ cond, columns, onChange, stacked = false }: {
         ))}
       </select>
 
-      <RowFilterValue cond={cond} column={column} onChange={onChange} />
+      <RowFilterValue cond={cond} column={column} hintId={hintId} valueRef={valueRef} onChange={onChange} />
     </div>
   );
 }

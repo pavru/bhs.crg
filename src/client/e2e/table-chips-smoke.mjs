@@ -13,6 +13,11 @@
 //
 // ⚠️ Элементы ищутся ПО ВИДИМОМУ ТЕКСТУ и ролям, без служебных атрибутов.
 //
+// ПОДСКАЗКА СТРОЙКИ (UI-56, COST-20.1; change costs-filter-place-hints): поле значения у «Объекта» и
+// «Раздела» подсказывает из справочника, опечатка помечена «нет в справочнике», замена её исправляет.
+// Юнит-тесты держат правила; здесь — что перечень на экране собран из живого справочника и что
+// исправленное условие уходит на сервер. Стройку с разделом прогон заводит себе сам — один раз, по имени.
+//
 // Требует поднятых фронта и бэка, посеянных данных и ВКЛЮЧЁННОГО модуля `costs`
 // (`Modules__Enabled=id,costs`) — см. e2e/README.md.
 //
@@ -33,6 +38,8 @@ const number = `ЧИП-${stamp}`;
 const requests = [];
 page.on('request', r => { if (r.url().includes('/api/tables/costs.invoices')) requests.push(decodeURIComponent(r.url())); });
 const lastRequest = () => requests[requests.length - 1] ?? '';
+/** Ушло ли значение условия в последний запрос: пробелы адрес несёт плюсами, `decodeURIComponent` их не трогает. */
+const sentValue = value => lastRequest().replace(/\+/g, ' ').includes(`"value":"${value}"`);
 
 await login(page);
 
@@ -60,6 +67,13 @@ try {
   await browser.close();
   process.exit(1);
 }
+
+const HINT_SITE = 'Подсказка прогона чипов';
+const HINT_SECTION = '4 эт. прогона';
+const hintSite = (await api('GET', '/constructions')).find(c => c.name === HINT_SITE)
+  ?? await api('POST', '/constructions', { name: HINT_SITE });
+if (!(await api('GET', '/costs/constructions')).find(c => c.id === hintSite.id)?.sections.some(s => s.name === HINT_SECTION))
+  await api('POST', `/constructions/${hintSite.id}/sections`, { name: HINT_SECTION });
 
 await page.goto(`${BASE}/tables/costs.invoices`, { waitUntil: 'networkidle' });
 
@@ -257,6 +271,67 @@ try {
       await submit.click();
     }
     await put('Дата счёта: 15.10.2026');
+  });
+
+  await check('«+ Объект» в реестре подсказывает стройку; опечатка помечена, замена её исправляет', async () => {
+    await page.goto(`${BASE}/tables/costs.invoices/registry`, { waitUntil: 'networkidle' });
+    const chipEditor = page.getByRole('dialog').filter({ has: page.getByLabel('Оператор') });
+    await chips.getByRole('button', { name: 'Объект', exact: true }).click();
+    const value = chipEditor.getByRole('combobox', { name: 'Значение' });
+
+    await value.fill('подсказка прог');
+    await page.getByRole('option', { name: HINT_SITE, exact: true }).waitFor({ timeout: 5000 })
+      .catch(() => { throw new Error('набор не подсказал стройку из справочника'); });
+
+    // Двойной пробел — опечатка, которую сервер не простит: «Подсказка  прогона чипов» ≠ «… прогона …».
+    const typo = HINT_SITE.replace(' ', '  ');
+    await value.fill(typo);
+    const notice = chipEditor.getByText(`«${typo}» — нет в справочнике`);
+    await notice.waitFor({ timeout: 5000 }).catch(() => { throw new Error('опечатка не помечена'); });
+    await chipEditor.getByRole('button', { name: `Заменить на «${HINT_SITE}»` }).click();
+    await notice.waitFor({ state: 'hidden', timeout: 5000 });
+    if (await value.inputValue() !== HINT_SITE) throw new Error(`замена поставила «${await value.inputValue()}»`);
+
+    const before = requests.length;
+    await chipEditor.getByRole('button', { name: 'Добавить' }).click();
+    const chip = `Объект: «${HINT_SITE}»`;
+    await chips.getByRole('button', { name: chip, exact: true }).waitFor({ timeout: 5000 });
+    await requestAfter(before);
+    if (!sentValue(HINT_SITE)) throw new Error(`в запрос ушло не то значение: ${lastRequest()}`);
+    if (await chips.getByLabel('нет в справочнике').count()) throw new Error('исправленный чип помечен');
+    await chips.getByRole('button', { name: `Снять условие «${chip}»` }).click();
+    await chips.getByRole('button', { name: chip, exact: true }).waitFor({ state: 'hidden', timeout: 5000 });
+  });
+
+  await check('«Раздел»: подсказка «стройка / раздел», голое название стройки — пояснение и «Без раздела»', async () => {
+    const chipEditor = page.getByRole('dialog').filter({ has: page.getByLabel('Оператор') });
+    await addChip.click();
+    await chipEditor.getByLabel('Колонка').selectOption({ label: 'Раздел' });
+    const value = chipEditor.getByRole('combobox', { name: 'Значение' });
+
+    await value.fill('4 эт. прог');
+    await page.getByRole('option', { name: `${HINT_SITE} / ${HINT_SECTION}`, exact: true }).waitFor({ timeout: 5000 })
+      .catch(() => { throw new Error('раздел не подсказан в виде «стройка / раздел»'); });
+
+    await value.fill(HINT_SITE);
+    // Список под набранным открыт (разделы стройки) — пометка ждёт, пока человек выберет; Tab его закрывает.
+    await page.keyboard.press('Tab');
+    await chipEditor.getByText(/это стройка, а не раздел/).waitFor({ timeout: 5000 })
+      .catch(() => { throw new Error('голое название стройки в «Разделе» не пояснено'); });
+    if (!(await chipEditor.getByRole('button', { name: 'Все разделы стройки' }).isVisible()))
+      throw new Error('нет действия «Все разделы стройки»');
+    await chipEditor.getByRole('button', { name: 'Без раздела', exact: true }).click();
+    const none = `${HINT_SITE} / без раздела`;
+    if (await value.inputValue() !== none) throw new Error(`«Без раздела» поставило «${await value.inputValue()}»`);
+
+    const before = requests.length;
+    await chipEditor.getByRole('button', { name: 'Добавить' }).click();
+    const chip = `Раздел: «${none}»`;
+    await chips.getByRole('button', { name: chip, exact: true }).waitFor({ timeout: 5000 });
+    await requestAfter(before);
+    if (!sentValue(none)) throw new Error(`в запрос ушло не то значение: ${lastRequest()}`);
+    await chips.getByRole('button', { name: `Снять условие «${chip}»` }).click();
+    await chips.getByRole('button', { name: chip, exact: true }).waitFor({ state: 'hidden', timeout: 5000 });
   });
 
   await check('отбор с «ИЛИ» назван сложным и чипами не подменён', async () => {

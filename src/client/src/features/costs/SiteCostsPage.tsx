@@ -16,6 +16,7 @@ import { formatCount, formatMoney } from '@/shared/format/format';
 import { correctionsText, foldSites, foldedText, invoicesText, siteCostsLinks, type FoldedSites } from './siteCosts';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { COST_VIEWS_ID, CostViewsBand } from './CostViewsBand';
+import { OUTSIDE_SITES } from './places';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { DateRange } from '@/shared/ui/DateRange';
 
@@ -188,7 +189,7 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
           link: line.linked ? siteCostsLinks.object(data, line.name) : undefined, label: line.name,
           name: <button type="button" onClick={() => line.id && onSite(line.id)}
             className="text-left text-brand hover:underline">{line.name}</button> })),
-        ...(data.articles.length > 0 ? [{ kind: 'group', key: 'group:articles', title: 'Вне строек' } satisfies Line] : []),
+        ...(data.articles.length > 0 ? [{ kind: 'group', key: 'group:articles', title: OUTSIDE_SITES } satisfies Line] : []),
         ...data.articles.map((line): Line => ({ kind: 'figure', key: `article:${line.id ?? line.name}`, indent: true, name: line.name, figure: line,
           link: line.linked ? siteCostsLinks.object(data, line.name) : undefined })),
         // Удалённые объекты — одной строкой и без перехода «внутрь»: стройки больше нет.
