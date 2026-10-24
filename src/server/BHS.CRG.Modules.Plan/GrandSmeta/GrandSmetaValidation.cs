@@ -47,17 +47,31 @@ internal sealed class GrandSmetaValidation
         return result;
     }
 
-    /// <summary>Ошибка схемы в позиции, если была: позиция уходит в не разобранные с ней.</summary>
-    public bool Failed(XElement position, out Unparsed unparsed, string place)
+    /// <summary>
+    /// Разбор одной позиции — у всех читателей одинаково: не прошла схему — в не разобранные с ошибкой схемы;
+    /// значение не читается или число вне диапазона <c>decimal</c> — в не разобранные с причиной; иначе — в
+    /// разобранные.
+    /// </summary>
+    public void Parse<T>(XElement position, string place, List<T> parsed, List<Unparsed> unparsed, Func<T> parse)
     {
         if (_positions.TryGetValue(position, out var error))
         {
-            unparsed = new Unparsed(place, error.Line, "не прошла проверку по схеме: " + error.Message);
-            return true;
+            unparsed.Add(new Unparsed(place, error.Line, "не прошла проверку по схеме: " + error.Message));
+            return;
         }
 
-        unparsed = null!;
-        return false;
+        try
+        {
+            parsed.Add(parse());
+        }
+        catch (GrandSmetaFormatException ex)
+        {
+            unparsed.Add(new Unparsed(place, position.Line(), ex.Message));
+        }
+        catch (OverflowException)
+        {
+            unparsed.Add(new Unparsed(place, position.Line(), GrandSmetaFormatException.OutOfRange));
+        }
     }
 
     /// <summary>Позиция — самая внешняя <c>Position</c> раздела: у ЛСР в позиции бывают вложенные строки

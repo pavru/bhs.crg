@@ -44,20 +44,7 @@ public static class VolumeStatementReader
 
                     index++;
                     var place = $"раздел {ci + 1} «{caption}», позиция {e.Text("Number")}".TrimEnd();
-                    if (validation.Failed(e, out var failed, place))
-                    {
-                        unparsed.Add(failed);
-                        continue;
-                    }
-
-                    try
-                    {
-                        works.Add(Work(e, index, header));
-                    }
-                    catch (GrandSmetaFormatException ex)
-                    {
-                        unparsed.Add(new Unparsed(place, e.Line(), ex.Message));
-                    }
+                    validation.Parse(e, place, works, unparsed, () => Work(e, index, header));
                 }
 
                 parsed.Add(new VolumeChapter(ci + 1, caption, chapter.Text("CustomNumber"), notes, works));

@@ -10,7 +10,7 @@ namespace BHS.CRG.Modules.Plan.GrandSmeta;
 ///
 /// <para>На вход — <c>.gsfx</c> (ZIP: <c>Properties.txt</c>, <c>Data.xml</c>, <c>Data.sign</c>, у ВОР ещё
 /// <c>Attachments/…</c>) или голый <c>Data.xml</c>; модель у них одна. Кодировка — из пролога (программа
-/// пишет windows-1251), без пролога — windows-1251. Вложения ZIP не читаются: в модель идут только ссылки и
+/// пишет windows-1251), без пролога — windows-1251, если текст не правильный UTF-8. Вложения ZIP не читаются: в модель идут только ссылки и
 /// имена из XML.</para>
 ///
 /// <para>Ловушка: <c>.gsfx</c>, открытый в самой программе, файловым API без общего доступа не читается —
@@ -21,6 +21,10 @@ public sealed class GrandSmetaFile
     /// <summary>Потолок распакованного <c>Data.xml</c>: крупнейший образец — 0,9 МБ, смета в тысячи строк —
     /// единицы МБ. Больше — не смета, а ZIP-бомба.</summary>
     private const long MaxXmlBytes = 64L * 1024 * 1024;
+
+    /// <summary>Потолок архива из потока без перемотки — его приходится держать в памяти целиком. Вложения ВОР
+    /// программа ограничивает 10 МБ (документы — 50 МБ каждый).</summary>
+    private const long MaxArchiveBytes = 256L * 1024 * 1024;
 
     private static readonly Dictionary<string, GrandSmetaKind> Kinds = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -55,10 +59,15 @@ public sealed class GrandSmetaFile
 
     public static GrandSmetaFile Open(Stream stream)
     {
-        using var buffer = new MemoryStream();
-        stream.CopyTo(buffer);
-        var bytes = buffer.ToArray();
-        var xml = bytes is [(byte)'P', (byte)'K', ..] ? DataXmlOf(bytes) : bytes;
+        // Архив читается с места, если поток это позволяет: в .gsfx ВОР лежат вложения — их в память не тянем
+        using var source = stream.CanSeek ? null : Bounded(stream, MaxArchiveBytes,
+            $"Файл больше {MaxArchiveBytes / 1024 / 1024} МБ — это не файл ГРАНД-Сметы.");
+        var input = source ?? stream;
+        var start = input.Position;
+        Span<byte> magic = stackalloc byte[2];
+        var isZip = input.ReadAtLeast(magic, 2, throwOnEndOfStream: false) == 2 && magic is [(byte)'P', (byte)'K'];
+        input.Position = start;
+        using var xml = isZip ? DataXmlOf(input) : Bounded(input, MaxXmlBytes, TooLarge);
 
         XDocument document;
         try
@@ -95,20 +104,19 @@ public sealed class GrandSmetaFile
                 $"Ожидался {GrandSmetaSchemas.KindName(kind)}, а в файле — {GrandSmetaSchemas.KindName(Kind)}.");
     }
 
-    private static byte[] DataXmlOf(byte[] bytes)
+    private static string TooLarge => $"Data.xml больше {MaxXmlBytes / 1024 / 1024} МБ — это не смета.";
+
+    private static MemoryStream DataXmlOf(Stream archive)
     {
         try
         {
-            using var zip = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
+            using var zip = new ZipArchive(archive, ZipArchiveMode.Read, leaveOpen: true);
             var entry = zip.Entries.FirstOrDefault(e => e.FullName.Equals("Data.xml", StringComparison.OrdinalIgnoreCase))
                 ?? throw Refuse(GrandSmetaRefusal.NotGrandSmeta, "В архиве нет Data.xml — это не файл ГРАНД-Сметы.");
-            if (entry.Length > MaxXmlBytes)
-                throw Refuse(GrandSmetaRefusal.NotGrandSmeta,
-                    $"Data.xml в архиве больше {MaxXmlBytes / 1024 / 1024} МБ — это не смета.");
+            if (entry.Length > MaxXmlBytes) throw Refuse(GrandSmetaRefusal.NotGrandSmeta, TooLarge);
+            // Размер из заголовка архива — слова архива: распакованное считается заново
             using var data = entry.Open();
-            using var copy = new MemoryStream();
-            data.CopyTo(copy);
-            return copy.ToArray();
+            return Bounded(data, MaxXmlBytes, TooLarge);
         }
         catch (InvalidDataException)
         {
@@ -116,16 +124,39 @@ public sealed class GrandSmetaFile
         }
     }
 
-    private static XDocument Load(byte[] xml)
+    /// <summary>Копия потока в память — не больше <paramref name="limit" /> байт; больше — отказ, а не память
+    /// процесса.</summary>
+    private static MemoryStream Bounded(Stream source, long limit, string tooLarge)
+    {
+        var copy = new MemoryStream();
+        var chunk = new byte[81920];
+        int read;
+        while ((read = source.Read(chunk)) > 0)
+        {
+            if (copy.Length + read > limit) throw Refuse(GrandSmetaRefusal.NotGrandSmeta, tooLarge);
+            copy.Write(chunk, 0, read);
+        }
+
+        copy.Position = 0;
+        return copy;
+    }
+
+    private static XDocument Load(MemoryStream xml)
     {
         var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null };
-        // Без пролога XmlReader считает текст UTF-8, а программа пишет windows-1251.
-        var head = Encoding.ASCII.GetString(xml, 0, Math.Min(xml.Length, 200));
-        using var reader = head.Contains("encoding=", StringComparison.Ordinal) || xml is [0xEF, 0xBB, 0xBF, ..]
-            ? XmlReader.Create(new MemoryStream(xml), settings)
-            : XmlReader.Create(new StreamReader(new MemoryStream(xml), Encoding.GetEncoding(1251)), settings);
+        var bytes = xml.GetBuffer().AsSpan(0, (int)xml.Length);
+        var head = Encoding.ASCII.GetString(bytes[..Math.Min(bytes.Length, 200)]);
+        using var reader = head.Contains("encoding=", StringComparison.Ordinal) || bytes is [0xEF, 0xBB, 0xBF, ..]
+            ? XmlReader.Create(xml, settings)
+            : XmlReader.Create(new StreamReader(xml, EncodingWithoutProlog(bytes)), settings);
         return XDocument.Load(reader, LoadOptions.SetLineInfo);
     }
+
+    /// <summary>Кодировка текста без пролога и BOM. Программа пишет windows-1251, но тот же Data.xml, пересохранённый
+    /// сторонним инструментом, бывает в UTF-8 — и прочитанный как 1251 он дал бы «разобрано всё» с испорченными
+    /// названиями. Кириллица windows-1251 правильным UTF-8 не складывается, поэтому правильный UTF-8 — UTF-8.</summary>
+    private static Encoding EncodingWithoutProlog(ReadOnlySpan<byte> bytes) =>
+        System.Text.Unicode.Utf8.IsValid(bytes) ? new UTF8Encoding(false) : Encoding.GetEncoding(1251);
 
     internal static GrandSmetaRefusedException Refuse(GrandSmetaRefusal reason, string message) => new(reason, message);
 
@@ -141,6 +172,11 @@ public sealed class GrandSmetaFile
         catch (GrandSmetaFormatException ex)
         {
             throw Refuse(GrandSmetaRefusal.DocumentInvalid, "В документе не читается значение вне позиций: " + ex.Message + ".");
+        }
+        catch (OverflowException)
+        {
+            throw Refuse(GrandSmetaRefusal.DocumentInvalid,
+                "В документе не читается значение вне позиций: " + GrandSmetaFormatException.OutOfRange + ".");
         }
     }
 }

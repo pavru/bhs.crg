@@ -26,10 +26,9 @@ internal static class GrandSmetaXml
     {
         var v = e.Text(attribute);
         if (v is null) return null;
-        var plain = v.Replace(" ", "").Replace(',', '.');
-        if (decimal.TryParse(plain, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)) return d;
-        var expression = new Arithmetic(plain);
-        return expression.TryEvaluate(out var value)
+        var plain = Plain(v);
+        if (TryParse(plain, out var d)) return d;
+        return new Arithmetic(plain).TryEvaluate(out var value)
             ? Math.Round(value, 2, MidpointRounding.AwayFromZero)
             : throw new GrandSmetaFormatException($"{attribute} — не число: «{v}»");
     }
@@ -37,11 +36,26 @@ internal static class GrandSmetaXml
     public static decimal? Number(string? value, string what)
     {
         if (value is null) return null;
-        return decimal.TryParse(value.Replace(" ", "").Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture,
-            out var d)
-            ? d
-            : throw new GrandSmetaFormatException($"{what} — не число: «{value}»");
+        return TryParse(Plain(value), out var d) ? d : throw new GrandSmetaFormatException($"{what} — не число: «{value}»");
     }
+
+    /// <summary>
+    /// Округление до точности программы (<c>Quantity/@Precision</c>): от 7 знаков после запятой до «-3» —
+    /// до тысяч. <see cref="Math.Round(decimal, int, MidpointRounding)" /> отрицательных знаков не принимает.
+    /// </summary>
+    public static decimal Round(decimal value, int digits)
+    {
+        if (digits >= 0) return Math.Round(value, Math.Min(digits, 28), MidpointRounding.AwayFromZero);
+        var scale = 1m;
+        for (var i = 0; i < Math.Min(-digits, 28); i++) scale *= 10;
+        return Math.Round(value / scale, MidpointRounding.AwayFromZero) * scale;
+    }
+
+    /// <summary>Число без разделителей разрядов (пробел, неразрывный пробел) и с точкой вместо запятой.</summary>
+    private static string Plain(string value) => value.Replace(" ", "").Replace("\u00A0", "").Replace(',', '.');
+
+    private static bool TryParse(string plain, out decimal value) =>
+        decimal.TryParse(plain, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
 
     public static DateOnly? Date(this XElement e, string attribute)
     {
@@ -67,13 +81,21 @@ internal static class GrandSmetaXml
 
 /// <summary>Значение позиции не читается — позиция уходит в не разобранные с этой причиной, а не роняет
 /// разбор документа.</summary>
-internal sealed class GrandSmetaFormatException(string message) : Exception(message);
+internal sealed class GrandSmetaFormatException(string message) : Exception(message)
+{
+    /// <summary>Причина, когда числа файла читаются, а счёт по ним выходит за пределы <c>decimal</c>.</summary>
+    public const string OutOfRange = "число вне допустимого диапазона";
+}
 
 /// <summary>Числа, скобки, + − × ÷ — разбор рекурсивным спуском в <c>decimal</c>. Переменных нет: формула со
-/// ссылкой («Ф1*2») — не цена, а отказ позиции.</summary>
+/// ссылкой («Ф1*2») — не цена, а отказ позиции. Вложенность скобок и унарных минусов ограничена: файл —
+/// недоверенный вход, а переполнение стека не перехватывается и роняет процесс целиком.</summary>
 internal sealed class Arithmetic(string text)
 {
+    private const int MaxDepth = 64;
+
     private int _at;
+    private int _depth;
 
     public bool TryEvaluate(out decimal value)
     {
@@ -107,22 +129,30 @@ internal sealed class Arithmetic(string text)
 
     private decimal Factor()
     {
-        if (_at < text.Length && text[_at] == '-')
+        if (++_depth > MaxDepth) throw new FormatException();
+        try
         {
-            _at++;
-            return -Factor();
-        }
+            if (_at < text.Length && text[_at] == '-')
+            {
+                _at++;
+                return -Factor();
+            }
 
-        if (_at < text.Length && text[_at] == '(')
+            if (_at < text.Length && text[_at] == '(')
+            {
+                _at++;
+                var v = Sum();
+                if (_at >= text.Length || text[_at++] != ')') throw new FormatException();
+                return v;
+            }
+
+            var start = _at;
+            while (_at < text.Length && (char.IsAsciiDigit(text[_at]) || text[_at] == '.')) _at++;
+            return decimal.Parse(text.AsSpan(start, _at - start), NumberStyles.Number, CultureInfo.InvariantCulture);
+        }
+        finally
         {
-            _at++;
-            var v = Sum();
-            if (_at >= text.Length || text[_at++] != ')') throw new FormatException();
-            return v;
+            _depth--;
         }
-
-        var start = _at;
-        while (_at < text.Length && (char.IsAsciiDigit(text[_at]) || text[_at] == '.')) _at++;
-        return decimal.Parse(text.AsSpan(start, _at - start), NumberStyles.Number, CultureInfo.InvariantCulture);
     }
 }

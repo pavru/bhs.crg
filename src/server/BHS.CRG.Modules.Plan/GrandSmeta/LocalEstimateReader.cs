@@ -40,20 +40,7 @@ public static class LocalEstimateReader
                 {
                     index++;
                     var place = $"раздел {ci + 1} «{caption}», позиция {p.Text("Number")} {p.Text("Code")}".TrimEnd();
-                    if (validation.Failed(p, out var failed, place))
-                    {
-                        unparsed.Add(failed);
-                        continue;
-                    }
-
-                    try
-                    {
-                        positions.Add(Position(p, index, coefficients));
-                    }
-                    catch (GrandSmetaFormatException ex)
-                    {
-                        unparsed.Add(new Unparsed(place, p.Line(), ex.Message));
-                    }
+                    validation.Parse(p, place, positions, unparsed, () => Position(p, index, coefficients));
                 }
 
                 var itog = chapter.Element("Itog")?.Elements().FirstOrDefault();
@@ -114,12 +101,13 @@ public static class LocalEstimateReader
             .Where(c => coefficients.Affects(p, c.Code))
             .ToList();
         var materialFactor = coefficients.MaterialFactor(p, applied);
-        // Количество «всего» программа округляет до точности объёма позиции (Quantity/@Precision, по умолчанию 7)
+        // Количество «всего» программа округляет до точности объёма позиции (Quantity/@Precision, по умолчанию 7;
+        // схема допускает и «-3» — до тысяч)
         var digits = (int)(p.Element("Quantity")?.Number("Precision") ?? 7m);
         var materials = p.Elements("Resources").Elements("Mat")
             .Where(m => !m.HasOption("Deleted", "Attribs"))
             .Select(m => new PositionMaterial(m.Text("Code"), m.Text("Caption") ?? "", m.Text("Units"),
-                Math.Round((m.Number("Quantity") ?? 0m) * materialFactor * quantity, digits, MidpointRounding.AwayFromZero)))
+                GrandSmetaXml.Round((m.Number("Quantity") ?? 0m) * materialFactor * quantity, digits)))
             .ToList();
 
         return new LocalEstimatePosition(
@@ -166,7 +154,11 @@ public static class LocalEstimateReader
         private static readonly (string Value, string Article, string Resource)[] Articles =
             [("Value_OZ", "OZ", "Tzr"), ("Value_EM", "EM", "Mch"), ("Value_ZM", "ZM", "Tzm"), ("Value_MT", "MT", "Mat")];
 
-        private readonly List<XElement> _document = root.Elements("Koefficients").Elements("K").ToList();
+        /// <summary>Коэффициенты документа по шифру — первый с шифром, как при переборе.</summary>
+        private readonly Dictionary<string, XElement> _document = root.Elements("Koefficients").Elements("K")
+            .Where(k => k.Text("Code") is not null)
+            .GroupBy(k => k.Text("Code")!)
+            .ToDictionary(g => g.Key, g => g.First());
 
         /// <summary>
         /// Действует ли коэффициент на позицию. Итог позиции перечисляет коэффициенты по привязке к виду работ и
@@ -202,6 +194,6 @@ public static class LocalEstimateReader
         private XElement? Find(XElement position, string? code) =>
             code is null ? null
                 : position.Elements("Koefficients").Elements("K").FirstOrDefault(e => e.Text("Code") == code)
-                  ?? _document.FirstOrDefault(e => e.Text("Code") == code);
+                  ?? _document.GetValueOrDefault(code);
     }
 }

@@ -33,20 +33,7 @@ public static class ConjunctureReader
                 {
                     index++;
                     var place = $"раздел {ci + 1} «{caption}», позиция {p.Text("Number")}".TrimEnd();
-                    if (validation.Failed(p, out var failed, place))
-                    {
-                        unparsed.Add(failed);
-                        continue;
-                    }
-
-                    try
-                    {
-                        positions.Add(Position(p, index, suppliers));
-                    }
-                    catch (GrandSmetaFormatException ex)
-                    {
-                        unparsed.Add(new Unparsed(place, p.Line(), ex.Message));
-                    }
+                    validation.Parse(p, place, positions, unparsed, () => Position(p, index, suppliers));
                 }
 
                 parsed.Add(new ConjunctureChapter(ci + 1, caption, positions));
