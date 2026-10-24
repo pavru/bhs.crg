@@ -94,6 +94,10 @@ public enum ModuleTableIsolation
 /// ПРЕДЛАГАЕТ отбор «стройки, которые человек выбрал» — условием «из списка» по названиям, которое
 /// ставит сам человек (issue #1223). Ядро этим признаком не отбирает ничего: это подсказка экрану, а
 /// не правило выдачи.</param>
+/// <param name="Sections">В клетках колонки — разделы справочника ядра в подписи «стройка / раздел» (и
+/// «стройка / без раздела»). По такой колонке экран ПОДСКАЗЫВАЕТ значение условия из справочника и
+/// помечает название, которого в нём нет. Как и <paramref name="Sites" />, это подсказка экрану, а не
+/// правило выдачи: ядро этим признаком не отбирает ничего.</param>
 public sealed record ModuleTableColumn(
     string Key,
     string Title,
@@ -103,7 +107,8 @@ public sealed record ModuleTableColumn(
     bool DependsOnFilter = false,
     IReadOnlyList<string>? Options = null,
     bool OnDemand = false,
-    bool Sites = false);
+    bool Sites = false,
+    bool Sections = false);
 
 /// <summary>
 /// Табличный источник, который объявляет модуль (ТЗ CORE-33, CORE-24; задача G1b, issue #1089).

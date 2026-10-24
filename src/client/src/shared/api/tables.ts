@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { apiClient } from './client';
 import type { FilterNode } from './types';
 import { cleanFilterNode } from './datasetHelpers';
-import type { FilterColumn } from '@/shared/filter/rowFilterModel';
+import type { ColumnKnown, FilterColumn } from '@/shared/filter/rowFilterModel';
 import { withBlobErrorBody } from '@/shared/utils/apiError';
 import { filenameFromContentDisposition, saveBlob } from './attachments';
 
@@ -41,6 +41,11 @@ export interface TableColumn {
    * стройки». Необязательно: клиент и сервер обновляются порознь, и старый сервер признака не пришлёт.
    */
   sites?: boolean;
+  /**
+   * В клетках — разделы справочника в подписи «стройка / раздел» (CORE-33): экран подсказывает значение
+   * условия из справочника. Необязательно: старый сервер признака не пришлёт, и перечня у колонки не будет.
+   */
+  sections?: boolean;
 }
 
 /**
@@ -379,7 +384,9 @@ export function defaultColumnKeys(columns: TableColumn[]): string[] {
  * заголовок. Колонка, чьё значение зависит от самого отбора, в отбор не идёт — по ней не отбирают
  * (операторов у неё нет); закрытая остаётся с причиной: условие по ней названо, а не спрятано.
  */
-export function tableFilterColumns(columns: TableColumn[]): FilterColumn[] {
+export function tableFilterColumns(
+  columns: TableColumn[], known: Readonly<Record<string, ColumnKnown>> = {},
+): FilterColumn[] {
   return columns.filter(c => !c.dependsOnFilter).map(c => ({
     name: c.key,
     label: c.label,
@@ -387,5 +394,6 @@ export function tableFilterColumns(columns: TableColumn[]): FilterColumn[] {
     operators: c.operators,
     options: c.options ?? undefined,
     unavailable: c.unavailable ? c.reason ?? c.unavailable : undefined,
+    known: Object.hasOwn(known, c.key) ? known[c.key] : undefined,
   }));
 }

@@ -75,6 +75,15 @@ const REGISTRY: Record<string, Entry> = {
   '/src/features/costs/WaybillsPage.tsx': { filters: true },
   // Выбор стройки урезан useSiteChoices (#1219); сам отчёт сворачивает неизбранные строкой, не меняя чисел, — #1223.
   '/src/features/costs/SiteCostsPage.tsx': { filters: true },
+  // Подсказка значения в условии отбора таблицы (UI-56): перечень «Объекта» и «Раздела» — все стройки;
+  // избранное только ставит их первыми.
+  '/src/features/tables/tableKnown.ts': {
+    filters: false, because: 'не фильтрует: отбор — условие, а не список; избранное только упорядочивает подсказку',
+    carries: ['useTableKnown'],
+  },
+  '/src/features/tables/TablePage.tsx': {
+    filters: false, because: 'не фильтрует: отбор — условие, а не список (перечни подсказки — useTableKnown)',
+  },
   '/src/features/reconciliations/ReconciliationsPage.tsx': {
     filters: false, because: 'сверка — вне первой версии (#1217): справочник только для имён',
   },

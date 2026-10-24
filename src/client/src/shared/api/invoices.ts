@@ -687,11 +687,15 @@ export function useReplaceInvoiceLines() {
       .then(r => r.data));
 }
 
-/** Стройки с разделами — цели разноски. Узким списком модуля, как организации. */
-export function useCostsConstructions() {
+/**
+ * Стройки с разделами — цели разноски. Узким списком модуля, как организации. `enabled: false` — не
+ * спрашивать: подсказке отбора таблицы справочник нужен, только когда в таблице есть его колонка.
+ */
+export function useCostsConstructions(enabled = true) {
   return useQuery({
     queryKey: ['costs-constructions'],
     queryFn: () => apiClient.get<CostsConstruction[]>('/costs/constructions').then(r => r.data),
+    enabled,
   });
 }
 

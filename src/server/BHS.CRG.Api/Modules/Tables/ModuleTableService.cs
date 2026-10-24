@@ -253,7 +253,8 @@ public sealed partial class ModuleTableService(ModuleTableCatalog catalog, AppDb
             c.Key, c.Title, TableKinds.Name(c.Kind),
             // Колонке, чьё значение зависит от отбора, операторов не положено: по ней не отбирают.
             c.DependsOnFilter ? [] : TableOperators.For(TableKinds.Name(c.Kind)), true,
-            DependsOnFilter: c.DependsOnFilter, Options: c.Options, OnDemand: c.OnDemand, Sites: c.Sites))];
+            DependsOnFilter: c.DependsOnFilter, Options: c.Options, OnDemand: c.OnDemand, Sites: c.Sites,
+            Sections: c.Sections))];
 
     /// <summary>
     /// Запрошенные колонки в запрошенном порядке; ключ, которого нет, — колонка с причиной «поле

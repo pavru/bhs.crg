@@ -71,6 +71,8 @@ beforeEach(() => {
     if (url.endsWith('/views') || url.endsWith('/shortcuts')) return { data: [] };
     if (url === '/account/access') return { data: { permissions: [], modules: [] } };
     if (url === '/costs/articles') return { data: [{ id: 's1', name: 'Склад', archived: false }] };
+    // Справочник строек — перечню подсказки «Объекта» в условии отбора (UI-56).
+    if (url === '/costs/constructions') return { data: SITES.map(s => ({ ...s, sections: [] })) };
     return { data: { ...DECLARATION, rows: [], count: 0, offset: 0, limit: 50, totals: null, keys: null } };
   });
 });

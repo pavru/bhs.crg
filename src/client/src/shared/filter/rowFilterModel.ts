@@ -1,6 +1,7 @@
 import type { FilterCondition, FilterGroup, FilterNode, FilterOp } from '@/shared/api/types';
 import { FILTER_OP_LABELS, FILTER_OPS_NO_VALUE } from '@/shared/api/types';
 import type { DataSetColumn } from '@/shared/api/datasetHelpers';
+import type { SuggestItem } from '@/shared/ui/suggestMatch';
 
 /**
  * Условие отбора: какие операторы предложить колонке и в каком виде держать значение (issue #1133).
@@ -19,7 +20,45 @@ import type { DataSetColumn } from '@/shared/api/datasetHelpers';
  * стоит на ключе «Срок», а колонка называется «Оплатить до»).
  */
 export type FilterColumn =
-  Pick<DataSetColumn, 'name' | 'kind' | 'operators' | 'options' | 'unavailable'> & { label?: string };
+  Pick<DataSetColumn, 'name' | 'kind' | 'operators' | 'options' | 'unavailable'> & {
+    label?: string;
+    /**
+     * Значения, которые колонка знает, — подсказка и сверка поля значения (UI-56). `options` — закрытый
+     * перечень (набрать мимо него нечем), `known` — открытый: значение остаётся свободным текстом, а
+     * чего в перечне нет, то помечено. Нет — у колонки перечня нет, и поле прежнее.
+     */
+    known?: ColumnKnown;
+  };
+
+/**
+ * Открытый перечень колонки (UI-56). Собирает его экран, который знает, чьи названия в колонке, —
+ * отбор о стройках и статьях не знает ничего.
+ */
+export interface ColumnKnown {
+  /** Пункты подсказки в порядке показа, каждое значение по разу. */
+  items: SuggestItem[];
+  /**
+   * Перечень известен целиком. `false` — ещё едет, пришёл частью или закрыт читателю: подсказка
+   * предлагает пришедшее, а пометка молчит — «ещё не знаем» не то же, что «нет».
+   */
+  complete: boolean;
+  /** Известные «не значения» колонки — с пояснением и действиями вместо одной замены. */
+  explain?: KnownExplain[];
+}
+
+/**
+ * Значение, которое в колонке не встречается, но по нему понятно, чего хотели: голое название стройки в
+ * «Разделе». Смысл выбирает человек — действий несколько, и одной замены нет.
+ */
+export interface KnownExplain {
+  value: string;
+  /** Пояснение под полем: «это стройка, а не раздел — разделы пишутся «Комарова 36 / …»». */
+  text: string;
+  actions: KnownAction[];
+}
+
+/** Действие пояснения: условие получает этот оператор и это значение. */
+export interface KnownAction { label: string; op: FilterOp; value: string }
 
 /** Как колонку назвать человеку. */
 export function columnLabel(column: FilterColumn | undefined, name: string): string {
@@ -113,6 +152,16 @@ export function withColumn(cond: FilterCondition, name: string, columns: FilterC
     ...moved,
     values: opArity(op) === 'two' ? moved.values.map(v => (fits(v) ? v : '')) : moved.values.filter(fits),
   };
+}
+
+/**
+ * Значения условия «из списка» по колонке-выбору, которых в её закрытом перечне нет (сохранены раньше).
+ * Их показывает сам список отметок — тоном пометки (UI-56); строке под условием повторять их незачем.
+ */
+export function choiceStrays(cond: FilterCondition, column: Pick<FilterColumn, 'kind' | 'options'> | undefined): string[] {
+  if (column?.kind !== 'choice' || opArity(cond.op) !== 'list') return [];
+  const options = column.options ?? [];
+  return (cond.values ?? []).filter(v => !options.includes(v));
 }
 
 const KIND_NAMES: Record<string, string> = {

@@ -61,16 +61,16 @@ internal sealed class InvoiceShares
     public IReadOnlyDictionary<Guid, string> Sections => sections.Value;
 
     /// <summary>Доля на стройку целиком — раздел не назван.</summary>
-    public const string NoSection = "без раздела";
+    public const string NoSection = RegistryPlaceNames.NoSection;
 
     /// <summary>
     /// Как назван раздел, которого больше нет. ⚠️ Так же названа и доля БЕЗ раздела на удалённой
     /// стройке: вместе со стройкой ушли её разделы, и назвать «без раздела чего» уже нечем.
     /// </summary>
-    public const string LostSection = "раздел удалён";
+    public const string LostSection = RegistryPlaceNames.LostSection;
 
     /// <summary>«Комарова 36 / 4 эт.» — так раздел зовут колонка реестра, её отбор и ссылка отчёта.</summary>
-    public static string SectionLabel(string site, string section) => $"{site} / {section}";
+    public static string SectionLabel(string site, string section) => RegistryPlaceNames.SectionLabel(site, section);
 
     /// <summary>У доли есть раздел: она на стройку. У доли на статью вне строек раздела нет.</summary>
     public static readonly Expression<Func<InvoiceAllocation, bool>> HasSection = a => a.ConstructionId != null;
@@ -117,7 +117,7 @@ internal sealed class InvoiceShares
     public string? Section(InvoiceAllocation part) => SectionOf(part)?.Registry;
 
     /// <summary>Как названа цель, которой больше нет, — стройку удалили в ядре, статью — в справочнике.</summary>
-    public const string Lost = "объект удалён";
+    public const string Lost = RegistryPlaceNames.LostObject;
 
     /// <summary>Порядок объектов по названию — один на колонку «Объект» и на расшифровку строки.</summary>
     internal static readonly StringComparer ByName = StringComparer.Create(CultureInfo.GetCultureInfo("ru-RU"), true);
