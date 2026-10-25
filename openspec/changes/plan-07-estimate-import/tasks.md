@@ -2,18 +2,18 @@
 
 ## 1. PR 1: загрузка и отчёт разбора
 
-- [ ] 1.1 `Data/EstimateImport.cs` и миграция `EstimateImports` (`--context PlanDbContext`): состояние, вид,
+- [x] 1.1 `Data/EstimateImport.cs` и миграция `EstimateImports` (`--context PlanDbContext`): состояние, вид,
   версия схемы, модель разбора, не разобранные, `xmin` [PLAN-7]. Проверка — миграция на пересозданной базе
-- [ ] 1.2 `POST /api/plan/imports` (файл, стройка, `estimateId` или `newEstimate` — решение В-12): файл
+- [x] 1.2 `POST /api/plan/imports` (файл, стройка, `estimateId` или `newEstimate` — решение В-12): файл
   в `IModuleBlobs`, запись импорта, операция `plan.import.parse` через `IModuleJobs` [PLAN-6] [PLAN-7].
   Проверка — тест: ответ — импорт в `parsing`, операция поставлена
-- [ ] 1.3 `Import/EstimateImportJob.cs`: разбор `plan-05`, состояние `parsed` или `rejected` с причиной;
+- [x] 1.3 `Import/EstimateImportJob.cs`: разбор `plan-05`, состояние `parsed` или `rejected` с причиной;
   ВОР и КА — `parsed` с видом без сводки редакции [PLAN-7] [STG-12]. Проверка — тесты: образец ЛСР,
   неизвестная версия, образец ВОР
-- [ ] 1.4 `GET /api/plan/imports/{id}`: «N из M», не разобранные с причиной, сводка; итог — только с
+- [x] 1.4 `GET /api/plan/imports/{id}`: «N из M», не разобранные с причиной, сводка; итог — только с
   `plan.estimate.cost`; `DELETE` до коммита с `If-Match` [PLAN-7] [PLAN-11]. Проверка — тест сводки без
   права на себестоимость; 400/409 у `DELETE`
-- [ ] 1.5 Ворота: все адреса под `plan.estimate.edit` [PLAN-2] [AUTH-8]. Проверка — 403 с одним `.read`,
+- [x] 1.5 Ворота: все адреса под `plan.estimate.edit` [PLAN-2] [AUTH-8]. Проверка — 403 с одним `.read`,
   отказ ворот у «Инженера ИД»; `EndpointGateInventoryTests` зелёный
 
 ## 2. PR 2: создание редакции
@@ -34,7 +34,7 @@
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~EstimateImport|FullyQualifiedName~GrandSmeta|FullyQualifiedName~ModulePlanItemsPort|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ActivityLogInventory"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок (клиент не менялся, проверка на всякий случай)
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~EstimateImport|FullyQualifiedName~GrandSmeta|FullyQualifiedName~ModulePlanItemsPort|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ActivityLogInventory"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок (клиент не менялся, проверка на всякий случай)
+- [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

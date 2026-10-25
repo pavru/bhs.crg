@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace BHS.CRG.Modules.Plan.GrandSmeta;
 
 /// <summary>Метод расчёта ЛСР — по <c>Indexes</c> и <c>Parameters</c> (ТЗ PLAN-8). Не опознан — «не
@@ -34,9 +36,11 @@ public sealed record ParsedLocalEstimate(
     LocalEstimateTotals Totals,
     IReadOnlyList<Unparsed> Unparsed)
 {
+    [JsonIgnore]
     public IEnumerable<LocalEstimatePosition> Positions => Chapters.SelectMany(c => c.Positions);
 
     /// <summary>Позиций в файле — разобранные и не разобранные: «280 из 300».</summary>
+    [JsonIgnore]
     public int PositionsInFile => Chapters.Sum(c => c.Positions.Count) + Unparsed.Count;
 }
 

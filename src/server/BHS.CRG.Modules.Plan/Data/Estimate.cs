@@ -78,7 +78,8 @@ public sealed class Estimate
         CurrentRevisionId = revision.Id;
     }
 
-    private static string CheckedName(string? name)
+    /// <summary>Название по правилам сметы — их же спрашивает импорт, который заведёт смету позже.</summary>
+    internal static string CheckedName(string? name)
     {
         var trimmed = name?.Trim() ?? string.Empty;
         if (trimmed.Length == 0) throw new InvalidRequestException("У сметы нет названия — по нему её находят в списке стройки.");

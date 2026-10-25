@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Modules.Plan.Endpoints;
 
@@ -89,9 +91,13 @@ public static class EstimateEndpoints
         return Results.Ok(await EstimateViews.OneAsync(db, user, id, ct));
     }
 
-    /// <summary>Удаляется только смета без редакций: у неё нет ничего, из чего сделаны КП и график.</summary>
+    /// <summary>
+    /// Удаляется только смета без редакций: у неё нет ничего, из чего сделаны КП и график. Несостоявшиеся
+    /// импорты в неё уходят вместе с ней (<c>plan-07</c>) — и их файлы тоже.
+    /// </summary>
     private static async Task<IResult> DeleteAsync(
-        Guid id, HttpRequest request, PlanDbContext db, IModuleActivityLog log, CancellationToken ct)
+        Guid id, HttpRequest request, PlanDbContext db, IModuleActivityLog log,
+        [FromKeyedServices(PlanModule.ModuleCode)] IModuleBlobs blobs, ILoggerFactory logs, CancellationToken ct)
     {
         var estimate = await db.Estimates.FirstOrDefaultAsync(e => e.Id == id, ct) ?? throw EstimateViews.NotFound();
         EnsureSeen(request, db.VersionOf(estimate), "Смету");
@@ -99,8 +105,13 @@ public static class EstimateEndpoints
         if (await db.EstimateRevisions.AnyAsync(r => r.EstimateId == id, ct))
             throw new ConflictException("Смету нельзя удалить: у неё есть редакции. Удаляется только смета без редакций.");
 
+        // Импорт, заведённый между этим чтением и сохранением, уйдёт каскадом без своего файла: файл без ссылки
+        // найдёт уборка осиротевших (OrphanBlobCleanup) — как и после любого сбоя между записью и хранилищем.
+        var imports = await db.EstimateImports.AsNoTracking().Where(i => i.EstimateId == id).ToListAsync(ct);
         db.Estimates.Remove(estimate);
         await db.SaveChangesAsync(ct);
+        foreach (var import in imports)
+            await EstimateImportEndpoints.DeleteFileAsync(blobs, import, logs.CreateLogger(typeof(EstimateEndpoints)));
         await log.RecordAsync(EstimateActions.Deleted, id.ToString(), EstimateActions.Label(estimate), ct: ct);
         return Results.NoContent();
     }
@@ -160,7 +171,8 @@ public static class EstimateEndpoints
     /// Версия, по которой собрана правка, — заголовком <c>If-Match</c>, как у счёта и накладной.
     /// </summary>
     /// <param name="what">Что изменили, в винительном с заглавной: «Смету», «Редакцию».</param>
-    internal static void EnsureSeen(HttpRequest request, string current, string what)
+    /// <param name="reread">Что перечитать, в винительном: где человек увидит новое состояние.</param>
+    internal static void EnsureSeen(HttpRequest request, string current, string what, string reread = "смету")
     {
         if (!SeenVersion.TryRead(request, out var seen)) throw new InvalidRequestException(SeenVersion.Malformed);
         if (seen is null)
@@ -169,11 +181,11 @@ public static class EstimateEndpoints
                 "ответе чтения полем «version». Без неё правка записалась бы поверх чужой.");
         if (seen != current)
             throw new ConflictException(
-                $"{what} тем временем изменили, и это действие не выполнено. Перечитайте смету и повторите: вы " +
+                $"{what} тем временем изменили, и это действие не выполнено. Перечитайте {reread} и повторите: вы " +
                 "видели прежнее состояние.");
     }
 
-    private static EstimateKind Kind(string? code) => code?.Trim().ToLowerInvariant() switch
+    internal static EstimateKind Kind(string? code) => code?.Trim().ToLowerInvariant() switch
     {
         null or "" or "main" => EstimateKind.Main,
         "additional" => EstimateKind.Additional,

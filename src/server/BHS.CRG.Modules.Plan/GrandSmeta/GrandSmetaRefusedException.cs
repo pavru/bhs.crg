@@ -35,4 +35,10 @@ public sealed class GrandSmetaRefusedException(GrandSmetaRefusal reason, string 
     : InvalidRequestException(message)
 {
     public GrandSmetaRefusal Reason { get; } = reason;
+
+    /// <summary>Вид документа, если до отказа его узнали (неизвестная версия): отчёт импорта назовёт его.</summary>
+    public GrandSmetaKind? Kind { get; init; }
+
+    /// <summary>Версия программы, если до отказа её прочли (неизвестные вид или версия).</summary>
+    public string? ProgramVersion { get; init; }
 }
