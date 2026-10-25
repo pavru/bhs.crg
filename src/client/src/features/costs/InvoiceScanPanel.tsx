@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Download, FileText, FileUp, Maximize2, RotateCw } from 'lucide-react';
+import { Download, ExternalLink, FileText, FileUp, Maximize2, RotateCw } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { loadInvoiceScan } from '@/shared/api/invoices';
 import { loadInvoiceImage, useInvoiceImage } from '@/shared/api/invoiceImage';
 import { openInNewTab } from '@/shared/ui/viewer/openInNewTab';
-import { acceptOf, fileShownAs, recognizedKinds, shownKinds, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
+import { PdfViewer, PdfViewerOverlay } from '@/shared/ui/viewer/PdfViewer';
+import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
+import { acceptOf, fileShownAs, nameShownAs, recognizedKinds, shownKinds, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
 import { useCan } from '@/shared/api/access';
 import { useToast } from '@/shared/ui/Toast';
 import { BuiltImage, Centered as Note, IMAGE_CAVEAT, OriginalButton, RefusedImage } from './InvoiceFileImage';
@@ -79,8 +81,12 @@ function OriginalFile({ invoiceId, blobPath, fileName }: {
   blobPath: string | null;
   fileName: string | null;
 }) {
-  const { url, mimeType, failed } = useScan(invoiceId, blobPath);
+  const { key, blob, mimeType, failed } = useScanBytes(invoiceId, blobPath);
   const kinds = useFileKinds();
+  // PDF по имени — ядро просмотрщика грузится вместе с файлом, а не после него: пока байтов нет,
+  // просмотрщик вида не знает и сам кусок pdf.js не тянет.
+  const likelyPdf = nameShownAs(kinds.data, fileName) === 'pdf';
+  useEffect(() => { if (likelyPdf) preloadPdfViewer(); }, [likelyPdf]);
 
   if (failed) {
     return (
@@ -95,7 +101,7 @@ function OriginalFile({ invoiceId, blobPath, fileName }: {
   // нечем», и PDF на миг предлагался бы к скачиванию. Ждём, только пока запрос ИДЁТ (`isLoading`):
   // вставший на паузу без сети остаётся «ожидающим» бессрочно, и панель держала бы «загружается»
   // над файлом, который уже здесь (ревью PR #1279).
-  if (!url || kinds.isLoading) return <Note>Файл загружается…</Note>;
+  if (!blob || kinds.isLoading) return <Note>Файл загружается…</Note>;
 
   // Чем показывать, решает вид, с которым файл ОТДАЛ сервер (issue #1265), а не запись в счёте:
   // сервер определяет его по содержимому и чужой вид наружу не выпускает. Что из этого показывается,
@@ -114,23 +120,26 @@ function OriginalFile({ invoiceId, blobPath, fileName }: {
         <span className="text-xs text-fg2 truncate flex-1">{fileName ?? 'Файл счёта'}</span>
         {canOpen
           ? (
-            <Button size="sm" icon={<Maximize2 size={13} />} onClick={() => window.open(url, '_blank')}>
-              Во весь экран
+            // Выход в полный просмотрщик браузера (поиск, печать с настройками), а не «крупнее»: крупнее
+            // делает масштаб в панели (issue #1491, [UI-20]).
+            <Button size="sm" icon={<ExternalLink size={13} />} onClick={() => void openInNewTab(blob)}>
+              Открыть во вкладке
             </Button>
           )
           : (
             <Button size="sm" icon={<Download size={13} />}
-              onClick={() => saveScan(url, fileName, mimeType, kinds.data)}>
+              onClick={() => saveScan(blob, fileName, mimeType, kinds.data)}>
               Скачать
             </Button>
           )}
       </div>
-      <div className="flex-1 min-h-0 bg-base">
-        {shownAs === 'pdf' && (
-          <iframe src={url} title={fileName ?? 'Файл счёта'} className="w-full h-full border-0 bg-white" />
-        )}
-        {shownAs === 'image' && (
-          <img src={url} alt={fileName ?? 'Файл счёта'} className="w-full h-full object-contain" />
+      {/* Своя область наложения и обрезка: лист не выходит за неё поверх строки файла. */}
+      <div className="relative isolate overflow-hidden flex-1 min-h-0 bg-base">
+        {/* PDF и картинку различает сам просмотрщик — по типу байтов, своим белым списком ([UI-24]).
+            Ключ — счёт И файл: заменённый скан показывается с начала, без прежнего поворота. */}
+        {canOpen && (
+          <PdfViewer source={blob} documentKey={key} rememberZoomAs="invoice-panel" title={fileName ?? 'Файл счёта'}
+            actions={<OriginalButton invoiceId={invoiceId} fileName={fileName} label="Оригинал" />} />
         )}
         {shownAs === 'download' && (
           <Note>
@@ -163,18 +172,68 @@ function OriginalFile({ invoiceId, blobPath, fileName }: {
  * Молчаливое исчезновение панели читается как «файла нет»: человек видит форму без бумаги и не знает,
  * то ли файл не приложен, то ли система его не показывает.
  *
- * Для Excel и Word окном открывается вид для чтения — с той же оговоркой, что и в панели: во вкладке
- * браузера строки-оговорки уже не будет, поэтому она сказана здесь, до нажатия.
+ * Файл открывается просмотрщиком ПОВЕРХ формы, а не вкладкой (issue #1491, D4 зонтика viewer): окно,
+ * открытое после загрузки, блокировщик всплывающих окон резал молча, а на Android 14 и ниже вкладка с
+ * PDF — это скачивание. Слой от жеста не зависит, поэтому байты грузятся после нажатия. Форма под
+ * слоем остаётся с набранным. Для Excel и Word поверх формы встаёт вид для чтения — с оговоркой
+ * строкой над листом: во вкладке её не было бы.
  */
 export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
   invoiceId: string; blobPath: string | null; fileName: string | null; width: number;
 }) {
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  // Что стоит в слое. Держится и после закрытия: иначе закрывающееся окно мигнуло бы «загружается».
+  const [shown, setShown] = useState<{ key: string; source: Blob | null; title: string; reading: boolean } | null>(null);
   const kinds = useFileKinds();
   const toast = useToast();
   const image = useInvoiceImage(invoiceId, blobPath);
   const built = image.data?.state === 'built';
   const refused = image.data?.state === 'refused' ? image.data : null;
+  const fileKey = `${invoiceId}|${blobPath ?? ''}`;
+  const name = fileName ?? 'Файл счёта';
+  // Какое открытие слоя последнее. Ответ прежнего — и удача, и отказ — слоя не трогает: иначе вид для
+  // чтения, отказавший после закрытия, закрыл бы уже открытый поверх формы файл.
+  const latest = useRef(0);
+
+  const openReading = () => {
+    const asked = ++latest.current;
+    // Вид — всегда PDF: слой встаёт сразу, «загружается», и вид приходит в него по готовности.
+    preloadPdfViewer();
+    setShown({ key: `${fileKey}|view`, source: null, title: `${name} — вид для чтения`, reading: true });
+    setOpen(true);
+    loadInvoiceImage(invoiceId)
+      .then(source => { if (latest.current === asked) setShown(now => (now ? { ...now, source } : now)); })
+      .catch(e => {
+        if (latest.current !== asked) return;
+        setOpen(false);
+        toast.apiError(e, 'Вид для чтения не открыт');
+      });
+  };
+
+  const openFile = async () => {
+    const asked = ++latest.current;
+    // PDF по имени — ядро просмотрщика грузится вместе с файлом, а не после него.
+    if (nameShownAs(kinds.data, fileName) === 'pdf') preloadPdfViewer();
+    setBusy(true);
+    try {
+      const { blob, mimeType } = await loadInvoiceScan(invoiceId);
+      // Реестра нет (не пришёл или запрос встал) — спрашиваем ещё раз, прямо сейчас.
+      const info = kinds.data ?? (await kinds.refetch()).data;
+      // Файл, который показать нечем, не открывается — скачивается (issue #1265). Так же и файл, про
+      // который узнать не удалось, — но тогда причина названа: иначе PDF, вдруг ушедший в загрузки
+      // вместо показа, выглядел бы как поломка кнопки.
+      if (!info) {
+        saveScan(blob, fileName, mimeType, info);
+        toast.info('Файл скачан, а не открыт: список видов файлов с сервера не пришёл, и чем его показать, неизвестно.');
+      } else if (fileShownAs(info, mimeType) === 'download') saveScan(blob, fileName, mimeType, info);
+      else if (latest.current === asked) {
+        setShown({ key: fileKey, source: blob, title: name, reading: false });
+        setOpen(true);
+      }
+    } catch (e) { toast.apiError(e, 'Файл не открыт'); }
+    finally { setBusy(false); }
+  };
 
   return (
     <div className="flex items-start gap-2 rounded-lg border border-stroke bg-muted px-3 py-2">
@@ -197,47 +256,26 @@ export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
         {(built || refused) && (
           <div className="flex gap-2 mt-1">
             {built && (
-              <Button size="sm" variant="text" loading={busy} icon={<Maximize2 size={13} />}
-                onClick={() => {
-                  // Вкладка открывается сразу, в самом нажатии, а вид приходит в неё по готовности:
-                  // открытую после ожидания блокировщик всплывающих окон режет (issue #1490).
-                  setBusy(true);
-                  openInNewTab(() => loadInvoiceImage(invoiceId))
-                    .catch(e => toast.apiError(e, 'Вид для чтения не открыт'))
-                    .finally(() => setBusy(false));
-                }}>
+              <Button size="sm" variant="text" icon={<Maximize2 size={13} />} onClick={openReading}>
                 Открыть вид для чтения
               </Button>
             )}
             <OriginalButton invoiceId={invoiceId} fileName={fileName} label="Скачать оригинал" />
           </div>
         )}
-        {!built && !refused && <Button size="sm" variant="text" loading={busy || kinds.isLoading || image.isLoading} icon={<Maximize2 size={13} />}
-          onClick={async () => {
-            setBusy(true);
-            // Открываем ОТДЕЛЬНЫМ окном — это и есть замена панели: бумага остаётся доступной, просто
-            // не рядом.
-            try {
-              const { url, mimeType } = await loadInvoiceScan(invoiceId);
-              // Реестра нет (не пришёл или запрос встал) — спрашиваем ещё раз, прямо сейчас.
-              const info = kinds.data ?? (await kinds.refetch()).data;
-              // Файл, который показать нечем, окном не открывается — скачивается (issue #1265).
-              // Так же и файл, про который узнать не удалось, — но тогда причина названа: иначе PDF,
-              // вдруг ушедший в загрузки вместо окна, выглядел бы как поломка кнопки.
-              if (!info) {
-                saveScan(url, fileName, mimeType, info);
-                toast.info('Файл скачан, а не открыт: список видов файлов с сервера не пришёл, и чем его показать, неизвестно.');
-              } else if (fileShownAs(info, mimeType) === 'download') saveScan(url, fileName, mimeType, info);
-              else window.open(url, '_blank');
-              // Отзываем с отсрочкой: окно уже открыто, но браузеру нужна живая ссылка, пока он
-              // читает файл. Не отозвав вовсе, мы держали бы в памяти страницы весь скан — а рядом
-              // стоит комментарий, объявляющий отзыв обязательным.
-              setTimeout(() => URL.revokeObjectURL(url), 60_000);
-            } finally { setBusy(false); }
-          }}>
-          Открыть файл в отдельном окне
-        </Button>}
+        {!built && !refused && (
+          <Button size="sm" variant="text" loading={busy || kinds.isLoading || image.isLoading} icon={<Maximize2 size={13} />}
+            onClick={() => void openFile()}>
+            Открыть файл
+          </Button>
+        )}
       </div>
+      {shown && (
+        <PdfViewerOverlay open={open} onOpenChange={setOpen} source={shown.source} documentKey={shown.key}
+          title={shown.title} rememberZoomAs="invoice-overlay"
+          note={shown.reading ? <span data-testid="image-caveat">Вид для чтения — {IMAGE_CAVEAT}.</span> : undefined}
+          actions={<OriginalButton invoiceId={invoiceId} fileName={fileName} label="Оригинал" />} />
+      )}
     </div>
   );
 }
@@ -285,37 +323,25 @@ function useSlow(waiting: boolean) {
 }
 
 /**
- * Файл одним чтением, с освобождением объектной ссылки.
- *
- * ⚠️ `URL.revokeObjectURL` в уборке обязателен: без него каждое открытие счёта оставляет в памяти
- * страницы файл целиком, а замечают такое на сотом счёте у заказчика.
+ * Файл одним чтением — байтами для просмотрщика. Объектного адреса здесь нет: его делает и отзывает
+ * тот, кому он нужен (`saveScan`, `openInNewTab`, режим картинки просмотрщика).
  */
-function useScan(invoiceId: string, blobPath: string | null) {
+function useScanBytes(invoiceId: string, blobPath: string | null) {
   const [loaded, setLoaded] = useState<{
-    key: string; url: string | null; mimeType: string | null; failed: boolean;
+    key: string; blob: Blob | null; mimeType: string | null; failed: boolean;
   } | null>(null);
   const key = `${invoiceId}|${blobPath ?? ''}`;
 
   useEffect(() => {
     let cancelled = false;
-    let objectUrl: string | null = null;
-
     loadInvoiceScan(invoiceId)
-      .then(({ url, mimeType }) => {
-        objectUrl = url;
-        if (cancelled) { URL.revokeObjectURL(url); return; }
-        setLoaded({ key, url, mimeType, failed: false });
-      })
-      .catch(() => { if (!cancelled) setLoaded({ key, url: null, mimeType: null, failed: true }); });
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
+      .then(({ blob, mimeType }) => { if (!cancelled) setLoaded({ key, blob, mimeType, failed: false }); })
+      .catch(() => { if (!cancelled) setLoaded({ key, blob: null, mimeType: null, failed: true }); });
+    return () => { cancelled = true; };
   }, [invoiceId, key]);
 
   // Ответ считается своим только по совпадению счёта И файла. Сбрасывать состояние в эффекте нельзя
   // (лишний кадр), а без сверки при переключении счёта или замене скана на миг показалась бы ЧУЖАЯ
   // бумага — человек решил бы, что приложено не то.
-  return loaded?.key === key ? loaded : { url: null, mimeType: null, failed: false };
+  return loaded?.key === key ? loaded : { key, blob: null, mimeType: null, failed: false };
 }

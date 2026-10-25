@@ -203,4 +203,23 @@ public class FileKindCatalogTests
 
         Assert.True(stale.Count == 0, "В исключениях файлы, где литералов типа больше нет: " + string.Join(", ", stale));
     }
+
+    /// <summary>
+    /// Картинки, которые просмотрщик рисует сам (<c>IMAGE_TYPES</c>, issue #1491, [UI-24]), — свой белый
+    /// список клиента: типу из ответа он не доверяет, иначе <c>text/html</c> попал бы в показ. Но перечень
+    /// обязан совпадать с видами «показать картинкой» реестра: вид, добавленный только сюда, панель
+    /// открыла бы просмотрщиком, а тот отдал бы его pdf.js — и счёт показал бы «файл не читается как PDF».
+    /// </summary>
+    [Fact]
+    public void Картинки_просмотрщика_совпадают_с_картинками_реестра()
+    {
+        var viewer = File.ReadAllText(RepoPaths.File("src", "client", "src", "shared", "ui", "viewer", "openInNewTab.ts"));
+        var list = Regex.Match(viewer, @"IMAGE_TYPES\b[^=]*=\s*\[(?<items>[^\]]*)\]");
+        Assert.True(list.Success, "В openInNewTab.ts не найден перечень IMAGE_TYPES — сверять нечего.");
+        var client = Regex.Matches(list.Groups["items"].Value, "'([^']+)'").Select(m => m.Groups[1].Value).Order().ToList();
+
+        var registry = FileKindCatalog.All.Where(kind => kind.View == FileView.Image).Select(kind => kind.Mime).Order().ToList();
+        Assert.NotEmpty(registry);
+        Assert.Equal(registry, client);
+    }
 }

@@ -5,29 +5,29 @@
 
 ## 1. Режим картинки в просмотрщике
 
-- [ ] 1.1 Публичный компонент решает по типу `Blob`: PDF → лента, картинка из белого списка → режим
+- [x] 1.1 Публичный компонент решает по типу `Blob`: PDF → лента, картинка из белого списка → режим
   картинки (`<img>`, масштаб шириной, поворот `transform`, панель без блока страниц, Ctrl+P тем же фреймом)
   [UI-24]. Проверка — тест компонента: у картинки нет «N / M», поворот 90° меняет пропорции области,
   движок pdf.js не загружен; тип `text/html` в режим картинки не попадает
 
 ## 2. Скан рядом с формой
 
-- [ ] 2.1 `loadInvoiceScan` → `{ blob, mimeType }`; `saveScan` принимает `Blob` и отзывает свой адрес;
+- [x] 2.1 `loadInvoiceScan` → `{ blob, mimeType }`; `saveScan` принимает `Blob` и отзывает свой адрес;
   `OriginalButton` и `useScan` → `useScanBytes` с прежним ключом и сверкой [COST-6.2]. Проверка —
   `npx tsc -b`; «Оригинал» скачивает тот же файл байт в байт (проверка `invoices-smoke` про Excel
   зелёная)
-- [ ] 2.2 `OriginalFile`: PDF и картинка — просмотрщиком, `documentKey = invoiceId|blobPath`;
+- [x] 2.2 `OriginalFile`: PDF и картинка — просмотрщиком, `documentKey = invoiceId|blobPath`;
   «Во весь экран» → «Открыть во вкладке» через `openInNewTab` [COST-6.2] [UI-20]. Проверка — тесты
   `features/costs` зелёные; `InvoiceScanPanel.tsx` ушёл из уровня `native-pdf-frame`
   (`npm run ui:ratchet` предлагает опустить уровень — опущен)
 
 ## 3. Узкий экран
 
-- [ ] 3.1 `ScanTooNarrow`: «Открыть файл» и «Открыть вид для чтения» открывают просмотрщик поверх формы,
+- [x] 3.1 `ScanTooNarrow`: «Открыть файл» и «Открыть вид для чтения» открывают просмотрщик поверх формы,
   байты грузятся после нажатия, у вида для чтения — строка `IMAGE_CAVEAT`. Файл, который показать
   нечем, и «реестр не пришёл» скачиваются, как раньше [COST-6.2] [UI-14]. Проверка — тест: `window.open`
   не вызывается ни в одной ветке
-- [ ] 3.2 `invoices-smoke.mjs` [COST-6.2]:
+- [x] 3.2 `invoices-smoke.mjs` [COST-6.2]:
   - проверка «скан показан рядом с формой…» (`:237–252`) ищет «Открыть во вкладке» вместо
     «Во весь экран»;
   - на 1100 px «Открыть файл» открывает просмотрщик поверх формы (region и `role=dialog`, canvas не
@@ -35,7 +35,7 @@
   - поддельный `%PDF-1.4 не настоящий` (уже грузится в проверке `:347`) даёт отказ «файл не читается
     как PDF» и «Оригинал».
   Проверка — живой прогон зелёный в CI
-- [ ] 3.3 `docs/USER_GUIDE.md` 13.4: скан поворачивается и масштабируется; на экране уже 1280 px файл
+- [x] 3.3 `docs/USER_GUIDE.md` 13.4: скан поворачивается и масштабируется; на экране уже 1280 px файл
   открывается поверх формы. `npm run toc` в `docs/tools`. Проверка — проверка оглавления в «Frontend»
   зелёная
 
@@ -46,10 +46,10 @@
 
 ## 5. Верификация
 
-- [ ] 5.1 `cd src/client && npm test` — зелёный
-- [ ] 5.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 5.3 `cd src/client && npm run ui:ratchet` — без роста, уровень `native-pdf-frame` опущен
-- [ ] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
+- [x] 5.1 `cd src/client && npm test` — зелёный
+- [x] 5.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 5.3 `cd src/client && npm run ui:ratchet` — без роста, уровень `native-pdf-frame` опущен
+- [x] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
   зелёный: `InvoiceScanPanel.tsx` не перешагнул 500 строк кода
 
 ## Workflow follow-up

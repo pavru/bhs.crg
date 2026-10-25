@@ -158,7 +158,6 @@
   "native-date": {},
   "date-frame": {},
   "native-pdf-frame": {
-    "features/costs/InvoiceScanPanel.tsx": 1,
     "features/document-sets/editor/DocumentPreviewPanel.tsx": 1,
     "features/document-sets/fields/FileField.tsx": 1
   }

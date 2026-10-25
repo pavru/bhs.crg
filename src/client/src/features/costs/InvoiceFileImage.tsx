@@ -14,6 +14,7 @@ import { canChooseProfile, layoutHint, layoutNotice, rebuiltMessage } from './in
 import { LayoutChooser } from './LayoutChooser';
 import { PdfViewer } from '@/shared/ui/viewer/PdfViewer';
 import { openInNewTab } from '@/shared/ui/viewer/openInNewTab';
+import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
 
 /**
  * Вид для чтения файла счёта (issue #1270): Excel и Word рядом с формой стоят не сами, а PDF,
@@ -38,10 +39,8 @@ export function OriginalButton({ invoiceId, fileName, label }: {
       onClick={async () => {
         setBusy(true);
         try {
-          const { url, mimeType } = await loadInvoiceScan(invoiceId);
-          saveScan(url, fileName, mimeType, kinds.data);
-          // С отсрочкой: браузеру нужна живая ссылка, пока он пишет файл.
-          setTimeout(() => URL.revokeObjectURL(url), 60_000);
+          const { blob, mimeType } = await loadInvoiceScan(invoiceId);
+          saveScan(blob, fileName, mimeType, kinds.data);
         } catch (e) { toast.apiError(e, 'Файл не скачан'); }
         finally { setBusy(false); }
       }}>
@@ -221,6 +220,8 @@ function useImageBytes(invoiceId: string, key: string) {
 
   useEffect(() => {
     let cancelled = false;
+    // Вид — всегда PDF: кусок просмотрщика грузится вместе с байтами, а не после них.
+    preloadPdfViewer();
     loadInvoiceImage(invoiceId)
       .then(bytes => { if (!cancelled) setLoaded({ key: full, bytes, failed: false }); })
       .catch(() => { if (!cancelled) setLoaded({ key: full, bytes: null, failed: true }); });

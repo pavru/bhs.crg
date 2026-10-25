@@ -14,6 +14,21 @@ async function pagesOf(caveat) {
 }
 
 /**
+ * Лист нарисован: на холсте есть тёмные точки. Пустой белый лист выглядит «показанным» и не значит
+ * ничего — так выходит скан МФУ без `wasm/` pdf.js.
+ */
+export async function sheetDrawn(page, named, sheet) {
+  const sheetHandle = await sheet.elementHandle();
+  await named('первый лист не нарисован', () => page.waitForFunction(el => {
+    const c = el.querySelector('canvas');
+    if (!c || !c.width || !c.height) return false;
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    for (let i = 0; i < d.length; i += 4 * 31) if (d[i] < 160 && d[i + 3] > 0) return true;
+    return false;
+  }, sheetHandle, { timeout: 30_000 }));
+}
+
+/**
  * Просмотрщик показал документ: область «… — вид для чтения», нарисованный первый лист, пагинатор по
  * числу листов (у одного листа его нет), выделяемый текст счёта, оговорка не наезжает на лист.
  */
@@ -25,15 +40,7 @@ export async function viewerShowsPdf(page, named, caveat) {
   if ((await page.getByTestId('viewer-failure').count()) !== 0)
     throw new Error(`просмотрщик отказал: «${await page.getByTestId('viewer-failure').innerText()}»`);
 
-  // Холст нарисован: тёмные точки есть. Пустой белый лист выглядит «показанным» и не значит ничего.
-  const sheetHandle = await sheet.elementHandle();
-  await named('первый лист не нарисован', () => page.waitForFunction(el => {
-    const c = el.querySelector('canvas');
-    if (!c || !c.width || !c.height) return false;
-    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
-    for (let i = 0; i < d.length; i += 4 * 31) if (d[i] < 160 && d[i + 3] > 0) return true;
-    return false;
-  }, sheetHandle, { timeout: 30_000 }));
+  await sheetDrawn(page, named, sheet);
 
   const pages = await pagesOf(caveat);
   const toolbar = page.getByTestId('viewer-toolbar');

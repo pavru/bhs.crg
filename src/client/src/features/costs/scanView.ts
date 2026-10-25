@@ -1,4 +1,5 @@
 import { fileExtension, type FileKindsInfo } from '@/shared/api/fileKinds';
+import { revokeLater } from '@/shared/ui/viewer/openInNewTab';
 
 /**
  * Сохранение приложенного к счёту файла под его именем (issue #1265).
@@ -14,14 +15,16 @@ export function scanSaveName(
   return fileName || `Файл счёта${fileExtension(kinds, mimeType)}`;
 }
 
-/** Сохранить файл под его именем. Ссылку не отзывает: она принадлежит тому, кто её получил. */
+/** Сохранить файл под его именем. Ссылку делает сама и сама отзывает — с отсрочкой. */
 export function saveScan(
-  url: string, fileName: string | null, mimeType: string | null | undefined, kinds: FileKindsInfo | undefined,
+  blob: Blob, fileName: string | null, mimeType: string | null | undefined, kinds: FileKindsInfo | undefined,
 ): void {
+  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = scanSaveName(fileName, mimeType, kinds);
   document.body.appendChild(link);
   link.click();
   link.remove();
+  revokeLater(url);
 }
