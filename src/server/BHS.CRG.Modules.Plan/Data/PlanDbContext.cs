@@ -59,6 +59,12 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
 
     public DbSet<EstimateRowLabor> EstimateRowLabor => Set<EstimateRowLabor>();
 
+    /// <summary>Импорты файлов ГРАНД-Сметы — до решения человека и отчётом созданной редакции (<c>plan-07</c>).</summary>
+    public DbSet<EstimateImport> EstimateImports => Set<EstimateImport>();
+
+    /// <summary>Версия записи импорта — её называют создание редакции и отмена импорта.</summary>
+    public string VersionOf(EstimateImport import) => Version(import);
+
     /// <summary>
     /// Настройка контекста — одна на всех, кто его создаёт: приложение (<c>PlanModule.RegisterServices</c>)
     /// и <c>dotnet ef</c> через <see cref="PlanDbContextFactory" />.
@@ -117,6 +123,10 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
     /// </summary>
     private ConflictException? Refusal(DbUpdateException e)
     {
+        if (e is DbUpdateConcurrencyException && e.Entries.Any(x => x.Entity is EstimateImport))
+            return new ConflictException(
+                "Импорт тем временем изменили — разбор завершился, импорт отменили или из него создали редакцию в " +
+                "другой вкладке. Перечитайте отчёт импорта и повторите.", e);
         if (e is DbUpdateConcurrencyException)
             return new ConflictException(
                 "Смету тем временем изменили, и эта правка не записана — целиком, ни одной частью. Перечитайте " +

@@ -1,6 +1,7 @@
 using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Modules.Plan.Endpoints;
+using BHS.CRG.Modules.Plan.Import;
 using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
@@ -120,7 +121,7 @@ public sealed class PlanModule : IAppModule
     public IReadOnlyList<string> UsesSections => [CoreSections.Constructions, CoreSections.Catalog];
 
     /// <summary>
-    /// Свой контекст, действия журнала и запись редакции. Строку подключения модуль берёт из настроек
+    /// Свой контекст, действия журнала, запись редакции и разбор файла импорта (фоновой операцией, <c>plan-07</c>). Строку подключения модуль берёт из настроек
     /// приложения; что она задана, проверяет ядро при старте, раньше модулей. Регистрирует контекст
     /// модуль, а мигрирует ядро: выключенный модуль не регистрирует ничего (AUTH-19), и его схема
     /// остаётся такой, какой была.
@@ -134,6 +135,7 @@ public sealed class PlanModule : IAppModule
             PlanDbContext.Configure(options, configuration.GetConnectionString("Postgres")));
         services.AddSingleton<IModuleActivityActions, EstimateActions>();
         services.AddScoped<EstimateRevisionWriter>();
+        services.AddScoped<IModuleJobHandler, EstimateImportJob>();
     }
 
     /// <summary>
@@ -152,6 +154,7 @@ public sealed class PlanModule : IAppModule
     {
         EstimateEndpoints.Map(endpoints);
         EstimateRowsEndpoints.Map(endpoints);
+        EstimateImportEndpoints.Map(endpoints);
     }
 
     /// <summary>

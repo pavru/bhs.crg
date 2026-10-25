@@ -5761,4 +5761,20 @@ GET    /api/plan/revisions/{id}/rows?cursor=&limit=  → { items: [строка]
                                       колонками, marks (unmatched — нет вида работы или позиции перечня),
                                       materials (marks unmatched — нет номенклатуры, cost?), labor
                                       ([{ manHours }]), cost? { unitCost, total, data }
+
+# Импорт сметы из ГРАНД-Сметы (change plan-07-estimate-import). Всё — под plan.estimate.edit; итог
+# сводки — только с plan.estimate.cost. Разбор — фоновой операцией plan.import.parse
+GET    /api/plan/imports?constructionId=&estimateId=  → [{ id, target, fileName, state, kind, refusalCode,
+                                      revisionId, createdAt, createdBy, version }], новые сверху; стройка
+                                      обязательна (400). Несостоявшийся импорт держит стройку и раздел новой
+                                      сметы — по списку его находят и отменяют
+POST   /api/plan/imports  multipart: file, constructionId и ЛИБО estimateId, ЛИБО newEstimate.name
+                                      (+ .sectionId, .kind) → 201 отчёт; раздел и вид при estimateId — 400
+GET    /api/plan/imports/{id}  → отчёт: { state (parsing | parsed | rejected | committed), kind (lsr | vor |
+                                      ka), programVersion, schemaVersion, progress, refusal { code, text },
+                                      parsed, inFile, unparsed [{ place, line, reason }], summary, marks
+                                      (partial, computedTotals, otherCalculation, notEstimate, interrupted),
+                                      revisionId, version, hidden? }
+DELETE /api/plan/imports/{id}  If-Match (version импорта) → 204, файл удаляется; из импорта создана
+                                      редакция — 409
 ```

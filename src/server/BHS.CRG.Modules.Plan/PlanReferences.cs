@@ -19,6 +19,10 @@ public static class PlanReferences
     private static ReferenceDocument Estimate(string via) =>
         new("estimates", "name", via, "сметы", PlanModule.EstimateRead);
 
+    /// <summary>Чем назвать импорт-держатель: именем файла — по нему его узнает загрузивший.</summary>
+    private static ReferenceDocument Import() =>
+        new("estimate_imports", "file_name", "id", "импорты смет", PlanModule.EstimateEdit);
+
     public static IReadOnlyList<ModuleReference> All =>
     [
         ModuleReference.Holding("estimates", "construction_id", ReferenceTarget.Construction,
@@ -41,6 +45,21 @@ public static class PlanReferences
 
         ModuleReference.Holding("estimate_row_materials", "nomenclature_id", ReferenceTarget.Record,
             "материалы строк смет с этой позицией номенклатуры"),
+
+        // Импорт держит стройку и раздел новой сметы: из него ещё заведётся смета на них (plan-07). Отменённый
+        // импорт держать перестаёт — его запись уходит.
+        ModuleReference.Holding("estimate_imports", "construction_id", ReferenceTarget.Construction,
+            "импорты смет в эту стройку", Import()),
+        ModuleReference.Holding("estimate_imports", "new_estimate_section_id", ReferenceTarget.Section,
+            "импорты, которые заведут смету на этот раздел", Import()),
+        ModuleReference.Remembering("estimate_imports", "created_by", ReferenceTarget.User,
+            "кто загрузил файл импорта — справочное поле; удаление учётной записи импортов не касается"),
+        ModuleReference.Remembering("estimate_imports", "job_id", target: null,
+            "номер фоновой задачи разбора — по нему отчёт показывает ход; записи справочников это не касается"),
+        ModuleReference.Remembering("estimate_imports", "parsed", target: null,
+            "модель разбора файла сметы — тексты и числа файла, идентификаторов записей в ней нет"),
+        ModuleReference.Remembering("estimate_imports", "unparsed", target: null,
+            "не разобранные позиции файла с причиной — тексты файла, идентификаторов записей в нём нет"),
 
         // Импортировавший — справка, а не связь: удаление учётной записи редакций не касается, как у
         // автора счёта (ревью PR #1188).

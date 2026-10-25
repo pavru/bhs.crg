@@ -126,5 +126,52 @@ internal static class EstimateModel
         labor.Property(l => l.ManHours).HasColumnName("man_hours").HasPrecision(18, 4);
         labor.HasOne<EstimateRow>().WithMany().HasForeignKey(l => l.RowId).OnDelete(DeleteBehavior.Cascade);
         labor.HasIndex(l => l.RowId).HasDatabaseName("ix_estimate_row_labor_row_id");
+
+        ConfigureImport(builder);
+    }
+
+    /// <summary>
+    /// Запись импорта (change <c>plan-07-estimate-import</c>). Смета и редакция — свои записи модуля, ключами:
+    /// импорт в смету уходит вместе с удалённой сметой (удаляется только смета без редакций, то есть импорт
+    /// её ещё не наполнил), а отчёт созданной редакции — вместе с редакцией.
+    /// </summary>
+    private static void ConfigureImport(ModelBuilder builder)
+    {
+        var import = builder.Entity<EstimateImport>();
+        import.ToTable("estimate_imports");
+        import.HasKey(i => i.Id);
+        import.Property(i => i.Id).HasColumnName("id");
+        import.Property(i => i.ConstructionId).HasColumnName("construction_id");
+        import.Property(i => i.EstimateId).HasColumnName("estimate_id");
+        import.Property(i => i.NewEstimateName).HasColumnName("new_estimate_name").HasMaxLength(Estimate.NameLength);
+        import.Property(i => i.NewEstimateSectionId).HasColumnName("new_estimate_section_id");
+        import.Property(i => i.NewEstimateKind).HasColumnName("new_estimate_kind").HasConversion<string>().HasMaxLength(16);
+        import.Property(i => i.BlobPath).HasColumnName("blob_path");
+        import.Property(i => i.FileName).HasColumnName("file_name").HasMaxLength(EstimateImport.FileNameLength);
+        import.Property(i => i.State).HasColumnName("state").HasConversion<string>().HasMaxLength(16);
+        import.Property(i => i.Kind).HasColumnName("kind").HasConversion<string>().HasMaxLength(32);
+        import.Property(i => i.ProgramVersion).HasColumnName("program_version").HasMaxLength(EstimateImport.VersionLength);
+        import.Property(i => i.SchemaVersion).HasColumnName("schema_version").HasMaxLength(EstimateImport.VersionLength);
+        import.Property(i => i.LsrNumber).HasColumnName("lsr_number").HasMaxLength(EstimateImport.LsrNumberLength);
+        import.Property(i => i.LsrName).HasColumnName("lsr_name").HasMaxLength(EstimateImport.LsrNameLength);
+        import.Property(i => i.Parsed).HasColumnName("parsed").HasColumnType("jsonb");
+        import.Property(i => i.Unparsed).HasColumnName("unparsed").HasColumnType("jsonb");
+        import.Property(i => i.RefusalCode).HasColumnName("refusal_code").HasMaxLength(EstimateImport.RefusalCodeLength);
+        import.Property(i => i.RefusalText).HasColumnName("refusal_text");
+        import.Property(i => i.JobId).HasColumnName("job_id");
+        import.Property(i => i.RevisionId).HasColumnName("revision_id");
+        import.Property(i => i.CreatedAt).HasColumnName("created_at");
+        import.Property(i => i.CreatedBy).HasColumnName("created_by");
+        import.Property(i => i.CreatedByName).HasColumnName("created_by_name");
+        import.Property(i => i.ParsedAt).HasColumnName("parsed_at");
+        import.Property<uint>(PlanDbContext.RowVersion).IsRowVersion();
+
+        import.HasOne<Estimate>().WithMany().HasForeignKey(i => i.EstimateId).OnDelete(DeleteBehavior.Cascade);
+        import.HasOne<EstimateRevision>().WithMany().HasForeignKey(i => i.RevisionId).OnDelete(DeleteBehavior.Cascade);
+        import.HasIndex(i => i.EstimateId).HasDatabaseName("ix_estimate_imports_estimate_id").HasFilter("estimate_id IS NOT NULL");
+        import.HasIndex(i => i.RevisionId).HasDatabaseName("ix_estimate_imports_revision_id").HasFilter("revision_id IS NOT NULL");
+        import.HasIndex(i => i.ConstructionId).HasDatabaseName("ix_estimate_imports_construction_id");
+        import.HasIndex(i => i.NewEstimateSectionId).HasDatabaseName("ix_estimate_imports_new_estimate_section_id")
+            .HasFilter("new_estimate_section_id IS NOT NULL");
     }
 }

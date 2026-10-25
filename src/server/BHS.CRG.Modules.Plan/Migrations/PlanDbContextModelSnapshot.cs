@@ -79,6 +79,144 @@ namespace BHS.CRG.Modules.Plan.Migrations
                     b.ToTable("estimates", "plan");
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.EstimateImport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BlobPath")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("blob_path");
+
+                    b.Property<Guid>("ConstructionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("construction_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("CreatedByName")
+                        .HasColumnType("text")
+                        .HasColumnName("created_by_name");
+
+                    b.Property<Guid?>("EstimateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("estimate_id");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("file_name");
+
+                    b.Property<Guid?>("JobId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("job_id");
+
+                    b.Property<string>("Kind")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("LsrName")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("lsr_name");
+
+                    b.Property<string>("LsrNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("lsr_number");
+
+                    b.Property<string>("NewEstimateKind")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("new_estimate_kind");
+
+                    b.Property<string>("NewEstimateName")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("new_estimate_name");
+
+                    b.Property<Guid?>("NewEstimateSectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("new_estimate_section_id");
+
+                    b.Property<string>("Parsed")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("parsed");
+
+                    b.Property<DateTimeOffset?>("ParsedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("parsed_at");
+
+                    b.Property<string>("ProgramVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("program_version");
+
+                    b.Property<string>("RefusalCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("refusal_code");
+
+                    b.Property<string>("RefusalText")
+                        .HasColumnType("text")
+                        .HasColumnName("refusal_text");
+
+                    b.Property<Guid?>("RevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("revision_id");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<string>("SchemaVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("schema_version");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("state");
+
+                    b.Property<string>("Unparsed")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("unparsed");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConstructionId")
+                        .HasDatabaseName("ix_estimate_imports_construction_id");
+
+                    b.HasIndex("EstimateId")
+                        .HasDatabaseName("ix_estimate_imports_estimate_id")
+                        .HasFilter("estimate_id IS NOT NULL");
+
+                    b.HasIndex("NewEstimateSectionId")
+                        .HasDatabaseName("ix_estimate_imports_new_estimate_section_id")
+                        .HasFilter("new_estimate_section_id IS NOT NULL");
+
+                    b.HasIndex("RevisionId")
+                        .HasDatabaseName("ix_estimate_imports_revision_id")
+                        .HasFilter("revision_id IS NOT NULL");
+
+                    b.ToTable("estimate_imports", "plan");
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.EstimateRevision", b =>
                 {
                     b.Property<Guid>("Id")
@@ -364,6 +502,19 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasForeignKey("CurrentRevisionId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_estimates_current_revision");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.EstimateImport", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Plan.Data.Estimate", null)
+                        .WithMany()
+                        .HasForeignKey("EstimateId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("BHS.CRG.Modules.Plan.Data.EstimateRevision", null)
+                        .WithMany()
+                        .HasForeignKey("RevisionId")
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.EstimateRevision", b =>

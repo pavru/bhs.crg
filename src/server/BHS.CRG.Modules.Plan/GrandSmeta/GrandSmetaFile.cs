@@ -89,9 +89,9 @@ public sealed class GrandSmetaFile
             throw Refuse(GrandSmetaRefusal.NotGrandSmeta, "В документе ГРАНД-Сметы не записана версия программы.");
         var guid = (string?)root.Attribute("DocumentType") ?? "";
         if (!Kinds.TryGetValue(guid, out var kind))
-            throw Refuse(GrandSmetaRefusal.UnknownKind,
+            throw new GrandSmetaRefusedException(GrandSmetaRefusal.UnknownKind,
                 $"Вид документа ГРАНД-Сметы {guid} не читается: читаются локальный сметный расчёт, " +
-                "ведомость объёмов работ и конъюнктурный анализ.");
+                "ведомость объёмов работ и конъюнктурный анализ.") { ProgramVersion = version };
 
         return new GrandSmetaFile(document, kind, version, GrandSmetaSchemas.Resolve(kind, version));
     }

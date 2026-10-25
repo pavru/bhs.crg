@@ -66,7 +66,11 @@ public static class GrandSmetaSchemas
 
         var known = string.Join(", ", Supported.Where(s => s.Kind == kind).Select(s => s.Version));
         throw new GrandSmetaRefusedException(GrandSmetaRefusal.UnsupportedVersion,
-            $"Формат ГРАНД-Сметы версии {programVersion} ({KindName(kind)}) не поддерживается; поддерживаются: {known}.");
+            $"Формат ГРАНД-Сметы версии {programVersion} ({KindName(kind)}) не поддерживается; поддерживаются: {known}.")
+        {
+            Kind = kind,
+            ProgramVersion = programVersion,
+        };
     }
 
     /// <summary>Скомпилированная схема — один раз на процесс: XSD локальной сметы — 430 КБ.</summary>
