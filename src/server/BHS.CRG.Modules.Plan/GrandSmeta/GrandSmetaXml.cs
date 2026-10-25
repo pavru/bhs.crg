@@ -29,7 +29,7 @@ internal static class GrandSmetaXml
         var plain = Plain(v);
         if (TryParse(plain, out var d)) return d;
         return new Arithmetic(plain).TryEvaluate(out var value)
-            ? Math.Round(value, 2, MidpointRounding.AwayFromZero)
+            ? Kopecks(value)
             : throw new GrandSmetaFormatException($"{attribute} — не число: «{v}»");
     }
 
@@ -38,6 +38,9 @@ internal static class GrandSmetaXml
         if (value is null) return null;
         return TryParse(Plain(value), out var d) ? d : throw new GrandSmetaFormatException($"{what} — не число: «{value}»");
     }
+
+    /// <summary>До копейки, половина — от нуля: так программа округляет деньги (цену формулой, статью итога).</summary>
+    public static decimal Kopecks(decimal value) => Math.Round(value, 2, MidpointRounding.AwayFromZero);
 
     /// <summary>
     /// Округление до точности программы (<c>Quantity/@Precision</c>): от 7 знаков после запятой до «-3» —
