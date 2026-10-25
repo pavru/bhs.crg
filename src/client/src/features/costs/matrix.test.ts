@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { AllocationPartView, InvoiceLineView, InvoiceView, LineAllocationView } from '@/shared/api/invoices';
+import type { Place } from './places';
 import {
-  DOCUMENT_ROW, cellText, cellsFromState, cellsOf, headerObject, matrixSignature, restText, rowsOf, targetsOf, toState,
+  DOCUMENT_ROW, cellText, cellsFromState, cellsOf, headerObject, headerPickMode, matrixSignature, restText, rowsOf, targetsOf, toState,
   type MatrixRow,
 } from './matrix';
 
@@ -104,13 +105,106 @@ describe('набор для записи', () => {
 });
 
 describe('объект в шапке', () => {
+  /** Один объект; `sections` — занятые разделы, `bare` — есть ли часть без раздела. */
+  const one = (place: Place, section: string | null | 'many', sections = section === null ? 0 : 1,
+    bare = section === null, complete = false) => ({ kind: 'one', place, section, sections, bare, complete });
+
   it('выведен из разноски: нет, один (полностью или нет), несколько', () => {
     expect(headerObject(invoice([line('l1', {})])).kind).toBe('none');
-    expect(headerObject(invoice([line('l1', { parts: [part('A')] })]))).toEqual({ kind: 'one', place: site('A'), complete: false });
+    expect(headerObject(invoice([line('l1', { parts: [part('A')] })]))).toEqual(one(site('A'), null));
     expect(headerObject(invoice([line('l1', { parts: [part('A'), part('B')] })]))).toEqual({ kind: 'many', count: 2 });
     // Разделы одной стройки — всё ещё один объект, и счёт объектов — по стройкам.
     const sections = invoice([line('l1', { parts: [part('A', { sectionId: '1' }), part('A', { sectionId: '2' }), part('B')] })]);
     expect(headerObject(sections)).toEqual({ kind: 'many', count: 2 });
+  });
+
+  it('весь счёт на раздел — стройка и раздел; по строкам и частью счёта целиком', () => {
+    const view = invoice([
+      line('l1', { parts: [part('A', { sectionId: '4' })] }),
+      line('l2', { parts: [part('A', { sectionId: '4' })] }),
+    ]);
+    expect(headerObject(view)).toEqual(one(site('A'), '4'));
+    expect(headerObject(invoice([], [part('A', { sectionId: '4' })]))).toEqual(one(site('A'), '4'));
+  });
+
+  it('несколько разделов одной стройки — один объект, раздел «many» и их число', () => {
+    const view = invoice([
+      line('l1', { parts: [part('A', { sectionId: '4' }), part('A', { sectionId: '5' })] }),
+      line('l2', { parts: [part('A', { sectionId: '6' })] }),
+    ]);
+    expect(headerObject(view)).toEqual(one(site('A'), 'many', 3));
+  });
+
+  it('раздел вместе с «без раздела» той же стройки — тоже несколько мест', () => {
+    const view = invoice([line('l1', { parts: [part('A', { sectionId: '4' }), part('A')] })]);
+    // Один раздел и стройка без раздела — «1 раздел и без раздела», а не «2 раздела».
+    expect(headerObject(view)).toEqual(one(site('A'), 'many', 1, true));
+  });
+
+  it('удалённый раздел — своим id: подпись решает placeName', () => {
+    const view = invoice([line('l1', { parts: [part('A', { sectionId: 'удалённый', targetIssue: 'section-lost' })] })]);
+    expect(headerObject(view)).toEqual(one(site('A'), 'удалённый'));
+  });
+
+  it('статья — без раздела', () => {
+    expect(headerObject(invoice([line('l1', { parts: [articlePart('склад')] })]))).toEqual(one(article('склад'), null));
+  });
+});
+
+// Таблица D3: какой выбор в шапке пишется сразу, а какой открывает матрицу.
+describe('выбор в шапке: сразу или матрица', () => {
+  const at = (sections: AllocationPartView[], complete = true) => {
+    const view = invoice([line('l1', { parts: sections })]);
+    view.allocation.allocated = complete;
+    return headerObject(view);
+  };
+  const section = (construction: string, id: string | null) => ({ construction, section: id, article: null });
+
+  it('не разнесён — любое место сразу', () => {
+    const none = headerObject(invoice([line('l1', {})]));
+    expect(headerPickMode(none, section('A', '4'))).toBe('write');
+    expect(headerPickMode(none, article('склад'))).toBe('write');
+  });
+
+  it('весь счёт на стройке без раздела: раздел той же стройки — сразу', () => {
+    expect(headerPickMode(at([part('A')]), section('A', '4'))).toBe('write');
+  });
+
+  it('весь счёт на разделе: другой раздел или «вся стройка» — сразу', () => {
+    expect(headerPickMode(at([part('A', { sectionId: '4' })]), section('A', '5'))).toBe('write');
+    expect(headerPickMode(at([part('A', { sectionId: '4' })]), section('A', null))).toBe('write');
+  });
+
+  it('то же место у полностью разнесённого счёта — писать нечего', () => {
+    expect(headerPickMode(at([part('A', { sectionId: '4' })]), section('A', '4'))).toBe('keep');
+    expect(headerPickMode(at([part('A')]), section('A', null))).toBe('keep');
+    expect(headerPickMode(at([articlePart('склад')]), article('склад'))).toBe('keep');
+  });
+
+  it('неполная разноска на одном месте стройки — тоже сразу: остаток ложится туда же', () => {
+    expect(headerPickMode(at([part('A')], false), section('A', '4'))).toBe('write');
+    expect(headerPickMode(at([part('A', { sectionId: '4' })], false), section('A', '4'))).toBe('write');
+  });
+
+  it('несколько разделов стройки — матрица, даже на один из них или на всю стройку', () => {
+    const many = at([part('A', { sectionId: '4' }), part('A', { sectionId: '5' })]);
+    expect(headerPickMode(many, section('A', '4'))).toBe('matrix');
+    expect(headerPickMode(many, section('A', null))).toBe('matrix');
+  });
+
+  it('другая стройка или статья — матрица', () => {
+    expect(headerPickMode(at([part('A', { sectionId: '4' })]), section('B', null))).toBe('matrix');
+    expect(headerPickMode(at([part('A')]), article('склад'))).toBe('matrix');
+  });
+
+  it('статья: другое место — матрица, та же статья — сразу', () => {
+    expect(headerPickMode(at([articlePart('склад')]), section('A', null))).toBe('matrix');
+    expect(headerPickMode(at([articlePart('склад')]), article('офис'))).toBe('matrix');
+    expect(headerPickMode(at([articlePart('склад')], false), article('склад'))).toBe('write');
+  });
+
+  it('несколько объектов — матрица', () => {
+    expect(headerPickMode(at([part('A'), part('B')]), section('A', null))).toBe('matrix');
   });
 });
 
@@ -134,7 +228,7 @@ describe('статья вне строек (F3)', () => {
 
   it('счёт на склад — в шапке один объект, и это статья', () => {
     expect(headerObject(invoice([line('l1', { parts: [articlePart('склад')] })])))
-      .toEqual({ kind: 'one', place: article('склад'), complete: false });
+      .toMatchObject({ kind: 'one', place: article('склад'), complete: false });
     expect(headerObject(invoice([line('l1', { parts: [part('A'), articlePart('склад')] })])))
       .toEqual({ kind: 'many', count: 2 });
   });
