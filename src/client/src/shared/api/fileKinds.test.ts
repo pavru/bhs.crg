@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  acceptOf, fileExtension, fileShownAs, kindNamed, recognizedKinds, shownKinds, sizeLimitWords, wordsOf,
+  acceptOf, fileExtension, fileShownAs, kindNamed, nameShownAs, recognizedKinds, shownKinds, sizeLimitWords, wordsOf,
   type FileKindsInfo,
 } from './fileKinds';
 
@@ -45,6 +45,21 @@ describe('fileShownAs', () => {
 
   it('без реестра показать нечем', () => {
     expect(fileShownAs(undefined, 'application/pdf')).toBe('download');
+  });
+});
+
+describe('nameShownAs — подсказка по имени', () => {
+  it('вид по расширению из реестра, без оглядки на регистр', () => {
+    expect(nameShownAs(info, 'Скан.PDF')).toBe('pdf');
+    expect(nameShownAs(info, 'фото.jpeg')).toBe('image');
+    expect(nameShownAs(info, 'Смета.xlsx')).toBe('download');
+  });
+
+  it('по имени не сказать — `null`, а не «скачать»', () => {
+    expect(nameShownAs(info, 'Счёт 417')).toBeNull();
+    expect(nameShownAs(info, 'архив.zip')).toBeNull();
+    expect(nameShownAs(info, null)).toBeNull();
+    expect(nameShownAs(undefined, 'Скан.pdf')).toBeNull();
   });
 });
 

@@ -745,15 +745,17 @@ export function useNomenclature(query: string) {
 }
 
 /**
- * Скан счёта — объектной ссылкой для показа.
+ * Скан счёта — байтами (`Blob`) и типом, с которым его отдал сервер. Объектный адрес здесь не делается:
+ * просмотрщик берёт байты ([UI-10], адрес под CSP поставки pdf.js не читает), а адрес для скачивания
+ * делает и отзывает `saveScan`.
  *
  * ⚠️ Через адрес МОДУЛЯ, а не через общий адрес вложений: у файла в хранилище прав нет, а у этого
  * адреса есть — `costs.invoice.read`. Общий адрес закрыт другим правом (`core.files.use`), и счёт
  * читался бы тем, у кого прав на счета нет вовсе.
  */
-export async function loadInvoiceScan(id: string): Promise<{ url: string; mimeType: string }> {
+export async function loadInvoiceScan(id: string): Promise<{ blob: Blob; mimeType: string }> {
   const response = await apiClient.get(`/costs/invoices/${id}/scan`, { responseType: 'blob' });
   const declared = (response.headers['content-type'] as string | undefined) ?? '';
   const mimeType = declared.split(';')[0].trim().toLowerCase() || 'application/octet-stream';
-  return { url: URL.createObjectURL(new Blob([response.data as BlobPart], { type: mimeType })), mimeType };
+  return { blob: new Blob([response.data as BlobPart], { type: mimeType }), mimeType };
 }
