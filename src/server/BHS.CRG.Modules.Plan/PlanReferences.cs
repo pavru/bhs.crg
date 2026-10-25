@@ -43,6 +43,18 @@ public static class PlanReferences
         ModuleReference.Holding("estimate_rows", "data", target: null,
             "строки смет, где запись выбрана в поле сметного наполнения"),
 
+        // Пометка «запомнено» называет запись этого же модуля, а не ядра; запомненное забывают — строка остаётся.
+        ModuleReference.Remembering("estimate_rows", "rate_match_id", target: null,
+            "какое запомненное сопоставление подставило строку — запись модуля, а не справочника ядра"),
+
+        // Запомненное держит вид работы и единицу (plan-08): снимают его в списке — «забыть» или «перенацелить».
+        ModuleReference.Holding("rate_matches", "work_type_id", ReferenceTarget.Record,
+            "запомненные сопоставления шифров расценок с этим видом работы"),
+        ModuleReference.Holding("rate_matches", "unit_id", ReferenceTarget.Record,
+            "запомненные сопоставления шифров расценок с этой единицей измерения"),
+        ModuleReference.Remembering("rate_matches", "updated_by", ReferenceTarget.User,
+            "кто запомнил сопоставление шифра — справочное поле; удаление учётной записи его не касается"),
+
         ModuleReference.Holding("estimate_row_materials", "nomenclature_id", ReferenceTarget.Record,
             "материалы строк смет с этой позицией номенклатуры"),
 

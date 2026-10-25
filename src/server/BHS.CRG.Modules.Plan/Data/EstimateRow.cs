@@ -68,6 +68,14 @@ public sealed class EstimateRow
     /// <summary>Позиция перечня работ стройки — порт ядра <c>IModulePlanItems</c>; <c>null</c> — не сопоставлена.</summary>
     public Guid? PlanItemId { get; private set; }
 
+    /// <summary>
+    /// Пометка «запомнено» (<c>plan-08</c>, D8 зонтика): запомненное сопоставление шифра, которое подставило
+    /// вид работы, единицу и коэффициент; <c>null</c> — сопоставлял человек либо строка не сопоставлена.
+    /// Без внешнего ключа нарочно, как у строки счёта: забытое сопоставление строку не меняет, а что с ним
+    /// стало, пометка вычисляет на чтении.
+    /// </summary>
+    public Guid? RateMatchId { get; private set; }
+
     /// <summary>Стоимость единицы — себестоимость, под <c>plan.estimate.cost</c>.</summary>
     public decimal? UnitCost { get; private set; }
 
@@ -83,6 +91,45 @@ public sealed class EstimateRow
     /// <see cref="PlanRows" />.
     /// </summary>
     public bool Unmatched => WorkTypeId is null || PlanItemId is null;
+
+    /// <summary>
+    /// Сопоставить строку (<c>plan-08</c>, ТЗ PLAN-6.1): вид работы, единица классификатора, коэффициент и
+    /// позиция перечня. Объём плана — объём файла × коэффициент; объём файла остаётся как в ЛСР — смета
+    /// свидетельство расчёта, а не плана.
+    /// </summary>
+    /// <param name="rateMatchId">Запомненное, которым строка сопоставлена; <c>null</c> — выбор человека.</param>
+    internal void Match(Guid workTypeId, Guid unitId, decimal factor, Guid planItemId, Guid? rateMatchId)
+    {
+        WorkTypeId = workTypeId;
+        UnitId = unitId;
+        Factor = factor;
+        Volume = SourceVolume * factor;
+        PlanItemId = planItemId;
+        RateMatchId = rateMatchId;
+    }
+
+    /// <summary>Снять сопоставление: строка снова «не сопоставлена» и из плана уходит (ТЗ PLAN-4).</summary>
+    internal void Unmatch()
+    {
+        WorkTypeId = null;
+        UnitId = null;
+        Factor = null;
+        Volume = null;
+        PlanItemId = null;
+        RateMatchId = null;
+    }
+
+    /// <summary>
+    /// Ни одного следа сопоставления — снимать нечего. Не то же, что «не сопоставлена» (<see cref="Unmatched" />):
+    /// подстановка, которой создание редакции отказало в позиции по виду работы, оставляет единицу, коэффициент и
+    /// объём без вида работы, и снять их обязано то же действие.
+    /// </summary>
+    internal bool Bare =>
+        WorkTypeId is null && UnitId is null && Factor is null && Volume is null && PlanItemId is null && RateMatchId is null;
+
+    /// <summary>Сопоставлена ли строка ровно так — повтор того же выбора ничего не меняет.</summary>
+    internal bool MatchedAs(Guid workTypeId, Guid unitId, decimal factor) =>
+        WorkTypeId == workTypeId && UnitId == unitId && Factor == factor && PlanItemId is not null;
 
     /// <summary>
     /// Новая строка редакции. Звать её — дело одного места: службы записи редакции
@@ -106,6 +153,7 @@ public sealed class EstimateRow
             Factor = draft.Factor,
             Volume = draft.Volume,
             PlanItemId = draft.PlanItemId,
+            RateMatchId = draft.RateMatchId,
             UnitCost = draft.UnitCost,
             Total = draft.Total,
             Data = data,

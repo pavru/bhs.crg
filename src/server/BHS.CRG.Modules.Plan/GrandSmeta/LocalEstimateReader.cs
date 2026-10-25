@@ -101,7 +101,8 @@ public static class LocalEstimateReader
         return new LocalEstimateRequisites(
             props?.Text("LocNum"), props?.Text("Description"), props?.Text("Constr"), props?.Text("Object"),
             props?.Text("Stage"), dates?.CreationDate(), dates?.Date("CurrPriceDate"),
-            root.Element("Parameters")?.Text("BasePrices"));
+            root.Element("Parameters")?.Text("BasePrices"),
+            root.Element("RegionInfo")?.Text("RegionName"));
     }
 
     /// <summary>Позиция. <paramref name="computed" /> — досчёт сметы без итогов; null — итог из файла.</summary>

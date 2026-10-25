@@ -45,6 +45,10 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
     /// <summary>Единственность ключа импорта у редакции: из одного импорта — одна редакция (<c>plan-07</c>).</summary>
     internal const string RevisionImportKey = "ix_estimate_revisions_import_key";
 
+    /// <summary>Единственность ключа запомненного шифра (<c>plan-08</c>): проигравшее одновременное запоминание
+    /// получает отказ здесь и повторяет, перечитав.</summary>
+    internal const string RateMatchKey = "ux_rate_matches_key";
+
     protected override string Schema => SchemaName;
 
     public DbSet<Estimate> Estimates => Set<Estimate>();
@@ -64,6 +68,12 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
 
     /// <summary>Импорты файлов ГРАНД-Сметы — до решения человека и отчётом созданной редакции (<c>plan-07</c>).</summary>
     public DbSet<EstimateImport> EstimateImports => Set<EstimateImport>();
+
+    /// <summary>Запомненные сопоставления шифров расценок (<c>plan-08</c>).</summary>
+    public DbSet<RateMatch> RateMatches => Set<RateMatch>();
+
+    /// <summary>Версия запомненного сопоставления — её называют «перенацелить» и «забыть» из списка.</summary>
+    public string VersionOf(RateMatch match) => Version(match);
 
     /// <summary>Версия записи импорта — её называют создание редакции и отмена импорта.</summary>
     public string VersionOf(EstimateImport import) => Version(import);
@@ -130,6 +140,10 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
             return new ConflictException(
                 "Импорт тем временем изменили — разбор завершился, импорт отменили или из него создали редакцию в " +
                 "другой вкладке. Перечитайте отчёт импорта и повторите.", e);
+        if (e is DbUpdateConcurrencyException && e.Entries.Any(x => x.Entity is RateMatch))
+            return new ConflictException(
+                "Запомненное сопоставление тем временем изменили или забыли, и это действие не выполнено. Перечитайте " +
+                "список запомненного и повторите.", e);
         if (e is DbUpdateConcurrencyException)
             return new ConflictException(
                 "Смету тем временем изменили, и эта правка не записана — целиком, ни одной частью. Перечитайте " +

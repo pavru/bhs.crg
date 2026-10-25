@@ -79,7 +79,7 @@ public sealed class EstimateImportCommit(
                 import.NewEstimateKind ?? EstimateKind.Main, DateTimeOffset.UtcNow);
 
         var drafts = await matcher.ApplyCheckedAsync(
-            new(estimate.ConstructionId, estimate.SectionId), EstimateImportRows.Drafts(model), ct);
+            new(estimate.ConstructionId, estimate.SectionId, model.Requisites.NormativeBase), EstimateImportRows.Drafts(model), ct);
         var (rows, unmatched) = await WithPlanItemsAsync(estimate, drafts, ct);
 
         EstimateRevision revision;
@@ -95,7 +95,8 @@ public sealed class EstimateImportCommit(
                 await db.SaveChangesAsync(ct);
             }
             revision = await writer.StageAsync(estimate,
-                new EstimateRevisionSource(import.BlobPath, import.FileName, import.SchemaVersion, import.Id.ToString()), rows, ct);
+                new EstimateRevisionSource(import.BlobPath, import.FileName, import.SchemaVersion, import.Id.ToString(),
+                    model.Requisites.NormativeBase), rows, ct);
             import.Committed(estimate, revision);
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
@@ -155,11 +156,12 @@ public sealed class EstimateImportCommit(
                 continue;
             }
             var refusal = refusals.GetValueOrDefault(key);
+            // Пометка «запомнено» уходит вместе с отказавшей составляющей: подставленным строку больше не назвать.
             rows[index] = refusal?.Part switch
             {
-                PlanItemKeyPart.WorkType => rows[index] with { WorkTypeId = null },
-                PlanItemKeyPart.Unit => rows[index] with { UnitId = null, Factor = null, Volume = null },
-                _ => rows[index],
+                PlanItemKeyPart.WorkType => rows[index] with { WorkTypeId = null, RateMatchId = null },
+                PlanItemKeyPart.Unit => rows[index] with { UnitId = null, Factor = null, Volume = null, RateMatchId = null },
+                _ => rows[index] with { RateMatchId = null },
             };
             unmatched.Add(new(index + 1, refusal?.Reason ?? "позиция перечня работ не заведена"));
         }
