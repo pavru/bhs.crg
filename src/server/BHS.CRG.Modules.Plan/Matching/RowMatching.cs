@@ -56,7 +56,7 @@ public sealed class RowMatching(
         var estimate = await db.Estimates.FirstAsync(e => e.Id == revision.EstimateId, ct);
         if (choice is null)
         {
-            if (row.WorkTypeId is null && row.PlanItemId is null) return new(Units(row, null), RateMatchMemory.Nothing);
+            if (row.Bare) return new(Units(row, null), RateMatchMemory.Nothing);
             if (!row.Unmatched) revision.EnsureEditable("Снять сопоставление строки");
             row.Unmatch();
             revision.RowsMatched(DateTimeOffset.UtcNow);
@@ -68,14 +68,16 @@ public sealed class RowMatching(
 
         var (workType, unit) = await ResolveAsync(choice, ct);
         var factor = RateMatching.FactorOf(choice.Factor, row.SourceUnit, unit);
-        if (row.MatchedAs(workType.Id, unit.Id, factor)) return new(Units(row, unit), RateMatchMemory.Nothing);
-        if (!row.Unmatched) revision.EnsureEditable("Пересопоставить строку");
-
-        row.Match(workType.Id, unit.Id, factor, await PlanItemAsync(estimate, workType, unit, ct), rateMatchId: null);
-        revision.RowsMatched(DateTimeOffset.UtcNow);
-        await db.SaveChangesAsync(ct);
-        await log.RecordAsync(EstimateActions.Matched, estimate.Id.ToString(), EstimateActions.Label(estimate),
-            after: $"редакция {revision.Number}, строка {row.Order}: {workType.DisplayName}, {unit.Name} × {factor}", ct: ct);
+        // Тот же выбор строку не меняет, но запомнить его можно: сопоставивший без запоминания передумал.
+        if (!row.MatchedAs(workType.Id, unit.Id, factor))
+        {
+            if (!row.Unmatched) revision.EnsureEditable("Пересопоставить строку");
+            row.Match(workType.Id, unit.Id, factor, await PlanItemAsync(estimate, workType, unit, ct), rateMatchId: null);
+            revision.RowsMatched(DateTimeOffset.UtcNow);
+            await db.SaveChangesAsync(ct);
+            await log.RecordAsync(EstimateActions.Matched, estimate.Id.ToString(), EstimateActions.Label(estimate),
+                after: $"редакция {revision.Number}, строка {row.Order}: {workType.DisplayName}, {unit.Name} × {factor}", ct: ct);
+        }
 
         var memory = remember && RateMatchKey.Of(row.RateCode, revision.NormativeBase) is { } key
             ? await RateMatching.RememberSafelyAsync(db,

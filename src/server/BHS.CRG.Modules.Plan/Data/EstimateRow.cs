@@ -119,6 +119,14 @@ public sealed class EstimateRow
         RateMatchId = null;
     }
 
+    /// <summary>
+    /// Ни одного следа сопоставления — снимать нечего. Не то же, что «не сопоставлена» (<see cref="Unmatched" />):
+    /// подстановка, которой создание редакции отказало в позиции по виду работы, оставляет единицу, коэффициент и
+    /// объём без вида работы, и снять их обязано то же действие.
+    /// </summary>
+    internal bool Bare =>
+        WorkTypeId is null && UnitId is null && Factor is null && Volume is null && PlanItemId is null && RateMatchId is null;
+
     /// <summary>Сопоставлена ли строка ровно так — повтор того же выбора ничего не меняет.</summary>
     internal bool MatchedAs(Guid workTypeId, Guid unitId, decimal factor) =>
         WorkTypeId == workTypeId && UnitId == unitId && Factor == factor && PlanItemId is not null;

@@ -151,6 +151,52 @@ public class RateMatchingTests(PlanOnlyHost host)
         Assert.NotEqual(version, body.GetProperty("version").GetString());
     }
 
+    /// <summary>
+    /// Снять сопоставление у строки, где от подстановки остались единица, коэффициент и объём без вида работы
+    /// (создание редакции отказало в позиции по виду работы): снимается всё, а не «снимать нечего».
+    /// </summary>
+    [Fact]
+    public async Task Снятие_чистит_остатки_подстановки_без_вида_работы()
+    {
+        var c = await EstimateSeed.ClassifierAsync(host);
+        var (_, estimate, revision) = await RevisionAsync(
+            Row(RateMatchFlow.UniqueCode(), 2m, "100 м") with { UnitId = c.Unit, Factor = 100m, Volume = 200m });
+        var editor = await EstimateImportFlow.EditorAsync(host);
+        var row = Assert.Single(await RateMatchFlow.RowsAsync(editor, revision));
+
+        var cleared = await editor.SendAsync(RateMatchFlow.MatchRow(revision, Id(row),
+            await RateMatchFlow.VersionAsync(editor, estimate, revision), new { clear = true }));
+        Assert.Equal(HttpStatusCode.OK, cleared.StatusCode);
+        var stored = RateMatchFlow.Stored(host, Id(row));
+        Assert.Null(stored.UnitId);
+        Assert.Null(stored.Factor);
+        Assert.Null(stored.Volume);
+    }
+
+    /// <summary>Тот же выбор повторно, теперь с запоминанием: строка не меняется, а шифр запоминается.</summary>
+    [Fact]
+    public async Task Тот_же_выбор_с_запоминанием_запоминает()
+    {
+        var c = await EstimateSeed.ClassifierAsync(host);
+        var code = RateMatchFlow.UniqueCode();
+        var (_, estimate, revision) = await RevisionAsync(Row(code, 2m, "100 м"));
+        var editor = await EstimateImportFlow.EditorAsync(host);
+        var row = Id(Assert.Single(await RateMatchFlow.RowsAsync(editor, revision)));
+
+        var first = await editor.SendAsync(RateMatchFlow.MatchRow(revision, row,
+            await RateMatchFlow.VersionAsync(editor, estimate, revision), new { workTypeId = c.WorkType, remember = false }));
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Null(RateMatchFlow.Remembered(host, code, null));
+
+        var again = await editor.SendAsync(RateMatchFlow.MatchRow(revision, row,
+            await RateMatchFlow.VersionAsync(editor, estimate, revision), new { workTypeId = c.WorkType, remember = true }));
+        Assert.True(again.StatusCode == HttpStatusCode.OK, await again.Content.ReadAsStringAsync());
+        var body = await again.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(1, body.GetProperty("memory").GetProperty("remembered").GetInt32());
+        Assert.Equal(100m, RateMatchFlow.Remembered(host, code, null)!.Factor);
+        Assert.Equal(200m, RateMatchFlow.Stored(host, row).Volume);
+    }
+
     internal static EstimateRowDraft Row(string code, decimal volume, string unit, string? section = null) =>
         new($"Строка {code}", LsrSectionCode: section, LsrSectionName: section is null ? null : $"Раздел {section}",
             RateCode: code, SourceVolume: volume, SourceUnit: unit);
