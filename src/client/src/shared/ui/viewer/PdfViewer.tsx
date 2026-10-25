@@ -63,24 +63,41 @@ export function PdfViewerOverlay({ open, onOpenChange, note, ...inline }: Omit<P
   return (
     <Modal open={open} onOpenChange={onOpenChange} title={inline.title} fullScreen headerless flushBody nothingToLose>
       <div className="h-full flex flex-col min-h-0">
-        <div className="shrink-0 h-12 flex items-center gap-2 pl-4 pr-2 border-b border-stroke bg-surface">
-          <FileText size={16} className="text-fg3 shrink-0" aria-hidden />
-          <span className="flex-1 min-w-0 truncate text-sm font-medium text-fg1">{inline.title}</span>
-          {inline.source && (
-            <Button size="sm" variant="outlined" icon={<ExternalLink size={13} />} onClick={() => openInNewTab(inline.source!)}>
-              Открыть во вкладке
-            </Button>
-          )}
-          <IconButton label="Закрыть" data-modal-exit onClick={() => onOpenChange(false)}>
-            <X size={18} />
-          </IconButton>
-        </div>
+        <ViewerTitleBar title={inline.title} source={inline.source} onClose={() => onOpenChange(false)} />
         {note && <div className="shrink-0 px-4 py-1.5 border-b border-stroke bg-surface text-xs text-fg2">{note}</div>}
         <div className="flex-1 min-h-0">
           <ViewerGate {...inline} />
         </div>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * Верхняя строка окна с документом (вариант В, `viewer-01`): значок, имя, «Открыть во вкладке»,
+ * «Закрыть». Окно, которое её ставит, — `headerless`: своя шапка `Modal` дала бы имя дважды. Кроме
+ * режима поверх экрана её ставит окно поля-файла документа (issue #1492) — на телефоне оно и есть
+ * этот режим.
+ */
+export function ViewerTitleBar({ title, source, onClose }: {
+  title: string;
+  /** Байты для «Открыть во вкладке»; пока их нет, кнопки нет. */
+  source: PdfBytes | null;
+  onClose: () => void;
+}) {
+  return (
+    <div className="shrink-0 h-12 flex items-center gap-2 pl-4 pr-2 border-b border-stroke bg-surface">
+      <FileText size={16} className="text-fg3 shrink-0" aria-hidden />
+      <span className="flex-1 min-w-0 truncate text-sm font-medium text-fg1">{title}</span>
+      {source && (
+        <Button size="sm" variant="outlined" icon={<ExternalLink size={13} />} onClick={() => openInNewTab(source)}>
+          Открыть во вкладке
+        </Button>
+      )}
+      <IconButton label="Закрыть" data-modal-exit onClick={onClose}>
+        <X size={18} />
+      </IconButton>
+    </div>
   );
 }
 

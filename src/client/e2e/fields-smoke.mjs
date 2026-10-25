@@ -20,7 +20,8 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/fields-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled, until, closeDialog } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, until, closeDialog, named } from './harness.mjs';
+import { sheetDrawn } from './pdf-viewer-checks.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
@@ -273,24 +274,53 @@ await check('union-second-row-has-its-own-variant', async () => {
 });
 
 // ── Вложение и картинка ────────────────────────────────────────────────────────
-// Оба поля тянут байты из хранилища и показывают их через объект-URL. Проверяем не «есть тег
-// img», а что браузер эту картинку РАЗОБРАЛ: отозванный или чужой URL даёт naturalWidth = 0.
+// Оба поля тянут байты из хранилища. PDF поля-файла показывает свой просмотрщик (issue #1492), и
+// проверяем не «есть область», а что лист НАРИСОВАН: пустой белый лист выглядит показанным. Шрифт
+// вложения из посева невстроенный — нарисованный текст заодно доказывает, что `standard_fonts`
+// поставлены. Картинку проверяем тем, что браузер её РАЗОБРАЛ: отозванный URL даёт naturalWidth = 0.
 editor = await openInstance(PDF_DOC);
 
-await check('file-preview-shows-attachment', async () => {
+async function filePreviewDrawn() {
   const eye = editor.getByRole('button', { name: /предпросмотр/i }).first();
   if (!(await eye.count())) throw new Error('кнопки предпросмотра у поля-файла нет');
   await eye.click();
   await settled(page);
   const dlg = page.locator('[role=dialog]').last();
-  if ((await dlg.locator('iframe').count()) + (await dlg.locator('img').count()) < 1)
-    throw new Error(`ни iframe, ни img: ${(await dlg.innerText()).slice(0, 200)}`);
-  const src = await dlg.locator('iframe, img').first().getAttribute('src');
-  if (!src || !src.startsWith('blob:')) throw new Error(`ожидали blob:-URL, получили «${src}»`);
+  const region = dlg.getByRole('region', { name: /\.pdf$/ });
+  await named('области просмотра в окне нет', () => region.waitFor({ timeout: 30_000 }));
+  if ((await dlg.locator('iframe').count()) !== 0) throw new Error('в окне остался фрейм браузера');
+  // Область есть и пока документ грузится, и в отказе: ждём исхода — первый лист ИЛИ отказ. Иначе
+  // отказ поставки (worker, шрифты) краснел бы тридцатисекундным «лист не нарисован» без причины.
+  const sheet = region.getByRole('group', { name: /^Страница 1 из / });
+  const failure = dlg.getByTestId('viewer-failure');
+  const refused = async () => {
+    if (await failure.count()) throw new Error(`просмотрщик отказал: «${await failure.innerText()}»`);
+  };
+  await named('просмотрщик не показал ни лист, ни отказ', () => sheet.or(failure).first().waitFor({ timeout: 30_000 }));
+  await refused();
+  // Отказ бывает и при рисовании листа — тогда назвать его, а не таймаут холста.
+  await sheetDrawn(page, named, sheet).catch(async e => { await refused(); throw e; });
+  return dlg;
+}
+
+await check('file-preview-draws-pdf', async () => { await filePreviewDrawn(); });
+
+await page.keyboard.press('Escape');
+await settled(page);
+
+// Телефон: окно во весь экран, и лист в нём нарисован — фрейм браузера на Android давал тут кнопку
+// «Открыть» вместо листа.
+await page.setViewportSize({ width: 390, height: 844 });
+await check('file-preview-phone-full-screen', async () => {
+  const dlg = await filePreviewDrawn();
+  const box = await dlg.boundingBox();
+  if (!box || box.x > 0 || box.y > 0 || box.width < 390 || box.height < 844)
+    throw new Error(`окно на 390 px не во весь экран: ${JSON.stringify(box)}`);
 });
 
 await page.keyboard.press('Escape');
 await settled(page);
+await page.setViewportSize({ width: 1500, height: 950 });
 
 await check('image-field-renders-stored-image', async () => {
   await page.goto(`${BASE}/common-data`);
