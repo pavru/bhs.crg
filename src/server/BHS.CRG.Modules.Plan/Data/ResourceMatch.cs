@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using BHS.CRG.Modules;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Plan.Data;
@@ -133,36 +134,19 @@ public sealed record ResourceMatchKey(ResourceMatchKind Kind, string Source, str
         if (Of(ResourceMatchKind.Name, name) is { } byName) yield return byName;
     }
 
+    /// <summary>
+    /// Ключ одного вида. Приведение — общее с соответствиями поставщиков (<see cref="MatchKeyText" />): регистр,
+    /// «ё» и пробелы, и только. Код берётся в той длине, в какой его хранит материал
+    /// (<see cref="EstimateRowMaterial.SourceCodeLength" />): иначе выбор, запомненный по сохранённому материалу, не
+    /// узнал бы тот же длинный код в следующем файле.
+    /// </summary>
     public static ResourceMatchKey? Of(ResourceMatchKind kind, string? text)
     {
+        if (kind == ResourceMatchKind.Code) text = PlanText.Clip(text, EstimateRowMaterial.SourceCodeLength);
         if (string.IsNullOrWhiteSpace(text)) return null;
-        var normalized = Normalize(text);
+        var normalized = MatchKeyText.Normalize(text);
         return normalized.Length == 0
             ? null
             : new(kind, text.Trim(), Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(normalized))));
-    }
-
-    /// <summary>
-    /// Приведение к ключу: регистр, «ё» и пробелы. И только — то же правило, что у <c>SupplierMatchKey</c>:
-    /// «3х2,5» и «3x2.5» здесь РАЗНЫЕ ключи нарочно. Ошибка «не узнал» стоит одного выбора, ошибка «узнал не
-    /// то» — неверной позиции в каждой следующей редакции.
-    /// </summary>
-    public static string Normalize(string text)
-    {
-        var result = new StringBuilder(text.Length);
-        var gap = false;
-        foreach (var symbol in text.Trim())
-        {
-            if (char.IsWhiteSpace(symbol))
-            {
-                gap = true;
-                continue;
-            }
-            if (gap) result.Append(' ');
-            gap = false;
-            var lower = char.ToLowerInvariant(symbol);
-            result.Append(lower == 'ё' ? 'е' : lower);
-        }
-        return result.ToString();
     }
 }

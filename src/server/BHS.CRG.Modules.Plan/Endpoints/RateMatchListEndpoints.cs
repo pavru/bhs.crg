@@ -26,9 +26,6 @@ namespace BHS.CRG.Modules.Plan.Endpoints;
 /// </summary>
 public static class RateMatchListEndpoints
 {
-    public const int DefaultTake = 50;
-    public const int MaxTake = 200;
-
     /// <summary>Почему запомненное не подставится: вида работы или единицы нет либо они в архиве.</summary>
     public const string IssueLost = "lost";
     public const string IssueArchived = "archived";
@@ -45,21 +42,20 @@ public static class RateMatchListEndpoints
         PlanDbContext db, IModuleWorkTypes workTypes, IModuleUnits units, CancellationToken ct,
         string? query = null, int skip = 0, int? take = null)
     {
-        if (skip < 0 || take is <= 0 or > MaxTake)
-            throw new InvalidRequestException($"Порция списка задана неверно: «skip» не меньше нуля, «take» от 1 до {MaxTake}.");
+        var portion = MatchLists.Take(skip, take);
 
         var selected = db.RateMatches.AsQueryable();
         if (!string.IsNullOrWhiteSpace(query))
         {
             // По словам файла — шифру и единице расценки. Название вида работы живёт в справочнике ядра.
-            var pattern = "%" + query.Trim().Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
+            var pattern = MatchLists.Contains(query);
             selected = selected.Where(m => EF.Functions.ILike(m.RateCode, pattern, "\\"));
         }
 
         var total = await selected.CountAsync(ct);
         // Отслеживаемыми — ради версии записи: она теневое свойство и вне отслеживания не читается.
         var page = await selected.OrderBy(m => m.RateCode).ThenBy(m => m.NormativeBase).ThenBy(m => m.Id)
-            .Skip(skip).Take(take ?? DefaultTake).ToListAsync(ct);
+            .Skip(skip).Take(portion).ToListAsync(ct);
         var names = await NamesAsync(workTypes, units, page, ct);
         return Results.Ok(new RateMatchListDto([.. page.Select(m => View(db, m, names))], total));
     }

@@ -53,7 +53,6 @@ public sealed class RowMatching(
     public async Task<RowMatchOutcome> MatchRowAsync(
         EstimateRevision revision, EstimateRow row, RateChoice? choice, bool remember, CancellationToken ct)
     {
-        var estimate = await db.Estimates.FirstAsync(e => e.Id == revision.EstimateId, ct);
         if (choice is null)
         {
             if (row.Bare) return new(Units(row, null), MatchMemory.Nothing);
@@ -61,12 +60,14 @@ public sealed class RowMatching(
             row.Unmatch();
             revision.RowsMatched(DateTimeOffset.UtcNow);
             await db.SaveChangesAsync(ct);
-            await log.RecordAsync(EstimateActions.Unmatched, estimate.Id.ToString(), EstimateActions.Label(estimate),
+            var unmatchedIn = await db.Estimates.FirstAsync(e => e.Id == revision.EstimateId, ct);
+            await log.RecordAsync(EstimateActions.Unmatched, unmatchedIn.Id.ToString(), EstimateActions.Label(unmatchedIn),
                 before: $"редакция {revision.Number}, строка {row.Order}", ct: ct);
             return new(Units(row, null), MatchMemory.Nothing);
         }
 
         var (workType, unit) = await ResolveAsync(choice, ct);
+        var estimate = await db.Estimates.FirstAsync(e => e.Id == revision.EstimateId, ct);
         var factor = RateMatching.FactorOf(choice.Factor, row.SourceUnit, unit);
         // Тот же выбор строку не меняет, но запомнить его можно: сопоставивший без запоминания передумал.
         if (!row.MatchedAs(workType.Id, unit.Id, factor))

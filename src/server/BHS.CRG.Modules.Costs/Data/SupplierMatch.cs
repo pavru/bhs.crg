@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using BHS.CRG.Modules;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Modules.Costs.Data;
@@ -200,26 +201,5 @@ public sealed record SupplierMatchKey(SupplierMatchKind Kind, string Source, str
     /// выбора; ошибка в сторону «узнал не то» — неверной позиции в каждом следующем счёте. Ослаблять
     /// правило — отдельным решением и с пересчётом ключей по <see cref="SupplierMatch.SourceText" />.</para>
     /// </summary>
-    public static string Normalize(string text)
-    {
-        var result = new StringBuilder(text.Length);
-        var gap = false;
-
-        foreach (var symbol in text.Trim())
-        {
-            if (char.IsWhiteSpace(symbol))
-            {
-                gap = true;
-                continue;
-            }
-
-            if (gap) result.Append(' ');
-            gap = false;
-
-            var lower = char.ToLowerInvariant(symbol);
-            result.Append(lower == 'ё' ? 'е' : lower);
-        }
-
-        return result.ToString();
-    }
+    public static string Normalize(string text) => MatchKeyText.Normalize(text);
 }

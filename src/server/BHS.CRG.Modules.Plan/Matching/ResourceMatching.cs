@@ -53,21 +53,15 @@ public static class ResourceMatching
             : position;
     }
 
-    /// <summary>
-    /// Запомнить выбор: новое сопоставление либо замена прежнего. Вне транзакции сопоставления и с одним
-    /// повтором при гонке — по той же причине, что <see cref="RateMatching.RememberAsync" />.
-    /// </summary>
-    public static async Task<MatchMemory> RememberAsync(
+    /// <summary>Запомнить выбор: новое сопоставление либо замена прежнего (<see cref="Remembering{TMatch}" />).</summary>
+    public static Task<MatchMemory> RememberAsync(
         PlanDbContext db, IReadOnlyList<ResourceToRemember> chosen, IModuleUser user, CancellationToken ct)
     {
-        if (chosen.Count == 0) return MatchMemory.Nothing;
+        if (chosen.Count == 0) return Task.FromResult(MatchMemory.Nothing);
         var hashes = chosen.Select(c => c.Key.Hash).ToList();
-
-        for (var attempt = 0; ; attempt++)
+        return Remembering<ResourceMatch>.SaveAsync(db, async token =>
         {
-            var known = await db.ResourceMatches
-                .Where(m => hashes.Contains(m.KeyHash))
-                .ToListAsync(ct);
+            var known = await db.ResourceMatches.Where(m => hashes.Contains(m.KeyHash)).ToListAsync(token);
             int remembered = 0, replaced = 0;
             foreach (var (key, nomenclatureId) in chosen)
             {
@@ -84,39 +78,12 @@ public static class ResourceMatching
                     replaced++;
                 }
             }
-
-            try
-            {
-                await db.SaveChangesAsync(ct);
-                return new(remembered, replaced);
-            }
-            catch (Exception lost) when (attempt == 0
-                && lost is DbUpdateException or ConflictException { InnerException: DbUpdateConcurrencyException })
-            {
-                Detach(db);
-            }
-        }
+            return (remembered, replaced);
+        }, ct);
     }
 
     /// <summary>Запомнить, не дав отказу запоминания стать отказом сопоставления: материал к этому мгновению записан.</summary>
-    public static async Task<MatchMemory> RememberSafelyAsync(
-        PlanDbContext db, IReadOnlyList<ResourceToRemember> chosen, IModuleUser user, ILogger log, CancellationToken ct)
-    {
-        try
-        {
-            return await RememberAsync(db, chosen, user, ct);
-        }
-        catch (Exception failure) when (failure is not OperationCanceledException)
-        {
-            Detach(db);
-            log.LogWarning(failure, "Сопоставления ресурсов не запомнены ({Count}): материалы сметы сопоставлены.", chosen.Count);
-            return new(0, 0, Failed: true);
-        }
-    }
-
-    private static void Detach(PlanDbContext db)
-    {
-        foreach (var entry in db.ChangeTracker.Entries<ResourceMatch>().ToList())
-            entry.State = EntityState.Detached;
-    }
+    public static Task<MatchMemory> RememberSafelyAsync(
+        PlanDbContext db, IReadOnlyList<ResourceToRemember> chosen, IModuleUser user, ILogger log, CancellationToken ct) =>
+        Remembering<ResourceMatch>.SafelyAsync(db, () => RememberAsync(db, chosen, user, ct), chosen.Count, log);
 }

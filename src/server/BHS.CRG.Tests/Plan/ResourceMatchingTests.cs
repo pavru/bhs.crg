@@ -158,6 +158,71 @@ public class ResourceMatchingTests(PlanOnlyHost host)
         }
     }
 
+    /// <summary>
+    /// Пометка «запомнено» говорит, что с запомненным стало с тех пор: перенацелили — материал остался как был;
+    /// забыли — тоже.
+    /// </summary>
+    [Fact]
+    public async Task Пометка_материала_говорит_что_с_запомненным_стало()
+    {
+        var code = UniqueCode();
+        var first = await NomenclatureAsync($"Кабель {Guid.NewGuid():N}");
+        var second = await NomenclatureAsync($"Провод {Guid.NewGuid():N}");
+        Guid match;
+        using (var scope = host.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PlanDbContext>();
+            var created = ResourceMatch.Create(ResourceMatchKey.Of(code, null)!, first, null, null);
+            db.ResourceMatches.Add(created);
+            await db.SaveChangesAsync();
+            match = created.Id;
+        }
+        var (_, revision, _) = await RevisionAsync(await RecallAsync(new EstimateMaterialDraft("Кабель", 1m, code, "м")));
+        var editor = await EstimateImportFlow.EditorAsync(host);
+
+        using (var scope = host.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PlanDbContext>();
+            (await db.ResourceMatches.SingleAsync(m => m.Id == match)).Point(code, second, null, null);
+            await db.SaveChangesAsync();
+        }
+        Assert.Contains("перенацелили", await MarkTextAsync(editor, revision));
+
+        using (var scope = host.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PlanDbContext>();
+            db.ResourceMatches.Remove(await db.ResourceMatches.SingleAsync(m => m.Id == match));
+            await db.SaveChangesAsync();
+        }
+        Assert.Contains("забыли", await MarkTextAsync(editor, revision));
+        var stored = Assert.Single(await RateMatchFlow.RowsAsync(editor, revision)).GetProperty("materials")[0];
+        Assert.Equal(first, stored.GetProperty("nomenclatureId").GetGuid());
+    }
+
+    /// <summary>
+    /// Код длиннее, чем хранит материал: выбор, запомненный по сохранённому (обрезанному) коду, узнаёт тот же код в
+    /// следующем файле.
+    /// </summary>
+    [Fact]
+    public async Task Длинный_код_ресурса_узнаётся_в_следующем_файле()
+    {
+        var code = UniqueCode() + new string('7', EstimateRowMaterial.SourceCodeLength);
+        Assert.Equal(ResourceMatchKey.Of(code, null)!.Hash, ResourceMatchKey.Of(code[..EstimateRowMaterial.SourceCodeLength], null)!.Hash);
+
+        var position = await NomenclatureAsync($"Кабель {Guid.NewGuid():N}");
+        var (estimate, revision, material) = await RevisionAsync(new EstimateMaterialDraft("Кабель", 1m, code, "м"));
+        var editor = await EstimateImportFlow.EditorAsync(host);
+        var response = await editor.SendAsync(Match(revision, material,
+            await RateMatchFlow.VersionAsync(editor, estimate, revision), new { nomenclatureId = position }));
+        Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(position, (await RecallAsync(new EstimateMaterialDraft("Кабель", 2m, code, "м"))).NomenclatureId);
+    }
+
+    private static async Task<string> MarkTextAsync(HttpClient client, Guid revision) =>
+        Assert.Single(await RateMatchFlow.RowsAsync(client, revision)).GetProperty("materials")[0]
+            .GetProperty("marks")[0].GetProperty("text").GetString()!;
+
     /// <summary>Архивная позиция — не новая ссылка материала (ТЗ CORE-34.4): 400, материал не тронут.</summary>
     [Fact]
     public async Task Архивная_позиция_материалу_не_ставится()

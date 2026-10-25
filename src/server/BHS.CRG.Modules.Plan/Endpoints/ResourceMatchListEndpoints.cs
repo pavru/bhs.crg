@@ -20,9 +20,6 @@ namespace BHS.CRG.Modules.Plan.Endpoints;
 /// </summary>
 public static class ResourceMatchListEndpoints
 {
-    public const int DefaultTake = 50;
-    public const int MaxTake = 200;
-
     /// <summary>Почему запомненное не подставится: позиции нет либо она в архиве.</summary>
     public const string IssueLost = RateMatchListEndpoints.IssueLost;
     public const string IssueArchived = RateMatchListEndpoints.IssueArchived;
@@ -38,21 +35,20 @@ public static class ResourceMatchListEndpoints
     private static async Task<IResult> ListAsync(
         PlanDbContext db, IModuleCatalog catalog, CancellationToken ct, string? query = null, int skip = 0, int? take = null)
     {
-        if (skip < 0 || take is <= 0 or > MaxTake)
-            throw new InvalidRequestException($"Порция списка задана неверно: «skip» не меньше нуля, «take» от 1 до {MaxTake}.");
+        var portion = MatchLists.Take(skip, take);
 
         var selected = db.ResourceMatches.AsQueryable();
         if (!string.IsNullOrWhiteSpace(query))
         {
             // По словам файла — коду и наименованию. Название позиции живёт в справочнике ядра.
-            var pattern = "%" + query.Trim().Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
+            var pattern = MatchLists.Contains(query);
             selected = selected.Where(m => EF.Functions.ILike(m.SourceText, pattern, "\\"));
         }
 
         var total = await selected.CountAsync(ct);
         // Отслеживаемыми — ради версии записи: она теневое свойство и вне отслеживания не читается.
         var page = await selected.OrderBy(m => m.SourceText).ThenBy(m => m.Kind).ThenBy(m => m.Id)
-            .Skip(skip).Take(take ?? DefaultTake).ToListAsync(ct);
+            .Skip(skip).Take(portion).ToListAsync(ct);
         var names = await NamesAsync(catalog, page, ct);
         return Results.Ok(new ResourceMatchListDto([.. page.Select(m => View(db, m, names))], total));
     }

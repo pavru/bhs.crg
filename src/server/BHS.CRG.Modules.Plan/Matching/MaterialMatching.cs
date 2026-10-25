@@ -26,7 +26,6 @@ public sealed class MaterialMatching(
         EstimateRevision revision, EstimateRow row, EstimateRowMaterial material, Guid? nomenclatureId, bool remember,
         CancellationToken ct)
     {
-        var estimate = await db.Estimates.FirstAsync(e => e.Id == revision.EstimateId, ct);
         var where = $"редакция {revision.Number}, строка {row.Order}, материал «{material.SourceName}»";
 
         if (nomenclatureId is not { } id)
@@ -36,7 +35,8 @@ public sealed class MaterialMatching(
             material.Unmatch();
             revision.RowsMatched(DateTimeOffset.UtcNow);
             await db.SaveChangesAsync(ct);
-            await log.RecordAsync(EstimateActions.MaterialUnmatched, estimate.Id.ToString(), EstimateActions.Label(estimate),
+            var unmatchedIn = await EstimateAsync(revision, ct);
+            await log.RecordAsync(EstimateActions.MaterialUnmatched, unmatchedIn.Id.ToString(), EstimateActions.Label(unmatchedIn),
                 before: where, ct: ct);
             return MatchMemory.Nothing;
         }
@@ -49,6 +49,7 @@ public sealed class MaterialMatching(
             material.Match(position.Id, resourceMatchId: null);
             revision.RowsMatched(DateTimeOffset.UtcNow);
             await db.SaveChangesAsync(ct);
+            var estimate = await EstimateAsync(revision, ct);
             await log.RecordAsync(EstimateActions.MaterialMatched, estimate.Id.ToString(), EstimateActions.Label(estimate),
                 after: $"{where}: {position.DisplayName}", ct: ct);
         }
@@ -57,4 +58,8 @@ public sealed class MaterialMatching(
             ? await ResourceMatching.RememberSafelyAsync(db, [new(key, position.Id)], user, logger, ct)
             : MatchMemory.Nothing;
     }
+
+    /// <summary>Смета редакции — для записи журнала; читается, только когда есть что записать.</summary>
+    private Task<Estimate> EstimateAsync(EstimateRevision revision, CancellationToken ct) =>
+        db.Estimates.FirstAsync(e => e.Id == revision.EstimateId, ct);
 }
