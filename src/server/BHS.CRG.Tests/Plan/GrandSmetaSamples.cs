@@ -28,7 +28,19 @@ internal static class GrandSmetaSamples
         "ka-16.2.0-sks-summary", "ka-16.2.0-vn-summary",
     ];
 
-    public static IEnumerable<string> All => Lsr.Concat(Vor).Concat(Ka);
+    /// <summary>ЛСР РИМ с итогами — из пар «с итогом / без итогов» (plan-05, 0.3). Печатных форм с итогом к ним
+    /// нет, эталона тоже: проверяются инварианты и досчёт пары.</summary>
+    public static readonly string[] LsrRim = ["lsr-16.2.3-rim1", "lsr-16.2.3-rim2"];
+
+    /// <summary>Пары владельца 24.10.2026: та же смета, пересохранённая программой 16.3.0 без итогов, — и с итогом.</summary>
+    public static readonly (string NoTotals, string WithTotals)[] Pairs =
+    [
+        ("lsr-16.3.0-vn-no-itog", "lsr-16.2.0-vn"), ("lsr-16.3.0-eom-no-itog", "lsr-16.2.2-eom"),
+        ("lsr-16.3.0-os-skud-no-itog", "lsr-16.2.2-os-skud"), ("lsr-16.3.0-sks-no-itog", "lsr-16.2.2-sks"),
+        ("lsr-16.3.0-rim1-no-itog", "lsr-16.2.3-rim1"), ("lsr-16.3.0-rim2-no-itog", "lsr-16.2.3-rim2"),
+    ];
+
+    public static IEnumerable<string> All => Lsr.Concat(LsrRim).Concat(Pairs.Select(p => p.NoTotals)).Concat(Vor).Concat(Ka);
 
     static GrandSmetaSamples() => Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 

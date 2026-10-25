@@ -17,8 +17,8 @@ public class GrandSmetaSchemaTests
 {
     public static TheoryData<string> AllSamples => new(GrandSmetaSamples.All);
 
-    /// <summary>BHS-5 и BHS-6 найдены на файлах вне подборки (КА «(лоток)», ЛСР РИМ): здесь — образец подборки с
-    /// тем же расхождением, внесённым правкой текста.</summary>
+    /// <summary>BHS-5 найдена на файле вне подборки (КА «(лоток)»): здесь — образец подборки с тем же расхождением,
+    /// внесённым правкой текста. BHS-6 — на ЛСР РИМ, она в репозитории с парами «с итогом / без итогов».</summary>
     public static TheoryData<string, string, string> Patches => new()
     {
         { "BHS-1", "vor-16.2.3-variables-hyperlinks", "The 'GrandSmetaSign' attribute is not declared." },
@@ -27,7 +27,7 @@ public class GrandSmetaSchemaTests
         { "BHS-3", "lsr-16.2.2-os-skud", "The element 'Item' has invalid child element 'PriceCurr'." },
         { "BHS-4", "lsr-16.2.2-eom", "The 'Comment' attribute is not declared." },
         { "BHS-5", "ka-16.2.0-vn-summary", "The required attribute 'SupplierKind' is missing." },
-        { "BHS-6", "lsr-16.2.0-vn", "invalid child element 'IdsGenerator'" },
+        { "BHS-6", "lsr-16.2.3-rim1", "invalid child element 'IdsGenerator'" },
     };
 
     [Theory]
@@ -67,11 +67,9 @@ public class GrandSmetaSchemaTests
 
     private static byte[] Sample(string patch, string sample)
     {
-        if (patch is not ("BHS-5" or "BHS-6")) return GrandSmetaSamples.DataXml(sample);
+        if (patch != "BHS-5") return GrandSmetaSamples.DataXml(sample);
         var text = GrandSmetaSamples.DataXmlText(sample);
-        var edited = patch == "BHS-5"
-            ? Regex.Replace(text, "(<Item [^>]*OptPrice[^>]*?) SupplierKind=\"Supplier\"", "$1")
-            : text.Replace("<SimilarResGroups>", "<IdsGenerator InternalCounter=\"18\" />\n  <SimilarResGroups>");
+        var edited = Regex.Replace(text, "(<Item [^>]*OptPrice[^>]*?) SupplierKind=\"Supplier\"", "$1");
         Assert.NotEqual(text, edited);
         return GrandSmetaSamples.Cp1251.GetBytes(edited);
     }

@@ -1,7 +1,7 @@
 namespace BHS.CRG.Modules.Plan.GrandSmeta;
 
 /// <summary>Метод расчёта ЛСР — по <c>Indexes</c> и <c>Parameters</c> (ТЗ PLAN-8). Не опознан — «не
-/// определён»: итог из файла читается и так, метод нужен досчёту (второй PR) и показу.</summary>
+/// определён»: итог из файла читается и так, метод нужен досчёту сметы без итогов и показу.</summary>
 public enum CalculationMethod
 {
     Unknown,
@@ -17,7 +17,7 @@ public enum CalculationMethod
 }
 
 /// <summary>Кто посчитал итог позиции: программа (записан в файле) или система (досчёт файла без итогов,
-/// второй PR plan-05). Записанный программой итог не пересчитывается никогда (PLAN-8).</summary>
+/// <c>GrandSmeta/Totals</c>). Записанный программой итог не пересчитывается никогда (PLAN-8).</summary>
 public enum TotalSource
 {
     Program,
@@ -54,10 +54,13 @@ public sealed record LocalEstimateRequisites(
 
 /// <summary>Итоги документа, как их записала программа. <see cref="Total" /> — сумма итогов разделов (без
 /// лимитированных затрат); <see cref="EstimateTotal" /> — «ВСЕГО по смете» с ними (непредвиденные, НДС…):
-/// сами лимитированные затраты в модель не входят. <see cref="Labor" /> — затраты труда рабочих, чел.-ч.</summary>
+/// сами лимитированные затраты в модель не входят. <see cref="Labor" /> — затраты труда рабочих, чел.-ч.
+/// У досчитанной сметы итог и затраты труда — суммы разделов, а «ВСЕГО по смете» нет: лимитированные затраты
+/// система не досчитывает.</summary>
 public sealed record LocalEstimateTotals(decimal? Total, decimal? EstimateTotal, decimal? Labor);
 
-/// <summary>Раздел. <see cref="Total" /> — итог раздела в текущих ценах, записанный программой.</summary>
+/// <summary>Раздел. <see cref="Total" /> — итог раздела в текущих ценах, записанный программой; у досчитанной
+/// сметы — сумма активных позиций, а не разобрана хоть одна — null.</summary>
 public sealed record LocalEstimateChapter(
     int Index,
     string Caption,
