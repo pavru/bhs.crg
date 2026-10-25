@@ -6,9 +6,9 @@ import { NARROW_PX, ViewerToolbar } from './ViewerToolbar';
 import { ViewerMessage, type ViewerState } from './ViewerMessage';
 import {
   anchorOf, currentPage, layout, MAX_SCALE, MIN_SCALE, resolveScale, rotateClockwise, scrollTopFor,
-  scrollTopOf, visibleRange, zoomIn, zoomOut, type Layout, type ZoomMode,
+  scrollTopOf, visibleRange, type Layout,
 } from './viewerState';
-import { handleViewerKey, isEditable, readZoom, useZoomInput, writeZoom, zoomAnnouncement, type ZoomDir } from './viewerInput';
+import { handleViewerKey, isEditable, useBoxSize, useZoomInput, useZoomMode, zoomTarget, type ZoomDir } from './viewerInput';
 import type { PdfViewerProps } from './PdfViewer';
 
 /**
@@ -23,17 +23,16 @@ import type { PdfViewerProps } from './PdfViewer';
 
 export default function PdfViewerImpl({ source, documentKey, title, actions, rememberZoomAs }: PdfViewerProps) {
   const [shownKey, setShownKey] = useState(documentKey);
-  const [mode, setModeState] = useState<ZoomMode>(() => readZoom(rememberZoomAs));
+  const { mode, setMode, reset: resetZoom, announce, setAnnounce } = useZoomMode(rememberZoomAs);
   const [rotation, setRotation] = useState(0);
   const [state, setState] = useState<ViewerState | 'ready'>('loading');
   const [doc, setDoc] = useState<PdfDocument | null>(null);
   const [sizes, setSizes] = useState<PageSize[] | null>(null);
-  const [box, setBox] = useState({ width: 0, height: 0 });
   const [scrollTop, setScrollTop] = useState(0);
   const [page, setPage] = useState(1);
-  const [announce, setAnnounce] = useState('');
   const scroller = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
+  const box = useBoxSize(scroller);
 
   // Новый документ — сброс показа прямо при отрисовке, а не эффектом: иначе мелькнул бы прежний.
   if (documentKey !== shownKey) {
@@ -43,7 +42,7 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
     setState('loading');
     setRotation(0);
     setPage(1);
-    setModeState(readZoom(rememberZoomAs));
+    resetZoom();
   }
 
   // Документ уничтожается, когда его сменил другой (или null) и когда просмотрщик убран.
@@ -83,18 +82,6 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
     };
   }, [source, documentKey]);
 
-  useLayoutEffect(() => {
-    const el = scroller.current;
-    if (!el) return;
-    const measure = () => setBox(b => (b.width === el.clientWidth && b.height === el.clientHeight
-      ? b : { width: el.clientWidth, height: el.clientHeight }));
-    measure();
-    if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
   const scale = sizes && box.width ? resolveScale(mode, sizes, rotation, box) : 1;
   const l = useMemo(() => (sizes ? layout(sizes, scale, rotation) : null), [sizes, scale, rotation]);
 
@@ -113,15 +100,7 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
 
   const numPages = sizes?.length ?? 0;
 
-  const setMode = useCallback((next: ZoomMode) => {
-    setModeState(next);
-    writeZoom(rememberZoomAs, next);
-    setAnnounce(zoomAnnouncement(next));
-  }, [rememberZoomAs]);
-
-  const zoom = useCallback((dir: ZoomDir) => {
-    setMode(dir === 'fit' ? 'width' : dir === 'in' ? zoomIn(scale) : zoomOut(scale));
-  }, [scale, setMode]);
+  const zoom = useCallback((dir: ZoomDir) => setMode(zoomTarget(dir, scale)), [scale, setMode]);
 
   const goTo = useCallback((n: number) => {
     const el = scroller.current;

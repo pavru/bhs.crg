@@ -1,4 +1,4 @@
-import { imageTypeOf, openInNewTab, viewerBlob, type PdfBytes } from './openInNewTab';
+import { openInNewTab, viewerBlob, type PdfBytes } from './openInNewTab';
 
 /**
  * Ctrl+P в просмотрщике печатает сам файл, а не страницу приложения (issue #1490, [UI-13]): так
@@ -7,8 +7,9 @@ import { imageTypeOf, openInNewTab, viewerBlob, type PdfBytes } from './openInNe
  * Печатает скрытый фрейм с `blob:` и `application/pdf` — он остаётся единственным фреймом
  * просмотрщика; CSP поставки (`frame-src 'self' blob:`) его пускает. Где у браузера нет встроенного
  * показа PDF (`navigator.pdfViewerEnabled === false`, телефоны), напечатать фрейм нечем — тогда файл
- * открывается во вкладке, а печатает уже она. Картинку ([UI-24]) печатает тот же фрейм: её браузер
- * показывает сам и без встроенного PDF.
+ * открывается во вкладке, а печатает уже она. Картинку ([UI-24]) печатает тот же фрейм — и так же
+ * уходит во вкладку на телефоне: там `print()` фрейма печатает страницу приложения или пустой лист и
+ * при этом не бросает, так что запасной путь в `catch` не сработал бы.
  */
 
 let current: { frame: HTMLIFrameElement; url: string } | null = null;
@@ -25,7 +26,7 @@ export function canPrintInline(): boolean {
 }
 
 export function printPdf(source: PdfBytes): void {
-  if (!imageTypeOf(source) && !canPrintInline()) {
+  if (!canPrintInline()) {
     openInNewTab(source);
     return;
   }

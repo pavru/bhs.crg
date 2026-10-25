@@ -11,8 +11,13 @@
 
 export type PdfBytes = Blob | Uint8Array;
 
-/** Сколько живёт ссылка на файл во вкладке. Открытой вкладке она уже не нужна. */
+/** Сколько живёт ссылка на файл во вкладке или в загрузке: браузеру она нужна, пока он читает файл. */
 const REVOKE_AFTER_MS = 60_000;
+
+/** Отозвать объектную ссылку с отсрочкой — отозванная сразу не успела бы открыться или скачаться. */
+export function revokeLater(url: string): void {
+  setTimeout(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS);
+}
 
 /**
  * Картинки, которые просмотрщик показывает сам ([UI-24]) — свой белый список, не тип из ответа:
@@ -42,7 +47,7 @@ export function openInNewTab(source: PdfBytes | (() => Promise<PdfBytes>)): Prom
     const url = URL.createObjectURL(viewerBlob(bytes));
     if (tab && !tab.closed) tab.location.href = url;
     else window.open(url, '_blank', 'noopener');
-    setTimeout(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS);
+    revokeLater(url);
   };
   if (typeof source !== 'function') {
     show(source);

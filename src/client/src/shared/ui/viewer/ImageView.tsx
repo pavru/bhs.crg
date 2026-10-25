@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { printPdf } from './printPdf';
 import { NARROW_PX, ViewerToolbar } from './ViewerToolbar';
 import { ViewerMessage } from './ViewerMessage';
 import {
   anchorOf, CANVAS_PADDING, layout, MAX_SCALE, MIN_SCALE, resolveScale, rotateClockwise, scrollTopFor,
-  zoomIn, zoomOut, type Layout, type ZoomMode,
+  type Layout,
 } from './viewerState';
-import { handleViewerKey, readZoom, useZoomInput, writeZoom, zoomAnnouncement, type ZoomDir } from './viewerInput';
+import { handleViewerKey, useBoxSize, useZoomInput, useZoomMode, zoomTarget, type ZoomDir } from './viewerInput';
 import type { PdfViewerProps } from './PdfViewer';
 
 /**
@@ -23,26 +23,27 @@ interface Size { width: number; height: number }
 
 export function ImageView({ source, documentKey, title, actions, rememberZoomAs }: Omit<PdfViewerProps, 'source' | 'overlay'> & { source: Blob }) {
   const [shownKey, setShownKey] = useState(documentKey);
-  const [mode, setModeState] = useState<ZoomMode>(() => readZoom(rememberZoomAs));
+  const { mode, setMode, reset: resetZoom, announce, setAnnounce } = useZoomMode(rememberZoomAs);
   const [rotation, setRotation] = useState(0);
   const [natural, setNatural] = useState<{ source: Blob; size: Size } | null>(null);
   const [failedOf, setFailedOf] = useState<Blob | null>(null);
-  const [box, setBox] = useState({ width: 0, height: 0 });
-  const [announce, setAnnounce] = useState('');
   const scroller = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const img = useRef<HTMLImageElement>(null);
+  const box = useBoxSize(scroller);
 
   // Новый документ — сброс показа прямо при отрисовке, а не эффектом: иначе мелькнул бы прежний поворот.
   if (documentKey !== shownKey) {
     setShownKey(documentKey);
     setRotation(0);
-    setModeState(readZoom(rememberZoomAs));
+    resetZoom();
   }
 
   // Адрес — свой на каждые байты и отзывается, когда байты сменились или просмотрщик убран. Картинке
   // он ставится прямо, без состояния: адрес, переживший отзыв в состоянии, показал бы пустую рамку.
-  useEffect(() => {
+  // Ставится ДО отрисовки кадра: `onLoad` уже видит новые байты, и загрузка прежних, закончившаяся в
+  // промежутке, записала бы их размеры новым — лист встал бы в чужих пропорциях.
+  useLayoutEffect(() => {
     const url = URL.createObjectURL(source);
     if (img.current) img.current.src = url;
     return () => URL.revokeObjectURL(url);
@@ -51,18 +52,6 @@ export function ImageView({ source, documentKey, title, actions, rememberZoomAs 
   // Размеры и отказ — только своих байтов: у прежних они уже ничего не значат.
   const size = natural?.source === source ? natural.size : null;
   const failed = failedOf === source;
-
-  useLayoutEffect(() => {
-    const el = scroller.current;
-    if (!el) return;
-    const measure = () => setBox(b => (b.width === el.clientWidth && b.height === el.clientHeight
-      ? b : { width: el.clientWidth, height: el.clientHeight }));
-    measure();
-    if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   const pages = useMemo(() => (size ? [size] : null), [size]);
   // Число масштаба области не ждёт; «по ширине» без измеренной области — пока 100 %.
@@ -79,15 +68,7 @@ export function ImageView({ source, documentKey, title, actions, rememberZoomAs 
     el.scrollTop = prev ? scrollTopFor(l, anchorOf(prev, el.scrollTop)) : 0;
   }, [l]);
 
-  const setMode = useCallback((next: ZoomMode) => {
-    setModeState(next);
-    writeZoom(rememberZoomAs, next);
-    setAnnounce(zoomAnnouncement(next));
-  }, [rememberZoomAs]);
-
-  const zoom = useCallback((dir: ZoomDir) => {
-    setMode(dir === 'fit' ? 'width' : dir === 'in' ? zoomIn(scale) : zoomOut(scale));
-  }, [scale, setMode]);
+  const zoom = useCallback((dir: ZoomDir) => setMode(zoomTarget(dir, scale)), [scale, setMode]);
 
   const ready = !failed && !!(size && l);
   const print = useCallback(() => printPdf(source), [source]);

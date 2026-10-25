@@ -1,27 +1,68 @@
-import { useEffect, useRef, type KeyboardEvent, type RefObject } from 'react';
-import { parseZoomMode, type ZoomMode } from './viewerState';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
+import { parseZoomMode, zoomIn, zoomOut, type ZoomMode } from './viewerState';
 
 /**
- * Ввод просмотрщика, общий для ленты PDF и картинки (issue #1490, #1491): запомненный режим масштаба,
- * Ctrl+P, Ctrl± и Ctrl+колесо над листом. Без pdf.js — режим картинки движок не грузит ([UI-24]).
+ * Ввод и масштаб просмотрщика, общие для ленты PDF и картинки (issue #1490, #1491): запомненный режим
+ * масштаба, размер области, Ctrl+P, Ctrl± и Ctrl+колесо над листом. Без pdf.js — режим картинки
+ * движок не грузит ([UI-24]).
  */
 
 const ZOOM_KEY = (place: string) => `bhs.viewer.zoom.${place}`;
 
-export function readZoom(place?: string): ZoomMode {
+function readZoom(place?: string): ZoomMode {
   if (!place) return 'width';
   try { return parseZoomMode(localStorage.getItem(ZOOM_KEY(place))); } catch { return 'width'; }
 }
 
-export function writeZoom(place: string | undefined, mode: ZoomMode): void {
+function writeZoom(place: string | undefined, mode: ZoomMode): void {
   if (!place) return;
   // Режим масштаба — удобство зрителя: недоступное хранилище показу не мешает.
   try { localStorage.setItem(ZOOM_KEY(place), String(mode)); } catch { /* приватный режим */ }
 }
 
 /** Подпись режима для озвучки после смены масштаба. */
-export const zoomAnnouncement = (mode: ZoomMode) =>
+const zoomAnnouncement = (mode: ZoomMode) =>
   typeof mode === 'number' ? `Масштаб ${Math.round(mode * 100)} %` : `Масштаб: ${mode === 'width' ? 'по ширине' : 'страница целиком'}`;
+
+/**
+ * Режим масштаба места: читается из запомненного, смена запоминается и озвучивается. `reset` —
+ * вернуть запомненный (новый документ); зовётся прямо при отрисовке, как и остальной сброс показа.
+ */
+export function useZoomMode(rememberZoomAs: string | undefined) {
+  const [mode, setModeState] = useState<ZoomMode>(() => readZoom(rememberZoomAs));
+  const [announce, setAnnounce] = useState('');
+
+  const setMode = useCallback((next: ZoomMode) => {
+    setModeState(next);
+    writeZoom(rememberZoomAs, next);
+    setAnnounce(zoomAnnouncement(next));
+  }, [rememberZoomAs]);
+
+  const reset = () => setModeState(readZoom(rememberZoomAs));
+
+  return { mode, setMode, reset, announce, setAnnounce };
+}
+
+/** Режим после ступени масштаба от текущего `scale`: «по ширине», крупнее или мельче. */
+export const zoomTarget = (dir: ZoomDir, scale: number): ZoomMode =>
+  dir === 'fit' ? 'width' : dir === 'in' ? zoomIn(scale) : zoomOut(scale);
+
+/** Размер области прокрутки — замером при появлении и при каждой смене размера. */
+export function useBoxSize(scroller: RefObject<HTMLElement | null>) {
+  const [box, setBox] = useState({ width: 0, height: 0 });
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const measure = () => setBox(b => (b.width === el.clientWidth && b.height === el.clientHeight
+      ? b : { width: el.clientWidth, height: el.clientHeight }));
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [scroller]);
+  return box;
+}
 
 export const isEditable = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));

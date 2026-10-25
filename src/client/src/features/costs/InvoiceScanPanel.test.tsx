@@ -6,17 +6,22 @@ import type { ReactNode } from 'react';
 import { ToastProvider } from '@/shared/ui/ToastProvider';
 import { apiClient } from '@/shared/api/client';
 import type { FileKindsInfo } from '@/shared/api/fileKinds';
+import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
 import { ScanTooNarrow } from './InvoiceScanPanel';
 
 vi.mock('@/shared/api/client', () => ({ apiClient: { post: vi.fn(), get: vi.fn(), put: vi.fn(), delete: vi.fn() } }));
+vi.mock('@/shared/ui/viewer/viewerGate', () => ({ preloadPdfViewer: vi.fn() }));
 
 // Просмотрщик подменён: здесь проверяется место — что и когда оно кладёт в слой, а не сам показ.
 vi.mock('@/shared/ui/viewer/PdfViewer', () => ({
   PdfViewer: () => null,
-  PdfViewerOverlay: (p: { open: boolean; source: Blob | null; documentKey: string; title: string; note?: ReactNode }) => (p.open
+  PdfViewerOverlay: (p: {
+    open: boolean; onOpenChange: (open: boolean) => void; source: Blob | null; documentKey: string; title: string; note?: ReactNode;
+  }) => (p.open
     ? (
       <div role="dialog" aria-label={p.title} data-key={p.documentKey} data-type={p.source?.type ?? ''}>
         {p.note}{p.source ? 'байты' : 'загружается'}
+        <button onClick={() => p.onOpenChange(false)}>Закрыть</button>
       </div>
     )
     : null),
@@ -40,12 +45,16 @@ let scanType: string;
 let imageState: 'original' | 'built';
 let kindsUp: boolean;
 let saved: string[];
+/** Ответы на вид для чтения по очереди запросов; пусто — ответ сразу. */
+let readings: Array<{ resolve: (b: Blob) => void; reject: (e: unknown) => void }> | null;
 
 beforeEach(() => {
   scanType = 'application/pdf';
   imageState = 'original';
   kindsUp = true;
   saved = [];
+  readings = null;
+  vi.mocked(preloadPdfViewer).mockClear();
   vi.spyOn(window, 'open').mockImplementation(() => null);
   URL.createObjectURL = vi.fn(() => 'blob:test/1');
   URL.revokeObjectURL = vi.fn();
@@ -57,7 +66,10 @@ beforeEach(() => {
     }
     if (url === '/costs/invoices/i1/scan/image') return { data: { state: imageState, pages: 2, notes: [], reason: null, aboutFile: false } };
     if (url === '/costs/invoices/i1/scan') return { data: new Blob(['x']), headers: { 'content-type': scanType } };
-    if (url === '/costs/invoices/i1/scan/image/content') return { data: new Blob(['%PDF']), headers: {} };
+    if (url === '/costs/invoices/i1/scan/image/content') {
+      const data = readings ? await new Promise<Blob>((resolve, reject) => readings!.push({ resolve, reject })) : new Blob(['%PDF']);
+      return { data, headers: {} };
+    }
     throw new Error(`нет в тесте: ${url}`);
   }) as never);
 });
@@ -67,11 +79,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function shown() {
+function shown(fileName = 'Счёт 417') {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <ToastProvider>
-        <ScanTooNarrow invoiceId="i1" blobPath="files/a" fileName="Счёт 417" width={1100} />
+        <ScanTooNarrow invoiceId="i1" blobPath="files/a" fileName={fileName} width={1100} />
       </ToastProvider>
     </QueryClientProvider>,
   );
@@ -126,5 +138,39 @@ describe('узкий экран: файл поверх формы', () => {
     expect(dialog.textContent).toContain('вёрстка может отличаться, документ — оригинал');
     await waitFor(() => expect(dialog.textContent).toContain('байты'));
     expect(dialog.getAttribute('data-type')).toBe('application/pdf');
+    // Вид — всегда PDF: ядро просмотрщика грузится вместе с байтами.
+    expect(preloadPdfViewer).toHaveBeenCalled();
+  });
+
+  it('отказ прежнего открытия вида не закрывает слой, открытый после него', async () => {
+    imageState = 'built';
+    readings = [];
+    shown();
+    const reading = await screen.findByRole('button', { name: 'Открыть вид для чтения' });
+    fireEvent.click(reading);
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
+    fireEvent.click(reading);
+    await waitFor(() => expect(readings).toHaveLength(2));
+
+    readings![1].resolve(new Blob(['%PDF']));
+    const dialog = screen.getByRole('dialog', { name: 'Счёт 417 — вид для чтения' });
+    await waitFor(() => expect(dialog.textContent).toContain('байты'));
+    readings![0].reject(new Error('нет связи'));
+    await new Promise(r => setTimeout(r, 0));
+    expect(screen.getByRole('dialog', { name: 'Счёт 417 — вид для чтения' })).toBeTruthy();
+    expect(screen.queryByText(/Вид для чтения не открыт/)).toBeNull();
+  });
+
+  it('PDF по имени — ядро просмотрщика грузится вместе с файлом; другое имя — нет', async () => {
+    shown('Скан.pdf');
+    await openFile();
+    expect(preloadPdfViewer).toHaveBeenCalledTimes(1);
+    await screen.findByRole('dialog');
+    cleanup();
+    vi.mocked(preloadPdfViewer).mockClear();
+    shown('Фото.jpg');
+    await openFile();
+    await screen.findByRole('dialog');
+    expect(preloadPdfViewer).not.toHaveBeenCalled();
   });
 });

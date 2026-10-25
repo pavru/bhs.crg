@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { openPdf } from './pdfEngine';
 import { printPdf } from './printPdf';
 import { loadViewer } from './viewerGate';
-import { PdfViewer, type PdfViewerProps } from './PdfViewer';
+import { PdfViewer, PdfViewerOverlay, type PdfViewerProps } from './PdfViewer';
 import { fakeDocument, opening, supportedBrowser } from './testEngine';
 
 vi.mock('./pdfEngine', () => ({ openPdf: vi.fn(), ViewerFailure: class extends Error {} }));
@@ -115,5 +115,25 @@ describe('просмотрщик: картинка', () => {
     await screen.findByTestId('viewer-toolbar');
     expect(screen.queryByRole('img')).toBeNull();
     expect(openPdf).toHaveBeenCalled();
+  });
+});
+
+describe('просмотрщик поверх экрана без показа на месте', () => {
+  it('строка места над листом, «Открыть во вкладке» и «Закрыть»', async () => {
+    const onOpenChange = vi.fn();
+    render(<PdfViewerOverlay {...props()} open onOpenChange={onOpenChange} note={<span>Вид для чтения — оговорка.</span>} />);
+    const dialog = await screen.findByRole('dialog', { name: 'Счёт.png' });
+    expect(dialog.textContent).toContain('Вид для чтения — оговорка.');
+    expect(screen.getByRole('button', { name: 'Открыть во вкладке' })).toBeTruthy();
+    // Показа на месте нет: просмотрщик один, в слое.
+    expect(screen.getAllByTestId('viewer-region')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('без строки места лишней полосы нет', async () => {
+    render(<PdfViewerOverlay {...props()} open onOpenChange={() => {}} />);
+    await screen.findByRole('dialog', { name: 'Счёт.png' });
+    expect(screen.queryByText(/оговорка/)).toBeNull();
   });
 });

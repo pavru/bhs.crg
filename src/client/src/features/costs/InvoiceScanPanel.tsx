@@ -5,7 +5,8 @@ import { loadInvoiceScan } from '@/shared/api/invoices';
 import { loadInvoiceImage, useInvoiceImage } from '@/shared/api/invoiceImage';
 import { openInNewTab } from '@/shared/ui/viewer/openInNewTab';
 import { PdfViewer, PdfViewerOverlay } from '@/shared/ui/viewer/PdfViewer';
-import { acceptOf, fileShownAs, recognizedKinds, shownKinds, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
+import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
+import { acceptOf, fileShownAs, nameShownAs, recognizedKinds, shownKinds, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
 import { useCan } from '@/shared/api/access';
 import { useToast } from '@/shared/ui/Toast';
 import { BuiltImage, Centered as Note, IMAGE_CAVEAT, OriginalButton, RefusedImage } from './InvoiceFileImage';
@@ -82,6 +83,10 @@ function OriginalFile({ invoiceId, blobPath, fileName }: {
 }) {
   const { key, blob, mimeType, failed } = useScanBytes(invoiceId, blobPath);
   const kinds = useFileKinds();
+  // PDF по имени — ядро просмотрщика грузится вместе с файлом, а не после него: пока байтов нет,
+  // просмотрщик вида не знает и сам кусок pdf.js не тянет.
+  const likelyPdf = nameShownAs(kinds.data, fileName) === 'pdf';
+  useEffect(() => { if (likelyPdf) preloadPdfViewer(); }, [likelyPdf]);
 
   if (failed) {
     return (
@@ -187,18 +192,29 @@ export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
   const refused = image.data?.state === 'refused' ? image.data : null;
   const fileKey = `${invoiceId}|${blobPath ?? ''}`;
   const name = fileName ?? 'Файл счёта';
+  // Какое открытие слоя последнее. Ответ прежнего — и удача, и отказ — слоя не трогает: иначе вид для
+  // чтения, отказавший после закрытия, закрыл бы уже открытый поверх формы файл.
+  const latest = useRef(0);
 
   const openReading = () => {
+    const asked = ++latest.current;
     // Вид — всегда PDF: слой встаёт сразу, «загружается», и вид приходит в него по готовности.
-    const key = `${fileKey}|view`;
-    setShown({ key, source: null, title: `${name} — вид для чтения`, reading: true });
+    preloadPdfViewer();
+    setShown({ key: `${fileKey}|view`, source: null, title: `${name} — вид для чтения`, reading: true });
     setOpen(true);
     loadInvoiceImage(invoiceId)
-      .then(source => setShown(now => (now?.key === key ? { ...now, source } : now)))
-      .catch(e => { setOpen(false); toast.apiError(e, 'Вид для чтения не открыт'); });
+      .then(source => { if (latest.current === asked) setShown(now => (now ? { ...now, source } : now)); })
+      .catch(e => {
+        if (latest.current !== asked) return;
+        setOpen(false);
+        toast.apiError(e, 'Вид для чтения не открыт');
+      });
   };
 
   const openFile = async () => {
+    const asked = ++latest.current;
+    // PDF по имени — ядро просмотрщика грузится вместе с файлом, а не после него.
+    if (nameShownAs(kinds.data, fileName) === 'pdf') preloadPdfViewer();
     setBusy(true);
     try {
       const { blob, mimeType } = await loadInvoiceScan(invoiceId);
@@ -211,7 +227,7 @@ export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
         saveScan(blob, fileName, mimeType, info);
         toast.info('Файл скачан, а не открыт: список видов файлов с сервера не пришёл, и чем его показать, неизвестно.');
       } else if (fileShownAs(info, mimeType) === 'download') saveScan(blob, fileName, mimeType, info);
-      else {
+      else if (latest.current === asked) {
         setShown({ key: fileKey, source: blob, title: name, reading: false });
         setOpen(true);
       }

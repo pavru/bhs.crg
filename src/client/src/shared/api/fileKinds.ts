@@ -76,6 +76,17 @@ export function fileShownAs(info: FileKindsInfo | undefined, mime: string | null
   return find(info, mime)?.view ?? 'download';
 }
 
+/**
+ * Чем, судя по имени, покажется файл — по расширению из реестра; `null`, если по имени не сказать.
+ * Только подсказка (заранее подгрузить просмотрщик, пока байты в пути): чем показывать, решает тип,
+ * с которым файл отдал сервер (`fileShownAs`), — имя бывает чужим.
+ */
+export function nameShownAs(info: FileKindsInfo | undefined, fileName: string | null | undefined): FileShownAs | null {
+  const name = fileName?.toLowerCase();
+  const kind = name ? info?.kinds.find(k => k.extensions.some(ext => name.endsWith(ext))) : undefined;
+  return kind ? kind.view ?? 'download' : null;
+}
+
 /** Первое расширение вида — на случай файла без имени; пусто, если вид неизвестен. */
 export function fileExtension(info: FileKindsInfo | undefined, mime: string | null | undefined): string {
   return find(info, mime)?.extensions[0] ?? '';
