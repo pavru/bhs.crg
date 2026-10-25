@@ -75,6 +75,8 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
   // Документ уничтожается, когда его сменил другой (или null) и когда просмотрщик убран.
   useEffect(() => () => { void doc?.destroy(); }, [doc]);
 
+  // Ключ — тоже повод открыть: новый ключ при тех же байтах сбросил показ выше, и без нового открытия
+  // просмотрщик так и стоял бы «загружается».
   useEffect(() => {
     if (!source) return;
     let alive = true, resolved = false;
@@ -82,9 +84,19 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
     loading.promise.then(d => {
       resolved = true;
       if (!alive) { void d.destroy(); return; }
-      setDoc(d);
-      setState('ready');
-      d.pageSizes().then(s => { if (alive) setSizes(s); }, () => { if (alive) setState('broken'); });
+      // Документ встаёт вместе со своими размерами: новые байты того же ключа с раскладкой прежних
+      // рисовали бы чужие контуры и листы, которых в новом документе нет. До тех пор виден прежний.
+      d.pageSizes().then(s => {
+        if (!alive) { void d.destroy(); return; }
+        setDoc(d);
+        setSizes(s);
+        setState('ready');
+      }, () => {
+        void d.destroy();
+        if (!alive) return;
+        setDoc(null);
+        setState('broken');
+      });
     }, (e: unknown) => {
       resolved = true;
       if (!alive) return;
@@ -95,7 +107,7 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
       alive = false;
       if (!resolved) loading.cancel();
     };
-  }, [source]);
+  }, [source, documentKey]);
 
   useLayoutEffect(() => {
     const el = scroller.current;
@@ -109,8 +121,7 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
     return () => ro.disconnect();
   }, []);
 
-  const refSize = sizes?.[Math.min(page, sizes.length) - 1];
-  const scale = refSize && box.width ? resolveScale(mode, refSize, rotation, box) : 1;
+  const scale = sizes && box.width ? resolveScale(mode, sizes, rotation, box) : 1;
   const l = useMemo(() => (sizes ? layout(sizes, scale, rotation) : null), [sizes, scale, rotation]);
 
   // Смена масштаба, поворота, ширины или байтов того же документа: держим ту же точку листа вверху.
@@ -122,6 +133,8 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
     if (!el || !l) return;
     el.scrollTop = prev ? scrollTopFor(l, anchorOf(prev, el.scrollTop)) : 0;
     setScrollTop(el.scrollTop);
+    // Новые байты того же ключа короче прежних: номер не должен остаться за концом документа.
+    setPage(p => Math.min(p, l.tops.length));
   }, [l]);
 
   const numPages = sizes?.length ?? 0;

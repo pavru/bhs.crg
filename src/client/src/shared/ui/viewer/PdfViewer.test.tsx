@@ -92,6 +92,39 @@ describe('просмотрщик: страница и границы', () => {
     rerender(<StrictMode><PdfViewer {...props({ documentKey: 'b', source: new Uint8Array(BYTES) })} /></StrictMode>);
     await waitFor(async () => expect((await pageField()).value).toBe('1'));
   });
+
+  it('новый ключ при тех же байтах — документ открывается заново, а не «загружается» навсегда', async () => {
+    const { rerender } = shown(<PdfViewer {...props()} />);
+    await goToPage(3);
+    const before = docs.length;
+    rerender(<StrictMode><PdfViewer {...props({ documentKey: 'b' })} /></StrictMode>);
+    await waitFor(() => expect(docs.length).toBeGreaterThan(before));
+    expect((await pageField()).value).toBe('1');
+    expect(screen.queryByText('Файл загружается…')).toBeNull();
+  });
+
+  it('новые байты того же ключа встают вместе со своими размерами; до тех пор виден прежний документ', async () => {
+    const { rerender } = shown(<PdfViewer {...props()} />);
+    await goToPage(3);
+    const shorter = fakeDocument(2);
+    let sizesReady: () => void = () => {};
+    shorter.pageSizes = () => new Promise(resolve => {
+      sizesReady = () => resolve([{ width: 595, height: 842 }, { width: 842, height: 595 }]);
+    });
+    vi.mocked(openPdf).mockImplementation(() => { docs.push(shorter); return opening(shorter); });
+    rerender(<StrictMode><PdfViewer {...props({ source: new Uint8Array(BYTES) })} /></StrictMode>);
+    await waitFor(() => expect(docs.at(-1)).toBe(shorter));
+    await act(() => Promise.resolve());
+
+    // Размеры нового ещё не пришли: на месте прежний документ с прежней раскладкой, новый не рисуется.
+    expect(screen.getByText('из 12')).toBeTruthy();
+    expect(shorter.render).not.toHaveBeenCalled();
+
+    await act(async () => sizesReady());
+    expect(screen.getByText('из 2')).toBeTruthy();
+    expect(Number((await pageField()).value)).toBeLessThanOrEqual(2);
+    expect(vi.mocked(shorter.render).mock.calls.every(([n]) => n <= 2)).toBe(true);
+  });
 });
 
 describe('просмотрщик: документ уничтожается ровно раз', () => {

@@ -6,8 +6,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 // @ts-expect-error — модуль Node без типов
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
-import { openPdf, setAssetBase, ViewerFailure } from './pdfEngine';
+import { describe, expect, it, vi } from 'vitest';
+import { openPdf, setAssetBase, ViewerFailure, wrap } from './pdfEngine';
 
 /**
  * Настоящий движок в Node, без подмен (issue #1490, [UI-10], [UI-17], [UI-21]).
@@ -83,9 +83,60 @@ describe('движок просмотрщика на эталонном PDF', ()
     expect(await failureOf(new TextEncoder().encode('%PDF-1.4 не настоящий'))).toBe('not-pdf');
   });
 
+  it('освобождение листа после уничтожения документа — без необработанного отказа', async () => {
+    // React гасит документ раньше его листов: release приходит в уже разобранный транспорт.
+    const unhandled: unknown[] = [];
+    const onUnhandled = (e: unknown) => { unhandled.push(e); };
+    const proc = (globalThis as unknown as { process: { on(e: string, f: (e: unknown) => void): void; off(e: string, f: (e: unknown) => void): void } }).process;
+    proc.on('unhandledRejection', onUnhandled);
+    try {
+      const doc = await openPdf(reference()).promise;
+      await doc.pageSizes();
+      const gone = doc.destroy();
+      doc.release(1);
+      await gone;
+      doc.release(1);
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(unhandled).toEqual([]);
+    } finally {
+      proc.off('unhandledRejection', onUnhandled);
+    }
+  });
+
   it('уничтожение повторно безопасно', async () => {
     const doc = await openPdf(reference()).promise;
     await doc.destroy();
     await expect(doc.destroy()).resolves.toBeUndefined();
+  });
+});
+
+describe('отмена работы над листом', () => {
+  /** Документ pdf.js, чья отрисовка не кончается, пока её не отменят. В Node холста нет — он не нужен. */
+  function endlessRender() {
+    const job = { cancel: vi.fn(), promise: new Promise<void>(() => {}) };
+    const page = {
+      rotate: 0,
+      getViewport: () => ({ width: 10, height: 10, scale: 1 }),
+      render: vi.fn(() => job),
+    };
+    const proxy = { numPages: 1, getPage: () => Promise.resolve(page), loadingTask: { destroy: () => Promise.resolve() } };
+    const canvas = { width: 0, height: 0, getContext: () => ({}) } as unknown as HTMLCanvasElement;
+    return { doc: wrap(proxy as unknown as Parameters<typeof wrap>[0]), job, page, canvas };
+  }
+
+  it('отмена идущей отрисовки доходит до pdf.js — иначе следующая в тот же холст отказала бы', async () => {
+    const { doc, job, page, canvas } = endlessRender();
+    const task = doc.render(1, canvas, { scale: 1, rotation: 0, pixelRatio: 1 });
+    await vi.waitFor(() => expect(page.render).toHaveBeenCalled());
+    task.cancel();
+    expect(job.cancel).toHaveBeenCalledOnce();
+  });
+
+  it('отмена до получения листа — отрисовка не начинается', async () => {
+    const { doc, page, canvas } = endlessRender();
+    const task = doc.render(1, canvas, { scale: 1, rotation: 0, pixelRatio: 1 });
+    task.cancel();
+    await task.promise;
+    expect(page.render).not.toHaveBeenCalled();
   });
 });

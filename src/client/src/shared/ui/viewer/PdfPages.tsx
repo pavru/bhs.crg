@@ -73,7 +73,11 @@ function PdfPage({ doc, n, scale, rotation, baseWidth, baseHeight }: {
     draw.promise.then(() => {
       if (!alive) return;
       setFailed(false);
-      if (text.current) tasks.push(doc.textLayer(n, text.current, view));
+      if (!text.current) return;
+      const layer = doc.textLayer(n, text.current, view);
+      tasks.push(layer);
+      // Слой текста отменяется сменой масштаба и уходом листа; лист нарисован и без него.
+      layer.promise.catch(() => {});
     }, () => { if (alive) setFailed(true); });
     return () => {
       alive = false;

@@ -22,24 +22,34 @@ describe('масштаб', () => {
 
   it('«по ширине» — лист в ширину области без отступов', () => {
     const box = { width: 620 + 2 * CANVAS_PADDING, height: 400 };
-    expect(resolveScale('width', A4, 0, box)).toBeCloseTo(620 / 794);
+    expect(resolveScale('width', [A4], 0, box)).toBeCloseTo(620 / 794);
   });
 
   it('«страница целиком» — по меньшей стороне', () => {
     const box = { width: 2000 + 2 * CANVAS_PADDING, height: 1123 / 2 + 2 * CANVAS_PADDING };
-    expect(resolveScale('page', A4, 0, box)).toBeCloseTo(0.5);
+    expect(resolveScale('page', [A4], 0, box)).toBeCloseTo(0.5);
   });
 
   it('поворот меняет стороны листа', () => {
     const box = { width: 1123 + 2 * CANVAS_PADDING, height: 5000 };
-    expect(resolveScale('width', A4, 90, box)).toBeCloseTo(1);
-    expect(resolveScale('width', A4, 180, box)).toBeCloseTo(1123 / 794);
+    expect(resolveScale('width', [A4], 90, box)).toBeCloseTo(1);
+    expect(resolveScale('width', [A4], 180, box)).toBeCloseTo(1123 / 794);
+  });
+
+  it('листы разного размера — один масштаб по самому широкому и самому высокому', () => {
+    const box = { width: 1123 + 2 * CANVAS_PADDING, height: 1587 / 2 + 2 * CANVAS_PADDING };
+    const landscape = { width: A4.height, height: A4.width };
+    // Порядок листов (и тем более текущий лист) масштаб не меняет: прокрутка ленту не перекраивает.
+    expect(resolveScale('width', [A4, landscape], 0, box)).toBeCloseTo(1);
+    expect(resolveScale('width', [landscape, A4], 0, box)).toBeCloseTo(1);
+    expect(resolveScale('page', [A4, A3], 0, box)).toBeCloseTo(0.5);
+    expect(resolveScale('width', [], 0, box)).toBe(1);
   });
 
   it('число — как есть, в границах', () => {
-    expect(resolveScale(1.5, A4, 0, { width: 10, height: 10 })).toBe(1.5);
-    expect(resolveScale(99, A4, 0, { width: 10, height: 10 })).toBe(MAX_SCALE);
-    expect(resolveScale('width', A4, 0, { width: 1, height: 1 })).toBe(MIN_SCALE);
+    expect(resolveScale(1.5, [A4], 0, { width: 10, height: 10 })).toBe(1.5);
+    expect(resolveScale(99, [A4], 0, { width: 10, height: 10 })).toBe(MAX_SCALE);
+    expect(resolveScale('width', [A4], 0, { width: 1, height: 1 })).toBe(MIN_SCALE);
   });
 
   it('подписи', () => {

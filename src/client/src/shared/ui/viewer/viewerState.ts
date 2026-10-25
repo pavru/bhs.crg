@@ -38,10 +38,23 @@ export function rotated(size: PageSize, rotation: number): PageSize {
   return rotation % 180 === 0 ? size : { width: size.height, height: size.width };
 }
 
-/** Число масштаба для режима. `page` — размер листа при 100 %, `box` — видимая область холста. */
-export function resolveScale(mode: ZoomMode, page: PageSize, rotation: number, box: { width: number; height: number }): number {
+/**
+ * Число масштаба для режима. `pages` — размеры листов при 100 %, `box` — видимая область холста.
+ *
+ * Режим мерится по самому широкому (и самому высокому) листу документа, а не по текущему: масштаб
+ * общий на всю ленту, и по текущему листу он менялся бы при прокрутке через А4 и альбомный — лента
+ * перекраивалась бы под пальцем и могла бы качаться между двумя масштабами. Так в ширину входит
+ * каждый лист, а узкие стоят по центру.
+ */
+export function resolveScale(mode: ZoomMode, pages: readonly PageSize[], rotation: number, box: { width: number; height: number }): number {
   if (typeof mode === 'number') return clampScale(mode);
-  const { width, height } = rotated(page, rotation);
+  let width = 0, height = 0;
+  for (const page of pages) {
+    const r = rotated(page, rotation);
+    width = Math.max(width, r.width);
+    height = Math.max(height, r.height);
+  }
+  if (!width || !height) return 1;
   const freeW = Math.max(1, box.width - 2 * CANVAS_PADDING);
   const freeH = Math.max(1, box.height - 2 * CANVAS_PADDING);
   const byWidth = freeW / width;

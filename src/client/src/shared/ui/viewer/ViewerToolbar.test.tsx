@@ -68,4 +68,21 @@ describe('панель просмотрщика', () => {
     expect(field.value).toBe('2');
     expect(p.onPage).not.toHaveBeenCalled();
   });
+
+  it('набор после Enter без ухода из поля виден и переходит на набранное', () => {
+    const p = props();
+    const { rerender } = render(<ViewerToolbar {...p} />);
+    const field = screen.getByRole('textbox', { name: 'Номер страницы' }) as HTMLInputElement;
+    fireEvent.focus(field);
+    fireEvent.change(field, { target: { value: '3' } });
+    fireEvent.keyDown(field, { key: 'Enter' });
+    expect(p.onPage).toHaveBeenLastCalledWith(3);
+    rerender(<ViewerToolbar {...p} page={3} />);
+
+    // Фокус остался в поле, onFocus второй раз не приходит.
+    fireEvent.change(field, { target: { value: '4' } });
+    expect(field.value).toBe('4');
+    fireEvent.keyDown(field, { key: 'Enter' });
+    expect(p.onPage).toHaveBeenLastCalledWith(4);
+  });
 });

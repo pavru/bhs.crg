@@ -88,7 +88,9 @@ function PageField({ page, numPages, onPage }: { page: number; numPages: number;
     <span className="inline-flex items-center gap-1 text-xs text-fg3 whitespace-nowrap">
       <input aria-label="Номер страницы" aria-describedby={total} inputMode="numeric" value={editing ? text : String(page)}
         onFocus={e => { setText(String(page)); setEditing(true); e.currentTarget.select(); }} onBlur={commit} onKeyDown={onKeyDown}
-        onChange={e => setText(e.target.value)}
+        // Набор после Enter или Esc — фокус в поле остался, а onFocus второй раз не придёт: правка
+        // начинается с первой клавиши, иначе поле показывало бы текущий номер, а копило невидимое.
+        onChange={e => { setText(e.target.value); setEditing(true); }}
         className="w-[4ch] h-6 rounded border border-stroke bg-surface text-center text-xs text-fg1 tabular-nums focus:outline-none focus:border-brand" />
       <span id={total}>из {numPages}</span>
     </span>

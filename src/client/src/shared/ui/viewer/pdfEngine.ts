@@ -146,14 +146,21 @@ function viewportOf(page: PDFPageProxy, { scale, rotation }: PageView): PageView
   return page.getViewport({ scale: scale * PixelsPerInch.PDF_TO_CSS_UNITS, rotation: (page.rotate + rotation) % 360 });
 }
 
-function wrap(doc: PDFDocumentProxy): PdfDocument {
+/**
+ * Работа над листом с отменой. Задача pdf.js называет свою отмену (`signal.stop`), КАК ТОЛЬКО создана,
+ * а не по окончании: отмена идущей отрисовки должна до неё дойти. Иначе следующая отрисовка в тот же
+ * холст (новый масштаб, поворот) отказывает — «Cannot use the same canvas during multiple render()».
+ */
+interface TaskSignal { cancelled: boolean; stop: () => void }
+
+function pageTask(run: (signal: TaskSignal) => Promise<void>): PageTask {
+  const signal: TaskSignal = { cancelled: false, stop: () => {} };
+  return { promise: run(signal), cancel() { signal.cancelled = true; signal.stop(); } };
+}
+
+/** Обёртка документа pdf.js. Экспортируется для теста движка: отмену в Node без холста иначе не проверить. */
+export function wrap(doc: PDFDocumentProxy): PdfDocument {
   let destroyed: Promise<void> | null = null;
-  const task = (run: (signal: { cancelled: boolean }) => Promise<() => void>): PageTask => {
-    const signal = { cancelled: false };
-    let stop: () => void = () => {};
-    const promise = run(signal).then(cancel => { stop = cancel; });
-    return { promise: promise.then(() => undefined), cancel() { signal.cancelled = true; stop(); } };
-  };
   return {
     numPages: doc.numPages,
     async pageSizes() {
@@ -165,9 +172,9 @@ function wrap(doc: PDFDocumentProxy): PdfDocument {
       return sizes;
     },
     render(pageNumber, canvas, view) {
-      return task(async signal => {
+      return pageTask(async signal => {
         const page = await doc.getPage(pageNumber);
-        if (signal.cancelled) return () => {};
+        if (signal.cancelled) return;
         const viewport = viewportOf(page, view);
         canvas.width = Math.floor(viewport.width * view.pixelRatio);
         canvas.height = Math.floor(viewport.height * view.pixelRatio);
@@ -178,23 +185,23 @@ function wrap(doc: PDFDocumentProxy): PdfDocument {
           viewport,
           transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0],
         });
-        const stop = () => job.cancel();
-        if (signal.cancelled) { stop(); return stop; }
+        signal.stop = () => job.cancel();
         await job.promise;
-        return stop;
+        signal.stop = () => {};
       });
     },
     textLayer(pageNumber, container, view) {
-      return task(async signal => {
+      return pageTask(async signal => {
         const page = await doc.getPage(pageNumber);
-        if (signal.cancelled) return () => {};
+        if (signal.cancelled) return;
         const viewport = viewportOf(page, view);
         container.replaceChildren();
         container.style.setProperty('--scale-factor', String(viewport.scale));
         const layer = new TextLayer({ textContentSource: page.streamTextContent(), container, viewport });
-        const stop = () => layer.cancel();
+        // Неотменённый прежний слой дописывал бы строки в контейнер нового — текст листа удваивался.
+        signal.stop = () => layer.cancel();
         await layer.render();
-        return stop;
+        signal.stop = () => {};
       });
     },
     async text(pageNumber) {
@@ -202,8 +209,10 @@ function wrap(doc: PDFDocumentProxy): PdfDocument {
       return content.items.map(item => ('str' in item ? item.str : '')).join(' ');
     },
     release(pageNumber) {
-      if (pageNumber < 1 || pageNumber > doc.numPages) return;
-      void doc.getPage(pageNumber).then(page => page.cleanup());
+      // После уничтожения освобождать нечего, а getPage ушёл бы в разобранный транспорт и отказал
+      // («Transport destroyed») мимо всех обработчиков: React гасит документ раньше его листов.
+      if (destroyed || pageNumber < 1 || pageNumber > doc.numPages) return;
+      doc.getPage(pageNumber).then(page => page.cleanup(), () => { /* документ ушёл — ресурсы ушли с ним */ });
     },
     destroy() {
       destroyed ??= doc.loadingTask.destroy();
