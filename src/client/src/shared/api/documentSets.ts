@@ -3,6 +3,7 @@ import { apiClient } from './client';
 import { invalidatePlans } from './plans';
 import type { DocumentSet, DocumentInstance, DocumentSearchResult } from './types';
 import { filenameFromContentDisposition, saveBlob } from './attachments';
+import { openInNewTab } from '@/shared/ui/viewer/openInNewTab';
 import type { Recipient } from './subscriptions';
 
 /** Поиск документов по всем комплектам (имя документа/типа + текст реквизитов). Пустой q → без запроса. */
@@ -336,13 +337,14 @@ export function brokenRefPaths(diagnostics: ResolutionDiagnostic[] | undefined):
 }
 
 export type PreviewResult =
-  | { kind: 'pdf'; url: string }
+  | { kind: 'pdf'; blob: Blob }
   | { kind: 'no-template' }
   | { kind: 'error'; message: string };
 
 /**
  * Живой предпросмотр документа (issue #193): POST текущих (несохранённых) реквизитов →
- * эфемерный PDF по дефолтному шаблону. Успех → blob-URL PDF; нет шаблона / ошибка → маркер.
+ * эфемерный PDF по дефолтному шаблону. Успех → байты PDF (их показывает просмотрщик, issue #1493);
+ * нет шаблона / ошибка → маркер.
  * Ответ приходит как blob (и PDF, и JSON-статус) — различаем по content-type.
  */
 export async function previewDocument(instanceId: string, requisites: unknown): Promise<PreviewResult> {
@@ -356,7 +358,7 @@ export async function previewDocument(instanceId: string, requisites: unknown): 
   try {
     const res = await apiClient.post(`/generate/preview/${instanceId}`, requisites, { responseType: 'blob' });
     const ct = String(res.headers['content-type'] ?? '');
-    if (ct.includes('application/pdf')) return { kind: 'pdf', url: URL.createObjectURL(res.data as Blob) };
+    if (ct.includes('application/pdf')) return { kind: 'pdf', blob: res.data as Blob };
     return await parseJsonBlob(res.data as Blob);
   } catch (e: unknown) {
     const data = (e as { response?: { data?: unknown } })?.response?.data;
@@ -413,27 +415,12 @@ export async function downloadDebugBundle(instanceId: string) {
   saveBlob(response.data as Blob, `typst-debug-${instanceId}.zip`);
 }
 
-export async function previewGeneratedFile(instanceId: string, templateId?: string | null) {
-  // Open window synchronously (in user-gesture context) to avoid popup blocker,
-  // then navigate it to the blob URL once the download completes.
-  const newWindow = window.open('', '_blank');
-  if (!newWindow) return;
-  // Плейсхолдер, пока грузится (и чтобы при ошибке не осталась «пустая страница»).
-  try { newWindow.document.write('<p style="font:14px sans-serif;color:#555;padding:16px">Загрузка PDF…</p>'); } catch { /* cross-origin — не критично */ }
-
-  try {
-    const path = templateId ? `/generate/download/${instanceId}/${templateId}/pdf` : `/generate/download/${instanceId}/pdf`;
-    const response = await apiClient.get(path, {
-      responseType: 'blob',
-    });
-    const url = URL.createObjectURL(response.data as Blob);
-    newWindow.location.href = url;
-    // intentionally not revoking — browser needs the URL while the tab is open
-  } catch {
-    // Не оставляем пустую вкладку — показываем понятное сообщение.
-    try {
-      newWindow.document.body.innerHTML =
-        '<p style="font:14px sans-serif;color:#b00;padding:16px">Не удалось открыть файл. Обновите страницу документа и попробуйте снова.</p>';
-    } catch { newWindow.close(); }
-  }
+/**
+ * Готовый PDF документа во вкладке (issue #1493): окно — сразу, в обработчике нажатия, байты — по
+ * готовности, ссылка отзывается с отсрочкой (`openInNewTab`). Отказ называет сама вкладка.
+ */
+export function previewGeneratedFile(instanceId: string, templateId?: string | null): Promise<void> {
+  const path = templateId ? `/generate/download/${instanceId}/${templateId}/pdf` : `/generate/download/${instanceId}/pdf`;
+  return openInNewTab(() => apiClient.get<Blob>(path, { responseType: 'blob' }).then(r => r.data))
+    .catch(() => { /* вкладка уже сказала, что файл не открыт */ });
 }

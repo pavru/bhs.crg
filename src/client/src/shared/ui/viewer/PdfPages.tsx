@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { RotateCw } from 'lucide-react';
 import { Button } from '../Button';
 import type { PdfDocument, PageTask } from './pdfEngine';
-import { CANVAS_PADDING, maxCanvasPixels, pixelRatio, type Layout } from './viewerState';
+import { CANVAS_PADDING, type Layout } from './viewerState';
+import { adopt, canvasRatio, type Prepared } from './swapDocument';
 import './textLayer.css';
 
 /**
@@ -11,16 +12,18 @@ import './textLayer.css';
  *
  * Лист и его контур белые в любой теме: печати, подписи и цвета счёта — часть документа, и белый лист
  * не должен вспыхивать на тёмном холсте при отрисовке. Край — тень, в тёмной теме — рамка токеном.
+ *
+ * Новый вариант того же документа ([UI-25]) лист не рисует с пустого холста: забирает холст,
+ * нарисованный заранее (`prepared`), а не готовый — держит прежнюю картинку, пока не нарисует новую.
  */
 
 /** Перерисовка после смены масштаба — с задержкой: до неё лист растягивает CSS. */
 const RERENDER_MS = 150;
 
-const isIOS = typeof navigator !== 'undefined'
-  && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
-
-export function PdfPages({ doc, layout, scale, rotation, range }: {
+export function PdfPages({ doc, layout, scale, rotation, range, prepared }: {
   doc: PdfDocument; layout: Layout; scale: number; rotation: number; range: [number, number];
+  /** Листы этого документа, нарисованные до подмены. */
+  prepared: Prepared | null;
 }) {
   return (
     <div className="relative" style={{ height: layout.total, minWidth: layout.width }}>
@@ -34,7 +37,7 @@ export function PdfPages({ doc, layout, scale, rotation, range }: {
               left: `max(${CANVAS_PADDING}px, calc(50% - ${layout.widths[i] / 2}px))`,
             }}>
             {n >= range[0] && n <= range[1] && (
-              <PdfPage doc={doc} n={n} scale={scale} rotation={rotation}
+              <PdfPage doc={doc} n={n} scale={scale} rotation={rotation} prepared={prepared}
                 baseWidth={layout.widths[i] / scale} baseHeight={layout.heights[i] / scale} />
             )}
           </div>
@@ -45,8 +48,9 @@ export function PdfPages({ doc, layout, scale, rotation, range }: {
 }
 
 /** `baseWidth` / `baseHeight` — лист при 100 % с поворотом показа: от масштаба не зависят. */
-function PdfPage({ doc, n, scale, rotation, baseWidth, baseHeight }: {
-  doc: PdfDocument; n: number; scale: number; rotation: number; baseWidth: number; baseHeight: number;
+function PdfPage({ doc, n, scale, rotation, prepared, baseWidth, baseHeight }: {
+  doc: PdfDocument; n: number; scale: number; rotation: number; prepared: Prepared | null;
+  baseWidth: number; baseHeight: number;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const text = useRef<HTMLDivElement>(null);
@@ -61,39 +65,47 @@ function PdfPage({ doc, n, scale, rotation, baseWidth, baseHeight }: {
     return () => clearTimeout(t);
   }, [scale, drawnScale]);
 
-  useEffect(() => {
+  // До отрисовки кадра, а не после: забранный холст обязан встать в том же кадре, что и новая лента.
+  useLayoutEffect(() => {
     const el = canvas.current;
     if (!el) return;
-    const ratio = pixelRatio(baseWidth * drawnScale, baseHeight * drawnScale, window.devicePixelRatio || 1, maxCanvasPixels(isIOS));
     const view = { scale: drawnScale, rotation };
     const tasks: PageTask[] = [];
     let alive = true;
-    const draw = doc.render(n, el, { ...view, pixelRatio: ratio });
-    tasks.push(draw);
-    draw.promise.then(() => {
-      if (!alive) return;
-      setFailed(false);
-      if (!text.current) return;
+    const drawText = () => {
+      if (!alive || !text.current) return;
       const layer = doc.textLayer(n, text.current, view);
       tasks.push(layer);
       // Слой текста отменяется сменой масштаба и уходом листа; лист нарисован и без него.
       layer.promise.catch(() => {});
-    }, () => { if (alive) setFailed(true); });
+    };
+    if (adopt(prepared, doc, n, view, el)) {
+      setFailed(false);
+      drawText();
+    } else {
+      const draw = doc.render(n, el, { ...view, pixelRatio: canvasRatio(baseWidth * drawnScale, baseHeight * drawnScale) });
+      tasks.push(draw);
+      draw.promise.then(() => {
+        if (!alive) return;
+        setFailed(false);
+        drawText();
+      }, () => { if (alive) setFailed(true); });
+    }
     return () => {
       alive = false;
       tasks.forEach(t => t.cancel());
     };
-  }, [doc, n, drawnScale, rotation, attempt, baseWidth, baseHeight]);
+  }, [doc, n, drawnScale, rotation, attempt, baseWidth, baseHeight, prepared]);
 
-  // Ушёл из видимой области: холст отдаёт память (Safari без обнуления размеров её держит), движок —
-  // ресурсы листа.
+  // Движок отдаёт ресурсы листа, когда лист ушёл или документ сменился.
+  useEffect(() => () => doc.release(n), [doc, n]);
+
+  // Ушёл из видимой области — холст отдаёт память (Safari без обнуления размеров её держит). Только при
+  // уходе: при смене документа холст держит прежнюю картинку, пока новая не нарисована.
   useEffect(() => {
     const el = canvas.current;
-    return () => {
-      if (el) { el.width = 0; el.height = 0; }
-      doc.release(n);
-    };
-  }, [doc, n]);
+    return () => { if (el) { el.width = 0; el.height = 0; } };
+  }, []);
 
   const k = scale / drawnScale;
   return (

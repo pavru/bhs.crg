@@ -122,7 +122,6 @@
     "features/document-sets/catalog/index.tsx": 1,
     "features/document-sets/editor/ContainerFieldBinding.tsx": 1,
     "features/document-sets/editor/DataSetsTab.tsx": 2,
-    "features/document-sets/editor/DocumentPreviewPanel.tsx": 2,
     "features/document-sets/editor/FieldSourceBinding.tsx": 1,
     "features/document-sets/editor/LinkPickerModal.tsx": 1,
     "features/document-sets/editor/MaterialsTable.tsx": 2,
@@ -157,7 +156,5 @@
   },
   "native-date": {},
   "date-frame": {},
-  "native-pdf-frame": {
-    "features/document-sets/editor/DocumentPreviewPanel.tsx": 1
-  }
+  "native-pdf-frame": {}
 }

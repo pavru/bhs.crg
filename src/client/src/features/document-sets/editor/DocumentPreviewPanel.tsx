@@ -2,11 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, RefreshCw, PanelRightClose, PanelRightOpen, FileWarning, FileText } from 'lucide-react';
 import { previewDocument, type PreviewResult } from '@/shared/api/documentSets';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Button, IconButton } from '@/shared/ui/Button';
+import { PdfViewer } from '@/shared/ui/viewer/PdfViewer';
+import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
 
 type State =
   | { kind: 'idle' }
   | { kind: 'loading' }
-  | { kind: 'pdf'; url: string }
+  | { kind: 'pdf'; blob: Blob }
   | { kind: 'no-template' }
   | { kind: 'error'; message: string };
 
@@ -16,6 +19,9 @@ const LS_KEY = 'doc-preview-open';
  * Панель живого предпросмотра документа (issue #193): справа от формы, реальный PDF по дефолтному
  * шаблону. Перегенерация с дебаунсом при правках + «Обновить»; single-flight (отмена устаревшего
  * ответа); сворачивается в тонкую полосу (выбор запоминается в localStorage).
+ *
+ * PDF показывает общий просмотрщик (issue #1493): ключ документа — сам документ, поэтому новый вариант
+ * встаёт на том же листе и месте, с тем же масштабом и поворотом, без пустого кадра.
  */
 export function DocumentPreviewPanel({ instanceId, requisites }: {
   instanceId: string;
@@ -25,22 +31,23 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
   const [open, setOpen] = useState(() => localStorage.getItem(LS_KEY) === '1');
   const [state, setState] = useState<State>({ kind: 'idle' });
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  // Идёт перегенерация. На обновлении прежний PDF остаётся на экране — крутится только «Обновить».
+  const [busy, setBusy] = useState(false);
   const reqId = useRef(0);
-  const urlRef = useRef<string | null>(null);
 
   const setOpenPersist = (v: boolean) => { setOpen(v); localStorage.setItem(LS_KEY, v ? '1' : '0'); };
 
   const run = useCallback(async () => {
     const id = ++reqId.current;
+    setBusy(true);
     setState(s => s.kind === 'pdf' ? s : { kind: 'loading' }); // при первом — спиннер; при рефреше держим старый PDF
     let res: PreviewResult;
     try { res = await previewDocument(instanceId, requisites); }
     catch (e) { res = { kind: 'error', message: e instanceof Error ? e.message : 'Ошибка' }; }
-    if (id !== reqId.current) { if (res.kind === 'pdf') URL.revokeObjectURL(res.url); return; } // устарел
+    if (id !== reqId.current) return; // устарел — до просмотрщика не доходит
+    setBusy(false);
     if (res.kind === 'pdf') {
-      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-      urlRef.current = res.url;
-      setState({ kind: 'pdf', url: res.url });
+      setState({ kind: 'pdf', blob: res.blob });
       setUpdatedAt(Date.now());
     } else {
       setState(res);
@@ -54,12 +61,12 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
     return () => clearTimeout(t);
   }, [open, run]);
 
-  // Освобождаем blob-URL при размонтировании.
-  useEffect(() => () => { if (urlRef.current) URL.revokeObjectURL(urlRef.current); }, []);
+  // Открытая панель покажет PDF — ядро просмотрщика грузится, пока строится первый вариант.
+  useEffect(() => { if (open) preloadPdfViewer(); }, [open]);
 
   if (!open) {
     return (
-      <Tooltip content="Показать предпросмотр">
+      <Tooltip content="Показать предпросмотр" name>
         <button type="button" onClick={() => setOpenPersist(true)}
           className="hidden xl:flex flex-col items-center gap-2 w-11 shrink-0 border-l border-stroke pt-4 text-fg4 hover:text-brand hover:bg-muted transition-colors">
           <PanelRightOpen size={18} />
@@ -70,27 +77,24 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
   }
 
   return (
-    <div className="hidden xl:flex flex-col w-[44%] min-w-[380px] shrink-0 border-l border-stroke bg-muted/40">
+    <div data-testid="document-preview" className="hidden xl:flex flex-col w-[44%] min-w-[380px] shrink-0 border-l border-stroke bg-muted/40">
       <div className="flex items-center gap-2 shrink-0 px-3 h-11 border-b border-stroke bg-surface">
         <FileText size={16} className="text-fg4 shrink-0" />
         <span className="text-sm font-medium text-fg1 flex-1">Предпросмотр документа</span>
         {updatedAt && state.kind === 'pdf' && (
           <span className="text-xs text-fg4">обновлено {timeAgo(updatedAt)}</span>
         )}
-        <Tooltip content="Обновить" name>
-          <button type="button" onClick={() => void run()} disabled={state.kind === 'loading'} className="p-1.5 rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition-colors disabled:opacity-50">
-            <RefreshCw size={15} className={state.kind === 'loading' ? 'animate-spin' : ''} />
-          </button>
-        </Tooltip>
-        <Tooltip content="Скрыть предпросмотр" name>
-          <button type="button" onClick={() => setOpenPersist(false)} className="p-1.5 rounded-full text-fg4 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
-            <PanelRightClose size={16} />
-          </button>
-        </Tooltip>
+        <IconButton size="sm" label="Обновить" onClick={() => void run()} disabled={state.kind === 'loading'}>
+          <RefreshCw size={15} className={busy ? 'animate-spin' : ''} />
+        </IconButton>
+        <IconButton size="sm" label="Скрыть предпросмотр" onClick={() => setOpenPersist(false)}>
+          <PanelRightClose size={16} />
+        </IconButton>
       </div>
       <div className="flex-1 min-h-0 relative">
         {state.kind === 'pdf' && (
-          <iframe title="Предпросмотр документа" src={state.url} className="w-full h-full border-0 bg-white" />
+          <PdfViewer source={state.blob} documentKey={instanceId} title="Предпросмотр документа"
+            rememberZoomAs="document-preview" />
         )}
         {state.kind === 'loading' && (
           <div className="absolute inset-0 flex items-center justify-center text-fg4">
@@ -110,7 +114,7 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
             <p className="text-sm text-danger">Не удалось построить предпросмотр</p>
             {/* whitespace-pre-line — отказ компилятора шаблона приходит несколькими строками (issue #1047). */}
             <p className="text-xs break-words max-w-full whitespace-pre-line">{state.message}</p>
-            <button type="button" onClick={() => void run()} className="text-xs text-brand hover:text-brand-hover mt-1">Повторить</button>
+            <Button size="sm" variant="text" onClick={() => void run()} className="mt-1">Повторить</Button>
           </div>
         )}
         {state.kind === 'idle' && (
