@@ -485,6 +485,10 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasColumnType("numeric(18,6)")
                         .HasColumnName("quantity");
 
+                    b.Property<Guid?>("ResourceMatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resource_match_id");
+
                     b.Property<Guid>("RowId")
                         .HasColumnType("uuid")
                         .HasColumnName("row_id");
@@ -598,6 +602,70 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasDatabaseName("ix_rate_matches_work_type_id");
 
                     b.ToTable("rate_matches", "plan");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.ResourceMatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("KeyHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("key_hash")
+                        .IsFixedLength();
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("NomenclatureId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("nomenclature_id");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<string>("SourceText")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("source_text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<string>("UpdatedByName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by_name");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NomenclatureId")
+                        .HasDatabaseName("ix_resource_matches_nomenclature_id");
+
+                    b.HasIndex("Kind", "KeyHash")
+                        .IsUnique()
+                        .HasDatabaseName("ux_resource_matches_key");
+
+                    b.ToTable("resource_matches", "plan");
                 });
 
             modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.Estimate", b =>

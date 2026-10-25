@@ -23,14 +23,14 @@
 
 ## 2. PR 2: материалы
 
-- [ ] 2.1 `Data/ResourceMatch.cs` (код ресурса старше наименования, значение — номенклатура) и миграция
+- [x] 2.1 `Data/ResourceMatch.cs` (код ресурса старше наименования, значение — номенклатура) и миграция
   `ResourceMatches` [PLAN-9.1] [CORE-9]. Проверка — тест единственности ключа
-- [ ] 2.2 Сопоставление ресурса: похожие через `IModuleCatalog.SimilarAsync` (роль `role.nomenclature` в
+- [x] 2.2 Сопоставление ресурса: похожие через `IModuleCatalog.SimilarAsync` (роль `role.nomenclature` в
   `Needs`), новая позиция — явным действием, «запомнено» с отменой [PLAN-9.1] [COST-7.1]. Проверка —
   `ResourceMatchingTests`: незнакомый ресурс несёт похожие, знакомый подставлен с пометкой
-- [ ] 2.3 Адрес `PUT …/resources/{resourceId}/match` и список `resource-matches` с `If-Match` [AUTH-8]
+- [x] 2.3 Адрес `PUT …/resources/{resourceId}/match` и список `resource-matches` с `If-Match` [AUTH-8]
   [AUTH-9]. Проверка — тесты отказов 400/409/403
-- [ ] 2.4 `docs/USER_GUIDE.md`: сопоставление, «запомнено», коэффициент пересчёта; `npm run toc` в
+- [x] 2.4 `docs/USER_GUIDE.md`: сопоставление, «запомнено», коэффициент пересчёта; `npm run toc` в
   `docs/tools`. Проверка — проверка содержания в «Frontend» зелёная
 
 ## 3. Верификация

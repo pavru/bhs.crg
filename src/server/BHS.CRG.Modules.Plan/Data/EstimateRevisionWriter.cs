@@ -19,9 +19,10 @@ public sealed record EstimateRowDraft(
     Guid? RateMatchId = null);
 
 /// <summary>Материал строки будущей редакции.</summary>
+/// <param name="ResourceMatchId">Запомненное сопоставление, подставившее позицию номенклатуры (<c>plan-08</c>).</param>
 public sealed record EstimateMaterialDraft(
     string SourceName, decimal Quantity, string? SourceCode = null, string? SourceUnit = null,
-    Guid? NomenclatureId = null, decimal? UnitPrice = null, decimal? Amount = null);
+    Guid? NomenclatureId = null, decimal? UnitPrice = null, decimal? Amount = null, Guid? ResourceMatchId = null);
 
 /// <summary>
 /// Запись новой редакции сметы — ЕДИНСТВЕННОЕ место, где строки сметы попадают в базу (change

@@ -24,9 +24,9 @@ public sealed record SkippedRow(Guid RowId, int Order, string Reason, string Tex
     public const string DifferentUnit = "differentUnit";
 }
 
-public sealed record RowMatchOutcome(MatchUnits Units, RateMatchMemory Memory);
+public sealed record RowMatchOutcome(MatchUnits Units, MatchMemory Memory);
 
-public sealed record SectionMatchOutcome(int Matched, IReadOnlyList<SkippedRow> Skipped, MatchUnits Units, RateMatchMemory Memory);
+public sealed record SectionMatchOutcome(int Matched, IReadOnlyList<SkippedRow> Skipped, MatchUnits Units, MatchMemory Memory);
 
 /// <summary>
 /// Сопоставление строк редакции с видом работы (change <c>plan-08-matching</c>, ТЗ PLAN-6.1, PLAN-4, PLAN-5,
@@ -53,20 +53,21 @@ public sealed class RowMatching(
     public async Task<RowMatchOutcome> MatchRowAsync(
         EstimateRevision revision, EstimateRow row, RateChoice? choice, bool remember, CancellationToken ct)
     {
-        var estimate = await db.Estimates.FirstAsync(e => e.Id == revision.EstimateId, ct);
         if (choice is null)
         {
-            if (row.Bare) return new(Units(row, null), RateMatchMemory.Nothing);
+            if (row.Bare) return new(Units(row, null), MatchMemory.Nothing);
             if (!row.Unmatched) revision.EnsureEditable("Снять сопоставление строки");
             row.Unmatch();
             revision.RowsMatched(DateTimeOffset.UtcNow);
             await db.SaveChangesAsync(ct);
-            await log.RecordAsync(EstimateActions.Unmatched, estimate.Id.ToString(), EstimateActions.Label(estimate),
+            var unmatchedIn = await db.Estimates.FirstAsync(e => e.Id == revision.EstimateId, ct);
+            await log.RecordAsync(EstimateActions.Unmatched, unmatchedIn.Id.ToString(), EstimateActions.Label(unmatchedIn),
                 before: $"редакция {revision.Number}, строка {row.Order}", ct: ct);
-            return new(Units(row, null), RateMatchMemory.Nothing);
+            return new(Units(row, null), MatchMemory.Nothing);
         }
 
         var (workType, unit) = await ResolveAsync(choice, ct);
+        var estimate = await db.Estimates.FirstAsync(e => e.Id == revision.EstimateId, ct);
         var factor = RateMatching.FactorOf(choice.Factor, row.SourceUnit, unit);
         // Тот же выбор строку не меняет, но запомнить его можно: сопоставивший без запоминания передумал.
         if (!row.MatchedAs(workType.Id, unit.Id, factor))
@@ -82,7 +83,7 @@ public sealed class RowMatching(
         var memory = remember && RateMatchKey.Of(row.RateCode, revision.NormativeBase) is { } key
             ? await RateMatching.RememberSafelyAsync(db,
                 [new(key, new(workType.Id, unit.Id, factor, row.SourceUnit))], user, logger, ct)
-            : RateMatchMemory.Nothing;
+            : MatchMemory.Nothing;
         return new(Units(row, unit), memory);
     }
 
@@ -115,7 +116,7 @@ public sealed class RowMatching(
                 : new SkippedRow(r.Id, r.Order, SkippedRow.AlreadyMatched, "Строка уже сопоставлена."))
             .ToList();
         var units = new MatchUnits(source, unit.Name, factor);
-        if (open.Count == 0) return new(0, skipped, units, RateMatchMemory.Nothing);
+        if (open.Count == 0) return new(0, skipped, units, MatchMemory.Nothing);
 
         var planItem = await PlanItemAsync(estimate, workType, unit, ct);
         foreach (var row in open) row.Match(workType.Id, unit.Id, factor!.Value, planItem, rateMatchId: null);
@@ -130,7 +131,7 @@ public sealed class RowMatching(
                 .Select(r => (Key: RateMatchKey.Of(r.RateCode, revision.NormativeBase), Row: r))
                 .Where(x => x.Key is not null)
                 .Select(x => new RateToRemember(x.Key!, new(workType.Id, unit.Id, factor!.Value, x.Row.SourceUnit)))), user, logger, ct)
-            : RateMatchMemory.Nothing;
+            : MatchMemory.Nothing;
         return new(open.Count, skipped, units, memory);
     }
 

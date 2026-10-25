@@ -11,16 +11,6 @@ namespace BHS.CRG.Modules.Plan.Matching;
 /// <summary>Выбор сметчика, который надо запомнить: шифр → вид работы, единица и коэффициент.</summary>
 public sealed record RateToRemember(RateMatchKey Key, RateMatchValue Value);
 
-/// <summary>Что запомнилось сопоставлением — уезжает в ответе, чтобы экран сказал это словами.</summary>
-/// <param name="Remembered">Сколько записано: новых и перенацеленных вместе.</param>
-/// <param name="Replaced">Сколько из них заменили запомненное раньше другим выбором.</param>
-/// <param name="Failed">Запомнить НЕ УДАЛОСЬ, а сопоставление при этом записано (<c>memory.failed</c>). Ноль
-/// запомненного без признака читался бы как «запоминать было нечего».</param>
-public sealed record RateMatchMemory(int Remembered, int Replaced, bool Failed = false)
-{
-    public static readonly RateMatchMemory Nothing = new(0, 0);
-}
-
 /// <summary>
 /// Запомненные сопоставления шифров (change <c>plan-08-matching</c>, ТЗ PLAN-6.1): найти, запомнить, сравнить
 /// единицы. По образцу <c>SupplierMatching</c> модуля <c>costs</c>.
@@ -90,23 +80,15 @@ public static partial class RateMatching
         return [.. all.Where(c => !disputed.Contains(c.Key.Hash)).DistinctBy(c => c.Key.Hash)];
     }
 
-    /// <summary>
-    /// Запомнить выбор: новое сопоставление либо замена прежнего.
-    ///
-    /// <para>⚠️ <b>Вне транзакции сопоставления строк, и нарочно</b> (как <c>SupplierMatching.RememberAsync</c>):
-    /// таблица запомненного общая, и две сметы, сопоставляемые разом, добавляют один и тот же шифр — второй
-    /// получает отказ ключа. Внутри транзакции строк этот отказ погубил бы само сопоставление; здесь он значит
-    /// «кто-то успел раньше» — перечитываем и повторяем.</para>
-    /// </summary>
-    public static async Task<RateMatchMemory> RememberAsync(
+    /// <summary>Запомнить выбор: новое сопоставление либо замена прежнего (<see cref="Remembering{TMatch}" />).</summary>
+    public static Task<MatchMemory> RememberAsync(
         PlanDbContext db, IReadOnlyList<RateToRemember> chosen, IModuleUser user, CancellationToken ct)
     {
-        if (chosen.Count == 0) return RateMatchMemory.Nothing;
+        if (chosen.Count == 0) return Task.FromResult(MatchMemory.Nothing);
         var hashes = chosen.Select(c => c.Key.Hash).ToList();
-
-        for (var attempt = 0; ; attempt++)
+        return Remembering<RateMatch>.SaveAsync(db, async token =>
         {
-            var known = await db.RateMatches.Where(m => hashes.Contains(m.KeyHash)).ToDictionaryAsync(m => m.KeyHash, ct);
+            var known = await db.RateMatches.Where(m => hashes.Contains(m.KeyHash)).ToDictionaryAsync(m => m.KeyHash, token);
             int remembered = 0, replaced = 0;
             foreach (var (key, value) in chosen)
             {
@@ -122,50 +104,17 @@ public static partial class RateMatching
                     replaced++;
                 }
             }
-
-            try
-            {
-                await db.SaveChangesAsync(ct);
-                return new(remembered, replaced);
-            }
-            catch (Exception lost) when (attempt == 0
-                && lost is DbUpdateException or ConflictException { InnerException: DbUpdateConcurrencyException })
-            {
-                // Кто-то запомнил тот же шифр раньше или перенацелил его из списка, пока мы читали. Свои
-                // несохранённые записи — из-под отслеживания, иначе повтор записал бы их снова.
-                Detach(db);
-            }
-        }
+            return (remembered, replaced);
+        }, ct);
     }
 
-    /// <summary>
-    /// Запомнить, не дав отказу запоминания стать отказом сопоставления: строки к этому мгновению записаны.
-    /// Пробрось мы отказ — человек увидел бы «не сопоставлено» при сопоставленных строках, а экран остался бы
-    /// со старой версией редакции. Отказ уезжает в ответе признаком, причина — в журнал сервера.
-    /// </summary>
-    public static async Task<RateMatchMemory> RememberSafelyAsync(
-        PlanDbContext db, IReadOnlyList<RateToRemember> chosen, IModuleUser user, ILogger log, CancellationToken ct)
-    {
-        try
-        {
-            return await RememberAsync(db, chosen, user, ct);
-        }
-        catch (Exception failure) when (failure is not OperationCanceledException)
-        {
-            Detach(db);
-            log.LogWarning(failure, "Сопоставления шифров не запомнены ({Count}): строки сметы сопоставлены.", chosen.Count);
-            return new(0, 0, Failed: true);
-        }
-    }
+    /// <summary>Запомнить, не дав отказу запоминания стать отказом сопоставления: строки к этому мгновению записаны.</summary>
+    public static Task<MatchMemory> RememberSafelyAsync(
+        PlanDbContext db, IReadOnlyList<RateToRemember> chosen, IModuleUser user, ILogger log, CancellationToken ct) =>
+        Remembering<RateMatch>.SafelyAsync(db, () => RememberAsync(db, chosen, user, ct), chosen.Count, log);
 
     public static bool Same(RateMatchValue a, RateMatchValue b) =>
         a.WorkTypeId == b.WorkTypeId && a.UnitId == b.UnitId && a.Factor == b.Factor && SameUnit(a.SourceUnit, b.SourceUnit);
-
-    private static void Detach(PlanDbContext db)
-    {
-        foreach (var entry in db.ChangeTracker.Entries<RateMatch>().ToList())
-            entry.State = EntityState.Detached;
-    }
 
     private static string UnitText(string? text) =>
         text is null ? string.Empty : string.Concat(text.Where(c => !char.IsWhiteSpace(c))).ToLowerInvariant().Replace('ё', 'е');

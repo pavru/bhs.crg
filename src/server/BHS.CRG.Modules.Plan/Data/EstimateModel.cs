@@ -118,6 +118,7 @@ internal static class EstimateModel
         material.Property(m => m.Quantity).HasColumnName("quantity").HasPrecision(18, 6);
         material.Property(m => m.UnitPrice).HasColumnName("unit_price").HasPrecision(18, 2);
         material.Property(m => m.Amount).HasColumnName("amount").HasPrecision(18, 2);
+        material.Property(m => m.ResourceMatchId).HasColumnName("resource_match_id");
         material.Ignore(m => m.Unmatched);
         material.HasOne<EstimateRow>().WithMany().HasForeignKey(m => m.RowId).OnDelete(DeleteBehavior.Cascade);
         material.HasIndex(m => m.RowId).HasDatabaseName("ix_estimate_row_materials_row_id");
@@ -136,6 +137,7 @@ internal static class EstimateModel
 
         ConfigureImport(builder);
         RateMatch.Map(builder);
+        ResourceMatch.Map(builder);
     }
 
     /// <summary>

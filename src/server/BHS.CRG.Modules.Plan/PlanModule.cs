@@ -139,8 +139,9 @@ public sealed class PlanModule : IAppModule
         services.AddScoped<EstimateRevisionWriter>();
         services.AddScoped<IModuleJobHandler, EstimateImportJob>();
         // Подстановка запомненного при импорте (plan-08) — в точку расширения, оставленную plan-07.
-        services.TryAddScoped<IEstimateRowMatcher, RateRowMatcher>();
+        services.TryAddScoped<IEstimateRowMatcher, RememberedRowMatcher>();
         services.AddScoped<RowMatching>();
+        services.AddScoped<MaterialMatching>();
         services.AddScoped<EstimateImportCommit>();
     }
 
@@ -163,6 +164,8 @@ public sealed class PlanModule : IAppModule
         EstimateImportEndpoints.Map(endpoints);
         MatchEndpoints.Map(endpoints);
         RateMatchListEndpoints.Map(endpoints);
+        ResourceMatchEndpoints.Map(endpoints);
+        ResourceMatchListEndpoints.Map(endpoints);
     }
 
     /// <summary>
