@@ -24,10 +24,17 @@ public sealed class EstimateActions : IModuleActivityActions
     public static readonly ModuleActivityAction CurrentRevision =
         new("plan.estimate.current", "Действующая редакция сметы сменена", PlanModule.EstimateRead);
 
+    /// <summary>
+    /// Редакция создана импортом (<c>plan-07</c>, ТЗ PLAN-6, CORE-28): «редакция N, строк M, не разобрано K» —
+    /// частичный импорт виден в журнале, а не только в отчёте, который удалится вместе с редакцией.
+    /// </summary>
+    public static readonly ModuleActivityAction Imported =
+        new("plan.estimate.imported", "Смета импортирована", PlanModule.EstimateRead);
+
     public static readonly ModuleActivityAction RevisionDeleted =
         new("plan.revision.deleted", "Редакция сметы удалена", PlanModule.EstimateRead);
 
-    public IReadOnlyList<ModuleActivityAction> Actions => [Created, Changed, Deleted, CurrentRevision, RevisionDeleted];
+    public IReadOnlyList<ModuleActivityAction> Actions => [Created, Changed, Deleted, CurrentRevision, Imported, RevisionDeleted];
 
     internal static string Label(Data.Estimate estimate) => $"Смета «{estimate.Name}»";
 }

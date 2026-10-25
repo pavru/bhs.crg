@@ -47,7 +47,20 @@ public sealed class EstimateRevisionWriter(
     {
         var estimate = await db.Estimates.FirstOrDefaultAsync(e => e.Id == estimateId, ct)
             ?? throw new NotFoundException("Смета не найдена — возможно, её удалили.");
+        var revision = await StageAsync(estimate, source, rows, ct);
+        await db.SaveChangesAsync(ct);
+        return revision;
+    }
 
+    /// <summary>
+    /// Положить редакцию со строками в контекст, НЕ сохраняя: всё проверено, и сохранение — дело звавшего.
+    /// Так импорт (<c>plan-07</c>) пишет редакцию одной фиксацией вместе со своим исходом — редакция без
+    /// отметки у импорта или отметка без редакции были бы состоянием, которого не было.
+    /// </summary>
+    /// <param name="estimate">Смета, отслеживаемая этим контекстом.</param>
+    public async Task<EstimateRevision> StageAsync(
+        Estimate estimate, EstimateRevisionSource source, IReadOnlyList<EstimateRowDraft> rows, CancellationToken ct = default)
+    {
         foreach (var (row, i) in rows.Select((r, i) => (r, i)))
             if (string.IsNullOrWhiteSpace(row.Name))
                 throw new InvalidRequestException($"Строка {i + 1}: нет наименования.");
@@ -59,9 +72,9 @@ public sealed class EstimateRevisionWriter(
                 "не с чем сверить. Он заводится при старте приложения с модулем «Планирование»; перезапустите " +
                 "приложение и повторите.");
 
-        var number = (await db.EstimateRevisions.Where(r => r.EstimateId == estimateId)
+        var number = (await db.EstimateRevisions.Where(r => r.EstimateId == estimate.Id)
             .MaxAsync(r => (int?)r.Number, ct) ?? 0) + 1;
-        var revision = EstimateRevision.Create(estimateId, number, source, user.Id, user.Name, DateTimeOffset.UtcNow);
+        var revision = EstimateRevision.Create(estimate.Id, number, source, user.Id, user.Name, DateTimeOffset.UtcNow);
 
         // Сметное наполнение проходит охрану записи одним пакетом: тип и справочники схемы читаются раз
         // на редакцию, а не на строку, и одинаковое наполнение спрашивается один раз. Отказ называет все
@@ -92,8 +105,6 @@ public sealed class EstimateRevisionWriter(
         }
 
         if (estimate.CurrentRevisionId is null) estimate.MakeCurrent(revision);
-
-        await db.SaveChangesAsync(ct);
         return revision;
     }
 

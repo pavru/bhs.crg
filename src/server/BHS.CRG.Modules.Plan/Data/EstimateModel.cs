@@ -66,6 +66,10 @@ internal static class EstimateModel
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName(PlanDbContext.RevisionEstimateKey);
         // Номер растёт в смете; два импорта одновременно получат один номер — и второй отказ, а не дубль.
         revision.HasIndex(r => new { r.EstimateId, r.Number }).IsUnique().HasDatabaseName(PlanDbContext.RevisionNumberKey);
+        // Ключ импорта единствен (plan-07): двойное создание редакции из одного импорта даёт одну редакцию —
+        // вторая запись проигрывает здесь, а не заводит дубль, который потом не отличить от прежней.
+        revision.HasIndex(r => r.ImportKey).IsUnique().HasDatabaseName(PlanDbContext.RevisionImportKey)
+            .HasFilter("import_key IS NOT NULL");
 
         var row = builder.Entity<EstimateRow>();
         row.ToTable("estimate_rows");
@@ -156,6 +160,8 @@ internal static class EstimateModel
         import.Property(i => i.LsrName).HasColumnName("lsr_name").HasMaxLength(EstimateImport.LsrNameLength);
         import.Property(i => i.Parsed).HasColumnName("parsed").HasColumnType("jsonb");
         import.Property(i => i.Unparsed).HasColumnName("unparsed").HasColumnType("jsonb");
+        import.Property(i => i.ParsedPositions).HasColumnName("parsed_positions");
+        import.Property(i => i.PositionsInFile).HasColumnName("positions_in_file");
         import.Property(i => i.RefusalCode).HasColumnName("refusal_code").HasMaxLength(EstimateImport.RefusalCodeLength);
         import.Property(i => i.RefusalText).HasColumnName("refusal_text");
         import.Property(i => i.JobId).HasColumnName("job_id");

@@ -43,6 +43,7 @@ public class DomainExceptionPolicyTests
     private static readonly Dictionary<string, string> DeliberatelyFramework = new()
     {
         ["BHS.CRG.Modules.Plan/GrandSmeta/GrandSmetaSchemas.cs"] = "нет ресурса XSD в сборке модуля (plan-05): сборка собрана без схем — сбой поставки, а не отказ человеку",
+        ["BHS.CRG.Modules.Plan/Import/EstimateRowMatching.cs"] = "сопоставление строк вернуло не столько строк, сколько получило (plan-07): промах реализации IEstimateRowMatcher (plan-08), а не отказ человеку",
         ["BHS.CRG.Modules.Plan/Data/EstimateRevision.cs"] = "фиксация редакции без вида или названия производной (plan-06): промах кода КП и графика, который фиксирует, — человек фиксацию не зовёт",
         ["BHS.CRG.Modules.Costs/Data/InvoiceLine.cs"] = "бумажная сумма строки не в поле своего режима НДС (issue #1497): промах кода, звавшего досчёт, — человеку тот же запрет раньше называет разбор запроса (InvoiceLineRequests.Complete) своим 400",
         ["BHS.CRG.Domain/Storage/BlobRegistryEntry.cs"] = "негодный владелец файла (пустой, «любой», длиннее предела, ТЗ CORE-37.2): промах кода, кладущего файл, — владельца называет порт или служба, а не человек",

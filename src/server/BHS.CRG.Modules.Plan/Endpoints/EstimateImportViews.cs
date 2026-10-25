@@ -41,8 +41,7 @@ internal static class EstimateImportViews
         var unparsed = model?.Unparsed ?? EstimateImportJson.Unparsed(import);
         var positions = model?.Positions.ToList();
         if (import.State != EstimateImportState.Rejected && import.Kind is { } kind and not GrandSmetaKind.LocalEstimate)
-            marks.Add(new("notEstimate",
-                $"Это {GrandSmetaSchemas.KindName(kind)} — редакцией сметы {Its(kind)} не становится. Приложите файл к смете."));
+            marks.Add(new("notEstimate", NotEstimate(kind)));
         if (model is not null && positions is not null)
         {
             if (unparsed.Count > 0)
@@ -69,7 +68,7 @@ internal static class EstimateImportViews
             import.Kind is { } k ? GrandSmetaSchemas.KindName(k) : null, import.ProgramVersion, import.SchemaVersion,
             progress,
             import is { RefusalCode: { } code, RefusalText: { } text } ? new EstimateImportRefusalDto(code, text) : null,
-            positions?.Count, model?.PositionsInFile,
+            positions?.Count ?? import.ParsedPositions, model?.PositionsInFile ?? import.PositionsInFile,
             [.. unparsed.Select(u => new UnparsedPositionDto(u.Place, u.Line, u.Reason))],
             model is null || positions is null ? null : Summary(model, positions, cost),
             marks, import.RevisionId, import.CreatedAt, import.CreatedByName,
@@ -162,6 +161,10 @@ internal static class EstimateImportViews
         GrandSmetaKind.Conjuncture => "ka",
         _ => null,
     };
+
+    /// <summary>Почему документ не становится редакцией — одними словами в отчёте и в отказе создания редакции.</summary>
+    internal static string NotEstimate(GrandSmetaKind kind) =>
+        $"Это {GrandSmetaSchemas.KindName(kind)} — редакцией сметы {Its(kind)} не становится. Приложите файл к смете.";
 
     /// <summary>Местоимение по роду названия: «ведомость … — она», «конъюнктурный анализ — он».</summary>
     private static string Its(GrandSmetaKind kind) => kind == GrandSmetaKind.VolumeStatement ? "она" : "он";

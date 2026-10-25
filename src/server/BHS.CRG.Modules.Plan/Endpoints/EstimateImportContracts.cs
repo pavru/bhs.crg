@@ -61,3 +61,20 @@ public sealed record EstimateImportDto(
     int? Parsed, int? InFile, IReadOnlyList<UnparsedPositionDto> Unparsed, ImportSummaryDto? Summary,
     IReadOnlyList<PlanMark> Marks, Guid? RevisionId, DateTimeOffset CreatedAt, string? CreatedBy, string Version,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HiddenPart>? Hidden);
+
+/// <summary>Создание редакции из импорта: <c>acceptPartial</c> — согласие на редакцию без не разобранных
+/// позиций (ТЗ PLAN-7); без него импорт с не разобранными отвергается 409 с числами.</summary>
+public sealed record EstimateImportCommitRequest(bool AcceptPartial = false);
+
+/// <summary>Строка редакции, оставшаяся несопоставленной при создании, — и почему.</summary>
+public sealed record UnmatchedImportRowDto(int Row, string Reason);
+
+/// <summary>
+/// Редакция создана: отчёт импорта (теперь <c>committed</c>), смета с её редакциями и созданная редакция.
+/// </summary>
+/// <param name="EstimateCreated">Импорт завёл новую смету.</param>
+/// <param name="Repeated">Редакция создана раньше — тем же импортом: ответ называет её, второй нет.</param>
+/// <param name="Unmatched">Строки, которым подстановка дала вид работы, но позиция перечня не заведена.</param>
+public sealed record EstimateImportCommitDto(
+    EstimateImportDto Import, EstimateDto Estimate, Guid RevisionId, int RevisionNumber, bool EstimateCreated,
+    bool Repeated, IReadOnlyList<UnmatchedImportRowDto> Unmatched);

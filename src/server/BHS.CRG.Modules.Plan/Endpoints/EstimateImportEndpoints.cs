@@ -15,7 +15,7 @@ namespace BHS.CRG.Modules.Plan.Endpoints;
 
 /// <summary>
 /// Адреса импорта сметы из ГРАНД-Сметы (change <c>plan-07-estimate-import</c>, ТЗ PLAN-6, PLAN-7, D6 зонтика
-/// <c>plan-00-epic</c>): загрузка с разбором в фоне, отчёт разбора, список импортов стройки, отмена.
+/// <c>plan-00-epic</c>): загрузка с разбором в фоне, отчёт разбора, список импортов стройки, создание редакции, отмена.
 ///
 /// <para><b>Ворота.</b> Все адреса — под <c>plan.estimate.edit</c>: импорт — правка сметы, и отчёт его читает
 /// тот, кто импортирует (ТЗ PLAN-2, AUTH-8). Итог в отчёте — только с <c>plan.estimate.cost</c>.</para>
@@ -37,6 +37,7 @@ public static class EstimateImportEndpoints
         imports.MapPost("/", CreateAsync).RequireAuthorization(edit).DisableAntiforgery();
         imports.MapGet("/{id:guid}", GetAsync).RequireAuthorization(edit);
         imports.MapDelete("/{id:guid}", DeleteAsync).RequireAuthorization(edit);
+        imports.MapPost("/{id:guid}/commit", CommitAsync).RequireAuthorization(edit);
     }
 
     /// <summary>
@@ -186,6 +187,40 @@ public static class EstimateImportEndpoints
     private static async Task<IResult> GetAsync(
         Guid id, PlanDbContext db, IModuleUser user, IModuleJobs jobs, CancellationToken ct) =>
         Results.Ok(await EstimateImportViews.OneAsync(db, user, jobs, id, ct));
+
+    /// <summary>
+    /// Создать редакцию из разобранного импорта (ТЗ PLAN-6, PLAN-7) — <see cref="EstimateImportCommit" />.
+    /// Версия импорта — заголовком <c>If-Match</c>: вкладка, видевшая импорт до создания редакции в другой, получит
+    /// 409, а не вторую редакцию. Не разобранные без согласия — 409 с числами полями ответа.
+    /// </summary>
+    private static async Task<IResult> CommitAsync(
+        Guid id, EstimateImportCommitRequest? body, HttpRequest request, PlanDbContext db, IModuleUser user,
+        IModuleJobs jobs, EstimateImportCommit commit, CancellationToken ct)
+    {
+        var import = await db.EstimateImports.FirstOrDefaultAsync(i => i.Id == id, ct) ?? throw EstimateImportViews.NotFound();
+        EstimateEndpoints.EnsureSeen(request, db.VersionOf(import), "Импорт", "отчёт импорта");
+
+        EstimateImportCommitted done;
+        try
+        {
+            done = await commit.RunAsync(import, body?.AcceptPartial ?? false, ct);
+        }
+        catch (PartialImportException partial)
+        {
+            return Results.Conflict(new
+            {
+                error = partial.Message, code = "partial",
+                parsed = partial.Parsed, inFile = partial.InFile, unparsed = partial.Unparsed,
+            });
+        }
+
+        var dto = new EstimateImportCommitDto(
+            await EstimateImportViews.OneAsync(db, user, jobs, id, ct),
+            await EstimateViews.OneAsync(db, user, done.Estimate.Id, ct),
+            done.Revision.Id, done.Revision.Number, done.EstimateCreated, done.Repeated,
+            [.. done.Unmatched.Select(u => new UnmatchedImportRowDto(u.Row, u.Reason))]);
+        return done.Repeated ? Results.Ok(dto) : Results.Created($"/api/plan/revisions/{done.Revision.Id}", dto);
+    }
 
     /// <summary>
     /// Отменить импорт, из которого редакция не создана: запись уходит, файл удаляется. Отменить можно и идущий
