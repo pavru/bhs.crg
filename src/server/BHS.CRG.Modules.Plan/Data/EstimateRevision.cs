@@ -32,6 +32,7 @@ public sealed class EstimateRevision
     public const int FileNameLength = 300;
     public const int FreezeCodeLength = 32;
     public const int FreezeLabelLength = 300;
+    public const int NormativeBaseLength = 500;
 
     private EstimateRevision() { }
 
@@ -49,6 +50,12 @@ public sealed class EstimateRevision
 
     /// <summary>Версия схемы файла, по которой он разобран (ГРАНД-Смета OpenXML, <c>plan-05</c>).</summary>
     public string? SchemaVersion { get; private set; }
+
+    /// <summary>
+    /// Нормативная база файла, как её назвала программа (<c>RegionInfo/@RegionName</c>): часть ключа
+    /// запомненного сопоставления шифра (<c>plan-08</c>) — один шифр в разных базах бывает в разных единицах.
+    /// </summary>
+    public string? NormativeBase { get; private set; }
 
     /// <summary>Ключ импорта — по нему повтор того же файла узнаётся, а не заводит вторую редакцию
     /// (<c>plan-07</c>).</summary>
@@ -69,6 +76,13 @@ public sealed class EstimateRevision
 
     public string? FrozenLabel { get; private set; }
 
+    /// <summary>
+    /// Когда строки редакции сопоставляли в последний раз (<c>plan-08</c>). Нужна не ради даты: сопоставление
+    /// правит строки, а версию называет редакция (<c>If-Match</c>), — и без записи в саму редакцию две вкладки,
+    /// сопоставляющие одну смету, не узнали бы друг о друге.
+    /// </summary>
+    public DateTimeOffset? MatchedAt { get; private set; }
+
     public bool Frozen => FrozenAt is not null;
 
     internal static EstimateRevision Create(Guid estimateId, int number, EstimateRevisionSource source,
@@ -81,6 +95,7 @@ public sealed class EstimateRevision
             SourceBlobPath = source.BlobPath,
             SourceFileName = PlanText.Clip(source.FileName, FileNameLength),
             SchemaVersion = PlanText.Clip(source.SchemaVersion, SchemaVersionLength),
+            NormativeBase = PlanText.Clip(source.NormativeBase, NormativeBaseLength),
             ImportKey = PlanText.Clip(source.ImportKey, ImportKeyLength),
             ImportedAt = now,
             ImportedBy = importedBy,
@@ -105,6 +120,9 @@ public sealed class EstimateRevision
         FrozenLabel = PlanText.Clip(reason.Label, FreezeLabelLength);
     }
 
+    /// <summary>Строки сопоставлены: версия редакции сдвигается (<see cref="MatchedAt" />).</summary>
+    public void RowsMatched(DateTimeOffset now) => MatchedAt = now;
+
     /// <summary>
     /// Отказ правке зафиксированной редакции — 409 с названием производной (ТЗ PLAN-5). Зовут удаление
     /// редакции здесь и сопоставление строк (<c>plan-08</c>, правило решения В-6).
@@ -120,6 +138,8 @@ public sealed class EstimateRevision
     }
 }
 
-/// <summary>Откуда редакция: файл, версия его схемы и ключ импорта (заполняет импорт, <c>plan-07</c>).</summary>
+/// <summary>Откуда редакция: файл, версия его схемы, ключ импорта (заполняет импорт, <c>plan-07</c>) и
+/// нормативная база файла (<c>plan-08</c>).</summary>
 public sealed record EstimateRevisionSource(
-    string? BlobPath = null, string? FileName = null, string? SchemaVersion = null, string? ImportKey = null);
+    string? BlobPath = null, string? FileName = null, string? SchemaVersion = null, string? ImportKey = null,
+    string? NormativeBase = null);

@@ -2,21 +2,21 @@
 
 ## 1. PR 1: виды работ
 
-- [ ] 1.1 `Data/RateMatch.cs` (ключ — отпечаток приведённого шифра + база, значение — вид работы, единица
+- [x] 1.1 `Data/RateMatch.cs` (ключ — отпечаток приведённого шифра + база, значение — вид работы, единица
   классификатора, коэффициент, единица расценки, `xmin`) и миграция `RateMatches`
   (`--context PlanDbContext`) [PLAN-6.1]. Проверка — тест: второй ключ с тем же отпечатком отвергнут
   единственным индексом
-- [ ] 1.2 Сопоставление строки: вид работы, коэффициент, позиция перечня портом `plan-04`, объём позиции =
+- [x] 1.2 Сопоставление строки: вид работы, коэффициент, позиция перечня портом `plan-04`, объём позиции =
   объём × коэффициент; несопоставленная — `unmatched` [PLAN-6.1] [PLAN-4] [CORE-13]. Проверка —
   `RateMatchingTests`: «100 м → м» с коэффициентом 100 даёт позицию в «м» и объём 1200 из 12
-- [ ] 1.3 Массовое «сопоставить раздел ЛСР» с ответом «сопоставлено / пропущено с причиной» [PLAN-6.1].
+- [x] 1.3 Массовое «сопоставить раздел ЛСР» с ответом «сопоставлено / пропущено с причиной» [PLAN-6.1].
   Проверка — тест: строка другой единицы пропущена с `differentUnit`
-- [ ] 1.4 Запоминание после записи (`RememberSafelyAsync`, повтор при гонке), подстановка «запомнено»,
+- [x] 1.4 Запоминание после записи (`RememberSafelyAsync`, повтор при гонке), подстановка «запомнено»,
   `unit-changed` при расхождении единицы расценки [PLAN-6.1]. Проверка — тест: повторный импорт
   подставляет; изменённая единица — не подставляет
-- [ ] 1.5 Зафиксированная редакция: сопоставить несопоставленную — можно, пересопоставить — 409 (решение
+- [x] 1.5 Зафиксированная редакция: сопоставить несопоставленную — можно, пересопоставить — 409 (решение
       В-6) [PLAN-5]. Проверка — тест на обе ветки
-- [ ] 1.6 Адреса `PUT …/lines/{lineId}/match`, `POST …/sections/match`, список `rate-matches` с «забыть» и
+- [x] 1.6 Адреса `PUT …/lines/{lineId}/match`, `POST …/sections/match`, список `rate-matches` с «забыть» и
   «перенацелить» под `plan.estimate.edit` с `If-Match` [AUTH-8] [AUTH-9]. Проверка — тесты отказов:
   без `If-Match` — 400, устаревший — 409, только `plan.estimate.read` — 403, модуль выключен — 501;
   `EndpointGateInventoryTests` зелёный
@@ -35,7 +35,7 @@
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~RateMatch|FullyQualifiedName~ResourceMatch|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ModuleReferenceInventory"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок (клиент не менялся, проверка на всякий случай)
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~RateMatch|FullyQualifiedName~ResourceMatch|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ModuleReferenceInventory"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок (клиент не менялся, проверка на всякий случай)
+- [x] 3.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

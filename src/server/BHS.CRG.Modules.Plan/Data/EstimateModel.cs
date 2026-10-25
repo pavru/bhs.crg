@@ -50,6 +50,8 @@ internal static class EstimateModel
         revision.Property(r => r.SourceBlobPath).HasColumnName("source_blob_path");
         revision.Property(r => r.SourceFileName).HasColumnName("source_file_name").HasMaxLength(EstimateRevision.FileNameLength);
         revision.Property(r => r.SchemaVersion).HasColumnName("schema_version").HasMaxLength(EstimateRevision.SchemaVersionLength);
+        revision.Property(r => r.NormativeBase).HasColumnName("normative_base").HasMaxLength(EstimateRevision.NormativeBaseLength);
+        revision.Property(r => r.MatchedAt).HasColumnName("matched_at");
         revision.Property(r => r.ImportKey).HasColumnName("import_key").HasMaxLength(EstimateRevision.ImportKeyLength);
         revision.Property(r => r.ImportedAt).HasColumnName("imported_at");
         revision.Property(r => r.ImportedBy).HasColumnName("imported_by");
@@ -89,6 +91,7 @@ internal static class EstimateModel
         row.Property(r => r.Factor).HasColumnName("factor").HasPrecision(18, 6);
         row.Property(r => r.Volume).HasColumnName("volume").HasPrecision(18, 6);
         row.Property(r => r.PlanItemId).HasColumnName("plan_item_id");
+        row.Property(r => r.RateMatchId).HasColumnName("rate_match_id");
         row.Property(r => r.UnitCost).HasColumnName("unit_cost").HasPrecision(18, 2);
         row.Property(r => r.Total).HasColumnName("total").HasPrecision(18, 2);
         row.Property(r => r.Data).HasColumnName("data").HasColumnType("jsonb");
@@ -132,6 +135,7 @@ internal static class EstimateModel
         labor.HasIndex(l => l.RowId).HasDatabaseName("ix_estimate_row_labor_row_id");
 
         ConfigureImport(builder);
+        RateMatch.Map(builder);
     }
 
     /// <summary>

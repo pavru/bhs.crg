@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Plan.Data;
+using BHS.CRG.Modules.Plan.Matching;
 using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -39,8 +40,8 @@ public static class EstimateRowsEndpoints
     private static async Task<IResult> RowsAsync(
         Guid id, string? cursor, int? limit, PlanDbContext db, IModuleUser user, CancellationToken ct)
     {
-        if (!await db.EstimateRevisions.AnyAsync(r => r.Id == id, ct))
-            throw new NotFoundException("Редакция не найдена — возможно, её удалили.");
+        var revision = await db.EstimateRevisions.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id, ct)
+            ?? throw new NotFoundException("Редакция не найдена — возможно, её удалили.");
 
         var after = 0;
         if (!string.IsNullOrEmpty(cursor) && !int.TryParse(cursor, NumberStyles.None, CultureInfo.InvariantCulture, out after))
@@ -55,6 +56,19 @@ public static class EstimateRowsEndpoints
         var more = rows.Count > take;
         if (more) rows.RemoveAt(rows.Count - 1);
 
+        var hidden = await EstimateViews.HiddenAsync(user, ct);
+        var items = await ViewsAsync(db, revision, rows, hidden is null, ct);
+        var next = more ? rows[^1].Order.ToString(CultureInfo.InvariantCulture) : null;
+        return Results.Ok(new EstimateRowsPageDto(items, next, hidden));
+    }
+
+    /// <summary>
+    /// Строки редакции ответом — с ресурсами и пометками. Одним местом на чтение строк и на ответ сопоставления
+    /// (<c>plan-08</c>): строка, только что сопоставленная, обязана выглядеть так же, как при следующем чтении.
+    /// </summary>
+    internal static async Task<List<EstimateRowDto>> ViewsAsync(
+        PlanDbContext db, EstimateRevision revision, IReadOnlyList<EstimateRow> rows, bool cost, CancellationToken ct)
+    {
         var rowIds = rows.Select(r => r.Id).ToList();
         var materials = (await db.EstimateRowMaterials.AsNoTracking()
                 .Where(m => rowIds.Contains(m.RowId)).OrderBy(m => m.Order).ToListAsync(ct))
@@ -62,23 +76,20 @@ public static class EstimateRowsEndpoints
         var labor = (await db.EstimateRowLabor.AsNoTracking()
                 .Where(x => rowIds.Contains(x.RowId)).OrderBy(x => x.Order).ToListAsync(ct))
             .ToLookup(x => x.RowId);
-
-        var hidden = await EstimateViews.HiddenAsync(user, ct);
-        var cost = hidden is null;
-        var items = rows.Select(r => Row(r, materials[r.Id], labor[r.Id], cost)).ToList();
-        var next = more ? rows[^1].Order.ToString(CultureInfo.InvariantCulture) : null;
-        return Results.Ok(new EstimateRowsPageDto(items, next, hidden));
+        var memory = await RateMarks.ForAsync(db, revision, rows, ct);
+        return [.. rows.Select(r => Row(r, materials[r.Id], labor[r.Id], memory.Of(r), cost))];
     }
 
     private static EstimateRowDto Row(
-        EstimateRow row, IEnumerable<EstimateRowMaterial> materials, IEnumerable<EstimateRowLabor> labor, bool cost)
+        EstimateRow row, IEnumerable<EstimateRowMaterial> materials, IEnumerable<EstimateRowLabor> labor,
+        IReadOnlyList<PlanMark> rateMarks, bool cost)
     {
         var section = row.LsrSectionCode is null && row.LsrSectionName is null
             ? null
             : new LsrSectionDto(row.LsrSectionCode, row.LsrSectionName);
         return new EstimateRowDto(
             row.Id, row.Order, section, row.NumberInSection, row.RateCode, row.Name, row.SourceVolume, row.SourceUnit,
-            row.WorkTypeId, row.UnitId, row.Factor, row.Volume, row.PlanItemId, Marks(row),
+            row.WorkTypeId, row.UnitId, row.Factor, row.Volume, row.PlanItemId, [.. Marks(row), .. rateMarks],
             [.. materials.Select(m => Material(m, cost))],
             [.. labor.Select(x => new EstimateLaborDto(x.ManHours))],
             cost ? new EstimateRowCostDto(row.UnitCost, row.Total, Data(row.Data)) : null);

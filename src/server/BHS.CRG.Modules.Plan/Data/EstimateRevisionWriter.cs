@@ -8,13 +8,15 @@ namespace BHS.CRG.Modules.Plan.Data;
 /// <summary>Строка будущей редакции — как её разобрал импорт (<c>plan-07</c>).</summary>
 /// <param name="Data">Сметное наполнение по схеме <c>ПозицияСметы</c> — JSON-объект; <c>null</c> — пусто.</param>
 /// <param name="Labor">Трудозатраты рабочих, чел.-ч на объём строки, — в порядке файла.</param>
+/// <param name="RateMatchId">Запомненное сопоставление, подставившее вид работы (<c>plan-08</c>).</param>
 public sealed record EstimateRowDraft(
     string Name,
     string? LsrSectionCode = null, string? LsrSectionName = null, string? NumberInSection = null,
     string? RateCode = null, decimal? SourceVolume = null, string? SourceUnit = null,
     Guid? WorkTypeId = null, Guid? UnitId = null, decimal? Factor = null, decimal? Volume = null,
     Guid? PlanItemId = null, decimal? UnitCost = null, decimal? Total = null, string? Data = null,
-    IReadOnlyList<EstimateMaterialDraft>? Materials = null, IReadOnlyList<decimal>? Labor = null);
+    IReadOnlyList<EstimateMaterialDraft>? Materials = null, IReadOnlyList<decimal>? Labor = null,
+    Guid? RateMatchId = null);
 
 /// <summary>Материал строки будущей редакции.</summary>
 public sealed record EstimateMaterialDraft(

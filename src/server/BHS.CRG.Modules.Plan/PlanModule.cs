@@ -2,6 +2,7 @@ using BHS.CRG.Modules.Data;
 using BHS.CRG.Modules.Plan.Data;
 using BHS.CRG.Modules.Plan.Endpoints;
 using BHS.CRG.Modules.Plan.Import;
+using BHS.CRG.Modules.Plan.Matching;
 using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
@@ -137,8 +138,9 @@ public sealed class PlanModule : IAppModule
         services.AddSingleton<IModuleActivityActions, EstimateActions>();
         services.AddScoped<EstimateRevisionWriter>();
         services.AddScoped<IModuleJobHandler, EstimateImportJob>();
-        // Сопоставление строк при импорте — точка расширения: plan-08 заменит пустую реализацию своей.
-        services.TryAddScoped<IEstimateRowMatcher, NoEstimateRowMatcher>();
+        // Подстановка запомненного при импорте (plan-08) — в точку расширения, оставленную plan-07.
+        services.TryAddScoped<IEstimateRowMatcher, RateRowMatcher>();
+        services.AddScoped<RowMatching>();
         services.AddScoped<EstimateImportCommit>();
     }
 
@@ -159,6 +161,8 @@ public sealed class PlanModule : IAppModule
         EstimateEndpoints.Map(endpoints);
         EstimateRowsEndpoints.Map(endpoints);
         EstimateImportEndpoints.Map(endpoints);
+        MatchEndpoints.Map(endpoints);
+        RateMatchListEndpoints.Map(endpoints);
     }
 
     /// <summary>
