@@ -50,7 +50,8 @@ describe('храповик интерфейса: счёт', () => {
       '<Modal title="Окно" /> <Button title="Почему" /> <iframe title="Скан" />',
       '<span className="truncate" title={f.name}>{f.name}</span>',
       '<p className={`line-clamp-2 ${x}`} title="Длинный текст">Длинный текст</p>',
-    ].join(' '))).toEqual({});
+      // Сам фрейм считает своё правило (native-pdf-frame), а его title подсказкой не считается.
+    ].join(' '))).toEqual({ 'native-pdf-frame': 1 });
   });
 
   it('у обрезанной строки подсказка не о ней — нарушение', () => {
@@ -224,6 +225,23 @@ describe('храповик интерфейса: счёт', () => {
     expect(countViolations([
       "const selectCls = hasDv ? 'border-brand-subtle!' : '';",
       '<DateInput label="Дата" size="sm" className={`w-full ${selectCls}`} />',
+    ].join('\n'))).toEqual({});
+  });
+
+  /** Встроенный просмотрщик браузера во фрейме вместо своего (issue #1490, [UI-23]). */
+  it('фрейм в features/ — тегом и через createElement, по одному на фрейм', () => {
+    expect(countViolations([
+      '<iframe src={url} title="Файл" />',
+      '<embed\n  type="application/pdf"\n  src={url} /> <object data={url}><p>нет</p></object>',
+      "const f = document.createElement('iframe'); const g = doc.createElement(`EMBED`); createElement(\"object\");",
+    ].join('\n'))).toEqual({ 'native-pdf-frame': 6 });
+  });
+
+  it('фрейм в shared/ (печать просмотрщика), чужие теги и слово «iframe» в тексте — не фрейм', () => {
+    expect(countViolations("const frame = document.createElement('iframe');", { dir: 'shared' })).toEqual({});
+    expect(countViolations([
+      "<PdfViewer source={bytes} /> document.createElement('div'); createElement(tag);",
+      '<p>Раньше здесь стоял iframe, embed и object.</p> <Frame />',
     ].join('\n'))).toEqual({});
   });
 

@@ -298,6 +298,17 @@ jobs:
       - name: Сборка
         run: npm run build
 
+      # nginx поставки отдаёт `.mjs` как application/octet-stream, и модульный worker (pdf.js,
+      # issue #1490) на таком ответе не запускается — молча. Ни dev, ни `vite preview` этого не видят:
+      # у них своя таблица типов. Поэтому сторож — здесь, на собранном клиенте.
+      - name: Сборка без .mjs
+        run: |
+          found="$(find dist -name '*.mjs')"
+          if [ -n "$found" ]; then
+            echo "::error::В сборке есть .mjs — nginx поставки отдаст их как octet-stream: $found"
+            exit 1
+          fi
+
       - name: Тесты
         run: npm test
 

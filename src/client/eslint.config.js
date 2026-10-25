@@ -64,6 +64,21 @@ export default defineConfig([
     },
   },
   {
+    // pdf.js — разборщик чужих файлов, и знает о нём один движок просмотрщика (issue #1490): там же
+    // заплатки функций, без которых он падает в браузерах на границе поддержки, байты вместо адреса
+    // (CSP поставки) и перевод его исключений в отказы. Импорт мимо движка всё это обошёл бы.
+    files: ['**/*.{ts,tsx}'],
+    ignores: ['src/shared/ui/viewer/pdfEngine.ts', 'src/shared/ui/viewer/pdfWorker.ts'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{
+          group: ['pdfjs-dist', 'pdfjs-dist/*'],
+          message: 'pdf.js импортирует только движок просмотрщика — показывайте PDF через PdfViewer из @/shared/ui/viewer (issue #1490).',
+        }],
+      }],
+    },
+  },
+  {
     // Единственное место, где обращение к randomUUID уместно: сама утилита и её тест — они этот
     // вызов и заворачивают.
     files: ['src/shared/utils/localId.ts', 'src/shared/utils/localId.test.ts'],
