@@ -19,7 +19,8 @@ internal sealed class BimTotals(XElement root) : PositionTotals(root)
 
     protected override decimal Total(XElement position, XElement? vidRab, Factors f, decimal quantity)
     {
-        // Строка в текущих ценах (материал по КА, ФСБЦ): цена × коэффициент к материалам × объём, без НР и СП
+        // Строка в текущих ценах (материал по КА, ФСБЦ): цена × коэффициент к материалам × объём, без НР и СП.
+        // Нет PriceCurr — цена нулевая, её программа не пишет: итог такой строки у неё тоже 0 (ЛСР ЭОМ)
         if (position.Text("PriceLevel") == "Curr")
         {
             var current = position.Element("PriceCurr");

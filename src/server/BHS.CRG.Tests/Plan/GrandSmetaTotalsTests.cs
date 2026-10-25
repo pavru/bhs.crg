@@ -86,6 +86,8 @@ public class GrandSmetaTotalsTests
     [InlineData("lsr-16.3.0-vn-no-itog", "Options=\"AddZatr ", "Options=\"AddZatr RoundPos ", "метод БИМ (опция RoundPos)")]
     [InlineData("lsr-16.3.0-rim1-no-itog", "Options=\"AddZatr ZpmByTz ", "Options=\"AddZatr ", "метод РИМ (нет опции ZpmByTz)")]
     [InlineData("lsr-16.3.0-vn-no-itog", "IndexesLinkMode=\"Category\"", "IndexesLinkMode=\"Default\"", "метод БИМ (индексы PosOne, привязка Default)")]
+    [InlineData("lsr-16.3.0-vn-no-itog", "MatRoundMode=\"None\"", "MatRoundMode=\"Up\"", "метод БИМ (параметр MatRoundMode=Up)")]
+    [InlineData("lsr-16.3.0-rim1-no-itog", " MatDigits=\"4\"", "", "метод РИМ (параметр MatDigits=не указан)")]
     public void Настройка_вне_перечня_отвергнута_с_её_названием(string sample, string from, string to, string named)
     {
         var file = GrandSmetaSamples.OpenEdited(sample, x => x.Replace(from, to));
@@ -110,6 +112,58 @@ public class GrandSmetaTotalsTests
         Assert.All(m.Unparsed, u => Assert.Contains("индекс «нет такого» не найден", u.Reason));
         Assert.Contains(m.Chapters, c => c.Total is null);
         Assert.Null(m.Totals.Total);
+    }
+
+    /// <summary>Коэффициент только к базисным ценам (без <c>Curr</c>) — вне перечня: досчёт применил бы его и к
+    /// текущим. Позиции, на которые он действует, не досчитаны и названы; остальные досчитаны.</summary>
+    [Fact]
+    public void Коэффициент_вне_перечня_уводит_свои_позиции_в_не_разобранные()
+    {
+        var file = GrandSmetaSamples.OpenEditedXml("lsr-16.3.0-vn-no-itog", x =>
+        {
+            var k = x.Root!.Element("Koefficients")!.Elements("K").First(e => e.Attribute("VrsLinks") is not null);
+            k.SetAttributeValue("Options", string.Join(' ', ((string)k.Attribute("Options")!).Split(' ').Where(o => o != "Curr")));
+        });
+
+        var m = LocalEstimateReader.Read(file);
+
+        Assert.NotEmpty(m.Unparsed);
+        Assert.NotEmpty(m.Positions);
+        Assert.All(m.Unparsed, u => Assert.Contains("действует не на базисные и текущие цены вместе", u.Reason));
+    }
+
+    /// <summary>Ресурс РИМ без текущей цены, но с базисной, программа оценивает базисной × индекс к ресурсу — такого
+    /// в парах нет. Позиция не досчитана и названа, а не посчитана с нулевой ценой.</summary>
+    [Fact]
+    public void Ресурс_РИМ_без_текущей_цены_уводит_позицию_в_не_разобранные()
+    {
+        var file = GrandSmetaSamples.OpenEditedXml("lsr-16.3.0-rim1-no-itog", x =>
+            x.Descendants("Position").Elements("Resources").Elements("Mat")
+                .First(m => m.Element("PriceCurr") is not null && m.Element("PriceBase") is not null)
+                .Element("PriceCurr")!.Remove());
+
+        var m = LocalEstimateReader.Read(file);
+
+        var bad = Assert.Single(m.Unparsed);
+        Assert.Contains("нет текущей цены: цена по индексу к базисной досчётом не поддерживается", bad.Reason);
+    }
+
+    /// <summary>Правила, которые пары проверяют лишь вместе с итогом, должны в них встречаться — иначе сторож
+    /// молчит: коэффициент документа с привязкой к разделам (действует не на все позиции своего вида работ) и
+    /// неактивная позиция РИМ с ненулевым итогом, не вошедшая в итог раздела.</summary>
+    [Theory]
+    [InlineData("lsr-16.3.0-rim1-no-itog")]
+    [InlineData("lsr-16.3.0-rim2-no-itog")]
+    public void Пары_РИМ_проверяют_привязку_к_разделу_и_неактивную_позицию(string sample)
+    {
+        var bound = XDocument.Parse(GrandSmetaSamples.DataXmlText(sample)).Root!.Element("Koefficients")!.Elements("K")
+            .Single(k => (string?)k.Attribute("AllChapters") == "No").Attribute("Code")!.Value;
+
+        var m = LocalEstimateReader.Read(GrandSmetaSamples.Open(sample));
+
+        Assert.Contains(m.Positions, p => p.Coefficients.Any(c => c.Code == bound));
+        Assert.Contains(m.Chapters, c => c.Positions.All(p => p.Coefficients.All(k => k.Code != bound)));
+        Assert.Contains(m.Positions, p => p.IsInactive && p.Total != 0);
     }
 
     /// <summary>Номер позиции сквозной по документу («13», подчинённая — «1.1») — ключ пары.</summary>

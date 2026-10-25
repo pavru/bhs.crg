@@ -128,7 +128,7 @@ public static class LocalEstimateReader
         return new LocalEstimatePosition(
             index, number, p.Text("Code"), p.Text("Caption") ?? "", p.Text("Units"), quantity,
             totalCurrent, total.Base, total.Source,
-            quantity != 0 ? Math.Round(totalCurrent / quantity, 2, MidpointRounding.AwayFromZero) : null,
+            quantity != 0 ? GrandSmetaXml.Kopecks(totalCurrent / quantity) : null,
             p.HasOption("Inactive"), p.Text("SlaveRow") == "Yes", total.Labor, materials, applied,
             MarketAnalysis(p));
     }
