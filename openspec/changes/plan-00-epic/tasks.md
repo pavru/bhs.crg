@@ -28,8 +28,9 @@
 
 ## 2. Сметы
 
-- [ ] 2.1 `plan-05-grand-smeta-reader` (2) — разбор OpenXML по схемам; второй PR — досчёт итога ЛСР без итогов
+- [x] 2.1 `plan-05-grand-smeta-reader` (2) — разбор OpenXML по схемам; второй PR — досчёт итога ЛСР без итогов
   (БИМ, РИМ) [PLAN-7] [PLAN-8] [STG-12]. Условие — 0.2 (PR 1), 0.3 (PR 2). Проверка — change заархивирован
+  (слиты #1611, c3d0c1eb, и #1613, b2560095; архив `2026-10-25-plan-05-grand-smeta-reader`)
 - [x] 2.2 `plan-06-estimate-model` (1) — смета, редакции, строки, ресурсы, действующая редакция,
   `plan.estimate.cost` [PLAN-1] [PLAN-3] [PLAN-4] [PLAN-5] [PLAN-5.2] [PLAN-9.1]. Проверка — change
   заархивирован (слит #1602, f011afe4; архив `2026-10-24-plan-06-estimate-model`)
