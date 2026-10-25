@@ -5,10 +5,12 @@ import {
 } from 'lucide-react';
 import {
   type FileAttachment, isFileAttachment, getFileCategory,
-  uploadAttachment, uploadPrintForm, loadAttachmentObjectUrl, formatBytes,
+  uploadAttachment, uploadPrintForm, loadAttachmentBlob, loadAttachmentObjectUrl, formatBytes, saveBlob,
 } from '@/shared/api/attachments';
+import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { PdfViewer, ViewerTitleBar } from '@/shared/ui/viewer/PdfViewer';
 
 export interface PrintFormContext {
   setId: string;
@@ -28,13 +30,60 @@ export function FileTypeIcon({ mimeType }: { mimeType: string }) {
 export function FilePreviewModal({ open, onOpenChange, attachment }: {
   open: boolean; onOpenChange: (o: boolean) => void; attachment: FileAttachment;
 }) {
+  // PDF — общим просмотрщиком (issue #1492): окно без своей шапки, верхняя строка у просмотрщика.
+  const pdf = getFileCategory(attachment.mimeType) === 'pdf';
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title={attachment.fileName} wide nothingToLose>
+    <Modal open={open} onOpenChange={onOpenChange} title={attachment.fileName} wide nothingToLose
+      headerless={pdf} flushBody={pdf}>
       {/* Тело заводится заново на каждое открытие и на каждый новый файл (issue #858): ключ вместо
           эффекта, гасившего прошлую загрузку тремя setState на старте. Так «идёт загрузка» — это
           начальное состояние свежего компонента, а не состояние, в которое его надо возвращать. */}
-      <FilePreviewBody key={attachment.blobPath} attachment={attachment} />
+      {pdf
+        ? <PdfPreviewBody key={attachment.blobPath} attachment={attachment} onClose={() => onOpenChange(false)} />
+        : <FilePreviewBody key={attachment.blobPath} attachment={attachment} />}
     </Modal>
+  );
+}
+
+/**
+ * PDF вложения — общим просмотрщиком, а не встроенным просмотрщиком браузера во фрейме (issue #1492):
+ * Chrome на Android на месте листа показывал кнопку «Открыть», Safari на iOS — одну первую страницу.
+ *
+ * Высота области задана явно: без неё лента листов нулевой высоты, и лист пуст без ошибки. На телефоне
+ * окно и так во весь экран (`Modal`, узкий экран), и область берёт всё под строкой — второй слой
+ * поверх окна был бы лишним.
+ */
+function PdfPreviewBody({ attachment, onClose }: { attachment: FileAttachment; onClose: () => void }) {
+  const [blob, setBlob] = useState<Blob | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    loadAttachmentBlob(attachment.blobPath)
+      .then(res => { if (!cancelled) setBlob(res.blob); })
+      .catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : 'Ошибка загрузки'); });
+    return () => { cancelled = true; };
+  }, [attachment.blobPath]);
+
+  return (
+    <>
+      <ViewerTitleBar title={attachment.fileName} source={blob} onClose={onClose} />
+      {/* Своя область наложения и обрезка: лист не выходит за неё поверх строки. */}
+      <div data-testid="file-preview-area" className="relative isolate overflow-hidden h-[70vh] max-sm:h-auto max-sm:flex-1 min-h-0">
+        {error
+          ? <p className="text-sm text-danger py-4 text-center">{error}</p>
+          : (
+            // «Скачать» — выход из отказа «не читается как PDF», который велит скачать оригинал.
+            <PdfViewer source={blob} documentKey={attachment.blobPath} title={attachment.fileName}
+              actions={blob && (
+                <Button size="sm" variant="tonal" icon={<Download size={13} />}
+                  onClick={() => saveBlob(blob, attachment.fileName)}>
+                  Скачать
+                </Button>
+              )} />
+          )}
+      </div>
+    </>
   );
 }
 
@@ -68,10 +117,6 @@ function FilePreviewBody({ attachment }: { attachment: FileAttachment }) {
       {objectUrl && category === 'image' && (
         <img src={objectUrl} alt={attachment.fileName}
           className="max-w-full max-h-[70vh] object-contain mx-auto block rounded" />
-      )}
-      {objectUrl && category === 'pdf' && (
-        <iframe src={objectUrl} title={attachment.fileName}
-          className="w-full border-0 rounded" style={{ height: '70vh' }} />
       )}
       {objectUrl && category === 'office' && (
         <div className="flex flex-col items-center gap-4 py-10">
