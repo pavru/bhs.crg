@@ -214,7 +214,7 @@ public class EstimateImportParseTests(PlanOnlyHost host)
         var db = scope.ServiceProvider.GetRequiredService<PlanDbContext>();
         var estimate = await db.Estimates.AsNoTracking().SingleAsync(e => e.Id == estimateId);
         var previous = EstimateImport.IntoEstimate(estimate, "plan/прежний.gsfx", "прежний.gsfx", null, null, DateTimeOffset.UtcNow);
-        previous.ParsedLocalEstimate(lsrNumber, "Прежний расчёт", "{}", "[]", DateTimeOffset.UtcNow);
+        previous.ParsedLocalEstimate(lsrNumber, "Прежний расчёт", "{}", "[]", 1, 1, DateTimeOffset.UtcNow);
         db.EstimateImports.Add(previous);
         await db.SaveChangesAsync();
         await scope.ServiceProvider.GetRequiredService<EstimateRevisionWriter>().AddAsync(estimateId,

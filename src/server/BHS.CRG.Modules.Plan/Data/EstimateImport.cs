@@ -83,8 +83,16 @@ public sealed class EstimateImport
     /// <summary>Модель разбора ЛСР (<c>ParsedLocalEstimate</c> без не разобранного) — JSON; у ВОР и КА — пусто.</summary>
     public string? Parsed { get; private set; }
 
-    /// <summary>Не разобранные позиции с причиной — JSON-массив; у ВОР и КА — пусто.</summary>
+    /// <summary>Не разобранные позиции с причиной — JSON-массив; у ВОР и КА — пусто. После создания редакции
+    /// остаётся: отчёт импорта у редакции перечисляет, чего в ней нет.</summary>
     public string? Unparsed { get; private set; }
+
+    /// <summary>Разобрано позиций — «N» из «N из M». Колонкой, а не из модели: модель после создания редакции
+    /// очищается, а отчёт у редакции числа называет.</summary>
+    public int? ParsedPositions { get; private set; }
+
+    /// <summary>Позиций в файле — «M» из «N из M».</summary>
+    public int? PositionsInFile { get; private set; }
 
     /// <summary>Почему не разобран: имя <c>GrandSmetaRefusal</c> или <see cref="FailedCode" />.</summary>
     public string? RefusalCode { get; private set; }
@@ -94,7 +102,7 @@ public sealed class EstimateImport
     /// <summary>Фоновая операция разбора — по ней отчёт показывает ход.</summary>
     public Guid? JobId { get; private set; }
 
-    /// <summary>Редакция, созданная из импорта (<c>plan-07</c>, PR 2).</summary>
+    /// <summary>Редакция, созданная из импорта.</summary>
     public Guid? RevisionId { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
@@ -160,13 +168,16 @@ public sealed class EstimateImport
     }
 
     /// <summary>Разобрана ЛСР: модель и не разобранное — до решения человека.</summary>
-    public void ParsedLocalEstimate(string? number, string? name, string parsed, string unparsed, DateTimeOffset now)
+    public void ParsedLocalEstimate(
+        string? number, string? name, string parsed, string unparsed, int positions, int inFile, DateTimeOffset now)
     {
         EnsureParsing();
         LsrNumber = PlanText.Clip(number, LsrNumberLength);
         LsrName = PlanText.Clip(name, LsrNameLength);
         Parsed = parsed;
         Unparsed = unparsed;
+        ParsedPositions = positions;
+        PositionsInFile = inFile;
         Finish(EstimateImportState.Parsed, now);
     }
 
@@ -183,6 +194,24 @@ public sealed class EstimateImport
         RefusalCode = PlanText.Clip(code, RefusalCodeLength);
         RefusalText = text;
         Finish(EstimateImportState.Rejected, now);
+    }
+
+    /// <summary>
+    /// Из импорта создана редакция: импорт теперь — её отчёт. Модель разбора очищается — она большая, а редакция
+    /// хранит строки сама (design, Risks); числа и не разобранное остаются. Новая смета заведена — импорт
+    /// называет её, а не параметры, по которым её заводили: стройку и раздел держит теперь она.
+    /// </summary>
+    public void Committed(Estimate estimate, EstimateRevision revision)
+    {
+        if (State != EstimateImportState.Parsed)
+            throw new ConflictException("Редакцию создать нельзя: импорт не в состоянии «разобран».");
+        EstimateId = estimate.Id;
+        NewEstimateName = null;
+        NewEstimateSectionId = null;
+        NewEstimateKind = null;
+        RevisionId = revision.Id;
+        Parsed = null;
+        State = EstimateImportState.Committed;
     }
 
     /// <summary>Отказ отменить импорт, из которого уже создана редакция: файл теперь держит она.</summary>
