@@ -21,7 +21,7 @@
 - [x] 1.3 `worker: { format: 'es' }` и worker через `?worker` в `pdfEngine.ts` [UI-21]. Проверка — в
   `dist` нет `*.mjs` (шаг после `npm run build` в работе «Frontend» `ci.yml`, имя работы не меняется);
   редактор шаблонов (Monaco) открывается в `vite preview`
-- [ ] 1.4 `preview.headers` с CSP из `deploy/nginx.conf` и тест сверки строк [UI-22]. Проверка — тест
+- [x] 1.4 `preview.headers` с CSP из `deploy/nginx.conf` и тест сверки строк [UI-22]. Проверка — тест
   краснеет на правке строки в `nginx.conf`; живые прогоны зелёные под этой политикой
 - [x] 1.5 `no-restricted-imports` на `pdfjs-dist*` вне `shared/ui/viewer/pdfEngine.ts` [UI-10]. Проверка —
   пробный импорт в `features/` краснит `npm run lint:ratchet`
@@ -66,7 +66,7 @@
 - [x] 3.1 `loadInvoiceImage` → `Blob`; `BuiltImage` на просмотрщике, `documentKey =
   invoiceId|blobPath|builtAt`, «Открыть во вкладке», область `relative isolate overflow-hidden`
   [COST-6.2] [UI-10] [UI-20]. Проверка — `npx tsc -b`; тесты `features/costs` зелёные
-- [ ] 3.2 `invoices-smoke.mjs:481` переписан [COST-6.2] [UI-12]:
+- [x] 3.2 `invoices-smoke.mjs:481` переписан [COST-6.2] [UI-12]:
   - область `getByRole('region', { name: /вид для чтения/ })`;
   - canvas первого листа не пуст (`getImageData` не только белое);
   - «из N» по числу листов `converter-reference.xlsx`;
