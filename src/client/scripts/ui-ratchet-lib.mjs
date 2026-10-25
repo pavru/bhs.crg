@@ -157,6 +157,17 @@ export const RULES = [
     count: countDateFrames,
     instead: 'рамку поля даты рисует DateInput size="md" (h-9) | "sm" (h-7) — как у Select; ошибка — invalid, только чтение — readOnly; className — ширина и место в раскладке (docs/UI.md, «Дата и время»)',
   },
+  {
+    id: 'native-pdf-frame',
+    // Фрейм вместо своего просмотрщика (issue #1490, [UI-23]): встроенный просмотрщик браузера во
+    // фрейме у каждого браузера свой, на телефоне его нет вовсе, а текст из него в форму не скопировать
+    // по-нашему. По синтаксическому дереву: `<iframe`, `<embed`, `<object` в разметке и создание их через
+    // `createElement` (строкой, в любых кавычках). Законный — печать файла самим просмотрщиком
+    // (`shared/ui/viewer/printPdf.ts`): правило смотрит только features/. Оставшиеся места стоят в
+    // уровне и уходят из него каждым переводом.
+    count: countNativeFrames,
+    instead: 'показ PDF — PdfViewer (shared/ui/viewer: source — байты, documentKey, title, actions — выход места; overlay — во весь экран); «во вкладке» — openInNewTab, печать — Ctrl+P в просмотрщике (docs/UI.md, таблица контролов)',
+  },
 ];
 
 // Классы оформления пишутся строкой, шаблоном или выражением — правило читает текст значения
@@ -397,6 +408,27 @@ function countNativeTitles(text) {
         .find(p => ts.isJsxAttribute(p) && p.name.getText(sf) === 'className')?.initializer?.getText(sf) ?? '';
       const truncated = /\b(?:truncate|line-clamp-\d+)\b/.test(cls) && repeatsContent(node.initializer, element);
       if (/^[a-z]/.test(tag) && tag !== 'iframe' && !truncated) n++;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+const FRAME_TAGS = new Set(['iframe', 'embed', 'object']);
+
+/** `<iframe>`, `<embed>`, `<object>` и `createElement('iframe')` — см. правило `native-pdf-frame`. */
+function countNativeFrames(text) {
+  if (!/iframe|embed|object/.test(text)) return 0;
+  const sf = parse(text);
+  let n = 0;
+  const visit = node => {
+    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && FRAME_TAGS.has(node.tagName.getText(sf)))
+      n++;
+    if (ts.isCallExpression(node) && /(?:^|\.)createElement$/.test(node.expression.getText(sf))) {
+      const tag = node.arguments[0];
+      if (tag && (ts.isStringLiteral(tag) || ts.isNoSubstitutionTemplateLiteral(tag)) && FRAME_TAGS.has(tag.text.toLowerCase()))
+        n++;
     }
     ts.forEachChild(node, visit);
   };

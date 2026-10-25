@@ -2,9 +2,16 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
+import { deliveryCspOnPreview, pdfjsAssets } from './viteSupport';
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  // pdf.js: файлы рядом с библиотекой — в сборку (pdfjs/<версия>/), политика поставки — в preview
+  // (issue #1490, viteSupport.ts).
+  plugins: [react(), tailwindcss(), pdfjsAssets(), deliveryCspOnPreview()],
+  // Worker — модулем, а не классическим скриптом: pdf.js внутри него делает import() запасных
+  // декодеров. Собирается он при этом в `.js`, а не `.mjs`: nginx поставки отдал бы `.mjs` как
+  // application/octet-stream, и worker не запустился бы (сторож — шаг после сборки в CI).
+  worker: { format: 'es' },
   resolve: {
     alias: { '@': path.resolve(__dirname, './src') },
   },

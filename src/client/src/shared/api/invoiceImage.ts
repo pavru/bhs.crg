@@ -82,8 +82,11 @@ export function useRebuildInvoiceImage(id: string, blobPath: string | null) {
   });
 }
 
-/** Сам вид — PDF. Ссылку отзывает тот, кто её получил. */
-export async function loadInvoiceImage(id: string): Promise<string> {
+/**
+ * Сам вид — PDF, байтами (issue #1490): просмотрщику нужны байты, а не адрес — под `connect-src 'self'`
+ * поставки `blob:` он не прочёл бы. Тип ставим сами: ответу сервера не доверяем.
+ */
+export async function loadInvoiceImage(id: string): Promise<Blob> {
   const response = await apiClient.get(`/costs/invoices/${id}/scan/image/content`, { responseType: 'blob' });
-  return URL.createObjectURL(new Blob([response.data as BlobPart], { type: 'application/pdf' }));
+  return new Blob([response.data as BlobPart], { type: 'application/pdf' });
 }
