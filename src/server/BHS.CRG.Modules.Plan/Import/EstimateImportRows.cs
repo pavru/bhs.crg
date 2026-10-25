@@ -21,7 +21,10 @@ internal static class EstimateImportRows
             string.IsNullOrWhiteSpace(p.Caption) ? p.Code ?? $"Позиция {p.Number}" : p.Caption,
             LsrSectionCode: chapter.Index.ToString(CultureInfo.InvariantCulture),
             LsrSectionName: chapter.Caption,
-            NumberInSection: p.Number,
+            // Порядковый номер в разделе, а не номер файла («13», «1.1»): тот сквозной по документу, и одна
+            // позиция, добавленная в начало, сдвинула бы его во всех разделах ниже. Номер в разделе — часть
+            // ключа переноса распределения при повторном импорте (D9 зонтика).
+            NumberInSection: p.IndexInChapter.ToString(CultureInfo.InvariantCulture),
             RateCode: p.Code,
             SourceVolume: p.Quantity,
             SourceUnit: p.Units,

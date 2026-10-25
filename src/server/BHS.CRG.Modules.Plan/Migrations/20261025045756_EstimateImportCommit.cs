@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -11,13 +10,6 @@ namespace BHS.CRG.Modules.Plan.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<DateTimeOffset>(
-                name: "committed_at",
-                schema: "plan",
-                table: "estimate_imports",
-                type: "timestamp with time zone",
-                nullable: true);
-
             migrationBuilder.AddColumn<int>(
                 name: "parsed_positions",
                 schema: "plan",
@@ -48,11 +40,6 @@ namespace BHS.CRG.Modules.Plan.Migrations
                 name: "ix_estimate_revisions_import_key",
                 schema: "plan",
                 table: "estimate_revisions");
-
-            migrationBuilder.DropColumn(
-                name: "committed_at",
-                schema: "plan",
-                table: "estimate_imports");
 
             migrationBuilder.DropColumn(
                 name: "parsed_positions",

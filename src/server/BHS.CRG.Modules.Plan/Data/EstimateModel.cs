@@ -166,7 +166,6 @@ internal static class EstimateModel
         import.Property(i => i.RefusalText).HasColumnName("refusal_text");
         import.Property(i => i.JobId).HasColumnName("job_id");
         import.Property(i => i.RevisionId).HasColumnName("revision_id");
-        import.Property(i => i.CommittedAt).HasColumnName("committed_at");
         import.Property(i => i.CreatedAt).HasColumnName("created_at");
         import.Property(i => i.CreatedBy).HasColumnName("created_by");
         import.Property(i => i.CreatedByName).HasColumnName("created_by_name");

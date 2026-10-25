@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BHS.CRG.Modules.Plan.Migrations
 {
     [DbContext(typeof(PlanDbContext))]
-    [Migration("20261025030803_EstimateImportCommit")]
+    [Migration("20261025045756_EstimateImportCommit")]
     partial class EstimateImportCommit
     {
         /// <inheritdoc />
@@ -93,10 +93,6 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("blob_path");
-
-                    b.Property<DateTimeOffset?>("CommittedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("committed_at");
 
                     b.Property<Guid>("ConstructionId")
                         .HasColumnType("uuid")

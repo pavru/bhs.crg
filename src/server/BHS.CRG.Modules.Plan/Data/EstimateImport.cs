@@ -105,8 +105,6 @@ public sealed class EstimateImport
     /// <summary>Редакция, созданная из импорта.</summary>
     public Guid? RevisionId { get; private set; }
 
-    public DateTimeOffset? CommittedAt { get; private set; }
-
     public DateTimeOffset CreatedAt { get; private set; }
 
     /// <summary>Кто загрузил — справка, а не связь.</summary>
@@ -203,7 +201,7 @@ public sealed class EstimateImport
     /// хранит строки сама (design, Risks); числа и не разобранное остаются. Новая смета заведена — импорт
     /// называет её, а не параметры, по которым её заводили: стройку и раздел держит теперь она.
     /// </summary>
-    public void Committed(Estimate estimate, EstimateRevision revision, DateTimeOffset now)
+    public void Committed(Estimate estimate, EstimateRevision revision)
     {
         if (State != EstimateImportState.Parsed)
             throw new ConflictException("Редакцию создать нельзя: импорт не в состоянии «разобран».");
@@ -214,7 +212,6 @@ public sealed class EstimateImport
         RevisionId = revision.Id;
         Parsed = null;
         State = EstimateImportState.Committed;
-        CommittedAt = now;
     }
 
     /// <summary>Отказ отменить импорт, из которого уже создана редакция: файл теперь держит она.</summary>

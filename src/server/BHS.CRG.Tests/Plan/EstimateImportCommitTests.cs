@@ -14,7 +14,7 @@ namespace BHS.CRG.Tests.Plan;
 /// <summary>
 /// Создание редакции из импорта (change <c>plan-07-estimate-import</c>, PR 2; ТЗ PLAN-6, PLAN-7, STG-6.1,
 /// CORE-4, CORE-28): согласие на частичный файл, повтор и двойное нажатие, сбой между позициями и строками,
-/// следующий номер в смете с редакциями.
+/// отказ ключа позиции, файл без разобранных позиций, следующий номер в смете с редакциями.
 /// </summary>
 [Collection(PlanOnlyCollection.Name)]
 public class EstimateImportCommitTests(PlanOnlyHost host)
@@ -233,6 +233,66 @@ public class EstimateImportCommitTests(PlanOnlyHost host)
         }
     }
 
+    /// <summary>
+    /// Отказ ключа позиции перечня не роняет создание редакции: строка ложится несопоставленной — без
+    /// отказавшего вида работы и без позиции, — а причина уходит в ответ; остальные строки сопоставлены.
+    /// Номер в разделе — порядковый в разделе ЛСР, а не сквозной номер файла (ключ переноса, D9 зонтика).
+    /// </summary>
+    [Fact]
+    public async Task Отказ_ключа_оставляет_строку_несопоставленной_с_причиной()
+    {
+        var site = await EstimateSeed.SiteAsync(host);
+        var c = await EstimateSeed.ClassifierAsync(host);
+        var client = await EstimateImportFlow.EditorAsync(host);
+        var importId = EstimateImportFlow.Id(await ParsedAsync(client, site));
+        var unknown = Guid.NewGuid();
+
+        using var scope = host.Services.CreateScope();
+        var commit = ActivatorUtilities.CreateInstance<EstimateImportCommit>(scope.ServiceProvider,
+            (IEstimateRowMatcher)new FirstRowUnknownMatcher(unknown, c.WorkType, c.Unit));
+        var db = scope.ServiceProvider.GetRequiredService<PlanDbContext>();
+        var done = await commit.RunAsync(await db.EstimateImports.SingleAsync(i => i.Id == importId), acceptPartial: false,
+            CancellationToken.None);
+
+        var refused = Assert.Single(done.Unmatched);
+        Assert.Equal(1, refused.Row);
+        Assert.Contains("такой записи нет", refused.Reason);
+        var rows = await db.EstimateRows.AsNoTracking().Where(r => r.RevisionId == done.Revision.Id)
+            .OrderBy(r => r.Order).ToListAsync();
+        Assert.Null(rows[0].WorkTypeId);
+        Assert.Null(rows[0].PlanItemId);
+        Assert.Equal(c.Unit, rows[0].UnitId);
+        Assert.All(rows.Skip(1), r => Assert.NotNull(r.PlanItemId));
+        foreach (var section in rows.GroupBy(r => r.LsrSectionCode))
+            Assert.Equal(Enumerable.Range(1, section.Count()).Select(i => i.ToString()), section.Select(r => r.NumberInSection));
+    }
+
+    /// <summary>
+    /// Ни одной разобранной позиции — редакции нет и с согласием на частичный файл: пустая первая редакция стала
+    /// бы действующей, и план стройки молча вышел бы пустым (ТЗ PLAN-7).
+    /// </summary>
+    [Fact]
+    public async Task Ни_одной_разобранной_позиции_редакции_нет_и_с_согласием()
+    {
+        var site = await EstimateSeed.SiteAsync(host);
+        var client = await EstimateImportFlow.EditorAsync(host);
+        var all = GrandSmetaSamples.DataXmlText(Lsr).Split("<Position ").Length - 1;
+        var report = await EstimateImportFlow.OutcomeAsync(client, await EstimateImportFlow.UploadAsync(client,
+            EstimateImportFlow.Form(EstimateImportFlow.WithBrokenPositions(Lsr, all), "Data.xml", site.Construction,
+                newName: "Пустая")));
+        Assert.Equal("parsed", report.GetProperty("state").GetString());
+        Assert.Equal(0, report.GetProperty("parsed").GetInt32());
+
+        var response = await client.SendAsync(
+            EstimateImportFlow.Commit(EstimateImportFlow.Id(report), Version(report), acceptPartial: true));
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Contains("не разобрана ни одна позиция", await response.Content.ReadAsStringAsync());
+        using var scope = host.Services.CreateScope();
+        Assert.False(await scope.ServiceProvider.GetRequiredService<PlanDbContext>().Estimates
+            .AnyAsync(e => e.ConstructionId == site.Construction));
+    }
+
     private async Task<JsonElement> ParsedAsync(HttpClient client, EstimateSeed.Site site)
     {
         var report = await EstimateImportFlow.OutcomeAsync(client, await EstimateImportFlow.UploadAsync(client, site.Construction, Lsr));
@@ -250,6 +310,15 @@ public class EstimateImportCommitTests(PlanOnlyHost host)
             EstimateRowMatchTarget target, IReadOnlyList<EstimateRowDraft> rows, CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<EstimateRowDraft>>(
                 [.. rows.Select(r => r with { WorkTypeId = workType, UnitId = unit, Factor = 1m, Volume = r.SourceVolume })]);
+    }
+
+    /// <summary>Подстановка, у которой первая строка получает вид работы, которого в классификаторе нет.</summary>
+    private sealed class FirstRowUnknownMatcher(Guid unknown, Guid workType, Guid unit) : IEstimateRowMatcher
+    {
+        public Task<IReadOnlyList<EstimateRowDraft>> ApplyAsync(
+            EstimateRowMatchTarget target, IReadOnlyList<EstimateRowDraft> rows, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<EstimateRowDraft>>([.. rows.Select((r, i) =>
+                r with { WorkTypeId = i == 0 ? unknown : workType, UnitId = unit, Factor = 1m, Volume = r.SourceVolume })]);
     }
 
     private sealed class InjectedFailure() : Exception("сбой между позициями перечня и записью редакции");

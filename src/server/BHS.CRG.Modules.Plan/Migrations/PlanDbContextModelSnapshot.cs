@@ -91,10 +91,6 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasColumnType("text")
                         .HasColumnName("blob_path");
 
-                    b.Property<DateTimeOffset?>("CommittedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("committed_at");
-
                     b.Property<Guid>("ConstructionId")
                         .HasColumnType("uuid")
                         .HasColumnName("construction_id");

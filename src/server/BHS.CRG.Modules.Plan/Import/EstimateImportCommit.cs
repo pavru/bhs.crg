@@ -61,6 +61,13 @@ public sealed class EstimateImportCommit(
         var model = Committable(import);
         var unparsed = model.Unparsed.Count;
         var parsed = model.Positions.Count();
+        // Ни одной позиции — редакции не из чего быть: пустая первая редакция стала бы действующей, и план
+        // стройки по ней молча вышел бы пустым. Согласие на частичный файл этого не меняет.
+        if (parsed == 0)
+            throw new ConflictException(unparsed > 0
+                ? $"В файле не разобрана ни одна позиция из {unparsed} — редакции из него не создать. Отчёт разбора " +
+                  "называет причины; исправьте файл и загрузите его заново."
+                : "В файле нет ни одной позиции — редакции из него не создать.");
         if (unparsed > 0 && !acceptPartial) throw new PartialImportException(parsed, model.PositionsInFile, unparsed);
 
         var created = import.EstimateId is null;
@@ -71,9 +78,8 @@ public sealed class EstimateImportCommit(
             : Estimate.Create(import.ConstructionId, import.NewEstimateSectionId, import.NewEstimateName!,
                 import.NewEstimateKind ?? EstimateKind.Main, DateTimeOffset.UtcNow);
 
-        var drafts = await matcher.ApplyAsync(new(estimate.ConstructionId, estimate.SectionId), EstimateImportRows.Drafts(model), ct);
-        if (drafts.Count != parsed)
-            throw new InvalidOperationException($"Сопоставление вернуло {drafts.Count} строк вместо {parsed}.");
+        var drafts = await matcher.ApplyCheckedAsync(
+            new(estimate.ConstructionId, estimate.SectionId), EstimateImportRows.Drafts(model), ct);
         var (rows, unmatched) = await WithPlanItemsAsync(estimate, drafts, ct);
 
         EstimateRevision revision;
@@ -90,7 +96,7 @@ public sealed class EstimateImportCommit(
             }
             revision = await writer.StageAsync(estimate,
                 new EstimateRevisionSource(import.BlobPath, import.FileName, import.SchemaVersion, import.Id.ToString()), rows, ct);
-            import.Committed(estimate, revision, DateTimeOffset.UtcNow);
+            import.Committed(estimate, revision);
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
         }
