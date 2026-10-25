@@ -51,8 +51,25 @@ public sealed class EstimateActions : IModuleActivityActions
     public static readonly ModuleActivityAction RateMatchForgotten =
         new("plan.ratematch.forgotten", "Запомненное сопоставление шифра забыто", PlanModule.EstimateRead);
 
+    /// <summary>Материал строки сопоставлен с позицией номенклатуры (<c>plan-08</c>, ТЗ PLAN-9.1).</summary>
+    public static readonly ModuleActivityAction MaterialMatched =
+        new("plan.revision.materialmatched", "Материал строки сметы сопоставлен", PlanModule.EstimateRead);
+
+    public static readonly ModuleActivityAction MaterialUnmatched =
+        new("plan.revision.materialunmatched", "Сопоставление материала строки сметы снято", PlanModule.EstimateRead);
+
+    /// <summary>Запомненное сопоставление ресурса перенацелено из списка (<c>plan-08</c>).</summary>
+    public static readonly ModuleActivityAction ResourceMatchPointed =
+        new("plan.resourcematch.pointed", "Запомненное сопоставление ресурса перенацелено", PlanModule.EstimateRead);
+
+    public static readonly ModuleActivityAction ResourceMatchForgotten =
+        new("plan.resourcematch.forgotten", "Запомненное сопоставление ресурса забыто", PlanModule.EstimateRead);
+
     public IReadOnlyList<ModuleActivityAction> Actions =>
-        [Created, Changed, Deleted, CurrentRevision, Imported, RevisionDeleted, Matched, Unmatched, RateMatchPointed, RateMatchForgotten];
+    [
+        Created, Changed, Deleted, CurrentRevision, Imported, RevisionDeleted, Matched, Unmatched, RateMatchPointed,
+        RateMatchForgotten, MaterialMatched, MaterialUnmatched, ResourceMatchPointed, ResourceMatchForgotten,
+    ];
 
     internal static string Label(Data.Estimate estimate) => $"Смета «{estimate.Name}»";
 }

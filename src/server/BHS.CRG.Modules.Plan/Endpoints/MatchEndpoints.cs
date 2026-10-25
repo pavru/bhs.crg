@@ -89,8 +89,8 @@ public sealed record SectionMatchRequest(
 
 /// <param name="Version">Новая версия редакции — её называет следующая правка.</param>
 public sealed record RowMatchDto(
-    EstimateRowDto Row, string Version, MatchUnits Units, RateMatchMemory Memory,
+    EstimateRowDto Row, string Version, MatchUnits Units, MatchMemory Memory,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HiddenPart>? Hidden);
 
 public sealed record SectionMatchDto(
-    int Matched, IReadOnlyList<SkippedRow> Skipped, string Version, MatchUnits Units, RateMatchMemory Memory);
+    int Matched, IReadOnlyList<SkippedRow> Skipped, string Version, MatchUnits Units, MatchMemory Memory);

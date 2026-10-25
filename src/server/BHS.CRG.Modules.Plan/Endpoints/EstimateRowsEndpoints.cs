@@ -77,12 +77,13 @@ public static class EstimateRowsEndpoints
                 .Where(x => rowIds.Contains(x.RowId)).OrderBy(x => x.Order).ToListAsync(ct))
             .ToLookup(x => x.RowId);
         var memory = await RateMarks.ForAsync(db, revision, rows, ct);
-        return [.. rows.Select(r => Row(r, materials[r.Id], labor[r.Id], memory.Of(r), cost))];
+        var resources = await ResourceMarks.ForAsync(db, materials.SelectMany(g => g), ct);
+        return [.. rows.Select(r => Row(r, materials[r.Id], labor[r.Id], memory.Of(r), resources, cost))];
     }
 
     private static EstimateRowDto Row(
         EstimateRow row, IEnumerable<EstimateRowMaterial> materials, IEnumerable<EstimateRowLabor> labor,
-        IReadOnlyList<PlanMark> rateMarks, bool cost)
+        IReadOnlyList<PlanMark> rateMarks, ResourceMarks resources, bool cost)
     {
         var section = row.LsrSectionCode is null && row.LsrSectionName is null
             ? null
@@ -90,14 +91,14 @@ public static class EstimateRowsEndpoints
         return new EstimateRowDto(
             row.Id, row.Order, section, row.NumberInSection, row.RateCode, row.Name, row.SourceVolume, row.SourceUnit,
             row.WorkTypeId, row.UnitId, row.Factor, row.Volume, row.PlanItemId, [.. Marks(row), .. rateMarks],
-            [.. materials.Select(m => Material(m, cost))],
+            [.. materials.Select(m => Material(m, resources.Of(m), cost))],
             [.. labor.Select(x => new EstimateLaborDto(x.ManHours))],
             cost ? new EstimateRowCostDto(row.UnitCost, row.Total, Data(row.Data)) : null);
     }
 
-    private static EstimateMaterialDto Material(EstimateRowMaterial m, bool cost) => new(
+    private static EstimateMaterialDto Material(EstimateRowMaterial m, IReadOnlyList<PlanMark> remembered, bool cost) => new(
         m.Id, m.Order, m.NomenclatureId, m.SourceName, m.SourceCode, m.SourceUnit, m.Quantity,
-        m.Unmatched ? [new("unmatched", "Не сопоставлен: нет позиции номенклатуры")] : [],
+        m.Unmatched ? [new("unmatched", "Не сопоставлен: нет позиции номенклатуры")] : remembered,
         cost ? new MaterialCostDto(m.UnitPrice, m.Amount) : null);
 
     /// <summary>«Не сопоставлена» (ТЗ PLAN-4, D17 зонтика): строка видна, но в план не входит — и сказано почему.</summary>

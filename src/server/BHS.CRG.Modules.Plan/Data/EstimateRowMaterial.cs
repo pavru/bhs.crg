@@ -38,7 +38,29 @@ public sealed class EstimateRowMaterial
 
     public decimal? Amount { get; private set; }
 
+    /// <summary>
+    /// Пометка «запомнено» (<c>plan-08</c>, D8 зонтика): запомненное сопоставление ресурса, которое подставило
+    /// позицию; <c>null</c> — выбирал человек либо материал не сопоставлен. Без внешнего ключа, как у строки:
+    /// забытое материал не меняет, а что с ним стало, пометка вычисляет на чтении.
+    /// </summary>
+    public Guid? ResourceMatchId { get; private set; }
+
     public bool Unmatched => NomenclatureId is null;
+
+    /// <summary>Сопоставить материал с позицией номенклатуры (<c>plan-08</c>, ТЗ PLAN-9.1).</summary>
+    /// <param name="resourceMatchId">Запомненное, которым материал сопоставлен; <c>null</c> — выбор человека.</param>
+    internal void Match(Guid nomenclatureId, Guid? resourceMatchId)
+    {
+        NomenclatureId = nomenclatureId;
+        ResourceMatchId = resourceMatchId;
+    }
+
+    /// <summary>Снять сопоставление: материал снова ждёт выбора и в материалы плана не входит.</summary>
+    internal void Unmatch()
+    {
+        NomenclatureId = null;
+        ResourceMatchId = null;
+    }
 
     internal static EstimateRowMaterial Create(Guid rowId, int order, EstimateMaterialDraft draft) => new()
     {
@@ -52,5 +74,6 @@ public sealed class EstimateRowMaterial
         Quantity = draft.Quantity,
         UnitPrice = draft.UnitPrice,
         Amount = draft.Amount,
+        ResourceMatchId = draft.ResourceMatchId,
     };
 }

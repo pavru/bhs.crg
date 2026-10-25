@@ -49,6 +49,9 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
     /// получает отказ здесь и повторяет, перечитав.</summary>
     internal const string RateMatchKey = "ux_rate_matches_key";
 
+    /// <summary>Единственность ключа запомненного ресурса (<c>plan-08</c>) — тем же правилом.</summary>
+    internal const string ResourceMatchKey = "ux_resource_matches_key";
+
     protected override string Schema => SchemaName;
 
     public DbSet<Estimate> Estimates => Set<Estimate>();
@@ -74,6 +77,12 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
 
     /// <summary>Версия запомненного сопоставления — её называют «перенацелить» и «забыть» из списка.</summary>
     public string VersionOf(RateMatch match) => Version(match);
+
+    /// <summary>Запомненные сопоставления ресурсов с номенклатурой (<c>plan-08</c>).</summary>
+    public DbSet<ResourceMatch> ResourceMatches => Set<ResourceMatch>();
+
+    /// <summary>Версия запомненного ресурса — её называют «перенацелить» и «забыть» из списка.</summary>
+    public string VersionOf(ResourceMatch match) => Version(match);
 
     /// <summary>Версия записи импорта — её называют создание редакции и отмена импорта.</summary>
     public string VersionOf(EstimateImport import) => Version(import);
@@ -140,7 +149,7 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
             return new ConflictException(
                 "Импорт тем временем изменили — разбор завершился, импорт отменили или из него создали редакцию в " +
                 "другой вкладке. Перечитайте отчёт импорта и повторите.", e);
-        if (e is DbUpdateConcurrencyException && e.Entries.Any(x => x.Entity is RateMatch))
+        if (e is DbUpdateConcurrencyException && e.Entries.Any(x => x.Entity is RateMatch or ResourceMatch))
             return new ConflictException(
                 "Запомненное сопоставление тем временем изменили или забыли, и это действие не выполнено. Перечитайте " +
                 "список запомненного и повторите.", e);
