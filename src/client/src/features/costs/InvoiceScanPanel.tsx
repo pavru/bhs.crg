@@ -3,6 +3,7 @@ import { Download, FileText, FileUp, Maximize2, RotateCw } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { loadInvoiceScan } from '@/shared/api/invoices';
 import { loadInvoiceImage, useInvoiceImage } from '@/shared/api/invoiceImage';
+import { openInNewTab } from '@/shared/ui/viewer/openInNewTab';
 import { acceptOf, fileShownAs, recognizedKinds, shownKinds, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
 import { useCan } from '@/shared/api/access';
 import { useToast } from '@/shared/ui/Toast';
@@ -197,14 +198,13 @@ export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
           <div className="flex gap-2 mt-1">
             {built && (
               <Button size="sm" variant="text" loading={busy} icon={<Maximize2 size={13} />}
-                onClick={async () => {
+                onClick={() => {
+                  // Вкладка открывается сразу, в самом нажатии, а вид приходит в неё по готовности:
+                  // открытую после ожидания блокировщик всплывающих окон режет (issue #1490).
                   setBusy(true);
-                  try {
-                    const url = await loadInvoiceImage(invoiceId);
-                    window.open(url, '_blank');
-                    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-                  } catch (e) { toast.apiError(e, 'Вид для чтения не открыт'); }
-                  finally { setBusy(false); }
+                  openInNewTab(() => loadInvoiceImage(invoiceId))
+                    .catch(e => toast.apiError(e, 'Вид для чтения не открыт'))
+                    .finally(() => setBusy(false));
                 }}>
                 Открыть вид для чтения
               </Button>

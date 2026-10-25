@@ -1,0 +1,213 @@
+import './pdfPolyfills';
+import {
+  getDocument, GlobalWorkerOptions, InvalidPDFException, PasswordException, PixelsPerInch, TextLayer, version,
+} from 'pdfjs-dist';
+import type { PDFDocumentLoadingTask, PDFDocumentProxy, PDFPageProxy, PageViewport } from 'pdfjs-dist';
+import PdfWorker from './pdfWorker?worker';
+
+/**
+ * Движок просмотрщика PDF — единственный файл главного потока, которому можно импортировать
+ * `pdfjs-dist` (`no-restricted-imports`, issue #1490). Остальной просмотрщик знает только типы
+ * отсюда; в тестах компонента этот модуль подменяется целиком.
+ *
+ * - Байты, а не адрес: под `connect-src 'self'` поставки pdf.js не прочёл бы `blob:`.
+ * - Worker один на приложение, создаётся при первом открытии и не гасится; гасятся документы.
+ *   Запасного разбора в главном потоке нет: чужой PDF не разбирается рядом с интерфейсом.
+ * - Аннотации рисуются в холст; слой форм, XFA и скрипты PDF не подключаются вовсе.
+ */
+
+export type FailureKind = 'not-pdf' | 'password' | 'no-pages' | 'worker' | 'broken';
+
+/** Отказ движка, переведённый в наш вид: место показывает по нему слова и выход. */
+export class ViewerFailure extends Error {
+  readonly kind: FailureKind;
+  constructor(kind: FailureKind, cause?: unknown) {
+    super(`Просмотрщик: ${kind}`, { cause });
+    this.name = 'ViewerFailure';
+    this.kind = kind;
+  }
+}
+
+/** Размер листа в CSS-пикселях при масштабе 100 %, с собственным поворотом страницы. */
+export interface PageSize { width: number; height: number }
+
+/** Идущая работа над листом: отрисовка или слой текста. */
+export interface PageTask { promise: Promise<void>; cancel(): void }
+
+export interface PdfDocument {
+  readonly numPages: number;
+  /** Размеры всех листов — по одному, в фоне: листы бывают разные, А3 рядом с А4. */
+  pageSizes(): Promise<PageSize[]>;
+  /** Рисует лист в холст. `pixelRatio` — плотность холста (DPR, уже срезанный потолком пикселей). */
+  render(pageNumber: number, canvas: HTMLCanvasElement, view: PageView & { pixelRatio: number }): PageTask;
+  /** Слой текста листа в `container`; масштаб и поворот — те же, что у холста. */
+  textLayer(pageNumber: number, container: HTMLElement, view: PageView): PageTask;
+  /** Текст листа одной строкой — для проверок, интерфейсу он не нужен. */
+  text(pageNumber: number): Promise<string>;
+  /** Освобождает ресурсы листа, ушедшего из видимой области. */
+  release(pageNumber: number): void;
+  destroy(): Promise<void>;
+}
+
+/** Масштаб (1 = 100 %) и поворот показа (0/90/180/270). */
+export interface PageView { scale: number; rotation: number }
+
+export interface LoadingDocument { promise: Promise<PdfDocument>; cancel(): void }
+
+let workerFailure: ((e: unknown) => void)[] = [];
+let workerBroken: unknown = null;
+
+/** Поднимает worker, если его ещё нет. В Node (тест движка) pdf.js разбирает сам, в том же потоке. */
+function ensureWorker(): void {
+  if (GlobalWorkerOptions.workerPort || typeof Worker === 'undefined') return;
+  try {
+    const worker = new PdfWorker();
+    // Кусок worker'а не загрузился (выпуск сменил хеши) — pdf.js об этом не узнаёт и ждал бы вечно.
+    worker.addEventListener('error', e => {
+      workerBroken = e;
+      const waiting = workerFailure;
+      workerFailure = [];
+      waiting.forEach(fail => fail(e));
+    });
+    GlobalWorkerOptions.workerPort = worker;
+  } catch (e) {
+    workerBroken = e;
+  }
+}
+
+let assetBase: string | null = null;
+
+/** Откуда брать файлы рядом с библиотекой. Только для теста движка в Node: там это путь на диске. */
+export function setAssetBase(base: string): void { assetBase = base.endsWith('/') ? base : `${base}/`; }
+
+/** `pdfjs/<версия>/` — туда их кладёт плагин сборки (`viteSupport.ts`). */
+function assets(): string {
+  return assetBase ?? new URL(`${import.meta.env.BASE_URL}pdfjs/${version}/`, document.baseURI).href;
+}
+
+function translate(e: unknown): ViewerFailure {
+  if (e instanceof ViewerFailure) return e;
+  const name = (e as { name?: string } | null)?.name;
+  if (e instanceof PasswordException || name === 'PasswordException') return new ViewerFailure('password', e);
+  if (e instanceof InvalidPDFException || name === 'InvalidPDFException') return new ViewerFailure('not-pdf', e);
+  return new ViewerFailure('broken', e);
+}
+
+/**
+ * Открывает PDF. Байты копируются на каждое открытие: pdf.js передаёт буфер в worker, и у
+ * вызывающего он остался бы пустым — второй показ того же документа (режим поверх экрана) не открылся бы.
+ */
+export function openPdf(source: Blob | Uint8Array): LoadingDocument {
+  let task: PDFDocumentLoadingTask | null = null;
+  let cancelled = false;
+  const promise = (async () => {
+    ensureWorker();
+    if (workerBroken) throw new ViewerFailure('worker', workerBroken);
+    const data = source instanceof Uint8Array ? source.slice() : new Uint8Array(await source.arrayBuffer());
+    if (cancelled) throw new ViewerFailure('broken', 'отменено');
+    const base = assets();
+    task = getDocument({
+      data,
+      wasmUrl: `${base}wasm/`,
+      iccUrl: `${base}iccs/`,
+      cMapUrl: `${base}cmaps/`,
+      cMapPacked: true,
+      standardFontDataUrl: `${base}standard_fonts/`,
+      enableXfa: false,
+    });
+    let onBroken: (e: unknown) => void = () => {};
+    const broken = new Promise<never>((_, reject) => { onBroken = e => reject(new ViewerFailure('worker', e)); });
+    workerFailure.push(onBroken);
+    let doc: PDFDocumentProxy;
+    try {
+      doc = await Promise.race([task.promise, broken]);
+    } catch (e) {
+      void task.destroy();
+      throw translate(e);
+    } finally {
+      workerFailure = workerFailure.filter(f => f !== onBroken);
+    }
+    if (doc.numPages === 0) {
+      void task.destroy();
+      throw new ViewerFailure('no-pages');
+    }
+    return wrap(doc);
+  })();
+  return {
+    promise,
+    cancel() {
+      cancelled = true;
+      void task?.destroy();
+    },
+  };
+}
+
+function viewportOf(page: PDFPageProxy, { scale, rotation }: PageView): PageViewport {
+  return page.getViewport({ scale: scale * PixelsPerInch.PDF_TO_CSS_UNITS, rotation: (page.rotate + rotation) % 360 });
+}
+
+function wrap(doc: PDFDocumentProxy): PdfDocument {
+  let destroyed: Promise<void> | null = null;
+  const task = (run: (signal: { cancelled: boolean }) => Promise<() => void>): PageTask => {
+    const signal = { cancelled: false };
+    let stop: () => void = () => {};
+    const promise = run(signal).then(cancel => { stop = cancel; });
+    return { promise: promise.then(() => undefined), cancel() { signal.cancelled = true; stop(); } };
+  };
+  return {
+    numPages: doc.numPages,
+    async pageSizes() {
+      const sizes: PageSize[] = [];
+      for (let n = 1; n <= doc.numPages; n++) {
+        const vp = viewportOf(await doc.getPage(n), { scale: 1, rotation: 0 });
+        sizes.push({ width: vp.width, height: vp.height });
+      }
+      return sizes;
+    },
+    render(pageNumber, canvas, view) {
+      return task(async signal => {
+        const page = await doc.getPage(pageNumber);
+        if (signal.cancelled) return () => {};
+        const viewport = viewportOf(page, view);
+        canvas.width = Math.floor(viewport.width * view.pixelRatio);
+        canvas.height = Math.floor(viewport.height * view.pixelRatio);
+        const ratio = view.pixelRatio;
+        const job = page.render({
+          canvas,
+          canvasContext: canvas.getContext('2d')!,
+          viewport,
+          transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0],
+        });
+        const stop = () => job.cancel();
+        if (signal.cancelled) { stop(); return stop; }
+        await job.promise;
+        return stop;
+      });
+    },
+    textLayer(pageNumber, container, view) {
+      return task(async signal => {
+        const page = await doc.getPage(pageNumber);
+        if (signal.cancelled) return () => {};
+        const viewport = viewportOf(page, view);
+        container.replaceChildren();
+        container.style.setProperty('--scale-factor', String(viewport.scale));
+        const layer = new TextLayer({ textContentSource: page.streamTextContent(), container, viewport });
+        const stop = () => layer.cancel();
+        await layer.render();
+        return stop;
+      });
+    },
+    async text(pageNumber) {
+      const content = await (await doc.getPage(pageNumber)).getTextContent();
+      return content.items.map(item => ('str' in item ? item.str : '')).join(' ');
+    },
+    release(pageNumber) {
+      if (pageNumber < 1 || pageNumber > doc.numPages) return;
+      void doc.getPage(pageNumber).then(page => page.cleanup());
+    },
+    destroy() {
+      destroyed ??= doc.loadingTask.destroy();
+      return destroyed;
+    },
+  };
+}

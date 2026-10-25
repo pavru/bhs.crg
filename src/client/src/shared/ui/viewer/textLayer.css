@@ -1,0 +1,76 @@
+/*
+ * Слой текста листа (issue #1490, [UI-12]) — то из `pdfjs-dist/web/pdf_viewer.css`, что нужно слою,
+ * без остального просмотрщика pdf.js. Переменные `--scale-factor` ставит движок (pdfEngine.ts),
+ * размеры и поворот — сам TextLayer (`setLayerDimensions`, `data-main-rotation`).
+ *
+ * Лист всегда белый, поэтому слой — светлый островок в любой теме: `color-scheme: light`, а
+ * выделение — синее с прозрачностью, не из темы. Иначе в тёмной теме выделение на белом листе могло
+ * бы оказаться невидимым ([UI-18]).
+ */
+.bhs-text-layer {
+  --user-unit: 1;
+  --total-scale-factor: calc(var(--scale-factor) * var(--user-unit));
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+
+  color-scheme: only light;
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  text-align: initial;
+  line-height: 1;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 0;
+}
+
+.bhs-text-layer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text;
+}
+
+.bhs-text-layer > :not(.markedContent),
+.bhs-text-layer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+.bhs-text-layer .markedContent {
+  display: contents;
+}
+
+.bhs-text-layer span[role='img'] {
+  user-select: none;
+  cursor: default;
+}
+
+.bhs-text-layer ::selection {
+  background: rgb(0 90 255 / 0.28);
+  color: transparent;
+}
+
+/* Поворот показа: слой разложен по неповёрнутому листу и поворачивается целиком. */
+.bhs-text-layer[data-main-rotation='90'] {
+  transform: rotate(90deg) translateY(-100%);
+}
+.bhs-text-layer[data-main-rotation='180'] {
+  transform: rotate(180deg) translate(-100%, -100%);
+}
+.bhs-text-layer[data-main-rotation='270'] {
+  transform: rotate(270deg) translateX(-100%);
+}

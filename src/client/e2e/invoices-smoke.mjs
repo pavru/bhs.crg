@@ -24,6 +24,7 @@
 import { readFileSync } from 'node:fs';
 import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
 import { invoiceLayoutChecks } from './invoice-layout-checks.mjs';
+import { viewerShowsPdf } from './pdf-viewer-checks.mjs';
 
 /** Подпись у помеченного поля — она же примета метки на экране. */
 const MARK = 'Распознано, не подтверждено';
@@ -478,7 +479,7 @@ try {
     await named('строки «Вид для чтения» в панели нет', () => caveat.waitFor({ timeout: 60_000 }));
     await named('панель не говорит, что документ — оригинал',
       () => caveat.getByText('документ — оригинал').waitFor({ timeout: 5_000 }));
-    await named('вид для чтения не показан', () => page.locator('iframe[title$="вид для чтения"]').waitFor({ timeout: 30_000 }));
+    await viewerShowsPdf(page, named, caveat);
 
     // Скачивается оригинал — та же книга, байт в байт, а не PDF.
     const [download] = await Promise.all([

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CloudOff, Download, FileSpreadsheet, FileX, Info, Maximize2, RotateCw } from 'lucide-react';
+import { CloudOff, Download, ExternalLink, FileSpreadsheet, FileX, Info, RotateCw } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { loadInvoiceScan } from '@/shared/api/invoices';
 import { loadInvoiceImage, useRebuildInvoiceImage, type InvoiceImage } from '@/shared/api/invoiceImage';
@@ -12,6 +12,8 @@ import { saveScan } from './scanView';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { canChooseProfile, layoutHint, layoutNotice, rebuiltMessage } from './invoiceImageLayout';
 import { LayoutChooser } from './LayoutChooser';
+import { PdfViewer } from '@/shared/ui/viewer/PdfViewer';
+import { openInNewTab } from '@/shared/ui/viewer/openInNewTab';
 
 /**
  * Вид для чтения файла счёта (issue #1270): Excel и Word рядом с формой стоят не сами, а PDF,
@@ -59,7 +61,8 @@ export function OriginalButton({ invoiceId, fileName, label }: {
 export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
   invoiceId: string; blobPath: string | null; fileName: string | null; image: InvoiceImage; canEdit: boolean;
 }) {
-  const { url, failed } = useImageUrl(invoiceId, `${blobPath ?? ''}|${image.builtAt ?? ''}`);
+  const viewKey = `${blobPath ?? ''}|${image.builtAt ?? ''}`;
+  const { bytes, failed } = useImageBytes(invoiceId, viewKey);
   const rebuild = useRebuildInvoiceImage(invoiceId, blobPath);
   const toast = useToast();
   const mayList = useCan().permission('core.files.use');
@@ -81,9 +84,10 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
       <div className="flex items-center gap-2 px-3 py-2 border-b border-stroke shrink-0">
         <FileSpreadsheet size={14} className="text-fg3 shrink-0" />
         <span className="text-xs text-fg2 truncate flex-1">{fileName ?? 'Файл счёта'}</span>
-        <Button size="sm" icon={<Maximize2 size={13} />} disabled={!url}
-          onClick={() => { if (url) window.open(url, '_blank'); }}>
-          Во весь экран
+        {/* Во вкладке — полный просмотрщик браузера: поиск, печать с настройками (issue #1490). */}
+        <Button size="sm" icon={<ExternalLink size={13} />} disabled={!bytes}
+          onClick={() => { if (bytes) void openInNewTab(bytes); }}>
+          Открыть во вкладке
         </Button>
         <OriginalButton invoiceId={invoiceId} fileName={fileName} label="Оригинал" />
       </div>
@@ -122,15 +126,21 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
           </ul>
         )}
       </div>
-      <div className="flex-1 min-h-0 bg-base">
-        {failed && (
-          <Centered>
-            Вид для чтения не загрузился. Он построен — значит дело в связи или в хранилище: обновите
-            страницу. Сам файл скачивается кнопкой «Оригинал».
-          </Centered>
-        )}
-        {!failed && !url && <Centered>Вид для чтения загружается…</Centered>}
-        {url && <iframe src={url} title={`${fileName ?? 'Файл счёта'} — вид для чтения`} className="w-full h-full border-0 bg-white" />}
+      {/* Своя область наложения и обрезка: лист не выходит за неё поверх строки-оговорки (issue #1490). */}
+      <div className="relative isolate overflow-hidden flex-1 min-h-0 bg-base">
+        {failed
+          ? (
+            // Отказ ДО документа — связь или хранилище, а не PDF: это говорит место, а не просмотрщик.
+            <Centered>
+              Вид для чтения не загрузился. Он построен — значит дело в связи или в хранилище: обновите
+              страницу. Сам файл скачивается кнопкой «Оригинал».
+            </Centered>
+          )
+          : (
+            <PdfViewer source={bytes} documentKey={`${invoiceId}|${viewKey}`} rememberZoomAs="invoice-panel"
+              title={`${fileName ?? 'Файл счёта'} — вид для чтения`}
+              actions={<OriginalButton invoiceId={invoiceId} fileName={fileName} label="Оригинал" />} />
+          )}
       </div>
     </div>
   );
@@ -204,29 +214,19 @@ export function Centered({ children }: { children: React.ReactNode }) {
   return <div className="h-full grid place-items-center p-4 text-xs text-fg3 text-center">{children}</div>;
 }
 
-/** Вид одним чтением, с освобождением объектной ссылки; перечитывается, когда вид перестроен. */
-function useImageUrl(invoiceId: string, key: string) {
-  const [loaded, setLoaded] = useState<{ key: string; url: string | null; failed: boolean } | null>(null);
+/** Вид одним чтением — байтами для просмотрщика; перечитывается, когда вид перестроен. */
+function useImageBytes(invoiceId: string, key: string) {
+  const [loaded, setLoaded] = useState<{ key: string; bytes: Blob | null; failed: boolean } | null>(null);
   const full = `${invoiceId}|${key}`;
 
   useEffect(() => {
     let cancelled = false;
-    let objectUrl: string | null = null;
-
     loadInvoiceImage(invoiceId)
-      .then(url => {
-        objectUrl = url;
-        if (cancelled) { URL.revokeObjectURL(url); return; }
-        setLoaded({ key: full, url, failed: false });
-      })
-      .catch(() => { if (!cancelled) setLoaded({ key: full, url: null, failed: true }); });
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
+      .then(bytes => { if (!cancelled) setLoaded({ key: full, bytes, failed: false }); })
+      .catch(() => { if (!cancelled) setLoaded({ key: full, bytes: null, failed: true }); });
+    return () => { cancelled = true; };
   }, [invoiceId, full]);
 
   // Чужой ответ не показываем: при замене файла или перестроении на миг встал бы прежний вид.
-  return loaded?.key === full ? loaded : { url: null, failed: false };
+  return loaded?.key === full ? loaded : { bytes: null, failed: false };
 }
