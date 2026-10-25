@@ -9,19 +9,21 @@ import { AllocationMatrix } from './AllocationMatrix';
 import { useCorrecting } from './useCorrectionDraft';
 import { K } from './invoiceFields';
 import { toNumber } from './invoiceLines';
-import { headerObject, matrixSignature, newTarget, targetName, targetsOf } from './matrix';
-import { PlaceSelect } from './PlaceSelect';
-import { ruCount } from '@/shared/utils/pluralize';
-import { NO_PLACE, chosen, samePlace, usePlaces, type Place } from './places';
+import { headerObject, headerPickMode, matrixSignature, newTarget, targetsOf } from './matrix';
+import { InvoicePlaceField } from './InvoicePlaceField';
+import { fieldText, statusOf } from './placeChoices';
+import { chosen, samePlace, usePlaces, type Place } from './places';
 
 /**
  * «Объект» в шапке счёта (задача F2, issue #1086, ТЗ COST-6.2, COST-12): выбрать объект — значит разнести
  * на него весь счёт. Для большинства счетов разноска на этом и заканчивается; «на несколько объектов»
  * открывает матрицу.
  *
- * <p>Раскладку и здесь считает сервер: выбор объекта — тот же предпросмотр «поровну» на одну цель. Счёт
- * ещё не разнесён — записывается сразу (показывать нечего: всё на один объект). Разнесён иначе — выбор
- * открывает матрицу с предпросмотром поверх прежней разноски: заменять чужое решение молча нельзя.</p>
+ * <p>Раскладку и здесь считает сервер: выбор объекта — тот же предпросмотр «поровну» на одну цель, в том
+ * числе на раздел стройки (COST-12.1). Пишется сразу или открывает матрицу — решает `headerPickMode` (D3):
+ * сразу — когда счёт не разнесён или весь лежит на одном месте той же стройки (уточнили раздел, остаток —
+ * туда же); несколько мест, другая стройка или статья — матрица с предпросмотром поверх прежней разноски:
+ * заменять чужое решение молча нельзя.</p>
  */
 export function InvoiceObject({ view, locked }: {
   view: InvoiceView;
@@ -48,10 +50,10 @@ export function InvoiceObject({ view, locked }: {
     if (!chosen(place)) return;
     try {
       const preview = await previewing.mutateAsync({ id: view.id, method: 'equal', targets: [place] });
-      // Отметка версии — ТОГО вида, по которому решено «счёт не разнесён»: сосед успел разнести — запись
+      // Отметка версии — ТОГО вида, по которому решено «пишем сразу»: сосед успел разнести иначе — запись
       // откажет, а не заменит его разноску молча.
       const stamp = view.allocation.stamp;
-      if (current.kind === 'none') await replace.mutateAsync({ id: view.id, seen: view.version, state: { ...preview.apply, stamp } });
+      if (headerPickMode(current, place) === 'write') await replace.mutateAsync({ id: view.id, seen: view.version, state: { ...preview.apply, stamp } });
       else {
         // Прежние объекты — колонками рядом с новым: предпросмотр показывает, что именно заменит «Применить».
         const columns = targetsOf(view).filter(t => !samePlace(t, place));
@@ -66,25 +68,18 @@ export function InvoiceObject({ view, locked }: {
     }
   }
 
-  const status = current.kind === 'none' ? 'не разнесён'
-    : current.kind === 'many' ? `разнесён на ${ruCount(current.count, 'объект', 'объекта', 'объектов')}`
-      : current.complete ? 'весь счёт на этот объект' : 'разнесено не полностью';
+  const { status, calm } = statusOf(current);
 
   return (
     <div className="flex items-center gap-2 flex-wrap text-xs" data-readiness="allocation">
       <span className="text-fg4">Объект</span>
       {canEdit && !correcting ? (
-        <PlaceSelect label="Объект счёта" places={places} disabled={previewing.isPending || replace.isPending}
-          value={current.kind === 'one' ? current.place : NO_PLACE}
-          placeholder={current.kind === 'many' ? '— несколько объектов —' : '— выберите —'}
-          onChange={place => void pick(place)}
-          className="w-auto min-w-56" />
+        <InvoicePlaceField label="Объект счёта" places={places} current={current}
+          disabled={previewing.isPending || replace.isPending} onPick={place => void pick(place)} />
       ) : (
-        <span className="text-fg1">
-          {current.kind === 'one' ? targetName(current.place, places) : '—'}
-        </span>
+        <span className="text-fg1">{current.kind === 'one' ? fieldText(current, places).text : '—'}</span>
       )}
-      <span className={current.kind === 'one' && current.complete ? 'text-fg4' : 'text-warning'}>{status}</span>
+      <span className={calm ? 'text-fg4' : 'text-warning'}>{status}</span>
       {correcting?.allocation && <span className="text-warning">разноска изменена в исправлении — запишется с ним</span>}
       <Button size="sm" variant="text" icon={<Grid3x3 size={13} />} onClick={() => setMatrix({})}>
         {canEdit && !correcting ? 'на несколько объектов' : 'разноска по объектам'}

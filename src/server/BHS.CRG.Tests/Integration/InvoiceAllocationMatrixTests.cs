@@ -230,6 +230,95 @@ public class InvoiceAllocationMatrixTests(InvoiceLineHost host) : InvoiceLineTes
         Assert.Contains("у счёта есть строки", await response.Content.ReadAsStringAsync());
     }
 
+    /// <summary>
+    /// Весь счёт на раздел из шапки (COST-12.1): «поровну» на одну цель со стройкой и разделом кладёт каждую
+    /// строку целиком на этот раздел, и запись принимает набор как есть — сервер для шапки не меняется (D1).
+    /// </summary>
+    [Fact]
+    public async Task Весь_счёт_на_раздел_одной_целью()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client, complete: true);
+        await LinesAsync(client, invoice, [Line(cable, quantity: 10, price: 48.33m), Line(conduit, quantity: 7.5m, price: 3m)]);
+        var (site, sections) = await SiteAsync("Комарова 36", "4 эт.", "5 эт.");
+
+        var preview = await PreviewAsync(client, invoice, "equal", [Target(site, section: sections[0])]);
+        var view = await ApplyAsync(client, invoice, preview.GetProperty("apply"));
+
+        foreach (var line in view.GetProperty("lines").EnumerateArray())
+        {
+            var allocation = line.GetProperty("allocation");
+            var part = Assert.Single(allocation.GetProperty("parts").EnumerateArray());
+            Assert.Equal(site, part.GetProperty("constructionId").GetGuid());
+            Assert.Equal(sections[0], part.GetProperty("sectionId").GetGuid());
+            Assert.Equal(line.GetProperty("quantity").GetDecimal(), part.GetProperty("quantity").GetDecimal());
+            Assert.Equal(0m, allocation.GetProperty("unallocatedQuantity").GetDecimal());
+        }
+        Assert.True(view.GetProperty("allocation").GetProperty("allocated").GetBoolean());
+    }
+
+    /// <summary>Счёт без строк: тот же выбор кладёт на раздел всю сумму к оплате частью счёта целиком.</summary>
+    [Fact]
+    public async Task Счёт_без_строк_на_раздел_суммой_к_оплате()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await TotalAsync(client, 1_000m);
+        var (site, sections) = await SiteAsync("Комарова 36", "4 эт.");
+
+        var preview = await PreviewAsync(client, invoice, "equal", [Target(site, section: sections[0])]);
+        var view = await ApplyAsync(client, invoice, preview.GetProperty("apply"));
+
+        var document = view.GetProperty("allocation").GetProperty("document");
+        var part = Assert.Single(document.GetProperty("parts").EnumerateArray());
+        Assert.Equal(sections[0], part.GetProperty("sectionId").GetGuid());
+        Assert.Equal(1_000m, part.GetProperty("amount").GetDecimal());
+        Assert.Equal(0m, document.GetProperty("unallocatedAmount").GetDecimal());
+    }
+
+    /// <summary>Раздел чужой стройки — отказ ещё в предпросмотре: затраты не делятся между двумя стройками.</summary>
+    [Fact]
+    public async Task Предпросмотр_с_разделом_чужой_стройки_отвергается()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client, complete: true);
+        await LinesAsync(client, invoice, [Line(cable, quantity: 1, price: 1m)]);
+        var (_, foreign) = await SiteAsync("Комарова 36", "4 эт.");
+        var (site, _) = await SiteAsync("Ленина 5");
+
+        var response = await PreviewRawAsync(client, invoice, "equal", [Target(site, section: foreign[0])]);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("раздела нет у стройки", await response.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>
+    /// Шапка видела «весь счёт на стройку» и пишет раздел сразу, а сосед тем временем разложил счёт по
+    /// разделам: запись по отметке того вида отвергается, разноска соседа не заменяется.
+    /// </summary>
+    [Fact]
+    public async Task Раздел_из_шапки_по_устаревшему_виду_отвергается()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client, complete: true);
+        await LinesAsync(client, invoice, [Line(cable, quantity: 10, price: 1m)]);
+        var (site, sections) = await SiteAsync("Комарова 36", "4 эт.", "5 эт.");
+
+        var whole = await PreviewAsync(client, invoice, "equal", [Target(site)]);
+        var view = await ApplyAsync(client, invoice, whole.GetProperty("apply"));
+        var opened = view.GetProperty("allocation").GetProperty("stamp").GetString();
+
+        await AllocateAsync(client, invoice, LineId(view, 1),
+            [Part(site, quantity: 4, section: sections[0]), Part(site, quantity: 6, section: sections[1])]);
+        var neighbour = (await ReadAsync(client, invoice)).GetProperty("lines")[0].GetProperty("allocation");
+
+        var preview = await PreviewAsync(client, invoice, "equal", [Target(site, section: sections[0])]);
+        var stale = await ApplyRawAsync(client, invoice, preview.GetProperty("apply"), opened);
+
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        var kept = (await ReadAsync(client, invoice)).GetProperty("lines")[0].GetProperty("allocation");
+        Assert.Equal(Cells(neighbour), Cells(kept));
+    }
+
     /// <summary>Предпросмотр — только тому, кто может записать: кнопка без права не нужна вовсе.</summary>
     [Fact]
     public async Task Без_права_разноски_предпросмотра_нет()
@@ -262,8 +351,8 @@ public class InvoiceAllocationMatrixTests(InvoiceLineHost host) : InvoiceLineTes
         return sites;
     }
 
-    private static Dictionary<string, object?> Target(Guid site, decimal? percent = null) =>
-        new() { ["construction"] = site.ToString(), ["percent"] = percent };
+    private static Dictionary<string, object?> Target(Guid site, decimal? percent = null, Guid? section = null) =>
+        new() { ["construction"] = site.ToString(), ["section"] = section?.ToString(), ["percent"] = percent };
 
     private static Task<HttpResponseMessage> PreviewRawAsync(
         HttpClient client, Guid invoice, string method, object[] targets) =>
