@@ -38,6 +38,8 @@ public class EstimateImportEndpointsTests(PlanOnlyHost host)
             (EstimateImportFlow.Form(file, "a.gsfx", site.Construction, estimateId: estimate, newName: "Ещё"), "не то и другое"),
             (EstimateImportFlow.Form(file, "a.gsfx", null, newName: "Новая"), "Не названа стройка"),
             (EstimateImportFlow.Form(file, "a.gsfx", site.Construction, estimateId: foreign), "другой стройки"),
+            (EstimateImportFlow.Form(file, "a.gsfx", site.Construction, estimateId: estimate, sectionId: site.Section), "только у новой сметы"),
+            (EstimateImportFlow.Form(file, "a.gsfx", site.Construction, estimateId: estimate, kind: "additional"), "только у новой сметы"),
             (EstimateImportFlow.Form(file, "a.gsfx", site.Construction, newName: "Новая", sectionId: other.Section), "Раздела нет"),
             (EstimateImportFlow.Form(file, "a.gsfx", site.Construction, newName: "Новая", kind: "лишняя"), "неизвестен"),
             (EstimateImportFlow.Form([], "a.gsfx", site.Construction, newName: "Новая"), "Файл пуст"),
@@ -94,12 +96,50 @@ public class EstimateImportEndpointsTests(PlanOnlyHost host)
         Assert.Equal(HttpStatusCode.BadRequest, (await client.SendAsync(EstimateImportFlow.Delete(id, null))).StatusCode);
         // Разбор записал исход — версия, полученная при загрузке, устарела.
         Assert.NotEqual(stale, report.GetProperty("version").GetString());
-        Assert.Equal(HttpStatusCode.Conflict, (await client.SendAsync(EstimateImportFlow.Delete(id, stale))).StatusCode);
+        var conflict = await client.SendAsync(EstimateImportFlow.Delete(id, stale));
+        Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
+        Assert.Contains("Перечитайте отчёт импорта", await conflict.Content.ReadAsStringAsync());
 
         var deleted = await client.SendAsync(EstimateImportFlow.Delete(id, report.GetProperty("version").GetString()));
         Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/plan/imports/{id}")).StatusCode);
         Assert.Null(await BlobsSizeAsync(path));
+    }
+
+    /// <summary>
+    /// Список импортов стройки — то, чем находят несостоявшийся импорт: он держит стройку и раздел новой сметы,
+    /// пока его не отменят. С <c>estimateId</c> — только импорты в эту смету; без стройки — 400.
+    /// </summary>
+    [Fact]
+    public async Task Список_импортов_стройки_находит_несостоявшийся()
+    {
+        var site = await EstimateSeed.SiteAsync(host);
+        var other = await EstimateSeed.SiteAsync(host, "Соседняя");
+        var estimate = await EstimateSeed.EstimateAsync(host, site.Construction);
+        var client = await EstimateImportFlow.EditorAsync(host);
+        var intoNew = EstimateImportFlow.Id(await EstimateImportFlow.OutcomeAsync(client, await EstimateImportFlow.UploadAsync(client,
+            EstimateImportFlow.Form(GrandSmetaSamples.Gsfx(Lsr), "новая.gsfx", site.Construction, newName: "Новая", sectionId: site.Section))));
+        var intoEstimate = EstimateImportFlow.Id(await EstimateImportFlow.OutcomeAsync(client, await EstimateImportFlow.UploadAsync(client,
+            EstimateImportFlow.Form(GrandSmetaSamples.Gsfx(Lsr), "в смету.gsfx", site.Construction, estimateId: estimate))));
+        await EstimateImportFlow.OutcomeAsync(client, await EstimateImportFlow.UploadAsync(client, other.Construction, Lsr));
+
+        var all = await client.GetFromJsonAsync<JsonElement>($"/api/plan/imports?constructionId={site.Construction}");
+        Assert.Equal([intoEstimate, intoNew], all.EnumerateArray().Select(i => i.GetProperty("id").GetGuid()));
+        var item = all.EnumerateArray().Single(i => i.GetProperty("id").GetGuid() == intoNew);
+        Assert.Equal("новая.gsfx", item.GetProperty("fileName").GetString());
+        Assert.Equal("parsed", item.GetProperty("state").GetString());
+        Assert.Equal(site.Section, item.GetProperty("target").GetProperty("newEstimate").GetProperty("sectionId").GetGuid());
+        Assert.False(string.IsNullOrEmpty(item.GetProperty("version").GetString()));
+
+        var only = await client.GetFromJsonAsync<JsonElement>(
+            $"/api/plan/imports?constructionId={site.Construction}&estimateId={estimate}");
+        var single = Assert.Single(only.EnumerateArray());
+        Assert.Equal("Основная", single.GetProperty("target").GetProperty("estimateName").GetString());
+
+        // Версия из списка годится для отмены: найденный импорт отменяется прямо по нему.
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await client.SendAsync(EstimateImportFlow.Delete(intoNew, item.GetProperty("version").GetString()))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/plan/imports")).StatusCode);
     }
 
     /// <summary>Удалённая смета без редакций уносит несостоявшиеся импорты в неё — и их файлы.</summary>
@@ -159,6 +199,7 @@ public class EstimateImportEndpointsTests(PlanOnlyHost host)
         {
             Content = EstimateImportFlow.Form(GrandSmetaSamples.Gsfx(Lsr), Lsr + ".gsfx", construction, newName: "Чужая"),
         };
+        yield return new HttpRequestMessage(HttpMethod.Get, $"/api/plan/imports?constructionId={construction}");
         yield return new HttpRequestMessage(HttpMethod.Get, $"/api/plan/imports/{import}");
         yield return EstimateImportFlow.Delete(import, "1");
     }

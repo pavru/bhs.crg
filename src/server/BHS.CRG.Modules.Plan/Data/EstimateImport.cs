@@ -151,6 +151,14 @@ public sealed class EstimateImport
         SchemaVersion = PlanText.Clip(source.SchemaEdition, VersionLength);
     }
 
+    /// <summary>Файл не открылся, но вид или версию до отказа узнали: отчёт называет их и у отказа. Редакции
+    /// схемы нет — она выбирается по виду и версии, и выбрать её не удалось.</summary>
+    public void Recognised(GrandSmetaKind? kind, string? programVersion)
+    {
+        Kind = kind;
+        ProgramVersion = PlanText.Clip(programVersion, VersionLength);
+    }
+
     /// <summary>Разобрана ЛСР: модель и не разобранное — до решения человека.</summary>
     public void ParsedLocalEstimate(string? number, string? name, string parsed, string unparsed, DateTimeOffset now)
     {

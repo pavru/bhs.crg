@@ -15,7 +15,7 @@ namespace BHS.CRG.Modules.Plan.Endpoints;
 
 /// <summary>
 /// Адреса импорта сметы из ГРАНД-Сметы (change <c>plan-07-estimate-import</c>, ТЗ PLAN-6, PLAN-7, D6 зонтика
-/// <c>plan-00-epic</c>): загрузка с разбором в фоне, отчёт разбора, отмена.
+/// <c>plan-00-epic</c>): загрузка с разбором в фоне, отчёт разбора, список импортов стройки, отмена.
 ///
 /// <para><b>Ворота.</b> Все адреса — под <c>plan.estimate.edit</c>: импорт — правка сметы, и отчёт его читает
 /// тот, кто импортирует (ТЗ PLAN-2, AUTH-8). Итог в отчёте — только с <c>plan.estimate.cost</c>.</para>
@@ -33,9 +33,21 @@ public static class EstimateImportEndpoints
         var imports = endpoints.MapGroup("/api/plan/imports").WithTags("Импорт смет");
         var edit = AppPolicies.Permission(PlanModule.EstimateEdit);
 
+        imports.MapGet("/", ListAsync).RequireAuthorization(edit);
         imports.MapPost("/", CreateAsync).RequireAuthorization(edit).DisableAntiforgery();
         imports.MapGet("/{id:guid}", GetAsync).RequireAuthorization(edit);
         imports.MapDelete("/{id:guid}", DeleteAsync).RequireAuthorization(edit);
+    }
+
+    /// <summary>
+    /// Импорты стройки (<c>?constructionId=</c>), при <c>estimateId</c> — только в эту смету. Несостоявшийся
+    /// импорт держит стройку и раздел новой сметы (<c>PlanReferences</c>); список — то, чем его находят и отменяют.
+    /// </summary>
+    private static async Task<IResult> ListAsync(Guid? constructionId, Guid? estimateId, PlanDbContext db, CancellationToken ct)
+    {
+        if (constructionId is not { } site)
+            throw new InvalidRequestException("Не названа стройка (constructionId): импорты читаются по стройке.");
+        return Results.Ok(await EstimateImportViews.ListAsync(db, site, estimateId, ct));
     }
 
     /// <summary>
@@ -67,27 +79,33 @@ public static class EstimateImportEndpoints
                 "Не выбрано, куда ляжет редакция: назовите либо смету (estimateId) — будет её новая редакция, либо " +
                 "новую смету (newEstimate.name) — не то и другое сразу.");
 
+        var sectionId = FormGuid(form, "newEstimate.sectionId");
+        var kindCode = Text(form, "newEstimate.kind");
         Estimate? estimate = null;
         if (estimateId is { } existing)
         {
+            // Раздел и вид — у сметы, которую заведёт импорт; у существующей они свои, и молча отброшенное
+            // поле человек счёл бы принятым.
+            if (sectionId is not null || kindCode is not null)
+                throw new InvalidRequestException(
+                    "Раздел и вид (newEstimate.sectionId, newEstimate.kind) называются только у новой сметы — у " +
+                    "существующей они уже свои.");
             estimate = await db.Estimates.AsNoTracking().FirstOrDefaultAsync(e => e.Id == existing, ct)
                 ?? throw new InvalidRequestException("Сметы нет — её удалили либо адрес неверен.");
             if (estimate.ConstructionId != site.Id)
                 throw new InvalidRequestException($"Смета «{estimate.Name}» — другой стройки, не «{site.Name}».");
         }
-        var sectionId = FormGuid(form, "newEstimate.sectionId");
         if (sectionId is { } section && site.Sections.All(s => s.Id != section))
             throw new InvalidRequestException($"Раздела нет у стройки «{site.Name}» — смета на раздел составляется в его стройке.");
-        var kind = EstimateEndpoints.Kind(Text(form, "newEstimate.kind"));
+        var kind = EstimateEndpoints.Kind(kindCode);
         if (estimate is null) Estimate.CheckedName(newName);
 
-        // Тип — как его назвал клиент: вид файла здесь не решается, его определяет разбор по содержимому.
-        // Своего перечня типов рядом с реестром ядра у модуля нет (FileKindCatalog): файл сметы — не вложение,
-        // которое показывают и распознают.
-        var contentType = string.IsNullOrWhiteSpace(file.ContentType) ? MediaTypeNames.Application.Octet : file.ContentType;
+        // Тип — всегда «байты»: вид файла определяет разбор по содержимому, а тип, названный клиентом, лёг бы в
+        // хранилище его словами — и стал бы чужим заголовком, если файл когда-нибудь отдадут. Своего перечня
+        // типов рядом с реестром ядра у модуля нет (FileKindCatalog): файл сметы — не вложение, которое показывают.
         string path;
         await using (var content = file.OpenReadStream())
-            path = await blobs.PutAsync(file.FileName, content, contentType, ct);
+            path = await blobs.PutAsync(file.FileName, content, MediaTypeNames.Application.Octet, ct);
 
         var now = DateTimeOffset.UtcNow;
         var import = estimate is not null
@@ -116,32 +134,51 @@ public static class EstimateImportEndpoints
     /// <summary>
     /// Поставить разбор. Отказ очереди не теряется: импорт переходит в отказ с её словами, и отчёт скажет,
     /// почему разбора нет, — вместо «разбирается», которое не кончится никогда.
+    ///
+    /// <para>⚠️ Отказом считается только отказ САМОЙ очереди. Задача, которую очередь приняла, импорт разберёт и
+    /// номер свой впишет сама (<c>EstimateImportJob</c>): упавшая запись номера здесь — не повод отвергать файл,
+    /// который уже разбирается.</para>
     /// </summary>
     private static async Task QueueAsync(PlanDbContext db, IModuleJobs jobs, EstimateImport import, ILogger logger, CancellationToken none)
     {
-        string why;
+        Guid jobId;
         try
         {
-            var jobId = await jobs.EnqueueAsync(EstimateImportJob.OperationCode, import.Id, $"Разбор сметы «{import.FileName}»", ct: none);
-            // Номер задачи — только если его ещё нет: задача, успевшая отработать раньше, вписала его сама.
-            await db.EstimateImports.Where(i => i.Id == import.Id && i.JobId == null)
-                .ExecuteUpdateAsync(s => s.SetProperty(i => i.JobId, jobId), none);
-            return;
+            jobId = await jobs.EnqueueAsync(EstimateImportJob.OperationCode, import.Id, $"Разбор сметы «{import.FileName}»", ct: none);
         }
         catch (DomainException refused)
         {
-            why = $"Разбор не поставлен в очередь: {refused.Message}";
+            await RejectAsync(db, import, $"Разбор не поставлен в очередь: {refused.Message}", none);
+            return;
         }
         catch (Exception crash)
         {
             logger.LogError(crash, "Импорт {ImportId} заведён, но его разбор поставить не удалось.", import.Id);
-            why = "Разбор не поставлен в очередь: внутренняя ошибка. Отмените импорт и загрузите файл ещё раз; если " +
-                  "повторится — подробности в журнале сервера.";
+            await RejectAsync(db, import,
+                "Разбор не поставлен в очередь: внутренняя ошибка. Отмените импорт и загрузите файл ещё раз; если " +
+                "повторится — подробности в журнале сервера.", none);
+            return;
         }
 
+        try
+        {
+            // Номер задачи — только если его ещё нет: задача, успевшая отработать раньше, вписала его сама.
+            await db.EstimateImports.Where(i => i.Id == import.Id && i.JobId == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(i => i.JobId, jobId), none);
+        }
+        catch (Exception lost)
+        {
+            logger.LogWarning(lost, "Импорт {ImportId}: разбор поставлен задачей {JobId}, но номер её не записан — " +
+                                    "задача впишет его сама.", import.Id, jobId);
+        }
+    }
+
+    /// <summary>Отказ очереди — в исход импорта. Импорт тем временем отменили или разобрали — писать некуда.</summary>
+    private static async Task RejectAsync(PlanDbContext db, EstimateImport import, string why, CancellationToken none)
+    {
         db.ChangeTracker.Clear();
-        var stored = await db.EstimateImports.FirstAsync(i => i.Id == import.Id, none);
-        if (stored.State != EstimateImportState.Parsing) return;
+        var stored = await db.EstimateImports.FirstOrDefaultAsync(i => i.Id == import.Id, none);
+        if (stored is not { State: EstimateImportState.Parsing }) return;
         stored.Reject(EstimateImport.FailedCode, why, DateTimeOffset.UtcNow);
         await db.SaveChangesAsync(none);
     }
@@ -162,7 +199,7 @@ public static class EstimateImportEndpoints
         ILoggerFactory logs, CancellationToken ct)
     {
         var import = await db.EstimateImports.FirstOrDefaultAsync(i => i.Id == id, ct) ?? throw EstimateImportViews.NotFound();
-        EstimateEndpoints.EnsureSeen(request, db.VersionOf(import), "Импорт");
+        EstimateEndpoints.EnsureSeen(request, db.VersionOf(import), "Импорт", "отчёт импорта");
         import.EnsureCancellable();
 
         db.EstimateImports.Remove(import);

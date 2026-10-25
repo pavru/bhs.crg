@@ -104,6 +104,10 @@ public class EstimateImportParseTests(PlanOnlyHost host)
         var refusal = report.GetProperty("refusal");
         Assert.Equal(nameof(GrandSmetaRefusal.UnsupportedVersion), refusal.GetProperty("code").GetString());
         Assert.Contains("17.0.0.1", refusal.GetProperty("text").GetString());
+        // Вид и версию до отказа узнали — отчёт называет их и у отказа; редакции схемы нет: её не выбрали.
+        Assert.Equal("lsr", report.GetProperty("kind").GetString());
+        Assert.Equal("17.0.0.1", report.GetProperty("programVersion").GetString());
+        Assert.Equal(JsonValueKind.Null, report.GetProperty("schemaVersion").ValueKind);
         Assert.Equal(JsonValueKind.Null, report.GetProperty("summary").ValueKind);
         Assert.Equal(JsonValueKind.Null, report.GetProperty("revisionId").ValueKind);
     }
@@ -180,6 +184,27 @@ public class EstimateImportParseTests(PlanOnlyHost host)
         Assert.Equal("Основная", report.GetProperty("target").GetProperty("estimateName").GetString());
         var mark = Assert.Single(report.GetProperty("marks").EnumerateArray(), m => m.GetProperty("code").GetString() == "otherCalculation");
         Assert.Contains("«ЛСР-ДРУГОЙ»", mark.GetProperty("text").GetString());
+    }
+
+    /// <summary>
+    /// Прежняя редакция — последняя редакция сметы, а не последняя из импорта: заведённая поверх импорта
+    /// вручную уже не тот расчёт, и сверять номер не с чем.
+    /// </summary>
+    [Fact]
+    public async Task Номер_сверяется_с_последней_редакцией_сметы()
+    {
+        var site = await EstimateSeed.SiteAsync(host);
+        var estimate = await EstimateSeed.EstimateAsync(host, site.Construction);
+        await PreviousImportAsync(estimate, "ЛСР-ДРУГОЙ");
+        using (var scope = host.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<EstimateRevisionWriter>().AddAsync(estimate,
+                new EstimateRevisionSource(), [new EstimateRowDraft("Строка вручную")]);
+        var client = await EstimateImportFlow.EditorAsync(host);
+
+        var report = await EstimateImportFlow.OutcomeAsync(client, await EstimateImportFlow.UploadAsync(client,
+            EstimateImportFlow.Form(GrandSmetaSamples.Gsfx(Lsr), Lsr + ".gsfx", site.Construction, estimateId: estimate)));
+
+        Assert.DoesNotContain(report.GetProperty("marks").EnumerateArray(), m => m.GetProperty("code").GetString() == "otherCalculation");
     }
 
     /// <summary>Редакция сметы из прежнего импорта с этим номером расчёта — как её оставит создание редакции.</summary>

@@ -105,6 +105,8 @@ public static class EstimateEndpoints
         if (await db.EstimateRevisions.AnyAsync(r => r.EstimateId == id, ct))
             throw new ConflictException("Смету нельзя удалить: у неё есть редакции. Удаляется только смета без редакций.");
 
+        // Импорт, заведённый между этим чтением и сохранением, уйдёт каскадом без своего файла: файл без ссылки
+        // найдёт уборка осиротевших (OrphanBlobCleanup) — как и после любого сбоя между записью и хранилищем.
         var imports = await db.EstimateImports.AsNoTracking().Where(i => i.EstimateId == id).ToListAsync(ct);
         db.Estimates.Remove(estimate);
         await db.SaveChangesAsync(ct);
@@ -169,7 +171,8 @@ public static class EstimateEndpoints
     /// Версия, по которой собрана правка, — заголовком <c>If-Match</c>, как у счёта и накладной.
     /// </summary>
     /// <param name="what">Что изменили, в винительном с заглавной: «Смету», «Редакцию».</param>
-    internal static void EnsureSeen(HttpRequest request, string current, string what)
+    /// <param name="reread">Что перечитать, в винительном: где человек увидит новое состояние.</param>
+    internal static void EnsureSeen(HttpRequest request, string current, string what, string reread = "смету")
     {
         if (!SeenVersion.TryRead(request, out var seen)) throw new InvalidRequestException(SeenVersion.Malformed);
         if (seen is null)
@@ -178,7 +181,7 @@ public static class EstimateEndpoints
                 "ответе чтения полем «version». Без неё правка записалась бы поверх чужой.");
         if (seen != current)
             throw new ConflictException(
-                $"{what} тем временем изменили, и это действие не выполнено. Перечитайте смету и повторите: вы " +
+                $"{what} тем временем изменили, и это действие не выполнено. Перечитайте {reread} и повторите: вы " +
                 "видели прежнее состояние.");
     }
 

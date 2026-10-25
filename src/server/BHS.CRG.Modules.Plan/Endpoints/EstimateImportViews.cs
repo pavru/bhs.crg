@@ -38,17 +38,18 @@ internal static class EstimateImportViews
         }
 
         var model = EstimateImportJson.Model(import);
-        var unparsed = EstimateImportJson.Unparsed(import);
+        var unparsed = model?.Unparsed ?? EstimateImportJson.Unparsed(import);
+        var positions = model?.Positions.ToList();
         if (import.State != EstimateImportState.Rejected && import.Kind is { } kind and not GrandSmetaKind.LocalEstimate)
             marks.Add(new("notEstimate",
                 $"Это {GrandSmetaSchemas.KindName(kind)} — редакцией сметы {Its(kind)} не становится. Приложите файл к смете."));
-        if (model is not null)
+        if (model is not null && positions is not null)
         {
             if (unparsed.Count > 0)
                 marks.Add(new("partial",
-                    $"Разобрано {model.Positions.Count()} из {model.PositionsInFile}, {unparsed.Count} не разобрано — " +
+                    $"Разобрано {positions.Count} из {model.PositionsInFile}, {unparsed.Count} не разобрано — " +
                     "редакция из такого файла создаётся только с вашего согласия."));
-            if (model.Positions.Any(p => p.TotalSource == TotalSource.ComputedBySystem))
+            if (positions.Any(p => p.TotalSource == TotalSource.ComputedBySystem))
                 marks.Add(new("computedTotals",
                     "Файл сохранён без итогов — итоги позиций посчитаны системой по данным файла."));
             if (await OtherCalculationAsync(db, import, ct) is { } previous)
@@ -57,40 +58,76 @@ internal static class EstimateImportViews
                     "что это тот же расчёт: иначе стоит импортировать его в новую смету."));
         }
 
-        var target = new EstimateImportTargetDto(
-            import.EstimateId,
+        var target = Target(import.EstimateId,
             import.EstimateId is { } estimateId
                 ? await db.Estimates.AsNoTracking().Where(e => e.Id == estimateId).Select(e => e.Name).FirstOrDefaultAsync(ct)
                 : null,
-            import.NewEstimateName is { } name
-                ? new NewEstimateDto(name, import.NewEstimateSectionId, EstimateViews.KindCode(import.NewEstimateKind ?? EstimateKind.Main))
-                : null);
+            import.NewEstimateName, import.NewEstimateSectionId, import.NewEstimateKind);
 
         return new EstimateImportDto(
             import.Id, import.ConstructionId, target, import.FileName, StateCode(import.State), KindCode(import.Kind),
             import.Kind is { } k ? GrandSmetaSchemas.KindName(k) : null, import.ProgramVersion, import.SchemaVersion,
             progress,
             import is { RefusalCode: { } code, RefusalText: { } text } ? new EstimateImportRefusalDto(code, text) : null,
-            model?.Positions.Count(), model?.PositionsInFile,
+            positions?.Count, model?.PositionsInFile,
             [.. unparsed.Select(u => new UnparsedPositionDto(u.Place, u.Line, u.Reason))],
-            model is null ? null : Summary(model, cost),
+            model is null || positions is null ? null : Summary(model, positions, cost),
             marks, import.RevisionId, import.CreatedAt, import.CreatedByName,
             found.Version.ToString(CultureInfo.InvariantCulture), hidden);
     }
 
+    /// <summary>
+    /// Импорты стройки, новые сверху, — без модели разбора: её список не читает. По нему находят импорт, который
+    /// никто не довёл до редакции, — он держит стройку и раздел новой сметы, пока его не отменят.
+    /// </summary>
+    public static async Task<List<EstimateImportItemDto>> ListAsync(
+        PlanDbContext db, Guid constructionId, Guid? estimateId, CancellationToken ct)
+    {
+        var query = db.EstimateImports.AsNoTracking().Where(i => i.ConstructionId == constructionId);
+        if (estimateId is { } only) query = query.Where(i => i.EstimateId == only);
+        var rows = await query.OrderByDescending(i => i.CreatedAt).ThenBy(i => i.Id)
+            .Select(i => new
+            {
+                i.Id, i.EstimateId, i.NewEstimateName, i.NewEstimateSectionId, i.NewEstimateKind, i.FileName, i.State,
+                i.Kind, i.RefusalCode, i.RevisionId, i.CreatedAt, i.CreatedByName,
+                Version = EF.Property<uint>(i, PlanDbContext.RowVersion),
+            })
+            .ToListAsync(ct);
+
+        var ids = rows.Where(r => r.EstimateId is not null).Select(r => r.EstimateId!.Value).Distinct().ToList();
+        var names = await db.Estimates.AsNoTracking().Where(e => ids.Contains(e.Id))
+            .ToDictionaryAsync(e => e.Id, e => e.Name, ct);
+
+        return
+        [
+            .. rows.Select(r => new EstimateImportItemDto(
+                r.Id,
+                Target(r.EstimateId, r.EstimateId is { } id ? names.GetValueOrDefault(id) : null,
+                    r.NewEstimateName, r.NewEstimateSectionId, r.NewEstimateKind),
+                r.FileName, StateCode(r.State), KindCode(r.Kind), r.RefusalCode, r.RevisionId, r.CreatedAt,
+                r.CreatedByName, r.Version.ToString(CultureInfo.InvariantCulture))),
+        ];
+    }
+
     public static NotFoundException NotFound() => new("Импорт не найден — возможно, его отменили.");
 
-    private static ImportSummaryDto Summary(ParsedLocalEstimate model, bool cost) =>
+    private static EstimateImportTargetDto Target(
+        Guid? estimateId, string? estimateName, string? newName, Guid? sectionId, EstimateKind? kind) =>
+        new(estimateId, estimateName,
+            newName is null ? null : new NewEstimateDto(newName, sectionId, EstimateViews.KindCode(kind ?? EstimateKind.Main)));
+
+    private static ImportSummaryDto Summary(ParsedLocalEstimate model, IReadOnlyList<LocalEstimatePosition> positions, bool cost) =>
         new(model.Requisites.Number, model.Requisites.Name, model.Method.ToString().ToLowerInvariant(),
             [.. model.Chapters.Select(c => new ImportChapterDto(c.Index, c.Caption, c.Positions.Count,
                 cost ? new ImportCostDto(c.Total) : null))],
-            model.Positions.Count(), model.Positions.Count(p => p.IsInactive),
+            positions.Count, positions.Count(p => p.IsInactive),
             cost ? new ImportCostDto(model.Totals.Total, model.Totals.EstimateTotal) : null);
 
     /// <summary>
     /// Номер расчёта прежней редакции сметы, если он не совпадает с номером в файле (решение В-12 (а): «тот ли
-    /// это расчёт» решает человек, отчёт только показывает расхождение). Прежняя — последняя редакция, созданная
-    /// импортом; номер лежит у записи её импорта.
+    /// это расчёт» решает человек, отчёт только показывает расхождение). Прежняя — последняя редакция сметы,
+    /// кроме созданной этим импортом; номер лежит у записи её импорта. Последняя заведена не импортом — сверять
+    /// не с чем: номер более ранней редакции говорил бы о расчёте, который уже не прежний.
     /// </summary>
     private static async Task<string?> OtherCalculationAsync(PlanDbContext db, EstimateImport import, CancellationToken ct)
     {
@@ -98,9 +135,10 @@ internal static class EstimateImportViews
 
         var own = import.Id.ToString();
         var keys = await db.EstimateRevisions.AsNoTracking()
-            .Where(r => r.EstimateId == estimateId && r.ImportKey != null && r.ImportKey != own)
-            .OrderByDescending(r => r.Number).Select(r => r.ImportKey!).Take(1).ToListAsync(ct);
-        if (keys is not [var key] || !Guid.TryParse(key, out var previousId)) return null;
+            // Сравнение — по правилам C#: редакция без ключа импорта проходит, хотя в SQL «NULL <> x» ложно.
+            .Where(r => r.EstimateId == estimateId && r.ImportKey != own)
+            .OrderByDescending(r => r.Number).Select(r => r.ImportKey).Take(1).ToListAsync(ct);
+        if (keys is not [{ } key] || !Guid.TryParse(key, out var previousId)) return null;
 
         var previous = await db.EstimateImports.AsNoTracking().Where(i => i.Id == previousId)
             .Select(i => i.LsrNumber).FirstOrDefaultAsync(ct);

@@ -59,6 +59,7 @@ public sealed class EstimateImportJob(
             outcome = i =>
             {
                 if (source is not null) i.Opened(source);
+                else i.Recognised(refused.Kind, refused.ProgramVersion);
                 i.Reject(refused.Reason.ToString(), refused.Message, DateTimeOffset.UtcNow);
             };
             failure = refused;

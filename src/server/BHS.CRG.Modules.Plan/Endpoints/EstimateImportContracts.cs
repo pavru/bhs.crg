@@ -33,6 +33,16 @@ public sealed record ImportSummaryDto(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ImportCostDto? Cost);
 
 /// <summary>
+/// Импорт в списке импортов стройки — без отчёта: по списку несостоявшийся импорт находят и отменяют (он
+/// держит стройку и раздел новой сметы, design, Risks).
+/// </summary>
+/// <param name="State">Как у отчёта: <c>parsing</c>, <c>parsed</c>, <c>rejected</c> или <c>committed</c>.</param>
+/// <param name="RefusalCode">Причина отказа — у <c>rejected</c>.</param>
+public sealed record EstimateImportItemDto(
+    Guid Id, EstimateImportTargetDto Target, string FileName, string State, string? Kind, string? RefusalCode,
+    Guid? RevisionId, DateTimeOffset CreatedAt, string? CreatedBy, string Version);
+
+/// <summary>
 /// Отчёт импорта (ТЗ PLAN-7): состояние, вид документа и версия схемы, «разобрано N из M», не разобранное с
 /// причиной и сводка будущей редакции.
 /// </summary>
