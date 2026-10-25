@@ -91,6 +91,10 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasColumnType("text")
                         .HasColumnName("blob_path");
 
+                    b.Property<DateTimeOffset?>("CommittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("committed_at");
+
                     b.Property<Guid>("ConstructionId")
                         .HasColumnType("uuid")
                         .HasColumnName("construction_id");
@@ -157,6 +161,14 @@ namespace BHS.CRG.Modules.Plan.Migrations
                     b.Property<DateTimeOffset?>("ParsedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("parsed_at");
+
+                    b.Property<int?>("ParsedPositions")
+                        .HasColumnType("integer")
+                        .HasColumnName("parsed_positions");
+
+                    b.Property<int?>("PositionsInFile")
+                        .HasColumnType("integer")
+                        .HasColumnName("positions_in_file");
 
                     b.Property<string>("ProgramVersion")
                         .HasMaxLength(50)
@@ -284,6 +296,11 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasColumnName("source_file_name");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ImportKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_estimate_revisions_import_key")
+                        .HasFilter("import_key IS NOT NULL");
 
                     b.HasIndex("EstimateId", "Number")
                         .IsUnique()

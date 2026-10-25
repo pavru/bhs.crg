@@ -5742,4 +5742,11 @@ GET    /api/plan/imports/{id}  → отчёт: { state (parsing | parsed | rejec
                                       revisionId, version, hidden? }
 DELETE /api/plan/imports/{id}  If-Match (version импорта) → 204, файл удаляется; из импорта создана
                                       редакция — 409
+POST   /api/plan/imports/{id}/commit  { acceptPartial? }  If-Match (version импорта) → 201 { import,
+                                      estimate, revisionId, revisionNumber, estimateCreated, repeated,
+                                      unmatched [{ row, reason }] }; уже создана этим импортом — 200 с ней же
+                                      (repeated). Не разобранные без acceptPartial — 409 { error, code:
+                                      "partial", parsed, inFile, unparsed }; ВОР, КА, отказ разбора, ещё
+                                      разбирается — 409. Журнал plan.estimate.imported «редакция N, строк M,
+                                      не разобрано K» (и plan.estimate.created, если смета новая)
 ```

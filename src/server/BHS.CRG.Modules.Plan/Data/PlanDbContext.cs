@@ -42,6 +42,9 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
     /// <summary>Единственность номера редакции в смете.</summary>
     internal const string RevisionNumberKey = "ix_estimate_revisions_estimate_number";
 
+    /// <summary>Единственность ключа импорта у редакции: из одного импорта — одна редакция (<c>plan-07</c>).</summary>
+    internal const string RevisionImportKey = "ix_estimate_revisions_import_key";
+
     protected override string Schema => SchemaName;
 
     public DbSet<Estimate> Estimates => Set<Estimate>();
@@ -146,6 +149,9 @@ public sealed class PlanDbContext(DbContextOptions<PlanDbContext> options) : Mod
                 "Смету нельзя удалить: у неё есть редакции. Удаляется только смета без редакций.", e),
             RevisionEstimateKey => new ConflictException(
                 "Смету тем временем удалили, и редакция в неё не записана. Заведите смету заново и повторите.", e),
+            RevisionImportKey => new ConflictException(
+                "Из этого импорта редакция уже создана — в другой вкладке или повторным нажатием. Перечитайте отчёт " +
+                "импорта: в нём она названа.", e),
             RevisionNumberKey => new ConflictException(
                 "В смету одновременно записывалась другая редакция, и эта не записана. Повторите — она получит " +
                 "следующий номер.", e),

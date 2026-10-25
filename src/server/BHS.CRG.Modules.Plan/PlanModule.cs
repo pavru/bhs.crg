@@ -6,6 +6,7 @@ using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace BHS.CRG.Modules.Plan;
 
@@ -136,6 +137,9 @@ public sealed class PlanModule : IAppModule
         services.AddSingleton<IModuleActivityActions, EstimateActions>();
         services.AddScoped<EstimateRevisionWriter>();
         services.AddScoped<IModuleJobHandler, EstimateImportJob>();
+        // Сопоставление строк при импорте — точка расширения: plan-08 заменит пустую реализацию своей.
+        services.TryAddScoped<IEstimateRowMatcher, NoEstimateRowMatcher>();
+        services.AddScoped<EstimateImportCommit>();
     }
 
     /// <summary>

@@ -94,6 +94,17 @@ internal static class EstimateImportFlow
         return GrandSmetaSamples.Cp1251.GetBytes(text);
     }
 
+    /// <summary>Создание редакции из импорта; <paramref name="version" /> — <c>If-Match</c>, <c>null</c> — без него.</summary>
+    public static HttpRequestMessage Commit(Guid id, string? version, bool acceptPartial = false)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/plan/imports/{id}/commit")
+        {
+            Content = JsonContent.Create(new { acceptPartial }),
+        };
+        if (version is not null) request.Headers.TryAddWithoutValidation("If-Match", version);
+        return request;
+    }
+
     public static HttpRequestMessage Delete(Guid id, string? version)
     {
         var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/plan/imports/{id}");

@@ -93,7 +93,8 @@ public sealed class EstimateImportJob(
                 return i =>
                 {
                     i.Opened(source);
-                    i.ParsedLocalEstimate(model.Requisites.Number, model.Requisites.Name, parsed, unparsed, DateTimeOffset.UtcNow);
+                    i.ParsedLocalEstimate(model.Requisites.Number, model.Requisites.Name, parsed, unparsed,
+                        model.Positions.Count(), model.PositionsInFile, DateTimeOffset.UtcNow);
                 };
             case GrandSmetaKind.VolumeStatement:
                 VolumeStatementReader.Read(file);
