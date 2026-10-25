@@ -105,8 +105,9 @@ describe('набор для записи', () => {
 });
 
 describe('объект в шапке', () => {
-  const one = (place: Place, section: string | null | 'many', sections = 1, complete = false) =>
-    ({ kind: 'one', place, section, sections, complete });
+  /** Один объект; `sections` — занятые разделы, `bare` — есть ли часть без раздела. */
+  const one = (place: Place, section: string | null | 'many', sections = section === null ? 0 : 1,
+    bare = section === null, complete = false) => ({ kind: 'one', place, section, sections, bare, complete });
 
   it('выведен из разноски: нет, один (полностью или нет), несколько', () => {
     expect(headerObject(invoice([line('l1', {})])).kind).toBe('none');
@@ -136,7 +137,8 @@ describe('объект в шапке', () => {
 
   it('раздел вместе с «без раздела» той же стройки — тоже несколько мест', () => {
     const view = invoice([line('l1', { parts: [part('A', { sectionId: '4' }), part('A')] })]);
-    expect(headerObject(view)).toEqual(one(site('A'), 'many', 2));
+    // Один раздел и стройка без раздела — «1 раздел и без раздела», а не «2 раздела».
+    expect(headerObject(view)).toEqual(one(site('A'), 'many', 1, true));
   });
 
   it('удалённый раздел — своим id: подпись решает placeName', () => {
@@ -171,6 +173,12 @@ describe('выбор в шапке: сразу или матрица', () => {
   it('весь счёт на разделе: другой раздел или «вся стройка» — сразу', () => {
     expect(headerPickMode(at([part('A', { sectionId: '4' })]), section('A', '5'))).toBe('write');
     expect(headerPickMode(at([part('A', { sectionId: '4' })]), section('A', null))).toBe('write');
+  });
+
+  it('то же место у полностью разнесённого счёта — писать нечего', () => {
+    expect(headerPickMode(at([part('A', { sectionId: '4' })]), section('A', '4'))).toBe('keep');
+    expect(headerPickMode(at([part('A')]), section('A', null))).toBe('keep');
+    expect(headerPickMode(at([articlePart('склад')]), article('склад'))).toBe('keep');
   });
 
   it('неполная разноска на одном месте стройки — тоже сразу: остаток ложится туда же', () => {

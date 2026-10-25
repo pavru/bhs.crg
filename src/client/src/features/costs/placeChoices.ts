@@ -133,6 +133,9 @@ export function statusOf(current: HeaderObject): { status: string; calm: boolean
   if (current.kind === 'many') return { status: `разнесён на ${ruCount(current.count, 'объект', 'объекта', 'объектов')}`, calm: false };
   if (!current.complete) return { status: 'разнесено не полностью', calm: false };
   if (current.section === 'many')
-    return { status: `разнесён на ${ruCount(current.sections, 'раздел', 'раздела', 'разделов')}`, calm: true };
+    return {
+      status: `разнесён на ${ruCount(current.sections, 'раздел', 'раздела', 'разделов')}${current.bare ? ' и без раздела' : ''}`,
+      calm: true,
+    };
   return { status: 'весь счёт на этот объект', calm: true };
 }

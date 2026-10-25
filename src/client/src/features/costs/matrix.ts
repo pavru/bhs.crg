@@ -248,9 +248,10 @@ export type HeaderObject =
   | { kind: 'none' }
   /**
    * Все части — на ОДНОЙ стройке (или одной статье). `place` — стройка без раздела либо статья; раздел —
-   * отдельно, в `section`. `sections` — сколько мест этой стройки занято («без раздела» — тоже место).
+   * отдельно, в `section`. `sections` — сколько РАЗДЕЛОВ занято, `bare` — есть ли часть на стройке без
+   * раздела: «4 эт.» и «без раздела» — один раздел и стройка, а не два раздела.
    */
-  | { kind: 'one'; place: Place; section: HeaderSection; sections: number; complete: boolean }
+  | { kind: 'one'; place: Place; section: HeaderSection; sections: number; bare: boolean; complete: boolean }
   | { kind: 'many'; count: number };
 
 /**
@@ -277,7 +278,10 @@ export function headerObject(view: InvoiceView): HeaderObject {
 
   const [{ place, sections }] = objects.values();
   const section = sections.size > 1 ? 'many' : [...sections][0];
-  return { kind: 'one', place, section, sections: sections.size, complete: view.allocation.allocated };
+  const bare = sections.has(null);
+  return {
+    kind: 'one', place, section, sections: sections.size - (bare ? 1 : 0), bare, complete: view.allocation.allocated,
+  };
 }
 
 /** Место, на котором лежит весь счёт, — стройка с разделом; у нескольких мест стройки — `null`. */
@@ -291,11 +295,14 @@ export function headerPlace(current: HeaderObject): Place | null {
  * стройке нет чужой раскладки по местам, которую выбор потерял бы: счёт не разнесён, или весь лежит на одном
  * месте той же стройки (неполная разноска — тоже: остаток ложится туда же). Несколько мест, другая стройка
  * или статья — матрица с предпросмотром поверх прежней разноски: заменять чужое решение молча нельзя.
+ *
+ * <p>`keep` — выбрано то, на чём весь счёт уже лежит: писать нечего. Запись того же сменила бы отметку
+ * разноски, и сосед с открытой матрицей получил бы отказ «изменили», хотя не менялось ничего.</p>
  */
-export function headerPickMode(current: HeaderObject, picked: Place): 'write' | 'matrix' {
+export function headerPickMode(current: HeaderObject, picked: Place): 'write' | 'matrix' | 'keep' {
   if (current.kind === 'none') return 'write';
   const at = headerPlace(current);
   if (at === null) return 'matrix';
-  if (samePlace(at, picked)) return 'write';
+  if (samePlace(at, picked)) return current.kind === 'one' && current.complete ? 'keep' : 'write';
   return at.construction !== null && at.construction === picked.construction ? 'write' : 'matrix';
 }

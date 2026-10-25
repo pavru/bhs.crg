@@ -48,12 +48,14 @@ export function InvoiceObject({ view, locked }: {
 
   async function pick(place: Place) {
     if (!chosen(place)) return;
+    const mode = headerPickMode(current, place);
+    if (mode === 'keep') return;
     try {
       const preview = await previewing.mutateAsync({ id: view.id, method: 'equal', targets: [place] });
       // Отметка версии — ТОГО вида, по которому решено «пишем сразу»: сосед успел разнести иначе — запись
       // откажет, а не заменит его разноску молча.
       const stamp = view.allocation.stamp;
-      if (headerPickMode(current, place) === 'write') await replace.mutateAsync({ id: view.id, seen: view.version, state: { ...preview.apply, stamp } });
+      if (mode === 'write') await replace.mutateAsync({ id: view.id, seen: view.version, state: { ...preview.apply, stamp } });
       else {
         // Прежние объекты — колонками рядом с новым: предпросмотр показывает, что именно заменит «Применить».
         const columns = targetsOf(view).filter(t => !samePlace(t, place));

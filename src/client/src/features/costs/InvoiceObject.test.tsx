@@ -93,6 +93,15 @@ describe('шапка счёта: сразу или матрица', () => {
     expect(api.preview).toHaveBeenCalledWith(expect.objectContaining({ targets: [section(null)] }));
   });
 
+  it('выбор того же места у разнесённого счёта — ни предпросмотра, ни записи', async () => {
+    show(invoice([[part('k', 's4')], [part('k', 's4')]]));
+    pickSection('4 эт.');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(api.preview).not.toHaveBeenCalled();
+    expect(api.replace).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('matrix')).toBeNull();
+  });
+
   it('два раздела — матрица, записи нет', async () => {
     show(invoice([[part('k', 's4')], [part('k', 's5')]]));
     pickSection('4 эт.');
@@ -120,6 +129,11 @@ describe('шапка называет разноску по разделам', (
     show(invoice([[part('k', 's4')], [part('k', 's5')]]));
     expect(screen.getByRole('combobox', { name: 'Объект счёта' }).textContent).toBe('Комарова 36 · несколько разделов');
     expect(screen.getByText('разнесён на 2 раздела').className).toContain('text-fg4');
+  });
+
+  it('раздел и часть без раздела — «1 раздел и без раздела», а не «2 раздела»', () => {
+    show(invoice([[part('k', 's4')], [part('k')]]));
+    expect(screen.getByText('разнесён на 1 раздел и без раздела').className).toContain('text-fg4');
   });
 
   it('запертый счёт — стройка и раздел текстом, без выбора', () => {

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { ReactNode } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { InvoicePlaceField } from './InvoicePlaceField';
 import type { HeaderObject } from './matrix';
@@ -30,8 +30,15 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+// jsdom не прокручивает: подменяем, чтобы видеть, ЧТО поле просит показать.
+const scrolled: string[] = [];
+beforeAll(() => {
+  Element.prototype.scrollIntoView = function (this: Element) { scrolled.push(this.textContent ?? ''); };
+});
+
 const at = (construction: string, section: string | null = null): Place => ({ construction, section, article: null });
-const whole = (section: string | null): HeaderObject => ({ kind: 'one', place: at('k'), section, sections: 1, complete: true });
+const whole = (section: string | null): HeaderObject =>
+  ({ kind: 'one', place: at('k'), section, sections: section === null ? 0 : 1, bare: section === null, complete: true });
 
 function Under({ children }: { children: ReactNode }) {
   return <SiteFilterContext.Provider value={filter}>{children}</SiteFilterContext.Provider>;
@@ -102,6 +109,42 @@ describe('поле «стройка / раздел» в шапке счёта', 
     expect(screen.getByRole('option', { name: '4 эт.' }).getAttribute('aria-selected')).toBe('true');
   });
 
+  it('после «›» и «‹» фокус остаётся в поле набора — клавиши продолжают работать', () => {
+    show({ kind: 'none' });
+    open();
+    const chevron = screen.getByRole('option', { name: 'Комарова 36' }).nextElementSibling as HTMLElement;
+    // Кнопка не забирает фокус на нажатии мыши: событие отменено.
+    expect(fireEvent.mouseDown(chevron)).toBe(false);
+    fireEvent.click(chevron);
+    expect(document.activeElement).toBe(search());
+    const back = screen.getByRole('button', { name: /^Назад к стройкам/ });
+    expect(fireEvent.mouseDown(back)).toBe(false);
+    fireEvent.click(back);
+    expect(document.activeElement).toBe(search());
+  });
+
+  it('стрелки прокручивают к выделенному пункту; Home и End — к первому и последнему', () => {
+    show({ kind: 'none' });
+    open();
+    scrolled.length = 0;
+    fireEvent.keyDown(search(), { key: 'ArrowDown' });
+    expect(scrolled.at(-1)).toBe('Ленина 5');
+    fireEvent.keyDown(search(), { key: 'End' });
+    expect(scrolled.at(-1)).toBe('Склад');
+    fireEvent.keyDown(search(), { key: 'Home' });
+    expect(scrolled.at(-1)).toBe('Комарова 36');
+  });
+
+  it('справочник ещё грузится — «…», а не «Ничего не найдено»', () => {
+    show({ kind: 'none' }, { sites: undefined, articles: undefined });
+    open();
+    expect(screen.getByRole('listbox').textContent).toBe('…');
+    cleanup();
+    show({ kind: 'none' }, { sites: undefined, articles: undefined, unread: true });
+    open();
+    expect(screen.getByRole('listbox').textContent).toBe('справочник не прочитан');
+  });
+
   it('набор «4 эт» находит «Комарова 36 / 4 эт.»', () => {
     const onPick = show({ kind: 'none' });
     open();
@@ -132,7 +175,7 @@ describe('поле «стройка / раздел» в шапке счёта', 
   });
 
   it('несколько разделов — поле приглушено и называет это словами', () => {
-    show({ kind: 'one', place: at('k'), section: 'many', sections: 2, complete: true });
+    show({ kind: 'one', place: at('k'), section: 'many', sections: 2, bare: false, complete: true });
     expect(field().textContent).toBe('Комарова 36 · несколько разделов');
   });
 });

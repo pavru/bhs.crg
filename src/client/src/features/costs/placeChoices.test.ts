@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { siteChoices } from '@/shared/siteFilter/siteChoices';
 import type { HeaderObject } from './matrix';
-import { FOUND_SECTIONS, WHOLE_SITE, fieldText, firstStep, searchStep, sectionStep, type PlaceList } from './placeChoices';
+import { FOUND_SECTIONS, WHOLE_SITE, fieldText, firstStep, searchStep, sectionStep, statusOf, type PlaceList } from './placeChoices';
 import { LOADING_PLACE, OUTSIDE_SITES, type Place, type Places } from './places';
 import { LOST } from './lostReferences';
 
@@ -92,7 +92,7 @@ describe('поиск по обеим частям', () => {
 
 describe('что показывает поле', () => {
   const one = (place: Place, section: string | null | 'many'): HeaderObject =>
-    ({ kind: 'one', place, section, sections: section === 'many' ? 2 : 1, complete: true });
+    ({ kind: 'one', place, section, sections: section === 'many' ? 2 : section === null ? 0 : 1, bare: section === null, complete: true });
 
   it('стройка, стройка с разделом, несколько разделов, несколько объектов', () => {
     expect(fieldText({ kind: 'none' }, PLACES)).toEqual({ text: '— выберите —', muted: true });
@@ -105,5 +105,21 @@ describe('что показывает поле', () => {
   it('удалённый раздел — «раздел удалён»; справочник не пришёл — «…», а не «удалён»', () => {
     expect(fieldText(one(at('k'), 'старый'), PLACES).text).toBe(`Комарова 36 / ${LOST.section}`);
     expect(fieldText(one(at('k'), 's4'), { sites: undefined, articles: undefined }).text).toBe(LOADING_PLACE);
+  });
+});
+
+describe('состояние разноски словами', () => {
+  const many = (sections: number, bare: boolean, complete = true): HeaderObject =>
+    ({ kind: 'one', place: at('k'), section: 'many', sections, bare, complete });
+
+  it('несколько разделов — спокойно, числом разделов; часть без раздела названа отдельно', () => {
+    expect(statusOf(many(3, false))).toEqual({ status: 'разнесён на 3 раздела', calm: true });
+    expect(statusOf(many(1, true))).toEqual({ status: 'разнесён на 1 раздел и без раздела', calm: true });
+  });
+
+  it('не полностью и несколько объектов — тоном предупреждения', () => {
+    expect(statusOf(many(2, false, false))).toEqual({ status: 'разнесено не полностью', calm: false });
+    expect(statusOf({ kind: 'many', count: 2 })).toEqual({ status: 'разнесён на 2 объекта', calm: false });
+    expect(statusOf({ kind: 'none' })).toEqual({ status: 'не разнесён', calm: false });
   });
 });
