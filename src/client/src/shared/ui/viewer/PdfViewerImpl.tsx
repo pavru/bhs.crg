@@ -5,9 +5,10 @@ import { PdfPages } from './PdfPages';
 import { NARROW_PX, ViewerToolbar } from './ViewerToolbar';
 import { ViewerMessage, type ViewerState } from './ViewerMessage';
 import {
-  anchorOf, currentPage, layout, MAX_SCALE, MIN_SCALE, parseZoomMode, resolveScale, rotateClockwise, scrollTopFor,
+  anchorOf, currentPage, layout, MAX_SCALE, MIN_SCALE, resolveScale, rotateClockwise, scrollTopFor,
   scrollTopOf, visibleRange, zoomIn, zoomOut, type Layout, type ZoomMode,
 } from './viewerState';
+import { handleViewerKey, isEditable, readZoom, useZoomInput, writeZoom, zoomAnnouncement, type ZoomDir } from './viewerInput';
 import type { PdfViewerProps } from './PdfViewer';
 
 /**
@@ -19,33 +20,6 @@ import type { PdfViewerProps } from './PdfViewer';
  *   на месте: пока новые байты разбираются, виден прежний документ.
  * - **Документ уничтожается ровно раз**: при замене другим и при уходе со страницы.
  */
-
-const ZOOM_KEY = (place: string) => `bhs.viewer.zoom.${place}`;
-
-function readZoom(place?: string): ZoomMode {
-  if (!place) return 'width';
-  try { return parseZoomMode(localStorage.getItem(ZOOM_KEY(place))); } catch { return 'width'; }
-}
-
-function writeZoom(place: string | undefined, mode: ZoomMode): void {
-  if (!place) return;
-  // Режим масштаба — удобство зрителя: недоступное хранилище показу не мешает.
-  try { localStorage.setItem(ZOOM_KEY(place), String(mode)); } catch { /* приватный режим */ }
-}
-
-const isEditable = (t: EventTarget | null) =>
-  t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
-
-/** Клавиша масштаба: по коду клавиши, а не по символу — в русской раскладке Ctrl+P это «з». */
-function zoomKey(e: { code: string; key: string }): 'in' | 'out' | 'fit' | null {
-  if (e.code === 'Equal' || e.code === 'NumpadAdd' || e.key === '+' || e.key === '=') return 'in';
-  if (e.code === 'Minus' || e.code === 'NumpadSubtract' || e.key === '-') return 'out';
-  if (e.code === 'Digit0' || e.code === 'Numpad0' || e.key === '0') return 'fit';
-  return null;
-}
-
-/** Сколько «щелчков» колеса с Ctrl копится на одну ступень: тачпад шлёт их десятками. */
-const WHEEL_STEP = 50;
 
 export default function PdfViewerImpl({ source, documentKey, title, actions, rememberZoomAs }: PdfViewerProps) {
   const [shownKey, setShownKey] = useState(documentKey);
@@ -142,10 +116,10 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
   const setMode = useCallback((next: ZoomMode) => {
     setModeState(next);
     writeZoom(rememberZoomAs, next);
-    setAnnounce(typeof next === 'number' ? `Масштаб ${Math.round(next * 100)} %` : `Масштаб: ${next === 'width' ? 'по ширине' : 'страница целиком'}`);
+    setAnnounce(zoomAnnouncement(next));
   }, [rememberZoomAs]);
 
-  const zoom = useCallback((dir: 'in' | 'out' | 'fit') => {
+  const zoom = useCallback((dir: ZoomDir) => {
     setMode(dir === 'fit' ? 'width' : dir === 'in' ? zoomIn(scale) : zoomOut(scale));
   }, [scale, setMode]);
 
@@ -162,53 +136,15 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
   const print = useCallback(() => { if (source) printPdf(source); }, [source]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (handleViewerKey(e, { print, zoom, ready: state === 'ready' })) return;
     const mod = e.ctrlKey || e.metaKey;
-    if (mod && !e.altKey && (e.code === 'KeyP' || e.key === 'p' || e.key === 'P')) {
-      e.preventDefault();
-      print();
-      return;
-    }
-    const z = mod && !e.altKey ? zoomKey(e) : null;
-    if (z && state === 'ready') { e.preventDefault(); zoom(z); return; }
     if (!mod && !e.altKey && !e.shiftKey && (e.key === 'Home' || e.key === 'End') && !isEditable(e.target) && numPages) {
       e.preventDefault();
       goTo(e.key === 'Home' ? 1 : numPages);
     }
   };
 
-  // Указатель над листом, фокус снаружи: Ctrl± масштабирует лист, а не страницу браузера. Поле ввода
-  // в фокусе — нет: человек набирает там, а не смотрит.
-  const hovered = useRef(false);
-  const latest = useRef({ zoom, ready: state === 'ready' });
-  useEffect(() => { latest.current = { zoom, ready: state === 'ready' }; });
-  useEffect(() => {
-    const onWindowKey = (e: globalThis.KeyboardEvent) => {
-      if (!hovered.current || !latest.current.ready || !(e.ctrlKey || e.metaKey) || e.altKey) return;
-      if (root.current?.contains(document.activeElement) || isEditable(document.activeElement)) return;
-      const z = zoomKey(e);
-      if (z) { e.preventDefault(); latest.current.zoom(z); }
-    };
-    window.addEventListener('keydown', onWindowKey);
-    return () => window.removeEventListener('keydown', onWindowKey);
-  }, []);
-
-  // Ctrl+колесо над листом — масштаб листа. Обработчик не пассивный: иначе preventDefault не
-  // отменит масштаб страницы браузера.
-  useEffect(() => {
-    const el = scroller.current;
-    if (!el) return;
-    let acc = 0;
-    const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey || !latest.current.ready) return;
-      e.preventDefault();
-      acc += e.deltaY;
-      if (Math.abs(acc) < WHEEL_STEP) return;
-      latest.current.zoom(acc < 0 ? 'in' : 'out');
-      acc = 0;
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, []);
+  const hover = useZoomInput(root, scroller, zoom, state === 'ready');
 
   const frame = useRef(0);
   const onScroll = () => {
@@ -226,8 +162,7 @@ export default function PdfViewerImpl({ source, documentKey, title, actions, rem
   const range = l ? visibleRange(l, scrollTop, box.height) : ([0, -1] as [number, number]);
 
   return (
-    <div ref={root} className="h-full w-full flex flex-col min-h-0 bg-base" onKeyDown={onKeyDown}
-      onPointerEnter={() => { hovered.current = true; }} onPointerLeave={() => { hovered.current = false; }}>
+    <div ref={root} className="h-full w-full flex flex-col min-h-0 bg-base" onKeyDown={onKeyDown} {...hover}>
       <div ref={scroller} role="region" aria-label={title} tabIndex={0} onScroll={onScroll} data-testid="viewer-region"
         className="relative flex-1 min-h-0 overflow-auto bg-base focus-visible:outline-2 focus-visible:outline-brand focus-visible:-outline-offset-2">
         {ready

@@ -4,8 +4,8 @@
  *
  * - **Окно — синхронно**, в самом обработчике нажатия: открытое после `await` блокировщик всплывающих
  *   окон режет. Байты, которые ещё грузятся, приходят в уже открытую вкладку.
- * - **Тип ставим сами**, `application/pdf`: типу ответа сервера не доверяем — `text/html` во вкладке
- *   исполнился бы как страница нашего адреса.
+ * - **Тип ставим сами**: `application/pdf` либо тип картинки из белого списка (`IMAGE_TYPES`). Типу
+ *   ответа сервера не доверяем — `text/html` во вкладке исполнился бы как страница нашего адреса.
  * - **Ссылка отзывается с отсрочкой**: отозванная сразу не успела бы открыться.
  */
 
@@ -14,8 +14,21 @@ export type PdfBytes = Blob | Uint8Array;
 /** Сколько живёт ссылка на файл во вкладке. Открытой вкладке она уже не нужна. */
 const REVOKE_AFTER_MS = 60_000;
 
-export function pdfBlob(source: PdfBytes): Blob {
-  return new Blob([source as BlobPart], { type: 'application/pdf' });
+/**
+ * Картинки, которые просмотрщик показывает сам ([UI-24]) — свой белый список, не тип из ответа:
+ * векторная картинка (`image/svg+xml`) — документ со сценариями, её здесь нет и не будет.
+ */
+export const IMAGE_TYPES: readonly string[] = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp'];
+
+/** Тип картинки из белого списка, если байты — такая картинка; иначе `null` (показ как PDF). */
+export function imageTypeOf(source: PdfBytes | null): string | null {
+  const type = source instanceof Blob ? source.type.split(';')[0].trim().toLowerCase() : '';
+  return IMAGE_TYPES.includes(type) ? type : null;
+}
+
+/** Байты со СВОИМ типом: картинка из белого списка — своим, всё прочее — `application/pdf`. */
+export function viewerBlob(source: PdfBytes): Blob {
+  return new Blob([source as BlobPart], { type: imageTypeOf(source) ?? 'application/pdf' });
 }
 
 /**
@@ -26,7 +39,7 @@ export function openInNewTab(source: PdfBytes | (() => Promise<PdfBytes>)): Prom
   const tab = window.open('', '_blank');
   if (tab) tab.opener = null;
   const show = (bytes: PdfBytes) => {
-    const url = URL.createObjectURL(pdfBlob(bytes));
+    const url = URL.createObjectURL(viewerBlob(bytes));
     if (tab && !tab.closed) tab.location.href = url;
     else window.open(url, '_blank', 'noopener');
     setTimeout(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS);

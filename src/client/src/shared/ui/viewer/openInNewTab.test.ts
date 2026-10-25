@@ -42,6 +42,12 @@ describe('открыть во вкладке', () => {
     expect(made[0].type).toBe('application/pdf');
   });
 
+  it('картинка из белого списка идёт своим типом, векторная — нет', async () => {
+    await openInNewTab(new Blob([new Uint8Array([0xff, 0xd8])], { type: 'image/jpeg' }));
+    await openInNewTab(new Blob(['<svg onload="alert(1)"/>'], { type: 'image/svg+xml' }));
+    expect(made.map(b => b.type)).toEqual(['image/jpeg', 'application/pdf']);
+  });
+
   it('ссылка отзывается с отсрочкой, а не сразу', async () => {
     await openInNewTab(new Uint8Array([37, 80, 68, 70]));
     expect(URL.revokeObjectURL).not.toHaveBeenCalled();

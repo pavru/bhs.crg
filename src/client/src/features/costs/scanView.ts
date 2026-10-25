@@ -14,14 +14,19 @@ export function scanSaveName(
   return fileName || `Файл счёта${fileExtension(kinds, mimeType)}`;
 }
 
-/** Сохранить файл под его именем. Ссылку не отзывает: она принадлежит тому, кто её получил. */
+/** Сколько живёт ссылка на сохраняемый файл: браузеру она нужна, пока он пишет файл. */
+const REVOKE_AFTER_MS = 60_000;
+
+/** Сохранить файл под его именем. Ссылку делает сама и сама отзывает — с отсрочкой. */
 export function saveScan(
-  url: string, fileName: string | null, mimeType: string | null | undefined, kinds: FileKindsInfo | undefined,
+  blob: Blob, fileName: string | null, mimeType: string | null | undefined, kinds: FileKindsInfo | undefined,
 ): void {
+  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = scanSaveName(fileName, mimeType, kinds);
   document.body.appendChild(link);
   link.click();
   link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS);
 }

@@ -25,6 +25,7 @@ import { readFileSync } from 'node:fs';
 import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
 import { invoiceLayoutChecks } from './invoice-layout-checks.mjs';
 import { viewerShowsPdf } from './pdf-viewer-checks.mjs';
+import { invoiceScanChecks } from './invoice-scan-checks.mjs';
 
 /** Подпись у помеченного поля — она же примета метки на экране. */
 const MARK = 'Распознано, не подтверждено';
@@ -241,16 +242,19 @@ try {
     await attachScan(created.id);
 
     await open(number);
-    await page.getByRole('button', { name: 'Во весь экран' }).waitFor({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Открыть во вкладке' }).waitFor({ timeout: 10_000 });
 
     await page.setViewportSize({ width: 1100, height: 1000 });
     await page.getByText('не меньше 1280').waitFor({ timeout: 10_000 });
-    if ((await page.getByRole('button', { name: 'Во весь экран' }).count()) !== 0)
+    if ((await page.getByRole('button', { name: 'Открыть во вкладке' }).count()) !== 0)
       throw new Error('панель скана осталась на экране уже 1280');
 
     await page.setViewportSize({ width: 1500, height: 1000 });
-    await page.getByRole('button', { name: 'Во весь экран' }).waitFor({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Открыть во вкладке' }).waitFor({ timeout: 10_000 });
   });
+
+  // Скан на своём просмотрщике (issue #1491): фото, поддельный PDF, узкий экран — своим модулем.
+  await invoiceScanChecks(page, check, { api, requisites, open, attachScan, named, officeFile, stamp });
 
   // ── 5. Поставщика можно СНЯТЬ ───────────────────────────────────────────────
   //
