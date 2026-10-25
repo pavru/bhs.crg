@@ -9,6 +9,8 @@
 //      объектах остаётся на виду после горизонтальной прокрутки (закреплённая колонка).
 //   3a. `invoice-goes-to-article` — счёт «на склад» разносится в шапке на статью вне строек (F3, issue
 //      #1087): статья стоит в выборе своей группой, не среди строек, и часть ложится на статью.
+//   3d. `header-section-without-matrix` — весь счёт на стройку, затем в шапке её раздел вторым шагом
+//      («›»): разноска ложится на раздел сразу, матрица не открывается (COST-12.1).
 //   4. `matrix-under-read-only-right` — под «Руководителем» (чтение без права разноски) матрица
 //      открывается, но полей и кнопок «поровну» и «по %» НЕТ, и ни один запрос не получил отказа —
 //      а не «кнопки есть и получают 403».
@@ -270,6 +272,39 @@ await check('archived-article-leaves-choice-but-stays-where-set', async () => {
   // В другом счёте её не предлагают — ни с пометкой, ни без.
   const offered = await outside(await open(other));
   if (offered.some(o => o.startsWith(name))) throw new Error(`архивная статья предлагается на выбор: ${JSON.stringify(offered)}`);
+});
+
+// ── 3d. Раздел из шапки: уточнение в пределах стройки пишется сразу, без матрицы (COST-12.1) ─────────
+await check('header-section-without-matrix', async () => {
+  const site = sites[0];
+  const sectionName = '4 эт. прогона';
+  const section = (await api('GET', `/constructions/${site.id}`)).sections.find(s => s.name === sectionName)
+    ?? await api('POST', `/constructions/${site.id}/sections`, { name: sectionName });
+  const number = `МТР-Р-${stamp}`;
+  const id = await invoice(number, [{ supplierText: 'Кабель на этаж', unit: 'м', quantity: 4, price: 2 }], 8);
+
+  await page.goto(`${BASE}/invoices?invoice=${id}`, { waitUntil: 'networkidle' });
+  const select = page.getByLabel('Объект счёта', { exact: true });
+  const written = () => page.waitForResponse(r => r.url().endsWith(`/costs/invoices/${id}/allocation`)
+    && r.request().method() === 'PUT' && r.ok(), { timeout: 10_000 });
+  await Promise.all([written(), pickOption(select, site.name)]);
+  await page.getByText('весь счёт на этот объект').waitFor({ timeout: 5_000 });
+
+  // Второй шаг — «›» у стройки: он рядом с пунктом, а не в нём, чтобы имя пункта оставалось названием.
+  await select.click();
+  await page.getByRole('option', { name: site.name, exact: true }).locator('xpath=following-sibling::button').click();
+  await Promise.all([written(), page.getByRole('option', { name: sectionName, exact: true }).click()]);
+
+  if (await page.getByRole('dialog', { name: 'Разноска по объектам' }).count())
+    throw new Error('уточнение раздела открыло матрицу, а должно было записаться сразу');
+  const part = (await api('GET', `/costs/invoices/${id}`)).lines[0].allocation.parts;
+  if (part.length !== 1 || part[0].sectionId !== section.id || part[0].quantity !== 4)
+    throw new Error(`счёт не лёг целиком на раздел: ${JSON.stringify(part)}`);
+  await until(async () => {
+    const shown = await shownValue(select);
+    if (shown !== `${site.name} / ${sectionName}`) throw new Error(`в поле «${shown}»`);
+  });
+  await page.getByText('весь счёт на этот объект').waitFor({ timeout: 5_000 });
 });
 
 // ── 3c. Выбор стройки под фильтром избранного (issue #1219) ── см. site-picker-checks.mjs ──────────

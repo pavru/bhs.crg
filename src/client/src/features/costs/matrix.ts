@@ -241,22 +241,68 @@ export function targetName(target: Place, places: Places): string {
   return placeName(target, places);
 }
 
+/** Раздел, на котором лежит весь счёт: id, `null` — стройка без раздела, `'many'` — несколько мест стройки. */
+export type HeaderSection = string | null | 'many';
+
+export type HeaderObject =
+  | { kind: 'none' }
+  /**
+   * Все части — на ОДНОЙ стройке (или одной статье). `place` — стройка без раздела либо статья; раздел —
+   * отдельно, в `section`. `sections` — сколько РАЗДЕЛОВ занято, `bare` — есть ли часть на стройке без
+   * раздела: «4 эт.» и «без раздела» — один раздел и стройка, а не два раздела.
+   */
+  | { kind: 'one'; place: Place; section: HeaderSection; sections: number; bare: boolean; complete: boolean }
+  | { kind: 'many'; count: number };
+
 /**
- * «Объект» в шапке счёта (ТЗ COST-6.2) — выведен из разноски, а не хранится отдельно: храни его полем,
- * у одного вопроса «на что разнесён счёт» было бы два ответа, и расходились бы они на первой правке
+ * «Объект» в шапке счёта (ТЗ COST-6.2, COST-12.1) — выведен из разноски, а не хранится отдельно: храни его
+ * полем, у одного вопроса «на что разнесён счёт» было бы два ответа, и расходились бы они на первой правке
  * матрицы.
+ *
+ * <p>Объект — стройка ЦЕЛИКОМ или статья вне строек; разделы одной стройки — всё ещё один объект, но шапка
+ * их различает (D2): весь счёт на одном разделе, без раздела или на нескольких местах стройки. Потерянный
+ * раздел (удалён, у другой стройки) — такой же `id`: его называет `placeName`.</p>
  */
-export function headerObject(
-  view: InvoiceView,
-): { kind: 'none' } | { kind: 'one'; place: Place; complete: boolean } | { kind: 'many'; count: number } {
-  // Колонки матрицы здесь не заводятся: шапка рисуется часто. Объект — стройка ЦЕЛИКОМ (разделы одной
-  // стройки — всё ещё один объект) или статья вне строек.
-  const objects = new Map<string, Place>();
+export function headerObject(view: InvoiceView): HeaderObject {
+  // Колонки матрицы здесь не заводятся: шапка рисуется часто.
+  const objects = new Map<string, { place: Place; sections: Set<string | null> }>();
   for (const part of [...view.lines.flatMap(l => l.allocation.parts), ...view.allocation.document.parts]) {
-    const place = { ...placeOfPart(part), section: null };
-    objects.set(placeKey(place), place);
+    const { section, ...rest } = placeOfPart(part);
+    const place = { ...rest, section: null };
+    const object = objects.get(placeKey(place)) ?? { place, sections: new Set<string | null>() };
+    object.sections.add(section);
+    objects.set(placeKey(place), object);
   }
   if (objects.size === 0) return { kind: 'none' };
   if (objects.size > 1) return { kind: 'many', count: objects.size };
-  return { kind: 'one', place: [...objects.values()][0], complete: view.allocation.allocated };
+
+  const [{ place, sections }] = objects.values();
+  const section = sections.size > 1 ? 'many' : [...sections][0];
+  const bare = sections.has(null);
+  return {
+    kind: 'one', place, section, sections: sections.size - (bare ? 1 : 0), bare, complete: view.allocation.allocated,
+  };
+}
+
+/** Место, на котором лежит весь счёт, — стройка с разделом; у нескольких мест стройки — `null`. */
+export function headerPlace(current: HeaderObject): Place | null {
+  if (current.kind !== 'one' || current.section === 'many') return null;
+  return { ...current.place, section: current.section };
+}
+
+/**
+ * Выбор в шапке пишется сразу или открывает матрицу (D3, решение владельца 24.10.2026). Сразу — когда на
+ * стройке нет чужой раскладки по местам, которую выбор потерял бы: счёт не разнесён, или весь лежит на одном
+ * месте той же стройки (неполная разноска — тоже: остаток ложится туда же). Несколько мест, другая стройка
+ * или статья — матрица с предпросмотром поверх прежней разноски: заменять чужое решение молча нельзя.
+ *
+ * <p>`keep` — выбрано то, на чём весь счёт уже лежит: писать нечего. Запись того же сменила бы отметку
+ * разноски, и сосед с открытой матрицей получил бы отказ «изменили», хотя не менялось ничего.</p>
+ */
+export function headerPickMode(current: HeaderObject, picked: Place): 'write' | 'matrix' | 'keep' {
+  if (current.kind === 'none') return 'write';
+  const at = headerPlace(current);
+  if (at === null) return 'matrix';
+  if (samePlace(at, picked)) return current.kind === 'one' && current.complete ? 'keep' : 'write';
+  return at.construction !== null && at.construction === picked.construction ? 'write' : 'matrix';
 }

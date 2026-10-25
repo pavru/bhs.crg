@@ -53,8 +53,9 @@ const REGISTRY: Record<string, Entry> = {
     filters: false, because: 'варианты разноски урезает PlaceSelect (useSiteChoices, #1219)',
   },
   '/src/features/costs/InvoiceObject.tsx': {
-    filters: false, because: 'объект счёта урезает PlaceSelect (useSiteChoices, #1219)',
+    filters: false, because: 'объект счёта урезает InvoicePlaceField (useSiteChoices, #1219)',
   },
+  '/src/features/costs/InvoicePlaceField.tsx': { filters: true },
   '/src/features/costs/CorrectionPreviewDialog.tsx': {
     filters: false, because: 'справочник лишь называет цели строк книги: исправление пишется целиком, и отбор спрятал бы его часть',
   },
