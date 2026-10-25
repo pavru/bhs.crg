@@ -1,13 +1,14 @@
 using System.Xml.Linq;
+using BHS.CRG.Modules.Plan.GrandSmeta.Totals;
 
 namespace BHS.CRG.Modules.Plan.GrandSmeta;
 
 /// <summary>
 /// Разбор локального сметного расчёта (<c>OpenXML_LS</c>) — ТЗ PLAN-7, PLAN-8, PLAN-9.1.
 ///
-/// <para>Итог позиции — тот, что записала программа: нормативных баз в системе нет, и пересчёт «по похожей»
-/// настройке дал бы итог, отличный от программы, но помеченный как её. Файл, сохранённый без итогов, —
-/// отказ «в файле нет итогов» (досчёт по данным файла — второй PR plan-05), а не пустые итоги.</para>
+/// <para>Итог позиции — тот, что записала программа, и он не пересчитывается никогда. Файл, сохранённый без
+/// итогов, досчитывается по данным файла (<see cref="PositionTotals" />) с пометкой «посчитано системой» — для
+/// закрытого перечня настроек; вне перечня — отказ с названием метода или опции, а не пустые итоги.</para>
 /// </summary>
 public static class LocalEstimateReader
 {
@@ -23,9 +24,8 @@ public static class LocalEstimateReader
                 throw GrandSmetaFile.Refuse(GrandSmetaRefusal.DocumentInvalid,
                     "В локальном сметном расчёте нет ни одного раздела — разбирать нечего.");
             var all = chapters.SelectMany(c => c.Elements("Position")).ToList();
-            if (all.Count > 0 && all.All(p => p.Element("Itog") is null))
-                throw GrandSmetaFile.Refuse(GrandSmetaRefusal.NoTotals,
-                    "В файле нет итогов: пересчитайте смету в программе и сохраните с итогами.");
+            var method = DetectMethod(root);
+            var computing = all.Count > 0 && all.All(p => p.Element("Itog") is null) ? PositionTotals.For(root, method) : null;
 
             var coefficients = new Coefficients(root);
             var unparsed = new List<Unparsed>();
@@ -35,25 +35,43 @@ public static class LocalEstimateReader
                 var chapter = chapters[ci];
                 var caption = chapter.Text("Caption") ?? "";
                 var positions = new List<LocalEstimatePosition>();
+                var unparsedBefore = unparsed.Count;
                 var index = 0;
                 foreach (var p in chapter.Elements("Position"))
                 {
                     index++;
                     var place = $"раздел {ci + 1} «{caption}», позиция {p.Text("Number")} {p.Text("Code")}".TrimEnd();
-                    validation.Parse(p, place, positions, unparsed, () => Position(p, index, coefficients));
+                    validation.Parse(p, place, positions, unparsed,
+                        () => Position(p, index, coefficients, computing?.Compute(p, chapter)));
                 }
 
-                var itog = chapter.Element("Itog")?.Elements().FirstOrDefault();
-                parsed.Add(new LocalEstimateChapter(ci + 1, caption, Sum(itog, "ChapterTotal"), itog?.Number("TZ"), positions));
+                parsed.Add(computing is null ? Recorded(chapter, ci + 1, caption, positions)
+                    : Computed(ci + 1, caption, positions, unparsed.Count == unparsedBefore));
             }
 
             var docItog = root.Element("Itog")?.Elements().FirstOrDefault();
             var totals = new LocalEstimateTotals(
                 parsed.All(c => c.Total is not null) ? parsed.Sum(c => c.Total!.Value) : null,
-                Sum(docItog, "SmetaTotal"), docItog?.Number("TZ"));
+                Sum(docItog, "SmetaTotal"),
+                computing is null ? docItog?.Number("TZ") : parsed.All(c => c.Labor is not null) ? parsed.Sum(c => c.Labor!.Value) : null);
 
-            return new ParsedLocalEstimate(file.Source, Requisites(root), DetectMethod(root), parsed, totals, unparsed);
+            return new ParsedLocalEstimate(file.Source, Requisites(root), method, parsed, totals, unparsed);
         });
+    }
+
+    private static LocalEstimateChapter Recorded(XElement chapter, int index, string caption, List<LocalEstimatePosition> positions)
+    {
+        var itog = chapter.Element("Itog")?.Elements().FirstOrDefault();
+        return new LocalEstimateChapter(index, caption, Sum(itog, "ChapterTotal"), itog?.Number("TZ"), positions);
+    }
+
+    /// <summary>Итог досчитанного раздела — сумма активных позиций, как у программы. Не разобрана хоть одна — итога
+    /// нет: сумма без неё выглядела бы итогом раздела, а была бы меньше.</summary>
+    private static LocalEstimateChapter Computed(int index, string caption, List<LocalEstimatePosition> positions, bool complete)
+    {
+        var active = positions.Where(p => !p.IsInactive).ToList();
+        return new LocalEstimateChapter(index, caption, complete ? active.Sum(p => p.Total) : null,
+            complete ? active.Sum(p => p.Labor ?? 0m) : null, positions);
     }
 
     /// <summary>Итог раздела или сметы. Строка итога есть, а суммы нет — ноль: нулевую сумму программа не пишет
@@ -86,20 +104,17 @@ public static class LocalEstimateReader
             root.Element("Parameters")?.Text("BasePrices"));
     }
 
-    private static LocalEstimatePosition Position(XElement p, int index, Coefficients coefficients)
+    /// <summary>Позиция. <paramref name="computed" /> — досчёт сметы без итогов; null — итог из файла.</summary>
+    private static LocalEstimatePosition Position(XElement p, int index, Coefficients coefficients, ComputedPosition? computed)
     {
         var number = p.Text("Number") ?? throw new GrandSmetaFormatException("у позиции нет номера");
         var quantity = Quantity(p);
-        var itog = p.Element("Itog")?.Elements().FirstOrDefault()
-            ?? throw new GrandSmetaFormatException("у позиции нет итога");
-        var total = itog.Descendants("Itog").FirstOrDefault(i => i.Text("DataType") == "TotalWithNP")
-            ?? throw new GrandSmetaFormatException("в итоге позиции нет «Всего по позиции»");
-        var totalCurrent = total.Number("TotalCurr") ?? 0m;
-
-        var applied = itog.Elements("Itog").Where(i => i.Text("DataType") == "Koefficients").Elements("Itog")
-            .Select(i => new PositionCoefficient(i.Text("Code"), i.Text("Caption") ?? ""))
-            .Where(c => coefficients.Affects(p, c.Code))
-            .ToList();
+        var total = computed is null ? Recorded(p)
+            : new PositionTotal(computed.Total, null, TotalSource.ComputedBySystem, computed.Labor,
+                // Название — как у коэффициента в документе: значения («ОЗП=1,2…») программа дописывает в итоге
+                computed.Coefficients.Select(k => new PositionCoefficient(k.Text("Code"), k.Text("Caption") ?? "")));
+        var totalCurrent = total.Current;
+        var applied = total.Coefficients.Where(c => coefficients.Affects(p, c.Code)).ToList();
         var materialFactor = coefficients.MaterialFactor(p, applied);
         // Количество «всего» программа округляет до точности объёма позиции (Quantity/@Precision, по умолчанию 7;
         // схема допускает и «-3» — до тысяч)
@@ -112,10 +127,25 @@ public static class LocalEstimateReader
 
         return new LocalEstimatePosition(
             index, number, p.Text("Code"), p.Text("Caption") ?? "", p.Text("Units"), quantity,
-            totalCurrent, total.Number("TotalBase"), TotalSource.Program,
-            quantity != 0 ? Math.Round(totalCurrent / quantity, 2, MidpointRounding.AwayFromZero) : null,
-            p.HasOption("Inactive"), p.Text("SlaveRow") == "Yes", Labor(itog), materials, applied,
+            totalCurrent, total.Base, total.Source,
+            quantity != 0 ? GrandSmetaXml.Kopecks(totalCurrent / quantity) : null,
+            p.HasOption("Inactive"), p.Text("SlaveRow") == "Yes", total.Labor, materials, applied,
             MarketAnalysis(p));
+    }
+
+    /// <summary>Итог позиции, коэффициенты и затраты труда — записанные программой или досчитанные.</summary>
+    private sealed record PositionTotal(
+        decimal Current, decimal? Base, TotalSource Source, decimal? Labor, IEnumerable<PositionCoefficient> Coefficients);
+
+    private static PositionTotal Recorded(XElement p)
+    {
+        var itog = p.Element("Itog")?.Elements().FirstOrDefault()
+            ?? throw new GrandSmetaFormatException("у позиции нет итога");
+        var total = itog.Descendants("Itog").FirstOrDefault(i => i.Text("DataType") == "TotalWithNP")
+            ?? throw new GrandSmetaFormatException("в итоге позиции нет «Всего по позиции»");
+        return new PositionTotal(total.Number("TotalCurr") ?? 0m, total.Number("TotalBase"), TotalSource.Program, Labor(itog),
+            itog.Elements("Itog").Where(i => i.Text("DataType") == "Koefficients").Elements("Itog")
+                .Select(i => new PositionCoefficient(i.Text("Code"), i.Text("Caption") ?? "")));
     }
 
     /// <summary>Объём — <c>Quantity/@Result</c>, в единицах расценки («100 м» → 0,7). Нулевой результат программа

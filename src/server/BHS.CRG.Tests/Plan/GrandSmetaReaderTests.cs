@@ -14,6 +14,7 @@ public class GrandSmetaReaderTests
 {
     public static TheoryData<string> AllSamples => new(GrandSmetaSamples.All);
     public static TheoryData<string> LsrSamples => new(GrandSmetaSamples.Lsr);
+    public static TheoryData<string> LsrWithTotals => new(GrandSmetaSamples.Lsr.Concat(GrandSmetaSamples.LsrRim));
 
     [Theory]
     [MemberData(nameof(AllSamples))]
@@ -29,7 +30,7 @@ public class GrandSmetaReaderTests
     /// <summary>Инварианты на всех ЛСР: разобрано всё; итог раздела, записанный программой, — сумма «Всего по
     /// позиции» активных позиций; итог документа — сумма разделов.</summary>
     [Theory]
-    [MemberData(nameof(LsrSamples))]
+    [MemberData(nameof(LsrWithTotals))]
     public void ЛСР_разобрана_вся_итог_раздела_равен_сумме_позиций(string sample)
     {
         var m = LocalEstimateReader.Read(GrandSmetaSamples.Open(sample));
@@ -47,8 +48,19 @@ public class GrandSmetaReaderTests
     public void Четыре_ЛСР_опознаны_базисно_индексными(string sample) =>
         Assert.Equal(CalculationMethod.Bim, LocalEstimateReader.Read(GrandSmetaSamples.Open(sample)).Method);
 
-    /// <summary>Пары РИМ ещё не в репозитории (plan-05 0.3): признаки метода — на фрагменте, повторяющем их
-    /// <c>Indexes</c> (<c>IndexesMode="None"</c> и индексы ГОСР).</summary>
+    /// <summary>ЛСР пар «с итогом / без итогов» (plan-05, 0.3): 4 БИМ и 2 РИМ — и с итогом, и без.</summary>
+    [Fact]
+    public void ЛСР_пар_опознаны_БИМ_и_РИМ()
+    {
+        foreach (var (noTotals, withTotals) in GrandSmetaSamples.Pairs)
+        {
+            var expected = withTotals.Contains("-rim") ? CalculationMethod.Rim : CalculationMethod.Bim;
+            Assert.Equal((withTotals, expected), (withTotals, LocalEstimateReader.Read(GrandSmetaSamples.Open(withTotals)).Method));
+            Assert.Equal((noTotals, expected), (noTotals, LocalEstimateReader.Read(GrandSmetaSamples.Open(noTotals)).Method));
+        }
+    }
+
+    /// <summary>Признаки метода — на фрагменте <c>Indexes</c>: РМ в образцах нет вовсе.</summary>
     [Theory]
     [InlineData("<Indexes IndexesMode=\"PosOne\" IndexesLinkMode=\"Category\" />", CalculationMethod.Bim)]
     [InlineData("<Indexes IndexesMode=\"None\"><IndexesRes><Index Code=\"561\" MT=\"1,2\" /></IndexesRes></Indexes>", CalculationMethod.Rim)]
@@ -56,18 +68,6 @@ public class GrandSmetaReaderTests
     [InlineData("<Parameters />", CalculationMethod.Unknown)]
     public void Метод_расчёта_по_Indexes(string fragment, CalculationMethod expected) =>
         Assert.Equal(expected, LocalEstimateReader.DetectMethod(XElement.Parse($"<Document>{fragment}</Document>")));
-
-    [Fact]
-    public void ЛСР_без_итогов_отвергнута_с_текстом()
-    {
-        var file = GrandSmetaSamples.OpenEditedXml("lsr-16.2.0-vn",
-            x => x.Descendants("Position").Elements("Itog").Remove());
-
-        var ex = Assert.Throws<GrandSmetaRefusedException>(() => LocalEstimateReader.Read(file));
-
-        Assert.Equal(GrandSmetaRefusal.NoTotals, ex.Reason);
-        Assert.Contains("в файле нет итогов", ex.Message, StringComparison.OrdinalIgnoreCase);
-    }
 
     [Fact]
     public void Неизвестная_версия_программы_отвергнута_с_версией_и_перечнем()
