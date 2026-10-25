@@ -57,6 +57,14 @@ public static class PlanReferences
 
         ModuleReference.Holding("estimate_row_materials", "nomenclature_id", ReferenceTarget.Record,
             "материалы строк смет с этой позицией номенклатуры"),
+        ModuleReference.Remembering("estimate_row_materials", "resource_match_id", target: null,
+            "какое запомненное сопоставление подставило материал — запись модуля, а не справочника ядра"),
+
+        // Запомненное держит позицию номенклатуры (plan-08): снимают его в списке — «забыть» или «перенацелить».
+        ModuleReference.Holding("resource_matches", "nomenclature_id", ReferenceTarget.Record,
+            "запомненные сопоставления ресурсов смет с этой позицией номенклатуры"),
+        ModuleReference.Remembering("resource_matches", "updated_by", ReferenceTarget.User,
+            "кто запомнил сопоставление ресурса — справочное поле; удаление учётной записи его не касается"),
 
         // Импорт держит стройку и раздел новой сметы: из него ещё заведётся смета на них (plan-07). Отменённый
         // импорт держать перестаёт — его запись уходит.

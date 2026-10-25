@@ -367,6 +367,17 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Modules.Plan/Data/EstimateRowReferences.cs|(await catalog.RefsAsync(FunctionalTag.RoleNomenclature, nomenclatureIds, ct))?.ToDictionary(r => r.Id, r => r.Archived)"] =
             Choice("новые материалы строк редакции сметы (plan-06): архивная позиция номенклатуры отвергается, запись другого вида — тоже",
                 nameof(BHS.CRG.Tests.Plan.EstimateRowReferencesTests.Архивная_номенклатура_материала_отвергается)),
+        ["BHS.CRG.Modules.Plan/Matching/ResourceMatching.cs|var position = (await catalog.RefsAsync(FunctionalTag.RoleNomenclature, [nomenclatureId], ct)"] =
+            Choice("новая позиция материала сметы и перенацеливание запомненного ресурса (plan-08): архивная отвергается",
+                nameof(BHS.CRG.Tests.Plan.ResourceMatchingTests.Архивная_позиция_материалу_не_ставится)),
+        ["BHS.CRG.Modules.Plan/Matching/RememberedRowMatcher.cs|var found = await catalog.RefsAsync(FunctionalTag.RoleNomenclature, ids, ct);"] =
+            Choice("подстановка запомненного ресурса при импорте (plan-08): архивная позиция не подставляется, материал ждёт выбора",
+                nameof(BHS.CRG.Tests.Plan.ResourceMatchingTests.Знакомый_ресурс_подставлен_с_пометкой_архивная_позиция_нет)),
+        ["BHS.CRG.Modules.Plan/Endpoints/ResourceMatchEndpoints.cs|var position = (await catalog.RefsAsync(FunctionalTag.RoleNomenclature, [match.NomenclatureId], ct) ?? [])"] =
+            Choice("похожие для материала (plan-08): запомненное архивное названо отдельно, не на выбор — выбор даёт подбор ядра",
+                nameof(BHS.CRG.Tests.Plan.ResourceMatchingTests.Знакомый_ресурс_подставлен_с_пометкой_архивная_позиция_нет)),
+        ["BHS.CRG.Modules.Plan/Endpoints/ResourceMatchListEndpoints.cs|: (await catalog.RefsAsync(FunctionalTag.RoleNomenclature, [.. matches.Select(m => m.NomenclatureId).Distinct()], ct)"] =
+            Shown("список запомненных ресурсов (plan-08): названия уже стоящих позиций, архивная помечена «archived»"),
         ["BHS.CRG.Modules.Costs/Endpoints/NewReferences.cs|if (await catalog.RefsAsync(typeCode, fresh, ct) is not { } found) return null;"] =
             Choice("правило новых ссылок модуля: сторона счёта, позиция строки счёта и накладной — архивная отвергается",
                 nameof(InvoiceArchiveTests.Счёт_с_архивным_поставщиком_читается_и_правится_а_новым_поставщиком_архивный_не_ставится),
