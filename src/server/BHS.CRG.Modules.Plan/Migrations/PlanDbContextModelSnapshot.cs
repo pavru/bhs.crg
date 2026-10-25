@@ -267,6 +267,15 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasColumnType("text")
                         .HasColumnName("imported_by_name");
 
+                    b.Property<DateTimeOffset?>("MatchedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("matched_at");
+
+                    b.Property<string>("NormativeBase")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("normative_base");
+
                     b.Property<int>("Number")
                         .HasColumnType("integer")
                         .HasColumnName("number");
@@ -354,6 +363,10 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("rate_code");
+
+                    b.Property<Guid?>("RateMatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("rate_match_id");
 
                     b.Property<Guid>("RevisionId")
                         .HasColumnType("uuid")
@@ -506,6 +519,85 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasDatabaseName("ix_estimate_row_materials_row_id");
 
                     b.ToTable("estimate_row_materials", "plan");
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.RateMatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<decimal>("Factor")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)")
+                        .HasColumnName("factor");
+
+                    b.Property<string>("KeyHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("key_hash")
+                        .IsFixedLength();
+
+                    b.Property<string>("NormativeBase")
+                        .HasColumnType("text")
+                        .HasColumnName("normative_base");
+
+                    b.Property<string>("RateCode")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("rate_code");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<string>("SourceUnit")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("source_unit");
+
+                    b.Property<Guid>("UnitId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("unit_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<string>("UpdatedByName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by_name");
+
+                    b.Property<Guid>("WorkTypeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_type_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("KeyHash")
+                        .IsUnique()
+                        .HasDatabaseName("ux_rate_matches_key");
+
+                    b.HasIndex("UnitId")
+                        .HasDatabaseName("ix_rate_matches_unit_id");
+
+                    b.HasIndex("WorkTypeId")
+                        .HasDatabaseName("ix_rate_matches_work_type_id");
+
+                    b.ToTable("rate_matches", "plan");
                 });
 
             modelBuilder.Entity("BHS.CRG.Modules.Plan.Data.Estimate", b =>

@@ -45,7 +45,10 @@ public sealed record ParsedLocalEstimate(
 }
 
 /// <summary>Реквизиты расчёта. <see cref="CurrentPriceDate" /> — дата текущего уровня цен
-/// (<c>DocDates/@CurrPriceDate</c>), <see cref="BasePrices" /> — базисный уровень («2001»).</summary>
+/// (<c>DocDates/@CurrPriceDate</c>), <see cref="BasePrices" /> — базисный уровень («2001»).
+/// <see cref="NormativeBase" /> — основная нормативная база, как её назвала программа
+/// (<c>RegionInfo/@RegionName</c>: «ФСНБ-2022 (с Изм. 1-18.1)»); ключ запомненного шифра берёт из неё часть
+/// без изменений (<c>plan-08</c>, <c>RateMatchKey</c>).</summary>
 public sealed record LocalEstimateRequisites(
     string? Number,
     string? Name,
@@ -54,7 +57,8 @@ public sealed record LocalEstimateRequisites(
     string? Stage,
     DateOnly? CreationDate,
     DateOnly? CurrentPriceDate,
-    string? BasePrices);
+    string? BasePrices,
+    string? NormativeBase = null);
 
 /// <summary>Итоги документа, как их записала программа. <see cref="Total" /> — сумма итогов разделов (без
 /// лимитированных затрат); <see cref="EstimateTotal" /> — «ВСЕГО по смете» с ними (непредвиденные, НДС…):

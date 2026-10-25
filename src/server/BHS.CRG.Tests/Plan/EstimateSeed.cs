@@ -31,7 +31,8 @@ internal static class EstimateSeed
     /// Вид работы и единица классификатора — ссылки сопоставленной строки; тип вида работы — для новых
     /// записей; позиция номенклатуры — ссылка материала.
     /// </summary>
-    internal sealed record Classifier(Guid WorkType, Guid Unit, Guid WorkTypeClass, Guid Nomenclature);
+    /// <param name="Piece">Вторая единица — «шт», не единица вида работы (<c>plan-08</c>).</param>
+    internal sealed record Classifier(Guid WorkType, Guid Unit, Guid WorkTypeClass, Guid Nomenclature, Guid Piece);
 
     /// <summary>Стройка с разделом — у каждого теста своя.</summary>
     internal sealed record Site(Guid Construction, Guid Section);
@@ -71,7 +72,8 @@ internal static class EstimateSeed
             var work = await seed.RecordAsync(workType.Id, "Прокладка кабеля",
                 WorkTypeSeed.WorkTypeData("01.02", "Прокладка кабеля", unit));
             var cable = await seed.RecordAsync(nomenclatureType.Id, "Кабель ВВГнг-LS 3х2,5");
-            return new Classifier(work.Id, unit.Id, workType.Id, cable.Id);
+            var piece = await seed.RecordAsync(unitType.Id, "шт");
+            return new Classifier(work.Id, unit.Id, workType.Id, cable.Id, piece.Id);
         }
     }
 

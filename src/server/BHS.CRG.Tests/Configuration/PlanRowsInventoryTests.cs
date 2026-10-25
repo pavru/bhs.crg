@@ -30,6 +30,10 @@ public class PlanRowsInventoryTests
         [$"{Module}/PlanReferences.cs"] = "объявление колонок с идентификаторами ядра: запросов нет",
         [$"{Module}/Endpoints/EstimateRowsEndpoints.cs"] =
             "строки ОДНОЙ редакции для показа, страницами — не план стройки",
+        [$"{Module}/Matching/RowMatching.cs"] =
+            "сопоставление строк ОДНОЙ редакции: строка или раздел ЛСР на запись (plan-08) — не план стройки",
+        [$"{Module}/Endpoints/MatchEndpoints.cs"] =
+            "строка ОДНОЙ редакции, которую сопоставляют (plan-08), — не план стройки",
         [$"{Module}/Endpoints/EstimateViews.cs"] =
             "счётчики и итог ОДНОЙ редакции в ответе сметы (строк, не сопоставлено, итог под правом) — не план стройки",
     };
