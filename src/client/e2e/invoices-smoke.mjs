@@ -22,7 +22,7 @@
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
 import { readFileSync } from 'node:fs';
-import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, named } from './harness.mjs';
 import { invoiceLayoutChecks } from './invoice-layout-checks.mjs';
 import { viewerShowsPdf } from './pdf-viewer-checks.mjs';
 import { invoiceScanChecks } from './invoice-scan-checks.mjs';
@@ -85,15 +85,6 @@ if (organizations.length === 0) {
   process.exit(1);
 }
 const supplierId = organizations[0].id;
-
-/**
- * Ожидание со СВОИМ именем: голый таймаут говорит «10000ms exceeded» и не говорит, ЧЕГО не
- * дождались. В прогоне из пяти проверок это стоит отдельного разбора при каждом провале.
- */
-async function named(what, run) {
-  try { await run(); }
-  catch (e) { throw new Error(`${what} (${e.message.split('\n')[0]})`); }
-}
 
 /**
  * Открыть счёт списка по номеру и дождаться формы.

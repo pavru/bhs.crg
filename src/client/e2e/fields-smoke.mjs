@@ -20,7 +20,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/fields-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled, until, closeDialog } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, until, closeDialog, named } from './harness.mjs';
 import { sheetDrawn } from './pdf-viewer-checks.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
@@ -280,12 +280,6 @@ await check('union-second-row-has-its-own-variant', async () => {
 // поставлены. Картинку проверяем тем, что браузер её РАЗОБРАЛ: отозванный URL даёт naturalWidth = 0.
 editor = await openInstance(PDF_DOC);
 
-/** Ожидание со своим именем: голый таймаут не говорит, ЧЕГО не дождались. */
-async function named(what, run) {
-  try { await run(); }
-  catch (e) { throw new Error(`${what} (${e.message.split('\n')[0]})`); }
-}
-
 async function filePreviewDrawn() {
   const eye = editor.getByRole('button', { name: /предпросмотр/i }).first();
   if (!(await eye.count())) throw new Error('кнопки предпросмотра у поля-файла нет');
@@ -295,9 +289,17 @@ async function filePreviewDrawn() {
   const region = dlg.getByRole('region', { name: /\.pdf$/ });
   await named('области просмотра в окне нет', () => region.waitFor({ timeout: 30_000 }));
   if ((await dlg.locator('iframe').count()) !== 0) throw new Error('в окне остался фрейм браузера');
-  if ((await dlg.getByTestId('viewer-failure').count()) !== 0)
-    throw new Error(`просмотрщик отказал: «${await dlg.getByTestId('viewer-failure').innerText()}»`);
-  await sheetDrawn(page, named, region.getByRole('group', { name: /^Страница 1 из / }));
+  // Область есть и пока документ грузится, и в отказе: ждём исхода — первый лист ИЛИ отказ. Иначе
+  // отказ поставки (worker, шрифты) краснел бы тридцатисекундным «лист не нарисован» без причины.
+  const sheet = region.getByRole('group', { name: /^Страница 1 из / });
+  const failure = dlg.getByTestId('viewer-failure');
+  const refused = async () => {
+    if (await failure.count()) throw new Error(`просмотрщик отказал: «${await failure.innerText()}»`);
+  };
+  await named('просмотрщик не показал ни лист, ни отказ', () => sheet.or(failure).first().waitFor({ timeout: 30_000 }));
+  await refused();
+  // Отказ бывает и при рисовании листа — тогда назвать его, а не таймаут холста.
+  await sheetDrawn(page, named, sheet).catch(async e => { await refused(); throw e; });
   return dlg;
 }
 

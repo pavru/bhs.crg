@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { apiClient } from '@/shared/api/client';
 import type { FileAttachment } from '@/shared/api/attachments';
-import { openPdf } from '@/shared/ui/viewer/pdfEngine';
+import { openPdf, ViewerFailure } from '@/shared/ui/viewer/pdfEngine';
+import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
 import { fakeDocument, opening, supportedBrowser } from '@/shared/ui/viewer/testEngine';
 import { FilePreviewModal } from './FileField';
 
@@ -17,6 +18,10 @@ vi.mock('@/shared/ui/viewer/pdfEngine', () => ({
   },
 }));
 vi.mock('@/shared/ui/viewer/printPdf', () => ({ printPdf: vi.fn(), canPrintInline: () => true }));
+vi.mock('@/shared/ui/viewer/viewerGate', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/shared/ui/viewer/viewerGate')>()),
+  preloadPdfViewer: vi.fn(),
+}));
 
 /**
  * Окно поля-файла документа (issue #1492): PDF — общим просмотрщиком в области явной высоты, а не
@@ -32,6 +37,8 @@ const XLSX: FileAttachment = {
 };
 
 let restore: () => void;
+// В jsdom этих функций нет вовсе — spyOn не к чему прицепить; подменяем и возвращаем как было.
+const urlApi = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
 
 beforeEach(() => {
   restore = supportedBrowser();
@@ -48,6 +55,9 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   restore();
+  URL.createObjectURL = urlApi.create;
+  URL.revokeObjectURL = urlApi.revoke;
+  vi.restoreAllMocks();
 });
 
 describe('FilePreviewModal', () => {
@@ -60,6 +70,35 @@ describe('FilePreviewModal', () => {
     expect(screen.getByTestId('file-preview-area').className).toContain('h-[70vh]');
     expect(document.querySelector('iframe')).toBeNull();
     await waitFor(() => expect(openPdf).toHaveBeenCalled());
+  });
+
+  it('PDF — ядро просмотрщика грузится сразу, вместе с байтами', () => {
+    vi.mocked(preloadPdfViewer).mockClear();
+    render(<FilePreviewModal open onOpenChange={() => {}} attachment={PDF} />);
+
+    expect(preloadPdfViewer).toHaveBeenCalled();
+  });
+
+  it('PDF не загрузился — причина словами, просмотрщика нет', async () => {
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new Error('Нет связи с сервером'));
+    render(<FilePreviewModal open onOpenChange={() => {}} attachment={PDF} />);
+
+    expect(await screen.findByText('Нет связи с сервером')).toBeTruthy();
+    expect(screen.queryByRole('region')).toBeNull();
+    expect(openPdf).not.toHaveBeenCalled();
+  });
+
+  it('файл не читается как PDF — в отказе «Скачать», он отдаёт оригинал', async () => {
+    vi.mocked(openPdf).mockImplementation(() => opening(new ViewerFailure('not-pdf')));
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    render(<FilePreviewModal open onOpenChange={() => {}} attachment={PDF} />);
+
+    const failure = await screen.findByTestId('viewer-failure');
+    expect(failure.getAttribute('data-state')).toBe('not-pdf');
+    fireEvent.click(within(failure).getByRole('button', { name: 'Скачать' }));
+    expect(click).toHaveBeenCalledTimes(1);
+    expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe('Паспорт.pdf');
+    expect(vi.mocked(URL.createObjectURL).mock.calls[0][0]).toBeInstanceOf(Blob);
   });
 
   it('PDF — верхняя строка окна: имя, «Открыть во вкладке», «Закрыть»', async () => {

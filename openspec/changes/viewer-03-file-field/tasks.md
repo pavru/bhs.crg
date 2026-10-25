@@ -4,7 +4,7 @@
 
 ## 1. Загрузчик
 
-- [x] 1.1 `loadAttachmentBlob(blobPath) → { blob, mimeType }` с белым списком `VIEWABLE_TYPES`;
+- [x] 1.1 `loadAttachmentBlob(blobPath) → Blob` с белым списком `VIEWABLE_TYPES`;
   `loadAttachmentObjectUrl` построен на нём. Проверка — `npx tsc -b`; `ImageField` и
   `openAttachmentInNewTab` работают как прежде (проверка картинки в `fields-smoke` зелёная)
 

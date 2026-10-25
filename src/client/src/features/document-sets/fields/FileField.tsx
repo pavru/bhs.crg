@@ -11,6 +11,7 @@ import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { PdfViewer, ViewerTitleBar } from '@/shared/ui/viewer/PdfViewer';
+import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
 
 export interface PrintFormContext {
   setId: string;
@@ -46,6 +47,32 @@ export function FilePreviewModal({ open, onOpenChange, attachment }: {
 }
 
 /**
+ * Загрузка вложения для окна предпросмотра. Тело окна заводится заново ключом (issue #858), поэтому
+ * «грузится» — начальное состояние: нет ни значения, ни ошибки. Загрузчик и уборка — функции модуля, а
+ * не замыкания рендера: иначе эффект перезапускался бы каждым рендером.
+ */
+function useAttachmentLoad<T>(blobPath: string, load: (blobPath: string) => Promise<T>, dispose?: (value: T) => void) {
+  const [value, setValue] = useState<T | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let loaded: T | null = null;
+    let cancelled = false;
+    load(blobPath)
+      .then(v => {
+        if (cancelled) { dispose?.(v); return; }
+        loaded = v; setValue(v);
+      })
+      .catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : 'Ошибка загрузки'); });
+    return () => { cancelled = true; if (loaded !== null) dispose?.(loaded); };
+  }, [blobPath, load, dispose]);
+
+  return { value, error };
+}
+
+const revokeObjectUrl = ({ url }: { url: string }) => URL.revokeObjectURL(url);
+
+/**
  * PDF вложения — общим просмотрщиком, а не встроенным просмотрщиком браузера во фрейме (issue #1492):
  * Chrome на Android на месте листа показывал кнопку «Открыть», Safari на iOS — одну первую страницу.
  *
@@ -54,16 +81,9 @@ export function FilePreviewModal({ open, onOpenChange, attachment }: {
  * поверх окна был бы лишним.
  */
 function PdfPreviewBody({ attachment, onClose }: { attachment: FileAttachment; onClose: () => void }) {
-  const [blob, setBlob] = useState<Blob | null>(null);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    let cancelled = false;
-    loadAttachmentBlob(attachment.blobPath)
-      .then(res => { if (!cancelled) setBlob(res.blob); })
-      .catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : 'Ошибка загрузки'); });
-    return () => { cancelled = true; };
-  }, [attachment.blobPath]);
+  const { value: blob, error } = useAttachmentLoad(attachment.blobPath, loadAttachmentBlob);
+  // Окно знает, что покажет PDF: ядро просмотрщика грузится вместе с байтами, а не после них.
+  useEffect(() => preloadPdfViewer(), []);
 
   return (
     <>
@@ -88,27 +108,13 @@ function PdfPreviewBody({ attachment, onClose }: { attachment: FileAttachment; o
 }
 
 function FilePreviewBody({ attachment }: { attachment: FileAttachment }) {
-  const [objectUrl, setObjectUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { value, error } = useAttachmentLoad(attachment.blobPath, loadAttachmentObjectUrl, revokeObjectUrl);
+  const objectUrl = value?.url;
   const category = getFileCategory(attachment.mimeType);
-
-  useEffect(() => {
-    let url: string | null = null;
-    let cancelled = false;
-    loadAttachmentObjectUrl(attachment.blobPath)
-      .then(res => {
-        if (cancelled) { URL.revokeObjectURL(res.url); return; }
-        url = res.url; setObjectUrl(res.url);
-      })
-      .catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : 'Ошибка загрузки'); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
-  }, [attachment.blobPath]);
 
   return (
     <>
-      {loading && (
+      {!value && !error && (
         <div className="flex items-center justify-center py-12">
           <Loader2 size={24} className="animate-spin text-brand" />
         </div>

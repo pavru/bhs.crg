@@ -33,7 +33,7 @@
 ## Decisions
 
 - **Загрузчик.**
-  - `loadAttachmentBlob(blobPath) → { blob, mimeType }` с тем же белым списком `VIEWABLE_TYPES`; чужой
+  - `loadAttachmentBlob(blobPath) → Blob` с тем же белым списком `VIEWABLE_TYPES`; чужой
     тип — `application/octet-stream`.
   - `loadAttachmentObjectUrl` строится на нём: поведение для `ImageField` и вкладки прежнее.
 - **Показ.**

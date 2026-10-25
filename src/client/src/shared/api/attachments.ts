@@ -123,7 +123,7 @@ const VIEWABLE_TYPES = new Set([
  * Байты вложения с типом из белого списка — для просмотрщика, которому нужен `Blob`, а не адрес
  * (issue #1492): `blob:`-адрес pdf.js не принимает вовсе (CSP, D8 зонтика просмотрщика).
  */
-export async function loadAttachmentBlob(blobPath: string): Promise<{ blob: Blob; mimeType: string }> {
+export async function loadAttachmentBlob(blobPath: string): Promise<Blob> {
   const response = await apiClient.get('/attachments', {
     params: { path: blobPath },
     responseType: 'blob',
@@ -132,12 +132,12 @@ export async function loadAttachmentBlob(blobPath: string): Promise<{ blob: Blob
   // Отсекаем параметры вида «; charset=utf-8» — сравниваем сам тип.
   const bare = declared.split(';')[0].trim().toLowerCase();
   const mimeType = VIEWABLE_TYPES.has(bare) ? bare : 'application/octet-stream';
-  return { blob: new Blob([response.data as BlobPart], { type: mimeType }), mimeType };
+  return new Blob([response.data as BlobPart], { type: mimeType });
 }
 
 export async function loadAttachmentObjectUrl(blobPath: string): Promise<{ url: string; mimeType: string }> {
-  const { blob, mimeType } = await loadAttachmentBlob(blobPath);
-  return { url: URL.createObjectURL(blob), mimeType };
+  const blob = await loadAttachmentBlob(blobPath);
+  return { url: URL.createObjectURL(blob), mimeType: blob.type };
 }
 
 /** Открывает вложение в отдельной вкладке браузера (полноразмерный просмотр PDF/изображения). */

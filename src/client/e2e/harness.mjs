@@ -381,6 +381,15 @@ export async function listOptions(trigger) {
 /** Что показывает поле `Select`: подпись выбранного пункта, а без выбора — placeholder. */
 export const shownValue = trigger => trigger.innerText().then(text => text.trim());
 
+/**
+ * Ожидание со СВОИМ именем: голый таймаут говорит «10000ms exceeded» и не говорит, ЧЕГО не
+ * дождались. В прогоне из пяти проверок это стоит отдельного разбора при каждом провале.
+ */
+export async function named(what, run) {
+  try { await run(); }
+  catch (e) { throw new Error(`${what} (${e.message.split('\n')[0]})`); }
+}
+
 export async function until(probe, { timeout = 10_000, every = 40 } = {}) {
   const deadline = Date.now() + timeout;
   for (;;) {
