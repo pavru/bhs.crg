@@ -59,6 +59,38 @@ public sealed class MaterialMatching(
             : MatchMemory.Nothing;
     }
 
+    /// <summary>
+    /// Сопоставить все ресурсы одного материала файла (D10 <c>plan-31</c>) одной фиксацией: версия редакции
+    /// сдвигается раз. Правило зафиксированной редакции — то же, что у ресурса: не сопоставленный — можно,
+    /// пересопоставить сопоставленный — 409, и тогда не меняется ни один ресурс группы.
+    /// </summary>
+    /// <param name="materials">Ресурсы группы, отслеживаемые контекстом; первый — образец кода и наименования.</param>
+    /// <returns>Сколько ресурсов получили позицию этим запросом — и что запомнено.</returns>
+    public async Task<(int Matched, MatchMemory Memory)> MatchGroupAsync(
+        EstimateRevision revision, IReadOnlyList<EstimateRowMaterial> materials, Guid nomenclatureId, bool remember,
+        CancellationToken ct)
+    {
+        var position = await ResourceMatching.ResolveAsync(catalog, nomenclatureId, ct);
+        var changed = materials.Where(m => m.NomenclatureId != position.Id).ToList();
+        var sample = materials[0];
+        if (changed.Count > 0)
+        {
+            if (changed.Any(m => !m.Unmatched)) revision.EnsureEditable("Пересопоставить материал");
+            foreach (var material in changed) material.Match(position.Id, resourceMatchId: null);
+            revision.RowsMatched(DateTimeOffset.UtcNow);
+            await db.SaveChangesAsync(ct);
+            var estimate = await EstimateAsync(revision, ct);
+            await log.RecordAsync(EstimateActions.MaterialMatched, estimate.Id.ToString(), EstimateActions.Label(estimate),
+                after: $"редакция {revision.Number}, материал «{sample.SourceName}», ресурсов {changed.Count}: {position.DisplayName}",
+                ct: ct);
+        }
+
+        var memory = remember && ResourceMatchKey.Of(sample.SourceCode, sample.SourceName) is { } key
+            ? await ResourceMatching.RememberSafelyAsync(db, [new(key, position.Id)], user, logger, ct)
+            : MatchMemory.Nothing;
+        return (changed.Count, memory);
+    }
+
     /// <summary>Смета редакции — для записи журнала; читается, только когда есть что записать.</summary>
     private Task<Estimate> EstimateAsync(EstimateRevision revision, CancellationToken ct) =>
         db.Estimates.FirstAsync(e => e.Id == revision.EstimateId, ct);

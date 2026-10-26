@@ -110,7 +110,59 @@ public sealed class RowMatching(
             .ToListAsync(ct);
         if (rows.Count == 0)
             throw new NotFoundException($"В редакции нет раздела ЛСР «{sectionCode}» — перечитайте строки редакции.");
+        return await MatchRowsAsync(revision, rows, choice, sourceUnit, remember,
+            $"раздел «{rows[0].LsrSectionName ?? sectionCode}»", ct);
+    }
 
+    /// <summary>
+    /// Сопоставить выбранные строки или несколько разделов ЛСР одним действием (D9 <c>plan-31</c>): то же правило,
+    /// что у раздела, — и одна фиксация на все строки: версия редакции сдвигается один раз. Строк больше
+    /// <see cref="EstimateRowsEndpoints.MaxLimit" /> за раз — отказ с числом: столько не покажет и страница строк.
+    /// </summary>
+    /// <param name="lineIds">Строки редакции; <c>null</c> — названы разделы.</param>
+    /// <param name="sections">Коды разделов ЛСР; <c>null</c> — названы строки.</param>
+    public async Task<SectionMatchOutcome> MatchLinesAsync(
+        EstimateRevision revision, IReadOnlyCollection<Guid>? lineIds, IReadOnlyCollection<string>? sections,
+        RateChoice choice, string? sourceUnit, bool remember, CancellationToken ct)
+    {
+        if ((lineIds is { Count: > 0 }) == (sections is { Count: > 0 }))
+            throw new InvalidRequestException(
+                "Назовите либо строки («lineIds»), либо разделы ЛСР («sections») — одно из двух и не пустым.");
+        if (lineIds is { Count: > EstimateRowsEndpoints.MaxLimit })
+            throw new InvalidRequestException(TooMany(lineIds.Count));
+
+        var ids = lineIds?.Distinct().ToList();
+        var codes = sections?.Distinct().ToList();
+        var query = db.EstimateRows.Where(r => r.RevisionId == revision.Id);
+        query = ids is not null
+            ? query.Where(r => ids.Contains(r.Id))
+            : query.Where(r => r.LsrSectionCode != null && codes!.Contains(r.LsrSectionCode));
+        var count = await query.CountAsync(ct);
+        if (count > EstimateRowsEndpoints.MaxLimit) throw new InvalidRequestException(TooMany(count));
+        var rows = await query.OrderBy(r => r.Order).ToListAsync(ct);
+
+        if (ids is not null && rows.Count < ids.Count)
+            throw new NotFoundException(
+                $"Строк нет в этой редакции: {ids.Count - rows.Count} из {ids.Count} — перечитайте строки редакции.");
+        if (codes is not null && codes.Except(rows.Select(r => r.LsrSectionCode!)).ToList() is { Count: > 0 } missing)
+            throw new NotFoundException(
+                $"В редакции нет разделов ЛСР: {string.Join(", ", missing.Select(m => $"«{m}»"))} — перечитайте строки редакции.");
+
+        var what = ids is not null
+            ? "выбранные строки"
+            : $"разделы {string.Join(", ", rows.Select(r => r.LsrSectionName ?? r.LsrSectionCode).Distinct().Select(n => $"«{n}»"))}";
+        return await MatchRowsAsync(revision, rows, choice, sourceUnit, remember, what, ct);
+    }
+
+    private static string TooMany(int count) =>
+        $"За раз сопоставляется не больше {EstimateRowsEndpoints.MaxLimit} строк, а названо {count} — разбейте выбор.";
+
+    /// <summary>Строки — одним видом работы и коэффициентом: несопоставленные в единице расценки <paramref name="sourceUnit" />.</summary>
+    /// <param name="what">Что сопоставлено, для журнала: «раздел «…»», «выбранные строки».</param>
+    private async Task<SectionMatchOutcome> MatchRowsAsync(
+        EstimateRevision revision, List<EstimateRow> rows, RateChoice choice, string? sourceUnit, bool remember,
+        string what, CancellationToken ct)
+    {
         var estimate = await db.Estimates.FirstAsync(e => e.Id == revision.EstimateId, ct);
         var (workType, unit) = await ResolveAsync(choice, ct);
         var source = sourceUnit ?? rows.FirstOrDefault(r => r.Unmatched)?.SourceUnit;
@@ -132,8 +184,7 @@ public sealed class RowMatching(
         revision.RowsMatched(DateTimeOffset.UtcNow);
         await db.SaveChangesAsync(ct);
         await log.RecordAsync(EstimateActions.Matched, estimate.Id.ToString(), EstimateActions.Label(estimate),
-            after: $"редакция {revision.Number}, раздел «{rows[0].LsrSectionName ?? sectionCode}»: строк {open.Count} — " +
-                   $"{workType.DisplayName}, {unit.Name} × {factor}", ct: ct);
+            after: $"редакция {revision.Number}, {what}: строк {open.Count} — {workType.DisplayName}, {unit.Name} × {factor}", ct: ct);
 
         var memory = remember
             ? await RateMatching.RememberSafelyAsync(db, RateMatching.Worth(open

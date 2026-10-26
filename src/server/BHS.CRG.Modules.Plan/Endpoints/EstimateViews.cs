@@ -22,12 +22,16 @@ internal static class EstimateViews
 
     public static string KindCode(EstimateKind kind) => kind == EstimateKind.Additional ? "additional" : "main";
 
+    /// <param name="mainFirst">Основные — первыми (смета одной стройки); иначе — по дате заведения, как страницы
+    /// общего списка (<see cref="PageAsync" />).</param>
     public static async Task<List<EstimateDto>> ListAsync(
-        PlanDbContext db, IQueryable<Estimate> estimates, bool cost, CancellationToken ct)
+        PlanDbContext db, IQueryable<Estimate> estimates, bool cost, CancellationToken ct, bool mainFirst = true)
     {
-        var heads = await estimates.AsNoTracking()
-            // Основные — первыми: план стройки читают от основной сметы к дополнительным.
-            .OrderBy(e => e.Kind == EstimateKind.Additional).ThenBy(e => e.CreatedAt).ThenBy(e => e.Id)
+        estimates = estimates.AsNoTracking();
+        var heads = await (mainFirst
+                // Основные — первыми: план стройки читают от основной сметы к дополнительным.
+                ? estimates.OrderBy(e => e.Kind == EstimateKind.Additional).ThenBy(e => e.CreatedAt).ThenBy(e => e.Id)
+                : estimates.OrderBy(e => e.CreatedAt).ThenBy(e => e.Id))
             .Select(e => new { Estimate = e, Version = EF.Property<uint>(e, PlanDbContext.RowVersion) })
             .ToListAsync(ct);
         var ids = heads.Select(h => h.Estimate.Id).ToList();
@@ -92,6 +96,47 @@ internal static class EstimateViews
                 KindCode(h.Estimate.Kind), Text(h.Version), h.Estimate.CurrentRevisionId,
                 own.FirstOrDefault(r => r.Current)?.Number, own, Hidden: null);
         })];
+    }
+
+    /// <summary>
+    /// Сметы всех строек страницей (D6 <c>plan-31</c>): по дате заведения, курсор — дата и идентификатор последней
+    /// сметы страницы. Не смещение: смета, заведённая между страницами, не сдвинет следующую и не повторится.
+    /// </summary>
+    public static async Task<(List<EstimateDto> Page, string? Next)> PageAsync(
+        PlanDbContext db, string? cursor, int? limit, bool cost, CancellationToken ct)
+    {
+        var take = limit is { } l ? Math.Clamp(l, 1, MaxPage) : DefaultPage;
+        var query = db.Estimates.AsNoTracking();
+        if (!string.IsNullOrEmpty(cursor))
+        {
+            var (at, id) = Cursor(cursor);
+            query = query.Where(e => e.CreatedAt > at || (e.CreatedAt == at && e.Id.CompareTo(id) > 0));
+        }
+
+        var keys = await query.OrderBy(e => e.CreatedAt).ThenBy(e => e.Id)
+            .Select(e => new { e.Id, e.CreatedAt }).Take(take + 1).ToListAsync(ct);
+        var more = keys.Count > take;
+        if (more) keys.RemoveAt(keys.Count - 1);
+        var ids = keys.Select(k => k.Id).ToList();
+        var page = await ListAsync(db, db.Estimates.Where(e => ids.Contains(e.Id)), cost, ct, mainFirst: false);
+        return (page, more
+            ? $"{keys[^1].CreatedAt.UtcTicks.ToString(CultureInfo.InvariantCulture)}_{keys[^1].Id:N}"
+            : null);
+    }
+
+    public const int DefaultPage = 50;
+    public const int MaxPage = 200;
+
+    private static (DateTimeOffset At, Guid Id) Cursor(string cursor)
+    {
+        var parts = cursor.Split('_');
+        return parts.Length == 2
+               && long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var ticks)
+               && ticks is >= 0 && ticks <= DateTimeOffset.MaxValue.UtcTicks
+               && Guid.TryParseExact(parts[1], "N", out var id)
+            ? (new DateTimeOffset(ticks, TimeSpan.Zero), id)
+            : throw new Domain.Common.InvalidRequestException(
+                "Курсор страницы записан не так: ожидается значение поля «next» из прежнего ответа.");
     }
 
     /// <summary>Одна смета — тем же ответом, что в списке, с носителем «скрыто» при необходимости.</summary>
