@@ -153,7 +153,8 @@ public class EstimateImportCommitTests(PlanOnlyHost host)
     }
 
     /// <summary>
-    /// Из ВОР, отвергнутого файла и без версии редакция не создаётся: ВОР — предложение приложить к смете,
+    /// Из ВОР, отвергнутого файла и без версии редакция не создаётся: ВОР — «уберите импорт» (приложений к смете
+    /// до plan-11 нет),
     /// отказ разбора — его слова, без <c>If-Match</c> — 400 (ТЗ PLAN-7, PLAN-2).
     /// </summary>
     [Fact]
@@ -169,7 +170,9 @@ public class EstimateImportCommitTests(PlanOnlyHost host)
 
         var toVor = await client.SendAsync(EstimateImportFlow.Commit(EstimateImportFlow.Id(vor), Version(vor)));
         Assert.Equal(HttpStatusCode.Conflict, toVor.StatusCode);
-        Assert.Contains("Приложите файл к смете", await toVor.Content.ReadAsStringAsync());
+        var vorRefusal = await toVor.Content.ReadAsStringAsync();
+        Assert.Contains("уберите импорт", vorRefusal);
+        Assert.DoesNotContain("Приложите", vorRefusal);
         var toRejected = await client.SendAsync(EstimateImportFlow.Commit(EstimateImportFlow.Id(rejected), Version(rejected)));
         Assert.Equal(HttpStatusCode.Conflict, toRejected.StatusCode);
         Assert.Contains("не разобран", await toRejected.Content.ReadAsStringAsync());

@@ -31,8 +31,7 @@ internal static class EstimateImportViews
             progress = job.Progress;
             // Задача кончилась, а исхода у импорта нет: разбор оборвался раньше, чем записал его. Состояние
             // перечитывается — исход мог лечь между чтением импорта и чтением задачи.
-            if (job.Status is ModuleJobStatus.Failed or ModuleJobStatus.Cancelled or ModuleJobStatus.Succeeded
-                && await db.EstimateImports.AnyAsync(i => i.Id == id && i.State == EstimateImportState.Parsing, ct))
+            if (Ended(job) && await db.EstimateImports.AnyAsync(i => i.Id == id && i.State == EstimateImportState.Parsing, ct))
                 marks.Add(new("interrupted",
                     $"Разбор прерван{(job.Error is { } error ? $": {error}" : "")}. Отмените импорт и загрузите файл ещё раз."));
         }
@@ -79,9 +78,12 @@ internal static class EstimateImportViews
     /// <summary>
     /// Импорты стройки, новые сверху, — без модели разбора: её список не читает. По нему находят импорт, который
     /// никто не довёл до редакции, — он держит стройку и раздел новой сметы, пока его не отменят.
+    ///
+    /// <para>Прерванный разбор назван (<c>interrupted</c>), как пометкой отчёта: иначе такой импорт навсегда
+    /// оставался бы в списке «разбирается» — его состояние <c>parsing</c>, а исхода не будет.</para>
     /// </summary>
     public static async Task<List<EstimateImportItemDto>> ListAsync(
-        PlanDbContext db, Guid constructionId, Guid? estimateId, CancellationToken ct)
+        PlanDbContext db, IModuleJobs jobs, Guid constructionId, Guid? estimateId, CancellationToken ct)
     {
         var query = db.EstimateImports.AsNoTracking().Where(i => i.ConstructionId == constructionId);
         if (estimateId is { } only) query = query.Where(i => i.EstimateId == only);
@@ -89,10 +91,12 @@ internal static class EstimateImportViews
             .Select(i => new
             {
                 i.Id, i.EstimateId, i.NewEstimateName, i.NewEstimateSectionId, i.NewEstimateKind, i.FileName, i.State,
-                i.Kind, i.RefusalCode, i.RevisionId, i.CreatedAt, i.CreatedByName,
+                i.Kind, i.RefusalCode, i.RevisionId, i.CreatedAt, i.CreatedByName, i.JobId,
                 Version = EF.Property<uint>(i, PlanDbContext.RowVersion),
             })
             .ToListAsync(ct);
+        var interrupted = await InterruptedAsync(db, jobs,
+            [.. rows.Where(r => r.State == EstimateImportState.Parsing && r.JobId is not null).Select(r => (r.Id, r.JobId!.Value))], ct);
 
         var ids = rows.Where(r => r.EstimateId is not null).Select(r => r.EstimateId!.Value).Distinct().ToList();
         var names = await db.Estimates.AsNoTracking().Where(e => ids.Contains(e.Id))
@@ -104,9 +108,28 @@ internal static class EstimateImportViews
                 r.Id,
                 Target(r.EstimateId, r.EstimateId is { } id ? names.GetValueOrDefault(id) : null,
                     r.NewEstimateName, r.NewEstimateSectionId, r.NewEstimateKind),
-                r.FileName, StateCode(r.State), KindCode(r.Kind), r.RefusalCode, r.RevisionId, r.CreatedAt,
-                r.CreatedByName, r.Version.ToString(CultureInfo.InvariantCulture))),
+                r.FileName, StateCode(r.State), KindCode(r.Kind), r.RefusalCode, interrupted.Contains(r.Id), r.RevisionId,
+                r.CreatedAt, r.CreatedByName, r.Version.ToString(CultureInfo.InvariantCulture))),
         ];
+    }
+
+    /// <summary>Задача разбора кончилась — исход у импорта уже должен быть.</summary>
+    private static bool Ended(ModuleJobState job) =>
+        job.Status is ModuleJobStatus.Failed or ModuleJobStatus.Cancelled or ModuleJobStatus.Succeeded;
+
+    /// <summary>
+    /// Разборы, которые оборвались, не записав исхода: задача кончилась, а импорт всё ещё <c>parsing</c>. Состояние
+    /// перечитывается после задач — исход мог лечь между чтением импорта и чтением задачи (как в отчёте).
+    /// </summary>
+    private static async Task<HashSet<Guid>> InterruptedAsync(
+        PlanDbContext db, IModuleJobs jobs, IReadOnlyList<(Guid Import, Guid Job)> parsing, CancellationToken ct)
+    {
+        if (parsing.Count == 0) return [];
+        var states = await jobs.GetManyAsync([.. parsing.Select(p => p.Job)], ct);
+        var ended = parsing.Where(p => states.TryGetValue(p.Job, out var job) && Ended(job)).Select(p => p.Import).ToList();
+        if (ended.Count == 0) return [];
+        return [.. await db.EstimateImports.AsNoTracking()
+            .Where(i => ended.Contains(i.Id) && i.State == EstimateImportState.Parsing).Select(i => i.Id).ToListAsync(ct)];
     }
 
     public static NotFoundException NotFound() => new("Импорт не найден — возможно, его отменили.");
@@ -164,9 +187,15 @@ internal static class EstimateImportViews
         _ => null,
     };
 
-    /// <summary>Почему документ не становится редакцией — одними словами в отчёте и в отказе создания редакции.</summary>
+    /// <summary>
+    /// Почему документ не становится редакцией — одними словами в отчёте и в отказе создания редакции.
+    ///
+    /// <para>⚠️ Приложить файл к смете пока некуда — хранилище ВОР и КА заводит <c>plan-11-conjuncture</c>. До него
+    /// отказ не зовёт туда, где пути нет (решение владельца 26.10.2026, <c>plan-09</c>): говорит убрать импорт.</para>
+    /// </summary>
     internal static string NotEstimate(GrandSmetaKind kind) =>
-        $"Это {GrandSmetaSchemas.KindName(kind)} — редакцией сметы {Its(kind)} не становится. Приложите файл к смете.";
+        $"Это {GrandSmetaSchemas.KindName(kind)} — редакцией сметы {Its(kind)} не становится: уберите импорт. " +
+        "Приложения к смете — ведомость объёмов работ и конъюнктурный анализ — появятся позже.";
 
     /// <summary>Местоимение по роду названия: «ведомость … — она», «конъюнктурный анализ — он».</summary>
     private static string Its(GrandSmetaKind kind) => kind == GrandSmetaKind.VolumeStatement ? "она" : "он";

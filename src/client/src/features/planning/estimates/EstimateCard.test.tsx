@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { apiClient } from '@/shared/api/client';
 import type { Estimate, EstimateRow, HiddenPart } from '@/shared/api/planningEstimates';
 import { EstimateCard } from './EstimateCard';
@@ -59,12 +59,18 @@ function serve(cost: boolean, over: Partial<EstimateRow> = {}, materialsUnmatche
   });
 }
 
-function mount() {
+/** Что лежит в состоянии перехода сейчас — то, что вернут «Назад» и перезагрузка. */
+function HistoryState() {
+  return <output data-testid="history-state">{JSON.stringify(useLocation().state ?? null)}</output>;
+}
+
+function mount(state?: unknown) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[{ pathname: '/estimates/e1', state }]}>
         <EstimateCard estimateId="e1" back={{ to: '/estimates', label: 'Сметы' }} />
+        <HistoryState />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -80,6 +86,18 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 beforeEach(() => {
   permissions = ['plan.estimate.read'];
   window.matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+});
+
+describe('переход из окна загрузки', () => {
+  it('созданная редакция открыта с отбором «не сопоставлено», а состояние перехода снято', async () => {
+    serve(false);
+    mount({ revisionId: 'r1', queue: 'unmatched' });
+    const chip = await screen.findByRole('button', { name: /Не сопоставлены/ });
+    expect(chip.getAttribute('aria-pressed')).toBe('true');
+    // «Назад» и перезагрузка вернут к карточке, а не к тому же отбору.
+    await waitFor(() => expect(screen.getByTestId('history-state').textContent).toBe('null'));
+    expect(chip.getAttribute('aria-pressed')).toBe('true');
+  });
 });
 
 describe('карточка сметы и право на стоимость', () => {

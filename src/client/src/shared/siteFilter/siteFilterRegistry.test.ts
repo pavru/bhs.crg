@@ -36,6 +36,7 @@ const SERVER_GUARDS = import.meta.glob('../../../../server/BHS.CRG.Tests/Costs/*
 const REGISTRY: Record<string, Entry> = {
   '/src/features/document-sets/ConstructionsList.tsx': { filters: true },
   '/src/features/planning/estimates/EstimatesPage.tsx': { filters: true },
+  '/src/features/planning/estimates/ImportDialog.tsx': { filters: true },
   '/src/shared/siteFilter/SiteFilterProvider.tsx': {
     filters: false, because: 'это и есть справочник, с которым пересекается избранное',
   },

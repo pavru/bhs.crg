@@ -22,11 +22,15 @@ import { gridLines, queueCount, rowNumber, sectionKey, type GridLine, type RowQu
  * - Без `plan.estimate.cost` колонка стоимости стоит в состоянии «нет права» сетки (CORE-33) с именем права
  *   из каталога — ни нуля, ни пустой суммы (D4 зонтика).
  */
-export function RevisionLines({ revision }: { revision: EstimateRevision }) {
+export function RevisionLines({ revision, initialQueue = 'all' }: {
+  revision: EstimateRevision;
+  /** Отбор при открытии: редакция, созданная с несопоставленным, открывается на нём (ответ П1). */
+  initialQueue?: RowQueue;
+}) {
   const rows = useRevisionRows(revision.id);
   const sections = useRevisionSections(revision.id);
   const workTypes = useWorkTypeNames();
-  const [queue, setQueue] = useState<RowQueue>('all');
+  const [queue, setQueue] = useState<RowQueue>(initialQueue);
   const [query, setQuery] = useState('');
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
 
