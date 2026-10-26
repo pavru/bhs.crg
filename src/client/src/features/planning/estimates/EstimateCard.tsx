@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { ChevronLeft, Lock } from 'lucide-react';
+import { ChevronLeft, Lock, Upload } from 'lucide-react';
 import { useCan } from '@/shared/api/access';
 import { costHidden, useEstimate, type Estimate, type EstimateRevision } from '@/shared/api/planningEstimates';
 import { Button } from '@/shared/ui/Button';
@@ -12,7 +12,10 @@ import { useMedia, WIDE } from '@/shared/hooks/useMedia';
 import { apiError } from '@/shared/utils/apiError';
 import { formatCount, formatDate, formatMoney } from '@/shared/format/format';
 import { KIND_LABEL, latestRevision, visibleRevisions } from './estimateRows';
+import { ImportDialog } from './ImportDialog';
+import { openingOf, type RevisionOpening } from './importReport';
 import { MakeCurrentDialog } from './MakeCurrentDialog';
+import { PendingImports } from './PendingImports';
 import { RevisionLines } from './RevisionLines';
 
 /**
@@ -21,11 +24,20 @@ import { RevisionLines } from './RevisionLines';
  * полоса редакции и её строки.
  *
  * Права `read`, `edit`, `cost` независимы, недоступное скрыто (П1, §75 E): без `plan.estimate.edit` нет «Сделать
- * действующей». На телефоне — только чтение (решение П1): правок нет и там.
+ * действующей» и «Новой редакции». На телефоне — только чтение (решение П1): правок нет и там.
+ *
+ * Пришли сюда созданием редакции (окно загрузки, `RevisionOpening` в состоянии перехода) — открыта она, и с
+ * отбором «не сопоставлено», если оно есть.
  */
 export function EstimateCard({ estimateId, back }: { estimateId: string; back: { to: string; label: string } }) {
   const estimate = useEstimate(estimateId);
-  const [chosen, setChosen] = useState<string | null>(null);
+  const location = useLocation();
+  const [opening, setOpening] = useState<RevisionOpening | null>((location.state as RevisionOpening | null) ?? null);
+  const [chosen, setChosen] = useState<string | null>(opening?.revisionId ?? null);
+  const can = useCan();
+  const wide = useMedia(WIDE);
+  const editable = can.permission('plan.estimate.edit') && wide;
+  const [importing, setImporting] = useState<{ importId?: string } | null>(null);
 
   if (estimate.isError) return (
     <div className="space-y-3">
@@ -43,7 +55,15 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-base font-semibold text-fg1 min-w-0 truncate">{data.name}</h2>
         <StatusBadge tone="neutral">{KIND_LABEL[data.kind]}</StatusBadge>
+        {editable && (
+          <Button variant="outlined" size="sm" className="ml-auto" icon={<Upload size={16} aria-hidden />} onClick={() => setImporting({})}>Новая редакция</Button>
+        )}
       </div>
+      <PendingImports constructionId={data.constructionId} enabled={editable} only={i => i.target.estimateId === data.id}
+        onOpen={id => setImporting({ importId: id })} />
+      <ImportDialog open={importing !== null} onClose={() => setImporting(null)} constructionId={data.constructionId}
+        estimateId={data.id} importId={importing?.importId}
+        onCreated={created => { const next = openingOf(created); setOpening(next); setChosen(next.revisionId); }} />
 
       {shown === null ? (
         <p className="text-sm text-fg3">Редакций у сметы нет — их создаёт загрузка файла ЛСР.</p>
@@ -51,7 +71,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
         <>
           <RevisionTabs estimate={data} selected={shown.id} onSelect={setChosen} />
           <RevisionBand estimate={data} revision={shown} />
-          <RevisionLines key={shown.id} revision={shown} />
+          <RevisionLines key={shown.id} revision={shown} initialQueue={opening?.revisionId === shown.id ? opening.queue : 'all'} />
         </>
       )}
     </div>

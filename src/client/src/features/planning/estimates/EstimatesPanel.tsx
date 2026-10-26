@@ -1,14 +1,21 @@
+import { useState } from 'react';
 import { Route, Routes, useNavigate, useParams } from 'react-router';
-import { FileSpreadsheet } from 'lucide-react';
+import { FileSpreadsheet, Upload } from 'lucide-react';
+import { useCan } from '@/shared/api/access';
 import { useGetConstruction } from '@/shared/api/constructions';
 import { costHidden, useConstructionEstimates, type Estimate } from '@/shared/api/planningEstimates';
+import { Button } from '@/shared/ui/Button';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { useMedia, WIDE } from '@/shared/hooks/useMedia';
 import { apiError } from '@/shared/utils/apiError';
 import { formatAmount, formatCount } from '@/shared/format/format';
 import { KIND_LABEL, latestRevision } from './estimateRows';
 import { EstimateCard } from './EstimateCard';
+import { ImportDialog } from './ImportDialog';
+import { openingOf } from './importReport';
+import { PendingImports } from './PendingImports';
 
 /**
  * Панель «Сметы» карточки стройки и страницы раздела (change `plan-09-estimate-ui`, ТЗ PLAN-20, макет П1 1а):
@@ -39,6 +46,11 @@ function EstimateList({ constructionId, sectionId, base }: { constructionId: str
   const navigate = useNavigate();
   const construction = useGetConstruction(constructionId);
   const sections = new Map((construction.data?.sections ?? []).map(s => [s.id, s.name]));
+  const can = useCan();
+  const wide = useMedia(WIDE);
+  // Загрузка — правка сметы; на телефоне — только чтение (решение П1).
+  const editable = can.permission('plan.estimate.edit') && wide;
+  const [importing, setImporting] = useState<{ importId?: string } | null>(null);
 
   if (estimates.isError) return <p role="alert" className="text-sm text-danger">{apiError(estimates.error, 'Сметы не прочитались')}</p>;
   if (!estimates.data) return <p className="text-sm text-fg4">Читаем сметы…</p>;
@@ -46,10 +58,22 @@ function EstimateList({ constructionId, sectionId, base }: { constructionId: str
   const items = sectionId ? estimates.data.items.filter(e => e.sectionId === sectionId) : estimates.data.items;
   return (
     <div className="space-y-3">
-      <div>
-        <h2 className="text-base font-semibold text-fg1">Сметы</h2>
-        <p className="text-xs text-fg3">План {sectionId ? 'раздела' : 'стройки'} считается по действующим редакциям смет</p>
+      <div className="flex flex-wrap items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base font-semibold text-fg1">Сметы</h2>
+          <p className="text-xs text-fg3">План {sectionId ? 'раздела' : 'стройки'} считается по действующим редакциям смет</p>
+        </div>
+        {editable && (
+          <Button variant="filled" size="sm" icon={<Upload size={16} aria-hidden />} onClick={() => setImporting({})}>Загрузить смету</Button>
+        )}
       </div>
+      {/* На странице раздела — импорты его смет и новых смет раздела. */}
+      <PendingImports constructionId={constructionId} enabled={editable}
+        only={sectionId ? i => i.target.newEstimate?.sectionId === sectionId || items.some(e => e.id === i.target.estimateId) : undefined}
+        onOpen={id => setImporting({ importId: id })} />
+      <ImportDialog open={importing !== null} onClose={() => setImporting(null)} constructionId={constructionId}
+        sectionId={sectionId} importId={importing?.importId}
+        onCreated={created => navigate(`${base}/${created.estimateId}`, { state: openingOf(created) })} />
       {items.length === 0 ? (
         <EmptyState icon={<FileSpreadsheet size={28} aria-hidden />}
           title={sectionId ? 'У раздела смет нет' : 'У стройки смет нет'}

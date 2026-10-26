@@ -56,6 +56,8 @@ export function useActiveJobs(): ActiveJob[] {
       // Сборка комплекта выпускает документы пачкой — без этого человек, дождавшийся её конца,
       // видел бы прежний процент готовности и решил, что сборка не сработала (issue #796).
       invalidatePlans(qc);
+      // Разбор сметы (plan-09): полоса «ждёт решения» над сметами меняет «разбирается» на исход разбора.
+      qc.invalidateQueries({ queryKey: ['planning', 'imports'] });
     }
     prevIds.current = current;
   }, [jobs, qc]);
