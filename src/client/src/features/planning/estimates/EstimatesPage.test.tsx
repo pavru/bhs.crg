@@ -50,6 +50,7 @@ function mount(value: SiteFilterValue) {
 }
 
 beforeEach(() => {
+  window.matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
   vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
     if (url === '/plan/estimates')
       return { data: { items: [estimate('e1', 'c1', 'ЭОМ'), estimate('e2', 'c2', 'ВН')] } } as never;

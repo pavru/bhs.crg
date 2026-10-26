@@ -43,7 +43,8 @@ public static class RecordVersionCensus
     public sealed record Rules(
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> MayTouch,
         IReadOnlyDictionary<string, string> TotalsFiles,
-        IReadOnlyDictionary<string, string> ShapeExceptions);
+        IReadOnlyDictionary<string, string> ShapeExceptions,
+        IReadOnlyDictionary<string, string> TableNames);
 
     public const string NoDictionary = "нет словаря";
     public const string NoMap = "отображение мимо Map";
@@ -125,7 +126,8 @@ public static class RecordVersionCensus
             {
                 ScanAccess(file, heir, mayTouch, rules, found);
 
-                if (heir.Table is not null && file.Rel != heir.DeclaredIn && file.Rel != heir.MappedIn)
+                if (heir.Table is not null && file.Rel != heir.DeclaredIn && file.Rel != heir.MappedIn
+                    && !rules.TableNames.ContainsKey(file.Rel))
                     foreach (Match m in Regex.Matches(file.Text, $@"\b{Regex.Escape(heir.Table)}\b"))
                         found.Add(new Violation(Table, heir.Type, file.Rel, SourceTree.LineOf(file.Text, m.Index)));
             }

@@ -60,6 +60,14 @@ public sealed class CostsModule : IAppModule
     /// </summary>
     public const string InvoiceCorrect = "costs.invoice.correct";
 
+    /// <summary>
+    /// Исправлять накладную закрытого периода (issue #1340, решение владельца 22.10.2026, В-2): проведённая
+    /// накладная, запертая закрытым периодом, меняется только исправлением — с причиной и новой версией.
+    /// Своё право, а не <see cref="InvoiceCorrect" />: то зависит от прав на счета и открыло бы кладовщику
+    /// счета вопреки COST-29. Работает вместе с <c>costs.waybill.edit</c>.
+    /// </summary>
+    public const string WaybillCorrect = "costs.waybill.correct";
+
     public string Code => ModuleCode;
 
     public string Title => "Счета и накладные";
@@ -68,8 +76,9 @@ public sealed class CostsModule : IAppModule
     /// Права модуля (ТЗ COST-28) — каждое с объяснением, потому что галку в редакторе ролей ставит
     /// человек, а код <c>costs.invoice.pay</c> сам по себе не даёт ему оснований решить.
     ///
-    /// <para>⚠️ Здесь их девять, а перечень ТЗ называет одиннадцать: одно добавлено (исправление счёта
-    /// закрытого периода, E2), три выписаны с причиной, а не забыты:</para>
+    /// <para>⚠️ Здесь их одиннадцать, как и в перечне ТЗ, но состав другой: добавлены исправление счёта
+    /// закрытого периода (E2) и накладной (issue #1340) и заведение организации из скана (issue #1077), а
+    /// три выписаны с причиной, а не забыты:</para>
     /// <list type="bullet">
     ///   <item><c>costs.invoice.approve</c> — согласование счёта вынесено из этапа (задача C6,
     ///   решение владельца 28.09.2026): оно выключено по умолчанию, то есть его можно не делать
@@ -159,6 +168,13 @@ public sealed class CostsModule : IAppModule
             "отпущенных на стройку",
             ["costs.waybill.read"],
             ReadAllMark.Out("вводит и проводит накладные")),
+
+        new(WaybillCorrect,
+            "исправлять накладную закрытого периода — с причиной и новой версией",
+            "строки и шапку проведённых накладных, уже вошедших в закрытый период: исправление меняет " +
+            "«Материалы на объекте», а прежнее содержимое остаётся в версии. Счетов не открывает",
+            ["costs.waybill.edit"],
+            ReadAllMark.Out("исправляет накладные закрытого периода")),
 
         new("costs.allocation.edit",
             "разносить счета и строки по стройкам, разделам и статьям вне строек",
@@ -364,6 +380,7 @@ public sealed class CostsModule : IAppModule
         NomenclatureCardEndpoints.Map(endpoints);
         ArticleEndpoints.MapArticles(endpoints);
         WaybillEndpoints.MapWaybills(endpoints);
+        WaybillCorrection.Map(endpoints);
     }
 
     /// <summary>

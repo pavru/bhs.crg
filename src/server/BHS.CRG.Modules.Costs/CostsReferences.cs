@@ -31,6 +31,11 @@ public static class CostsReferences
             "кто завёл накладную — справочное поле; удаление учётной записи накладных не касается"),
         ModuleReference.Remembering("waybills", "posted_by", ReferenceTarget.User,
             "кто провёл накладную — справочное поле; удаление учётной записи накладных не касается"),
+        ModuleReference.Remembering("waybill_versions", "content", target: null,
+            "версия накладной помнит стройку и позиции номенклатуры такими, какими они были до исправления; " +
+            "их держат сама накладная и её строки, а не история (issue #1340)"),
+        ModuleReference.Remembering("waybill_versions", "author_id", ReferenceTarget.User,
+            "кто исправил накладную — справочное поле; удаление учётной записи версии не касается"),
 
         ModuleReference.Holding("invoices", "supplier_id", ReferenceTarget.Record,
             "счета этого поставщика", Invoice("id")),

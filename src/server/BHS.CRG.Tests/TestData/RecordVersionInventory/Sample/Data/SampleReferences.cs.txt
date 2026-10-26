@@ -1,0 +1,5 @@
+// Не нарушение: файл назван в словаре имён таблиц — он объявляет колонку, а не пишет SQL.
+public static class SampleReferences
+{
+    public static readonly string[] Columns = ["sample_versions.author_id"];
+}

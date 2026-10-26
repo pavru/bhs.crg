@@ -25,7 +25,17 @@ public class RecordVersionInventoryTests
     /// разрешён сам (тип и его отображение на таблицу). Добавляя строку, вы принимаете решение: этот файл
     /// пишет историю или читает её как историю — не для сумм.
     /// </summary>
-    private static readonly Dictionary<string, IReadOnlyDictionary<string, string>> MayTouch = new();
+    private static readonly Dictionary<string, IReadOnlyDictionary<string, string>> MayTouch = new()
+    {
+        ["WaybillVersion"] = new Dictionary<string, string>
+        {
+            ["BHS.CRG.Modules.Costs/Data/CostsDbContext.cs"] = "объявление набора",
+            ["BHS.CRG.Modules.Costs/Endpoints/WaybillCorrection.cs"] =
+                "единственное место записи (исправление под замком периода, в одной транзакции с правкой) и " +
+                "чтения истории: адрес версий и пометка списка «исправлена после закрытия» — день и причина, " +
+                "без сумм (issue #1340)",
+        },
+    };
 
     /// <summary>
     /// Файлы итогов, которые не узнать по имени (<c>*Totals.cs</c> и <c>*ClosingReport.cs</c> узнаются сами),
@@ -35,6 +45,10 @@ public class RecordVersionInventoryTests
     private static readonly Dictionary<string, string> TotalsFiles = new()
     {
         ["BHS.CRG.Modules.Costs/Data/CostViews.cs"] = "взгляды затрат стройки — суммы по счетам и разноске",
+        ["BHS.CRG.Modules.Costs/Data/IssuedMaterials.cs"] =
+            "«Материалы на объекте» — свод отпущенного по стройке: только действующие строки накладных",
+        ["BHS.CRG.Modules.Costs/Data/WaybillClosingLines.cs"] =
+            "числа накладных в диалоге закрытия — они ложатся в неизменяемую запись о закрытии",
     };
 
     /// <summary>Дописываемые типы с формой версии мимо базового типа — и почему.</summary>
@@ -45,7 +59,18 @@ public class RecordVersionInventoryTests
             "переносятся ради имени. Их место записи стережёт InvoiceBookInventoryTests",
     };
 
-    private static Rules Solution => new(MayTouch, TotalsFiles, ShapeExceptions);
+    /// <summary>
+    /// Файлы, которым позволено назвать таблицу версий по имени, — объявления, а не SQL, — и почему.
+    /// Сырой SQL отсюда не пишут: имя здесь называет колонку для других проверок.
+    /// </summary>
+    private static readonly Dictionary<string, string> TableNames = new()
+    {
+        ["BHS.CRG.Modules.Costs/CostsReferences.cs"] =
+            "объявление колонок с идентификаторами записей ядра (ModuleReference): удаление записи ядра " +
+            "называет их словами, поиск потерянных ссылок их читает — историю он не меняет",
+    };
+
+    private static Rules Solution => new(MayTouch, TotalsFiles, ShapeExceptions, TableNames);
 
     // Ядро — тоже: сырой SQL по таблице модуля пишется и там (резервные копии, обслуживание базы).
     private static IReadOnlyList<Source> SolutionSources() =>
@@ -93,6 +118,10 @@ public class RecordVersionInventoryTests
         }
 
         stale.AddRange(TotalsFiles.Keys.Where(rel => files.All(f => f.Rel != rel)).Select(rel => $"итоги: {rel} — файла нет"));
+        stale.AddRange(TableNames.Keys
+            .Where(rel => files.FirstOrDefault(f => f.Rel == rel) is not { } f
+                          || !heirs.Values.Any(h => h.Table is { } t && f.Text.Contains(t, StringComparison.Ordinal)))
+            .Select(rel => $"имя таблицы: {rel} — таблицы версий в файле больше нет"));
 
         var shapes = ShapeClasses(files).ToHashSet();
         stale.AddRange(ShapeExceptions.Keys.Where(t => !shapes.Contains(t)).Select(t => $"исключение формы: {t} — типа нет"));
@@ -126,7 +155,8 @@ public class RecordVersionInventoryTests
                 ["SampleUnmapped"] = new Dictionary<string, string>(),
             },
             new Dictionary<string, string> { ["Sample/Data/SampleIssued.cs"] = "перечень отпущенного — итоги" },
-            new Dictionary<string, string>());
+            new Dictionary<string, string>(),
+            new Dictionary<string, string> { ["Sample/Data/SampleReferences.cs"] = "объявление колонок ссылок" });
 
         var got = Scan(samples, rules).Select(v => (v.Code, v.Type, v.Rel)).Order().ToList();
         (string, string, string)[] expected =

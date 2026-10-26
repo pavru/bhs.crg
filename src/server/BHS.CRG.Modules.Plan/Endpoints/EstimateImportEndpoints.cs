@@ -44,11 +44,12 @@ public static class EstimateImportEndpoints
     /// Импорты стройки (<c>?constructionId=</c>), при <c>estimateId</c> — только в эту смету. Несостоявшийся
     /// импорт держит стройку и раздел новой сметы (<c>PlanReferences</c>); список — то, чем его находят и отменяют.
     /// </summary>
-    private static async Task<IResult> ListAsync(Guid? constructionId, Guid? estimateId, PlanDbContext db, CancellationToken ct)
+    private static async Task<IResult> ListAsync(
+        Guid? constructionId, Guid? estimateId, PlanDbContext db, IModuleJobs jobs, CancellationToken ct)
     {
         if (constructionId is not { } site)
             throw new InvalidRequestException("Не названа стройка (constructionId): импорты читаются по стройке.");
-        return Results.Ok(await EstimateImportViews.ListAsync(db, site, estimateId, ct));
+        return Results.Ok(await EstimateImportViews.ListAsync(db, jobs, site, estimateId, ct));
     }
 
     /// <summary>

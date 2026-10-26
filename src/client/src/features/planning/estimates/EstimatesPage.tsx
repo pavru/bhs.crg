@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Route, Routes, useNavigate, useParams } from 'react-router';
-import { FileSpreadsheet } from 'lucide-react';
+import { FileSpreadsheet, Upload } from 'lucide-react';
 import { useConstructionDirectory } from '@/shared/api/constructions';
 import { useAllEstimates, type Estimate } from '@/shared/api/planningEstimates';
 import { Button } from '@/shared/ui/Button';
@@ -15,6 +15,9 @@ import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
 import { useSiteFilter } from '@/shared/siteFilter/siteFilterContext';
 import { KIND_LABEL, latestRevision } from './estimateRows';
 import { EstimateCard } from './EstimateCard';
+import { ImportDialog } from './ImportDialog';
+import { openingOf } from './importReport';
+import { useEstimateEdit } from './useEstimateEdit';
 
 /**
  * Раздел «Сметы» модуля (change `plan-09-estimate-ui`, ТЗ PLAN-20, макет П1 1ж): сметы всех строек,
@@ -50,6 +53,10 @@ function AllEstimates() {
   // не показываем вовсе — ни полный список, ни урезанный не были бы правдой (ниже — «Читаем сметы…», а не
   // пустая сетка «ничего не подходит» со «скрыто N»).
   const filter = useSiteFilter();
+  const editable = useEstimateEdit();
+  // Стройку загрузки выбирают в окне; импорты, закрытые без решения, видны на панели «Сметы» своей стройки —
+  // общего списка импортов сервер не отдаёт (они читаются по стройке).
+  const [importing, setImporting] = useState(false);
 
   const loaded = useMemo(() => pages.data?.pages.flatMap(p => p.items) ?? [], [pages.data]);
   const shown = useMemo(() => (filter.status === 'loading' ? [] : loaded.filter(e => filter.visible(e.constructionId))),
@@ -61,7 +68,12 @@ function AllEstimates() {
 
   return (
     <>
-      <PageHeader icon={<FileSpreadsheet size={18} aria-hidden />} title="Сметы" subtitle="Сметы всех строек, по стройкам" />
+      <PageHeader icon={<FileSpreadsheet size={18} aria-hidden />} title="Сметы" subtitle="Сметы всех строек, по стройкам"
+        actions={editable && (
+          <Button variant="filled" icon={<Upload size={16} aria-hidden />} onClick={() => setImporting(true)}>Загрузить смету</Button>
+        )} />
+      <ImportDialog open={importing} onClose={() => setImporting(false)}
+        onCreated={created => navigate(`/estimates/${created.estimateId}`, { state: openingOf(created) })} />
       {pages.isError ? (
         <p role="alert" className="text-sm text-danger">{apiError(pages.error, 'Сметы не прочитались')}</p>
       ) : !pages.data || filter.status === 'loading' ? (

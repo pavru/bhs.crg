@@ -117,6 +117,9 @@ public static class SystemRoles
             [
                 "core.nomenclature.edit", CorePermissions.FilesUse, .. ReferenceReads,
                 "costs.invoice.read", "costs.invoice.edit", "costs.waybill.read", "costs.waybill.edit",
+                // Исправление накладной закрытого периода (issue #1340) — решение владельца 26.10.2026: кто вводит
+                // и проводит накладные, тот их и исправляет. Счетов это право не открывает (COST-29).
+                "costs.waybill.correct",
                 // Организация из скана счёта (issue #1077): кто вводит счета, тот встречает новых поставщиков.
                 "costs.organization.create",
                 "costs.allocation.edit", "costs.request.read", "costs.request.edit", "plan.estimate.materials",

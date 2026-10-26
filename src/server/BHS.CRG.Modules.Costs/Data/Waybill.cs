@@ -84,6 +84,13 @@ public sealed class Waybill
 
     public DateTimeOffset? PostedAt { get; private set; }
 
+    /// <summary>
+    /// Номер действующей версии (issue #1340, ТЗ CORE-36): 1 — накладную не исправляли. Исправление пишет
+    /// уходящую версию этим номером (<see cref="WaybillVersion" />) и поднимает его. Хранится здесь, а не
+    /// выводится из истории: пометке списка и отказу в удалении историю читать незачем.
+    /// </summary>
+    public int CurrentVersion { get; private set; } = 1;
+
     public Guid? PostedBy { get; private set; }
 
     public Guid? CreatedBy { get; private set; }
@@ -129,6 +136,26 @@ public sealed class Waybill
         AccountingOn = null;
         PostedAt = null;
         PostedBy = null;
+        Touch();
+    }
+
+    /// <summary>
+    /// Исправление записано (issue #1340): действующей становится следующая версия. Состояние и учётная
+    /// дата не меняются — проведённая накладная остаётся проведённой (D4 change costs-waybill-correction).
+    /// </summary>
+    public void Corrected()
+    {
+        CurrentVersion++;
+        Touch();
+    }
+
+    /// <summary>
+    /// Исправление сменило стройку: учётная дата считается заново — первым открытым днём новой стройки
+    /// не раньше даты отпуска (<see cref="WaybillLock.AccountedOn" />, ТЗ COST-16).
+    /// </summary>
+    public void Reaccount(DateOnly accountingOn)
+    {
+        AccountingOn = accountingOn;
         Touch();
     }
 

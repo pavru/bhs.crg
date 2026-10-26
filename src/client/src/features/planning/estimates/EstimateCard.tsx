@@ -1,19 +1,21 @@
-import { useState } from 'react';
-import { Link } from 'react-router';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { ChevronLeft, Lock } from 'lucide-react';
-import { useCan } from '@/shared/api/access';
+import { ChevronLeft, Lock, Upload } from 'lucide-react';
 import { costHidden, useEstimate, type Estimate, type EstimateRevision } from '@/shared/api/planningEstimates';
 import { Button } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { Tabs } from '@/shared/ui/Tabs';
-import { useMedia, WIDE } from '@/shared/hooks/useMedia';
 import { apiError } from '@/shared/utils/apiError';
 import { formatCount, formatDate, formatMoney } from '@/shared/format/format';
 import { KIND_LABEL, latestRevision, visibleRevisions } from './estimateRows';
+import { ImportDialog } from './ImportDialog';
+import { openingOf, type RevisionOpening } from './importReport';
 import { MakeCurrentDialog } from './MakeCurrentDialog';
+import { PendingImports } from './PendingImports';
 import { RevisionLines } from './RevisionLines';
+import { useEstimateEdit } from './useEstimateEdit';
 
 /**
  * Карточка сметы (change `plan-09-estimate-ui`, макет П1, вариант 1): на месте, «‹ Сметы» — назад. Редакции —
@@ -21,11 +23,24 @@ import { RevisionLines } from './RevisionLines';
  * полоса редакции и её строки.
  *
  * Права `read`, `edit`, `cost` независимы, недоступное скрыто (П1, §75 E): без `plan.estimate.edit` нет «Сделать
- * действующей». На телефоне — только чтение (решение П1): правок нет и там.
+ * действующей» и «Новой редакции». На телефоне — только чтение (решение П1): правок нет и там.
+ *
+ * Пришли сюда созданием редакции (окно загрузки, `RevisionOpening` в состоянии перехода) — открыта она, и с
+ * отбором «не сопоставлено», если оно есть. Состояние перехода снимается сразу: «Назад» и перезагрузка
+ * возвращают к карточке, а не к той редакции с тем отбором.
  */
 export function EstimateCard({ estimateId, back }: { estimateId: string; back: { to: string; label: string } }) {
   const estimate = useEstimate(estimateId);
-  const [chosen, setChosen] = useState<string | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [opening, setOpening] = useState<RevisionOpening | null>((location.state as RevisionOpening | null) ?? null);
+  const [chosen, setChosen] = useState<string | null>(opening?.revisionId ?? null);
+  const editable = useEstimateEdit();
+  const arrived = location.state !== null && location.state !== undefined;
+  useEffect(() => {
+    if (arrived) void navigate({ pathname: location.pathname, search: location.search, hash: location.hash }, { replace: true, state: null });
+  }, [arrived, navigate, location.pathname, location.search, location.hash]);
+  const [importing, setImporting] = useState<{ importId?: string } | null>(null);
 
   if (estimate.isError) return (
     <div className="space-y-3">
@@ -43,7 +58,15 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-base font-semibold text-fg1 min-w-0 truncate">{data.name}</h2>
         <StatusBadge tone="neutral">{KIND_LABEL[data.kind]}</StatusBadge>
+        {editable && (
+          <Button variant="outlined" size="sm" className="ml-auto" icon={<Upload size={16} aria-hidden />} onClick={() => setImporting({})}>Новая редакция</Button>
+        )}
       </div>
+      <PendingImports constructionId={data.constructionId} enabled={editable} only={i => i.target.estimateId === data.id}
+        onOpen={id => setImporting({ importId: id })} />
+      <ImportDialog open={importing !== null} onClose={() => setImporting(null)} constructionId={data.constructionId}
+        estimateId={data.id} importId={importing?.importId}
+        onCreated={created => { const next = openingOf(created); setOpening(next); setChosen(next.revisionId); }} />
 
       {shown === null ? (
         <p className="text-sm text-fg3">Редакций у сметы нет — их создаёт загрузка файла ЛСР.</p>
@@ -51,7 +74,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
         <>
           <RevisionTabs estimate={data} selected={shown.id} onSelect={setChosen} />
           <RevisionBand estimate={data} revision={shown} />
-          <RevisionLines key={shown.id} revision={shown} />
+          <RevisionLines key={shown.id} revision={shown} initialQueue={opening?.revisionId === shown.id ? opening.queue : 'all'} />
         </>
       )}
     </div>
@@ -106,10 +129,8 @@ function RevisionTabs({ estimate, selected, onSelect }: {
  * neutral, а не warning (§75 E): это не ошибка, а состояние, у живой сметы таких редакций большинство.
  */
 function RevisionBand({ estimate, revision }: { estimate: Estimate; revision: EstimateRevision }) {
-  const can = useCan();
-  const wide = useMedia(WIDE);
   const [asked, setAsked] = useState<{ id: string; number: number } | null>(null);
-  const editable = can.permission('plan.estimate.edit') && wide;
+  const editable = useEstimateEdit();
   const closed = costHidden(estimate.hidden);
   const current = estimate.revisions.find(r => r.current) ?? null;
 
