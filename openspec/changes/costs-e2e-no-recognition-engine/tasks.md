@@ -46,7 +46,7 @@
 ## 3. Верификация
 
 - [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~InvoiceFromScan|FullyQualifiedName~ModuleRecognitionPort|FullyQualifiedName~BadFileRecognition|FullyQualifiedName~ModuleBoundary"` — зелёный
-- [ ] 3.2 Живой прогон счетов (`invoices-smoke.mjs`) зелёный в CI
+- [x] 3.2 Живой прогон счетов (`invoices-smoke.mjs`) зелёный в CI
 - [x] 3.3 `cd src/client && npx tsc -b` — без ошибок
 - [x] 3.4 `cd src/client && npm run ui:ratchet` — без роста
 - [x] 3.5 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
