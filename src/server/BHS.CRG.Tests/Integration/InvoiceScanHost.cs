@@ -71,6 +71,12 @@ public sealed class InvoiceScanHost : InvoiceLineHost
     public Exception? BlobDeleteFailure { get; set; }
 
     /// <summary>
+    /// Отказ хранилища на чтение файла модулем — пока стоит (ревью PR #1645): так проверяется, что сбой
+    /// чтения или пропавший файл не отменяют постановку распознавания. Тест ставит и обязан снять.
+    /// </summary>
+    public Exception? BlobOpenFailure { get; set; }
+
+    /// <summary>
     /// Отказ журнала действий на запись с этим кодом — пока стоит (ревью PR #1298): удаление, которое
     /// состоялось, не вправе ответить сбоем из-за журнала. Тест ставит и обязан снять.
     /// </summary>
@@ -144,7 +150,8 @@ public sealed class InvoiceScanHost : InvoiceLineHost
         public Task<string> PutAsync(string fileName, Stream content, string contentType, CancellationToken ct = default) =>
             inner.PutAsync(fileName, content, contentType, ct);
 
-        public Task<Stream> OpenAsync(string path, CancellationToken ct = default) => inner.OpenAsync(path, ct);
+        public Task<Stream> OpenAsync(string path, CancellationToken ct = default) =>
+            host.BlobOpenFailure is { } failure ? Task.FromException<Stream>(failure) : inner.OpenAsync(path, ct);
 
         public Task DeleteAsync(string path, CancellationToken ct = default) =>
             host.BlobDeleteFailure is { } failure ? Task.FromException(failure) : inner.DeleteAsync(path, ct);
@@ -245,8 +252,26 @@ public sealed class InvoiceScanHost : InvoiceLineHost
         /// <summary>С каким видом файл пришёл движку: «содержимое → вид» (issue #1265).</summary>
         public System.Collections.Concurrent.ConcurrentDictionary<string, string> Kinds { get; } = new();
 
-        public Task EnsureReadyAsync(string profileCode, CancellationToken ct = default) =>
-            NotReady is { } refusal ? Task.FromException(refusal) : Task.CompletedTask;
+        /// <summary>
+        /// Файлы, которые «не читаются»: содержимое → слова отказа. Проверку файла порт делает настоящую
+        /// (<c>ModuleRecognitionPortTests</c>); здесь важно лишь, КОГДА модуль её спрашивает (issue #1344).
+        /// </summary>
+        public ConcurrentDictionary<string, string> Unreadable { get; } = new();
+
+        /// <summary>Сколько раз спрошена готовность — тест сверяет разницу до и после запуска.</summary>
+        public int ReadyChecks => readyChecks;
+        private int readyChecks;
+
+        public Task EnsureReadableAsync(string profileCode, byte[] content, string mimeType, CancellationToken ct = default) =>
+            Unreadable.TryGetValue(Encoding.UTF8.GetString(content), out var why)
+                ? Task.FromException(new RecognitionRefusedException(RecognitionRefusal.BadFile, why))
+                : Task.CompletedTask;
+
+        public Task EnsureReadyAsync(string profileCode, CancellationToken ct = default)
+        {
+            Interlocked.Increment(ref readyChecks);
+            return NotReady is { } refusal ? Task.FromException(refusal) : Task.CompletedTask;
+        }
 
         public Task<ModuleRecognitionResult> RecognizeAsync(
             string profileCode, byte[] content, string mimeType, CancellationToken ct = default)
