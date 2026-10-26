@@ -166,6 +166,8 @@ public sealed class PlanModule : IAppModule
         RateMatchListEndpoints.Map(endpoints);
         ResourceMatchEndpoints.Map(endpoints);
         ResourceMatchListEndpoints.Map(endpoints);
+        RevisionSectionsEndpoints.Map(endpoints);
+        RevisionMaterialsEndpoints.Map(endpoints);
     }
 
     /// <summary>

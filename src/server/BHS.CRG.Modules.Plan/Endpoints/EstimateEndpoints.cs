@@ -37,19 +37,34 @@ public static class EstimateEndpoints
         estimates.MapPut("/{id:guid}", UpdateAsync).RequireAuthorization(edit);
         estimates.MapDelete("/{id:guid}", DeleteAsync).RequireAuthorization(edit);
         estimates.MapPost("/{id:guid}/current-revision", MakeCurrentAsync).RequireAuthorization(edit);
+        estimates.MapGet("/{id:guid}/current-revision/preview", CurrentRevisionPreview.GetAsync).RequireAuthorization(edit);
 
         endpoints.MapDelete("/api/plan/revisions/{id:guid}", DeleteRevisionAsync)
             .WithTags("Сметы").RequireAuthorization(edit);
     }
 
-    private static async Task<IResult> ListAsync(Guid? constructionId, PlanDbContext db, IModuleUser user, CancellationToken ct)
+    /// <summary>
+    /// Сметы стройки — все сразу; без стройки — сметы всех строек страницами (D6 <c>plan-31</c>, ТЗ PLAN-20): у
+    /// каждой стройка и раздел, а название стройки клиент берёт справочником строек. Курсор и размер страницы у
+    /// списка стройки — 400, а не молчаливое «всё».
+    /// </summary>
+    private static async Task<IResult> ListAsync(
+        Guid? constructionId, string? cursor, int? limit, PlanDbContext db, IModuleUser user, CancellationToken ct)
     {
-        if (constructionId is not { } site)
-            throw new InvalidRequestException("Не названа стройка (constructionId): сметы читаются по стройке.");
-
         var hidden = await EstimateViews.HiddenAsync(user, ct);
-        var items = await EstimateViews.ListAsync(db, db.Estimates.Where(e => e.ConstructionId == site), hidden is null, ct);
-        return Results.Ok(new EstimateListDto(items, hidden));
+        if (constructionId is { } site)
+        {
+            // Молча отдать всё на «limit=20» — отказ, переодетый в результат: клиент счёл бы ответ одной страницей.
+            if (cursor is not null || limit is not null)
+                throw new InvalidRequestException(
+                    "Сметы стройки приходят целиком: курсор («cursor») и размер страницы («limit») — только у общего " +
+                    "списка, без «constructionId».");
+            var items = await EstimateViews.ListAsync(db, db.Estimates.Where(e => e.ConstructionId == site), hidden is null, ct);
+            return Results.Ok(new EstimateListDto(items, null, hidden));
+        }
+
+        var (page, next) = await EstimateViews.PageAsync(db, cursor, limit, hidden is null, ct);
+        return Results.Ok(new EstimateListDto(page, next, hidden));
     }
 
     private static async Task<IResult> GetAsync(Guid id, PlanDbContext db, IModuleUser user, CancellationToken ct) =>

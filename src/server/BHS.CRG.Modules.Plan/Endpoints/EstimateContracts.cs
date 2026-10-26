@@ -51,8 +51,11 @@ public sealed record EstimateDto(
     Guid? CurrentRevisionId, int? CurrentRevisionNumber, IReadOnlyList<EstimateRevisionDto> Revisions,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HiddenPart>? Hidden);
 
+/// <param name="Next">Курсор следующей страницы общего списка (без стройки); <c>null</c> — смет больше нет либо
+/// список стройки, который приходит целиком.</param>
 public sealed record EstimateListDto(
     IReadOnlyList<EstimateDto> Items,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Next,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HiddenPart>? Hidden);
 
 public sealed record LsrSectionDto(string? Code, string? Name);

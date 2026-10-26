@@ -24,19 +24,19 @@
 
 ## 2. PR 2: адреса чтения и массовой правки
 
-- [ ] 2.1 `GET /api/plan/revisions/{id}/sections` (D5) под `plan.estimate.read` [PLAN-6.1]. Проверка — тест:
+- [x] 2.1 `GET /api/plan/revisions/{id}/sections` (D5) под `plan.estimate.read` [PLAN-6.1]. Проверка — тест:
   30 разделов одним ответом, счётчики сходятся со строками; `EndpointGateInventoryTests` зелёный
-- [ ] 2.2 `GET /api/plan/estimates` без стройки — страницами (D6) [PLAN-20]. Проверка — тест: сметы двух
+- [x] 2.2 `GET /api/plan/estimates` без стройки — страницами (D6) [PLAN-20]. Проверка — тест: сметы двух
   строек, курсор; без `plan.estimate.cost` денег нет, `hidden` есть
-- [ ] 2.3 `GET /api/plan/estimates/{id}/current-revision/preview` (D7) под `plan.estimate.edit` [PLAN-5.2].
+- [x] 2.3 `GET /api/plan/estimates/{id}/current-revision/preview` (D7) под `plan.estimate.edit` [PLAN-5.2].
   Проверка — тест: только изменившиеся виды работ, действующая не меняется; без `cost` денег нет; с одним
   `read` — 403
-- [ ] 2.4 `GET /api/plan/unit-factor` (D8) правилом `RowMatching` [PLAN-6.1]. Проверка — тест: «100 шт» → «шт»
+- [x] 2.4 `GET /api/plan/unit-factor` (D8) правилом `RowMatching` [PLAN-6.1]. Проверка — тест: «100 шт» → «шт»
   = 100; «м» → «шт» — пусто с причиной
-- [ ] 2.5 `POST /api/plan/revisions/{id}/lines/match` (D9): строки или разделы, одна фиксация, материалы —
+- [x] 2.5 `POST /api/plan/revisions/{id}/lines/match` (D9): строки или разделы, одна фиксация, материалы —
   в `skipped` [PLAN-6.1] [AUTH-8] [AUTH-9]. Проверка — тесты: без `If-Match` 400, устаревший 409 без единой
   правки, с одним `read` 403, «Инженер ИД» — отказ ворот; сверх 1000 строк — 400 с числом
-- [ ] 2.6 `GET /api/plan/revisions/{id}/materials` и `PUT …/materials/match` (D10) [PLAN-9.1] [AUTH-8]
+- [x] 2.6 `GET /api/plan/revisions/{id}/materials` и `PUT …/materials/match` (D10) [PLAN-9.1] [AUTH-8]
   [AUTH-9]. Проверка — тесты: 14 ресурсов одной группы одним запросом; без `If-Match` 400, устаревший 409,
   с одним `read` 403; цены — только с `cost`
 
