@@ -1,3 +1,4 @@
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Recognition;
 
 namespace BHS.CRG.Tests.Integration;
@@ -63,5 +64,33 @@ public sealed partial class InvoiceFromScanTests
 
         Assert.Equal(asked, host.Recognition.ReadyChecks);
         Assert.False(host.Recognition.Kinds.ContainsKey(scan), "Нечитаемый файл ушёл движку.");
+    }
+
+    /// <summary>
+    /// Файл до постановки прочитать не удалось — сбой хранилища или файла уже нет при живом счёте (ревью
+    /// PR #1645). Это не отказ файлу: проверка не выполнена, и распознавание ставится, как до неё, —
+    /// готовность спрошена. Исход назовёт задача.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Непрочитанный_до_постановки_файл_не_отменяет_постановку(bool missing)
+    {
+        var (client, _) = await SignInAsync("Supplier");
+        var scan = Scan();
+        host.Recognition.On(scan, () => Task.FromResult(Read(Header(number: "СЧ-1645"))));
+        var asked = host.Recognition.ReadyChecks;
+        host.BlobOpenFailure = missing ? new NotFoundException("Файл не найден.") : new IOException("хранилище не отвечает");
+        try
+        {
+            var created = await FromScanAsync(client, scan, "Скан.pdf");
+
+            Assert.Equal(asked + 1, host.Recognition.ReadyChecks);
+            await OutcomeAsync(client, created.GetProperty("invoice").GetProperty("id").GetGuid());
+        }
+        finally
+        {
+            host.BlobOpenFailure = null;
+        }
     }
 }

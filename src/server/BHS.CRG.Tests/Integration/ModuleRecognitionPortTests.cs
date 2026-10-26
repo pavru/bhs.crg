@@ -217,7 +217,7 @@ public class ModuleRecognitionPortTests(CostsOnlyHost host)
         var port = Port(scope, new Answering([]));
 
         var bad = await Assert.ThrowsAsync<RecognitionRefusedException>(() =>
-            port.EnsureReadableAsync("%PDF-1.4 не настоящий"u8.ToArray(), "application/pdf"));
+            port.EnsureReadableAsync(Code, "%PDF-1.4 не настоящий"u8.ToArray(), "application/pdf"));
         Assert.Equal(RecognitionRefusal.BadFile, bad.Reason);
         Assert.Contains(RecognitionFileCheck.Unreadable, bad.Message);
 
@@ -225,9 +225,9 @@ public class ModuleRecognitionPortTests(CostsOnlyHost host)
         doc.AddPage();
         using var pdf = new MemoryStream();
         doc.Save(pdf, false);
-        await port.EnsureReadableAsync(pdf.ToArray(), "application/pdf");
+        await port.EnsureReadableAsync(Code, pdf.ToArray(), "application/pdf");
         // Изображение разбирает сам движок: проверка его не судит.
-        await port.EnsureReadableAsync(Scan, "image/png");
+        await port.EnsureReadableAsync(Code, Scan, "image/png");
     }
 
     /// <summary>
@@ -308,9 +308,13 @@ public class ModuleRecognitionPortTests(CostsOnlyHost host)
         var onCheck = await Assert.ThrowsAsync<InvalidRequestException>(() => port.EnsureReadyAsync(Code));
         var onRead = await Assert.ThrowsAsync<InvalidRequestException>(() =>
             port.RecognizeAsync(Code, Scan, "application/pdf"));
+        // Файл нечитаем, но ворота — раньше него (ревью PR #1645): иначе ответ был бы о файле.
+        var onFile = await Assert.ThrowsAsync<InvalidRequestException>(() =>
+            port.EnsureReadableAsync(Code, Scan, "application/pdf"));
 
         Assert.Contains("Счета и накладные", onCheck.Message);
         Assert.Contains("Счета и накладные", onRead.Message);
+        Assert.Contains("Счета и накладные", onFile.Message);
         Assert.Null(recognizer.Prompt);
 
         // Ворота — первыми, каким бы ни был вид: постраничный профиль выключенного модуля тоже

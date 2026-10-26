@@ -5,13 +5,13 @@
 
 ## 1. Сервер: файл — первым
 
-- [x] 1.1 `BHS.CRG.Modules/Ports/IModuleRecognition.cs`: `EnsureReadableAsync(content, mimeType, ct)` —
+- [x] 1.1 `BHS.CRG.Modules/Ports/IModuleRecognition.cs`: `EnsureReadableAsync(profileCode, content, mimeType, ct)` —
   отказ `RecognitionRefusedException(BadFile)`; реализация в `Api/Modules/Ports/ModuleRecognitionPort.cs`
   через `RecognitionFileCheck.CheckAsync`, сбой окружения — не отказ, а запись в журнал сервера [COST-8].
   Проверка — `ModuleRecognitionPortTests`: нечитаемый PDF — `BadFile`, исправный PDF и PNG — молчание;
   `ModuleBoundaryTests` зелёный
 - [x] 1.2 `Modules.Costs/Endpoints/InvoiceScanRecognition.cs`, `StartAsync`: прочитать файл, уходящий
-  движку как есть (`InvoiceScanImage.AsIsAsync`, design D1 — образ Excel и Word в запросе не строится),
+  движку как есть (`InvoiceScanImage.AsIsPdfAsync`, design D1 — образ Excel и Word в запросе не строится),
   и вызвать `EnsureReadableAsync` до `EnsureReadyAsync`; отказ — исход
   `BadFile` записью распознавания, задача не ставится [COST-8]. Проверка — `InvoiceFromScanTests`:
   нечитаемый PDF при ненастроенном движке — `reason: BadFile`, предполётная проверка не вызвана; при
@@ -36,7 +36,12 @@
 - [x] 2.4 Сверка остальных прогонов: `seed-invoices.mjs`, `invoice-layout-checks.mjs` распознавание не
   запускают — записать это одной строкой в описании PR. Проверка — описание PR
 - [x] 2.5 `shared/api/invoiceRecognition.ts`, `sendScan`: вид двойников нового черновика — устаревшим
-  (design, Risks: найдено первым прогоном CI). Проверка — проверка 8а прогона зелёная на стенде и в CI
+  (design, Risks: найдено первым прогоном CI); перечитываются они шагом списков `refreshInvoiceLists`, а не
+  на каждый файл пакета (ревью PR). Проверка — проверка 8а прогона зелёная на стенде и в CI;
+  `invoiceRecognition.twins.test.ts`
+- [x] 2.6 Ревью PR: сбой хранилища при чтении файла до постановки — не отказ, задача ставится; ворота модуля
+  раньше проверки файла; вид файла — от ядра (design D1). Проверка — `InvoiceFromScanTests`
+  (`Непрочитанный_до_постановки_файл_не_отменяет_постановку`), `ModuleRecognitionPortTests`
 
 ## 3. Верификация
 

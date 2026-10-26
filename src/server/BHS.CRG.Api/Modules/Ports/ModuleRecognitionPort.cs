@@ -27,8 +27,11 @@ public sealed class ModuleRecognitionPort(
     IRecognitionPreflight preflight,
     ILogger<ModuleRecognitionPort> logger) : IModuleRecognition
 {
-    public async Task EnsureReadableAsync(byte[] content, string mimeType, CancellationToken ct = default)
+    public async Task EnsureReadableAsync(string profileCode, byte[] content, string mimeType, CancellationToken ct = default)
     {
+        // Ворота — первыми, как у остальных вызовов порта: профиль выключенного модуля отвечает его
+        // названием, а не словами о файле.
+        Declared(profileCode);
         // Правило одно с цепочкой ядра (ChainDocumentRecognizer): разойдись они, кнопка и фоновая задача
         // судили бы один файл по-разному.
         var check = await RecognitionFileCheck.CheckAsync(content, mimeType, ct);

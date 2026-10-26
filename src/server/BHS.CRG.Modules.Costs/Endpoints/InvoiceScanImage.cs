@@ -152,30 +152,36 @@ public sealed class InvoiceScanImage(
                 (other as ModuleRendition.Refused)?.Reason ?? "Читаемого вида у файла нет."),
         };
 
-        await using var stored = await blobs.OpenAsync(path, ct);
-        using var buffer = new MemoryStream();
-        await stored.CopyToAsync(buffer, ct);
-        return (buffer.ToArray(), mime, image);
+        return (await ReadAllAsync(path, ct), mime, image);
     }
 
     /// <summary>
-    /// Файл, который уходит движку КАК ЕСТЬ (PDF, изображение), — для проверки до постановки (issue
-    /// #1344); <c>null</c> — движку уйдёт образ или файл не распознаётся вовсе.
+    /// PDF, который уходит движку КАК ЕСТЬ, — для проверки до постановки (issue #1344); <c>null</c> —
+    /// движку уйдёт образ или изображение (его проверка не судит, и тянуть его из хранилища незачем).
     ///
-    /// <para>Образ здесь нарочно не строится, в отличие от <see cref="ReadableAsync" />: построение — это
+    /// <para>Как файл уйдёт движку, отвечает ядро — тот же ответ, что получит задача
+    /// (<see cref="ReadableAsync" />), а не записанный вид счёта: разойдись они, проверка судила бы не тот
+    /// файл. Записанного ответа нет, а файл из тех, что приводятся к виду, — <c>null</c>: построение — это
     /// конвертер, секунды в запросе нажатия. Образ — PDF нашего же конвертера, и его встретит проверка
     /// ядра в фоновой задаче.</para>
     /// </summary>
-    public async Task<(byte[] Content, string Mime)?> AsIsAsync(Invoice invoice, CancellationToken ct)
+    public async Task<byte[]?> AsIsPdfAsync(Invoice invoice, CancellationToken ct)
     {
-        var mime = FileKinds.Recorded(invoice.ScanMimeType);
-        if (invoice.ScanBlobPath is not { } path || FileKindCatalog.Find(mime) is not { Reading: FileReading.AsIs })
+        if (invoice.ScanBlobPath is not { } path) return null;
+        var known = await renditions.FindAsync(path, ct);
+        if (known is null && FileKindCatalog.Find(FileKinds.Recorded(invoice.ScanMimeType)) is { Reading: FileReading.Rendition })
             return null;
+        return (known ?? await renditions.EnsureAsync(path, ct)) is ModuleRendition.AsIs { Mime: FileKinds.Pdf } asIs
+            ? await ReadAllAsync(asIs.Path, ct)
+            : null;
+    }
 
+    private async Task<byte[]> ReadAllAsync(string path, CancellationToken ct)
+    {
         await using var stored = await blobs.OpenAsync(path, ct);
         using var buffer = new MemoryStream();
         await stored.CopyToAsync(buffer, ct);
-        return (buffer.ToArray(), mime);
+        return buffer.ToArray();
     }
 
     /// <summary>Образ потоком; <c>null</c> — образа нет.</summary>

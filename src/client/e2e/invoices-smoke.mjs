@@ -483,14 +483,22 @@ try {
   // платным запросом (#1344). Там запуск не проверяется — пропуск назван строкой прогона; на стенде без
   // облачного движка (CI) проверка прежняя. Остальное — вид для чтения, оригинал, панель — на любом стенде.
   // Ollama в счёт не идёт: он свой, а в CI включён по умолчанию и «настроен», хотя не запущен, — по нему
-  // проверка пропускалась бы как раз там, где обязана идти.
-  const engines = Object.entries((await api('GET', '/settings/integrations')).recognition ?? {})
-    .filter(([name, engine]) => name !== 'Ollama' && engine.enabled && !engine.missing).map(([name]) => name);
-  if (engines.length > 0)
-    skip('счёт в Excel: распознавание запускается',
-      `движок настроен (${engines.join(', ')}) — запуск не проверяется, прогон к движку не ходит (#1344)`);
+  // проверка пропускалась бы как раз там, где обязана идти. Имя — без регистра, как у сервера
+  // (`EngineReadiness.IsOllama`). Настройки не прочитаны — провал своей проверкой, и нажатия нет:
+  // неизвестно, не уйдёт ли оно к платному движку.
+  let engines = null;
+  await check('настройки распознавания прочитаны', async () => {
+    engines = Object.entries((await api('GET', '/settings/integrations')).recognition ?? {})
+      .filter(([name, engine]) => name.toLowerCase() !== 'ollama' && engine.enabled && !engine.missing)
+      .map(([name]) => name);
+  });
+  const press = engines?.length === 0;
+  if (!press)
+    skip('счёт в Excel: распознавание запускается', engines
+      ? `движок настроен (${engines.join(', ')}) — запуск не проверяется, прогон к движку не ходит (#1344)`
+      : 'настройки распознавания не прочитаны — запуск не проверяется (#1344)');
   await check('счёт в Excel: показан вид для чтения с оговоркой, оригинал скачивается'
-    + (engines.length > 0 ? '' : ', распознавание запускается'), async () => {
+    + (press ? ', распознавание запускается' : ''), async () => {
     const number = `СЧ-X${stamp}`;
     const created = await api('POST', '/costs/invoices', { requisites: requisites(number, 'В Excel') });
     const book = officeFile('converter-reference.xlsx');
@@ -513,7 +521,7 @@ try {
     if (!download.suggestedFilename().endsWith('.xlsx'))
       throw new Error(`оригинал сохраняется под именем «${download.suggestedFilename()}», а не как Excel`);
 
-    if (engines.length === 0) {
+    if (press) {
       await page.getByRole('button', { name: 'Распознать файл' }).click();
       // Исход — любой, кроме «идёт»: кнопки запуска больше нет, а отказ об образе не назван.
       await named('распознавание не дало исхода',

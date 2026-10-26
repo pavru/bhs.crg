@@ -55,10 +55,14 @@ public interface IModuleRecognition
     /// Читается ли файл вообще — та же проверка, которой ядро встречает файл перед движками (issue
     /// #1343). Молчит — файл читается или проверить его не удалось; иначе отказ с причиной
     /// <c>BadFile</c>. Бесплатна: к движкам не ходит.
+    ///
+    /// <para>Профиль — ради ворот: как и у остальных вызовов, профиль выключенного модуля отказывает его
+    /// названием раньше, чем файл судят.</para>
     /// </summary>
+    /// <param name="profileCode">Профиль, которым файл будут читать.</param>
     /// <param name="content">Файл целиком — тот, что уйдёт движку.</param>
     /// <param name="mimeType">Тип содержимого: проверяется PDF, изображение разбирает сам движок.</param>
-    Task EnsureReadableAsync(byte[] content, string mimeType, CancellationToken ct = default);
+    Task EnsureReadableAsync(string profileCode, byte[] content, string mimeType, CancellationToken ct = default);
 
     /// <summary>
     /// Есть ли кому распознавать. Молчит — можно ставить задачу; иначе отказ с причиной.

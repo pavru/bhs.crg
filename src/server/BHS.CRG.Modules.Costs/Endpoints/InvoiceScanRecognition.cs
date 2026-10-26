@@ -5,6 +5,7 @@ using BHS.CRG.Modules.Files;
 using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
 
@@ -42,7 +43,7 @@ public sealed record InvoiceRecognitionView(
 /// </summary>
 public sealed class InvoiceScanRecognition(
     CostsDbContext db, IModuleRecognition recognition, IModuleJobs jobs, InvoiceParties parties,
-    InvoiceScanImage image)
+    InvoiceScanImage image, ILogger<InvoiceScanRecognition> log)
 {
     public const string Operation = "costs.invoice.recognize";
 
@@ -238,8 +239,8 @@ public sealed class InvoiceScanRecognition(
 
         try
         {
-            if (await AsIsAsync(invoice, ct) is (var content, var mime))
-                await recognition.EnsureReadableAsync(content, mime, ct);
+            if (await AsIsPdfAsync(invoice, ct) is { } pdf)
+                await recognition.EnsureReadableAsync(CostsRecognitionProfiles.InvoiceCode, pdf, FileKinds.Pdf, ct);
             await recognition.EnsureReadyAsync(CostsRecognitionProfiles.InvoiceCode, ct);
         }
         catch (RecognitionRefusedException refused)
@@ -296,21 +297,32 @@ public sealed class InvoiceScanRecognition(
     }
 
     /// <summary>
-    /// Файл, который уйдёт движку как есть, — для проверки до постановки.
+    /// PDF, который уйдёт движку как есть, — для проверки до постановки; <c>null</c> — проверять нечего
+    /// или не удалось.
     ///
     /// <para>⚠️ Файла в хранилище нет — чаще всего потому, что нет счёта: его удалили вместе с файлом,
     /// пока шёл запуск (issue #1282). Ответ тогда — о счёте, а не «файл не найден». Счёт есть, а файла
     /// нет — проверять нечего: исход назовёт задача, как и до проверки файла.</para>
+    ///
+    /// <para>⚠️ Сбой хранилища или службы образов — не отказ файлу (design D1): проверка не выполнена, и
+    /// задача ставится как до неё. Иначе запуск отвечал бы сбоем там, где раньше исход записывала задача.</para>
     /// </summary>
-    private async Task<(byte[] Content, string Mime)?> AsIsAsync(Invoice invoice, CancellationToken ct)
+    private async Task<byte[]?> AsIsPdfAsync(Invoice invoice, CancellationToken ct)
     {
         try
         {
-            return await image.AsIsAsync(invoice, ct);
+            return await image.AsIsPdfAsync(invoice, ct);
         }
         catch (NotFoundException)
         {
             if (await GoneAsync(invoice, ct)) throw Vanished();
+            return null;
+        }
+        catch (Exception failure) when (failure is not OperationCanceledException)
+        {
+            log.LogWarning(failure,
+                "Счёт {InvoiceId}: файл до постановки распознавания проверить не удалось — задача ставится как есть",
+                invoice.Id);
             return null;
         }
     }
