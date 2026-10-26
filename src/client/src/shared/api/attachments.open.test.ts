@@ -56,6 +56,28 @@ describe('вложение во вкладке', () => {
     expect(vi.mocked(URL.createObjectURL).mock.calls[0][0]).toMatchObject({ type: 'image/png' });
   });
 
+  it('скан TIFF не подписывается PDF: скачивается под именем из пути, вкладка закрывается', async () => {
+    const saved: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { saved.push(this.download); });
+    vi.mocked(apiClient.get).mockResolvedValue({ data: new Blob(['II*']), headers: { 'content-type': 'image/tiff' } });
+
+    await openAttachmentInNewTab('quality/2026/сертификат.tif');
+    expect(tab.close).toHaveBeenCalled();
+    expect(saved).toEqual(['сертификат.tif']);
+    expect(vi.mocked(URL.createObjectURL).mock.calls[0][0]).toMatchObject({ type: 'application/octet-stream' });
+  });
+
+  it('имя файла — из Content-Disposition, когда сервер его назвал', async () => {
+    const saved: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { saved.push(this.download); });
+    vi.mocked(apiClient.get).mockResolvedValue({ data: new Blob(['PK']), headers: {
+      'content-type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'content-disposition': "attachment; filename*=UTF-8''%D0%9F%D0%B0%D1%81%D0%BF%D0%BE%D1%80%D1%82.docx",
+    } });
+    await openAttachmentInNewTab('x/0f3a.docx');
+    expect(saved).toEqual(['Паспорт.docx']);
+  });
+
   it('байты не пришли — во вкладке текст отказа, а место получает исключение', async () => {
     vi.mocked(apiClient.get).mockRejectedValue(new Error('404'));
     await expect(openAttachmentInNewTab('scans/gone.pdf')).rejects.toThrow('404');

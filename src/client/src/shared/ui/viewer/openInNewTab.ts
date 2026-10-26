@@ -6,6 +6,8 @@
  *   окон режет. Байты, которые ещё грузятся, приходят в уже открытую вкладку.
  * - **Тип ставим сами**: `application/pdf` либо тип картинки из белого списка (`IMAGE_TYPES`). Типу
  *   ответа сервера не доверяем — `text/html` во вкладке исполнился бы как страница нашего адреса.
+ *   Файл со своим типом вне списка (`saveUnknown`: скан TIFF, вложение Word) скачивается, а не
+ *   подписывается PDF — иначе во вкладке была бы ошибка PDF вместо файла.
  * - **Ссылка отзывается с отсрочкой**: отозванная сразу не успела бы открыться.
  * - **Вкладка говорит словами** (issue #1493): пока байты грузятся — «Загрузка файла…», отказ
  *   загрузчика — что файл не открыт и что делать. Пустая белая вкладка не значила бы ничего.
@@ -29,15 +31,48 @@ export function revokeLater(url: string): void {
  */
 export const IMAGE_TYPES: readonly string[] = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp'];
 
+const PDF_TYPE = 'application/pdf';
+
+/**
+ * Тип, который показывается из `blob:`-адреса, — `application/pdf` или картинка из `IMAGE_TYPES`;
+ * иначе `null`. Единственный белый список клиента: по нему же помечает байты вложений
+ * `loadAttachmentBlob` — два списка уже расходились (`image/bmp` был только здесь).
+ */
+export function shownTypeOf(type: string | null | undefined): string | null {
+  const bare = (type ?? '').split(';')[0].trim().toLowerCase();
+  return bare === PDF_TYPE || IMAGE_TYPES.includes(bare) ? bare : null;
+}
+
 /** Тип картинки из белого списка, если байты — такая картинка; иначе `null` (показ как PDF). */
 export function imageTypeOf(source: PdfBytes | null): string | null {
-  const type = source instanceof Blob ? source.type.split(';')[0].trim().toLowerCase() : '';
-  return IMAGE_TYPES.includes(type) ? type : null;
+  const type = source instanceof Blob ? shownTypeOf(source.type) : null;
+  return type === PDF_TYPE ? null : type;
 }
 
 /** Байты со СВОИМ типом: картинка из белого списка — своим, всё прочее — `application/pdf`. */
 export function viewerBlob(source: PdfBytes): Blob {
-  return new Blob([source as BlobPart], { type: imageTypeOf(source) ?? 'application/pdf' });
+  return new Blob([source as BlobPart], { type: imageTypeOf(source) ?? PDF_TYPE });
+}
+
+/** Сохранить файл под его именем (`File`) — для типа, который во вкладке не показать. */
+function save(file: Blob): void {
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = file instanceof File ? file.name : '';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  revokeLater(url);
+}
+
+export interface OpenInNewTabOptions {
+  /**
+   * Это файл со своим типом, а не байты просмотрщика: тип вне белого списка (`shownTypeOf`) не
+   * подписывается PDF — файл скачивается под своим именем, вкладка закрывается. Без опции такие байты
+   * идут как PDF: так их показывает и сам просмотрщик, и «во вкладке» обязано совпасть с ним.
+   */
+  saveUnknown?: boolean;
 }
 
 const LOADING_TEXT = 'Загрузка файла…';
@@ -73,10 +108,17 @@ function say(tab: Window, text: string): boolean {
  * файл по готовности. Отказ загрузчика вкладка называет словами (не смогла — закрывается), и отказ
  * возвращается вызывающему: ему решать, говорить ли что-то ещё. Вкладки нет — `TabBlocked`, без загрузки.
  */
-export function openInNewTab(source: PdfBytes | (() => Promise<PdfBytes>)): Promise<void> {
+export function openInNewTab(
+  source: PdfBytes | (() => Promise<PdfBytes>), { saveUnknown = false }: OpenInNewTabOptions = {},
+): Promise<void> {
   const tab = window.open('', '_blank');
   if (tab) tab.opener = null;
   const show = (bytes: PdfBytes) => {
+    if (saveUnknown && bytes instanceof Blob && !shownTypeOf(bytes.type)) {
+      tab?.close();
+      save(bytes);
+      return;
+    }
     const url = URL.createObjectURL(viewerBlob(bytes));
     if (tab && !tab.closed) tab.location.href = url;
     else window.open(url, '_blank', 'noopener');

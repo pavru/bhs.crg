@@ -5,6 +5,8 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
+const OPEN_TAB_MESSAGE = 'вкладку с файлом открывает только openInNewTab из @/shared/ui/viewer/openInNewTab (вложение — useOpenAttachment / openAttachmentInNewTab), issue #1494.'
+
 export default defineConfig([
   // Помимо сборки — артефакты инструментов, которые git игнорирует, а линт видел. Они лежат в
   // рабочем каталоге у того, кто эти инструменты запускал, и не существуют больше нигде: у
@@ -82,16 +84,17 @@ export default defineConfig([
     // Вкладка с файлом — одной функцией просмотрщика (issue #1494, [UI-27]): окно синхронно в
     // обработчике нажатия, тип из белого списка, ссылка отзывается с отсрочкой, отказ — словами во
     // вкладке. Свой `window.open` терял бы что-то из этого молча: тип ответа сервера исполнился бы
-    // страницей нашего адреса, а отказ оставил бы пустую вкладку. Тесты смотрят на вызов
-    // (`expect(window.open)`), а не открывают, — им можно.
+    // страницей нашего адреса, а отказ оставил бы пустую вкладку. Тот же `open` — под любым именем
+    // глобального объекта (`globalThis`, `self`), разбором (`const { open } = window`) и голым вызовом
+    // глобальной функции `open(url)`: сторож, который обходится сменой имени, не сторож. Тесты смотрят
+    // на вызов (`expect(window.open)`), а не открывают, — им можно.
     files: ['**/*.{ts,tsx}'],
     ignores: ['src/shared/ui/viewer/openInNewTab.ts', '**/*.test.{ts,tsx}'],
     rules: {
-      'no-restricted-properties': ['error', {
-        object: 'window',
-        property: 'open',
-        message: 'вкладку с файлом открывает только openInNewTab из @/shared/ui/viewer/openInNewTab (вложение — openAttachmentInNewTab), issue #1494.',
-      }],
+      'no-restricted-properties': ['error',
+        ...['window', 'globalThis', 'self'].map(object => ({ object, property: 'open', message: OPEN_TAB_MESSAGE })),
+      ],
+      'no-restricted-globals': ['error', { name: 'open', message: OPEN_TAB_MESSAGE }],
     },
   },
   {

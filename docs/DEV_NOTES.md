@@ -385,8 +385,15 @@ Penny Software или copyleft RPL‑1.5. Решение стояло на 14.1.
   вычисляемые поля, значит замедлить просмотр сканов.
 - **Вкладка — одной функцией** (`openInNewTab`, [UI-27]): окно синхронно в обработчике нажатия, тип —
   из белого списка, ссылка отзывается с отсрочкой, отказ загрузки — словами во вкладке. Вложения идут
-  через неё же (`openAttachmentInNewTab` — обёртка с загрузчиком `loadAttachmentBlob`); `window.open`
-  вне `openInNewTab.ts` — ошибка линта (`no-restricted-properties`).
+  через неё же (`openAttachmentInNewTab` — обёртка с загрузчиком `loadAttachmentBlob`; места зовут
+  `useOpenAttachment`, и отказ, `TabBlocked` тоже, виден тостом); `window.open` вне `openInNewTab.ts` —
+  ошибка линта (`no-restricted-properties` для `window`, `globalThis`, `self` и `no-restricted-globals`
+  для голого `open`).
+  - **Белый список один** — `shownTypeOf` (PDF и `IMAGE_TYPES`); им же помечает байты `loadAttachmentBlob`.
+    Два списка уже расходились: `image/bmp` знал только просмотрщик.
+  - **Файл вне списка скачивается** (`saveUnknown` у `openInNewTab`): скан TIFF, подписанный PDF, давал
+    во вкладке ошибку PDF вместо файла. Только для вложений: байты самого просмотрщика без опции идут
+    как PDF — так он их и показывает, и «во вкладке» обязано с ним совпасть.
 - **Граница браузеров — Chrome и Firefox 126, Safari 18** (D5 зонтика `viewer-00-epic`, решение
   владельца 25.10.2026). pdf.js 6 зовёт функции новее: `Map.getOrInsertComputed`, `Math.sumPrecise`,
   `Uint8Array.toBase64` и др. Их ставят свои заплатки `pdfPolyfills.ts` — в главном потоке и во входе

@@ -32,6 +32,10 @@
   месту
 - [x] 3.2 `no-restricted-properties` на `window.open` вне `shared/ui/viewer/openInNewTab.ts` [UI-27]. Проверка —
   `npm run lint:ratchet` зелёный; `grep -rn "window.open" src/client/src` — только `openInNewTab.ts`
+- [x] 3.3 Ревью PR #1637: тип вне белого списка скачивается (`saveUnknown`), белый список один
+  (`shownTypeOf`), места зовут `useOpenAttachment` (отказ тостом), сторож — и `globalThis`/`self`/разбор/голый
+  `open` [UI-27]. Проверка — тесты `openInNewTab`, `attachments.open`, `useOpenAttachment`; пробные обходы
+  линта красные
 
 ## 4. Верификация
 

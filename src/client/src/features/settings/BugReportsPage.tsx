@@ -15,7 +15,7 @@ import { useListDetailView } from '@/shared/ui/listDetailView';
 import { useToast } from '@/shared/ui/Toast';
 import { StatusBadge, type StatusTone } from '@/shared/ui/StatusBadge';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
-import { openAttachmentInNewTab } from '@/shared/api/attachments';
+import { useOpenAttachment } from '@/shared/hooks/useOpenAttachment';
 import {
   useBugReports, useBugReport, useSaveBugReportDraft, useMarkBugReportFixed,
   useRejectBugReport, useReopenBugReport, useForwardBugReport,
@@ -130,6 +130,7 @@ function ReportBody({ report, githubConfigured }: {
   report: BugReportDetail; githubConfigured: boolean;
 }) {
   const toast = useToast();
+  const openAttachment = useOpenAttachment();
   const saveDraft = useSaveBugReportDraft();
   const markFixed = useMarkBugReportFixed();
   const reject = useRejectBugReport();
@@ -214,7 +215,7 @@ function ReportBody({ report, githubConfigured }: {
           <section className="space-y-1.5">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-fg4">Снимок экрана</h3>
             <Button variant="outlined" size="sm"
-              onClick={() => { void openAttachmentInNewTab(report.screenshotBlobPath!); }}>
+              onClick={() => { void openAttachment(report.screenshotBlobPath!); }}>
               <ExternalLink size={14} /> Открыть снимок
             </Button>
             <p className="text-xs text-fg4">В GitHub снимок не передаётся — он остаётся здесь.</p>

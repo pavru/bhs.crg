@@ -11,7 +11,8 @@ import {
   type QualityDocument,
 } from '@/shared/api/qualityDocs';
 import { buildRecognitionFields, codesFromLabels } from './recognitionFields';
-import { uploadAttachment, openAttachmentInNewTab } from '@/shared/api/attachments';
+import { uploadAttachment } from '@/shared/api/attachments';
+import { useOpenAttachment } from '@/shared/hooks/useOpenAttachment';
 import type { DocumentType, CatalogScope } from '@/shared/api/types';
 import { resolveEffectiveFields, typeHasTag, findTaggedFieldPath, type SchemaField } from '@/shared/api/schema';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
@@ -31,6 +32,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
   initial?: QualityDocument | null;
   onSaved: (doc: QualityDocument) => void; onCancel: () => void;
 }) {
+  const openAttachment = useOpenAttachment();
   const isEdit = !!initial;
   const qualityTypes = useMemo(
     () => allDocTypes.filter(dt => dt.kind === 'Document' && !dt.isAbstract && typeHasTag(dt, FUNCTIONAL_TAG.typeQualityDocument, allDocTypes)),
@@ -322,7 +324,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
         {scan && <span className="text-xs text-fg3 truncate max-w-[180px]" title={scan.fileName}>{scan.fileName}</span>}
         {scan && (
           <Button variant="text" size="sm" icon={<Eye size={14} />}
-            onClick={() => void openAttachmentInNewTab(scan.blobPath)}>
+            onClick={() => void openAttachment(scan.blobPath)}>
             Просмотр
           </Button>
         )}

@@ -3,7 +3,8 @@ import { Loader2, FileText, ExternalLink, ShieldCheck } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { usePreviewDataSetSource } from '@/shared/api/datasets';
-import { openAttachmentInNewTab, formatBytes } from '@/shared/api/attachments';
+import { formatBytes } from '@/shared/api/attachments';
+import { useOpenAttachment } from '@/shared/hooks/useOpenAttachment';
 import type { DataSetPreview, DataSetSource } from '@/shared/api/types';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
@@ -42,11 +43,12 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
   const sizeIdx = data.columns.indexOf('РазмерБайт');
   const pathIdx = data.columns.indexOf('ФайлПуть');
   const [opening, setOpening] = useState<number | null>(null);
+  const openAttachment = useOpenAttachment();
 
   async function handleOpen(i: number, path: string) {
     setOpening(i);
-    try { await openAttachmentInNewTab(path); }
-    finally { setOpening(null); }
+    await openAttachment(path);
+    setOpening(null);
   }
 
   return (
