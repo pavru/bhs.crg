@@ -127,7 +127,10 @@ public class EstimateImportParseTests(PlanOnlyHost host)
         Assert.Equal(JsonValueKind.Null, report.GetProperty("kind").ValueKind);
     }
 
-    /// <summary>ВОР разбирается, но редакцией не становится: отчёт называет вид и предлагает приложить к смете.</summary>
+    /// <summary>
+    /// ВОР разбирается, но редакцией не становится: отчёт называет вид и говорит убрать импорт — приложить файл к
+    /// смете до plan-11 некуда, и отказ туда не зовёт.
+    /// </summary>
     [Theory]
     [InlineData("vor-15.3.7-no-attachments", "vor")]
     [InlineData("ka-16.2.0-vn-summary", "ka")]
@@ -144,7 +147,8 @@ public class EstimateImportParseTests(PlanOnlyHost host)
         Assert.Equal(JsonValueKind.Null, report.GetProperty("parsed").ValueKind);
         var mark = Assert.Single(report.GetProperty("marks").EnumerateArray());
         Assert.Equal("notEstimate", mark.GetProperty("code").GetString());
-        Assert.Contains("Приложите файл к смете", mark.GetProperty("text").GetString());
+        Assert.Contains("уберите импорт", mark.GetProperty("text").GetString());
+        Assert.DoesNotContain("Приложите", mark.GetProperty("text").GetString());
     }
 
     /// <summary>Без <c>plan.estimate.cost</c> сводка — без итогов, а корень называет скрытое (ТЗ PLAN-11, D4).</summary>

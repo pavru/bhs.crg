@@ -164,9 +164,15 @@ internal static class EstimateImportViews
         _ => null,
     };
 
-    /// <summary>Почему документ не становится редакцией — одними словами в отчёте и в отказе создания редакции.</summary>
+    /// <summary>
+    /// Почему документ не становится редакцией — одними словами в отчёте и в отказе создания редакции.
+    ///
+    /// <para>⚠️ Приложить файл к смете пока некуда — хранилище ВОР и КА заводит <c>plan-11-conjuncture</c>. До него
+    /// отказ не зовёт туда, где пути нет (решение владельца 26.10.2026, <c>plan-09</c>): говорит убрать импорт.</para>
+    /// </summary>
     internal static string NotEstimate(GrandSmetaKind kind) =>
-        $"Это {GrandSmetaSchemas.KindName(kind)} — редакцией сметы {Its(kind)} не становится. Приложите файл к смете.";
+        $"Это {GrandSmetaSchemas.KindName(kind)} — редакцией сметы {Its(kind)} не становится: уберите импорт. " +
+        "Приложения к смете — ведомость объёмов работ и конъюнктурный анализ — появятся позже.";
 
     /// <summary>Местоимение по роду названия: «ведомость … — она», «конъюнктурный анализ — он».</summary>
     private static string Its(GrandSmetaKind kind) => kind == GrandSmetaKind.VolumeStatement ? "она" : "он";

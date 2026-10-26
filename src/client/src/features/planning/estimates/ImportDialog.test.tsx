@@ -128,7 +128,7 @@ describe('отчёт разбора', () => {
   it('ВОР не предлагает «создать редакцию» (решение В-7)', async () => {
     shown = report({
       kind: 'vor', kindName: 'Ведомость объёмов работ', parsed: null, inFile: null, summary: null,
-      marks: [{ code: 'notEstimate', text: 'Это ведомость объёмов работ — редакцией сметы она не становится.' }],
+      marks: [{ code: 'notEstimate', text: 'Это ведомость объёмов работ — редакцией сметы она не становится: уберите импорт.' }],
     });
     mount({ importId: 'i1' });
     expect(await screen.findByText(/редакцией сметы она не становится/)).toBeTruthy();
