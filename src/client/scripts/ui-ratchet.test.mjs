@@ -45,13 +45,16 @@ describe('храповик интерфейса: счёт', () => {
       .toEqual({ 'native-title': 2 });
   });
 
-  it('title компонента, iframe и полный текст обрезанной строки нарушением не считаются', () => {
+  it('title компонента и полный текст обрезанной строки нарушением не считаются', () => {
     expect(countViolations([
-      '<Modal title="Окно" /> <Button title="Почему" /> <iframe title="Скан" />',
+      '<Modal title="Окно" /> <Button title="Почему" />',
       '<span className="truncate" title={f.name}>{f.name}</span>',
       '<p className={`line-clamp-2 ${x}`} title="Длинный текст">Длинный текст</p>',
-      // Сам фрейм считает своё правило (native-pdf-frame), а его title подсказкой не считается.
-    ].join(' '))).toEqual({ 'native-pdf-frame': 1 });
+    ].join(' '))).toEqual({});
+  });
+
+  it('у фрейма исключения больше нет: фреймов в разметке нет вовсе ([UI-26])', () => {
+    expect(countViolations('<iframe title="Скан" />')).toEqual({ 'native-title': 1, 'native-pdf-frame': 1 });
   });
 
   it('у обрезанной строки подсказка не о ней — нарушение', () => {
@@ -231,14 +234,29 @@ describe('храповик интерфейса: счёт', () => {
   /** Встроенный просмотрщик браузера во фрейме вместо своего (issue #1490, [UI-23]). */
   it('фрейм в features/ — тегом и через createElement, по одному на фрейм', () => {
     expect(countViolations([
-      '<iframe src={url} title="Файл" />',
+      '<iframe src={url} />',
       '<embed\n  type="application/pdf"\n  src={url} /> <object data={url}><p>нет</p></object>',
       "const f = document.createElement('iframe'); const g = doc.createElement(`EMBED`); createElement(\"object\");",
     ].join('\n'))).toEqual({ 'native-pdf-frame': 6 });
   });
 
-  it('фрейм в shared/ (печать просмотрщика), чужие теги и слово «iframe» в тексте — не фрейм', () => {
-    expect(countViolations("const frame = document.createElement('iframe');", { dir: 'shared' })).toEqual({});
+  /** Фрейм печати назван путём ([UI-26]): соседний файл shared/ui того же фрейма не получает. */
+  it('фрейм в shared/ считается везде, кроме shared/ui/viewer/', () => {
+    const frame = "const frame = document.createElement('iframe');";
+    expect(countViolations(frame, { dir: 'shared', file: 'shared/ui/viewer/printPdf.ts' })).toEqual({});
+    expect(countViolations(frame, { dir: 'shared', file: 'shared/ui/X.tsx' })).toEqual({ 'native-pdf-frame': 1 });
+    expect(countViolations('<iframe src={url} />', { dir: 'shared', file: 'shared/api/x.tsx' }))
+      .toEqual({ 'native-pdf-frame': 1 });
+    // Префикс — каталог, а не начало имени: shared/ui/viewerX/ под исключение не попадает.
+    expect(countViolations(frame, { dir: 'shared', file: 'shared/ui/viewerX/a.ts' })).toEqual({ 'native-pdf-frame': 1 });
+  });
+
+  it('обобщённый тип WeakMap<object, …> в shared/ — не фрейм ([UI-26])', () => {
+    expect(countViolations('const seen = new WeakMap<object, unknown[]>();', { dir: 'shared', file: 'shared/utils/rowIdentity.ts' }))
+      .toEqual({});
+  });
+
+  it('чужие теги и слово «iframe» в тексте — не фрейм', () => {
     expect(countViolations([
       "<PdfViewer source={bytes} /> document.createElement('div'); createElement(tag);",
       '<p>Раньше здесь стоял iframe, embed и object.</p> <Frame />',
@@ -273,6 +291,8 @@ describe('храповик интерфейса: какие каталоги о�
     expect(scopeNote(RULES.find(r => r.id === 'native-date'))).toBe('native-date — весь src/');
     expect(scopeNote(RULES.find(r => r.id === 'white-on-fill'))).toBe('white-on-fill — ещё в shared/');
     expect(scopeNote(RULES.find(r => r.id === 'table'))).toBeNull();
+    expect(scopeNote(RULES.find(r => r.id === 'native-pdf-frame')))
+      .toBe('native-pdf-frame — ещё в shared/, кроме shared/ui/viewer/');
   });
 });
 

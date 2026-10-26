@@ -79,6 +79,22 @@ export default defineConfig([
     },
   },
   {
+    // Вкладка с файлом — одной функцией просмотрщика (issue #1494, [UI-27]): окно синхронно в
+    // обработчике нажатия, тип из белого списка, ссылка отзывается с отсрочкой, отказ — словами во
+    // вкладке. Свой `window.open` терял бы что-то из этого молча: тип ответа сервера исполнился бы
+    // страницей нашего адреса, а отказ оставил бы пустую вкладку. Тесты смотрят на вызов
+    // (`expect(window.open)`), а не открывают, — им можно.
+    files: ['**/*.{ts,tsx}'],
+    ignores: ['src/shared/ui/viewer/openInNewTab.ts', '**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-properties': ['error', {
+        object: 'window',
+        property: 'open',
+        message: 'вкладку с файлом открывает только openInNewTab из @/shared/ui/viewer/openInNewTab (вложение — openAttachmentInNewTab), issue #1494.',
+      }],
+    },
+  },
+  {
     // Единственное место, где обращение к randomUUID уместно: сама утилита и её тест — они этот
     // вызов и заворачивают.
     files: ['src/shared/utils/localId.ts', 'src/shared/utils/localId.test.ts'],

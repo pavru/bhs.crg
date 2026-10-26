@@ -13,6 +13,8 @@ export const ROOT = '.';
  * Классы нарушений. У каждого — куда идти вместо: сообщение отказа обязано называть выход, иначе
  * его обходят первым попавшимся способом. `dirs` — каталоги src/, которые правило смотрит; без него —
  * только features/ (в shared/ живут сами DataGrid и Select, которые эти элементы и заворачивают).
+ * `skip` — префиксы путей от src/, которые правило не смотрит внутри своих каталогов: законное место
+ * названо путём, а не держится в уровне — уровень с единицей молча пропустил бы второе нарушение там же.
  */
 export const RULES = [
   {
@@ -60,8 +62,8 @@ export const RULES = [
     // Браузерная подсказка у элемента разметки (issue #1394): серая, с задержкой в секунду, к фокусу
     // глуха. Текстом её не поймать — `title` носят и наши компоненты (окно, заголовок страницы), и
     // атрибут бывает в любой строке многострочного тега; поэтому — по синтаксическому дереву.
-    // Законны две: у iframe `title` — его имя для скринридера, а у обрезанной строки (truncate,
-    // line-clamp) — её же полный текст, когда подсказка совпадает с содержимым.
+    // Законна одна: у обрезанной строки (truncate, line-clamp) — её же полный текст, когда подсказка
+    // совпадает с содержимым. Фреймов в разметке нет вовсе (native-pdf-frame, [UI-26]).
     count: countNativeTitles,
     instead: 'подсказка — Tooltip (shared/ui/Tooltip) или проп title у Button / IconButton: при наведении и фокусе, в нашем виде; у кнопки из одной иконки — <Tooltip name>. Нативный title — только полный текст обрезанной строки (docs/UI.md, «Подсказка»)',
   },
@@ -162,10 +164,12 @@ export const RULES = [
     // Фрейм вместо своего просмотрщика (issue #1490, [UI-23]): встроенный просмотрщик браузера во
     // фрейме у каждого браузера свой, на телефоне его нет вовсе, а текст из него в форму не скопировать
     // по-нашему. По синтаксическому дереву: `<iframe`, `<embed`, `<object` в разметке и создание их через
-    // `createElement` (строкой, в любых кавычках). Законный — печать файла самим просмотрщиком
-    // (`shared/ui/viewer/printPdf.ts`): правило смотрит только features/. Оставшиеся места стоят в
-    // уровне и уходят из него каждым переводом.
+    // `createElement` (строкой, в любых кавычках). Смотрит и shared/ с уровнем 0 ([UI-26]): кнопки и
+    // окна shared/ui — первые, кто мог бы завести фрейм. Законный — только скрытый фрейм печати самого
+    // просмотрщика (`shared/ui/viewer/printPdf.ts`), и он назван путём (`skip`).
     count: countNativeFrames,
+    dirs: ['features', 'shared'],
+    skip: ['shared/ui/viewer/'],
     instead: 'показ PDF — PdfViewer (shared/ui/viewer: source — байты, documentKey, title, actions — выход места; overlay — во весь экран); «во вкладке» — openInNewTab, печать — Ctrl+P в просмотрщике (docs/UI.md, таблица контролов)',
   },
 ];
@@ -407,7 +411,7 @@ function countNativeTitles(text) {
       const cls = opening.attributes.properties
         .find(p => ts.isJsxAttribute(p) && p.name.getText(sf) === 'className')?.initializer?.getText(sf) ?? '';
       const truncated = /\b(?:truncate|line-clamp-\d+)\b/.test(cls) && repeatsContent(node.initializer, element);
-      if (/^[a-z]/.test(tag) && tag !== 'iframe' && !truncated) n++;
+      if (/^[a-z]/.test(tag) && !truncated) n++;
     }
     ts.forEachChild(node, visit);
   };
@@ -436,9 +440,13 @@ function countNativeFrames(text) {
   return n;
 }
 
-/** Каталоги, которые правило называет (см. `dirs` у RULES); правило с `everywhere` смотрит любой. */
+/**
+ * Каталоги, которые правило называет (см. `dirs` у RULES); правило с `everywhere` смотрит любой. Файл
+ * (путь от src/) под префиксом из `skip` правило не смотрит; без пути — решает один каталог.
+ */
 export const dirsOf = rule => rule.dirs ?? ['features'];
-export const watches = (rule, dir) => rule.everywhere === true || dirsOf(rule).includes(dir);
+export const watches = (rule, dir, file) => (rule.everywhere === true || dirsOf(rule).includes(dir))
+  && !(file && rule.skip?.some(prefix => file.startsWith(prefix)));
 
 /**
  * Какие каталоги src/ обходить. `topDirs` — каталоги в корне src/ с диска: правило с `everywhere`
@@ -453,16 +461,18 @@ export function dirsToScan(rules, topDirs) {
 export function scopeNote(rule) {
   if (rule.everywhere === true) return `${rule.id} — весь src/`;
   const more = dirsOf(rule).filter(d => d !== 'features');
-  return more.length ? `${rule.id} — ещё в ${more.join(', ')}/` : null;
+  const except = rule.skip?.length ? `, кроме ${rule.skip.join(', ')}` : '';
+  return more.length ? `${rule.id} — ещё в ${more.join(', ')}/${except}` : null;
 }
 
 /**
  * Сколько нарушений каждого класса в тексте одного файла. Нулевые классы не возвращаются.
- * `dir` — каталог src/, из которого файл (`ROOT` — его корень): считаются только правила, которые его смотрят.
+ * `dir` — каталог src/, из которого файл (`ROOT` — его корень), `file` — путь от src/: считаются только
+ * правила, которые его смотрят (`watches`).
  */
-export function countViolations(text, { dir = 'features' } = {}) {
+export function countViolations(text, { dir = 'features', file } = {}) {
   const counts = {};
-  for (const rule of RULES.filter(r => watches(r, dir))) {
+  for (const rule of RULES.filter(r => watches(r, dir, file))) {
     const n = rule.count ? rule.count(text) : text.match(rule.pattern)?.length ?? 0;
     if (n > 0) counts[rule.id] = n;
   }

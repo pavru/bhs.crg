@@ -1,3 +1,4 @@
+import { openInNewTab } from '@/shared/ui/viewer/openInNewTab';
 import { apiClient } from './client';
 
 /**
@@ -140,19 +141,14 @@ export async function loadAttachmentObjectUrl(blobPath: string): Promise<{ url: 
   return { url: URL.createObjectURL(blob), mimeType: blob.type };
 }
 
-/** Открывает вложение в отдельной вкладке браузера (полноразмерный просмотр PDF/изображения). */
-export async function openAttachmentInNewTab(blobPath: string): Promise<void> {
-  // Вкладку открываем синхронно (в обработчике клика), чтобы не блокировал поп-ап-блокировщик.
-  const w = window.open('', '_blank');
-  try {
-    const { url } = await loadAttachmentObjectUrl(blobPath);
-    if (w) w.location.href = url;
-    else window.open(url, '_blank');
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  } catch (e) {
-    if (w) w.close();
-    throw e;
-  }
+/**
+ * Открывает вложение в отдельной вкладке браузера (полноразмерный просмотр PDF/изображения) — общей
+ * функцией просмотрщика ([UI-27]): окно открыто синхронно, в обработчике нажатия, тип — из её белого
+ * списка, ссылка отзывается с отсрочкой, отказ загрузки вкладка называет словами. Отказ уходит и
+ * вызывающему — место показывает ошибку, как прежде.
+ */
+export function openAttachmentInNewTab(blobPath: string): Promise<void> {
+  return openInNewTab(() => loadAttachmentBlob(blobPath));
 }
 
 // Размер файла пишет общий форматтер (задача N2, issue #1103); отсюда он виден по-прежнему, потому

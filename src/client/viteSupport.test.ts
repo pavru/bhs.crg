@@ -45,6 +45,10 @@ describe('политика поставки в vite preview', () => {
     expect(deliveryCsp(conf)).toContain("connect-src 'self'");
   });
 
+  it('во фрейм пускается только blob: печати просмотрщика ([UI-26])', () => {
+    expect(deliveryCsp(conf).split(';').map(d => d.trim())).toContain('frame-src blob:');
+  });
+
   it('preview отдаёт ровно строку nginx.conf', () => {
     const headers: Record<string, string> = {};
     let use: ((req: unknown, res: unknown, next: () => void) => void) | undefined;
