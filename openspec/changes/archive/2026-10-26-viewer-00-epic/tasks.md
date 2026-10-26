@@ -33,24 +33,30 @@ change заархивирован. Архитектура — `design.md`. По�
 
 ## 4. Независимо
 
-- [ ] 4.1 `viewer-06-invoice-reading-note` (1) — строка-оговорка вида для чтения в одну строку
+- [x] 4.1 `viewer-06-invoice-reading-note` (1) — строка-оговорка вида для чтения в одну строку
   [COST-6.2]; issue #1495. Удобнее после 1.1. Проверка — change заархивирован
+  (слит #1641, 564d34b3; архив `2026-10-26-viewer-06-invoice-reading-note`)
 
 ## 5. Верификация эпика
 
-- [ ] 5.1 `cd src/client && npm test` (vitest: состояние просмотра, компонент с подменённым движком,
+- [x] 5.1 `cd src/client && npm test` (vitest: состояние просмотра, компонент с подменённым движком,
   настоящий движок в Node, сторожа упаковки и CSP) — зелёный
-- [ ] 5.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 5.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста; `native-pdf-frame` на
+- [x] 5.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 5.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста; `native-pdf-frame` на
   нуле
-- [ ] 5.4 Сервер (только `viewer-06`): `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj
+- [x] 5.4 Сервер (только `viewer-06`): `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj
   --filter "FullyQualifiedName~InvoiceOfficeFile|FullyQualifiedName~PrintProfile|FullyQualifiedName~ExcelPageLayout"`
   — зелёный
-- [ ] 5.5 Лимит 500 строк кода: `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter
+- [x] 5.5 Лимит 500 строк кода: `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter
   FileSizeRatchet` — зелёный (файлы `shared/ui/viewer` под порогом)
-- [ ] 5.6 Живые прогоны CI (`invoices-smoke`, `fields-smoke`) зелёные под CSP поставки
-- [ ] 5.7 Владельцу сказано, что эпик закончен: выигрыш на телефоне, предпросмотр без прыжка, печать
+- [x] 5.6 Живые прогоны CI (`invoices-smoke`, `fields-smoke`) зелёные под CSP поставки
+  (5.1–5.6 — CI последнего прогона #1641 на 31c13065, master со всеми дочерними: бэкенд 4605 + 885 и
+  `FileSizeRatchet`, vitest 243 файла, `tsc -b`, храповики без роста и `native-pdf-frame 0`, живые прогоны
+  20/20, в том числе `fields` и `invoices`)
+- [x] 5.7 Владельцу сказано, что эпик закончен: выигрыш на телефоне, предпросмотр без прыжка, печать
   Ctrl+P
+  (сказано 26.10.2026 при архиве `viewer-06`; ручные приёмки — 4.3 `viewer-01`, 4.1 `viewer-04`, 2.2
+  `viewer-05` — остаются за владельцем)
 
 ## Workflow follow-up
 

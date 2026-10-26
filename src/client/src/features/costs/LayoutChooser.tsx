@@ -3,20 +3,26 @@ import { Check, Printer, X } from 'lucide-react';
 import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
+import { Tooltip } from '@/shared/ui/Tooltip';
 import type { InvoiceImage } from '@/shared/api/invoiceImage';
 import { profileSummary, type PrintProfile } from '@/shared/api/printProfiles';
-import { initialChoice, layoutChipLabel } from './invoiceImageLayout';
+import { initialChoice, layoutChipHint, layoutChipParts, layoutState } from './invoiceImageLayout';
 
 /**
- * Чип «Раскладка: {профиль}» под строкой «Вид для чтения» (issue #1456, вариант B): называет, по чему
+ * Чип «Раскладка: {профиль}» в строке «Вид для чтения» (issue #1456, вариант B): называет, по чему
  * разложен вид, и открывает выбор профиля печати. Обычная «Перестроить» рядом остаётся — один щелчок,
  * тот же профиль; выбор другого — здесь, явно: скрытое «перестроить по тому же» за меню путало бы.
  *
  * <p>Выбор в окне сначала только отмечается — перестраивает кнопка «Перестроить по выбранному»: стрелки
  * перебирают профили, и перестроение на каждое нажатие клавиши было бы ловушкой.</p>
+ *
+ * <p>Состояние профиля (`notice`) и пометка о раскладке строками не стоят, пока чип показан (issue #1495):
+ * они в его подсказке — и первым абзацем окна, потому что на телефоне подсказка не открывается. В окне
+ * состояние сказано без отсылки к «Перестроить» (`layoutState`): действие там своё.</p>
  */
-export function LayoutChooser({ image, profiles, rebuilding, onRebuild }: {
+export function LayoutChooser({ image, notice, profiles, rebuilding, onRebuild }: {
   image: InvoiceImage;
+  notice: string | null;
   profiles: readonly PrintProfile[];
   rebuilding: boolean;
   onRebuild: (profileId: string) => Promise<boolean>;
@@ -24,13 +30,24 @@ export function LayoutChooser({ image, profiles, rebuilding, onRebuild }: {
   const heading = useId();
   const [open, setOpen] = useState(false);
   const [chosen, setChosen] = useState(() => initialChoice(image, profiles));
+  const chipLabel = layoutChipParts(image);
+  // В окне — состояние без «Перестроить построит…»: кнопка окна строит по отмеченному профилю.
+  const state = layoutState(image);
 
   return (
     <Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) setChosen(initialChoice(image, profiles)); }}>
-      <Popover.Trigger asChild>
-        {/* Не шире панели: длинное имя профиля обрезается многоточием, целиком оно — в окне выбора. */}
-        <Chip icon={Printer} menu className="max-w-full" data-testid="layout-chip">{layoutChipLabel(image)}</Chip>
-      </Popover.Trigger>
+      <Tooltip content={layoutChipHint(image, notice)}>
+        <Popover.Trigger asChild>
+          {/* Не шире строки: длинное имя профиля обрезается многоточием и не выталкивает «Перестроить»,
+              целиком оно — в окне выбора. Слово состояния не обрезается никогда: ради него оно в подписи. */}
+          <Chip icon={Printer} menu className="min-w-0 max-w-full" data-testid="layout-chip">
+            <span className="flex min-w-0">
+              <span className="truncate" data-testid="layout-chip-lead">{chipLabel.lead}</span>
+              {chipLabel.state && <span className="shrink-0 whitespace-pre" data-testid="layout-chip-state">{chipLabel.state}</span>}
+            </span>
+          </Chip>
+        </Popover.Trigger>
+      </Tooltip>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6} data-testid="layout-popover" aria-labelledby={heading}
           className="z-50 w-80 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-lg border border-stroke bg-surface p-4"
@@ -41,11 +58,12 @@ export function LayoutChooser({ image, profiles, rebuilding, onRebuild }: {
               <IconButton label="Закрыть" size="sm"><X size={14} /></IconButton>
             </Popover.Close>
           </div>
+          {state && <p className="text-xs text-fg2 mb-2" data-testid="layout-notice">{state}</p>}
+          {image.layoutNote && <p className="text-xs text-fg2 mb-2" data-testid="layout-note">{image.layoutNote}</p>}
           <p className="text-xs text-fg3 mb-3">
-            {image.profileState === 'none'
-              ? 'Вид построен до профилей печати. Если автор книги не задал раскладку, вид разложится по выбранному профилю.'
-              : 'Автор книги не задал раскладку — вид раскладывается по профилю печати.'}
-            {' '}Выбор запоминается за этим файлом.
+            {/* Состояние уже сказано абзацем выше — общая фраза повторила бы его. */}
+            {state || image.layoutNote ? '' : 'Автор книги не задал раскладку — вид раскладывается по профилю печати. '}
+            Выбор запоминается за этим файлом.
           </p>
           <Choices profiles={profiles} shown={image.profile?.id} value={chosen} onPick={setChosen} />
           <div className="flex justify-end gap-2 mt-3">

@@ -1,3 +1,4 @@
+import * as Popover from '@radix-ui/react-popover';
 import { useEffect, useState } from 'react';
 import { CloudOff, Download, ExternalLink, FileSpreadsheet, FileX, Info, RotateCw } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
@@ -65,9 +66,20 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
   const rebuild = useRebuildInvoiceImage(invoiceId, blobPath);
   const toast = useToast();
   const mayList = useCan().permission('core.files.use');
-  const { data: profiles = NO_PROFILES } = usePrintProfiles({ enabled: canEdit && mayList && image.layout === 'profile' });
+  const asked = canEdit && mayList && image.layout === 'profile';
+  const { data: profiles = NO_PROFILES, isPending: profilesPending } = usePrintProfiles({ enabled: asked });
   const notice = canEdit ? layoutNotice(image) : null;
   const hint = layoutHint(image);
+  const chip = canEdit && canChooseProfile(image, profiles);
+  // Пока показан чип, состояние профиля и пометка о раскладке — у него (issue #1495): раскладка иначе
+  // названа трижды, а узкая колонка платит за каждую строку высотой листа. Пока профили не пришли, чип
+  // ли будет, не известно — и строк нет: иначе они появлялись бы на миг и уходили в чип, дёргая лист.
+  const own = chip || (asked && profilesPending) ? [] : [
+    { kind: 'layout-notice', text: notice },
+    { kind: 'layout-note', text: image.layoutNote },
+  ];
+  const lines = [...own, ...image.notes.map(text => ({ kind: undefined, text }))]
+    .filter((l): l is { kind: string | undefined; text: string } => !!l.text);
 
   /** Перестроить; `true` — вид построен (окно выбора тогда закрывается). */
   const rebuildWith = (profileId?: string) => rebuild.mutateAsync(profileId)
@@ -90,38 +102,37 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
         </Button>
         <OriginalButton invoiceId={invoiceId} fileName={fileName} label="Оригинал" />
       </div>
+      {/* Одна строка (issue #1495, вариант Б): короткая фраза, чип и «Перестроить»; в узкой колонке чип с
+          кнопкой уходят на вторую строку вместе. Фраза не обрезается — многоточие срезало бы как раз
+          «документ — оригинал»; остальное, что о виде сказать, — в её подсказке и окне. */}
       <div className="px-3 py-1.5 border-b border-stroke bg-muted text-xs text-fg2 shrink-0" data-testid="image-caveat">
-        <div className="flex items-baseline gap-2">
-          <Tooltip content={`Построен ${image.builtAt ? formatDateTime(image.builtAt) : ''} из файла${fileName ? ` «${fileName}»` : ''}. `
-              + 'Текст и числа взяты из файла; расположение, шрифты и разбивка на страницы — приближённые.'
-              + (hint ? ` ${hint}` : '')}>
-            <span className="flex-1">
-              <span className="font-medium text-fg1">Вид для чтения</span>
-              {image.pages ? ` · ${image.pages} стр.` : ''} — {IMAGE_CAVEAT}.
-            </span>
-          </Tooltip>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <CaveatPhrase about={`Вид для чтения${image.pages ? `, ${image.pages} стр.` : ''}: ${IMAGE_CAVEAT}. `
+            + `Построен ${image.builtAt ? formatDateTime(image.builtAt) : ''} из файла${fileName ? ` «${fileName}»` : ''}. `
+            + 'Текст и числа взяты из файла; расположение, шрифты и разбивка на страницы — приближённые.'
+            + (hint ? ` ${hint}` : '')} />
           {canEdit && (
-            <Button size="sm" variant="text" loading={rebuild.isPending} icon={<RotateCw size={12} />}
-              title="Построить вид заново. Сам файл и распознанное остаются как были."
-              onClick={() => void rebuildWith()}>
-              {rebuild.isPending ? 'Перестраиваем…' : 'Перестроить'}
-            </Button>
+            <span className="flex items-center gap-2 min-w-0 max-w-full">
+              {chip && (
+                <LayoutChooser image={image} notice={notice} profiles={profiles} rebuilding={rebuild.isPending}
+                  onRebuild={rebuildWith} />
+              )}
+              <Button size="sm" variant="text" loading={rebuild.isPending} icon={<RotateCw size={12} />}
+                className="shrink-0" title="Построить вид заново. Сам файл и распознанное остаются как были."
+                onClick={() => void rebuildWith()}>
+                {rebuild.isPending ? 'Перестраиваем…' : 'Перестроить'}
+              </Button>
+            </span>
           )}
         </div>
-        {canEdit && canChooseProfile(image, profiles) && (
-          <div className="mt-1.5">
-            <LayoutChooser image={image} profiles={profiles} rebuilding={rebuild.isPending} onRebuild={rebuildWith} />
-          </div>
-        )}
-        {(image.notes.length > 0 || notice) && (
+        {lines.length > 0 && (
           <ul className="mt-1 space-y-0.5 text-fg2">
-            {notice && (
+            {lines.map((line, i) => (
               // Не предупреждение: вид не испорчен, он лишь по прежним параметрам.
-              <li className="flex items-start gap-1.5" data-testid="layout-notice">
-                <Info size={12} aria-hidden className="shrink-0 mt-0.5 text-fg3" />{notice}
+              <li key={`${i}|${line.text}`} className="flex items-start gap-1.5" data-testid={line.kind}>
+                <Info size={12} aria-hidden className="shrink-0 mt-0.5 text-fg3" />{line.text}
               </li>
-            )}
-            {image.notes.map(note => <li key={note}>{note}</li>)}
+            ))}
           </ul>
         )}
       </div>
@@ -142,6 +153,33 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
           )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Фраза «Вид для чтения · документ — оригинал»: остальное о виде («вёрстка может отличаться», страницы,
+ * когда и из чего построен, раскладка) — в подсказке при наведении и фокусе, а касанием и Enter — в окне:
+ * подсказка на касание не открывается, а без этого текста на планшете не узнать, что вёрстка приближённая.
+ */
+function CaveatPhrase({ about }: { about: string }) {
+  return (
+    <Popover.Root>
+      <Tooltip content={about}>
+        <Popover.Trigger asChild>
+          <button type="button" data-testid="image-caveat-phrase"
+            className="flex-auto text-left rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+            <span className="font-medium text-fg1">Вид для чтения</span> · документ — оригинал
+          </button>
+        </Popover.Trigger>
+      </Tooltip>
+      <Popover.Portal>
+        <Popover.Content align="start" sideOffset={6} aria-label="Вид для чтения" data-testid="image-caveat-about"
+          className="z-50 w-72 max-w-(--radix-popover-content-available-width) rounded-lg border border-stroke bg-surface p-3 text-xs text-fg1"
+          style={{ boxShadow: 'var(--f-shadow16)' }}>
+          {about}
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 

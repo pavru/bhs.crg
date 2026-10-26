@@ -322,6 +322,7 @@ public sealed class InvoiceOfficeFileTests(InvoiceScanHost host)
 
             var first = await ImageAsync(client, id);
             Assert.Equal(("profile", "по умолчанию", "current"), Layout(first));
+            LayoutNoteNames(first, "по умолчанию");
 
             using var chosen = new HttpRequestMessage(HttpMethod.Post, $"/api/costs/invoices/{id}/scan/image")
             { Content = JsonContent.Create(new { printProfileId = own }) };
@@ -329,6 +330,7 @@ public sealed class InvoiceOfficeFileTests(InvoiceScanHost host)
             await OkAsync(rebuilt);
             Assert.Equal(("profile", "Альбомный для счетов", "current"), Layout(await rebuilt.Content.ReadFromJsonAsync<JsonElement>()));
             Assert.Equal(("profile", "Альбомный для счетов", "current"), Layout(await ImageAsync(client, id)));
+            LayoutNoteNames(await ImageAsync(client, id), "Альбомный для счетов");
             Assert.Equal(version, (await ReadAsync(client, id)).GetProperty("version").ToString());
 
             var missing = await client.PostAsJsonAsync($"/api/costs/invoices/{id}/scan/image", new { printProfileId = Guid.NewGuid() });
@@ -348,10 +350,12 @@ public sealed class InvoiceOfficeFileTests(InvoiceScanHost host)
             var authored = await CreateAsync(client);
             await AttachAsync(client, authored, ownLayout, "Счёт 1С.xlsx");
             Assert.Equal(("file", null, null), Layout(await ImageAsync(client, authored)));
+            LayoutNoteNames(await ImageAsync(client, authored), null);
 
             var word = await CreateAsync(client);
             await AttachAsync(client, word, Document(), "Счёт.docx");
             Assert.Equal((null, null, null), Layout(await ImageAsync(client, word)));
+            LayoutNoteNames(await ImageAsync(client, word), null);
 
             // Вид, построенный до профилей, — «перестроение применит профиль» только у книги: запись вида
             // файла не помнит, и Word с той же записью этой строки не получает («Чем ломается» задачи).
@@ -372,6 +376,18 @@ public sealed class InvoiceOfficeFileTests(InvoiceScanHost host)
         view.GetProperty("layout").GetString(),
         view.GetProperty("profile") is { ValueKind: JsonValueKind.Object } profile ? profile.GetProperty("name").GetString() : null,
         view.GetProperty("profileState").GetString());
+
+    /// <summary>
+    /// Пометка о раскладке — своим полем и с именем профиля, а в списке пометок её нет (issue #1495).
+    /// <paramref name="profile" /> <c>null</c> — вид по профилю не раскладывался, и поле пусто.
+    /// </summary>
+    private static void LayoutNoteNames(JsonElement view, string? profile)
+    {
+        var note = view.GetProperty("layoutNote").GetString();
+        if (profile is null) { Assert.Null(note); return; }
+        Assert.Contains($"«{profile}»", note);
+        Assert.DoesNotContain(note, view.GetProperty("notes").EnumerateArray().Select(n => n.GetString()));
+    }
 
     private async Task<Guid> OwnProfileAsync(string name)
     {
