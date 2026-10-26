@@ -79,6 +79,12 @@ public partial class WaybillTests
         // иначе вышло бы «1 накладная, 1 накладная» (ревью PR #1297).
         Assert.Equal("1 накладная", ClosingLine(mine, "unfinished", "waybills-unmatched").GetProperty("counted").GetString());
         Assert.Equal("1 черновик накладной", ClosingLine(mine, "unfinished", "waybills-drafts").GetProperty("counted").GetString());
+
+        // Запертую накладную правят исправлением (issue #1340): примечание не обещает «нельзя» там, где путь есть.
+        Assert.Contains("только исправлением с причиной",
+            ClosingLine(mine, "frozen", "waybills").GetProperty("note").GetString());
+        Assert.Contains("только исправлением с причиной",
+            ClosingLine(mine, "unfinished", "waybills-unmatched").GetProperty("note").GetString());
     }
 
     /// <summary>

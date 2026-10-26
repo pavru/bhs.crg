@@ -57,6 +57,9 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
 
     public DbSet<WaybillLine> WaybillLines => Set<WaybillLine>();
 
+    /// <summary>Версии накладной, ушедшие под исправление (issue #1340) — только дописываются.</summary>
+    public DbSet<WaybillVersion> WaybillVersions => Set<WaybillVersion>();
+
     /// <summary>
     /// Раскладка таблицы счёта. Вручную, а не соглашениями EF: имена таблиц и колонок здесь — это
     /// то, что увидит человек в отчёте резервной копии и в запросе к базе, а соглашение по умолчанию
@@ -268,6 +271,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         MapWaybills(builder);
         InvoiceBookEntry.Map(builder);
         InvoiceVersion.Map(builder);
+        WaybillVersion.Map(builder);
     }
 
     /// <summary>
@@ -289,6 +293,7 @@ public sealed class CostsDbContext(DbContextOptions<CostsDbContext> options) : M
         waybill.Property(w => w.State).HasColumnName("state").HasConversion<string>().HasMaxLength(32);
         waybill.Property(w => w.AccountingOn).HasColumnName("accounting_on");
         waybill.Property(w => w.PostedAt).HasColumnName("posted_at");
+        waybill.Property(w => w.CurrentVersion).HasColumnName("current_version").HasDefaultValue(1);
         waybill.Property(w => w.PostedBy).HasColumnName("posted_by");
         waybill.Property(w => w.CreatedBy).HasColumnName("created_by");
         waybill.Property(w => w.CreatedAt).HasColumnName("created_at");

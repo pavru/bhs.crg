@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router';
 import { PALETTE_ACTIONS } from '@/shared/ui/paletteActions';
 import { PrimaryActionButton } from '@/shared/ui/PrimaryActionButton';
 import { usePaletteIntent } from '@/shared/ui/usePaletteIntent';
-import { ListChecks, PackageCheck, Plus, Truck } from 'lucide-react';
+import { History, ListChecks, PackageCheck, Plus, Truck } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
@@ -23,6 +23,7 @@ import { WaybillForm } from './WaybillForm';
 import { useOpenRecord } from './openRecord';
 import { RereadFailedNotice } from '@/shared/ui/RereadFailedNotice';
 import { formatDate } from '@/shared/format/format';
+import { correctionMarkText } from './waybillCorrection';
 import { FilterHidesAll, NotInListNotice } from '@/shared/siteFilter/SiteFilterNotes';
 import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
 import { SEARCH_ALL_SITES, SHOW_ALL_SITES } from '@/shared/siteFilter/siteFilterTexts';
@@ -254,6 +255,14 @@ function ListRow({ item, active, onClick }: { item: WaybillListItem; active: boo
           </Tooltip>
         )}
       </div>
+      {/* Исправленная после закрытия — видимой строкой с днём и причиной (D6, D10): на телефоне подсказка не
+          открывается, а без пометки накладная закрытого месяца выглядела бы такой, какой её закрыли. */}
+      {item.correctedAfterClosing && (
+        <div className="flex items-center gap-1 mt-0.5 text-xs text-fg3" data-testid="waybill-corrected">
+          <History size={11} className="shrink-0" aria-hidden />
+          <span className="truncate">{correctionMarkText(item.correctedAfterClosing)}</span>
+        </div>
+      )}
     </button>
   );
 }
