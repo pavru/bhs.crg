@@ -79,13 +79,17 @@ public class ResourceMatchEndpointsTests(PlanOnlyHost host)
 
     /// <summary>
     /// Поиск по номенклатуре для окна материала (plan-09): находит позицию по слову названия, говорит о неполноте,
-    /// закрыт правом правки — читающему смету он ни к чему.
+    /// закрыт правом правки — читающему смету он ни к чему. Это выбор (CORE-34.4): архивной позиции в ответе нет,
+    /// есть их число — без него ненайденная архивная читалась бы как отсутствующая, и человек завёл бы дубль.
     /// </summary>
     [Fact]
-    public async Task Поиск_номенклатуры_находит_и_закрыт_правом_правки()
+    public async Task Поиск_номенклатуры_находит_живую_архивную_не_предлагает_и_закрыт_правом_правки()
     {
         var word = $"Провод{Guid.NewGuid():N}";
-        var position = await new ResourceMatchingTests(host).NomenclatureAsync($"{word} ПуГВ 1х2,5");
+        var seed = new ResourceMatchingTests(host);
+        var position = await seed.NomenclatureAsync($"{word} ПуГВ 1х2,5");
+        var archived = await seed.NomenclatureAsync($"{word} ПуГВ 1х4");
+        await new WorkTypeSeed(host).ArchiveAsync(archived);
         var editor = await EstimateImportFlow.EditorAsync(host);
 
         var response = await editor.GetAsync($"/api/plan/nomenclature?query={word}");
@@ -94,6 +98,7 @@ public class ResourceMatchEndpointsTests(PlanOnlyHost host)
         var found = Assert.Single(body.GetProperty("items").EnumerateArray());
         Assert.Equal(position, found.GetProperty("id").GetGuid());
         Assert.False(body.GetProperty("more").GetBoolean());
+        Assert.Equal(1, body.GetProperty("inArchive").GetInt32());
 
         var reader = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.EstimateRead);
         Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync($"/api/plan/nomenclature?query={word}")).StatusCode);
