@@ -158,6 +158,26 @@ public sealed class InvoiceScanImage(
         return (buffer.ToArray(), mime, image);
     }
 
+    /// <summary>
+    /// Файл, который уходит движку КАК ЕСТЬ (PDF, изображение), — для проверки до постановки (issue
+    /// #1344); <c>null</c> — движку уйдёт образ или файл не распознаётся вовсе.
+    ///
+    /// <para>Образ здесь нарочно не строится, в отличие от <see cref="ReadableAsync" />: построение — это
+    /// конвертер, секунды в запросе нажатия. Образ — PDF нашего же конвертера, и его встретит проверка
+    /// ядра в фоновой задаче.</para>
+    /// </summary>
+    public async Task<(byte[] Content, string Mime)?> AsIsAsync(Invoice invoice, CancellationToken ct)
+    {
+        var mime = FileKinds.Recorded(invoice.ScanMimeType);
+        if (invoice.ScanBlobPath is not { } path || FileKindCatalog.Find(mime) is not { Reading: FileReading.AsIs })
+            return null;
+
+        await using var stored = await blobs.OpenAsync(path, ct);
+        using var buffer = new MemoryStream();
+        await stored.CopyToAsync(buffer, ct);
+        return (buffer.ToArray(), mime);
+    }
+
     /// <summary>Образ потоком; <c>null</c> — образа нет.</summary>
     public async Task<Stream?> OpenAsync(Invoice invoice, CancellationToken ct) =>
         (await StateAsync(invoice, ct)).Current is { } path ? await blobs.OpenAsync(path, ct) : null;

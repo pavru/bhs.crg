@@ -24,8 +24,24 @@ public sealed class ModuleRecognitionPort(
     RecognitionProfileCatalog catalog,
     IRecognitionProfileProvider profiles,
     IDocumentRecognizer recognizer,
-    IRecognitionPreflight preflight) : IModuleRecognition
+    IRecognitionPreflight preflight,
+    ILogger<ModuleRecognitionPort> logger) : IModuleRecognition
 {
+    public async Task EnsureReadableAsync(byte[] content, string mimeType, CancellationToken ct = default)
+    {
+        // Правило одно с цепочкой ядра (ChainDocumentRecognizer): разойдись они, кнопка и фоновая задача
+        // судили бы один файл по-разному.
+        var check = await RecognitionFileCheck.CheckAsync(content, mimeType, ct);
+        if (check.Why is { } unreadable)
+        {
+            logger.LogWarning(check.Cause, "Распознавание для модуля: файл не читается, задача не поставлена");
+            throw new RecognitionRefusedException(RecognitionRefusal.BadFile, unreadable);
+        }
+        if (check.Cause is { } skipped)
+            // Сбой окружения, а не файла: молчать о нём нельзя, отказывать файлу — тоже.
+            logger.LogWarning(skipped, "Распознавание для модуля: файл проверить не удалось — задача ставится как есть");
+    }
+
     public async Task EnsureReadyAsync(string profileCode, CancellationToken ct = default)
     {
         Declared(profileCode);

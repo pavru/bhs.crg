@@ -51,10 +51,14 @@
 
 ## Decisions
 
-- **D1. Файл — первым и в модуле.** `StartAsync` читает то, что ушло бы движку, тем же шагом, что фоновая
-  задача (`InvoiceScanImage.ReadableAsync` — PDF и изображение как есть, у Excel и Word — читаемый образ),
-  и спрашивает порт ядра о файле **до** `EnsureReadyAsync`. Нечитаемый файл — исход `BadFile` со
-  словами проверки, задача не ставится, предполётная проверка не зовётся.
+- **D1. Файл — первым и в модуле.** `StartAsync` читает файл, который уходит движку **как есть** (вид
+  `FileReading.AsIs` — PDF и изображение), и спрашивает порт ядра о нём **до** `EnsureReadyAsync`.
+  Нечитаемый файл — исход `BadFile` со словами проверки, задача не ставится, предполётная проверка не
+  зовётся.
+  - *Уточнено при реализации:* не `InvoiceScanImage.ReadableAsync`. Для Excel и Word он **строит** образ
+    конвертером (`IModuleRenditions.EnsureAsync`) — в запросе запуска это секунды ожидания и отказ
+    конвертера ответом на нажатие вместо исхода. Образ — PDF, построенный нашим конвертером; его
+    по-прежнему проверяет цепочка ядра в фоновой задаче. Файлы прогона (#1344) — PDF, их это не задевает.
   - Порт: `IModuleRecognition.EnsureReadableAsync(content, mimeType, ct)` — отказ
     `RecognitionRefusedException(BadFile, …)`, иначе молчит; реализация в `ModuleRecognitionPort` зовёт
     `RecognitionFileCheck.CheckAsync`. Модуль `Infrastructure` не видит (`ModuleBoundaryTests`), поэтому —

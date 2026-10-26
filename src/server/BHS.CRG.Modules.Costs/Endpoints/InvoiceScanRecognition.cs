@@ -214,8 +214,13 @@ public sealed class InvoiceScanRecognition(
     /// распознавании, и версия счёта остаётся прежней.
     ///
     /// <para>«Распознавать некому» — не отказ запроса, а исход: черновик со сканом остаётся, человек
-    /// заполняет его руками, а форма так и пишет — «распознавание не настроено». Остальное, что
-    /// запуску мешает (нет скана, счёт не черновик, уже идёт), — отказ с причиной.</para>
+    /// заполняет его руками, а форма так и пишет — «распознавание не настроено». Так же исходом, а не
+    /// отказом, записывается «сам файл не читается». Остальное, что запуску мешает (нет скана, счёт не
+    /// черновик, уже идёт), — отказ с причиной.</para>
+    ///
+    /// <para>⚠️ Файл проверяется ПЕРВЫМ, до готовности движков (issue #1344). Иначе на стенде без движка
+    /// битый PDF получал бы «не настроено» — слова, неверные при любой настройке, — а на стенде с движком
+    /// готовность могла пробовать зрение модели запросом ради файла, который ей не уйдёт.</para>
     /// </summary>
     public async Task StartAsync(Invoice invoice, CancellationToken ct)
     {
@@ -233,6 +238,8 @@ public sealed class InvoiceScanRecognition(
 
         try
         {
+            if (await image.AsIsAsync(invoice, ct) is (var content, var mime))
+                await recognition.EnsureReadableAsync(content, mime, ct);
             await recognition.EnsureReadyAsync(CostsRecognitionProfiles.InvoiceCode, ct);
         }
         catch (RecognitionRefusedException refused)

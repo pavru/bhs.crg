@@ -245,8 +245,26 @@ public sealed class InvoiceScanHost : InvoiceLineHost
         /// <summary>С каким видом файл пришёл движку: «содержимое → вид» (issue #1265).</summary>
         public System.Collections.Concurrent.ConcurrentDictionary<string, string> Kinds { get; } = new();
 
-        public Task EnsureReadyAsync(string profileCode, CancellationToken ct = default) =>
-            NotReady is { } refusal ? Task.FromException(refusal) : Task.CompletedTask;
+        /// <summary>
+        /// Файлы, которые «не читаются»: содержимое → слова отказа. Проверку файла порт делает настоящую
+        /// (<c>ModuleRecognitionPortTests</c>); здесь важно лишь, КОГДА модуль её спрашивает (issue #1344).
+        /// </summary>
+        public ConcurrentDictionary<string, string> Unreadable { get; } = new();
+
+        /// <summary>Сколько раз спрошена готовность — тест сверяет разницу до и после запуска.</summary>
+        public int ReadyChecks => readyChecks;
+        private int readyChecks;
+
+        public Task EnsureReadableAsync(byte[] content, string mimeType, CancellationToken ct = default) =>
+            Unreadable.TryGetValue(Encoding.UTF8.GetString(content), out var why)
+                ? Task.FromException(new RecognitionRefusedException(RecognitionRefusal.BadFile, why))
+                : Task.CompletedTask;
+
+        public Task EnsureReadyAsync(string profileCode, CancellationToken ct = default)
+        {
+            Interlocked.Increment(ref readyChecks);
+            return NotReady is { } refusal ? Task.FromException(refusal) : Task.CompletedTask;
+        }
 
         public Task<ModuleRecognitionResult> RecognizeAsync(
             string profileCode, byte[] content, string mimeType, CancellationToken ct = default)
