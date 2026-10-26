@@ -12,6 +12,8 @@ namespace BHS.CRG.Modules.Plan.Migrations
         {
             // Строки прежних редакций — работы (plan-31, Risks): перечитывать файлы не требуется, а пустой вид
             // EF не прочёл бы вовсе. Номер файла у них остаётся пустым — экран покажет номер в разделе.
+            // Умолчание нужно только им и снимается сразу: в снимке модели его нет, и база с умолчанием, которого
+            // EF не знает, разошлась бы со следующей миграцией этой колонки, а вставка мимо EF молча получала бы Work.
             migrationBuilder.AddColumn<string>(
                 name: "kind",
                 schema: "plan",
@@ -20,6 +22,7 @@ namespace BHS.CRG.Modules.Plan.Migrations
                 maxLength: 16,
                 nullable: false,
                 defaultValue: "Work");
+            migrationBuilder.Sql("ALTER TABLE plan.estimate_rows ALTER COLUMN kind DROP DEFAULT;");
 
             migrationBuilder.AddColumn<string>(
                 name: "number",

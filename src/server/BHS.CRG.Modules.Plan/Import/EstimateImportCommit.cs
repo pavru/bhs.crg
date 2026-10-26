@@ -22,13 +22,15 @@ public sealed record EstimateImportCommitted(
 /// В файле есть не разобранные позиции, а согласия на частичную редакцию нет (ТЗ PLAN-7). Несёт числа: экран
 /// спрашивает человека «создать редакцию из N?», и разбирать для этого фразу он не должен.
 /// </summary>
-public sealed class PartialImportException(int parsed, int inFile, int unparsed) : ConflictException(
+/// <param name="rows">Строк будущей редакции — разобранные без неактивных (D3 <c>plan-31</c>).</param>
+public sealed class PartialImportException(int parsed, int inFile, int unparsed, int rows) : ConflictException(
     $"В файле {unparsed} не разобранных позиций: разобрано {parsed} из {inFile}. Редакция из такого файла " +
-    $"создаётся только с вашего согласия — подтвердите частичный импорт, и она будет из {parsed} строк.")
+    $"создаётся только с вашего согласия — подтвердите частичный импорт, и она будет из {rows} строк.")
 {
     public int Parsed { get; } = parsed;
     public int InFile { get; } = inFile;
     public int Unparsed { get; } = unparsed;
+    public int Rows { get; } = rows;
 }
 
 /// <summary>
@@ -68,12 +70,14 @@ public sealed class EstimateImportCommit(
                 ? $"В файле не разобрана ни одна позиция из {unparsed} — редакции из него не создать. Отчёт разбора " +
                   "называет причины; исправьте файл и загрузите его заново."
                 : "В файле нет ни одной позиции — редакции из него не создать.");
-        if (unparsed > 0 && !acceptPartial) throw new PartialImportException(parsed, model.PositionsInFile, unparsed);
         // Неактивные позиции строками не становятся (D3 plan-31) — и согласия не требуют; но если активных нет
-        // вовсе, редакция вышла бы пустой по той же причине, что и выше.
+        // вовсе, редакция вышла бы пустой по той же причине, что и выше. Проверка — до вопроса о согласии: иначе
+        // человека спросили бы «создать из N строк?», а на «да» ответили бы, что создавать не из чего.
         var positions = EstimateImportRows.Drafts(model);
         if (positions.Count == 0)
-            throw new ConflictException("Все позиции файла неактивны — редакции из него не создать.");
+            throw new ConflictException("Все разобранные позиции файла неактивны — редакции из него не создать.");
+        if (unparsed > 0 && !acceptPartial)
+            throw new PartialImportException(parsed, model.PositionsInFile, unparsed, positions.Count);
 
         var created = import.EstimateId is null;
         var estimate = import.EstimateId is { } id

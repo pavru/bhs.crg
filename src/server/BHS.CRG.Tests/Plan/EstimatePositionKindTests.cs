@@ -7,7 +7,8 @@ namespace BHS.CRG.Tests.Plan;
 /// <summary>
 /// Вид позиции ЛСР — работа или материал (change <c>plan-31-estimate-ui-carriers</c>, D2, ТЗ PLAN-4) — на всех ЛСР
 /// образцов. Числа сняты разбором файлов и сверены по составу: материал — позиция со ссылкой на КА или с шифром
-/// сборника цен материалов (ФССЦ, ФСБЦ, ТЦ_).
+/// сборника цен материалов (ФССЦ, ФСБЦ, ТЦ_). Независимо от разбора правило сверяется с эталонами печатных форм
+/// программы (<see cref="Вид_позиции_как_в_печатной_форме" />).
 /// </summary>
 public class EstimatePositionKindTests
 {
@@ -39,13 +40,53 @@ public class EstimatePositionKindTests
         Assert.Equal(materials, all.Count(p => EstimatePositionKinds.Of(p) == EstimateRowKind.Material));
 
         // Расценка не становится материалом никогда — даже рядом со ссылкой на КА.
-        Assert.DoesNotContain(all, p => p.Code is { } code
-            && (code.StartsWith("ГЭСН", StringComparison.Ordinal) || code.StartsWith("ФЕР", StringComparison.Ordinal))
-            && EstimatePositionKinds.Of(p) == EstimateRowKind.Material);
-        // Всё по КА — материал.
-        Assert.All(all.Where(p => p.MarketAnalysis is not null && !(p.Code ?? "").StartsWith("ГЭСН", StringComparison.Ordinal)),
-            p => Assert.Equal(EstimateRowKind.Material, EstimatePositionKinds.Of(p)));
+        Assert.DoesNotContain(all, p => IsRate(p.Code) && EstimatePositionKinds.Of(p) == EstimateRowKind.Material);
     }
+
+    /// <summary>
+    /// Позиции эталонов — контрольные точки, снятые с печатной формы программы, а не с XML (<c>etalons_from_forms.py</c>):
+    /// по форме позиция со ссылкой на КА — материал, расценка ГЭСН/ФЕР — работа. Разобранная позиция с тем же
+    /// номером обязана получить тот же вид.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Etalons))]
+    public void Вид_позиции_как_в_печатной_форме(string sample)
+    {
+        var parsed = LocalEstimateReader.Read(GrandSmetaSamples.Open(sample)).Positions.ToDictionary(p => p.Number);
+        var checkedAny = false;
+        foreach (var form in GrandSmetaSamples.Etalon(sample).Arr("positions"))
+        {
+            var expected = form.Has("marketAnalysis") ? EstimateRowKind.Material
+                : IsRate(form.Str("code")) ? EstimateRowKind.Work
+                : (EstimateRowKind?)null;
+            if (expected is null) continue;
+            checkedAny = true;
+            Assert.Equal(expected, EstimatePositionKinds.Of(parsed[form.Str("number")!]));
+        }
+        Assert.True(checkedAny, $"В эталоне {sample} нет ни одной позиции с видом по форме.");
+    }
+
+    public static TheoryData<string> Etalons => new(GrandSmetaSamples.Lsr);
+
+    /// <summary>Код материала строки-материала — только шифр сборника цен: номер счёт-фактуры у позиций по КА —
+    /// один на весь документ, и запомненное по нему подставило бы выбор одной позиции всем.</summary>
+    [Fact]
+    public void Код_материала_только_шифр_сборника_цен()
+    {
+        var rim = LocalEstimateReader.Read(GrandSmetaSamples.Open("lsr-16.2.3-rim1")).Positions.ToList();
+        var invoice = rim.Where(p => (p.Code ?? "").StartsWith("Счёт-фактура", StringComparison.Ordinal)).ToList();
+        Assert.True(invoice.Count > 1);
+        Assert.All(invoice, p =>
+        {
+            Assert.Equal(EstimateRowKind.Material, EstimatePositionKinds.Of(p));
+            Assert.Null(EstimatePositionKinds.MaterialCode(p));
+        });
+        var fsbc = rim.First(p => (p.Code ?? "").StartsWith("ФСБЦ-", StringComparison.Ordinal));
+        Assert.Equal(fsbc.Code, EstimatePositionKinds.MaterialCode(fsbc));
+    }
+
+    private static bool IsRate(string? code) =>
+        code is not null && (code.StartsWith("ГЭСН", StringComparison.Ordinal) || code.StartsWith("ФЕР", StringComparison.Ordinal));
 
     /// <summary>Спорное — работа (Risks design): вспомогательная позиция, контроль гофры, позиция без шифра.</summary>
     [Fact]

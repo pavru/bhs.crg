@@ -210,7 +210,7 @@ public static class EstimateImportEndpoints
             return Results.Conflict(new
             {
                 error = partial.Message, code = "partial",
-                parsed = partial.Parsed, inFile = partial.InFile, unparsed = partial.Unparsed,
+                parsed = partial.Parsed, inFile = partial.InFile, unparsed = partial.Unparsed, rows = partial.Rows,
             });
         }
 

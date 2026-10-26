@@ -28,8 +28,10 @@ internal static class EstimateImportRows
             // Без наименования строка не записывается — в файле его заменяет шифр, а нет и шифра — номер.
             var name = string.IsNullOrWhiteSpace(p.Caption) ? p.Code ?? $"Позиция {p.Number}" : p.Caption;
             List<EstimateMaterialDraft> materials = [.. p.Materials.Select(m => new EstimateMaterialDraft(m.Caption, m.Quantity, m.Code, m.Units))];
+            // Код материала — только шифр сборника цен: «Счёт-фактура № …» у позиций по КА — номер документа, один
+            // на все его позиции, и запомненное по нему подставило бы выбор одной позиции всем остальным.
             if (kind == EstimateRowKind.Material && materials.Count == 0)
-                materials.Add(new EstimateMaterialDraft(name, p.Quantity, p.Code, p.Units));
+                materials.Add(new EstimateMaterialDraft(name, p.Quantity, EstimatePositionKinds.MaterialCode(p), p.Units));
             return new EstimateRowDraft(
                 name,
                 LsrSectionCode: chapter.Index.ToString(CultureInfo.InvariantCulture),
@@ -55,12 +57,9 @@ internal static class EstimateImportRows
     public static List<SkippedPosition> Skipped(ParsedLocalEstimate model) =>
     [
         .. model.Chapters.SelectMany(chapter => chapter.Positions.Where(p => p.IsInactive).Select(p =>
-            new SkippedPosition(Place(chapter, p), SkippedPosition.Inactive, "неактивна в файле — пропущена"))),
+            new SkippedPosition(LocalEstimateReader.Place(chapter.Index, chapter.Caption, p.Number, p.Code),
+                SkippedPosition.Inactive, "неактивна в файле — пропущена"))),
     ];
-
-    /// <summary>Место позиции в файле — теми же словами, что у не разобранной (<c>LocalEstimateReader</c>).</summary>
-    private static string Place(LocalEstimateChapter chapter, LocalEstimatePosition p) =>
-        $"раздел {chapter.Index} «{chapter.Caption}», позиция {p.Number} {p.Code}".TrimEnd();
 }
 
 /// <summary>Позиция файла, которая строкой не стала, — где и почему (D3 <c>plan-31</c>).</summary>

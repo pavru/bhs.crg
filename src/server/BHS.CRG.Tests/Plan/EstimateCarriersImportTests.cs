@@ -60,6 +60,8 @@ public class EstimateCarriersImportTests(PlanOnlyHost host)
         Assert.DoesNotContain("unmatched", RateMatchFlow.Marks(material));
         var own = Assert.Single(material.GetProperty("materials").EnumerateArray());
         Assert.Equal(material.GetProperty("name").GetString(), own.GetProperty("sourceName").GetString());
+        // Шифр ТЦ_ — строка КА, он и есть код материала.
+        Assert.StartsWith("ТЦ_", own.GetProperty("sourceCode").GetString());
         Assert.Equal(material.GetProperty("rateCode").GetString(), own.GetProperty("sourceCode").GetString());
         Assert.Equal(material.GetProperty("sourceUnit").GetString(), own.GetProperty("sourceUnit").GetString());
         Assert.Equal(material.GetProperty("sourceVolume").GetDecimal(), own.GetProperty("quantity").GetDecimal());
@@ -126,6 +128,27 @@ public class EstimateCarriersImportTests(PlanOnlyHost host)
         Assert.Equal("committed", after.GetProperty("state").GetString());
         Assert.Equal(skipped.GetProperty("place").GetString(),
             Assert.Single(after.GetProperty("skipped").EnumerateArray()).GetProperty("place").GetString());
+    }
+
+    /// <summary>
+    /// Согласие на частичный импорт называет число строк будущей редакции — разобранные без неактивных, а не
+    /// «разобрано N» (D3): ОС,СКУД без двух первых позиций — 73 разобрано, 72 строки.
+    /// </summary>
+    [Fact]
+    public async Task Согласие_на_частичный_называет_строки_без_неактивных()
+    {
+        var site = await EstimateSeed.SiteAsync(host);
+        var editor = await EstimateImportFlow.EditorAsync(host);
+        var report = await EstimateImportFlow.OutcomeAsync(editor, await EstimateImportFlow.UploadAsync(editor,
+            EstimateImportFlow.Form(EstimateImportFlow.WithBrokenPositions("lsr-16.2.2-os-skud", 2), "Data.xml", site.Construction, newName: "Частичная")));
+        Assert.Equal(73, report.GetProperty("parsed").GetInt32());
+
+        var refused = await editor.SendAsync(EstimateImportFlow.Commit(EstimateImportFlow.Id(report), report.GetProperty("version").GetString()));
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        var body = await refused.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(73, body.GetProperty("parsed").GetInt32());
+        Assert.Equal(72, body.GetProperty("rows").GetInt32());
+        Assert.Contains("будет из 72 строк", body.GetProperty("error").GetString());
     }
 
     /// <summary>Частичная редакция (D4) несёт «N из M» и ссылку на импорт — у читающего с одним <c>plan.estimate.read</c>.</summary>

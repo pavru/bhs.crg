@@ -42,27 +42,36 @@ internal sealed class RateMarks
 
     /// <summary>
     /// Строк с пометкой <c>unit-changed</c> по редакциям (счётчик редакции, D4 <c>plan-31</c>) — тем же правилом,
-    /// что пометка строки: несопоставленная строка-работа, шифр знаком, единица расценки другая. Читает только
-    /// шифры и единицы несопоставленных строк, а не строки целиком.
+    /// что пометка строки: несопоставленная строка-работа, шифр знаком, единица расценки другая. Строки база
+    /// сводит сама — до различных пар «шифр, единица» в редакции с их числом: в смете шифр повторяется десятками,
+    /// а отпечаток ключа (SHA-256) считается здесь, по одному на шифр и базу.
     /// </summary>
     public static async Task<Dictionary<Guid, int>> UnitChangedAsync(
         PlanDbContext db, IReadOnlyDictionary<Guid, string?> normativeBases, CancellationToken ct)
     {
         var ids = normativeBases.Keys.ToList();
         if (ids.Count == 0) return [];
-        var waiting = (await db.EstimateRows.AsNoTracking()
-                .Where(r => ids.Contains(r.RevisionId) && r.RateCode != null && r.Kind == EstimateRowKind.Work
-                            && (r.WorkTypeId == null || r.PlanItemId == null))
-                .Select(r => new { r.RevisionId, r.RateCode, r.SourceUnit })
-                .ToListAsync(ct))
-            .Select(r => (r.RevisionId, r.SourceUnit, Key: RateMatchKey.Of(r.RateCode, normativeBases[r.RevisionId])))
-            .Where(r => r.Key is not null)
+        var groups = await db.EstimateRows.AsNoTracking()
+            .Where(r => ids.Contains(r.RevisionId) && r.RateCode != null && r.Kind == EstimateRowKind.Work
+                        && (r.WorkTypeId == null || r.PlanItemId == null))
+            .GroupBy(r => new { r.RevisionId, r.RateCode, r.SourceUnit })
+            .Select(g => new { g.Key.RevisionId, g.Key.RateCode, g.Key.SourceUnit, Rows = g.Count() })
+            .ToListAsync(ct);
+        var keys = new Dictionary<(string? Code, string? Base), RateMatchKey?>();
+        var waiting = groups
+            .Select(g =>
+            {
+                var at = (g.RateCode, normativeBases[g.RevisionId]);
+                if (!keys.TryGetValue(at, out var key)) keys[at] = key = RateMatchKey.Of(g.RateCode, at.Item2);
+                return (g.RevisionId, g.SourceUnit, g.Rows, Key: key);
+            })
+            .Where(g => g.Key is not null)
             .ToList();
-        var known = await RateMatching.FindAsync(db, waiting.Select(r => r.Key!), ct);
+        var known = await RateMatching.FindAsync(db, waiting.Select(g => g.Key!), ct);
         return waiting
-            .Where(r => known.TryGetValue(r.Key!.Hash, out var match) && !RateMatching.SameUnit(match.SourceUnit, r.SourceUnit))
-            .GroupBy(r => r.RevisionId)
-            .ToDictionary(g => g.Key, g => g.Count());
+            .Where(g => known.TryGetValue(g.Key!.Hash, out var match) && !RateMatching.SameUnit(match.SourceUnit, g.SourceUnit))
+            .GroupBy(g => g.RevisionId)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Rows));
     }
 
     public IReadOnlyList<PlanMark> Of(EstimateRow row)
