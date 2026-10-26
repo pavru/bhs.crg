@@ -53,21 +53,21 @@
 
 ## 3. Клиент
 
-- [ ] 3.1 Форма накладной: исправление запертой накладной по выбранному макету (0.2) — причина, всё
+- [x] 3.1 Форма накладной: исправление запертой накладной по выбранному макету (0.2) — причина, всё
   содержимое, отказы называют причину [COST-16]. Проверка — vitest на логику черновика исправления;
   живой прогон `costs-smoke.mjs`: исправление запертой накладной, версия видна
-- [ ] 3.2 Карточка — список версий с причинами; список — пометка «исправлена после закрытия» [COST-16]
+- [x] 3.2 Карточка — список версий с причинами; список — пометка «исправлена после закрытия» [COST-16]
   [CORE-36]. Проверка — vitest; живой прогон `costs-smoke.mjs`
 
 ## 4. Документы
 
-- [ ] 4.1 `docs/USER_GUIDE.md` — исправление накладной закрытого периода; содержание — `npm run toc` в
+- [x] 4.1 `docs/USER_GUIDE.md` — исправление накладной закрытого периода; содержание — `npm run toc` в
   `docs/tools`; `docs/tz/55-счета-и-накладные.md`, `COST-16` — «накладная исправляется отдельной задачей
   (#1340)» заменено построенным [COST-16]. Проверка — проверка «Frontend» (оглавление) зелёная, ревью PR
 
 ## 5. Верификация
 
-- [ ] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Waybill|FullyQualifiedName~RecordVersionInventory|FullyQualifiedName~InvoiceWritePath|FullyQualifiedName~InvoiceStaleForm|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ModuleBoundary"` — зелёный
-- [ ] 5.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 5.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Waybill|FullyQualifiedName~RecordVersionInventory|FullyQualifiedName~InvoiceWritePath|FullyQualifiedName~InvoiceStaleForm|FullyQualifiedName~EndpointGateInventory|FullyQualifiedName~ModuleBoundary"` — зелёный
+- [x] 5.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 5.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

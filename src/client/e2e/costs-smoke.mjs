@@ -144,6 +144,8 @@ const supplier = await seat('снабженец');
 const accountant = await seat('бухгалтер');
 const reader = await seat('руководитель');
 let invoiceId = null;
+/** Накладная, проведённая снабженцем, — её исправляет проверка закрытого периода. */
+let postedWaybillId = null;
 let site = null;
 
 // ══ Снабженец: вводит и разносит ══════════════════════════════════════════════════════════════════
@@ -275,6 +277,7 @@ async function waybillPart(seat) {
   await page.getByText(/Не сопоставлено: 1 строка\./).waitFor({ timeout: 10_000 });
   await absent(seat, ['Сохранить', 'Провести']);
   await lockedHeader(page, waybill);
+  postedWaybillId = new URL(page.url()).searchParams.get('waybill');
 
   seat.screen = 'материалы на объекте';
   await page.getByRole('button', { name: 'Материалы на объекте' }).click();
@@ -520,6 +523,60 @@ async function readerPart() {
   await check('reader-no-request-was-refused', () => noDenials(reader));
 }
 
+/**
+ * Исправление накладной закрытого периода (issue #1340, макет 1a): бухгалтер закрывает стройке день, в
+ * который легла накладная снабженца, — снабженец исправляет количество с причиной. Накладная остаётся
+ * проведённой, исправление видно в истории и строкой в списке. Закрытие отменяется в конце: по этой
+ * стройке идут и другие прогоны.
+ */
+async function waybillCorrectionPart() {
+  if (!postedWaybillId) throw new Error('проведённой накладной снабженца нет — исправлять нечего');
+  const contour = { contour: 'construction', constructionId: site.id };
+  const own = async () => (await api(accountant.page, 'GET', '/periods')).constructions.find(c => c.constructionId === site.id);
+  const reason = `Прогон: пересчёт по факту ${Date.now()}`;
+
+  accountant.screen = 'закрытие дня накладной';
+  const before = await own();
+  const through = (await api(supplier.page, 'GET', `/costs/waybills/${postedWaybillId}`)).accountingOn;
+  const from = before.expectedFrom ?? through;
+  const preview = await api(accountant.page, 'POST', '/periods/close/preview', { ...contour, from, through });
+  await api(accountant.page, 'POST', '/periods/close',
+    { ...contour, from, through, ifMatch: before.closedThrough ?? 'none', reason: 'Прогон: исправление накладной', report: preview.stamp });
+
+  try {
+    const { page } = supplier;
+    supplier.screen = 'исправление накладной';
+    await page.goto(`${BASE}/waybills?waybill=${postedWaybillId}`, { waitUntil: 'networkidle' });
+    await page.getByTestId('waybill-locked').waitFor({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Исправить', exact: true }).click();
+
+    await page.locator('tbody tr').first().getByLabel(/Количество/).fill('11');
+    const write = page.getByRole('button', { name: 'Записать исправление' });
+    if (await write.isEnabled()) throw new Error('«Записать исправление» нажимается без причины');
+    await page.getByLabel('Причина исправления').fill(reason);
+    await Promise.all([
+      page.waitForResponse(r => r.url().endsWith(`/costs/waybills/${postedWaybillId}/correction`)
+        && r.request().method() === 'POST' && r.ok(), { timeout: 10_000 }),
+      write.click(),
+    ]);
+
+    // История — событием: причина и что изменилось; накладная осталась проведённой и запертой.
+    const history = page.getByTestId('waybill-history');
+    await history.getByText(reason).waitFor({ timeout: 10_000 });
+    await history.getByText(/количество 12,5 → 11/).waitFor({ timeout: 10_000 });
+    await page.getByTestId('waybill-locked').waitFor({ timeout: 10_000 });
+    const view = await api(page, 'GET', `/costs/waybills/${postedWaybillId}`);
+    if (view.state !== 'Posted' || view.currentVersion !== 2)
+      throw new Error(`после исправления накладная ${view.state}, версия ${view.currentVersion}`);
+
+    // Пометка в списке — видимой строкой с причиной.
+    await page.getByTestId('waybill-corrected').filter({ hasText: reason }).first().waitFor({ timeout: 10_000 });
+  } finally {
+    await api(accountant.page, 'POST', '/periods/reopen',
+      { ...contour, ifMatch: through, reason: 'Прогон: исправление накладной' });
+  }
+}
+
 // ══ Бухгалтер: читает и отмечает оплату ═══════════════════════════════════════════════════════════
 async function accountantPart() {
   await check('accountant-is-not-an-administrator', () => notAdministrator(accountant));
@@ -541,6 +598,8 @@ async function accountantPart() {
 
   // Бухгалтер с E2 (issue #1100) правит счёт и разноску: исправление закрытого периода пишет и то и
   // другое. Здесь — что форма ему ОТКРЫТА; отказы на её запросах ловит общий счёт ниже.
+  await check('supplier-corrects-a-locked-waybill', () => waybillCorrectionPart());
+
   await check('accountant-may-change-the-invoice', async () => {
     await visit(accountant, 'счета', '/invoices');
     await accountant.page.getByRole('heading', { name: 'Счета на оплату' }).waitFor({ timeout: 10_000 });
