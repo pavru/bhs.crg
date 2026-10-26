@@ -23,6 +23,7 @@
 // совпавшее имя приняли бы, дописали и МОЛЧА проигнорировали.
 
 import { seedInvoices } from './seed-invoices.mjs';
+import { ensurePreviewTemplate } from './seed-preview.mjs';
 
 const API = (process.env.SEED_API || 'http://localhost:5000').replace(/\/$/, '');
 const ADMIN_EMAIL = process.env.SMOKE_EMAIL || 'admin@bhs.local';
@@ -637,12 +638,7 @@ async function main() {
   // объект-URL'ом — проверить это можно только на настоящем файле в MinIO.
   const cableTypeId = await ensureType({
     code: 'CABLE_SEED', name: 'Кабельный журнал (посев)', kind: 'Document', group: 'Демо',
-    schema: {
-      fields: [
-        field('Скан', 'Скан журнала', 'file'),
-        field('Номер', 'Номер', 'string'),
-      ],
-    },
+    schema: { fields: [field('Скан', 'Скан журнала', 'file'), field('Номер', 'Номер', 'string')] },
   });
 
   // ── Документы качества и материалы (dialogs-smoke) ──────────────────────────
@@ -876,6 +872,7 @@ async function main() {
       return { $type: 'file', blobPath: up.blobPath, fileName: up.fileName, mimeType: up.mimeType, size: up.size };
     })();
   await ensureDocument(setId, cableTypeId, cableDocName, { Скан: scan, Номер: 'КЖ-1' });
+  await ensurePreviewTemplate({ api, typeId: cableTypeId });
 
   /**
    * Реестр материалов — предмет обеих проверок пикера документа качества. Строки заведены

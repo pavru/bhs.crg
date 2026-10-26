@@ -9,7 +9,7 @@
   `DocRefCatalogPickerField` (2), `FileField` (2), `RefTile` (2), `ArrayTableModal`, `ComplexCells`,
   `ExtractToCommonDataModal` — `size="sm"` в строках [UI-46]. Проверка — живой прогон `fields` зелёный;
   `npm run ui:ratchet` опускает уровень; уровень размера `ComplexFields` — по факту
-- [ ] 1.2 `document-sets/editor/`: `DataSetsTab` (2), `DocumentPreviewPanel` (2), `MaterialsTable` (2),
+- [ ] 1.2 `document-sets/editor/`: `DataSetsTab` (2), ~~`DocumentPreviewPanel` (2)~~ (переведён в `viewer-04-document-preview`), `MaterialsTable` (2),
   `ContainerFieldBinding`, `FieldSourceBinding`, `LinkPickerModal`, `index`; `document-sets/`:
   `PlanPanel`, `SetDetail`, `SubscribersResource`, `catalog/CatalogResource`, `catalog/index` [UI-46].
   Проверка — живой прогон `dialogs` зелёный

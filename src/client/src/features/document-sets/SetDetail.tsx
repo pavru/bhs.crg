@@ -279,8 +279,9 @@ export function SetDetail() {
           <div className="flex items-center gap-1">
             {pdfFiles.length === 1 && (
               <>
+                {/* Отказ из открытия доходит один — вкладку не дали открыть: об отказе загрузки говорит сама вкладка. */}
                 <Tooltip content="Открыть PDF">
-                  <button onClick={() => previewGeneratedFile(inst.id, pdfFiles[0].templateId)}
+                  <button onClick={() => previewGeneratedFile(inst.id, pdfFiles[0].templateId).catch((e: Error) => toast.error(e.message))}
                     className="flex items-center gap-1 px-2 py-1 text-xs border border-stroke rounded hover:bg-brand-subtle hover:border-brand-subtle text-fg2 hover:text-brand-hover transition-colors">
                     <Eye size={11} /> PDF
                   </button>

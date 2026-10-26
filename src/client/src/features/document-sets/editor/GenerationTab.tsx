@@ -262,8 +262,10 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
                 <div key={f.id} className="flex items-center gap-2">
                   <Tooltip content={tpl?.name}><span className="text-xs text-fg2 flex-1 min-w-0 truncate">{tpl ? tpl.name : 'PDF'}</span></Tooltip>
                   {/* Во время генерации файл перезаписывается — блокируем открытие/скачивание, чтобы
-                      не открыть неактуальную/заменяемую версию (ссылка ведёт на старое состояние). */}
-                  <button onClick={() => previewGeneratedFile(instance.id, f.templateId)} disabled={busy}
+                      не открыть неактуальную/заменяемую версию (ссылка ведёт на старое состояние).
+                      Отказ из открытия доходит один — вкладку не дали открыть: об отказе загрузки
+                      говорит сама вкладка. */}
+                  <button onClick={() => { setError(''); previewGeneratedFile(instance.id, f.templateId).catch((e: Error) => setError(e.message)); }} disabled={busy}
                     className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-stroke rounded-md hover:bg-base disabled:opacity-40 disabled:pointer-events-none">
                     <Eye size={13} className="text-brand" /> Открыть
                   </button>

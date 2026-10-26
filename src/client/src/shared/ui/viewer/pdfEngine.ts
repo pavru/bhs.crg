@@ -1,6 +1,6 @@
 import './pdfPolyfills';
 import {
-  getDocument, GlobalWorkerOptions, InvalidPDFException, PasswordException, PixelsPerInch, TextLayer, version,
+  getDocument, InvalidPDFException, PasswordException, PDFWorker, PixelsPerInch, TextLayer, version,
 } from 'pdfjs-dist';
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, PDFPageProxy, PageViewport } from 'pdfjs-dist';
 import PdfWorker from './pdfWorker?worker';
@@ -13,6 +13,11 @@ import PdfWorker from './pdfWorker?worker';
  * - Байты, а не адрес: под `connect-src 'self'` поставки pdf.js не прочёл бы `blob:`.
  * - Worker один на приложение, создаётся при первом открытии и не гасится; гасятся документы.
  *   Запасного разбора в главном потоке нет: чужой PDF не разбирается рядом с интерфейсом.
+ * - **Документ открывается на своём `PDFWorker`**, а не через `GlobalWorkerOptions.workerPort`
+ *   (issue #1493): с общим портом pdf.js считает worker собственностью документа — уничтожение
+ *   документа помечает его «уничтожается» и гасит, и открытие, начатое в этот миг, отказывает
+ *   («PDFWorker.create - the worker is being destroyed»). Ровно так встают рядом прежний и новый
+ *   документ: смена ключа, погашенная подмена и следующая за ней загрузка.
  * - Аннотации рисуются в холст; слой форм, XFA и скрипты PDF не подключаются вовсе.
  */
 
@@ -56,10 +61,12 @@ export interface LoadingDocument { promise: Promise<PdfDocument>; cancel(): void
 
 let workerFailure: ((e: unknown) => void)[] = [];
 let workerBroken: unknown = null;
+/** Worker pdf.js на всё приложение; документ, которому его передали, его не уничтожает. */
+let pdfWorker: PDFWorker | undefined;
 
 /** Поднимает worker, если его ещё нет. В Node (тест движка) pdf.js разбирает сам, в том же потоке. */
 function ensureWorker(): void {
-  if (GlobalWorkerOptions.workerPort || typeof Worker === 'undefined') return;
+  if (pdfWorker || typeof Worker === 'undefined') return;
   try {
     const worker = new PdfWorker();
     // Кусок worker'а не загрузился (выпуск сменил хеши) — pdf.js об этом не узнаёт и ждал бы вечно.
@@ -69,7 +76,9 @@ function ensureWorker(): void {
       workerFailure = [];
       waiting.forEach(fail => fail(e));
     });
-    GlobalWorkerOptions.workerPort = worker;
+    // Типы pdf.js объявляют `port` как `null` — уже кода, который принимает `Worker` (так открывает и
+    // `GlobalWorkerOptions.workerPort`).
+    pdfWorker = new PDFWorker({ port: worker as unknown as null });
   } catch (e) {
     workerBroken = e;
   }
@@ -108,6 +117,7 @@ export function openPdf(source: Blob | Uint8Array): LoadingDocument {
     const base = assets();
     task = getDocument({
       data,
+      worker: pdfWorker,
       wasmUrl: `${base}wasm/`,
       iccUrl: `${base}iccs/`,
       cMapUrl: `${base}cmaps/`,

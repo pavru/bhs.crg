@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { openInNewTab } from './openInNewTab';
+import { openInNewTab, TabBlocked } from './openInNewTab';
 
 /**
  * «Открыть во вкладке» (issue #1490, [UI-20]): окно — синхронно, в обработчике нажатия, иначе его режет
@@ -8,12 +8,20 @@ import { openInNewTab } from './openInNewTab';
  */
 
 let made: Blob[];
-let tab: { opener: unknown; closed: boolean; close: ReturnType<typeof vi.fn>; location: { href: string } };
+let written: string[];
+let tab: {
+  opener: unknown; closed: boolean; close: ReturnType<typeof vi.fn>; location: { href: string };
+  document: { open(): void; write(html: string): void; close(): void };
+};
 
 beforeEach(() => {
   vi.useFakeTimers();
   made = [];
-  tab = { opener: window, closed: false, close: vi.fn(), location: { href: '' } };
+  written = [];
+  tab = {
+    opener: window, closed: false, close: vi.fn(), location: { href: '' },
+    document: { open: () => {}, write: html => { written.push(html); }, close: () => {} },
+  };
   vi.spyOn(window, 'open').mockImplementation(() => tab as unknown as Window);
   URL.createObjectURL = vi.fn((b: Blob) => { made.push(b); return `blob:test/${made.length}`; });
   URL.revokeObjectURL = vi.fn();
@@ -30,6 +38,7 @@ describe('открыть во вкладке', () => {
     expect(window.open).toHaveBeenCalledTimes(1);
     expect(tab.opener).toBeNull();
     expect(tab.location.href).toBe('');
+    expect(written.at(-1)).toContain('Загрузка файла…');
 
     answer(new Blob(['%PDF'], { type: 'application/pdf' }));
     await opened;
@@ -55,9 +64,26 @@ describe('открыть во вкладке', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:test/1');
   });
 
-  it('отказ загрузчика закрывает вкладку и доходит до вызывающего', async () => {
+  it('отказ загрузчика вкладка называет словами, и он доходит до вызывающего', async () => {
+    await expect(openInNewTab(() => Promise.reject(new Error('404')))).rejects.toThrow('404');
+    expect(written.at(-1)).toContain('Не удалось открыть файл');
+    // Не «обновите страницу»: в этой вкладке это значило бы обновить её саму.
+    expect(written.at(-1)).toContain('на странице приложения');
+    expect(tab.close).not.toHaveBeenCalled();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it('вкладку, в которой не написать об отказе, отказ закрывает — пустой она не остаётся', async () => {
+    tab.document.write = () => { throw new Error('чужой источник'); };
     await expect(openInNewTab(() => Promise.reject(new Error('404')))).rejects.toThrow('404');
     expect(tab.close).toHaveBeenCalled();
-    expect(URL.createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it('вкладку не дали открыть — загрузчик не зовётся, вызывающий получает TabBlocked', async () => {
+    vi.mocked(window.open).mockReturnValue(null);
+    const load = vi.fn(() => Promise.resolve(new Blob(['%PDF'])));
+    await expect(openInNewTab(load)).rejects.toBeInstanceOf(TabBlocked);
+    expect(load).not.toHaveBeenCalled();
+    expect(window.open).toHaveBeenCalledTimes(1);
   });
 });

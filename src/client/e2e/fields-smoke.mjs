@@ -9,7 +9,8 @@
 //   • вставка из Excel разбирает текст и уводит на шаг сопоставления, посчитав строки;
 //   • пикер ссылки находит кандидатов, сужается поиском и открывается ЧИСТЫМ после закрытия;
 //   • union-строка открывается на заполненном варианте, а переключение помнит спрятанное;
-//   • предпросмотр вложения и поле-картинка показывают файл из хранилища (blob:-URL живой).
+//   • предпросмотр вложения и поле-картинка показывают файл из хранилища (blob:-URL живой);
+//   • предпросмотр документа после правки реквизита остаётся на том же листе (issue #1493).
 //
 // Порция 9 добавила сюда проверку ПРОВОДКИ: `validateConstraint` уехал из `PrimitiveInput.tsx` в
 // свой модуль, сама функция покрыта юнит-тестом, а её вызов из формы виден только в браузере.
@@ -22,6 +23,7 @@
 
 import { BASE, launchBrowser, login, createChecks, settled, until, closeDialog, named } from './harness.mjs';
 import { sheetDrawn } from './pdf-viewer-checks.mjs';
+import { previewKeepsPage } from './document-preview-checks.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
@@ -321,6 +323,10 @@ await check('file-preview-phone-full-screen', async () => {
 await page.keyboard.press('Escape');
 await settled(page);
 await page.setViewportSize({ width: 1500, height: 950 });
+
+// Предпросмотр документа после правки реквизита остаётся на том же листе (issue #1493). Правит
+// форму в памяти — как и остальные проверки, ничего не сохраняет.
+await check('document-preview-keeps-page', () => previewKeepsPage(page, editor, named));
 
 await check('image-field-renders-stored-image', async () => {
   await page.goto(`${BASE}/common-data`);

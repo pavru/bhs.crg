@@ -7,6 +7,10 @@
  * - **Тип ставим сами**: `application/pdf` либо тип картинки из белого списка (`IMAGE_TYPES`). Типу
  *   ответа сервера не доверяем — `text/html` во вкладке исполнился бы как страница нашего адреса.
  * - **Ссылка отзывается с отсрочкой**: отозванная сразу не успела бы открыться.
+ * - **Вкладка говорит словами** (issue #1493): пока байты грузятся — «Загрузка файла…», отказ
+ *   загрузчика — что файл не открыт и что делать. Пустая белая вкладка не значила бы ничего.
+ * - **Вкладку не дали открыть — загрузчик не зовётся**: окно после `await` блокировщик срезал бы
+ *   так же, и файл скачался бы впустую. Вызывающему уходит `TabBlocked` — сказать, кроме него, некому.
  */
 
 export type PdfBytes = Blob | Uint8Array;
@@ -36,9 +40,38 @@ export function viewerBlob(source: PdfBytes): Blob {
   return new Blob([source as BlobPart], { type: imageTypeOf(source) ?? 'application/pdf' });
 }
 
+const LOADING_TEXT = 'Загрузка файла…';
+// Не «обновите страницу»: во вкладке это значило бы обновить её саму, а она пустая.
+const FAILURE_TEXT = 'Не удалось открыть файл. Закройте эту вкладку и попробуйте снова на странице приложения.';
+
+/** Браузер не дал открыть вкладку (блокировщик всплывающих окон) — файлу некуда прийти. */
+export class TabBlocked extends Error {
+  constructor() {
+    super('Браузер не дал открыть вкладку. Разрешите всплывающие окна для этого сайта и попробуйте снова.');
+  }
+}
+
 /**
- * Открывает файл во вкладке. С загрузчиком вкладка открыта сразу и получает файл по готовности;
- * отказ загрузчика закрывает её и возвращается вызывающему — он и скажет человеку, что не так.
+ * Строка во вкладке, пока она пустая (`about:blank` — наш источник). Не вышло — `false`. Темы
+ * приложения во вкладке нет, поэтому цвет — системный: `color-scheme` следует теме устройства.
+ */
+function say(tab: Window, text: string): boolean {
+  try {
+    const doc = tab.document;
+    doc.open();
+    doc.write('<!doctype html><meta charset="utf-8"><meta name="color-scheme" content="light dark">'
+      + `<p style="font:14px sans-serif;padding:16px">${text}</p>`);
+    doc.close();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Открывает файл во вкладке. С загрузчиком вкладка открыта сразу, говорит «Загрузка файла…» и получает
+ * файл по готовности. Отказ загрузчика вкладка называет словами (не смогла — закрывается), и отказ
+ * возвращается вызывающему: ему решать, говорить ли что-то ещё. Вкладки нет — `TabBlocked`, без загрузки.
  */
 export function openInNewTab(source: PdfBytes | (() => Promise<PdfBytes>)): Promise<void> {
   const tab = window.open('', '_blank');
@@ -53,8 +86,10 @@ export function openInNewTab(source: PdfBytes | (() => Promise<PdfBytes>)): Prom
     show(source);
     return Promise.resolve();
   }
+  if (!tab) return Promise.reject(new TabBlocked());
+  say(tab, LOADING_TEXT);
   return source().then(show, (e: unknown) => {
-    tab?.close();
+    if (!tab.closed && !say(tab, FAILURE_TEXT)) tab.close();
     throw e;
   });
 }
