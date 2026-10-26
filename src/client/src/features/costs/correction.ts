@@ -9,6 +9,12 @@ import { toDrafts, toPayload, type LineDraft } from './invoiceLines';
 import { vatModeOf } from './invoiceVat';
 
 /**
+ * Самая длинная причина исправления — у счёта и у накладной одна, как у сервера (`CorrectionReason.Length`):
+ * длиннее журнал обрезал бы.
+ */
+export const REASON_LENGTH = 1000;
+
+/**
  * Исправление счёта закрытого периода (E2, issue #1100, PR 6b-1) — всё, что не рисование.
  *
  * <p><b>Тело — счёт целиком, а черновик — только тронутое.</b> Человек правит шапку, строки или

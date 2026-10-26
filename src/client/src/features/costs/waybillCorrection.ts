@@ -6,9 +6,6 @@ import type { WaybillCorrectionMark, WaybillVersionView, WaybillView } from '@/s
  * design D10): кому кнопка «Исправить», чем пометить строку списка и что изменило каждое исправление.
  */
 
-/** Самая длинная причина — как у сервера (`WaybillCorrection.ReasonLength`): длиннее журнал обрезал бы. */
-export const REASON_LENGTH = 1000;
-
 /**
  * Кнопка «Исправить» — только у проведённой накладной, запертой закрытым периодом, и только тому, у кого
  * правка накладных и право исправления. Остальным о режиме ни слова: кнопка вела бы в отказ.
@@ -92,17 +89,24 @@ export interface CorrectionEvent {
   reason: string;
   prior: WaybillContent;
   changes: string[];
+  /**
+   * «Что изменилось» сверено с нынешним содержимым, а накладная с тех пор не заперта: её могли править
+   * обычным путём, и те правки тоже попали в список. Версия хранит только ушедшее, и отделить их нечем.
+   */
+  mixed: boolean;
 }
 
 /** События свежими сверху, как приходят версии: историю открывают узнать, что случилось последним. */
 export function correctionEvents(versions: WaybillVersionView[], view: WaybillView): CorrectionEvent[] {
   const byNumber = new Map(versions.map(v => [v.number, v.content]));
   return versions.map(v => {
-    // Что стало после этого исправления — следующая версия, а у последней — действующее содержимое.
-    const next = byNumber.get(v.number + 1) ?? contentOfView(view);
+    // Что стало после этого исправления — следующая версия, а у последней — действующее содержимое. Оно
+    // равно записанному исправлением, пока накладная заперта: обычной правки у запертой нет.
+    const following = byNumber.get(v.number + 1);
+    const next = following ?? contentOfView(view);
     return {
       version: v.number, at: v.at, author: v.authorName ?? 'автор неизвестен', reason: v.reason,
-      prior: v.content, changes: versionChanges(v.content, next),
+      prior: v.content, changes: versionChanges(v.content, next), mixed: !following && !view.locked,
     };
   });
 }

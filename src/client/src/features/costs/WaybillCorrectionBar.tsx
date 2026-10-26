@@ -3,7 +3,7 @@ import { Lock, LogOut, PencilLine, Save, TriangleAlert, X } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
 import { useCan } from '@/shared/api/access';
-import { REASON_LENGTH } from './waybillCorrection';
+import { REASON_LENGTH } from './correction';
 
 /**
  * Запертая накладная — почему её не правят и какой путь есть (issue #1340, D10). Путь исправления

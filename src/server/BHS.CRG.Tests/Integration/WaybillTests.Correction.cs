@@ -192,6 +192,26 @@ public partial class WaybillTests
     }
 
     /// <summary>
+    /// Дата отпуска, исправленная на более позднюю, тянет за собой учётную (D4): учтена накладная не раньше
+    /// отпуска. Исправленная на более раннюю учётную дату не трогает.
+    /// </summary>
+    [Fact]
+    public async Task Поздняя_дата_отпуска_тянет_учётную_дату()
+    {
+        var (client, site, id) = await LockedAsync("Накладная: дата отпуска");
+
+        var later = await CorrectAsync(client, id, Correction(site, "2026-06-20", "Не та дата", Row(cable, 10m, "м")));
+        await OkAsync(later);
+        var view = await later.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("2026-06-20", view.GetProperty("accountingOn").GetString());
+        Assert.NotEqual(JsonValueKind.Null, view.GetProperty("locked").ValueKind);
+
+        var earlier = await CorrectAsync(client, id, Correction(site, "2026-06-02", "Снова не та", Row(cable, 10m, "м")));
+        await OkAsync(earlier);
+        Assert.Equal("2026-06-20", (await earlier.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accountingOn").GetString());
+    }
+
+    /// <summary>
     /// После отмены закрытия накладная правится обычной правкой, версии и пометка остаются (В-3); удалить
     /// исправленную нельзя и черновиком — её история не удаляется (D8).
     /// </summary>

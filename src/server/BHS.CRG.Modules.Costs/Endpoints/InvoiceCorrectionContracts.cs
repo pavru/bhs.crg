@@ -66,20 +66,10 @@ public sealed record CorrectionLineView(
 /// <summary>Разбор тела исправления и сборка ответа предпросмотра.</summary>
 internal static class InvoiceCorrections
 {
-    /// <summary>Самая длинная причина: она ложится в журнал ядра, а там длинный текст обрезался бы молча.</summary>
-    public const int ReasonLength = 1000;
-
     /// <param name="preview">Предпросмотр: отметки ещё нет и быть не может.</param>
     public static CorrectionBody Parse(InvoiceCorrectionRequest body, bool preview)
     {
-        var reason = body.Reason?.Trim();
-        if (string.IsNullOrEmpty(reason))
-            throw new InvalidRequestException(
-                "Не названа причина исправления. Она ляжет в версию счёта и в журнал: без неё исправление " +
-                "закрытого периода через год не объяснит никто.");
-        if (reason.Length > ReasonLength)
-            throw new InvalidRequestException(
-                $"Причина длиннее {ReasonLength} знаков. Коротко назовите, что и почему исправлено; подробности — в примечании счёта.");
+        var reason = CorrectionReason.Checked(body.Reason, "счёта");
 
         if (body.Requisites.ValueKind != JsonValueKind.Object)
             throw new InvalidRequestException(

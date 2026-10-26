@@ -26,9 +26,6 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// </summary>
 public static class WaybillCorrection
 {
-    /// <summary>Самая длинная причина: она ложится в журнал ядра, а там длинный текст обрезался бы молча.</summary>
-    public const int ReasonLength = 1000;
-
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/costs/waybills/{id:guid}").WithTags("Расходные накладные");
@@ -53,18 +50,22 @@ public static class WaybillCorrection
                 "прочитать как «строки не менять» нельзя.");
         var known = await sites.ListAsync(ct);
 
-        var (waybill, number, siteMoved) = await desk.CorrectAsync(id, async write =>
+        var (waybill, number, siteMoved, dayMoved) = await desk.CorrectAsync(id, async write =>
         {
             var waybill = write.Waybill;
             WaybillEndpoints.EnsureSiteExists(known, header.ConstructionId);
             EnsurePostable(waybill, header, lines);
-            await WaybillEndpoints.EnsureNomenclatureAsync(catalog, WaybillEndpoints.Numbered(lines),
-                await WaybillEndpoints.StoredPositionsAsync(db, waybill, ct), ct);
-
+            // Прежние строки читаются один раз: из них и версия, и позиции, которые правило записи не перепроверяет.
             var was = await db.WaybillLines.AsNoTracking().Where(l => l.WaybillId == waybill.Id).ToListAsync(ct);
+            await WaybillEndpoints.EnsureNomenclatureAsync(catalog, WaybillEndpoints.Numbered(lines),
+                [.. was.Where(l => l.NomenclatureId is not null).Select(l => l.NomenclatureId!.Value).Distinct()], ct);
+
             var content = WaybillVersion.Snapshot(waybill, was, user.Name);
             var number = waybill.CurrentVersion;
             var siteWas = waybill.ConstructionId;
+            // День, которым накладная лежит в учёте. Без учётной даты (накладная из прежней копии) это дата
+            // отпуска — так её и запирает WaybillLock; запертая проведённая без обеих не бывает.
+            var dayWas = waybill.AccountingOn ?? waybill.IssuedOn!.Value;
 
             var headerChanged = waybill.Header() != header;
             if (headerChanged) waybill.Apply(header);
@@ -73,21 +74,28 @@ public static class WaybillCorrection
                     $"{WaybillEndpoints.Label(waybill)}: исправление ничего не меняет — шапка и строки те же. " +
                     "Версия без изменений объясняла бы то, чего не было.");
 
-            // Учётная дата не двигается: это день, которым накладная легла в учёт (D4). Смена стройки —
-            // исключение: накладная ложится в первый открытый день новой стройки (COST-16).
+            // Учётная дата не двигается: это день, которым накладная легла в учёт (D4). Два исключения. Смена
+            // стройки — накладная ложится в первый открытый день новой стройки (COST-16). Дата отпуска позже
+            // прежнего дня — учтена она не раньше отпуска (то же правило), то есть днём отпуска: материалы,
+            // учтённые раньше, чем выданы, — неправда. Накладная без учётной даты её получает: иначе
+            // исправленная дата отпуска молча перенесла бы её в другой период.
             var siteMoved = waybill.ConstructionId != siteWas;
-            if (siteMoved)
-                waybill.Reaccount(WaybillLock.AccountedOn(waybill.IssuedOn!.Value, waybill.ConstructionId!.Value, write.Boundaries));
+            var day = siteMoved
+                ? WaybillLock.AccountedOn(waybill.IssuedOn!.Value, waybill.ConstructionId!.Value, write.Boundaries)
+                : waybill.IssuedOn!.Value > dayWas ? waybill.IssuedOn.Value : dayWas;
+            var dayMoved = day != dayWas;
+            if (day != waybill.AccountingOn) waybill.Reaccount(day);
 
             db.WaybillVersions.Add(WaybillVersion.Create(waybill.Id, number, content, reason, user.Id));
             waybill.Corrected();
             await db.SaveChangesAsync(ct);
-            return (waybill, number, siteMoved);
+            return (waybill, number, siteMoved, dayMoved);
         }, ct);
 
         await log.RecordAsync(WaybillActions.Corrected, waybill.Id.ToString(), WaybillEndpoints.Label(waybill),
             before: $"версия {number}",
-            after: reason + (siteMoved ? $"; стройка сменена, учтена {waybill.AccountingOn:dd.MM.yyyy}" : ""), ct: ct);
+            after: reason + (siteMoved ? $"; стройка сменена, учтена {waybill.AccountingOn:dd.MM.yyyy}"
+                : dayMoved ? $"; дата отпуска позже прежнего дня учёта, учтена {waybill.AccountingOn:dd.MM.yyyy}" : ""), ct: ct);
 
         return TypedResults.Ok(await WaybillEndpoints.ViewAsync(waybill, db, known, catalog, desk, ct));
     }
@@ -104,7 +112,8 @@ public static class WaybillCorrection
 
         return TypedResults.Ok<IReadOnlyList<WaybillVersionView>>([.. versions.Select(v =>
         {
-            var content = JsonDocument.Parse(v.Content).RootElement.Clone();
+            // Элемент без документа за спиной: JsonDocument пришлось бы освобождать, а Clone этого не делает.
+            var content = JsonSerializer.Deserialize<JsonElement>(v.Content);
             var author = content.TryGetProperty("authorName", out var name) && name.ValueKind == JsonValueKind.String
                 ? name.GetString() : null;
             return new WaybillVersionView(v.Number, v.Reason, v.AuthorId, author, v.At, content);
@@ -126,15 +135,7 @@ public static class WaybillCorrection
     private static string Reason(JsonElement body)
     {
         CostsValues.EnsureObject(body, "Исправление", "исправления");
-        var reason = CostsValues.Text(body, "reason", "Причина исправления")?.Trim();
-        if (string.IsNullOrEmpty(reason))
-            throw new InvalidRequestException(
-                "Не названа причина исправления. Она ляжет в версию накладной и в журнал: без неё исправление " +
-                "закрытого периода через год не объяснит никто.");
-        if (reason.Length > ReasonLength)
-            throw new InvalidRequestException(
-                $"Причина длиннее {ReasonLength} знаков. Коротко назовите, что и почему исправлено; подробности — в примечании накладной.");
-        return reason;
+        return CorrectionReason.Checked(CostsValues.Text(body, "reason", "Причина исправления"), "накладной");
     }
 
     /// <summary>

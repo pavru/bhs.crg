@@ -25,7 +25,20 @@ export function WaybillHistory({ view, gone }: { view: WaybillView; gone: boolea
     { key: 'at', label: 'Когда', width: 'w-36', cell: e => formatDateTime(e.at) },
     { key: 'author', label: 'Кто', cell: e => e.author },
     { key: 'reason', label: 'Причина', wrap: true, cell: e => e.reason },
-    { key: 'changes', label: 'Что изменилось', wrap: true, cell: e => (e.changes.length > 0 ? e.changes.join('; ') : '—') },
+    {
+      key: 'changes', label: 'Что изменилось', wrap: true,
+      cell: e => (
+        <>
+          {e.changes.length > 0 ? e.changes.join('; ') : '—'}
+          {e.mixed && (
+            <span className="block text-fg3">
+              Сверено с нынешним содержимым: после исправления накладную можно было править обычным путём, и
+              такие правки тоже здесь.
+            </span>
+          )}
+        </>
+      ),
+    },
     { key: 'version', label: 'Прежнее', cell: e => `версия ${e.version}` },
   ];
 

@@ -596,10 +596,11 @@ async function accountantPart() {
     await accountant.page.locator('main').getByRole('heading', { name: 'Учётный период' }).waitFor({ timeout: 10_000 });
   });
 
-  // Бухгалтер с E2 (issue #1100) правит счёт и разноску: исправление закрытого периода пишет и то и
-  // другое. Здесь — что форма ему ОТКРЫТА; отказы на её запросах ловит общий счёт ниже.
+  // Закрытие дня накладной — бухгалтером, исправление — снабженцем (issue #1340).
   await check('supplier-corrects-a-locked-waybill', () => waybillCorrectionPart());
 
+  // Бухгалтер с E2 (issue #1100) правит счёт и разноску: исправление закрытого периода пишет и то и
+  // другое. Здесь — что форма ему ОТКРЫТА; отказы на её запросах ловит общий счёт ниже.
   await check('accountant-may-change-the-invoice', async () => {
     await visit(accountant, 'счета', '/invoices');
     await accountant.page.getByRole('heading', { name: 'Счета на оплату' }).waitFor({ timeout: 10_000 });

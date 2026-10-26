@@ -13,9 +13,10 @@ import { deleteRecord } from './recordDelete';
 /**
  * Можно ли удалить — то же условие, что проверит сервер. Действие, которое сервер заведомо откажется
  * выполнить, не показывается вовсе (правило экрана): у проведённой пункта нет — её возвращают в черновик.
+ * У исправлявшейся после закрытия — тоже, и черновиком: её история исправлений не удаляется (issue #1340).
  */
 export const canDeleteWaybill = (view: WaybillView, canEdit: boolean): boolean =>
-  canEdit && view.state === 'Draft';
+  canEdit && view.state === 'Draft' && (view.currentVersion ?? 1) === 1;
 
 /** «накладная № 45 от 02.10.2026» / «накладная без номера» — в заголовке диалога и в сообщении об исходе. */
 export function waybillTitle(view: WaybillView): string {

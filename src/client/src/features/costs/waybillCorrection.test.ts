@@ -66,5 +66,12 @@ describe('исправление накладной', () => {
       [1, 'Пересчёт', ['строка 1: количество 10 → 8']],
     ]);
     expect(events[0].author).toBe('Иванов');
+    // Запертую обычным путём не правят: последнее событие сверено с тем, что записало исправление.
+    expect(events.map(e => e.mixed)).toEqual([false, false]);
+  });
+
+  it('у незапертой последнее событие оговаривает, что правки после исправления не отделены', () => {
+    const events = correctionEvents([version(2, 8, 'Ещё раз'), version(1, 10, 'Пересчёт')], { ...view, locked: null });
+    expect(events.map(e => e.mixed)).toEqual([true, false]);
   });
 });

@@ -460,7 +460,7 @@ public static class WaybillEndpoints
     }
 
     /// <summary>Позиции, которые в строках накладной уже стоят: их правило записи не перепроверяет.</summary>
-    internal static async Task<IReadOnlyCollection<Guid>> StoredPositionsAsync(
+    private static async Task<IReadOnlyCollection<Guid>> StoredPositionsAsync(
         CostsDbContext db, Waybill waybill, CancellationToken ct) =>
         await db.WaybillLines.AsNoTracking()
             .Where(l => l.WaybillId == waybill.Id && l.NomenclatureId != null)

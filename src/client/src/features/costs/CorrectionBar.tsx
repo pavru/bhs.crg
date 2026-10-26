@@ -8,13 +8,11 @@ import { useFreshInvoice, type InvoiceView } from '@/shared/api/invoices';
 import {
   useCorrectInvoice, usePreviewCorrection, type CorrectionPreview,
 } from '@/shared/api/invoiceCorrection';
-import { conflictKind, correctionBody, readyToCheck, type CorrectionContent } from './correction';
+import { conflictKind, correctionBody, readyToCheck, REASON_LENGTH, type CorrectionContent } from './correction';
 import { CorrectionPreviewDialog } from './CorrectionPreviewDialog';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
 import type { CorrectionDraft } from './useCorrectionDraft';
 
-/** Самая длинная причина — как у сервера (`InvoiceCorrections.ReasonLength`): длиннее журнал обрезал бы. */
-const REASON_LENGTH = 1000;
 
 const status = (error: unknown) => (error as { response?: { status?: number } })?.response?.status;
 
