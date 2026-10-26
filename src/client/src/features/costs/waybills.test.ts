@@ -75,7 +75,10 @@ describe('оговорка о несопоставленных строках', 
     expect(unmatchedNote(4, false)).toContain('Провести накладную можно');
     expect(unmatchedNote(1, true)).toContain('проводить заново не нужно');
     // Запертой закрытым периодом выбор позиции не обещают: сервер на него отвечает отказом.
-    expect(unmatchedNote(1, true, true)).toContain('пока период закрыт');
-    expect(unmatchedNote(1, true, true)).not.toContain('выберите позицию');
+    expect(unmatchedNote(1, true, 'closed')).toContain('пока период закрыт');
+    expect(unmatchedNote(1, true, 'closed')).not.toContain('выберите позицию');
+    // С правом исправления путь есть — и текст его называет; в режиме исправления — что выбор запишется им.
+    expect(unmatchedNote(1, true, 'correct')).toContain('исправлением с причиной');
+    expect(unmatchedNote(1, true, 'correcting')).toContain('запишется этим исправлением');
   });
 });

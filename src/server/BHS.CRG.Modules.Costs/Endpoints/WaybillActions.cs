@@ -38,6 +38,11 @@ public sealed class WaybillActions : IModuleActivityActions
     public static readonly ModuleActivityAction Deleted =
         new("costs.waybill.deleted", "Накладная удалена", WaybillRead);
 
+    /// <summary>Исправление накладной закрытого периода (issue #1340): «было» — номер ушедшей версии,
+    /// «стало» — причина. Прежнее содержимое читается адресом версий.</summary>
+    public static readonly ModuleActivityAction Corrected =
+        new("costs.waybill.corrected", "Накладная исправлена после закрытия периода", WaybillRead);
+
     public IReadOnlyList<ModuleActivityAction> Actions =>
-        [Created, Changed, LinesChanged, Matched, Posted, Draft, Deleted];
+        [Created, Changed, LinesChanged, Matched, Posted, Draft, Deleted, Corrected];
 }

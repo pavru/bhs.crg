@@ -27,6 +27,17 @@ public partial class WaybillTests : IDisposable
     }
 
     /// <summary>
+    /// Адреса, которые сверяют версию только у накладной, ТРЕБУЮЩЕЙ ИСПРАВЛЕНИЯ (issue #1340): иной они
+    /// отказывают раньше — «исправление не нужно, правьте как обычно», как исправление счёта
+    /// (<c>InvoiceStaleFormTests.VersionAfterNeed</c>). Их порядок отказов проверяет <c>WaybillTests.Correction.cs</c>.
+    /// </summary>
+    private static readonly Dictionary<string, string> VersionAfterNeed = new()
+    {
+        ["POST /api/costs/waybills/{id:guid}/correction"] =
+            "исправление: версию сверяет после «исправление не нужно» и права исправления; запертой накладной оно и есть выход",
+    };
+
+    /// <summary>
     /// Пишущие адреса накладной — ИЗ МАРШРУТОВ, а не списком: адрес, добавленный завтра (удаление,
     /// #1283), попадёт под обе проверки ниже сам.
     /// </summary>
@@ -40,7 +51,7 @@ public partial class WaybillTests : IDisposable
             if (!pattern.StartsWith("/api/costs/waybills/{id:guid}")) continue;
 
             foreach (var method in route.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? [])
-                if (method != "GET") routes.Add((method, pattern));
+                if (method != "GET" && !VersionAfterNeed.ContainsKey($"{method} {pattern}")) routes.Add((method, pattern));
         }
 
         Assert.True(routes.Count >= 6, $"Перепись нашла {routes.Count} пишущих адресов накладной — меньше, чем " +

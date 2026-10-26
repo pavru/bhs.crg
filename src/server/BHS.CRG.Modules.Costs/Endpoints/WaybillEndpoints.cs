@@ -124,9 +124,14 @@ public static class WaybillEndpoints
             })
             .ToListAsync(ct);
 
+        // Пометка «исправлена после закрытия» — только у исправленных: историю читает её место (issue #1340).
+        var marks = await WaybillCorrection.MarksAsync(db,
+            [.. page.Where(row => row.Waybill.CurrentVersion > 1).Select(row => row.Waybill.Id)], ct);
+
         return TypedResults.Ok(new WaybillListView(
             [.. page.Take(ListLimit).Select(row => WaybillViews.Item(
-                row.Waybill, known.FirstOrDefault(s => s.Id == row.Waybill.ConstructionId), row.Lines, row.Unmatched))],
+                row.Waybill, known.FirstOrDefault(s => s.Id == row.Waybill.ConstructionId), row.Lines, row.Unmatched,
+                marks.GetValueOrDefault(row.Waybill.Id)))],
             More: page.Count > ListLimit, Hidden: hidden));
     }
 
@@ -227,7 +232,7 @@ public static class WaybillEndpoints
     /// Разложить присланный набор по строкам накладной. Не сохраняет — сохраняет звавший, одним разом
     /// со своей правкой. Возвращает, изменилось ли что-нибудь.
     /// </summary>
-    private static async Task<bool> PlaceLinesAsync(
+    internal static async Task<bool> PlaceLinesAsync(
         CostsDbContext db, Waybill waybill, IReadOnlyList<(Guid? Id, WaybillLineValues Values)> parsed,
         CancellationToken ct)
     {
@@ -399,7 +404,7 @@ public static class WaybillEndpoints
 
     /// <param name="known">Стройки, прочитанные звавшим: список читается один раз на запрос, а не
     /// заново ради каждого вопроса к нему.</param>
-    private static async Task<WaybillView> ViewAsync(
+    internal static async Task<WaybillView> ViewAsync(
         Waybill waybill, CostsDbContext db, IReadOnlyList<ModuleConstruction> known, IModuleCatalog catalog,
         WaybillDesk desk, CancellationToken ct)
     {
@@ -422,7 +427,7 @@ public static class WaybillEndpoints
         return line;
     }
 
-    private static IReadOnlyList<(int Number, Guid? Position)> Numbered(
+    internal static IReadOnlyList<(int Number, Guid? Position)> Numbered(
         IReadOnlyList<(Guid? Id, WaybillLineValues Values)> lines) =>
         [.. lines.Select((line, index) => (index + 1, line.Values.NomenclatureId))];
 
@@ -435,7 +440,7 @@ public static class WaybillEndpoints
                 "снова. Сопоставить строку с номенклатурой можно и у проведённой.");
     }
 
-    private static void EnsureSiteExists(IReadOnlyList<ModuleConstruction> known, Guid? id)
+    internal static void EnsureSiteExists(IReadOnlyList<ModuleConstruction> known, Guid? id)
     {
         if (id is { } site && known.All(s => s.Id != site))
             throw new InvalidRequestException(
@@ -455,7 +460,7 @@ public static class WaybillEndpoints
     }
 
     /// <summary>Позиции, которые в строках накладной уже стоят: их правило записи не перепроверяет.</summary>
-    private static async Task<IReadOnlyCollection<Guid>> StoredPositionsAsync(
+    internal static async Task<IReadOnlyCollection<Guid>> StoredPositionsAsync(
         CostsDbContext db, Waybill waybill, CancellationToken ct) =>
         await db.WaybillLines.AsNoTracking()
             .Where(l => l.WaybillId == waybill.Id && l.NomenclatureId != null)
@@ -471,7 +476,7 @@ public static class WaybillEndpoints
     /// <param name="positions">Позиция и НОМЕР строки, которым её назовёт отказ: номер приходит от
     /// звавшего, потому что у сопоставления одной строки он не «первая в присланном».</param>
     /// <param name="stored">Позиции, уже стоящие в накладной.</param>
-    private static async Task EnsureNomenclatureAsync(
+    internal static async Task EnsureNomenclatureAsync(
         IModuleCatalog catalog, IReadOnlyList<(int Number, Guid? Position)> positions,
         IReadOnlyCollection<Guid> stored, CancellationToken ct)
     {

@@ -55,6 +55,39 @@ export interface WaybillView {
   accountingOn?: string | null;
   /** Чем накладная заперта, словами сервера; пусто — не заперта. Запертую не возвращают в черновик и не сопоставляют. */
   locked?: string | null;
+  /** Номер действующей версии (issue #1340): 1 — не исправлялась; больше — есть история исправлений. */
+  currentVersion?: number;
+}
+
+/** Последнее исправление накладной после закрытия периода (issue #1340): когда и почему. */
+export interface WaybillCorrectionMark {
+  at: string;
+  reason: string;
+}
+
+/**
+ * Версия накладной, ушедшая под исправление: номер, причина, автор (именем на момент записи), время и
+ * прежнее содержимое — шапка и строки.
+ */
+export interface WaybillVersionView {
+  number: number;
+  reason: string;
+  authorId: string | null;
+  authorName: string | null;
+  at: string;
+  content: {
+    number: string | null;
+    issuedOn: string | null;
+    warehouse: string | null;
+    constructionId: string | null;
+    receivedBy: string | null;
+    note: string | null;
+    accountingOn: string | null;
+    lines: {
+      id: string; ordinal: number; nomenclatureId: string | null; sourceText: string | null;
+      unit: string | null; quantity: number | null; note: string | null;
+    }[];
+  };
 }
 
 export interface WaybillListItem {
@@ -67,6 +100,8 @@ export interface WaybillListItem {
   state: WaybillState;
   lines: number;
   unmatched: number;
+  /** «Исправлена после закрытия» — последнее исправление; пусто — не исправлялась. Считает сервер. */
+  correctedAfterClosing?: WaybillCorrectionMark | null;
 }
 
 /** Список и честное «есть ещё»: поиск на экране идёт по загруженному. */
@@ -114,6 +149,7 @@ const LIST_KEY = [QK, 'list'] as const;
 const MATERIALS_KEY = ['costs-materials'] as const;
 /** Ключ открытой накладной в кэше: под ним запись ищет вид ДО себя. */
 export const waybillKey = (id: string | undefined) => [QK, 'one', id] as const;
+const versionsKey = (id: string | undefined) => [QK, 'versions', id] as const;
 
 /**
  * Список накладных. `sites` — избранные стройки, по которым отбирает СЕРВЕР (issue #1222): список
@@ -210,6 +246,7 @@ function useSettle() {
   return (view: WaybillView) => {
     qc.setQueryData(waybillKey(view.id), view);
     void qc.invalidateQueries({ queryKey: LIST_KEY });
+    void qc.invalidateQueries({ queryKey: versionsKey(view.id) });
     void qc.invalidateQueries({ queryKey: MATERIALS_KEY });
   };
 }
@@ -249,6 +286,26 @@ export function useMatchWaybillLine() {
     apiClient.put<WaybillView>(`/costs/waybills/${id}/lines/${lineId}/nomenclature`, {
       nomenclature: nomenclatureId ? { $ref: 'catalog', entryId: nomenclatureId } : null,
     }, seenBy(seen)).then(r => r.data));
+}
+
+/**
+ * Исправить накладную, запертую закрытым периодом (issue #1340): причина и ВСЁ содержимое одним телом —
+ * шапка и строки, как у сохранения черновика. Прежнее содержимое сервер кладёт версией.
+ */
+export function useCorrectWaybill() {
+  return useWaybillWrite(({ id, seen, reason, header, lines }: {
+    id: string; seen: string; reason: string; header: WaybillHeader; lines: Record<string, unknown>[];
+  }) => apiClient.post<WaybillView>(`/costs/waybills/${id}/correction`, { ...header, reason, lines }, seenBy(seen))
+    .then(r => r.data));
+}
+
+/** Версии накладной, свежие сверху. `enabled` — только у исправленной (`currentVersion > 1`): у прочих их нет. */
+export function useWaybillVersions(id: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: versionsKey(id),
+    queryFn: () => apiClient.get<WaybillVersionView[]>(`/costs/waybills/${id}/versions`).then(r => r.data),
+    enabled: !!id && enabled,
+  });
 }
 
 /**

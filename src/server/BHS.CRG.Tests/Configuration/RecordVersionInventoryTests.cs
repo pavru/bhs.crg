@@ -25,14 +25,30 @@ public class RecordVersionInventoryTests
     /// разрешён сам (тип и его отображение на таблицу). Добавляя строку, вы принимаете решение: этот файл
     /// пишет историю или читает её как историю — не для сумм.
     /// </summary>
-    private static readonly Dictionary<string, IReadOnlyDictionary<string, string>> MayTouch = new();
+    private static readonly Dictionary<string, IReadOnlyDictionary<string, string>> MayTouch = new()
+    {
+        ["WaybillVersion"] = new Dictionary<string, string>
+        {
+            ["BHS.CRG.Modules.Costs/Data/CostsDbContext.cs"] = "объявление набора",
+            ["BHS.CRG.Modules.Costs/Endpoints/WaybillCorrection.cs"] =
+                "единственное место записи (исправление под замком периода, в одной транзакции с правкой) и " +
+                "чтения истории: адрес версий и пометка списка «исправлена после закрытия» — день и причина, " +
+                "без сумм (issue #1340)",
+        },
+    };
 
     /// <summary>
     /// Файлы итогов, которые не узнать по имени (<c>*Views.cs</c>, <c>*Totals.cs</c>, <c>*ClosingReport.cs</c>
     /// узнаются сами), и почему они итоги. Из них к истории не обращаются, даже названные в
     /// <see cref="MayTouch" />.
     /// </summary>
-    private static readonly Dictionary<string, string> TotalsFiles = new();
+    private static readonly Dictionary<string, string> TotalsFiles = new()
+    {
+        ["BHS.CRG.Modules.Costs/Data/IssuedMaterials.cs"] =
+            "«Материалы на объекте» — свод отпущенного по стройке: только действующие строки накладных",
+        ["BHS.CRG.Modules.Costs/Data/WaybillClosingLines.cs"] =
+            "числа накладных в диалоге закрытия — они ложатся в неизменяемую запись о закрытии",
+    };
 
     /// <summary>Дописываемые типы с формой версии мимо базового типа — и почему.</summary>
     private static readonly Dictionary<string, string> ShapeExceptions = new()
