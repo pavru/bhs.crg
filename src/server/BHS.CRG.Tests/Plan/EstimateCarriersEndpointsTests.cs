@@ -94,6 +94,9 @@ public class EstimateCarriersEndpointsTests(PlanOnlyHost host)
         Assert.NotEqual(Assert.Single(one.GetProperty("items").EnumerateArray()).GetProperty("id").GetGuid(),
             Assert.Single(after.GetProperty("items").EnumerateArray()).GetProperty("id").GetGuid());
         Assert.Equal(HttpStatusCode.BadRequest, (await reader.GetAsync("/api/plan/estimates?cursor=мусор")).StatusCode);
+        // У сметы стройки страниц нет: размер страницы с ней — отказ, а не молчаливое «всё».
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await reader.GetAsync($"/api/plan/estimates?constructionId={first.Construction}&limit=20")).StatusCode);
 
         // С правом на себестоимость — деньги на месте.
         var estimator = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.EstimateRead, PlanModule.EstimateCost);
@@ -206,7 +209,8 @@ public class EstimateCarriersEndpointsTests(PlanOnlyHost host)
 
     /// <summary>
     /// Выбранные строки (D9): без версии — 400, по устаревшей — 409 без единой правки; сверх 1000 строк — 400 с
-    /// числом; с одним правом чтения — 403.
+    /// числом, но предел — по различным строкам; строки разных единиц без названной — 400 с перечнем; с одним правом
+    /// чтения — 403.
     /// </summary>
     [Fact]
     public async Task Массовое_сопоставление_строк_версия_предел_и_права()
@@ -214,10 +218,14 @@ public class EstimateCarriersEndpointsTests(PlanOnlyHost host)
         var c = await EstimateSeed.ClassifierAsync(host);
         var (estimate, revision) = await ImportAsync();
         var editor = await EstimateImportFlow.EditorAsync(host);
-        var work = (await RateMatchFlow.RowsAsync(editor, revision))
+        var open = (await RateMatchFlow.RowsAsync(editor, revision))
             .Where(r => r.GetProperty("kind").GetString() == "work" && RateMatchFlow.Marks(r).Contains("unmatched"))
-            .Select(r => r.GetProperty("id").GetGuid()).ToList();
+            .ToList();
+        var byUnit = open.GroupBy(r => r.GetProperty("sourceUnit").GetString()).OrderByDescending(g => g.Count()).ToList();
+        Assert.True(byUnit.Count > 1 && byUnit[0].Count() > 2, "В ЭОМ ждали несопоставленные строки нескольких единиц.");
+        var work = byUnit[0].Select(r => r.GetProperty("id").GetGuid()).ToList();
         var chosen = work.Take(2).ToArray();
+        var mixed = new[] { work[0], byUnit[1].First().GetProperty("id").GetGuid() };
         object Body(IEnumerable<Guid> ids) => new { lineIds = ids, workTypeId = c.WorkType, unitId = c.Piece, factor = 1m, remember = false };
 
         var stale = await RateMatchFlow.VersionAsync(editor, estimate, revision);
@@ -238,7 +246,14 @@ public class EstimateCarriersEndpointsTests(PlanOnlyHost host)
         Assert.Equal(HttpStatusCode.Forbidden, (await reader.SendAsync(
             LinesMatch(revision, await RateMatchFlow.VersionAsync(editor, estimate, revision), Body(chosen)))).StatusCode);
 
-        var done = await editor.SendAsync(LinesMatch(revision, await RateMatchFlow.VersionAsync(editor, estimate, revision), Body(chosen)));
+        var units = await editor.SendAsync(LinesMatch(revision, await RateMatchFlow.VersionAsync(editor, estimate, revision), Body(mixed)));
+        Assert.Equal(HttpStatusCode.BadRequest, units.StatusCode);
+        Assert.Contains("sourceUnit", (await units.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+        Assert.All(mixed, id => Assert.Null(RateMatchFlow.Stored(host, id).WorkTypeId));
+
+        // Одна строка, названная тысячу раз, — одна строка: предел не задет.
+        var done = await editor.SendAsync(LinesMatch(revision, await RateMatchFlow.VersionAsync(editor, estimate, revision),
+            Body(Enumerable.Repeat(chosen[0], 1000).Append(chosen[1]))));
         Assert.True(done.StatusCode == HttpStatusCode.OK, await done.Content.ReadAsStringAsync());
         Assert.Equal(2, (await done.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("matched").GetInt32());
         Assert.All(chosen, id => Assert.Equal(c.WorkType, RateMatchFlow.Stored(host, id).WorkTypeId));
@@ -272,6 +287,8 @@ public class EstimateCarriersEndpointsTests(PlanOnlyHost host)
 
         var body = new { key, nomenclatureId = c.Nomenclature, remember = false };
         Assert.Equal(HttpStatusCode.BadRequest, (await editor.SendAsync(MaterialsMatch(revision, null, body))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await editor.SendAsync(MaterialsMatch(revision, stale,
+            new { key = "не-ключ", nomenclatureId = c.Nomenclature, remember = false }))).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await editor.SendAsync(MaterialsMatch(revision, stale, body))).StatusCode);
         Assert.All(await ResourcesAsync(revision, biggest), r => Assert.Null(r.NomenclatureId));
         var reader = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.EstimateRead);

@@ -22,16 +22,12 @@ internal static class EstimateViews
 
     public static string KindCode(EstimateKind kind) => kind == EstimateKind.Additional ? "additional" : "main";
 
-    /// <param name="mainFirst">Основные — первыми (смета одной стройки); иначе — по дате заведения, как страницы
-    /// общего списка (<see cref="PageAsync" />).</param>
     public static async Task<List<EstimateDto>> ListAsync(
-        PlanDbContext db, IQueryable<Estimate> estimates, bool cost, CancellationToken ct, bool mainFirst = true)
+        PlanDbContext db, IQueryable<Estimate> estimates, bool cost, CancellationToken ct)
     {
-        estimates = estimates.AsNoTracking();
-        var heads = await (mainFirst
-                // Основные — первыми: план стройки читают от основной сметы к дополнительным.
-                ? estimates.OrderBy(e => e.Kind == EstimateKind.Additional).ThenBy(e => e.CreatedAt).ThenBy(e => e.Id)
-                : estimates.OrderBy(e => e.CreatedAt).ThenBy(e => e.Id))
+        var heads = await estimates.AsNoTracking()
+            // Основные — первыми: план стройки читают от основной сметы к дополнительным.
+            .OrderBy(e => e.Kind == EstimateKind.Additional).ThenBy(e => e.CreatedAt).ThenBy(e => e.Id)
             .Select(e => new { Estimate = e, Version = EF.Property<uint>(e, PlanDbContext.RowVersion) })
             .ToListAsync(ct);
         var ids = heads.Select(h => h.Estimate.Id).ToList();
@@ -44,17 +40,8 @@ internal static class EstimateViews
         var revisionIds = revisions.Select(r => r.Revision.Id).ToList();
 
         // Итог редакции — только тому, кто его увидит: без права сумма по строкам не считается вовсе.
-        // «Не сопоставлена» — только строка-работа (D2 plan-31): то же правило, что EstimateRow.Unmatched.
         var rows = db.EstimateRows.AsNoTracking().Where(row => revisionIds.Contains(row.RevisionId));
-        var stats = await (cost
-                ? rows.GroupBy(row => row.RevisionId).Select(g => new RevisionStats(
-                    g.Key, g.Count(),
-                    g.Count(x => x.Kind == EstimateRowKind.Work && (x.WorkTypeId == null || x.PlanItemId == null)),
-                    g.Sum(x => x.Total ?? 0m)))
-                : rows.GroupBy(row => row.RevisionId).Select(g => new RevisionStats(
-                    g.Key, g.Count(),
-                    g.Count(x => x.Kind == EstimateRowKind.Work && (x.WorkTypeId == null || x.PlanItemId == null)), null)))
-            .ToDictionaryAsync(s => s.Key, ct);
+        var stats = await RevisionStatsAsync(rows, cost, ct);
         var materials = await (
                 from m in db.EstimateRowMaterials.AsNoTracking()
                 join row in rows on m.RowId equals row.Id
@@ -118,8 +105,10 @@ internal static class EstimateViews
         var more = keys.Count > take;
         if (more) keys.RemoveAt(keys.Count - 1);
         var ids = keys.Select(k => k.Id).ToList();
-        var page = await ListAsync(db, db.Estimates.Where(e => ids.Contains(e.Id)), cost, ct, mainFirst: false);
-        return (page, more
+        // Порядок страницы — порядок курсора, а не «основные первыми» сметы одной стройки.
+        var place = ids.Select((id, i) => (id, i)).ToDictionary(x => x.id, x => x.i);
+        var page = await ListAsync(db, db.Estimates.Where(e => ids.Contains(e.Id)), cost, ct);
+        return ([.. page.OrderBy(e => place[e.Id])], more
             ? $"{keys[^1].CreatedAt.UtcTicks.ToString(CultureInfo.InvariantCulture)}_{keys[^1].Id:N}"
             : null);
     }
@@ -151,6 +140,11 @@ internal static class EstimateViews
 
     private static string Text(uint version) => version.ToString(CultureInfo.InvariantCulture);
 
-    /// <param name="Total">Итог по строкам; <c>null</c> — не считался: у читающего нет права.</param>
-    private sealed record RevisionStats(Guid Key, int Rows, int Unmatched, decimal? Total);
+    /// <summary>
+    /// Счётчики и итог редакций по их строкам — тот же ответ, что у редакции в смете, и у предпросмотра смены
+    /// действующей (<see cref="CurrentRevisionPreview" />): «итог редакции» везде один.
+    /// </summary>
+    public static Task<Dictionary<Guid, EstimateRowCount<Guid>>> RevisionStatsAsync(
+        IQueryable<EstimateRow> rows, bool cost, CancellationToken ct) =>
+        EstimateRowCounts.By(rows, row => row.RevisionId, cost).ToDictionaryAsync(s => s.Key, ct);
 }

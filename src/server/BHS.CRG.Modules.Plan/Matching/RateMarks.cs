@@ -52,8 +52,8 @@ internal sealed class RateMarks
         var ids = normativeBases.Keys.ToList();
         if (ids.Count == 0) return [];
         var groups = await db.EstimateRows.AsNoTracking()
-            .Where(r => ids.Contains(r.RevisionId) && r.RateCode != null && r.Kind == EstimateRowKind.Work
-                        && (r.WorkTypeId == null || r.PlanItemId == null))
+            .Where(r => ids.Contains(r.RevisionId) && r.RateCode != null)
+            .Where(EstimateRowCounts.Unmatched)
             .GroupBy(r => new { r.RevisionId, r.RateCode, r.SourceUnit })
             .Select(g => new { g.Key.RevisionId, g.Key.RateCode, g.Key.SourceUnit, Rows = g.Count() })
             .ToListAsync(ct);

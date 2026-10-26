@@ -11,12 +11,19 @@ namespace BHS.CRG.Modules.Plan.Endpoints;
 /// <summary>
 /// Предпросмотр смены действующей редакции (change <c>plan-31-estimate-ui-carriers</c>, D7, ТЗ PLAN-5.2): что
 /// станет с планом, если сделать редакцию действующей, — без правки. Смена по-прежнему одна —
-/// <c>POST …/current-revision</c> с <c>If-Match</c> из этого ответа: смету тем временем изменили — 409 там.
+/// <c>POST …/current-revision</c> с <c>If-Match</c> из этого ответа.
+///
+/// <para><b>Что сторожит версия.</b> Версия здесь — версия СМЕТЫ: тем временем сменили действующую, переименовали
+/// или удалили смету — 409 при смене. Правку строк редакций (сопоставление) она НЕ ловит: та сдвигает версию
+/// редакции, а не сметы, и смена после неё пройдёт по этой версии. Это решение (D7 <c>plan-31</c>): решение
+/// «сделать редакцию 3 действующей» правкой её строк не отменяется — план станет тем, что в строках сейчас, а
+/// предпросмотр — подсказка к решению, а не его условие. Клиент, которому важны точные цифры, перечитывает
+/// предпросмотр перед сменой.</para>
 ///
 /// <para><b>Только изменившееся</b> (решение владельца, П1): объёмы по виду работы и единице «было → станет»
 /// там, где они разные, — строки сметы складываются тем же правилом, что план стройки (<see cref="PlanRows" />):
-/// сопоставленные строки-работы. Деньги «было → станет» — итог редакции, как в ответе сметы, и только с
-/// <c>plan.estimate.cost</c>.</para>
+/// сопоставленные строки-работы. Деньги «было → станет» и число несопоставленных — тем же счётом, что у редакции
+/// в ответе сметы (<see cref="EstimateViews.RevisionStatsAsync" />), деньги — только с <c>plan.estimate.cost</c>.</para>
 ///
 /// <para>⚠️ Суммы ДВУХ редакций ОДНОЙ сметы для показа, а не план стройки: тот складывает все сметы и читается
 /// только <see cref="PlanRows.Current" />.</para>
@@ -55,18 +62,12 @@ internal static class CurrentRevisionPreview
             .OrderBy(c => c.WorkTypeId).ThenBy(c => c.UnitId)
             .ToList();
 
-        var unmatched = await db.EstimateRows.AsNoTracking().CountAsync(r => r.RevisionId == target
-            && r.Kind == EstimateRowKind.Work && (r.WorkTypeId == null || r.PlanItemId == null), ct);
-
         var hidden = await EstimateViews.HiddenAsync(user, ct);
-        PreviewCostDto? cost = null;
-        if (hidden is null)
-        {
-            var totals = await db.EstimateRows.AsNoTracking().Where(r => ids.Contains(r.RevisionId))
-                .GroupBy(r => r.RevisionId).Select(g => new { g.Key, Total = g.Sum(r => r.Total ?? 0m) })
-                .ToDictionaryAsync(t => t.Key, t => t.Total, ct);
-            cost = new PreviewCostDto(current is { } c ? totals.GetValueOrDefault(c) : 0m, totals.GetValueOrDefault(target));
-        }
+        var stats = await EstimateViews.RevisionStatsAsync(
+            db.EstimateRows.AsNoTracking().Where(r => ids.Contains(r.RevisionId)), hidden is null, ct);
+        var unmatched = stats.GetValueOrDefault(target)?.Unmatched ?? 0;
+        decimal TotalOf(Guid? revision) => revision is { } r ? stats.GetValueOrDefault(r)?.Total ?? 0m : 0m;
+        var cost = hidden is null ? new PreviewCostDto(TotalOf(current), TotalOf(target)) : null;
 
         return Results.Ok(new CurrentRevisionPreviewDto(
             target, number, revisions.FirstOrDefault(r => r.Id == current)?.Number, changes, unmatched,

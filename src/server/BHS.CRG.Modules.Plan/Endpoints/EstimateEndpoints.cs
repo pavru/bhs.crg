@@ -45,7 +45,8 @@ public static class EstimateEndpoints
 
     /// <summary>
     /// Сметы стройки — все сразу; без стройки — сметы всех строек страницами (D6 <c>plan-31</c>, ТЗ PLAN-20): у
-    /// каждой стройка и раздел, а название стройки клиент берёт справочником строек.
+    /// каждой стройка и раздел, а название стройки клиент берёт справочником строек. Курсор и размер страницы у
+    /// списка стройки — 400, а не молчаливое «всё».
     /// </summary>
     private static async Task<IResult> ListAsync(
         Guid? constructionId, string? cursor, int? limit, PlanDbContext db, IModuleUser user, CancellationToken ct)
@@ -53,6 +54,11 @@ public static class EstimateEndpoints
         var hidden = await EstimateViews.HiddenAsync(user, ct);
         if (constructionId is { } site)
         {
+            // Молча отдать всё на «limit=20» — отказ, переодетый в результат: клиент счёл бы ответ одной страницей.
+            if (cursor is not null || limit is not null)
+                throw new InvalidRequestException(
+                    "Сметы стройки приходят целиком: курсор («cursor») и размер страницы («limit») — только у общего " +
+                    "списка, без «constructionId».");
             var items = await EstimateViews.ListAsync(db, db.Estimates.Where(e => e.ConstructionId == site), hidden is null, ct);
             return Results.Ok(new EstimateListDto(items, null, hidden));
         }

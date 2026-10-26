@@ -113,7 +113,7 @@ public sealed class EstimateRow
     /// Строка-работа не сопоставлена: нет вида работы или позиции перечня. Такая строка видна в смете, но в
     /// план, «Ход работ» и график не входит (ТЗ PLAN-4) — это правило одно и для чтения строк, и для
     /// <see cref="PlanRows" />. Строка-материал не сопоставленной не бывает: вида работы ей не нужно (D2
-    /// <c>plan-31</c>), а в план она не входит и так.
+    /// <c>plan-31</c>), а в план она не входит и так. То же правило запросом — <see cref="EstimateRowCounts" />.
     /// </summary>
     public bool Unmatched => Kind == EstimateRowKind.Work && (WorkTypeId is null || PlanItemId is null);
 

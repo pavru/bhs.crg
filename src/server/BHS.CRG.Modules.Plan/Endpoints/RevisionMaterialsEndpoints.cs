@@ -1,5 +1,5 @@
-using System.Security.Cryptography;
-using System.Text;
+using System.Buffers.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Modules.Plan.Data;
@@ -39,7 +39,7 @@ public static class RevisionMaterialsEndpoints
         if (!await db.EstimateRevisions.AnyAsync(r => r.Id == id, ct))
             throw new NotFoundException("Редакция не найдена — возможно, её удалили.");
         var hidden = await EstimateViews.HiddenAsync(user, ct);
-        var groups = await GroupsAsync(db, id, tracked: false, ct);
+        var groups = await GroupsAsync(db.EstimateRowMaterials.AsNoTracking(), db.EstimateRows.AsNoTracking(), id, ct);
         return Results.Ok(new RevisionMaterialsDto([.. groups.Select(g => View(g, hidden is null))], hidden));
     }
 
@@ -51,11 +51,17 @@ public static class RevisionMaterialsEndpoints
             throw new InvalidRequestException("Группа не названа («key») — поле «key» из чтения материалов редакции.");
         if (body.NomenclatureId is not { } nomenclature)
             throw new InvalidRequestException("Позиция номенклатуры не названа («nomenclatureId»).");
+        var (code, name, unit) = Parse(body.Key);
         var revision = await db.EstimateRevisions.FirstOrDefaultAsync(r => r.Id == id, ct)
             ?? throw new NotFoundException("Редакция не найдена — возможно, её удалили.");
         EstimateEndpoints.EnsureSeen(request, db.VersionOf(revision), "Редакцию", "редакцию");
 
-        var group = (await GroupsAsync(db, id, tracked: true, ct)).FirstOrDefault(g => g.Key == body.Key)
+        // Только ресурсы группы, отбором в базе, — не все материалы редакции. Отслеживаются оба источника: иначе
+        // сопоставление группы молча не записалось бы.
+        var group = (await GroupsAsync(
+                    db.EstimateRowMaterials.Where(m => m.SourceCode == code && m.SourceName == name && m.SourceUnit == unit),
+                    db.EstimateRows, id, ct))
+                .SingleOrDefault()
             ?? throw new NotFoundException("Такого материала в редакции нет — перечитайте материалы редакции.");
         var (matched, memory) = await matching.MatchGroupAsync(revision, group.Materials, nomenclature, body.Remember ?? true, ct);
         return Results.Ok(new MaterialGroupMatchDto(group.Materials.Count, matched, db.VersionOf(revision), memory));
@@ -64,31 +70,43 @@ public static class RevisionMaterialsEndpoints
     /// <summary>Материал файла и его ресурсы в строках редакции — в порядке первого появления.</summary>
     private sealed record Group(string Key, int Rows, IReadOnlyList<EstimateRowMaterial> Materials);
 
-    private static async Task<List<Group>> GroupsAsync(PlanDbContext db, Guid revisionId, bool tracked, CancellationToken ct)
+    /// <param name="materials">Материалы — все или уже отобранные; отслеживание задаёт вызывающий у обоих источников.</param>
+    private static async Task<List<Group>> GroupsAsync(
+        IQueryable<EstimateRowMaterial> materials, IQueryable<EstimateRow> rows, Guid revisionId, CancellationToken ct)
     {
-        // Отслеживание — на весь запрос: AsNoTracking у любого источника сделал бы неотслеживаемыми и ресурсы, и
-        // сопоставление группы молча не записалось бы.
-        var query = from m in db.EstimateRowMaterials
-                    join r in db.EstimateRows on m.RowId equals r.Id
-                    where r.RevisionId == revisionId
-                    orderby r.Order, m.Order
-                    select new { Material = m, r.Id };
-        var all = await (tracked ? query.AsTracking() : query.AsNoTracking()).ToListAsync(ct);
+        var all = await (from m in materials
+                         join r in rows on m.RowId equals r.Id
+                         where r.RevisionId == revisionId
+                         orderby r.Order, m.Order
+                         select new { Material = m, r.Id })
+            .ToListAsync(ct);
         return
         [
-            .. all.GroupBy(x => KeyOf(x.Material))
-                .Select(g => new Group(g.Key, g.Select(x => x.Id).Distinct().Count(), [.. g.Select(x => x.Material)])),
+            .. all.GroupBy(x => (x.Material.SourceCode, x.Material.SourceName, x.Material.SourceUnit))
+                .Select(g => new Group(KeyOf(g.Key), g.Select(x => x.Id).Distinct().Count(), [.. g.Select(x => x.Material)])),
         ];
     }
 
     /// <summary>
-    /// Ключ группы — отпечаток «шифр + наименование + единица» как в файле: без приведения регистра и пробелов,
-    /// иначе один ключ склеил бы материалы, которые файл различает. Запомненное приводит текст само
-    /// (<see cref="ResourceMatchKey" />) — это разные вопросы.
+    /// Ключ группы — сами «шифр, наименование, единица» как в файле (JSON-массив в base64url): без приведения
+    /// регистра и пробелов и с различием «нет шифра» и «пустой шифр», иначе один ключ склеил бы материалы, которые
+    /// файл различает. Не отпечаток: по ключу сопоставление отбирает ресурсы группы в базе, а не перебирает все
+    /// материалы редакции. Запомненное приводит текст само (<see cref="ResourceMatchKey" />) — это разные вопросы.
     /// </summary>
-    private static string KeyOf(EstimateRowMaterial m) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{m.SourceCode}\u001f{m.SourceName}\u001f{m.SourceUnit}")))[..32]
-            .ToLowerInvariant();
+    private static string KeyOf((string? Code, string Name, string? Unit) source) =>
+        Base64Url.EncodeToString(JsonSerializer.SerializeToUtf8Bytes(new[] { source.Code, source.Name, source.Unit }));
+
+    private static (string? Code, string Name, string? Unit) Parse(string key)
+    {
+        try
+        {
+            if (JsonSerializer.Deserialize<string?[]>(Base64Url.DecodeFromChars(key)) is [var code, { } name, var unit])
+                return (code, name, unit);
+        }
+        catch (Exception e) when (e is FormatException or JsonException) { }
+
+        throw new InvalidRequestException("Ключ группы записан не так: ожидается поле «key» из чтения материалов редакции.");
+    }
 
     private static MaterialGroupDto View(Group g, bool cost)
     {
