@@ -184,6 +184,9 @@ export async function sendScan(qc: QueryClient, file: File): Promise<InvoiceFrom
   const created = (await apiClient.post<InvoiceFromScan>('/costs/invoices/from-scan', form)).data;
   qc.setQueryData([QK, created.invoice.id], created.invoice);
   qc.setQueryData(recognitionKey(created.invoice.id), created.recognition);
+  // Новый черновик — двойник каждого из своих: в их виде, уже лежащем в кэше, его нет (issue #1344).
+  // Раньше это прятало распознавание — форма перечитывала счёт по его исходу; отказ о файле готов сразу.
+  for (const twin of created.invoice.sameFile) void qc.invalidateQueries({ queryKey: [QK, twin.id], exact: true });
   return created;
 }
 

@@ -238,7 +238,7 @@ public sealed class InvoiceScanRecognition(
 
         try
         {
-            if (await image.AsIsAsync(invoice, ct) is (var content, var mime))
+            if (await AsIsAsync(invoice, ct) is (var content, var mime))
                 await recognition.EnsureReadableAsync(content, mime, ct);
             await recognition.EnsureReadyAsync(CostsRecognitionProfiles.InvoiceCode, ct);
         }
@@ -289,12 +289,37 @@ public sealed class InvoiceScanRecognition(
         }
         catch (Exception lost) when (lost is DbUpdateException or ConflictException { InnerException: DbUpdateConcurrencyException })
         {
-            if (!await db.Invoices.AsNoTracking().AnyAsync(i => i.Id == invoice.Id, ct))
-                throw new NotFoundException("Счёт не найден: его удалили, пока запускалось распознавание.");
+            if (await GoneAsync(invoice, ct)) throw Vanished();
             if (first && lost is DbUpdateException) throw AlreadyRunning(invoice, lost);
             throw;
         }
     }
+
+    /// <summary>
+    /// Файл, который уйдёт движку как есть, — для проверки до постановки.
+    ///
+    /// <para>⚠️ Файла в хранилище нет — чаще всего потому, что нет счёта: его удалили вместе с файлом,
+    /// пока шёл запуск (issue #1282). Ответ тогда — о счёте, а не «файл не найден». Счёт есть, а файла
+    /// нет — проверять нечего: исход назовёт задача, как и до проверки файла.</para>
+    /// </summary>
+    private async Task<(byte[] Content, string Mime)?> AsIsAsync(Invoice invoice, CancellationToken ct)
+    {
+        try
+        {
+            return await image.AsIsAsync(invoice, ct);
+        }
+        catch (NotFoundException)
+        {
+            if (await GoneAsync(invoice, ct)) throw Vanished();
+            return null;
+        }
+    }
+
+    private async Task<bool> GoneAsync(Invoice invoice, CancellationToken ct) =>
+        !await db.Invoices.AsNoTracking().AnyAsync(i => i.Id == invoice.Id, ct);
+
+    private static NotFoundException Vanished() =>
+        new("Счёт не найден: его удалили, пока запускалось распознавание.");
 
     private static ConflictException AlreadyRunning(Invoice invoice, Exception? inner = null) =>
         new($"{InvoiceEndpoints.Label(invoice)}: файл уже распознаётся. Дождитесь исхода — второй запуск " +
