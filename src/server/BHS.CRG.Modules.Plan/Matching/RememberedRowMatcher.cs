@@ -29,7 +29,11 @@ public sealed class RememberedRowMatcher(PlanDbContext db, IModuleCatalog catalo
     public async Task<IReadOnlyList<EstimateRowDraft>> ApplyAsync(
         EstimateRowMatchTarget target, IReadOnlyList<EstimateRowDraft> rows, CancellationToken ct)
     {
-        var keys = rows.Select(r => r.WorkTypeId is null ? RateMatchKey.Of(r.RateCode, target.NormativeBase) : null).ToList();
+        // Строка-материал вида работы не получает и из запомненного (D2 plan-31): шифр сборника цен, запомненный
+        // раньше, вписал бы материал в план.
+        var keys = rows.Select(r => r is { WorkTypeId: null, Kind: EstimateRowKind.Work }
+            ? RateMatchKey.Of(r.RateCode, target.NormativeBase)
+            : null).ToList();
         var rates = await RateMatching.FindAsync(db, keys.OfType<RateMatchKey>(), ct);
         var resources = await ResourceMatching.FindAsync(db, rows
             .SelectMany(r => r.Materials ?? [])

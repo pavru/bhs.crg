@@ -195,6 +195,10 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("schema_version");
 
+                    b.Property<string>("Skipped")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("skipped");
+
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -331,6 +335,12 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasColumnType("numeric(18,6)")
                         .HasColumnName("factor");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("kind");
+
                     b.Property<string>("LsrSectionCode")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
@@ -345,6 +355,11 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("name");
+
+                    b.Property<string>("Number")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("number");
 
                     b.Property<string>("NumberInSection")
                         .HasMaxLength(50)
@@ -387,6 +402,10 @@ namespace BHS.CRG.Modules.Plan.Migrations
                         .HasPrecision(18, 6)
                         .HasColumnType("numeric(18,6)")
                         .HasColumnName("source_volume");
+
+                    b.Property<bool>("Subordinate")
+                        .HasColumnType("boolean")
+                        .HasColumnName("subordinate");
 
                     b.Property<decimal?>("Total")
                         .HasPrecision(18, 2)

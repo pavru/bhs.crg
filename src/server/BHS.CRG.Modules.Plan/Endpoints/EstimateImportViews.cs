@@ -70,6 +70,7 @@ internal static class EstimateImportViews
             import is { RefusalCode: { } code, RefusalText: { } text } ? new EstimateImportRefusalDto(code, text) : null,
             positions?.Count ?? import.ParsedPositions, model?.PositionsInFile ?? import.PositionsInFile,
             [.. unparsed.Select(u => new UnparsedPositionDto(u.Place, u.Line, u.Reason))],
+            [.. EstimateImportJson.Skipped(import, model).Select(p => new SkippedPositionDto(p.Place, p.Reason, p.Text))],
             model is null || positions is null ? null : Summary(model, positions, cost),
             marks, import.RevisionId, import.CreatedAt, import.CreatedByName,
             found.Version.ToString(CultureInfo.InvariantCulture), hidden);
@@ -115,11 +116,12 @@ internal static class EstimateImportViews
         new(estimateId, estimateName,
             newName is null ? null : new NewEstimateDto(newName, sectionId, EstimateViews.KindCode(kind ?? EstimateKind.Main)));
 
+    /// <summary>Сводка будущей редакции: неактивные позиции строками не станут (D3 <c>plan-31</c>) — и не считаются.</summary>
     private static ImportSummaryDto Summary(ParsedLocalEstimate model, IReadOnlyList<LocalEstimatePosition> positions, bool cost) =>
         new(model.Requisites.Number, model.Requisites.Name, model.Method.ToString().ToLowerInvariant(),
-            [.. model.Chapters.Select(c => new ImportChapterDto(c.Index, c.Caption, c.Positions.Count,
+            [.. model.Chapters.Select(c => new ImportChapterDto(c.Index, c.Caption, c.Positions.Count(p => !p.IsInactive),
                 cost ? new ImportCostDto(c.Total) : null))],
-            positions.Count, positions.Count(p => p.IsInactive),
+            positions.Count(p => !p.IsInactive), positions.Count(p => p.IsInactive),
             cost ? new ImportCostDto(model.Totals.Total, model.Totals.EstimateTotal) : null);
 
     /// <summary>

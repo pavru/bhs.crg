@@ -17,11 +17,12 @@ public sealed record MatchUnits(string? SourceUnit, string? Unit, decimal? Facto
 
 /// <summary>Строка раздела, которую массовое сопоставление не тронуло, — и почему.</summary>
 /// <param name="Reason"><c>alreadyMatched</c> — уже сопоставлена; <c>differentUnit</c> — единица расценки не та,
-/// к которой назван коэффициент.</param>
+/// к которой назван коэффициент; <c>material</c> — строка-материал, вида работы ей не нужно (D2 <c>plan-31</c>).</param>
 public sealed record SkippedRow(Guid RowId, int Order, string Reason, string Text)
 {
     public const string AlreadyMatched = "alreadyMatched";
     public const string DifferentUnit = "differentUnit";
+    public const string Material = "material";
 }
 
 public sealed record RowMatchOutcome(MatchUnits Units, MatchMemory Memory);
@@ -49,6 +50,11 @@ public sealed class RowMatching(
     PlanDbContext db, IModuleWorkTypes workTypes, IModuleUnits units, IModulePlanItems planItems, IModuleUser user,
     IModuleActivityLog log, ILogger<RowMatching> logger)
 {
+    /// <summary>Отказ виду работы для строки-материала (D2 <c>plan-31</c>) — и путь, которым её сопоставляют.</summary>
+    public const string NotWork =
+        "Это материал, а не работа: вида работы строке не нужно, в план она не входит. Сопоставьте её материал с " +
+        "номенклатурой.";
+
     /// <summary>Сопоставить строку; <paramref name="choice" /> = <c>null</c> — снять сопоставление.</summary>
     public async Task<RowMatchOutcome> MatchRowAsync(
         EstimateRevision revision, EstimateRow row, RateChoice? choice, bool remember, CancellationToken ct)
@@ -66,6 +72,7 @@ public sealed class RowMatching(
             return new(Units(row, null), MatchMemory.Nothing);
         }
 
+        if (row.IsMaterial) throw new InvalidRequestException(NotWork);
         var (workType, unit) = await ResolveAsync(choice, ct);
         var estimate = await db.Estimates.FirstAsync(e => e.Id == revision.EstimateId, ct);
         var factor = RateMatching.FactorOf(choice.Factor, row.SourceUnit, unit);
@@ -110,7 +117,9 @@ public sealed class RowMatching(
         var open = rows.Where(r => r.Unmatched && RateMatching.SameUnit(r.SourceUnit, source)).ToList();
         decimal? factor = open.Count > 0 ? RateMatching.FactorOf(choice.Factor, source, unit) : choice.Factor;
 
-        var skipped = rows.Except(open).Select(r => r.Unmatched
+        var skipped = rows.Except(open).Select(r => r.IsMaterial
+                ? new SkippedRow(r.Id, r.Order, SkippedRow.Material, NotWork)
+                : r.Unmatched
                 ? new SkippedRow(r.Id, r.Order, SkippedRow.DifferentUnit,
                     $"Единица расценки «{r.SourceUnit}», а коэффициент назван для «{source}» — сопоставьте строку отдельно.")
                 : new SkippedRow(r.Id, r.Order, SkippedRow.AlreadyMatched, "Строка уже сопоставлена."))

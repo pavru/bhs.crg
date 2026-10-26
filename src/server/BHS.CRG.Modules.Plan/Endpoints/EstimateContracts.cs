@@ -27,11 +27,21 @@ public sealed record EstimateFrozenDto(DateTimeOffset At, string Code, string La
 /// <summary>Деньги редакции — только с <c>plan.estimate.cost</c>: итог по её строкам.</summary>
 public sealed record RevisionCostDto(decimal Total);
 
+/// <summary>Редакция создана из неполного разбора: «частично N из M» (ТЗ PLAN-7, D4 <c>plan-31</c>).</summary>
+public sealed record RevisionPartialDto(int Parsed, int InFile);
+
 /// <param name="Rows">Строк в редакции.</param>
-/// <param name="Unmatched">Из них не сопоставлено — в план они не входят (ТЗ PLAN-4).</param>
+/// <param name="Unmatched">Из них строк-работ не сопоставлено — в план они не входят (ТЗ PLAN-4).
+/// Строки-материалы сюда не входят никогда (D2 <c>plan-31</c>).</param>
+/// <param name="MaterialsUnmatched">Материалов без позиции номенклатуры — и у строк-материалов (D4 <c>plan-31</c>).</param>
+/// <param name="UnitChanged">Строк с пометкой <c>unit-changed</c>: шифр знаком, единица расценки другая.</param>
+/// <param name="ImportId">Импорт, из которого редакция создана; <c>null</c> — создана не импортом. Сам отчёт
+/// импорта — под <c>plan.estimate.edit</c>.</param>
+/// <param name="Partial">Создана из неполного разбора; <c>null</c> — из полного или не импортом.</param>
 public sealed record EstimateRevisionDto(
     Guid Id, int Number, bool Current, DateTimeOffset ImportedAt, string? ImportedBy, string? SourceFileName,
-    string? SchemaVersion, int Rows, int Unmatched, EstimateFrozenDto? Frozen, string Version,
+    string? SchemaVersion, int Rows, int Unmatched, int MaterialsUnmatched, int UnitChanged, Guid? ImportId,
+    RevisionPartialDto? Partial, EstimateFrozenDto? Frozen, string Version,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] RevisionCostDto? Cost);
 
 /// <param name="Kind"><c>main</c> — основная, <c>additional</c> — дополнительная.</param>
@@ -60,8 +70,14 @@ public sealed record EstimateMaterialDto(
 
 public sealed record EstimateLaborDto(decimal ManHours);
 
+/// <param name="Number">Номер позиции в файле как есть («13», «13.1») — только показ; <c>null</c> у редакций до
+/// <c>plan-31</c>, и тогда экран показывает номер в разделе.</param>
+/// <param name="Subordinate">Подчинённая позиция файла.</param>
+/// <param name="Kind"><c>work</c> — работа; <c>material</c> — материал без работы: вида работы не требует, в
+/// «не сопоставлено» и в план не входит, сопоставляется его материал (D2 <c>plan-31</c>).</param>
 public sealed record EstimateRowDto(
-    Guid Id, int Order, LsrSectionDto? LsrSection, string? NumberInSection, string? RateCode, string Name,
+    Guid Id, int Order, LsrSectionDto? LsrSection, string? NumberInSection, string? Number, bool Subordinate,
+    string Kind, string? RateCode, string Name,
     decimal? SourceVolume, string? SourceUnit, Guid? WorkTypeId, Guid? UnitId, decimal? Factor, decimal? Volume,
     Guid? PlanItemId, IReadOnlyList<PlanMark> Marks, IReadOnlyList<EstimateMaterialDto> Materials,
     IReadOnlyList<EstimateLaborDto> Labor,
