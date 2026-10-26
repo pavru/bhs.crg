@@ -1,0 +1,5 @@
+// Не нарушение: *Views.cs — сборщик представлений, а не итоги; назван в словаре — читает историю как историю.
+public static class SampleEstimateViews
+{
+    public static Task<List<SampleVersion>> History(SampleDbContext db) => db.SampleVersions.ToListAsync();
+}

@@ -1,5 +1,6 @@
-// Обращение к набору из файла вне словаря.
+// Обращение к набору из файла вне словаря. «//» в строке перед обращением — не комментарий: сторож,
+// читающий его комментарием, потерял бы обращение.
 public static class SampleReport
 {
-    public static Task<List<SampleVersion>> Read(SampleDbContext db) => db.Set<SampleVersion>().ToListAsync();
+    public static Task<List<SampleVersion>> Read(SampleDbContext db, string link = "https://example.org/") => db.Set<SampleVersion>().ToListAsync();
 }
