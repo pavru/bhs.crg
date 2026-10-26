@@ -59,10 +59,16 @@ export interface PickerCurrent {
  * своими словами: «подбираем», «не нашлось», «не сработал» — разные вещи, и пустой блок на месте любого
  * из них читался бы как «подходящих нет», а за ним — вторая такая же позиция в справочнике.
  */
+/**
+ * Что блок читает у ответа подбора. Уже, чем весь результат запроса, чтобы вызывающий мог подменить данные, не
+ * копируя результат целиком: копия читает все его поля и выключает отслеживание прочитанного у React Query.
+ */
+export type CandidatesAnswer = Pick<UseQueryResult<NomenclatureCandidates>, 'data' | 'isPending' | 'isError' | 'isSuccess' | 'error' | 'refetch'>;
+
 export function CandidatesBlock({ asked, answer, rows, more, current, headingId, children }: {
   /** Спросить было о чём: у строки есть наименование или артикул. */
   asked: boolean;
-  answer: UseQueryResult<NomenclatureCandidates>;
+  answer: CandidatesAnswer;
   /** Строки кандидатов уже стоят в списке окна — сюда приходит только их число. */
   rows: number;
   more: boolean;

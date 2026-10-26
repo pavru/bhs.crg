@@ -1,5 +1,3 @@
-using System.Globalization;
-
 namespace BHS.CRG.Api.Configuration;
 
 /// <summary>
@@ -60,27 +58,8 @@ public sealed class BrandingRateLimit
     /// отказ на старте, как у прочих проверок конфигурации: описка не должна молча вернуть предел,
     /// который на этой установке специально подняли.
     /// </summary>
-    public static BrandingRateLimit Parse(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return new BrandingRateLimit(Default);
-
-        var text = value.Trim();
-        if (!text.All(char.IsAsciiDigit))
-            throw Fail($"Предел запросов оформления ({Key}) не число: «{text}».");
-
-        // Цифры, не влезшие в int, — тоже выход за диапазон (лишние нули), и отказ обязан назвать
-        // именно его, а не «не число»: человек видит цифры и ищет в строке невидимые знаки.
-        if (!int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var limit)
-            || limit < Min || limit > Max)
-            throw Fail(
-                $"Предел запросов оформления ({Key}) вне допустимого диапазона: {text}. " +
-                $"Допустимо от {Min} до {Max}.");
-
-        return new BrandingRateLimit(limit);
-    }
-
-    private static InvalidOperationException Fail(string what) => new(
-        $"{what} Приложение не запущено намеренно.\n" +
+    public static BrandingRateLimit Parse(string? value) => new(RateLimitSetting.Parse(
+        value, Key, "Предел запросов оформления", Default, Min, Max,
         $"Задайте целое число запросов за пять минут с одного адреса в переменной окружения {EnvName} — " +
-        $"в развёртывании compose это {ComposeName} в deploy/.env. Пусто — предел поставки, {Default}.");
+        $"в развёртывании compose это {ComposeName} в deploy/.env. Пусто — предел поставки, {Default}."));
 }

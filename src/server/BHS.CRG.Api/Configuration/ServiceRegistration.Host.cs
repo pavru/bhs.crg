@@ -185,6 +185,7 @@ internal static class HostRegistration
     var trustedProxyNetworks = ParseTrustedNetworks(cfg["ForwardedHeaders:TrustedNetworks"]);
     // По той же причине здесь, а не в AddRateLimiter: опции ограничителя строятся лениво.
     var branding = BrandingRateLimit.FromConfiguration(cfg);
+    var login = LoginRateLimit.FromConfiguration(cfg);
 
     builder.Services.Configure<ForwardedHeadersOptions>(o =>
     {
@@ -244,7 +245,8 @@ internal static class HostRegistration
         o.AddPolicy("auth", PerClient(10, TimeSpan.FromMinutes(15)));
         // Вход и регистрация первого администратора. Подбор пароля отдельно ограничен блокировкой
         // учётной записи (5 неудач), лимит здесь — против перебора адресов и распыления пароля.
-        o.AddPolicy("login", PerClient(30, TimeSpan.FromMinutes(5)));
+        // Число — из конфигурации (RateLimits:Login, по умолчанию 30): поднимает его стенд живых прогонов CI.
+        o.AddPolicy("login", PerClient(login.PermitLimit, LoginRateLimit.Window));
         // Обновление пары токенов: у каждого пользователя раз в час, подбирать 256-битный refresh-токен
         // смысла нет — предел только против шторма из зациклившегося клиента.
         o.AddPolicy("refresh", PerClient(120, TimeSpan.FromMinutes(5)));

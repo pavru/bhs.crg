@@ -376,6 +376,9 @@ public partial class ArchiveReadInventoryTests
         ["BHS.CRG.Modules.Plan/Endpoints/ResourceMatchEndpoints.cs|var position = (await catalog.RefsAsync(FunctionalTag.RoleNomenclature, [match.NomenclatureId], ct) ?? [])"] =
             Choice("похожие для материала (plan-08): запомненное архивное названо отдельно, не на выбор — выбор даёт подбор ядра",
                 nameof(BHS.CRG.Tests.Plan.ResourceMatchingTests.Знакомый_ресурс_подставлен_с_пометкой_архивная_позиция_нет)),
+        ["BHS.CRG.Modules.Plan/Endpoints/NomenclatureSearchEndpoints.cs|var found = await catalog.SearchAsync(FunctionalTag.RoleNomenclature, query, Limit + 1, ct)"] =
+            Choice("поиск позиции в окне материала сметы (plan-09): тот же поиск ядра, что у счетов, архивных нет, их число названо",
+                nameof(BHS.CRG.Tests.Plan.ResourceMatchEndpointsTests.Поиск_номенклатуры_находит_живую_архивную_не_предлагает_и_закрыт_правом_правки)),
         ["BHS.CRG.Modules.Plan/Endpoints/ResourceMatchListEndpoints.cs|: (await catalog.RefsAsync(FunctionalTag.RoleNomenclature, [.. matches.Select(m => m.NomenclatureId).Distinct()], ct)"] =
             Shown("список запомненных ресурсов (plan-08): названия уже стоящих позиций, архивная помечена «archived»"),
         ["BHS.CRG.Modules.Costs/Endpoints/NewReferences.cs|if (await catalog.RefsAsync(typeCode, fresh, ct) is not { } found) return null;"] =
