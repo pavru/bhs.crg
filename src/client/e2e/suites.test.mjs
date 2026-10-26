@@ -100,8 +100,14 @@ describe('состав живых прогонов в CI', () => {
     expect(shipped, 'предел поставки в LoginRateLimit.cs не найден — читать не из чего').not.toBeNull();
     const ci = readFileSync(path.join(here, '..', '..', '..', '.github', 'workflows', 'ci.yml'), 'utf8');
     const raised = [...ci.matchAll(/RateLimits__Login: (\d+)/g)].map(m => Number(m[1]));
-    // Сервер прогонов запускается дважды (до посева и после) — предел обязан быть одним у обоих запусков: наборы
-    // идут на втором, и забытый там вернул бы поставку молча.
+    // Сервер прогонов запускается дважды (до посева и после) — предел обязан стоять у КАЖДОГО запуска и быть одним:
+    // наборы идут на втором, и забытый там вернул бы поставку молча. Запуски узнаются по списку модулей: он есть
+    // у каждого и больше нигде в ci.yml.
+    const starts = [...ci.matchAll(/Modules__Enabled: /g)].length;
+    expect(starts, 'запусков сервера прогонов (Modules__Enabled) в ci.yml не найдено — считать не из чего')
+      .toBeGreaterThan(0);
+    expect([0, starts], `RateLimits__Login задан у ${raised.length} из ${starts} запусков сервера прогонов`)
+      .toContain(raised.length);
     expect(new Set(raised).size, `RateLimits__Login в ci.yml разный у запусков сервера: ${raised.join(', ')}`)
       .toBeLessThanOrEqual(1);
     const limit = raised[0] ?? Number(shipped[1]);

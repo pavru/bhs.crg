@@ -111,6 +111,17 @@ describe('сопоставление раздела ЛСР', () => {
     expect(screen.getByRole('combobox', { name: 'Вид работы' }).textContent).toContain('Монтаж электроустановочных изделий');
     expect(screen.getByRole('button', { name: 'Сопоставить 2 строки' }).hasAttribute('disabled')).toBe(false);
   });
+
+  it('другая единица раздела — набранный коэффициент сброшен: он был для прежней', async () => {
+    mount({ kind: 'section', code: '9' });
+    await pickWorkType('02 Монтаж электроустановочных изделий');
+    const factor = screen.getByRole('textbox', { name: 'Коэффициент пересчёта' }) as HTMLInputElement;
+    fireEvent.change(factor, { target: { value: '100' } });
+    expect(factor.value).toBe('100');
+
+    fireEvent.click(screen.getByRole('button', { name: /^100 м/ }));
+    expect((screen.getByRole('textbox', { name: 'Коэффициент пересчёта' }) as HTMLInputElement).value).toBe('');
+  });
 });
 
 describe('новый вид работы — только с правом на классификатор', () => {

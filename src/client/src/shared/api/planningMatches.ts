@@ -3,7 +3,8 @@ import { apiClient } from './client';
 import type { NomenclatureCandidates } from './nomenclatureCandidates';
 import type { NomenclatureSearchResult } from './invoices';
 import type { EstimateRow, HiddenPart, PlanMark } from './planningEstimates';
-import type { CommonDataEntry, DocumentType } from './types';
+import type { CommonDataEntry } from './types';
+import { useListDocumentTypes } from './documentTypes';
 
 /**
  * Сопоставление строк смет с видами работ и материалов с номенклатурой (change `plan-09-estimate-ui`, ТЗ PLAN-6.1,
@@ -121,21 +122,23 @@ export const UNIT_TYPE_CODE = 'ЕдиницаИзмерения';
 
 /**
  * Единицы измерения на выбор — для нового вида работы. Справочник находится по коду типа: идентификатор у
- * каждой установки свой. Справочника нет — пустой список, и шаг говорит, что выбрать не из чего.
+ * каждой установки свой. Типы — общим запросом приложения (`useListDocumentTypes`), а не своим: тот же список
+ * уже прочитан и сбрасывается правкой типов. Справочника нет — пустой список, и шаг говорит, что выбрать не из чего.
  */
 export function useUnitChoices(enabled: boolean) {
-  return useQuery({
-    queryKey: ['planning', 'unit-choices'],
-    queryFn: async () => {
-      const types = (await apiClient.get<DocumentType[]>('/document-types')).data;
-      const unit = types.find(t => t.code === UNIT_TYPE_CODE);
-      if (!unit) return [];
-      const entries = (await apiClient.get<CommonDataEntry[]>('/common-data', { params: { purpose: 'choice', typeId: unit.id } })).data;
-      return entries.map(e => ({ id: e.id, name: e.displayName })).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
-    },
-    enabled,
+  const types = useListDocumentTypes();
+  const unitTypeId = types.data ? types.data.find(t => t.code === UNIT_TYPE_CODE)?.id ?? null : undefined;
+  const entries = useQuery({
+    queryKey: ['planning', 'unit-choices', unitTypeId],
+    queryFn: () => apiClient.get<CommonDataEntry[]>('/common-data', { params: { purpose: 'choice', typeId: unitTypeId } })
+      .then(r => r.data.map(e => ({ id: e.id, name: e.displayName })).sort((a, b) => a.name.localeCompare(b.name, 'ru'))),
+    enabled: enabled && !!unitTypeId,
     staleTime: 60_000,
   });
+  if (types.isError) return { data: undefined, isError: true as const, error: types.error };
+  // Типы прочитаны, справочника единиц среди них нет — выбирать не из чего.
+  if (unitTypeId === null) return { data: [] as { id: string; name: string }[], isError: false as const, error: null };
+  return { data: entries.data, isError: entries.isError, error: entries.error };
 }
 
 /** Новый вид работы из окна сопоставления (CORE-8, WORK-59): своя дверь классификатора, право `core.worktypes.edit`. */
@@ -259,7 +262,7 @@ export function useResourceCandidates(revisionId: string, resourceId: string | n
 export function usePlanNomenclature(query: string) {
   return useQuery({
     queryKey: ['planning', 'nomenclature', query] as const,
-    queryFn: () => apiClient.get<NomenclatureSearchResult>('/plan/nomenclature', { params: query ? { query } : {} })
+    queryFn: () => apiClient.get<NomenclatureSearchResult>('/plan/nomenclature', { params: { query } })
       .then(r => r.data),
     enabled: query !== '',
     // Прошлый ответ стоит, пока едет новый: иначе список мигал бы пустотой на каждую букву.

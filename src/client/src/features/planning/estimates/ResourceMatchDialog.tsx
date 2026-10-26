@@ -13,7 +13,7 @@ import { apiError } from '@/shared/utils/apiError';
 import { formatCount, formatQuantity } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
 import { NewNomenclatureStep } from '@/features/costs/NewNomenclatureStep';
-import { CandidatesBlock, PickerOption } from '@/features/costs/PickerRows';
+import { CandidatesBlock, PickerOption, type CandidatesAnswer } from '@/features/costs/PickerRows';
 import { candidateRows, foundRows, type PickerRow } from '@/features/costs/pickerCandidates';
 import { usePickerSelection } from '@/features/costs/pickerSelection';
 import { memoryText } from './matchRows';
@@ -108,7 +108,12 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
   const selection = usePickerSelection(list.map(r => r.id), best);
   const unusable = candidates.data?.recalledUnusable ?? null;
   // Запомненное, которое подставить нельзя, названо здесь своими словами: блок кандидатов говорит о строке поставщика.
-  const answer = { ...candidates, data: candidates.data && { ...candidates.data, recalledUnusable: null } } as typeof candidates;
+  // Поля — поимённо, а не копией результата: копия прочла бы все и перерисовывала бы окно на каждый перезапрос.
+  const answer: CandidatesAnswer = {
+    data: candidates.data && { ...candidates.data, recalledUnusable: null },
+    isPending: candidates.isPending, isError: candidates.isError, isSuccess: candidates.isSuccess,
+    error: candidates.error, refetch: candidates.refetch,
+  };
 
   function type(next: string) {
     setTyped(next);

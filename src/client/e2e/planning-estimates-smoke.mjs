@@ -20,7 +20,8 @@
 // появляется только со следующего запуска приложения после посева единиц. Редакции копятся от
 // запуска к запуску. Чтобы каждая новая ждала сопоставления, прогон НЕ запоминает (снимает флажок) и
 // перед началом забывает запомненное по шифрам и материалам своей сметы — иначе второй запуск получал
-// бы строки уже сопоставленными, и проверять было бы нечего.
+// бы строки уже сопоставленными, и проверять было бы нечего. Забывает дословно по словам файла посева и
+// только запомненное сметчиком посева: шифры посева — настоящие шифры ГЭСН, а запомненное людьми не его.
 //
 // Требует поднятых фронта и бэка, посева, перезапуска API после него и ВКЛЮЧЁННОГО модуля `plan`.
 //
@@ -28,7 +29,7 @@
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
 import { BASE, launchBrowser, login, createChecks, settled, callApi, clearSession, pickOption, railSection } from './harness.mjs';
-import { ESTIMATE_NAME, estimateXml } from './seed-estimates.mjs';
+import { ESTIMATE_NAME, ESTIMATOR_NAME, estimateXml, seedMatchKeys } from './seed-estimates.mjs';
 
 const PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
 const ESTIMATOR = process.env.SMOKE_ESTIMATOR_EMAIL || 'smeta@bhs.local';
@@ -65,13 +66,20 @@ async function ensureWorkType() {
   if (made.status >= 400) throw new Error(`вид работы не заведён: ${made.status} ${made.body}`);
 }
 
-/** Забыть запомненное по шифрам и материалам сметы посева: следующий импорт обязан ждать сопоставления. */
+/**
+ * Забыть запомненное по шифрам и материалам сметы посева: следующий импорт обязан ждать сопоставления. Только
+ * дословно по словам файла и только запомненное сметчиком посева (`ESTIMATOR` или его имя). Запомненное другим
+ * человеком прогон не трогает — отказывает: на рабочей базе это чужие данные, а прогон по ним проверял бы не то.
+ */
 async function forgetRemembered() {
-  const words = ['ГЭСНм08-0', 'ФССЦ-21', '(посев)'];
-  for (const [list, field] of [['rate-matches', 'rateCode'], ['resource-matches', 'sourceText']])
+  const keys = seedMatchKeys();
+  for (const [list, field, words] of [['rate-matches', 'rateCode', keys.rate], ['resource-matches', 'sourceText', keys.resource]])
     for (const word of words) {
       const found = await api('GET', `/plan/${list}?query=${encodeURIComponent(word)}&take=200`);
-      for (const item of found.items.filter(i => i[field].includes(word))) {
+      for (const item of found.items.filter(i => i[field] === word)) {
+        if (item.updatedBy !== ESTIMATOR_NAME && item.updatedBy !== ESTIMATOR)
+          throw new Error(`«${word}» запомнил ${item.updatedBy ?? 'неизвестно кто'}, а не сметчик посева — прогон чужое не `
+            + 'забывает. Забудьте его в «Планы» › «Запомненные сопоставления» или запускайте прогон на стенде с посевом');
         const r = await page.evaluate(async ([url, version]) => {
           const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
           return (await fetch(url, { method: 'DELETE', headers: { Authorization: `Bearer ${token}`, 'If-Match': version } })).status;
@@ -81,6 +89,10 @@ async function forgetRemembered() {
     }
 }
 
+/** Смета посева, как её отдаёт сервер, — с редакциями. */
+const seededEstimate = async () =>
+  (await api('GET', `/plan/estimates?constructionId=${CONSTRUCTION}`)).items.find(e => e.name === ESTIMATE_NAME) ?? null;
+
 const dialog = () => page.getByRole('dialog');
 const card = estimateId => page.goto(`${BASE}/estimates/${estimateId}`, { waitUntil: 'networkidle' });
 const linesRead = () => page.getByText('Читаем строки редакции…').waitFor({ state: 'detached', timeout: 15_000 });
@@ -89,24 +101,22 @@ let estimate;
 try {
   await login(page, ESTIMATOR, PASSWORD);
   await page.goto(`${BASE}/estimates`, { waitUntil: 'networkidle' });
-  if ((await page.getByRole('heading', { name: 'Сметы' }).count()) === 0) {
-    console.error('Экрана «Сметы» нет. Включён ли модуль plan у сервера (Modules__Enabled=id,costs,plan) и есть ли у '
+  // Отказы до проверок — исключением, а не process.exit: иначе `finally` не закрыл бы браузер.
+  if ((await page.getByRole('heading', { name: 'Сметы' }).count()) === 0)
+    throw new Error('Экрана «Сметы» нет. Включён ли модуль plan у сервера (Modules__Enabled=id,costs,plan) и есть ли у '
       + `«${ESTIMATOR}» роль «Сметчик»? Без него проверять нечего.`);
-    process.exit(1);
-  }
   if (!CONSTRUCTION) throw new Error('SMOKE_CONSTRUCTION_ID не задан — посев не отработал или его переменные не переданы');
-  estimate = (await api('GET', `/plan/estimates?constructionId=${CONSTRUCTION}`)).items.find(e => e.name === ESTIMATE_NAME);
-  if (!estimate) {
-    console.error(`Сметы «${ESTIMATE_NAME}» нет — посев смет не отработал (модуль plan был выключен при посеве?).`);
-    process.exit(1);
-  }
+  estimate = await seededEstimate();
+  if (!estimate) throw new Error(`Сметы «${ESTIMATE_NAME}» нет — посев смет не отработал (модуль plan был выключен при посеве?).`);
   await ensureWorkType();
   await forgetRemembered();
 
   // ── 1. Новая редакция из файла ─────────────────────────────────────────────────────────────────
   await check('estimator-imports-a-revision', async () => {
     await card(estimate.id);
-    const before = await page.getByRole('tab').count();
+    // Редакции считаются у сервера, а не вкладками: их копится по одной на запуск, и вкладки сверх места их
+    // число уже не показывают.
+    const before = (await seededEstimate()).revisions.length;
     await page.getByRole('button', { name: 'Новая редакция' }).click();
     await dialog().getByLabel('Файл сметы').setInputFiles({
       name: 'ЛСР прогона.xml', mimeType: 'application/xml', buffer: Buffer.from(estimateXml(true), 'utf8'),
@@ -120,8 +130,8 @@ try {
     // открыто из карточки той же сметы, и не нажатый отбор прежней редакции стоит на экране до перехода.
     await page.getByRole('button', { name: /^Не сопоставлены/, pressed: true }).waitFor({ timeout: 15_000 })
       .catch(() => { throw new Error('карточка открылась без отбора «Не сопоставлены»'); });
-    const after = await page.getByRole('tab').count();
-    if (after <= before && after < 4) throw new Error(`вкладок редакций было ${before}, стало ${after}`);
+    const after = (await seededEstimate()).revisions.length;
+    if (after !== before + 1) throw new Error(`редакций у сметы было ${before}, стало ${after}`);
   });
 
   // ── 2. Раздел целиком ─────────────────────────────────────────────────────────────────────────
@@ -141,7 +151,9 @@ try {
 
     // Отбор «не сопоставлено» снят с сопоставленных — смотрим всю редакцию.
     await page.getByRole('button', { name: /^Все/ }).click();
-    await page.getByRole('button', { name: /^Раздел 1/ }).click().catch(() => {});
+    // Раздел раскрываем, если он свёрнут: щелчок по раскрытому свернул бы его.
+    const heading = page.getByRole('button', { name: /^Раздел 1/ });
+    if ((await heading.getAttribute('aria-expanded', { timeout: 5_000 })) === 'false') await heading.click();
     if ((await page.getByRole('button', { name: WORK_TYPE }).count()) < 2)
       throw new Error(`вид работы «${WORK_TYPE}» не встал в сопоставленные строки`);
   });

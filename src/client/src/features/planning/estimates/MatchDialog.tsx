@@ -137,7 +137,9 @@ function SectionMatch({ code, rows, sections, match, onNext, revision, seen, set
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-fg3">В разделе:</span>
           {units.map(u => (
-            <Chip key={u.unit ?? ''} selected={u.unit === chosenUnit} count={formatCount(u.rows)} onClick={() => setUnit(u.unit)}>
+            <Chip key={u.unit ?? ''} selected={u.unit === chosenUnit} count={formatCount(u.rows)}
+              // Набранный коэффициент — для прежней единицы: перенесённый на другую, он дал бы план во сто раз больше.
+              onClick={() => { if (u.unit !== chosenUnit) { setUnit(u.unit); state.type(''); } }}>
               {u.unit ?? 'без единицы'}
             </Chip>
           ))}

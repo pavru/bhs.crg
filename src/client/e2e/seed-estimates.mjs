@@ -41,13 +41,33 @@ const CHAPTERS = [
   ]],
 ];
 
+/** Сметчик посева: прогон смет входит им и забывает только запомненное им же (`planning-estimates-smoke.mjs`). */
+export const ESTIMATOR_NAME = 'Светлана Сметова';
+
+/** Строка второй редакции — в конце последнего раздела. */
+const EXTRA_ROW = { number: '6', code: 'ГЭСНм08-03-593-06', caption: 'Светильник настенный', units: '100 шт', quantity: '0,12', total: '5460' };
+
+/**
+ * Слова файла посева, по которым что-то запоминается: шифры строк-работ и коды с наименованиями материалов. Прогон
+ * забывает запомненное ТОЛЬКО по ним и дословно: шифры посева — настоящие шифры ГЭСН, и запомненное по общему
+ * началу кода («ГЭСНм08-0») стёрло бы на рабочей базе всё, что люди запомнили для своих смет.
+ */
+export function seedMatchKeys() {
+  const rows = [...CHAPTERS.flatMap(([, chapter]) => chapter), EXTRA_ROW];
+  const materials = rows.flatMap(r => (r.material ? [r.material] : r.code.startsWith('ФССЦ') ? [r] : []));
+  return {
+    rate: [...new Set(rows.filter(r => !r.code.startsWith('ФССЦ')).map(r => r.code))],
+    resource: [...new Set(materials.flatMap(m => [m.code, m.caption]))],
+  };
+}
+
 /** Файл сметы. `extra` — вторая редакция: та же смета и ещё одна строка в конце. */
 export function estimateXml(extra = false) {
   // SysID — сквозной номер элемента документа: схема требует его у разделов и позиций.
   let sysId = 0;
   const chapters = CHAPTERS.map(([caption, rows], i) => {
     const all = extra && i === CHAPTERS.length - 1
-      ? [...rows, { number: '6', code: 'ГЭСНм08-03-593-06', caption: 'Светильник настенный', units: '100 шт', quantity: '0,12', total: '5460' }]
+      ? [...rows, EXTRA_ROW]
       : rows;
     const chapter = ++sysId;
     return `
@@ -68,14 +88,17 @@ export function estimateXml(extra = false) {
  * если модуля `plan` в приложении нет, — и говорит об этом вслух: прогон смет на таком стенде отказывает.
  */
 export async function seedEstimates({ api, findType, ensureUser, apiBase, token, constructionId }) {
+  // Модуль выключен — это 501 ворот модуля, и только он. Прочий отказ (500, нет права) — отказ посева: выданный за
+  // «модуль выключен», он отправил бы искать причину не туда.
   const existing = await api('GET', `/plan/estimates?constructionId=${constructionId}`).catch(e => {
-    console.log(`  ! сметы не сеются: модуль plan недоступен (${e.message})`);
+    if (!/ → 501 /.test(e.message)) throw e;
+    console.log(`  ! сметы не сеются: модуль plan выключен (${e.message})`);
     return null;
   });
   if (existing === null) return null;
 
   // «Сметчик» импортирует и сопоставляет; «Менеджер проекта» читает сметы без себестоимости.
-  await ensureUser(process.env.SMOKE_ESTIMATOR_EMAIL || 'smeta@bhs.local', 'Светлана Сметова', 'Estimator');
+  await ensureUser(process.env.SMOKE_ESTIMATOR_EMAIL || 'smeta@bhs.local', ESTIMATOR_NAME, 'Estimator');
   await ensureUser(process.env.SMOKE_PM_EMAIL || 'pm@bhs.local', 'Павел Проектов', 'ProjectManager');
   await ensureUnits({ api, findType });
 
