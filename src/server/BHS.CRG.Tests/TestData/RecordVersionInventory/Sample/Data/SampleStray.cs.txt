@@ -1,0 +1,8 @@
+// Наследник без словаря — под полным именем базового типа: сторож узнаёт и его.
+public sealed class SampleStray : Data.ModuleRecordVersion
+{
+    private SampleStray() { }
+
+    internal static void Map(ModelBuilder builder) =>
+        Map<SampleStray, SampleRecord>(builder, "sample_strays");
+}

@@ -1,0 +1,7 @@
+// Не нарушение: набор и таблица названы только в комментариях — блочном и в конце строки кода.
+public static class SampleComments
+{
+    /* Итоги не читают db.SampleVersions и таблицу sample_versions:
+       суммы считаются по действующему содержимому. */
+    public static int Zero() => 0; // db.SampleVersions.Count() — так нельзя
+}

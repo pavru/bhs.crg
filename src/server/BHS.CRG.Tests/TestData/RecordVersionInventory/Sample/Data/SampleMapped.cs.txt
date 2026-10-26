@@ -1,0 +1,5 @@
+// Не нарушение: наследник, отображённый в контексте, — имя таблицы в файле вызова Map разрешено.
+public sealed class SampleMapped : ModuleRecordVersion
+{
+    private SampleMapped() { }
+}
