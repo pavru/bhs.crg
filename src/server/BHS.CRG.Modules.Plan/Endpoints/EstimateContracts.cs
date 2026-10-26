@@ -10,7 +10,8 @@ namespace BHS.CRG.Modules.Plan.Endpoints;
 /// </summary>
 /// <param name="Code">Что скрыто: <c>cost</c> — себестоимость сметы.</param>
 /// <param name="Permission">Право, которое это открывает.</param>
-public sealed record HiddenPart(string Code, string Permission);
+/// <param name="Name">То же право словами каталога прав — им экран называет причину, кода человеку не показывая.</param>
+public sealed record HiddenPart(string Code, string Permission, string Name);
 
 /// <summary>Пометка состояния с сервера (D17 зонтика): код для клиента и текст для человека.</summary>
 public sealed record PlanMark(string Code, string Text);

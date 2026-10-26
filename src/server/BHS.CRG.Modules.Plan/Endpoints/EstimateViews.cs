@@ -18,7 +18,7 @@ internal static class EstimateViews
 {
     /// <summary>Что скрыто от читающего без права на себестоимость; <c>null</c> — право есть.</summary>
     public static async Task<IReadOnlyList<HiddenPart>?> HiddenAsync(IModuleUser user, CancellationToken ct) =>
-        await user.HasAsync(PlanModule.EstimateCost, ct) ? null : [new("cost", PlanModule.EstimateCost)];
+        await user.HasAsync(PlanModule.EstimateCost, ct) ? null : [new("cost", PlanModule.EstimateCost, PlanModule.EstimateCostGives)];
 
     public static string KindCode(EstimateKind kind) => kind == EstimateKind.Additional ? "additional" : "main";
 

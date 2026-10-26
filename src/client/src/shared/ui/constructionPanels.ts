@@ -1,4 +1,4 @@
-import { Database, Table2, Users } from 'lucide-react';
+import { Database, FileSpreadsheet, Table2, Users } from 'lucide-react';
 import type { AccessInfo } from '@/shared/api/access';
 import { allowed } from './navAccess';
 import { pageOwners, railSections, workNav, type NavItem, type PageOwner, type RailId } from './navConfig';
@@ -46,6 +46,10 @@ export interface ConstructionPanel {
 const BOTH: PanelLevel[] = ['construction', 'section'];
 
 export const constructionPanels: ConstructionPanel[] = [
+  // Сметы стройки (plan-09, ТЗ PLAN-20) — и на странице раздела: смета привязана к разделу (`sectionId`), и
+  // там видны его сметы.
+  { id: 'estimates', label: 'Сметы', icon: FileSpreadsheet, block: 'work', levels: BOTH, module: 'plan',
+    permission: 'plan.estimate.read' },
   { id: 'catalog', label: 'Каталог', icon: Database, block: 'own', levels: BOTH },
   // Наборы данных — раздел ядра `datasets` (ревью PR #1330): в пространстве, которое его не объявило,
   // пункта нет, как и в главном меню; открытая по ссылке панель получает плашку.

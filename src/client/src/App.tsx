@@ -41,6 +41,7 @@ import { InvoicesPage } from '@/features/costs/InvoicesPage';
 import { SiteCostsPage } from '@/features/costs/SiteCostsPage';
 import { WaybillsPage } from '@/features/costs/WaybillsPage';
 import { TablePage } from '@/features/tables/TablePage';
+import { EstimatesPage } from '@/features/planning/estimates/EstimatesPage';
 import { ProfilePage } from '@/features/account/ProfilePage';
 import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage';
@@ -140,6 +141,7 @@ function AppRoutes() {
             {/* Та же таблица под готовым представлением модуля: «Реестр счетов» (G4). */}
             <Route path="tables/:address/:view" element={<TablePage />} />
             <Route path="periods" element={<PeriodsPage />} />
+            <Route path="estimates/*" element={<EstimatesPage />} />
             <Route path="reconciliations" element={<ReconciliationsPage />} />
           </Route>
           <Route element={<RequireAccess />}>

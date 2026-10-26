@@ -34,6 +34,12 @@ export interface DataGridColumn<Row = Record<string, unknown>> {
   header?: ReactNode;
   /** Почему значений колонки не видно; null — видно. */
   unavailable?: ColumnUnavailable | null;
+  /**
+   * Причина закрытой колонки словами экрана — вместо общей подсказки состояния: «нужно право «видеть
+   * себестоимость сметы»». Общая подсказка говорит, ЧТО случилось, а экран, знающий имя права, — чего не
+   * хватает, и человек идёт к администратору с названием, а не с «каким-то правом».
+   */
+  unavailableHint?: string;
   align?: 'left' | 'right';
   /**
    * Клетка по строке целиком (#1354) — когда в ней не значение поля, а составное: ссылка, пометка,
@@ -100,11 +106,12 @@ export function DataGridValue<Row>({ row, column, renderValue }: {
   const kind = cellKind(row, column.key);
   if (column.unavailable) {
     const state = DATA_GRID_STATES[column.unavailable];
+    const hint = column.unavailableHint ?? state.hint;
     // Значение у такой колонки бывает (строки таблицы генерация пишет и вне схемы) — тогда оно
     // видно, но приглушено и с причиной. Нет значения — клетка называет причину, а не пустует.
     if (kind === 'value')
-      return <Tooltip content={state.hint}><span className="text-fg4">{renderValue ? renderValue(row[column.key]) : String(row[column.key])}</span></Tooltip>;
-    return <Tooltip content={state.hint}><span className="text-fg4 italic">{state.title}</span></Tooltip>;
+      return <Tooltip content={hint}><span className="text-fg4">{renderValue ? renderValue(row[column.key]) : String(row[column.key])}</span></Tooltip>;
+    return <Tooltip content={hint}><span className="text-fg4 italic">{state.title}</span></Tooltip>;
   }
   switch (kind) {
     case 'absent':
@@ -224,7 +231,7 @@ export function DataGrid<Row extends object>({
       </span>
     );
     return (
-      <Tooltip key={c.key} content={reason?.hint ?? c.hint}>
+      <Tooltip key={c.key} content={reason ? c.unavailableHint ?? reason.hint : c.hint}>
         <th data-pin={i < pinCount ? i : undefined} rowSpan={extra?.rowSpan}
           className={`${th} ${c.align === 'right' ? 'text-right' : ''} ${c.width ?? ''} ${pin(i)}`}
           style={{ ...extra?.style, ...pinStyle(i, 30) }}
