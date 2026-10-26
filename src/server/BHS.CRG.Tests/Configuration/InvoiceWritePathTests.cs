@@ -28,6 +28,9 @@ public class InvoiceWritePathTests
         ["Endpoints/WaybillEndpoints.cs"] =
             (1, "создание накладной: новая накладная — черновик, а черновик не принадлежит ни одному " +
                 "периоду. Остальные правки идут через WaybillDesk (issue #1285)"),
+        ["Endpoints/WaybillCorrection.cs"] =
+            (1, "исправление накладной (issue #1340) — внутри WaybillDesk.CorrectAsync, входа исправления связки: " +
+                "замок периода, отказ «исправление не нужно», право и версия формы у него свои"),
         ["Endpoints/InvoiceDesk.cs"] =
             (2, "сама связка: учётные даты после правки адреса — оплаченному и снятые у неоплаченного"),
         ["Endpoints/InvoiceDesk.Correction.cs"] =

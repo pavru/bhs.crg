@@ -91,12 +91,13 @@ public class CostsOnlyHostTests(CostsOnlyHost host)
         // Девятое — costs.organization.create (issue #1077): завести организацию из скана счёта, своим
         // правом, а не частью правки счёта, — запись ложится в справочник ядра. Десятое —
         // costs.invoice.correct (E2, issue #1100): исправление счёта закрытого периода, решение владельца
-        // 15.10.2026.
+        // 15.10.2026. Одиннадцатое — costs.waybill.correct (issue #1340): исправление накладной закрытого
+        // периода, своё право, а не costs.invoice.correct, — то открыло бы кладовщику счета (COST-29).
         // Остальных восемь, а не одиннадцать по перечню ТЗ: согласование (C6), заявки на закупку (этап 3) и
         // costs.materials.read (контракт «Материалы на объекте», G6) вынесены — см. причины в
         // CostsModule. Число названо здесь нарочно: право, добавленное без причины, обязано
         // столкнуться с этой строкой и с объяснением рядом с ней.
-        Assert.Equal(10, costs.Count);
+        Assert.Equal(11, costs.Count);
         Assert.All(costs, p => Assert.Null(p.Validate()));
         Assert.DoesNotContain(catalog.Codes, c => c.StartsWith("id.", StringComparison.Ordinal));
 
@@ -151,6 +152,9 @@ public class CostsOnlyHostTests(CostsOnlyHost host)
             // на обычном счёте слышал бы «нет права» вместо «правьте как обычно» (порядок проверок,
             // решение владельца 15.10.2026). Что право работает — InvoicePaymentTests.Исправление_отказывает_в_названном_порядке.
             ["costs.invoice.correct"] = "E2, issue #1100: спрашивает связка исправления, а не ворота",
+            // Так же устроено исправление накладной: ворота — правка накладных, право спрашивает
+            // WaybillDesk.CorrectAsync после «исправление не нужно». Что право работает — WaybillTests.Исправление_отказывает_в_названном_порядке.
+            ["costs.waybill.correct"] = "issue #1340: спрашивает связка исправления накладной, а не ворота",
         };
 
         var catalog = host.Services.GetRequiredService<PermissionCatalog>();
@@ -188,7 +192,7 @@ public class CostsOnlyHostTests(CostsOnlyHost host)
     /// выданы» без неё зелена и у роли, которой выдали всё.
     /// </summary>
     [Theory]
-    [InlineData("Supplier", "costs.invoice.edit", "costs.allocation.edit", "costs.waybill.edit")]
+    [InlineData("Supplier", "costs.invoice.edit", "costs.allocation.edit", "costs.waybill.edit", "costs.waybill.correct")]
     [InlineData("Accountant", "costs.invoice.pay", "costs.report.read", "costs.articles.edit", "costs.invoice.correct",
         "costs.invoice.edit", "costs.allocation.edit")]
     public async Task Module_roles_receive_module_permissions(string role, params string[] expected)

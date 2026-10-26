@@ -20,6 +20,11 @@ describe('canDeleteWaybill', () => {
   it('у проведённой действия нет — сначала её возвращают в черновик', () => {
     expect(canDeleteWaybill(view({ state: 'Posted' }), true)).toBe(false);
   });
+
+  it('у исправлявшейся после закрытия действия нет и черновиком — сервер откажет: история не удаляется', () => {
+    expect(canDeleteWaybill(view({ currentVersion: 2 }), true)).toBe(false);
+    expect(canDeleteWaybill(view({ currentVersion: 1 }), true)).toBe(true);
+  });
 });
 
 describe('как накладная названа', () => {

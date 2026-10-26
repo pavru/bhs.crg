@@ -775,6 +775,12 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
 
+                    b.Property<int>("CurrentVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("current_version");
+
                     b.Property<DateOnly?>("IssuedOn")
                         .HasColumnType("date")
                         .HasColumnName("issued_on");
@@ -895,6 +901,48 @@ namespace BHS.CRG.Modules.Costs.Migrations
                     b.ToTable("waybill_lines", "costs");
                 });
 
+            modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.WaybillVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("at");
+
+                    b.Property<Guid?>("AuthorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("author_id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("content");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer")
+                        .HasColumnName("number");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("RecordId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("record_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecordId", "Number")
+                        .IsUnique()
+                        .HasDatabaseName("ux_waybill_versions_number");
+
+                    b.ToTable("waybill_versions", "costs");
+                });
+
             modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.InvoiceAllocation", b =>
                 {
                     b.HasOne("BHS.CRG.Modules.Costs.Data.Invoice", null)
@@ -960,6 +1008,15 @@ namespace BHS.CRG.Modules.Costs.Migrations
                         .WithMany()
                         .HasForeignKey("WaybillId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BHS.CRG.Modules.Costs.Data.WaybillVersion", b =>
+                {
+                    b.HasOne("BHS.CRG.Modules.Costs.Data.Waybill", null)
+                        .WithMany()
+                        .HasForeignKey("RecordId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 #pragma warning restore 612, 618

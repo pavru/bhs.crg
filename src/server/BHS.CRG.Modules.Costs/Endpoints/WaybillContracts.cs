@@ -47,7 +47,10 @@ public sealed record WaybillView(
     DateOnly? AccountingOn = null,
     // Чем накладная заперта, словами; null — не заперта. Запертую нельзя ни вернуть в черновик, ни
     // сопоставить: экран по этому полю убирает оба действия и показывает причину.
-    string? Locked = null);
+    string? Locked = null,
+    // Номер действующей версии (issue #1340): 1 — не исправлялась; больше — у карточки есть история
+    // исправлений (…/versions).
+    int CurrentVersion = 1);
 
 public sealed record WaybillListItem(
     Guid Id,
@@ -58,7 +61,19 @@ public sealed record WaybillListItem(
     string? ConstructionName,
     string State,
     int Lines,
-    int Unmatched);
+    int Unmatched,
+    // «Исправлена после закрытия» (issue #1340): когда и почему — последнее исправление; null — не исправлялась.
+    WaybillCorrectionMark? CorrectedAfterClosing = null);
+
+/// <summary>Последнее исправление накладной — для пометки в списке.</summary>
+public sealed record WaybillCorrectionMark(DateTimeOffset At, string Reason);
+
+/// <summary>
+/// Версия накладной, ушедшая под исправление: номер, причина, автор (именем на момент записи), время и
+/// прежнее содержимое — шапка и строки тем видом, каким его читает форма.
+/// </summary>
+public sealed record WaybillVersionView(
+    int Number, string Reason, Guid? AuthorId, string? AuthorName, DateTimeOffset At, JsonElement Content);
 
 /// <summary>
 /// Список накладных и честное «есть ещё»: поиск на экране идёт по загруженному. <c>Hidden</c> — сколько
@@ -146,9 +161,10 @@ public static class WaybillRequests
 
 public static class WaybillViews
 {
-    public static WaybillListItem Item(Waybill waybill, ModuleConstruction? site, int lines, int unmatched) => new(
+    public static WaybillListItem Item(
+        Waybill waybill, ModuleConstruction? site, int lines, int unmatched, WaybillCorrectionMark? corrected = null) => new(
         waybill.Id, waybill.Number, waybill.IssuedOn, waybill.Warehouse, waybill.ConstructionId, site?.Name,
-        waybill.State.ToString(), lines, unmatched);
+        waybill.State.ToString(), lines, unmatched, corrected);
 
     /// <param name="names">Названия позиций; <c>null</c> — справочника номенклатуры в системе нет, и
     /// «позиция потеряна» сказать не о чём (см. <c>InvoiceEndpoints.NomenclatureNamesAsync</c>).</param>
@@ -164,5 +180,5 @@ public static class WaybillViews
             NomenclatureArchived: l.NomenclatureId is { } key && names?.GetValueOrDefault(key)?.Archived == true,
             l.SourceText, l.Unit, l.Quantity, l.Note))],
         new WaybillLineTotals(lines.Count, lines.Count(l => l.NomenclatureId is null)),
-        waybill.AccountingOn, locked);
+        waybill.AccountingOn, locked, waybill.CurrentVersion);
 }

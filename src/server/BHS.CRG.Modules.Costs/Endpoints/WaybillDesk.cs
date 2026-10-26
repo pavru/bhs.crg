@@ -30,7 +30,7 @@ public sealed record WaybillWrite(Waybill Waybill, PeriodBoundaries Boundaries);
 /// нет. Общее у них — порядок, и он короче, чем была бы общая абстракция.</para>
 /// </summary>
 public sealed class WaybillDesk(
-    CostsDbContext db, IModulePeriods periods, IModuleConstructions sites, IHttpContextAccessor http)
+    CostsDbContext db, IModulePeriods periods, IModuleConstructions sites, IModuleUser user, IHttpContextAccessor http)
 {
     // Границы, по которым решена запись этого запроса. Ответ после правки обязан называть «заперта» по
     // ТОМУ ЖЕ снимку, а не по прочитанному заново уже вне замка (ревью PR #1296): второй снимок — и
@@ -57,11 +57,55 @@ public sealed class WaybillDesk(
             if (settled?.Invoke(waybill) != true && WaybillLock.Of(waybill, boundaries) is { } found)
                 throw new ConflictException(
                     $"{WaybillEndpoints.Label(waybill)} заперта: {WaybillLock.Text(found, await SiteNameAsync(found, ct))}. " +
-                    "Вернуть её в черновик, изменить и сопоставить строки нельзя — она проведена, и её " +
-                    "материалы уже вошли в закрытый период. Чтобы исправить, сначала отмените закрытие периода.");
+                    "Вернуть её в черновик, изменить и сопоставить строки обычной правкой нельзя — она проведена, " +
+                    "и её материалы уже вошли в закрытый период. " + await WayOutAsync(ct));
 
             return await write(new WaybillWrite(waybill, boundaries));
         }, ct);
+
+    /// <summary>
+    /// Исправление запертой накладной (issue #1340, ТЗ COST-16) — свой вход связки, тот же замок записи.
+    ///
+    /// <para><b>Порядок проверок</b> — как у исправления счёта (D3 change <c>costs-waybill-correction</c>):
+    /// замок записи → чтение → 409 «исправление не нужно» → 403 право исправления → версия формы → правка
+    /// адреса. Человек без права на открытой накладной слышит «правьте как обычно», а не «нет права»: путь
+    /// у него есть; и отказ по смыслу честнее отказа по версии.</para>
+    /// </summary>
+    public Task<T> CorrectAsync<T>(Guid id, Func<WaybillWrite, Task<T>> write, CancellationToken ct) =>
+        db.InOpenPeriodAsync(periods, async boundaries =>
+        {
+            _boundaries = boundaries;
+            var waybill = await db.Waybills.FirstOrDefaultAsync(w => w.Id == id, ct)
+                ?? throw new NotFoundException("Накладная не найдена.");
+            var label = WaybillEndpoints.Label(waybill);
+
+            var found = WaybillLock.Of(waybill, boundaries)
+                ?? throw new ConflictException(
+                    $"{label} исправления не требует: " +
+                    (waybill.State == WaybillState.Draft
+                        ? "она черновик — правьте её как обычно, без причины и версии."
+                        : "она проведена в открытом периоде — верните её в черновик, поправьте и проведите " +
+                          "снова, без причины и версии."));
+            if (!await user.HasAsync(CostsModule.WaybillCorrect, ct))
+                throw new ForbiddenException(
+                    $"{label} заперта: {WaybillLock.Text(found, await SiteNameAsync(found, ct))}. Изменить её можно " +
+                    "только исправлением, а права «Исправлять накладные закрытого периода» у вас нет. Его выдаёт " +
+                    "администратор; иначе — отмените закрытие периода.");
+            EnsureSeen(waybill);
+
+            return await write(new WaybillWrite(waybill, boundaries));
+        }, ct);
+
+    /// <summary>
+    /// Выход из отказа запертой накладной: исправление — тому, у кого есть право; без права — отмена закрытия.
+    /// Право спрашивается только на пути отказа: запрос, которому не отказано, его не ждёт.
+    /// </summary>
+    private async Task<string> WayOutAsync(CancellationToken ct) =>
+        await user.HasAsync(CostsModule.WaybillCorrect, ct)
+            ? "Изменить её можно исправлением с причиной («Исправить» на форме) — прежнее содержимое останется " +
+              "версией; либо сначала отмените закрытие периода."
+            : "Изменить её можно только исправлением с причиной, а права «Исправлять накладные закрытого " +
+              "периода» у вас нет. Чтобы исправить без него, сначала отмените закрытие периода.";
 
     /// <summary>Чем заперта накладная — словами для формы; <c>null</c> — не заперта.</summary>
     public async Task<string?> LockedAsync(Waybill waybill, ModuleConstruction? site, CancellationToken ct) =>
