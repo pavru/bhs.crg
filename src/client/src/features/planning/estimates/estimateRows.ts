@@ -16,10 +16,20 @@ export function inQueue(row: EstimateRow, queue: RowQueue): boolean {
     case 'all': return true;
     case 'unmatched': return row.marks.some(m => m.code === 'unmatched');
     case 'unit-changed': return row.marks.some(m => m.code === 'unit-changed');
-    case 'remembered': return row.marks.some(m => m.code === 'remembered');
-    // Материалы без номенклатуры — у строк ЛЮБОГО вида: и у работы с её ресурсами, и у позиции-материала.
-    case 'no-nomenclature': return row.materials.some(m => m.nomenclatureId === null);
+    // Запомненное — и расценка строки, и сопоставление её материала: чип ищет неверно запомненное, а материал
+    // запоминается своим ключом, независимо от строки.
+    case 'remembered': return row.marks.some(m => m.code === 'remembered') || materialMarked(row, 'remembered');
+    // Материалы без номенклатуры — у строк ЛЮБОГО вида: и у работы с её ресурсами, и у позиции-материала. По
+    // пометке материала, а не по пустой номенклатуре: что значит «не сопоставлен», решает сервер.
+    case 'no-nomenclature': return materialMarked(row, 'unmatched');
   }
+}
+
+const materialMarked = (row: EstimateRow, code: string) => row.materials.some(m => m.marks.some(x => x.code === code));
+
+/** Сколько СТРОК в очереди — число на чипе равно числу строк, которые чип покажет. */
+export function queueCount(rows: readonly EstimateRow[], queue: RowQueue): number {
+  return rows.filter(r => inQueue(r, queue)).length;
 }
 
 /** Совпадает ли строка с поиском — по шифру и наименованию, без учёта регистра. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EstimateRevision, EstimateRow, RevisionSection } from '@/shared/api/planningEstimates';
-import { gridLines, inQueue, rowNumber, visibleRevisions } from './estimateRows';
+import { gridLines, inQueue, queueCount, rowNumber, visibleRevisions } from './estimateRows';
 
 function row(over: Partial<EstimateRow> & { id: string }): EstimateRow {
   return {
@@ -16,19 +16,49 @@ function section(code: string | null, over: Partial<RevisionSection> = {}): Revi
 }
 
 const unmatched = { code: 'unmatched', text: 'Не сопоставлена' };
+const remembered = { code: 'remembered', text: 'Подставлено из запомненного' };
+
+function material(id: string, nomenclatureId: string | null, marks: EstimateRow['materials'][number]['marks']) {
+  return { id, order: 1, nomenclatureId, sourceName: 'Провод', sourceCode: null, sourceUnit: 'м', quantity: 1, marks };
+}
 
 describe('отбор «что ждёт»', () => {
   it('по пометкам сервера, а материалы без номенклатуры — у строк любого вида', () => {
     const work = row({ id: 'w', marks: [unmatched] });
     const material = row({
       id: 'm', kind: 'material', materials: [{
-        id: 'r', order: 1, nomenclatureId: null, sourceName: 'Провод', sourceCode: null, sourceUnit: 'м', quantity: 1, marks: [],
+        id: 'r', order: 1, nomenclatureId: null, sourceName: 'Провод', sourceCode: null, sourceUnit: 'м', quantity: 1,
+        marks: [unmatched],
       }],
     });
     expect(inQueue(work, 'unmatched')).toBe(true);
     expect(inQueue(material, 'unmatched')).toBe(false);
     expect(inQueue(material, 'no-nomenclature')).toBe(true);
     expect(inQueue(work, 'no-nomenclature')).toBe(false);
+  });
+
+  it('«без номенклатуры» — по пометке материала с сервера, а не по пустой номенклатуре', () => {
+    const silent = row({ id: 's', materials: [material('a', null, [])] });
+    const marked = row({ id: 'm', materials: [material('a', 'n1', [unmatched])] });
+    expect(inQueue(silent, 'no-nomenclature')).toBe(false);
+    expect(inQueue(marked, 'no-nomenclature')).toBe(true);
+  });
+
+  it('«Запомнено» — и расценка строки, и сопоставление её материала', () => {
+    const byRate = row({ id: 'r', marks: [remembered] });
+    const byMaterial = row({ id: 'm', materials: [material('a', 'n1', []), material('b', 'n2', [remembered])] });
+    const plain = row({ id: 'p', materials: [material('a', 'n1', [])] });
+    expect(inQueue(byRate, 'remembered')).toBe(true);
+    expect(inQueue(byMaterial, 'remembered')).toBe(true);
+    expect(inQueue(plain, 'remembered')).toBe(false);
+  });
+
+  it('число чипа — строки очереди, а не материалы: три материала одной строки дают «1»', () => {
+    const three = row({ id: 'w', materials: ['a', 'b', 'c'].map(id => material(id, null, [unmatched])) });
+    const other = row({ id: 'o', materials: [material('d', 'n1', [])] });
+    expect(queueCount([three, other], 'no-nomenclature')).toBe(1);
+    expect(gridLines([section('1', { rows: 2 })], [three, other], 'no-nomenclature', '', new Set()))
+      .toMatchObject([{ kind: 'section', shown: 1 }, { kind: 'row', key: 'w' }]);
   });
 });
 

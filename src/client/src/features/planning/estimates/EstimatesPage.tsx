@@ -47,7 +47,8 @@ function AllEstimates() {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   // Избранные стройки (#1432) урезают список, как любой список по стройкам; пока фильтр не известен, смет
-  // не показываем вовсе — ни полный список, ни урезанный не были бы правдой.
+  // не показываем вовсе — ни полный список, ни урезанный не были бы правдой (ниже — «Читаем сметы…», а не
+  // пустая сетка «ничего не подходит» со «скрыто N»).
   const filter = useSiteFilter();
 
   const loaded = useMemo(() => pages.data?.pages.flatMap(p => p.items) ?? [], [pages.data]);
@@ -63,7 +64,7 @@ function AllEstimates() {
       <PageHeader icon={<FileSpreadsheet size={18} aria-hidden />} title="Сметы" subtitle="Сметы всех строек, по стройкам" />
       {pages.isError ? (
         <p role="alert" className="text-sm text-danger">{apiError(pages.error, 'Сметы не прочитались')}</p>
-      ) : !pages.data ? (
+      ) : !pages.data || filter.status === 'loading' ? (
         <p className="text-sm text-fg4">Читаем сметы…</p>
       ) : loaded.length === 0 ? (
         <EmptyState icon={<FileSpreadsheet size={28} aria-hidden />} title="Смет пока нет"

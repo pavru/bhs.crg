@@ -11,7 +11,7 @@ import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { apiError } from '@/shared/utils/apiError';
 import { formatAmount, formatCount, formatQuantity } from '@/shared/format/format';
-import { gridLines, inQueue, rowNumber, sectionKey, type GridLine, type RowQueue } from './estimateRows';
+import { gridLines, queueCount, rowNumber, sectionKey, type GridLine, type RowQueue } from './estimateRows';
 
 /**
  * Строки редакции сметы (change `plan-09-estimate-ui`, макет П1: основа — вариант 1, «что ждёт» — из 3).
@@ -33,7 +33,10 @@ export function RevisionLines({ revision }: { revision: EstimateRevision }) {
   const items = useMemo(() => rows.data?.items ?? [], [rows.data]);
   const lines = useMemo(() => gridLines(sections.data ?? [], items, queue, query, opened),
     [sections.data, items, queue, query, opened]);
-  const remembered = useMemo(() => items.filter(r => inQueue(r, 'remembered')).length, [items]);
+  // Чипы по материалам — числом СТРОК, как и остальные: счётчик сервера `materialsUnmatched` считает материалы,
+  // а отбор показывает строки, и «3» на чипе при одной строке под ним искали бы глазами.
+  const remembered = useMemo(() => queueCount(items, 'remembered'), [items]);
+  const noNomenclature = useMemo(() => queueCount(items, 'no-nomenclature'), [items]);
   const units = useUnitNames(useMemo(() => items.flatMap(r => (r.unitId ? [r.unitId] : [])), [items]));
 
   if (rows.isError || sections.isError)
@@ -59,8 +62,8 @@ export function RevisionLines({ revision }: { revision: EstimateRevision }) {
           <Chip tone="warning" selected={queue === 'unmatched'} count={formatCount(revision.unmatched)}
             onClick={() => pick('unmatched')}>Не сопоставлены</Chip>
         )}
-        {revision.materialsUnmatched > 0 && (
-          <Chip tone="warning" selected={queue === 'no-nomenclature'} count={formatCount(revision.materialsUnmatched)}
+        {noNomenclature > 0 && (
+          <Chip tone="warning" selected={queue === 'no-nomenclature'} count={formatCount(noNomenclature)}
             onClick={() => pick('no-nomenclature')}>Без номенклатуры</Chip>
         )}
         {revision.unitChanged > 0 && (
@@ -118,8 +121,16 @@ interface Names {
 
 function WorkTypeCell({ row, names }: { row: EstimateRow; names: Names }) {
   const marks = row.marks.filter(m => m.code !== 'remembered');
-  const remembered = row.marks.find(m => m.code === 'remembered');
-  if (row.kind === 'material') return <StatusBadge tone="quiet" title="Позиция-материал ЛСР: вида работы не требует, в план не входит">материал</StatusBadge>;
+  // «Запомнено» — и у строки, и у её материала: иначе строка из очереди «Запомнено» стояла бы без пометки.
+  const remembered = row.marks.find(m => m.code === 'remembered')
+    ?? row.materials.flatMap(m => m.marks).find(m => m.code === 'remembered');
+  const rememberedBadge = remembered && <StatusBadge tone="quiet" title={remembered.text}>запомнено</StatusBadge>;
+  if (row.kind === 'material') return (
+    <div className="flex flex-col items-start gap-0.5">
+      <StatusBadge tone="quiet" title="Позиция-материал ЛСР: вида работы не требует, в план не входит">материал</StatusBadge>
+      {rememberedBadge}
+    </div>
+  );
   return (
     <div className="flex flex-col items-start gap-0.5">
       {row.workTypeId && (
@@ -136,7 +147,7 @@ function WorkTypeCell({ row, names }: { row: EstimateRow; names: Names }) {
           {MARK_LABEL[m.code] ?? m.text}
         </StatusBadge>
       ))}
-      {remembered && <StatusBadge tone="quiet" title={remembered.text}>запомнено</StatusBadge>}
+      {rememberedBadge}
     </div>
   );
 }
