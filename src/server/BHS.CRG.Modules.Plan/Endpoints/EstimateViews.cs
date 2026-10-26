@@ -1,5 +1,6 @@
 using System.Globalization;
 using BHS.CRG.Modules.Plan.Data;
+using BHS.CRG.Modules.Plan.Matching;
 using BHS.CRG.Modules.Ports;
 using Microsoft.EntityFrameworkCore;
 
@@ -39,13 +40,31 @@ internal static class EstimateViews
         var revisionIds = revisions.Select(r => r.Revision.Id).ToList();
 
         // Итог редакции — только тому, кто его увидит: без права сумма по строкам не считается вовсе.
+        // «Не сопоставлена» — только строка-работа (D2 plan-31): то же правило, что EstimateRow.Unmatched.
         var rows = db.EstimateRows.AsNoTracking().Where(row => revisionIds.Contains(row.RevisionId));
         var stats = await (cost
                 ? rows.GroupBy(row => row.RevisionId).Select(g => new RevisionStats(
-                    g.Key, g.Count(), g.Count(x => x.WorkTypeId == null || x.PlanItemId == null), g.Sum(x => x.Total ?? 0m)))
+                    g.Key, g.Count(),
+                    g.Count(x => x.Kind == EstimateRowKind.Work && (x.WorkTypeId == null || x.PlanItemId == null)),
+                    g.Sum(x => x.Total ?? 0m)))
                 : rows.GroupBy(row => row.RevisionId).Select(g => new RevisionStats(
-                    g.Key, g.Count(), g.Count(x => x.WorkTypeId == null || x.PlanItemId == null), null)))
+                    g.Key, g.Count(),
+                    g.Count(x => x.Kind == EstimateRowKind.Work && (x.WorkTypeId == null || x.PlanItemId == null)), null)))
             .ToDictionaryAsync(s => s.Key, ct);
+        var materials = await (
+                from m in db.EstimateRowMaterials.AsNoTracking()
+                join row in rows on m.RowId equals row.Id
+                where m.NomenclatureId == null
+                group m by row.RevisionId into g
+                select new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
+        var unitChanged = await RateMarks.UnitChangedAsync(
+            db, revisions.ToDictionary(r => r.Revision.Id, r => r.Revision.NormativeBase), ct);
+        // Импорт, из которого редакция создана, — им называется и «частично N из M» (D4 plan-31).
+        var imports = await db.EstimateImports.AsNoTracking()
+            .Where(i => i.RevisionId != null && revisionIds.Contains(i.RevisionId.Value))
+            .Select(i => new { RevisionId = i.RevisionId!.Value, i.Id, i.ParsedPositions, i.PositionsInFile })
+            .ToDictionaryAsync(i => i.RevisionId, ct);
 
         return [.. heads.Select(h =>
         {
@@ -55,10 +74,16 @@ internal static class EstimateViews
                 var frozen = r.Revision.FrozenAt is { } at
                     ? new EstimateFrozenDto(at, r.Revision.FrozenCode!, r.Revision.FrozenLabel!)
                     : null;
+                var import = imports.GetValueOrDefault(r.Revision.Id);
+                var partial = import is { ParsedPositions: { } parsed, PositionsInFile: { } inFile } && parsed < inFile
+                    ? new RevisionPartialDto(parsed, inFile)
+                    : null;
                 return new EstimateRevisionDto(
                     r.Revision.Id, r.Revision.Number, r.Revision.Id == h.Estimate.CurrentRevisionId,
                     r.Revision.ImportedAt, r.Revision.ImportedByName, r.Revision.SourceFileName,
-                    r.Revision.SchemaVersion, s?.Rows ?? 0, s?.Unmatched ?? 0, frozen, Text(r.Version),
+                    r.Revision.SchemaVersion, s?.Rows ?? 0, s?.Unmatched ?? 0,
+                    materials.GetValueOrDefault(r.Revision.Id), unitChanged.GetValueOrDefault(r.Revision.Id),
+                    import?.Id, partial, frozen, Text(r.Version),
                     cost ? new RevisionCostDto(s?.Total ?? 0m) : null);
             }).ToList();
 

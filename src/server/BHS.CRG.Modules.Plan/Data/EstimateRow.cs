@@ -1,6 +1,17 @@
 namespace BHS.CRG.Modules.Plan.Data;
 
 /// <summary>
+/// Вид позиции сметы (change <c>plan-31-estimate-ui-carriers</c>, D2, ТЗ PLAN-4): работа — то, что делают
+/// и что входит в план; материал — позиция ЛСР без работы (материал по КА, по сборнику цен материалов). У
+/// материала нет вида работы, и «не сопоставленным» он не бывает: его материал сопоставляется с номенклатурой.
+/// </summary>
+public enum EstimateRowKind
+{
+    Work,
+    Material,
+}
+
+/// <summary>
 /// Строка редакции сметы — класс C: колонки-скелет плюс сметное наполнение по схеме типа
 /// <c>ПозицияСметы</c> (change <c>plan-06-estimate-model</c>, ТЗ PLAN-3, PLAN-4, TYPE-16, CORE-15).
 ///
@@ -42,6 +53,19 @@ public sealed class EstimateRow
 
     /// <summary>Номер позиции в разделе, как в файле.</summary>
     public string? NumberInSection { get; private set; }
+
+    /// <summary>
+    /// Номер позиции в файле как есть — сквозной по документу («13», подчинённая — «13.1»). Только для показа:
+    /// ключ переноса распределения — номер в разделе (D9 зонтика), а этот сдвигается вставкой позиции выше.
+    /// <c>null</c> — у редакций, импортированных до <c>plan-31</c>.
+    /// </summary>
+    public string? Number { get; private set; }
+
+    /// <summary>Подчинённая позиция (<c>SlaveRow</c> файла): материал или работа, вписанные под расценку.</summary>
+    public bool Subordinate { get; private set; }
+
+    /// <summary>Работа или материал (D2 <c>plan-31</c>); у редакций до него — работа.</summary>
+    public EstimateRowKind Kind { get; private set; }
 
     /// <summary>Шифр расценки: «ГЭСНм08-02-399-01».</summary>
     public string? RateCode { get; private set; }
@@ -86,11 +110,14 @@ public sealed class EstimateRow
     public string Data { get; private set; } = "{}";
 
     /// <summary>
-    /// Строка не сопоставлена: нет вида работы или позиции перечня. Такая строка видна в смете, но в
+    /// Строка-работа не сопоставлена: нет вида работы или позиции перечня. Такая строка видна в смете, но в
     /// план, «Ход работ» и график не входит (ТЗ PLAN-4) — это правило одно и для чтения строк, и для
-    /// <see cref="PlanRows" />.
+    /// <see cref="PlanRows" />. Строка-материал не сопоставленной не бывает: вида работы ей не нужно (D2
+    /// <c>plan-31</c>), а в план она не входит и так.
     /// </summary>
-    public bool Unmatched => WorkTypeId is null || PlanItemId is null;
+    public bool Unmatched => Kind == EstimateRowKind.Work && (WorkTypeId is null || PlanItemId is null);
+
+    public bool IsMaterial => Kind == EstimateRowKind.Material;
 
     /// <summary>
     /// Сопоставить строку (<c>plan-08</c>, ТЗ PLAN-6.1): вид работы, единица классификатора, коэффициент и
@@ -144,6 +171,9 @@ public sealed class EstimateRow
             LsrSectionCode = PlanText.Clip(draft.LsrSectionCode, SectionCodeLength),
             LsrSectionName = PlanText.Clip(draft.LsrSectionName, SectionNameLength),
             NumberInSection = PlanText.Clip(draft.NumberInSection, NumberLength),
+            Number = PlanText.Clip(draft.Number, NumberLength),
+            Subordinate = draft.Subordinate,
+            Kind = draft.Kind,
             RateCode = PlanText.Clip(draft.RateCode, RateCodeLength),
             Name = draft.Name,
             SourceVolume = draft.SourceVolume,

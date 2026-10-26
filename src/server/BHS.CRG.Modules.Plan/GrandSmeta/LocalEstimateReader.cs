@@ -40,7 +40,7 @@ public static class LocalEstimateReader
                 foreach (var p in chapter.Elements("Position"))
                 {
                     index++;
-                    var place = $"раздел {ci + 1} «{caption}», позиция {p.Text("Number")} {p.Text("Code")}".TrimEnd();
+                    var place = Place(ci + 1, caption, p.Text("Number"), p.Text("Code"));
                     validation.Parse(p, place, positions, unparsed,
                         () => Position(p, index, coefficients, computing?.Compute(p, chapter)));
                 }
@@ -58,6 +58,10 @@ public static class LocalEstimateReader
             return new ParsedLocalEstimate(file.Source, Requisites(root), method, parsed, totals, unparsed);
         });
     }
+
+    /// <summary>Место позиции в файле — одними словами у не разобранной и у пропущенной (D3 <c>plan-31</c>).</summary>
+    public static string Place(int chapterIndex, string caption, string? number, string? code) =>
+        $"раздел {chapterIndex} «{caption}», позиция {number} {code}".TrimEnd();
 
     private static LocalEstimateChapter Recorded(XElement chapter, int index, string caption, List<LocalEstimatePosition> positions)
     {

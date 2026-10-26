@@ -87,6 +87,10 @@ public sealed class EstimateImport
     /// остаётся: отчёт импорта у редакции перечисляет, чего в ней нет.</summary>
     public string? Unparsed { get; private set; }
 
+    /// <summary>Позиции, которые строками редакции не стали (неактивные, D3 <c>plan-31</c>), — JSON-массив.
+    /// Пишется при создании редакции: до него отчёт берёт их из модели, а модель тогда же очищается.</summary>
+    public string? Skipped { get; private set; }
+
     /// <summary>Разобрано позиций — «N» из «N из M». Колонкой, а не из модели: модель после создания редакции
     /// очищается, а отчёт у редакции числа называет.</summary>
     public int? ParsedPositions { get; private set; }
@@ -201,7 +205,8 @@ public sealed class EstimateImport
     /// хранит строки сама (design, Risks); числа и не разобранное остаются. Новая смета заведена — импорт
     /// называет её, а не параметры, по которым её заводили: стройку и раздел держит теперь она.
     /// </summary>
-    public void Committed(Estimate estimate, EstimateRevision revision)
+    /// <param name="skipped">Пропущенные позиции — JSON-массив (<see cref="Skipped" />).</param>
+    public void Committed(Estimate estimate, EstimateRevision revision, string skipped)
     {
         if (State != EstimateImportState.Parsed)
             throw new ConflictException("Редакцию создать нельзя: импорт не в состоянии «разобран».");
@@ -211,6 +216,7 @@ public sealed class EstimateImport
         NewEstimateKind = null;
         RevisionId = revision.Id;
         Parsed = null;
+        Skipped = skipped;
         State = EstimateImportState.Committed;
     }
 

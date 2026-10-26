@@ -26,6 +26,15 @@ internal static class EstimateImportJson
             ? null
             : JsonSerializer.Deserialize<ParsedLocalEstimate>(import.Parsed, Options)! with { Unparsed = Unparsed(import) };
 
+    /// <summary>Пропущенные позиции импорта (D3 <c>plan-31</c>): из модели, пока она есть, — иначе записанные при
+    /// создании редакции.</summary>
+    public static IReadOnlyList<SkippedPosition> Skipped(EstimateImport import, ParsedLocalEstimate? model) =>
+        model is not null ? EstimateImportRows.Skipped(model)
+        : import.Skipped is null ? []
+        : JsonSerializer.Deserialize<List<SkippedPosition>>(import.Skipped, Options)!;
+
+    public static string Write(IReadOnlyList<SkippedPosition> skipped) => JsonSerializer.Serialize(skipped, Options);
+
     public static IReadOnlyList<Unparsed> Unparsed(EstimateImport import) =>
         import.Unparsed is null ? [] : JsonSerializer.Deserialize<List<Unparsed>>(import.Unparsed, Options)!;
 }

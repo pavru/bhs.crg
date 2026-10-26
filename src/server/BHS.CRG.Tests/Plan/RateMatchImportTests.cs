@@ -47,10 +47,13 @@ public class RateMatchImportTests(PlanOnlyHost host)
         Assert.Equal(remembered.Id, RateMatchFlow.Stored(host, substituted.GetProperty("id").GetGuid()).RateMatchId);
 
         // Тот же шифр в другой единице расценки — не подставлено, строка помечена unit-changed.
-        var (_, third) = await RateMatchFlow.ImportAsync(editor, site.Construction, RateMatchFlow.Sample(code, "10 шт"));
+        var (thirdEstimate, third) = await RateMatchFlow.ImportAsync(editor, site.Construction, RateMatchFlow.Sample(code, "10 шт"));
         var changed = await RateMatchFlow.RowAsync(editor, third, code);
         Assert.Equal(["unmatched", "unit-changed"], RateMatchFlow.Marks(changed));
         Assert.Equal(JsonValueKind.Null, changed.GetProperty("workTypeId").ValueKind);
+        // Счётчик редакции — тем же правилом, что пометка (D4 plan-31).
+        Assert.Equal(1, Assert.Single((await editor.GetFromJsonAsync<JsonElement>($"/api/plan/estimates/{thirdEstimate}"))
+            .GetProperty("revisions").EnumerateArray()).GetProperty("unitChanged").GetInt32());
 
         // Забыть: следующий импорт не сопоставляет, а сопоставленная запомненным строка остаётся как была.
         var list = await editor.GetFromJsonAsync<JsonElement>($"/api/plan/rate-matches?query={Uri.EscapeDataString(code)}");

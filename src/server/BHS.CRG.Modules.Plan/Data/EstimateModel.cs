@@ -82,6 +82,9 @@ internal static class EstimateModel
         row.Property(r => r.LsrSectionCode).HasColumnName("lsr_section_code").HasMaxLength(EstimateRow.SectionCodeLength);
         row.Property(r => r.LsrSectionName).HasColumnName("lsr_section_name").HasMaxLength(EstimateRow.SectionNameLength);
         row.Property(r => r.NumberInSection).HasColumnName("number_in_section").HasMaxLength(EstimateRow.NumberLength);
+        row.Property(r => r.Number).HasColumnName("number").HasMaxLength(EstimateRow.NumberLength);
+        row.Property(r => r.Subordinate).HasColumnName("subordinate");
+        row.Property(r => r.Kind).HasColumnName("kind").HasConversion<string>().HasMaxLength(16);
         row.Property(r => r.RateCode).HasColumnName("rate_code").HasMaxLength(EstimateRow.RateCodeLength);
         row.Property(r => r.Name).HasColumnName("name");
         row.Property(r => r.SourceVolume).HasColumnName("source_volume").HasPrecision(18, 6);
@@ -96,6 +99,7 @@ internal static class EstimateModel
         row.Property(r => r.Total).HasColumnName("total").HasPrecision(18, 2);
         row.Property(r => r.Data).HasColumnName("data").HasColumnType("jsonb");
         row.Ignore(r => r.Unmatched);
+        row.Ignore(r => r.IsMaterial);
         row.Property<uint>(PlanDbContext.RowVersion).IsRowVersion();
         // Строки удаляются вместе с редакцией: отдельно от неё они не живут.
         row.HasOne<EstimateRevision>().WithMany().HasForeignKey(r => r.RevisionId).OnDelete(DeleteBehavior.Cascade);
@@ -166,6 +170,7 @@ internal static class EstimateModel
         import.Property(i => i.LsrName).HasColumnName("lsr_name").HasMaxLength(EstimateImport.LsrNameLength);
         import.Property(i => i.Parsed).HasColumnName("parsed").HasColumnType("jsonb");
         import.Property(i => i.Unparsed).HasColumnName("unparsed").HasColumnType("jsonb");
+        import.Property(i => i.Skipped).HasColumnName("skipped").HasColumnType("jsonb");
         import.Property(i => i.ParsedPositions).HasColumnName("parsed_positions");
         import.Property(i => i.PositionsInFile).HasColumnName("positions_in_file");
         import.Property(i => i.RefusalCode).HasColumnName("refusal_code").HasMaxLength(EstimateImport.RefusalCodeLength);
