@@ -174,11 +174,12 @@ export function costHidden(hidden: HiddenPart[] | undefined): HiddenPart | null 
 const KEY = ['planning', 'estimates'] as const;
 const REVISIONS = ['planning', 'revisions'] as const;
 
-/** Сметы стройки — целиком, основные первыми (порядок сервера). */
+/** Сметы стройки — целиком, основные первыми (порядок сервера). Стройка не выбрана — не спрашивать. */
 export function useConstructionEstimates(constructionId: string) {
   return useQuery({
     queryKey: [...KEY, 'construction', constructionId],
     queryFn: () => apiClient.get<EstimateList>('/plan/estimates', { params: { constructionId } }).then(r => r.data),
+    enabled: constructionId !== '',
   });
 }
 

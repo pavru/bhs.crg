@@ -47,9 +47,11 @@ public sealed record ImportSummaryDto(
 /// </summary>
 /// <param name="State">Как у отчёта: <c>parsing</c>, <c>parsed</c>, <c>rejected</c> или <c>committed</c>.</param>
 /// <param name="RefusalCode">Причина отказа — у <c>rejected</c>.</param>
+/// <param name="Interrupted">Разбор прерван: состояние ещё <c>parsing</c>, а задача кончилась без исхода — как
+/// пометка <c>interrupted</c> отчёта. Такой импорт только отменяют.</param>
 public sealed record EstimateImportItemDto(
     Guid Id, EstimateImportTargetDto Target, string FileName, string State, string? Kind, string? RefusalCode,
-    Guid? RevisionId, DateTimeOffset CreatedAt, string? CreatedBy, string Version);
+    bool Interrupted, Guid? RevisionId, DateTimeOffset CreatedAt, string? CreatedBy, string Version);
 
 /// <summary>
 /// Отчёт импорта (ТЗ PLAN-7): состояние, вид документа и версия схемы, «разобрано N из M», не разобранное с
@@ -62,7 +64,7 @@ public sealed record EstimateImportItemDto(
 /// <param name="InFile">Позиций в файле — у ЛСР.</param>
 /// <param name="Skipped">Позиции, которые строками не станут, с причиной (D3 <c>plan-31</c>): в «N из M» они
 /// разобранные.</param>
-/// <param name="Marks">Пометки отчёта: <c>notEstimate</c> — это не ЛСР, приложите к смете; <c>partial</c> —
+/// <param name="Marks">Пометки отчёта: <c>notEstimate</c> — это не ЛСР, редакцией не станет: уберите импорт; <c>partial</c> —
 /// разобрано не всё; <c>otherCalculation</c> — номер ЛСР не совпадает с прежней редакцией сметы;
 /// <c>computedTotals</c> — итоги посчитаны системой; <c>interrupted</c> — разбор прерван.</param>
 /// <param name="Hidden">Что скрыто правами; <c>null</c> — ничего.</param>

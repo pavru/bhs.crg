@@ -142,6 +142,32 @@ public class EstimateImportEndpointsTests(PlanOnlyHost host)
         Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/plan/imports")).StatusCode);
     }
 
+    /// <summary>
+    /// Разбор, оборвавшийся без исхода (задача кончилась, импорт всё ещё <c>parsing</c>), назван прерванным и в
+    /// отчёте, и в списке: иначе полоса «ждёт решения» вечно показывала бы его «разбирается».
+    /// </summary>
+    [Fact]
+    public async Task Прерванный_разбор_назван_и_в_списке()
+    {
+        var site = await EstimateSeed.SiteAsync(host);
+        var client = await EstimateImportFlow.EditorAsync(host);
+        var broken = EstimateImportFlow.Id(await EstimateImportFlow.OutcomeAsync(client,
+            await EstimateImportFlow.UploadAsync(client, site.Construction, Lsr)));
+        var whole = EstimateImportFlow.Id(await EstimateImportFlow.OutcomeAsync(client,
+            await EstimateImportFlow.UploadAsync(client, site.Construction, Lsr)));
+        // Обрыв разбора: задача завершена, а исход не записан — состояние импорта осталось «разбирается».
+        using (var scope = host.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<PlanDbContext>().EstimateImports.Where(i => i.Id == broken)
+                .ExecuteUpdateAsync(u => u.SetProperty(i => i.State, EstimateImportState.Parsing));
+
+        Assert.Contains("interrupted", EstimateImportFlow.Marks(await EstimateImportFlow.GetAsync(client, broken)));
+        var all = (await client.GetFromJsonAsync<JsonElement>($"/api/plan/imports?constructionId={site.Construction}"))
+            .EnumerateArray().ToDictionary(i => i.GetProperty("id").GetGuid());
+        Assert.Equal("parsing", all[broken].GetProperty("state").GetString());
+        Assert.True(all[broken].GetProperty("interrupted").GetBoolean());
+        Assert.False(all[whole].GetProperty("interrupted").GetBoolean());
+    }
+
     /// <summary>Удалённая смета без редакций уносит несостоявшиеся импорты в неё — и их файлы.</summary>
     [Fact]
     public async Task Удаление_сметы_уносит_её_импорты()
