@@ -27,10 +27,14 @@ namespace BHS.CRG.Modules.Costs.Endpoints;
 /// <param name="ProfileState"><c>current</c>, <c>changed</c> (правлен после построения), <c>deleted</c>,
 /// <c>none</c> (вид построен до профилей); <c>null</c> — профиль к виду не относится или подставить его не
 /// удалось.</param>
+/// <param name="LayoutNote">Пометка построителя о раскладке по профилю печати (issue #1495) — отдельно от
+/// <paramref name="Notes" />, в которых её нет: экран показывает её у выбора профиля, а не строкой.
+/// <c>null</c> — вид по профилю не раскладывался.</param>
 public sealed record InvoiceImageView(
     string State, int? Pages, IReadOnlyList<string> Notes, string? Converter, DateTimeOffset? BuiltAt,
     string? Reason, bool AboutFile,
-    string? Layout = null, InvoiceImageProfile? Profile = null, string? ProfileState = null);
+    string? Layout = null, InvoiceImageProfile? Profile = null, string? ProfileState = null,
+    string? LayoutNote = null);
 
 /// <summary>Профиль печати вида — именем, как он называется сейчас.</summary>
 public sealed record InvoiceImageProfile(Guid Id, string Name);
@@ -160,8 +164,10 @@ public sealed class InvoiceScanImage(
 
     private static InvoiceImageView View(ModuleRendition rendition, Invoice invoice) => rendition switch
     {
+        // Пометка о раскладке — при любом исходе: где её показать, решает экран.
         ModuleRendition.Built built => Laid(
-            new(Built, built.Pages, built.Notes, built.Converter, built.BuiltAt, null, false), built.Layout, invoice),
+            new(Built, built.Pages, built.Notes, built.Converter, built.BuiltAt, null, false,
+                LayoutNote: built.Layout?.Note), built.Layout, invoice),
         // Файл другого вида — не отказ, а «образ не положен»: экран покажет его как умеет сам.
         ModuleRendition.Refused { OtherKind: false } refused =>
             new(Refused, null, [], null, null, refused.Reason, refused.AboutFile),

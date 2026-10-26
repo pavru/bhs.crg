@@ -7,9 +7,12 @@
 // НАРИСОВАН (холст не белый), слой текста лёг на лист и выделяется мышью, как в браузере.
 
 /** Оговорка вида («1 стр.») называет число листов — по ней сверяется пагинатор панели. */
+// Число листов строка-оговорка называет в подсказке фразы, а не на виду (issue #1495): на виду его
+// показывает панель просмотрщика — её и сверяем с ним.
 async function pagesOf(caveat) {
-  const m = /(\d+)\s*стр\./.exec(await caveat.innerText());
-  if (!m) throw new Error(`оговорка вида не назвала число листов: «${await caveat.innerText()}»`);
+  const said = await caveat.getByTestId('image-caveat-phrase').getAttribute('aria-description') ?? '';
+  const m = /(\d+)\s*стр\./.exec(said);
+  if (!m) throw new Error(`оговорка вида не назвала число листов: «${said}»`);
   return Number(m[1]);
 }
 

@@ -270,12 +270,15 @@ public class PrintProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var own = await CreateAsync("Узкий");
         var built = await store.RebuildAsync(original, Owner, own.Id, default);
 
-        Assert.Equal(new ModuleRenditionLayout(ModuleLayoutOutcome.Applied, own.Id, "Узкий", ModuleLayoutProfileState.Current),
-            Layout(await port.FindAsync(original)));
+        var shown = Layout(await port.FindAsync(original));
+        Assert.Equal(new ModuleRenditionLayout(ModuleLayoutOutcome.Applied, own.Id, "Узкий", ModuleLayoutProfileState.Current,
+            shown.Note), shown);
+        Assert.Contains("«Узкий»", shown.Note);
 
+        // Пометка записана при построении — в ней прежнее имя: так вид и разложен.
         await UpdateAsync(own.Id, "Узенький", 10);
-        Assert.Equal(new ModuleRenditionLayout(ModuleLayoutOutcome.Applied, own.Id, "Узенький", ModuleLayoutProfileState.Current),
-            Layout(await port.FindAsync(original)));
+        Assert.Equal(new ModuleRenditionLayout(ModuleLayoutOutcome.Applied, own.Id, "Узенький", ModuleLayoutProfileState.Current,
+            shown.Note), Layout(await port.FindAsync(original)));
 
         await UpdateAsync(own.Id, "Узенький", 12);
         Assert.Equal(built.LayoutStamp, (await RecordAsync(original)).LayoutStamp);
@@ -302,8 +305,10 @@ public class PrintProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
         await DeleteAsync(own.Id);
 
         Assert.Equal(own.Id, (await RecordAsync(original)).LayoutProfileId);
-        Assert.Equal(new ModuleRenditionLayout(ModuleLayoutOutcome.Applied, own.Id, null, ModuleLayoutProfileState.Deleted),
-            Layout(await port.FindAsync(original)));
+        var shown = Layout(await port.FindAsync(original));
+        Assert.Equal(new ModuleRenditionLayout(ModuleLayoutOutcome.Applied, own.Id, null, ModuleLayoutProfileState.Deleted,
+            shown.Note), shown);
+        Assert.Contains("«Узкий»", shown.Note);
     }
 
     /// <summary>
@@ -321,7 +326,7 @@ public class PrintProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
         await UpdateAsync(RenditionLayoutProfile.SystemId, RenditionLayoutProfile.SystemName, 9);
 
         Assert.Equal((RenditionLayout.BookOwn, (Guid?)null), (record.Layout, record.LayoutProfileId));
-        Assert.Equal(new ModuleRenditionLayout(ModuleLayoutOutcome.BookOwn, null, null, null), Layout(await port.FindAsync(original)));
+        Assert.Equal(new ModuleRenditionLayout(ModuleLayoutOutcome.BookOwn, null, null, null, null), Layout(await port.FindAsync(original)));
     }
 
     /// <summary>
@@ -343,7 +348,7 @@ public class PrintProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
             await db.SaveChangesAsync();
         }
 
-        Assert.Equal(new ModuleRenditionLayout(ModuleLayoutOutcome.BeforeProfiles, null, null, null), Layout(await port.FindAsync(original)));
+        Assert.Equal(new ModuleRenditionLayout(ModuleLayoutOutcome.BeforeProfiles, null, null, null, null), Layout(await port.FindAsync(original)));
     }
 
     /// <summary>
@@ -374,6 +379,44 @@ public class PrintProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
         Assert.Equal([lost], Assert.IsType<ModuleRendition.Built>(await port.FindAsync(laid)).Notes);
     }
 
+    /// <summary>
+    /// Пометка о раскладке отделяется от прочих при чтении (issue #1495) — и у видов, построенных раньше: у
+    /// вписанного константой #1453 (показан «до профилей») и у не сумевшего. Пометка другой формулировки
+    /// остаётся в списке: дубль, но не потеря. У книги со своей раскладкой пометок о раскладке не ищут.
+    /// </summary>
+    [Fact]
+    public async Task Пометка_о_раскладке_отделяется_от_прочих()
+    {
+        var port = new ModuleRenditionsPort(Store(), Owner, NullLogger<ModuleRenditionsPort>.Instance);
+        var lost = $"{RenditionPostconditions.LostTextNote}: из слов в ячейках найдено 80 %. Сверяйте с исходным файлом.";
+        var applied = ExcelPageLayout.AppliedNote(PageProfile.Default, 1);
+        const string older = "Лист вписан в ширину страницы: в Excel он печатается иначе.";
+        const string constant = "files/2026/10/константа.xlsx", skipped = "files/2026/10/не-вышло.xlsx",
+            authored = "files/2026/10/автор.xlsx";
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            foreach (var path in new[] { constant, skipped, authored }) db.BlobRegistry.Add(BlobRegistryEntry.Create(path, Owner));
+            db.Renditions.Add(RenditionRecord.Built(constant, "files/2026/10/c.pdf", 1, [lost, applied, older],
+                "gotenberg 8.37.0", RenditionLayout.Applied, """{"profile":"default","fit":"width"}"""));
+            db.Renditions.Add(RenditionRecord.Built(skipped, "files/2026/10/s.pdf", 1,
+                [ExcelPageLayout.FailedNote, OfficeRenditionBuilder.UncheckedNote], "gotenberg 8.37.0", RenditionLayout.Skipped));
+            db.Renditions.Add(RenditionRecord.Built(authored, "files/2026/10/o.pdf", 1, [applied], "gotenberg 8.37.0",
+                RenditionLayout.BookOwn));
+            await db.SaveChangesAsync();
+        }
+
+        var byConstant = Assert.IsType<ModuleRendition.Built>(await port.FindAsync(constant));
+        Assert.Equal([lost, older], byConstant.Notes);
+        Assert.Equal((applied, ModuleLayoutOutcome.BeforeProfiles), (byConstant.Layout!.Note, byConstant.Layout.Outcome));
+        var bySkipped = Assert.IsType<ModuleRendition.Built>(await port.FindAsync(skipped));
+        Assert.Equal([OfficeRenditionBuilder.UncheckedNote], bySkipped.Notes);
+        Assert.Equal(ExcelPageLayout.FailedNote, bySkipped.Layout!.Note);
+        var byAuthor = Assert.IsType<ModuleRendition.Built>(await port.FindAsync(authored));
+        Assert.Equal([applied], byAuthor.Notes);
+        Assert.Null(byAuthor.Layout!.Note);
+    }
+
     /// <summary>Профиль помнит только книга: у Word и у файла, который читается сам, его нет.</summary>
     [Fact]
     public async Task Не_книга_профиля_не_помнит()
@@ -385,7 +428,7 @@ public class PrintProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var record = await store.EnsureAsync(word, Owner, default);
 
         Assert.Equal((RenditionLayout.NotBook, (Guid?)null, (string?)null), (record.Layout, record.LayoutProfileId, record.LayoutStamp));
-        Assert.Equal(new ModuleRenditionLayout(ModuleLayoutOutcome.NotBook, null, null, null), Layout(await port.FindAsync(word)));
+        Assert.Equal(new ModuleRenditionLayout(ModuleLayoutOutcome.NotBook, null, null, null, null), Layout(await port.FindAsync(word)));
     }
 
     private static ModuleRenditionLayout Layout(ModuleRendition? rendition) =>

@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest';
 import type { InvoiceImage } from '@/shared/api/invoiceImage';
 import type { PrintProfile } from '@/shared/api/printProfiles';
 import {
-  canChooseProfile, initialChoice, layoutChipLabel, layoutHint, layoutNotice, rebuiltMessage,
+  canChooseProfile, initialChoice, layoutChipHint, layoutChipLabel, layoutChipParts, layoutHint, layoutNotice, rebuiltMessage,
 } from './invoiceImageLayout';
 
 /** Раскладка вида у счёта (issue #1456): что сказать о профиле печати и когда давать выбор. */
 
 const built = (over: Partial<InvoiceImage> = {}): InvoiceImage => ({
   state: 'built', pages: 1, notes: [], converter: null, builtAt: null, reason: null, aboutFile: false,
-  layout: 'profile', profile: { id: 'sys', name: 'по умолчанию' }, profileState: 'current', ...over,
+  layout: 'profile', profile: { id: 'sys', name: 'по умолчанию' }, profileState: 'current', layoutNote: null, ...over,
 });
 
 const profile = (id: string, isSystem = false): PrintProfile => ({
@@ -54,6 +54,21 @@ describe('раскладка вида для чтения', () => {
     expect(layoutChipLabel(built({ profile: null, profileState: 'deleted' }))).toBe('Раскладка: профиль удалён');
     expect(layoutChipLabel(built({ profile: null, profileState: 'none' }))).toBe('Раскладка: до профилей');
     expect(layoutChipLabel(built({ profile: null, profileState: null }))).toBe('Раскладка: профиль не применён');
+    // Текст «изменён» ушёл в подсказку чипа (issue #1495) — подпись называет состояние сама.
+    expect(layoutChipLabel(built({ profileState: 'changed' }))).toBe('Раскладка: по умолчанию · изменён');
+  });
+
+  it('в узкой колонке обрезается имя профиля, а не слово состояния — оно отдельной частью', () => {
+    expect(layoutChipParts(built({ profileState: 'changed' }))).toEqual({ lead: 'Раскладка: по умолчанию', state: ' · изменён' });
+    expect(layoutChipParts(built({ profile: null, profileState: 'deleted' }))).toEqual({ lead: 'Раскладка:', state: ' профиль удалён' });
+    expect(layoutChipParts(built()).state).toBe('');
+  });
+
+  it('подсказка чипа — состояние, пометка о раскладке и как выбрать; пустого не пишет', () => {
+    const image = built({ profileState: 'changed', layoutNote: 'Лист вписан…' });
+    expect(layoutChipHint(image, layoutNotice(image)))
+      .toBe(`${layoutNotice(image)}\n\nЛист вписан…\n\nВыбрать профиль — по нажатию.`);
+    expect(layoutChipHint(built(), null)).toBe('Выбрать профиль — по нажатию.');
   });
 
   it('тост называет профиль; профиль, не применённый к книге со своей раскладкой, назван словами', () => {

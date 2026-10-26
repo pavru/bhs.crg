@@ -99,13 +99,56 @@ public static class ExcelPageLayout
 
     public const string FailedNote = "Раскладку по профилю применить не удалось — вид построен по файлу как есть.";
 
-    public static string AppliedNote(PageProfile profile, int sheets) => (profile.FitWidth, sheets == 1) switch
+    public static string AppliedNote(PageProfile profile, int sheets)
     {
-        (true, true) => $"Лист вписан в ширину страницы по профилю печати «{profile.Name}»: в Excel он печатается иначе.",
-        (true, false) => $"Листы ({sheets}) вписаны в ширину страницы по профилю печати «{profile.Name}»: в Excel они печатаются иначе.",
-        (false, true) => $"Лист разложен на бумагу по профилю печати «{profile.Name}»: в Excel он печатается иначе.",
-        (false, false) => $"Листы ({sheets}) разложены на бумагу по профилю печати «{profile.Name}»: в Excel они печатаются иначе.",
-    };
+        var form = NoteForms.First(f => f.FitWidth == profile.FitWidth && f.Single == (sheets == 1));
+        return $"{(form.Single ? "" : $"{SheetsHead}{sheets}")}{form.Head}{profile.Name}{form.Tail}";
+    }
+
+    /// <summary>
+    /// Пометка о раскладке по профилю — <see cref="AppliedNote" /> или <see cref="FailedNote" /> (issue #1495):
+    /// её показывают не строкой, а у выбора профиля, и порт видов отделяет её от прочих при чтении.
+    ///
+    /// <para>Узнаётся по началу и концу формы, а не разбором: имя профиля стоит посередине и может
+    /// содержать что угодно, в том числе кавычки и «»: в Excel». Формы описаны здесь же, одной парой на
+    /// каждую, и <see cref="AppliedNote" /> собирается из них — новая формулировка мимо пар не пройдёт.</para>
+    /// </summary>
+    public static bool IsLayoutNote(string note)
+    {
+        if (note == FailedNote) return true;
+        foreach (var form in NoteForms)
+        {
+            var rest = note.AsSpan();
+            if (!form.Single)
+            {
+                if (!rest.StartsWith(SheetsHead, StringComparison.Ordinal)) continue;
+                rest = rest[SheetsHead.Length..];
+                var digits = 0;
+                while (digits < rest.Length && char.IsAsciiDigit(rest[digits])) digits++;
+                if (digits == 0) continue;
+                rest = rest[digits..];
+            }
+            if (rest.Length >= form.Head.Length + form.Tail.Length
+                && rest.StartsWith(form.Head, StringComparison.Ordinal) && rest.EndsWith(form.Tail, StringComparison.Ordinal))
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>Начало пометки о нескольких листах — до их числа.</summary>
+    private const string SheetsHead = "Листы (";
+
+    /// <summary>
+    /// Формы <see cref="AppliedNote" />: начало до имени профиля (у нескольких листов — после их числа) и
+    /// конец после него.
+    /// </summary>
+    private static readonly (bool FitWidth, bool Single, string Head, string Tail)[] NoteForms =
+    [
+        (true, true, "Лист вписан в ширину страницы по профилю печати «", "»: в Excel он печатается иначе."),
+        (true, false, ") вписаны в ширину страницы по профилю печати «", "»: в Excel они печатаются иначе."),
+        (false, true, "Лист разложен на бумагу по профилю печати «", "»: в Excel он печатается иначе."),
+        (false, false, ") разложены на бумагу по профилю печати «", "»: в Excel они печатаются иначе."),
+    ];
 
     /// <summary>Порядок элементов листа по схеме <c>CT_Worksheet</c>: вставлять недостающее можно только сюда.</summary>
     private static readonly string[] Order =

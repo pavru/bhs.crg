@@ -15,6 +15,38 @@ async function sweep(h) {
 }
 
 /**
+ * Строка-оговорка — одна (issue #1495): пометка о раскладке у чипа, а не строкой; фраза «документ —
+ * оригинал» не обрезана; чип и «Перестроить» не разорваны; строка не наезжает на лист — и в широкой
+ * колонке, и в узкой (экран у нижней границы панели файла, 1280).
+ */
+async function oneLine(page, h, caveat, chip) {
+  const said = await chip.getAttribute('aria-description') ?? '';
+  if (!said.includes('по профилю печати «по умолчанию»'))
+    throw new Error(`подсказка чипа не несёт пометку о раскладке: «${said}»`);
+  if ((await caveat.innerText()).includes('в Excel'))
+    throw new Error('пометка о раскладке стоит строкой, хотя чип показан');
+
+  const region = page.getByRole('region', { name: /вид для чтения$/ });
+  const rebuild = caveat.getByRole('button', { name: 'Перестроить' });
+  try {
+    for (const width of [1500, 1280]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await h.named(`области вида для чтения нет при ширине ${width}`, () => region.waitFor({ timeout: 10_000 }));
+      const [line, sheet, chipBox, rebuildBox] = await Promise.all(
+        [caveat, region, chip, rebuild].map(l => l.boundingBox()));
+      if (line.y + line.height > sheet.y + 1)
+        throw new Error(`строка-оговорка наезжает на лист при ширине ${width}`);
+      if (Math.abs(chipBox.y + chipBox.height / 2 - (rebuildBox.y + rebuildBox.height / 2)) > 2)
+        throw new Error(`чип и «Перестроить» разорваны по строкам при ширине ${width}`);
+      const cut = await caveat.getByTestId('image-caveat-phrase').evaluate(el => el.scrollWidth > el.clientWidth);
+      if (cut) throw new Error(`фраза «документ — оригинал» обрезана при ширине ${width}`);
+    }
+  } finally {
+    await page.setViewportSize({ width: 1500, height: 1000 });
+  }
+}
+
+/**
  * Книга без своей раскладки (`converter-wide.xlsx` — та, ради которой профили заведены): вид разложен
  * по профилю по умолчанию; при втором профиле у строки вида есть чип «Раскладка», и выбор в нём
  * перестраивает по выбранному профилю — а счёт не трогает: версия прежняя.
@@ -39,6 +71,7 @@ export async function invoiceLayoutChecks(page, check, h) {
       await h.named('чипа «Раскладка» у книги без своей раскладки нет', () => chip.waitFor({ timeout: 15_000 }));
       if (!/Раскладка: по умолчанию/.test(await chip.innerText()))
         throw new Error(`чип называет не профиль по умолчанию: «${await chip.innerText()}»`);
+      await oneLine(page, h, caveat, chip);
 
       await chip.click();
       const popover = page.getByTestId('layout-popover');

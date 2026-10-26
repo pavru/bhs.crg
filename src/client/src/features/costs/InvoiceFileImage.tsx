@@ -68,6 +68,10 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
   const { data: profiles = NO_PROFILES } = usePrintProfiles({ enabled: canEdit && mayList && image.layout === 'profile' });
   const notice = canEdit ? layoutNotice(image) : null;
   const hint = layoutHint(image);
+  const chip = canEdit && canChooseProfile(image, profiles);
+  // Пока показан чип, состояние профиля и пометка о раскладке — у него (issue #1495): раскладка иначе
+  // названа трижды, а узкая колонка платит за каждую строку высотой листа.
+  const lines = [...(chip ? [] : [notice, image.layoutNote]), ...image.notes];
 
   /** Перестроить; `true` — вид построен (окно выбора тогда закрывается). */
   const rebuildWith = (profileId?: string) => rebuild.mutateAsync(profileId)
@@ -90,38 +94,44 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
         </Button>
         <OriginalButton invoiceId={invoiceId} fileName={fileName} label="Оригинал" />
       </div>
+      {/* Одна строка (issue #1495, вариант Б): короткая фраза, чип и «Перестроить»; в узкой колонке чип с
+          кнопкой уходят на вторую строку вместе. Фраза не обрезается — многоточие срезало бы как раз
+          «документ — оригинал»; остальное, что о виде сказать, — в её подсказке. */}
       <div className="px-3 py-1.5 border-b border-stroke bg-muted text-xs text-fg2 shrink-0" data-testid="image-caveat">
-        <div className="flex items-baseline gap-2">
-          <Tooltip content={`Построен ${image.builtAt ? formatDateTime(image.builtAt) : ''} из файла${fileName ? ` «${fileName}»` : ''}. `
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <Tooltip content={`Вид для чтения${image.pages ? `, ${image.pages} стр.` : ''}: ${IMAGE_CAVEAT}. `
+              + `Построен ${image.builtAt ? formatDateTime(image.builtAt) : ''} из файла${fileName ? ` «${fileName}»` : ''}. `
               + 'Текст и числа взяты из файла; расположение, шрифты и разбивка на страницы — приближённые.'
               + (hint ? ` ${hint}` : '')}>
-            <span className="flex-1">
-              <span className="font-medium text-fg1">Вид для чтения</span>
-              {image.pages ? ` · ${image.pages} стр.` : ''} — {IMAGE_CAVEAT}.
+            {/* С фокусом: читатель без чипа узнаёт, по чему разложен вид, только отсюда. */}
+            <span tabIndex={0} data-testid="image-caveat-phrase"
+              className="flex-auto rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+              <span className="font-medium text-fg1">Вид для чтения</span> · документ — оригинал
             </span>
           </Tooltip>
           {canEdit && (
-            <Button size="sm" variant="text" loading={rebuild.isPending} icon={<RotateCw size={12} />}
-              title="Построить вид заново. Сам файл и распознанное остаются как были."
-              onClick={() => void rebuildWith()}>
-              {rebuild.isPending ? 'Перестраиваем…' : 'Перестроить'}
-            </Button>
+            <span className="flex items-center gap-2 min-w-0 max-w-full">
+              {chip && (
+                <LayoutChooser image={image} notice={notice} profiles={profiles} rebuilding={rebuild.isPending}
+                  onRebuild={rebuildWith} />
+              )}
+              <Button size="sm" variant="text" loading={rebuild.isPending} icon={<RotateCw size={12} />}
+                className="shrink-0" title="Построить вид заново. Сам файл и распознанное остаются как были."
+                onClick={() => void rebuildWith()}>
+                {rebuild.isPending ? 'Перестраиваем…' : 'Перестроить'}
+              </Button>
+            </span>
           )}
         </div>
-        {canEdit && canChooseProfile(image, profiles) && (
-          <div className="mt-1.5">
-            <LayoutChooser image={image} profiles={profiles} rebuilding={rebuild.isPending} onRebuild={rebuildWith} />
-          </div>
-        )}
-        {(image.notes.length > 0 || notice) && (
+        {lines.some(Boolean) && (
           <ul className="mt-1 space-y-0.5 text-fg2">
-            {notice && (
+            {lines.map((line, i) => line && (
               // Не предупреждение: вид не испорчен, он лишь по прежним параметрам.
-              <li className="flex items-start gap-1.5" data-testid="layout-notice">
-                <Info size={12} aria-hidden className="shrink-0 mt-0.5 text-fg3" />{notice}
+              <li key={`${i}|${line}`} className="flex items-start gap-1.5"
+                data-testid={line === notice ? 'layout-notice' : line === image.layoutNote ? 'layout-note' : undefined}>
+                <Info size={12} aria-hidden className="shrink-0 mt-0.5 text-fg3" />{line}
               </li>
-            )}
-            {image.notes.map(note => <li key={note}>{note}</li>)}
+            ))}
           </ul>
         )}
       </div>
