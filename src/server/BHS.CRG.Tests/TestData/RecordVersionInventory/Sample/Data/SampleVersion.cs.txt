@@ -10,5 +10,5 @@ public sealed class SampleVersion : ModuleRecordVersion
         new(record, number, content, reason, author);
 
     internal static void Map(ModelBuilder builder) =>
-        Map<SampleVersion>(builder, "sample_versions");
+        Map<SampleVersion, SampleRecord>(builder, "sample_versions");
 }

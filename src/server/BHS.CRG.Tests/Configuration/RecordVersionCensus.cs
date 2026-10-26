@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using BHS.CRG.Tests.Common;
 
@@ -20,11 +21,10 @@ public static class RecordVersionCensus
 {
     public const string BaseType = "ModuleRecordVersion";
 
-    /// <summary>Файл, как его читает сторож: путь от каталога решения и текст без строк-комментариев.</summary>
+    /// <summary>Файл, как его читает сторож: путь от каталога решения и текст без комментариев.</summary>
     public sealed record Source(string Rel, string Text)
     {
-        public static Source Read(string full, string rel) =>
-            new(rel, string.Join("\n", File.ReadAllLines(full).Select(l => l.TrimStart().StartsWith("//") ? "" : l)));
+        public static Source Read(string full, string rel) => new(rel, WithoutComments(File.ReadAllText(full)));
     }
 
     /// <summary>Нарушение: код запрета, тип версии (если он есть) и место.</summary>
@@ -33,8 +33,11 @@ public static class RecordVersionCensus
         public override string ToString() => $"[{Code}] {Type}: {Rel}:{Line}";
     }
 
-    /// <summary>Наследник базового типа: имя, файл объявления, таблица и шаблон обращения к его набору.</summary>
-    public sealed record Heir(string Type, string DeclaredIn, string? Table, Regex Access);
+    /// <summary>
+    /// Наследник базового типа: имя, файл объявления, таблица и файл, где она названа вызовом
+    /// <c>Map</c>, и шаблон обращения к его набору.
+    /// </summary>
+    public sealed record Heir(string Type, string DeclaredIn, string? Table, string? MappedIn, Regex Access);
 
     /// <summary>Что сторожу разрешено и почему — словари переписи (у образцов — свои).</summary>
     public sealed record Rules(
@@ -43,17 +46,26 @@ public static class RecordVersionCensus
         IReadOnlyDictionary<string, string> ShapeExceptions);
 
     public const string NoDictionary = "нет словаря";
+    public const string NoMap = "отображение мимо Map";
     public const string Outsider = "мимо словаря";
     public const string Bypass = "мимо отслеживания";
     public const string Table = "таблица по имени";
     public const string Totals = "итоги читают историю";
     public const string Shape = "форма версии мимо базового типа";
 
-    /// <summary>Файлы итогов по имени. Прочие итоги названы в словаре переписи.</summary>
-    private static readonly Regex TotalsName = new(@"(Views|Totals|ClosingReport)\.cs$", RegexOptions.Compiled);
+    /// <summary>
+    /// Файлы итогов по имени. <c>*Views.cs</c> сюда не входит: так зовутся и сборщики представлений
+    /// (<c>EstimateViews.cs</c>), и итоги (<c>CostViews.cs</c>) — итоги из них названы в словаре переписи.
+    /// </summary>
+    private static readonly Regex TotalsName = new(@"(Totals|ClosingReport)\.cs$", RegexOptions.Compiled);
 
-    private static readonly Regex HeirDeclaration = new(
-        $@"\bclass\s+(\w+)\s*(?:\([^)]*\))?\s*:\s*{BaseType}\b", RegexOptions.Compiled);
+    /// <summary>
+    /// Объявление класса и его первого базового типа — именем, в том числе полным
+    /// (<c>Data.ModuleRecordVersion</c>). Наследник ищется по цепочке: через промежуточный класс тоже.
+    /// </summary>
+    private static readonly Regex ClassBase = new(
+        @"\b(?<abstract>abstract\s+(?:\w+\s+)*)?class\s+(?<type>\w+)\s*(?:<[^>{]*>)?\s*(?:\([^)]*\))?\s*:\s*(?:[\w.]+\.)?(?<base>\w+)\b",
+        RegexOptions.Compiled);
 
     private static readonly Regex AppendOnlyClass = new(
         @"\bclass\s+(\w+)[^{;]*?:\s*[^{;]*\bIAppendOnly\b", RegexOptions.Compiled);
@@ -65,21 +77,28 @@ public static class RecordVersionCensus
 
     public static IReadOnlyList<Heir> Heirs(IReadOnlyList<Source> files)
     {
+        var classes = files.SelectMany(f => ClassBase.Matches(f.Text).Select(m => (
+                Type: m.Groups["type"].Value, Base: m.Groups["base"].Value, Abstract: m.Groups["abstract"].Success, f.Rel)))
+            .ToList();
+
+        // Цепочка наследования: промежуточный класс — тоже основа, но набора у него нет.
+        var bases = new HashSet<string> { BaseType };
+        while (classes.Where(c => bases.Contains(c.Base)).Select(c => c.Type).Where(bases.Add).ToList().Count > 0) { }
+
         var heirs = new List<Heir>();
-        foreach (var file in files)
-        foreach (Match m in HeirDeclaration.Matches(file.Text))
+        foreach (var (type, _, _, declaredIn) in classes.Where(c => bases.Contains(c.Base) && !c.Abstract))
         {
-            var type = m.Groups[1].Value;
             var t = Regex.Escape(type);
 
-            var table = files.Select(f => Regex.Match(f.Text, $@"\bMap<{t}>\(\s*\w+\s*,\s*""(\w+)""")).FirstOrDefault(x => x.Success)
-                        ?? Regex.Match(file.Text, @"\.ToTable\(\s*""(\w+)""");
+            // Таблицу называет только Map — и только строкой: иначе её имени сторожу не прочесть.
+            var map = files.Select(f => (f.Rel, Match: Regex.Match(f.Text, $@"\bMap<\s*{t}\s*,[^>]*>\(\s*\w+\s*,\s*""(\w+)""")))
+                .FirstOrDefault(x => x.Match.Success);
             var sets = files.SelectMany(f => Regex.Matches(f.Text, $@"\bDbSet<{t}>\s+(\w+)").Select(x => x.Groups[1].Value))
                 .Distinct().Select(Regex.Escape);
 
             var access = string.Join("|", new[] { $@"\bSet<{t}>", $@"\b{t}\.Create\(", $@"\bnew\s+{t}\s*\(" }
                 .Concat(sets.Select(s => $@"\b{s}\b")));
-            heirs.Add(new Heir(type, file.Rel, table.Success ? table.Groups[1].Value : null,
+            heirs.Add(new Heir(type, declaredIn, map.Match?.Groups[1].Value, map.Rel,
                 new Regex(access, RegexOptions.Compiled)));
         }
 
@@ -99,18 +118,22 @@ public static class RecordVersionCensus
                 mayTouch = new Dictionary<string, string>();
             }
 
+            // Без Map нет ни индекса номера, ни связи с Restrict — и таблицы, по которой искать сырой SQL.
+            if (heir.Table is null) found.Add(new Violation(NoMap, heir.Type, heir.DeclaredIn, 1));
+
             foreach (var file in files)
             {
                 ScanAccess(file, heir, mayTouch, rules, found);
 
-                if (heir.Table is not null && file.Rel != heir.DeclaredIn)
+                if (heir.Table is not null && file.Rel != heir.DeclaredIn && file.Rel != heir.MappedIn)
                     foreach (Match m in Regex.Matches(file.Text, $@"\b{Regex.Escape(heir.Table)}\b"))
                         found.Add(new Violation(Table, heir.Type, file.Rel, SourceTree.LineOf(file.Text, m.Index)));
             }
         }
 
         foreach (var file in files)
-            ScanShape(file, rules, found);
+        foreach (var (type, line) in ShapeMatches(file).Where(s => !rules.ShapeExceptions.ContainsKey(s.Type)))
+            found.Add(new Violation(Shape, type, file.Rel, line));
 
         return found;
     }
@@ -141,23 +164,88 @@ public static class RecordVersionCensus
         }
     }
 
-    /// <summary>Дописываемый класс с номером и содержимым, не наследующий базовый тип, — версия мимо него.</summary>
-    private static void ScanShape(Source file, Rules rules, List<Violation> found)
+    /// <summary>
+    /// Дописываемые классы файла с формой версии — номером и содержимым — мимо базового типа. Исключения
+    /// переписи здесь не учтены: по этому же перечню проверяется, что исключение ещё кого-то называет.
+    /// </summary>
+    private static IEnumerable<(string Type, int Line)> ShapeMatches(Source file)
     {
         foreach (Match m in AppendOnlyClass.Matches(file.Text))
         {
             var type = m.Groups[1].Value;
-            if (type == BaseType || rules.ShapeExceptions.ContainsKey(type)) continue;
-            if (HeirDeclaration.IsMatch(m.Value)) continue;
+            if (type == BaseType) continue;
 
             var next = AnyClass.Match(file.Text, m.Index + m.Length);
             var body = file.Text[m.Index..(next.Success ? next.Index : file.Text.Length)];
             if (Regex.IsMatch(body, @"\bint\s+Number\s*\{") && Regex.IsMatch(body, @"\bstring\s+Content\s*\{"))
-                found.Add(new Violation(Shape, type, file.Rel, SourceTree.LineOf(file.Text, m.Index)));
+                yield return (type, SourceTree.LineOf(file.Text, m.Index));
         }
     }
 
-    /// <summary>Классы с формой версии — для проверки, что исключение ещё кого-то называет.</summary>
+    /// <summary>Типы с формой версии мимо базового — для проверки, что исключение ещё кого-то называет.</summary>
     public static IEnumerable<string> ShapeClasses(IReadOnlyList<Source> files) =>
-        files.SelectMany(f => AppendOnlyClass.Matches(f.Text).Select(m => m.Groups[1].Value));
+        files.SelectMany(ShapeMatches).Select(s => s.Type);
+
+    /// <summary>
+    /// Текст без комментариев — строчных (и в конце строки кода), блочных и документирующих; переводы строк
+    /// остаются, чтобы номер строки нарушения совпал с файлом. Строки и символы читаются как есть —
+    /// <c>"https://…"</c> не комментарий: обычная, дословная (<c>@"…"</c>) и сырая (<c>"""…"""</c>).
+    /// </summary>
+    public static string WithoutComments(string text)
+    {
+        var result = new StringBuilder(text.Length);
+        var i = 0;
+        while (i < text.Length)
+        {
+            var c = text[i];
+            var next = i + 1 < text.Length ? text[i + 1] : '\0';
+
+            if (c == '/' && next == '/')
+            {
+                while (i < text.Length && text[i] != '\n') i++;
+                continue;
+            }
+
+            if (c == '/' && next == '*')
+            {
+                var end = text.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                var stop = end < 0 ? text.Length : end + 2;
+                result.Append('\n', text.AsSpan(i, stop - i).Count('\n'));
+                i = stop;
+                continue;
+            }
+
+            if (c == '"' && text.AsSpan(i).StartsWith("\"\"\""))
+            {
+                var end = text.IndexOf("\"\"\"", i + 3, StringComparison.Ordinal);
+                var stop = end < 0 ? text.Length : end + 3;
+                result.Append(text, i, stop - i);
+                i = stop;
+                continue;
+            }
+
+            if (c is '"' or '\'')
+            {
+                var verbatim = c == '"' && i > 0 && text[i - 1] == '@';
+                var j = i + 1;
+                while (j < text.Length)
+                {
+                    if (verbatim && text[j] == '"' && j + 1 < text.Length && text[j + 1] == '"') { j += 2; continue; }
+                    if (!verbatim && text[j] == '\\') { j += 2; continue; }
+                    if (text[j] == c || (!verbatim && text[j] == '\n')) break;
+                    j++;
+                }
+
+                var stop = Math.Min(j + 1, text.Length);
+                result.Append(text, i, stop - i);
+                i = stop;
+                continue;
+            }
+
+            result.Append(c);
+            i++;
+        }
+
+        return result.ToString();
+    }
 }

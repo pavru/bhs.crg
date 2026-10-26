@@ -48,9 +48,8 @@ public sealed class WaybillVersion : ModuleRecordVersion
             }),
         });
 
+    // Связь с накладной — RESTRICT из Map: накладная с историей не удаляется. Удаление черновика
+    // отказывает раньше ключа — по номеру действующей версии (WaybillDeletion).
     internal static void Map(ModelBuilder builder) =>
-        // RESTRICT, как у счёта: накладная с историей не удаляется, каскад снёс бы историю молча. Удаление
-        // черновика отказывает раньше ключа — по номеру действующей версии (WaybillDeletion).
-        Map<WaybillVersion>(builder, "waybill_versions")
-            .HasOne<Waybill>().WithMany().HasForeignKey(v => v.RecordId).OnDelete(DeleteBehavior.Restrict);
+        Map<WaybillVersion, Waybill>(builder, "waybill_versions");
 }

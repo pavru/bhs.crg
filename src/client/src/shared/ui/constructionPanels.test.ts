@@ -6,6 +6,7 @@ import {
 } from './constructionPanels';
 import { workNav, type NavItem } from './navConfig';
 import { inWorkspace, outsideItem, resolveWorkspace } from './workspaces';
+import { visibleNav } from './navAccess';
 import { pageOwners } from './navConfig';
 
 const PLAN = { code: 'plan', title: 'Планирование', sections: ['constructions', 'catalog', 'progress'] };
@@ -16,7 +17,8 @@ function access(permissions: string[], ...open: { code: string }[]): AccessInfo 
   return { permissions, modules: [PLAN, COSTS, ID].map(m => ({ ...m, available: open.some(o => o.code === m.code) })) };
 }
 
-// Панели блока «Работы» — тестовые: «Ход работ» вписывает plan-25, «Сметы» — plan-09, «График» — plan-20.
+// Панели блока «Работы» — тестовые: «Ход работ» вписывает plan-25, «График» — plan-20. «Сметы» здесь — тестовый
+// вариант настоящих (plan-09): только у стройки, чтобы ветки уровня и адреса раздела было на чём проверить.
 const progress: ConstructionPanel = {
   id: 'progress', label: 'Ход работ', icon: Activity, block: 'work', levels: ['construction', 'section'],
   section: 'progress', permission: ['plan.estimate.read', 'costs.report.read'],
@@ -29,7 +31,9 @@ const schedule: ConstructionPanel = {
   id: 'schedule', label: 'График', icon: CalendarRange, block: 'work', levels: ['construction'],
   module: 'plan', permission: 'plan.schedule.read',
 };
-const registry = [progress, estimates, schedule, ...constructionPanels];
+const core = constructionPanels.filter(p => !p.module);
+const registry = [progress, estimates, schedule, ...core];
+const catalog = constructionPanels.find(p => p.id === 'catalog')!;
 
 // Пункт модуля в меню нужен правилу порядка: раздел рейла модуля берётся из его пунктов.
 const planItem: NavItem = { to: '/estimates', label: 'Сметы', icon: ClipboardList, module: 'plan', permission: 'plan.estimate.read', rail: 'plan' };
@@ -82,9 +86,10 @@ describe('панели карточки стройки', () => {
     expect(defaultPanel('construction', plain, insideOf(plain), registry)?.id).toBe('catalog');
     const estimator = access(['plan.estimate.read'], PLAN);
     expect(defaultPanel('construction', estimator, insideOf(estimator), registry)?.id).toBe('progress');
-    // Настоящий реестр: блока «Работы» пока нет — у всех «Каталог», как до реестра.
-    expect(defaultPanel('construction', estimator, insideOf(estimator))?.id).toBe('catalog');
-    expect(defaultPanel('section', estimator, insideOf(estimator))?.id).toBe('catalog');
+    // Настоящий реестр: у сметчика первой стоят «Сметы» (plan-09) — на обоих уровнях; без права — «Каталог».
+    expect(defaultPanel('construction', estimator, insideOf(estimator))?.id).toBe('estimates');
+    expect(defaultPanel('section', estimator, insideOf(estimator))?.id).toBe('estimates');
+    expect(defaultPanel('construction', plain, insideOf(plain))?.id).toBe('catalog');
   });
 
   it('адрес панели модуля вне пространства получает плашку без ручной записи', () => {
@@ -115,11 +120,11 @@ describe('реестр панелей', () => {
   });
 
   it('адрес, занятый соседним маршрутом, и повтор — ошибки', () => {
-    const sections: ConstructionPanel = { ...constructionPanels[0], id: 'sections' };
+    const sections: ConstructionPanel = { ...catalog, id: 'sections' };
     expect(panelRegistryProblems([...constructionPanels, sections])).toEqual(['панель «sections»: адрес занят соседним маршрутом']);
-    const sets: ConstructionPanel = { ...constructionPanels[0], id: 'sets' };
+    const sets: ConstructionPanel = { ...catalog, id: 'sets' };
     expect(panelRegistryProblems([...constructionPanels, sets])).toEqual(['панель «sets»: адрес занят соседним маршрутом']);
-    expect(panelRegistryProblems([...constructionPanels, constructionPanels[0]])).toEqual(['панель «catalog» объявлена дважды']);
+    expect(panelRegistryProblems([...constructionPanels, catalog])).toEqual(['панель «catalog» объявлена дважды']);
   });
 
   it('порядок блока «Работы»: ядро раньше модулей, модуль подряд, модули — в порядке рейла', () => {
@@ -136,9 +141,9 @@ describe('реестр панелей', () => {
 
   it('панели модуля в блоке «Эта стройка» пунктов меню не требуют: порядок рейла им не нужен', () => {
     const notes: ConstructionPanel = { ...estimates, id: 'notes', block: 'own', module: 'id', permission: undefined };
-    expect(panelRegistryProblems([...constructionPanels, notes], workNav.filter(i => i.module !== 'id'))).toEqual([]);
+    expect(panelRegistryProblems([...core, notes], workNav.filter(i => i.module !== 'id'))).toEqual([]);
     // Та же панель в блоке «Работы» — уже ошибка: модуль без пунктов не поставить по рейлу.
-    expect(panelRegistryProblems([{ ...notes, block: 'work' }, ...constructionPanels], workNav.filter(i => i.module !== 'id')))
+    expect(panelRegistryProblems([{ ...notes, block: 'work' }, ...core], workNav.filter(i => i.module !== 'id')))
       .toEqual(['у модуля «id» нет пунктов меню — порядок его панелей не определить']);
   });
 
@@ -146,5 +151,29 @@ describe('реестр панелей', () => {
     const stray: NavItem = { ...planItem, to: '/prices', rail: 'costs' };
     expect(panelRegistryProblems([progress, estimates], [...nav, stray]))
       .toEqual(['пункты модуля «plan» стоят в разных разделах рейла: plan, costs']);
+  });
+});
+
+/** Настоящая панель «Сметы» (plan-09, задача 2.2, ТЗ PLAN-20): видна только с правом на сметы, на обоих уровнях. */
+describe('панель «Сметы»', () => {
+  it('без plan.estimate.read пункта «Сметы» нет ни у стройки, ни у раздела', () => {
+    const accountant = access(['core.constructions.read', 'costs.report.read'], COSTS);
+    for (const level of ['construction', 'section'] as const)
+      expect(ids(panelsAt(level, accountant, insideOf(accountant)).work)).not.toContain('estimates');
+    // Модуль открыт другим правом — пункта всё равно нет: ворота у него право, а не модуль.
+    const scheduler = access(['plan.schedule.read'], PLAN);
+    expect(ids(panelsAt('construction', scheduler, insideOf(scheduler)).work)).not.toContain('estimates');
+  });
+
+  it('с правом — «Сметы» в блоке «Работы» карточки стройки и страницы раздела', () => {
+    const estimator = access(['plan.estimate.read'], PLAN);
+    expect(ids(panelsAt('construction', estimator, insideOf(estimator)).work)).toEqual(['estimates']);
+    expect(ids(panelsAt('section', estimator, insideOf(estimator)).work)).toEqual(['estimates']);
+  });
+
+  it('и пункт «Сметы» раздела «Планы» — тем же правом', () => {
+    const item = workNav.find(i => i.to === '/estimates')!;
+    expect(visibleNav([item], access(['core.constructions.read'], PLAN))).toEqual([]);
+    expect(visibleNav([item], access(['plan.estimate.read'], PLAN))).toEqual([item]);
   });
 });

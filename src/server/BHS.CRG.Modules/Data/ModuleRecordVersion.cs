@@ -17,9 +17,11 @@ namespace BHS.CRG.Modules.Data;
 /// и правленая версия свидетельствовала бы о другом. Правку через отслеживание отвергает
 /// <see cref="ModuleDbContext" />, обход отслеживания — перепись.</para>
 ///
-/// <para>Наследник называет свою таблицу и связь со своей записью; колонки и единственный индекс
-/// <c>(RecordId, Number)</c> даёт <see cref="Map{TVersion}" /> — чтобы индекс не забывали: два исправления
-/// с одним номером — гонка мимо блокировки строки записи, и отказать ей должен ключ.</para>
+/// <para>Наследник называет свою таблицу и тип своей записи; колонки, единственный индекс
+/// <c>(RecordId, Number)</c> и связь с записью даёт <see cref="Map{TVersion, TRecord}" />. Индекс — чтобы его
+/// не забывали: два исправления с одним номером — гонка мимо блокировки строки записи, и отказать ей должен
+/// ключ. Связь — всегда <c>Restrict</c>: каскад удалял бы историю базой, мимо отказа контекста, который
+/// видит только отслеживаемые строки.</para>
 ///
 /// <para>⚠️ Версии счёта (<c>InvoiceVersion</c>) на этот тип не переведены: перенос — миграция живых
 /// данных ради имени. Исключение названо в переписи с причиной.</para>
@@ -65,11 +67,13 @@ public abstract class ModuleRecordVersion : IAppendOnly
     public DateTimeOffset At { get; private set; }
 
     /// <summary>
-    /// Таблица версий: колонки и единственный индекс номера в записи. Связь с записью (внешний ключ и
-    /// его поведение при удалении) наследник добавляет сам — тип записи знает только он.
+    /// Таблица версий: колонки, единственный индекс номера в записи и связь с записью <c>Restrict</c> —
+    /// запись с историей не удаляется ни каскадом, ни молча. Удалить запись с версиями модуль обязан
+    /// отказом по смыслу раньше базы (у накладной — по <c>CurrentVersion</c>).
     /// </summary>
-    public static EntityTypeBuilder<TVersion> Map<TVersion>(ModelBuilder builder, string table)
+    public static EntityTypeBuilder<TVersion> Map<TVersion, TRecord>(ModelBuilder builder, string table)
         where TVersion : ModuleRecordVersion
+        where TRecord : class
     {
         var version = builder.Entity<TVersion>();
         version.ToTable(table);
@@ -84,6 +88,7 @@ public abstract class ModuleRecordVersion : IAppendOnly
         version.Property(v => v.At).HasColumnName("at");
 
         version.HasIndex(v => new { v.RecordId, v.Number }).IsUnique().HasDatabaseName($"ux_{table}_number");
+        version.HasOne<TRecord>().WithMany().HasForeignKey(v => v.RecordId).OnDelete(DeleteBehavior.Restrict);
         return version;
     }
 }

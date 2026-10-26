@@ -1,0 +1,13 @@
+// Наследник через промежуточный класс, отображённый мимо Map: таблица названа константой. Промежуточный
+// абстрактный класс сам наследником не считается — набора у него нет.
+public abstract class SampleBase : ModuleRecordVersion
+{
+}
+
+public sealed class SampleUnmapped : SampleBase
+{
+    private const string Table = "sample_unmapped";
+
+    internal static void Map(ModelBuilder builder) =>
+        Map<SampleUnmapped, SampleRecord>(builder, Table);
+}

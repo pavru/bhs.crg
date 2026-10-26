@@ -1,5 +1,11 @@
-// Объявление набора — названо в словаре.
+// Объявление наборов — названо в словаре. Не нарушение: отображение SampleMapped вызвано здесь, и имя
+// его таблицы в файле вызова Map — не «таблица по имени».
 public sealed class SampleDbContext : ModuleDbContext
 {
     public DbSet<SampleVersion> SampleVersions => Set<SampleVersion>();
+
+    public DbSet<SampleMapped> Mapped => Set<SampleMapped>();
+
+    protected override void OnModelCreating(ModelBuilder builder) =>
+        ModuleRecordVersion.Map<SampleMapped, SampleRecord>(builder, "sample_mapped");
 }

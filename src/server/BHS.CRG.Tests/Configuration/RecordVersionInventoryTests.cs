@@ -38,12 +38,13 @@ public class RecordVersionInventoryTests
     };
 
     /// <summary>
-    /// Файлы итогов, которые не узнать по имени (<c>*Views.cs</c>, <c>*Totals.cs</c>, <c>*ClosingReport.cs</c>
-    /// узнаются сами), и почему они итоги. Из них к истории не обращаются, даже названные в
-    /// <see cref="MayTouch" />.
+    /// Файлы итогов, которые не узнать по имени (<c>*Totals.cs</c> и <c>*ClosingReport.cs</c> узнаются сами),
+    /// и почему они итоги. Из них к истории не обращаются, даже названные в <see cref="MayTouch" />.
+    /// <c>*Views.cs</c> по имени не узнаётся: так зовутся и сборщики представлений.
     /// </summary>
     private static readonly Dictionary<string, string> TotalsFiles = new()
     {
+        ["BHS.CRG.Modules.Costs/Data/CostViews.cs"] = "взгляды затрат стройки — суммы по счетам и разноске",
         ["BHS.CRG.Modules.Costs/Data/IssuedMaterials.cs"] =
             "«Материалы на объекте» — свод отпущенного по стройке: только действующие строки накладных",
         ["BHS.CRG.Modules.Costs/Data/WaybillClosingLines.cs"] =
@@ -60,8 +61,9 @@ public class RecordVersionInventoryTests
 
     private static Rules Solution => new(MayTouch, TotalsFiles, ShapeExceptions);
 
+    // Ядро — тоже: сырой SQL по таблице модуля пишется и там (резервные копии, обслуживание базы).
     private static IReadOnlyList<Source> SolutionSources() =>
-        [.. SolutionModules.WithCore()
+        [.. SolutionModules.WithCore("BHS.CRG.Api", "BHS.CRG.Application", "BHS.CRG.Infrastructure")
             .SelectMany(SourceTree.Files)
             .Select(full => Source.Read(full, SourceTree.Relative(full)))];
 
@@ -74,6 +76,8 @@ public class RecordVersionInventoryTests
             "Обращения к истории версий записей модулей мимо правил:\n" + string.Join("\n", found) + "\n\n" +
             $"«{NoDictionary}» — наследник ModuleRecordVersion без словаря: впишите в MayTouch, какие файлы его " +
             "пишут и читают историю, и почему. " +
+            $"«{NoMap}» — таблица наследника не названа строкой в ModuleRecordVersion.Map<Версия, Запись>(builder, " +
+            "\"таблица\"): без него нет индекса номера и связи Restrict, а сторожу не по чему искать сырой SQL. " +
             $"«{Outsider}» — обращение из файла вне словаря. " +
             $"«{Totals}» — итоги читают историю: суммы считаются только по действующим версиям (основная таблица). " +
             $"«{Bypass}» и «{Table}» — ExecuteUpdate/ExecuteDelete, сырой SQL или таблица по имени: история " +
@@ -130,7 +134,10 @@ public class RecordVersionInventoryTests
                     ["Sample/Data/SampleDbContext.cs"] = "объявление набора",
                     ["Sample/Endpoints/SampleCorrection.cs"] = "место записи",
                     ["Sample/Data/SampleIssued.cs"] = "назван, но он — итоги: разрешение не действует",
+                    ["Sample/Data/SampleEstimateViews.cs"] = "сборщик представлений читает историю как историю",
                 },
+                ["SampleMapped"] = new Dictionary<string, string> { ["Sample/Data/SampleDbContext.cs"] = "объявление и отображение" },
+                ["SampleUnmapped"] = new Dictionary<string, string>(),
             },
             new Dictionary<string, string> { ["Sample/Data/SampleIssued.cs"] = "перечень отпущенного — итоги" },
             new Dictionary<string, string>());
@@ -140,6 +147,7 @@ public class RecordVersionInventoryTests
         [
             (Bypass, "SampleVersion", "Sample/Endpoints/SampleCorrection.cs"),
             (NoDictionary, "SampleStray", "Sample/Data/SampleStray.cs"),
+            (NoMap, "SampleUnmapped", "Sample/Data/SampleUnmapped.cs"),
             (Outsider, "SampleVersion", "Sample/Data/SampleReport.cs"),
             (Shape, "SampleShape", "Sample/Data/SampleShape.cs"),
             (Table, "SampleVersion", "Sample/Data/SampleRaw.cs"),

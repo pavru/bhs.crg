@@ -1,4 +1,4 @@
-import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Printer, Scale, Bug, History, ReceiptText, Table2, Truck, CalendarCheck, ChartNoAxesColumn, Link2, Building2, Calculator, Wrench, ClipboardList } from 'lucide-react';
+import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Printer, Scale, Bug, History, ReceiptText, Table2, Truck, CalendarCheck, ChartNoAxesColumn, Link2, Building2, Calculator, Wrench, ClipboardList, FileSpreadsheet } from 'lucide-react';
 
 /**
  * Пункты навигации — общий источник для сайдбара (AppShell) и командной палитры (Ctrl+K).
@@ -120,6 +120,10 @@ export const workNav: NavItem[] = [
     section: 'periods', rail: 'costs', group: COSTS_REPORTS },
   { to: '/reconciliations', label: 'Сверка',              icon: Scale,       permission: 'core.reconciliation.run',
     section: 'reconciliations', rail: 'data' },
+  // Сметы всех строек (plan-09, ТЗ PLAN-20) — первый пункт раздела «Планы»: с ним раздел появляется в рейле.
+  // Право И модуль, как у «Счетов»: адреса смет закрыты `plan.estimate.read` под воротами модуля.
+  { to: '/estimates',       label: 'Сметы',               icon: FileSpreadsheet, module: 'plan',
+    permission: 'plan.estimate.read', rail: 'plan' },
 ];
 
 /**
