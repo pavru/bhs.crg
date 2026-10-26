@@ -33,14 +33,45 @@ export async function previewKeepsPage(page, editor, named) {
   const second = region.getByRole('group', { name: `Страница 2 из ${PREVIEW_PAGES}` });
   await sheetDrawn(page, named, second);
 
-  // С этого мига и до конца — наименьшее число холстов в ленте.
+  // С этого мига и до конца — не побелел ли хоть на миг лист, нарисованный сейчас. Смотрят пиксели, а
+  // не число холстов: холст, которому движок обнулил размеры в начале отрисовки, на странице остаётся,
+  // а лист при этом белый до её конца. Размеры холста — атрибуты, и их обнуление наблюдатель видит.
   await region.evaluate(el => {
-    const count = () => el.querySelectorAll('canvas').length;
-    window.__previewMinCanvas = count();
-    new MutationObserver(() => { window.__previewMinCanvas = Math.min(window.__previewMinCanvas, count()); })
-      .observe(el, { childList: true, subtree: true, attributes: true });
+    const drawn = sheet => [...sheet.querySelectorAll('canvas')].some(c => {
+      if (!c.width || !c.height) return false;
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      for (let i = 0; i < d.length; i += 4 * 31) if (d[i] < 160 && d[i + 3] > 0) return true;
+      return false;
+    });
+    const watched = [...el.querySelectorAll('[data-page]')].filter(drawn).map(s => s.dataset.page);
+    const blank = new Set();
+    const observer = new MutationObserver(() => {
+      for (const n of watched) {
+        const sheet = el.querySelector(`[data-page="${n}"]`);
+        if (!sheet || !drawn(sheet)) blank.add(n);
+      }
+    });
+    observer.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['width', 'height'] });
+    window.__previewWatch = { watched, blank, observer };
+  });
+  const watchResult = () => page.evaluate(() => {
+    const w = window.__previewWatch;
+    w?.observer.disconnect();
+    delete window.__previewWatch;
+    return w ? { watched: w.watched, blank: [...w.blank] } : null;
   });
 
+  let watch;
+  try {
+    await regenerate(page, editor, named, region, second, field);
+  } finally {
+    watch = await watchResult();
+  }
+  if (!watch?.watched.includes('2')) throw new Error(`второй лист не под наблюдением: ${JSON.stringify(watch)}`);
+  if (watch.blank.length) throw new Error(`лист побелел на время подмены: листы ${watch.blank.join(', ')}`);
+}
+
+async function regenerate(page, editor, named, region, second, field) {
   const number = editor.getByLabel('Номер', { exact: true });
   if ((await number.count()) !== 1) throw new Error(`поле «Номер» не найдено однозначно (${await number.count()})`);
   await number.fill(NEW_NUMBER);
@@ -57,6 +88,4 @@ export async function previewKeepsPage(page, editor, named) {
   if (!(await layerText(second)).includes(NEW_NUMBER)) throw new Error('на втором листе прежний вариант');
   const shown = await field.inputValue();
   if (shown !== '2') throw new Error(`после перегенерации показана страница ${shown}, а не 2`);
-  const min = await page.evaluate(() => window.__previewMinCanvas);
-  if (!(min > 0)) throw new Error(`лента на время подмены опустела: холстов было ${min}`);
 }

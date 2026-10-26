@@ -30,8 +30,6 @@ beforeEach(() => {
     docs.push(d);
     return opening(d);
   });
-  // jsdom холста не рисует: копии забранного холста достаточно, что контекст есть.
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: vi.fn() } as never);
   localStorage.clear();
 });
 afterEach(() => {
@@ -66,12 +64,15 @@ function slowDocument(numPages: number) {
   const d = fakeDocument(numPages);
   const drawn: (() => void)[] = [];
   const cancels: ReturnType<typeof vi.fn>[] = [];
-  d.render = vi.fn((): PageTask => {
+  // На экране ли был холст, в который движку велели рисовать: обнулив его размеры, движок выбелил бы лист.
+  const onScreen: boolean[] = [];
+  d.render = vi.fn((_n: number, canvas: HTMLCanvasElement): PageTask => {
+    onScreen.push(canvas.isConnected);
     const cancel = vi.fn();
     cancels.push(cancel);
     return { promise: new Promise<void>(r => { drawn.push(r); }), cancel };
   });
-  return { d, finish: () => drawn.splice(0).forEach(r => r()), cancels };
+  return { d, finish: () => drawn.splice(0).forEach(r => r()), cancels, onScreen };
 }
 
 /** Меньшее число холстов в ленте за время наблюдения. */
@@ -162,6 +163,41 @@ describe('просмотрщик: новые байты того же докум
     expect(lateDoc.destroyed).toBe(1);
     expect(screen.getByText('из 4')).toBeTruthy();
     expect(third.destroyed).toBe(0);
+  });
+
+  it('вид сменился во время сборки — лист рисуется вне экрана, прежняя картинка на месте до готовой', async () => {
+    const { rerender } = render(view());
+    await pageField();
+    const next = slowDocument(12);
+    vi.mocked(openPdf).mockImplementation(() => { docs.push(next.d); return opening(next.d); });
+    rerender(view({ source: new Uint8Array(BYTES) }));
+    await waitFor(() => expect(next.d.render).toHaveBeenCalled());
+
+    // Подготовленное нарисовано без поворота — после поворота его забрать нельзя.
+    const sheet = () => screen.getByRole('group', { name: 'Страница 1 из 12' });
+    const unrotated = sheet().querySelector('canvas');
+    fireEvent.click(screen.getByRole('button', { name: 'Повернуть по часовой' }));
+    // Прежний документ перерисован с поворотом — это и есть картинка, которая держится до подмены.
+    const before = await waitFor(() => {
+      const c = sheet().querySelector('canvas');
+      expect(c && c !== unrotated).toBe(true);
+      return c!;
+    });
+    const prepared = vi.mocked(next.d.render).mock.calls.length;
+    await act(async () => next.finish());
+    await waitFor(() => expect(vi.mocked(next.d.render).mock.calls.length).toBeGreaterThan(prepared));
+
+    // Новый вариант встал, его лист ещё рисуется — на экране прежняя картинка, а не обнулённый холст.
+    expect(sheet().querySelectorAll('canvas')).toHaveLength(1);
+    expect(sheet().querySelector('canvas')).toBe(before);
+    expect(before.width).toBeGreaterThan(0);
+
+    await act(async () => next.finish());
+    const after = sheet().querySelector('canvas');
+    expect(after).not.toBe(before);
+    expect(before.isConnected).toBe(false);
+    expect(before.width).toBe(0);
+    expect(next.onScreen.every(on => !on)).toBe(true);
   });
 
   it('листов стало меньше — номер прижат к последнему', async () => {

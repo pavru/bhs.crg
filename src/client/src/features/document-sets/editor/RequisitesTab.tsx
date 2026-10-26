@@ -805,7 +805,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
             )}
           </div>
         </div>
-        <DocumentPreviewPanel instanceId={instance.id} requisites={values} />
+        <DocumentPreviewPanel key={instance.id} instanceId={instance.id} requisites={values} />
       </div>
       {error && (
         <div className="shrink-0 px-6 py-2 bg-surface border-t border-stroke">

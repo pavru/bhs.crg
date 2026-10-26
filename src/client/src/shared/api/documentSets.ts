@@ -3,7 +3,7 @@ import { apiClient } from './client';
 import { invalidatePlans } from './plans';
 import type { DocumentSet, DocumentInstance, DocumentSearchResult } from './types';
 import { filenameFromContentDisposition, saveBlob } from './attachments';
-import { openInNewTab } from '@/shared/ui/viewer/openInNewTab';
+import { openInNewTab, TabBlocked } from '@/shared/ui/viewer/openInNewTab';
 import type { Recipient } from './subscriptions';
 
 /** Поиск документов по всем комплектам (имя документа/типа + текст реквизитов). Пустой q → без запроса. */
@@ -417,10 +417,11 @@ export async function downloadDebugBundle(instanceId: string) {
 
 /**
  * Готовый PDF документа во вкладке (issue #1493): окно — сразу, в обработчике нажатия, байты — по
- * готовности, ссылка отзывается с отсрочкой (`openInNewTab`). Отказ называет сама вкладка.
+ * готовности, ссылка отзывается с отсрочкой (`openInNewTab`). Отказ загрузки называет сама вкладка;
+ * вкладку не дали открыть — отказ `TabBlocked` уходит вызывающему: сказать об этом, кроме него, некому.
  */
 export function previewGeneratedFile(instanceId: string, templateId?: string | null): Promise<void> {
   const path = templateId ? `/generate/download/${instanceId}/${templateId}/pdf` : `/generate/download/${instanceId}/pdf`;
   return openInNewTab(() => apiClient.get<Blob>(path, { responseType: 'blob' }).then(r => r.data))
-    .catch(() => { /* вкладка уже сказала, что файл не открыт */ });
+    .catch((e: unknown) => { if (e instanceof TabBlocked) throw e; /* иначе вкладка уже сказала, что файл не открыт */ });
 }

@@ -3,7 +3,7 @@ import { RotateCw } from 'lucide-react';
 import { Button } from '../Button';
 import type { PdfDocument, PageTask } from './pdfEngine';
 import { CANVAS_PADDING, type Layout } from './viewerState';
-import { adopt, canvasRatio, type Prepared } from './swapDocument';
+import { adopt, canvasRatio, freeCanvas, type Prepared } from './swapDocument';
 import './textLayer.css';
 
 /**
@@ -13,8 +13,11 @@ import './textLayer.css';
  * Лист и его контур белые в любой теме: печати, подписи и цвета счёта — часть документа, и белый лист
  * не должен вспыхивать на тёмном холсте при отрисовке. Край — тень, в тёмной теме — рамка токеном.
  *
- * Новый вариант того же документа ([UI-25]) лист не рисует с пустого холста: забирает холст,
- * нарисованный заранее (`prepared`), а не готовый — держит прежнюю картинку, пока не нарисует новую.
+ * Лист никогда не рисуется в холст, который на экране: каждая отрисовка — в новый холст вне экрана,
+ * и он встаёт на место узлом, уже нарисованный. До тех пор виден прежний (растянутый CSS при смене
+ * масштаба, прежний вариант при подмене документа, [UI-25]) — движок обнулял бы размеры видимого холста
+ * в начале отрисовки, и лист белел бы до её конца. Холст, нарисованный до подмены (`prepared`), лист
+ * забирает без отрисовки.
  */
 
 /** Перерисовка после смены масштаба — с задержкой: до неё лист растягивает CSS. */
@@ -52,7 +55,8 @@ function PdfPage({ doc, n, scale, rotation, prepared, baseWidth, baseHeight }: {
   doc: PdfDocument; n: number; scale: number; rotation: number; prepared: Prepared | null;
   baseWidth: number; baseHeight: number;
 }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
+  // Держатель холста: холст в нём ставит и меняет лист, не React — узел меняется целиком, готовым.
+  const holder = useRef<HTMLDivElement>(null);
   const text = useRef<HTMLDivElement>(null);
   // Масштаб, в котором лист нарисован. Пока он отстаёт от показанного, холст и слой текста растянуты.
   const [drawnScale, setDrawnScale] = useState(scale);
@@ -67,29 +71,36 @@ function PdfPage({ doc, n, scale, rotation, prepared, baseWidth, baseHeight }: {
 
   // До отрисовки кадра, а не после: забранный холст обязан встать в том же кадре, что и новая лента.
   useLayoutEffect(() => {
-    const el = canvas.current;
-    if (!el) return;
+    const box = holder.current;
+    if (!box) return;
     const view = { scale: drawnScale, rotation };
     const tasks: PageTask[] = [];
     let alive = true;
-    const drawText = () => {
-      if (!alive || !text.current) return;
+    const show = (next: HTMLCanvasElement) => {
+      const was = box.firstElementChild as HTMLCanvasElement | null;
+      next.className = 'absolute inset-0 w-full h-full';
+      box.replaceChildren(next);
+      if (was) freeCanvas(was);
+      setFailed(false);
+      if (!text.current) return;
       const layer = doc.textLayer(n, text.current, view);
       tasks.push(layer);
       // Слой текста отменяется сменой масштаба и уходом листа; лист нарисован и без него.
       layer.promise.catch(() => {});
     };
-    if (adopt(prepared, doc, n, view, el)) {
-      setFailed(false);
-      drawText();
+    const ready = adopt(prepared, doc, n, view);
+    if (ready) {
+      show(ready);
     } else {
-      const draw = doc.render(n, el, { ...view, pixelRatio: canvasRatio(baseWidth * drawnScale, baseHeight * drawnScale) });
+      const next = document.createElement('canvas');
+      const draw = doc.render(n, next, { ...view, pixelRatio: canvasRatio(baseWidth * drawnScale, baseHeight * drawnScale) });
       tasks.push(draw);
       draw.promise.then(() => {
-        if (!alive) return;
-        setFailed(false);
-        drawText();
-      }, () => { if (alive) setFailed(true); });
+        if (alive) show(next); else freeCanvas(next);
+      }, () => {
+        freeCanvas(next);
+        if (alive) setFailed(true);
+      });
     }
     return () => {
       alive = false;
@@ -100,17 +111,16 @@ function PdfPage({ doc, n, scale, rotation, prepared, baseWidth, baseHeight }: {
   // Движок отдаёт ресурсы листа, когда лист ушёл или документ сменился.
   useEffect(() => () => doc.release(n), [doc, n]);
 
-  // Ушёл из видимой области — холст отдаёт память (Safari без обнуления размеров её держит). Только при
-  // уходе: при смене документа холст держит прежнюю картинку, пока новая не нарисована.
+  // Ушёл из видимой области — холст отдаёт память (Safari без обнуления размеров её держит).
   useEffect(() => {
-    const el = canvas.current;
-    return () => { if (el) { el.width = 0; el.height = 0; } };
+    const box = holder.current;
+    return () => { box?.querySelectorAll('canvas').forEach(freeCanvas); };
   }, []);
 
   const k = scale / drawnScale;
   return (
     <>
-      <canvas ref={canvas} aria-hidden className="absolute inset-0 w-full h-full" />
+      <div ref={holder} aria-hidden className="absolute inset-0" />
       <div className="absolute left-0 top-0 origin-top-left" style={{ transform: k === 1 ? undefined : `scale(${k})` }}>
         <div ref={text} className="bhs-text-layer" />
       </div>

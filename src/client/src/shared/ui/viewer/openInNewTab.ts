@@ -9,6 +9,8 @@
  * - **Ссылка отзывается с отсрочкой**: отозванная сразу не успела бы открыться.
  * - **Вкладка говорит словами** (issue #1493): пока байты грузятся — «Загрузка файла…», отказ
  *   загрузчика — что файл не открыт и что делать. Пустая белая вкладка не значила бы ничего.
+ * - **Вкладку не дали открыть — загрузчик не зовётся**: окно после `await` блокировщик срезал бы
+ *   так же, и файл скачался бы впустую. Вызывающему уходит `TabBlocked` — сказать, кроме него, некому.
  */
 
 export type PdfBytes = Blob | Uint8Array;
@@ -39,7 +41,15 @@ export function viewerBlob(source: PdfBytes): Blob {
 }
 
 const LOADING_TEXT = 'Загрузка файла…';
-const FAILURE_TEXT = 'Не удалось открыть файл. Обновите страницу и попробуйте снова.';
+// Не «обновите страницу»: во вкладке это значило бы обновить её саму, а она пустая.
+const FAILURE_TEXT = 'Не удалось открыть файл. Закройте эту вкладку и попробуйте снова на странице приложения.';
+
+/** Браузер не дал открыть вкладку (блокировщик всплывающих окон) — файлу некуда прийти. */
+export class TabBlocked extends Error {
+  constructor() {
+    super('Браузер не дал открыть вкладку. Разрешите всплывающие окна для этого сайта и попробуйте снова.');
+  }
+}
 
 /**
  * Строка во вкладке, пока она пустая (`about:blank` — наш источник). Не вышло — `false`. Темы
@@ -61,7 +71,7 @@ function say(tab: Window, text: string): boolean {
 /**
  * Открывает файл во вкладке. С загрузчиком вкладка открыта сразу, говорит «Загрузка файла…» и получает
  * файл по готовности. Отказ загрузчика вкладка называет словами (не смогла — закрывается), и отказ
- * возвращается вызывающему: ему решать, говорить ли что-то ещё.
+ * возвращается вызывающему: ему решать, говорить ли что-то ещё. Вкладки нет — `TabBlocked`, без загрузки.
  */
 export function openInNewTab(source: PdfBytes | (() => Promise<PdfBytes>)): Promise<void> {
   const tab = window.open('', '_blank');
@@ -76,9 +86,10 @@ export function openInNewTab(source: PdfBytes | (() => Promise<PdfBytes>)): Prom
     show(source);
     return Promise.resolve();
   }
-  if (tab) say(tab, LOADING_TEXT);
+  if (!tab) return Promise.reject(new TabBlocked());
+  say(tab, LOADING_TEXT);
   return source().then(show, (e: unknown) => {
-    if (tab && !tab.closed && !say(tab, FAILURE_TEXT)) tab.close();
+    if (!tab.closed && !say(tab, FAILURE_TEXT)) tab.close();
     throw e;
   });
 }

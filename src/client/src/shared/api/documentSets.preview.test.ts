@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiClient } from './client';
 import { previewGeneratedFile } from './documentSets';
+import { TabBlocked } from '@/shared/ui/viewer/openInNewTab';
 
 vi.mock('./client', () => ({ apiClient: { get: vi.fn() } }));
 
@@ -14,6 +15,7 @@ vi.mock('./client', () => ({ apiClient: { get: vi.fn() } }));
 let tab: { opener: unknown; closed: boolean; close: () => void; location: { href: string }; document: Document };
 
 beforeEach(() => {
+  vi.mocked(apiClient.get).mockReset();
   vi.useFakeTimers();
   tab = {
     opener: window, closed: false, close: vi.fn(), location: { href: '' },
@@ -49,5 +51,11 @@ describe('открыть готовый PDF документа', () => {
     await expect(previewGeneratedFile('doc-1')).resolves.toBeUndefined();
     expect(apiClient.get).toHaveBeenCalledWith('/generate/download/doc-1/pdf', { responseType: 'blob' });
     expect(URL.createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it('вкладку не дали открыть — файл не скачивается, отказ уходит вызывающему', async () => {
+    vi.mocked(window.open).mockReturnValue(null);
+    await expect(previewGeneratedFile('doc-1')).rejects.toBeInstanceOf(TabBlocked);
+    expect(apiClient.get).not.toHaveBeenCalled();
   });
 });

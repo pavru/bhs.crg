@@ -7,12 +7,12 @@ import {
  * Подмена документа тем же ключом без пустого кадра (issue #1493, [UI-25]). Новые байты того же
  * документа — перегенерированный предпросмотр — не гасят ленту: пока новый вариант разбирается и его
  * видимые листы рисуются в холсты вне экрана, на экране прежний. Готовые холсты лист забирает в момент
- * подмены (`adopt`), и новый вид встаёт одним кадром.
+ * подмены (`adopt`) — узлом, без копии, — и новый вид встаёт одним кадром.
  *
  * Якорь здесь снимается только затем, чтобы знать, КАКИЕ листы рисовать заранее. Позицию после
  * подмены ставит сам просмотрщик — якорем, снятым в момент подмены: прокрутили во время сборки —
  * останется то место, где человек был в тот момент. Листы, до которых он за это время доехал, не
- * готовы и рисуются обычным порядком.
+ * готовы и рисуются обычным порядком — тоже вне экрана, поверх прежней картинки.
  */
 
 /** Листы нового варианта, нарисованные вне экрана, и вид, в котором они нарисованы. */
@@ -65,7 +65,7 @@ export function prepare(doc: PdfDocument, sizes: readonly PageSize[], shown: Sho
     const task = doc.render(n, canvas, { ...view, pixelRatio: canvasRatio(next.widths[i], next.heights[i]) });
     tasks.push(task);
     canvases.set(n, canvas);
-    task.promise.catch(() => { free(canvas); canvases.delete(n); });
+    task.promise.catch(() => { freeCanvas(canvas); canvases.delete(n); });
   }
   // Отмена завершает подготовку сразу, не дожидаясь, чем ответят отменённые листы.
   let cancelled = false, stop = () => {};
@@ -79,29 +79,26 @@ export function prepare(doc: PdfDocument, sizes: readonly PageSize[], shown: Sho
 }
 
 /**
- * Лист забирает холст, нарисованный заранее, если тот нарисован этим документом в этом же виде.
- * Копия, а не замена узла: холстом листа владеет React.
+ * Холст листа, нарисованный заранее этим документом в этом же виде, — лист ставит его к себе узлом, без
+ * копии. Нет такого (вид сменился, пока шла подготовка, лист не из подготовленных, его отрисовка
+ * отказала) — `null`, и лист рисует сам: тоже вне экрана, прежняя картинка держится до готовой.
  */
-export function adopt(prepared: Prepared | null, doc: PdfDocument, n: number, view: PageView, target: HTMLCanvasElement): boolean {
-  if (!prepared || prepared.doc !== doc || prepared.view.scale !== view.scale || prepared.view.rotation !== view.rotation) return false;
+export function adopt(prepared: Prepared | null, doc: PdfDocument, n: number, view: PageView): HTMLCanvasElement | null {
+  if (!prepared || prepared.doc !== doc || prepared.view.scale !== view.scale || prepared.view.rotation !== view.rotation) return null;
   const from = prepared.canvases.get(n);
-  if (!from) return false;
+  if (!from) return null;
   prepared.canvases.delete(n);
-  target.width = from.width;
-  target.height = from.height;
-  target.getContext('2d')?.drawImage(from, 0, 0);
-  free(from);
-  return true;
+  return from;
 }
 
 /** Холсты, которые никто не забрал, отдают память. */
 export function discard(prepared: Prepared): void {
-  prepared.canvases.forEach(free);
+  prepared.canvases.forEach(freeCanvas);
   prepared.canvases.clear();
 }
 
-/** Safari без обнуления размеров память холста держит. */
-function free(canvas: HTMLCanvasElement): void {
+/** Холст отдаёт память: Safari без обнуления размеров её держит. */
+export function freeCanvas(canvas: HTMLCanvasElement): void {
   canvas.width = 0;
   canvas.height = 0;
 }
