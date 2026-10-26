@@ -5,6 +5,7 @@ using BHS.CRG.Modules.Files;
 using BHS.CRG.Modules.Ports;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Modules.Costs.Endpoints;
 
@@ -42,7 +43,7 @@ public sealed record InvoiceRecognitionView(
 /// </summary>
 public sealed class InvoiceScanRecognition(
     CostsDbContext db, IModuleRecognition recognition, IModuleJobs jobs, InvoiceParties parties,
-    InvoiceScanImage image)
+    InvoiceScanImage image, ILogger<InvoiceScanRecognition> log)
 {
     public const string Operation = "costs.invoice.recognize";
 
@@ -214,8 +215,13 @@ public sealed class InvoiceScanRecognition(
     /// распознавании, и версия счёта остаётся прежней.
     ///
     /// <para>«Распознавать некому» — не отказ запроса, а исход: черновик со сканом остаётся, человек
-    /// заполняет его руками, а форма так и пишет — «распознавание не настроено». Остальное, что
-    /// запуску мешает (нет скана, счёт не черновик, уже идёт), — отказ с причиной.</para>
+    /// заполняет его руками, а форма так и пишет — «распознавание не настроено». Так же исходом, а не
+    /// отказом, записывается «сам файл не читается». Остальное, что запуску мешает (нет скана, счёт не
+    /// черновик, уже идёт), — отказ с причиной.</para>
+    ///
+    /// <para>⚠️ Файл проверяется ПЕРВЫМ, до готовности движков (issue #1344). Иначе на стенде без движка
+    /// битый PDF получал бы «не настроено» — слова, неверные при любой настройке, — а на стенде с движком
+    /// готовность могла пробовать зрение модели запросом ради файла, который ей не уйдёт.</para>
     /// </summary>
     public async Task StartAsync(Invoice invoice, CancellationToken ct)
     {
@@ -233,6 +239,8 @@ public sealed class InvoiceScanRecognition(
 
         try
         {
+            if (await AsIsPdfAsync(invoice, ct) is { } pdf)
+                await recognition.EnsureReadableAsync(CostsRecognitionProfiles.InvoiceCode, pdf, FileKinds.Pdf, ct);
             await recognition.EnsureReadyAsync(CostsRecognitionProfiles.InvoiceCode, ct);
         }
         catch (RecognitionRefusedException refused)
@@ -282,12 +290,48 @@ public sealed class InvoiceScanRecognition(
         }
         catch (Exception lost) when (lost is DbUpdateException or ConflictException { InnerException: DbUpdateConcurrencyException })
         {
-            if (!await db.Invoices.AsNoTracking().AnyAsync(i => i.Id == invoice.Id, ct))
-                throw new NotFoundException("Счёт не найден: его удалили, пока запускалось распознавание.");
+            if (await GoneAsync(invoice, ct)) throw Vanished();
             if (first && lost is DbUpdateException) throw AlreadyRunning(invoice, lost);
             throw;
         }
     }
+
+    /// <summary>
+    /// PDF, который уйдёт движку как есть, — для проверки до постановки; <c>null</c> — проверять нечего
+    /// или не удалось.
+    ///
+    /// <para>⚠️ Файла в хранилище нет — чаще всего потому, что нет счёта: его удалили вместе с файлом,
+    /// пока шёл запуск (issue #1282). Ответ тогда — о счёте, а не «файл не найден». Счёт есть, а файла
+    /// нет — проверять нечего: исход назовёт задача, как и до проверки файла.</para>
+    ///
+    /// <para>⚠️ Сбой хранилища или службы образов — не отказ файлу (design D1): проверка не выполнена, и
+    /// задача ставится как до неё. Иначе запуск отвечал бы сбоем там, где раньше исход записывала задача.</para>
+    /// </summary>
+    private async Task<byte[]?> AsIsPdfAsync(Invoice invoice, CancellationToken ct)
+    {
+        try
+        {
+            return await image.AsIsPdfAsync(invoice, ct);
+        }
+        catch (NotFoundException)
+        {
+            if (await GoneAsync(invoice, ct)) throw Vanished();
+            return null;
+        }
+        catch (Exception failure) when (failure is not OperationCanceledException)
+        {
+            log.LogWarning(failure,
+                "Счёт {InvoiceId}: файл до постановки распознавания проверить не удалось — задача ставится как есть",
+                invoice.Id);
+            return null;
+        }
+    }
+
+    private async Task<bool> GoneAsync(Invoice invoice, CancellationToken ct) =>
+        !await db.Invoices.AsNoTracking().AnyAsync(i => i.Id == invoice.Id, ct);
+
+    private static NotFoundException Vanished() =>
+        new("Счёт не найден: его удалили, пока запускалось распознавание.");
 
     private static ConflictException AlreadyRunning(Invoice invoice, Exception? inner = null) =>
         new($"{InvoiceEndpoints.Label(invoice)}: файл уже распознаётся. Дождитесь исхода — второй запуск " +

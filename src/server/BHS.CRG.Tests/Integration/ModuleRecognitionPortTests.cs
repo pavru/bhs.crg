@@ -8,6 +8,8 @@ using BHS.CRG.Modules.Costs;
 using BHS.CRG.Modules.Ports;
 using BHS.CRG.Tests.Support;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using PdfSharpCore.Pdf;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -27,6 +29,7 @@ public class ModuleRecognitionPortTests(CostsOnlyHost host)
 {
     private const string Code = CostsRecognitionProfiles.InvoiceCode;
     private static readonly byte[] Scan = [1, 2, 3];
+    private static readonly NullLogger<ModuleRecognitionPort> Log = NullLogger<ModuleRecognitionPort>.Instance;
 
     private ModuleRecognitionPort Port(IServiceScope scope, IDocumentRecognizer recognizer, RecognitionBlock? block = null)
     {
@@ -34,7 +37,7 @@ public class ModuleRecognitionPortTests(CostsOnlyHost host)
         return new ModuleRecognitionPort(
             scope.ServiceProvider.GetRequiredService<RecognitionProfileCatalog>(),
             scope.ServiceProvider.GetRequiredService<IRecognitionProfileProvider>(),
-            recognizer, new Preflight(block));
+            recognizer, new Preflight(block), Log);
     }
 
     /// <summary>Порт отдаётся приложением: модуль получит его из контейнера, а не соберёт сам.</summary>
@@ -177,7 +180,7 @@ public class ModuleRecognitionPortTests(CostsOnlyHost host)
             scope.ServiceProvider.GetRequiredService<RecognitionProfileCatalog>(),
             scope.ServiceProvider.GetRequiredService<IRecognitionProfileProvider>(),
             new Failing(new RecognitionLimitException("достигнут лимит запросов.", retryAfterSeconds: 40)),
-            new BrokenPreflight());
+            new BrokenPreflight(), Log);
 
         var refusal = await Assert.ThrowsAsync<RecognitionRefusedException>(() =>
             port.RecognizeAsync(Code, Scan, "application/pdf"));
@@ -200,6 +203,31 @@ public class ModuleRecognitionPortTests(CostsOnlyHost host)
 
         Assert.Equal(RecognitionRefusal.NotConfigured, refusal.Reason);
         Assert.Equal(blind.Message, refusal.Message);
+    }
+
+    /// <summary>
+    /// Файл — до постановки и без движка (issue #1344): нечитаемый PDF — отказ о файле словами проверки
+    /// ядра, исправный PDF и изображение — молчание. Ломается, если порт перестанет звать проверку: тогда
+    /// модуль ставит задачу, и битый файл уходит к движку.
+    /// </summary>
+    [Fact]
+    public async Task Unreadable_file_is_refused_before_the_work_is_queued()
+    {
+        using var scope = host.Services.CreateScope();
+        var port = Port(scope, new Answering([]));
+
+        var bad = await Assert.ThrowsAsync<RecognitionRefusedException>(() =>
+            port.EnsureReadableAsync(Code, "%PDF-1.4 не настоящий"u8.ToArray(), "application/pdf"));
+        Assert.Equal(RecognitionRefusal.BadFile, bad.Reason);
+        Assert.Contains(RecognitionFileCheck.Unreadable, bad.Message);
+
+        using var doc = new PdfDocument();
+        doc.AddPage();
+        using var pdf = new MemoryStream();
+        doc.Save(pdf, false);
+        await port.EnsureReadableAsync(Code, pdf.ToArray(), "application/pdf");
+        // Изображение разбирает сам движок: проверка его не судит.
+        await port.EnsureReadableAsync(Code, Scan, "image/png");
     }
 
     /// <summary>
@@ -226,7 +254,7 @@ public class ModuleRecognitionPortTests(CostsOnlyHost host)
                 [CostsRecognitionProfiles.Number] = "СЧ-17",
                 [CostsRecognitionProfiles.SupplierTaxId] = "7700000000",
             }),
-            new Preflight(null));
+            new Preflight(null), Log);
 
         var result = await port.RecognizeAsync(Code, Scan, "application/pdf");
 
@@ -259,7 +287,7 @@ public class ModuleRecognitionPortTests(CostsOnlyHost host)
                 ["Основание договора"] = "Договор № 5",
                 [InvoiceFields.LineItemsPath] = """[{"Наименование":"Кабель","Артикул":"ВВГ-325"}]""",
             }),
-            new Preflight(null));
+            new Preflight(null), Log);
 
         var result = await port.RecognizeAsync(Code, Scan, "application/pdf");
 
@@ -275,19 +303,23 @@ public class ModuleRecognitionPortTests(CostsOnlyHost host)
     public async Task Profile_of_a_disabled_module_refuses_by_its_name()
     {
         var recognizer = new Answering(new() { [CostsRecognitionProfiles.Number] = "СЧ-17" });
-        var port = new ModuleRecognitionPort(TestRecognition.WithoutCosts, null!, recognizer, new Preflight(null));
+        var port = new ModuleRecognitionPort(TestRecognition.WithoutCosts, null!, recognizer, new Preflight(null), Log);
 
         var onCheck = await Assert.ThrowsAsync<InvalidRequestException>(() => port.EnsureReadyAsync(Code));
         var onRead = await Assert.ThrowsAsync<InvalidRequestException>(() =>
             port.RecognizeAsync(Code, Scan, "application/pdf"));
+        // Файл нечитаем, но ворота — раньше него (ревью PR #1645): иначе ответ был бы о файле.
+        var onFile = await Assert.ThrowsAsync<InvalidRequestException>(() =>
+            port.EnsureReadableAsync(Code, Scan, "application/pdf"));
 
         Assert.Contains("Счета и накладные", onCheck.Message);
         Assert.Contains("Счета и накладные", onRead.Message);
+        Assert.Contains("Счета и накладные", onFile.Message);
         Assert.Null(recognizer.Prompt);
 
         // Ворота — первыми, каким бы ни был вид: постраничный профиль выключенного модуля тоже
         // отвечает человеку названием модуля, а не ошибкой «такой вид порт не читает».
-        var idOff = new ModuleRecognitionPort(TestRecognition.WithoutId, null!, recognizer, new Preflight(null));
+        var idOff = new ModuleRecognitionPort(TestRecognition.WithoutId, null!, recognizer, new Preflight(null), Log);
         var pageWise = await Assert.ThrowsAsync<InvalidRequestException>(() =>
             idOff.EnsureReadyAsync(BHS.CRG.Api.Modules.IdRecognitionProfiles.TitleBlockCode));
         Assert.Contains("Исполнительная документация", pageWise.Message);
@@ -300,7 +332,7 @@ public class ModuleRecognitionPortTests(CostsOnlyHost host)
     [Fact]
     public async Task Unknown_code_and_page_wise_kind_are_the_modules_mistake()
     {
-        var port = new ModuleRecognitionPort(TestRecognition.Catalog, null!, new Answering([]), new Preflight(null));
+        var port = new ModuleRecognitionPort(TestRecognition.Catalog, null!, new Answering([]), new Preflight(null), Log);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => port.EnsureReadyAsync("нет-такого"));
         var pageWise = await Assert.ThrowsAsync<InvalidOperationException>(() =>

@@ -184,17 +184,29 @@ export async function sendScan(qc: QueryClient, file: File): Promise<InvoiceFrom
   const created = (await apiClient.post<InvoiceFromScan>('/costs/invoices/from-scan', form)).data;
   qc.setQueryData([QK, created.invoice.id], created.invoice);
   qc.setQueryData(recognitionKey(created.invoice.id), created.recognition);
+  // Новый черновик — двойник каждого из своих: в их виде, уже лежащем в кэше, его нет (issue #1344).
+  // Раньше это прятало распознавание — форма перечитывала счёт по его исходу; отказ о файле готов сразу.
+  // Перечитываются они вместе со списками: пакет одинаковых файлов иначе перечитывал бы открытую форму
+  // двойника на каждый файл (ревью PR #1645).
+  const twins = staleTwins.get(qc) ?? new Set<string>();
+  for (const twin of created.invoice.sameFile) twins.add(twin.id);
+  staleTwins.set(qc, twins);
   return created;
 }
+
+/** Двойники заведённых черновиков, чей вид в кэше устарел, — до ближайшего `refreshInvoiceLists`. */
+const staleTwins = new WeakMap<QueryClient, Set<string>>();
 
 /**
  * Список счетов и числа отборов — перечитать. Отдельно от отправки: пакет из пятидесяти файлов иначе
  * перечитывал бы весь список пятьдесят раз подряд (ревью PR #1260); он зовёт это раз в несколько
- * файлов и в конце.
+ * файлов и в конце. Тем же шагом — виды двойников заведённых черновиков (`sendScan`).
  */
 export function refreshInvoiceLists(qc: QueryClient) {
   void qc.invalidateQueries({ queryKey: [QK, 'list'] });
   void qc.invalidateQueries({ queryKey: [QK, 'queues'] });
+  for (const id of staleTwins.get(qc) ?? []) void qc.invalidateQueries({ queryKey: [QK, id], exact: true });
+  staleTwins.delete(qc);
 }
 
 /**
