@@ -5,7 +5,7 @@ import type { EstimateImport, SkippedPosition, UnparsedPosition } from '@/shared
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { formatCount, formatMoney } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
-import { importVerdict, reasonGroups, targetLabel } from './importReport';
+import { countOf, importVerdict, reasonGroups, targetLabel } from './importReport';
 
 /**
  * Отчёт разбора импорта (change `plan-09-estimate-ui`, PR 2, ТЗ PLAN-7, макет П1: окно варианта 1, отчёт из
@@ -47,13 +47,13 @@ export function ParseReport({ report, sectionName }: { report: EstimateImport; s
 
       {report.parsed !== null && report.inFile !== null && (
         <div className="space-y-1.5">
-          <p className="font-medium text-fg1">Разобрано {formatCount(report.parsed)} из {count(report.inFile, 'позиции', 'позиций', 'позиций')}</p>
+          <p className="font-medium text-fg1">Разобрано {formatCount(report.parsed)} из {countOf(report.inFile, 'позиции', 'позиций', 'позиций')}</p>
           <div className="h-1.5 rounded-full bg-muted overflow-hidden" aria-hidden>
             <div className="h-full bg-brand" style={{ width: `${report.inFile > 0 ? (report.parsed / report.inFile) * 100 : 0}%` }} />
           </div>
           {summary && (
             <p className="text-xs text-fg3">
-              {count(summary.chapters.length, 'раздел', 'раздела', 'разделов')} · в редакцию войдёт {count(summary.rows, 'строка', 'строки', 'строк')}
+              {countOf(summary.chapters.length, 'раздел', 'раздела', 'разделов')} · в редакцию войдёт {countOf(summary.rows, 'строка', 'строки', 'строк')}
               {closed
                 ? ` · итог скрыт: нужно право «${closed.name}»`
                 : summary.cost?.total != null && ` · итог по разобранному ${formatMoney(summary.cost.total)}`}
@@ -67,9 +67,6 @@ export function ParseReport({ report, sectionName }: { report: EstimateImport; s
     </div>
   );
 }
-
-/** Число с разрядами и словом в нужном падеже: «1 280 позиций». */
-const count = (n: number, one: string, few: string, many: string) => `${formatCount(n)} ${ruPlural(n, one, few, many)}`;
 
 const capitalize = (s: string) => s.charAt(0).toLocaleUpperCase('ru') + s.slice(1);
 
@@ -117,7 +114,7 @@ function Unparsed({ items }: { items: UnparsedPosition[] }) {
   const groups = reasonGroups(items);
   return (
     <Disclosure tone="warning"
-      title={`${count(items.length, 'позиция не разобрана', 'позиции не разобраны', 'позиций не разобраны')} — в редакцию не ${ruPlural(items.length, 'войдёт', 'войдут', 'войдут')}`}
+      title={`${countOf(items.length, 'позиция не разобрана', 'позиции не разобраны', 'позиций не разобраны')} — в редакцию не ${ruPlural(items.length, 'войдёт', 'войдут', 'войдут')}`}
       hint={`чаще всего: ${groups.slice(0, 3).map(g => `${g.reason.replace(/\.$/, '').toLocaleLowerCase('ru')} (${formatCount(g.count)})`).join(', ')}`}>
       <DataGrid density="compact" columns={UNPARSED_COLUMNS} rows={items} rowKey={u => `${u.line}:${u.place}:${u.reason}`} />
     </Disclosure>
@@ -133,7 +130,7 @@ const SKIPPED_COLUMNS: DataGridColumn<SkippedLine>[] = [
 
 function Skipped({ items }: { items: SkippedPosition[] }) {
   return (
-    <Disclosure tone="info" title={`${count(items.length, 'неактивная позиция', 'неактивные позиции', 'неактивных позиций')} — ${ruPlural(items.length, 'строкой не станет', 'строками не станут', 'строками не станут')}`}
+    <Disclosure tone="info" title={`${countOf(items.length, 'неактивная позиция', 'неактивные позиции', 'неактивных позиций')} — ${ruPlural(items.length, 'строкой не станет', 'строками не станут', 'строками не станут')}`}
       hint="Позиции, выключенные в ГРАНД-Смете: разобраны, но в редакцию не входят">
       <DataGrid density="compact" columns={SKIPPED_COLUMNS} rows={items.map((s, at) => ({ ...s, at }))} rowKey={s => String(s.at)} />
     </Disclosure>

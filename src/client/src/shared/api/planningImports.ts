@@ -94,6 +94,8 @@ export interface EstimateImportItem {
   state: ImportState;
   kind: ImportKind | null;
   refusalCode: string | null;
+  /** Разбор прерван: состояние ещё `parsing`, а исхода не будет (пометка `interrupted` отчёта). Только отменить. */
+  interrupted: boolean;
   revisionId: string | null;
   createdAt: string;
   createdBy: string | null;

@@ -18,7 +18,7 @@ import { WindowStep } from '@/shared/ui/WindowStep';
 import { formatBytes, formatCount } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
 import { KIND_LABEL } from './estimateRows';
-import { importVerdict, partialCommitLabel, type ImportCreated } from './importReport';
+import { importVerdict, partialCommitLabel, withoutRows, type ImportCreated } from './importReport';
 import { ParseReport } from './ParseReport';
 
 interface ImportDialogProps {
@@ -42,7 +42,8 @@ interface ImportDialogProps {
  * - Цель выбирает человек (решение В-12 (а)): новая редакция сметы X или новая смета. Без выбора загрузки нет.
  * - Разбор идёт в фоне: окно можно закрыть, импорт останется полосой «ждёт решения» над сметами стройки.
  * - Редакция создаётся только действием человека; при не разобранных позициях — кнопкой, называющей
- *   последствие, и подтверждением шагом окна (`acceptPartial`). Отказ — «Отказаться»: импорт и файл уходят.
+ *   последствие, и подтверждением шагом окна (`acceptPartial`). Отказ — «Отказаться»: импорт и файл уходят,
+ *   поэтому тоже через подтверждение шагом окна — кнопка стоит рядом с главной.
  * - Не ЛСР (ВОР, КА) редакцией не становится (решение В-7): «Создать редакцию» нет.
  */
 export function ImportDialog(props: ImportDialogProps) {
@@ -62,6 +63,7 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
   const [kind, setKind] = useState<EstimateKind>('main');
   const [section, setSection] = useState(sectionId ?? '');
   const [confirming, setConfirming] = useState(false);
+  const [refusing, setRefusing] = useState(false);
 
   const toast = useToast();
   const start = useStartImport();
@@ -77,19 +79,24 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
   const sections = construction.data?.sections ?? [];
   const sectionName = (id: string) => sections.find(s => s.id === id)?.name;
   const known = estimates.data?.items ?? [];
+  // Пока сметы стройки не прочитаны, «смет нет» не известно: цель не выбирается, а не предлагается «новая смета».
+  const listed = estimates.data !== undefined;
   // Смет у стройки нет — выбирать не из чего: только новая.
   const shownMode: TargetMode = estimateId ? 'existing' : known.length === 0 ? 'new' : mode;
   const fixed = estimateId ? known.find(e => e.id === estimateId) : undefined;
 
   const busy = start.isPending || commit.isPending || cancel.isPending;
   const failure = start.error ?? commit.error ?? cancel.error;
-  const data = report.data;
+  // Отчёт не прочитался (импорт тем временем убрали) — показываем отказ, а не прежний отчёт и не идущий разбор.
+  const data = report.isError ? undefined : report.data;
   const verdict = data ? importVerdict(data) : null;
-  const step: 'pick' | 'parsing' | 'report' = importId === null ? 'pick' : !data || verdict?.kind === 'parsing' ? 'parsing' : 'report';
+  const step: 'pick' | 'parsing' | 'report' =
+    importId === null ? 'pick' : report.isError ? 'report' : !data || verdict?.kind === 'parsing' ? 'parsing' : 'report';
 
   const request = (): ImportRequest | string => {
     if (!site) return 'Выберите стройку';
     if (!file) return 'Выберите файл сметы';
+    if (!estimateId && !listed) return estimates.isError ? 'Сметы стройки не прочитались' : 'Читаем сметы стройки…';
     if (shownMode === 'existing') return target ? { file, constructionId: site, estimateId: target } : 'Выберите смету';
     return name.trim()
       ? { file, constructionId: site, newEstimate: { name: name.trim(), kind, sectionId: section || null } }
@@ -102,13 +109,17 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
     start.mutate(ready, { onSuccess: started => setImportId(started.id) });
   };
   const refuse = (r: EstimateImport) =>
-    cancel.mutate({ id: r.id, version: r.version, constructionId: r.constructionId }, { onSuccess: onClose });
+    cancel.mutate({ id: r.id, version: r.version, constructionId: r.constructionId },
+      { onSuccess: onClose, onSettled: () => setRefusing(false) });
   const create = (r: EstimateImport, acceptPartial: boolean) =>
     commit.mutate({ id: r.id, version: r.version, acceptPartial }, {
       onSuccess: done => {
         const revision = done.estimate.revisions.find(x => x.id === done.revisionId);
         // Первая редакция сметы становится действующей сама (решение В-5), следующие — действием в карточке.
-        toast.success(`Ред. ${done.revisionNumber} сметы «${done.estimate.name}» создана${revision?.current ? ' и стала действующей' : ''}`);
+        // Повтор — редакция создана раньше тем же импортом (другой вкладкой): ответ называет её, второй нет.
+        toast.success(done.repeated
+          ? `Ред. ${done.revisionNumber} сметы «${done.estimate.name}» уже создана из этого файла`
+          : `Ред. ${done.revisionNumber} сметы «${done.estimate.name}» создана${revision?.current ? ' и стала действующей' : ''}`);
         onCreated({ estimateId: done.estimate.id, revisionId: done.revisionId, unmatched: (revision?.unmatched ?? 0) > 0 });
         onClose();
       },
@@ -125,13 +136,13 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
         </>
       ) : step === 'parsing' ? (
         <>
-          {data && <Button variant="text" disabled={busy} onClick={() => refuse(data)}>Отказаться</Button>}
+          {data && <Button variant="text" disabled={busy} onClick={() => setRefusing(true)}>Отказаться</Button>}
           <ModalExit variant="outlined">Закрыть</ModalExit>
         </>
       ) : verdict?.kind === 'ready' && data ? (
         // Закрыть без решения — крестиком: импорт останется полосой «ждёт решения» над сметами.
         <>
-          <Button variant="text" disabled={busy} loading={cancel.isPending} onClick={() => refuse(data)}>Отказаться</Button>
+          <Button variant="text" disabled={busy} onClick={() => setRefusing(true)}>Отказаться</Button>
           {verdict.unparsed > 0
             ? <Button variant="filled" disabled={busy} onClick={() => setConfirming(true)}>{partialCommitLabel(verdict.unparsed)}</Button>
             : <Button variant="filled" disabled={busy} loading={commit.isPending} onClick={() => create(data, false)}>Создать редакцию</Button>}
@@ -140,7 +151,7 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
         <>
           <ModalExit>Закрыть</ModalExit>
           {data && verdict?.kind !== 'committed' && (
-            <Button variant="tonal" disabled={busy} loading={cancel.isPending} onClick={() => refuse(data)}>Убрать импорт</Button>
+            <Button variant="tonal" disabled={busy} onClick={() => setRefusing(true)}>Убрать импорт</Button>
           )}
         </>
       )}
@@ -183,6 +194,10 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
             <FilePick file={file} onFile={setFile} />
             {site && (estimateId ? (
               <p className="text-sm text-fg2">Куда: <span className="text-fg1">новая редакция сметы «{fixed?.name ?? '…'}»</span></p>
+            ) : estimates.isError ? (
+              <p role="alert" className="text-sm text-danger">{planRefusal(estimates.error).text}</p>
+            ) : !listed ? (
+              <p className="text-sm text-fg4">Читаем сметы стройки…</p>
             ) : (
               <fieldset className="space-y-3">
                 <legend className="text-sm font-medium text-fg1 mb-2">Куда ляжет редакция</legend>
@@ -212,7 +227,7 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
         {failure && <p role="alert" className="text-sm text-danger">{planRefusal(failure).text}</p>}
       </div>
       {confirming && data && verdict?.kind === 'ready' && (
-        <WindowStep title={`Создать редакцию без ${formatCount(verdict.unparsed)} ${ruPlural(verdict.unparsed, 'строки', 'строк', 'строк')}?`}
+        <WindowStep title={`Создать редакцию ${withoutRows(verdict.unparsed)}?`}
           onBack={() => setConfirming(false)} busy={commit.isPending}
           footer={<div className="flex flex-wrap justify-end gap-2">
             <ModalExit>Назад</ModalExit>
@@ -223,6 +238,18 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
             {formatCount(verdict.unparsed)} не {ruPlural(verdict.unparsed, 'разобранная', 'разобранные', 'разобранных')} в неё не{' '}
             {ruPlural(verdict.unparsed, 'войдёт', 'войдут', 'войдут')}: добавить их можно только новой загрузкой исправленного файла.
             У редакции останется пометка «частично».
+          </p>
+        </WindowStep>
+      )}
+      {refusing && data && (
+        <WindowStep title={`Отказаться от импорта «${data.fileName}»?`} onBack={() => setRefusing(false)} busy={cancel.isPending}
+          footer={<div className="flex flex-wrap justify-end gap-2">
+            <ModalExit>Назад</ModalExit>
+            <Button variant="filled" danger loading={cancel.isPending} onClick={() => refuse(data)}>Отказаться от импорта</Button>
+          </div>}>
+          <p className="text-sm text-fg2">
+            Импорт и загруженный файл удалятся, редакции из него не будет. Вернуться к нему можно только новой загрузкой
+            файла.
           </p>
         </WindowStep>
       )}

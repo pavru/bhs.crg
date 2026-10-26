@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Route, Routes, useNavigate, useParams } from 'react-router';
 import { FileSpreadsheet, Upload } from 'lucide-react';
-import { useCan } from '@/shared/api/access';
 import { useConstructionDirectory } from '@/shared/api/constructions';
 import { useAllEstimates, type Estimate } from '@/shared/api/planningEstimates';
 import { Button } from '@/shared/ui/Button';
@@ -10,7 +9,6 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
-import { useMedia, WIDE } from '@/shared/hooks/useMedia';
 import { apiError } from '@/shared/utils/apiError';
 import { formatCount, formatDate } from '@/shared/format/format';
 import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
@@ -19,6 +17,7 @@ import { KIND_LABEL, latestRevision } from './estimateRows';
 import { EstimateCard } from './EstimateCard';
 import { ImportDialog } from './ImportDialog';
 import { openingOf } from './importReport';
+import { useEstimateEdit } from './useEstimateEdit';
 
 /**
  * Раздел «Сметы» модуля (change `plan-09-estimate-ui`, ТЗ PLAN-20, макет П1 1ж): сметы всех строек,
@@ -54,8 +53,7 @@ function AllEstimates() {
   // не показываем вовсе — ни полный список, ни урезанный не были бы правдой (ниже — «Читаем сметы…», а не
   // пустая сетка «ничего не подходит» со «скрыто N»).
   const filter = useSiteFilter();
-  const can = useCan();
-  const wide = useMedia(WIDE);
+  const editable = useEstimateEdit();
   // Стройку загрузки выбирают в окне; импорты, закрытые без решения, видны на панели «Сметы» своей стройки —
   // общего списка импортов сервер не отдаёт (они читаются по стройке).
   const [importing, setImporting] = useState(false);
@@ -71,7 +69,7 @@ function AllEstimates() {
   return (
     <>
       <PageHeader icon={<FileSpreadsheet size={18} aria-hidden />} title="Сметы" subtitle="Сметы всех строек, по стройкам"
-        actions={can.permission('plan.estimate.edit') && wide && (
+        actions={editable && (
           <Button variant="filled" icon={<Upload size={16} aria-hidden />} onClick={() => setImporting(true)}>Загрузить смету</Button>
         )} />
       <ImportDialog open={importing} onClose={() => setImporting(false)}

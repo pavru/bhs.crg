@@ -1,14 +1,12 @@
 import { useState } from 'react';
 import { Route, Routes, useNavigate, useParams } from 'react-router';
 import { FileSpreadsheet, Upload } from 'lucide-react';
-import { useCan } from '@/shared/api/access';
 import { useGetConstruction } from '@/shared/api/constructions';
 import { costHidden, useConstructionEstimates, type Estimate } from '@/shared/api/planningEstimates';
 import { Button } from '@/shared/ui/Button';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
-import { useMedia, WIDE } from '@/shared/hooks/useMedia';
 import { apiError } from '@/shared/utils/apiError';
 import { formatAmount, formatCount } from '@/shared/format/format';
 import { KIND_LABEL, latestRevision } from './estimateRows';
@@ -16,6 +14,7 @@ import { EstimateCard } from './EstimateCard';
 import { ImportDialog } from './ImportDialog';
 import { openingOf } from './importReport';
 import { PendingImports } from './PendingImports';
+import { useEstimateEdit } from './useEstimateEdit';
 
 /**
  * Панель «Сметы» карточки стройки и страницы раздела (change `plan-09-estimate-ui`, ТЗ PLAN-20, макет П1 1а):
@@ -46,10 +45,8 @@ function EstimateList({ constructionId, sectionId, base }: { constructionId: str
   const navigate = useNavigate();
   const construction = useGetConstruction(constructionId);
   const sections = new Map((construction.data?.sections ?? []).map(s => [s.id, s.name]));
-  const can = useCan();
-  const wide = useMedia(WIDE);
   // Загрузка — правка сметы; на телефоне — только чтение (решение П1).
-  const editable = can.permission('plan.estimate.edit') && wide;
+  const editable = useEstimateEdit();
   const [importing, setImporting] = useState<{ importId?: string } | null>(null);
 
   if (estimates.isError) return <p role="alert" className="text-sm text-danger">{apiError(estimates.error, 'Сметы не прочитались')}</p>;

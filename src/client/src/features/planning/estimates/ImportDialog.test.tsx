@@ -7,7 +7,8 @@ import type { EstimateImport } from '@/shared/api/planningImports';
 import { ImportDialog } from './ImportDialog';
 
 vi.mock('@/shared/api/client', () => ({ apiClient: { post: vi.fn(), get: vi.fn(), put: vi.fn(), delete: vi.fn() } }));
-vi.mock('@/shared/ui/Toast', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn(), apiError: vi.fn() }) }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), apiError: vi.fn() }));
+vi.mock('@/shared/ui/Toast', () => ({ useToast: () => toast }));
 
 /**
  * Окно загрузки сметы (plan-09, PR 2, задачи 3.1–3.3, ТЗ PLAN-6, PLAN-7): без цели загрузки нет (решение
@@ -81,6 +82,23 @@ describe('загрузка: файл и цель', () => {
     expect(form.get('estimateId')).toBeNull();
   });
 
+  it('пока сметы стройки не прочитаны, цель не предлагается — ни «новой сметы», ни загрузки', async () => {
+    let listed: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === '/plan/estimates') return new Promise(resolve => { listed = resolve; }) as never;
+      if (url === '/constructions/c1') return Promise.resolve({ data: { id: 'c1', name: 'Корпус 2', sections: [] } }) as never;
+      throw new Error(`неожиданный адрес ${url}`);
+    });
+    mount();
+    pickFile();
+    expect(await screen.findByText('Читаем сметы стройки…')).toBeTruthy();
+    expect(screen.queryByLabelText('Название сметы')).toBeNull();
+    expect(unavailable(uploadButton())).toBe(true);
+
+    listed({ data: { items: [{ id: 'e1', name: 'ЭОМ корпус 2', kind: 'main', revisions: [] }] } });
+    expect(await screen.findByRole('tab', { name: 'Новая редакция сметы' })).toBeTruthy();
+  });
+
   it('из карточки сметы цель — её новая редакция: файла достаточно', async () => {
     mount({ estimateId: 'e1' });
     expect(await screen.findByText(/новая редакция сметы «ЭОМ корпус 2»/)).toBeTruthy();
@@ -111,6 +129,25 @@ describe('отчёт разбора', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Создать редакцию' }));
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith({ estimateId: 'e1', revisionId: 'r4', unmatched: true }));
     expect(apiClient.post).toHaveBeenCalledWith('/plan/imports/i1/commit', { acceptPartial: true }, { headers: { 'If-Match': '5' } });
+  });
+
+  it('тысячи строк — с разрядами и на кнопке, и в подтверждении', async () => {
+    shown = report({ parsed: 300, inFile: 1580, unparsed: unparsed(1280) });
+    mount({ importId: 'i1' });
+    // Разряды — неразрывным пробелом formatCount.
+    fireEvent.click(await screen.findByRole('button', { name: /^Создать редакцию без 1\s280 строк…$/ }));
+    expect((await screen.findAllByText(/^Создать редакцию без 1\s280 строк\?$/)).length).toBeGreaterThan(0);
+  });
+
+  it('повтор: редакция уже создана этим импортом — тост не объявляет новую', async () => {
+    mount({ importId: 'i1' });
+    await screen.findByText(/Разобрано 300 из 300 позиций/);
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: {
+      import: report({ state: 'committed' }), revisionId: 'r4', revisionNumber: 4, estimateCreated: false, repeated: true,
+      estimate: { id: 'e1', name: 'ЭОМ корпус 2', revisions: [{ id: 'r4', unmatched: 0, current: true }] },
+    } } as never);
+    fireEvent.click(screen.getByRole('button', { name: 'Создать редакцию' }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Ред. 4 сметы «ЭОМ корпус 2» уже создана из этого файла'));
   });
 
   it('полный разбор: создать редакцию одним действием, без согласия на частичный', async () => {
@@ -144,6 +181,32 @@ describe('отчёт разбора', () => {
     expect(screen.queryByRole('button', { name: /Создать редакцию/ })).toBeNull();
     vi.mocked(apiClient.delete).mockResolvedValueOnce({} as never);
     fireEvent.click(screen.getByRole('button', { name: 'Убрать импорт' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Отказаться от импорта' }));
     await waitFor(() => expect(apiClient.delete).toHaveBeenCalledWith('/plan/imports/i1', { headers: { 'If-Match': '5' } }));
+  });
+
+  it('«Отказаться» удаляет импорт и файл только после подтверждения; «Назад» — к отчёту', async () => {
+    mount({ importId: 'i1' });
+    await screen.findByText(/Разобрано 300 из 300 позиций/);
+    fireEvent.click(screen.getByRole('button', { name: 'Отказаться' }));
+    expect(await screen.findByText(/Импорт и загруженный файл удалятся/)).toBeTruthy();
+    expect(apiClient.delete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    await waitFor(() => expect(screen.queryByText(/Импорт и загруженный файл удалятся/)).toBeNull());
+    expect(apiClient.delete).not.toHaveBeenCalled();
+  });
+
+  it('импорт тем временем убрали — отказ, а не вечный «Разбираем»', async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+      if (url === '/plan/estimates') return { data: { items: [] } } as never;
+      if (url === '/constructions/c1') return { data: { id: 'c1', name: 'Корпус 2', sections: [] } } as never;
+      throw Object.assign(new Error('404'), {
+        isAxiosError: true, response: { status: 404, data: { detail: 'Импорт не найден — возможно, его отменили.' } },
+      });
+    });
+    mount({ importId: 'i1' });
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.queryByText(/Разбираем/)).toBeNull();
+    expect(screen.queryByRole('button', { name: /Отказаться|Убрать импорт/ })).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
-import type { EstimateKind } from '@/shared/api/planningEstimates';
 import { hasMark, type EstimateImport, type ImportTarget, type UnparsedPosition } from '@/shared/api/planningImports';
-import { ruCount } from '@/shared/utils/pluralize';
+import { formatCount } from '@/shared/format/format';
+import { ruPlural } from '@/shared/utils/pluralize';
 import { KIND_LABEL, type RowQueue } from './estimateRows';
 
 /**
@@ -55,14 +55,19 @@ export function targetLabel(target: ImportTarget, sectionName?: (id: string) => 
   if (target.newEstimate) {
     const { name, kind, sectionId } = target.newEstimate;
     const section = sectionId ? sectionName?.(sectionId) : undefined;
-    return `новая смета «${name}» · ${KIND_LABEL[kind as EstimateKind]}${section ? ` · раздел «${section}»` : ''}`;
+    return `новая смета «${name}» · ${KIND_LABEL[kind]}${section ? ` · раздел «${section}»` : ''}`;
   }
   return target.estimateName ? `новая редакция сметы «${target.estimateName}»` : 'новая редакция сметы, которую удалили';
 }
 
+/** Число с разрядами и словом в нужном падеже: «1 280 позиций». Одно на отчёт, кнопки и подтверждение. */
+export const countOf = (n: number, one: string, few: string, many: string) => `${formatCount(n)} ${ruPlural(n, one, few, many)}`;
+
+/** Сколько строк не войдёт в частичную редакцию: «без 1 280 строк». */
+export const withoutRows = (unparsed: number) => `без ${countOf(unparsed, 'строки', 'строк', 'строк')}`;
+
 /** Что сказать на кнопке частичной редакции: она называет последствие (макет П1, вариант 2). */
-export const partialCommitLabel = (unparsed: number) =>
-  `Создать редакцию без ${ruCount(unparsed, 'строки', 'строк', 'строк')}…`;
+export const partialCommitLabel = (unparsed: number) => `Создать редакцию ${withoutRows(unparsed)}…`;
 
 /** Редакция создана — куда вести: в смету, на созданную редакцию; есть несопоставленное — с отбором по нему. */
 export interface ImportCreated {

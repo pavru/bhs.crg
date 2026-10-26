@@ -4,11 +4,15 @@ import { Button } from '@/shared/ui/Button';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { formatDate } from '@/shared/format/format';
 
-const STATE: Record<Exclude<EstimateImportItem['state'], 'committed'>, { text: string; tone: 'neutral' | 'warning' | 'danger' }> = {
+type Badge = { text: string; tone: 'neutral' | 'warning' | 'danger' };
+
+const STATE: Record<Exclude<EstimateImportItem['state'], 'committed'>, Badge> = {
   parsing: { text: 'разбирается', tone: 'neutral' },
   parsed: { text: 'ждёт решения', tone: 'warning' },
   rejected: { text: 'не разобран', tone: 'danger' },
 };
+/** Прерванный разбор остаётся `parsing`, но исхода не дождаться — не «разбирается», а отказ. */
+const INTERRUPTED: Badge = { text: 'разбор прерван', tone: 'danger' };
 
 /**
  * Импорты, закрытые без решения (макет П1 1а, ответ листа 0): полосой над сметами, «Открыть» открывает окно
@@ -28,7 +32,7 @@ export function PendingImports({ constructionId, enabled, only, onOpen }: {
   return (
     <ul className="space-y-1.5" aria-label="Импорты, ждущие решения">
       {waiting.map(i => {
-        const state = STATE[i.state as keyof typeof STATE];
+        const state = i.interrupted ? INTERRUPTED : STATE[i.state as keyof typeof STATE];
         return (
           <li key={i.id} className="flex items-center gap-2 rounded-md bg-muted px-3 py-1.5 text-sm text-fg2">
             <Upload size={16} className="shrink-0 text-fg3" aria-hidden />
