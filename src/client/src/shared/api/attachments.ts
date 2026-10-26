@@ -1,3 +1,5 @@
+import { openInNewTab, shownTypeOf } from '@/shared/ui/viewer/openInNewTab';
+import { withBlobErrorBody } from '@/shared/utils/apiError';
 import { apiClient } from './client';
 
 /**
@@ -106,33 +108,29 @@ export async function uploadPrintForm(
 }
 
 /**
- * Типы, которые можно показывать из `blob:`-адреса. Всё остальное получает
- * `application/octet-stream` — браузер такой файл сохраняет, а не разбирает.
+ * Байты вложения — файлом с именем и типом из белого списка просмотрщика (`shownTypeOf`), для того,
+ * кому нужен `Blob`, а не адрес (issue #1492): `blob:`-адрес pdf.js не принимает вовсе (CSP, D8 зонтика
+ * просмотрщика). Всё вне списка получает `application/octet-stream` — браузер такой файл сохраняет,
+ * а не разбирает.
  *
  * Второй рубеж рядом с серверным списком приёма, и он нужен именно здесь: `blob:`-адрес наследует
  * источник страницы, которая его создала, поэтому содержимое открывается НЕ как чужой файл, а как
  * часть приложения. Ответные заголовки сервера в этом пути не участвуют вовсе — решает тип, который
- * мы сами передадим в `new Blob`. Список держим узким и растровым: расширится серверный —
- * этот останется страховкой.
+ * мы сами передадим в `new File`. Список — один на клиент и растровый: расширится серверный — этот
+ * останется страховкой. Имя — из `Content-Disposition`, без него — последняя часть пути: под ним
+ * файл неизвестного типа скачивается (`openAttachmentInNewTab`). Текст отказа сервера разворачивается
+ * из блоба (`withBlobErrorBody`) — место показывает его, а не «Request failed».
  */
-const VIEWABLE_TYPES = new Set([
-  'application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp',
-]);
-
-/**
- * Байты вложения с типом из белого списка — для просмотрщика, которому нужен `Blob`, а не адрес
- * (issue #1492): `blob:`-адрес pdf.js не принимает вовсе (CSP, D8 зонтика просмотрщика).
- */
-export async function loadAttachmentBlob(blobPath: string): Promise<Blob> {
-  const response = await apiClient.get('/attachments', {
+export async function loadAttachmentBlob(blobPath: string): Promise<File> {
+  const response = await withBlobErrorBody(apiClient.get('/attachments', {
     params: { path: blobPath },
     responseType: 'blob',
-  });
+  }));
   const declared = (response.headers['content-type'] as string | undefined) ?? '';
-  // Отсекаем параметры вида «; charset=utf-8» — сравниваем сам тип.
-  const bare = declared.split(';')[0].trim().toLowerCase();
-  const mimeType = VIEWABLE_TYPES.has(bare) ? bare : 'application/octet-stream';
-  return new Blob([response.data as BlobPart], { type: mimeType });
+  const mimeType = shownTypeOf(declared) ?? 'application/octet-stream';
+  const name = filenameFromContentDisposition(
+    response.headers['content-disposition'] as string | undefined, blobPath.split('/').pop() || 'файл');
+  return new File([response.data as BlobPart], name, { type: mimeType });
 }
 
 export async function loadAttachmentObjectUrl(blobPath: string): Promise<{ url: string; mimeType: string }> {
@@ -140,19 +138,15 @@ export async function loadAttachmentObjectUrl(blobPath: string): Promise<{ url: 
   return { url: URL.createObjectURL(blob), mimeType: blob.type };
 }
 
-/** Открывает вложение в отдельной вкладке браузера (полноразмерный просмотр PDF/изображения). */
-export async function openAttachmentInNewTab(blobPath: string): Promise<void> {
-  // Вкладку открываем синхронно (в обработчике клика), чтобы не блокировал поп-ап-блокировщик.
-  const w = window.open('', '_blank');
-  try {
-    const { url } = await loadAttachmentObjectUrl(blobPath);
-    if (w) w.location.href = url;
-    else window.open(url, '_blank');
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  } catch (e) {
-    if (w) w.close();
-    throw e;
-  }
+/**
+ * Открывает вложение в отдельной вкладке браузера (полноразмерный просмотр PDF/изображения) — общей
+ * функцией просмотрщика ([UI-27]): окно открыто синхронно, в обработчике нажатия, тип — из её белого
+ * списка, ссылка отзывается с отсрочкой, отказ загрузки вкладка называет словами. Тип вне списка (скан
+ * TIFF) не подписывается PDF: файл скачивается под своим именем. Отказ — и загрузки, и `TabBlocked` —
+ * уходит вызывающему: место показывает его через `useOpenAttachment`.
+ */
+export function openAttachmentInNewTab(blobPath: string): Promise<void> {
+  return openInNewTab(() => loadAttachmentBlob(blobPath), { saveUnknown: true });
 }
 
 // Размер файла пишет общий форматтер (задача N2, issue #1103); отсюда он виден по-прежнему, потому

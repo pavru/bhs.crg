@@ -53,9 +53,18 @@ CSP, — тоже.
   - Комментарий: `blob:` у frame — только фрейм печати просмотрщика; `'unsafe-eval'` держит ещё и
     wasm pdf.js. Без него декодеры уйдут на медленный JS — ломается не молча, но медленно.
 - **`openAttachmentInNewTab`** — обёртка над `openInNewTab` с загрузчиком `loadAttachmentBlob`
-  (`viewer-03`). Потребители не меняются.
-- **Сторож одной функции** — `no-restricted-properties` (`window.open`) в `eslint.config.js`, кроме
-  `shared/ui/viewer/openInNewTab.ts`. Новое правило в храповике линта стартует с нуля.
+  (`viewer-03`). Поправки по ревью PR #1637:
+  - **Тип вне белого списка скачивается**, а не подписывается PDF (опция `saveUnknown`): форма документа
+    качества принимает `.tif`, и подписанный PDF скан давал во вкладке ошибку вместо файла. Только для
+    вложений — байты просмотрщика без опции идут как PDF, как он их и показывает.
+  - **Белый список один** — `shownTypeOf` в `openInNewTab.ts`; `VIEWABLE_TYPES` вложений убран (уже
+    расходился: без `image/bmp`). Имя файла — из `Content-Disposition`, иначе последняя часть пути.
+  - **Отказ виден на месте**: места зовут `useOpenAttachment` (тост `apiError`), а не `void …` — иначе
+    `TabBlocked` и отказ загрузки уходили в необработанный промис, и кнопка молчала.
+- **Сторож одной функции** — `no-restricted-properties` (`window.open`, `globalThis.open`, `self.open`,
+  разбор) и `no-restricted-globals` (голый `open`) в `eslint.config.js`, кроме
+  `shared/ui/viewer/openInNewTab.ts` и тестов (те смотрят на вызов). Новое правило в храповике линта
+  стартует с нуля.
 
 ## Risks / Trade-offs
 

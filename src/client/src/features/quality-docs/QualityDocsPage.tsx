@@ -12,7 +12,7 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavSearchInput, NavSection, NavItem } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
-import { openAttachmentInNewTab } from '@/shared/api/attachments';
+import { useOpenAttachment } from '@/shared/hooks/useOpenAttachment';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import {
   useListQualityDocs, useDeleteQualityDoc, useListMaterialLinks, useRemoveMaterialLinks, searchQualityDocs,
@@ -57,6 +57,7 @@ const SELECTION_KEYS = ['state', 'doc'] as const;
 const QUALITY_LAST_KEY = 'quality-docs-last';
 
 export function QualityDocsPage() {
+  const openAttachment = useOpenAttachment();
   const [search, setSearch] = useState('');
   const { values, remember } = useRememberedSelection(QUALITY_LAST_KEY, SELECTION_KEYS);
   const selected = values.doc || null;
@@ -216,7 +217,7 @@ export function QualityDocsPage() {
   const actions: RowAction[] = current ? [
     ...(current.scanBlobPath
       ? [{ key: 'scan', label: 'Открыть скан', icon: <FileText size={13} />,
-        onSelect: () => void openAttachmentInNewTab(current.scanBlobPath!) }]
+        onSelect: () => void openAttachment(current.scanBlobPath!) }]
       : []),
     { key: 'edit', label: 'Редактировать', icon: <Pencil size={13} />, onSelect: () => setEditDoc(current) },
     // «Разорвать все» — пунктом меню, а не кнопкой (issue #556): действие редкое и опасное, под руку

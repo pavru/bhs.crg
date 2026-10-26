@@ -46,7 +46,7 @@ const dirs = dirsToScan(RULES, readdirSync(srcRoot, { withFileTypes: true }).fil
 const actual = {};
 for (const dir of dirs)
   for (const file of sources(dir))
-    for (const [rule, n] of Object.entries(countViolations(readFileSync(join(srcRoot, file), 'utf8'), { dir })))
+    for (const [rule, n] of Object.entries(countViolations(readFileSync(join(srcRoot, file), 'utf8'), { dir, file })))
       (actual[rule] ??= {})[file] = n;
 
 const sum = level => Object.fromEntries(RULES.map(r =>

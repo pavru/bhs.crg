@@ -20,7 +20,7 @@ import { QualityDocForm } from '@/features/quality-docs/QualityDocForm';
 import { docNumberOf } from '@/features/quality-docs/docIdentity';
 import { formatDatePrecise } from '@/shared/format/format';
 import { recognizeAndUpdate } from '@/features/quality-docs/recognizeImported';
-import { openAttachmentInNewTab } from '@/shared/api/attachments';
+import { useOpenAttachment } from '@/shared/hooks/useOpenAttachment';
 import { getValidUntil, isExpired } from './qualityValidity';
 import type { MaterialRow } from './materialRow';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -54,6 +54,7 @@ export function LinkPickerModal(props: LinkPickerModalProps) {
 
 function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, onPick, searchType, setSearchType }:
   LinkPickerModalProps & { searchType: string; setSearchType: (v: string) => void }) {
+  const openAttachment = useOpenAttachment();
   const count = materials.length;
   // Поисковый запрос формируем из выбранного материала (артикул + наименование).
   const baseQuery = useMemo(() => {
@@ -206,7 +207,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                     </button>
                     {d.scanBlobPath && (
                       <Tooltip content="Просмотр скана (в новой вкладке)" name>
-                        <button onClick={() => void openAttachmentInNewTab(d.scanBlobPath!)}
+                        <button onClick={() => void openAttachment(d.scanBlobPath!)}
                           className="p-1 text-fg4 hover:text-brand shrink-0"><Eye size={14} /></button>
                       </Tooltip>
                     )}
