@@ -40,17 +40,8 @@ internal static class EstimateViews
         var revisionIds = revisions.Select(r => r.Revision.Id).ToList();
 
         // Итог редакции — только тому, кто его увидит: без права сумма по строкам не считается вовсе.
-        // «Не сопоставлена» — только строка-работа (D2 plan-31): то же правило, что EstimateRow.Unmatched.
         var rows = db.EstimateRows.AsNoTracking().Where(row => revisionIds.Contains(row.RevisionId));
-        var stats = await (cost
-                ? rows.GroupBy(row => row.RevisionId).Select(g => new RevisionStats(
-                    g.Key, g.Count(),
-                    g.Count(x => x.Kind == EstimateRowKind.Work && (x.WorkTypeId == null || x.PlanItemId == null)),
-                    g.Sum(x => x.Total ?? 0m)))
-                : rows.GroupBy(row => row.RevisionId).Select(g => new RevisionStats(
-                    g.Key, g.Count(),
-                    g.Count(x => x.Kind == EstimateRowKind.Work && (x.WorkTypeId == null || x.PlanItemId == null)), null)))
-            .ToDictionaryAsync(s => s.Key, ct);
+        var stats = await RevisionStatsAsync(rows, cost, ct);
         var materials = await (
                 from m in db.EstimateRowMaterials.AsNoTracking()
                 join row in rows on m.RowId equals row.Id
@@ -94,6 +85,49 @@ internal static class EstimateViews
         })];
     }
 
+    /// <summary>
+    /// Сметы всех строек страницей (D6 <c>plan-31</c>): по дате заведения, курсор — дата и идентификатор последней
+    /// сметы страницы. Не смещение: смета, заведённая между страницами, не сдвинет следующую и не повторится.
+    /// </summary>
+    public static async Task<(List<EstimateDto> Page, string? Next)> PageAsync(
+        PlanDbContext db, string? cursor, int? limit, bool cost, CancellationToken ct)
+    {
+        var take = limit is { } l ? Math.Clamp(l, 1, MaxPage) : DefaultPage;
+        var query = db.Estimates.AsNoTracking();
+        if (!string.IsNullOrEmpty(cursor))
+        {
+            var (at, id) = Cursor(cursor);
+            query = query.Where(e => e.CreatedAt > at || (e.CreatedAt == at && e.Id.CompareTo(id) > 0));
+        }
+
+        var keys = await query.OrderBy(e => e.CreatedAt).ThenBy(e => e.Id)
+            .Select(e => new { e.Id, e.CreatedAt }).Take(take + 1).ToListAsync(ct);
+        var more = keys.Count > take;
+        if (more) keys.RemoveAt(keys.Count - 1);
+        var ids = keys.Select(k => k.Id).ToList();
+        // Порядок страницы — порядок курсора, а не «основные первыми» сметы одной стройки.
+        var place = ids.Select((id, i) => (id, i)).ToDictionary(x => x.id, x => x.i);
+        var page = await ListAsync(db, db.Estimates.Where(e => ids.Contains(e.Id)), cost, ct);
+        return ([.. page.OrderBy(e => place[e.Id])], more
+            ? $"{keys[^1].CreatedAt.UtcTicks.ToString(CultureInfo.InvariantCulture)}_{keys[^1].Id:N}"
+            : null);
+    }
+
+    public const int DefaultPage = 50;
+    public const int MaxPage = 200;
+
+    private static (DateTimeOffset At, Guid Id) Cursor(string cursor)
+    {
+        var parts = cursor.Split('_');
+        return parts.Length == 2
+               && long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var ticks)
+               && ticks is >= 0 && ticks <= DateTimeOffset.MaxValue.UtcTicks
+               && Guid.TryParseExact(parts[1], "N", out var id)
+            ? (new DateTimeOffset(ticks, TimeSpan.Zero), id)
+            : throw new Domain.Common.InvalidRequestException(
+                "Курсор страницы записан не так: ожидается значение поля «next» из прежнего ответа.");
+    }
+
     /// <summary>Одна смета — тем же ответом, что в списке, с носителем «скрыто» при необходимости.</summary>
     public static async Task<EstimateDto> OneAsync(PlanDbContext db, IModuleUser user, Guid id, CancellationToken ct)
     {
@@ -106,6 +140,11 @@ internal static class EstimateViews
 
     private static string Text(uint version) => version.ToString(CultureInfo.InvariantCulture);
 
-    /// <param name="Total">Итог по строкам; <c>null</c> — не считался: у читающего нет права.</param>
-    private sealed record RevisionStats(Guid Key, int Rows, int Unmatched, decimal? Total);
+    /// <summary>
+    /// Счётчики и итог редакций по их строкам — тот же ответ, что у редакции в смете, и у предпросмотра смены
+    /// действующей (<see cref="CurrentRevisionPreview" />): «итог редакции» везде один.
+    /// </summary>
+    public static Task<Dictionary<Guid, EstimateRowCount<Guid>>> RevisionStatsAsync(
+        IQueryable<EstimateRow> rows, bool cost, CancellationToken ct) =>
+        EstimateRowCounts.By(rows, row => row.RevisionId, cost).ToDictionaryAsync(s => s.Key, ct);
 }

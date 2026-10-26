@@ -12,7 +12,9 @@ namespace BHS.CRG.Modules.Plan.Endpoints;
 
 /// <summary>
 /// Сопоставление строк редакции с видами работ (change <c>plan-08-matching</c>, ТЗ PLAN-6.1, PLAN-5, AUTH-8,
-/// AUTH-9): строку — <c>PUT …/lines/{lineId}/match</c>, раздел ЛСР — <c>POST …/sections/match</c>.
+/// AUTH-9): строку — <c>PUT …/lines/{lineId}/match</c>, раздел ЛСР — <c>POST …/sections/match</c>, выбранные
+/// строки или несколько разделов — <c>POST …/lines/match</c> (D9 <c>plan-31</c>). Коэффициент до записи —
+/// <c>GET /api/plan/unit-factor</c> (D8 <c>plan-31</c>): тем же правилом, ничего не записывая.
 ///
 /// <para><b>Ворота и версия.</b> Группа модуля закрыта воротами <c>module:plan</c>, адреса — правом
 /// <c>plan.estimate.edit</c>. Версию называет РЕДАКЦИЯ заголовком <c>If-Match</c>: без него — 400, с устаревшей
@@ -32,6 +34,10 @@ public static class MatchEndpoints
             .WithTags("Сметы").RequireAuthorization(edit);
         endpoints.MapPost("/api/plan/revisions/{id:guid}/sections/match", MatchSectionAsync)
             .WithTags("Сметы").RequireAuthorization(edit);
+        endpoints.MapPost("/api/plan/revisions/{id:guid}/lines/match", MatchLinesAsync)
+            .WithTags("Сметы").RequireAuthorization(edit);
+        endpoints.MapGet("/api/plan/unit-factor", UnitFactorAsync)
+            .WithTags("Сметы").RequireAuthorization(AppPolicies.Permission(PlanModule.EstimateRead));
     }
 
     private static async Task<IResult> MatchRowAsync(
@@ -69,6 +75,39 @@ public static class MatchEndpoints
             outcome.Matched, outcome.Skipped, db.VersionOf(revision), outcome.Units, outcome.Memory));
     }
 
+    private static async Task<IResult> MatchLinesAsync(
+        Guid id, LinesMatchRequest body, HttpRequest request, PlanDbContext db, RowMatching matching, CancellationToken ct)
+    {
+        if (body.WorkTypeId is not { } workType)
+            throw new InvalidRequestException("Вид работы не назван («workTypeId»).");
+        var revision = await SeenAsync(db, id, request, ct);
+
+        var outcome = await matching.MatchLinesAsync(revision, body.LineIds, body.Sections,
+            new RateChoice(workType, body.UnitId, body.Factor), body.SourceUnit, body.Remember ?? true, ct);
+        return Results.Ok(new SectionMatchDto(
+            outcome.Matched, outcome.Skipped, db.VersionOf(revision), outcome.Units, outcome.Memory));
+    }
+
+    /// <summary>
+    /// Коэффициент из единицы расценки в единицу классификатора — предложение сервера тем же правилом, что у
+    /// сопоставления (<see cref="RateMatching.SuggestFactor" />), без записи (D8 <c>plan-31</c>). Не выводится —
+    /// <c>factor: null</c> с причиной, а не 1: единица вместо неизвестного дала бы план во сто раз меньше.
+    /// </summary>
+    private static async Task<IResult> UnitFactorAsync(
+        string? sourceUnit, Guid? unitId, IModuleUnits units, CancellationToken ct)
+    {
+        if (unitId is not { } wanted)
+            throw new InvalidRequestException("Единица классификатора не названа («unitId»).");
+        var unit = (await units.GetAsync([wanted], ct) ?? throw new InvalidRequestException(IModuleUnits.NotSetUp))
+            .FirstOrDefault(u => u.Id == wanted)
+            ?? throw new InvalidRequestException("Такой единицы измерения нет — её удалили либо это запись другого вида.");
+        var factor = RateMatching.SuggestFactor(sourceUnit, unit.Name);
+        return Results.Ok(new UnitFactorDto(factor, sourceUnit, unit.Id, unit.Name, factor is null
+            ? $"Единицы не подсказывают коэффициент: расценка в «{(string.IsNullOrWhiteSpace(sourceUnit) ? "без единицы" : sourceUnit)}», " +
+              $"единица классификатора — «{unit.Name}». Назовите его сами: сколько единиц классификатора в одной единице расценки."
+            : null));
+    }
+
     private static async Task<EstimateRevision> SeenAsync(PlanDbContext db, Guid id, HttpRequest request, CancellationToken ct)
     {
         var revision = await db.EstimateRevisions.FirstOrDefaultAsync(r => r.Id == id, ct)
@@ -86,6 +125,18 @@ public sealed record RowMatchRequest(Guid? WorkTypeId, Guid? UnitId, decimal? Fa
 /// несопоставленной строки раздела.</param>
 public sealed record SectionMatchRequest(
     string? LsrSectionCode, Guid? WorkTypeId, Guid? UnitId, decimal? Factor, string? SourceUnit, bool? Remember);
+
+/// <summary>Выбранные строки или разделы ЛСР одним видом работы (D9 <c>plan-31</c>): ровно одно из двух.</summary>
+/// <param name="SourceUnit">Единица расценки, к которой назван коэффициент; не названа — единица первой
+/// несопоставленной строки, как у раздела.</param>
+/// <param name="Remember">Запомнить выбор по шифрам; не названо — запомнить.</param>
+public sealed record LinesMatchRequest(
+    IReadOnlyList<Guid>? LineIds, IReadOnlyList<string>? Sections, Guid? WorkTypeId, Guid? UnitId, decimal? Factor,
+    string? SourceUnit, bool? Remember);
+
+/// <param name="Factor">Сколько единиц классификатора в одной единице расценки; <c>null</c> — не выводится.</param>
+/// <param name="Reason">Почему коэффициента нет; <c>null</c> — он есть.</param>
+public sealed record UnitFactorDto(decimal? Factor, string? SourceUnit, Guid UnitId, string Unit, string? Reason);
 
 /// <param name="Version">Новая версия редакции — её называет следующая правка.</param>
 public sealed record RowMatchDto(
