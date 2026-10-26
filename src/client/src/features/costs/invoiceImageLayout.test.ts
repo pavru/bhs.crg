@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { InvoiceImage } from '@/shared/api/invoiceImage';
 import type { PrintProfile } from '@/shared/api/printProfiles';
 import {
-  canChooseProfile, initialChoice, layoutChipHint, layoutChipLabel, layoutChipParts, layoutHint, layoutNotice, rebuiltMessage,
+  canChooseProfile, initialChoice, layoutChipHint, layoutChipParts, layoutHint, layoutNotice, layoutState, rebuiltMessage,
 } from './invoiceImageLayout';
 
 /** Раскладка вида у счёта (issue #1456): что сказать о профиле печати и когда давать выбор. */
@@ -50,12 +50,23 @@ describe('раскладка вида для чтения', () => {
   });
 
   it('подпись чипа называет состояние, когда имени нет', () => {
-    expect(layoutChipLabel(built())).toBe('Раскладка: по умолчанию');
-    expect(layoutChipLabel(built({ profile: null, profileState: 'deleted' }))).toBe('Раскладка: профиль удалён');
-    expect(layoutChipLabel(built({ profile: null, profileState: 'none' }))).toBe('Раскладка: до профилей');
-    expect(layoutChipLabel(built({ profile: null, profileState: null }))).toBe('Раскладка: профиль не применён');
+    const label = (image: InvoiceImage) => { const { lead, state } = layoutChipParts(image); return lead + state; };
+    expect(label(built())).toBe('Раскладка: по умолчанию');
+    expect(label(built({ profile: null, profileState: 'deleted' }))).toBe('Раскладка: профиль удалён');
+    expect(label(built({ profile: null, profileState: 'none' }))).toBe('Раскладка: до профилей');
+    expect(label(built({ profile: null, profileState: null }))).toBe('Раскладка: профиль не применён');
     // Текст «изменён» ушёл в подсказку чипа (issue #1495) — подпись называет состояние сама.
-    expect(layoutChipLabel(built({ profileState: 'changed' }))).toBe('Раскладка: по умолчанию · изменён');
+    expect(label(built({ profileState: 'changed' }))).toBe('Раскладка: по умолчанию · изменён');
+  });
+
+  it('в окне выбора состояние — без обещаний кнопки «Перестроить»: там строит отмеченный профиль', () => {
+    for (const over of [{ profileState: 'changed' }, { profile: null, profileState: 'deleted' }, { profile: null, profileState: 'none' }] as const) {
+      expect(layoutState(built(over))).toBeTruthy();
+      expect(layoutState(built(over))).not.toContain('Перестроить');
+    }
+    expect(layoutState(built({ profile: null, profileState: 'deleted' }))).toBe('Профиль печати, по которому построен вид, удалён.');
+    expect(layoutState(built())).toBeNull();
+    expect(layoutState(built({ layout: 'file', profile: null, profileState: 'changed' }))).toBeNull();
   });
 
   it('в узкой колонке обрезается имя профиля, а не слово состояния — оно отдельной частью', () => {

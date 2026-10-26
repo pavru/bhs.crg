@@ -37,6 +37,24 @@ export function layoutNotice(image: InvoiceImage): string | null {
 }
 
 /**
+ * Состояние профиля для окна выбора — без отсылки к «Перестроить»: действие в окне своё, «Перестроить по
+ * выбранному», и строит оно по отмеченному профилю, а не так, как обещает `layoutNotice`.
+ */
+export function layoutState(image: InvoiceImage): string | null {
+  if (image.layout !== 'profile') return null;
+  switch (image.profileState) {
+    case 'changed':
+      return `Профиль печати «${image.profile?.name ?? ''}» изменён после построения вида.`;
+    case 'deleted':
+      return 'Профиль печати, по которому построен вид, удалён.';
+    case 'none':
+      return 'Вид построен до профилей печати. Если автор книги не задал раскладку, вид разложится по выбранному профилю.';
+    default:
+      return null;
+  }
+}
+
+/**
  * Выбирать есть из чего и есть к чему: профилей больше одного, и книга своей раскладки не задала.
  * Вид «до профилей» — тоже: своя ли раскладка у книги, до перестроения не известно, а выбор у книги
  * со своей раскладкой честно кончится «раскладка из файла».
@@ -56,12 +74,6 @@ export function layoutChipParts(image: InvoiceImage): { lead: string; state: str
   if (image.profileState === 'none') return { lead: 'Раскладка:', state: ' до профилей' };
   // Подставить профиль не удалось — почему, сказано пометкой построителя.
   return { lead: 'Раскладка:', state: ' профиль не применён' };
-}
-
-/** Подпись чипа выбора целиком: по чему вид разложен сейчас и в каком состоянии профиль. */
-export function layoutChipLabel(image: InvoiceImage): string {
-  const { lead, state } = layoutChipParts(image);
-  return lead + state;
 }
 
 /** Подсказка чипа: состояние профиля и пометка о раскладке — то, что без чипа стояло бы строками. */

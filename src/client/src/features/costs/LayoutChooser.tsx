@@ -6,7 +6,7 @@ import { Chip } from '@/shared/ui/Chip';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import type { InvoiceImage } from '@/shared/api/invoiceImage';
 import { profileSummary, type PrintProfile } from '@/shared/api/printProfiles';
-import { initialChoice, layoutChipHint, layoutChipParts } from './invoiceImageLayout';
+import { initialChoice, layoutChipHint, layoutChipParts, layoutState } from './invoiceImageLayout';
 
 /**
  * Чип «Раскладка: {профиль}» в строке «Вид для чтения» (issue #1456, вариант B): называет, по чему
@@ -17,7 +17,8 @@ import { initialChoice, layoutChipHint, layoutChipParts } from './invoiceImageLa
  * перебирают профили, и перестроение на каждое нажатие клавиши было бы ловушкой.</p>
  *
  * <p>Состояние профиля (`notice`) и пометка о раскладке строками не стоят, пока чип показан (issue #1495):
- * они в его подсказке — и первым абзацем окна, потому что на телефоне подсказка не открывается.</p>
+ * они в его подсказке — и первым абзацем окна, потому что на телефоне подсказка не открывается. В окне
+ * состояние сказано без отсылки к «Перестроить» (`layoutState`): действие там своё.</p>
  */
 export function LayoutChooser({ image, notice, profiles, rebuilding, onRebuild }: {
   image: InvoiceImage;
@@ -30,6 +31,8 @@ export function LayoutChooser({ image, notice, profiles, rebuilding, onRebuild }
   const [open, setOpen] = useState(false);
   const [chosen, setChosen] = useState(() => initialChoice(image, profiles));
   const chipLabel = layoutChipParts(image);
+  // В окне — состояние без «Перестроить построит…»: кнопка окна строит по отмеченному профилю.
+  const state = layoutState(image);
 
   return (
     <Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) setChosen(initialChoice(image, profiles)); }}>
@@ -39,8 +42,8 @@ export function LayoutChooser({ image, notice, profiles, rebuilding, onRebuild }
               целиком оно — в окне выбора. Слово состояния не обрезается никогда: ради него оно в подписи. */}
           <Chip icon={Printer} menu className="min-w-0 max-w-full" data-testid="layout-chip">
             <span className="flex min-w-0">
-              <span className="truncate">{chipLabel.lead}</span>
-              {chipLabel.state && <span className="shrink-0 whitespace-pre">{chipLabel.state}</span>}
+              <span className="truncate" data-testid="layout-chip-lead">{chipLabel.lead}</span>
+              {chipLabel.state && <span className="shrink-0 whitespace-pre" data-testid="layout-chip-state">{chipLabel.state}</span>}
             </span>
           </Chip>
         </Popover.Trigger>
@@ -55,14 +58,11 @@ export function LayoutChooser({ image, notice, profiles, rebuilding, onRebuild }
               <IconButton label="Закрыть" size="sm"><X size={14} /></IconButton>
             </Popover.Close>
           </div>
-          {notice && <p className="text-xs text-fg2 mb-2" data-testid="layout-notice">{notice}</p>}
+          {state && <p className="text-xs text-fg2 mb-2" data-testid="layout-notice">{state}</p>}
           {image.layoutNote && <p className="text-xs text-fg2 mb-2" data-testid="layout-note">{image.layoutNote}</p>}
           <p className="text-xs text-fg3 mb-3">
             {/* Состояние уже сказано абзацем выше — общая фраза повторила бы его. */}
-            {notice || image.layoutNote ? ''
-              : image.profileState === 'none'
-                ? 'Вид построен до профилей печати. Если автор книги не задал раскладку, вид разложится по выбранному профилю. '
-                : 'Автор книги не задал раскладку — вид раскладывается по профилю печати. '}
+            {state || image.layoutNote ? '' : 'Автор книги не задал раскладку — вид раскладывается по профилю печати. '}
             Выбор запоминается за этим файлом.
           </p>
           <Choices profiles={profiles} shown={image.profile?.id} value={chosen} onPick={setChosen} />

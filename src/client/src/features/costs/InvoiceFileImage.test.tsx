@@ -108,7 +108,7 @@ describe('вид для чтения: профиль печати', () => {
 
   // Ни один текст состояния #1456 не потерян: подпись чипа называет состояние, полный текст — в окне.
   it.each([
-    ['deleted', { profile: null, profileState: 'deleted' }, 'Раскладка: профиль удалён', 'построит по профилю по умолчанию'],
+    ['deleted', { profile: null, profileState: 'deleted' }, 'Раскладка: профиль удалён', 'по которому построен вид, удалён'],
     ['none', { profile: null, profileState: 'none', layoutNote: null }, 'Раскладка: до профилей', 'Вид построен до профилей печати'],
   ] as const)('состояние «%s» — в подписи чипа и в окне', async (_, over, label, said) => {
     shown(image(over), true);
@@ -116,7 +116,10 @@ describe('вид для чтения: профиль печати', () => {
     expect(chip.textContent).toBe(label);
     expect(screen.queryByTestId('layout-notice')).toBeNull();
     fireEvent.click(chip);
-    expect((await screen.findByTestId('layout-notice')).textContent).toContain(said);
+    const notice = await screen.findByTestId('layout-notice');
+    expect(notice.textContent).toContain(said);
+    // Кнопка окна строит по отмеченному профилю — текст не обещает того, что делает «Перестроить» рядом.
+    expect(notice.textContent).not.toContain('Перестроить');
   });
 
   it('профиль не применён — подпись чипа, а почему — пометка в подсказке и окне, не строкой', async () => {
@@ -155,7 +158,32 @@ describe('вид для чтения: профиль печати', () => {
     shown(image(), true);
     await waitFor(() => expect(vi.mocked(apiClient.get).mock.calls.some(([url]) => url === '/settings/print-profiles')).toBe(true));
     expect(screen.queryByTestId('layout-chip')).toBeNull();
-    expect(screen.getByTestId('layout-notice').textContent).toContain('изменён после построения вида');
+    expect((await screen.findByTestId('layout-notice')).textContent).toContain('изменён после построения вида');
     expect(screen.getByTestId('layout-note').textContent).toBe(NOTE);
+  });
+
+  it('пока профили не пришли, строк состояния нет — иначе они мелькнули бы и ушли в чип', async () => {
+    let answer: (v: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation((async (url: string) => {
+      if (url === '/settings/print-profiles') return new Promise(resolve => { answer = resolve; });
+      if (url === '/account/access') return { data: { permissions: ['core.files.use'], modules: [] } };
+      throw new Error('вида в тесте нет');
+    }) as never);
+    shown(image({ notes: [SHEETS] }), true);
+    await waitFor(() => expect(vi.mocked(apiClient.get).mock.calls.some(([url]) => url === '/settings/print-profiles')).toBe(true));
+    expect(screen.queryByTestId('layout-notice')).toBeNull();
+    expect(screen.queryByTestId('layout-note')).toBeNull();
+    expect(screen.getByText(SHEETS)).toBeTruthy();
+    answer({ data: PROFILES });
+    await screen.findByTestId('layout-chip');
+    expect(screen.queryByTestId('layout-notice')).toBeNull();
+  });
+
+  it('касанием фраза открывает то же, что её подсказка: «вёрстка может отличаться» не только при наведении', async () => {
+    shown(image({ layout: null, profile: null, profileState: null, layoutNote: null, pages: 3 }), false);
+    fireEvent.click(await screen.findByTestId('image-caveat-phrase'));
+    const about = await screen.findByTestId('image-caveat-about');
+    expect(about.textContent).toContain('вёрстка может отличаться');
+    expect(about.textContent).toContain('3 стр.');
   });
 });

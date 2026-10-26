@@ -14,6 +14,13 @@ async function sweep(h) {
     await h.api('DELETE', `${URL}/${p.id}`);
 }
 
+/** Рамка элемента — или отказ с названной причиной: `boundingBox` невидимого даёт `null`. */
+async function box(locator, what) {
+  const found = await locator.boundingBox();
+  if (!found) throw new Error(`${what} не видно`);
+  return found;
+}
+
 /**
  * Строка-оговорка — одна (issue #1495): пометка о раскладке у чипа, а не строкой; фраза «документ —
  * оригинал» не обрезана; чип и «Перестроить» не разорваны; строка не наезжает на лист — и в широкой
@@ -32,8 +39,9 @@ async function oneLine(page, h, caveat, chip) {
     for (const width of [1500, 1280]) {
       await page.setViewportSize({ width, height: 1000 });
       await h.named(`области вида для чтения нет при ширине ${width}`, () => region.waitFor({ timeout: 10_000 }));
-      const [line, sheet, chipBox, rebuildBox] = await Promise.all(
-        [caveat, region, chip, rebuild].map(l => l.boundingBox()));
+      const [line, sheet, chipBox, rebuildBox] = await Promise.all([
+        box(caveat, `строки-оговорки при ширине ${width}`), box(region, `листа при ширине ${width}`),
+        box(chip, `чипа при ширине ${width}`), box(rebuild, `«Перестроить» при ширине ${width}`)]);
       if (line.y + line.height > sheet.y + 1)
         throw new Error(`строка-оговорка наезжает на лист при ширине ${width}`);
       if (Math.abs(chipBox.y + chipBox.height / 2 - (rebuildBox.y + rebuildBox.height / 2)) > 2)
@@ -41,6 +49,28 @@ async function oneLine(page, h, caveat, chip) {
       const cut = await caveat.getByTestId('image-caveat-phrase').evaluate(el => el.scrollWidth > el.clientWidth);
       if (cut) throw new Error(`фраза «документ — оригинал» обрезана при ширине ${width}`);
     }
+  } finally {
+    await page.setViewportSize({ width: 1500, height: 1000 });
+  }
+}
+
+/**
+ * В узкой колонке многоточие съедает имя профиля, а не слово состояния (issue #1495): «изменён» в подписи
+ * чипа — единственное, что о состоянии видно без подсказки. Имя профиля нарочно длинное — без обрезки
+ * проверке нечего было бы охранять, и это тоже отказ.
+ */
+async function stateNotCut(page, h, chip) {
+  try {
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    const lead = chip.getByTestId('layout-chip-lead');
+    const state = chip.getByTestId('layout-chip-state');
+    await h.named('слова состояния в подписи чипа нет', () => state.waitFor({ timeout: 10_000 }));
+    if (!await lead.evaluate(el => el.scrollWidth > el.clientWidth))
+      throw new Error('длинное имя профиля при ширине 1280 не обрезано — проверке обрезки нечего охранять');
+    const [chipBox, stateBox] = await Promise.all([box(chip, 'чипа при ширине 1280'), box(state, 'слова состояния при ширине 1280')]);
+    const cut = await state.evaluate(el => el.scrollWidth > el.clientWidth);
+    if (cut || stateBox.x + stateBox.width > chipBox.x + chipBox.width + 1)
+      throw new Error(`слово состояния «${await state.innerText()}» обрезано в узкой колонке`);
   } finally {
     await page.setViewportSize({ width: 1500, height: 1000 });
   }
@@ -56,8 +86,9 @@ export async function invoiceLayoutChecks(page, check, h) {
   try {
     await check('счёт в Excel без своей раскладки: чип «Раскладка» перестраивает по выбранному профилю', async () => {
       const base = (await h.api('GET', URL)).find(p => p.isSystem);
-      const name = `${PREFIX} ${h.stamp}`;
-      await h.api('POST', URL, { ...base, name, orientation: base.orientation === 'portrait' ? 'landscape' : 'portrait' });
+      // Длинное: в узкой колонке подпись чипа с ним обрезается (`stateNotCut`).
+      const name = `${PREFIX} ${h.stamp}, длинное имя для узкой колонки`;
+      const extra = await h.api('POST', URL, { ...base, name, orientation: base.orientation === 'portrait' ? 'landscape' : 'portrait' });
 
       const number = `СЧ-L${h.stamp}`;
       const created = await h.api('POST', '/costs/invoices', { requisites: h.requisites(number, 'Раскладка по профилю') });
@@ -89,6 +120,13 @@ export async function invoiceLayoutChecks(page, check, h) {
       if (view.profile?.name !== name) throw new Error(`сервер помнит не выбранный профиль: ${JSON.stringify(view.profile)}`);
       if ((await h.api('GET', `/costs/invoices/${created.id}`)).version !== version)
         throw new Error('перестроение по профилю двинуло версию счёта');
+
+      // Профиль изменили после построения — чип говорит «изменён», и в узкой колонке это слово цело.
+      await h.api('PUT', `${URL}/${extra.id}`, { ...extra, margins: { ...extra.margins, top: extra.margins.top + 1 } });
+      await h.open(number);
+      const changed = caveat.getByTestId('layout-chip').filter({ hasText: 'изменён' });
+      await h.named('чип не сказал, что профиль изменён', () => changed.waitFor({ timeout: 60_000 }));
+      await stateNotCut(page, h, changed);
     });
   } finally {
     await sweep(h);

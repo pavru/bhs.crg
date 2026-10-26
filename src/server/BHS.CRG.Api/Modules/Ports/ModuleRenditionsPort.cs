@@ -43,13 +43,13 @@ public sealed class ModuleRenditionsPort(RenditionStore store, string module, IL
     private ModuleRendition Shown(RenditionRecord record, RenditionLayoutProfile? profile) => record.State switch
     {
         RenditionState.AsIs => new ModuleRendition.AsIs(record.OriginalBlobPath, record.Mime!),
-        RenditionState.Built => Built(record, profile),
+        RenditionState.Built => BuiltView(record, profile),
         _ => new ModuleRendition.Refused(record.RefusalReason!, RetryHelps(record.RefusalKind),
             OtherKind: record.RefusalKind == nameof(RenditionRefusal.WrongFormat),
             AboutFile: Enum.TryParse<RenditionRefusal>(record.RefusalKind, out var kind) && kind.Remembered()),
     };
 
-    private static ModuleRendition.Built Built(RenditionRecord record, RenditionLayoutProfile? profile)
+    private static ModuleRendition.Built BuiltView(RenditionRecord record, RenditionLayoutProfile? profile)
     {
         var (notes, layoutNote) = NotesOf(record);
         return new(record.ImageBlobPath!, record.Pages ?? 0, notes, record.Converter, record.UpdatedAt,
@@ -100,6 +100,10 @@ public sealed class ModuleRenditionsPort(RenditionStore store, string module, IL
     /// </summary>
     private static (IReadOnlyList<string> Notes, string? LayoutNote) NotesOf(RenditionRecord record)
     {
+        // Не книга по профилю и не книга со своей раскладкой (Word, PDF, .xls) — отделять и дописывать
+        // нечего: список отдаётся как есть, без копии на каждое чтение.
+        if (record.Layout is not (RenditionLayout.Applied or RenditionLayout.Skipped or RenditionLayout.BookOwn))
+            return (record.Notes, null);
         var byProfile = record.Layout is RenditionLayout.Applied or RenditionLayout.Skipped;
         string? layoutNote = null;
         var notes = new List<string>(record.Notes.Count);
