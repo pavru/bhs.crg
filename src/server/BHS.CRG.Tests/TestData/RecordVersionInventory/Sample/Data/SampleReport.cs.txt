@@ -1,0 +1,5 @@
+// Обращение к набору из файла вне словаря.
+public static class SampleReport
+{
+    public static Task<List<SampleVersion>> Read(SampleDbContext db) => db.Set<SampleVersion>().ToListAsync();
+}

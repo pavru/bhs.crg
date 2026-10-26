@@ -1,0 +1,5 @@
+// Файл итогов по имени (*Totals.cs) читает историю.
+public static class SampleTotals
+{
+    public static int Count(SampleDbContext db) => db.SampleVersions.Count();
+}

@@ -1,0 +1,5 @@
+// Объявление набора — названо в словаре.
+public sealed class SampleDbContext : ModuleDbContext
+{
+    public DbSet<SampleVersion> SampleVersions => Set<SampleVersion>();
+}

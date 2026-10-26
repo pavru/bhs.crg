@@ -1,0 +1,5 @@
+// Наследник без словаря.
+public sealed class SampleStray : ModuleRecordVersion
+{
+    private SampleStray() { }
+}

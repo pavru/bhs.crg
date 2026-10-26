@@ -1,0 +1,5 @@
+// Итоги, названные в словаре итогов: разрешение в словаре доступа их не освобождает.
+public static class SampleIssued
+{
+    public static int Count(SampleDbContext db) => db.SampleVersions.Count();
+}

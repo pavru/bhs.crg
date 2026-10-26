@@ -1,0 +1,5 @@
+// Таблица по имени — сырой SQL мимо отслеживания.
+public static class SampleRaw
+{
+    private const string Sql = "DELETE FROM sample.sample_versions WHERE record_id = {0}";
+}

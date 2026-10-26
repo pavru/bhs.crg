@@ -1,0 +1,12 @@
+// Место записи — названо в словаре. Запись через отслеживание законна; ExecuteDelete — нет.
+public static class SampleCorrection
+{
+    public static async Task Correct(SampleDbContext db, Guid id, CancellationToken ct)
+    {
+        db.SampleVersions.Add(SampleVersion.Create(id, 1, "{}", "причина", null));
+        // db.SampleVersions.ExecuteDelete(); — строка-комментарий нарушением не считается
+        await db.SampleVersions
+            .Where(v => v.RecordId == id)
+            .ExecuteDeleteAsync(ct);
+    }
+}

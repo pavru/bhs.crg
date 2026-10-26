@@ -1,0 +1,14 @@
+// Наследник базового типа: объявление и отображение на таблицу — разрешены сами.
+public sealed class SampleVersion : ModuleRecordVersion
+{
+    private SampleVersion() { }
+
+    private SampleVersion(Guid record, int number, string content, string reason, Guid? author)
+        : base(record, number, content, reason, author) { }
+
+    public static SampleVersion Create(Guid record, int number, string content, string reason, Guid? author) =>
+        new(record, number, content, reason, author);
+
+    internal static void Map(ModelBuilder builder) =>
+        Map<SampleVersion>(builder, "sample_versions");
+}

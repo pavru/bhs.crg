@@ -1,0 +1,9 @@
+// Форма версии мимо базового типа.
+public sealed class SampleShape : IAppendOnly
+{
+    public Guid Id { get; private set; }
+
+    public int Number { get; private set; }
+
+    public string Content { get; private set; } = "{}";
+}
