@@ -50,6 +50,8 @@ public class EstimateCostVisibilityTests(PlanOnlyHost host)
             var hidden = Assert.Single(doc.RootElement.GetProperty("hidden").EnumerateArray());
             Assert.Equal("cost", hidden.GetProperty("code").GetString());
             Assert.Equal(PlanModule.EstimateCost, hidden.GetProperty("permission").GetString());
+            // И имя права словами каталога: каталог ролей читающему закрыт, а экран называет причину им.
+            Assert.Equal(PlanModule.EstimateCostGives, hidden.GetProperty("name").GetString());
         }
     }
 

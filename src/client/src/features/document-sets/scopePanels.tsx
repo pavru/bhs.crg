@@ -9,6 +9,7 @@ import { missingFor, allowed } from '@/shared/ui/navAccess';
 import { NoAccessPage } from '@/shared/ui/NoAccessPage';
 import { useWorkspace } from '@/shared/ui/workspaceContext';
 import { DataSetsResource } from '@/features/datasets/DataSetsResource';
+import { EstimatesPanel } from '@/features/planning/estimates/EstimatesPanel';
 import { CatalogPanel } from './CatalogPanel';
 import { SubscribersResource } from './SubscribersResource';
 
@@ -24,6 +25,7 @@ export interface PanelScope {
  * `constructionPanels.test.ts`.
  */
 export const panelViews: Record<string, (scope: PanelScope) => ReactNode> = {
+  estimates: scope => <EstimatesPanel {...scope} />,
   catalog: scope => <CatalogPanel {...scope} />,
   datasets: ({ constructionId, sectionId }) => sectionId
     ? <DataSetsResource scope="Section" scopeId={sectionId} />

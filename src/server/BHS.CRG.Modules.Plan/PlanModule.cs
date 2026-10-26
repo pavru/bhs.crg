@@ -38,6 +38,13 @@ public sealed class PlanModule : IAppModule
     /// <summary>Себестоимость сметы — одним местом: её спрашивают ответы смет и строк (ТЗ PLAN-11).</summary>
     public const string EstimateCost = "plan.estimate.cost";
 
+    /// <summary>
+    /// Что даёт <see cref="EstimateCost" /> — словами каталога прав. Одним местом и с объявлением права, и с
+    /// носителем «скрыто правами»: колонка «нет права» называет право тем же именем, что редактор ролей, а
+    /// сам каталог читающему смету закрыт (<c>/api/roles/permissions</c> — право на пользователей).
+    /// </summary>
+    public const string EstimateCostGives = "видеть себестоимость сметы: стоимость строк, итоги, расценки";
+
     public string Code => ModuleCode;
 
     public string Title => "Планирование";
@@ -78,7 +85,7 @@ public sealed class PlanModule : IAppModule
             ReadAllMark.Out("импортирует и правит сметы, выбирает действующую редакцию")),
 
         new(EstimateCost,
-            "видеть себестоимость сметы: стоимость строк, итоги, расценки",
+            EstimateCostGives,
             "стоимость единицы и итог каждой строки, итоги редакций, цены и стоимость материалов и всё " +
             "сметное наполнение строк (расценка, коэффициенты, поля заказчика); без права сметы читаются " +
             "без денег",

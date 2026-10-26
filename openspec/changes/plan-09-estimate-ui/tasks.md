@@ -15,15 +15,15 @@
 
 Условие старта — слит `plan-31-estimate-ui-carriers` (носители «нет» из `design.md`).
 
-- [ ] 2.1 `shared/api/planningEstimates.ts`: сметы, редакции, строки, «сделать действующей» с `If-Match`,
+- [x] 2.1 `shared/api/planningEstimates.ts`: сметы, редакции, строки, «сделать действующей» с `If-Match`,
   разбор 400/403/409 [PLAN-5.2]. Проверка — vitest на разбор отказов
-- [ ] 2.2 `features/planning/estimates/EstimatesPanel.tsx` (панель карточки стройки механизмом `plan-02`) и
+- [x] 2.2 `features/planning/estimates/EstimatesPanel.tsx` (панель карточки стройки механизмом `plan-02`) и
   `EstimatesPage.tsx` (глобальный раздел) [PLAN-20]. Проверка — vitest: без `plan.estimate.read` пункта нет
-- [ ] 2.3 `EstimateCard.tsx`, `RevisionLines.tsx` на `DataGrid`: редакции вкладками («ещё N» сверх
+- [x] 2.3 `EstimateCard.tsx`, `RevisionLines.tsx` на `DataGrid`: редакции вкладками («ещё N» сверх
   видимых), полоса чипов «что ждёт» с отбором, пометка в клетке вида работы, сквозной № п/п,
   «зафиксирована»; при `hidden: ["cost"]` колонки стоимости — `unavailable: 'no-right'` [PLAN-5.2] [PLAN-2].
   Проверка — vitest: `hidden: ["cost"]` — колонки в состоянии «нет права», сумм нет
-- [ ] 2.4 «Сделать действующей» — окно расхождений с сервера (решение В-5) [PLAN-5.2]. Проверка —
+- [x] 2.4 «Сделать действующей» — окно расхождений с сервера (решение В-5) [PLAN-5.2]. Проверка —
   vitest на 409 с сохранением выбора
 
 ## 3. PR 2: импорт
