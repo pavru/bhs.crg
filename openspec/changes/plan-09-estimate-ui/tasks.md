@@ -38,24 +38,24 @@
 
 ## 4. PR 3: сопоставление
 
-- [ ] 4.1 `shared/api/planningMatches.ts`, `MatchDialog.tsx`: раздел ЛСР целиком и построчно, коэффициент с
+- [x] 4.1 `shared/api/planningMatches.ts`, `MatchDialog.tsx`: раздел ЛСР целиком и построчно, коэффициент с
   обеими единицами, «запомнено» с отменой, «новый вид работы» только при `core.worktypes.edit` [PLAN-6.1]
   [CORE-8]. Проверка — vitest: без права действия нет в разметке; отмена восстанавливает прежнее
-- [ ] 4.2 `ResourceMatchDialog.tsx`: похожие позиции, «запомнено», новая позиция явным действием [PLAN-9.1].
+- [x] 4.2 `ResourceMatchDialog.tsx`: похожие позиции, «запомнено», новая позиция явным действием [PLAN-9.1].
   Проверка — vitest на незнакомый материал
-- [ ] 4.3 `RateMatchesPage.tsx`, списки запомненного с «забыть» и «перенацелить» [PLAN-6.1]. Проверка —
+- [x] 4.3 `RateMatchesPage.tsx`, списки запомненного с «забыть» и «перенацелить» [PLAN-6.1]. Проверка —
   vitest на 409
-- [ ] 4.4 Живой прогон `src/client/e2e/planning-estimates-smoke.mjs`, посев сметы в `e2e/seed.mjs`; вписать
+- [x] 4.4 Живой прогон `src/client/e2e/planning-estimates-smoke.mjs`, посев сметы в `e2e/seed.mjs`; вписать
   в `test:e2e:ci` и `e2e/README.md` [PLAN-20]. Проверка — прогон зелёный на стенде
-- [ ] 4.5 `docs/USER_GUIDE.md`: раздел «Сметы» (импорт, сопоставление, действующая редакция);
+- [x] 4.5 `docs/USER_GUIDE.md`: раздел «Сметы» (импорт, сопоставление, действующая редакция);
   `npm run toc` в `docs/tools`. Проверка — проверка содержания в «Frontend» зелёная
 
 ## 5. Верификация
 
-- [ ] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Estimate|FullyQualifiedName~RateMatch|FullyQualifiedName~ResourceMatch"` — зелёный (сервер не сломан)
-- [ ] 5.2 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 5.3 `cd src/client && npm run ui:ratchet` — без роста
-- [ ] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 5.5 Живой прогон под ролями: `node e2e/planning-estimates-smoke.mjs` — «Сметчик» импортирует и
+- [x] 5.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Estimate|FullyQualifiedName~RateMatch|FullyQualifiedName~ResourceMatch"` — зелёный (сервер не сломан)
+- [x] 5.2 `cd src/client && npx tsc -b` — без ошибок
+- [x] 5.3 `cd src/client && npm run ui:ratchet` — без роста
+- [x] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 5.5 Живой прогон под ролями: `node e2e/planning-estimates-smoke.mjs` — «Сметчик» импортирует и
   сопоставляет, пользователь с одним `plan.estimate.read` видит «стоимость скрыта», «Инженер ИД» пункта
   «Сметы» не видит

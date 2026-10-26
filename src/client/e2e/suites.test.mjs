@@ -91,14 +91,20 @@ describe('состав живых прогонов в CI', () => {
    */
   it('входы прогонов CI помещаются в предел частоты с запасом', () => {
     const RESERVE = 4;
-    const host = readFileSync(
-      path.join(here, '..', '..', 'server', 'BHS.CRG.Api', 'Configuration', 'ServiceRegistration.Host.cs'), 'utf8');
-    const policy = host.match(/AddPolicy\("login", PerClient\((\d+), TimeSpan\.FromMinutes\(\d+\)\)\)/);
-    // Предел читается у сервера, а не записан здесь вторым экземпляром: сниженный там, он иначе
-    // оставил бы эту проверку зелёной ровно до первого красного прогона.
-    expect(policy, 'политика «login» в ServiceRegistration.Host.cs не найдена — предел читать не из чего')
-      .not.toBeNull();
-    const limit = Number(policy[1]);
+    // Предел — у стенда прогонов CI (`RateLimits__Login` в ci.yml, plan-09), а без него — поставки сервера. Читается
+    // там, а не записан здесь вторым экземпляром: сниженный там, он иначе оставил бы эту проверку зелёной ровно до
+    // первого красного прогона.
+    const shipped = readFileSync(
+      path.join(here, '..', '..', 'server', 'BHS.CRG.Api', 'Configuration', 'LoginRateLimit.cs'), 'utf8')
+      .match(/public const int Default = (\d+);/);
+    expect(shipped, 'предел поставки в LoginRateLimit.cs не найден — читать не из чего').not.toBeNull();
+    const ci = readFileSync(path.join(here, '..', '..', '..', '.github', 'workflows', 'ci.yml'), 'utf8');
+    const raised = [...ci.matchAll(/RateLimits__Login: (\d+)/g)].map(m => Number(m[1]));
+    // Сервер прогонов запускается дважды (до посева и после) — предел обязан быть одним у обоих запусков: наборы
+    // идут на втором, и забытый там вернул бы поставку молча.
+    expect(new Set(raised).size, `RateLimits__Login в ci.yml разный у запусков сервера: ${raised.join(', ')}`)
+      .toBeLessThanOrEqual(1);
+    const limit = raised[0] ?? Number(shipped[1]);
 
     // Набор обвязки ходит к собственной подделке сервера, и его входы в предел не идут.
     const perSuite = inCi.filter(name => name !== 'harness' && suites.includes(name)).map(name => {

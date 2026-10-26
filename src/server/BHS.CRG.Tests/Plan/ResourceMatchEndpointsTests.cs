@@ -77,6 +77,28 @@ public class ResourceMatchEndpointsTests(PlanOnlyHost host)
             Assert.Equal(HttpStatusCode.Forbidden, (await reader.SendAsync(request)).StatusCode);
     }
 
+    /// <summary>
+    /// Поиск по номенклатуре для окна материала (plan-09): находит позицию по слову названия, говорит о неполноте,
+    /// закрыт правом правки — читающему смету он ни к чему.
+    /// </summary>
+    [Fact]
+    public async Task Поиск_номенклатуры_находит_и_закрыт_правом_правки()
+    {
+        var word = $"Провод{Guid.NewGuid():N}";
+        var position = await new ResourceMatchingTests(host).NomenclatureAsync($"{word} ПуГВ 1х2,5");
+        var editor = await EstimateImportFlow.EditorAsync(host);
+
+        var response = await editor.GetAsync($"/api/plan/nomenclature?query={word}");
+        Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var found = Assert.Single(body.GetProperty("items").EnumerateArray());
+        Assert.Equal(position, found.GetProperty("id").GetGuid());
+        Assert.False(body.GetProperty("more").GetBoolean());
+
+        var reader = await GrantedSignIn.WithPermissionsAsync(host, PlanModule.EstimateRead);
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync($"/api/plan/nomenclature?query={word}")).StatusCode);
+    }
+
     /// <summary>«Забыть» убирает запомненное; уже сопоставленный им материал остаётся и говорит «забыли».</summary>
     [Fact]
     public async Task Забыть_из_списка()
@@ -141,7 +163,8 @@ public class ResourceMatchWithoutModuleTests(IntegrationTestFixture fixture)
         var (revision, material) = (Guid.NewGuid(), Guid.NewGuid());
         foreach (var request in ResourceMatchEndpointsTests.Writes(revision, material, Guid.NewGuid(), "1")
                      .Append(new HttpRequestMessage(HttpMethod.Get, "/api/plan/resource-matches"))
-                     .Append(new HttpRequestMessage(HttpMethod.Get, $"/api/plan/revisions/{revision}/resources/{material}/candidates")))
+                     .Append(new HttpRequestMessage(HttpMethod.Get, $"/api/plan/revisions/{revision}/resources/{material}/candidates"))
+                     .Append(new HttpRequestMessage(HttpMethod.Get, "/api/plan/nomenclature")))
         {
             var response = await client.SendAsync(request);
             Assert.Equal(HttpStatusCode.NotImplemented, response.StatusCode);

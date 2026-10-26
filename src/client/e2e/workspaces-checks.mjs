@@ -2,8 +2,8 @@
 //
 // Отдельным файлом, а не своим набором: входы прогонов CI упёрлись в предел частоты (считает
 // `suites.test.mjs`), и новый набор со своим входом туда не помещается. Проверки едут внутри
-// `settings-smoke` под его входом администратора — у него доступны оба модуля стенда (id и costs),
-// то есть переключатель есть.
+// `settings-smoke` под его входом администратора — у него доступны все модули стенда (в CI — id, costs
+// и plan), то есть переключатель есть.
 //
 // ⚠️ Пространство хранит сервер за ЭТИМ человеком, а следующие наборы входят им же: оставленное
 // «Счета и накладные» сузило бы им меню, и они упали бы на чужом. Поэтому настройки пространств
@@ -58,8 +58,10 @@ export async function workspaceChecks(page, check) {
     await settled(page);
 
     await check('workspace-switcher-names-its-modules', async () => {
-      // Два доступных модуля — переключатель есть. На кнопке только короткое имя (#1432), а состав —
-      // в списке, у пространства: имя само не отвечает на вопрос «почему я не вижу сметы».
+      // Больше одного доступного модуля — переключатель есть. На кнопке только короткое имя (#1432), а
+      // состав — в списке, у пространства: имя само не отвечает на вопрос «почему я не вижу сметы».
+      // Число модулей — из доступа, а не записано: модуль стенда, включённый в CI (plan-09), иначе
+      // ронял бы проверку, ничего не сломав.
       if (!(await switcherName(page)).includes('Все доступные модули'))
         throw new Error(`открыто не «Все доступные модули»: ${await switcherName(page)}`);
       const button = page.getByTestId('workspace-switcher');
@@ -69,7 +71,9 @@ export async function workspaceChecks(page, check) {
       const option = page.getByTestId('workspace-option').filter({ has: page.getByText('Все доступные модули', { exact: true }) });
       const composition = await option.getByTestId('workspace-composition').innerText();
       await page.keyboard.press('Escape');
-      if (!/^2 модуля: .+, .+/.test(composition)) throw new Error(`состав в списке: «${composition}»`);
+      const modules = (await callApi(page, 'GET', '/account/access')).body.modules.filter(m => m.available).length;
+      if (!new RegExp(`^${modules} модул(я|ей): [^,]+(, [^,]+){${modules - 1}}$`).test(composition))
+        throw new Error(`состав в списке: «${composition}», а доступных модулей ${modules}`);
     });
 
     await check('workspace-narrows-the-menu-and-names-what-is-hidden', async () => {

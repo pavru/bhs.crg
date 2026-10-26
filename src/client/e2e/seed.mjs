@@ -23,6 +23,7 @@
 // совпавшее имя приняли бы, дописали и МОЛЧА проигнорировали.
 
 import { seedInvoices } from './seed-invoices.mjs';
+import { seedEstimates } from './seed-estimates.mjs';
 import { ensurePreviewTemplate } from './seed-preview.mjs';
 
 const API = (process.env.SEED_API || 'http://localhost:5000').replace(/\/$/, '');
@@ -799,6 +800,8 @@ async function main() {
    * знает про счета, живёт в `seed-invoices.mjs`.
    */
   await seedInvoices({ api, findType, ensureEntry, ensureUser, field, apiBase: API, token, png: LOGO_PNG_BASE64 });
+  // Сметы модуля «Планирование» (plan-09) — тоже своим файлом: номенклатура им нужна та, что посеяли счета.
+  const estimateId = await seedEstimates({ api, findType, ensureUser, apiBase: API, token, constructionId });
   await ensureSystemDataSet();
 
   // Цель ссылки union-варианта «Проект»: имя проверка ищет в открытом варианте дословно.
@@ -912,23 +915,21 @@ async function main() {
   await ensureDataSetSource(invoiceFileId, 'Шапка счёта');
 
   console.log('\nПосев готов. Переменные прогонов:');
-  console.log(`SMOKE_CONSTRUCTION_ID=${constructionId}`);
-  console.log(`SMOKE_SET_ID=${setId}`);
-  console.log(`SMOKE_INSTANCE_ID=${aosrInstanceId}`);
-  // Комплект-цель прогонам не адресуется (пикер ищет его по имени), но напечатан: строка в логе —
-  // единственное место, где видно, что цель копирования вообще создалась.
-  console.log(`SMOKE_COPY_TARGET_SET_ID=${copyTargetSetId}`);
-  /**
-   * ИМЕНА типов — тоже переменные прогона, наравне с адресами. Прогон кликает по имени типа
-   * ТОЧНЫМ совпадением, а имена посева несут суффикс «(посев)»: без него посев умирал бы на
-   * занятом имени в рабочей базе (см. `ensureType`). Умолчания в самом прогоне — имена ЖИВОЙ базы,
-   * где он и запускается руками; здесь они замещаются посеянными.
-   */
-  console.log(`SMOKE_UNION_TYPE=${NAME.unionType}`);
-  console.log(`SMOKE_WORKS_UNION_TYPE=${NAME.worksUnionType}`);
-  console.log(`SMOKE_MATERIALS_UNION_TYPE=${NAME.materialsUnionType}`);
-  console.log(`SMOKE_DATASET_FILE=${NAME.datasetFile}`);
-  console.log(`SMOKE_MATERIALS_DOC=${NAME.materialsDoc}`);
+  console.log([`SMOKE_CONSTRUCTION_ID=${constructionId}`, `SMOKE_SET_ID=${setId}`, `SMOKE_INSTANCE_ID=${aosrInstanceId}`,
+    // Комплект-цель прогонам не адресуется (пикер ищет его по имени), но напечатан: строка в логе —
+    // единственное место, где видно, что цель копирования вообще создалась.
+    `SMOKE_COPY_TARGET_SET_ID=${copyTargetSetId}`,
+    /**
+     * ИМЕНА типов — тоже переменные прогона, наравне с адресами. Прогон кликает по имени типа
+     * ТОЧНЫМ совпадением, а имена посева несут суффикс «(посев)»: без него посев умирал бы на
+     * занятом имени в рабочей базе (см. `ensureType`). Умолчания в самом прогоне — имена ЖИВОЙ базы,
+     * где он и запускается руками; здесь они замещаются посеянными.
+     */
+    `SMOKE_UNION_TYPE=${NAME.unionType}`, `SMOKE_WORKS_UNION_TYPE=${NAME.worksUnionType}`,
+    `SMOKE_MATERIALS_UNION_TYPE=${NAME.materialsUnionType}`, `SMOKE_DATASET_FILE=${NAME.datasetFile}`,
+    `SMOKE_MATERIALS_DOC=${NAME.materialsDoc}`,
+    // Смета — только когда модуль plan включён; без неё прогон смет отказывает, а не проходит пустым.
+    ...(estimateId ? [`SMOKE_ESTIMATE_ID=${estimateId}`] : [])].join('\n'));
   // Счета печатаются только если модуль включён. Пустое значение прогон счетов встречает ОТКАЗОМ, а
   // не пропуском: проверять форму счёта, не открыв счёта, — это отчёт о работе, которой не было.
   // ⚠️ Счета переменных прогону НЕ дают, и это осознанно: свои счета он заводит сам, потому что

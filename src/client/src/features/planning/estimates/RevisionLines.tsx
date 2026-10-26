@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import {
   costHidden, useRevisionRows, useRevisionSections, useUnitNames, useWorkTypeNames,
   type EstimateRevision, type EstimateRow, type HiddenPart, type RevisionSection,
 } from '@/shared/api/planningEstimates';
+import { Button } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { SearchInput } from '@/shared/ui/SearchInput';
@@ -12,6 +13,9 @@ import { Tooltip } from '@/shared/ui/Tooltip';
 import { apiError } from '@/shared/utils/apiError';
 import { formatAmount, formatCount, formatQuantity } from '@/shared/format/format';
 import { gridLines, queueCount, rowNumber, sectionKey, type GridLine, type RowQueue } from './estimateRows';
+import { MatchDialog, type MatchTarget } from './MatchDialog';
+import { ResourceMatchDialog } from './ResourceMatchDialog';
+import { useEstimateEdit } from './useEstimateEdit';
 
 /**
  * Строки редакции сметы (change `plan-09-estimate-ui`, макет П1: основа — вариант 1, «что ждёт» — из 3).
@@ -21,6 +25,9 @@ import { gridLines, queueCount, rowNumber, sectionKey, type GridLine, type RowQu
  * - Колонки «Пометки» нет: пометка — в клетке вида работы, ширина нужна наименованию (824 px карточки).
  * - Без `plan.estimate.cost` колонка стоимости стоит в состоянии «нет права» сетки (CORE-33) с именем права
  *   из каталога — ни нуля, ни пустой суммы (D4 зонтика).
+ * - Сопоставление (PR 3) — окнами: «Сопоставить раздел» в заголовке раздела, вид работы строки — из её клетки,
+ *   материалы — очередью. Только с `plan.estimate.edit` на широком экране и не у зафиксированной редакции:
+ *   строки той не правятся (ТЗ PLAN-5).
  */
 export function RevisionLines({ revision, initialQueue = 'all' }: {
   revision: EstimateRevision;
@@ -33,6 +40,9 @@ export function RevisionLines({ revision, initialQueue = 'all' }: {
   const [queue, setQueue] = useState<RowQueue>(initialQueue);
   const [query, setQuery] = useState('');
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
+  const [matching, setMatching] = useState<MatchTarget | null>(null);
+  const [materials, setMaterials] = useState(false);
+  const editable = useEstimateEdit() && revision.frozen === null;
 
   const items = useMemo(() => rows.data?.items ?? [], [rows.data]);
   const lines = useMemo(() => gridLines(sections.data ?? [], items, queue, query, opened),
@@ -78,16 +88,24 @@ export function RevisionLines({ revision, initialQueue = 'all' }: {
         {remembered > 0 && (
           <Chip selected={queue === 'remembered'} count={formatCount(remembered)} onClick={() => pick('remembered')}>Запомнено</Chip>
         )}
+        {editable && noNomenclature > 0 && (
+          <Button size="sm" variant="text" className="ml-auto" onClick={() => setMaterials(true)}>Сопоставить материалы…</Button>
+        )}
       </div>
 
       <LinesGrid lines={lines} hidden={rows.data.hidden} names={{ workTypes: workTypes.data, units }} filtering={filtering}
-        onToggle={toggle} />
+        onToggle={toggle} onMatch={editable ? setMatching : null} />
+
+      {matching && (
+        <MatchDialog revision={revision} rows={items} sections={sections.data} target={matching} onClose={() => setMatching(null)} />
+      )}
+      {materials && <ResourceMatchDialog revision={revision} rows={items} onClose={() => setMaterials(false)} />}
     </div>
   );
 }
 
 /** Колонки строк редакции. Стоимость — всегда на месте: без права она называет причину, а не исчезает. */
-function lineColumns(hidden: HiddenPart[] | undefined, names: Names): DataGridColumn<GridLine>[] {
+function lineColumns(hidden: HiddenPart[] | undefined, names: Names, onMatch: OnMatch): DataGridColumn<GridLine>[] {
   const closed = costHidden(hidden);
   const row = (line: GridLine) => (line.kind === 'row' ? line.row : null);
   return [
@@ -103,7 +121,7 @@ function lineColumns(hidden: HiddenPart[] | undefined, names: Names): DataGridCo
       cell: l => { const v = row(l)!.sourceVolume; return v === null ? null : <span className="tabular-nums">{formatQuantity(v)}</span>; },
     },
     { key: 'sourceUnit', label: 'Ед.', width: 'w-16', cell: l => row(l)!.sourceUnit },
-    { key: 'workType', label: 'Вид работы в плане', width: 'w-40', wrap: true, cell: l => <WorkTypeCell row={row(l)!} names={names} /> },
+    { key: 'workType', label: 'Вид работы в плане', width: 'w-40', wrap: true, cell: l => <WorkTypeCell row={row(l)!} names={names} onMatch={onMatch} /> },
     {
       key: 'cost', label: 'Стоимость', align: 'right', width: 'w-32',
       unavailable: closed ? 'no-right' : null,
@@ -117,13 +135,16 @@ function lineColumns(hidden: HiddenPart[] | undefined, names: Names): DataGridCo
  * Клетка вида работы — и место пометок строки (макет П1): «не сопоставлена», «ед. изменилась», «запомнено»,
  * у позиции-материала — «материал» (вида работы не требует, решение (14) П1).
  */
+/** Открыть окно сопоставления; `null` — сопоставлять здесь нельзя (нет права, телефон, редакция зафиксирована). */
+type OnMatch = ((target: MatchTarget) => void) | null;
+
 /** Названия справочников ядра для показа: видов работ и единиц плана. */
 interface Names {
   workTypes: ReadonlyMap<string, string> | undefined;
   units: ReadonlyMap<string, string>;
 }
 
-function WorkTypeCell({ row, names }: { row: EstimateRow; names: Names }) {
+function WorkTypeCell({ row, names, onMatch }: { row: EstimateRow; names: Names; onMatch: OnMatch }) {
   const marks = row.marks.filter(m => m.code !== 'remembered');
   // «Запомнено» — и у строки, и у её материала: иначе строка из очереди «Запомнено» стояла бы без пометки.
   const remembered = row.marks.find(m => m.code === 'remembered')
@@ -137,8 +158,19 @@ function WorkTypeCell({ row, names }: { row: EstimateRow; names: Names }) {
   );
   return (
     <div className="flex flex-col items-start gap-0.5">
-      {row.workTypeId && (
+      {row.workTypeId && (onMatch ? (
+        <button type="button" onClick={() => onMatch({ kind: 'row', rowId: row.id })}
+          className="rounded-sm text-left text-sm text-fg1 hover:text-brand hover:underline focus-visible:outline-2">
+          {names.workTypes?.get(row.workTypeId) ?? '…'}
+        </button>
+      ) : (
         <span className="text-sm text-fg1">{names.workTypes?.get(row.workTypeId) ?? '…'}</span>
+      ))}
+      {!row.workTypeId && onMatch && (
+        <button type="button" onClick={() => onMatch({ kind: 'row', rowId: row.id })}
+          className="inline-flex items-center gap-1 rounded-sm text-sm text-brand hover:underline focus-visible:outline-2">
+          <Plus size={14} aria-hidden />выбрать вид работы
+        </button>
       )}
       {row.workTypeId && row.volume !== null && (
         <span className="text-xs text-fg3 tabular-nums">
@@ -162,26 +194,30 @@ const MARK_LABEL: Record<string, string> = {
   'unit-changed': 'ед. изменилась',
 };
 
-function LinesGrid({ lines, hidden, names, filtering, onToggle }: {
+function LinesGrid({ lines, hidden, names, filtering, onToggle, onMatch }: {
   lines: GridLine[];
   hidden: HiddenPart[] | undefined;
   names: Names;
   filtering: boolean;
   onToggle: (key: string) => void;
+  onMatch: OnMatch;
 }) {
-  const columns = lineColumns(hidden, names);
+  const columns = lineColumns(hidden, names, onMatch);
   return (
     <DataGrid columns={columns} rows={lines} fixed rowKey={l => l.key}
       state={filtering ? 'filtered-out' : undefined}
       tone={l => (l.kind === 'row' && l.row.marks.some(m => m.code === 'unmatched' || m.code === 'unit-changed') ? 'warning' : null)}
       section={l => (l.kind === 'section'
-        ? <SectionHeading section={l.section} open={l.open} shown={l.shown} filtering={filtering} onToggle={() => onToggle(sectionKey(l.section.code))} />
+        ? <SectionHeading section={l.section} open={l.open} shown={l.shown} filtering={filtering} onToggle={() => onToggle(sectionKey(l.section.code))}
+            onMatch={onMatch && l.section.unmatched > 0 ? () => onMatch({ kind: 'section', code: l.section.code }) : null} />
         : null)} />
   );
 }
 
-function SectionHeading({ section, open, shown, filtering, onToggle }: {
+function SectionHeading({ section, open, shown, filtering, onToggle, onMatch }: {
   section: RevisionSection; open: boolean; shown: number; filtering: boolean; onToggle: () => void;
+  /** «Сопоставить раздел» — когда в нём ждут и сопоставлять здесь можно. */
+  onMatch: (() => void) | null;
 }) {
   const title = section.code === null
     ? 'Вне разделов'
@@ -207,6 +243,11 @@ function SectionHeading({ section, open, shown, filtering, onToggle }: {
         : <StatusBadge tone="success">всё сопоставлено</StatusBadge>}
       {section.materialsUnmatched > 0 && (
         <StatusBadge tone="neutral">без номенклатуры: {formatCount(section.materialsUnmatched)}</StatusBadge>
+      )}
+      {onMatch && (
+        <Button size="sm" variant="text" className="ml-auto" onClick={onMatch}>
+          {section.code === null ? 'Сопоставить строки' : 'Сопоставить раздел'}
+        </Button>
       )}
     </div>
   );

@@ -175,6 +175,7 @@ public sealed class PlanModule : IAppModule
         ResourceMatchListEndpoints.Map(endpoints);
         RevisionSectionsEndpoints.Map(endpoints);
         RevisionMaterialsEndpoints.Map(endpoints);
+        NomenclatureSearchEndpoints.Map(endpoints);
     }
 
     /// <summary>

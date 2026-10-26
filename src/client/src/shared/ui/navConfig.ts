@@ -1,4 +1,4 @@
-import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Printer, Scale, Bug, History, ReceiptText, Table2, Truck, CalendarCheck, ChartNoAxesColumn, Link2, Building2, Calculator, Wrench, ClipboardList, FileSpreadsheet } from 'lucide-react';
+import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Printer, Scale, Bug, History, ReceiptText, Table2, Truck, CalendarCheck, ChartNoAxesColumn, Link2, Building2, Calculator, Wrench, ClipboardList, FileSpreadsheet, Bookmark } from 'lucide-react';
 
 /**
  * Пункты навигации — общий источник для сайдбара (AppShell) и командной палитры (Ctrl+K).
@@ -92,6 +92,7 @@ export const railSections: RailSectionDef[] = [
 ];
 
 const COSTS_REPORTS = 'Отчёты и закрытие месяца';
+const PLAN_DIRECTORIES = 'Справочники';
 
 export const workNav: NavItem[] = [
   { to: '/document-sets',   label: 'Стройки',            icon: Building2,  permission: 'core.constructions.read', section: 'constructions', rail: 'constructions' },
@@ -124,6 +125,9 @@ export const workNav: NavItem[] = [
   // Право И модуль, как у «Счетов»: адреса смет закрыты `plan.estimate.read` под воротами модуля.
   { to: '/estimates',       label: 'Сметы',               icon: FileSpreadsheet, module: 'plan',
     permission: 'plan.estimate.read', rail: 'plan' },
+  // Запомненные сопоставления смет (plan-09, ответ П1): справочник модуля — им исправляют неверно запомненное.
+  { to: '/rate-matches',    label: 'Запомненные сопоставления', icon: Bookmark, module: 'plan',
+    permission: 'plan.estimate.read', rail: 'plan', group: PLAN_DIRECTORIES },
 ];
 
 /**

@@ -103,6 +103,9 @@ try {
   // `/document-sets/*` монтирует собственный <Routes>; проверяем и переход по клику,
   // и холодную загрузку того же адреса — параметр берётся из URL, а не из состояния.
   let constructionUrl = '';
+  let defaultPanel = 'catalog';
+  const firstPanel = async () => (await callApi(page, 'GET', '/account/access')).body.modules
+    .some(m => m.code === 'plan' && m.available) ? 'estimates' : 'catalog';
   // Экран стройки узнаётся по своей кнопке; заодно убеждаемся, что список строек сменился,
   // а не остался под изменившимся адресом (при непопадании в маршрут не будет ни того ни другого).
   const assertConstructionScreen = async () => {
@@ -117,9 +120,10 @@ try {
     const card = page.locator('h3').first();
     if (!(await card.count())) throw new Error('нет ни одной стройки — нужны демо-данные');
     await card.click();
-    // Голый адрес стройки уводит на панель по умолчанию (plan-02): у администратора блока «Работы»
-    // пока нет, поэтому это «Каталог».
-    await page.waitForURL(u => /^\/document-sets\/[0-9a-f-]{36}\/catalog$/.test(new URL(u).pathname), { timeout: 5000 });
+    // Голый адрес стройки уводит на панель по умолчанию (plan-02) — первую блока «Работы», а без него
+    // «Каталог». Блок у администратора — «Сметы», если включён модуль plan (в CI включён с plan-09).
+    defaultPanel = await firstPanel();
+    await page.waitForURL(u => new RegExp(`^/document-sets/[0-9a-f-]{36}/${defaultPanel}$`).test(new URL(u).pathname), { timeout: 5000 });
     constructionUrl = page.url();
     await assertConstructionScreen();
   });
@@ -160,7 +164,7 @@ try {
       await settled(page);
       const before = await page.evaluate(() => history.length);
       await page.goto(`${BASE}${base}`);
-      await page.waitForURL(atPath(`${base}/catalog`), { timeout: 5000 });
+      await page.waitForURL(atPath(`${base}/${defaultPanel}`), { timeout: 5000 });
       // goto добавляет одну запись; перенаправление с заменой — ни одной.
       const after = await page.evaluate(() => history.length);
       if (after !== before + 1) throw new Error(`перенаправление ${base} добавило запись в историю (${before} → ${after})`);
