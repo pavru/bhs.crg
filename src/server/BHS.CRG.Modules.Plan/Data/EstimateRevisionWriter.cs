@@ -9,6 +9,9 @@ namespace BHS.CRG.Modules.Plan.Data;
 /// <param name="Data">Сметное наполнение по схеме <c>ПозицияСметы</c> — JSON-объект; <c>null</c> — пусто.</param>
 /// <param name="Labor">Трудозатраты рабочих, чел.-ч на объём строки, — в порядке файла.</param>
 /// <param name="RateMatchId">Запомненное сопоставление, подставившее вид работы (<c>plan-08</c>).</param>
+/// <param name="Number">Номер позиции в файле как есть, сквозной (<c>plan-31</c>).</param>
+/// <param name="Subordinate">Подчинённая позиция файла.</param>
+/// <param name="Kind">Работа или материал (D2 <c>plan-31</c>).</param>
 public sealed record EstimateRowDraft(
     string Name,
     string? LsrSectionCode = null, string? LsrSectionName = null, string? NumberInSection = null,
@@ -16,7 +19,8 @@ public sealed record EstimateRowDraft(
     Guid? WorkTypeId = null, Guid? UnitId = null, decimal? Factor = null, decimal? Volume = null,
     Guid? PlanItemId = null, decimal? UnitCost = null, decimal? Total = null, string? Data = null,
     IReadOnlyList<EstimateMaterialDraft>? Materials = null, IReadOnlyList<decimal>? Labor = null,
-    Guid? RateMatchId = null);
+    Guid? RateMatchId = null, string? Number = null, bool Subordinate = false,
+    EstimateRowKind Kind = EstimateRowKind.Work);
 
 /// <summary>Материал строки будущей редакции.</summary>
 /// <param name="ResourceMatchId">Запомненное сопоставление, подставившее позицию номенклатуры (<c>plan-08</c>).</param>

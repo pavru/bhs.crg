@@ -69,6 +69,11 @@ public sealed class EstimateImportCommit(
                   "называет причины; исправьте файл и загрузите его заново."
                 : "В файле нет ни одной позиции — редакции из него не создать.");
         if (unparsed > 0 && !acceptPartial) throw new PartialImportException(parsed, model.PositionsInFile, unparsed);
+        // Неактивные позиции строками не становятся (D3 plan-31) — и согласия не требуют; но если активных нет
+        // вовсе, редакция вышла бы пустой по той же причине, что и выше.
+        var positions = EstimateImportRows.Drafts(model);
+        if (positions.Count == 0)
+            throw new ConflictException("Все позиции файла неактивны — редакции из него не создать.");
 
         var created = import.EstimateId is null;
         var estimate = import.EstimateId is { } id
@@ -79,7 +84,7 @@ public sealed class EstimateImportCommit(
                 import.NewEstimateKind ?? EstimateKind.Main, DateTimeOffset.UtcNow);
 
         var drafts = await matcher.ApplyCheckedAsync(
-            new(estimate.ConstructionId, estimate.SectionId, model.Requisites.NormativeBase), EstimateImportRows.Drafts(model), ct);
+            new(estimate.ConstructionId, estimate.SectionId, model.Requisites.NormativeBase), positions, ct);
         var (rows, unmatched) = await WithPlanItemsAsync(estimate, drafts, ct);
 
         EstimateRevision revision;
@@ -97,7 +102,7 @@ public sealed class EstimateImportCommit(
             revision = await writer.StageAsync(estimate,
                 new EstimateRevisionSource(import.BlobPath, import.FileName, import.SchemaVersion, import.Id.ToString(),
                     model.Requisites.NormativeBase), rows, ct);
-            import.Committed(estimate, revision);
+            import.Committed(estimate, revision, EstimateImportJson.Write(EstimateImportRows.Skipped(model)));
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
         }

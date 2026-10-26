@@ -89,7 +89,8 @@ public static class EstimateRowsEndpoints
             ? null
             : new LsrSectionDto(row.LsrSectionCode, row.LsrSectionName);
         return new EstimateRowDto(
-            row.Id, row.Order, section, row.NumberInSection, row.RateCode, row.Name, row.SourceVolume, row.SourceUnit,
+            row.Id, row.Order, section, row.NumberInSection, row.Number, row.Subordinate, KindCode(row.Kind),
+            row.RateCode, row.Name, row.SourceVolume, row.SourceUnit,
             row.WorkTypeId, row.UnitId, row.Factor, row.Volume, row.PlanItemId, [.. Marks(row), .. rateMarks],
             [.. materials.Select(m => Material(m, resources.Of(m), cost))],
             [.. labor.Select(x => new EstimateLaborDto(x.ManHours))],
@@ -100,6 +101,8 @@ public static class EstimateRowsEndpoints
         m.Id, m.Order, m.NomenclatureId, m.SourceName, m.SourceCode, m.SourceUnit, m.Quantity,
         m.Unmatched ? [new("unmatched", "Не сопоставлен: нет позиции номенклатуры")] : remembered,
         cost ? new MaterialCostDto(m.UnitPrice, m.Amount) : null);
+
+    internal static string KindCode(EstimateRowKind kind) => kind == EstimateRowKind.Material ? "material" : "work";
 
     /// <summary>«Не сопоставлена» (ТЗ PLAN-4, D17 зонтика): строка видна, но в план не входит — и сказано почему.</summary>
     private static IReadOnlyList<PlanMark> Marks(EstimateRow row)

@@ -40,6 +40,31 @@ internal sealed class RateMarks
         return new(byId, await RateMatching.FindAsync(db, waiting, ct), revision.NormativeBase);
     }
 
+    /// <summary>
+    /// Строк с пометкой <c>unit-changed</c> по редакциям (счётчик редакции, D4 <c>plan-31</c>) — тем же правилом,
+    /// что пометка строки: несопоставленная строка-работа, шифр знаком, единица расценки другая. Читает только
+    /// шифры и единицы несопоставленных строк, а не строки целиком.
+    /// </summary>
+    public static async Task<Dictionary<Guid, int>> UnitChangedAsync(
+        PlanDbContext db, IReadOnlyDictionary<Guid, string?> normativeBases, CancellationToken ct)
+    {
+        var ids = normativeBases.Keys.ToList();
+        if (ids.Count == 0) return [];
+        var waiting = (await db.EstimateRows.AsNoTracking()
+                .Where(r => ids.Contains(r.RevisionId) && r.RateCode != null && r.Kind == EstimateRowKind.Work
+                            && (r.WorkTypeId == null || r.PlanItemId == null))
+                .Select(r => new { r.RevisionId, r.RateCode, r.SourceUnit })
+                .ToListAsync(ct))
+            .Select(r => (r.RevisionId, r.SourceUnit, Key: RateMatchKey.Of(r.RateCode, normativeBases[r.RevisionId])))
+            .Where(r => r.Key is not null)
+            .ToList();
+        var known = await RateMatching.FindAsync(db, waiting.Select(r => r.Key!), ct);
+        return waiting
+            .Where(r => known.TryGetValue(r.Key!.Hash, out var match) && !RateMatching.SameUnit(match.SourceUnit, r.SourceUnit))
+            .GroupBy(r => r.RevisionId)
+            .ToDictionary(g => g.Key, g => g.Count());
+    }
+
     public IReadOnlyList<PlanMark> Of(EstimateRow row)
     {
         if (row.RateMatchId is { } id)

@@ -15,19 +15,28 @@ public sealed record EstimateImportRefusalDto(string Code, string Text);
 /// <summary>Позиция файла, которая не разобрана, — где и почему (ТЗ PLAN-7).</summary>
 public sealed record UnparsedPositionDto(string Place, int Line, string Reason);
 
+/// <summary>
+/// Позиция файла, которая строкой редакции не станет, — где и почему (D3 <c>plan-31</c>). Не то же, что не
+/// разобранная: «разобрано N из M» она не уменьшает и согласия на частичный импорт не требует.
+/// </summary>
+/// <param name="Reason"><c>inactive</c> — неактивна в файле.</param>
+public sealed record SkippedPositionDto(string Place, string Reason, string Text);
+
 /// <summary>Итог раздела или сметы — только с <c>plan.estimate.cost</c>.</summary>
 /// <param name="EstimateTotal">«ВСЕГО по смете» с лимитированными затратами, как его записала программа;
 /// у досчитанной сметы его нет.</param>
 public sealed record ImportCostDto(decimal? Total, decimal? EstimateTotal = null);
 
-/// <param name="Rows">Строк будущей редакции из раздела — разобранные позиции.</param>
+/// <param name="Rows">Строк будущей редакции из раздела — разобранные активные позиции.</param>
 public sealed record ImportChapterDto(
     int Index, string Caption, int Rows,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ImportCostDto? Cost);
 
 /// <summary>Сводка будущей редакции (ТЗ PLAN-7): разделы, строки, итог.</summary>
 /// <param name="Method"><c>bim</c>, <c>rim</c>, <c>rm</c> или <c>unknown</c>.</param>
-/// <param name="Inactive">Из строк — неактивных позиций: в итог сметы они не входят.</param>
+/// <param name="Rows">Строк будущей редакции — без неактивных позиций.</param>
+/// <param name="Inactive">Неактивных позиций — строками они не станут (D3 <c>plan-31</c>); каждая названа в
+/// <c>skipped</c> отчёта.</param>
 public sealed record ImportSummaryDto(
     string? LsrNumber, string? LsrName, string Method, IReadOnlyList<ImportChapterDto> Chapters, int Rows, int Inactive,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ImportCostDto? Cost);
@@ -51,6 +60,8 @@ public sealed record EstimateImportItemDto(
 /// <param name="Progress">Ход разбора словами очереди, пока он идёт.</param>
 /// <param name="Parsed">Разобрано позиций — у ЛСР.</param>
 /// <param name="InFile">Позиций в файле — у ЛСР.</param>
+/// <param name="Skipped">Позиции, которые строками не станут, с причиной (D3 <c>plan-31</c>): в «N из M» они
+/// разобранные.</param>
 /// <param name="Marks">Пометки отчёта: <c>notEstimate</c> — это не ЛСР, приложите к смете; <c>partial</c> —
 /// разобрано не всё; <c>otherCalculation</c> — номер ЛСР не совпадает с прежней редакцией сметы;
 /// <c>computedTotals</c> — итоги посчитаны системой; <c>interrupted</c> — разбор прерван.</param>
@@ -58,7 +69,8 @@ public sealed record EstimateImportItemDto(
 public sealed record EstimateImportDto(
     Guid Id, Guid ConstructionId, EstimateImportTargetDto Target, string FileName, string State, string? Kind,
     string? KindName, string? ProgramVersion, string? SchemaVersion, string? Progress, EstimateImportRefusalDto? Refusal,
-    int? Parsed, int? InFile, IReadOnlyList<UnparsedPositionDto> Unparsed, ImportSummaryDto? Summary,
+    int? Parsed, int? InFile, IReadOnlyList<UnparsedPositionDto> Unparsed, IReadOnlyList<SkippedPositionDto> Skipped,
+    ImportSummaryDto? Summary,
     IReadOnlyList<PlanMark> Marks, Guid? RevisionId, DateTimeOffset CreatedAt, string? CreatedBy, string Version,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HiddenPart>? Hidden);
 
