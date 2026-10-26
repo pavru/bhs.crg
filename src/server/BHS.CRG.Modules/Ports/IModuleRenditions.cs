@@ -87,8 +87,12 @@ public enum ModuleLayoutProfileState
 /// записывается только у <see cref="ModuleLayoutOutcome.Applied" />.</param>
 /// <param name="ProfileName">Его имя сейчас; <c>null</c> — профиля нет или он не записан.</param>
 /// <param name="ProfileState"><c>null</c> — профиль не записан.</param>
+/// <param name="Note">Пометка построителя о раскладке по профилю: как вид разложен и чем отличается от
+/// печати в Excel, либо что профиль применить не удалось (issue #1495). Она уже отделена от
+/// <see cref="ModuleRendition.Built.Notes" /> — показывать её дважды нельзя. <c>null</c> — пометки нет.</param>
 public sealed record ModuleRenditionLayout(
-    ModuleLayoutOutcome Outcome, Guid? ProfileId, string? ProfileName, ModuleLayoutProfileState? ProfileState);
+    ModuleLayoutOutcome Outcome, Guid? ProfileId, string? ProfileName, ModuleLayoutProfileState? ProfileState,
+    string? Note);
 
 /// <summary>
 /// Читаемые образы файлов для модуля (issue #1269): счёт в Excel или Word показывают и распознают
