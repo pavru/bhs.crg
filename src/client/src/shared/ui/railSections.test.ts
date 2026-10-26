@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { railSections, settingsNav, workNav, type NavItem } from './navConfig';
-import { ClipboardList } from 'lucide-react';
 import type { AccessInfo } from '@/shared/api/access';
 import { visibleNav } from './navAccess';
 import { activeRail, buildRail, groupItems, panelAt, railDef } from './railSections';
@@ -41,6 +40,7 @@ describe('рейл разделов', () => {
       'Данные': [['', 'Общие данные', 'Наборы данных', 'Документы качества', 'Сверка']],
       'Затраты': [['', 'Счета', 'Накладные'],
         ['Отчёты и закрытие месяца', 'Реестр счетов', 'Затраты по стройке', 'Учётный период']],
+      'Планы': [['', 'Сметы']],
       'Система': [
         ['Документы', 'Типы документов', 'Шаблоны', 'Составные типы', 'Типы полей', 'Сопоставление полей',
           'Профили распознавания', 'Профили печати'],
@@ -60,17 +60,16 @@ describe('рейл разделов', () => {
 
   // Раздел модуля «Планирование» (plan-02, макет П0): последним рабочим, после «Затрат».
   it('раздел «Планы» — последний рабочий; без видимых пунктов его нет', () => {
-    // Пунктов модуля ещё нет (их вписывают plan-09, plan-20) — тестовый пункт под воротами модуля.
-    // Цепочка та же, что у оболочки: отбор по правам, потом рейл. Без модуля пункт отсеивается, и
-    // раздел не строится; сломайся отбор или пропуск пустого раздела — «Планы» появятся.
-    const estimates: NavItem = { to: '/estimates', label: 'Сметы', icon: ClipboardList, module: 'plan', rail: 'plan' };
+    // Первый пункт раздела — «Сметы» (plan-09). Цепочка та же, что у оболочки: отбор по правам, потом рейл.
+    // Без модуля пункт отсеивается, и раздел не строится; сломайся отбор или пропуск пустого раздела —
+    // «Планы» появятся.
     const costsOnly: AccessInfo = {
       permissions: ['costs.invoice.read'], modules: [{ code: 'costs', title: 'Счета и накладные', available: true }],
     };
-    expect(buildRail(visibleNav([...workNav, estimates], costsOnly), []).map(s => s.def.id))
+    expect(buildRail(visibleNav(workNav, costsOnly), []).map(s => s.def.id))
       .toEqual(['costs']);
 
-    const rail = buildRail([...workNav, estimates], settingsNav);
+    const rail = buildRail(workNav, settingsNav);
     expect(rail.map(s => s.def.label)).toEqual(['Стройки', 'Данные', 'Затраты', 'Планы', 'Система']);
     expect(railDef('plan').title).toBe('Планирование');
   });
