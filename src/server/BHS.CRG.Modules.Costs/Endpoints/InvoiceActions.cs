@@ -33,7 +33,21 @@ public sealed class InvoiceActions : IModuleActivityActions
 
     public static readonly ModuleActivityAction Created = new("costs.invoice.created", "Счёт заведён", InvoiceRead);
 
-    public static readonly ModuleActivityAction Changed = new("costs.invoice.changed", "Счёт изменён", InvoiceRead);
+    /// <summary>
+    /// Правка шапки и строк черновика — одна группа свёртки (ТЗ COST-6, CORE-28.3): при автосохранении
+    /// они чередуются, и сессия правки обязана пережить переход от одного к другому. «Было» у шапки —
+    /// перечень изменённых полей, без значений (#1190), поэтому ряд их объединяет. Строки показывают
+    /// первое «было» и последнее «стало»: режим НДС до первой его смены в серии — и число строк с режимом
+    /// после неё. «Было» есть только у записи со сменой режима, поэтому режим «стало» пишется всегда.
+    /// </summary>
+    private static readonly ModuleActivityFold HeaderEdit = new(EditGroup, ModuleFoldRule.Union, ModuleFoldRule.Union);
+
+    private static readonly ModuleActivityFold LinesEdit = new(EditGroup, ModuleFoldRule.Span, ModuleFoldRule.Span);
+
+    private const string EditGroup = "costs.invoice.edit";
+
+    public static readonly ModuleActivityAction Changed =
+        new("costs.invoice.changed", "Счёт изменён", InvoiceRead, HeaderEdit);
 
     /// <summary>
     /// «Всё верно» — отдельное действие, а не часть правки: человек ничего не менял, он подтвердил
@@ -51,7 +65,7 @@ public sealed class InvoiceActions : IModuleActivityActions
     /// растворяться в «счёт изменён».
     /// </summary>
     public static readonly ModuleActivityAction LinesChanged =
-        new("costs.invoice.lines", "Строки счёта изменены", InvoiceRead);
+        new("costs.invoice.lines", "Строки счёта изменены", InvoiceRead, LinesEdit);
 
     /// <summary>
     /// Выбор позиций запомнен как соответствия поставщика (issue #1079, ТЗ COST-7.1). Отдельным действием,

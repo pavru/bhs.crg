@@ -126,13 +126,16 @@ public abstract class InvoiceLineTestBase(InvoiceLineHost host)
         return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
     }
 
-    /// <summary>Сколько записей «строки счёта изменены» стоит в журнале у этого счёта.</summary>
+    /// <summary>
+    /// Сколько ЗАПИСЕЙ «строки счёта изменены» стоит в журнале у этого счёта — сырых, а не рядов: правки
+    /// строк одной сессии сворачиваются в один ряд (ТЗ COST-6), а здесь считается, сколько раз писали.
+    /// </summary>
     protected async Task<int> RecordsAsync(Guid invoice)
     {
         using var scope = host.Services.CreateScope();
         var journal = scope.ServiceProvider.GetRequiredService<IActivityLog>();
-        var records = await journal.ReadAsync(0, 200, ActivityVisibility.Whole, "costs.invoice.lines");
-        return records.Count(r => r.TargetId == invoice.ToString());
+        return (await journal.ExportAsync())
+            .Count(r => r.Action == "costs.invoice.lines" && r.TargetId == invoice.ToString());
     }
 
     /// <summary>

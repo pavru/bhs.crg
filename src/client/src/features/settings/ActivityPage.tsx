@@ -1,9 +1,13 @@
-import { formatDateTime } from '@/shared/format/format';
+import { formatDateTime, formatTime } from '@/shared/format/format';
 import { useState } from 'react';
-import { History, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { History, ArrowRight, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
+import { Chip } from '@/shared/ui/Chip';
 import { Select, SelectItem } from '@/shared/ui/Select';
-import { useActivity, useActivityActions, type ActivityRecord } from '@/shared/api/activity';
+import {
+  isSeries, seriesLabel, useActivity, useActivityActions, useActivitySeries,
+  type ActivityRecord, type ActivityRow,
+} from '@/shared/api/activity';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 
@@ -16,25 +20,73 @@ import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
  *
  * Правки здесь нет никакой — ни кнопки, ни поля. Записи только дописываются, и сервер отвергает
  * попытку изменить их; экран об этом говорит тем, что предлагать нечего.
+ *
+ * Подряд идущие правки одного объекта одним человеком приходят одним рядом (ТЗ CORE-28.2): «Счёт
+ * изменён ×9 · 14:02–14:19», «было» и «стало» уже слиты сервером. Ряд раскрывается в записи — каждую
+ * со своим временем и своим «было → стало»: свёртка показывает их вместе, а не прячет.
  */
 
 const PAGE = 50;
 const ALL = 'all';
 
-const COLUMNS: DataGridColumn<ActivityRecord>[] = [
+const COLUMNS: DataGridColumn<ActivityRow>[] = [
   { key: 'occurredAt', label: 'Когда', width: 'w-36',
     cell: r => <span className="text-fg3 tabular-nums">{formatDateTime(r.occurredAt)}</span> },
   { key: 'actorName', label: 'Кто', width: 'w-52', wrap: true,
     cell: r => <span className="text-fg2 break-all">{r.actorName}</span> },
-  { key: 'actionTitle', label: 'Что', wrap: true,
-    cell: r => (
-      <>
-        <div>{r.actionTitle}</div>
-        {r.target && <div className="text-fg3 text-xs break-all">{r.target}</div>}
-      </>
-    ) },
+  { key: 'actionTitle', label: 'Что', wrap: true, cell: r => <What row={r} /> },
   { key: 'change', label: 'Было → стало', wrap: true, cell: r => <Change record={r} /> },
 ];
+
+/**
+ * Что сделано и над чем. У серии — подпись «×N · с–по», раскрывающая её записи прямо под собой: кто и
+ * что у них общие, отличаются время и «было → стало».
+ */
+function What({ row }: { row: ActivityRow }) {
+  const [open, setOpen] = useState(false);
+  const label = seriesLabel(row);
+  return (
+    <>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span>{row.actionTitle}</span>
+        {label && (
+          <Chip icon={open ? ChevronDown : ChevronRight} aria-expanded={open}
+            aria-label={`${label}: ${open ? 'свернуть' : 'показать'} записи`}
+            onClick={() => setOpen(o => !o)}>
+            <span className="tabular-nums">{label}</span>
+          </Chip>
+        )}
+      </div>
+      {row.target && <div className="text-fg3 text-xs break-all">{row.target}</div>}
+      {/* Имя сменилось за серию: «Счёт № 41» был «Счётом № 14» — иначе первые записи ряда
+          читались бы как правка другого документа. */}
+      {row.firstTarget && <div className="text-fg4 text-xs break-all">была: {row.firstTarget}</div>}
+      {open && isSeries(row) && <SeriesRecords sessionId={row.sessionId} action={row.action} count={row.count} />}
+    </>
+  );
+}
+
+function SeriesRecords({ sessionId, action, count }: { sessionId: string; action: string; count: number }) {
+  const { data, isLoading, isError } = useActivitySeries(sessionId, action, count);
+  if (isLoading) return <div className="text-fg4 text-xs mt-1.5">Загрузка...</div>;
+  if (isError || !data)
+    return <div className="text-danger text-xs mt-1.5">Записи ряда не загрузились — обновите страницу.</div>;
+  return (
+    <ol className="mt-1.5 border-l border-stroke pl-3 space-y-1" aria-label="Записи ряда">
+      {data.map(record => (
+        <li key={record.id} className="flex items-baseline gap-2 text-xs">
+          <span className="text-fg3 tabular-nums shrink-0">{formatTime(record.occurredAt)}</span>
+          <Change record={record} />
+        </li>
+      ))}
+      {/* Сервер отдаёт не больше потолка записей ряда — молча обрезанный список выглядел бы целым.
+          Записи читаются под то же число, что у ряда (ключ запроса), поэтому «меньше» — это обрезка. */}
+      {data.length < count && (
+        <li className="text-fg3 text-xs">Показаны первые {data.length} из {count}.</li>
+      )}
+    </ol>
+  );
+}
 
 function Change({ record }: { record: ActivityRecord }) {
   // Стрелка рисуется только когда есть и то и другое: «— → Администратор» читалось бы как потеря
@@ -93,7 +145,7 @@ export function ActivityPage() {
               удлиняться молча, и выглядело бы это как «записей больше нет». */}
           <div className="flex items-center justify-between mt-3 text-note text-fg3">
             <span>
-              Записи {page * PAGE + 1}–{page * PAGE + records.length} из {total}
+              Строки {page * PAGE + 1}–{page * PAGE + records.length} из {total}
             </span>
             <div className="flex items-center gap-2">
               <Button variant="tonal" disabled={page === 0} icon={<ChevronLeft size={15} />}

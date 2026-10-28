@@ -13,14 +13,20 @@ public sealed class WaybillActions : IModuleActivityActions
 {
     private const string WaybillRead = "costs.waybill.read";
 
+    /// <summary>
+    /// Правка шапки и строк черновика накладной — одна группа свёртки (ТЗ COST-6, CORE-28.3), как у
+    /// счёта. Обе стороны — первое «было» и последнее «стало»: прежняя метка накладной и число строк.
+    /// </summary>
+    private static readonly ModuleActivityFold Edit = new("costs.waybill.edit", ModuleFoldRule.Span, ModuleFoldRule.Span);
+
     public static readonly ModuleActivityAction Created =
         new("costs.waybill.created", "Накладная заведена", WaybillRead);
 
     public static readonly ModuleActivityAction Changed =
-        new("costs.waybill.changed", "Накладная изменена", WaybillRead);
+        new("costs.waybill.changed", "Накладная изменена", WaybillRead, Edit);
 
     public static readonly ModuleActivityAction LinesChanged =
-        new("costs.waybill.lines", "Строки накладной изменены", WaybillRead);
+        new("costs.waybill.lines", "Строки накладной изменены", WaybillRead, Edit);
 
     /// <summary>Сопоставление строки проведённой накладной — отдельно от правки строк: документ при
     /// этом не распроводят, и в журнале должно быть видно, что менялась только ссылка на позицию.</summary>

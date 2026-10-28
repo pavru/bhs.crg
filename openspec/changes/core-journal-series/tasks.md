@@ -95,15 +95,15 @@
 
 ## 5. Экран и объявления costs (PR 2)
 
-- [ ] 5.1 `shared/api`: тип `ActivityRow`, хук `useActivitySeries(sessionId, action)` (D9) [CORE-28.2].
+- [x] 5.1 `shared/api`: тип `ActivityRow`, хук `useActivitySeries(sessionId, action)` (D9) [CORE-28.2].
   Проверка — `npx tsc -b`; vitest на разбор ответа: ряд с `count = 1` без `sessionId`.
-- [ ] 5.2 `ActivityPage.tsx` (D9) [CORE-28.2]:
+- [x] 5.2 `ActivityPage.tsx` (D9) [CORE-28.2]:
   - ряд с `count > 1` — «×N · 14:02–14:19» и «была …»;
   - раскрытие — вложенные записи, компонентами `shared/ui` по `docs/UI.md`.
 
   Проверка — vitest экрана: ряд и раскрытие. `npm run ui:ratchet` не растёт. Снимок экрана — в описании
   PR.
-- [ ] 5.3 Объявления свёртки в `costs` [COST-6] [CORE-28.3]:
+- [x] 5.3 Объявления свёртки в `costs` [COST-6] [CORE-28.3]:
   - `InvoiceActions.Changed` — группа `costs.invoice.edit`, `Union` / `Union`;
   - `InvoiceActions.Lines` — та же группа, `Span` / `Span`;
   - `WaybillActions.Changed` и `WaybillActions.Lines` — группа `costs.waybill.edit`, `Span` / `Span`.
@@ -113,18 +113,18 @@
   - «Разобран» и самовозврат в черновик стоят отдельными рядами между рядами правки;
   - ряд «Счёт изменён» без значений полей;
   - «Всё верно» три раза — три ряда.
-- [ ] 5.4 Тест-сторож `ActivityFoldInventoryTests`: закрытый словарь «код вида → причина» по ядру и всем
+- [x] 5.4 Тест-сторож `ActivityFoldInventoryTests`: закрытый словарь «код вида → причина» по ядру и всем
   модулям. Новый сворачиваемый вид не проходит без строки (D4) [CORE-28.3]. Проверка — тест зелёный с
   четырьмя видами `costs`; временное объявление свёртки у `costs.invoice.parsed` его роняет и называет вид.
 
 ## 6. Верификация
 
-- [ ] 6.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter
+- [x] 6.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter
   "FullyQualifiedName~Activity|FullyQualifiedName~Backup|FullyQualifiedName~CostsJournal|FullyQualifiedName~EndpointGateInventory"`
   — зелёный. Весь набор — `bash scripts/backend-tests.sh`.
-- [ ] 6.2 `cd src/client && npx tsc -b` и `npm test` — зелёные. `cd src/client && npm run ui:ratchet` не
+- [x] 6.2 `cd src/client && npx tsc -b` и `npm test` — зелёные. `cd src/client && npm run ui:ratchet` не
   растёт.
-- [ ] 6.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
+- [x] 6.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
   зелёный. Ни один файл не перешагнул 500 строк кода. Похудевшие опущены в `src/file-size-baseline.json`.
 - [ ] 6.4 Границы к прогону на стенде, на пересозданной базе:
   1. Один человек 25 минут правит черновик (шапка, строки, шапка…) с паузой 12 минут — две сессии по два
