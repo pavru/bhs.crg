@@ -126,7 +126,7 @@ public static class BrandManifest
     /// Фон страницы светлой темы — роль MD3 <c>surface-container-low</c>. Сверяет с описанием темы
     /// клиента <c>md3-theme.test.mjs</c>.
     /// </summary>
-    public const string BackgroundColor = "#f4f2f7";
+    public const string BackgroundColor = "#f3f3fa";
 
     private static readonly JsonSerializerOptions Json = new()
     {

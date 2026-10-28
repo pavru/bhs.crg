@@ -98,7 +98,7 @@ describe('md3:migrate: неоднозначное не трогает, а наз
   });
 
   it('та же пара в другой утилите переводится: border-stroke-strong, bg-fg4', () => {
-    expect(migrated('"border-stroke-strong bg-fg4"')).toBe('"border-outline bg-outline"');
+    expect(migrated('"border-stroke-strong bg-fg4"')).toBe('"border-outline bg-on-surface-variant"');
   });
 
   it('var(--color-fg4) и var(--color-stroke-strong) — неоднозначны: text-fg4 не переводится, а у переменной утилиты нет', () => {
@@ -213,9 +213,9 @@ describe('md3:migrate: пары карты рисуют то же', () => {
   });
 
   it('пара с другим значением краснеет и называет пару и тему', () => {
-    const bad = mismatches({ fg3: { to: 'on-surface-variant', same: true } });
+    const bad = mismatches({ 'brand-hover': { to: 'primary', same: true } });
     expect(bad.length).toBeGreaterThan(0);
-    expect(bad[0]).toMatch(/^bg-fg3 → bg-on-surface-variant \(светлая тема\)/);
+    expect(bad[0]).toMatch(/^bg-brand-hover → bg-primary \(светлая тема\)/);
     expect(bad.some(m => m.includes('(тёмная тема)'))).toBe(true);
   });
 });

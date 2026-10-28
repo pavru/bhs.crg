@@ -14,6 +14,8 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+// Генератор схемы MD3 — только здесь, в офлайн-скрипте: в бандл клиента он не попадает ([UI-62]).
+import * as mcu from '@material/material-color-utilities';
 
 export const themeDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'theme');
 
@@ -51,10 +53,64 @@ function staticValue(theme, name, ref) {
 /** Описание темы с диска. */
 export const readTheme = () => JSON.parse(readFileSync(join(themeDir, 'md3-theme.json'), 'utf8'));
 
+/** Роли схемы MD3 в порядке переменных. Значение каждой — динамический цвет MCU того же имени. */
+export const SCHEME_ROLES = [
+  'primary', 'surface-tint', 'on-primary', 'primary-container', 'on-primary-container',
+  'secondary', 'on-secondary', 'secondary-container', 'on-secondary-container',
+  'tertiary', 'on-tertiary', 'tertiary-container', 'on-tertiary-container',
+  'error', 'on-error', 'error-container', 'on-error-container',
+  'background', 'on-background', 'surface', 'on-surface', 'surface-variant', 'on-surface-variant',
+  'outline', 'outline-variant', 'shadow', 'scrim', 'inverse-surface', 'inverse-on-surface', 'inverse-primary',
+  'primary-fixed', 'on-primary-fixed', 'primary-fixed-dim', 'on-primary-fixed-variant',
+  'secondary-fixed', 'on-secondary-fixed', 'secondary-fixed-dim', 'on-secondary-fixed-variant',
+  'tertiary-fixed', 'on-tertiary-fixed', 'tertiary-fixed-dim', 'on-tertiary-fixed-variant',
+  'surface-dim', 'surface-bright', 'surface-container-lowest', 'surface-container-low', 'surface-container',
+  'surface-container-high', 'surface-container-highest',
+];
+
+const SCHEMES = { tonalSpot: mcu.SchemeTonalSpot, fidelity: mcu.SchemeFidelity, content: mcu.SchemeContent,
+  neutral: mcu.SchemeNeutral, vibrant: mcu.SchemeVibrant, expressive: mcu.SchemeExpressive };
+const camel = name => name.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+
+/**
+ * Описание в режиме `seed` → то же описание со значениями ролей (`roles`, `ext`), как в режиме
+ * `values`. Схема обеих тем — из seed по варианту и уровню контраста ([UI-62]); `pinPrimary`
+ * подменяет светлый primary самим seed (остальные роли primary — из тональной палитры seed); свои роли
+ * — `customColor` MCU: тона 40/100/90/10 и 80/20/30/90 палитры своего цвета, `harmonize` — сдвиг к seed.
+ * Режим `values` проходит как есть: им собрано описание до перехода, и откат — его возвращение.
+ */
+export function resolve(theme) {
+  if (theme.mode === 'values') return theme;
+  if (theme.mode !== 'seed') throw new Error(`md3-theme.json: режим «${theme.mode}» генератор не знает — только seed или values`);
+  const Scheme = SCHEMES[theme.variant];
+  if (!Scheme) throw new Error(`md3-theme.json: вариант схемы «${theme.variant}» неизвестен — ${Object.keys(SCHEMES).join(', ')}`);
+  if (!/^#[0-9a-f]{6}$/i.test(theme.seed)) throw new Error(`md3-theme.json: seed «${theme.seed}» — не цвет #rrggbb`);
+  const seed = mcu.argbFromHex(theme.seed);
+  const roles = {};
+  for (const [mode, dark] of [['light', false], ['dark', true]]) {
+    const scheme = new Scheme(mcu.Hct.fromInt(seed), dark, theme.contrast ?? 0);
+    roles[mode] = Object.fromEntries(SCHEME_ROLES.map(role => {
+      const color = mcu.MaterialDynamicColors[camel(role)];
+      if (!color) throw new Error(`MCU: динамического цвета «${role}» нет`);
+      return [role, mcu.hexFromArgb(color.getArgb(scheme))];
+    }));
+  }
+  if (theme.pinPrimary) roles.light.primary = theme.seed.toLowerCase();
+  const ext = { light: {}, dark: {} };
+  for (const { name, value, harmonize } of theme.ext ?? []) {
+    const group = mcu.customColor(seed, { name, value: mcu.argbFromHex(value), blend: !!harmonize });
+    for (const mode of ['light', 'dark']) {
+      const g = group[mode];
+      Object.assign(ext[mode], { [name]: mcu.hexFromArgb(g.color), [`on-${name}`]: mcu.hexFromArgb(g.onColor),
+        [`${name}-container`]: mcu.hexFromArgb(g.colorContainer), [`on-${name}-container`]: mcu.hexFromArgb(g.onColorContainer) });
+    }
+  }
+  return { ...theme, mode: 'values', roles, ext };
+}
+
 /** Три файла темы текстом: { 'md3-tokens.css': '…', … }. Чистая функция — её же зовёт тест дрейфа. */
-export function generate(theme) {
-  if (theme.mode !== 'values')
-    throw new Error(`md3-theme.json: режим «${theme.mode}» генератор пока не знает — только values`);
+export function generate(source) {
+  const theme = resolve(source);
   // Темы — одним набором имён в обе стороны: роль только тёмной темы ушла бы в переменные без
   // класса (слой Tailwind строится по светлой) и без значения светлой темы.
   for (const part of ['roles', 'ext', 'elevation']) {

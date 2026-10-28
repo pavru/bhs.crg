@@ -5,7 +5,6 @@
    значение переменной --legacy-*. Файл удаляет финал эпика целиком. */
 
 :root {
-  --legacy-fg3: #5b5f67;
   --legacy-fg-disabled: #a3a5ab;
   --legacy-stroke-subtle: #e3e1e6;
   --legacy-brand-hover: #17518f;
@@ -14,7 +13,6 @@
 }
 
 :root[data-theme="dark"] {
-  --legacy-fg3: #a8abb3;
   --legacy-fg-disabled: #5c5f66;
   --legacy-stroke-subtle: #282a2f;
   --legacy-brand-hover: #bcd4ff;
@@ -25,8 +23,8 @@
 @theme inline {
   --color-fg1: var(--md-sys-color-on-surface);
   --color-fg2: var(--md-sys-color-on-surface-variant);
-  --color-fg3: var(--legacy-fg3);
-  --color-fg4: var(--md-sys-color-outline);
+  --color-fg3: var(--md-sys-color-on-surface-variant);
+  --color-fg4: var(--md-sys-color-on-surface-variant);
   --color-fg-disabled: var(--legacy-fg-disabled);
   --color-base: var(--md-sys-color-surface-container-low);
   --color-muted: var(--md-sys-color-surface-container);

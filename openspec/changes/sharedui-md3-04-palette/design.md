@@ -31,16 +31,23 @@
 ## Decisions
 
 ### Описание темы в режиме `seed`
-- `md3-theme.json`: `mode: "seed"`, `seed: "#1d5fb0"`, `variant` (по листу), `contrast: 0`,
-  `pinPrimary` (В2), `ext: [{ name: "success", value: "#1b8a5b", harmonize }, { name: "warning", value:
-  "#7a5900", harmonize }]` (В3), `static: { "tab-light": "light.surface-container-low", "tab-dark":
-  "dark.surface-container-low" }`. Раздел `roles` уходит.
+- Решения владельца 29.10.2026 (лист https://claude.ai/design/p/af61dae9-6aea-4c13-9f49-7f5824d31641):
+  вариант `tonalSpot`, primary закреплён (В2), без гармонизации (В3), `fg3`/`fg4` → `on-surface-variant`
+  (В1), обводки предупреждения нет.
+- `md3-theme.json`: `mode: "seed"`, `seed: "#1d5fb0"`, `variant: "tonalSpot"`, `contrast: 0`,
+  `pinPrimary: true`, `ext: [{ name: "success", value: "#1b8a5b", harmonize: false }, { name: "warning",
+  value: "#7a5900", harmonize: false }]`, `static: { "tab-light": "light.surface-container-low",
+  "tab-dark": "dark.surface-container-low" }`. Раздел `roles` и значения `ext` уходят — их считает генератор.
+- Свои роли — `customColor` MCU: тона 40 / 100 / 90 / 10 (светлая) и 80 / 20 / 30 / 90 (тёмная) палитры
+  своего цвета; `harmonize: true` включал бы `Blend.harmonize` (до 15°) — сейчас не используется.
+- Версия MCU — **0.3.0**, а не 0.4.0: в 0.4.0 часть модулей импортирует без расширения
+  (`color_spec_2025.js`, `scheme_*.js`), и Node как ES-модуль её не грузит (проверено 29.10.2026).
+  Генератор — офлайн-скрипт, новых вариантов схемы 0.4.0 нам не нужно.
 - `pinPrimary: true` — после генерации светлый `primary` подменяется seed; `on-primary`,
   `primary-container`, `on-primary-container` остаются из тональной палитры seed. Тёмный `primary` — тон
   80 той же палитры. Тест контраста проверяет пары после подмены.
-- Гармонизация по В3: `false` — свои роли из своей палитры как есть; ограниченная (≤ 5°) — свой сдвиг
-  тона в HCT в генераторе, потому что `Blend.harmonize` сдвигает до 15°. Рекомендация Дизайнера — без
-  гармонизации: зелёный и янтарный — смысл, синий сдвиг сделал бы success бирюзовым.
+- Гармонизация по В3 — нет (решение 29.10.2026): зелёный и янтарный — смысл, синий сдвиг сделал бы
+  success бирюзовым. Ограниченный сдвиг (≤ 5°) своим кодом не пишется.
 - Уровни тени и шрифт остаются как в 01 (тени меняет 06); из `--legacy-*` этот change снимает `fg3`,
   `warning-border`, `stroke-subtle`, остальные — 05.
 - **Отвергнуто — оставить ручные значения и проверять только контраст.** Ручная правка однажды уже
@@ -62,8 +69,9 @@
   (`placeholder:`, `border-`, `fill-`) — по отчёту, руками.
 - Текст на контейнере: в одном списке классов `bg-<роль>-container` и `text-<роль>` → `text-on-<роль>-container`
   — правилом кодмода по строке; разнесённые по элементам места — отчётом, руками.
-- `border-warning-border` и `border-stroke-subtle` — по листу: рекомендация Дизайнера — обводки по
-  статусу нет, статус несут знак и контейнер (`border-outline-variant` или без рамки); `--legacy-*`
+- `border-warning-border` и `border-stroke-subtle` — решение 29.10.2026: обводки по статусу нет, статус
+  несут знак и контейнер. Кодмод переводит оба в `border-outline-variant` (рамка формы остаётся, цвет —
+  нейтральный); места, где рамка была только знаком статуса, снимаются руками по отчёту. `--legacy-*`
   удаляются.
 - **Отвергнуто — `fg4 → outline` навсегда:** MD3 не даёт `outline` для текста, и 888 мест остались бы
   ниже AA.

@@ -11,7 +11,7 @@
   Лист «Палитра MD3 · схема из seed» (29.10.2026): https://claude.ai/design/p/af61dae9-6aea-4c13-9f49-7f5824d31641 — 0 «было», А TonalSpot, Б Fidelity, В Content;
   переключатели В1–В3 и обводки, контраст пар под каждым кадром. MCU 0.4.0 в Node не грузится (импорт
   без расширения в `color_spec_2025.js`, `scheme_*.js`) — лист посчитан на 0.3.0; учесть в 1.1.
-- [ ] 0.2 Решения владельца В1, В2, В3 и выбранный вариант схемы записаны в зонтике (`tasks.md`, 0.1, с
+- [x] 0.2 Решения владельца В1, В2, В3 и выбранный вариант схемы записаны в зонтике (`tasks.md`, 0.1, с
   датой) и перенесены сюда `/opsx:update`: `variant`, `pinPrimary`, `harmonize`, судьба
   `warning-border`/`stroke-subtle` — в `design.md` и требованиях [UI-62] [UI-63]. Проверка —
   `openspec validate sharedui-md3-04-palette --strict`; в `design.md` нет «по листу» без значения

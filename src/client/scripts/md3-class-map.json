@@ -14,7 +14,7 @@
   "names": {
     "fg1": { "to": "on-surface", "same": true },
     "fg2": { "to": "on-surface-variant", "same": true },
-    "fg4": { "to": "outline", "same": true },
+    "fg4": { "to": "on-surface-variant", "same": true },
     "base": { "to": "surface-container-low", "same": true },
     "muted": { "to": "surface-container", "same": true },
     "muted-hover": { "to": "surface-container-high", "same": true },
