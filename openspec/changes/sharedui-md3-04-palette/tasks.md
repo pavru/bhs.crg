@@ -18,19 +18,20 @@
 
 ## 1. Палитра (PR 1)
 
-- [ ] 1.1 `@material/material-color-utilities` — devDependency с точной версией; генератор в режиме
+- [x] 1.1 `@material/material-color-utilities` — devDependency с точной версией; генератор в режиме
   `seed`: схема по `variant` и `contrast`, `pinPrimary`, свои роли по четыре в обеих темах, `static`
   tab-light/dark [UI-62]. Проверка — тест дрейфа зелёный; смена seed во временной копии описания меняет
   роли обеих тем; `npm run build` — в бандле нет кода MCU (поиск по имени модуля в `dist`)
-- [ ] 1.2 Тест контраста в `md3-theme.test.mjs` по парам `design.md`, обе темы, с фикстурой плохой палитры
+- [x] 1.2 Тест контраста в `md3-theme.test.mjs` по парам `design.md`, обе темы, с фикстурой плохой палитры
   [UI-62]. Проверка — зелёный на выбранной схеме; фикстура плохой палитры — красный с парой, темой и числом
-- [ ] 1.3 Псевдонимы `fg3`, `fg4` → `on-surface-variant`; `--legacy-fg3` удалён [UI-63]. Проверка — тест
+- [x] 1.3 Псевдонимы `fg3`, `fg4` → `on-surface-variant`; `--legacy-fg3` удалён [UI-63]. Проверка — тест
   «псевдоним ≡ роль» зелёный и для них
-- [ ] 1.4 `BrandIcons.BackgroundColor` и `BrandIconComposer.DarkTile` — значения генератора [UI-62].
+- [x] 1.4 `BrandIcons.BackgroundColor` и `BrandIconComposer.DarkTile` — значения генератора [UI-62].
   Проверка — сверка сервера в `md3-theme.test.mjs` зелёная; `dotnet test … --filter
   "FullyQualifiedName~Branding"` зелёный
-- [ ] 1.5 Снимки 5–7 ключевых экранов до и после в обеих темах на 1366×768 и 375 px (зонтик, 5.2).
+- [x] 1.5 Снимки 5–7 ключевых экранов до и после в обеих темах на 1366×768 и 375 px (зонтик, 5.2).
   Проверка — снимки в описании PR
+  Снимки 7 экранов (29.10.2026, база посева живых прогонов): https://claude.ai/artifact/7nkk4dyet9uPDBWk4nC4pP
 
 ## 2. Две роли текста (PR 2)
 
