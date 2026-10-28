@@ -187,8 +187,8 @@ export function PrintProfileDetail({ profile, otherNames, onDeleted, onEditState
  */
 function WhereApplied() {
   return (
-    <div className="flex gap-2 rounded-lg bg-muted p-3 text-xs text-fg3">
-      <Info size={14} className="shrink-0 mt-0.5 text-fg2" />
+    <div className="flex gap-2 rounded-lg bg-surface-container p-3 text-xs text-fg3">
+      <Info size={14} className="shrink-0 mt-0.5 text-on-surface-variant" />
       <div className="space-y-1">
         <p>
           Профиль действует на книги Excel (.xlsx), где автор не задал вписывание или масштаб. Бумагу и
@@ -223,7 +223,7 @@ function ChoiceRow<T extends string>({ label, hint, error, value, options, onCha
   };
   return (
     <div>
-      <div id={labelId} className="text-xs text-fg2 mb-1.5">{label}</div>
+      <div id={labelId} className="text-xs text-on-surface-variant mb-1.5">{label}</div>
       <div role="radiogroup" aria-labelledby={labelId} onKeyDown={onKeyDown} className="flex flex-wrap gap-2">
         {options.map((o, i) => (
           <Chip key={o.value} ref={el => { refs.current[i] = el; }} role="radio" selected={o.value === value}
@@ -234,7 +234,7 @@ function ChoiceRow<T extends string>({ label, hint, error, value, options, onCha
         ))}
       </div>
       {error
-        ? <p className="mt-1 text-xs text-danger">{error}</p>
+        ? <p className="mt-1 text-xs text-error">{error}</p>
         : hint && <p className="mt-1 text-xs text-fg3">{hint}</p>}
     </div>
   );
@@ -269,7 +269,7 @@ function MarginsAround({ draft, issues, onChange }: {
 
   return (
     <div role="group" aria-label="Поля, мм">
-      <div className="text-xs text-fg2 mb-2">Поля, мм</div>
+      <div className="text-xs text-on-surface-variant mb-2">Поля, мм</div>
       <div className="grid grid-cols-3 items-center justify-items-center gap-3 w-fit">
         <span />{field('top')}<span />
         {field('left')}
@@ -283,7 +283,7 @@ function MarginsAround({ draft, issues, onChange }: {
         <span />{field('bottom')}<span />
       </div>
       {pairs.some(p => p.text) && (
-        <ul role="alert" className="mt-2 space-y-0.5 text-xs text-danger">
+        <ul role="alert" className="mt-2 space-y-0.5 text-xs text-error">
           {pairs.filter(p => p.text).map(p => (
             // У каждой стороны пары — свой id на ту же строку: aria-describedby ссылается по одному.
             <li key={p.pair.join()} id={`${pairsId}-${p.pair[0]}`}>

@@ -323,20 +323,20 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
             )}
 
             <div>
-              <label className="block text-sm font-medium text-fg1 mb-1">
+              <label className="block text-sm font-medium text-on-surface mb-1">
                 Row-selector — путь к строкам (одна строка = один узел; условия сужают до конкретных)
               </label>
               <PathBuilder value={sheetOrPath} onChange={setSheetOrPath} placeholder={DEFAULT_ROW_SELECTOR[pathFormat]}
                 preview={v => { const rs = composeRowSelector(v); return rs ? { fileId, rowSelector: rs } : null; }} />
             </div>
 
-            <div className="border-t border-stroke pt-3">
+            <div className="border-t border-outline-variant pt-3">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium text-fg1">
+                <p className="text-sm font-medium text-on-surface">
                   Колонки <span className="text-xs font-normal text-fg4">— относительно узла строки</span>
                 </p>
                 <button type="button" onClick={addColumn}
-                  className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover">
+                  className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover">
                   <Plus size={13} /> Колонка
                 </button>
               </div>
@@ -350,14 +350,14 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
                   <div key={i} className="flex items-start gap-2">
                     <input value={col.name} onChange={e => updateColumn(i, { name: e.target.value })}
                       placeholder="Название колонки"
-                      className="w-40 shrink-0 px-2 py-1.5 rounded-md border border-stroke-strong bg-surface text-sm" />
+                      className="w-40 shrink-0 px-2 py-1.5 rounded-md border border-outline bg-surface text-sm" />
                     <div className="flex-1 min-w-0">
                       <PathBuilder value={col.expr} onChange={expr => updateColumn(i, { expr })}
                         placeholder={pathFormat === 'Json' ? 'id или name или info.code' : '@id или Name или Info/Code'}
                         preview={v => { const rs = composeRowSelector(sheetOrPath); return rs && v.trim() ? { fileId, rowSelector: rs, expr: v } : null; }} />
                     </div>
                     <button type="button" onClick={() => removeColumn(i)}
-                      className="p-1.5 text-fg4 hover:text-danger shrink-0">
+                      className="p-1.5 text-fg4 hover:text-error shrink-0">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -367,7 +367,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
           </>
         )}
 
-        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+        {error && <p role="alert" className="text-sm text-error">{error}</p>}
       </div>
     </Modal>
   );

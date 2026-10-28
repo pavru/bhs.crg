@@ -21,7 +21,7 @@ export interface CardHead {
 const SCOPE = { construction: 'Construction', section: 'Section', set: 'Set' } as const;
 
 const TONE: Record<CardValueTone, string> = {
-  value: 'text-fg1',
+  value: 'text-on-surface',
   empty: 'text-fg4',
   unreadable: 'text-warning',
   quiet: 'text-fg3',
@@ -30,7 +30,7 @@ const TONE: Record<CardValueTone, string> = {
 const COMPARE_TONE: Record<CompareRow['tone'], string> = {
   ok: 'text-success',
   differs: 'text-warning',
-  plain: 'text-fg2',
+  plain: 'text-on-surface-variant',
 };
 
 /**
@@ -76,9 +76,9 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
 
   if (!card.data) return (
     <div className="space-y-3" aria-busy="true">
-      {head ? <Title name={head.name} why={head.why} /> : <div className="h-5 w-3/4 rounded bg-muted animate-pulse" />}
+      {head ? <Title name={head.name} why={head.why} /> : <div className="h-5 w-3/4 rounded bg-surface-container animate-pulse" />}
       <div className="space-y-2">
-        {[0, 1, 2, 3].map(i => <div key={i} className="h-4 rounded bg-muted animate-pulse" />)}
+        {[0, 1, 2, 3].map(i => <div key={i} className="h-4 rounded bg-surface-container animate-pulse" />)}
       </div>
     </div>
   );
@@ -103,9 +103,9 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
                 <dd className={COMPARE_TONE[row.tone]}>
                   {row.text}
                   {row.marks && (
-                    <span className="mt-0.5 block text-xs leading-relaxed text-fg2 break-words">
+                    <span className="mt-0.5 block text-xs leading-relaxed text-on-surface-variant break-words">
                       {row.marks.map((mark, i) => (mark.hit
-                        ? <mark key={i} className="rounded-sm bg-brand-subtle px-0.5 text-on-brand-subtle">{mark.text}</mark>
+                        ? <mark key={i} className="rounded-sm bg-primary-container px-0.5 text-on-primary-container">{mark.text}</mark>
                         : <span key={i}>{mark.text}</span>))}
                     </span>
                   )}
@@ -119,7 +119,7 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
       {onlyName(data) ? (
         <p className="text-xs text-fg3">Кроме названия, у позиции ничего не заполнено — сверить не с чем.</p>
       ) : (
-        <dl className="grid grid-cols-[8rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm border-t border-stroke pt-3">
+        <dl className="grid grid-cols-[8rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm border-t border-outline-variant pt-3">
           {data.lines.map(line => {
             const value = lineValue(line);
             return (
@@ -140,11 +140,11 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
           {data.aliases.length > 0 && (
             <>
               <dt className="text-xs text-fg3 pt-0.5">Другие имена</dt>
-              <dd className="text-fg1 break-words">{data.aliases.join(', ')}</dd>
+              <dd className="text-on-surface break-words">{data.aliases.join(', ')}</dd>
             </>
           )}
           <dt className="text-xs text-fg3 pt-0.5">Вид</dt>
-          <dd className="text-fg1">
+          <dd className="text-on-surface">
             {data.typeName}
             {data.scope && <span className="ml-1 text-caption text-fg4">уровень: {SCOPE_LABELS[SCOPE[data.scope]].toLowerCase()}</span>}
           </dd>
@@ -152,7 +152,7 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
       )}
 
       {meta && <p className="text-caption text-fg4">{meta}</p>}
-      <p className="text-xs text-fg2 rounded-md bg-muted px-2.5 py-1.5">{chosenText(data.chosen)}</p>
+      <p className="text-xs text-on-surface-variant rounded-md bg-surface-container px-2.5 py-1.5">{chosenText(data.chosen)}</p>
 
       {/* Архивную в новую строку сервер не примет — кнопки нет, причина названа. */}
       {data.archived ? (
@@ -165,7 +165,7 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
           {/* Новой вкладкой: окно выбора стоит над несохранёнными строками, уводить страницу нельзя. */}
           {link && (
             <a href={link.to} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-brand hover:underline">
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
               {link.label} <ExternalLink size={12} />
             </a>
           )}
@@ -178,7 +178,7 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
 function Title({ name, why, archived = false }: { name: string | null; why?: string | null; archived?: boolean }) {
   return (
     <div>
-      <p className="text-base font-medium leading-snug text-fg1 break-words">
+      <p className="text-base font-medium leading-snug text-on-surface break-words">
         {name ?? 'без названия'}
         {archived && <ArchivedMark className="ml-2 align-middle" />}
       </p>
@@ -190,7 +190,7 @@ function Title({ name, why, archived = false }: { name: string | null; why?: str
 /** Отказ — красной строкой со значком: им же говорит шаг «Новая позиция». */
 export function Refusal({ children }: { children: React.ReactNode }) {
   return (
-    <p className="flex items-start gap-2 text-xs text-danger">
+    <p className="flex items-start gap-2 text-xs text-error">
       <TriangleAlert size={13} className="shrink-0 mt-0.5" />
       <span>{children}</span>
     </p>

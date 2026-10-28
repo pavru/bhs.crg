@@ -32,14 +32,14 @@ export function CollapsibleSection({
   }
 
   return (
-    <div className="border border-stroke rounded-xl overflow-hidden">
+    <div className="border border-outline-variant rounded-xl overflow-hidden">
       <button
         type="button"
         onClick={toggle}
-        className="w-full flex items-center justify-between gap-2 p-4 text-left hover:bg-base transition-colors"
+        className="w-full flex items-center justify-between gap-2 p-4 text-left hover:bg-surface-container-low transition-colors"
         aria-expanded={open}
       >
-        <h2 className="text-sm font-semibold text-fg2 uppercase tracking-wide">{title}</h2>
+        <h2 className="text-sm font-semibold text-on-surface-variant uppercase tracking-wide">{title}</h2>
         <span className="flex items-center gap-2">
           {right}
           <ChevronDown className={`w-4 h-4 text-fg3 shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />

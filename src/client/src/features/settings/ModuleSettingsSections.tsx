@@ -30,8 +30,8 @@ export function ModuleSettingsSections() {
   // значило бы показать «1,00 ₽» там, где сохранено другое.
   if (isError)
     return (
-      <div className="border border-stroke rounded-xl p-4 flex items-center gap-3">
-        <span className="text-sm text-danger">Настройки модулей не загрузились.</span>
+      <div className="border border-outline-variant rounded-xl p-4 flex items-center gap-3">
+        <span className="text-sm text-error">Настройки модулей не загрузились.</span>
         <Button variant="outlined" size="sm" onClick={() => void refetch()}>Повторить</Button>
       </div>
     );
@@ -128,12 +128,12 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
                 слово, которое сервер примет только одно из двух. */}
             {setting.kind === 'flag' ? (
               <div className="max-w-xl">
-                <label className="flex items-center gap-3 text-sm text-fg1">
+                <label className="flex items-center gap-3 text-sm text-on-surface">
                   <Switch checked={flagOn(setting, draft)} label={setting.title}
                     onChange={on => edit(setting.key, on ? 'true' : 'false')} />
                   {setting.title}
                 </label>
-                <p className={`text-xs mt-1 ${errors[setting.key] ? 'text-danger' : 'text-fg3'}`}>
+                <p className={`text-xs mt-1 ${errors[setting.key] ? 'text-error' : 'text-fg3'}`}>
                   {errors[setting.key] ? sentence(errors[setting.key]) : boundsHint(setting)}
                 </p>
               </div>
@@ -185,10 +185,10 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
               const line = impactLine(w, impact);
               return (
                 <div key={w.key}>
-                  <p className="font-medium text-fg1">{w.title}: {w.from} → {w.to}</p>
+                  <p className="font-medium text-on-surface">{w.title}: {w.from} → {w.to}</p>
                   <p className="mt-1">{w.warning}</p>
                   {line && (
-                    <p className={`mt-2 ${line.tone === 'told' ? 'text-fg1' : line.tone === 'refused' ? 'text-danger' : 'text-fg3'}`}>
+                    <p className={`mt-2 ${line.tone === 'told' ? 'text-on-surface' : line.tone === 'refused' ? 'text-error' : 'text-fg3'}`}>
                       {line.text}
                     </p>
                   )}

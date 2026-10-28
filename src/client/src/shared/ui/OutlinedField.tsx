@@ -78,9 +78,9 @@ export function OutlinedField({
   // peer-* реагируют только на СОСЕДЕЙ input'а, поэтому реакцию на фокус/заполнение вешаем на
   // fieldset (он сосед) и целим вложенный legend через [&>legend].
   const borderColor = bad
-    ? 'border-danger'
-    : auto ? 'border-stroke-strong peer-focus:border-brand'
-      : focused ? 'border-brand' : 'border-stroke-strong';
+    ? 'border-error'
+    : auto ? 'border-outline peer-focus:border-primary'
+      : focused ? 'border-primary' : 'border-outline';
   const borderWidth = auto ? 'peer-focus:border-2' : focused ? 'border-2' : '';
   // Вырез раскрывает legend, а он ВНУТРИ fieldset — соседом input'у он не приходится, поэтому
   // peer-варианты вешаем на fieldset и целим вложенный legend через [&>legend].
@@ -89,9 +89,9 @@ export function OutlinedField({
     ? 'peer-focus:[&>legend]:max-w-full peer-[:not(:placeholder-shown)]:[&>legend]:max-w-full'
     : '';
   const labelColor = bad
-    ? 'text-danger'
-    : auto ? 'text-fg4 peer-focus:text-brand'
-      : focused ? 'text-brand' : 'text-fg4';
+    ? 'text-error'
+    : auto ? 'text-fg4 peer-focus:text-primary'
+      : focused ? 'text-primary' : 'text-fg4';
   // В `auto` метка стоит по центру и уезжает наверх; в `always` она уже наверху.
   const labelPosition = auto
     ? 'top-1/2 -translate-y-1/2 text-sm peer-focus:top-0 peer-focus:text-xs '
@@ -104,7 +104,7 @@ export function OutlinedField({
   // ⚠️ Отсюда долг каждого поля на этой оболочке: донести `required` до своего контрола. У `DateField`
   // и `TypePickerField` он не доходил, и обязательность для чтения с экрана пропадала (ревью PR #1301).
   const labelContent = label;
-  const star = required ? " after:ml-0.5 after:text-danger after:content-['*']" : '';
+  const star = required ? " after:ml-0.5 after:text-error after:content-['*']" : '';
   const labelClass = `absolute left-3 px-1 pointer-events-none transition-all block max-w-[calc(100%-1.5rem)] truncate ${labelColor} ${labelPosition}${star}`;
 
   return (
@@ -115,7 +115,7 @@ export function OutlinedField({
             ⚠️ «Под» даёт отрицательный слой в своём контексте наложения, а не место в разметке:
             позиционированная подложка рисуется ПОВЕРХ обычного поля, где бы она ни стояла, — и поле
             для чтения выглядело пустым при заполненном значении (нашлось на issue #1282). */}
-        {readOnly && <div aria-hidden className="absolute inset-0 -z-10 rounded-md bg-muted" />}
+        {readOnly && <div aria-hidden className="absolute inset-0 -z-10 rounded-md bg-surface-container" />}
         {children}
         {/* Рамка с вырезом: fieldset даёт границу, legend прорезает верх под меткой. Ширина legend
             и есть вырез — она же анимируется, когда метка всплывает. */}
@@ -131,7 +131,7 @@ export function OutlinedField({
         {trailing && <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10">{trailing}</div>}
       </div>
       {error
-        ? <p id={hintId} className="mt-1 px-1 text-xs text-danger">{error}</p>
+        ? <p id={hintId} className="mt-1 px-1 text-xs text-error">{error}</p>
         : hint ? <p id={hintId} className="mt-1 px-1 text-xs text-fg4">{hint}</p> : null}
     </div>
   );

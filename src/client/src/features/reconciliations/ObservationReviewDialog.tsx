@@ -50,7 +50,7 @@ export function ObservationReferences({ o, setPath, nameOf }: {
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-caption">
       {docs.map(id => setPath ? (
         <Link key={id} to={documentUnder(setPath, id)}
-          className="inline-flex items-center gap-1 text-brand hover:underline">
+          className="inline-flex items-center gap-1 text-primary hover:underline">
           <FileText size={11} /> {label(id)}
         </Link>
       ) : (
@@ -59,7 +59,7 @@ export function ObservationReferences({ o, setPath, nameOf }: {
         </span>
       ))}
       {sourceId && (
-        <Link to="/datasets" className="inline-flex items-center gap-1 text-brand hover:underline">
+        <Link to="/datasets" className="inline-flex items-center gap-1 text-primary hover:underline">
           <Layers size={11} /> источник {sourceId.slice(0, 8)}
           {rows.length > 0 && <span className="text-fg4">· строк {rows.length}</span>}
         </Link>
@@ -119,9 +119,9 @@ export function ObservationReviewDialog({ observation, setPath, nameOf, onClose 
       }>
       <div className="space-y-4">
         <div>
-          <div className="text-sm font-medium text-fg1">{observation.title}</div>
+          <div className="text-sm font-medium text-on-surface">{observation.title}</div>
           {observation.detail && (
-            <p className="text-sm text-fg2 mt-1 whitespace-pre-wrap">{observation.detail}</p>
+            <p className="text-sm text-on-surface-variant mt-1 whitespace-pre-wrap">{observation.detail}</p>
           )}
           <ObservationReferences o={observation} setPath={setPath} nameOf={nameOf} />
         </div>

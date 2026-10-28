@@ -239,7 +239,7 @@ export function DataGrid<Row extends object>({
           {canSort ? (
             <Tooltip content="Сортировать. С Shift — добавить колонку к сортировке">
             <button type="button" onClick={e => onSort(c, e.shiftKey)}
-                className="hover:text-fg1 focus-visible:outline-2 rounded-sm">
+                className="hover:text-on-surface focus-visible:outline-2 rounded-sm">
                 {label}
               </button>
           </Tooltip>
@@ -248,7 +248,7 @@ export function DataGrid<Row extends object>({
             <Tooltip content="Убрать колонку">
             <button type="button" onClick={() => onRemoveColumn(c)}
                 aria-label={`Убрать колонку «${c.label}»`}
-                className="ml-1 align-middle text-fg4 hover:text-danger">
+                className="ml-1 align-middle text-fg4 hover:text-error">
                 <X size={12} aria-hidden />
               </button>
           </Tooltip>
@@ -290,7 +290,7 @@ export function DataGrid<Row extends object>({
           {empty ? (
             <tr>
               <td colSpan={Math.max(columns.length, 1)} className={`${td} text-center py-4`}>
-                <div className="text-sm text-fg2">{empty.title}</div>
+                <div className="text-sm text-on-surface-variant">{empty.title}</div>
                 <div className="text-xs text-fg4">{empty.hint}</div>
               </td>
             </tr>
@@ -314,14 +314,14 @@ export function DataGrid<Row extends object>({
             // Черта там, куда ляжет тащимая строка: над строкой либо под последней. Тенью, а не
             // рамкой — рамка сдвинула бы строки на её толщину, и строка уехала бы из-под курсора.
             const dropMark = !drag || drag.dragging === null ? null
-              : drag.target === i ? 'inset 0 2px 0 0 var(--color-brand)'
-              : drag.target === shown.length && i === shown.length - 1 ? 'inset 0 -2px 0 0 var(--color-brand)'
+              : drag.target === i ? 'inset 0 2px 0 0 var(--color-primary)'
+              : drag.target === shown.length && i === shown.length - 1 ? 'inset 0 -2px 0 0 var(--color-primary)'
               : null;
             // Строка — именованная группа `group/row`: действия строки, видимые по наведению,
             // проявляются классом `group-hover/row:` и не путаются с группами внутри клетки.
             return (
               <tr key={key}
-                className={`group/row ${dtRow} ${onRowOpen ? 'cursor-pointer' : ''} ${open ? 'bg-brand-subtle' : marked ? 'bg-warning-subtle' : ''} ${strong ? 'font-medium' : ''} `
+                className={`group/row ${dtRow} ${onRowOpen ? 'cursor-pointer' : ''} ${open ? 'bg-primary-container' : marked ? 'bg-warning-container' : ''} ${strong ? 'font-medium' : ''} `
                   + `${drag?.dragging === i ? 'opacity-40' : ''}`}
                 style={dropMark ? { boxShadow: dropMark } : undefined}
                 {...(drag ? {
@@ -345,16 +345,16 @@ export function DataGrid<Row extends object>({
                     <Cell key={c.key} style={pinStyle(ci, 5)} scope={c.rowHeader ? 'row' : undefined}
                       // Щелчок в клетке с действиями — это действие, а не «открыть строку».
                       onClick={c.interactive ? e => e.stopPropagation() : undefined}
-                      className={`${td} ${top} ${c.wrap ? 'break-words' : 'whitespace-nowrap'} text-fg1 `
+                      className={`${td} ${top} ${c.wrap ? 'break-words' : 'whitespace-nowrap'} text-on-surface `
                         + `${c.rowHeader ? 'text-left [font-weight:inherit]' : ''} ${c.align === 'right' ? dtNum : ''} `
-                        + `${pin(ci)} ${ci < pinCount ? (open ? 'bg-brand-subtle' : marked ? 'bg-warning-subtle' : 'bg-surface') : ''}`}>
+                        + `${pin(ci)} ${ci < pinCount ? (open ? 'bg-primary-container' : marked ? 'bg-warning-container' : 'bg-surface') : ''}`}>
                       {/* Щелчок по ссылке строку не открывает: это другое действие, и панель, мелькнувшая
                           перед уходом со страницы, осталась бы открытой по возвращении «назад». */}
                       {ci === 0 && link && (
                         <Tooltip content={link.label}>
                           <Link to={link.to} aria-label={link.label}
                             onClick={e => e.stopPropagation()}
-                            className="mr-1.5 inline-flex align-middle rounded-sm text-fg3 hover:text-brand focus-visible:outline-2">
+                            className="mr-1.5 inline-flex align-middle rounded-sm text-fg3 hover:text-primary focus-visible:outline-2">
                             <ArrowUpRight size={14} aria-hidden />
                           </Link>
                         </Tooltip>
@@ -377,7 +377,7 @@ export function DataGrid<Row extends object>({
                 const Cell = c.rowHeader ? 'th' : 'td';
                 return (
                   <Cell key={c.key} style={pinStyle(i, 30)} scope={c.rowHeader ? 'row' : undefined}
-                    className={`sticky bottom-0 z-10 bg-muted border-t border-stroke ${compact ? 'px-2 py-1' : 'px-3 py-1.5'} text-xs text-fg2 `
+                    className={`sticky bottom-0 z-10 bg-surface-container border-t border-outline-variant ${compact ? 'px-2 py-1' : 'px-3 py-1.5'} text-xs text-on-surface-variant `
                       + `whitespace-nowrap align-top ${c.rowHeader ? 'text-left font-medium' : ''} ${c.align === 'right' ? dtNum : ''} ${pin(i)}`}>
                     {footer(c)}
                   </Cell>

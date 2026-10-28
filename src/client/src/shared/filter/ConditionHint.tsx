@@ -34,7 +34,7 @@ export function ConditionHint({ cond, columns, onChange, id, fieldRef, className
   const rest = strays.length > 0 ? { ...cond, values: (cond.values ?? []).filter(v => !strays.includes(v)) } : cond;
   // Остались одни значения вне перечня — сказать сверх списка отметок нечего.
   const problem = strays.length > 0 && rest.values?.length === 0 ? null : problemOf(rest, columns);
-  if (problem) return <p className={`${className} text-xs text-danger`}>Похоже, условие не выполнится: {problem}.</p>;
+  if (problem) return <p className={`${className} text-xs text-error`}>Похоже, условие не выполнится: {problem}.</p>;
 
   const notice = conditionNotice(cond, column);
   if (!notice) return null;
@@ -57,7 +57,7 @@ export function ConditionHint({ cond, columns, onChange, id, fieldRef, className
             <span>{line.text}</span>
           </span>
           {line.actions.map(a => (
-            <button key={a.label} type="button" onClick={() => act(a.next)} className="text-brand hover:underline">
+            <button key={a.label} type="button" onClick={() => act(a.next)} className="text-primary hover:underline">
               {a.label}
             </button>
           ))}

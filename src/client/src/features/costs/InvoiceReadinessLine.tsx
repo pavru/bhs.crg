@@ -31,7 +31,7 @@ export function InvoiceReadinessLine({ items, unsaved }: {
     );
 
   return (
-    <p className="flex items-start gap-1.5 text-xs text-fg2" data-testid="invoice-readiness">
+    <p className="flex items-start gap-1.5 text-xs text-on-surface-variant" data-testid="invoice-readiness">
       <ListTodo size={13} className="shrink-0 mt-0.5 text-fg3" />
       <span>
         До «Разобран» осталось:{' '}
@@ -40,7 +40,7 @@ export function InvoiceReadinessLine({ items, unsaved }: {
             {index > 0 && <span className="text-fg4"> · </span>}
             {item.target
               ? (
-                <button type="button" className="text-brand hover:underline"
+                <button type="button" className="text-primary hover:underline"
                   onClick={() => { if (item.target) goTo(item.target); }}>
                   {item.label}
                 </button>

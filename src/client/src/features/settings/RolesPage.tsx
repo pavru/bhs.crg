@@ -26,7 +26,7 @@ import {
 function RoleBadge({ role }: { role: AppRole }) {
   if (!role.system) return null;
   return (
-    <span className="shrink-0 inline-flex items-center h-5 px-2 rounded-full text-caption font-medium bg-brand-subtle text-brand">
+    <span className="shrink-0 inline-flex items-center h-5 px-2 rounded-full text-caption font-medium bg-primary-container text-primary">
       системная
     </span>
   );
@@ -98,9 +98,9 @@ export function RolesPage() {
   const row = (r: AppRole) => (
     <button key={r.name} onClick={() => pick(r.name)}
       className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-        r.name === selected?.name ? 'bg-brand-subtle' : 'hover:bg-base'}`}>
+        r.name === selected?.name ? 'bg-primary-container' : 'hover:bg-surface-container-low'}`}>
       <div className="flex items-center gap-2">
-        <span className="text-sm text-fg1 truncate">{r.title}</span>
+        <span className="text-sm text-on-surface truncate">{r.title}</span>
         <RoleBadge role={r} />
       </div>
       <div className="text-caption text-fg4 mt-0.5 flex items-center gap-2">
@@ -136,7 +136,7 @@ export function RolesPage() {
         <div className="px-6 py-4 pb-2 max-w-3xl">
           <div className="flex items-start justify-between gap-4 mb-1">
             <div>
-              <h2 className="text-lg font-semibold text-fg1 flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-on-surface flex items-center gap-2">
                 <ShieldCheck size={18} className="text-fg3" />
                 {selected.title}
               </h2>
@@ -164,7 +164,7 @@ export function RolesPage() {
           </p>
 
           {locked && (
-            <p className="text-note text-fg2 border border-stroke rounded-lg bg-muted px-4 py-3 mb-4">
+            <p className="text-note text-on-surface-variant border border-outline-variant rounded-lg bg-surface-container px-4 py-3 mb-4">
               <span className="font-medium">Состав этой роли не правится.</span> Он не перечислен:
               он равен справочнику прав и пополняется вместе с ним — поэтому право следующего
               обновления достанется ей само. Снятое здесь вернулось бы при ближайшем запуске, а
@@ -176,14 +176,14 @@ export function RolesPage() {
           {groups.map(group => (
             <section key={group.module} className="mb-5">
               <h2 className="text-caption font-medium uppercase tracking-wide text-fg4 mb-2">{group.title}</h2>
-              <div className="border border-stroke rounded-lg divide-y divide-muted bg-surface">
+              <div className="border border-outline-variant rounded-lg divide-y divide-surface-container bg-surface">
                 {group.permissions.map((p: PermissionInfo) => (
-                  <label key={p.code} className={`flex gap-3 px-4 py-2.5 hover:bg-base ${
+                  <label key={p.code} className={`flex gap-3 px-4 py-2.5 hover:bg-surface-container-low ${
                     locked ? 'cursor-default' : 'cursor-pointer'}`}>
                     <input type="checkbox" className="mt-1 shrink-0" checked={checked.has(p.code)}
                       disabled={locked} onChange={() => toggle(p.code)} />
                     <span className="min-w-0">
-                      <span className="block text-sm text-fg1">{p.gives}</span>
+                      <span className="block text-sm text-on-surface">{p.gives}</span>
                       <span className="block text-xs text-fg3">Открывает доступ: {p.opens}</span>
                       <span className="block text-caption text-fg4 font-mono mt-0.5">{p.code}</span>
                       {p.usuallyWith.length > 0 && (
@@ -201,12 +201,12 @@ export function RolesPage() {
             </section>
           ))}
 
-          {error && <p className="text-sm text-danger mb-2">{error}</p>}
+          {error && <p className="text-sm text-error mb-2">{error}</p>}
 
           {/* У роли «все права» сохранять нечего — кнопки нет вовсе, а не выключенная: выключенная
               кнопка обещает, что когда-нибудь включится. */}
           {!locked && (
-            <div className="flex items-center gap-2 sticky bottom-0 bg-base/90 backdrop-blur py-3">
+            <div className="flex items-center gap-2 sticky bottom-0 bg-surface-container-low/90 backdrop-blur py-3">
               <Button variant="filled" disabled={!dirty} loading={save.isPending} onClick={submit}>
                 Сохранить состав прав
               </Button>
@@ -269,7 +269,7 @@ function CreateRoleModal(
         <TextField label="Название" value={title} onChange={e => setTitle(e.target.value)} required autoFocus />
         <TextField label="Для чего роль" value={summary} onChange={e => setSummary(e.target.value)}
           hint="Показывается рядом с названием — чтобы через полгода было понятно, кому её выдавать." />
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <p className="text-sm text-error">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <ModalExit />
           <Button type="submit" variant="filled" loading={create.isPending}>Создать</Button>
@@ -299,7 +299,7 @@ function RenameRoleModal({ role, onClose }: { role: AppRole; onClose: () => void
       <form onSubmit={submit} className="space-y-3">
         <TextField label="Название" value={title} onChange={e => setTitle(e.target.value)} required autoFocus />
         <TextField label="Для чего роль" value={summary} onChange={e => setSummary(e.target.value)} />
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <p className="text-sm text-error">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
           <Button type="submit" variant="filled" loading={rename.isPending}>Сохранить</Button>

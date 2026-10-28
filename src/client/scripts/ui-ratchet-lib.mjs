@@ -61,7 +61,7 @@ export const RULES = [
     id: 'palette',
     // Сырая палитра Tailwind (bg-indigo-50, hover:text-purple-700/80) и hex в произвольном значении.
     pattern: new RegExp(`(?<![\\w-])(?:${UTILITIES})-(?:${COLORS})-\\d{2,3}\\b|-\\[#[0-9a-fA-F]{3,8}\\]`, 'g'),
-    instead: 'цвет — только токеном (text-brand, bg-warning-subtle, text-tertiary…): docs/UI.md, «Цвет»',
+    instead: 'цвет — только токеном (text-primary, bg-warning-container, text-tertiary…): docs/UI.md, «Цвет»',
   },
   {
     id: 'fixed-width',
@@ -131,8 +131,8 @@ export const RULES = [
     id: 'white-on-fill',
     // Белый текст, кольцо или точка на сплошной заливке роли (#1462). В тёмной теме заливки светлые
     // (brand — #a7c8ff), и белое на них — 1,7:1: подписи не прочесть. Пара к заливке — text-on-*.
-    // Смотрит className ЦЕЛИКОМ, со всеми ветвями условий: `${on ? 'bg-brand text-white' : …}` и
-    // `bg-brand ${x ? 'text-white' : ''}` — одно нарушение. И строки вне className (карта вариантов
+    // Смотрит className ЦЕЛИКОМ, со всеми ветвями условий: `${on ? 'bg-primary text-white' : …}` и
+    // `bg-primary ${x ? 'text-white' : ''}` — одно нарушение. И строки вне className (карта вариантов
     // кнопки, класс в переменной) — каждую отдельно. Белый с прозрачностью у фона (hover:bg-white/10)
     // — слой состояния, не цвет, и не считается. В отличие от прочих правил смотрит и shared/: кнопка
     // и календарь — первые, кто рисует заливку, и пропусти он их — ошибку размножили бы экраны.

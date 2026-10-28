@@ -32,14 +32,14 @@ export function FunctionalTagChip({ tag, entry, onToggle, onOrderChange }: {
   const step = (delta: number) => onOrderChange(String(Math.min(99, Math.max(1, (order ?? 0) + delta))));
 
   const arrowClass = 'invisible group-hover:visible group-focus-within:visible '
-    + 'text-tertiary hover:text-on-tertiary-subtle disabled:opacity-40 shrink-0';
+    + 'text-tertiary hover:text-on-tertiary-container disabled:opacity-40 shrink-0';
 
   return (
     <span
       className={`group inline-flex items-stretch overflow-hidden rounded-full border text-xs transition-colors ${
         on
-          ? 'bg-tertiary-subtle border-tertiary/50 text-on-tertiary-subtle focus-within:ring-1 focus-within:ring-tertiary/50'
-          : 'border-stroke text-fg4 hover:border-stroke-strong hover:text-fg2'
+          ? 'bg-tertiary-container border-tertiary/50 text-on-tertiary-container focus-within:ring-1 focus-within:ring-tertiary/50'
+          : 'border-outline-variant text-fg4 hover:border-outline hover:text-on-surface-variant'
       }`}
     >
       <Tooltip content={tag.description}>
@@ -66,7 +66,7 @@ export function FunctionalTagChip({ tag, entry, onToggle, onOrderChange }: {
               placeholder={tag.parameter!.label}
               aria-label={`Порядок компонента: ${tag.label}`}
               onChange={e => onOrderChange(e.target.value)}
-              className="w-5 bg-transparent text-center tabular-nums text-on-tertiary-subtle outline-none
+              className="w-5 bg-transparent text-center tabular-nums text-on-tertiary-container outline-none
                          placeholder:text-tertiary/60"
             />
             <button type="button" className={arrowClass} onClick={() => step(1)}
@@ -92,10 +92,10 @@ export function FunctionalTagBadge({ registry, entry }: {
   const order = tagOrder(entry);
   return (
     <span className="hidden md:inline-flex items-center shrink-0 overflow-hidden rounded
-                     bg-brand-subtle text-caption text-brand">
+                     bg-primary-container text-caption text-primary">
       <span className="px-1.5 py-0.5">{tagLabelOf(registry, entry)}</span>
       {order !== null && (
-        <span className="border-l border-brand/40 px-1.5 py-0.5 tabular-nums">{order}</span>
+        <span className="border-l border-primary/40 px-1.5 py-0.5 tabular-nums">{order}</span>
       )}
     </span>
   );

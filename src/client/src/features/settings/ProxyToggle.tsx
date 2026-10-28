@@ -15,8 +15,8 @@ export function ProxyToggle({ checked, onChange, disabled }: {
   const { data } = useIntegrationSettings();
   const proxyUrl = data?.proxy.url?.trim();
   return (
-    <label className="flex items-start gap-2 text-sm text-fg2">
-      <input type="checkbox" className="mt-0.5 accent-brand" checked={checked} disabled={disabled}
+    <label className="flex items-start gap-2 text-sm text-on-surface-variant">
+      <input type="checkbox" className="mt-0.5 accent-primary" checked={checked} disabled={disabled}
         onChange={e => onChange(e.target.checked)} />
       <span>
         Через прокси

@@ -84,20 +84,20 @@ export interface SelectProps {
 const TRIGGER =
   'inline-flex items-center justify-between gap-2 rounded-md border ' +
   'transition-colors data-[placeholder]:text-fg4 ' +
-  'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand data-[state=open]:ring-2 ' +
-  'data-[state=open]:ring-brand disabled:opacity-50 disabled:pointer-events-none';
+  'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary data-[state=open]:ring-2 ' +
+  'data-[state=open]:ring-primary disabled:opacity-50 disabled:pointer-events-none';
 
 // В слое формы рамку рисует оболочка — триггер внутри неё прозрачный и без своей границы, иначе
 // вышла бы рамка в рамке, а непрозрачный фон затёр бы вырез на не-surface подложке (та же ловушка,
 // что у пикера типа). Кольцо фокуса там тоже лишнее: фокус показывает сама оболочка.
 const FRAMED_TRIGGER =
   'inline-flex items-center justify-between gap-2 w-full h-14 px-4 rounded-md bg-transparent ' +
-  'text-sm text-fg1 data-[placeholder]:text-fg4 outline-none ' +
+  'text-sm text-on-surface data-[placeholder]:text-fg4 outline-none ' +
   'disabled:opacity-50 disabled:pointer-events-none';
 
 // Рамка, фон и цвет текста — в виде, а не в общей основе: у `inline` их нет вовсе, и класс,
 // переопределяющий основу, снова спорил бы с ней порядком правил в CSS.
-const BOXED = 'border-stroke-strong bg-surface text-fg1';
+const BOXED = 'border-outline bg-surface text-on-surface';
 const SIZE = {
   md: `h-9 px-3 text-sm ${BOXED}`,
   sm: `h-7 px-2 gap-1 text-xs ${BOXED}`,
@@ -149,7 +149,7 @@ export function Select({
       </RS.Trigger>
       <RS.Portal>
         <RS.Content position="popper" sideOffset={4}
-          className="z-50 min-w-[var(--radix-select-trigger-width)] max-h-[var(--radix-select-content-available-height)] overflow-hidden rounded-md border border-stroke bg-surface shadow-[var(--md-sys-elevation-level2)]">
+          className="z-50 min-w-[var(--radix-select-trigger-width)] max-h-[var(--radix-select-content-available-height)] overflow-hidden rounded-md border border-outline-variant bg-surface shadow-[var(--md-sys-elevation-level2)]">
           <RS.Viewport className="p-1">
             {emptyItem !== undefined && <SelectItem value={EMPTY}>{emptyItem}</SelectItem>}
             {children}
@@ -172,8 +172,8 @@ export function Select({
 }
 
 const ITEM =
-  'relative flex items-center gap-2 pl-3 pr-8 py-1.5 rounded text-sm text-fg1 select-none cursor-pointer ' +
-  'outline-none data-[highlighted]:bg-brand-subtle data-[highlighted]:text-brand-hover ' +
+  'relative flex items-center gap-2 pl-3 pr-8 py-1.5 rounded text-sm text-on-surface select-none cursor-pointer ' +
+  'outline-none data-[highlighted]:bg-primary-container data-[highlighted]:text-brand-hover ' +
   'data-[state=checked]:font-medium data-[disabled]:opacity-40 data-[disabled]:pointer-events-none';
 
 export const SelectItem = forwardRef<HTMLDivElement, { value: string; disabled?: boolean; children: ReactNode; className?: string }>(
@@ -181,7 +181,7 @@ export const SelectItem = forwardRef<HTMLDivElement, { value: string; disabled?:
     return (
       <RS.Item ref={ref} value={value} disabled={disabled} className={`${ITEM} ${className}`}>
         <RS.ItemText>{children}</RS.ItemText>
-        <RS.ItemIndicator className="absolute right-2 inline-flex text-brand">
+        <RS.ItemIndicator className="absolute right-2 inline-flex text-primary">
           <Check size={14} />
         </RS.ItemIndicator>
       </RS.Item>

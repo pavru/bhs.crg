@@ -35,15 +35,15 @@ export function ComplexCellPicker({ value, onChange, compositeType, setId, allDo
   return (
     <div className="flex items-center w-full h-full">
       <button type="button" onClick={() => setPickerOpen(true)}
-        className="flex-1 min-w-0 h-full flex items-center gap-1 px-1.5 focus:outline-none focus:bg-brand-subtle">
+        className="flex-1 min-w-0 h-full flex items-center gap-1 px-1.5 focus:outline-none focus:bg-primary-container">
         {ref
-          ? <><Link2 size={10} className="text-brand shrink-0" /><span className="text-xs truncate text-brand-hover">{ref.displayName}</span><ArchivedRefMark value={ref} words={false} /></>
+          ? <><Link2 size={10} className="text-primary shrink-0" /><span className="text-xs truncate text-brand-hover">{ref.displayName}</span><ArchivedRefMark value={ref} words={false} /></>
           : <span className="text-xs text-fg4">—</span>
         }
       </button>
       {ref && (
         <button type="button" onClick={e => { e.stopPropagation(); onChange(undefined); }}
-          className="shrink-0 p-0.5 mr-0.5 text-stroke-strong hover:text-danger transition-colors">
+          className="shrink-0 p-0.5 mr-0.5 text-stroke-strong hover:text-error transition-colors">
           <X size={9} />
         </button>
       )}
@@ -84,7 +84,7 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
       <div className="flex items-center justify-center w-full h-full">
         <input type="checkbox" checked={!!value}
           onChange={e => onChange(e.target.checked)}
-          className="w-3.5 h-3.5 rounded border-stroke-strong text-brand" />
+          className="w-3.5 h-3.5 rounded border-outline text-primary" />
       </div>
     );
   }
@@ -95,7 +95,7 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
       ? enumTypeDef.values.map(v => ({ code: v.code, label: v.label }))
       : (field.options ?? []).filter(o => o !== '').map(o => ({ code: o, label: o }));
     return (
-      <Select size="inline" className="w-full h-full px-1.5 text-xs rounded-none focus:bg-brand-subtle"
+      <Select size="inline" className="w-full h-full px-1.5 text-xs rounded-none focus:bg-primary-container"
         aria-label={field.title} value={strVal} onValueChange={onChange} emptyItem="—">
         {opts.map(o => <SelectItem key={o.code} value={o.code}>{o.label}</SelectItem>)}
       </Select>
@@ -103,14 +103,14 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
   }
   if (field.type === 'date') {
     return <DateInput label={field.title} value={strVal} onChange={v => onChange(v)} compact
-      className="w-full h-full flex items-center px-1.5 focus-within:bg-brand-subtle" />;
+      className="w-full h-full flex items-center px-1.5 focus-within:bg-primary-container" />;
   }
   // primitive-тип на базе date (issue #60) — иначе рендерился обычным текст-инпутом без DateInput/точности
   if (field.type === 'primitive' && primitiveTypeDef?.baseType === 'date') {
     return <DateInput label={field.title} value={strVal} onChange={v => onChange(v)} compact
       precision={primitiveTypeDef.constraints.datePrecision ?? 'day'}
       min={primitiveTypeDef.constraints.minDate} max={primitiveTypeDef.constraints.maxDate}
-      className="w-full h-full flex items-center px-1.5 focus-within:bg-brand-subtle" />;
+      className="w-full h-full flex items-center px-1.5 focus-within:bg-primary-container" />;
   }
   // Без источника `SuggestField` — голый `<input>` клетки: подпись ему — `aria-label` (у клетки своей нет).
   return (

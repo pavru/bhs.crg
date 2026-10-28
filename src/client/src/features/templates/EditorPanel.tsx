@@ -28,7 +28,7 @@ function ToolbarButton({
   return (
     <Tooltip content={title}>
       <button type="button" onClick={onClick}
-        className={`px-2 py-1 text-sm rounded transition-colors ${active ? 'bg-brand-subtle text-brand-hover' : 'text-fg2 hover:bg-muted'}`}>
+        className={`px-2 py-1 text-sm rounded transition-colors ${active ? 'bg-primary-container text-brand-hover' : 'text-on-surface-variant hover:bg-surface-container'}`}>
         {children}
       </button>
     </Tooltip>
@@ -68,8 +68,8 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
         </span>
       </ToolbarButton>
       {open && (
-        <div className="absolute top-full left-0 mt-1 z-50 bg-surface border border-stroke rounded-lg shadow-lg w-80 max-h-80 overflow-y-auto">
-          <div className="px-3 py-2 border-b border-muted text-xs font-semibold text-fg3 uppercase tracking-wide sticky top-0 bg-surface">
+        <div className="absolute top-full left-0 mt-1 z-50 bg-surface border border-outline-variant rounded-lg shadow-lg w-80 max-h-80 overflow-y-auto">
+          <div className="px-3 py-2 border-b border-surface-container text-xs font-semibold text-fg3 uppercase tracking-wide sticky top-0 bg-surface">
             Реквизиты · {docType.name}
           </div>
           {fields.length === 0 ? (
@@ -78,9 +78,9 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
             <div className="py-1">
               {fields.map(f => (
                 <button key={f.path} onClick={() => insertField(f.path)}
-                  className={`w-full flex items-center gap-2 py-1.5 hover:bg-brand-subtle transition-colors text-left group ${f.type === 'complex' ? 'opacity-60 cursor-default pointer-events-none' : ''}`}
+                  className={`w-full flex items-center gap-2 py-1.5 hover:bg-primary-container transition-colors text-left group ${f.type === 'complex' ? 'opacity-60 cursor-default pointer-events-none' : ''}`}
                   style={{ paddingLeft: `${0.75 + f.depth * 1}rem` }}>
-                  <code className="text-xs font-mono text-brand-hover bg-brand-subtle group-hover:bg-brand-subtle px-1.5 py-0.5 rounded shrink-0 max-w-[160px] truncate">
+                  <code className="text-xs font-mono text-brand-hover bg-primary-container group-hover:bg-primary-container px-1.5 py-0.5 rounded shrink-0 max-w-[160px] truncate">
                     {f.path}
                   </code>
                   <span className="text-xs text-fg3 truncate flex-1">{f.title}</span>
@@ -116,7 +116,7 @@ function NewVersionDialog({ nextVersion, saving, onCancel, onConfirm }: {
         </div>
       }>
       <div className="space-y-4 px-1">
-        <p className="text-sm text-fg2">
+        <p className="text-sm text-on-surface-variant">
           Будет создана <strong>версия v{nextVersion}</strong>. Текущая версия сохранится в истории.
         </p>
         <TextField label="Примечание к версии (необязательно)" value={comment}
@@ -303,15 +303,15 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-stroke bg-surface gap-3 flex-wrap">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-outline-variant bg-surface gap-3 flex-wrap">
         <div className="flex items-center gap-1 flex-wrap">
           <RequisitePicker docType={docType} allDocTypes={allDocTypes} onInsert={insertAtCursor} />
-          <span className="w-px h-5 bg-stroke mx-1" />
+          <span className="w-px h-5 bg-outline-variant mx-1" />
           <a
             href="https://typst.app/docs"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-2 py-1 text-xs text-fg3 hover:text-brand hover:bg-muted rounded transition-colors"
+            className="px-2 py-1 text-xs text-fg3 hover:text-primary hover:bg-surface-container rounded transition-colors"
           >
             Typst docs ↗
           </a>
@@ -343,19 +343,19 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
             </span>
           ) : (
             <button onClick={handleSetDefault} disabled={defaultMutation.isPending}
-              className="flex items-center gap-1 px-2 py-1 text-xs border border-warning-border text-warning hover:bg-warning-subtle rounded disabled:opacity-50 transition-colors">
+              className="flex items-center gap-1 px-2 py-1 text-xs border border-warning-border text-warning hover:bg-warning-container rounded disabled:opacity-50 transition-colors">
               <Star size={11} /> Сделать по умолчанию
             </button>
           )}
           {savedMsg && <span className="text-xs text-success">Сохранено ✓</span>}
-          {error && <span className="text-xs text-danger max-w-xs truncate" title={error}>{error}</span>}
+          {error && <span className="text-xs text-error max-w-xs truncate" title={error}>{error}</span>}
 
           {/* Сплит-кнопка: слева in-place (Ctrl+S), справа каретка → меню «новая версия» */}
           <div className="relative flex items-center" ref={saveMenuRef}>
             {template.isActive ? (
               <Tooltip content="Сохранить в текущую версию (Ctrl+S)">
                 <button type="button" onClick={handleSave} disabled={saving}
-                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-brand text-on-brand shadow-[var(--md-sys-elevation-level1)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
+                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-primary text-on-primary shadow-[var(--md-sys-elevation-level1)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
                   <Save size={12} /> {saving ? 'Сохранение…' : 'Сохранить'}
                 </button>
               </Tooltip>
@@ -363,25 +363,25 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
               // Историческую версию in-place не сохранить — левая кнопка ведёт на форк.
               <Tooltip content="Историческая версия — сохранить как новую">
                 <button type="button" onClick={() => setNewVersionOpen(true)} disabled={saving}
-                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-brand text-on-brand shadow-[var(--md-sys-elevation-level1)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
+                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-primary text-on-primary shadow-[var(--md-sys-elevation-level1)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
                   <GitBranch size={12} /> Сохранить как новую
                 </button>
               </Tooltip>
             )}
             <Tooltip content="Ещё варианты сохранения" name>
               <button type="button" onClick={() => setSaveMenuOpen(v => !v)} disabled={saving}
-                className="inline-flex items-center h-8 px-1.5 rounded-r-full border-l border-on-brand/25 bg-brand text-on-brand shadow-[var(--md-sys-elevation-level1)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
+                className="inline-flex items-center h-8 px-1.5 rounded-r-full border-l border-on-primary/25 bg-primary text-on-primary shadow-[var(--md-sys-elevation-level1)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
                 <ChevronDown size={13} />
               </button>
             </Tooltip>
             {saveMenuOpen && (
-              <div className="absolute top-full right-0 mt-1 z-50 w-72 bg-surface border border-stroke rounded-lg shadow-lg py-1">
+              <div className="absolute top-full right-0 mt-1 z-50 w-72 bg-surface border border-outline-variant rounded-lg shadow-lg py-1">
                 <button type="button"
                   onClick={() => { setSaveMenuOpen(false); setNewVersionOpen(true); }}
-                  className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-base transition-colors">
-                  <GitBranch size={14} className="text-brand shrink-0 mt-0.5" />
+                  className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-surface-container-low transition-colors">
+                  <GitBranch size={14} className="text-primary shrink-0 mt-0.5" />
                   <span>
-                    <span className="block text-sm text-fg1">Сохранить как новую версию…</span>
+                    <span className="block text-sm text-on-surface">Сохранить как новую версию…</span>
                     <span className="block text-xs text-fg4">Создаст v{template.version + 1}, сохранит историю текущей</span>
                   </span>
                 </button>

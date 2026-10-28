@@ -63,13 +63,13 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
         return (
           <>
             <button type="button" aria-expanded={shown} onClick={() => setOpen(was => toggleInSet(was, r.id))}
-              className="flex items-start gap-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-brand rounded">
+              className="flex items-start gap-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
               {shown ? <ChevronDown size={13} className="mt-0.5 shrink-0 text-fg4" /> : <ChevronRight size={13} className="mt-0.5 shrink-0 text-fg4" />}
               <span>{r.name}{r.archived && <ArchivedMark className="ml-1.5" />}</span>
             </button>
             {r.untraceable > 0 && !shown && <div className="pl-[17px] text-warning">{r.untraceable} не покажет никто</div>}
             {shown && r.holders.map((h, i) => (
-              <div key={i} className="pl-[17px] text-fg2">
+              <div key={i} className="pl-[17px] text-on-surface-variant">
                 {holderLabel(h)} — {h.rows}
                 {h.documents && <span className="text-fg3"> ({h.documents})</span>}
                 {!h.traceable && <div className="text-warning">после удаления эти ссылки не покажет никто</div>}
@@ -165,18 +165,18 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
     const more = moreNote(preview);
     body = (
       <form onSubmit={submit} noValidate>
-        <Dialog.Description className="text-xs text-fg2">{batchSubtitle(source, typeName, preview)}</Dialog.Description>
+        <Dialog.Description className="text-xs text-on-surface-variant">{batchSubtitle(source, typeName, preview)}</Dialog.Description>
         {fresh && <Alert tone="warning">{fresh.note}</Alert>}
 
         {preview.records.length === 0 ? (
-          <p className="mt-3 text-xs text-fg1">{emptyText(source, typeName, preview)}</p>
+          <p className="mt-3 text-xs text-on-surface">{emptyText(source, typeName, preview)}</p>
         ) : (
           <>
             {/* Все строки, прокрутка внутри: удаляемое обязано быть обозримо целиком, без «показать ещё». */}
             <DataGrid density="compact" className="mt-3 max-h-64" columns={columns} rows={preview.records} rowKey={r => r.id} />
             {/* Итог — вне прокрутки, всегда на виду. Число нарочно не повторено ни в подписи поля,
                 ни внутри него: чтобы его перепечатать, взгляд обязан пройти по списку. */}
-            <div className="flex justify-between px-2 py-1.5 text-xs font-semibold text-fg1">
+            <div className="flex justify-between px-2 py-1.5 text-xs font-semibold text-on-surface">
               <span>Всего ссылок</span><span className="tabular-nums">{preview.references}</span>
             </div>
             {more && <p className="text-xs text-fg3">{more}</p>}
@@ -189,21 +189,21 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
           <div className="flex justify-end mt-4"><Button type="button" variant="tonal" size="sm" onClick={() => onClose(false)}>Понятно</Button></div>
         ) : (
           <>
-            <ul className="mt-3 text-xs text-fg2 list-disc pl-4 space-y-1">
+            <ul className="mt-3 text-xs text-on-surface-variant list-disc pl-4 space-y-1">
               {batchConsequences(preview).map(line => <li key={line}>{line}</li>)}
             </ul>
             <div className="mt-4">
-              <label htmlFor={fieldId} className="block text-xs font-medium text-fg2 mb-1">Число теряемых ссылок</label>
+              <label htmlFor={fieldId} className="block text-xs font-medium text-on-surface-variant mb-1">Число теряемых ссылок</label>
               <input id={fieldId} type="text" inputMode="numeric" autoComplete="off" autoFocus
                 value={input} disabled={busy}
                 onChange={e => { setInput(e.target.value); setSettled(false); }}
                 onBlur={() => setSettled(true)}
                 onKeyDown={e => { if (e.key === 'Enter') setSettled(true); }}
                 aria-invalid={mismatch || undefined} aria-describedby={mismatch ? errorId : hintId}
-                className={`w-full h-10 px-3 rounded-md bg-surface border text-base sm:text-sm text-fg1 tabular-nums outline-none focus-visible:ring-2 ${
-                  mismatch ? 'border-danger focus-visible:ring-danger' : 'border-stroke-strong focus-visible:ring-brand'}`} />
+                className={`w-full h-10 px-3 rounded-md bg-surface border text-base sm:text-sm text-on-surface tabular-nums outline-none focus-visible:ring-2 ${
+                  mismatch ? 'border-error focus-visible:ring-error' : 'border-outline focus-visible:ring-primary'}`} />
               {mismatch
-                ? <p id={errorId} role="alert" className="mt-1 text-xs text-danger">Не совпадает с числом в строке «Всего ссылок».</p>
+                ? <p id={errorId} role="alert" className="mt-1 text-xs text-error">Не совпадает с числом в строке «Всего ссылок».</p>
                 : <p id={hintId} className="mt-1 text-xs text-fg3">Введите число из строки «Всего ссылок».</p>}
             </div>
             <div className="flex gap-2 justify-end items-start mt-4">
@@ -225,9 +225,9 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
         <Dialog.Content
           // То же, что у `PurgeDialog`: запрос, исход или набранное подтверждение держат человека.
           data-modal-state={busy ? 'busy' : refused ?? unknown ?? fresh ? 'result' : input ? 'touched' : 'free'}
-          className="fixed left-1/2 top-4 sm:top-1/2 -translate-x-1/2 sm:-translate-y-1/2 z-50 rounded-[28px] p-6 w-[calc(100%-2rem)] max-w-xl max-h-[calc(100dvh-2rem)] overflow-y-auto bg-surface border border-stroke focus:outline-none"
+          className="fixed left-1/2 top-4 sm:top-1/2 -translate-x-1/2 sm:-translate-y-1/2 z-50 rounded-[28px] p-6 w-[calc(100%-2rem)] max-w-xl max-h-[calc(100dvh-2rem)] overflow-y-auto bg-surface border border-outline-variant focus:outline-none"
           style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
-          <Dialog.Title className="text-sm font-semibold mb-2 text-fg1">{title}</Dialog.Title>
+          <Dialog.Title className="text-sm font-semibold mb-2 text-on-surface">{title}</Dialog.Title>
           {body}
         </Dialog.Content>
       </Dialog.Portal>
@@ -237,8 +237,8 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
 
 function Alert({ tone, children }: { tone: 'danger' | 'warning'; children: ReactNode }) {
   return (
-    <div role="alert" className={`mt-2 flex items-start gap-2.5 rounded-md px-3 py-2.5 text-xs text-fg1 ${tone === 'danger' ? 'bg-danger-subtle' : 'bg-warning-subtle'}`}>
-      <AlertTriangle size={16} className={`shrink-0 mt-0.5 ${tone === 'danger' ? 'text-danger' : 'text-warning'}`} aria-hidden />
+    <div role="alert" className={`mt-2 flex items-start gap-2.5 rounded-md px-3 py-2.5 text-xs text-on-surface ${tone === 'danger' ? 'bg-error-container' : 'bg-warning-container'}`}>
+      <AlertTriangle size={16} className={`shrink-0 mt-0.5 ${tone === 'danger' ? 'text-error' : 'text-warning'}`} aria-hidden />
       <div className="min-w-0 whitespace-pre-line">{children}</div>
     </div>
   );
@@ -262,11 +262,11 @@ function Excluded({ preview, named }: { preview: PurgeBatchPreview; named: boole
   if (count === 0) return null;
   return (
     <details className="mt-3 text-xs" open={named && count <= 5}>
-      <summary className="cursor-pointer text-fg2 font-medium">Не войдут: {count}</summary>
-      <ul className="mt-1 space-y-1.5 text-fg2">
+      <summary className="cursor-pointer text-on-surface-variant font-medium">Не войдут: {count}</summary>
+      <ul className="mt-1 space-y-1.5 text-on-surface-variant">
         {excludedGroups(preview.excluded).map(g => (
           <li key={g.reason}>
-            <div className="text-fg1">{g.names.join(', ')}</div>
+            <div className="text-on-surface">{g.names.join(', ')}</div>
             <div className="text-fg3">{g.reason}</div>
           </li>
         ))}

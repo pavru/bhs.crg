@@ -61,13 +61,13 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
         <input type="checkbox" checked={!!value} aria-readonly={readOnly || undefined}
           onChange={e => { if (!readOnly) onChange(e.target.checked); }}
           onClick={e => { if (readOnly) e.preventDefault(); }}
-          className={`w-4 h-4 rounded border-stroke-strong text-brand ${readOnly ? 'opacity-70' : ''}`} />
-        <span className="text-sm text-fg2">{label ?? field.title}</span>
+          className={`w-4 h-4 rounded border-outline text-primary ${readOnly ? 'opacity-70' : ''}`} />
+        <span className="text-sm text-on-surface-variant">{label ?? field.title}</span>
       </label>
     );
   if (field.type === 'enum') {
     // Подпись отдаём самому контролу (issue #574): в слое формы она живёт в вырезе рамки, как у
-    // соседних строк, чисел и дат. Рамку ошибки там рисует оболочка — свой border-danger не нужен.
+    // соседних строк, чисел и дат. Рамку ошибки там рисует оболочка — свой border-error не нужен.
     const NO_OPTIONS = 'Нет вариантов — добавьте их в схеме типа документа';
     const opts = enumTypeDef
       ? enumTypeDef.values.map(v => ({ code: v.code, label: v.label }))
@@ -94,7 +94,7 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
         // и подпись, и на форме оставалась висеть фраза без имени поля, к которому она относится.
         hint={empty ? NO_OPTIONS : hint} invalid={invalid}
         aria-label={label == null ? field.title : undefined}
-        className={label == null && invalid ? 'border-danger' : ''}>
+        className={label == null && invalid ? 'border-error' : ''}>
         {opts.map(o => <SelectItem key={o.code} value={o.code}>{o.label}</SelectItem>)}
       </Select>
     );

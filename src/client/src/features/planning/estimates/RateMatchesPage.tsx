@@ -82,7 +82,7 @@ function RateList() {
     },
     {
       key: 'factor', label: 'Пересчёт', width: 'w-40',
-      cell: m => <span className="text-xs text-fg2 tabular-nums">{m.sourceUnit ?? 'без единицы'} → {m.unitName ?? '?'} × {formatQuantity(m.factor)}</span>,
+      cell: m => <span className="text-xs text-on-surface-variant tabular-nums">{m.sourceUnit ?? 'без единицы'} → {m.unitName ?? '?'} × {formatQuantity(m.factor)}</span>,
     },
     { key: 'updated', label: 'Изменено', width: 'w-36', cell: m => <Updated at={m.updatedAt} by={m.updatedBy} /> },
     ...(editable ? [actionsColumn<RateMatch>(m => setPointing(m.id), m => setForgetting(m.id))] : []),
@@ -172,7 +172,7 @@ function MatchListBody({ list, query, onQuery, placeholder, empty, grid, childre
     <div className="space-y-3 pt-3">
       <SearchInput value={query} onChange={onQuery} placeholder={placeholder} ariaLabel={placeholder} className="w-80 max-w-full" />
       {list.isError ? (
-        <p role="alert" className="text-sm text-danger">{apiError(list.error, 'Список не прочитался')}</p>
+        <p role="alert" className="text-sm text-error">{apiError(list.error, 'Список не прочитался')}</p>
       ) : !list.data ? (
         <p className="text-sm text-fg4">Читаем запомненное…</p>
       ) : total === 0 ? (

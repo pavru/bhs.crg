@@ -58,7 +58,7 @@ export function CompanySection() {
       right={dirty || zoneDirty ? <span className="text-xs text-warning normal-case">не сохранено</span> : undefined}>
       {isError && (
         <div className="flex items-center gap-3">
-          <span className="text-sm text-danger">Настройки компании не загрузились.</span>
+          <span className="text-sm text-error">Настройки компании не загрузились.</span>
           <Button variant="outlined" size="sm" onClick={() => void refetch()}>Повторить</Button>
         </div>
       )}
@@ -68,7 +68,7 @@ export function CompanySection() {
       {data && (data.locked ? (
         <div data-testid="currency-locked">
           <p className="text-xs text-fg3">Валюта учёта</p>
-          <p className="text-sm text-fg1 mt-0.5">{currencyTitle(data, data.currency)}</p>
+          <p className="text-sm text-on-surface mt-0.5">{currencyTitle(data, data.currency)}</p>
           <p className="text-xs text-fg3 mt-1.5 max-w-xl">{data.reason}</p>
         </div>
       ) : (
@@ -110,7 +110,7 @@ export function CompanySection() {
         </div>
       )}
 
-      <div className="pt-4 mt-1 border-t border-stroke">
+      <div className="pt-4 mt-1 border-t border-outline-variant">
         <CompanyTimeZone onDirty={setZoneDirty} />
       </div>
 
@@ -121,7 +121,7 @@ export function CompanySection() {
         title="Сменить валюту учёта?"
         description={
           <div className="space-y-3">
-            <p className="font-medium text-fg1">
+            <p className="font-medium text-on-surface">
               {data && currencyTitle(data, data.currency)} → {data && next && currencyTitle(data, next)}
             </p>
             <p>

@@ -118,7 +118,7 @@ export function CorrectionBar({ view, draft, edits, onResetHeader }: {
   // Закрытие отменили — исправлять больше нечего: набранное становится обычной правкой.
   if (view.payment.lockedBy === null)
     return (
-      <div role="alert" className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle
+      <div role="alert" className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-container
         px-3 py-2 text-xs text-warning">
         <TriangleAlert size={13} className="shrink-0 mt-0.5" />
         <p className="flex-1">
@@ -133,7 +133,7 @@ export function CorrectionBar({ view, draft, edits, onResetHeader }: {
 
   return (
     <div className="space-y-2" data-testid="correction-bar">
-      <div role="status" className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle
+      <div role="status" className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-container
         px-3 py-2 text-xs text-warning">
         <PencilLine size={13} className="shrink-0 mt-0.5" />
         <p className="flex-1">

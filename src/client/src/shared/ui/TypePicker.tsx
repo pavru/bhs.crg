@@ -135,25 +135,25 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" style={{ backdropFilter: 'blur(2px)' }} />
         <Dialog.Content
           data-modal-state="free"
-          className="fixed left-1/2 top-16 z-50 w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 flex flex-col max-h-[calc(100vh-8rem)] overflow-hidden rounded-2xl border border-stroke bg-surface focus:outline-none"
+          className="fixed left-1/2 top-16 z-50 w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 flex flex-col max-h-[calc(100vh-8rem)] overflow-hidden rounded-2xl border border-outline-variant bg-surface focus:outline-none"
           style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}
         >
           <Dialog.Title className="sr-only">{title}</Dialog.Title>
-          <div className="flex items-center gap-2 border-b border-stroke px-4 shrink-0">
+          <div className="flex items-center gap-2 border-b border-outline-variant px-4 shrink-0">
             <Search size={16} className="shrink-0 text-fg4" />
             {/* Выделение возвращает на первую строку сам ввод, а не эффект (issue #858). */}
             <input ref={input} autoFocus value={query} onChange={e => { setQuery(e.target.value); setActive(0); }} onKeyDown={onKey}
               placeholder="Поиск типа по имени или коду…" aria-label="Поиск типа"
-              className="h-12 flex-1 bg-transparent text-sm text-fg1 outline-none placeholder:text-fg4" />
-            <kbd className="rounded border border-stroke px-1 text-caption text-fg4">Esc</kbd>
+              className="h-12 flex-1 bg-transparent text-sm text-on-surface outline-none placeholder:text-fg4" />
+            <kbd className="rounded border border-outline-variant px-1 text-caption text-fg4">Esc</kbd>
           </div>
           <ul className="overflow-y-auto p-2" role="listbox" aria-label={title}>
             {noneVisible && (
               <li role="option" aria-selected={active === 0}>
                 <button type="button" onMouseEnter={() => setActive(0)} onClick={chooseNone}
                   className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                    active === 0 ? 'bg-tonal text-on-tonal' : 'text-fg1 hover:bg-black/5 dark:hover:bg-white/10'}`}>
-                  <Ban size={16} className={active === 0 ? 'text-on-tonal' : 'text-fg4'} />
+                    active === 0 ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface hover:bg-black/5 dark:hover:bg-white/10'}`}>
+                  <Ban size={16} className={active === 0 ? 'text-on-secondary-container' : 'text-fg4'} />
                   <span className="flex-1 truncate" title={noneOption!.label}>{noneOption!.label}</span>
                 </button>
               </li>
@@ -164,7 +164,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
             ) : sections.map(g => (
               <li key={g.key}>
                 {g.heading && (
-                  <div className="mt-2 border-t border-stroke px-3 pt-3 pb-1 text-xs font-medium text-fg2">{g.heading}</div>
+                  <div className="mt-2 border-t border-outline-variant px-3 pt-3 pb-1 text-xs font-medium text-on-surface-variant">{g.heading}</div>
                 )}
                 <div className="px-3 pt-2 pb-1 text-caption font-semibold uppercase tracking-wide text-fg4">{g.label}</div>
                 <ul>
@@ -177,10 +177,10 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
                       <li key={`${g.key}:${t.id}`} role="option" aria-selected={i === active}>
                         <button type="button" onMouseEnter={() => setActive(i)} onClick={() => choose(t)}
                           className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                            i === active ? 'bg-tonal text-on-tonal' : 'text-fg1 hover:bg-black/5 dark:hover:bg-white/10'}`}>
-                          <Icon size={16} className={i === active ? 'text-on-tonal' : 'text-fg3'} />
+                            i === active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface hover:bg-black/5 dark:hover:bg-white/10'}`}>
+                          <Icon size={16} className={i === active ? 'text-on-secondary-container' : 'text-fg3'} />
                           <Tooltip content={showCode ? `${t.name} (${code})` : t.name}><span className="flex-1 truncate">{t.name}</span></Tooltip>
-                          {showCode && <span className={`text-caption font-mono shrink-0 ${i === active ? 'text-on-tonal/80' : 'text-fg4'}`}>{code}</span>}
+                          {showCode && <span className={`text-caption font-mono shrink-0 ${i === active ? 'text-on-secondary-container/80' : 'text-fg4'}`}>{code}</span>}
                         </button>
                       </li>
                     );
@@ -190,9 +190,9 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
             ))}
           </ul>
           {asideHidden && aside && (
-            <div className="shrink-0 border-t border-stroke p-2">
+            <div className="shrink-0 border-t border-outline-variant p-2">
               <button type="button" onClick={reveal}
-                className="w-full rounded-lg px-3 py-2 text-left text-sm text-brand hover:bg-black/5 dark:hover:bg-white/10">
+                className="w-full rounded-lg px-3 py-2 text-left text-sm text-primary hover:bg-black/5 dark:hover:bg-white/10">
                 {aside.reveal}
               </button>
             </div>

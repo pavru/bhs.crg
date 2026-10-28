@@ -21,7 +21,7 @@ function ColumnRow({
   onExprFocus: (el: HTMLInputElement, index: number) => void;
 }) {
   return (
-    <div className="rounded-lg p-3 space-y-2 border border-stroke bg-base">
+    <div className="rounded-lg p-3 space-y-2 border border-outline-variant bg-surface-container-low">
       <div className="flex items-center gap-2">
         <div className="flex-1 space-y-1">
           <label className="block text-caption font-medium uppercase tracking-wide text-fg4">
@@ -31,12 +31,12 @@ function ColumnRow({
             value={col.alias}
             onChange={e => onChange({ ...col, alias: e.target.value })}
             placeholder="Напр.: ФИО"
-            className="w-full border border-stroke rounded px-2 py-1.5 text-xs font-mono bg-surface text-fg1"
+            className="w-full border border-outline-variant rounded px-2 py-1.5 text-xs font-mono bg-surface text-on-surface"
           />
         </div>
         <button
           onClick={onRemove}
-          className="p-1.5 rounded mt-4 text-fg4 hover:text-danger transition-colors"
+          className="p-1.5 rounded mt-4 text-fg4 hover:text-error transition-colors"
         >
           <Trash2 size={13} />
         </button>
@@ -50,7 +50,7 @@ function ColumnRow({
           onChange={e => onChange({ ...col, expr: e.target.value })}
           onFocus={e => onExprFocus(e.currentTarget, index)}
           placeholder="Напр.: Фамилия + ' ' + Имя"
-          className="w-full border border-stroke rounded px-2 py-1.5 text-xs font-mono bg-surface text-fg1"
+          className="w-full border border-outline-variant rounded px-2 py-1.5 text-xs font-mono bg-surface text-on-surface"
         />
       </div>
     </div>
@@ -129,7 +129,7 @@ export function ComputedColumnsDialog({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 rounded-md text-sm font-medium text-on-brand bg-brand disabled:opacity-50"
+            className="px-4 py-2 rounded-md text-sm font-medium text-on-primary bg-primary disabled:opacity-50"
           >
             {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
@@ -138,7 +138,7 @@ export function ComputedColumnsDialog({
             <button
               onClick={() => void commit(() => onSave(null))}
               disabled={saving}
-              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-danger bg-muted disabled:opacity-50"
+              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-error bg-surface-container disabled:opacity-50"
             >
               Сбросить
             </button>
@@ -146,24 +146,24 @@ export function ComputedColumnsDialog({
         </div>
       }
     >
-      <div className="rounded-lg p-3 mb-4 text-xs space-y-1 bg-base border border-stroke">
-        <p className="font-semibold text-fg2">Синтаксис JavaScript</p>
+      <div className="rounded-lg p-3 mb-4 text-xs space-y-1 bg-surface-container-low border border-outline-variant">
+        <p className="font-semibold text-on-surface-variant">Синтаксис JavaScript</p>
         <p className="text-fg3">
           К колонке можно обратиться тремя способами:{' '}
-          <code className="font-mono px-1 rounded bg-muted">Фамилия</code> — по имени, если оно годится
-          в имя переменной (пробелы и знаки заменяются на <code className="font-mono px-1 rounded bg-muted">_</code>);{' '}
-          <code className="font-mono px-1 rounded bg-muted">get("Кол-во")</code> — по точному заголовку,
+          <code className="font-mono px-1 rounded bg-surface-container">Фамилия</code> — по имени, если оно годится
+          в имя переменной (пробелы и знаки заменяются на <code className="font-mono px-1 rounded bg-surface-container">_</code>);{' '}
+          <code className="font-mono px-1 rounded bg-surface-container">get("Кол-во")</code> — по точному заголовку,
           подходит всегда;{' '}
-          <code className="font-mono px-1 rounded bg-muted">cols[1]</code> — по номеру колонки,{' '}
+          <code className="font-mono px-1 rounded bg-surface-container">cols[1]</code> — по номеру колонки,{' '}
           <b>счёт с единицы</b>.
         </p>
         <p className="text-fg4">
           Примеры:{' '}
-          <code className="font-mono text-fg2">{"Фамилия + ' ' + Имя"}</code>
+          <code className="font-mono text-on-surface-variant">{"Фамилия + ' ' + Имя"}</code>
           {' — '}
-          <code className="font-mono text-fg2">{"String(parseFloat(get('Цена')) * parseFloat(cols[3]))"}</code>
+          <code className="font-mono text-on-surface-variant">{"String(parseFloat(get('Цена')) * parseFloat(cols[3]))"}</code>
           {' — '}
-          <code className="font-mono text-fg2">{"Статус === 'Принят' ? 'Да' : 'Нет'"}</code>
+          <code className="font-mono text-on-surface-variant">{"Статус === 'Принят' ? 'Да' : 'Нет'"}</code>
         </p>
         <p className="text-fg4">
           Вычисляемые колонки применяются до фильтрации и маппинга — их можно использовать в условиях фильтра.
@@ -171,7 +171,7 @@ export function ComputedColumnsDialog({
       </div>
 
       {sourceColumns.length > 0 && (
-        <div className="rounded-lg p-3 mb-4 text-xs bg-base border border-stroke">
+        <div className="rounded-lg p-3 mb-4 text-xs bg-surface-container-low border border-outline-variant">
           <p className="mb-2 text-fg3">
             Колонки источника — нажмите, чтобы вставить в выражение
             {columns.length === 0 && <span className="text-fg4"> (сначала добавьте колонку)</span>}
@@ -186,9 +186,9 @@ export function ComputedColumnsDialog({
                   onMouseDown={e => e.preventDefault()}
                   onClick={() => insert(columnAccessor(name))}
                   disabled={columns.length === 0}
-                  className="flex items-center gap-1 px-2 py-1 rounded border border-stroke bg-surface
-                             hover:border-brand hover:text-brand disabled:opacity-50 disabled:hover:border-stroke
-                             disabled:hover:text-fg2 text-fg2"
+                  className="flex items-center gap-1 px-2 py-1 rounded border border-outline-variant bg-surface
+                             hover:border-primary hover:text-primary disabled:opacity-50 disabled:hover:border-outline-variant
+                             disabled:hover:text-on-surface-variant text-on-surface-variant"
                 >
                   <span className="text-fg4 font-mono">{i + 1}</span>
                   <span className="font-mono">{name}</span>
@@ -219,12 +219,12 @@ export function ComputedColumnsDialog({
 
       <button
         onClick={addColumn}
-        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md text-brand bg-brand-subtle"
+        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md text-primary bg-primary-container"
       >
         <Plus size={13} /> Добавить колонку
       </button>
 
-      {refusal && <p role="alert" className="mt-3 text-xs text-danger">{refusal}</p>}
+      {refusal && <p role="alert" className="mt-3 text-xs text-error">{refusal}</p>}
     </Modal>
   );
 }

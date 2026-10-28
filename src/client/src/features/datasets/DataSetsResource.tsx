@@ -35,9 +35,9 @@ function FileNavItem({ icon, label, secondary, count, active, recognizing, stale
   return (
     <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
       className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left transition-colors ${
-        active ? 'bg-brand-subtle text-brand-hover' : 'text-fg2 hover:bg-muted'}`}>
+        active ? 'bg-primary-container text-brand-hover' : 'text-on-surface-variant hover:bg-surface-container'}`}>
       <span className={`shrink-0 ${active ? 'text-brand-hover' : 'text-fg4'}`}>
-        {recognizing ? <Loader2 size={15} className="animate-spin text-brand" /> : icon}
+        {recognizing ? <Loader2 size={15} className="animate-spin text-primary" /> : icon}
       </span>
       <span className="flex-1 min-w-0">
         <span className={`block truncate text-sm ${active ? 'font-medium' : ''}`} title={label}>{label}</span>
@@ -64,7 +64,7 @@ function LevelChip({ file }: { file: DataSetFile }) {
   return (
     <Tooltip content={`Набор принадлежит уровню «${SCOPE_LABELS[file.scope]}» — здесь он доступен, потому что этот уровень выше`}>
       <span
-        className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded bg-muted text-fg3 leading-tight">
+        className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded bg-surface-container text-fg3 leading-tight">
         {SCOPE_LABELS[file.scope]}
       </span>
     </Tooltip>
@@ -86,12 +86,12 @@ function FileDetail({ file, inherited, job }: {
   const isSystem = file.format === 'System';
 
   return (
-    <div className="rounded-lg border border-stroke bg-surface overflow-hidden">
-      <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-stroke bg-base">
+    <div className="rounded-lg border border-outline-variant bg-surface overflow-hidden">
+      <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-outline-variant bg-surface-container-low">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-fg1 truncate" title={file.name}>{file.name}</span>
-            <span className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded bg-muted text-fg3">{DATA_SET_FORMAT_LABELS[file.format]}</span>
+            <span className="text-sm font-semibold text-on-surface truncate" title={file.name}>{file.name}</span>
+            <span className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded bg-surface-container text-fg3">{DATA_SET_FORMAT_LABELS[file.format]}</span>
             {inherited && <LevelChip file={file} />}
           </div>
           <div className="text-xs text-fg4 mt-0.5">
@@ -121,12 +121,12 @@ function FileDetail({ file, inherited, job }: {
         </div>
       </div>
       {job && (
-        <div className="flex items-center gap-2 px-4 py-2 text-xs bg-brand-subtle/50 border-b border-stroke text-fg2">
-          <Loader2 size={13} className="animate-spin text-brand shrink-0" />
+        <div className="flex items-center gap-2 px-4 py-2 text-xs bg-primary-container/50 border-b border-outline-variant text-on-surface-variant">
+          <Loader2 size={13} className="animate-spin text-primary shrink-0" />
           <span className="flex-1 min-w-0 truncate">{job.progress ?? job.title ?? 'Распознаётся…'}</span>
           {job.status === 'Queued' && (
             <button onClick={() => cancel.mutate(job.id)} disabled={cancel.isPending}
-              className="text-brand hover:text-brand-hover shrink-0 disabled:opacity-50">Отменить</button>
+              className="text-primary hover:text-brand-hover shrink-0 disabled:opacity-50">Отменить</button>
           )}
         </div>
       )}
@@ -173,12 +173,12 @@ function AllFilesOverview({ files, inheritedCount, onOpen }: {
       {files.map(f => {
         const names = f.sources.map(s => s.name).slice(0, 4).join(' · ');
         return (
-          <div key={f.id} className="flex items-center gap-3 rounded-lg border border-stroke bg-surface px-4 py-3">
-            <FileText size={16} className="text-brand shrink-0" />
+          <div key={f.id} className="flex items-center gap-3 rounded-lg border border-outline-variant bg-surface px-4 py-3">
+            <FileText size={16} className="text-primary shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-fg1 truncate" title={f.name}>{f.name}</span>
-                <span className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded bg-muted text-fg3">{DATA_SET_FORMAT_LABELS[f.format]}</span>
+                <span className="text-sm font-medium text-on-surface truncate" title={f.name}>{f.name}</span>
+                <span className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded bg-surface-container text-fg3">{DATA_SET_FORMAT_LABELS[f.format]}</span>
               </div>
               <div className="text-xs text-fg4 mt-0.5 truncate">
                 {sourcesLabel(f.sources.length)}{names && `: ${names}`}{f.sources.length > 4 ? ' …' : ''}
@@ -337,7 +337,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
   );
 
   const overlay = dragOver && (
-    <div className="absolute inset-0 z-10 rounded-lg border-2 border-dashed border-brand bg-brand-subtle/60 flex items-center justify-center pointer-events-none">
+    <div className="absolute inset-0 z-10 rounded-lg border-2 border-dashed border-primary bg-primary-container/60 flex items-center justify-center pointer-events-none">
       <span className="text-sm font-medium text-brand-hover">Отпустите файл — загрузим в набор</span>
     </div>
   );
@@ -365,7 +365,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
                 )}
               </div>
             } />
-          {uploadError && <p className="text-xs text-danger text-center mt-2">{uploadError}</p>}
+          {uploadError && <p className="text-xs text-error text-center mt-2">{uploadError}</p>}
         </>
       ) : (
         <div className="flex gap-5 items-start">
@@ -387,11 +387,11 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
               <>
                 <button type="button" onClick={() => setInheritedOpen(!inheritedOpen, selectedInherited)}
                   aria-expanded={inheritedOpen}
-                  className="w-full flex items-center gap-1.5 mt-2 pt-2 px-1.5 border-t border-stroke text-left text-xs text-fg3 hover:text-brand">
+                  className="w-full flex items-center gap-1.5 mt-2 pt-2 px-1.5 border-t border-outline-variant text-left text-xs text-fg3 hover:text-primary">
                   <ChevronRight size={13} className={`shrink-0 transition-transform ${inheritedOpen ? 'rotate-90' : ''}`} />
                   <span className="flex-1 min-w-0">
                     Доступны здесь: {inheritedOpen ? '' : 'ещё '}
-                    <span className="text-brand font-medium">{ruCount(inheritedFiles.length, 'набор', 'набора', 'наборов')}</span>
+                    <span className="text-primary font-medium">{ruCount(inheritedFiles.length, 'набор', 'набора', 'наборов')}</span>
                     {!inheritedOpen && ' с верхних уровней'}
                   </span>
                 </button>
@@ -406,7 +406,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
             )}
 
             <div className="pt-2">{uploadBtn}</div>
-            {uploadError && <p className="text-caption text-danger px-1 pt-1">{uploadError}</p>}
+            {uploadError && <p className="text-caption text-error px-1 pt-1">{uploadError}</p>}
           </aside>
 
           {/* Detail */}
@@ -417,7 +417,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
               <FileDetail file={selectedFile} inherited={selectedInherited} job={jobForFile(selectedFile)} />
             ) : (
               <div className="text-center py-10 text-fg4 text-sm">
-                Набор не найден. <button className="text-brand hover:text-brand-hover" onClick={() => setSelected(ALL)}>Ко всем наборам</button>
+                Набор не найден. <button className="text-primary hover:text-brand-hover" onClick={() => setSelected(ALL)}>Ко всем наборам</button>
               </div>
             )}
           </div>

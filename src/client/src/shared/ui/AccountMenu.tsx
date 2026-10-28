@@ -16,7 +16,7 @@ import { THEME_OPTIONS } from '@/shared/ui/themeOptions';
 import { Tooltip } from './Tooltip';
 import { useHistoryLayer } from './historyLayers';
 
-const item = 'flex items-center gap-3.5 h-11 px-3 rounded-xl text-sm text-fg1 cursor-pointer select-none outline-none ' +
+const item = 'flex items-center gap-3.5 h-11 px-3 rounded-xl text-sm text-on-surface cursor-pointer select-none outline-none ' +
   'data-[highlighted]:bg-black/5 dark:data-[highlighted]:bg-white/10';
 
 /**
@@ -71,29 +71,29 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
         {/* На телефоне — поле вокруг аватара: цель касания 44 px, а не 36 (#1434). */}
         <button type="button" data-testid="account-menu"
           aria-label={`${name} — профиль и оформление${newer ? `; доступна версия ${newer}` : ''}`}
-          className={'relative shrink-0 rounded-full max-md:p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ' +
-            'focus-visible:ring-offset-2 focus-visible:ring-offset-surface data-[state=open]:ring-2 data-[state=open]:ring-brand ' +
-            (here || inAdmin ? 'ring-2 ring-brand' : '')}>
+          className={'relative shrink-0 rounded-full max-md:p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ' +
+            'focus-visible:ring-offset-2 focus-visible:ring-offset-surface data-[state=open]:ring-2 data-[state=open]:ring-primary ' +
+            (here || inAdmin ? 'ring-2 ring-primary' : '')}>
           <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-9 h-9 text-sm" />
           {newer && <span data-testid="update-dot" aria-hidden="true"
-            className="absolute -top-0.5 -right-0.5 max-md:top-0.5 max-md:right-0.5 w-2.5 h-2.5 rounded-full bg-brand ring-2 ring-surface" />}
+            className="absolute -top-0.5 -right-0.5 max-md:top-0.5 max-md:right-0.5 w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-surface" />}
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="end" sideOffset={8}
-          className="z-50 w-80 max-w-[calc(100vw-1rem)] rounded-2xl border border-stroke bg-surface overflow-hidden focus:outline-none"
+          className="z-50 w-80 max-w-[calc(100vw-1rem)] rounded-2xl border border-outline-variant bg-surface overflow-hidden focus:outline-none"
           style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
           <div className="flex items-center gap-3.5 px-5 pt-5 pb-3">
             <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-12 h-12 text-base" />
             <div className="min-w-0">
-              <div className="text-base font-medium text-fg1 truncate">{name}</div>
+              <div className="text-base font-medium text-on-surface truncate">{name}</div>
               {roles && <div className="text-xs text-fg3 truncate">{roles}</div>}
               {user?.displayName && <div className="text-xs text-fg3 truncate">{user.email}</div>}
             </div>
           </div>
 
           <div className="px-2 pb-2">
-            <DropdownMenu.Item asChild className={item + (here ? ' bg-tonal text-on-tonal' : '')}>
+            <DropdownMenu.Item asChild className={item + (here ? ' bg-secondary-container text-on-secondary-container' : '')}>
               <Link to="/profile" onClick={guardedClick('/profile')} aria-current={here ? 'page' : undefined}>
                 <UserRound size={20} className="text-fg3 shrink-0" />Профиль и пароль
               </Link>
@@ -109,13 +109,13 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
                 <span className="text-fg4">{autoHint}</span>
               </div>
               <DropdownMenu.RadioGroup value={theme} onValueChange={v => setTheme(v as typeof theme)}
-                className="flex rounded-full border border-stroke-strong overflow-hidden">
+                className="flex rounded-full border border-outline overflow-hidden">
                 {THEME_OPTIONS.map(({ value, icon: Icon, label }, i) => (
                   <DropdownMenu.RadioItem key={value} value={value} onSelect={e => e.preventDefault()}
                     className={'flex-1 flex items-center justify-center gap-1.5 h-9 text-xs cursor-pointer select-none outline-none ' +
-                      'data-[highlighted]:ring-2 data-[highlighted]:ring-inset data-[highlighted]:ring-brand ' +
-                      (i > 0 ? 'border-l border-stroke-strong ' : '') +
-                      (theme === value ? 'bg-tonal text-on-tonal font-medium' : 'text-fg2 hover:bg-black/5 dark:hover:bg-white/10')}>
+                      'data-[highlighted]:ring-2 data-[highlighted]:ring-inset data-[highlighted]:ring-primary ' +
+                      (i > 0 ? 'border-l border-outline ' : '') +
+                      (theme === value ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/10')}>
                     <Icon size={16} className="shrink-0" />{label}
                   </DropdownMenu.RadioItem>
                 ))}
@@ -131,9 +131,9 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
 
           {admin && AdminIcon && (
             <>
-              <DropdownMenu.Separator className="h-px bg-stroke" />
+              <DropdownMenu.Separator className="h-px bg-outline-variant" />
               <div className="p-2">
-                <DropdownMenu.Item asChild className={item + (inAdmin ? ' bg-tonal text-on-tonal' : '')}>
+                <DropdownMenu.Item asChild className={item + (inAdmin ? ' bg-secondary-container text-on-secondary-container' : '')}>
                   <Link to={admin.home} onClick={guardedClick(admin.home)} data-testid="account-admin">
                     <AdminIcon size={20} className="text-fg3 shrink-0" />{admin.def.title}
                   </Link>
@@ -142,7 +142,7 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
             </>
           )}
 
-          <DropdownMenu.Separator className="h-px bg-stroke" />
+          <DropdownMenu.Separator className="h-px bg-outline-variant" />
           <div className="p-2">
             <DropdownMenu.Item className={item} onSelect={() => guardedLeave(logout)}>
               <LogOut size={20} className="text-fg3 shrink-0" />Выйти
@@ -179,9 +179,9 @@ function VersionLine({ version: data, newer }: {
   ].filter(Boolean).join(' · ');
   return (
     <Tooltip content={title}>
-      <div data-testid="app-version" className="px-5 py-2.5 bg-base text-caption text-fg3 truncate">
+      <div data-testid="app-version" className="px-5 py-2.5 bg-surface-container-low text-caption text-fg3 truncate">
         Версия {data.version}{data.commit ? ` · ${data.commit}` : ''}
-        {newer && <span className="text-brand"> · доступна {newer}</span>}
+        {newer && <span className="text-primary"> · доступна {newer}</span>}
       </div>
     </Tooltip>
   );

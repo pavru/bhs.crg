@@ -144,7 +144,7 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
           aria-label={locked ? 'Снять привязку к источнику'
             : isBound ? 'Привязка к источнику' : 'Привязать к источнику'}
           className={`inline-flex items-center justify-center rounded transition-colors ${
-            isBound ? 'text-brand hover:text-brand-hover' : 'text-fg4 opacity-0 group-hover:opacity-100 hover:text-fg2'}`}>
+            isBound ? 'text-primary hover:text-brand-hover' : 'text-fg4 opacity-0 group-hover:opacity-100 hover:text-on-surface-variant'}`}>
           <Database size={13} />
         </button>
       </Tooltip>
@@ -190,7 +190,7 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
               </div>
 
               {selectedSource && (isMaterialized ? (
-                <div className="rounded-lg border border-brand/40 bg-brand/5 p-3 text-xs text-fg3">
+                <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 text-xs text-fg3">
                   Источник материализуется в тип <b>{allDocTypes.find(t => t.id === selectedSource.materializeTypeId)?.name ?? '—'}</b> —
                   {selectedSource.materializeByIdColumn
                     // Режим «по Ид» (issue #725): маппинга нет вовсе, и обещать его здесь значило бы
@@ -200,7 +200,7 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
                     : <> маппинг задан на источнике, поле заполнится напрямую.</>}
                 </div>
               ) : (
-                <div className="rounded-lg border border-stroke p-3">
+                <div className="rounded-lg border border-outline-variant p-3">
                   {/* refMode (complex): schemaFields=[field] → ref-маппинг каталога; иначе табличный элемент. */}
                   <MappingEditor source={selectedSource}
                     schemaFields={refMode ? [field] : []}

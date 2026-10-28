@@ -39,7 +39,7 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
         <span />
       </div>
       {values.map((v, i) => (
-        <div key={rowKey(v, i)} className={`${cols} rounded ${dragIdx === i ? 'ring-1 ring-brand' : ''}`}
+        <div key={rowKey(v, i)} className={`${cols} rounded ${dragIdx === i ? 'ring-1 ring-primary' : ''}`}
           onDragOver={dragIdx !== null ? e => e.preventDefault() : undefined}
           onDrop={dragIdx !== null ? e => { e.preventDefault(); move(dragIdx, i); setDragIdx(null); } : undefined}>
           <Tooltip content="Перетащить">
@@ -55,19 +55,19 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
             </span>
           </Tooltip>
           <input value={v.code} onChange={e => update(i, { code: e.target.value })} placeholder="APPROVED"
-            className="border border-stroke-strong rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-1 focus-visible:ring-brand bg-surface" />
+            className="border border-outline rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
           <input value={v.label} onChange={e => update(i, { label: e.target.value })} placeholder="Согласован"
-            className="border border-stroke-strong rounded px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-brand bg-surface" />
+            className="border border-outline rounded px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
           <span className="flex items-center gap-0.5">
             <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
               isFirst={i === 0} isLast={i === values.length - 1} />
-            <Tooltip content="Удалить" name><button type="button" onClick={() => remove(i)} className="p-0.5 text-fg4 hover:text-danger"><Trash2 size={13} /></button></Tooltip>
+            <Tooltip content="Удалить" name><button type="button" onClick={() => remove(i)} className="p-0.5 text-fg4 hover:text-error"><Trash2 size={13} /></button></Tooltip>
           </span>
         </div>
       ))}
       <button type="button"
         onClick={() => onChange([...values, withRowUid({ code: '', label: '' })])}
-        className="flex items-center gap-1 text-sm text-brand hover:text-brand-hover pt-0.5">
+        className="flex items-center gap-1 text-sm text-primary hover:text-brand-hover pt-0.5">
         <Plus size={13} /> Добавить вариант
       </button>
     </div>
@@ -115,12 +115,12 @@ export function EnumForm({ onSaved, onCancel }: { onSaved: () => void; onCancel:
         <TextField label="Код" value={code} onChange={e => setCode(e.target.value)} className="font-mono" />
       </div>
       <TextField label="Описание" value={description} onChange={e => setDescription(e.target.value)} />
-      <div className="border-t border-stroke pt-3">
-        <p className="text-sm font-medium text-fg1 mb-3">Варианты</p>
+      <div className="border-t border-outline-variant pt-3">
+        <p className="text-sm font-medium text-on-surface mb-3">Варианты</p>
         <ValuesEditor values={values} onChange={setValues} />
       </div>
-      {error && <p className="text-sm text-danger">{error}</p>}
-      <div className="flex justify-end gap-2 border-t border-stroke pt-3">
+      {error && <p className="text-sm text-error">{error}</p>}
+      <div className="flex justify-end gap-2 border-t border-outline-variant pt-3">
         <Button type="button" variant="text" onClick={onCancel}>Отмена</Button>
         <Button type="button" variant="filled" onClick={handleSave} loading={create.isPending}>
           {create.isPending ? 'Сохранение…' : 'Сохранить'}

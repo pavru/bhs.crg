@@ -82,7 +82,7 @@ export function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, 
   // на него ссылается вся работа с наследованием («Как у родителя», «Ключ уже есть в родительском
   // типе»). Родитель и наследники всегда того же kind, так что переход не покидает страницу.
   const jumpBadge = `${badge} truncate max-w-[200px] transition-colors focus-visible:outline-none `
-    + 'focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface';
+    + 'focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface';
   // kind сверяем сами: клиентские пикеры родителя его держат, а команды создания/обновления
   // валидируют только циклы и уникальность — из восстановления бэкапа кросс-kind связь пройдёт.
   const children = allDocTypes
@@ -118,45 +118,45 @@ export function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, 
               {parentType && (
                 <Tooltip content="Перейти к родительскому типу">
                   <button type="button" onClick={() => onSelectType(parentType.id)}
-                    className={`${jumpBadge} bg-brand-subtle text-brand hover:text-brand-hover hover:underline`}>
+                    className={`${jumpBadge} bg-primary-container text-primary hover:text-brand-hover hover:underline`}>
                     ↑ {parentType.name}
                   </button>
                 </Tooltip>
               )}
-              {docType.isAbstract && <span className={`${badge} bg-warning-subtle text-warning`}>абстрактный</span>}
-              {docType.allowsProxy && <span className={`${badge} bg-brand-subtle text-brand`}>роль/прокси</span>}
+              {docType.isAbstract && <span className={`${badge} bg-warning-container text-warning`}>абстрактный</span>}
+              {docType.allowsProxy && <span className={`${badge} bg-primary-container text-primary`}>роль/прокси</span>}
             </div>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               {effectiveFields.length > 0 && (
-                <span className={`${badge} bg-muted text-fg3`}>
+                <span className={`${badge} bg-surface-container text-fg3`}>
                   {effectiveFields.length} полей{parentType && ownFieldCount > 0 ? ` · ${ownFieldCount} своих` : ''}
                 </span>
               )}
-              {requiredCount > 0 && <span className={`${badge} bg-muted text-fg3`}>{requiredCount} обязательных</span>}
+              {requiredCount > 0 && <span className={`${badge} bg-surface-container text-fg3`}>{requiredCount} обязательных</span>}
               {complexFields.length > 0 && (
                 <Tooltip content={complexFields.map(getFieldTypeLabel).join(', ')}>
-                  <span className={`${badge} bg-muted text-fg3`}>
+                  <span className={`${badge} bg-surface-container text-fg3`}>
                     {complexFields.length} составных
                   </span>
                 </Tooltip>
               )}
               {referencedBy.length > 0 && (
                 <Tooltip content={`Используется в: ${referencedBy.map(t => t.name).join(', ')}`}>
-                  <span className={`${badge} bg-brand-subtle text-brand`}>
+                  <span className={`${badge} bg-primary-container text-primary`}>
                     используется: {referencedBy.length}
                   </span>
                 </Tooltip>
               )}
               {healthLabel.blocking && (
                 <Tooltip content={health.blocking.map(b => `• ${b.text}`).join(String.fromCharCode(10))}>
-                  <span className={`${badge} bg-danger-subtle text-danger`}>
+                  <span className={`${badge} bg-error-container text-error`}>
                     ⚠ {healthLabel.blocking}
                   </span>
                 </Tooltip>
               )}
               {healthLabel.soft && (
                 <Tooltip content={health.soft.map(i => `• ${i.text}`).join(String.fromCharCode(10))}>
-                  <span className={`${badge} bg-warning-subtle text-warning`}>
+                  <span className={`${badge} bg-warning-container text-warning`}>
                     {healthLabel.soft}
                   </span>
                 </Tooltip>
@@ -168,7 +168,7 @@ export function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, 
                 {children.map(c => (
                   <Tooltip key={c.id} content={`Перейти к типу «${c.name}»`}>
                     <button type="button" onClick={() => onSelectType(c.id)}
-                      className={`${jumpBadge} bg-muted text-fg2 hover:text-brand-hover hover:underline`}>
+                      className={`${jumpBadge} bg-surface-container text-on-surface-variant hover:text-brand-hover hover:underline`}>
                       ↓ {c.name}
                     </button>
                   </Tooltip>

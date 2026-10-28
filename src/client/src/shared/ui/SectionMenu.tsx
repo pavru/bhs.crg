@@ -36,14 +36,14 @@ export function SectionMenu({ value, children }: { value: SectionMenuValue; chil
       <DropdownMenu.Trigger asChild>{children}</DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="start" sideOffset={6} data-testid="section-menu"
-          className="z-50 w-72 max-w-[calc(100vw-1rem)] max-h-[70vh] overflow-y-auto rounded-2xl border border-stroke bg-surface p-2 focus:outline-none"
+          className="z-50 w-72 max-w-[calc(100vw-1rem)] max-h-[70vh] overflow-y-auto rounded-2xl border border-outline-variant bg-surface p-2 focus:outline-none"
           style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
           {all.map((group, i) => (
             <DropdownMenu.Group key={group.label ?? i} className={i > 0 ? 'mt-2' : undefined}>
               {group.label && <DropdownMenu.Label className={`${MICRO_HEADING} pt-1`}>{group.label}</DropdownMenu.Label>}
               {group.items.map(({ to, label }) => (
                 <DropdownMenu.Item key={to} asChild
-                  className={item + (to === here ? ' bg-tonal text-on-tonal font-medium' : ' text-fg2')}>
+                  className={item + (to === here ? ' bg-secondary-container text-on-secondary-container font-medium' : ' text-on-surface-variant')}>
                   <Link to={to} onClick={guardedClick(to)} aria-current={to === here ? 'page' : undefined}>
                     <span className="truncate">{label}</span>
                   </Link>

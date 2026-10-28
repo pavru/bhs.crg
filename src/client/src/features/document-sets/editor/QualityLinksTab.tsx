@@ -402,13 +402,13 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
       <div className="flex items-center gap-3">
         <Tooltip content="Посмотреть подсказки из библиотеки и привязать выбранные">
           <button onClick={reviewLibrarySuggestions} disabled={suggestCount === 0}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-brand-subtle text-brand rounded-md hover:bg-brand/15 disabled:opacity-50">
+            className="flex items-center gap-2 px-4 py-2 text-sm bg-primary-container text-primary rounded-md hover:bg-primary/15 disabled:opacity-50">
             <Check size={14} /> Предложения из библиотеки ({suggestCount})
           </button>
         </Tooltip>
         <Tooltip content="Предложить связи по истории привязок (для строк, где нет подсказки из библиотеки)">
           <button onClick={handleSuggest} disabled={suggesting || materials.length === 0}
-            className="flex items-center gap-2 px-4 py-2 text-sm border border-stroke rounded-md hover:bg-base disabled:opacity-50">
+            className="flex items-center gap-2 px-4 py-2 text-sm border border-outline-variant rounded-md hover:bg-surface-container-low disabled:opacity-50">
             {suggesting ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} className="text-fg3" />}
             Предложить по истории
           </button>

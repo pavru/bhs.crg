@@ -65,7 +65,7 @@ export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizat
         errorTitle="Счёт не удалён"
         confirmLabel={confirmLabel(view)} cancelLabel="Не удалять"
         description={(
-          <div className="space-y-2 text-sm text-fg2" data-testid="invoice-delete-body">
+          <div className="space-y-2 text-sm text-on-surface-variant" data-testid="invoice-delete-body">
             {asked?.reason === 'duplicate' && view.duplicates.length > 0 && (
               <p>Останется счёт <b>{duplicateLabel(view.duplicates[0])}</b>.</p>
             )}
@@ -107,7 +107,7 @@ export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizat
 export function InvoiceGoneNotice({ onClose }: { onClose: () => void }) {
   return (
     <div role="alert" data-testid="invoice-gone" className="flex items-start gap-2 rounded-lg border
-      border-danger/30 bg-danger-subtle px-3 py-2 text-xs text-danger">
+      border-error/30 bg-error-container px-3 py-2 text-xs text-error">
       <TriangleAlert size={13} className="shrink-0 mt-0.5" />
       <p className="flex-1">
         Этого счёта больше нет — его удалили, пока он был открыт у вас. Набранное осталось на экране:

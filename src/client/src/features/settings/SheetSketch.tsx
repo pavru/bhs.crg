@@ -32,15 +32,15 @@ export function SheetSketch({ paper, orientation, fit, margins, size = 'sm', inv
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className={size === 'lg' ? 'h-48 shrink-0' : 'h-10 shrink-0'}
       {...(label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true })}>
-      <rect x={0} y={0} width={width} height={height} className="fill-surface stroke-stroke-strong"
+      <rect x={0} y={0} width={width} height={height} className="fill-surface stroke-outline"
         strokeWidth={1} vectorEffect="non-scaling-stroke" />
       <rect x={left} y={top} width={textWidth} height={textHeight}
-        className={invalid ? 'fill-danger-subtle stroke-danger' : 'fill-brand-subtle stroke-brand'}
+        className={invalid ? 'fill-error-container stroke-error' : 'fill-primary-container stroke-primary'}
         strokeWidth={1} strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />
       {Array.from({ length: rows }, (_, i) => (
         <rect key={i} x={left + step * 0.3} y={top + step * (i + 0.7)} rx={1}
           width={Math.max((i === 0 ? rowWidth * 0.55 : rowWidth) - step * 0.6, 0)} height={step * 0.35}
-          className="fill-stroke-strong" />
+          className="fill-outline" />
       ))}
     </svg>
   );

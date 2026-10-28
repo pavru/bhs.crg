@@ -94,11 +94,11 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
             className={FIELD} />
           <Tooltip content="Сохранить название" name>
             <button type="button" onClick={() => void rename()}
-              className="text-fg3 hover:text-brand p-1"><Check size={14} /></button>
+              className="text-fg3 hover:text-primary p-1"><Check size={14} /></button>
           </Tooltip>
           <Tooltip content="Отменить" name>
             <button type="button" onClick={() => setEditing(null)}
-              className="text-fg3 hover:text-fg1 p-1"><X size={14} /></button>
+              className="text-fg3 hover:text-on-surface p-1"><X size={14} /></button>
           </Tooltip>
         </>
       ) : (
@@ -107,24 +107,24 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
           <Tooltip content={`Переименовать «${article.name}»`} name>
             <button type="button"
               onClick={() => setEditing({ id: article.id, name: article.name })}
-              className="text-fg3 hover:text-brand p-1"><Pencil size={14} /></button>
+              className="text-fg3 hover:text-primary p-1"><Pencil size={14} /></button>
           </Tooltip>
           {article.archived ? (
             <Tooltip content={`Вернуть «${article.name}» из архива`} name>
               <button type="button" disabled={archive.isPending}
                 onClick={() => void setArchived(article, false)}
-                className="text-fg3 hover:text-brand p-1"><ArchiveRestore size={14} /></button>
+                className="text-fg3 hover:text-primary p-1"><ArchiveRestore size={14} /></button>
             </Tooltip>
           ) : (
             <Tooltip content={`В архив «${article.name}»`} name>
               <button type="button" disabled={archive.isPending}
                 onClick={() => void setArchived(article, true)}
-                className="text-fg3 hover:text-brand p-1"><Archive size={14} /></button>
+                className="text-fg3 hover:text-primary p-1"><Archive size={14} /></button>
             </Tooltip>
           )}
           <Tooltip content={`Удалить «${article.name}»`} name>
             <button type="button" onClick={() => setDeleting(article)}
-              className="text-fg3 hover:text-danger p-1"><Trash2 size={14} /></button>
+              className="text-fg3 hover:text-error p-1"><Trash2 size={14} /></button>
           </Tooltip>
         </>
       )}
@@ -137,10 +137,10 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
         Цели разноски, которые не стройка: склад, общие расходы. В выборе «куда» они идут группой «Вне строек».
       </p>
 
-      {articles.isError && <p className="text-xs text-danger mb-2">Справочник не загрузился — {String(articles.error)}</p>}
+      {articles.isError && <p className="text-xs text-error mb-2">Справочник не загрузился — {String(articles.error)}</p>}
 
-      <div className="border-y border-stroke text-sm mb-3">
-        <ul className="divide-y divide-stroke">
+      <div className="border-y border-outline-variant text-sm mb-3">
+        <ul className="divide-y divide-outline-variant">
           {articles.data && live.length === 0 && (
             <li className="py-2 text-fg4 text-xs">{gone.length ? 'Действующих статей нет.' : 'Статей пока нет.'}</li>
           )}
@@ -148,7 +148,7 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
         </ul>
         {/* Раскрытие — рядом со списком, а не внутри него: кнопка не пункт списка. */}
         <ArchivedRows count={gone.length}>
-          <ul className="divide-y divide-stroke border-t border-stroke">{gone.map(row)}</ul>
+          <ul className="divide-y divide-outline-variant border-t border-outline-variant">{gone.map(row)}</ul>
         </ArchivedRows>
       </div>
 
@@ -171,4 +171,4 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-const FIELD = `flex-1 rounded border border-stroke bg-surface px-2 py-1 text-sm text-fg1 outline-none focus:border-brand`;
+const FIELD = `flex-1 rounded border border-outline-variant bg-surface px-2 py-1 text-sm text-on-surface outline-none focus:border-primary`;

@@ -16,10 +16,10 @@ export function RefPickerCurrentArchived({ name, onKeep }: { name: string; onKee
   return (
     <Tooltip content="Оставить как есть. После замены выбрать эту запись заново будет нельзя.">
       <button type="button" onClick={onKeep}
-        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded-md border border-stroke bg-base hover:bg-brand-subtle transition-colors">
+        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded-md border border-outline-variant bg-surface-container-low hover:bg-primary-container transition-colors">
         <Archive size={13} className="text-fg3 shrink-0" />
         <span className="text-fg3 shrink-0">Сейчас:</span>
-        <span className="flex-1 font-medium text-fg1 truncate">{name}</span>
+        <span className="flex-1 font-medium text-on-surface truncate">{name}</span>
         <span className="text-caption text-fg3 shrink-0">{ARCHIVED_WORD}</span>
       </button>
     </Tooltip>
@@ -74,7 +74,7 @@ export function RefPickerArchive({ entries, onReturned, selectsAtOnce }: {
         {entries.map(entry => (
           <li key={entry.id} className="flex items-center gap-3 px-3 py-1.5 text-sm rounded-md">
             <Archive size={13} className="text-fg4 shrink-0" />
-            <span className="flex-1 text-fg2 truncate">{entry.displayName}</span>
+            <span className="flex-1 text-on-surface-variant truncate">{entry.displayName}</span>
             {canReturn && (
               <Button variant="tonal" size="sm" icon={<ArchiveRestore size={13} />}
                 loading={unarchive.isPending && unarchive.variables?.id === entry.id}

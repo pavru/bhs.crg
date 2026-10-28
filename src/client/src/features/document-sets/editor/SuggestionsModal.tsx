@@ -34,13 +34,13 @@ export function SuggestionsModal({ suggestions, setSuggestions, suggestSel, setS
           Подходящих документов не найдено. Свяжите несколько материалов вручную — дальше похожие предложатся автоматически.
         </p>
       ) : (
-        <div className="divide-y divide-muted border border-stroke rounded-md max-h-[55vh] overflow-y-auto">
+        <div className="divide-y divide-surface-container border border-outline-variant rounded-md max-h-[55vh] overflow-y-auto">
           {(suggestions ?? []).map(s => (
-            <label key={s.materialKey} className="flex items-center gap-3 px-3 py-2 text-sm cursor-pointer hover:bg-base">
+            <label key={s.materialKey} className="flex items-center gap-3 px-3 py-2 text-sm cursor-pointer hover:bg-surface-container-low">
               <input type="checkbox" checked={suggestSel.has(s.materialKey)}
                 onChange={() => setSuggestSel(prev => toggleInSet(prev, s.materialKey))}
-                className="w-4 h-4 rounded border-stroke-strong text-brand" />
-              <span className="flex-1 truncate text-fg1">{s.materialName}</span>
+                className="w-4 h-4 rounded border-outline text-primary" />
+              <span className="flex-1 truncate text-on-surface">{s.materialName}</span>
               <span className="text-fg4">→</span>
               <span className="flex-1 truncate text-brand-hover">{s.docDisplayName}</span>
               <span className="text-xs text-fg4 shrink-0">{Math.round(s.score * 100)}%</span>

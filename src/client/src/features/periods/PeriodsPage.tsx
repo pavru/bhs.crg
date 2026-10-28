@@ -152,7 +152,7 @@ function Closed({ state }: { state: PeriodContourState }) {
   // строка выглядит сломанной — закрыта, а открыть нечем.
   const byCompany = state.constructionId && state.ownClosedThrough !== state.closedThrough;
   return (
-    <span className="text-fg1 tabular-nums">
+    <span className="text-on-surface tabular-nums">
       по {ruDate(state.closedThrough)}
       {byCompany && <span className="text-fg3"> — закрытием компании</span>}
     </span>
@@ -206,8 +206,8 @@ export function CloseDialog({ state, name, today, sites, onDone }: {
       footer={
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
           {unfinished && (
-            <span className="mr-auto text-note text-fg2">
-              Не завершено: <span className="font-medium text-fg1">{unfinished}</span>
+            <span className="mr-auto text-note text-on-surface-variant">
+              Не завершено: <span className="font-medium text-on-surface">{unfinished}</span>
             </span>
           )}
           <ModalExit />
@@ -250,21 +250,21 @@ export function CloseDialog({ state, name, today, sites, onDone }: {
           <DateField label="По (включительно)" value={through} onChange={v => { setThrough(v); setError(null); }} required
             min={(state.expectedFrom ?? firstFrom) || undefined} />
         </div>
-        <p className="text-note text-fg2">
+        <p className="text-note text-on-surface-variant">
           {through
             ? <>Будет закрыто всё по {ruDate(through)} включительно.</>
             : <>Назовите последний день периода.</>}
           {!state.constructionId && ` ${companyClosingNote(sites)}`}
         </p>
         {backwards ? (
-          <p role="alert" className="text-note text-danger">
+          <p role="alert" className="text-note text-error">
             {state.expectedFrom
               ? <>Период по {ruDate(through)} уже закрыт: следующий начинается {ruDate(from)}. Назовите конец
                 не раньше этого дня.</>
               : <>Конец периода раньше начала. Поправьте одну из дат.</>}
           </p>
         ) : previewFailed ? (
-          <p role="alert" className="text-note text-danger">
+          <p role="alert" className="text-note text-error">
             {apiError(preview.error, 'Не удалось узнать, что попадёт в период.')} Без перечня закрыть нельзя.
           </p>
         ) : preview.data ? (
@@ -272,7 +272,7 @@ export function CloseDialog({ state, name, today, sites, onDone }: {
             <ClosingSections sections={preview.data.sections} stale={!seen} before={before} />
             {/* Сервер сверяет весь перечень, а на экране — не всё: суммы бывают скрыты правом. */}
             {before && seen && !visiblyChanged(before, seen.sections) && (
-              <p role="note" className="text-note text-fg2">
+              <p role="note" className="text-note text-on-surface-variant">
                 Числа на экране прежние: изменилось то, чего здесь не видно, — например, суммы, скрытые
                 правом. Перечень перечитан — закрыть можно.
               </p>
@@ -284,7 +284,7 @@ export function CloseDialog({ state, name, today, sites, onDone }: {
         {/* Отказ закрытия — о датах, с которыми его отправляли. Сменили дату — он уже не о том. А когда
             период «наоборот», причина названа выше, и точнее: рядом с «период уже закрыт» строка «не
             удалось закрыть» противоречила бы ей — так бывает, когда закрытие прошло, а ответ потерялся. */}
-        {error && !backwards && <p role="alert" className="text-note text-danger">{error}</p>}
+        {error && !backwards && <p role="alert" className="text-note text-error">{error}</p>}
       </div>
     </Modal>
   );
@@ -326,7 +326,7 @@ export function ReopenDialog({ state, name, nameOf, sites, onDone }: {
         </div>
       }>
       <div className="space-y-4">
-        <p className="text-note text-fg2">
+        <p className="text-note text-on-surface-variant">
           Отменяется последнее закрытие — с {ruDate(target.from)} по {ruDate(target.through)}. Эти
           дни снова станут открытыми. Учётные даты, записанные, пока период был закрыт, останутся как
           легли. Запись о закрытии не стирается: отмена записывается рядом, с причиной.
@@ -340,7 +340,7 @@ export function ReopenDialog({ state, name, nameOf, sites, onDone }: {
         )}
         <TextAreaField label="Причина отмены" value={reason} onChange={e => setReason(e.target.value)}
           rows={3} required hint="её увидят в истории и в журнале действий" />
-        {error && <p role="alert" className="text-note text-danger">{error}</p>}
+        {error && <p role="alert" className="text-note text-error">{error}</p>}
       </div>
     </Modal>
   );
@@ -357,11 +357,11 @@ function History({ records, nameOf }: {
 
   return (
     <>
-      <h2 className="text-sm font-semibold text-fg2 mt-6 mb-2">История</h2>
+      <h2 className="text-sm font-semibold text-on-surface-variant mt-6 mb-2">История</h2>
       <DataGrid rows={records} rowKey={r => r.id} columns={[
         { key: 'at', label: 'Когда', width: 'w-36',
           cell: r => <span className="text-fg3 tabular-nums">{formatDateTime(r.at)}</span> },
-        { key: 'byName', label: 'Кто', width: 'w-52', wrap: true, cell: r => <span className="text-fg2 break-all">{r.byName}</span> },
+        { key: 'byName', label: 'Кто', width: 'w-52', wrap: true, cell: r => <span className="text-on-surface-variant break-all">{r.byName}</span> },
         { key: 'what', label: 'Что', wrap: true,
           cell: r => (
             <>
@@ -373,12 +373,12 @@ function History({ records, nameOf }: {
               {r.kind === 'Close' && (r.report ? (
                 <>
                   <button type="button" aria-expanded={open.has(r.id)} onClick={() => toggle(r.id)}
-                    className="mt-0.5 inline-flex items-center gap-0.5 text-xs text-brand hover:underline">
+                    className="mt-0.5 inline-flex items-center gap-0.5 text-xs text-primary hover:underline">
                     {open.has(r.id) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                     Что показал диалог при закрытии
                   </button>
                   {open.has(r.id) && (
-                    <div className="mt-1.5 mb-1 border-l-2 border-stroke pl-3 whitespace-normal">
+                    <div className="mt-1.5 mb-1 border-l-2 border-outline-variant pl-3 whitespace-normal">
                       {/* Записанное — цитата, его не трогаем; меняется подпись над ним (E2, разбор Дизайнера, п. 8).
                           Она верна для любой записи: старые отличать не нужно. Модулей экран ядра не знает —
                           поэтому «документы», а не «счета». */}

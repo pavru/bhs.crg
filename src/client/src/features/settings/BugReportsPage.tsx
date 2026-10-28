@@ -66,9 +66,9 @@ export function BugReportsPage() {
     <button key={r.id} type="button" onClick={() => { ld.showDetail(); setPicked(r.id); }}
       aria-current={r.id === selectedId ? 'true' : undefined}
       className={`w-full text-left px-3 py-2 rounded-xl transition-colors ${
-        r.id === selectedId ? 'bg-brand-subtle' : 'hover:bg-muted'}`}>
+        r.id === selectedId ? 'bg-primary-container' : 'hover:bg-surface-container'}`}>
       <div className="flex items-start gap-2">
-        <span className={`flex-1 min-w-0 text-sm truncate ${r.id === selectedId ? 'text-brand-hover font-medium' : 'text-fg1'}`}>
+        <span className={`flex-1 min-w-0 text-sm truncate ${r.id === selectedId ? 'text-brand-hover font-medium' : 'text-on-surface'}`}>
           {r.summary}
         </span>
         <ReportStatus status={r.status} />
@@ -161,10 +161,10 @@ function ReportBody({ report, githubConfigured }: {
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      <div className="shrink-0 px-6 py-4 border-b border-stroke bg-surface flex items-start gap-3">
+      <div className="shrink-0 px-6 py-4 border-b border-outline-variant bg-surface flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-medium text-fg1 truncate">{report.author}</h2>
+            <h2 className="text-base font-medium text-on-surface truncate">{report.author}</h2>
             <ReportStatus status={report.status} />
           </div>
           <p className="text-xs text-fg3 mt-0.5">
@@ -208,7 +208,7 @@ function ReportBody({ report, githubConfigured }: {
         {/* ── Слова автора ─────────────────────────────────────────────── */}
         <section className="space-y-1.5">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-fg4">Что произошло</h3>
-          <p className="text-sm text-fg1 whitespace-pre-wrap break-words">{report.message}</p>
+          <p className="text-sm text-on-surface whitespace-pre-wrap break-words">{report.message}</p>
         </section>
 
         {report.screenshotBlobPath && (
@@ -225,7 +225,7 @@ function ReportBody({ report, githubConfigured }: {
         {/* ── Техблок ──────────────────────────────────────────────────── */}
         <section>
           <button type="button" onClick={() => setTechOpen(o => !o)}
-            className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-fg4 hover:text-fg2 transition-colors">
+            className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-fg4 hover:text-on-surface-variant transition-colors">
             {techOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />} Технический контекст
           </button>
           {techOpen && <TechBlock tech={report.tech} />}
@@ -255,14 +255,14 @@ function ReportBody({ report, githubConfigured }: {
             onChange={e => setDraft(e.target.value)}
             rows={16}
             spellCheck={false}
-            className="w-full rounded-xl border border-stroke-strong bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-fg1 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand"
+            className="w-full rounded-xl border border-outline bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-on-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
           />
           <p className="text-xs text-fg4">
             Markdown. Уберите внутреннее — названия строек, организаций и объектов: репозиторий
             публичный. Заголовок issue вы напишете сами при создании.
             {report.githubIssueUrl && (
               <> {' '}<a href={report.githubIssueUrl} target="_blank" rel="noreferrer"
-                className="text-brand hover:underline">Открыть issue #{report.githubIssueNumber}</a></>
+                className="text-primary hover:underline">Открыть issue #{report.githubIssueNumber}</a></>
             )}
           </p>
           {/* «Скопировать» осталось рядом с отправкой намеренно: issue заводят не только из этой
@@ -305,7 +305,7 @@ function ReportBody({ report, githubConfigured }: {
       >
         {githubConfigured ? (
           <div className="space-y-3">
-            <p className="text-sm text-danger">
+            <p className="text-sm text-error">
               После отправки текст станет публичным: репозиторий открыт для всех. Проверьте, что в
               нём не осталось названий строек, организаций и объектов.
             </p>
@@ -318,19 +318,19 @@ function ReportBody({ report, githubConfigured }: {
               экрана не передаётся.
             </p>
             {forwardError && (
-              <p className="flex items-start gap-1.5 text-sm text-danger">
+              <p className="flex items-start gap-1.5 text-sm text-error">
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {forwardError}
               </p>
             )}
           </div>
         ) : (
-          <div className="space-y-2 text-sm text-fg2">
+          <div className="space-y-2 text-sm text-on-surface-variant">
             <p>
               Чтобы заводить issue из системы, нужен токен GitHub с правом <b>issues: write</b> на
               репозиторий продукта.
             </p>
             <p className="text-fg3">
-              Укажите его в <Link to="/settings" className="text-brand hover:underline">настройках
+              Укажите его в <Link to="/settings" className="text-primary hover:underline">настройках
               интеграций</Link>, раздел «Передача в GitHub». До этого текст можно перенести кнопкой
               «Скопировать».
             </p>
@@ -378,13 +378,13 @@ function ReportBody({ report, githubConfigured }: {
         }
       >
         <div className="space-y-3">
-          <p className="text-sm text-fg2">
+          <p className="text-sm text-on-surface-variant">
             Автор получит уведомление с этим номером — по нему он поймёт, ждать ли обновления.
           </p>
           <TextField label="Версия" value={version} autoFocus
             onChange={e => setVersion(e.target.value)} hint="Например, 0.145.0" />
           {fixError && (
-            <p className="flex items-start gap-1.5 text-sm text-danger">
+            <p className="flex items-start gap-1.5 text-sm text-error">
               <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {fixError}
             </p>
           )}

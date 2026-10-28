@@ -40,7 +40,7 @@ export function LockedFieldValue({ value }: { value: unknown }) {
     : typeof value === 'object' ? JSON.stringify(value) : String(value);
   return (
     <Tooltip content={shown ?? undefined}>
-      <div className="w-full border rounded-md px-3 py-2 text-sm text-fg3 bg-muted border-stroke truncate">
+      <div className="w-full border rounded-md px-3 py-2 text-sm text-fg3 bg-surface-container border-outline-variant truncate">
         {shown ?? <em className="text-fg4">нет значения</em>}
       </div>
     </Tooltip>

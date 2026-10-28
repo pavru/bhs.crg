@@ -22,23 +22,23 @@ export function PickerOption({ row, id, active, enter, narrow, kinds, onChoose, 
   onHover: (id: string) => void;
 }) {
   const tone = row.best
-    ? `bg-brand-subtle ${active ? 'ring-1 ring-brand/40' : ''}`
-    : active ? 'bg-muted' : 'hover:bg-muted';
+    ? `bg-primary-container ${active ? 'ring-1 ring-primary/40' : ''}`
+    : active ? 'bg-surface-container' : 'hover:bg-surface-container';
   return (
     <div id={id} role="option" aria-selected={active}
       onClick={() => onChoose(row)} onMouseMove={() => { if (!active) onHover(row.id); }}
       className={`cursor-pointer px-2 py-1.5 rounded-md flex items-baseline gap-2 ${tone}`}>
       <span className="min-w-0 flex-1">
-        {row.best && <span className="block text-caption font-medium text-brand">Лучшее совпадение</span>}
-        <span className="block text-sm text-fg1">{row.name ?? 'без названия'}</span>
+        {row.best && <span className="block text-caption font-medium text-primary">Лучшее совпадение</span>}
+        <span className="block text-sm text-on-surface">{row.name ?? 'без названия'}</span>
         {row.why && <span className="block text-caption text-fg3">{row.why}</span>}
       </span>
       {kinds && row.type && <span className="text-caption text-fg4 shrink-0">{row.type}</span>}
       {/* На узком окне без карточки выбирается только лучшее: остальные открывают карточку (issue #1518). */}
-      <span className="text-xs text-brand shrink-0 whitespace-nowrap" aria-hidden>
+      <span className="text-xs text-primary shrink-0 whitespace-nowrap" aria-hidden>
         {narrow && !row.best ? '›' : 'Выбрать'}
         {enter && (
-          <kbd className="ml-1 rounded border border-stroke bg-surface px-1 font-mono text-caption text-fg3">Enter</kbd>
+          <kbd className="ml-1 rounded border border-outline-variant bg-surface px-1 font-mono text-caption text-fg3">Enter</kbd>
         )}
       </span>
     </div>
@@ -86,7 +86,7 @@ export function CandidatesBlock({ asked, answer, rows, more, current, headingId,
     <div className="space-y-1.5">
       {current && (
         <p className="text-xs text-fg3">
-          Сейчас: <span className="text-fg1">
+          Сейчас: <span className="text-on-surface">
             {current.lost ? current.lostText ?? LOST.position
               : withArchiveWord(current.name ?? 'позиция без названия', !!current.archived)}
           </span>
@@ -105,11 +105,11 @@ export function CandidatesBlock({ asked, answer, rows, more, current, headingId,
         <p className="text-xs text-fg4">В строке нет наименования — подобрать нечего. Найдите позицию поиском.</p>
       ) : (
         <>
-          <h4 id={headingId} className="text-xs font-medium text-fg2">Подходящие для этой строки</h4>
+          <h4 id={headingId} className="text-xs font-medium text-on-surface-variant">Подходящие для этой строки</h4>
           {answer.isPending && (
             <div aria-busy="true" className="space-y-1">
-              <div className="h-9 rounded-md bg-muted animate-pulse" />
-              <div className="h-9 rounded-md bg-muted animate-pulse" />
+              <div className="h-9 rounded-md bg-surface-container animate-pulse" />
+              <div className="h-9 rounded-md bg-surface-container animate-pulse" />
               <p className="text-xs text-fg4">Подбираем по словам строки…</p>
             </div>
           )}

@@ -83,10 +83,10 @@ export function OrphanObjectsSection() {
               Удалить
             </Button>
           )}
-          {busy && <Loader2 size={14} className="animate-spin text-brand" />}
+          {busy && <Loader2 size={14} className="animate-spin text-primary" />}
         </div>
 
-        {error && <p className="text-xs text-danger">{error}</p>}
+        {error && <p className="text-xs text-error">{error}</p>}
 
         {done !== null && <p className="text-xs text-success">Готово: удалено объектов {done}.</p>}
 
@@ -94,7 +94,7 @@ export function OrphanObjectsSection() {
           nothingToDo
             ? <p className="text-xs text-fg3">Потерянных объектов нет.</p>
             : (
-              <ul className="text-xs text-fg2 space-y-1">
+              <ul className="text-xs text-on-surface-variant space-y-1">
                 <li>Будет удалено: <b>{report.total}</b></li>
                 {report.objects > 0 && <li>Документов и записей общих данных: {report.objects}</li>}
                 {report.qualityDocuments > 0 && <li>Документов качества: {report.qualityDocuments}</li>}

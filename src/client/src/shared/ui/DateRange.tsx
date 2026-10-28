@@ -69,7 +69,7 @@ export function DateRange({
   const common = { precision, size, max, disabled, readOnly, required, range, className: 'w-full' } as const;
   return (
     <fieldset className={`min-w-0 ${className}`}>
-      <legend className={labelHidden ? 'sr-only' : size === 'sm' ? 'mb-0.5 text-xs text-fg3' : 'mb-1 text-sm font-medium text-fg1'}>{label}</legend>
+      <legend className={labelHidden ? 'sr-only' : size === 'sm' ? 'mb-0.5 text-xs text-fg3' : 'mb-1 text-sm font-medium text-on-surface'}>{label}</legend>
       <div className="@container">
         <div className="grid gap-1.5 items-center @[24rem]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
           <DateInput label={`${label}, с`} value={pair.from} onChange={v => give(v, pair.to)} onCommit={commitFrom}

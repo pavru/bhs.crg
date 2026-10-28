@@ -173,9 +173,9 @@ export function BugReportDialog({ open, prefill, onClose }: {
           </div>
 
           {shot && (
-            <div className="rounded-xl border border-stroke p-2 space-y-2">
+            <div className="rounded-xl border border-outline-variant p-2 space-y-2">
               {/* Честность не предупреждением, а показом: человек видит ровно то, что уйдёт. */}
-              <img src={shot.url} alt="Снимок экрана" className="max-h-56 w-auto rounded-lg border border-stroke" />
+              <img src={shot.url} alt="Снимок экрана" className="max-h-56 w-auto rounded-lg border border-outline-variant" />
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs text-fg3">
                   Уйдёт администратору вместе с сообщением. Проверьте, нет ли лишнего.
@@ -190,11 +190,11 @@ export function BugReportDialog({ open, prefill, onClose }: {
         </div>
 
         {/* ── Что уйдёт вместе с сообщением ─────────────────────────────── */}
-        <div className="rounded-xl border border-stroke">
+        <div className="rounded-xl border border-outline-variant">
           <button
             type="button"
             onClick={() => setContextOpen(o => !o)}
-            className="w-full flex items-center gap-1.5 px-3 py-2 text-left text-xs text-fg3 hover:text-fg2 transition-colors"
+            className="w-full flex items-center gap-1.5 px-3 py-2 text-left text-xs text-fg3 hover:text-on-surface-variant transition-colors"
           >
             {contextOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
             Вместе с сообщением уйдёт: версия · экран · браузер · последние ошибки API
@@ -203,7 +203,7 @@ export function BugReportDialog({ open, prefill, onClose }: {
         </div>
 
         {error && (
-          <p className="flex items-start gap-1.5 text-sm text-danger">
+          <p className="flex items-start gap-1.5 text-sm text-error">
             <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {error}
           </p>
         )}

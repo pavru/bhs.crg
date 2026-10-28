@@ -132,19 +132,19 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
         <Dialog.Content
           data-modal-state="transient"
           aria-describedby={undefined}
-          className="fixed left-1/2 top-16 z-50 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 overflow-hidden rounded-[28px] border border-stroke bg-surface focus:outline-none"
+          className="fixed left-1/2 top-16 z-50 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 overflow-hidden rounded-[28px] border border-outline-variant bg-surface focus:outline-none"
           style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}
         >
           <Dialog.Title className="sr-only">Поиск и действия</Dialog.Title>
-          <div className="flex items-center gap-3 border-b border-stroke pl-5 pr-4">
-            <Search size={18} aria-hidden className="shrink-0 text-brand" />
+          <div className="flex items-center gap-3 border-b border-outline-variant pl-5 pr-4">
+            <Search size={18} aria-hidden className="shrink-0 text-primary" />
             <input
               ref={input} autoFocus value={query} onKeyDown={onKey} aria-label="Поиск и действия"
               onChange={e => { setQuery(e.target.value); setActive(0); }}
               placeholder="Найти раздел или действие…"
-              className="h-14 flex-1 bg-transparent text-base text-fg1 outline-none placeholder:text-fg4"
+              className="h-14 flex-1 bg-transparent text-base text-on-surface outline-none placeholder:text-fg4"
             />
-            <kbd className="rounded-md bg-muted px-2 py-0.5 font-mono text-caption text-fg3">Esc</kbd>
+            <kbd className="rounded-md bg-surface-container px-2 py-0.5 font-mono text-caption text-fg3">Esc</kbd>
           </div>
 
           <div role="group" aria-label="Где искать" className="flex flex-wrap gap-2 px-5 pt-3 pb-1">
@@ -169,15 +169,15 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
                   <button
                     type="button" onMouseEnter={() => setActive(i)} onClick={() => exec(it)} data-active={i === current}
                     className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
-                      i === current ? 'bg-tonal text-on-tonal' : 'text-fg1'}`}
+                      i === current ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'}`}
                   >
                     <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${
-                      it.kind === 'action' ? 'bg-brand-subtle text-on-brand-subtle' : 'bg-muted text-fg3'}`}>
+                      it.kind === 'action' ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-fg3'}`}>
                       <it.icon size={16} aria-hidden />
                     </span>
                     <span className="flex-1">
                       {highlight(it.label, words).map((p, k) => p.hit
-                        ? <mark key={k} className="rounded-sm bg-warning-subtle text-inherit">{p.text}</mark>
+                        ? <mark key={k} className="rounded-sm bg-warning-container text-inherit">{p.text}</mark>
                         : <Fragment key={k}>{p.text}</Fragment>)}
                       {/* Заголовок группы диктору не читается — группа звучит у самого пункта: «Вне
                           пространства» иначе слышно не было бы (ревью PR #1478). */}
@@ -194,7 +194,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
             ))}
           </ul>
 
-          <div className="flex flex-wrap gap-x-5 gap-y-1.5 border-t border-stroke bg-base px-5 py-3 text-caption text-fg3">
+          <div className="flex flex-wrap gap-x-5 gap-y-1.5 border-t border-outline-variant bg-surface-container-low px-5 py-3 text-caption text-fg3">
             <span><b className="font-medium">↑ ↓</b> выбрать</span>
             <span><b className="font-medium">Enter</b> открыть</span>
             <span className="flex-1" />

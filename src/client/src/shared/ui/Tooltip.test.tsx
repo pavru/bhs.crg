@@ -59,7 +59,7 @@ describe('Tooltip', () => {
     render(
       <Tooltip content="Нечего сохранять">
         <button type="button" disabled onClick={onClick}
-          className="px-2 hover:bg-muted disabled:opacity-40 disabled:pointer-events-none">Сохранить</button>
+          className="px-2 hover:bg-surface-container disabled:opacity-40 disabled:pointer-events-none">Сохранить</button>
       </Tooltip>,
     );
     const button = screen.getByRole('button', { name: 'Сохранить' }) as HTMLButtonElement;

@@ -45,7 +45,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
   if (estimate.isError) return (
     <div className="space-y-3">
       <BackLink back={back} />
-      <p role="alert" className="text-sm text-danger">{apiError(estimate.error, 'Смета не прочиталась')}</p>
+      <p role="alert" className="text-sm text-error">{apiError(estimate.error, 'Смета не прочиталась')}</p>
     </div>
   );
   if (!estimate.data) return <p className="text-sm text-fg4">Читаем смету…</p>;
@@ -56,7 +56,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
     <div className="space-y-3">
       <BackLink back={back} />
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-base font-semibold text-fg1 min-w-0 truncate">{data.name}</h2>
+        <h2 className="text-base font-semibold text-on-surface min-w-0 truncate">{data.name}</h2>
         <StatusBadge tone="neutral">{KIND_LABEL[data.kind]}</StatusBadge>
         {editable && (
           <Button variant="outlined" size="sm" className="ml-auto" icon={<Upload size={16} aria-hidden />} onClick={() => setImporting({})}>Новая редакция</Button>
@@ -83,7 +83,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
 
 function BackLink({ back }: { back: { to: string; label: string } }) {
   return (
-    <Link to={back.to} className="inline-flex items-center gap-1 text-sm text-brand hover:underline">
+    <Link to={back.to} className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
       <ChevronLeft size={16} aria-hidden /> {back.label}
     </Link>
   );
@@ -107,11 +107,11 @@ function RevisionTabs({ estimate, selected, onSelect }: {
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content align="start" sideOffset={4}
-              className="z-50 min-w-44 rounded-md border border-stroke bg-surface py-1"
+              className="z-50 min-w-44 rounded-md border border-outline-variant bg-surface py-1"
               style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
               {more.map(r => (
                 <DropdownMenu.Item key={r.id} onSelect={() => onSelect(r.id)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-fg2 cursor-pointer select-none outline-none data-[highlighted]:bg-base">
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-on-surface-variant cursor-pointer select-none outline-none data-[highlighted]:bg-surface-container-low">
                   {revisionLabel(r)}
                   <span className="ml-auto text-xs text-fg4">{formatDate(r.importedAt)}</span>
                 </DropdownMenu.Item>
@@ -135,7 +135,7 @@ function RevisionBand({ estimate, revision }: { estimate: Estimate; revision: Es
   const current = estimate.revisions.find(r => r.current) ?? null;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-muted px-3 py-2 text-sm text-fg2">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-surface-container px-3 py-2 text-sm text-on-surface-variant">
       <span>
         {formatDate(revision.importedAt)}
         {revision.importedBy && ` · ${revision.importedBy}`}
@@ -160,7 +160,7 @@ function RevisionBand({ estimate, revision }: { estimate: Estimate; revision: Es
         </StatusBadge>
       )}
       {/* Итог — только с правом: без него суммы нет вовсе, причину называет колонка стоимости таблицы. */}
-      {!closed && revision.cost && <span>итог <span className="font-medium text-fg1">{formatMoney(revision.cost.total)}</span></span>}
+      {!closed && revision.cost && <span>итог <span className="font-medium text-on-surface">{formatMoney(revision.cost.total)}</span></span>}
 
       {editable && !revision.current && (
         <Button variant="tonal" size="sm" className="ml-auto" onClick={() => setAsked({ id: revision.id, number: revision.number })}>

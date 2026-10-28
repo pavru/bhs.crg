@@ -261,7 +261,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
       <>
         <input type="checkbox" checked={selected.has(i)} onChange={() => toggleSelect(i)}
           aria-label={`Выбрать строку ${i + 1}`}
-          className="shrink-0 w-3.5 h-3.5 accent-brand cursor-pointer" />
+          className="shrink-0 w-3.5 h-3.5 accent-primary cursor-pointer" />
         <Tooltip content="Перетащить для изменения порядка (или стрелки ↑↓)">
           <button type="button" draggable data-grip={i}
             // Груз — страховка по спецификации, свой тип вместо text/plain (см. ROW_DRAG_MIME).
@@ -283,11 +283,11 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               focusRow.current = to;
             }}
             aria-label={`Переместить строку ${i + 1}: стрелки вверх и вниз`}
-            className="shrink-0 cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 focus-visible:outline-none focus-visible:text-brand">
+            className="shrink-0 cursor-grab active:cursor-grabbing text-fg4 hover:text-on-surface-variant focus-visible:outline-none focus-visible:text-primary">
             <GripVertical size={12} />
           </button>
         </Tooltip>
-        <span className={`text-xs font-mono w-5 text-right shrink-0 ${danger ? 'text-danger' : 'text-fg4'}`}>
+        <span className={`text-xs font-mono w-5 text-right shrink-0 ${danger ? 'text-error' : 'text-fg4'}`}>
           {i + 1}
         </span>
       </>
@@ -302,7 +302,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
    * «удалить вслепую», ради которого выбор снимается при сворачивании списка.</p>
    */
   function selectedRing(i: number) {
-    return selected.has(i) ? 'ring-1 ring-inset ring-brand' : '';
+    return selected.has(i) ? 'ring-1 ring-inset ring-primary' : '';
   }
 
   /** Обвязка строки: приём перетаскиваемой строки на своё место + подсветка цели. */
@@ -319,7 +319,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         setDragIdx(null); setDropIdx(null);
       },
       style: dragIdx !== null && dropIdx === i && dragIdx !== i
-        ? { outline: '2px solid var(--color-brand)', outlineOffset: '-2px' } : undefined,
+        ? { outline: '2px solid var(--color-primary)', outlineOffset: '-2px' } : undefined,
     };
   }
 
@@ -332,10 +332,10 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   }
 
   return (
-    <div className="border border-stroke rounded-lg overflow-hidden">
-      <div className={`flex items-center justify-between px-3 py-2 bg-base ${collapsed ? '' : 'border-b border-stroke'}`}>
+    <div className="border border-outline-variant rounded-lg overflow-hidden">
+      <div className={`flex items-center justify-between px-3 py-2 bg-surface-container-low ${collapsed ? '' : 'border-b border-outline-variant'}`}>
         <button type="button" onClick={toggleCollapsed}
-          className="flex items-center gap-1.5 min-w-0 text-sm font-medium text-fg2 hover:text-fg1 transition-colors">
+          className="flex items-center gap-1.5 min-w-0 text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors">
           {collapsed
             ? <ChevronDown size={12} className="shrink-0 text-fg4" />
             : <ChevronUp size={12} className="shrink-0 text-fg4" />}
@@ -351,13 +351,13 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
             оказалась бы за экраном — отметил строки вверху, а нажать нечего. */}
         {chosen.length > 0 ? (
           <div className="flex items-center gap-1">
-            <span className="text-xs text-fg2 px-1">Выбрано: {chosen.length}</span>
+            <span className="text-xs text-on-surface-variant px-1">Выбрано: {chosen.length}</span>
             <button type="button" onClick={() => setConfirmBulk(true)}
-              className="flex items-center gap-1 text-xs text-danger hover:text-danger px-2 py-0.5 rounded hover:bg-danger-subtle transition-colors">
+              className="flex items-center gap-1 text-xs text-error hover:text-error px-2 py-0.5 rounded hover:bg-error-container transition-colors">
               <Trash2 size={11} /> Удалить выбранные
             </button>
             <button type="button" onClick={() => setSelected(new Set())}
-              className="text-xs text-fg4 hover:text-fg2 px-2 py-0.5 rounded hover:bg-stroke transition-colors">
+              className="text-xs text-fg4 hover:text-on-surface-variant px-2 py-0.5 rounded hover:bg-outline-variant transition-colors">
               Снять выбор
             </button>
           </div>
@@ -365,18 +365,18 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         <div className="flex items-center gap-1">
           {hasTableFields && (
             <button type="button" onClick={() => setTableOpen(true)}
-              className="flex items-center gap-1 text-xs text-fg3 hover:text-fg2 px-2 py-0.5 rounded hover:bg-stroke transition-colors">
+              className="flex items-center gap-1 text-xs text-fg3 hover:text-on-surface-variant px-2 py-0.5 rounded hover:bg-outline-variant transition-colors">
               <FileSpreadsheet size={11} /> Таблица
             </button>
           )}
           {compositeType && (
             <button type="button" onClick={() => setCatalogPickerOpen(true)}
-              className="flex items-center gap-1 text-xs text-warning hover:text-warning px-2 py-0.5 rounded hover:bg-warning-subtle transition-colors">
+              className="flex items-center gap-1 text-xs text-warning hover:text-warning px-2 py-0.5 rounded hover:bg-warning-container transition-colors">
               <Link2 size={11} /> Из каталога
             </button>
           )}
           <button type="button" onClick={addRow}
-            className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover px-2 py-0.5 rounded hover:bg-brand-subtle transition-colors">
+            className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover px-2 py-0.5 rounded hover:bg-primary-container transition-colors">
             <Plus size={11} /> Добавить строку
           </button>
         </div>
@@ -386,7 +386,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         <p className="text-xs text-fg4 text-center py-3">Нет строк — нажмите «Добавить строку» или «Из каталога»</p>
       )}
       {!collapsed && allItems.length > 0 && (
-        <div ref={listRef} className="divide-y divide-muted">
+        <div ref={listRef} className="divide-y divide-surface-container">
           {allItems.map((item, i) => {
             if (isFieldRef(item)) {
               const path = markPath(i);
@@ -397,10 +397,10 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                     <div {...dropTarget(i)}
                       className={`flex items-center gap-2 px-3 py-2 ${BROKEN_PLATE} ${selectedRing(i)}`}>
                       {rowChrome(i, true)}
-                      <Link2 size={12} className="text-danger shrink-0" />
+                      <Link2 size={12} className="text-error shrink-0" />
                       <span className={`flex-1 text-sm truncate ${BROKEN_LABEL}`}>{item.displayName}</span>
                       <button type="button" onClick={() => removeItem(i)}
-                        className="p-1 text-danger hover:text-fg1 shrink-0"><Trash2 size={13} /></button>
+                        className="p-1 text-error hover:text-on-surface shrink-0"><Trash2 size={13} /></button>
                     </div>
                     <BrokenRefNote compact />
                   </div>
@@ -408,13 +408,13 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               }
               return (
                 <div key={i} {...dropTarget(i)}
-                  className={`flex items-center gap-2 px-3 py-2 ${selected.has(i) ? 'bg-brand-subtle' : 'hover:bg-base'}`}>
+                  className={`flex items-center gap-2 px-3 py-2 ${selected.has(i) ? 'bg-primary-container' : 'hover:bg-surface-container-low'}`}>
                   {rowChrome(i)}
                   <Link2 size={12} className="text-warning shrink-0" />
                   <span className="flex-1 text-sm text-warning truncate">{item.displayName}</span>
                   <ArchivedRefMark value={item} />
                   <button type="button" onClick={() => removeItem(i)}
-                    className="p-1 text-fg4 hover:text-danger shrink-0">
+                    className="p-1 text-fg4 hover:text-error shrink-0">
                     <Trash2 size={13} />
                   </button>
                 </div>
@@ -439,21 +439,21 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                 <div {...dropTarget(i)}
                   className={`flex items-center gap-2 px-3 py-2 ${wrappedBroken
                     ? `${BROKEN_PLATE} ${selectedRing(i)}`
-                    : selected.has(i) ? 'bg-brand-subtle' : 'hover:bg-base'}`}>
+                    : selected.has(i) ? 'bg-primary-container' : 'hover:bg-surface-container-low'}`}>
                   {rowChrome(i, wrappedBroken)}
-                  <Link2 size={12} className={`shrink-0 ${wrappedBroken ? 'text-danger' : 'text-warning'}`} />
+                  <Link2 size={12} className={`shrink-0 ${wrappedBroken ? 'text-error' : 'text-warning'}`} />
                   <span className={`flex-1 text-sm truncate ${wrappedBroken ? BROKEN_LABEL : 'text-warning'}`}>{wrapped.ref.displayName}</span>
                   <ArchivedRefMark value={wrapped.ref} />
                   <span className="text-caption text-fg4 shrink-0 truncate max-w-[40%]">{wrapped.label}</span>
                   {/* ✎ оставлен: это единственный вход сменить вариант и снять ссылку. */}
                   <Tooltip content="Редактировать" name>
                     <button type="button" onClick={() => setRowModal(i)}
-                      className="p-1 text-fg4 hover:text-fg2 shrink-0">
+                      className="p-1 text-fg4 hover:text-on-surface-variant shrink-0">
                       <Pencil size={13} />
                     </button>
                   </Tooltip>
                   <button type="button" onClick={() => removeItem(i)}
-                    className="p-1 text-fg4 hover:text-danger shrink-0">
+                    className="p-1 text-fg4 hover:text-error shrink-0">
                     <Trash2 size={13} />
                   </button>
                 </div>
@@ -471,10 +471,10 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
             // issue #102: строка — компактная сводка + ✎ (модалка), без инлайн-раскрытия (источник «портянки»).
             return (
               <div key={i} {...dropTarget(i)}
-                className={`flex items-center gap-2 px-3 py-2 ${selected.has(i) ? 'bg-brand-subtle' : 'hover:bg-base'}`}>
+                className={`flex items-center gap-2 px-3 py-2 ${selected.has(i) ? 'bg-primary-container' : 'hover:bg-surface-container-low'}`}>
                 {rowChrome(i)}
                 <button type="button" onClick={() => setRowModal(i)}
-                  className="flex-1 text-left text-sm text-fg2 hover:text-fg1 truncate">
+                  className="flex-1 text-left text-sm text-on-surface-variant hover:text-on-surface truncate">
                   {rowSummary(row)}
                 </button>
                 {extraVariants.length > 1 && (
@@ -486,12 +486,12 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                 )}
                 <Tooltip content="Редактировать" name>
                   <button type="button" onClick={() => setRowModal(i)}
-                    className="p-1 text-fg4 hover:text-fg2 shrink-0">
+                    className="p-1 text-fg4 hover:text-on-surface-variant shrink-0">
                     <Pencil size={13} />
                   </button>
                 </Tooltip>
                 <button type="button" onClick={() => removeItem(i)}
-                  className="p-1 text-fg4 hover:text-danger shrink-0">
+                  className="p-1 text-fg4 hover:text-error shrink-0">
                   <Trash2 size={13} />
                 </button>
               </div>
@@ -567,7 +567,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                       onChange={v => updateRow(rowModal, { ...rowObj, [sf.key]: v })} invalid={invalid}
                       primitiveTypeDef={primDef(sf)} enumTypeDef={enumDef(sf)} />
                   )}
-                  {invalid && <p className="text-xs text-danger mt-0.5">Обязательное поле</p>}
+                  {invalid && <p className="text-xs text-error mt-0.5">Обязательное поле</p>}
                 </div>
               );
             })}
@@ -698,17 +698,17 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
       return (
         <div>
           <div className={`flex items-center gap-1.5 rounded-lg pl-3 pr-1.5 py-1.5 ${BROKEN_PLATE}`}>
-            <Link2 size={16} className="text-danger shrink-0" />
+            <Link2 size={16} className="text-error shrink-0" />
             <span className={`flex-1 text-sm font-medium truncate ${BROKEN_LABEL}`}>{value.displayName}</span>
             <Tooltip content="Заменить ссылку" name>
               <button type="button" onClick={() => setPickerOpen(true)}
-                className="p-1.5 rounded-full text-danger hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0">
+                className="p-1.5 rounded-full text-error hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0">
                 <RefreshCw size={14} />
               </button>
             </Tooltip>
             <Tooltip content="Снять ссылку" name>
               <button type="button" onClick={() => onChange({})}
-                className="p-1.5 rounded-full text-danger hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0">
+                className="p-1.5 rounded-full text-error hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0">
                 <Unlink size={14} />
               </button>
             </Tooltip>
@@ -762,7 +762,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
               allDocTypes={allDocTypes} showValidation={showValidation} setId={setId}
               otherInstances={otherInstances} scope={scope} scopeId={scopeId}
               docRefMode={docRefMode} primitiveTypes={primitiveTypes} enumTypes={enumTypes} />
-            {invalid && <p className="text-xs text-danger mt-1">Обязательное поле</p>}
+            {invalid && <p className="text-xs text-error mt-1">Обязательное поле</p>}
           </div>
         );
       })}
@@ -773,18 +773,18 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   if (asWindow) {
     return (
       <>
-        <div className="flex items-center gap-2 border border-stroke rounded-lg px-3 py-2 bg-base">
+        <div className="flex items-center gap-2 border border-outline-variant rounded-lg px-3 py-2 bg-surface-container-low">
           <button type="button" onClick={() => setModalOpen(true)}
-            className="flex-1 min-w-0 text-left text-sm text-fg2 hover:text-fg1 truncate">
+            className="flex-1 min-w-0 text-left text-sm text-on-surface-variant hover:text-on-surface truncate">
             {isEmpty ? <span className="text-fg4">Заполнить…</span> : objectSummary(subValues, subFields, typeDefs)}
           </button>
           <button type="button" onClick={() => setPickerOpen(true)}
-            className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover px-2 py-0.5 rounded hover:bg-brand-subtle transition-colors shrink-0">
+            className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover px-2 py-0.5 rounded hover:bg-primary-container transition-colors shrink-0">
             <Link2 size={11} /> Из каталога
           </button>
           <Tooltip content="Редактировать" name>
             <button type="button" onClick={() => setModalOpen(true)}
-              className="p-1 text-fg4 hover:text-fg2 transition-colors shrink-0">
+              className="p-1 text-fg4 hover:text-on-surface-variant transition-colors shrink-0">
               <Pencil size={13} />
             </button>
           </Tooltip>
@@ -817,7 +817,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   // заполнением как равноправные действия, а не прячем «из каталога» в мелкую ссылку (issue #102, P2).
   if (isEmpty && collapsed) {
     return (
-      <div className="border border-dashed border-stroke rounded-lg px-3 py-3 bg-base/40">
+      <div className="border border-dashed border-outline-variant rounded-lg px-3 py-3 bg-surface-container-low/40">
         <div className="text-sm text-fg3 mb-2">{compositeType ? compositeType.name : 'Составной тип'}</div>
         <div className="flex flex-wrap gap-2">
           <Button variant="tonal" size="sm" icon={<Link2 size={13} />} onClick={() => setPickerOpen(true)}>
@@ -834,10 +834,10 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
 
   // Верхний уровень (инлайн, глубина 0): свёрнуто по умолчанию, заголовок — сводка значений (не «Тип (код)»).
   return (
-    <div className="border border-stroke rounded-lg overflow-hidden">
-      <div className={`flex items-center justify-between px-3 py-2 bg-base ${collapsed ? '' : 'border-b border-stroke'}`}>
+    <div className="border border-outline-variant rounded-lg overflow-hidden">
+      <div className={`flex items-center justify-between px-3 py-2 bg-surface-container-low ${collapsed ? '' : 'border-b border-outline-variant'}`}>
         <button type="button" onClick={() => setCollapsed(v => !v)}
-          className="flex items-center gap-1.5 min-w-0 text-sm font-medium text-fg2 hover:text-fg1 transition-colors">
+          className="flex items-center gap-1.5 min-w-0 text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors">
           {collapsed ? <ChevronDown size={12} className="shrink-0 text-fg4" /> : <ChevronUp size={12} className="shrink-0 text-fg4" />}
           <span className="truncate">
             {isEmpty
@@ -847,7 +847,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
         </button>
         <div className="flex items-center gap-1 shrink-0">
           <button type="button" onClick={() => setPickerOpen(true)}
-            className="flex items-center gap-1.5 text-xs text-brand hover:text-brand-hover px-2 py-0.5 rounded hover:bg-brand-subtle transition-colors">
+            className="flex items-center gap-1.5 text-xs text-primary hover:text-brand-hover px-2 py-0.5 rounded hover:bg-primary-container transition-colors">
             <Link2 size={11} /> Выбрать из каталога
           </button>
           {/* Обратное движение (issue #663) — в kebab, а не четвёртой кнопкой: конвенция «>3 действий
@@ -1002,9 +1002,9 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
   if (asWindow) {
     return (
       <>
-        <div className="flex items-center gap-2 border border-stroke rounded-lg px-3 py-2 bg-base">
+        <div className="flex items-center gap-2 border border-outline-variant rounded-lg px-3 py-2 bg-surface-container-low">
           <button type="button" onClick={() => setModalOpen(true)}
-            className="flex-1 min-w-0 text-left text-sm text-fg2 hover:text-fg1 truncate">
+            className="flex-1 min-w-0 text-left text-sm text-on-surface-variant hover:text-on-surface truncate">
             {unionSummary(activeSf, subValues[activeKey], { primitiveTypes, enumTypes })}
           </button>
           {/* Свёрнутая строка показывает ТОЛЬКО активный вариант, поэтому без метки она выглядела бы
@@ -1019,7 +1019,7 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
           )}
           <Tooltip content="Редактировать" name>
             <button type="button" onClick={() => setModalOpen(true)}
-              className="p-1 text-fg4 hover:text-fg2 transition-colors shrink-0"><Pencil size={13} /></button>
+              className="p-1 text-fg4 hover:text-on-surface-variant transition-colors shrink-0"><Pencil size={13} /></button>
           </Tooltip>
         </div>
         <Modal open={modalOpen} onOpenChange={setModalOpen} wide title={field.title}
@@ -1031,7 +1031,7 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
   }
 
   return (
-    <div className="border border-stroke rounded-lg p-3 space-y-3">
+    <div className="border border-outline-variant rounded-lg p-3 space-y-3">
       {bar}
       {activeEditor}
     </div>

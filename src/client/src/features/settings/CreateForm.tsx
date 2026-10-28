@@ -92,8 +92,8 @@ export function CreateForm({
       {kind === 'Document' && (
         <label className="flex items-center gap-2.5 cursor-pointer select-none">
           <input type="checkbox" checked={isAbstract} onChange={e => setIsAbstract(e.target.checked)}
-            className="w-4 h-4 rounded border-stroke-strong text-brand" />
-          <span className="text-sm font-medium text-fg2">Абстрактный тип</span>
+            className="w-4 h-4 rounded border-outline text-primary" />
+          <span className="text-sm font-medium text-on-surface-variant">Абстрактный тип</span>
           <span className="text-xs text-fg4">(нельзя добавить в комплект напрямую)</span>
         </label>
       )}
@@ -118,17 +118,17 @@ export function CreateForm({
           <p className="text-xs font-medium text-fg3 mb-2 uppercase tracking-wide">
             Наследуемые поля от «{parentType?.name}» ({parentEffectiveFields.length})
           </p>
-          <div className="border border-stroke rounded-lg bg-base px-3 py-2 space-y-1">
+          <div className="border border-outline-variant rounded-lg bg-surface-container-low px-3 py-2 space-y-1">
             {parentEffectiveFields.map(f => (
               <div key={f.key} className="flex items-center gap-3 text-xs text-fg3">
-                <span className="font-mono text-fg2 w-36 truncate">{f.key}</span>
+                <span className="font-mono text-on-surface-variant w-36 truncate">{f.key}</span>
                 <span className="flex-1 truncate">{f.title}</span>
                 <span className="text-fg4">
                   {f.type === 'complex'
                     ? (compositeTypes.find(c => c.id === f.typeId)?.name ?? 'Составной')
                     : (TYPE_LABELS[f.type] ?? f.type)}
                 </span>
-                <span className={f.required ? 'text-danger' : 'text-stroke-strong'}>
+                <span className={f.required ? 'text-error' : 'text-stroke-strong'}>
                   {f.required ? 'обязат.' : 'опц.'}
                 </span>
               </div>
@@ -142,13 +142,13 @@ export function CreateForm({
 
       <div>
         <div className="flex items-center justify-between mb-3">
-          <label className="text-sm font-medium text-fg2">
+          <label className="text-sm font-medium text-on-surface-variant">
             {parentEffectiveFields.length > 0 ? 'Собственные поля' : 'Поля'}
           </label>
           {fields.length > 0 && (
             <button type="button" onClick={() => setShowJson(v => !v)}
               className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded ${
-                showJson ? 'bg-fg1 text-muted' : 'text-fg3 hover:text-fg1 hover:bg-muted'
+                showJson ? 'bg-on-surface text-surface-container' : 'text-fg3 hover:text-on-surface hover:bg-surface-container'
               }`}>
               <Braces size={12} /> JSON
             </button>
@@ -159,9 +159,9 @@ export function CreateForm({
           : <FieldBuilder fields={fields} onChange={setFields} disabledKeys={inheritedKeys} compositeTypes={compositeTypes} primitiveTypes={primitiveTypes} enumTypes={enumTypes} allDocTypes={allDocTypes} />}
       </div>
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <p className="text-sm text-error">{error}</p>}
       </div>
-      <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-3">
+      <div className="shrink-0 px-6 py-3 border-t border-outline-variant flex justify-end gap-3">
         <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
         <Button type="submit" variant="filled" loading={mutation.isPending}>
           {mutation.isPending ? 'Создание…' : 'Создать'}

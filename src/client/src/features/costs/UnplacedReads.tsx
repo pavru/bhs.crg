@@ -62,14 +62,14 @@ export function UnplacedReads({ list }: { list: readonly UnplacedRead[] | null }
         {named.map((line, i) => (
           <Fragment key={line.key}>
             {i > 0 && ', '}
-            <span className="font-mono font-medium whitespace-pre text-fg2">{line.key}</span> ({inRows(line.rows)})
+            <span className="font-mono font-medium whitespace-pre text-on-surface-variant">{line.key}</span> ({inRows(line.rows)})
           </Fragment>
         ))}
         {more > 0 && ` и ещё ключей: ${more}`}
-        {header > 0 && <>{lineKeys.length > 0 ? ', и в шапке: ' : 'в шапке: '}<span className="font-medium text-fg2">{header}</span></>}
+        {header > 0 && <>{lineKeys.length > 0 ? ', и в шапке: ' : 'в шапке: '}<span className="font-medium text-on-surface-variant">{header}</span></>}
         {' '}
         <button type="button" aria-expanded={shown} onClick={() => setShown(s => !s)}
-          className="inline-flex items-center gap-0.5 text-brand hover:underline">
+          className="inline-flex items-center gap-0.5 text-primary hover:underline">
           {shown ? 'Скрыть' : 'Показать'}
           <ChevronDown size={12} aria-hidden className={shown ? 'rotate-180' : undefined} />
         </button>

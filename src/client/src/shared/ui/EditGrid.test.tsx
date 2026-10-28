@@ -212,7 +212,7 @@ describe('EditGrid (#1354)', () => {
     render(<EditGrid rows={rows} rowKey={r => r.key} selected={r => r.name === 'Б'}
       columns={[{ key: 'name', label: 'Имя', cell: r => r.name }]} />);
     const [, a, b] = screen.getAllByRole('row');
-    expect(a.className).not.toContain('bg-brand-subtle');
-    expect(b.className).toContain('bg-brand-subtle');
+    expect(a.className).not.toContain('bg-primary-container');
+    expect(b.className).toContain('bg-primary-container');
   });
 });

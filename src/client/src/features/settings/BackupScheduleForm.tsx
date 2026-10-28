@@ -94,7 +94,7 @@ export function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
   }
 
   return (
-    <div className="rounded-md border border-muted p-3 space-y-3">
+    <div className="rounded-md border border-surface-container p-3 space-y-3">
       <Checkbox checked={form.enabled} onChange={enabled => edit({ enabled })}
         label="Снимать копию автоматически"
         description={'Раз в сутки. Пропущенный запуск (сервер был выключен) выполняется при следующем старте; '
@@ -123,20 +123,20 @@ export function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
         </div>
       </div>
 
-      {nextRun && <p className="text-xs text-fg2">Ближайшая копия: <b>{nextRun}</b></p>}
+      {nextRun && <p className="text-xs text-on-surface-variant">Ближайшая копия: <b>{nextRun}</b></p>}
       <p className="text-xs text-fg4">
         Пояс меняется в разделе «Компания». Уборка старых копий касается <b>только плановых</b>: снятые
         вручную и принесённые с другого сервера остаются, пока их не удалят руками.
       </p>
 
       {error && (
-        <p className="text-xs text-danger flex items-start gap-1">
+        <p className="text-xs text-error flex items-start gap-1">
           <XCircle size={13} className="shrink-0 mt-px" /> <span>{error}</span>
         </p>
       )}
 
       {status.lastError ? (
-        <p className="text-xs text-danger flex items-start gap-1">
+        <p className="text-xs text-error flex items-start gap-1">
           <AlertTriangle size={13} className="shrink-0 mt-px" />
           <span>
             Последняя плановая копия не удалась

@@ -29,7 +29,7 @@ export function MoveButtons({
   upTitle?: string;
   downTitle?: string;
 }) {
-  const cls = `p-0.5 text-fg4 hover:text-fg2 aria-disabled:opacity-25 aria-disabled:hover:text-fg4 ${className}`;
+  const cls = `p-0.5 text-fg4 hover:text-on-surface-variant aria-disabled:opacity-25 aria-disabled:hover:text-fg4 ${className}`;
   const upBlocked = isFirst || busy;
   const downBlocked = isLast || busy;
   return (

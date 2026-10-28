@@ -22,7 +22,7 @@ import { Tooltip } from '@/shared/ui/Tooltip';
  * теме бренд СВЕТЛЫЙ (роль `primary` — светло-голубая, `on-primary` — тёмно-синяя), и белые линии
  * на нём исчезали вместе с белым текстом панели.</p>
  */
-const GRID_LINE = 'color-mix(in srgb, var(--color-on-brand) 8%, transparent)';
+const GRID_LINE = 'color-mix(in srgb, var(--color-on-primary) 8%, transparent)';
 const GRID_BG: React.CSSProperties = {
   backgroundImage:
     `linear-gradient(${GRID_LINE} 1px,transparent 1px),` +
@@ -49,33 +49,33 @@ export function LoginPage() {
     : '';
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-base p-4">
+    <div className="min-h-screen flex items-center justify-center bg-surface-container-low p-4">
       {/* Высота МИНИМАЛЬНАЯ, а не фиксированная: форма регистрации первого администратора выше
           формы входа на два поля и предупреждение, и при `h-[600px]` с `overflow-hidden` ей
           срезало заголовок сверху и кнопку снизу — экран, которым система встречает
           установившего, оказывался нерабочим (issue #826). */}
       <div
-        className="w-full max-w-md md:max-w-[900px] md:min-h-[600px] flex overflow-hidden rounded-[28px] bg-surface border border-stroke"
+        className="w-full max-w-md md:max-w-[900px] md:min-h-[600px] flex overflow-hidden rounded-[28px] bg-surface border border-outline-variant"
         style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}
       >
         {/* ── Бренд-панель (слева, только на широких экранах) ───────────────── */}
         <div
-          className="hidden md:flex md:w-[42%] flex-col justify-between p-11 bg-brand text-on-brand"
+          className="hidden md:flex md:w-[42%] flex-col justify-between p-11 bg-primary text-on-primary"
           style={GRID_BG}
         >
           {/* Название и логотип экземпляра (ТЗ CORE-25.1, issue #967). */}
           <div className="flex items-center gap-3">
-            <BrandLogo className="w-12 h-12 rounded-2xl bg-on-brand/20" iconSize={24} />
+            <BrandLogo className="w-12 h-12 rounded-2xl bg-on-primary/20" iconSize={24} />
             <span className="text-2xl font-medium tracking-wide">{productName}</span>
           </div>
           <div>
             <div className="text-3xl font-normal leading-tight">Исполнительная документация</div>
-            <p className="mt-4 text-base leading-relaxed text-on-brand/70 max-w-[300px]">
+            <p className="mt-4 text-base leading-relaxed text-on-primary/70 max-w-[300px]">
               Единая система ведения и согласования исполнительной документации по объекту строительства.
             </p>
           </div>
           <Tooltip content={version?.buildDate ? formatDateTime(version.buildDate) : undefined}>
-            <div className="text-xs tracking-wide text-on-brand/55">
+            <div className="text-xs tracking-wide text-on-primary/55">
               {versionLabel || ' '}
             </div>
           </Tooltip>
@@ -85,9 +85,9 @@ export function LoginPage() {
         <div className="flex-1 flex flex-col justify-center p-8 md:px-12 md:py-14">
           {/* Компактный бренд для узких экранов (панель скрыта) */}
           <div className="flex md:hidden items-center gap-3 mb-6">
-            <BrandLogo className="w-11 h-11 rounded-lg bg-brand text-on-brand"
+            <BrandLogo className="w-11 h-11 rounded-lg bg-primary text-on-primary"
               style={{ boxShadow: 'var(--md-sys-elevation-level1)' }} iconSize={22} />
-            <span className="text-2xl font-semibold text-brand leading-none">{productName}</span>
+            <span className="text-2xl font-semibold text-primary leading-none">{productName}</span>
           </div>
 
           {/* Пока не знаем, есть ли в системе пользователи, не рисуем НИЧЕГО. Показать вход и
@@ -135,7 +135,7 @@ function Waiting() {
 function Head({ title, subtitle }: { title: string; subtitle: ReactNode }) {
   return (
     <>
-      <h1 className="text-2xl font-normal text-fg1">{title}</h1>
+      <h1 className="text-2xl font-normal text-on-surface">{title}</h1>
       <p className="mt-1.5 mb-8 text-sm text-fg3">{subtitle}</p>
     </>
   );
@@ -191,14 +191,14 @@ function SignInForm() {
 
         <div className="flex justify-end -mt-2">
           <Link to="/forgot-password"
-            className="text-sm font-medium text-brand px-3 py-2 rounded-full hover:bg-brand/10 transition-colors">
+            className="text-sm font-medium text-primary px-3 py-2 rounded-full hover:bg-primary/10 transition-colors">
             Забыли пароль?
           </Link>
         </div>
 
         <Checkbox checked={remember} onChange={setRemember} label="Запомнить меня" />
 
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <p className="text-sm text-error">{error}</p>}
         <Button type="submit" variant="filled" size="lg" fullWidth loading={loading} className="mt-1">
           {loading ? 'Вход…' : 'Войти'}
         </Button>
@@ -285,7 +285,7 @@ function FirstAdminForm() {
           autoComplete="new-password" required minLength={PASSWORD_MIN_LENGTH}
           value={confirm} onChange={e => setConfirm(e.target.value)} />
 
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <p className="text-sm text-error">{error}</p>}
         <Button type="submit" variant="filled" size="lg" fullWidth loading={busy} className="mt-1">
           {busy ? 'Создаём…' : 'Создать администратора и войти'}
         </Button>

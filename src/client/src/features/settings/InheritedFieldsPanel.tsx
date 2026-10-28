@@ -58,12 +58,12 @@ export function InheritedFieldsPanel({
         const isExcluded = excludedSet.has(field.key);
         const override = fieldOverrides[field.key];
         return (
-          <div key={field.key} className={`${cols} rounded-md px-2 py-2 hover:bg-muted/50 transition-colors ${isExcluded ? 'opacity-55' : ''}`}>
+          <div key={field.key} className={`${cols} rounded-md px-2 py-2 hover:bg-surface-container/50 transition-colors ${isExcluded ? 'opacity-55' : ''}`}>
             <span className="flex items-center gap-1.5 min-w-0">
               {isExcluded && <EyeOff size={14} className="text-fg4 shrink-0" />}
-              <span className={`text-sm font-mono truncate ${isExcluded ? 'line-through text-fg4' : 'text-fg2'}`}>{field.key}</span>
+              <span className={`text-sm font-mono truncate ${isExcluded ? 'line-through text-fg4' : 'text-on-surface-variant'}`}>{field.key}</span>
             </span>
-            <span className="text-sm text-fg2 truncate">{field.title}</span>
+            <span className="text-sm text-on-surface-variant truncate">{field.title}</span>
             <span className="text-xs text-fg4 truncate">{fieldTypeLabel(field)}</span>
             {isExcluded
               ? <span className="text-xs text-fg4">—</span>
@@ -99,21 +99,21 @@ function RequiredChip({ field, override, onOverride, onReset }: {
       <DropdownMenu.Trigger asChild>
         <button type="button"
           className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full transition-colors ${
-            overridden ? 'bg-brand-subtle text-brand font-medium' : 'text-fg3 hover:bg-muted'}`}>
-          {overridden && <span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" />}
+            overridden ? 'bg-primary-container text-primary font-medium' : 'text-fg3 hover:bg-surface-container'}`}>
+          {overridden && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
           {overridden ? `${parentLabel} → ${effective ? 'обяз.' : 'опц.'}` : (effective ? 'обяз.' : 'опц.')}
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="start" sideOffset={4}
-          className="z-50 min-w-[210px] rounded-xl border border-stroke bg-surface p-1 text-sm text-fg1"
+          className="z-50 min-w-[210px] rounded-xl border border-outline-variant bg-surface p-1 text-sm text-on-surface"
           style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           <ReqItem onSelect={onReset} active={!overridden}>Как у родителя ({parentLabel})</ReqItem>
           <ReqItem onSelect={() => onOverride(true)} active={overridden && effective}>Обязательное</ReqItem>
           <ReqItem onSelect={() => onOverride(false)} active={overridden && !effective}>Опциональное</ReqItem>
           {overridden && (
             <>
-              <DropdownMenu.Separator className="my-1 h-px bg-stroke" />
+              <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
               <ReqItem onSelect={onReset}><RotateCcw size={13} className="text-fg4" /> Сбросить переопределение</ReqItem>
             </>
           )}
@@ -126,8 +126,8 @@ function RequiredChip({ field, override, onOverride, onReset }: {
 function ReqItem({ children, onSelect, active }: { children: React.ReactNode; onSelect: () => void; active?: boolean }) {
   return (
     <DropdownMenu.Item onSelect={onSelect}
-      className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-pointer outline-none data-[highlighted]:bg-muted">
-      <Check size={14} className={active ? 'text-brand' : 'invisible'} />
+      className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-pointer outline-none data-[highlighted]:bg-surface-container">
+      <Check size={14} className={active ? 'text-primary' : 'invisible'} />
       <span className="flex-1">{children}</span>
     </DropdownMenu.Item>
   );

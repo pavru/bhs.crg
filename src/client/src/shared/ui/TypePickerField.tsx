@@ -73,8 +73,8 @@ export function TypePickerField({
   const triggerClass = framed
     ? `w-full h-14 px-4 rounded-md bg-transparent text-sm text-left outline-none ` +
       `disabled:opacity-50 disabled:pointer-events-none`
-    : `w-full ${size === 'sm' ? 'h-8' : 'h-9'} px-3 rounded-md border border-stroke-strong bg-surface ` +
-      `text-sm text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ` +
+    : `w-full ${size === 'sm' ? 'h-8' : 'h-9'} px-3 rounded-md border border-outline bg-surface ` +
+      `text-sm text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ` +
       `data-[state=open]:ring-2 disabled:opacity-50 disabled:pointer-events-none`;
 
   // `overflow-hidden` на триггере — страховка впредь (issue #668): её не было, и несжимаемый
@@ -95,7 +95,7 @@ export function TypePickerField({
       {/* Подсказка — на самом обрезаемом тексте, а не на кнопке (issue #548): подсказку кнопки
           наследуют и лупа, и код типа, и всплывало бы имя типа поверх них. */}
       <Tooltip content={selected ? (showCode ? `${selected.name} (${code})` : selected.name) : undefined}>
-        <span className={`flex-1 truncate ${selected ? 'text-fg1' : 'text-fg4'}`}>
+        <span className={`flex-1 truncate ${selected ? 'text-on-surface' : 'text-fg4'}`}>
           {selected ? selected.name : placeholder}
         </span>
       </Tooltip>
@@ -124,11 +124,11 @@ export function TypePickerField({
           // pointer-events-none нажатие у правого края на тач-устройстве молча очищало бы значение
           // вместо открытия пикера (в диалоге материализации — вместе со всем маппингом).
           // Где hover'а нет, показываем его сразу, иначе до него было бы не добраться.
-          `opacity-0 pointer-events-none transition-opacity hover:text-fg2 ` +
+          `opacity-0 pointer-events-none transition-opacity hover:text-on-surface-variant ` +
           `group-hover:opacity-100 group-hover:pointer-events-auto ` +
           `group-focus-within:opacity-100 group-focus-within:pointer-events-auto ` +
           `[@media(pointer:coarse)]:opacity-100 [@media(pointer:coarse)]:pointer-events-auto ` +
-          `focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded-sm`}>
+          `focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm`}>
         <X size={14} />
       </button>
     </Tooltip>

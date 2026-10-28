@@ -29,7 +29,7 @@ export function DocumentEditorPage() {
   const setPath = `/document-sets/${constructionId}/sets/${setId}`;
 
   if (isLoading || typesLoading) return <div className="p-6 text-sm text-fg4">Загрузка...</div>;
-  if (!set) return <div className="p-6 text-sm text-danger">Комплект не найден</div>;
+  if (!set) return <div className="p-6 text-sm text-error">Комплект не найден</div>;
   return <EditorFrame key={instanceId} set={set} setPath={setPath} instanceId={instanceId!} docTypes={docTypes ?? []} />;
 }
 

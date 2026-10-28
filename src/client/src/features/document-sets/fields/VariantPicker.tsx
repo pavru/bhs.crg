@@ -29,15 +29,15 @@ export function VariantPicker({ options, active, onSelect, layout = 'auto' }: {
           return (
             <button key={o.key} type="button" role="radio" aria-checked={on} onClick={() => onSelect(o.key)}
               className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors ${
-                on ? 'border-brand bg-brand/10 text-fg1 font-medium' : 'border-stroke bg-surface text-fg2 hover:bg-base'}`}>
-              <span className={`grid place-items-center w-4 h-4 rounded-full border shrink-0 ${on ? 'border-brand' : 'border-stroke'}`}>
-                {on && <span className="w-2 h-2 rounded-full bg-brand" />}
+                on ? 'border-primary bg-primary/10 text-on-surface font-medium' : 'border-outline-variant bg-surface text-on-surface-variant hover:bg-surface-container-low'}`}>
+              <span className={`grid place-items-center w-4 h-4 rounded-full border shrink-0 ${on ? 'border-primary' : 'border-outline-variant'}`}>
+                {on && <span className="w-2 h-2 rounded-full bg-primary" />}
               </span>
               <span className="flex-1 min-w-0 truncate">{o.label}</span>
               {o.filled && (
                 <Tooltip content="Значение задано">
-                  <span className="text-caption text-brand flex items-center gap-1 shrink-0">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand" /> задан
+                  <span className="text-caption text-primary flex items-center gap-1 shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary" /> задан
                   </span>
                 </Tooltip>
               )}
@@ -49,14 +49,14 @@ export function VariantPicker({ options, active, onSelect, layout = 'auto' }: {
   }
 
   return (
-    <div role="radiogroup" className="inline-flex rounded-lg border border-stroke overflow-hidden text-sm">
+    <div role="radiogroup" className="inline-flex rounded-lg border border-outline-variant overflow-hidden text-sm">
       {options.map((o, i) => {
         const on = o.key === active;
         return (
           <button key={o.key} type="button" role="radio" aria-checked={on} onClick={() => onSelect(o.key)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${i > 0 ? 'border-l border-stroke' : ''} ${
-              on ? 'bg-brand text-on-brand font-medium' : 'bg-surface text-fg2 hover:bg-base'}`}>
-            {o.filled && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${on ? 'bg-on-brand' : 'bg-brand'}`} />}
+            className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${i > 0 ? 'border-l border-outline-variant' : ''} ${
+              on ? 'bg-primary text-on-primary font-medium' : 'bg-surface text-on-surface-variant hover:bg-surface-container-low'}`}>
+            {o.filled && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${on ? 'bg-on-primary' : 'bg-primary'}`} />}
             <span className="truncate">{o.label}</span>
           </button>
         );

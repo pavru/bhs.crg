@@ -371,14 +371,14 @@ function RefPickerModalBody({
     return (
       <Modal open onOpenChange={onOpenChange} title="В какой вариант поместить?" nothingToLose>
         <div className="space-y-4">
-          <p className="text-sm text-fg2">
+          <p className="text-sm text-on-surface-variant">
             <span className="font-medium">{askVariantFor.label}</span> подходит нескольким
             вариантам одинаково: они объявлены на один и тот же тип, и по типу выбрать нельзя.
           </p>
           <VariantPicker layout="list" options={keys.map(k => ({ key: k, label: variantTitle(k), filled: false }))}
             active="" onSelect={k => { onSelect(askVariantFor.ref, k); setAskVariantFor(null); onOpenChange(false); }} />
           <button type="button" onClick={() => setAskVariantFor(null)}
-            className="text-xs text-fg3 hover:text-fg1 transition-colors">← Назад к списку</button>
+            className="text-xs text-fg3 hover:text-on-surface transition-colors">← Назад к списку</button>
         </div>
       </Modal>
     );
@@ -393,7 +393,7 @@ function RefPickerModalBody({
           value={search} onChange={e => { setSearch(e.target.value); setActive(0); }} onKeyDown={onKey}
           placeholder="Поиск…" autoFocus role="combobox" aria-expanded
           aria-activedescendant={options.length ? `rp-opt-${active}` : undefined}
-          className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
+          className="w-full border border-outline rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
         />
 
         {currentArchived && (
@@ -434,13 +434,13 @@ function RefPickerModalBody({
                     onMouseEnter={() => { const i = indexByKey.get(key); if (i != null) setActive(i); }}
                     onClick={() => { const i = indexByKey.get(key); if (i != null) choose(options[i]); }}
                     className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md transition-colors ${
-                      on ? 'bg-tonal text-on-tonal' : 'hover:bg-brand-subtle'}`}>
-                    <Files size={14} className={`shrink-0 ${on ? 'text-on-tonal' : 'text-fg4'}`} />
-                    <span className={`flex-1 font-medium truncate ${on ? 'text-on-tonal' : 'text-fg1'}`}>
+                      on ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-primary-container'}`}>
+                    <Files size={14} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-fg4'}`} />
+                    <span className={`flex-1 font-medium truncate ${on ? 'text-on-secondary-container' : 'text-on-surface'}`}>
                       {label}
                     </span>
                     {hint && (
-                      <span className={`text-caption shrink-0 truncate max-w-[35%] ${on ? 'text-on-tonal' : 'text-fg4'}`}>
+                      <span className={`text-caption shrink-0 truncate max-w-[35%] ${on ? 'text-on-secondary-container' : 'text-fg4'}`}>
                         {hint}
                       </span>
                     )}
@@ -469,19 +469,19 @@ function RefPickerModalBody({
                     onMouseEnter={() => { const i = indexByKey.get(key); if (i != null) setActive(i); }}
                     onClick={() => { const i = indexByKey.get(key); if (i != null) choose(options[i]); }}
                     className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md transition-colors ${
-                      on ? 'bg-tonal text-on-tonal' : 'hover:bg-brand-subtle'}`}>
-                    <FileText size={14} className={`shrink-0 ${on ? 'text-on-tonal' : 'text-fg4'}`} />
-                    <span className={`flex-1 font-medium truncate ${on ? 'text-on-tonal' : 'text-fg1'}`}>
+                      on ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-primary-container'}`}>
+                    <FileText size={14} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-fg4'}`} />
+                    <span className={`flex-1 font-medium truncate ${on ? 'text-on-secondary-container' : 'text-on-surface'}`}>
                       {label}
                     </span>
                     {hint && (
-                      <span className={`text-caption shrink-0 truncate max-w-[35%] ${on ? 'text-on-tonal' : 'text-fg4'}`}>
+                      <span className={`text-caption shrink-0 truncate max-w-[35%] ${on ? 'text-on-secondary-container' : 'text-fg4'}`}>
                         {hint}
                       </span>
                     )}
                     {!filled && (
                       <Tooltip content="Поле-источник пока не заполнено — ссылка останется неразвёрнутой, пока его не заполнят">
-                        <span className={`text-caption shrink-0 ${on ? 'text-on-tonal' : 'text-warning'}`}>
+                        <span className={`text-caption shrink-0 ${on ? 'text-on-secondary-container' : 'text-warning'}`}>
                           не заполнено
                         </span>
                       </Tooltip>

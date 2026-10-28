@@ -4,7 +4,7 @@ import { useSiteFilterState } from './siteFilterContext';
 import { useToggleFavorite } from './useToggleFavorite';
 import { IconButton } from '@/shared/ui/Button';
 
-const link = 'text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded';
+const link = 'text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded';
 
 /**
  * Звезда стройки (§62.2). Стоит вне hover-группы действий: она ещё и признак, а невидимый признак
@@ -26,7 +26,7 @@ export function FavoriteStar({ id, onToggled }: { id: string; onToggled?: () => 
         await toggle(id, !on);
         setBusy(false);
       }}>
-      <Star size={16} className={on ? 'text-brand fill-current' : 'text-fg4'} aria-hidden />
+      <Star size={16} className={on ? 'text-primary fill-current' : 'text-fg4'} aria-hidden />
     </IconButton>
   );
 }
@@ -49,7 +49,7 @@ export function NotFavoriteNote({ constructionId }: { constructionId: string }) 
   );
 }
 
-const quiet = 'underline hover:text-fg1';
+const quiet = 'underline hover:text-on-surface';
 
 /**
  * Пустой список, когда объекты есть, но скрыты фильтром (рейл счетов #1221, накладные #1222): «…пока нет»
@@ -70,7 +70,7 @@ export function FilterHidesAll({ text, action, onShowAll, testId }: {
 /** Над формой объекта, скрытого в списке слева: без неё форма выглядела бы объектом, которого нет. */
 export function NotInListNotice({ text, onShowAll, testId }: { text: string; onShowAll: () => void; testId: string }) {
   return (
-    <p className="flex items-center gap-1.5 px-4 py-1.5 text-xs text-fg3 border-b border-stroke" data-testid={testId}>
+    <p className="flex items-center gap-1.5 px-4 py-1.5 text-xs text-fg3 border-b border-outline-variant" data-testid={testId}>
       <Star size={12} aria-hidden />
       <span>{text}.</span>
       <button type="button" className={quiet} onClick={onShowAll}>Показать все</button>

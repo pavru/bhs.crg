@@ -157,23 +157,23 @@ function EngineCard({
   const checked = checkVision.data;
   return (
     <div className={`rounded-lg border p-3 space-y-3 ${
-      blind ? 'border-danger bg-surface' : form.enabled ? 'border-stroke bg-surface' : 'border-stroke bg-base'}`}>
+      blind ? 'border-error bg-surface' : form.enabled ? 'border-outline-variant bg-surface' : 'border-outline-variant bg-surface-container-low'}`}>
       <div className="flex items-start gap-2">
         <label className="flex items-center gap-2 flex-1 cursor-pointer">
           <input
             type="checkbox"
             checked={form.enabled}
             onChange={e => onChange({ ...form, enabled: e.target.checked })}
-            className="accent-brand"
+            className="accent-primary"
           />
-          <span className="text-sm font-medium text-fg1">{meta.label}</span>
+          <span className="text-sm font-medium text-on-surface">{meta.label}</span>
         </label>
         {/* Один сигнал, не три: слепота > «модель не обслуживается» > «не участвует». Слепой движок
             не «не участвует» — он участвует и портит данные, и назвать это мягче значит соврать. */}
         {blind && (
           <Tooltip content={blindIssue ?? undefined}>
             <span
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-danger-subtle text-danger border border-danger/30 shrink-0"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-error-container text-error border border-error/30 shrink-0"
             >
               <AlertCircle size={11} /> не работает: модель без зрения
             </span>
@@ -182,7 +182,7 @@ function EngineCard({
         {!blind && notParticipating && (
           <Tooltip content={`Движок включён, но в работе не участвует: ${missing}. Распознавание идёт следующим по списку.`}>
             <span
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-subtle text-warning border border-warning-border shrink-0"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-container text-warning border border-warning-border shrink-0"
             >
               <AlertTriangle size={11} /> не участвует: {missing}
             </span>
@@ -192,11 +192,11 @@ function EngineCard({
           <div className="flex gap-1">
             <Tooltip content="Выше">
               <button type="button" onClick={reorder.onUp} disabled={!reorder.onUp}
-                className="px-1.5 text-fg3 hover:text-fg1 disabled:opacity-30 disabled:hover:text-fg3">↑</button>
+                className="px-1.5 text-fg3 hover:text-on-surface disabled:opacity-30 disabled:hover:text-fg3">↑</button>
             </Tooltip>
             <Tooltip content="Ниже">
               <button type="button" onClick={reorder.onDown} disabled={!reorder.onDown}
-                className="px-1.5 text-fg3 hover:text-fg1 disabled:opacity-30 disabled:hover:text-fg3">↓</button>
+                className="px-1.5 text-fg3 hover:text-on-surface disabled:opacity-30 disabled:hover:text-fg3">↓</button>
             </Tooltip>
           </div>
         )}
@@ -208,14 +208,14 @@ function EngineCard({
           подсказку по наведению незачем. Отдельно от «не участвует» ещё и по смыслу: ненастроенный
           движок цепочка пропускает, а этот — берёт и получает отказ. */}
       {blind && (
-        <p className="flex items-start gap-1.5 rounded px-2 py-1.5 text-xs bg-danger-subtle text-danger border border-danger/30">
+        <p className="flex items-start gap-1.5 rounded px-2 py-1.5 text-xs bg-error-container text-error border border-error/30">
           <AlertCircle size={13} className="shrink-0 mt-px" />
           <span>{blindIssue}</span>
         </p>
       )}
 
       {form.enabled && !blind && modelIssue && (
-        <p className="flex items-start gap-1.5 rounded px-2 py-1.5 text-xs bg-warning-subtle text-warning border border-warning-border">
+        <p className="flex items-start gap-1.5 rounded px-2 py-1.5 text-xs bg-warning-container text-warning border border-warning-border">
           <AlertTriangle size={13} className="shrink-0 mt-px" />
           <span>{modelIssue}</span>
         </p>
@@ -234,7 +234,7 @@ function EngineCard({
         return (
           opts.length === 0 ? (
             <Field label={meta.modelLabel}>
-              <div className="text-xs text-fg4 px-2.5 py-2 rounded-md border border-dashed border-stroke">
+              <div className="text-xs text-fg4 px-2.5 py-2 rounded-md border border-dashed border-outline-variant">
                 {meta.key !== 'Ollama'
                   ? 'Список моделей недоступен'
                   : modelsChecked
@@ -403,13 +403,13 @@ export function IntegrationSettingsSection() {
       </p>
 
       {isLoading && <p className="text-sm text-fg3">Загрузка…</p>}
-      {error && <p className="text-sm text-danger">Не удалось загрузить настройки.</p>}
+      {error && <p className="text-sm text-error">Не удалось загрузить настройки.</p>}
 
       {data && (
         <>
           {/* Распознавание + приоритет */}
           <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-fg2">Распознавание реквизитов (по приоритету)</h3>
+            <h3 className="text-xs font-semibold text-on-surface-variant">Распознавание реквизитов (по приоритету)</h3>
             <p className="text-xs text-fg4">
               Движки опрашиваются сверху вниз: первый включённый с заданным ключом обрабатывает документ.
             </p>
@@ -439,7 +439,7 @@ export function IntegrationSettingsSection() {
 
           {/* Веб-поиск */}
           <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-fg2">Веб-поиск документов</h3>
+            <h3 className="text-xs font-semibold text-on-surface-variant">Веб-поиск документов</h3>
             <p className="text-xs text-fg4">Выдача всех включённых движков объединяется.</p>
             <div className="space-y-2">
               {Object.keys(WEB_ENGINES).map(k => web[k] && (
@@ -454,8 +454,8 @@ export function IntegrationSettingsSection() {
             </div>
             {/* Своя галка, а не галка движка: движок ходит на известный хост API, а здесь адреса
                 произвольные — страницы из выдачи и файлы по ссылке (issue #936). */}
-            <div className="rounded-lg border border-stroke p-3 space-y-1">
-              <p className="text-sm font-medium text-fg1">Загрузка по внешним ссылкам</p>
+            <div className="rounded-lg border border-outline-variant p-3 space-y-1">
+              <p className="text-sm font-medium text-on-surface">Загрузка по внешним ссылкам</p>
               <p className="text-xs text-fg4">Страницы из выдачи поиска и файлы, скачиваемые по ссылке.</p>
               <ProxyToggle checked={linksViaProxy} onChange={setLinksViaProxy} />
             </div>
@@ -463,7 +463,7 @@ export function IntegrationSettingsSection() {
 
           {/* Домены */}
           <div className="space-y-3">
-            <h3 className="text-xs font-semibold text-fg2">Домены для тиров поиска</h3>
+            <h3 className="text-xs font-semibold text-on-surface-variant">Домены для тиров поиска</h3>
             <DomainList
               label="ФГИС"
               hint="Реестры сертификатов/деклараций (site:-фильтр первого тира)."
@@ -483,7 +483,7 @@ export function IntegrationSettingsSection() {
               {save.isPending ? 'Сохранение…' : 'Сохранить'}
             </Button>
             {saved && <span className="text-sm text-success">Сохранено</span>}
-            {save.isError && <span className="text-sm text-danger">Ошибка сохранения</span>}
+            {save.isError && <span className="text-sm text-error">Ошибка сохранения</span>}
           </div>
         </>
       )}

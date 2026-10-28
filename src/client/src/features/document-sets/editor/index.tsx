@@ -50,14 +50,14 @@ function InstanceNameEditor({ instance, setId, docType }: {
         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); } }}
         autoFocus
         placeholder={docType?.name ?? 'Название документа'}
-        className="text-sm font-medium text-fg1 bg-transparent border-b border-brand outline-none w-full min-w-0"
+        className="text-sm font-medium text-on-surface bg-transparent border-b border-primary outline-none w-full min-w-0"
       />
     );
   }
 
   return (
     <button type="button" onClick={start} className="flex items-center gap-1.5 group/name text-left min-w-0 max-w-full">
-      <span className={`text-sm font-medium truncate ${instance.name ? 'text-fg1' : 'text-fg3'}`}>
+      <span className={`text-sm font-medium truncate ${instance.name ? 'text-on-surface' : 'text-fg3'}`}>
         {instance.name || docType?.name || 'Документ'}
       </span>
       <Pencil size={12} className="text-fg4 shrink-0 opacity-0 group-hover/name:opacity-100 transition-opacity" />
@@ -190,7 +190,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
         <div className="flex items-center gap-3 h-16 px-3 sm:px-4">
           <Tooltip content="К комплекту">
             <button type="button" onClick={() => guardedLeave(onClose)} aria-label="К комплекту"
-              className="flex items-center justify-center w-11 h-11 shrink-0 rounded-full text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+              className="flex items-center justify-center w-11 h-11 shrink-0 rounded-full text-fg3 hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
               <ArrowLeft size={20} />
             </button>
           </Tooltip>
@@ -209,7 +209,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
               onSelect={c => baseControlRef.current?.select(c)}
               onClear={() => baseControlRef.current?.clear()} />
           )}
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_COLORS[instance.status] ?? 'bg-brand-subtle text-brand'}`}>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_COLORS[instance.status] ?? 'bg-primary-container text-primary'}`}>
             {STATUS_LABELS[instance.status] ?? instance.status}
           </span>
           {/* Замечания внешнего анализа, упоминающие ЭТОТ документ (issue #456). Находок сверки
@@ -242,7 +242,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
               {/* Счётчик — в доступном имени вкладки, а не только в title: тот виден лишь мышью. */}
               {key === 'sources' && staleSourceCount > 0 && (
                 <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full
-                  bg-warning-subtle text-warning text-caption font-medium tabular-nums">
+                  bg-warning-container text-warning text-caption font-medium tabular-nums">
                   <span className="sr-only">устарели: </span>{staleSourceCount}
                 </span>
               )}

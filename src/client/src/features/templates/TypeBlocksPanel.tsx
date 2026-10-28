@@ -40,7 +40,7 @@ export function TypeBlocksPanel() {
   }
   if (isError) {
     return (
-      <div className="flex-1 flex items-center justify-center text-danger text-sm">
+      <div className="flex-1 flex items-center justify-center text-error text-sm">
         Не удалось собрать блоки типов
       </div>
     );
@@ -60,7 +60,7 @@ export function TypeBlocksPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-stroke bg-surface">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant bg-surface">
         <Lock size={13} className="text-fg4 shrink-0" />
         <p className="text-xs text-fg3">
           Собранные блоки типов — только чтение. Шаблон подключает импортом{' '}
@@ -81,7 +81,7 @@ export function TypeBlocksPanel() {
         </div>
       ) : (
         <div className="flex-1 min-h-0 flex">
-          <div className="w-56 shrink-0 border-r border-stroke overflow-y-auto py-1">
+          <div className="w-56 shrink-0 border-r border-outline-variant overflow-y-auto py-1">
             <NavSection label="Точка входа" />
             <FileRow
               label={ENTRYPOINT} icon={<LogIn size={13} />} title="Импортирует модули и диспетч по типу"
@@ -142,8 +142,8 @@ function ProblemsBanner({ problems }: { problems: TypeBlocksProblem[] }) {
   const danger = errors > 0;
 
   return (
-    <div className={`border-b border-stroke px-4 py-2 text-xs
-                     ${danger ? 'bg-danger-subtle text-danger' : 'bg-warning-subtle text-warning'}`}>
+    <div className={`border-b border-outline-variant px-4 py-2 text-xs
+                     ${danger ? 'bg-error-container text-error' : 'bg-warning-container text-warning'}`}>
       <button type="button" onClick={() => setOpen(o => !o)}
         className="flex items-center gap-2 w-full text-left" aria-expanded={open}>
         {open ? <ChevronDown size={13} className="shrink-0" /> : <ChevronRight size={13} className="shrink-0" />}
@@ -159,7 +159,7 @@ function ProblemsBanner({ problems }: { problems: TypeBlocksProblem[] }) {
       {open && (
         <ul className="mt-1.5 ml-6 space-y-1">
           {problems.map((p, i) => (
-            <li key={i} className={p.severity === 'error' ? 'text-danger' : 'text-warning'}>
+            <li key={i} className={p.severity === 'error' ? 'text-error' : 'text-warning'}>
               {p.message}
             </li>
           ))}
@@ -177,10 +177,10 @@ function FileRow({ label, icon, title, active, onClick }: {
       <button
         type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
         className={`w-full flex items-center gap-1.5 px-3 py-1.5 text-left text-sm
-                    ${active ? 'bg-brand-subtle' : 'hover:bg-muted'}`}
+                    ${active ? 'bg-primary-container' : 'hover:bg-surface-container'}`}
       >
-        <span className={`shrink-0 ${active ? 'text-brand' : 'text-fg3'}`}>{icon}</span>
-        <span className={`truncate ${active ? 'text-fg1 font-medium' : 'text-fg2'}`}>{label}</span>
+        <span className={`shrink-0 ${active ? 'text-primary' : 'text-fg3'}`}>{icon}</span>
+        <span className={`truncate ${active ? 'text-on-surface font-medium' : 'text-on-surface-variant'}`}>{label}</span>
       </button>
     </Tooltip>
   );

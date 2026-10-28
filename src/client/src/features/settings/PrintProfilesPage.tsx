@@ -107,13 +107,13 @@ function ProfileRow({ profile, active, onClick }: { profile: PrintProfile; activ
   return (
     <button type="button" onClick={onClick} aria-current={active || undefined}
       className={`w-full flex items-center gap-3 text-left px-3 py-2 rounded-lg transition-colors ${
-        active ? 'bg-brand-subtle text-brand-pressed' : 'text-fg2 hover:bg-base'}`}>
+        active ? 'bg-primary-container text-brand-pressed' : 'text-on-surface-variant hover:bg-surface-container-low'}`}>
       <SheetSketch paper={profile.paper} orientation={profile.orientation} fit={profile.fit} margins={profile.margins} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
           <span className="text-sm truncate min-w-0 flex-1" title={profile.name}>{profile.name}</span>
           {isModified(profile) && (
-            <Tooltip content="Изменён"><span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" /></Tooltip>
+            <Tooltip content="Изменён"><span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" /></Tooltip>
           )}
         </span>
         <span className="block text-xs text-fg4 truncate">{profileSummary(profile)}</span>
@@ -160,7 +160,7 @@ function CreateForm({ names, base, onCreated, onCancel }: {
         onChange={e => { setName(e.target.value); setError(undefined); }} />
       {base
         ? <p className="text-xs text-fg3">Параметры возьмутся из профиля по умолчанию — поменяете в карточке.</p>
-        : <p className="text-xs text-danger">Нет профиля по умолчанию — параметры взять неоткуда. Обновите страницу.</p>}
+        : <p className="text-xs text-error">Нет профиля по умолчанию — параметры взять неоткуда. Обновите страницу.</p>}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="text" onClick={onCancel}>Отмена</Button>
         <Button type="submit" variant="filled" loading={create.isPending} disabled={!base}>Создать</Button>

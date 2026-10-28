@@ -29,16 +29,16 @@ export function BindingPreviewPanel({ results }: { results: DataSetBindingPrevie
   return (
     <div className="space-y-3">
       {results.map(r => (
-        <div key={r.bindingId} className="rounded-lg overflow-hidden border border-stroke">
-          <div className="flex items-center gap-2 px-3 py-2 bg-base">
+        <div key={r.bindingId} className="rounded-lg overflow-hidden border border-outline-variant">
+          <div className="flex items-center gap-2 px-3 py-2 bg-surface-container-low">
             {/* Иконка — по режиму: у рабочей привязки `error` несёт предупреждение, и данные под ним есть. */}
             {r.mode === 'error'
-              ? <AlertCircle size={13} className="text-danger shrink-0" />
+              ? <AlertCircle size={13} className="text-error shrink-0" />
               : r.error
               ? <AlertTriangle size={13} className="text-warning shrink-0" />
               : <CheckCircle2 size={13} className="text-success shrink-0" />
             }
-            <span className="text-xs font-medium flex-1 text-fg1">
+            <span className="text-xs font-medium flex-1 text-on-surface">
               {r.sourceName}
               <span className="font-normal ml-1.5 text-fg4">
                 {r.fileName} · {r.mode === 'scalar' ? 'скалярный' : r.mode === 'tabular' ? `табличный → ${r.targetFieldKey}` : 'ошибка'}
@@ -50,11 +50,11 @@ export function BindingPreviewPanel({ results }: { results: DataSetBindingPrevie
           </div>
 
           {r.mode === 'error' ? (
-            <div className="px-3 py-2 text-xs text-danger bg-surface">{r.error}</div>
+            <div className="px-3 py-2 text-xs text-error bg-surface">{r.error}</div>
           ) : (
             <>
               {/* Предупреждение у рабочей привязки (пропущенные строки) — над данными, а не вместо них. */}
-              {r.error && <div className="px-3 py-2 text-xs text-warning bg-surface border-b border-stroke">{r.error}</div>}
+              {r.error && <div className="px-3 py-2 text-xs text-warning bg-surface border-b border-outline-variant">{r.error}</div>}
               {r.mode === 'scalar'
                 ? <ScalarPreview data={r.data as Record<string, unknown>} columns={columnsOf(r)} />
                 : <TabularPreview rows={r.data as Record<string, unknown>[]} columns={columnsOf(r)} />}
@@ -73,9 +73,9 @@ function ScalarPreview({ data, columns }: { data: Record<string, unknown>; colum
       {/* Одна запись — «поле — значение», а не таблица: колонок у неё нет, есть пары (#1354). */}
       <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] text-xs">
         {columns.map(c => (
-          <div key={c.key} className="contents [&:not(:last-child)>*]:border-b [&>*]:border-stroke">
+          <div key={c.key} className="contents [&:not(:last-child)>*]:border-b [&>*]:border-outline-variant">
             <dt className="py-1 pr-4 font-medium text-fg3">{c.label}</dt>
-            <dd className="py-1 text-fg1"><DataGridValue row={data} column={c} renderValue={renderPreviewValue} /></dd>
+            <dd className="py-1 text-on-surface"><DataGridValue row={data} column={c} renderValue={renderPreviewValue} /></dd>
           </div>
         ))}
       </dl>
@@ -95,7 +95,7 @@ function TabularPreview({ rows, columns }: { rows: Record<string, unknown>[]; co
     <div className="bg-surface">
       <DataGrid framed={false} columns={columns} rows={rows.slice(0, PREVIEW_ROWS)} renderValue={renderPreviewValue} />
       {rows.length > PREVIEW_ROWS && (
-        <p className="px-3 py-1.5 text-xs border-t border-stroke text-fg4">
+        <p className="px-3 py-1.5 text-xs border-t border-outline-variant text-fg4">
           +{rows.length - PREVIEW_ROWS} строк не показано
         </p>
       )}

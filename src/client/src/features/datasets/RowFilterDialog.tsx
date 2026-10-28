@@ -23,14 +23,14 @@ function LogicToggle({
   onChange: (l: 'and' | 'or') => void;
 }) {
   return (
-    <div className="flex rounded text-xs font-bold overflow-hidden shrink-0 border border-stroke">
+    <div className="flex rounded text-xs font-bold overflow-hidden shrink-0 border border-outline-variant">
       {(['and', 'or'] as const).map(l => (
         <button
           key={l}
           type="button"
           onClick={() => onChange(l)}
           className={`px-2.5 py-1 transition-colors ${
-            logic === l ? 'bg-brand text-on-brand' : 'bg-surface text-fg3'
+            logic === l ? 'bg-primary text-on-primary' : 'bg-surface text-fg3'
           }`}
         >
           {l.toUpperCase()}
@@ -70,7 +70,7 @@ function FilterConditionRow({
           <button
             type="button"
             onClick={onRemove}
-            className="p-1 rounded opacity-0 group-hover/cond:opacity-100 transition-all text-fg4 hover:text-danger"
+            className="p-1 rounded opacity-0 group-hover/cond:opacity-100 transition-all text-fg4 hover:text-error"
           >
             <Trash2 size={12} />
           </button>
@@ -138,7 +138,7 @@ function FilterGroupEditor({
         <button
           type="button"
           onClick={addCondition}
-          className="flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors text-fg2 bg-muted hover:bg-brand-subtle"
+          className="flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors text-on-surface-variant bg-surface-container hover:bg-primary-container"
         >
           <Plus size={11} /> Условие
         </button>
@@ -146,7 +146,7 @@ function FilterGroupEditor({
           <button
             type="button"
             onClick={addSubGroup}
-            className="flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors text-fg2 bg-muted hover:bg-brand-subtle"
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors text-on-surface-variant bg-surface-container hover:bg-primary-container"
           >
             <GitBranch size={11} /> Группа
           </button>
@@ -156,7 +156,7 @@ function FilterGroupEditor({
             <button
               type="button"
               onClick={onRemove}
-              className="flex items-center gap-1 text-xs px-2 py-1 rounded ml-auto transition-colors text-fg4 hover:text-danger"
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded ml-auto transition-colors text-fg4 hover:text-error"
             >
               <Trash2 size={11} /> Удалить группу
             </button>
@@ -210,7 +210,7 @@ function FilterGroupEditor({
 
   // Sub-group: visually wrapped (left accent colour is depth-based)
   return (
-    <div className={`rounded-r-lg p-2.5 bg-base border-l-3 ${accent}`}>
+    <div className={`rounded-r-lg p-2.5 bg-surface-container-low border-l-3 ${accent}`}>
       {content}
     </div>
   );
@@ -286,7 +286,7 @@ export function RowFilterDialog({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 rounded-md text-sm font-medium text-on-brand bg-brand disabled:opacity-50"
+            className="px-4 py-2 rounded-md text-sm font-medium text-on-primary bg-primary disabled:opacity-50"
           >
             {saving ? words.saving : words.save}
           </button>
@@ -295,7 +295,7 @@ export function RowFilterDialog({
             <button
               onClick={handleReset}
               disabled={saving}
-              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-danger bg-muted disabled:opacity-50"
+              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-error bg-surface-container disabled:opacity-50"
             >
               {words.reset}
             </button>
@@ -304,7 +304,7 @@ export function RowFilterDialog({
       }
     >
       {unreadable && (
-        <p className="text-xs mb-3 text-danger">
+        <p className="text-xs mb-3 text-error">
           Сохранённый отбор не прочитан — он записан не деревом условий. Источник такой отбор не
           выполняет; заданное здесь заменит его целиком.
         </p>
@@ -312,7 +312,7 @@ export function RowFilterDialog({
 
       <p className="text-xs mb-4 text-fg4">{words.note}</p>
 
-      <div className="rounded-lg p-3 border border-stroke bg-surface" style={{ minHeight: '60px' }}>
+      <div className="rounded-lg p-3 border border-outline-variant bg-surface" style={{ minHeight: '60px' }}>
         <FilterGroupEditor
           group={root}
           path=""
@@ -325,7 +325,7 @@ export function RowFilterDialog({
         />
       </div>
 
-      {refusal && <p role="alert" className="mt-3 text-xs text-danger">{refusal}</p>}
+      {refusal && <p role="alert" className="mt-3 text-xs text-error">{refusal}</p>}
     </Modal>
   );
 }

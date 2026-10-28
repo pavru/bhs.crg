@@ -39,8 +39,8 @@ export function ResetPasswordPage() {
     return (
       <AuthCard title="Ссылка недействительна">
         <div className="space-y-4">
-          <p className="text-sm text-fg2">Ссылка для сброса пароля неполная или устарела. Запросите новую.</p>
-          <Link to="/forgot-password" className="inline-block text-sm font-medium text-brand hover:underline">
+          <p className="text-sm text-on-surface-variant">Ссылка для сброса пароля неполная или устарела. Запросите новую.</p>
+          <Link to="/forgot-password" className="inline-block text-sm font-medium text-primary hover:underline">
             Запросить сброс заново
           </Link>
         </div>
@@ -64,11 +64,11 @@ export function ResetPasswordPage() {
           value={password} onChange={e => setPassword(e.target.value)} />
         <TextField label="Подтверждение" type="password" autoComplete="new-password" required minLength={PASSWORD_MIN_LENGTH}
           value={confirm} onChange={e => setConfirm(e.target.value)} />
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <p className="text-sm text-error">{error}</p>}
         <Button type="submit" variant="filled" size="lg" fullWidth loading={reset.isPending}>
           Сохранить пароль
         </Button>
-        <Link to="/login" className="block text-center text-sm font-medium text-brand hover:underline">
+        <Link to="/login" className="block text-center text-sm font-medium text-primary hover:underline">
           Вернуться ко входу
         </Link>
       </form>

@@ -13,6 +13,7 @@
     "ui:ratchet": "node scripts/ui-ratchet.mjs",
     "ui:ratchet:update": "node scripts/ui-ratchet.mjs --update",
     "md3:theme": "node scripts/md3-theme.mjs",
+    "md3:migrate": "node scripts/md3-migrate.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

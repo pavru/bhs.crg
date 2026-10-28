@@ -12,8 +12,8 @@ beforeAll(async () => { unknown = await loadColorCheck(join(srcRoot, 'index.css'
 
 describe('цветовые классы: что сторож видит', () => {
   it('утилиту с вариантами, прозрачностью и в шаблонной строке', () => {
-    expect(colorCandidates('hover:bg-surface2 has-[:disabled]:bg-muted `${a} border-danger/30` "text-fg"')
-      .map(c => c.cls)).toEqual(['bg-surface2', 'bg-muted', 'border-danger/30', 'text-fg']);
+    expect(colorCandidates('hover:bg-surface2 has-[:disabled]:bg-surface-container `${a} border-error/30` "text-fg"')
+      .map(c => c.cls)).toEqual(['bg-surface2', 'bg-surface-container', 'border-error/30', 'text-fg']);
   });
 
   it('номер строки', () => {
@@ -43,7 +43,7 @@ describe('цветовые классы: что Tailwind не порождает
   });
 
   it('токены, прозрачность и не-цветовые значения тех же утилит — проходят', () => {
-    expect(unknown(['bg-muted', 'text-fg1', 'border-danger/30', 'bg-black/40', 'text-xs', 'text-caption',
+    expect(unknown(['bg-surface-container', 'text-on-surface', 'border-error/30', 'bg-black/40', 'text-xs', 'text-caption',
       'text-left', 'border-2', 'border-t', 'ring-2', 'outline-none', 'bg-transparent', 'shadow-sm'])).toEqual([]);
   });
 });
@@ -61,5 +61,5 @@ it('в клиенте нет цветовых классов без токена
   expect(offenders, 'Цветовые классы без токена — Tailwind их не рисует, место остаётся без цвета.\n'
     + 'Цвет — роль MD3 (src/theme/md3-theme.json); что для чего — docs/UI.md, «Цвет»\n'
     + '(text-fg → text-on-surface, bg-surface2 → bg-surface-container, *-brand → *-primary, border-danger-border → border-error/30).\n'
-    + 'В комментарии называйте класс целиком (bg-stroke-strong, а не stroke-strong).').toEqual([]);
+    + 'В комментарии называйте класс целиком (bg-outline-variant, а не outline-variant).').toEqual([]);
 });

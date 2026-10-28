@@ -16,13 +16,13 @@ const SHORTCUTS: [string, string][] = [
 export function ShortcutsHelp({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Горячие клавиши" nothingToLose>
-      <div className="divide-y divide-muted">
+      <div className="divide-y divide-surface-container">
         {SHORTCUTS.map(([keys, desc]) => (
           <div key={keys} className="flex items-center gap-4 py-2">
-            <kbd className="min-w-[120px] shrink-0 rounded bg-muted px-2 py-1 text-center text-xs font-medium text-fg2">
+            <kbd className="min-w-[120px] shrink-0 rounded bg-surface-container px-2 py-1 text-center text-xs font-medium text-on-surface-variant">
               {keys}
             </kbd>
-            <span className="text-sm text-fg2">{desc}</span>
+            <span className="text-sm text-on-surface-variant">{desc}</span>
           </div>
         ))}
       </div>

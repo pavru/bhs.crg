@@ -17,9 +17,9 @@ import {
  */
 
 const STATUS_STYLE: Record<ReconciliationAlias['status'], string> = {
-  Confirmed: 'bg-brand-subtle text-brand',
-  Proposed: 'bg-warning-subtle text-warning',
-  Rejected: 'bg-muted text-fg4',
+  Confirmed: 'bg-primary-container text-primary',
+  Proposed: 'bg-warning-container text-warning',
+  Rejected: 'bg-surface-container text-fg4',
 };
 
 export function AliasesPanel() {
@@ -31,8 +31,8 @@ export function AliasesPanel() {
 
   return (
     <div className="flex-1 min-w-0 flex flex-col">
-      <div className="px-4 py-3 border-b border-stroke shrink-0">
-        <h2 className="text-base font-semibold text-fg1 flex items-center gap-2">
+      <div className="px-4 py-3 border-b border-outline-variant shrink-0">
+        <h2 className="text-base font-semibold text-on-surface flex items-center gap-2">
           <Link2 size={16} className="text-fg3" /> Алиасы позиций
         </h2>
         <p className="text-xs text-fg3 mt-0.5">
@@ -49,12 +49,12 @@ export function AliasesPanel() {
           </div>
         )}
         {items.map(a => (
-          <div key={a.id} className="px-4 py-3 border-b border-stroke group">
+          <div key={a.id} className="px-4 py-3 border-b border-outline-variant group">
             <div className="flex items-center gap-2">
               <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${STATUS_STYLE[a.status]}`}>
                 {ALIAS_STATUS_LABELS[a.status]}
               </span>
-              <span className="min-w-0 flex-1 text-sm text-fg1 truncate">
+              <span className="min-w-0 flex-1 text-sm text-on-surface truncate">
                 {a.aliasLabel} <span className="text-fg4">→</span> {a.canonicalLabel}
               </span>
               {a.status !== 'Confirmed' && (

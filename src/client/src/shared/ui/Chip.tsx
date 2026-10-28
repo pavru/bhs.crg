@@ -41,15 +41,15 @@ export interface ChipProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>,
 }
 
 const BASE = 'inline-flex items-center gap-1 rounded-full border text-xs bg-surface transition-colors ' +
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-50 disabled:pointer-events-none';
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50 disabled:pointer-events-none';
 
 const TONE: Record<NonNullable<ChipProps['tone']>, string> = {
-  neutral: 'border-stroke text-fg3 hover:text-fg1 hover:border-stroke-strong',
-  warning: 'border-warning-border text-warning hover:bg-warning-subtle',
-  danger: 'border-danger text-danger hover:bg-danger-subtle',
+  neutral: 'border-outline-variant text-fg3 hover:text-on-surface hover:border-outline',
+  warning: 'border-warning-border text-warning hover:bg-warning-container',
+  danger: 'border-error text-error hover:bg-error-container',
 };
 
-const SELECTED = 'border-brand text-brand bg-brand-subtle';
+const SELECTED = 'border-primary text-primary bg-primary-container';
 
 function chipClass({ selected = false, tone = 'neutral', dashed = false }:
   Pick<ChipProps, 'selected' | 'tone' | 'dashed'> = {}) {
@@ -83,7 +83,7 @@ export function Chip({ children, selected, icon: Icon, count, tone, dashed, onRe
     ? <span {...Object.fromEntries(Object.entries(rest).filter(([k]) => k.startsWith('data-')))}
         className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 min-w-0">{body}</span>
     : <button {...rest} type={type} {...state}
-        className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-l-full min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+        className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-l-full min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
         {body}
       </button>;
 
@@ -93,7 +93,7 @@ export function Chip({ children, selected, icon: Icon, count, tone, dashed, onRe
       <Tooltip content={removeLabel ?? 'Снять'}>
         <button type="button" onClick={onRemove} aria-label={removeLabel ?? 'Снять'}
           disabled={rest.disabled}
-          className="pl-0.5 pr-2 py-1 rounded-r-full hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+          className="pl-0.5 pr-2 py-1 rounded-r-full hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
           <X size={12} aria-hidden />
         </button>
       </Tooltip>

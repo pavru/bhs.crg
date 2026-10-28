@@ -309,7 +309,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
   return (
     <section className="space-y-3" data-readiness="lines">
       <div className="flex items-center gap-2 flex-wrap">
-        <h2 className="text-sm font-medium text-fg2">Строки счёта</h2>
+        <h2 className="text-sm font-medium text-on-surface-variant">Строки счёта</h2>
         {/* Где менять нельзя (заперт без исправления, нет права), флажка нет: «сверху» говорит пометка, «в том
             числе» — обычный случай, о нём молчат заголовки колонок. Исправление режим меняет (#1498). */}
         {still
@@ -444,9 +444,9 @@ function ReconciliationStrip({ sums, strip, unsaved, matched, hint, onHint }: {
   // а флажок, поставленный зря, — ровно этот случай (ревью PR #1508).
   const offer = hint ? modeHint(hint) : null;
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border border-stroke
-      bg-muted px-3 py-2 text-xs">
-      <span className="text-fg2">Строк: <b>{sums.count}</b></span>
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border border-outline-variant
+      bg-surface-container px-3 py-2 text-xs">
+      <span className="text-on-surface-variant">Строк: <b>{sums.count}</b></span>
 
       {sums.withoutNomenclature > 0 && (
         <span className="text-warning">ждут позиции: <b>{sums.withoutNomenclature}</b></span>
@@ -467,7 +467,7 @@ function ReconciliationStrip({ sums, strip, unsaved, matched, hint, onHint }: {
         </span>
       )}
       {offer && (
-        <span className="inline-flex flex-wrap items-center gap-x-2 text-fg2">
+        <span className="inline-flex flex-wrap items-center gap-x-2 text-on-surface-variant">
           {offer.text}
           <Button size="sm" variant="text" onClick={() => onHint(offer.to)}>{offer.action}</Button>
         </span>
@@ -480,7 +480,7 @@ function ReconciliationStrip({ sums, strip, unsaved, matched, hint, onHint }: {
 }
 
 const TONE: Record<Reconciliation['items'][number]['tone'], string> = {
-  main: 'text-fg2', quiet: 'text-fg4', warning: 'text-warning',
+  main: 'text-on-surface-variant', quiet: 'text-fg4', warning: 'text-warning',
 };
 
 /**

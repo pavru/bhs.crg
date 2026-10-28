@@ -151,7 +151,7 @@ describe('меню профиля', () => {
 
   it('на странице администрирования аватар показывает «вы здесь»', () => {
     shown(false, '/users', system);
-    expect(avatar().className).toContain('ring-brand');
+    expect(avatar().className).toContain('ring-primary');
   });
 
   it('выход при несохранённых правках ждёт страницу', () => {

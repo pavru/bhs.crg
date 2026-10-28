@@ -43,9 +43,9 @@ function SourceBoundDocField(
   { recognized, stale, staleReason }:
   { recognized?: boolean; stale?: boolean; staleReason?: DataSetStaleReason | null },
 ) {
-  const tone = stale ? 'text-warning' : 'text-brand';
+  const tone = stale ? 'text-warning' : 'text-primary';
   return (
-    <div className="flex items-center gap-2 border border-brand/40 rounded-lg px-3 py-2 bg-brand/5">
+    <div className="flex items-center gap-2 border border-primary/40 rounded-lg px-3 py-2 bg-primary/5">
       {recognized
         ? <ScanText size={14} className={`${tone} shrink-0`} />
         : <Database size={14} className={`${tone} shrink-0`} />}
@@ -439,19 +439,19 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
             const empty = preview.value == null || preview.value === '';
             return (
               <div key={field.key}>
-                <label className="mb-1 flex items-center gap-1 text-xs font-medium text-fg2">
+                <label className="mb-1 flex items-center gap-1 text-xs font-medium text-on-surface-variant">
                   <span className="truncate">{field.title}</span>
-                  <span className="inline-flex items-center gap-0.5 text-caption text-brand shrink-0">
+                  <span className="inline-flex items-center gap-0.5 text-caption text-primary shrink-0">
                     <FunctionSquare size={11} /> вычисляется
                   </span>
                 </label>
                 <Tooltip content={field.expression}>
-                  <div className="w-full rounded-md border border-dashed border-stroke bg-muted/30 px-3 py-1.5 text-sm">
+                  <div className="w-full rounded-md border border-dashed border-outline-variant bg-surface-container/30 px-3 py-1.5 text-sm">
                     {preview.error
-                      ? <span className="text-danger">Ошибка формулы</span>
+                      ? <span className="text-error">Ошибка формулы</span>
                       : empty && missingInputs.length > 0
                         ? <span className="text-fg4">— · заполните {missingInputs.join(', ')}</span>
-                        : <span className="text-fg1">{String(preview.value ?? '—')}</span>}
+                        : <span className="text-on-surface">{String(preview.value ?? '—')}</span>}
                   </div>
                 </Tooltip>
               </div>
@@ -491,12 +491,12 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     вместе с бейджем привязки — как и у простых полей ниже. */}
                 {field.type !== 'boolean' && field.type !== 'complex' && field.type !== 'array'
                   && !(field.type === 'text' && !bound && !locked) && (
-                  <label className="block text-xs font-medium text-fg2 mb-1 pr-5">
+                  <label className="block text-xs font-medium text-on-surface-variant mb-1 pr-5">
                     {field.title}
                     {/* У запертого поля ни звёздочки, ни «опц.»: и то и другое — указание тому, кто
                         заполняет, а заполняет здесь не человек. Вместо них — замок. */}
                     {locked ? <LockedFieldIcon className="ml-1 align-text-bottom" /> : <>
-                      {field.required && <span className="ml-0.5 text-danger">*</span>}
+                      {field.required && <span className="ml-0.5 text-error">*</span>}
                       {!field.required && <span className="ml-1 text-caption text-fg4 font-normal">опц.</span>}
                     </>}
                     <BrokenCountBadge count={deepBrokenCount(field.key)} className="ml-1.5 align-middle" />
@@ -521,9 +521,9 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     stale={staleBoundFields.has(field.key)} staleReason={staleReasonOf(field.key)} /> : (
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-medium text-fg2 pr-5">
+                      <label className="block text-xs font-medium text-on-surface-variant pr-5">
                         {field.title}
-                        {field.required && <span className="ml-0.5 text-danger">*</span>}
+                        {field.required && <span className="ml-0.5 text-error">*</span>}
                         <BrokenCountBadge count={deepBrokenCount(field.key)} className="ml-1.5 align-middle" />
                     <ValueIssueBadge count={deepIssueCount(valueIssues, field.key)} className="ml-1.5 align-middle" />
                       </label>
@@ -575,8 +575,8 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                 )}
                 {boundEmpty && <BoundStateHint loading={previewingBindings} error={hasBindingError} />}
                 {locked && <LockedFieldNote />}
-                {missing && <p className="text-xs text-danger mt-1">Обязательное поле</p>}
-                {!missing && constraintError && <p className="text-xs text-danger mt-1">{constraintError}</p>}
+                {missing && <p className="text-xs text-error mt-1">Обязательное поле</p>}
+                {!missing && constraintError && <p className="text-xs text-error mt-1">{constraintError}</p>}
                 {/* Расхождение с типом (issue #644) — после ошибок формы: те про текущий ввод, это
                     про сохранённое значение, чаще всего пришедшее не отсюда. */}
                 {!hasError && <ValueIssueHint messages={valueIssues.get(field.key)} />}
@@ -604,10 +604,10 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                   {/* Флажок подписывает себя сам — текстом справа от квадратика. Своя подпись
                       сверху дала бы ВТОРУЮ, слово в слово: у read-only флажка так и выходило. */}
                   {field.type !== 'boolean' && (
-                  <label className="block text-xs font-medium text-fg2 mb-1 pr-5">
+                  <label className="block text-xs font-medium text-on-surface-variant mb-1 pr-5">
                     {field.title}
                     {locked ? <LockedFieldIcon className="ml-1 align-text-bottom" />
-                      : field.required && <span className="ml-0.5 text-danger">*</span>}
+                      : field.required && <span className="ml-0.5 text-error">*</span>}
                     {primitiveDef && <span className="ml-1 text-caption text-fg4 font-normal">· {primitiveDef.name}</span>}
                     {(recognizedBoundFields.has(field.key) || staleBoundFields.has(field.key)) && (
                       <span className="ml-1 inline-block align-text-bottom">
@@ -642,8 +642,8 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
               )}
               {boundEmpty && <BoundStateHint loading={previewingBindings} error={hasBindingError} />}
               {locked && <LockedFieldNote />}
-              {missing && <p className="text-caption text-danger mt-0.5">Обязательное поле</p>}
-              {!missing && constraintError && <p className="text-caption text-danger mt-0.5">{constraintError}</p>}
+              {missing && <p className="text-caption text-error mt-0.5">Обязательное поле</p>}
+              {!missing && constraintError && <p className="text-caption text-error mt-0.5">{constraintError}</p>}
               {!hasError && <ValueIssueHint messages={valueIssues.get(field.key)} compact />}
             </div>
           );
@@ -689,13 +689,13 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
         {isFirst && hasBase && !baseRef && (
           <p className="text-xs text-fg4 mb-4">
             Основа не выбрана — все поля заполняются вручную.{' '}
-            <button type="button" onClick={() => setHintPicker(true)} className="text-brand hover:text-brand-hover underline underline-offset-2">
+            <button type="button" onClick={() => setHintPicker(true)} className="text-primary hover:text-brand-hover underline underline-offset-2">
               Выбрать основу
             </button>
           </p>
         )}
         <div className="mb-4">
-          <h2 className="text-xl font-normal text-fg1">{item.title}</h2>
+          <h2 className="text-xl font-normal text-on-surface">{item.title}</h2>
           <p className="text-xs text-fg4 mt-0.5">
             Заполнено {stats.filled} из {stats.total}
             {sectionIdx >= 0 && ` · раздел ${sectionIdx + 1} из ${fieldsItems.length}`}
@@ -716,12 +716,12 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
     <div className="flex flex-col min-h-0 flex-1">
       {(helpText || hasLevelProfile) && (
         <div className="shrink-0 px-6 pt-3">
-          <div className="rounded-lg border border-stroke bg-brand-subtle/30">
+          <div className="rounded-lg border border-outline-variant bg-primary-container/30">
             <button type="button" onClick={() => setHelpOpen(o => !o)}
               className="w-full flex items-center gap-2 px-3 py-2 text-left">
-              {helpOpen ? <ChevronDown size={14} className="text-brand shrink-0" /> : <ChevronRight size={14} className="text-brand shrink-0" />}
-              <Info size={14} className="text-brand shrink-0" />
-              <span className="text-sm font-medium text-fg1">Справка</span>
+              {helpOpen ? <ChevronDown size={14} className="text-primary shrink-0" /> : <ChevronRight size={14} className="text-primary shrink-0" />}
+              <Info size={14} className="text-primary shrink-0" />
+              <span className="text-sm font-medium text-on-surface">Справка</span>
             </button>
             {helpOpen && (
               <div className="px-3 pb-3 space-y-2">
@@ -729,7 +729,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                 {hasLevelProfile && (
                   <p className="text-xs text-fg3">
                     ℹ Часть данных подтягивается из <span className="text-brand-hover font-medium">профиля уровня</span>{' '}
-                    (стройка/раздел/комплект) — они доступны в шаблоне как <code className="font-mono bg-muted text-fg1 px-1 rounded">data.уровень.*</code> и заполняются на странице «Общие данные» уровня, а не здесь.
+                    (стройка/раздел/комплект) — они доступны в шаблоне как <code className="font-mono bg-surface-container text-on-surface px-1 rounded">data.уровень.*</code> и заполняются на странице «Общие данные» уровня, а не здесь.
                   </p>
                 )}
               </div>
@@ -741,7 +741,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
           но неполнота не «тихая», показываем всегда; жёсткий гейт — на генерации. */}
       {missingRequired.length > 0 && (
         <div className="shrink-0 px-6 pt-3">
-          <div className="flex items-start gap-2.5 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2 text-xs text-warning">
+          <div className="flex items-start gap-2.5 rounded-lg border border-warning-border bg-warning-container px-3 py-2 text-xs text-warning">
             <AlertTriangle size={15} className="shrink-0 mt-0.5" />
             <span>
               Черновик — не заполнено обязательных: <b>{missingRequired.length}</b>. Их можно заполнить позже или
@@ -753,7 +753,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
       <div className="flex-1 min-h-0 flex">
         {/* Drawer разделов (list-detail, issue #191) */}
         {useDrawer && (
-          <nav aria-label="Разделы формы" className="hidden lg:flex flex-col w-72 shrink-0 border-r border-stroke overflow-y-auto p-3 gap-0.5">
+          <nav aria-label="Разделы формы" className="hidden lg:flex flex-col w-72 shrink-0 border-r border-outline-variant overflow-y-auto p-3 gap-0.5">
             <div className="text-xs font-medium text-fg4 px-3 pb-1.5">Разделы</div>
             {items.map(item => {
               const isActive = item.key === activeItem.key;
@@ -761,16 +761,16 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
               const broken = brokenInFields(item.fields);
               let Icon = Circle, iconCls = 'text-fg4';
               // Битые ссылки — наивысший приоритет индикатора раздела (issue #334): всегда danger.
-              if (broken > 0) { Icon = AlertCircle; iconCls = 'text-danger'; }
-              else if (showValidation && stats.missing > 0) { Icon = AlertCircle; iconCls = 'text-danger'; }
-              else if (stats.total > 0 && stats.filled === stats.total) { Icon = CheckCircle2; iconCls = 'text-brand'; }
-              else if (isActive) { Icon = CircleDot; iconCls = 'text-brand'; }
+              if (broken > 0) { Icon = AlertCircle; iconCls = 'text-error'; }
+              else if (showValidation && stats.missing > 0) { Icon = AlertCircle; iconCls = 'text-error'; }
+              else if (stats.total > 0 && stats.filled === stats.total) { Icon = CheckCircle2; iconCls = 'text-primary'; }
+              else if (isActive) { Icon = CircleDot; iconCls = 'text-primary'; }
               else if (stats.filled > 0) { Icon = CircleDot; iconCls = 'text-fg3'; }
               return (
                 <button key={item.key} type="button" onClick={() => setActiveKey(item.key)}
                   aria-current={isActive ? 'true' : undefined}
                   className={`w-full flex items-center gap-3 text-left px-3 h-11 rounded-full transition-colors ${
-                    isActive ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg3 hover:bg-muted hover:text-fg1'}`}>
+                    isActive ? 'bg-primary-container text-brand-hover font-medium' : 'text-fg3 hover:bg-surface-container hover:text-on-surface'}`}>
                   <Icon size={18} className={`shrink-0 ${iconCls}`} />
                   <span className="flex-1 truncate text-sm">{item.title}</span>
                   <BrokenCountBadge count={broken} className="shrink-0" />
@@ -788,7 +788,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
               <>
                 {renderItemBody(activeItem)}
                 {(prevItem || nextItem) && (
-                  <div className="flex items-center justify-between gap-3 mt-8 pt-4 border-t border-stroke">
+                  <div className="flex items-center justify-between gap-3 mt-8 pt-4 border-t border-outline-variant">
                     {prevItem
                       ? <Button variant="outlined" onClick={() => setActiveKey(prevItem.key)}>← {prevItem.title}</Button>
                       : <span />}
@@ -808,8 +808,8 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
         <DocumentPreviewPanel key={instance.id} instanceId={instance.id} requisites={values} />
       </div>
       {error && (
-        <div className="shrink-0 px-6 py-2 bg-surface border-t border-stroke">
-          <p className="text-sm text-danger">{error}</p>
+        <div className="shrink-0 px-6 py-2 bg-surface border-t border-outline-variant">
+          <p className="text-sm text-error">{error}</p>
         </div>
       )}
       <BaseCandidatePicker open={hintPicker} onOpenChange={setHintPicker} candidates={baseCandidates} onSelect={requestSelectBase} />

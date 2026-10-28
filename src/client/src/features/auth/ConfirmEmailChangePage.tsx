@@ -39,19 +39,19 @@ export function ConfirmEmailChangePage() {
       )}
       {status === 'ok' && (
         <div className="space-y-4">
-          <p className="flex items-start gap-2 text-sm text-fg2">
+          <p className="flex items-start gap-2 text-sm text-on-surface-variant">
             <CheckCircle2 size={18} className="shrink-0 mt-0.5 text-success" />
             Адрес входа изменён на <span className="font-medium">{newEmail}</span>. Войдите с новым email.
           </p>
-          <Link to="/login" className="inline-block text-sm font-medium text-brand hover:underline">Перейти ко входу</Link>
+          <Link to="/login" className="inline-block text-sm font-medium text-primary hover:underline">Перейти ко входу</Link>
         </div>
       )}
       {status === 'error' && (
         <div className="space-y-4">
-          <p className="flex items-start gap-2 text-sm text-danger">
+          <p className="flex items-start gap-2 text-sm text-error">
             <AlertCircle size={18} className="shrink-0 mt-0.5" /> {error}
           </p>
-          <Link to="/login" className="inline-block text-sm font-medium text-brand hover:underline">Вернуться ко входу</Link>
+          <Link to="/login" className="inline-block text-sm font-medium text-primary hover:underline">Вернуться ко входу</Link>
         </div>
       )}
     </AuthCard>

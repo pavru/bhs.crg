@@ -247,7 +247,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
       {danglingRefs.length > 0 && (
         <div className="flex items-start gap-2 rounded-md border border-warning/50 bg-warning/10 px-3 py-2">
           <AlertTriangle size={14} className="text-warning shrink-0 mt-0.5" />
-          <div className="text-xs text-fg2 space-y-1 flex-1 min-w-0">
+          <div className="text-xs text-on-surface-variant space-y-1 flex-1 min-w-0">
             <p>В схеме есть ссылки на поля, которых нет ни среди своих, ни среди унаследованных —
               скорее всего опечатка в ключе:</p>
             <ul className="space-y-0.5">
@@ -260,7 +260,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
             </ul>
           </div>
           <button type="button" onClick={dropDanglingRefs}
-            className="text-xs px-2 py-1 rounded border border-warning/60 text-fg2 hover:bg-warning/20 shrink-0">
+            className="text-xs px-2 py-1 rounded border border-warning/60 text-on-surface-variant hover:bg-warning/20 shrink-0">
             Убрать ссылки
           </button>
         </div>
@@ -274,7 +274,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
           {(fields.length > 0 || parentEffectiveFields.length > 0) && (
             <button type="button" onClick={() => setShowJson(v => !v)}
               className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded ${
-                showJson ? 'bg-fg1 text-muted' : 'text-fg3 hover:text-fg1 hover:bg-muted'
+                showJson ? 'bg-on-surface text-surface-container' : 'text-fg3 hover:text-on-surface hover:bg-surface-container'
               }`}>
               <Braces size={12} /> JSON
             </button>
@@ -311,7 +311,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
           {unknownTypeTags.map(code => (
             <Tooltip key={code} content="Тэг модуля, выключенного на этом экземпляре. Пометка остаётся в схеме и заработает, когда модуль включат.">
               <span
-                className="rounded-full border border-dashed border-stroke px-2 py-0.5 text-caption text-fg4">
+                className="rounded-full border border-dashed border-outline-variant px-2 py-0.5 text-caption text-fg4">
                 {code}
               </span>
             </Tooltip>
@@ -341,9 +341,9 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
                     disabled={blocked}
                     onClick={() => { setDocTypeTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code]); setDirty(true); }}
                     className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                      blocked ? 'border-stroke text-fg4/50 opacity-60 cursor-not-allowed'
-                        : on ? 'bg-tertiary-subtle border-tertiary/50 text-on-tertiary-subtle'
-                          : 'border-stroke text-fg4 hover:border-stroke-strong hover:text-fg2'
+                      blocked ? 'border-outline-variant text-fg4/50 opacity-60 cursor-not-allowed'
+                        : on ? 'bg-tertiary-container border-tertiary/50 text-on-tertiary-container'
+                          : 'border-outline-variant text-fg4 hover:border-outline hover:text-on-surface-variant'
                     }`}
                   >
                     {t.label}
@@ -363,7 +363,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
               <p className="mt-2 text-xs text-fg3">
                 Используется как <span className="text-brand-hover font-medium">профиль уровня «{p.level}»</span>:
                 его объект редактируется в «Общие данные» уровня, поля доступны в шаблоне как{' '}
-                <code className="font-mono bg-muted text-fg1 px-1 rounded">data.уровень.{p.key}.*</code>.
+                <code className="font-mono bg-surface-container text-on-surface px-1 rounded">data.уровень.{p.key}.*</code>.
               </p>
             ) : null;
           })()}
@@ -372,7 +372,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
 
       {!showJson && (
         <SectionCard icon={<HelpCircle size={15} />} title="Справка для пользователя"
-          count={help.trim() ? 1 : 0} countClass="text-brand"
+          count={help.trim() ? 1 : 0} countClass="text-primary"
           open={showHelp} onToggle={() => setShowHelp(v => !v)}>
           <div className="pt-2 space-y-2">
             <p className="text-xs text-fg4">
@@ -381,18 +381,18 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
             </p>
             <div className="flex items-center gap-3 text-xs">
               <button type="button" onClick={() => setHelpPreview(false)}
-                className={!helpPreview ? 'text-brand font-medium' : 'text-fg4 hover:text-fg2'}>Текст</button>
+                className={!helpPreview ? 'text-primary font-medium' : 'text-fg4 hover:text-on-surface-variant'}>Текст</button>
               <button type="button" onClick={() => setHelpPreview(true)}
-                className={helpPreview ? 'text-brand font-medium' : 'text-fg4 hover:text-fg2'}>Предпросмотр</button>
+                className={helpPreview ? 'text-primary font-medium' : 'text-fg4 hover:text-on-surface-variant'}>Предпросмотр</button>
             </div>
             {helpPreview ? (
               help.trim()
-                ? <div className="rounded-md border border-stroke bg-surface p-3"><Markdown>{help}</Markdown></div>
+                ? <div className="rounded-md border border-outline-variant bg-surface p-3"><Markdown>{help}</Markdown></div>
                 : <p className="text-xs text-fg4 italic px-1">Пусто — введите текст на вкладке «Текст».</p>
             ) : (
               <textarea value={help} onChange={e => { setHelp(e.target.value); setDirty(true); }} rows={5}
                 placeholder="Напр.: Проект, адрес и заказчик подтягиваются из профиля стройки — заполнять здесь не нужно."
-                className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" />
+                className="w-full border border-outline rounded-md px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
             )}
           </div>
         </SectionCard>
@@ -426,7 +426,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
         </SectionCard>
       )}
 
-      {!showJson && error && <p className="text-xs text-danger pt-1">{error}</p>}
+      {!showJson && error && <p className="text-xs text-error pt-1">{error}</p>}
 
       {/* Гейт правки полей-идентификаторов (issue #584): показываем, во что превратится ключ и
           сколько связок перестанут находиться. Отмена диалога = отказ, поэтому решение отдаём в

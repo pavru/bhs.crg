@@ -38,7 +38,7 @@ import { useObservations, isUnreviewed } from '@/shared/api/observations';
 function StatusBadge({ f }: { f: Finding }) {
   if (f.resolved) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand shrink-0">
+      <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-primary-container text-primary shrink-0">
         <CheckCircle2 size={12} /> Устранено
       </span>
     );
@@ -51,7 +51,7 @@ function StatusBadge({ f }: { f: Finding }) {
   const muted = !!f.decision;
   return (
     <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full shrink-0 ${
-      muted ? 'bg-muted text-fg3' : 'bg-danger-subtle text-danger'}`}>
+      muted ? 'bg-surface-container text-fg3' : 'bg-error-container text-error'}`}>
       {muted ? <CircleSlash size={12} /> : <AlertTriangle size={12} />} {STATUS_LABELS[f.status]}
     </span>
   );
@@ -68,16 +68,16 @@ function FindingRow({ f, onDecide, linkable, checked, onToggle }: {
   const left = f.provenance.left;
   const right = f.provenance.right;
   return (
-    <div className="px-3 py-2 border-b border-stroke hover:bg-muted/40 group">
+    <div className="px-3 py-2 border-b border-outline-variant hover:bg-surface-container/40 group">
       <div className="flex items-center gap-2">
         {/* Связывать имеет смысл только позиции, не нашедшие пары: у остальных пара уже есть. */}
         {linkable && (
           <input type="checkbox" checked={checked} onChange={onToggle}
-            aria-label={`Выбрать «${f.label}» для связывания`} className="shrink-0 accent-brand" />
+            aria-label={`Выбрать «${f.label}» для связывания`} className="shrink-0 accent-primary" />
         )}
         <StatusBadge f={f} />
-        <span className="flex-1 truncate text-sm text-fg1" title={f.label}>{f.label}</span>
-        <span className="text-sm tabular-nums text-fg2 shrink-0">
+        <span className="flex-1 truncate text-sm text-on-surface" title={f.label}>{f.label}</span>
+        <span className="text-sm tabular-nums text-on-surface-variant shrink-0">
           {num(f.leftValue)} <span className="text-fg4">/</span> {num(f.rightValue)}
         </span>
         <Button variant="text" size="sm" onClick={() => onDecide(f)}
@@ -274,9 +274,9 @@ export function ReconciliationsPage() {
       description="Сверка сопоставляет два источника по доменному ключу и показывает расхождения." />
   ) : (
     <div className="flex-1 min-w-0 flex flex-col">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-stroke shrink-0">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-outline-variant shrink-0">
         <div className="min-w-0 flex-1">
-          <h2 className="text-base font-semibold text-fg1 truncate">{selected.name}</h2>
+          <h2 className="text-base font-semibold text-on-surface truncate">{selected.name}</h2>
           <p className="text-xs text-fg3 mt-0.5">
             {currentRun ? runSummary(currentRun) : 'Прогонов ещё не было'}
           </p>
@@ -301,16 +301,16 @@ export function ReconciliationsPage() {
       {/* Неудачный прогон обязан быть виден: пустой список читается как «расхождений нет», и это
           самое опасное недоразумение в подсистеме. */}
       {currentRun?.status === 'Failed' && (
-        <div className="mx-4 mt-3 px-3 py-2 rounded-lg bg-danger-subtle text-danger text-sm">
+        <div className="mx-4 mt-3 px-3 py-2 rounded-lg bg-error-container text-error text-sm">
           <strong>Прогон не выполнен.</strong> {currentRun.error}
         </div>
       )}
 
       {currentRun?.status === 'Completed' && (
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-stroke text-xs shrink-0">
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant text-xs shrink-0">
           <button type="button" onClick={() => setOnlyAttention(v => !v)}
             className={`px-2 py-1 rounded-full transition-colors ${
-              onlyAttention ? 'bg-brand-subtle text-brand font-medium' : 'text-fg3 hover:bg-muted'}`}>
+              onlyAttention ? 'bg-primary-container text-primary font-medium' : 'text-fg3 hover:bg-surface-container'}`}>
             Требует внимания: {attentionCount}
           </button>
           <span className="text-fg4">
@@ -321,9 +321,9 @@ export function ReconciliationsPage() {
       )}
 
       {linking.length > 0 && (
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-stroke bg-brand-subtle shrink-0">
-          <Link2 size={14} className="text-brand shrink-0" />
-          <span className="text-xs text-brand flex-1 truncate">
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant bg-primary-container shrink-0">
+          <Link2 size={14} className="text-primary shrink-0" />
+          <span className="text-xs text-primary flex-1 truncate">
             {linking.length === 1
               ? 'Выберите вторую позицию, чтобы связать их как одну'
               : findings.filter(f => linking.includes(f.id)).map(f => f.label).join('  →  ')}

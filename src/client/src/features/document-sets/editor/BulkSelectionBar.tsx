@@ -16,14 +16,14 @@ export function BulkSelectionBar({ selected, setSelected, openPickerForSelected,
   widerThanSelector: MaterialQualityLink[];
 }) {
   return (
-    <div className="sticky bottom-0 rounded-md border border-stroke bg-surface px-3 py-2 shadow-sm">
+    <div className="sticky bottom-0 rounded-md border border-outline-variant bg-surface px-3 py-2 shadow-sm">
       <div className="flex items-center gap-2">
-        <span className="text-sm text-fg2">Выбрано: {selected.size}</span>
+        <span className="text-sm text-on-surface-variant">Выбрано: {selected.size}</span>
         <Button variant="filled" size="sm" onClick={openPickerForSelected} icon={<Link2 size={13} />}>
           Связать выбранные ({selected.size})
         </Button>
         <button onClick={() => setSelected(new Set())}
-          className="ml-auto text-xs text-fg4 hover:text-fg2">Снять выбор</button>
+          className="ml-auto text-xs text-fg4 hover:text-on-surface-variant">Снять выбор</button>
       </div>
       {/* Часть выбранных уже связана ШИРЕ, чем выбрано в селекторе, и правка уйдёт на их
           уровень — за пределы этого комплекта. В строке уровень виден значком, но на сотне

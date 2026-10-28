@@ -14,8 +14,8 @@ export function FavoriteSitesSection() {
   const filter = useSiteFilterState();
   if (filter.status === 'unavailable') return null;
   return (
-    <div className="mt-8 pt-6 border-t border-stroke" data-testid="favorite-sites-section">
-      <h2 className="flex items-center gap-2 text-sm font-semibold text-fg1 mb-3">
+    <div className="mt-8 pt-6 border-t border-outline-variant" data-testid="favorite-sites-section">
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface mb-3">
         <Star size={15} className="text-fg3" /> Избранные стройки
       </h2>
       <FavoritesPicker maxHeight="max-h-96" />

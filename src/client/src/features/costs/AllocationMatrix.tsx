@@ -241,7 +241,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
               key: 'row', label: 'Строка', rowHeader: true, pin: 'start',
               cell: row => (
                 <>
-                  <div className="text-fg1 max-w-64 truncate" title={row.title}>{row.title}</div>
+                  <div className="text-on-surface max-w-64 truncate" title={row.title}>{row.title}</div>
                   <div className="text-fg4">
                     {row.mode === 'quantity'
                       ? `${row.whole === null ? '' : formatQuantity(row.whole)} ${row.unit ?? ''}`.trim()
@@ -257,7 +257,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
               header: editable
                 ? <TargetHeader target={target} number={index + 1} places={places}
                     onChange={patch => retarget(target.key, patch)} onRemove={() => remove(target.key)} />
-                : <span className="text-fg2">{targetName(target, places)}</span>,
+                : <span className="text-on-surface-variant">{targetName(target, places)}</span>,
               cell: row => {
                 const allocation = allocations[row.key];
                 return (
@@ -275,7 +275,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
                       </Tooltip>
                     )}
                     {!dirty && (
-                      <div className="text-right text-fg2">
+                      <div className="text-right text-on-surface-variant">
                         {cellText(row, partAt(allocation, target))}
                         {remainder(row, target) && (
                           <Tooltip content="Сюда ушёл остаток округления — так части складываются ровно в строку">
@@ -319,7 +319,7 @@ function TargetHeader({ target, number, places, onChange, onRemove }: {
           onChange={onChange} />
         <Tooltip content={`Убрать объект ${number}`} name>
           <button type="button" onClick={onRemove}
-            className="text-fg4 hover:text-danger p-0.5">
+            className="text-fg4 hover:text-error p-0.5">
             <Trash2 size={13} />
           </button>
         </Tooltip>

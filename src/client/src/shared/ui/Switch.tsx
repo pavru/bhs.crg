@@ -20,14 +20,14 @@ export function Switch({ checked, onChange, disabled, label, title, size = 'md' 
       <button
         type="button" role="switch" aria-checked={checked} aria-label={label} disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-40 disabled:cursor-not-allowed ${track} ${
-          checked ? 'bg-brand' : 'bg-surface border-2 border-stroke-strong'
+        className={`relative inline-flex shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40 disabled:cursor-not-allowed ${track} ${
+          checked ? 'bg-primary' : 'bg-surface border-2 border-outline'
         }`}
       >
         <span
           aria-hidden="true"
           className={`absolute rounded-full transition-all ${
-            checked ? `bg-on-brand ${knobOn}` : `bg-stroke-strong ${knobOff}`
+            checked ? `bg-on-primary ${knobOn}` : `bg-outline ${knobOff}`
           }`}
         />
       </button>

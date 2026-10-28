@@ -80,39 +80,39 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Очистка старых версий"
       footer={
         <div className="flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container rounded-md">Отмена</button>
           <button onClick={handleDelete} disabled={deleting || toDelete.length === 0}
-            className="px-4 py-2 text-sm bg-danger hover:bg-danger text-on-danger rounded-md disabled:opacity-50 transition-colors">
+            className="px-4 py-2 text-sm bg-error hover:bg-error text-on-error rounded-md disabled:opacity-50 transition-colors">
             {deleting ? 'Удаление...' : `Удалить ${toDelete.length} вер.`}
           </button>
         </div>
       }>
       <div className="space-y-4">
-        <p className="text-sm text-fg2">
+        <p className="text-sm text-on-surface-variant">
           Шаблон <strong>«{group.name}»</strong> — {group.versions.length} версий.
           Отметьте версии для удаления. Рабочая, по умолчанию и запиннутые документами версии защищены —
           запиннутые удаляются по одной, с предупреждением.
         </p>
-        <div className="border border-stroke rounded-lg overflow-hidden">
+        <div className="border border-outline-variant rounded-lg overflow-hidden">
           {group.versions.map((t, i) => {
             const protected_ = protectedIds.has(t.id);
             const checked = toDeleteIds.has(t.id);
             return (
               <label key={t.id}
                 className={`flex items-center gap-3 px-3 py-2.5 text-sm cursor-pointer transition-colors
-                  ${i > 0 ? 'border-t border-muted' : ''}
-                  ${protected_ ? 'opacity-60 cursor-not-allowed bg-base' : checked ? 'bg-danger-subtle hover:bg-danger-subtle' : 'hover:bg-base'}`}>
+                  ${i > 0 ? 'border-t border-surface-container' : ''}
+                  ${protected_ ? 'opacity-60 cursor-not-allowed bg-surface-container-low' : checked ? 'bg-error-container hover:bg-error-container' : 'hover:bg-surface-container-low'}`}>
                 <input
                   type="checkbox"
                   checked={checked}
                   disabled={protected_}
                   onChange={() => toggleVersion(t.id)}
-                  className="w-4 h-4 rounded border-stroke-strong text-danger disabled:opacity-40"
+                  className="w-4 h-4 rounded border-outline text-error disabled:opacity-40"
                 />
-                <span className="font-mono text-fg2 shrink-0">v{t.version}</span>
+                <span className="font-mono text-on-surface-variant shrink-0">v{t.version}</span>
                 <span className="flex items-center gap-1.5 flex-1 min-w-0">
-                  {t.isActive && <span className="text-xs text-success bg-success-subtle px-1.5 py-0.5 rounded shrink-0">активный</span>}
-                  {t.isDefault && <span className="text-xs text-warning bg-warning-subtle px-1.5 py-0.5 rounded shrink-0">по умолч.</span>}
+                  {t.isActive && <span className="text-xs text-success bg-success-container px-1.5 py-0.5 rounded shrink-0">активный</span>}
+                  {t.isDefault && <span className="text-xs text-warning bg-warning-container px-1.5 py-0.5 rounded shrink-0">по умолч.</span>}
                   {i === 0 && !t.isActive && <span className="text-xs text-fg4 shrink-0">последняя</span>}
                   {t.comment && <span className="text-xs text-fg4 truncate" title={t.comment}>{t.comment}</span>}
                 </span>
@@ -122,16 +122,16 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
                     {protectReason(t, i === 0) ?? 'защищена'}
                   </span>
                 )}
-                {!protected_ && checked && <span className="text-xs text-danger shrink-0">удалить</span>}
+                {!protected_ && checked && <span className="text-xs text-error shrink-0">удалить</span>}
               </label>
             );
           })}
         </div>
         {toDelete.length === 0
           ? <p className="text-sm text-fg3">Ничего не выбрано для удаления.</p>
-          : <p className="text-sm text-fg2">Будет удалено: <strong>{toDelete.length}</strong> вер.</p>
+          : <p className="text-sm text-on-surface-variant">Будет удалено: <strong>{toDelete.length}</strong> вер.</p>
         }
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <p className="text-sm text-error">{error}</p>}
       </div>
     </Modal>
   );
@@ -208,11 +208,11 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
   }
 
   return (
-    <aside className="w-64 border-r border-stroke bg-surface flex flex-col">
-      <div className="px-4 py-3 border-b border-muted flex items-center justify-between">
-        <span className="text-sm font-medium text-fg2">Шаблоны</span>
+    <aside className="w-64 border-r border-outline-variant bg-surface flex flex-col">
+      <div className="px-4 py-3 border-b border-surface-container flex items-center justify-between">
+        <span className="text-sm font-medium text-on-surface-variant">Шаблоны</span>
         <Tooltip content="Новый шаблон" name>
-          <button onClick={onNew} className="text-brand hover:text-brand-hover transition-colors">
+          <button onClick={onNew} className="text-primary hover:text-brand-hover transition-colors">
             <Plus size={16} />
           </button>
         </Tooltip>
@@ -235,7 +235,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
 
           return (
             <div key={group.name}>
-              <div className={`flex items-center group/grp transition-colors ${isGroupSelected ? 'bg-brand-subtle' : 'hover:bg-base'}`}>
+              <div className={`flex items-center group/grp transition-colors ${isGroupSelected ? 'bg-primary-container' : 'hover:bg-surface-container-low'}`}>
                 <button
                   onClick={() => handleGroupHeaderClick(group)}
                   className="flex-1 flex items-center gap-1.5 px-3 py-2.5 text-left min-w-0"
@@ -244,7 +244,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                     ? <ChevronUp size={12} className="text-fg4 shrink-0" />
                     : <ChevronDown size={12} className="text-fg4 shrink-0" />}
                   {hasDefault && <Star size={10} className="fill-warning text-warning shrink-0" />}
-                  <span className={`text-sm truncate flex-1 ${isGroupSelected ? 'text-brand-hover font-medium' : 'text-fg1'}`}>
+                  <span className={`text-sm truncate flex-1 ${isGroupSelected ? 'text-brand-hover font-medium' : 'text-on-surface'}`}>
                     {group.name}
                   </span>
                   <span className="text-xs text-fg4 shrink-0">v{latestVersion}</span>
@@ -255,7 +255,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                 <Tooltip content="Дублировать шаблон" name>
                   <button
                     onClick={() => onDuplicate(group)}
-                    className="px-2 py-2.5 text-stroke-strong hover:text-brand opacity-0 group-hover/grp:opacity-100 transition-all shrink-0"
+                    className="px-2 py-2.5 text-stroke-strong hover:text-primary opacity-0 group-hover/grp:opacity-100 transition-all shrink-0"
                   >
                     <Copy size={13} />
                   </button>
@@ -263,7 +263,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                 <Tooltip content="Удалить шаблон со всеми версиями" name>
                   <button
                     onClick={() => onDeleteGroup(group)}
-                    className="px-2 py-2.5 text-stroke-strong hover:text-danger opacity-0 group-hover/grp:opacity-100 transition-all shrink-0"
+                    className="px-2 py-2.5 text-stroke-strong hover:text-error opacity-0 group-hover/grp:opacity-100 transition-all shrink-0"
                   >
                     <Trash2 size={13} />
                   </button>
@@ -271,7 +271,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
               </div>
 
               {isExpanded && (
-                <div className="border-b border-muted">
+                <div className="border-b border-surface-container">
                   {group.versions.map(t => {
                     const used = usage[t.id]?.count ?? 0;
                     // Удалять индивидуально нельзя рабочую/дефолтную версию (защита active/default — на уровне UI).
@@ -279,11 +279,11 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                     return (
                     <div key={t.id}
                       className={`flex items-center group/ver transition-colors pl-5
-                        ${selectedTemplate?.id === t.id ? 'bg-brand-subtle' : 'hover:bg-base'}`}>
+                        ${selectedTemplate?.id === t.id ? 'bg-primary-container' : 'hover:bg-surface-container-low'}`}>
                       <button
                         onClick={() => onSelect(t)}
                         className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 text-left min-w-0
-                          ${selectedTemplate?.id === t.id ? 'text-brand-hover' : 'text-fg2'}`}
+                          ${selectedTemplate?.id === t.id ? 'text-brand-hover' : 'text-on-surface-variant'}`}
                       >
                         <span className="text-xs font-mono shrink-0 w-6">v{t.version}</span>
                         <span className="flex items-center gap-1 flex-1 min-w-0">
@@ -316,7 +316,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                     );
                   })}
                   {tooMany && (
-                    <div className="mx-3 mb-2 mt-1 px-2 py-1.5 bg-warning-subtle border border-warning-border rounded-md flex items-center gap-2">
+                    <div className="mx-3 mb-2 mt-1 px-2 py-1.5 bg-warning-container border border-warning-border rounded-md flex items-center gap-2">
                       <AlertTriangle size={11} className="text-warning shrink-0" />
                       <span className="text-xs text-warning flex-1">Много версий</span>
                       <button

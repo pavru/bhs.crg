@@ -50,12 +50,12 @@ export function ActivityCenter() {
       <Popover.Trigger asChild>
         <button type="button" data-testid="activity" aria-label={label}
           className={'relative shrink-0 flex items-center justify-center rounded-full h-10 max-md:h-11 transition-colors ' +
-            'hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 data-[state=open]:bg-tonal data-[state=open]:text-on-tonal ' +
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface ' +
+            'hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 data-[state=open]:bg-secondary-container data-[state=open]:text-on-secondary-container ' +
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface ' +
             // Цвет — в каждой ветке свой, а не общий с перебивкой: из двух `text-*` побеждает тот, что
             // позже в таблице стилей, а не в атрибуте (ревью PR #1450).
             // На телефоне — 44 px: цель касания (#1434).
-            (busy ? 'gap-2 pl-2.5 pr-3 text-fg2' : 'w-10 max-md:w-11 text-fg3')}>
+            (busy ? 'gap-2 pl-2.5 pr-3 text-on-surface-variant' : 'w-10 max-md:w-11 text-fg3')}>
           {busy ? (
             <>
               <ProgressRing />
@@ -75,11 +75,11 @@ export function ActivityCenter() {
         {/* Прокручивается только список уведомлений: шапка с «Отметить все» и «Очистить все» и
             раздел «Выполняется» стоят на месте, как у прежнего колокольчика (ревью PR #1450). */}
         <Popover.Content align="end" sideOffset={8} collisionPadding={8} aria-label="Активность"
-          className="z-50 w-100 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) flex flex-col overflow-hidden rounded-2xl border border-stroke bg-surface focus:outline-none"
+          className="z-50 w-100 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) flex flex-col overflow-hidden rounded-2xl border border-outline-variant bg-surface focus:outline-none"
           style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           {busy && (
-            <section aria-labelledby={jobsHeading} className="shrink-0 border-b border-stroke pt-1">
-              <h2 id={jobsHeading} className="px-5 pt-2 text-base font-medium text-fg1">Выполняется</h2>
+            <section aria-labelledby={jobsHeading} className="shrink-0 border-b border-outline-variant pt-1">
+              <h2 id={jobsHeading} className="px-5 pt-2 text-base font-medium text-on-surface">Выполняется</h2>
               {/* Ход задач озвучивается, пока поповер открыт (так было у прежнего поповера задач).
                   Таймер в строке из озвучки убран — иначе диктор читал бы его каждую секунду. */}
               <div role="status" className="max-h-60 overflow-y-auto">
@@ -102,7 +102,7 @@ function Count({ n, error }: { n: number; error: boolean }) {
   return (
     <span aria-hidden="true"
       className={'min-w-4 h-4 px-1 rounded-full text-caption font-medium flex items-center justify-center ' +
-        (error ? 'bg-danger text-surface' : 'bg-brand text-on-brand')}>
+        (error ? 'bg-error text-surface' : 'bg-primary text-on-primary')}>
       {n > 99 ? '99+' : n}
     </span>
   );
@@ -113,9 +113,9 @@ function ProgressRing() {
   return (
     <svg viewBox="0 0 20 20" width={20} height={20} aria-hidden="true"
       className="shrink-0 animate-spin motion-reduce:animate-none">
-      <circle cx="10" cy="10" r="8" fill="none" strokeWidth="2.5" className="stroke-stroke" />
+      <circle cx="10" cy="10" r="8" fill="none" strokeWidth="2.5" className="stroke-outline-variant" />
       <circle cx="10" cy="10" r="8" fill="none" strokeWidth="2.5" strokeLinecap="round"
-        strokeDasharray="14 50.3" className="stroke-brand" />
+        strokeDasharray="14 50.3" className="stroke-primary" />
     </svg>
   );
 }

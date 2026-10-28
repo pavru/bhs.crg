@@ -138,7 +138,7 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
           aria-label={locked ? 'Снять привязку к источнику'
             : isBound ? 'Привязка к источнику' : 'Привязать к источнику'}
           className={`inline-flex items-center justify-center rounded transition-colors ${
-            isBound ? 'text-brand hover:text-brand-hover' : 'text-fg4 opacity-0 group-hover:opacity-100 hover:text-fg2'}`}>
+            isBound ? 'text-primary hover:text-brand-hover' : 'text-fg4 opacity-0 group-hover:opacity-100 hover:text-on-surface-variant'}`}>
           <Database size={13} />
         </button>
       </Tooltip>
@@ -197,7 +197,7 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
             )}
 
             {selectedSource && coverTitles.length > 0 && (
-              <label className="flex items-start gap-2 text-xs text-fg2 cursor-pointer select-none">
+              <label className="flex items-start gap-2 text-xs text-on-surface-variant cursor-pointer select-none">
                 <input type="checkbox" checked={coverOn} onChange={e => setCoverOn(e.target.checked)} className="mt-0.5" />
                 <span>Этот источник заполнит также: <span className="text-fg3">{coverTitles.join(', ')}</span></span>
               </label>

@@ -52,7 +52,7 @@ export function usePurgeBatchControls({ scope, scopeId, type }: {
 
   /** Панель режима выбора — на месте кнопки «Добавить запись». `shown` — записи, видимые сейчас. */
   const bar = (shown: string[]): ReactNode => picked && type && (
-    <div className="flex flex-1 items-center gap-3 flex-wrap justify-end text-xs text-fg2">
+    <div className="flex flex-1 items-center gap-3 flex-wrap justify-end text-xs text-on-surface-variant">
       <span className="tabular-nums">Выбрано: {picked.size}{hiddenNote(picked, shown)}</span>
       <Button variant="text" size="sm"
         onClick={() => setPicking({ where, ids: new Set([...picked, ...shown]) })}>

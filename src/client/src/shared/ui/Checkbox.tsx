@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useRef, type InputHTMLAttributes, type ReactNode
 
 /**
  * Флажок (issue #1351). Нативный `<input type="checkbox">`, а не нарисованный: клавиатура, фокус,
- * отметка в форме и чтение экранным диктором у него свои и верные. Цвет — `accent-brand`, размер —
+ * отметка в форме и чтение экранным диктором у него свои и верные. Цвет — `accent-primary`, размер —
  * 18 px (MD3) или 16 px в плотных строках.
  *
  * `indeterminate` — состояние «отмечены не все» у флажка «выбрать всё». Атрибутом HTML его не задать,
@@ -50,14 +50,14 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
       checked={checked}
       disabled={disabled}
       onChange={e => onChange(e.target.checked)}
-      className={`${BOX[size]} shrink-0 accent-brand ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'} ` +
-        `focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${label ? (size === 'md' ? 'mt-px' : 'mt-0.5') : className}`}
+      className={`${BOX[size]} shrink-0 accent-primary ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'} ` +
+        `focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${label ? (size === 'md' ? 'mt-px' : 'mt-0.5') : className}`}
     />
   );
   if (!label) return input;
 
   return (
-    <label className={`inline-flex items-start gap-2 text-sm text-fg1 select-none ` +
+    <label className={`inline-flex items-start gap-2 text-sm text-on-surface select-none ` +
       `${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${className}`}>
       {input}
       <span className="min-w-0">

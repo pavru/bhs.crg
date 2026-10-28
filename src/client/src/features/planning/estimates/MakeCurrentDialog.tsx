@@ -59,13 +59,13 @@ function Body({ estimateId, revisionId, make, onDone }: {
     });
   };
 
-  if (preview.isError) return <p role="alert" className="text-sm text-danger">{apiError(preview.error, 'Расхождения не посчитались')}</p>;
+  if (preview.isError) return <p role="alert" className="text-sm text-error">{apiError(preview.error, 'Расхождения не посчитались')}</p>;
   if (!preview.data) return <p className="text-sm text-fg4">Считаем, что изменится в плане…</p>;
   const data = preview.data;
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-fg2">
+      <p className="text-sm text-on-surface-variant">
         {data.currentRevisionNumber === null
           ? `План стройки будет считаться по ред. ${data.revisionNumber}.`
           : `План стройки будет считаться по ред. ${data.revisionNumber} вместо ред. ${data.currentRevisionNumber}.`}
@@ -74,19 +74,19 @@ function Body({ estimateId, revisionId, make, onDone }: {
       <Changes preview={data} />
 
       {data.cost && (
-        <p className="text-sm text-fg2">
-          Себестоимость: {formatMoney(data.cost.was)} → <span className="font-medium text-fg1">{formatMoney(data.cost.becomes)}</span>
+        <p className="text-sm text-on-surface-variant">
+          Себестоимость: {formatMoney(data.cost.was)} → <span className="font-medium text-on-surface">{formatMoney(data.cost.becomes)}</span>
         </p>
       )}
 
       {data.unmatched > 0 && (
-        <p className="rounded-md border border-warning-border bg-warning-subtle px-3 py-2 text-note text-warning">
+        <p className="rounded-md border border-warning-border bg-warning-container px-3 py-2 text-note text-warning">
           В ред. {data.revisionNumber} не сопоставлено строк: {formatCount(data.unmatched)} — в план они не войдут. Действующей её
           можно сделать и сейчас; сопоставленное позже войдёт в план само.
         </p>
       )}
 
-      {refusal && <p role="alert" className="text-note text-danger">{refusal.text}</p>}
+      {refusal && <p role="alert" className="text-note text-error">{refusal.text}</p>}
 
       <div className="flex justify-end gap-2 pt-1">
         <ModalExit />

@@ -46,19 +46,19 @@ export function UsersPage() {
         const isSelf = u.id === me?.sub;
         return (
           <>
-            <div className="text-fg1 font-medium flex items-center gap-2">
+            <div className="text-on-surface font-medium flex items-center gap-2">
               {/* Щит — у роли «все права», а не у роли с именем «Admin»: признак
                   приходит с сервера, а имя ничего не значит (issues #989/#990).
                   Ролей может быть несколько, и щит ставится, если ТАКАЯ есть хотя бы
                   одна: «все права» плюс что-то ещё — всё равно все права. */}
               {u.roles.some(ur => roles.find(r => r.name === ur.name)?.allPermissions)
-                ? <ShieldCheck size={14} className="text-brand shrink-0" />
+                ? <ShieldCheck size={14} className="text-primary shrink-0" />
                 : <UserIcon size={14} className="text-fg4 shrink-0" />}
               {u.displayName || u.email}
               {isSelf && <span className="text-caption text-fg4 font-normal">(вы)</span>}
             </div>
             {u.displayName && <div className="text-xs text-fg4 mt-0.5">{u.email}</div>}
-            {rowError?.id === u.id && <div className="text-xs text-danger mt-1">{rowError.msg}</div>}
+            {rowError?.id === u.id && <div className="text-xs text-error mt-1">{rowError.msg}</div>}
           </>
         );
       } },
@@ -177,7 +177,7 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
             Можно выбрать несколько: права складываются. Что даёт каждая — на экране «Роли и права».
           </p>
         </div>
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <p className="text-sm text-error">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <ModalExit />
           <Button type="submit" variant="filled" loading={create.isPending} disabled={chosen.length === 0}>
@@ -241,7 +241,7 @@ export function ResetPasswordModal({ user, onClose }: { user: AppUser | null; on
           <TextField label="Новый пароль" type="text" value={password} onChange={e => setPassword(e.target.value)}
             required minLength={PASSWORD_MIN_LENGTH} autoFocus className="font-mono"
             hint={`${PASSWORD_HINT} После сброса пароль останется на экране — его можно будет скопировать.`} />
-          {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+          {error && <p role="alert" className="text-sm text-error">{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
             <ModalExit />
             <Button type="submit" variant="filled" loading={reset.isPending}>
@@ -255,7 +255,7 @@ export function ResetPasswordModal({ user, onClose }: { user: AppUser | null; on
             {/* Поле только для чтения, а не `<output>`: тот — живая область, и секрет при появлении
                 зачитывался бы вслух программой чтения с экрана. */}
             <input readOnly aria-label="Новый пароль" value={issued} onFocus={e => e.target.select()}
-              className="flex-1 min-w-0 rounded-md border border-stroke bg-base px-3 py-2 font-mono text-sm text-fg1" />
+              className="flex-1 min-w-0 rounded-md border border-outline-variant bg-surface-container-low px-3 py-2 font-mono text-sm text-on-surface" />
             {/* Фокус — сюда, а не на «Готово»: форму отправляют клавишей Enter, и задержанная
                 клавиша закрыла бы окно с паролем раньше, чем его прочли. */}
             <Button type="button" variant="tonal" autoFocus onClick={copy}>
@@ -263,7 +263,7 @@ export function ResetPasswordModal({ user, onClose }: { user: AppUser | null; on
             </Button>
           </div>
           {copied === 'failed' && (
-            <p role="alert" className="text-sm text-danger">Скопировать не удалось — выделите пароль и скопируйте вручную.</p>
+            <p role="alert" className="text-sm text-error">Скопировать не удалось — выделите пароль и скопируйте вручную.</p>
           )}
           <p className="text-sm text-fg3">
             Сообщите пароль пользователю. После закрытия окна он больше нигде не показывается.

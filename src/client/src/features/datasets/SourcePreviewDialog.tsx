@@ -60,10 +60,10 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
         const path = pathIdx >= 0 ? row[pathIdx] : null;
         const size = sizeRaw != null && sizeRaw !== '' && !Number.isNaN(Number(sizeRaw)) ? formatBytes(Number(sizeRaw)) : null;
         return (
-          <div key={i} className="flex items-center gap-3 rounded-md px-3 py-2 bg-muted">
+          <div key={i} className="flex items-center gap-3 rounded-md px-3 py-2 bg-surface-container">
             <FileText size={14} className="text-fg4 shrink-0" />
             <div className="min-w-0 flex-1">
-              <div className="text-xs font-medium truncate text-fg1">
+              <div className="text-xs font-medium truncate text-on-surface">
                 {name ?? <em className="text-fg4">без названия</em>}
               </div>
               <div className="text-caption text-fg4">
@@ -74,7 +74,7 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
               <button
                 onClick={() => path && handleOpen(i, path)}
                 disabled={!path || opening === i}
-                className="flex items-center gap-1 shrink-0 px-2 py-1 text-xs rounded-md border border-stroke text-fg2 hover:bg-surface disabled:opacity-40 disabled:hover:bg-transparent">
+                className="flex items-center gap-1 shrink-0 px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant hover:bg-surface disabled:opacity-40 disabled:hover:bg-transparent">
                 {opening === i ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
                 Просмотреть
               </button>
@@ -123,7 +123,7 @@ export function SourcePreviewDialog({ source, onClose }: { source: DataSetSource
           <Loader2 size={16} className="animate-spin" /> Загрузка...
         </div>
       ) : error ? (
-        <p className="text-sm text-danger py-4">
+        <p className="text-sm text-error py-4">
           {(error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Не удалось получить результат'}
         </p>
       ) : !data || data.columns.length === 0 ? (

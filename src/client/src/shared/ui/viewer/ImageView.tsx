@@ -81,15 +81,15 @@ export function ImageView({ source, documentKey, title, actions, rememberZoomAs 
   const sheet = l ? { width: l.widths[0], height: l.heights[0] } : null;
 
   return (
-    <div ref={root} className="h-full w-full flex flex-col min-h-0 bg-base" onKeyDown={onKeyDown} {...hover}>
+    <div ref={root} className="h-full w-full flex flex-col min-h-0 bg-surface-container-low" onKeyDown={onKeyDown} {...hover}>
       <div ref={scroller} role="region" aria-label={title} tabIndex={0} data-testid="viewer-region" data-view="image"
-        className="relative flex-1 min-h-0 overflow-auto bg-base focus-visible:outline-2 focus-visible:outline-brand focus-visible:-outline-offset-2">
+        className="relative flex-1 min-h-0 overflow-auto bg-surface-container-low focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2">
         {failed && <ViewerMessage state="broken" source={source} actions={actions} />}
         {!failed && !ready && <ViewerMessage state="loading" source={source} />}
         {/* Картинка в DOM всегда: адрес ей ставит эффект, а размеры она сообщает, загрузившись. */}
         <div className={ready ? 'relative' : 'absolute invisible w-0 h-0 overflow-hidden'} style={l ? { height: l.total, minWidth: l.width } : undefined}>
           <div data-page={1} data-testid="viewer-image-sheet"
-            className="absolute bg-white overflow-hidden shadow-[var(--md-sys-elevation-level1)] dark:shadow-none dark:outline dark:outline-1 dark:outline-stroke"
+            className="absolute bg-white overflow-hidden shadow-[var(--md-sys-elevation-level1)] dark:shadow-none dark:outline dark:outline-1 dark:outline-outline-variant"
             style={sheet
               ? { top: CANVAS_PADDING, width: sheet.width, height: sheet.height, left: `max(${CANVAS_PADDING}px, calc(50% - ${sheet.width / 2}px))` }
               : undefined}>

@@ -54,14 +54,14 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
     <Popover.Root open={open} onOpenChange={toggle}>
       <Popover.Trigger asChild>
         <button type="button"
-          className="inline-flex items-center gap-1.5 rounded-md border border-stroke px-2.5 py-1 text-xs text-fg2 hover:text-fg1 hover:bg-muted">
+          className="inline-flex items-center gap-1.5 rounded-md border border-outline-variant px-2.5 py-1 text-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container">
           <Columns3 size={13} aria-hidden />
           {view.columns ? `Колонки: ${shown.length} из ${all.length}` : 'Колонки'}
         </button>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="end" sideOffset={6} aria-label="Колонки и итоги"
-          className="z-50 w-[26rem] max-h-[70vh] overflow-auto rounded-lg bg-surface border border-stroke p-3 focus:outline-none"
+          className="z-50 w-[26rem] max-h-[70vh] overflow-auto rounded-lg bg-surface border border-outline-variant p-3 focus:outline-none"
           style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           <ul className="space-y-0.5">
             {order.map((key, i) => {
@@ -86,7 +86,7 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
             })}
           </ul>
 
-          <div className="mt-3 pt-2.5 border-t border-stroke flex items-center gap-2 text-xs text-fg2">
+          <div className="mt-3 pt-2.5 border-t border-outline-variant flex items-center gap-2 text-xs text-on-surface-variant">
             <span aria-hidden>Закрепить слева</span>
             <Select size="sm" className="w-auto" aria-label="Закрепить слева"
               value={String(Math.min(view.pinned, gridColumns))}
@@ -98,7 +98,7 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
             </Select>
             <div className="flex-1" />
             <button type="button" disabled={!customised} onClick={() => onChange(v => withColumnsReset(v, base))}
-              className="text-fg3 hover:text-fg1 disabled:opacity-40 disabled:hover:text-fg3">
+              className="text-fg3 hover:text-on-surface disabled:opacity-40 disabled:hover:text-fg3">
               {baseTitle ? `Как в «${baseTitle}»` : 'Как у таблицы'}
             </button>
           </div>
@@ -124,8 +124,8 @@ function ColumnRow({ column, label, checked, total, onShown, onTotal, move }: {
   const totals = column && !column.unavailable ? aggregatesFor(column.kind) : [];
 
   return (
-    <li className="flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-muted">
-      <label className="flex-1 min-w-0 flex items-center gap-2 text-sm text-fg1 cursor-pointer">
+    <li className="flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-surface-container">
+      <label className="flex-1 min-w-0 flex items-center gap-2 text-sm text-on-surface cursor-pointer">
         <input type="checkbox" checked={checked} onChange={onShown} />
         <span className={`truncate ${column ? '' : 'line-through text-fg4'}`}>{label}</span>
         {closed && (

@@ -48,7 +48,7 @@ export function ResourceMatchDialog({ revision, rows, onClose }: {
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Позиция номенклатуры" wide busy={match.isPending}>
       {materials.isError ? (
-        <p role="alert" className="text-sm text-danger">{apiError(materials.error, 'Материалы редакции не прочитались')}</p>
+        <p role="alert" className="text-sm text-error">{apiError(materials.error, 'Материалы редакции не прочитались')}</p>
       ) : !materials.data ? (
         <p className="text-sm text-fg4">Читаем материалы редакции…</p>
       ) : current ? (
@@ -60,7 +60,7 @@ export function ResourceMatchDialog({ revision, rows, onClose }: {
           onDone={() => pass(current.key)} />
       ) : (
         <div className="space-y-3">
-          <p className="text-sm text-fg2">
+          <p className="text-sm text-on-surface-variant">
             {queue.length === 0 ? 'Материалов без номенклатуры в редакции нет.' : 'Пройдены все материалы без номенклатуры.'}
           </p>
           <div className="flex justify-end"><ModalExit variant="filled">Готово</ModalExit></div>
@@ -141,19 +141,19 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg bg-muted px-3 py-2 space-y-0.5">
+      <div className="rounded-lg bg-surface-container px-3 py-2 space-y-0.5">
         <p className="text-caption text-fg3">{place} · ред. {revision.number}</p>
-        <p className="text-sm text-fg1">{group.sourceName}</p>
+        <p className="text-sm text-on-surface">{group.sourceName}</p>
         <p className="text-xs text-fg3 tabular-nums">
           {[group.sourceCode, `${formatQuantity(group.quantity)} ${group.sourceUnit ?? ''}`.trim(),
             `в ${formatCount(group.rows)} ${ruPlural(group.rows, 'строке', 'строках', 'строках')}`].filter(Boolean).join(' · ')}
         </p>
       </div>
 
-      <div className="flex items-center gap-2 rounded-md border border-stroke-strong px-2.5 h-10">
+      <div className="flex items-center gap-2 rounded-md border border-outline px-2.5 h-10">
         <Search size={15} className="text-fg4 shrink-0" />
         <input value={typed} onChange={e => type(e.target.value)} placeholder="наименование или часть наименования"
-          aria-label="Поиск позиции" className="flex-1 bg-transparent text-sm outline-none text-fg1 placeholder:text-fg4" />
+          aria-label="Поиск позиции" className="flex-1 bg-transparent text-sm outline-none text-on-surface placeholder:text-fg4" />
       </div>
 
       {unusable && (
@@ -167,7 +167,7 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
       <div onMouseLeave={selection.leave}>
         {searching ? (
           <div className="space-y-2">
-            {found.isError && <p role="alert" className="text-xs text-danger">Справочник не прочитан: {apiError(found.error, 'сервер отказал')}. Это не «позиций нет».</p>}
+            {found.isError && <p role="alert" className="text-xs text-error">Справочник не прочитан: {apiError(found.error, 'сервер отказал')}. Это не «позиций нет».</p>}
             <div id={listId} role="listbox" aria-label="Найденные позиции" className="-mx-2 space-y-0.5">{list.map(option)}</div>
             {answered && list.length === 0 && <p className="text-xs text-fg4">По этому запросу позиций нет. Проверьте другое написание.</p>}
             {!!answered?.inArchive && <p className="text-xs text-fg3">В архиве под этот запрос: {answered.inArchive} — заводить заново не нужно.</p>}
@@ -186,15 +186,15 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
 
       <Checkbox checked={remember} onChange={setRemember}
         label={group.sourceCode ? 'Запомнить по коду ресурса — следующий импорт подставит сам' : 'Запомнить по наименованию — следующий импорт подставит сам'} />
-      {refusal && <p role="alert" className="text-sm text-danger">{refusal.text}</p>}
+      {refusal && <p role="alert" className="text-sm text-error">{refusal.text}</p>}
 
       {creating && (
         <NewNomenclatureStep from={{ name: group.sourceName, code: group.sourceCode, unit: group.sourceUnit }}
-          plate={<p className="text-sm text-fg1">{group.sourceName}</p>} narrow
+          plate={<p className="text-sm text-on-surface">{group.sourceName}</p>} narrow
           onBack={() => setCreating(false)} onPick={(id, name) => { setCreating(false); choose(id, name); }} />
       )}
 
-      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-stroke pt-3">
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-outline-variant pt-3">
         {canCreate && (
           <Button size="sm" variant="text" icon={<Plus size={16} />} className="mr-auto" onClick={() => setCreating(true)}>Новая позиция…</Button>
         )}

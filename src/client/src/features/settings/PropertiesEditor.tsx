@@ -103,7 +103,7 @@ export function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentTy
 
   return (
     <form onSubmit={e => { e.preventDefault(); save().catch(() => { /* ошибка показана в форме */ }); }}
-      className="space-y-3 pb-4 border-b border-stroke mb-4">
+      className="space-y-3 pb-4 border-b border-outline-variant mb-4">
       <ConfirmDialog
         open={codeWarning !== null}
         onOpenChange={o => { if (!o) setCodeWarning(null); }}
@@ -147,7 +147,7 @@ export function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentTy
             ? 'Тип ядра: остаётся в редакторе при любом наборе модулей.'
             : `Тип модуля «${ownerTitle(docType.module, access ?? NO_ACCESS)}»: при выключенном модуле не предлагается.`}
         </p>
-        {ownerError && <p className="mt-1 text-xs text-danger">{ownerError}</p>}
+        {ownerError && <p className="mt-1 text-xs text-error">{ownerError}</p>}
       </div>
       {/* Прокси/абстрактность — отдельные мгновенные переключатели (не часть формы «Сохранить
           параметры»): каждый — своя мутация, применяется сразу по щелчку (issue #197 Фаза C). */}
@@ -156,7 +156,7 @@ export function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentTy
           <Switch checked={docType.allowsProxy} size="sm" label="Роль/прокси"
             disabled={proxyMutation.isPending}
             onChange={v => proxyMutation.mutate({ id: docType.id, allowsProxy: v })} />
-          <span className="text-sm text-fg2">Роль/прокси</span>
+          <span className="text-sm text-on-surface-variant">Роль/прокси</span>
           <span className="text-xs text-fg4">— тип может подменять другой при генерации</span>
         </label>
         {docType.kind === 'Document' && (
@@ -164,12 +164,12 @@ export function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentTy
             <Switch checked={docType.isAbstract} size="sm" label="Абстрактный"
               disabled={abstractMutation.isPending}
               onChange={v => abstractMutation.mutate({ id: docType.id, isAbstract: v })} />
-            <span className="text-sm text-fg2">Абстрактный</span>
+            <span className="text-sm text-on-surface-variant">Абстрактный</span>
             <span className="text-xs text-fg4">— нельзя добавить в комплект напрямую</span>
           </label>
         )}
       </div>
-      {error && <p className="text-xs text-danger">{error}</p>}
+      {error && <p className="text-xs text-error">{error}</p>}
     </form>
   );
 }

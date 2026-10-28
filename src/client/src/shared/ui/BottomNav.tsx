@@ -21,7 +21,7 @@ export function BottomNav({ sections, active }: { sections: RailSection[]; activ
 
   return (
     <nav id="app-bottom-nav" data-testid="bottom-nav" aria-label="Разделы"
-      className="md:hidden shrink-0 flex bg-surface border-t border-stroke pb-[env(safe-area-inset-bottom)]">
+      className="md:hidden shrink-0 flex bg-surface border-t border-outline-variant pb-[env(safe-area-inset-bottom)]">
       {sections.map(section => {
         const on = section.def.id === active;
         return (
@@ -29,7 +29,7 @@ export function BottomNav({ sections, active }: { sections: RailSection[]; activ
             aria-current={on ? 'true' : undefined}
             className="group flex-1 min-w-0 h-20 flex flex-col items-center justify-center gap-1 text-xs select-none focus-visible:outline-none">
             <SectionPill icon={section.def.icon} on={on} wide />
-            <span className={`max-w-full px-1 truncate ${on ? 'font-semibold text-fg1' : 'font-medium text-fg2'}`}>
+            <span className={`max-w-full px-1 truncate ${on ? 'font-semibold text-on-surface' : 'font-medium text-on-surface-variant'}`}>
               {section.def.label}
             </span>
           </Link>

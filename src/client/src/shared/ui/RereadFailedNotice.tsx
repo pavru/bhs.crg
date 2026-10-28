@@ -28,7 +28,7 @@ export function RereadFailedNotice({ what, error, retrying, onRetry }: {
 }) {
   return (
     <div role="alert" data-testid="reread-failed" className="shrink-0 flex items-start gap-2 border-b
-      border-warning-border bg-warning-subtle px-5 py-2 text-xs text-warning">
+      border-warning-border bg-warning-container px-5 py-2 text-xs text-warning">
       <TriangleAlert size={13} className="shrink-0 mt-0.5" />
       <p className="flex-1">
         {what}: {apiError(error, 'сервер не ответил')}. На экране — прежнее состояние: его могли тем

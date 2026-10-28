@@ -83,7 +83,7 @@ export function PdfSourceDialog(
         {/* Три разных «нечего выбрать»: ответа ещё нет, ответа не будет, ответ пуст. Причину
             «модули выключены» называет только пустой ОТВЕТ — отказ запроса ею не объясняется. */}
         {profilesFailed && (
-          <p className="text-sm text-danger">
+          <p className="text-sm text-error">
             Не удалось получить список профилей. Закройте окно и попробуйте ещё раз.
           </p>
         )}
@@ -95,10 +95,10 @@ export function PdfSourceDialog(
 
         {current?.structureTags && datasetTags(allTags).length > 0 && (
           <div>
-            <p className="text-sm font-medium text-fg1 mb-1">Структура PDF</p>
+            <p className="text-sm font-medium text-on-surface mb-1">Структура PDF</p>
             <div className="space-y-1.5">
               {datasetTags(allTags).map(t => (
-                <label key={t.code} className="flex items-start gap-2 text-sm text-fg2 cursor-pointer">
+                <label key={t.code} className="flex items-start gap-2 text-sm text-on-surface-variant cursor-pointer">
                   <input type="checkbox" checked={tags.includes(t.code)} onChange={() => toggleTag(t.code)}
                     className="mt-0.5 shrink-0" />
                   <span>
@@ -113,7 +113,7 @@ export function PdfSourceDialog(
 
         {current && <p className="text-xs text-fg4">{current.summary}</p>}
 
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <p className="text-sm text-error">{error}</p>}
       </div>
     </Modal>
   );

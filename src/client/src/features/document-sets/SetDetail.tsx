@@ -111,7 +111,7 @@ export function SetDetail() {
 
   if (docParam) return <Navigate replace to={documentPath(constructionId!, setId!, docParam)} />;
   if (isLoading) return <div className="p-6 text-sm text-fg4">Загрузка...</div>;
-  if (!set) return <div className="p-6 text-sm text-danger">Комплект не найден</div>;
+  if (!set) return <div className="p-6 text-sm text-error">Комплект не найден</div>;
 
   async function handleAssemble() {
     setAssembleMsg('');
@@ -173,16 +173,16 @@ export function SetDetail() {
 
   const contextCrumbs = (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <Link to="/document-sets" className="text-xs text-fg4 hover:text-fg2 transition-colors">Стройки</Link>
+      <Link to="/document-sets" className="text-xs text-fg4 hover:text-on-surface-variant transition-colors">Стройки</Link>
       {construction && (
         <Link to={`/document-sets/${constructionId}`}
-          className="text-caption px-2 py-0.5 rounded-full border border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1 transition-colors">
+          className="text-caption px-2 py-0.5 rounded-full border border-outline-variant text-fg3 hover:border-outline hover:text-on-surface transition-colors">
           Стройка: {construction.name}
         </Link>
       )}
       {sectionName && (
         <Link to={`/document-sets/${constructionId}/sections/${set.sectionId}`}
-          className="text-caption px-2 py-0.5 rounded-full border border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1 transition-colors">
+          className="text-caption px-2 py-0.5 rounded-full border border-outline-variant text-fg3 hover:border-outline hover:text-on-surface transition-colors">
           Раздел: {sectionName}
         </Link>
       )}
@@ -245,7 +245,7 @@ export function SetDetail() {
           <Tooltip content="Перетащить для изменения порядка">
             <button type="button" draggable
               onDragStart={() => setDragIndex(index)} onDragEnd={endDrag}
-              className="cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 shrink-0 focus-visible:outline-none focus-visible:text-brand" aria-label={`Переместить документ ${index + 1} перетаскиванием`}>
+              className="cursor-grab active:cursor-grabbing text-fg4 hover:text-on-surface-variant shrink-0 focus-visible:outline-none focus-visible:text-primary" aria-label={`Переместить документ ${index + 1} перетаскиванием`}>
               <GripVertical size={14} />
             </button>
           </Tooltip>
@@ -253,14 +253,14 @@ export function SetDetail() {
             <MoveButtons onUp={() => moveDoc(index, -1)} onDown={() => moveDoc(index, 1)}
               isFirst={index === 0} isLast={index === lastIndex}
               busy={reorderMutation.isPending} size={13}
-              className="hover:text-brand transition-colors" />
+              className="hover:text-primary transition-colors" />
           </div>
         </div>
       ) },
     { key: 'name', label: 'Документ', wrap: true,
       cell: inst => (
         <>
-          <div className="font-medium text-fg1">
+          <div className="font-medium text-on-surface">
             {inst.name || docTypeMap[inst.documentTypeId]?.name || inst.documentTypeId}
           </div>
           {inst.name && <div className="text-xs text-fg4 mt-0.5">{docTypeMap[inst.documentTypeId]?.name}</div>}
@@ -268,7 +268,7 @@ export function SetDetail() {
       ) },
     { key: 'status', label: 'Статус', width: 'w-32',
       cell: inst => (
-        <span className={`text-xs px-2 py-0.5 rounded font-medium ${STATUS_COLORS[inst.status] ?? 'bg-muted text-fg2'}`}>
+        <span className={`text-xs px-2 py-0.5 rounded font-medium ${STATUS_COLORS[inst.status] ?? 'bg-surface-container text-on-surface-variant'}`}>
           {STATUS_LABELS[inst.status] ?? inst.status}
         </span>
       ) },
@@ -282,7 +282,7 @@ export function SetDetail() {
                 {/* Отказ из открытия доходит один — вкладку не дали открыть: об отказе загрузки говорит сама вкладка. */}
                 <Tooltip content="Открыть PDF">
                   <button onClick={() => previewGeneratedFile(inst.id, pdfFiles[0].templateId).catch((e: Error) => toast.error(e.message))}
-                    className="flex items-center gap-1 px-2 py-1 text-xs border border-stroke rounded hover:bg-brand-subtle hover:border-brand-subtle text-fg2 hover:text-brand-hover transition-colors">
+                    className="flex items-center gap-1 px-2 py-1 text-xs border border-outline-variant rounded hover:bg-primary-container hover:border-primary-container text-on-surface-variant hover:text-brand-hover transition-colors">
                     <Eye size={11} /> PDF
                   </button>
                 </Tooltip>
@@ -295,7 +295,7 @@ export function SetDetail() {
             {pdfFiles.length > 1 && (
               <Tooltip content="Несколько PDF — открыть документ для выбора">
                 <button onClick={() => openDocument(inst)}
-                  className="flex items-center gap-1 px-2 py-1 text-xs border border-stroke rounded hover:bg-brand-subtle hover:border-brand-subtle text-fg2 hover:text-brand-hover transition-colors">
+                  className="flex items-center gap-1 px-2 py-1 text-xs border border-outline-variant rounded hover:bg-primary-container hover:border-primary-container text-on-surface-variant hover:text-brand-hover transition-colors">
                   <Eye size={11} /> {pdfFiles.length} PDF
                 </button>
               </Tooltip>
@@ -322,11 +322,11 @@ export function SetDetail() {
 
   const documentsContent = (
     <>
-      {addError && <p className="text-xs text-danger mb-3">{addError}</p>}
+      {addError && <p className="text-xs text-error mb-3">{addError}</p>}
       {!addError && assembleMsg && <p className="text-xs text-fg4 mb-3">{assembleMsg}</p>}
 
       {set.instances.length === 0 ? (
-        <div className="bg-surface border border-stroke rounded-xl overflow-hidden">
+        <div className="bg-surface border border-outline-variant rounded-xl overflow-hidden">
           <EmptyState className="m-4 border-0" icon={<FileText size={30} />} title="В комплекте пока нет документов"
             description="Добавьте документ нужного типа — заполните реквизиты и сгенерируйте PDF."
             action={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setAddDocOpen(true)}>Добавить документ</Button>} />

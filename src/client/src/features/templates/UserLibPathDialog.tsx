@@ -52,15 +52,15 @@ export function UserLibPathDialog({
             onChange={e => { setPath(e.target.value); setTouched(true); }}
             onKeyDown={e => { if (e.key === 'Enter' && !error) onSubmit(path.trim().replace(/\\/g, '/')); }}
             placeholder="gost/forms/f3.typ"
-            className="w-full h-8 px-2.5 text-sm font-mono rounded-md border border-stroke bg-surface text-fg1
-                       outline-none focus:ring-2 focus:ring-brand/40"
+            className="w-full h-8 px-2.5 text-sm font-mono rounded-md border border-outline-variant bg-surface text-on-surface
+                       outline-none focus:ring-2 focus:ring-primary/40"
           />
           <p className="mt-1 text-xs text-fg4">
             {mode === 'create'
               ? 'Папки создаются сами из «/» в пути. Подключить файл в «userlib.typ» нужно самостоятельно.'
               : 'Папки создаются сами из «/» в пути. Импорты приложение не правит — поправьте их сами.'}
           </p>
-          {touched && error && <p className="mt-1 text-xs text-danger">{error}</p>}
+          {touched && error && <p className="mt-1 text-xs text-error">{error}</p>}
         </div>
 
         {/* Автоматически переписывать чужие импорты не беремся: это текстовая трансформация

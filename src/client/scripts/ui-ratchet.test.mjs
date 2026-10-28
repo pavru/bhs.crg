@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { compare, countViolations as countAll, dirsToScan, scopeNote, defaultScopeNote, RULES, ROOT } from './ui-ratchet-lib.mjs';
 
-// Фикстуры правил написаны старыми именами цвета (text-fg1, bg-brand): их переводит sharedui-md3-02.
-// Здесь счёт прочих правил — без legacy-class, а его самого проверяет свой блок ниже.
+// Фикстуры правил — на ролях MD3 (sharedui-md3-02). Старые имена остались там, где проверяются они сами:
+// одна фикстура white-on-fill (bg-brand text-white), имена без роли (bg-brand-hover, text-fg3) и блок
+// legacy-class ниже. Здесь счёт прочих правил — без legacy-class, а его самого проверяет свой блок.
 const countViolations = (text, opts) =>
   Object.fromEntries(Object.entries(countAll(text, opts)).filter(([rule]) => rule !== 'legacy-class'));
 
@@ -96,23 +97,23 @@ describe('храповик интерфейса: счёт', () => {
   /** Свои чипы, пометки, кнопки-иконки и вкладки при готовых Chip, StatusBadge, IconButton, Tabs. */
   it('свой чип: нажимаемая пилюля или aria-pressed', () => {
     expect(countViolations([
-      '<button className={`px-2 py-1 rounded-full ${on ? "bg-brand-subtle" : ""}`}>Только новые</button>',
+      '<button className={`px-2 py-1 rounded-full ${on ? "bg-primary-container" : ""}`}>Только новые</button>',
       '<button aria-pressed={on} onClick={go}>Таблица</button>',
     ].join(' '))).toEqual({ chip: 2 });
   });
 
   it('своя пометка: пилюля с фоном или рамкой', () => {
     expect(countViolations([
-      '<span className="text-xs px-2 py-0.5 rounded-full bg-muted text-fg3">строка</span>',
+      '<span className="text-xs px-2 py-0.5 rounded-full bg-surface-container text-fg3">строка</span>',
       '<span className={`rounded-full border px-1.5 ${cls}`}>внеш. документ</span>',
     ].join(' '))).toEqual({ badge: 2 });
   });
 
   it('круг заданного размера, подсветка наведением и компоненты пилюлями не считаются', () => {
     expect(countViolations([
-      '<span className="w-2 h-2 rounded-full bg-brand" /> <div className="h-1.5 rounded-full bg-muted" />',
-      '<div className="absolute inset-0 rounded-full bg-muted" />',
-      '<span className="px-2 rounded-full hover:bg-muted">наведи</span>',
+      '<span className="w-2 h-2 rounded-full bg-primary" /> <div className="h-1.5 rounded-full bg-surface-container" />',
+      '<div className="absolute inset-0 rounded-full bg-surface-container" />',
+      '<span className="px-2 rounded-full hover:bg-surface-container">наведи</span>',
       '<Chip selected>Все</Chip> <StatusBadge tone="success">Оплачен</StatusBadge> <Button>Сохранить</Button>',
     ].join(' '))).toEqual({});
   });
@@ -133,32 +134,32 @@ describe('храповик интерфейса: счёт', () => {
   /** Белое на светлой заливке тёмной темы (issue #1462): пара литералов — где бы ни стояла. */
   it('белое на сплошной заливке — в className целиком и в строке вне его', () => {
     expect(countViolations([
-      '<button className="px-4 bg-brand text-white">Сохранить</button>',
-      '<button className={`px-2 ${on ? \'bg-brand text-white\' : \'bg-surface text-fg3\'}`}>A</button>',
-      '<span className={`bg-danger ${big ? "text-white" : ""}`}>3</span>',
+      '<button className="px-4 bg-primary text-white">Сохранить</button>',
+      '<button className={`px-2 ${on ? \'bg-primary text-white\' : \'bg-surface text-fg3\'}`}>A</button>',
+      '<span className={`bg-error ${big ? "text-white" : ""}`}>3</span>',
       '<span className={`w-1.5 h-1.5 rounded-full ${on ? \'bg-white\' : \'bg-brand\'}`} />',
-      "const DANGER = 'bg-danger text-white shadow';",
+      "const DANGER = 'bg-error text-white shadow';",
       "const sel = 'ring-2 ring-white/70 hover:bg-brand-hover';",
     ].join('\n'))).toEqual({ 'white-on-fill': 6 });
   });
 
   it('парный токен, контейнер роли и слой состояния белым на заливке не считаются', () => {
     expect(countViolations([
-      '<button className="bg-brand text-on-brand hover:bg-brand-hover">A</button>',
-      '<span className="bg-danger text-on-danger ring-on-danger">!</span>',
-      '<div className="bg-brand-subtle text-on-brand-subtle dark:hover:bg-white/10">B</div>',
+      '<button className="bg-primary text-on-primary hover:bg-brand-hover">A</button>',
+      '<span className="bg-error text-on-error ring-on-error">!</span>',
+      '<div className="bg-primary-container text-on-primary-container dark:hover:bg-white/10">B</div>',
       '<div className="bg-black/40 text-white">затемнение</div>',
-      '<div className="bg-surface hover:bg-white/10" /> <Logo className="bg-brand" />',
+      '<div className="bg-surface hover:bg-white/10" /> <Logo className="bg-primary" />',
     ].join('\n'))).toEqual({});
   });
 
   /** Ревью #1477: прозрачность, заливка модификатором, свои белые утилиты, произвольное значение, не-className. */
   it('белое на заливке — во всех записях заливки и белого', () => {
     expect(countViolations([
-      '<span className="bg-brand/90 text-white" />',
+      '<span className="bg-primary/90 text-white" />',
       '<button className="hover:bg-brand-hover fill-white" />',
       '<div className="bg-success stroke-white divide-white" />',
-      '<div className="bg-[var(--md-sys-color-primary)] text-white" /> <i className="bg-[var(--color-danger)] shadow-white" />',
+      '<div className="bg-[var(--md-sys-color-primary)] text-white" /> <i className="bg-[var(--color-error)] shadow-white" />',
       '<Badge iconClassName="bg-warning text-white" />',
     ].join('\n'))).toEqual({ 'white-on-fill': 6 });
   });
@@ -240,24 +241,24 @@ describe('храповик интерфейса: счёт', () => {
   it('своя рамка у DateInput — строкой и выражением; size, ширина и пометка border-…! — нет', () => {
     expect(countViolations([
       '<DateInput label="Дата" className="w-full border rounded px-2" />',
-      '<DateInput label="Дата"\n  className={`flex-1 ${on ? \'border-brand-subtle\' : \'border-stroke\'}`} />',
+      '<DateInput label="Дата"\n  className={`flex-1 ${on ? \'border-primary-container\' : \'border-outline-variant\'}`} />',
     ].join('\n'))).toEqual({ 'date-frame': 2 });
     expect(countViolations([
       '<DateInput label="Дата" size="sm" className="flex-1" />',
-      "<DateInput label=\"Дата\" size=\"sm\" className={`w-full ${hasDv ? 'border-brand-subtle!' : ''}`} />",
-      '<DateInput label="Дата" compact className="w-full h-full focus-within:bg-brand-subtle" />',
+      "<DateInput label=\"Дата\" size=\"sm\" className={`w-full ${hasDv ? 'border-primary-container!' : ''}`} />",
+      '<DateInput label="Дата" compact className="w-full h-full focus-within:bg-primary-container" />',
       '<div className="border rounded" />',
     ].join('\n'))).toEqual({});
   });
 
   it('рамка, вынесенная в константу файла, — по её значению; пометка border-…! в константе — нет', () => {
     expect(countViolations([
-      "const frame = 'border border-stroke rounded';",
+      "const frame = 'border border-outline-variant rounded';",
       '<DateInput label="Дата" className={frame} />',
       '<DateInput label="Дата" className={`w-full ${frame}`} />',
     ].join('\n'))).toEqual({ 'date-frame': 2 });
     expect(countViolations([
-      "const selectCls = hasDv ? 'border-brand-subtle!' : '';",
+      "const selectCls = hasDv ? 'border-primary-container!' : '';",
       '<DateInput label="Дата" size="sm" className={`w-full ${selectCls}`} />',
     ].join('\n'))).toEqual({});
   });
@@ -296,7 +297,7 @@ describe('храповик интерфейса: счёт', () => {
 
   /** Граница — shared/ui/, а не shared/ (#1469): обвязка shared/ — такие же экраны, как features/. */
   it('обвязка shared/ считается всеми правилами, shared/ui/ — только теми, что его назвали (dirs)', () => {
-    const text = '<table /> <select /> <button className="bg-danger text-white">x</button>';
+    const text = '<table /> <select /> <button className="bg-error text-white">x</button>';
     const all = { table: 1, select: 1, 'white-on-fill': 1 };
     expect(countViolations(text)).toEqual(all);
     expect(countViolations(text, { dir: 'shared', file: 'shared/filter/x.tsx' })).toEqual(all);
@@ -311,7 +312,7 @@ describe('храповик интерфейса: счёт', () => {
   });
 
   it('токены и чёрно-белые слои палитрой не считаются', () => {
-    expect(countViolations('bg-brand-subtle text-tertiary border-danger/30 bg-black/40 hover:bg-white/10 text-fg2'))
+    expect(countViolations('bg-primary-container text-tertiary border-error/30 bg-black/40 hover:bg-white/10 text-on-surface-variant'))
       .toEqual({});
   });
 });

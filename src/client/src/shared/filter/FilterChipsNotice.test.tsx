@@ -37,7 +37,7 @@ describe('FilterChips: пометка значения вне справочни
     const chip = container.querySelector('[data-notice]')!;
     // Тон — у пилюли Chip, обёртки кнопки с текстом (#1469).
     expect(chip.parentElement!.className).toContain('border-warning-border');
-    expect(chip.parentElement!.className).toContain('bg-warning-subtle');
+    expect(chip.parentElement!.className).toContain('bg-warning-container');
     expect(screen.getByLabelText('нет в справочнике')).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
   });

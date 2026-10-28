@@ -33,16 +33,16 @@ function SortRow({
           value={level.column}
           onChange={e => onChange({ ...level, column: e.target.value })}
           placeholder="Колонка"
-          className="border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1 flex-1 min-w-0"
+          className="border border-outline-variant rounded px-2 py-1 text-xs bg-surface text-on-surface flex-1 min-w-0"
         />
       )}
-      <div className="flex rounded text-xs font-medium overflow-hidden shrink-0 border border-stroke">
+      <div className="flex rounded text-xs font-medium overflow-hidden shrink-0 border border-outline-variant">
         {(['asc', 'desc'] as const).map(d => (
           <button
             key={d}
             type="button"
             onClick={() => onChange({ ...level, direction: d })}
-            className={`px-2 py-1 transition-colors ${level.direction === d ? 'bg-brand text-on-brand' : 'bg-surface text-fg3'}`}
+            className={`px-2 py-1 transition-colors ${level.direction === d ? 'bg-primary text-on-primary' : 'bg-surface text-fg3'}`}
           >
             {d === 'asc' ? '↑ возр.' : '↓ убыв.'}
           </button>
@@ -51,7 +51,7 @@ function SortRow({
       <MoveButtons onUp={onMoveUp} onDown={onMoveDown} isFirst={isFirst} isLast={isLast}
         className="rounded shrink-0" upTitle="Выше приоритетом" downTitle="Ниже приоритетом" />
       <Tooltip content="Удалить" name>
-        <button type="button" onClick={onRemove} className="p-1 rounded text-fg4 hover:text-danger shrink-0">
+        <button type="button" onClick={onRemove} className="p-1 rounded text-fg4 hover:text-error shrink-0">
           <Trash2 size={12} />
         </button>
       </Tooltip>
@@ -110,7 +110,7 @@ export function SortSpecDialog({
       footer={
         <div className="flex gap-2">
           <button onClick={handleSave} disabled={saving}
-            className="px-4 py-2 rounded-md text-sm font-medium text-on-brand bg-brand disabled:opacity-50">
+            className="px-4 py-2 rounded-md text-sm font-medium text-on-primary bg-primary disabled:opacity-50">
             {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
           <ModalExit variant="tonal" />
@@ -118,7 +118,7 @@ export function SortSpecDialog({
             <button
               onClick={() => void commit(() => onSave(null))}
               disabled={saving}
-              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-danger bg-muted disabled:opacity-50"
+              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-error bg-surface-container disabled:opacity-50"
             >
               Сбросить
             </button>
@@ -152,12 +152,12 @@ export function SortSpecDialog({
 
       <button
         onClick={addLevel}
-        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md text-brand bg-brand-subtle"
+        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md text-primary bg-primary-container"
       >
         <Plus size={13} /> Добавить уровень сортировки
       </button>
 
-      {refusal && <p role="alert" className="mt-3 text-xs text-danger">{refusal}</p>}
+      {refusal && <p role="alert" className="mt-3 text-xs text-error">{refusal}</p>}
     </Modal>
   );
 }

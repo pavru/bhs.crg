@@ -41,7 +41,7 @@ export function SendMessageDialog({ open, onClose, candidates, title = 'Отпр
   }
 
   const canSend = selected.size > 0 && subject.trim() && body.trim() && !sendEmail.isPending;
-  const field = "w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface";
+  const field = "w-full border border-outline rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface";
 
   return (
     <Modal open={open} onOpenChange={o => { if (!o) { onClose(); setResult(null); } }} title={title}
@@ -56,17 +56,17 @@ export function SendMessageDialog({ open, onClose, candidates, title = 'Отпр
       <div className="space-y-4">
         {/* Получатели */}
         <div>
-          <label className="block text-xs font-medium text-fg2 mb-1">Получатели</label>
+          <label className="block text-xs font-medium text-on-surface-variant mb-1">Получатели</label>
           {candidates.length === 0 ? (
             <p className="text-xs text-fg4">Нет кандидатов.</p>
           ) : (
-            <div className="rounded-md border border-stroke divide-y divide-muted max-h-48 overflow-y-auto">
+            <div className="rounded-md border border-outline-variant divide-y divide-surface-container max-h-48 overflow-y-auto">
               {candidates.map(c => {
                 const ok = validEmail(c.email);
                 return (
-                  <label key={c.id} className={`flex items-center gap-2 px-2.5 py-1.5 text-sm ${ok ? 'cursor-pointer hover:bg-base' : 'opacity-60'}`}>
+                  <label key={c.id} className={`flex items-center gap-2 px-2.5 py-1.5 text-sm ${ok ? 'cursor-pointer hover:bg-surface-container-low' : 'opacity-60'}`}>
                     <Checkbox size="sm" checked={selected.has(c.id)} disabled={!ok} onChange={() => toggle(c.id)} />
-                    <span className="text-fg1 flex-1 min-w-0 truncate">{c.displayName || c.email}</span>
+                    <span className="text-on-surface flex-1 min-w-0 truncate">{c.displayName || c.email}</span>
                     <span className="text-xs text-fg4 min-w-0 truncate">{c.email || '—'}</span>
                     {!ok && <AlertTriangle size={13} className="text-warning shrink-0" />}
                   </label>
@@ -77,11 +77,11 @@ export function SendMessageDialog({ open, onClose, candidates, title = 'Отпр
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-fg2 mb-1">Тема</label>
+          <label className="block text-xs font-medium text-on-surface-variant mb-1">Тема</label>
           <input className={field} value={subject} onChange={e => { setSubject(e.target.value); setResult(null); }} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-fg2 mb-1">Текст</label>
+          <label className="block text-xs font-medium text-on-surface-variant mb-1">Текст</label>
           <textarea className={field + ' min-h-32 resize-y'} value={body} onChange={e => { setBody(e.target.value); setResult(null); }} />
         </div>
 
@@ -90,7 +90,7 @@ export function SendMessageDialog({ open, onClose, candidates, title = 'Отпр
               <CheckCircle size={15} /> Отправлено получателям: {result.sent}
               {result.skipped && result.skipped.length > 0 && <span className="text-warning ml-1">(пропущены без email: {result.skipped.join(', ')})</span>}
             </p>
-          : <p className="text-sm text-danger flex items-start gap-1.5"><XCircle size={15} className="shrink-0 mt-0.5" /> {result.error}</p>
+          : <p className="text-sm text-error flex items-start gap-1.5"><XCircle size={15} className="shrink-0 mt-0.5" /> {result.error}</p>
         )}
       </div>
     </Modal>

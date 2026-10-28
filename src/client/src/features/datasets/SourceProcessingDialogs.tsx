@@ -51,7 +51,7 @@ function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
       </p>
       <TextField label="Название шаблона" value={name} onChange={e => setName(e.target.value)} autoFocus
         onKeyDown={e => { if (e.key === 'Enter') submit(); }} />
-      {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-xs text-error">{error}</p>}
     </Modal>
   );
 }

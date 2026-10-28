@@ -62,12 +62,12 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
       return (
         <div>
           <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${BROKEN_PLATE}`}>
-            <FileText size={14} className="text-danger shrink-0" />
+            <FileText size={14} className="text-error shrink-0" />
             <span className={`flex-1 min-w-0 text-sm font-medium truncate ${BROKEN_LABEL}`}>{iRef.displayName}</span>
-            {replaceButton('text-danger hover:text-fg1')}
+            {replaceButton('text-error hover:text-on-surface')}
             <Tooltip content="Снять ссылку" name>
               <button type="button" onClick={() => onChange(null)}
-                className="p-1 text-danger hover:text-fg1 transition-colors"><Unlink size={13} /></button>
+                className="p-1 text-error hover:text-on-surface transition-colors"><Unlink size={13} /></button>
             </Tooltip>
           </div>
           <BrokenRefNote />
@@ -76,21 +76,21 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
       );
     }
     return (
-      <div className="flex items-center gap-2 border border-brand/30 rounded-lg px-3 py-2 bg-brand-subtle">
-        <FileText size={14} className="text-brand shrink-0" />
+      <div className="flex items-center gap-2 border border-primary/30 rounded-lg px-3 py-2 bg-primary-container">
+        <FileText size={14} className="text-primary shrink-0" />
         <span className="flex-1 min-w-0">
-          <span className="block text-sm text-on-brand-subtle font-medium truncate">{label}</span>
-          {inst?.name && dt && <span className="block text-xs text-on-brand-subtle/70 truncate">{dt.name}</span>}
+          <span className="block text-sm text-on-primary-container font-medium truncate">{label}</span>
+          {inst?.name && dt && <span className="block text-xs text-on-primary-container/70 truncate">{dt.name}</span>}
         </span>
         {inst && (
           <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${STATUS_COLORS[inst.status]}`}>
             {STATUS_LABELS[inst.status]}
           </span>
         )}
-        {replaceButton('text-on-brand-subtle/70 hover:text-on-brand-subtle')}
+        {replaceButton('text-on-primary-container/70 hover:text-on-primary-container')}
         <Tooltip content="Снять ссылку" name>
           <button type="button" onClick={() => onChange(null)}
-            className="p-1 text-on-brand-subtle/70 hover:text-danger transition-colors">
+            className="p-1 text-on-primary-container/70 hover:text-error transition-colors">
             <Unlink size={13} />
           </button>
         </Tooltip>
@@ -104,12 +104,12 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
       return (
         <div>
           <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${BROKEN_PLATE}`}>
-            <FileText size={14} className="text-danger shrink-0" />
+            <FileText size={14} className="text-error shrink-0" />
             <span className={`flex-1 min-w-0 text-sm font-medium truncate ${BROKEN_LABEL}`}>{cRef.displayName}</span>
-            {replaceButton('text-danger hover:text-fg1')}
+            {replaceButton('text-error hover:text-on-surface')}
             <Tooltip content="Снять ссылку" name>
               <button type="button" onClick={() => onChange(null)}
-                className="p-1 text-danger hover:text-fg1 transition-colors"><Unlink size={13} /></button>
+                className="p-1 text-error hover:text-on-surface transition-colors"><Unlink size={13} /></button>
             </Tooltip>
           </div>
           <BrokenRefNote />
@@ -118,16 +118,16 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
       );
     }
     return (
-      <div className="flex items-center gap-2 border border-warning-border rounded-lg px-3 py-2 bg-warning-subtle">
+      <div className="flex items-center gap-2 border border-warning-border rounded-lg px-3 py-2 bg-warning-container">
         <FileText size={14} className="text-warning shrink-0" />
         <span className="flex-1 min-w-0">
           <span className="block text-sm text-warning font-medium truncate">{cRef.displayName}</span>
           <span className="block text-xs text-warning truncate">Общие данные</span>
         </span>
-        {replaceButton('text-warning hover:text-brand')}
+        {replaceButton('text-warning hover:text-primary')}
         <Tooltip content="Снять ссылку" name>
           <button type="button" onClick={() => onChange(null)}
-            className="p-1 text-warning hover:text-danger transition-colors">
+            className="p-1 text-warning hover:text-error transition-colors">
             <Unlink size={13} />
           </button>
         </Tooltip>
@@ -139,7 +139,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
   return (
     <>
       <button type="button" onClick={() => setPickerOpen(true)}
-        className="flex items-center gap-2 px-3 py-2 text-sm text-brand hover:text-brand-hover border border-dashed border-brand/40 rounded-lg hover:bg-brand-subtle transition-colors w-full">
+        className="flex items-center gap-2 px-3 py-2 text-sm text-primary hover:text-brand-hover border border-dashed border-primary/40 rounded-lg hover:bg-primary-container transition-colors w-full">
         <FileText size={13} /> Выбрать документ...
       </button>
       {picker}
@@ -186,20 +186,20 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
   }
 
   return (
-    <div className="border border-stroke rounded-lg overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 bg-base border-b border-stroke">
+    <div className="border border-outline-variant rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 bg-surface-container-low border-b border-outline-variant">
         <span className="text-xs font-medium text-fg3">
           Документы <span className="text-fg4">{items.length} ссылок</span>
         </span>
         <button type="button" onClick={() => setPickerOpen(true)}
-          className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover px-2 py-0.5 rounded hover:bg-brand-subtle transition-colors">
+          className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover px-2 py-0.5 rounded hover:bg-primary-container transition-colors">
           <Plus size={11} /> Добавить
         </button>
       </div>
       {items.length === 0 ? (
         <p className="text-xs text-fg4 text-center py-3">Нет ссылок — нажмите «Добавить»</p>
       ) : (
-        <div className="divide-y divide-muted">
+        <div className="divide-y divide-surface-container">
           {items.map((ref, i) => {
             const isCatalog = ref.$ref === 'catalog';
             const inst = !isCatalog ? otherInstances.find(inst => inst.id === ref.instanceId) : undefined;
@@ -213,10 +213,10 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
               return (
                 <div key={i}>
                   <div className={`flex items-center gap-2 px-3 py-2 ${BROKEN_PLATE}`}>
-                    <FileText size={13} className="text-danger shrink-0" />
+                    <FileText size={13} className="text-error shrink-0" />
                     <span className={`flex-1 min-w-0 text-sm truncate ${BROKEN_LABEL}`}>{ref.displayName}</span>
                     <button type="button" onClick={() => removeRef(i)}
-                      className="p-1 text-danger hover:text-fg1 shrink-0"><Trash2 size={13} /></button>
+                      className="p-1 text-error hover:text-on-surface shrink-0"><Trash2 size={13} /></button>
                   </div>
                   <BrokenRefNote compact />
                 </div>
@@ -224,9 +224,9 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
             }
             return (
               <div key={i} className="flex items-center gap-2 px-3 py-2">
-                <FileText size={13} className={isCatalog ? 'text-warning shrink-0' : 'text-brand shrink-0'} />
+                <FileText size={13} className={isCatalog ? 'text-warning shrink-0' : 'text-primary shrink-0'} />
                 <span className="flex-1 min-w-0">
-                  <span className="block text-sm text-fg2 truncate">{label}</span>
+                  <span className="block text-sm text-on-surface-variant truncate">{label}</span>
                   {isCatalog ? (
                     <span className="block text-xs text-warning truncate">Общие данные</span>
                   ) : inst?.name && dt ? (
@@ -239,7 +239,7 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
                   </span>
                 )}
                 <button type="button" onClick={() => removeRef(i)}
-                  className="p-1 text-fg4 hover:text-danger shrink-0">
+                  className="p-1 text-fg4 hover:text-error shrink-0">
                   <Trash2 size={13} />
                 </button>
               </div>

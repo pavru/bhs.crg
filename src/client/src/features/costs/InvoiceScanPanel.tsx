@@ -115,9 +115,9 @@ function OriginalFile({ invoiceId, blobPath, fileName }: {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-stroke shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant shrink-0">
         <FileText size={14} className="text-fg3 shrink-0" />
-        <span className="text-xs text-fg2 truncate flex-1">{fileName ?? 'Файл счёта'}</span>
+        <span className="text-xs text-on-surface-variant truncate flex-1">{fileName ?? 'Файл счёта'}</span>
         {canOpen
           ? (
             // Выход в полный просмотрщик браузера (поиск, печать с настройками), а не «крупнее»: крупнее
@@ -134,7 +134,7 @@ function OriginalFile({ invoiceId, blobPath, fileName }: {
           )}
       </div>
       {/* Своя область наложения и обрезка: лист не выходит за неё поверх строки файла. */}
-      <div className="relative isolate overflow-hidden flex-1 min-h-0 bg-base">
+      <div className="relative isolate overflow-hidden flex-1 min-h-0 bg-surface-container-low">
         {/* PDF и картинку различает сам просмотрщик — по типу байтов, своим белым списком ([UI-24]).
             Ключ — счёт И файл: заменённый скан показывается с начала, без прежнего поворота. */}
         {canOpen && (
@@ -236,18 +236,18 @@ export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
   };
 
   return (
-    <div className="flex items-start gap-2 rounded-lg border border-stroke bg-muted px-3 py-2">
+    <div className="flex items-start gap-2 rounded-lg border border-outline-variant bg-surface-container px-3 py-2">
       <FileText size={14} className="text-fg3 shrink-0 mt-0.5" />
       <div className="min-w-0 flex-1">
         {refused
           ? (
-            <p className="text-xs text-fg2">
+            <p className="text-xs text-on-surface-variant">
               Файл приложен, но вид для чтения не построен. {refused.reason}
               {refused.aboutFile ? ' Показать и распознать его нельзя.' : ' Дело не в файле — откройте счёт позже.'}
             </p>
           )
           : (
-            <p className="text-xs text-fg2">
+            <p className="text-xs text-on-surface-variant">
               Файл приложен, но рядом с формой он не показывается: для двух панелей нужна ширина
               не меньше 1280 пикселей, а здесь {width}.
             </p>

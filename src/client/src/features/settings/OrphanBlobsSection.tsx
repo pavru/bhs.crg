@@ -99,10 +99,10 @@ export function OrphanBlobsSection() {
               Удалить
             </Button>
           )}
-          {busy && <Loader2 size={14} className="animate-spin text-brand" />}
+          {busy && <Loader2 size={14} className="animate-spin text-primary" />}
         </div>
 
-        {error && <p className="text-xs text-danger">{error}</p>}
+        {error && <p className="text-xs text-error">{error}</p>}
 
         {done && (
           <p className="text-xs text-success">
@@ -111,7 +111,7 @@ export function OrphanBlobsSection() {
         )}
 
         {blocked && (
-          <p className="text-xs text-danger">
+          <p className="text-xs text-error">
             Хранилище не отвечает — ничего не удалено. Числа ниже недостоверны: «нет размера» и «нет
             связи» с этой стороны выглядят одинаково, а снять записи о живых файлах значило бы
             сделать их недоступными навсегда. Повторите, когда хранилище ответит.
@@ -119,7 +119,7 @@ export function OrphanBlobsSection() {
         )}
 
         {report && (
-          <ul className="text-xs text-fg2 space-y-1">
+          <ul className="text-xs text-on-surface-variant space-y-1">
             <li>Всего числится за приложением: {report.registered}, из них используются: {report.referenced}</li>
             {report.heldByModules > 0 && (
               <li className="text-fg3">

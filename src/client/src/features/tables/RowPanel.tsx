@@ -44,24 +44,24 @@ export function RowPanel({ address, rowKey, filter, grain, link, onClose }: {
   return (
     <aside aria-label={`Строка: ${grain}`}
       onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}
-      className="w-[360px] shrink-0 border-l border-stroke bg-surface flex flex-col min-h-0">
-      <header className="h-11 shrink-0 flex items-center gap-2 px-4 border-b border-stroke">
-        <h2 className="flex-1 text-sm font-medium text-fg1">Строка: {grain}</h2>
-        {link && values && <Link to={link.to} className="text-xs text-brand underline hover:text-fg1">{link.label}</Link>}
+      className="w-[360px] shrink-0 border-l border-outline-variant bg-surface flex flex-col min-h-0">
+      <header className="h-11 shrink-0 flex items-center gap-2 px-4 border-b border-outline-variant">
+        <h2 className="flex-1 text-sm font-medium text-on-surface">Строка: {grain}</h2>
+        {link && values && <Link to={link.to} className="text-xs text-primary underline hover:text-on-surface">{link.label}</Link>}
         <button ref={close} type="button" onClick={onClose} aria-label="Закрыть строку"
-          className="p-1 rounded-md text-fg3 hover:text-fg1 hover:bg-muted">
+          className="p-1 rounded-md text-fg3 hover:text-on-surface hover:bg-surface-container">
           <X size={15} aria-hidden />
         </button>
       </header>
 
       <div className="flex-1 min-h-0 overflow-auto px-4 py-3">
         {row.isError ? (
-          <p role="alert" className="text-sm text-danger">{apiError(row.error, 'Строка не открылась')}</p>
+          <p role="alert" className="text-sm text-error">{apiError(row.error, 'Строка не открылась')}</p>
         ) : !data ? (
           <p className="text-sm text-fg4">Строка загружается…</p>
         ) : !values ? (
           // Три причины, и какая из них — отсюда не узнать; назвать одну значило бы угадать.
-          <p className="text-sm text-fg2">
+          <p className="text-sm text-on-surface-variant">
             Под этим отбором такой строки нет: её удалили, изменили так, что она перестала подходить под
             отбор, либо отбор сменился.
           </p>
@@ -73,7 +73,7 @@ export function RowPanel({ address, rowKey, filter, grain, link, onClose }: {
             {data.columns.map(c => (
               <div key={c.key}>
                 <dt className="text-xs text-fg4">{c.note ? `${c.label} (${c.note})` : c.label}</dt>
-                <dd className="text-sm text-fg1 break-words min-h-5">
+                <dd className="text-sm text-on-surface break-words min-h-5">
                   <DataGridValue row={values}
                     column={{ key: c.key, label: c.label, unavailable: columnUnavailable(c.unavailable) }}
                     renderValue={v => cellText(v, c.kind)} />

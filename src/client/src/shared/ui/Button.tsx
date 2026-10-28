@@ -14,8 +14,8 @@ export type ButtonSize = 'sm' | 'md' | 'lg';
 const BASE =
   'inline-flex items-center justify-center gap-2 rounded-full font-medium select-none ' +
   'transition-[background-color,box-shadow,filter,color,border-color] duration-150 ' +
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ' +
-  'focus-visible:ring-offset-base disabled:opacity-40 disabled:pointer-events-none';
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ' +
+  'focus-visible:ring-offset-surface-container-low disabled:opacity-40 disabled:pointer-events-none';
 
 const SIZE: Record<ButtonSize, string> = {
   sm: 'h-8 px-3 text-xs',
@@ -45,18 +45,18 @@ function variantClass(variant: ButtonVariant, danger: boolean): string {
   switch (variant) {
     case 'filled':
       return danger
-        ? 'bg-danger text-on-danger shadow-[var(--md-sys-elevation-level1)] hover:brightness-95 active:brightness-90'
-        : 'bg-brand text-on-brand shadow-[var(--md-sys-elevation-level1)] hover:bg-brand-hover active:bg-brand-pressed';
+        ? 'bg-error text-on-error shadow-[var(--md-sys-elevation-level1)] hover:brightness-95 active:brightness-90'
+        : 'bg-primary text-on-primary shadow-[var(--md-sys-elevation-level1)] hover:bg-brand-hover active:bg-brand-pressed';
     case 'tonal':
-      return 'bg-tonal text-on-tonal hover:brightness-[.97] active:brightness-95';
+      return 'bg-secondary-container text-on-secondary-container hover:brightness-[.97] active:brightness-95';
     case 'outlined':
       return danger
-        ? 'border border-stroke-strong text-danger hover:bg-danger/10 active:bg-danger/15'
-        : 'border border-stroke-strong text-brand hover:bg-brand/10 active:bg-brand/15';
+        ? 'border border-outline text-error hover:bg-error/10 active:bg-error/15'
+        : 'border border-outline text-primary hover:bg-primary/10 active:bg-primary/15';
     case 'text':
       return danger
-        ? 'text-danger hover:bg-danger/10 active:bg-danger/15'
-        : 'text-brand hover:bg-brand/10 active:bg-brand/15';
+        ? 'text-error hover:bg-error/10 active:bg-error/15'
+        : 'text-primary hover:bg-primary/10 active:bg-primary/15';
   }
 }
 
@@ -132,8 +132,8 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
   ref,
 ) {
   const look = danger
-    ? 'text-fg3 hover:text-danger hover:bg-danger/10'
-    : 'text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10';
+    ? 'text-fg3 hover:text-error hover:bg-error/10'
+    : 'text-fg3 hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10';
   // Без своей `title` подсказка лишь повторяет имя — неактивной кнопке её показывать незачем.
   return (
     <Tooltip content={title ?? (rest.disabled ? undefined : label)}>
@@ -143,7 +143,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
         aria-label={label}
         className={`inline-flex items-center justify-center rounded-full shrink-0 ${ICON_SIZE[size]} ` +
           'transition-[background-color,color] duration-150 focus-visible:outline-none focus-visible:ring-2 ' +
-          'focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-base ' +
+          'focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-container-low ' +
           'disabled:opacity-40 disabled:pointer-events-none ' +
           look +
           ` ${className}`}

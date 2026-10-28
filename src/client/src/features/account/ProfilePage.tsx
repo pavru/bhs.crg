@@ -116,7 +116,7 @@ export function ProfilePage() {
             )}
           </div>
           <p className="text-xs text-fg4">PNG, JPG. Изображение уменьшится автоматически.</p>
-          {avatarError && <p className="text-xs text-danger">{avatarError}</p>}
+          {avatarError && <p className="text-xs text-error">{avatarError}</p>}
         </div>
         <input ref={avatarInput} type="file" accept="image/*" className="hidden" onChange={pickAvatar} />
       </div>
@@ -124,7 +124,7 @@ export function ProfilePage() {
       <form onSubmit={save} className="space-y-5">
         <div>
           <div className="text-xs text-fg4 mb-1">Email</div>
-          <div className="flex flex-wrap items-center gap-2 text-sm text-fg1">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-on-surface">
             {account.email}
             {account.emailConfirmed
               ? <span className="inline-flex items-center gap-1 text-xs text-success"><CheckCircle2 size={13} /> подтверждён</span>
@@ -143,7 +143,7 @@ export function ProfilePage() {
           {/* Все роли, а не первая (issue #984): действующие права — объединение прав всех.
               Пусто — так и сказано словами: прежде здесь подставлялся «Инженер ИД», и профиль
               называл роль, которой нет, ровно тому, у кого нет никакого доступа. */}
-          <div className="text-sm text-fg1">
+          <div className="text-sm text-on-surface">
             {account.roles.length > 0
               ? account.roles.map(r => r.title).join(', ')
               : <span className="text-fg4">Ролей нет — доступ не выдан</span>}
@@ -153,7 +153,7 @@ export function ProfilePage() {
         <TextField label="Отображаемое имя" value={displayName}
           onChange={e => { setDisplayName(e.target.value); setSaved(false); }} />
 
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <p className="text-sm text-error">{error}</p>}
         {saved && <p className="text-sm text-success">Сохранено</p>}
 
         <div className="flex items-center gap-2">
@@ -168,8 +168,8 @@ export function ProfilePage() {
 
       {/* Оформление и язык (issue #954, ТЗ AUTH-16.6): личные настройки — в профиле, а не в
           «Настройке системы», где язык лежал за административным правом. */}
-      <div className="mt-8 pt-6 border-t border-stroke">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-fg1 mb-4">
+      <div className="mt-8 pt-6 border-t border-outline-variant">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface mb-4">
           <Palette size={15} className="text-fg3" /> Оформление и язык
         </h2>
         <AppearanceSection />
@@ -183,8 +183,8 @@ export function ProfilePage() {
 
       {/* Мои роли и права — только для чтения (ТЗ AUTH-16.6): ответ на вопрос «почему у меня нет
           этого раздела», который иначе задают администратору. */}
-      <div className="mt-8 pt-6 border-t border-stroke">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-fg1 mb-1">
+      <div className="mt-8 pt-6 border-t border-outline-variant">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface mb-1">
           <ShieldCheck size={15} className="text-fg3" /> Мои права
         </h2>
         <p className="text-xs text-fg4 mb-4">
@@ -193,8 +193,8 @@ export function ProfilePage() {
         <MyPermissionsSection />
       </div>
 
-      <div className="mt-8 pt-6 border-t border-stroke">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-fg1 mb-1">
+      <div className="mt-8 pt-6 border-t border-outline-variant">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface mb-1">
           <Mail size={15} className="text-fg3" /> Сменить email
         </h2>
         <p className="text-xs text-fg4 mb-4">
@@ -205,7 +205,7 @@ export function ProfilePage() {
             value={newEmail} onChange={e => { setNewEmail(e.target.value); setEmailMsg(''); }} />
           <TextField label="Текущий пароль" type="password" autoComplete="current-password" required
             value={emailPassword} onChange={e => setEmailPassword(e.target.value)} />
-          {emailError && <p className="text-sm text-danger">{emailError}</p>}
+          {emailError && <p className="text-sm text-error">{emailError}</p>}
           {emailMsg && <p className="text-sm text-success">{emailMsg}</p>}
           <Button type="submit" variant="outlined" loading={changeEmail.isPending}
             disabled={!newEmail.trim() || !emailPassword}>

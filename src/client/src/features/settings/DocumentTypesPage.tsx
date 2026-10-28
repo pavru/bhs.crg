@@ -220,7 +220,7 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
         ref={active ? activeRow : undefined}
         aria-current={active ? 'true' : undefined}
         className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left transition-colors ${
-          active ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
+          active ? 'bg-primary-container text-brand-hover font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
         <Icon size={17} className="shrink-0" />
         <span className="flex-1 truncate text-sm">{t.name}</span>
         <span className="text-xs text-fg4 shrink-0">{fieldCount(t, allDocTypes)}</span>
@@ -257,7 +257,7 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
             <div key={g || '__ungrouped__'}>
               <button type="button" onClick={() => toggleGroup(g)}
                 aria-expanded={open}
-                className="w-full flex items-center gap-1.5 px-3 pt-3 pb-1 text-caption font-semibold uppercase tracking-wide text-fg4 hover:text-fg2 transition-colors">
+                className="w-full flex items-center gap-1.5 px-3 pt-3 pb-1 text-caption font-semibold uppercase tracking-wide text-fg4 hover:text-on-surface-variant transition-colors">
                 <ChevronRight size={12} className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
                 <Folder size={12} className="shrink-0" />
                 <span className="truncate flex-1 text-left">{g || 'Без группы'}</span>

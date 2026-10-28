@@ -54,7 +54,7 @@ export function RevisionLines({ revision, initialQueue = 'all' }: {
   const units = useUnitNames(useMemo(() => items.flatMap(r => (r.unitId ? [r.unitId] : [])), [items]));
 
   if (rows.isError || sections.isError)
-    return <p role="alert" className="text-sm text-danger">{apiError(rows.error ?? sections.error, 'Строки редакции не прочитались')}</p>;
+    return <p role="alert" className="text-sm text-error">{apiError(rows.error ?? sections.error, 'Строки редакции не прочитались')}</p>;
   if (!rows.data || !sections.data) return <p className="text-sm text-fg4">Читаем строки редакции…</p>;
 
   const toggle = (key: string) => setOpened(prev => {
@@ -160,15 +160,15 @@ function WorkTypeCell({ row, names, onMatch }: { row: EstimateRow; names: Names;
     <div className="flex flex-col items-start gap-0.5">
       {row.workTypeId && (onMatch ? (
         <button type="button" onClick={() => onMatch({ kind: 'row', rowId: row.id })}
-          className="rounded-sm text-left text-sm text-fg1 hover:text-brand hover:underline focus-visible:outline-2">
+          className="rounded-sm text-left text-sm text-on-surface hover:text-primary hover:underline focus-visible:outline-2">
           {names.workTypes?.get(row.workTypeId) ?? '…'}
         </button>
       ) : (
-        <span className="text-sm text-fg1">{names.workTypes?.get(row.workTypeId) ?? '…'}</span>
+        <span className="text-sm text-on-surface">{names.workTypes?.get(row.workTypeId) ?? '…'}</span>
       ))}
       {!row.workTypeId && onMatch && (
         <button type="button" onClick={() => onMatch({ kind: 'row', rowId: row.id })}
-          className="inline-flex items-center gap-1 rounded-sm text-sm text-brand hover:underline focus-visible:outline-2">
+          className="inline-flex items-center gap-1 rounded-sm text-sm text-primary hover:underline focus-visible:outline-2">
           <Plus size={14} aria-hidden />выбрать вид работы
         </button>
       )}
@@ -227,10 +227,10 @@ function SectionHeading({ section, open, shown, filtering, onToggle, onMatch }: 
     <div className="flex flex-wrap items-center gap-2">
       {/* С отбором разделы раскрыты сами — сворачивать нечего: под отбором видны только подходящие строки. */}
       {filtering ? (
-        <span className="text-sm font-medium text-fg1">{title}</span>
+        <span className="text-sm font-medium text-on-surface">{title}</span>
       ) : (
         <button type="button" aria-expanded={open} onClick={onToggle}
-          className="inline-flex items-center gap-1 rounded-sm text-left text-sm font-medium text-fg1 hover:text-brand focus-visible:outline-2">
+          className="inline-flex items-center gap-1 rounded-sm text-left text-sm font-medium text-on-surface hover:text-primary focus-visible:outline-2">
           <Icon size={14} aria-hidden className="shrink-0" />
           {title}
         </button>

@@ -28,7 +28,7 @@ export function SupplierMatchNote({ hasSupplier, waiting, ready, blocked, failed
 }) {
   if (!hasSupplier)
     return (
-      <p className="rounded-lg border border-stroke bg-muted px-3 py-2 text-xs text-fg3">
+      <p className="rounded-lg border border-outline-variant bg-surface-container px-3 py-2 text-xs text-fg3">
         Поставщик не выбран — запомненное подставить не по чему, и выбор позиций в этом счёте не
         запомнится. Выберите поставщика и сохраните шапку счёта.
       </p>
@@ -36,7 +36,7 @@ export function SupplierMatchNote({ hasSupplier, waiting, ready, blocked, failed
 
   if (failed !== null)
     return (
-      <p className="rounded-lg border border-warning-border bg-muted px-3 py-2 text-xs text-warning">
+      <p className="rounded-lg border border-warning-border bg-surface-container px-3 py-2 text-xs text-warning">
         Запомненное не проверено: {failed} Это не «ничего не запомнено» — позиции можно выбрать руками.
       </p>
     );
@@ -44,7 +44,7 @@ export function SupplierMatchNote({ hasSupplier, waiting, ready, blocked, failed
   if (ready === 0 && blocked === 0) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-stroke bg-muted px-3 py-2 text-xs text-fg2">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-outline-variant bg-surface-container px-3 py-2 text-xs text-on-surface-variant">
       {ready > 0 && (
         <>
           <span>

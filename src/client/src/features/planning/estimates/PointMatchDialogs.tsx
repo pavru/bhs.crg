@@ -40,8 +40,8 @@ export function PointRateDialog({ item, onClose }: { item: RateMatch; onClose: (
           Следующие импорты подставят новый выбор. Строки, уже сопоставленные прежним, остаются как есть.
         </p>
         <RateChoiceFields state={state} />
-        {refusal && <p role="alert" className="text-sm text-danger">{refusal.text}</p>}
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-stroke pt-3">
+        {refusal && <p role="alert" className="text-sm text-error">{refusal.text}</p>}
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-outline-variant pt-3">
           {state.missing && <span className="mr-auto text-xs text-fg3">{state.missing}</span>}
           <ModalExit />
           <Button variant="filled" disabled={!state.choice} loading={point.isPending} onClick={submit}>Перенацелить</Button>
@@ -80,17 +80,17 @@ export function PointResourceDialog({ item, onClose }: { item: ResourceMatch; on
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Перенацелить материал" wide busy={point.isPending}>
       <div className="space-y-3">
-        <div className="rounded-lg bg-muted px-3 py-2 space-y-0.5">
+        <div className="rounded-lg bg-surface-container px-3 py-2 space-y-0.5">
           <p className="text-caption text-fg3">{item.kind === 'code' ? 'Код ресурса' : 'Наименование'}</p>
-          <p className="text-sm text-fg1">{item.sourceText}</p>
+          <p className="text-sm text-on-surface">{item.sourceText}</p>
           <p className="text-xs text-fg3">Сейчас: {item.nomenclatureName ?? 'позиция без названия'}</p>
         </div>
-        <div className="flex items-center gap-2 rounded-md border border-stroke-strong px-2.5 h-10">
+        <div className="flex items-center gap-2 rounded-md border border-outline px-2.5 h-10">
           <Search size={15} className="text-fg4 shrink-0" />
           <input value={typed} onChange={e => type(e.target.value)} aria-label="Поиск позиции"
-            placeholder="наименование или часть наименования" className="flex-1 bg-transparent text-sm outline-none text-fg1 placeholder:text-fg4" />
+            placeholder="наименование или часть наименования" className="flex-1 bg-transparent text-sm outline-none text-on-surface placeholder:text-fg4" />
         </div>
-        {found.isError && <p role="alert" className="text-xs text-danger">Справочник не прочитан: {apiError(found.error, 'сервер отказал')}. Это не «позиций нет».</p>}
+        {found.isError && <p role="alert" className="text-xs text-error">Справочник не прочитан: {apiError(found.error, 'сервер отказал')}. Это не «позиций нет».</p>}
         <div id={listId} role="listbox" aria-label="Найденные позиции" onMouseLeave={selection.leave} className="-mx-2 space-y-0.5">
           {rows.map(row => (
             <PickerOption key={row.id} row={row} id={`${listId}-${row.id}`} active={row.id === selection.active} enter={false}
@@ -99,8 +99,8 @@ export function PointResourceDialog({ item, onClose }: { item: ResourceMatch; on
         </div>
         {found.data && rows.length === 0 && <p className="text-xs text-fg4">По этому запросу других позиций нет.</p>}
         {found.data?.more && <p className="text-xs text-warning">Показаны первые {rows.length} — подходящих больше. Уточните запрос.</p>}
-        {refusal && <p role="alert" className="text-sm text-danger">{refusal.text}</p>}
-        <div className="flex justify-end border-t border-stroke pt-3"><ModalExit /></div>
+        {refusal && <p role="alert" className="text-sm text-error">{refusal.text}</p>}
+        <div className="flex justify-end border-t border-outline-variant pt-3"><ModalExit /></div>
       </div>
     </Modal>
   );

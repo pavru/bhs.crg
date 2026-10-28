@@ -52,11 +52,11 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
     <div>
       <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Условия отбора">
         {view.mode === 'complex' ? (
-          <span className={`${CHIP_CLS} border-stroke text-fg1`}>
+          <span className={`${CHIP_CLS} border-outline-variant text-on-surface`}>
             <span className="pl-2.5 pr-1 py-1">Отбор сложный: условий — {view.count}</span>
             {onAdvanced && (
               <button type="button" onClick={onAdvanced}
-                className="pr-2.5 py-1 text-brand hover:underline">
+                className="pr-2.5 py-1 text-primary hover:underline">
                 изменить
               </button>
             )}
@@ -71,7 +71,7 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
           <ConditionPopover key={`offer:${name}`} columns={columns} submit="Добавить" requireValue
             initial={offeredCondition(name, columns)}
             onSubmit={cond => onChange(chipAdded(cond))}>
-            <button type="button" className={`${CHIP_CLS} border-dashed border-stroke text-fg3 hover:text-fg1 px-2.5 py-1 gap-1`}>
+            <button type="button" className={`${CHIP_CLS} border-dashed border-outline-variant text-fg3 hover:text-on-surface px-2.5 py-1 gap-1`}>
               <Plus size={12} aria-hidden /> {columnLabel(columns.find(c => c.name === name), name)}
             </button>
           </ConditionPopover>
@@ -80,7 +80,7 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
         {view.mode === 'chips' && (
           <ConditionPopover columns={columns} initial={NEW_CONDITION} submit="Добавить"
             onSubmit={cond => onChange(chipAdded(cond))}>
-            <button type="button" className={`${CHIP_CLS} border-dashed border-stroke text-fg3 hover:text-fg1 px-2.5 py-1 gap-1`}>
+            <button type="button" className={`${CHIP_CLS} border-dashed border-outline-variant text-fg3 hover:text-on-surface px-2.5 py-1 gap-1`}>
               <Plus size={12} aria-hidden /> условие
             </button>
           </ConditionPopover>
@@ -88,21 +88,21 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
 
         {onAdvanced && view.mode === 'chips' && (
           <button type="button" onClick={onAdvanced}
-            className="inline-flex items-center gap-1 text-xs text-fg3 hover:text-fg1 px-1.5 py-1">
+            className="inline-flex items-center gap-1 text-xs text-fg3 hover:text-on-surface px-1.5 py-1">
             <SlidersHorizontal size={12} aria-hidden /> Расширенный
           </button>
         )}
 
         {hasAny && (
           <button type="button" onClick={() => onChange(() => null)}
-            className="text-xs text-fg3 hover:text-danger px-1.5 py-1">
+            className="text-xs text-fg3 hover:text-error px-1.5 py-1">
             Снять отбор
           </button>
         )}
       </div>
 
       {problems.length > 0 && (
-        <ul role="alert" className="mt-1 text-xs text-danger">
+        <ul role="alert" className="mt-1 text-xs text-error">
           {problems.map((p, i) => <li key={i}>«{p.text}» не выполнится: {p.problem}.</li>)}
         </ul>
       )}
@@ -138,7 +138,7 @@ function ConditionChip({ cond, columns, onChange, onRemove }: {
     <Tooltip content={problem ? `Условие не выполнится: ${problem}` : notice ? noticeText(notice) : undefined}>
       <ConditionPopover columns={columns} initial={cond} submit="Применить" onSubmit={onChange}>
         <Chip menu selected={!problem && !notice} tone={problem ? 'danger' : notice ? 'warning' : undefined}
-          icon={problem ? TriangleAlert : undefined} className={notice ? 'bg-warning-subtle!' : ''}
+          icon={problem ? TriangleAlert : undefined} className={notice ? 'bg-warning-container!' : ''}
           data-notice={notice ? '' : undefined}
           onRemove={onRemove} removeLabel={`Снять условие «${text}»`}>
           {notice && <BookX size={12} aria-label="нет в справочнике" className="inline align-[-2px] mr-1" />}
@@ -195,7 +195,7 @@ function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, ch
       <Popover.Trigger asChild {...trigger}>{children}</Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6}
-          className="z-50 w-72 rounded-lg bg-surface border border-stroke p-3 focus:outline-none"
+          className="z-50 w-72 rounded-lg bg-surface border border-outline-variant p-3 focus:outline-none"
           style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           <form className="group/condition" onSubmit={e => { e.preventDefault(); apply(); }}>
             <ConditionEditor stacked cond={draft} columns={columns} onChange={setDraft} hintId={hintId} valueRef={valueRef} />
@@ -207,7 +207,7 @@ function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, ch
                   problemOf={chipProblem} fieldRef={valueRef} />}
             <div className="mt-2.5 flex justify-end">
               <button type="submit" disabled={!draft.column.trim() || waiting}
-                className="px-3 py-1 rounded-md text-xs font-medium text-on-brand bg-brand disabled:opacity-50">
+                className="px-3 py-1 rounded-md text-xs font-medium text-on-primary bg-primary disabled:opacity-50">
                 {submit}
               </button>
             </div>

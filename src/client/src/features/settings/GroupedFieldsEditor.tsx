@@ -250,8 +250,8 @@ export function GroupedFieldsEditor({
       {(() => {
         const zone = dropZoneProps(null);
         return (
-          <div className={`border rounded-lg overflow-hidden transition-colors ${zone.highlighted ? 'border-brand bg-brand-subtle/30' : 'border-stroke border-dashed bg-base'}`}>
-            <div className="flex items-center gap-2 px-3 py-2 bg-surface border-b border-stroke">
+          <div className={`border rounded-lg overflow-hidden transition-colors ${zone.highlighted ? 'border-primary bg-primary-container/30' : 'border-outline-variant border-dashed bg-surface-container-low'}`}>
+            <div className="flex items-center gap-2 px-3 py-2 bg-surface border-b border-outline-variant">
               <span className="text-sm font-medium text-fg3">Без группы</span>
               <span className="text-xs text-fg4">{ownUngrouped.length + inhUngrouped.length}</span>
             </div>
@@ -279,15 +279,15 @@ export function GroupedFieldsEditor({
             {/* Место вставки при перетаскивании группы (перед этой карточкой) */}
             {!!dragGroupKey && !draggingThis && groupDropBefore === group.key && <DropLine />}
             <div
-              className={`border rounded-lg overflow-hidden transition-colors ${draggingThis ? 'opacity-40' : ''} ${zone.highlighted ? 'border-brand bg-brand-subtle/30' : 'border-stroke bg-base'}`}
+              className={`border rounded-lg overflow-hidden transition-colors ${draggingThis ? 'opacity-40' : ''} ${zone.highlighted ? 'border-primary bg-primary-container/30' : 'border-outline-variant bg-surface-container-low'}`}
               onDragOver={e => { if (dragGroupKey && !draggingThis) { e.preventDefault(); setGroupDropBefore(group.key); } }}
               onDrop={() => { if (dragGroupKey && !draggingThis) { moveGroupTo(dragGroupKey, group.key); endGroupDrag(); } }}>
             {/* Шапка группы */}
-            <div className="flex items-center gap-2 px-3 py-2 bg-surface border-b border-stroke">
+            <div className="flex items-center gap-2 px-3 py-2 bg-surface border-b border-outline-variant">
               <Tooltip content="Перетащить для изменения порядка групп">
                 <button type="button" draggable
                   onDragStart={() => setDragGroupKey(group.key)} onDragEnd={endGroupDrag}
-                  className="cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 shrink-0 focus-visible:outline-none focus-visible:text-brand" aria-label={`Переместить группу «${group.title || group.key}» перетаскиванием`}>
+                  className="cursor-grab active:cursor-grabbing text-fg4 hover:text-on-surface-variant shrink-0 focus-visible:outline-none focus-visible:text-primary" aria-label={`Переместить группу «${group.title || group.key}» перетаскиванием`}>
                   <GripVertical size={14} />
                 </button>
               </Tooltip>
@@ -296,7 +296,7 @@ export function GroupedFieldsEditor({
                 value={group.title}
                 onChange={e => renameGroup(group.key, e.target.value)}
                 placeholder="Название группы"
-                className="flex-1 min-w-0 text-sm font-medium border-b border-transparent hover:border-stroke-strong focus:border-brand bg-transparent outline-none"
+                className="flex-1 min-w-0 text-sm font-medium border-b border-transparent hover:border-outline focus:border-primary bg-transparent outline-none"
               />
               <span className="text-xs text-fg4 shrink-0">{members.length}</span>
               <div className="flex items-center gap-0.5 shrink-0">
@@ -304,7 +304,7 @@ export function GroupedFieldsEditor({
                   isFirst={gi === 0} isLast={gi === groups.length - 1} size={13} />
                 <Tooltip content="Удалить группу (поля → «Без группы»)" name>
                   <button type="button" onClick={() => deleteGroup(group.key)}
-                    className="p-1 text-fg4 hover:text-danger"><Trash2 size={13} /></button>
+                    className="p-1 text-fg4 hover:text-error"><Trash2 size={13} /></button>
                 </Tooltip>
               </div>
             </div>
@@ -333,7 +333,7 @@ export function GroupedFieldsEditor({
           onChange={e => setNewGroupTitle(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addGroup(); } }}
           placeholder="Название новой группы"
-          className="flex-1 border border-dashed border-stroke-strong rounded-md px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus:border-brand"
+          className="flex-1 border border-dashed border-outline rounded-md px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus:border-primary"
         />
         <Button type="button" variant="outlined" size="sm" onClick={addGroup} disabled={!newGroupTitle.trim()} icon={<Plus size={14} />}>
           Группа
@@ -345,7 +345,7 @@ export function GroupedFieldsEditor({
 
 // ── Индикатор места вставки при drag&drop (issue: линия, куда ляжет поле) ──────
 function DropLine() {
-  return <div aria-hidden className="h-0.5 rounded-full bg-brand mb-2 shadow-[0_0_0_1px_var(--color-brand)]" />;
+  return <div aria-hidden className="h-0.5 rounded-full bg-primary mb-2 shadow-[0_0_0_1px_var(--color-primary)]" />;
 }
 
 // ── Компактная read-only строка унаследованного поля внутри группы ────────────
@@ -360,20 +360,20 @@ function InheritedRow({ field, typeLabel, dragging, onDragStart, onDragEnd, onDr
 }) {
   return (
     <div
-      className={`flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg border transition-colors ${dragging ? 'border-brand' : 'border-stroke bg-muted/40'}`}
+      className={`flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg border transition-colors ${dragging ? 'border-primary' : 'border-outline-variant bg-surface-container/40'}`}
       draggable onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDrop={onDrop}>
       <GripVertical size={15} className="text-fg4 shrink-0 cursor-grab" />
       <Lock size={12} className="text-fg4 shrink-0" />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
-          <span className="text-sm text-fg2 truncate">{field.title || field.key}</span>
-          {field.required && <span className="text-caption text-danger shrink-0">обяз.</span>}
+          <span className="text-sm text-on-surface-variant truncate">{field.title || field.key}</span>
+          {field.required && <span className="text-caption text-error shrink-0">обяз.</span>}
         </span>
         <span className="block text-xs text-fg4 font-mono truncate">{field.key}</span>
       </span>
       <ModuleFieldBadge field={field} />
-      <span className="text-caption px-1.5 py-0.5 rounded bg-warning-subtle text-warning shrink-0">унаслед.</span>
-      <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-fg3 shrink-0">{typeLabel}</span>
+      <span className="text-caption px-1.5 py-0.5 rounded bg-warning-container text-warning shrink-0">унаслед.</span>
+      <span className="text-xs px-2 py-0.5 rounded-full bg-surface-container text-fg3 shrink-0">{typeLabel}</span>
     </div>
   );
 }

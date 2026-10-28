@@ -36,7 +36,7 @@ export function OutsideNav({ items }: { items: NavItem[] }) {
   return (
     <div data-testid="outside-nav" className="mt-3">
       <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 px-3 py-2 rounded-full text-left text-xs text-fg3 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+        className="w-full flex items-center gap-2 px-3 py-2 rounded-full text-left text-xs text-fg3 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
         {open ? <ChevronDown size={14} className="shrink-0" /> : <ChevronRight size={14} className="shrink-0" />}
         <span>{caption}</span>
       </button>
@@ -69,7 +69,7 @@ export function OutsideBanner({ items, inside }: { items: NavItem[]; inside: Nav
 
   const home = inside[0];
   return (
-    <div className="shrink-0 flex items-center gap-2 px-4 py-1.5 text-sm bg-base text-fg2 border-b border-stroke"
+    <div className="shrink-0 flex items-center gap-2 px-4 py-1.5 text-sm bg-surface-container-low text-on-surface-variant border-b border-outline-variant"
       data-testid="outside-banner">
       <LayoutGrid size={14} className="shrink-0 text-fg3" />
       <span className="flex-1 min-w-0 truncate">
@@ -77,7 +77,7 @@ export function OutsideBanner({ items, inside }: { items: NavItem[]; inside: Nav
       </span>
       {home && (
         <button type="button" onClick={() => navigate(home.to)}
-          className="shrink-0 font-medium text-brand underline hover:no-underline">
+          className="shrink-0 font-medium text-primary underline hover:no-underline">
           Вернуться в пространство
         </button>
       )}
@@ -99,7 +99,7 @@ export function HiddenByWorkspace({ module, what }: { module: string; what: stri
   return (
     <p className="px-3 py-1.5 text-xs text-fg3" data-testid="hidden-by-workspace">
       {what} — модуль «{title}», он вне пространства «{ws.current.name}».{' '}
-      <button type="button" className="underline hover:no-underline text-brand" onClick={() => ws.choose('all')}>
+      <button type="button" className="underline hover:no-underline text-primary" onClick={() => ws.choose('all')}>
         Открыть все модули
       </button>
     </p>

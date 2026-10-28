@@ -20,12 +20,12 @@ import { Tooltip } from './Tooltip';
 export type StatusTone = 'neutral' | 'brand' | 'success' | 'warning' | 'danger' | 'quiet';
 
 const TONE: Record<StatusTone, { fill: string; border: string }> = {
-  neutral: { fill: 'bg-muted text-fg2', border: 'border-stroke' },
-  brand: { fill: 'bg-brand-subtle text-on-brand-subtle', border: 'border-brand/30' },
-  success: { fill: 'bg-success-subtle text-success', border: 'border-success/30' },
-  warning: { fill: 'bg-warning-subtle text-warning', border: 'border-warning-border' },
-  danger: { fill: 'bg-danger-subtle text-danger', border: 'border-danger/30' },
-  quiet: { fill: 'text-fg3', border: 'border-stroke' },
+  neutral: { fill: 'bg-surface-container text-on-surface-variant', border: 'border-outline-variant' },
+  brand: { fill: 'bg-primary-container text-on-primary-container', border: 'border-primary/30' },
+  success: { fill: 'bg-success-container text-success', border: 'border-success/30' },
+  warning: { fill: 'bg-warning-container text-warning', border: 'border-warning-border' },
+  danger: { fill: 'bg-error-container text-error', border: 'border-error/30' },
+  quiet: { fill: 'text-fg3', border: 'border-outline-variant' },
 };
 
 export function StatusBadge({ tone = 'neutral', icon: Icon, bordered = false, title, className = '', children }: {

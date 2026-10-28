@@ -18,9 +18,9 @@ export function AutoFieldsSection(
 ) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border border-dashed border-stroke rounded-lg overflow-hidden">
+    <div className="border border-dashed border-outline-variant rounded-lg overflow-hidden">
       <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open}
-        className="w-full flex items-center gap-2 px-3 py-2 bg-base/40 hover:bg-base transition-colors text-left">
+        className="w-full flex items-center gap-2 px-3 py-2 bg-surface-container-low/40 hover:bg-surface-container-low transition-colors text-left">
         {open ? <ChevronUp size={12} className="text-fg4 shrink-0" /> : <ChevronDown size={12} className="text-fg4 shrink-0" />}
         {/* Глиф называет НАЗНАЧЕНИЕ секции, а не её содержимое, и продублирован подписью рядом —
             поэтому он приглушён: brand в этой строке должен быть ровно один, и указывать он должен
@@ -36,7 +36,7 @@ export function AutoFieldsSection(
           {count} п.
           {recognizedCount > 0 && (
             <Tooltip content="Часть значений распознана с отсканированных документов — возможны ошибки чтения. Править их можно в источнике данных.">
-              <span className="text-brand">
+              <span className="text-primary">
                 {' · '}
                 {/* Совпали — говорим словом: сравнивать два числа на глаз читателю не должно
                     приходиться (в прошлый раз этот дефект пришлось записать в «не чиним»). */}
@@ -68,7 +68,7 @@ export function AutoFieldsSection(
           )}
         </span>
       </button>
-      {open && <div className="px-3 py-3 border-t border-stroke">{children}</div>}
+      {open && <div className="px-3 py-3 border-t border-outline-variant">{children}</div>}
     </div>
   );
 }

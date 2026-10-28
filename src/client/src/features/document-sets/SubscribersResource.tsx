@@ -59,7 +59,7 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
       {canManage && (
         <div className="flex justify-end">
           <button onClick={() => setSendOpen(true)}
-            className="flex items-center gap-1 text-xs px-2 py-1 rounded text-brand hover:bg-brand-subtle transition-colors">
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded text-primary hover:bg-primary-container transition-colors">
             <Mail size={12} /> Сообщение
           </button>
         </div>
@@ -68,10 +68,10 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
       {subscribers.length === 0 ? (
         <p className="text-xs text-fg4">Нет подписчиков этого уровня. Получатели наследуются с вышестоящих.</p>
       ) : (
-        <div className="rounded-md border border-stroke divide-y divide-muted">
+        <div className="rounded-md border border-outline-variant divide-y divide-surface-container">
           {subscribers.map(s => (
             <div key={s.id} className="flex items-center gap-2 px-2.5 py-1.5 text-sm group">
-              <span className="text-fg1 flex-1 min-w-0 truncate">{s.displayName}</span>
+              <span className="text-on-surface flex-1 min-w-0 truncate">{s.displayName}</span>
               <span className="text-xs text-fg4 min-w-0 truncate">{s.email || '—'}</span>
               {!s.validEmail && (
                 <Tooltip content="Нет валидного email — писем не получит">
@@ -83,7 +83,7 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
               {canManage && (
                 <Tooltip content="Убрать из подписчиков" name>
                   <button onClick={() => remove.mutate({ id: s.id, scope, scopeId })}
-                    className="p-0.5 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all">
+                    className="p-0.5 text-stroke-strong hover:text-error opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all">
                     <Trash2 size={13} />
                   </button>
                 </Tooltip>
@@ -100,7 +100,7 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
             {available.map(u => <SelectItem key={u.id} value={u.id}>{u.displayName || u.email}</SelectItem>)}
           </Select>
           <button onClick={handleAdd} disabled={!addUserId || add.isPending}
-            className="flex items-center gap-1 text-sm px-3 py-1.5 border border-stroke-strong rounded-md hover:bg-base transition-colors disabled:opacity-50">
+            className="flex items-center gap-1 text-sm px-3 py-1.5 border border-outline rounded-md hover:bg-surface-container-low transition-colors disabled:opacity-50">
             <Plus size={13} /> Добавить
           </button>
         </div>

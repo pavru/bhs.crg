@@ -75,7 +75,7 @@ function AllEstimates() {
       <ImportDialog open={importing} onClose={() => setImporting(false)}
         onCreated={created => navigate(`/estimates/${created.estimateId}`, { state: openingOf(created) })} />
       {pages.isError ? (
-        <p role="alert" className="text-sm text-danger">{apiError(pages.error, 'Сметы не прочитались')}</p>
+        <p role="alert" className="text-sm text-error">{apiError(pages.error, 'Сметы не прочитались')}</p>
       ) : !pages.data || filter.status === 'loading' ? (
         <p className="text-sm text-fg4">Читаем сметы…</p>
       ) : loaded.length === 0 ? (
@@ -91,7 +91,7 @@ function AllEstimates() {
           </div>
           <DataGrid columns={COLUMNS} rows={lines} rowKey={l => l.key}
             state={query.trim() || shown.length < loaded.length ? 'filtered-out' : undefined}
-            section={l => (l.kind === 'site' ? <span className="text-sm font-medium text-fg1">{l.name}</span> : null)}
+            section={l => (l.kind === 'site' ? <span className="text-sm font-medium text-on-surface">{l.name}</span> : null)}
             onRowOpen={l => { if (l.kind === 'estimate') navigate(`/estimates/${l.estimate.id}`); }}
             rowLink={l => (l.kind === 'estimate' ? { to: `/estimates/${l.estimate.id}`, label: `Открыть смету «${l.estimate.name}»` } : null)} />
           {pages.hasNextPage && (

@@ -11,7 +11,7 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
 // Shared input styling.
-const FIELD_CLS = 'border border-stroke rounded-md px-3 py-1.5 text-sm bg-surface text-fg1';
+const FIELD_CLS = 'border border-outline-variant rounded-md px-3 py-1.5 text-sm bg-surface text-on-surface';
 
 // ─── Template form ────────────────────────────────────────────────────────────
 
@@ -113,7 +113,7 @@ function TemplateForm({
             {mappableFields.map(f => (
               <div key={f.key} className="flex items-center gap-2">
                 <div className="w-44 shrink-0">
-                  <span className="text-xs font-medium truncate block text-fg2" title={f.title}>
+                  <span className="text-xs font-medium truncate block text-on-surface-variant" title={f.title}>
                     {f.title}
                   </span>
                   <span className="text-caption font-mono text-fg4">{f.key}</span>
@@ -122,7 +122,7 @@ function TemplateForm({
                   value={columnMappings[f.key] ?? ''}
                   onChange={e => setMapping(f.key, e.target.value)}
                   placeholder="Название колонки в файле"
-                  className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
+                  className="flex-1 border border-outline-variant rounded px-2 py-1 text-xs bg-surface text-on-surface"
                 />
               </div>
             ))}
@@ -135,14 +135,14 @@ function TemplateForm({
         <button
           onClick={() => onSave({ name, targetFieldKey, columnMappings })}
           disabled={saving || !name.trim()}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-on-brand disabled:opacity-40 bg-brand"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-on-primary disabled:opacity-40 bg-primary"
         >
           <Check size={13} />
           {saving ? 'Сохранение...' : 'Сохранить'}
         </button>
         <button
           onClick={onCancel}
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-fg2 bg-muted"
+          className="px-3 py-1.5 rounded-md text-sm font-medium text-on-surface-variant bg-surface-container"
         >
           Отмена
         </button>
@@ -186,12 +186,12 @@ function TemplateRow({
   }
 
   return (
-    <div className="border-b border-stroke last:border-0">
+    <div className="border-b border-outline-variant last:border-0">
       {/* Заголовок */}
       <div className="flex items-center gap-3 px-4 py-3">
-        <Database size={13} className="text-brand shrink-0" />
+        <Database size={13} className="text-primary shrink-0" />
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-fg1">{template.name}</div>
+          <div className="text-sm font-medium text-on-surface">{template.name}</div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <span className="text-xs text-fg4">
               {template.targetFieldKey
@@ -213,7 +213,7 @@ function TemplateRow({
           <Tooltip content="Удалить" name>
             <button
               onClick={() => setConfirming(true)}
-              className="p-1.5 rounded text-fg4 hover:text-danger transition-colors"
+              className="p-1.5 rounded text-fg4 hover:text-error transition-colors"
             >
               <Trash2 size={13} />
             </button>
@@ -224,14 +224,14 @@ function TemplateRow({
             <button
               onClick={() => del.mutateAsync({ documentTypeId: docType.id, id: template.id }).then(() => setConfirming(false))}
               disabled={del.isPending}
-              className="px-2 py-0.5 rounded text-on-danger bg-danger"
+              className="px-2 py-0.5 rounded text-on-error bg-error"
               style={{ fontSize: '11px' }}
             >
               Да
             </button>
             <button
               onClick={() => setConfirming(false)}
-              className="px-2 py-0.5 rounded bg-muted text-fg2"
+              className="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant"
               style={{ fontSize: '11px' }}
             >
               Нет
@@ -242,7 +242,7 @@ function TemplateRow({
 
       {/* Редактор */}
       {editing && (
-        <div className="px-4 pb-4 bg-base">
+        <div className="px-4 pb-4 bg-surface-container-low">
           <TemplateForm
             docType={docType}
             allDocTypes={allDocTypes}
@@ -296,7 +296,7 @@ export function BindingTemplatesDialog({
       </p>
 
       {/* Список */}
-      <div className="rounded-xl overflow-hidden mb-4 border border-stroke bg-surface">
+      <div className="rounded-xl overflow-hidden mb-4 border border-outline-variant bg-surface">
         {isLoading ? (
           <div className="p-6 text-center text-sm text-fg4">Загрузка...</div>
         ) : templates.length === 0 && !adding ? (
@@ -312,7 +312,7 @@ export function BindingTemplatesDialog({
 
       {/* Форма добавления */}
       {adding ? (
-        <div className="rounded-xl p-4 border border-stroke bg-base">
+        <div className="rounded-xl p-4 border border-outline-variant bg-surface-container-low">
           <p className="text-xs font-semibold mb-3 text-fg3">Новый шаблон</p>
           <TemplateForm
             docType={docType}
@@ -325,7 +325,7 @@ export function BindingTemplatesDialog({
       ) : (
         <button
           onClick={() => setAdding(true)}
-          className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md text-brand bg-brand-subtle"
+          className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md text-primary bg-primary-container"
         >
           <Plus size={14} /> Добавить шаблон
         </button>

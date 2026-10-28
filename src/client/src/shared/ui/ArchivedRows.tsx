@@ -19,7 +19,7 @@ export function ArchivedRows({ count, forceOpen = false, children }: {
   return (
     <>
       <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={shown} disabled={forceOpen}
-        className="w-full flex items-center gap-2 px-4 py-2 border-t border-muted text-left text-xs text-fg3 enabled:hover:bg-base transition-colors">
+        className="w-full flex items-center gap-2 px-4 py-2 border-t border-surface-container text-left text-xs text-fg3 enabled:hover:bg-surface-container-low transition-colors">
         <Archive size={13} className="shrink-0" />
         <span className="flex-1">В архиве: {count}</span>
         {!forceOpen && (shown ? <ChevronUp size={13} className="shrink-0" /> : <ChevronDown size={13} className="shrink-0" />)}

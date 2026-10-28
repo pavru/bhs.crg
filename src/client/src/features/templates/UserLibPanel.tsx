@@ -233,8 +233,8 @@ export function UserLibPanel() {
   if (!data) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-3 text-sm">
-        <AlertCircle size={20} className="text-danger" />
-        <p className="text-fg2">Не удалось загрузить библиотеку.</p>
+        <AlertCircle size={20} className="text-error" />
+        <p className="text-on-surface-variant">Не удалось загрузить библиотеку.</p>
         <p className="text-fg4 text-xs max-w-sm text-center">
           Правка недоступна, пока библиотека не прочитана: сохранение заменяет дерево целиком и
           стёрло бы его.
@@ -269,7 +269,7 @@ export function UserLibPanel() {
 
   return (
     <div className="flex h-full min-h-0">
-      <aside className="w-72 shrink-0 border-r border-stroke flex flex-col bg-base">
+      <aside className="w-72 shrink-0 border-r border-outline-variant flex flex-col bg-surface-container-low">
         <UserLibFileList
           files={files} selected={active} dirty={dirty} errors={errors} warnings={warnings}
           onSelect={setSelected}
@@ -281,21 +281,21 @@ export function UserLibPanel() {
       </aside>
 
       <div className="flex-1 min-w-0 flex flex-col">
-        <div className="flex items-center justify-between px-4 py-2 border-b border-stroke bg-surface gap-3">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-outline-variant bg-surface gap-3">
           <p className="text-xs text-fg3 truncate">
             {active === ENTRYPOINT ? (
               <>Доступен в каждом шаблоне через{' '}
-                <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-fg2">#import "userlib.typ": *</code>
+                <code className="font-mono bg-surface-container px-1.5 py-0.5 rounded text-on-surface-variant">#import "userlib.typ": *</code>
               </>
             ) : (
-              <>Файл библиотеки — <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-fg2">userlib/{active}</code></>
+              <>Файл библиотеки — <code className="font-mono bg-surface-container px-1.5 py-0.5 rounded text-on-surface-variant">userlib/{active}</code></>
             )}
           </p>
           <div className="flex items-center gap-2 shrink-0">
             {savedMsg && !isDirty && <span className="text-xs text-success">Сохранено</span>}
             {/* Полный текст под курсором: строка в шапке узкая, а объяснение отказа сервера
                 («какой путь и чем не годится») в неё не помещается (issue #511). */}
-            {error && <span className="text-xs text-danger max-w-xs truncate" title={error}>{error}</span>}
+            {error && <span className="text-xs text-error max-w-xs truncate" title={error}>{error}</span>}
             {isDirty && <span className="text-xs text-fg3">Изменено: {dirty.size}</span>}
             <Button variant="filled" size="sm" onClick={handleSave} loading={saveMutation.isPending}
               icon={<Save size={12} />}>
@@ -330,7 +330,7 @@ export function UserLibPanel() {
             перезагрузки мы про собираемость НЕ ЗНАЕМ — и говорим это прямо, а не показываем пустоту,
             которая читалась бы как «всё в порядке» (issue #500). */}
         {!checkApplies && (
-          <div className="px-4 py-1.5 border-b border-stroke text-xs text-fg3 flex items-center gap-2">
+          <div className="px-4 py-1.5 border-b border-outline-variant text-xs text-fg3 flex items-center gap-2">
             <AlertCircle size={12} className="shrink-0 text-fg4" />
             {check === null
               ? 'Собираемость библиотеки не проверялась в этом сеансе — сохраните, чтобы проверить.'
@@ -422,12 +422,12 @@ function DiagnosticBlock({ tone, title, items, alive, onGo }: {
 }) {
   const Icon = tone === 'danger' ? AlertCircle : AlertTriangle;
   return (
-    <div className={`px-4 py-2 border-b border-stroke flex items-start gap-2 ${
-      tone === 'danger' ? 'bg-danger-subtle' : 'bg-warning-subtle'}`}>
-      <Icon size={14} className={`shrink-0 mt-0.5 ${tone === 'danger' ? 'text-danger' : 'text-warning'}`} />
+    <div className={`px-4 py-2 border-b border-outline-variant flex items-start gap-2 ${
+      tone === 'danger' ? 'bg-error-container' : 'bg-warning-container'}`}>
+      <Icon size={14} className={`shrink-0 mt-0.5 ${tone === 'danger' ? 'text-error' : 'text-warning'}`} />
       <div className="min-w-0 text-xs">
         {title && (
-          <p className={`font-medium ${tone === 'danger' ? 'text-danger' : 'text-warning'}`}>{title}</p>
+          <p className={`font-medium ${tone === 'danger' ? 'text-error' : 'text-warning'}`}>{title}</p>
         )}
         {items.slice(0, 3).map((it, i) => (
           <DiagnosticLine key={i} path={it.path} alive={alive(it.path)} text={it.text} onGo={onGo} />
@@ -449,7 +449,7 @@ function DiagnosticLine({ path, text, alive, onGo }: {
   if (!alive) return <Tooltip content="Файла нет в текущем дереве — сохраните изменения"><p className="text-fg3">{text}</p></Tooltip>;
   return (
     <button type="button" onClick={() => onGo(path)}
-      className="block text-left text-fg2 hover:text-fg1 hover:underline">
+      className="block text-left text-on-surface-variant hover:text-on-surface hover:underline">
       {text}
     </button>
   );

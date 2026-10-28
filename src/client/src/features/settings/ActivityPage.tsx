@@ -33,7 +33,7 @@ const COLUMNS: DataGridColumn<ActivityRow>[] = [
   { key: 'occurredAt', label: 'Когда', width: 'w-36',
     cell: r => <span className="text-fg3 tabular-nums">{formatDateTime(r.occurredAt)}</span> },
   { key: 'actorName', label: 'Кто', width: 'w-52', wrap: true,
-    cell: r => <span className="text-fg2 break-all">{r.actorName}</span> },
+    cell: r => <span className="text-on-surface-variant break-all">{r.actorName}</span> },
   { key: 'actionTitle', label: 'Что', wrap: true, cell: r => <What row={r} /> },
   { key: 'change', label: 'Было → стало', wrap: true, cell: r => <Change record={r} /> },
 ];
@@ -70,9 +70,9 @@ function SeriesRecords({ sessionId, action, count }: { sessionId: string; action
   const { data, isLoading, isError } = useActivitySeries(sessionId, action, count);
   if (isLoading) return <div className="text-fg4 text-xs mt-1.5">Загрузка...</div>;
   if (isError || !data)
-    return <div className="text-danger text-xs mt-1.5">Записи ряда не загрузились — обновите страницу.</div>;
+    return <div className="text-error text-xs mt-1.5">Записи ряда не загрузились — обновите страницу.</div>;
   return (
-    <ol className="mt-1.5 border-l border-stroke pl-3 space-y-1" aria-label="Записи ряда">
+    <ol className="mt-1.5 border-l border-outline-variant pl-3 space-y-1" aria-label="Записи ряда">
       {data.map(record => (
         <li key={record.id} className="flex items-baseline gap-2 text-xs">
           <span className="text-fg3 tabular-nums shrink-0">{formatTime(record.occurredAt)}</span>
@@ -94,14 +94,14 @@ function Change({ record }: { record: ActivityRecord }) {
   if (record.before && record.after) {
     return (
       <span className="inline-flex items-center gap-1.5 flex-wrap">
-        <span className="text-fg3 line-through decoration-fg4/50">{record.before}</span>
+        <span className="text-fg3 line-through decoration-outline/50">{record.before}</span>
         <ArrowRight size={13} className="text-fg4 shrink-0" />
-        <span className="text-fg1">{record.after}</span>
+        <span className="text-on-surface">{record.after}</span>
       </span>
     );
   }
-  if (record.after) return <span className="text-fg1">{record.after}</span>;
-  if (record.before) return <span className="text-fg3 line-through decoration-fg4/50">{record.before}</span>;
+  if (record.after) return <span className="text-on-surface">{record.after}</span>;
+  if (record.before) return <span className="text-fg3 line-through decoration-outline/50">{record.before}</span>;
   return <span className="text-fg4">—</span>;
 }
 

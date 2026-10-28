@@ -43,7 +43,7 @@ export function XPathBuilder({ value, onChange, placeholder, preview }: XPathBui
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder ?? '/Root/Item'}
         spellCheck={false}
-        className="w-full border border-stroke-strong rounded-md px-2 py-1.5 text-xs font-mono bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        className="w-full border border-outline rounded-md px-2 py-1.5 text-xs font-mono bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       />
       {unparseable ? (
         <p className="text-xs text-warning flex items-start gap-1.5 py-1">
@@ -68,18 +68,18 @@ function XPathPreviewPanel({ spec }: { spec: ExpressionPreviewSpec | null }) {
   if (!spec) return null;
 
   return (
-    <div className="text-xs rounded-md border border-stroke bg-base px-2 py-1.5">
+    <div className="text-xs rounded-md border border-outline-variant bg-surface-container-low px-2 py-1.5">
       {isFetching ? (
         <span className="flex items-center gap-1.5 text-fg4">
           <Loader2 size={11} className="animate-spin" /> Проверка...
         </span>
       ) : error ? (
-        <span className="text-danger">
+        <span className="text-error">
           {(error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Не удалось проверить выражение'}
         </span>
       ) : data ? (
         <div className="space-y-0.5">
-          <span className="font-medium text-fg2">
+          <span className="font-medium text-on-surface-variant">
             {spec.expr ? `Значений найдено: ${data.matchCount}` : `Узлов найдено: ${data.matchCount}`}
           </span>
           {data.samples.length > 0 && (
@@ -114,7 +114,7 @@ function StepsEditor({ model, onChange }: { model: XPathModel; onChange: (m: XPa
           onChange={patch => updateStep(i, patch)} onRemove={() => removeStep(i)} />
       ))}
       <button type="button" onClick={addStep}
-        className="text-xs text-brand hover:text-brand-hover flex items-center gap-1 px-1.5 py-1 shrink-0">
+        className="text-xs text-primary hover:text-brand-hover flex items-center gap-1 px-1.5 py-1 shrink-0">
         <Plus size={12} /> Шаг
       </button>
     </div>
@@ -136,21 +136,21 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
   }
 
   return (
-    <div className="border border-stroke rounded-md px-1.5 py-1 bg-base flex flex-col gap-1 min-w-0">
+    <div className="border border-outline-variant rounded-md px-1.5 py-1 bg-surface-container-low flex flex-col gap-1 min-w-0">
       <div className="flex items-center gap-1">
         {isLast && (
           <Tooltip content="Атрибут / элемент">
             <button type="button"
               onClick={() => onChange({ axis: step.axis === 'attribute' ? 'child' : 'attribute' })}
-              className={`text-xs px-1 rounded shrink-0 ${step.axis === 'attribute' ? 'bg-brand text-on-brand' : 'text-fg4 border border-stroke hover:border-stroke-strong'}`}>
+              className={`text-xs px-1 rounded shrink-0 ${step.axis === 'attribute' ? 'bg-primary text-on-primary' : 'text-fg4 border border-outline-variant hover:border-outline'}`}>
               @
             </button>
           </Tooltip>
         )}
         <input value={step.name} onChange={e => onChange({ name: e.target.value })}
           placeholder={step.axis === 'attribute' ? 'атрибут' : 'элемент / *'}
-          className="w-24 text-xs font-mono border-b border-transparent hover:border-stroke focus:border-brand bg-transparent outline-none" />
-        <button type="button" onClick={onRemove} className="text-fg4 hover:text-danger shrink-0">
+          className="w-24 text-xs font-mono border-b border-transparent hover:border-outline-variant focus:border-primary bg-transparent outline-none" />
+        <button type="button" onClick={onRemove} className="text-fg4 hover:text-error shrink-0">
           <Trash2 size={11} />
         </button>
       </div>
@@ -159,7 +159,7 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
           <PredicateEditor key={i} predicate={p}
             onChange={next => updatePredicate(i, next)} onRemove={() => removePredicate(i)} />
         ))}
-        <button type="button" onClick={addPredicate} className="text-caption text-brand hover:text-brand-hover shrink-0">
+        <button type="button" onClick={addPredicate} className="text-caption text-primary hover:text-brand-hover shrink-0">
           + условие
         </button>
       </div>
@@ -189,10 +189,10 @@ function PredicateEditor({ predicate, onChange, onRemove }: {
     }
   }
 
-  const inputCls = 'bg-transparent border-b border-brand-subtle outline-none focus:border-brand-hover';
+  const inputCls = 'bg-transparent border-b border-primary-container outline-none focus:border-brand-hover';
 
   return (
-    <span className="inline-flex items-center gap-1 bg-brand-subtle border border-brand-subtle rounded px-1.5 py-0.5 text-caption text-brand-hover">
+    <span className="inline-flex items-center gap-1 bg-primary-container border border-primary-container rounded px-1.5 py-0.5 text-caption text-brand-hover">
       <Select size="inline" aria-label="Вид условия" value={predicateKind(predicate)} onValueChange={kind => setKind(kind as PredicateKind)}>
         <SelectItem value="exists">путь есть</SelectItem>
         <SelectItem value="equals">путь =</SelectItem>
@@ -228,7 +228,7 @@ function PredicateEditor({ predicate, onChange, onRemove }: {
           className={`w-10 ${inputCls}`} />
       )}
 
-      <button type="button" onClick={onRemove} className="text-brand-subtle hover:text-danger">×</button>
+      <button type="button" onClick={onRemove} className="text-primary-container hover:text-error">×</button>
     </span>
   );
 }

@@ -64,14 +64,14 @@ export function AppearanceSection() {
               aria-pressed={isSelected}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-left transition-colors ${
                 isSelected
-                  ? 'bg-brand-subtle border border-brand-subtle text-brand-pressed'
-                  : 'border border-transparent text-fg2 hover:bg-base'
+                  ? 'bg-primary-container border border-primary-container text-brand-pressed'
+                  : 'border border-transparent text-on-surface-variant hover:bg-surface-container-low'
               }`}
             >
               <span className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                isSelected ? 'border-brand' : 'border-stroke-strong'
+                isSelected ? 'border-primary' : 'border-outline'
               }`}>
-                {isSelected && <span className="w-2 h-2 rounded-full bg-brand block" />}
+                {isSelected && <span className="w-2 h-2 rounded-full bg-primary block" />}
               </span>
               <span className="flex-1">{opt.label}</span>
               {opt.value === SYSTEM_LOCALE && (
@@ -83,29 +83,29 @@ export function AppearanceSection() {
       </div>
 
       {/* Preview */}
-      <div className="rounded-lg bg-base border border-stroke p-3 space-y-1.5">
+      <div className="rounded-lg bg-surface-container-low border border-outline-variant p-3 space-y-1.5">
         <p className="text-xs font-medium text-fg3 mb-2">Предпросмотр ({resolved})</p>
         <div className="flex gap-3 text-sm">
           <span className="text-fg3 w-20 shrink-0">Дата:</span>
-          <span className="text-fg1 font-mono">
+          <span className="text-on-surface font-mono">
             {formatDate(PREVIEW_DATE)}
           </span>
         </div>
         <div className="flex gap-3 text-sm">
           <span className="text-fg3 w-20 shrink-0">Дата и время:</span>
-          <span className="text-fg1 font-mono">
+          <span className="text-on-surface font-mono">
             {formatDateTime(PREVIEW_DATE)}
           </span>
         </div>
         <div className="flex gap-3 text-sm">
           <span className="text-fg3 w-20 shrink-0">Число:</span>
-          <span className="text-fg1 font-mono">
+          <span className="text-on-surface font-mono">
             {formatNumber(PREVIEW_NUMBER)}
           </span>
         </div>
         <div className="flex gap-3 text-sm">
           <span className="text-fg3 w-20 shrink-0">Валюта:</span>
-          <span className="text-fg1 font-mono">
+          <span className="text-on-surface font-mono">
             {formatMoney(PREVIEW_NUMBER)}
           </span>
         </div>
@@ -113,7 +113,7 @@ export function AppearanceSection() {
 
       {saved && <p className="text-sm text-success">Сохранено</p>}
       {failed && (
-        <p className="text-sm text-danger">
+        <p className="text-sm text-error">
           Не удалось сохранить — выбор вернулся к прежнему. Повторите попытку.
         </p>
       )}

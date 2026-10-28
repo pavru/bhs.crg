@@ -51,10 +51,10 @@ export function PageHeader({ title, subtitle, icon, badge, breadcrumb, actions, 
   // звучит названием страницы.
   const hint = useId();
   const heading = section && plain ? (<>
-    <h1 className="text-xl font-semibold text-fg1 min-w-0">
+    <h1 className="text-xl font-semibold text-on-surface min-w-0">
       <SectionMenu value={section}>
         <button type="button" data-testid="section-menu-trigger" aria-describedby={hint}
-          className="flex items-center gap-1 max-w-[calc(100%+0.5rem)] min-h-11 -ml-2 px-2 rounded-xl text-left hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand data-[state=open]:bg-tonal data-[state=open]:text-on-tonal">
+          className="flex items-center gap-1 max-w-[calc(100%+0.5rem)] min-h-11 -ml-2 px-2 rounded-xl text-left hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary data-[state=open]:bg-secondary-container data-[state=open]:text-on-secondary-container">
           <span className="truncate">{title}</span>
           <ChevronDown size={20} className="shrink-0 text-fg3" aria-hidden />
         </button>
@@ -64,13 +64,13 @@ export function PageHeader({ title, subtitle, icon, badge, breadcrumb, actions, 
     <span id={hint} className="sr-only">Другие страницы раздела «{section.def.title}»</span>
   </>) : (
     <Tooltip content={plain ? title : undefined}>
-      <h1 className={`text-xl font-semibold text-fg1 min-w-0 ${plain ? 'truncate' : ''}`}>
+      <h1 className={`text-xl font-semibold text-on-surface min-w-0 ${plain ? 'truncate' : ''}`}>
         {title}
       </h1>
     </Tooltip>
   );
   return (
-    <header className={`@container ${bar ? 'shrink-0 px-6 py-3 border-b border-stroke ' : ''}${className}`}>
+    <header className={`@container ${bar ? 'shrink-0 px-6 py-3 border-b border-outline-variant ' : ''}${className}`}>
       <div className="flex flex-col gap-2 @2xl:flex-row @2xl:items-center @2xl:justify-between @2xl:gap-4">
         <div className="min-w-0 @2xl:flex-1 @2xl:min-w-48">
           {breadcrumb && <div className="mb-0.5">{breadcrumb}</div>}

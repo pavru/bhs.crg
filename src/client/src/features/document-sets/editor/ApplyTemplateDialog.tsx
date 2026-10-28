@@ -38,7 +38,7 @@ function ColumnMatchPreview({
       <p className="text-xs mb-2 text-fg3">
         Совпадение колонок: {matched}/{entries.length}
         {matched < entries.length && (
-          <span className="ml-1 text-danger">
+          <span className="ml-1 text-error">
             — часть полей не будет заполнена
           </span>
         )}
@@ -50,16 +50,16 @@ function ColumnMatchPreview({
             <div key={fieldKey} className="flex items-center gap-2 text-xs">
               {found
                 ? <CheckCircle2 size={12} className="text-success shrink-0" />
-                : <AlertCircle size={12} className="text-danger shrink-0" />
+                : <AlertCircle size={12} className="text-error shrink-0" />
               }
               <span className="truncate text-fg3 shrink-0 w-30" title={fieldKey}>
                 {fieldKey}
               </span>
-              <span className={`font-mono ${found ? 'text-fg1' : 'text-fg4'}`}>
+              <span className={`font-mono ${found ? 'text-on-surface' : 'text-fg4'}`}>
                 {colName}
               </span>
               {!found && (
-                <span className="text-caption text-danger">не найдено</span>
+                <span className="text-caption text-error">не найдено</span>
               )}
             </div>
           );
@@ -167,14 +167,14 @@ export function ApplyTemplateDialog({
           <button
             onClick={handleApply}
             disabled={!selectedTemplate || !selectedSource || create.isPending}
-            className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium text-on-brand disabled:opacity-40 bg-brand"
+            className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium text-on-primary disabled:opacity-40 bg-primary"
           >
             {create.isPending && <Loader2 size={13} className="animate-spin" />}
             Создать привязку
           </button>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted"
+            className="px-4 py-2 rounded-md text-sm font-medium text-on-surface-variant bg-surface-container"
           >
             Отмена
           </button>
@@ -203,10 +203,10 @@ export function ApplyTemplateDialog({
                     key={t.id}
                     onClick={() => { setSelectedTemplateId(t.id); setSelectedSource(null); }}
                     className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all ${
-                      selected ? 'border-brand bg-brand-subtle' : 'border-stroke bg-surface'
+                      selected ? 'border-primary bg-primary-container' : 'border-outline-variant bg-surface'
                     }`}
                   >
-                    <div className="text-sm font-medium text-fg1">{t.name}</div>
+                    <div className="text-sm font-medium text-on-surface">{t.name}</div>
                     <div className="text-xs mt-0.5 text-fg4">
                       {t.targetFieldKey ? `Табличный → ${t.targetFieldKey}` : 'Скалярный'}
                       {' · '}{mappedCount} {mappedCount === 1 ? 'поле' : 'полей'}
@@ -234,8 +234,8 @@ export function ApplyTemplateDialog({
 
         {/* Превью совпадения колонок */}
         {selectedTemplate && selectedSource && (
-          <div className="rounded-lg p-3 border border-stroke bg-base">
-            <p className="text-xs font-semibold mb-2 text-fg2">
+          <div className="rounded-lg p-3 border border-outline-variant bg-surface-container-low">
+            <p className="text-xs font-semibold mb-2 text-on-surface-variant">
               Проверка колонок
             </p>
             <ColumnMatchPreview template={selectedTemplate} source={selectedSource} />
@@ -243,7 +243,7 @@ export function ApplyTemplateDialog({
         )}
 
         {error && (
-          <p className="text-xs text-danger">{error}</p>
+          <p className="text-xs text-error">{error}</p>
         )}
       </div>
     </Modal>

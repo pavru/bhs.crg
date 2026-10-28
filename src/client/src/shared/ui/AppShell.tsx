@@ -120,10 +120,10 @@ function Shell() {
   return (
     // Высота — видимая область (`dvh`), а не 100vh: на телефоне 100vh выше экрана на панель браузера,
     // и нижняя навигация уходила бы под неё (#1434). Браузеру без `dvh` остаётся 100vh, а не ничего.
-    <div className="flex h-screen supports-[height:100dvh]:h-dvh bg-base">
+    <div className="flex h-screen supports-[height:100dvh]:h-dvh bg-surface-container-low">
       {/* Рейл разделов и подпанель раздела — на рабочем столе (issue #1429). */}
       <aside data-testid="rail" data-panel={panelShown || undefined}
-        className="shrink-0 hidden md:flex border-r border-stroke">
+        className="shrink-0 hidden md:flex border-r border-outline-variant">
         <SectionRail sections={sections} active={active} panelHidden={!!panelSection && !panelShown}
           onShowPanel={() => setRail('expanded')} />
         {panelShown && (
@@ -141,7 +141,7 @@ function Shell() {
             отбор над списками (#1432). Короткое имя пространства ужимается вместе с поиском.
             Гамбургера на телефоне нет (#1434): разделы — в нижней навигации, страницы раздела — в
             меню заголовка страницы. Цели касания там — 44 px (`max-md:h-11`). */}
-        <header className="h-12 shrink-0 border-b border-stroke bg-surface flex items-center gap-1 px-2 md:px-4">
+        <header className="h-12 shrink-0 border-b border-outline-variant bg-surface flex items-center gap-1 px-2 md:px-4">
           <PhoneBrand />
           {/* Скрытая подпанель возвращается отсюда — с края страницы, где она стояла. */}
           {panelSection && !panelShown && <span className="hidden md:inline-flex"><ShowPanelButton onShow={() => setRail('expanded')} /></span>}
@@ -189,8 +189,8 @@ function PhoneBrand() {
   const guardedClick = useGuardedNavClick();
   return (
     <Link to="/" onClick={guardedClick('/')} aria-label={`${productName} — на главную`} data-testid="phone-brand"
-      className="md:hidden shrink-0 flex items-center justify-center w-11 h-11 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-      <BrandLogo className="w-7 h-7 text-brand" iconSize={22} />
+      className="md:hidden shrink-0 flex items-center justify-center w-11 h-11 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+      <BrandLogo className="w-7 h-7 text-primary" iconSize={22} />
     </Link>
   );
 }
@@ -210,10 +210,10 @@ function SearchButton({ onOpen }: { onOpen: () => void }) {
           обрезается подпись, потом уходит метка клавиш, потом подпись становится невидимой, и
           остаётся значок поиска. Метка держится дольше подписи: учить клавише — смысл кнопки. */}
       <button type="button" onClick={onOpen} aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'}
-        className="@container flex-1 min-w-10 max-md:min-w-11 max-w-160 flex items-center gap-2.5 h-10 max-md:h-11 px-2.5 mx-1 md:mx-3 overflow-hidden rounded-full bg-base text-sm text-fg3 hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+        className="@container flex-1 min-w-10 max-md:min-w-11 max-w-160 flex items-center gap-2.5 h-10 max-md:h-11 px-2.5 mx-1 md:mx-3 overflow-hidden rounded-full bg-surface-container-low text-sm text-fg3 hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
         <Search size={18} className="shrink-0" />
         <span className="flex-1 min-w-0 truncate text-left @max-[8rem]:sr-only">Найти счёт, стройку или действие</span>
-        <kbd className="hidden @[14rem]:inline shrink-0 rounded border border-stroke px-1.5 text-caption text-fg4">{mac ? '⌘ K' : 'Ctrl K'}</kbd>
+        <kbd className="hidden @[14rem]:inline shrink-0 rounded border border-outline-variant px-1.5 text-caption text-fg4">{mac ? '⌘ K' : 'Ctrl K'}</kbd>
       </button>
     </div>
   );
@@ -230,12 +230,12 @@ function EmailConfirmBanner() {
   if (dismissed || !account || account.emailConfirmed) return null;
 
   return (
-    <div className="shrink-0 flex items-center gap-2 px-4 py-2 text-sm bg-warning-subtle text-warning border-b border-warning/30">
+    <div className="shrink-0 flex items-center gap-2 px-4 py-2 text-sm bg-warning-container text-warning border-b border-warning/30">
       <MailWarning size={16} className="shrink-0" />
       <span className="flex-1">
         Email <span className="font-medium">{account.email}</span> не подтверждён.{' '}
         {sent
-          ? <span className="text-fg2">Письмо отправлено — проверьте почту.</span>
+          ? <span className="text-on-surface-variant">Письмо отправлено — проверьте почту.</span>
           : <button type="button" onClick={() => resend.mutate(undefined, { onSuccess: () => setSent(true) })}
               disabled={resend.isPending}
               className="font-medium underline hover:no-underline disabled:opacity-50">

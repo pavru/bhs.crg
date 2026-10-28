@@ -12,7 +12,7 @@ export function ArchivedBanner({ employee, onReturn, busy }: {
   busy: boolean;
 }) {
   return (
-    <div className="mx-6 mt-3 shrink-0 flex items-start gap-2.5 rounded-md border border-stroke bg-muted px-3 py-2.5 text-xs text-fg2">
+    <div className="mx-6 mt-3 shrink-0 flex items-start gap-2.5 rounded-md border border-outline-variant bg-surface-container px-3 py-2.5 text-xs text-on-surface-variant">
       <Archive size={15} className="shrink-0 mt-0.5 text-fg3" />
       <p className="flex-1 min-w-0">
         Запись в архиве: в списках выбора её нет, в уже сохранённых документах и счетах она остаётся.

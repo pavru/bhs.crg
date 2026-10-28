@@ -108,11 +108,11 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
       </p>
 
       {ws.own.length > 0 && (
-        <ul className="mb-3 divide-y divide-stroke rounded-lg border border-stroke" data-testid="own-workspaces">
+        <ul className="mb-3 divide-y divide-outline-variant rounded-lg border border-outline-variant" data-testid="own-workspaces">
           {ws.own.map(own => (
             <li key={own.id} className="flex items-center gap-2 px-3 py-2">
               <span className="min-w-0 flex-1">
-                <span className="block text-sm text-fg1 truncate">
+                <span className="block text-sm text-on-surface truncate">
                   {own.name}
                   {ws.defaultChoice === `own:${own.id}` && <span className="ml-2 text-xs text-fg3">открывается при входе</span>}
                 </span>
@@ -122,13 +122,13 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
                   иначе набранное заменилось бы молча, хотя закрытие окна те же правки бережёт. */}
               {!dirty && (
                 <Tooltip content="Изменить" name>
-                  <button type="button" onClick={() => edit(own)} className="p-1 text-fg3 hover:text-fg1">
+                  <button type="button" onClick={() => edit(own)} className="p-1 text-fg3 hover:text-on-surface">
                     <Pencil size={14} />
                   </button>
                 </Tooltip>
               )}
               <Tooltip content="Удалить" name>
-                <button type="button" onClick={() => setRemoving(own)} className="p-1 text-fg3 hover:text-danger">
+                <button type="button" onClick={() => setRemoving(own)} className="p-1 text-fg3 hover:text-error">
                   <Trash2 size={14} />
                 </button>
               </Tooltip>
@@ -140,7 +140,7 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
       {!draft ? (
         <Button variant="outlined" icon={<Plus size={16} />} onClick={() => setDraft(blank())}>Новое пространство</Button>
       ) : (
-        <div className="space-y-3 rounded-lg border border-stroke p-3" data-testid="workspace-form">
+        <div className="space-y-3 rounded-lg border border-outline-variant p-3" data-testid="workspace-form">
           <TextField label="Имя" value={draft.name} maxLength={NAME_MAX} autoFocus
             error={draft.name.trim() && problem?.startsWith('Пространство с таким') ? problem : undefined}
             onChange={e => setDraft({ ...draft, name: e.target.value })} />
@@ -149,7 +149,7 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
             <legend className="text-xs text-fg3 mb-1">Модули</legend>
             <div className="flex flex-wrap gap-x-4 gap-y-1">
               {offered.map(m => (
-                <label key={m.code} className="flex items-center gap-2 text-sm text-fg1">
+                <label key={m.code} className="flex items-center gap-2 text-sm text-on-surface">
                   <input type="checkbox" checked={draft.modules.includes(m.code)} onChange={() => toggle(m.code)} />
                   {m.title}
                 </label>
@@ -167,12 +167,12 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
           </fieldset>
 
           {preview && draft.modules.length > 0 && (
-            <p className="text-xs text-fg2" data-testid="workspace-preview">
+            <p className="text-xs text-on-surface-variant" data-testid="workspace-preview">
               В шапке: <span className="font-medium">{draft.name.trim() || 'Без имени'}</span>. В списке пространств: {compositionLabel(preview, access)}
             </p>
           )}
 
-          <label className="flex items-center gap-2 text-sm text-fg1">
+          <label className="flex items-center gap-2 text-sm text-on-surface">
             <input type="checkbox" checked={draft.opensAtLogin} onChange={e => setDraft({ ...draft, opensAtLogin: e.target.checked })} />
             Открывать при входе
           </label>

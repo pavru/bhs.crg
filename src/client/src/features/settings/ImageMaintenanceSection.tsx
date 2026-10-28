@@ -79,10 +79,10 @@ export function ImageMaintenanceSection() {
               Выполнить
             </Button>
           )}
-          {busy && <Loader2 size={14} className="animate-spin text-brand" />}
+          {busy && <Loader2 size={14} className="animate-spin text-primary" />}
         </div>
 
-        {error && <p className="text-xs text-danger">{error}</p>}
+        {error && <p className="text-xs text-error">{error}</p>}
 
         {done && (
           <p className="text-xs text-success">
@@ -96,7 +96,7 @@ export function ImageMaintenanceSection() {
           nothingToDo
             ? <p className="text-xs text-fg3">Обслуживать нечего — все изображения уже в хранилище и укладываются в размер.</p>
             : (
-              <ul className="text-xs text-fg2 space-y-1">
+              <ul className="text-xs text-on-surface-variant space-y-1">
                 {report.images > 0 && (
                   <li>
                     Перенести из записей: <b>{report.images}</b> изображений

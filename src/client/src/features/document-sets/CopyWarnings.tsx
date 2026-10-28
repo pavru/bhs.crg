@@ -28,7 +28,7 @@ function WarningLine({ w }: { w: CopyWarning }) {
         <>
           {' '}
           <button type="button" onClick={() => setOpen(o => !o)}
-            className="text-brand hover:text-brand-hover text-xs">
+            className="text-primary hover:text-brand-hover text-xs">
             {open ? 'скрыть' : 'показать'}
           </button>
           {open && <div className="text-fg4 mt-0.5">{w.names.join(', ')}</div>}

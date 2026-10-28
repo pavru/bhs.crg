@@ -8,8 +8,8 @@ import { ruPlural } from '@/shared/utils/pluralize';
 import { TableDataSetDialog } from './TableDataSetDialog';
 
 const itemCls =
-  'flex items-center gap-2 px-3 py-1.5 text-sm text-fg2 cursor-pointer select-none outline-none ' +
-  'data-[highlighted]:bg-base data-[disabled]:opacity-40 data-[disabled]:pointer-events-none';
+  'flex items-center gap-2 px-3 py-1.5 text-sm text-on-surface-variant cursor-pointer select-none outline-none ' +
+  'data-[highlighted]:bg-surface-container-low data-[disabled]:opacity-40 data-[disabled]:pointer-events-none';
 
 /**
  * Кнопка-меню «Выгрузить» (ТЗ CORE-33; задача G3b, issue #1096): «В XLSX» и «Сделать источником
@@ -49,14 +49,14 @@ export function ExportMenu({ address, count, body, xlsx: canXlsx, dataset }: {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button type="button" disabled={busy}
-          className="inline-flex items-center gap-1.5 rounded-md border border-stroke px-2.5 py-1 text-xs text-fg2 hover:text-fg1 hover:bg-muted disabled:opacity-60">
+          className="inline-flex items-center gap-1.5 rounded-md border border-outline-variant px-2.5 py-1 text-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container disabled:opacity-60">
           <Download size={13} aria-hidden />
           {busy ? 'Выгружается…' : 'Выгрузить'}
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="end" sideOffset={6}
-          className="z-50 min-w-[14rem] rounded-lg bg-surface border border-stroke py-1 focus:outline-none"
+          className="z-50 min-w-[14rem] rounded-lg bg-surface border border-outline-variant py-1 focus:outline-none"
           style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           {canXlsx && (
             <DropdownMenu.Item className={itemCls} disabled={busy} onSelect={() => void xlsx()}>

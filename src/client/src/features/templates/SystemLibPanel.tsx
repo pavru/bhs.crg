@@ -18,7 +18,7 @@ export function SystemLibPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-stroke bg-surface">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant bg-surface">
         <Lock size={13} className="text-fg4 shrink-0" />
         <p className="text-xs text-fg3">
           {/* Было «авто-подключается, импортировать не нужно» — неверно: шаблон пишется в tmpDir

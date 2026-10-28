@@ -97,7 +97,7 @@ export function TablePage() {
   // Таблицы нет или она не открыта этому человеку — показываем причину сервера вместо экрана.
   if (declaration.isError)
     return (
-      <div className="px-6 py-10 text-sm text-danger" role="alert">
+      <div className="px-6 py-10 text-sm text-error" role="alert">
         {apiError(declaration.error, 'Таблица не открылась')}
       </div>
     );
@@ -107,7 +107,7 @@ export function TablePage() {
   // него рабочий экран нельзя (ревью PR #1324).
   if (saved.isError && !saved.data && isSavedId(presetCode))
     return (
-      <div className="px-6 py-10 text-sm text-danger" role="alert">
+      <div className="px-6 py-10 text-sm text-error" role="alert">
         {apiError(saved.error, 'Представления таблицы не открылись')}
       </div>
     );
@@ -133,7 +133,7 @@ export function TablePage() {
   if (lookup.state === 'gone')
     return (
       <div className="px-6 py-10 text-sm" role="alert">
-        <p className="text-danger">Представление удалено или больше не общее.</p>
+        <p className="text-error">Представление удалено или больше не общее.</p>
         <p className="mt-2 text-fg3">
           <Link className="underline" to={`/tables/${encodeURIComponent(address)}${wholeTableHash(view)}`}>Открыть таблицу целиком</Link>
         </p>
@@ -146,7 +146,7 @@ export function TablePage() {
   if (missing)
     return (
       <div className="px-6 py-10 text-sm" role="alert">
-        <p className="text-danger">У таблицы «{decl.title}» нет представления «{presetCode}».</p>
+        <p className="text-error">У таблицы «{decl.title}» нет представления «{presetCode}».</p>
         <p className="mt-2 text-fg3">
           <Link className="underline" to={`/tables/${encodeURIComponent(address)}`}>Открыть таблицу целиком</Link>
         </p>
@@ -222,7 +222,7 @@ export function TablePage() {
           <Tooltip key={`${group.requires}|${group.reason}`} content={group.labels.join(', ')}>
             <p className="mt-2 text-xs text-fg3">
               {hiddenCountText(group.count)}: {group.reason}
-              {group.requires && <> (<code className="text-fg2">{group.requires}</code>)</>}
+              {group.requires && <> (<code className="text-on-surface-variant">{group.requires}</code>)</>}
             </p>
           </Tooltip>
         ))}
@@ -231,7 +231,7 @@ export function TablePage() {
             отбором, и молча оставить их значило бы выдать за ответ на этот. И это НЕ «отбор ничего не
             нашёл»: строк не ноль — их не отдали. Чипы остаются — отказ говорит про них. */}
         {table.isError ? (
-          <div role="alert" className="mt-3 rounded-lg border border-danger px-3 py-2 text-sm text-danger">
+          <div role="alert" className="mt-3 rounded-lg border border-error px-3 py-2 text-sm text-error">
             <p>{apiError(table.error, 'Таблица не применила отбор или сортировку')}</p>
             <div className="mt-1.5 flex gap-3 text-xs">
               {filter !== null && (
@@ -311,7 +311,7 @@ function Total({ view, data, column, kind }: {
   return (
     <Tooltip content="Итог по всему отбору, а не по странице">
       <div>
-        <div className="font-medium text-fg1">{total.text}</div>
+        <div className="font-medium text-on-surface">{total.text}</div>
         {total.note && <div className="text-warning">{total.note}</div>}
         {total.meaning && <div className="text-fg4 font-normal whitespace-normal">{total.meaning}</div>}
       </div>
@@ -324,7 +324,7 @@ function Pager({ view, data, onChange }: {
   view: TableView; data: TableData; onChange: (change: ViewChange) => void;
 }) {
   const pages = pageCount(data.count, view.size);
-  const button = 'p-1 rounded-md text-fg3 hover:text-fg1 hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent';
+  const button = 'p-1 rounded-md text-fg3 hover:text-on-surface hover:bg-surface-container disabled:opacity-30 disabled:hover:bg-transparent';
   return (
     <div className="mt-2 flex items-center gap-3 text-xs text-fg4">
       <span>{shownOf(data)}</span>
