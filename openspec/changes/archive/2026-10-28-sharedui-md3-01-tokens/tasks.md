@@ -66,7 +66,8 @@
   AgentRulesCopy` зелёный
 - [ ] 5.3 После слияния — `/design-sync` дизайн-системы «BHS.CRG UI» из основной копии (состояние
   `.design-sync/` только там): README «Styling idiom», `conventions.md` и правила соответствия — на ролях
-  MD3. Проверка — в README дизайн-системы нет `text-fg1`, `bg-base`, «Fluent 2 scale»
+  MD3. Проверка — в README дизайн-системы нет `text-fg1`, `bg-base`, «Fluent 2 scale». Change заархивирован с ней открытой (решение владельца 28.10.2026): делает основная сессия, отметка —
+  в зонтике, 1.1
 
 ## 6. Верификация
 
@@ -75,5 +76,5 @@
   храповик)
 - [x] 6.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста; `legacy-token` — 0
 - [x] 6.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 6.5 `cd src/client && npm run -s test:e2e:ci` — весь список живых прогонов зелёный: `index.css` общий для всех
-  экранов (зонтик, 5.1)
+- [x] 6.5 `cd src/client && npm run -s test:e2e:ci` — весь список живых прогонов зелёный: `index.css` общий для всех
+  экранов (зонтик, 5.1). Сделано работой CI «Живые прогоны (браузер)» на #1674 (dccde3ca) — зелёная
