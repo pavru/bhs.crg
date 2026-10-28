@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type Ref } from 'react';
-import { BookX, X } from 'lucide-react';
+import { BookX } from 'lucide-react';
 import type { FilterCondition } from '@/shared/api/types';
 import { choiceStrays, opArity, valueFits, type FilterColumn } from './rowFilterModel';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { Chip } from '@/shared/ui/Chip';
 import { DateInput } from '@/shared/ui/DateInput';
 import { DateRange } from '@/shared/ui/DateRange';
+import { Select, SelectItem } from '@/shared/ui/Select';
 import { SuggestField } from '@/shared/ui/SuggestField';
 import { shownValue } from './chipsModel';
 import { conditionNotice } from './conditionNotice';
@@ -58,14 +60,17 @@ function ValueInput({ column, value, onChange, placeholder, onEnter, onAccept, o
     onChange(next);
   }
 
+  // Фиксация — закрытием списка, а не уходом с поля: пока список открыт, фокус живёт в нём, и уход
+  // с триггера пришёл бы раньше выбора (#1469). `min-h-7`: в окошке чипа поля столбиком, и `flex-1`
+  // (основа 0) сжимал бы кнопку-триггер до строки текста — у нативного поля высоту держали поля.
   if ((kind === 'boolean' || kind === 'choice') && typed)
     return (
-      <select value={value} onChange={e => change(e.target.value)} onBlur={onBlur} className={cls} aria-label={placeholder}>
-        <option value="">— значение —</option>
+      <Select size="sm" value={value} onValueChange={change} onOpenChange={open => { if (!open) onBlur?.(); }}
+        emptyItem="— значение —" className="flex-1 min-w-0 min-h-7" aria-label={placeholder}>
         {kind === 'boolean'
-          ? <><option value="true">да</option><option value="false">нет</option></>
-          : (column?.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
-      </select>
+          ? <><SelectItem value="true">да</SelectItem><SelectItem value="false">нет</SelectItem></>
+          : (column?.options ?? []).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+      </Select>
     );
 
   if (kind === 'date' && typed)
@@ -160,19 +165,7 @@ function ValueList({ column, values, marked, describedBy, inputRef, onChange }: 
   return (
     <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1">
       {values.map(v => (
-        <span key={v} className={'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-fg1 '
-          + (marked?.has(v) ? 'border border-warning-border bg-warning-subtle' : 'bg-brand-subtle')}>
-          {marked?.has(v) && <BookX size={10} aria-label="нет в справочнике" className="text-warning" />}
-          {shown(v)}
-          <button
-            type="button"
-            onClick={() => onChange(values.filter(x => x !== v))}
-            className="text-fg4 hover:text-danger"
-            aria-label={`Убрать «${shown(v)}»`}
-          >
-            <X size={10} />
-          </button>
-        </span>
+        <ValueChip key={v} warning={marked?.has(v)} label={shown(v)} onRemove={() => onChange(values.filter(x => x !== v))} />
       ))}
       <div className="flex items-center gap-1 flex-1" style={{ minWidth: date ? '200px' : '120px' }}>
         {date ? (
@@ -234,15 +227,7 @@ function OptionList({ options, values, strays, onChange }: {
         </label>
       ))}
       {strays.map(v => (
-        <span key={v} data-stray
-          className="inline-flex items-center gap-1 rounded border border-warning-border bg-warning-subtle px-1.5 py-0.5 text-xs text-fg1">
-          <BookX size={10} aria-hidden className="text-warning" />
-          {v}
-          <button type="button" onClick={() => onChange(values.filter(x => x !== v))}
-            className="text-fg4 hover:text-danger" aria-label={`Убрать «${v}»`}>
-            <X size={10} />
-          </button>
-        </span>
+        <ValueChip key={v} warning stray label={v} onRemove={() => onChange(values.filter(x => x !== v))} />
       ))}
       {strays.map(v => (
         <p key={`note:${v}`} className="flex w-full items-center gap-1 text-xs text-warning">
@@ -250,6 +235,30 @@ function OptionList({ options, values, strays, onChange }: {
         </p>
       ))}
     </div>
+  );
+}
+
+/**
+ * Значение списка жетоном: `Chip` со снятием (#1469) — крестик рисует он. Нажать в самом жетоне нечего,
+ * поэтому его текст вне Tab: с клавиатуры до жетона доходят крестиком «Убрать «…»».
+ * `warning` — значение вне справочника или перечня (UI-56): тон предупреждения и значок, а не только цвет.
+ */
+function ValueChip({ label, warning = false, stray = false, onRemove }: {
+  label: string;
+  warning?: boolean;
+  /** Значение вне перечня колонки-выбора — для строки под отметками и для теста. */
+  stray?: boolean;
+  onRemove: () => void;
+}) {
+  return (
+    <Chip tone={warning ? 'warning' : 'neutral'} tabIndex={-1} data-stray={stray ? '' : undefined}
+      onRemove={onRemove} removeLabel={`Убрать «${label}»`}>
+      {/* У значения вне перечня причину называет строка под отметками — значку имя не нужно. */}
+      {warning && (stray
+        ? <BookX size={10} aria-hidden className="inline align-[-1px] mr-1" />
+        : <BookX size={10} aria-label="нет в справочнике" className="inline align-[-1px] mr-1" />)}
+      {label}
+    </Chip>
   );
 }
 

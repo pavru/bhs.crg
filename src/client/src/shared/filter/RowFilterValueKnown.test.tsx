@@ -95,8 +95,9 @@ describe('RowFilterValue: значение вне закрытого переч�
       initial={{ type: 'condition', column: 'Состояние', op: 'in', values: ['Оплачен', 'Частично'] }} />);
     const stray = container.querySelector('[data-stray]')!;
     expect(stray.textContent).toContain('Частично');
-    expect(stray.className).toContain('bg-warning-subtle');
-    expect(stray.className).not.toContain('text-danger');
+    // Тон — у пилюли Chip, обёртки кнопки с текстом (#1469).
+    expect(stray.parentElement!.className).toContain('border-warning-border');
+    expect(stray.parentElement!.className).not.toContain('text-danger');
     expect(screen.getByText(/нет в перечне колонки/).className).toContain('text-warning');
     fireEvent.click(screen.getByRole('button', { name: 'Убрать «Частично»' }));
     expect(shown()).toEqual(['Оплачен']);

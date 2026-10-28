@@ -35,7 +35,8 @@ describe('FilterChips: пометка значения вне справочни
   it('отбор по ссылке со старым названием — чип со значком справочника, без тревоги', () => {
     const { container } = chips(cond('in', { values: ['Комарова 36А'] }));
     const chip = container.querySelector('[data-notice]')!;
-    expect(chip.className).toContain('bg-warning-subtle');
+    // Тон — у пилюли Chip, обёртки кнопки с текстом (#1469).
+    expect(chip.parentElement!.className).toContain('border-warning-border');
     expect(screen.getByLabelText('нет в справочнике')).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
   });

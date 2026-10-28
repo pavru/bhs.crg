@@ -12,7 +12,8 @@ export const ROOT = '.';
 /**
  * Классы нарушений. У каждого — куда идти вместо: сообщение отказа обязано называть выход, иначе
  * его обходят первым попавшимся способом. `dirs` — каталоги src/, которые правило смотрит; без него —
- * только features/ (в shared/ живут сами DataGrid и Select, которые эти элементы и заворачивают).
+ * область по умолчанию (`DEFAULT_SCOPE`): features/ и shared/, кроме shared/ui/ — там живут сами
+ * DataGrid и Select, которые эти элементы и заворачивают (#1469).
  * `skip` — префиксы путей от src/, которые правило не смотрит внутри своих каталогов: законное место
  * названо путём, а не держится в уровне — уровень с единицей молча пропустил бы второе нарушение там же.
  */
@@ -54,7 +55,8 @@ export const RULES = [
     // редактор сопоставления), и сторож по файлу с окном его не видел бы. Различить обёртку и
     // колонку по тексту нельзя — законные (колонка сопоставления, поле поиска) стоят в уровне.
     // Доля (max-w-[45%]) — обрезка подписи в строке: ничего не подпирает и не считается.
-    pattern: /(?<![\w-])(?:min-|max-)?w-\[[^\]\s%]+\]|\b(?:minWidth|maxWidth|width)\s*:\s*['"]?\d/g,
+    // Имя свойства — не хвост слова через дефис: `'(min-width: 768px)'` — медиазапрос, а не ширина (#1469).
+    pattern: /(?<![\w-])(?:min-|max-)?w-\[[^\]\s%]+\]|(?<![\w-])(?:minWidth|maxWidth|width)\s*:\s*['"]?\d/g,
     instead: 'размер окна — по содержимому: обычное, wide или fullScreen (docs/UI.md, «Окна»); ширину колонки — width у DataGrid / EditGrid классом шкалы (w-36); раскладку экрана задают каркасы (docs/UI.md, «Узкий экран»)',
   },
   {
@@ -441,12 +443,24 @@ function countNativeFrames(text) {
 }
 
 /**
- * Каталоги, которые правило называет (см. `dirs` у RULES); правило с `everywhere` смотрит любой. Файл
- * (путь от src/) под префиксом из `skip` правило не смотрит; без пути — решает один каталог.
+ * Область правила без своих `dirs` (#1469): экраны и обвязка shared/ — без shared/ui/. Граница — по
+ * пути, а не перечнем каталогов shared/: новый shared/<x> попадает под присмотр сам.
  */
-export const dirsOf = rule => rule.dirs ?? ['features'];
+export const DEFAULT_SCOPE = { dirs: ['features', 'shared'], skip: ['shared/ui/'] };
+
+/** Область по умолчанию строкой для сводки: `features/ и shared/ без shared/ui/`. */
+export const defaultScopeNote = () =>
+  `${DEFAULT_SCOPE.dirs.map(d => `${d}/`).join(' и ')} без ${DEFAULT_SCOPE.skip.join(', ')}`;
+
+/**
+ * Каталоги, которые правило называет (см. `dirs` у RULES); правило с `everywhere` смотрит любой. Файл
+ * (путь от src/) под префиксом из `skip` правило не смотрит; без пути — решает один каталог. Правило без
+ * `dirs` пропускает и префиксы области по умолчанию.
+ */
+export const dirsOf = rule => rule.dirs ?? DEFAULT_SCOPE.dirs;
+export const skipOf = rule => rule.dirs ? rule.skip ?? [] : [...DEFAULT_SCOPE.skip, ...rule.skip ?? []];
 export const watches = (rule, dir, file) => (rule.everywhere === true || dirsOf(rule).includes(dir))
-  && !(file && rule.skip?.some(prefix => file.startsWith(prefix)));
+  && !(file && skipOf(rule).some(prefix => file.startsWith(prefix)));
 
 /**
  * Какие каталоги src/ обходить. `topDirs` — каталоги в корне src/ с диска: правило с `everywhere`
@@ -457,12 +471,19 @@ export function dirsToScan(rules, topDirs) {
   return [...new Set(rules.flatMap(dirsOf))];
 }
 
-/** Область правила шире features/ — строкой для сводки (`white-on-fill — ещё в shared/`); иначе null. */
+/**
+ * Область правила шире области по умолчанию — строкой для сводки (`white-on-fill — и в shared/ui/`):
+ * свои каталоги сверх неё и пропуски по умолчанию, которые правило смотрит; иначе null.
+ */
 export function scopeNote(rule) {
   if (rule.everywhere === true) return `${rule.id} — весь src/`;
-  const more = dirsOf(rule).filter(d => d !== 'features');
+  if (!rule.dirs) return null;
+  const more = [
+    ...rule.dirs.filter(d => !DEFAULT_SCOPE.dirs.includes(d)).map(d => `${d}/`),
+    ...DEFAULT_SCOPE.skip.filter(p => !skipOf(rule).includes(p) && rule.dirs.some(d => p.startsWith(`${d}/`))),
+  ];
   const except = rule.skip?.length ? `, кроме ${rule.skip.join(', ')}` : '';
-  return more.length ? `${rule.id} — ещё в ${more.join(', ')}/${except}` : null;
+  return more.length ? `${rule.id} — и в ${more.join(', ')}${except}` : null;
 }
 
 /**

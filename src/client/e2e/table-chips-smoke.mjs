@@ -24,7 +24,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/table-chips-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, pickOption, listOptions } from './harness.mjs';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
@@ -112,12 +112,13 @@ try {
 
   await check('у колонки-выбора значение — список её значений, поля для строки нет', async () => {
     await addChip.click();
-    await editor.getByLabel('Колонка').selectOption({ label: 'Состояние оплаты' });
+    await pickOption(editor.getByLabel('Колонка'), 'Состояние оплаты');
 
-    const value = editor.getByLabel('Значение');
+    // Поля условия — Select (#1469): поле — кнопка с ролью combobox, пункты — в портале, пока список открыт.
+    const value = editor.getByRole('combobox', { name: 'Значение' });
     const tag = await value.evaluate(el => el.tagName);
-    if (tag !== 'SELECT') throw new Error(`значение вводится элементом ${tag}, а не выбором из списка`);
-    const options = await value.locator('option').allTextContents();
+    if (tag !== 'BUTTON') throw new Error(`значение вводится элементом ${tag}, а не выбором из списка`);
+    const { options } = await listOptions(value);
     const want = ['— значение —', 'Не оплачен', 'Оплачен'];
     if (JSON.stringify(options) !== JSON.stringify(want))
       throw new Error(`в списке ${JSON.stringify(options)}, а перечень колонки — ${JSON.stringify(want.slice(1))}`);
@@ -126,16 +127,18 @@ try {
     if (typed !== 0) throw new Error(`в окошке условия есть поле для набора строки (${typed})`);
 
     // «Содержит» у выбора не предлагается: это был бы набор строки под другим именем.
-    const operators = await editor.getByLabel('Оператор').locator('option').allTextContents();
+    const { options: operators } = await listOptions(editor.getByLabel('Оператор'));
     if (operators.some(o => o.includes('содержит')))
       throw new Error(`выбору предложен оператор текста: ${JSON.stringify(operators)}`);
+    // Esc в списке закрыл список, а не окошко чипа (listOptions закрывает его так): окошко на месте.
+    if (!(await editor.isVisible())) throw new Error('Esc в списке выбора закрыл окошко чипа');
     await page.keyboard.press('Escape');
   });
 
   await check('чип называет колонку, оператор и значение — и отбирает по ним на сервере', async () => {
     await addChip.click();
-    await editor.getByLabel('Колонка').selectOption({ label: 'Номер счёта' });
-    await editor.getByLabel('Оператор').selectOption({ label: 'содержит' });
+    await pickOption(editor.getByLabel('Колонка'), 'Номер счёта');
+    await pickOption(editor.getByLabel('Оператор'), 'содержит');
     await editor.getByLabel('Значение').fill(number);
     await editor.getByRole('button', { name: 'Добавить' }).click();
 
@@ -146,8 +149,8 @@ try {
 
   await check('второй чип сужает отбор; пустая выдача названа отбором, а чипы остаются', async () => {
     await addChip.click();
-    await editor.getByLabel('Колонка').selectOption({ label: 'Состояние оплаты' });
-    await editor.getByLabel('Значение').selectOption({ label: 'Оплачен' });
+    await pickOption(editor.getByLabel('Колонка'), 'Состояние оплаты');
+    await pickOption(editor.getByLabel('Значение'), 'Оплачен');
     await editor.getByRole('button', { name: 'Добавить' }).click();
 
     await chips.getByRole('button', { name: 'Состояние оплаты: Оплачен', exact: true }).waitFor();
@@ -190,8 +193,8 @@ try {
   await check('«Дата счёта — между»: ранняя «по» тянет «с», выбор дня в календаре окошко не закрывает', async () => {
     const chipEditor = page.getByRole('dialog').filter({ has: page.getByLabel('Оператор') });
     await addChip.click();
-    await chipEditor.getByLabel('Колонка').selectOption({ label: 'Дата счёта' });
-    await chipEditor.getByLabel('Оператор').selectOption({ label: 'между' });
+    await pickOption(chipEditor.getByLabel('Колонка'), 'Дата счёта');
+    await pickOption(chipEditor.getByLabel('Оператор'), 'между');
     if (await chipEditor.locator('input[type=date]').count()) throw new Error('у даты нативное поле');
 
     const bound = name => {
@@ -245,8 +248,8 @@ try {
     };
 
     await addChip.click();
-    await chipEditor.getByLabel('Колонка').selectOption({ label: 'Дата счёта' });
-    await chipEditor.getByLabel('Оператор').selectOption({ label: 'между' });
+    await pickOption(chipEditor.getByLabel('Колонка'), 'Дата счёта');
+    await pickOption(chipEditor.getByLabel('Оператор'), 'между');
     await day('Границы, с').click();
     await page.keyboard.type('12102026');
     await day('Границы, по').click();
@@ -256,8 +259,8 @@ try {
     await put('Дата счёта: 05.10.2026 — 05.10.2026');
 
     await addChip.click();
-    await chipEditor.getByLabel('Колонка').selectOption({ label: 'Дата счёта' });
-    await chipEditor.getByLabel('Оператор').selectOption({ label: 'в списке' });
+    await pickOption(chipEditor.getByLabel('Колонка'), 'Дата счёта');
+    await pickOption(chipEditor.getByLabel('Оператор'), 'в списке');
     await day('Добавить значение').click();
     await page.keyboard.type('15102026');
     const submit = chipEditor.getByRole('button', { name: 'Добавить', exact: true }).last();
@@ -306,7 +309,7 @@ try {
   await check('«Раздел»: подсказка «стройка / раздел», голое название стройки — пояснение и «Без раздела»', async () => {
     const chipEditor = page.getByRole('dialog').filter({ has: page.getByLabel('Оператор') });
     await addChip.click();
-    await chipEditor.getByLabel('Колонка').selectOption({ label: 'Раздел' });
+    await pickOption(chipEditor.getByLabel('Колонка'), 'Раздел');
     const value = chipEditor.getByRole('combobox', { name: 'Значение' });
 
     await value.fill('4 эт. прог');
@@ -340,10 +343,10 @@ try {
     await dialog.getByRole('button', { name: 'Условие', exact: true }).click();
     await dialog.getByRole('button', { name: 'Условие', exact: true }).click();
     await dialog.getByRole('button', { name: 'OR', exact: true }).click();
-    await dialog.getByLabel('Колонка').nth(0).selectOption({ label: 'Номер счёта' });
+    await pickOption(dialog.getByLabel('Колонка').nth(0), 'Номер счёта');
     await dialog.getByLabel('Значение').nth(0).fill(number);
-    await dialog.getByLabel('Колонка').nth(1).selectOption({ label: 'Состояние оплаты' });
-    await dialog.getByLabel('Значение').nth(1).selectOption({ label: 'Оплачен' });
+    await pickOption(dialog.getByLabel('Колонка').nth(1), 'Состояние оплаты');
+    await pickOption(dialog.getByLabel('Значение').nth(1), 'Оплачен');
     const before = requests.length;
     await dialog.getByRole('button', { name: 'Применить' }).click();
 

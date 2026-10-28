@@ -299,7 +299,7 @@ try {
 
     // Отбор А, под ним — сортировка и убранная колонка.
     await addChip.click();
-    await editor.getByLabel('Колонка').selectOption({ label: 'Назначение' });
+    await pickOption(editor.getByLabel('Колонка'), 'Назначение');
     await editor.getByLabel('Значение').fill(TABLE_SEED.purpose);
     await editor.getByRole('button', { name: 'Добавить' }).click();
     await rowsBecome(page, TABLE_SEED.count, 'отбор по назначению посева');
@@ -315,8 +315,8 @@ try {
 
     // Отбор Б поверх А, под ним — другая сортировка.
     await addChip.click();
-    await editor.getByLabel('Колонка').selectOption({ label: 'Состояние оплаты' });
-    await editor.getByLabel('Значение').selectOption({ label: 'Не оплачен' });
+    await pickOption(editor.getByLabel('Колонка'), 'Состояние оплаты');
+    await pickOption(editor.getByLabel('Значение'), 'Не оплачен');
     await editor.getByRole('button', { name: 'Добавить' }).click();
     await page.waitForFunction(() => location.hash.includes('%D0%9D%D0%B5%20%D0%BE%D0%BF%D0%BB%D0%B0%D1%87%D0%B5%D0%BD'));
     await page.getByRole('button', { name: 'Номер счёта' }).click();

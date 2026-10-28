@@ -1,5 +1,6 @@
 import type { Ref } from 'react';
 import type { FilterCondition, FilterOp } from '@/shared/api/types';
+import { Select, SelectItem } from '@/shared/ui/Select';
 import { columnLabel, operatorsFor, opLabel, withColumn, withOperator, type FilterColumn } from './rowFilterModel';
 import { RowFilterValue } from './RowFilterValue';
 
@@ -35,48 +36,47 @@ export function ConditionEditor({ cond, columns, onChange, stacked = false, hint
   return (
     <div className={stacked ? 'flex flex-col gap-1.5' : 'contents'}>
       {columns.length > 0 ? (
-        <select
+        <Select
+          size="sm"
           value={cond.column}
-          onChange={e => onChange(withColumn(cond, e.target.value, columns))}
-          className={FIELD_CLS}
-          style={stacked ? undefined : { minWidth: '120px', maxWidth: '160px' }}
+          onValueChange={v => onChange(withColumn(cond, v, columns))}
+          emptyItem="— колонка —"
+          className={stacked ? undefined : 'w-auto min-w-30 max-w-40'}
           aria-label="Колонка"
         >
-          <option value="">— колонка —</option>
-          {missing && <option value={cond.column}>{cond.column}</option>}
+          {missing && <SelectItem value={cond.column}>{cond.column}</SelectItem>}
           {columns.map(c => {
             const label = columnLabel(c, c.name);
             return (
-              <option key={c.name} value={c.name} disabled={!!c.unavailable && c.name !== cond.column}>
+              <SelectItem key={c.name} value={c.name} disabled={!!c.unavailable && c.name !== cond.column}>
                 {c.unavailable ? `${label} — ${c.unavailable}` : label}
-              </option>
+              </SelectItem>
             );
           })}
-        </select>
+        </Select>
       ) : (
         <input
           value={cond.column}
           onChange={e => onChange({ ...cond, column: e.target.value })}
           placeholder="Колонка"
           aria-label="Колонка"
-          className={FIELD_CLS}
-          style={stacked ? undefined : { width: '120px' }}
+          className={`${FIELD_CLS} ${stacked ? '' : 'w-30'}`}
         />
       )}
 
-      <select
+      <Select
+        size="sm"
         value={cond.op}
         // Значение НЕ сбрасываем при смене оператора (issue #401): оно перекладывается туда, где его
         // ждёт сервер, — одно в value, границы и список в values (withOperator).
-        onChange={e => onChange(withOperator(cond, e.target.value as FilterOp))}
-        className={`${FIELD_CLS} shrink-0`}
-        style={stacked ? undefined : { width: '148px' }}
+        onValueChange={v => onChange(withOperator(cond, v as FilterOp))}
+        className={stacked ? undefined : 'w-36 shrink-0'}
         aria-label="Оператор"
       >
         {ops.map(op => (
-          <option key={op} value={op}>{opLabel(op)}</option>
+          <SelectItem key={op} value={op}>{opLabel(op)}</SelectItem>
         ))}
-      </select>
+      </Select>
 
       <RowFilterValue cond={cond} column={column} hintId={hintId} valueRef={valueRef} onChange={onChange} />
     </div>
