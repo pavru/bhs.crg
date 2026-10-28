@@ -20,21 +20,21 @@
 
 ## 1. Основа (PR 1)
 
-- [ ] 1.1 `@material-symbols/svg-400` (или пакет выбранного веса) — devDependency с точной версией;
+- [x] 1.1 `@material-symbols/svg-400` (или пакет выбранного веса) — devDependency с точной версией;
   `scripts/icons-generate.mjs`, `npm run icons:generate`, `shared/ui/icons/manifest.json`,
   `icons.generated.ts` [UI-60]. Проверка — тест дрейфа: правка манифеста без перегенерации — красный с
   командой; значок вне манифеста — ошибка `tsc -b`
-- [ ] 1.2 `shared/ui/Icon.tsx` и тип `IconDef`: `viewBox`, `currentColor`, `aria-hidden` по умолчанию,
+- [x] 1.2 `shared/ui/Icon.tsx` и тип `IconDef`: `viewBox`, `currentColor`, `aria-hidden` по умолчанию,
   `filled` только у значка с вариантом `-fill`, `aria-label` → `role="img"` [UI-60]. Проверка — vitest:
   `textContent` кнопки со значком без имени значка; `filled` рисует путь `-fill`; ошибка типа на `filled` у
   значка без заливки (`@ts-expect-error` в тесте)
-- [ ] 1.3 `shared/ui/CircularProgress.tsx`: indeterminate, `label` → `role="progressbar"` и имя, без
+- [x] 1.3 `shared/ui/CircularProgress.tsx`: indeterminate, `label` → `role="progressbar"` и имя, без
   `label` — `aria-hidden`, `prefers-reduced-motion` [UI-61]. Проверка — vitest на обе ветви доступности
-- [ ] 1.4 Правила `lucide-import`, `spinner-icon` (уровни по файлам), `icon-size` (0); `icon-button` знает
+- [x] 1.4 Правила `lucide-import`, `spinner-icon` (уровни по файлам), `icon-size` (0); `icon-button` знает
   `Icon` [UI-60] [UI-61]. Проверка — `ui-ratchet.test.mjs`: импорт `lucide-react` и `@material-symbols/…` в
   экране, `animate-spin` у значка, `size={13}` у `Icon`, `<button><Icon …/></button>` — считаются;
   `animate-spin` в самом `CircularProgress` (исключение путём, `skip`) — нет
-- [ ] 1.5 `docs/UI.md` — раздел «Значки» (вход, шкала, заливка у выбранного, индикатор хода, как добавить
+- [x] 1.5 `docs/UI.md` — раздел «Значки» (вход, шкала, заливка у выбранного, индикатор хода, как добавить
   значок) и строки в «Кто сторожит»; `docs/DEV_NOTES.md` — лицензия Apache 2.0; перечень правил в
   `CLAUDE.md` и `AGENTS.md` одним коммитом [UI-60] [UI-61]. Проверка — `dotnet test … --filter
   AgentRulesCopy` зелёный
