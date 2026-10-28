@@ -338,7 +338,8 @@ public partial class BackupService
         var added = await journal.ImportAsync(
             [.. items.Select(i => BHS.CRG.Domain.Activity.ActivityRecord.Create(
                 i.Action, i.ActorId, i.ActorName, i.TargetId, i.TargetLabel, i.Before, i.After,
-                id: i.Id, occurredAt: i.OccurredAt))],
+                // Копия старого формата сессии не несёт — запись ложится одиночной (ТЗ CORE-28.2).
+                id: i.Id, occurredAt: i.OccurredAt, sessionId: i.SessionId, seriesHead: i.SeriesHead ?? true))],
             ct);
 
         db.ChangeTracker.Clear();

@@ -282,7 +282,7 @@ public class InvoiceDueRuleTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         client.PutAsJsonAsync("/api/settings/modules/costs",
             new { values = new Dictionary<string, string?> { [RuleKey] = value } });
 
-    private async Task<List<BHS.CRG.Domain.Activity.ActivityRecord>> RecordsAsync(Guid invoice, string action)
+    private async Task<List<BHS.CRG.Application.Activity.ActivityRow>> RecordsAsync(Guid invoice, string action)
     {
         using var scope = host.Services.CreateScope();
         var records = await scope.ServiceProvider.GetRequiredService<IActivityLog>()

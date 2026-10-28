@@ -289,7 +289,7 @@ public class SupplierTermsTests(InvoiceLineHost host) : InvoiceLineTestBase(host
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    private async Task<List<BHS.CRG.Domain.Activity.ActivityRecord>> RecordsAsync(Guid target, string action)
+    private async Task<List<BHS.CRG.Application.Activity.ActivityRow>> RecordsAsync(Guid target, string action)
     {
         using var scope = host.Services.CreateScope();
         var records = await scope.ServiceProvider.GetRequiredService<IActivityLog>()

@@ -227,7 +227,7 @@ public partial class RecordPurgeTests
             JsonDocument.Parse("""{"Наименование":"x"}"""), level, levelId))).Id;
     }
 
-    private async Task<IReadOnlyList<BHS.CRG.Domain.Activity.ActivityRecord>> ScopePurgedAsync(Guid level)
+    private async Task<IReadOnlyList<BHS.CRG.Application.Activity.ActivityRow>> ScopePurgedAsync(Guid level)
     {
         using var scope = host.Services.CreateScope();
         var all = await scope.ServiceProvider.GetRequiredService<IActivityLog>()

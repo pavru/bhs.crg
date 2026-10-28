@@ -38,13 +38,25 @@ public interface IActivityLog
     Task RecordAsync(ActivityAction action, string? targetId = null, string? targetLabel = null,
         string? before = null, string? after = null, CancellationToken ct = default);
 
-    /// <summary>Страница журнала, новые записи первыми. <paramref name="action" /> — фильтр по коду действия.</summary>
-    Task<IReadOnlyList<ActivityRecord>> ReadAsync(int skip, int take, ActivityVisibility visible,
+    /// <summary>
+    /// Страница журнала РЯДАМИ серий (ТЗ CORE-28.2), новые первыми — по времени первой записи ряда.
+    /// <paramref name="action" /> — фильтр по коду действия.
+    /// </summary>
+    Task<IReadOnlyList<ActivityRow>> ReadAsync(int skip, int take, ActivityVisibility visible,
         string? action = null,
         CancellationToken ct = default);
 
-    /// <summary>Сколько записей отвечает фильтру: экран показывает «ещё N» и не врёт о конце списка.</summary>
+    /// <summary>Сколько РЯДОВ отвечает фильтру: экран показывает «ещё N» и не врёт о конце списка.</summary>
     Task<int> CountAsync(ActivityVisibility visible, string? action = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Записи одного ряда — серии вида <paramref name="action" /> в сессии <paramref name="sessionId" />,
+    /// по времени (ТЗ CORE-28.2). Пусто — и когда серии нет, и когда она скрыта от читающего: ответ не
+    /// различает одно и другое. Не больше 500 первых записей — ряд знает своё число, и экран видит, что
+    /// показана часть.
+    /// </summary>
+    Task<IReadOnlyList<ActivityRecord>> SeriesAsync(Guid sessionId, string action, ActivityVisibility visible,
+        CancellationToken ct = default);
 
     /// <summary>Последняя запись такого действия — по ней сверяют состояние (состав модулей при старте).</summary>
     Task<ActivityRecord?> LastAsync(ActivityAction action, CancellationToken ct = default);

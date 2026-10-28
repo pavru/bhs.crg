@@ -105,7 +105,7 @@ public class AccountingCurrencyTests(IntegrationTestFixture fixture)
         Assert.All(declared, d => Assert.Contains(d.Table, tables));
     }
 
-    private async Task<IReadOnlyList<BHS.CRG.Domain.Activity.ActivityRecord>> ChangesAsync()
+    private async Task<IReadOnlyList<BHS.CRG.Application.Activity.ActivityRow>> ChangesAsync()
     {
         using var scope = fixture.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<IActivityLog>()

@@ -271,7 +271,7 @@ public partial class RecordPurgeTests(InvoiceLineHost host) : InvoiceLineTestBas
             CatalogScope.System, null));
     }
 
-    private async Task<IReadOnlyList<BHS.CRG.Domain.Activity.ActivityRecord>> PurgedAsync(Guid record)
+    private async Task<IReadOnlyList<BHS.CRG.Application.Activity.ActivityRow>> PurgedAsync(Guid record)
     {
         using var scope = host.Services.CreateScope();
         var all = await scope.ServiceProvider.GetRequiredService<IActivityLog>()

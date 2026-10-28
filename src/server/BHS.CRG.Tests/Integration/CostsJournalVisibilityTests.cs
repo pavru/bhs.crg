@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using BHS.CRG.Api.Activity;
@@ -63,6 +64,35 @@ public class CostsJournalVisibilityTests(InvoiceLineHost host) : InvoiceLineTest
         // С правом — всё на месте: правило закрывает, а не теряет.
         Assert.True(await TotalAsync(admin, InvoiceActions.Created) > 0);
         Assert.Contains(InvoiceActions.Created.Code, await ActionsAsync(admin));
+    }
+
+    /// <summary>
+    /// Записи ряда раскрываются по праву вида (ТЗ CORE-28.2): обладатель <c>core.audit.read</c> без
+    /// права на счета получает «не найдено» — тот же ответ, что на сессию, которой нет, — а без права на
+    /// журнал адрес закрыт вовсе. Ряд из одной записи раскрывается тоже: его сессия — сама запись.
+    /// </summary>
+    [Fact]
+    public async Task Записи_ряда_раскрываются_только_тому_кому_ряд_виден()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        await CreateAsync(admin);
+        var row = (await PageAsync(admin, $"?action={InvoiceActions.Created.Code}&take=1"))
+            .GetProperty("items")[0];
+        Assert.Equal(1, row.GetProperty("count").GetInt32());
+        Assert.Equal(JsonValueKind.Null, row.GetProperty("sessionId").ValueKind);   // раскрывать нечего
+        var series = $"/api/activity/series/{row.GetProperty("id").GetGuid()}?action={InvoiceActions.Created.Code}";
+
+        var opened = await admin.GetAsync(series);
+        await OkAsync(opened);
+        Assert.Equal(1, (await opened.Content.ReadFromJsonAsync<JsonElement>()).GetArrayLength());
+
+        var auditor = await ReaderAsync("core.audit.read", "costs.waybill.read");
+        Assert.Equal(HttpStatusCode.NotFound, (await auditor.GetAsync(series)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync(
+            $"/api/activity/series/{Guid.NewGuid()}?action={InvoiceActions.Created.Code}")).StatusCode);
+
+        var outsider = await ReaderAsync("costs.invoice.read");
+        Assert.Equal(HttpStatusCode.Forbidden, (await outsider.GetAsync(series)).StatusCode);
     }
 
     [Fact]

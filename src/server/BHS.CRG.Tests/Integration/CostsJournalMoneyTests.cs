@@ -288,9 +288,9 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
     }
 
     /// <summary>Записи журнала по всем действиям модуля — только о счёте и статьях этого теста: база у хоста общая.</summary>
-    private async Task<List<ActivityRecord>> RecordsOfAsync(params Guid[] targets)
+    private async Task<List<BHS.CRG.Application.Activity.ActivityRow>> RecordsOfAsync(params Guid[] targets)
     {
-        var records = new List<ActivityRecord>();
+        var records = new List<BHS.CRG.Application.Activity.ActivityRow>();
         foreach (var action in new InvoiceActions().Actions)
             records.AddRange(await RecordsOfAsync(action, targets));
         return records;
@@ -301,14 +301,14 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
     /// хоста общая на все классы, и записей «счёт заведён» в ней больше страницы — первая страница молча
     /// отдала бы «записей нет» там, где они есть.
     /// </summary>
-    private async Task<List<ActivityRecord>> RecordsOfAsync(ModuleActivityAction action, params Guid[] targets)
+    private async Task<List<BHS.CRG.Application.Activity.ActivityRow>> RecordsOfAsync(ModuleActivityAction action, params Guid[] targets)
     {
         const int Page = 200;
         using var scope = host.Services.CreateScope();
         var journal = scope.ServiceProvider.GetRequiredService<IActivityLog>();
         var ids = targets.Select(t => t.ToString()).ToHashSet();
 
-        var records = new List<ActivityRecord>();
+        var records = new List<BHS.CRG.Application.Activity.ActivityRow>();
         for (var skip = 0; ; skip += Page)
         {
             var page = await journal.ReadAsync(skip, Page, ActivityVisibility.Whole, action.Code);

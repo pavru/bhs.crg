@@ -158,11 +158,16 @@ public record BackupAppSetting(string Key, string Value, DateTimeOffset UpdatedA
 /// Автор переносится ИМЕНЕМ и идентификатором, как записан: учётные записи копия не переносит
 /// («переносятся отдельно»), но имя в записи — снимок, а не ссылка, и потому читается и на чужой
 /// системе.
+///
+/// Сессия правки и признак головы серии (ТЗ CORE-28.2) переносятся как есть: копия, снятая посреди
+/// серии, на чистом экземпляре даёт те же ряды. Аддитивно: копия прежней версии несёт здесь null, и
+/// её запись ложится одиночной — сессий тогда не было.
 /// </summary>
 public record BackupActivityRecord(
     Guid Id, DateTimeOffset OccurredAt, string Action,
     Guid? ActorId, string ActorName,
-    string? TargetId, string? TargetLabel, string? Before, string? After);
+    string? TargetId, string? TargetLabel, string? Before, string? After,
+    Guid? SessionId = null, bool? SeriesHead = null);
 
 /// <summary>
 /// Запись о закрытии периода или об отмене закрытия (ТЗ CORE-35). Едет только в ПОЛНОЙ копии.
