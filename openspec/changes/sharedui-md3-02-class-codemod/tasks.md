@@ -34,11 +34,12 @@
 
 ## 3. Чужая ветка и документы
 
-- [ ] 3.1 Проверка на живой ветке: ветка с правками `features/` (любая открытая `sharedui-*` или временная
-  с новым файлом на `text-fg2 bg-base shadow-[var(--f-shadow16)]`) — «master в конфликтах +
-  `npm run md3:migrate`» [UI-58]. Проверка — после команды `npx tsc -b`, `npm test`, `npm run ui:ratchet`
+- [x] 3.1 Проверка на живой ветке: ветка с правками `features/` (любая открытая `sharedui-*` или временная
+  с новым файлом на `text-fg2 bg-base shadow-[var(--f-shadow16)]`) — «master до перевода, перевод
+  с версией ветки в конфликтах (`-X ours`) + `npm run md3:migrate`» [UI-58]; версия master в конфликтах
+  теряет правку ветки в той же строке — это показано тем же прогоном. Проверка — после команды `npx tsc -b`, `npm test`, `npm run ui:ratchet`
   зелёные; итог — в описании PR
-- [ ] 3.2 `docs/UI.md`: раздел «Перевод: как обновить ветку» (три шага, `--check`), «Цвет» — примеры
+- [x] 3.2 `docs/UI.md`: раздел «Перевод: как обновить ветку» (три шага, `--check`), «Цвет» — примеры
   только ролями; «Кто сторожит» — тест карты [UI-58]. Проверка — в примерах `docs/UI.md` нет старых имён,
   кроме колонки псевдонимов
 - [ ] 3.3 После слияния — `/design-sync` из основной копии: бандл дизайн-системы собран из `shared/ui` и
@@ -46,10 +47,10 @@
 
 ## 4. Верификация
 
-- [ ] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~AgentRulesCopy"` — зелёный (сервер не меняется; проверка на случай правки документов агентов)
-- [ ] 4.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 4.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста, `legacy-class` ниже
+- [x] 4.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~AgentRulesCopy"` — зелёный (сервер не меняется; проверка на случай правки документов агентов)
+- [x] 4.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 4.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста, `legacy-class` ниже
   прежнего уровня
-- [ ] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
 - [ ] 4.5 `cd src/client && npm run -s test:e2e:ci` — весь список живых прогонов зелёный: правка общих
   компонентов `shared/ui` (зонтик, 5.1)
