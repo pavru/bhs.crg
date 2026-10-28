@@ -1,6 +1,6 @@
-import { useId, useRef, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import * as Popover from '@radix-ui/react-popover';
-import { BookX, Plus, SlidersHorizontal, TriangleAlert, X } from 'lucide-react';
+import { BookX, Plus, SlidersHorizontal, TriangleAlert } from 'lucide-react';
 import type { FilterCondition, FilterNode } from '@/shared/api/types';
 import { ConditionEditor } from './ConditionEditor';
 import { ConditionHint } from './ConditionHint';
@@ -10,6 +10,7 @@ import {
   offeredCondition, type FilterChange,
 } from './chipsModel';
 import { columnLabel, type FilterColumn } from './rowFilterModel';
+import { Chip } from '@/shared/ui/Chip';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
@@ -61,7 +62,7 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
             )}
           </span>
         ) : conditions.map((cond, i) => (
-          <Chip key={`${i}:${cond.column}:${cond.op}`} cond={cond} columns={columns}
+          <ConditionChip key={`${i}:${cond.column}:${cond.op}`} cond={cond} columns={columns}
             onChange={next => onChange(chipReplaced(cond, next))}
             onRemove={() => onChange(chipRemoved(cond))} />
         ))}
@@ -117,9 +118,9 @@ const NEW_CONDITION: FilterCondition = { type: 'condition', column: '', op: 'eq'
  * Один чип: текст открывает правку, крестик снимает условие. Условие, которое не выполнится, — красным
  * со значком предупреждения; условие, которое выполнится, но не найдёт (UI-56), — целиком в тоне
  * предупреждения со значком справочника и подсказкой, без действия: замена — в окошке чипа. Значки
- * разные, а не только цвет.
+ * разные, а не только цвет. Пилюлю и крестик рисует `Chip` (#1469): крестик снятия — его `onRemove`.
  */
-function Chip({ cond, columns, onChange, onRemove }: {
+function ConditionChip({ cond, columns, onChange, onRemove }: {
   cond: FilterCondition;
   columns: FilterColumn[];
   onChange: (c: FilterCondition) => void;
@@ -128,24 +129,22 @@ function Chip({ cond, columns, onChange, onRemove }: {
   const text = chipText(cond, columns);
   const problem = chipProblem(cond, columns);
   const notice = problem ? null : conditionNotice(cond, columns.find(c => c.name === cond.column));
-  const tone = problem ? 'border-danger text-danger'
-    : notice ? 'border-warning-border bg-warning-subtle text-warning' : 'border-stroke text-fg1';
-
+  // Подсказка — у триггера поповера целиком (docs/UI.md, «Подсказка»): `ConditionPopover` отдаёт ему
+  // то, что пришло от `Tooltip`, а `Chip` — своей кнопке-тексту. Годное условие — в цвете бренда
+  // («отбор стоит»), `menu` — чип открывает окошко и нажатым не бывает. Пометка — заливкой поверх
+  // тона (`bg-…!`, как пометка поверх рамки поля): тон `warning` у Chip без заливки, а пометка обязана
+  // читаться целиком, а не одной рамкой.
   return (
     <Tooltip content={problem ? `Условие не выполнится: ${problem}` : notice ? noticeText(notice) : undefined}>
-      <span className={`${CHIP_CLS} ${tone}`} data-notice={notice ? '' : undefined}>
-        <ConditionPopover columns={columns} initial={cond} submit="Применить" onSubmit={onChange}>
-          <button type="button" className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-l-full hover:bg-muted">
-            {problem && <TriangleAlert size={12} aria-hidden />}
-            {notice && <BookX size={12} aria-label="нет в справочнике" />}
-            {text}
-          </button>
-        </ConditionPopover>
-        <button type="button" onClick={onRemove} aria-label={`Снять условие «${text}»`}
-          className="pl-0.5 pr-2 py-1 rounded-r-full text-fg4 hover:text-danger">
-          <X size={12} aria-hidden />
-        </button>
-      </span>
+      <ConditionPopover columns={columns} initial={cond} submit="Применить" onSubmit={onChange}>
+        <Chip menu selected={!problem && !notice} tone={problem ? 'danger' : notice ? 'warning' : undefined}
+          icon={problem ? TriangleAlert : undefined} className={notice ? 'bg-warning-subtle!' : ''}
+          data-notice={notice ? '' : undefined}
+          onRemove={onRemove} removeLabel={`Снять условие «${text}»`}>
+          {notice && <BookX size={12} aria-label="нет в справочнике" className="inline align-[-2px] mr-1" />}
+          {text}
+        </Chip>
+      </ConditionPopover>
     </Tooltip>
   );
 }
@@ -154,8 +153,11 @@ function Chip({ cond, columns, onChange, onRemove }: {
  * Окошко условия — одно на «добавить» и на правку чипа. Условие правится в черновике и уходит в
  * отбор одним действием: запрос к таблице идёт на каждое изменение отбора, и слать его на каждую
  * набранную букву значения незачем.
+ *
+ * Прочие пропсы (`trigger`) уходят триггеру: так `Tooltip` оборачивает окошко целиком, а его ref и
+ * обработчики доходят до кнопки чипа.
  */
-function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, children }: {
+function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, children, ...trigger }: {
   columns: FilterColumn[];
   initial: FilterCondition;
   submit: string;
@@ -167,7 +169,7 @@ function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, ch
    */
   requireValue?: boolean;
   children: ReactNode;
-}) {
+} & Omit<ComponentProps<typeof Popover.Trigger>, 'asChild' | 'children' | 'onSubmit'>) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(initial);
   const hintId = useId();
@@ -190,7 +192,7 @@ function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, ch
 
   return (
     <Popover.Root open={open} onOpenChange={toggle}>
-      <Popover.Trigger asChild>{children}</Popover.Trigger>
+      <Popover.Trigger asChild {...trigger}>{children}</Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6}
           className="z-50 w-72 rounded-lg bg-surface border border-stroke p-3 focus:outline-none"

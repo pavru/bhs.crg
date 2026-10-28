@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compare, countViolations, dirsToScan, scopeNote, RULES, ROOT } from './ui-ratchet-lib.mjs';
+import { compare, countViolations, dirsToScan, scopeNote, defaultScopeNote, RULES, ROOT } from './ui-ratchet-lib.mjs';
 
 // Храповик интерфейса (issue #1349): что считается нарушением и как сравнивается с уровнем.
 describe('храповик интерфейса: счёт', () => {
@@ -37,6 +37,17 @@ describe('храповик интерфейса: счёт', () => {
   it('шкала, доля и высота своей шириной не считаются', () => {
     expect(countViolations('min-w-0 max-w-lg w-36 max-w-[45%] w-[calc(100%-1rem)] h-[70vh] max-h-[55vh] style={{ width: pct }}'))
       .toEqual({});
+  });
+
+  /** Строка медиазапроса — не ширина элемента: так ловился useMedia (#1469). */
+  it('медиазапрос своей шириной не считается, ширина в style рядом — считается', () => {
+    expect(countViolations("useMedia('(min-width: 768px)') matchMedia('(max-width:640px)')", { dir: 'shared', file: 'shared/hooks/useMedia.ts' }))
+      .toEqual({});
+    expect(countViolations('<div style={{ width: 120 }} />', { dir: 'shared', file: 'shared/filter/x.tsx' }))
+      .toEqual({ 'fixed-width': 1 });
+    // Та же запись строкой CSS — ширина элемента, а не условие медиазапроса.
+    expect(countViolations("el.style.cssText = 'min-width: 520px'; box.style.width = 'x'; const css = \"max-width:200px\";"))
+      .toEqual({ 'fixed-width': 2 });
   });
 
   /** Подсказка браузера вместо нашей (issue #1394): атрибут в любой строке многострочного тега. */
@@ -263,10 +274,20 @@ describe('храповик интерфейса: счёт', () => {
     ].join('\n'))).toEqual({});
   });
 
-  it('в shared/ считаются только правила, которые его смотрят (dirs)', () => {
+  /** Граница — shared/ui/, а не shared/ (#1469): обвязка shared/ — такие же экраны, как features/. */
+  it('обвязка shared/ считается всеми правилами, shared/ui/ — только теми, что его назвали (dirs)', () => {
     const text = '<table /> <select /> <button className="bg-danger text-white">x</button>';
-    expect(countViolations(text, { dir: 'shared' })).toEqual({ 'white-on-fill': 1 });
-    expect(countViolations(text)).toEqual({ table: 1, select: 1, 'white-on-fill': 1 });
+    const all = { table: 1, select: 1, 'white-on-fill': 1 };
+    expect(countViolations(text)).toEqual(all);
+    expect(countViolations(text, { dir: 'shared', file: 'shared/filter/x.tsx' })).toEqual(all);
+    expect(countViolations(text, { dir: 'shared', file: 'shared/brandNew/x.tsx' })).toEqual(all);
+    expect(countViolations(text, { dir: 'shared', file: 'shared/ui/x.tsx' })).toEqual({ 'white-on-fill': 1 });
+  });
+
+  it('нативный select в отборе — нарушение с выходом Select', () => {
+    expect(countViolations('<select value={v} />', { dir: 'shared', file: 'shared/filter/ConditionEditor.tsx' }))
+      .toEqual({ select: 1 });
+    expect(RULES.find(r => r.id === 'select').instead).toMatch(/Select \(shared\/ui\/Select\)/);
   });
 
   it('токены и чёрно-белые слои палитрой не считаются', () => {
@@ -283,16 +304,25 @@ describe('храповик интерфейса: какие каталоги о�
   });
 
   it('без него — только названные правилами каталоги, без повторов', () => {
-    expect(dirsToScan([{ id: 'a' }, { id: 'b', dirs: ['features', 'shared'] }], top)).toEqual(['features', 'shared']);
+    expect(dirsToScan([{ id: 'a', dirs: ['features'] }, { id: 'b', dirs: ['features', 'shared'] }], top)).toEqual(['features', 'shared']);
+  });
+
+  it('правило без dirs обходит features/ и shared/ (#1469)', () => {
+    expect(dirsToScan([{ id: 'a' }], top)).toEqual(['features', 'shared']);
   });
 
   it('настоящие правила обходят весь src/: native-date смотрит его целиком', () => {
     expect(dirsToScan(RULES, top)).toEqual([ROOT, ...top]);
     expect(scopeNote(RULES.find(r => r.id === 'native-date'))).toBe('native-date — весь src/');
-    expect(scopeNote(RULES.find(r => r.id === 'white-on-fill'))).toBe('white-on-fill — ещё в shared/');
+    expect(scopeNote(RULES.find(r => r.id === 'white-on-fill'))).toBe('white-on-fill — и в shared/ui/');
+    expect(scopeNote(RULES.find(r => r.id === 'portal-container'))).toBe('portal-container — и в shared/ui/');
     expect(scopeNote(RULES.find(r => r.id === 'table'))).toBeNull();
     expect(scopeNote(RULES.find(r => r.id === 'native-pdf-frame')))
-      .toBe('native-pdf-frame — ещё в shared/, кроме shared/ui/viewer/');
+      .toBe('native-pdf-frame — и в shared/ui/, кроме shared/ui/viewer/');
+    expect(defaultScopeNote()).toBe('features/ и shared/ без shared/ui/');
+    // Уже области по умолчанию — тоже названо: иначе сводка приписала бы правилу shared/.
+    expect(scopeNote({ id: 'x', dirs: ['features'] })).toBe('x — без shared/');
+    expect(scopeNote({ id: 'y', dirs: ['features', 'shared', 'app'] })).toBe('y — и в app/, shared/ui/');
   });
 });
 

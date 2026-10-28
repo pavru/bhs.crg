@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Star } from 'lucide-react';
 import { useSiteFilterState } from './siteFilterContext';
 import { useToggleFavorite } from './useToggleFavorite';
-import { Tooltip } from '@/shared/ui/Tooltip';
+import { IconButton } from '@/shared/ui/Button';
 
 const link = 'text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded';
 
@@ -17,20 +17,17 @@ export function FavoriteStar({ id, onToggled }: { id: string; onToggled?: () => 
   if (filter.status !== 'ready') return null;
   const on = filter.favorites.has(id);
   return (
-    <Tooltip content={on ? 'Убрать из избранного' : 'Добавить в избранное'}>
-      <button type="button" aria-pressed={on} disabled={busy} data-testid="favorite-star"
-        aria-label={on ? 'Убрать из избранного' : 'Добавить в избранное'}
-        onClick={async e => {
-          e.stopPropagation();
-          onToggled?.();
-          setBusy(true);
-          await toggle(id, !on);
-          setBusy(false);
-        }}
-        className="shrink-0 -ml-1 flex items-center justify-center w-7 h-7 rounded-full hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-        <Star size={16} className={on ? 'text-brand fill-current' : 'text-fg4'} aria-hidden />
-      </button>
-    </Tooltip>
+    <IconButton size="sm" label={on ? 'Убрать из избранного' : 'Добавить в избранное'}
+      aria-pressed={on} disabled={busy} data-testid="favorite-star" className="-ml-1"
+      onClick={async e => {
+        e.stopPropagation();
+        onToggled?.();
+        setBusy(true);
+        await toggle(id, !on);
+        setBusy(false);
+      }}>
+      <Star size={16} className={on ? 'text-brand fill-current' : 'text-fg4'} aria-hidden />
+    </IconButton>
   );
 }
 

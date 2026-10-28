@@ -75,6 +75,9 @@ export interface SelectProps {
    * открывать вторым щелчком, и выглядело бы это как «пункт не сработал» (ревью PR #1332).
    */
   stayOpenOn?: string;
+  /** Список раскрыли или закрыли — у поля отбора закрытие фиксирует выбор, как уход из нативного
+   *  `<select>` (#1469): фокус, пока список открыт, живёт в нём, и `onBlur` триггера пришёл бы раньше выбора. */
+  onOpenChange?: (open: boolean) => void;
   children: ReactNode;
 }
 
@@ -102,12 +105,13 @@ const SIZE = {
 } as const;
 
 /** Пустая строка — «значения нет» и для Radix (placeholder), и для вызывающего кода; пункту
- *  «значения нет» нужно своё непустое значение, которое наружу не выходит. */
-const EMPTY = '∅';
+ *  «значения нет» нужно своё непустое значение, которое наружу не выходит. С управляющим символом:
+ *  значения пунктов приходят и с данными (перечень колонки), и «∅» среди них возможен (#1469). */
+const EMPTY = '\u0000∅';
 
 export function Select({
   value, onValueChange, placeholder, disabled, required, name, className = '', size = 'md', emptyItem,
-  label, invalid, error, hint, containerClassName = '', stayOpenOn, children, ...aria
+  label, invalid, error, hint, containerClassName = '', stayOpenOn, onOpenChange, children, ...aria
 }: SelectProps) {
   const [open, setOpen] = useState(false);
   // Radix сообщает выбор раньше закрытия — так что закрытие после пункта-выхода узнаётся по метке.
@@ -130,6 +134,7 @@ export function Select({
       onOpenChange={next => {
         if (!next && staying.current) { staying.current = false; return; }
         setOpen(next);
+        onOpenChange?.(next);
       }}>
       <RS.Trigger className={framed ? `${FRAMED_TRIGGER} ${className}`
         : `${TRIGGER} ${SIZE[size]} ${size === 'inline' || /(^|\s)w-/.test(className) ? '' : 'w-full '}${className}`}
