@@ -42,6 +42,12 @@ public sealed class ActivityActionCatalog : IActivityActionLookup
     /// Виды ядра, которые не сворачиваются никогда (ТЗ CORE-28.3): пользователи, роли и права, состав
     /// модулей, закрытие периода, удаление и архив. Каждая такая запись — отдельное свидетельство, и
     /// ряд «×3» спрятал бы, что право выдавали трижды.
+    ///
+    /// <para>Рядом есть сторож <c>ActivityFoldInventoryTests</c> — закрытая перепись разрешённых видов, и
+    /// этот перечень его не повторяет: сторож живёт в тестах и ловит новый вид до слияния, а перечень
+    /// держит отказ СТАРТА, если запретный вид всё же объявил свёртку (сборка мимо CI, правка
+    /// переписи вслепую). Перечень — не полный список запретного: новый чувствительный вид ядра
+    /// закрывает перепись, а сюда его вписывают, чтобы отказ был и в работающей системе.</para>
     /// </summary>
     public static readonly IReadOnlySet<string> NeverFolded = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -58,7 +64,7 @@ public sealed class ActivityActionCatalog : IActivityActionLookup
     {
         _modules = modules;
         CheckCoreFolds(ActivityActions.All);
-        _byCode =ActivityActions.All.ToDictionary(a => a.Code, StringComparer.OrdinalIgnoreCase);
+        _byCode = ActivityActions.All.ToDictionary(a => a.Code, StringComparer.OrdinalIgnoreCase);
 
         foreach (var declared in declarations.SelectMany(d => d.Actions))
         {

@@ -52,7 +52,8 @@ public interface IActivityLog
     /// <summary>
     /// Записи одного ряда — серии вида <paramref name="action" /> в сессии <paramref name="sessionId" />,
     /// по времени (ТЗ CORE-28.2). Пусто — и когда серии нет, и когда она скрыта от читающего: ответ не
-    /// различает одно и другое.
+    /// различает одно и другое. Не больше 500 первых записей — ряд знает своё число, и экран видит, что
+    /// показана часть.
     /// </summary>
     Task<IReadOnlyList<ActivityRecord>> SeriesAsync(Guid sessionId, string action, ActivityVisibility visible,
         CancellationToken ct = default);

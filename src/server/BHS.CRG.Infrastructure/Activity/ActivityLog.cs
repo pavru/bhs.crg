@@ -2,7 +2,9 @@ using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Activity;
 using BHS.CRG.Infrastructure.Persistence;
+using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace BHS.CRG.Infrastructure.Activity;
 
@@ -20,6 +22,9 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivity
     /// бы чтение в способ выгрузить его целиком одним запросом.</summary>
     private const int MaxTake = 200;
 
+    /// <summary>Потолок записей одного раскрытого ряда — первые по времени.</summary>
+    public const int MaxSeries = 500;
+
     // Пояс компании — на время запроса: служба живёт в его области, а пояс за запрос не меняется.
     private TimeZoneInfo? _companyZone;
 
@@ -33,14 +38,24 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivity
     /// сворачивается: иначе сворачиваемая, пришедшая в тот же миг, прочитала бы предыдущую до её
     /// фиксации. Замок по одной цели, а не по таблице, — и отпускается с концом транзакции.
     ///
-    /// Своя транзакция открывается, только если вызывающий не открыл её сам: тогда замок держится до
-    /// его фиксации, а запись разделяет его судьбу — как и прежде.
+    /// Своя транзакция открывается, только если вызывающий не открыл её сам: тогда запись разделяет
+    /// его судьбу — как и прежде.
+    ///
+    /// ⚠️ В ЧУЖОЙ транзакции замок берёт только сворачиваемый вид. Транзакционный замок держится до
+    /// фиксации вызывающего, а тот пишет журнал по нескольким целям в своём порядке: два таких
+    /// вызывающих, взяв замки X, Y и Y, X, упали бы взаимной блокировкой — отказом действия, которое
+    /// раньше проходило. Плата — одиночная запись в чужой транзакции не видна сворачиваемой, пришедшей
+    /// в тот же миг, и та может приклеиться к ряду через неё. Это видимость ряда, а не потеря записи.
+    ///
+    /// ⚠️ Сворачиваемый вид в транзакции со снимком (RepeatableRead, Serializable) — отказ: снимок взят
+    /// до замка, и «предыдущая» запись читалась бы из прошлого, без той, ради которой замок ждали.
     /// </summary>
     public async Task RecordAsync(ActivityAction action, string? targetId = null, string? targetLabel = null,
         string? before = null, string? after = null, CancellationToken ct = default)
     {
         var who = actor.Current;
-        if (targetId is null)
+        var caller = db.Database.CurrentTransaction;
+        if (targetId is null || (caller is not null && action.Fold is null))
         {
             db.ActivityRecords.Add(ActivityRecord.Create(
                 action.Code, who.Id, who.Name, targetId, targetLabel, before, after, occurredAt: time.GetUtcNow()));
@@ -48,9 +63,15 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivity
             return;
         }
 
-        var own = db.Database.CurrentTransaction is null
-            ? await db.Database.BeginTransactionAsync(ct)
-            : null;
+        if (caller?.GetDbTransaction().IsolationLevel is IsolationLevel.RepeatableRead or IsolationLevel.Serializable
+            or IsolationLevel.Snapshot)
+            throw new InvalidOperationException(
+                $"Сворачиваемое действие журнала «{action.Code}» пишут внутри транзакции с уровнем изоляции " +
+                $"{caller.GetDbTransaction().IsolationLevel}. Её снимок взят до замка цели, и запись не увидела " +
+                "бы предыдущую, сделанную за время ожидания, — ряд склеился бы через чужое событие. Пишите " +
+                "журнал вне такой транзакции или на уровне ReadCommitted.");
+
+        var own = caller is null ? await db.Database.BeginTransactionAsync(ct) : null;
         try
         {
             await db.Database.ExecuteSqlInterpolatedAsync(
@@ -88,17 +109,23 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivity
             .Select(r => new
             {
                 r.Action, r.ActorId, r.OccurredAt, r.SessionId,
-                Started = db.ActivityRecords.Where(s => s.Id == r.SessionId).Select(s => s.OccurredAt).First(),
+                // Головы может не оказаться (журнал правили руками, копия пришла неполной) — тогда
+                // сессия просто начинается заново, а не роняет запись действия.
+                Started = db.ActivityRecords.Where(s => s.Id == r.SessionId)
+                    .Select(s => (DateTimeOffset?)s.OccurredAt).FirstOrDefault(),
             })
             .FirstOrDefaultAsync(ct);
-        if (previous is null) return (null, true);
+        if (previous?.Started is not { } started) return (null, true);
 
         var tail = new ActivitySessionTail(previous.ActorId, actions.Find(previous.Action)?.Fold?.Group,
-            previous.OccurredAt, previous.Started);
+            previous.OccurredAt, started);
         _companyZone ??= await settings.GetCompanyTimeZoneAsync(ct);
         if (!ActivitySession.Continues(actorId, fold.Group, at, tail, _companyZone)) return (null, true);
 
-        var seen = await db.ActivityRecords.AnyAsync(r => r.SessionId == previous.SessionId && r.Action == code, ct);
+        // Подряд того же вида — почти каждая запись автосохранения: тогда вид в сессии уже есть, и
+        // спрашивать базу незачем.
+        var seen = previous.Action == code
+            || await db.ActivityRecords.AnyAsync(r => r.SessionId == previous.SessionId && r.Action == code, ct);
         return (previous.SessionId, !seen);
     }
 
@@ -164,11 +191,14 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor, IActivity
         Filtered(visible, action).Where(r => r.SeriesHead).CountAsync(ct);
 
     // Видимость — та же, что у страницы: ряд, скрытый от читающего, не раскрывается и по прямому адресу.
+    // Потолок — тот же смысл, что у MaxTake: раскрытие ряда не должно становиться способом выгрузить
+    // журнал одним запросом. Ряд знает своё число, и экран видит, что показана только часть.
     public async Task<IReadOnlyList<ActivityRecord>> SeriesAsync(Guid sessionId, string action,
         ActivityVisibility visible, CancellationToken ct = default) =>
         await Filtered(visible, action)
             .Where(r => r.SessionId == sessionId)
             .OrderBy(r => r.OccurredAt).ThenBy(r => r.Id)
+            .Take(MaxSeries)
             .AsNoTracking()
             .ToListAsync(ct);
 
