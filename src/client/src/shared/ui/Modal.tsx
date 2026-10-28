@@ -221,8 +221,8 @@ function ModalBody({
           // Окно, которое Esc сейчас не закрывает, держит человека — см. `DialogHold`.
           data-modal-state={rule.escape === 'close' ? 'free' : state}
           className={fullScreen
-            ? 'fixed inset-0 z-50 flex flex-col overflow-hidden focus:outline-none bg-base'
-            : `fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-[28px] max-h-[90vh] flex flex-col overflow-hidden focus:outline-none bg-surface border border-stroke ${
+            ? 'fixed inset-0 z-50 flex flex-col overflow-hidden focus:outline-none bg-surface-container-low'
+            : `fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-[28px] max-h-[90vh] flex flex-col overflow-hidden focus:outline-none bg-surface border border-outline-variant ${
               // У широкого — зазор по краям: между телефоном и 896 px (планшет, 768) иначе окно
               // ложилось бы в край экрана, скруглёнными углами вплотную (ревью PR #1386).
               wide ? 'w-[calc(100%-2rem)] max-w-4xl' : 'w-full max-w-lg'
@@ -274,7 +274,7 @@ function ModalBody({
             <div className="flex items-center justify-between shrink-0 px-6 pt-6 pb-5" inert={asking}>
               {/* truncate: заголовком бывает имя объекта (материал в пикере документа качества
                   доходит до сотни знаков) — без обрезки оно выдавливает крестик за край. */}
-              <span className="text-base font-semibold text-fg1 truncate" title={top?.title ?? title}>{top?.title ?? title}</span>
+              <span className="text-base font-semibold text-on-surface truncate" title={top?.title ?? title}>{top?.title ?? title}</span>
               {/* У результата выход один, и называет его диалог — крестика нет. При запросе крестик
                   виден, но недоступен: исчезнувший читался бы как поломка вёрстки. */}
               {!acknowledge && (
@@ -284,7 +284,7 @@ function ModalBody({
                   aria-disabled={busy || undefined}
                   data-modal-cross=""
                   aria-label="Закрыть"
-                  className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${busy ? BUSY_EXIT : ''}`}
+                  className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors text-fg3 hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${busy ? BUSY_EXIT : ''}`}
                 >
                   <X size={18} />
                 </button>
@@ -310,7 +310,7 @@ function ModalBody({
           )}
 
           {(footer || acknowledge || top) && (
-            <div className="shrink-0 px-6 py-3 border-t border-stroke bg-surface" inert={asking}>
+            <div className="shrink-0 px-6 py-3 border-t border-outline-variant bg-surface" inert={asking}>
               {acknowledge ? (
                 <div className="flex items-center gap-2">
                   <div className="flex-1 min-w-0">{typeof footer === 'function' ? footer(requestClose) : footer}</div>
@@ -325,8 +325,8 @@ function ModalBody({
 
           {asking && (
             <div className={`absolute inset-0 z-10 flex items-center justify-center bg-black/40 ${fullScreen ? '' : 'rounded-[28px]'}`}>
-              <div className="rounded-3xl p-5 w-80 bg-surface border border-stroke" style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
-                <p className="text-sm font-semibold mb-1 text-fg1">
+              <div className="rounded-3xl p-5 w-80 bg-surface border border-outline-variant" style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
+                <p className="text-sm font-semibold mb-1 text-on-surface">
                   Закрыть без сохранения?
                 </p>
                 <p className="text-xs mb-4 text-fg3">

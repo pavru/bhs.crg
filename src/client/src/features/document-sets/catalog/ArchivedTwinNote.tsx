@@ -38,8 +38,8 @@ export function ArchivedTwinNote({ twin, busy, onReturned, onCreateAnyway }: {
 
   const pending = busy || unarchive.isPending;
   return (
-    <div className="rounded-lg border border-stroke bg-base px-3 py-2 space-y-2">
-      <p className="text-sm text-fg1 flex items-center gap-1.5">
+    <div className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 space-y-2">
+      <p className="text-sm text-on-surface flex items-center gap-1.5">
         <Archive size={14} className="text-fg3 shrink-0" />
         Такая запись есть в архиве: «{twin.archivedName}».
       </p>

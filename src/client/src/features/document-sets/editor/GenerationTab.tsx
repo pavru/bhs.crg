@@ -27,7 +27,7 @@ function parseIdArray(json: string | null): string[] {
 function DiagnosticsPanel({ diagnostics, objectName }: { diagnostics: ResolutionDiagnostic[]; objectName: string }) {
   if (diagnostics.length === 0) {
     return (
-      <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-success-subtle text-success">
+      <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-success-container text-success">
         <CheckCircle2 size={15} className="shrink-0" /> Проблем разрешения ссылок не найдено
       </div>
     );
@@ -35,19 +35,19 @@ function DiagnosticsPanel({ diagnostics, objectName }: { diagnostics: Resolution
   const errors = diagnostics.filter(d => d.severity === 'error');
   const warnings = diagnostics.filter(d => d.severity === 'warning');
   return (
-    <div className="rounded-md border border-stroke overflow-hidden">
-      <div className="px-3 py-2 text-xs font-medium bg-base text-fg2">
+    <div className="rounded-md border border-outline-variant overflow-hidden">
+      <div className="px-3 py-2 text-xs font-medium bg-surface-container-low text-on-surface-variant">
         Диагностика ссылок — объект «{objectName}»: {errors.length} ошиб., {warnings.length} предупр.
       </div>
-      <div className="divide-y divide-muted max-h-72 overflow-y-auto">
+      <div className="divide-y divide-surface-container max-h-72 overflow-y-auto">
         {[...errors, ...warnings].map((d, i) => (
           <div key={i} className="flex items-start gap-2 px-3 py-2 text-xs">
             {d.severity === 'error'
-              ? <AlertCircle size={14} className="text-danger shrink-0 mt-0.5" />
+              ? <AlertCircle size={14} className="text-error shrink-0 mt-0.5" />
               : <AlertTriangle size={14} className="text-warning shrink-0 mt-0.5" />}
             <div className="min-w-0">
-              <div className="text-fg3">Реквизит: <code className="text-fg2">{d.path}</code></div>
-              <p className={d.severity === 'error' ? 'text-danger' : 'text-fg2'}>{d.message}</p>
+              <div className="text-fg3">Реквизит: <code className="text-on-surface-variant">{d.path}</code></div>
+              <p className={d.severity === 'error' ? 'text-error' : 'text-on-surface-variant'}>{d.message}</p>
             </div>
           </div>
         ))}
@@ -159,13 +159,13 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
 
   return (
     <div className="space-y-5">
-      <div className={`p-3 rounded-md text-sm ${STATUS_COLORS[instance.status] ?? 'bg-base text-fg2'}`}>
+      <div className={`p-3 rounded-md text-sm ${STATUS_COLORS[instance.status] ?? 'bg-surface-container-low text-on-surface-variant'}`}>
         Статус: <strong>{STATUS_LABELS[instance.status] ?? instance.status}</strong>
         {instance.status === 'Generating' && <Loader2 size={14} className="inline-block ml-2 animate-spin" />}
       </div>
 
       <div className="space-y-1">
-        <label className="block text-xs font-medium text-fg2">Шаблоны <span className="text-fg4 font-normal">(можно несколько — по PDF на каждый)</span></label>
+        <label className="block text-xs font-medium text-on-surface-variant">Шаблоны <span className="text-fg4 font-normal">(можно несколько — по PDF на каждый)</span></label>
         {noTemplates ? (
           <p className="text-xs text-warning">
             Для этого типа документа нет шаблонов. Создайте шаблон в разделе «Шаблоны».
@@ -175,19 +175,19 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
             {/* Клик по ВСЕЙ строке (обёртка-label) переключает участие в генерации (issue #316);
                 фокус (показ параметров ниже) следует за кликом через onChange. Галочка отражает участие,
                 подсветка строки — фокус. */}
-            <div className="rounded-md border border-stroke-strong divide-y divide-stroke overflow-hidden">
+            <div className="rounded-md border border-outline divide-y divide-outline-variant overflow-hidden">
               {activeTemplates.map((t: Template) => {
                 const selected = selectedTemplateIds.includes(t.id);
                 const focused = focusedTemplate?.id === t.id;
                 return (
                   <label key={t.id}
-                    className={`flex items-center gap-2 pr-2.5 text-sm border-l-2 transition-colors cursor-pointer ${focused ? 'bg-brand-subtle border-brand' : 'border-transparent hover:bg-base'}`}>
+                    className={`flex items-center gap-2 pr-2.5 text-sm border-l-2 transition-colors cursor-pointer ${focused ? 'bg-primary-container border-primary' : 'border-transparent hover:bg-surface-container-low'}`}>
                     <input type="checkbox" checked={selected} disabled={setTemplatesMutation.isPending}
                       onChange={e => { toggleTemplate(t.id, e.target.checked); setChosenFocus(t.id); }}
                       aria-label={`Использовать шаблон «${t.name}» для генерации`}
                       className="ml-2.5 shrink-0" />
                     <span className="flex-1 min-w-0 py-1.5">
-                      <span className={`truncate ${focused ? 'text-brand-hover font-medium' : 'text-fg1'}`}>
+                      <span className={`truncate ${focused ? 'text-brand-hover font-medium' : 'text-on-surface'}`}>
                         {t.isDefault ? '★ ' : ''}{t.name} <span className="text-fg4 font-normal">(v{t.version})</span>
                       </span>
                     </span>
@@ -239,18 +239,18 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
       )}
       {/* whitespace-pre-line: отказ компилятора шаблона приходит несколькими строками — место
           ошибки отдельной строкой (issue #1047). Без этого они слипаются в один абзац. */}
-      {error && <p className="text-sm text-danger whitespace-pre-line">{error}</p>}
+      {error && <p className="text-sm text-error whitespace-pre-line">{error}</p>}
 
       {shownDiagnostics && <DiagnosticsPanel diagnostics={shownDiagnostics} objectName={instance.name || 'без названия'} />}
       {pdfFiles.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-fg2">Сгенерированные файлы</p>
+            <p className="text-xs font-medium text-on-surface-variant">Сгенерированные файлы</p>
             {canSend && (
               <Tooltip content="Отправить сгенерированные PDF документа по почте (подписчикам и/или на внешние адреса)">
                 <button onClick={() => setEmailOpen(true)}
-                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-stroke rounded-md hover:bg-base transition-colors">
-                  <Mail size={13} className="text-brand" /> Отправить по почте
+                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-outline-variant rounded-md hover:bg-surface-container-low transition-colors">
+                  <Mail size={13} className="text-primary" /> Отправить по почте
                 </button>
               </Tooltip>
             )}
@@ -260,18 +260,18 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
               const tpl = templates.find((t: Template) => t.id === f.templateId);
               return (
                 <div key={f.id} className="flex items-center gap-2">
-                  <Tooltip content={tpl?.name}><span className="text-xs text-fg2 flex-1 min-w-0 truncate">{tpl ? tpl.name : 'PDF'}</span></Tooltip>
+                  <Tooltip content={tpl?.name}><span className="text-xs text-on-surface-variant flex-1 min-w-0 truncate">{tpl ? tpl.name : 'PDF'}</span></Tooltip>
                   {/* Во время генерации файл перезаписывается — блокируем открытие/скачивание, чтобы
                       не открыть неактуальную/заменяемую версию (ссылка ведёт на старое состояние).
                       Отказ из открытия доходит один — вкладку не дали открыть: об отказе загрузки
                       говорит сама вкладка. */}
                   <button onClick={() => { setError(''); previewGeneratedFile(instance.id, f.templateId).catch((e: Error) => setError(e.message)); }} disabled={busy}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-stroke rounded-md hover:bg-base disabled:opacity-40 disabled:pointer-events-none">
-                    <Eye size={13} className="text-brand" /> Открыть
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-outline-variant rounded-md hover:bg-surface-container-low disabled:opacity-40 disabled:pointer-events-none">
+                    <Eye size={13} className="text-primary" /> Открыть
                   </button>
                   <button onClick={() => downloadGeneratedFile(instance.id, f.templateId)} disabled={busy}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-stroke rounded-md hover:bg-base disabled:opacity-40 disabled:pointer-events-none">
-                    <Download size={13} className="text-brand" /> Скачать
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-outline-variant rounded-md hover:bg-surface-container-low disabled:opacity-40 disabled:pointer-events-none">
+                    <Download size={13} className="text-primary" /> Скачать
                   </button>
                 </div>
               );

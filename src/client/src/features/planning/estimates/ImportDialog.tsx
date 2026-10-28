@@ -193,14 +193,14 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
             )}
             <FilePick file={file} onFile={setFile} />
             {site && (estimateId ? (
-              <p className="text-sm text-fg2">Куда: <span className="text-fg1">новая редакция сметы «{fixed?.name ?? '…'}»</span></p>
+              <p className="text-sm text-on-surface-variant">Куда: <span className="text-on-surface">новая редакция сметы «{fixed?.name ?? '…'}»</span></p>
             ) : estimates.isError ? (
-              <p role="alert" className="text-sm text-danger">{planRefusal(estimates.error).text}</p>
+              <p role="alert" className="text-sm text-error">{planRefusal(estimates.error).text}</p>
             ) : !listed ? (
               <p className="text-sm text-fg4">Читаем сметы стройки…</p>
             ) : (
               <fieldset className="space-y-3">
-                <legend className="text-sm font-medium text-fg1 mb-2">Куда ляжет редакция</legend>
+                <legend className="text-sm font-medium text-on-surface mb-2">Куда ляжет редакция</legend>
                 {known.length > 0 && (
                   <Tabs id="import-target" variant="segmented" aria-label="Куда ляжет редакция" value={shownMode} onChange={setMode}
                     items={[{ value: 'existing', label: 'Новая редакция сметы' }, { value: 'new', label: 'Новая смета' }]} />
@@ -212,19 +212,19 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
         )}
         {step === 'parsing' && (
           <div className="flex items-start gap-3 text-sm">
-            <Loader2 size={18} className="mt-0.5 shrink-0 animate-spin text-brand" aria-hidden />
+            <Loader2 size={18} className="mt-0.5 shrink-0 animate-spin text-primary" aria-hidden />
             <div role="status" className="space-y-1">
-              <p className="text-fg1">Разбираем {data ? <b className="font-medium">{data.fileName}</b> : 'файл'}{data?.progress ? ` — ${data.progress}` : '…'}</p>
+              <p className="text-on-surface">Разбираем {data ? <b className="font-medium">{data.fileName}</b> : 'файл'}{data?.progress ? ` — ${data.progress}` : '…'}</p>
               <p className="text-fg3">Разбор идёт в фоне: окно можно закрыть — импорт останется над сметами стройки, и отчёт откроется оттуда.</p>
             </div>
           </div>
         )}
         {step === 'report' && data && <ParseReport report={data} sectionName={sectionName} />}
         {step === 'report' && verdict?.kind === 'committed' && (
-          <p className="text-sm text-fg2">Редакция из этого файла уже создана — она в списке редакций сметы.</p>
+          <p className="text-sm text-on-surface-variant">Редакция из этого файла уже создана — она в списке редакций сметы.</p>
         )}
-        {report.isError && <p role="alert" className="text-sm text-danger">{planRefusal(report.error).text}</p>}
-        {failure && <p role="alert" className="text-sm text-danger">{planRefusal(failure).text}</p>}
+        {report.isError && <p role="alert" className="text-sm text-error">{planRefusal(report.error).text}</p>}
+        {failure && <p role="alert" className="text-sm text-error">{planRefusal(failure).text}</p>}
       </div>
       {confirming && data && verdict?.kind === 'ready' && (
         <WindowStep title={`Создать редакцию ${withoutRows(verdict.unparsed)}?`}
@@ -233,7 +233,7 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
             <ModalExit>Назад</ModalExit>
             <Button variant="filled" loading={commit.isPending} onClick={() => create(data, true)}>Создать редакцию</Button>
           </div>}>
-          <p className="text-sm text-fg2">
+          <p className="text-sm text-on-surface-variant">
             В редакцию войдут {formatCount(data.parsed ?? 0)} из {formatCount(data.inFile ?? 0)} позиций файла.{' '}
             {formatCount(verdict.unparsed)} не {ruPlural(verdict.unparsed, 'разобранная', 'разобранные', 'разобранных')} в неё не{' '}
             {ruPlural(verdict.unparsed, 'войдёт', 'войдут', 'войдут')}: добавить их можно только новой загрузкой исправленного файла.
@@ -247,7 +247,7 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
             <ModalExit>Назад</ModalExit>
             <Button variant="filled" danger loading={cancel.isPending} onClick={() => refuse(data)}>Отказаться от импорта</Button>
           </div>}>
-          <p className="text-sm text-fg2">
+          <p className="text-sm text-on-surface-variant">
             Импорт и загруженный файл удалятся, редакции из него не будет. Вернуться к нему можно только новой загрузкой
             файла.
           </p>
@@ -263,7 +263,7 @@ function Steps({ step }: { step: (typeof STEPS)[number][0] }) {
   return (
     <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg3" aria-label="Шаги загрузки">
       {STEPS.map(([key, label], i) => (
-        <li key={key} aria-current={key === step ? 'step' : undefined} className={key === step ? 'font-medium text-brand' : undefined}>
+        <li key={key} aria-current={key === step ? 'step' : undefined} className={key === step ? 'font-medium text-primary' : undefined}>
           {i > 0 && <span aria-hidden className="mr-2 text-fg4">›</span>}{i + 1} {label}
         </li>
       ))}
@@ -299,13 +299,13 @@ function FilePick({ file, onFile }: { file: File | null; onFile: (file: File) =>
     <div onDragOver={onDragOver} onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false); }}
       onDrop={onDrop}
       className={`flex flex-wrap items-center gap-3 rounded-lg border-2 border-dashed px-4 py-3 text-sm
-        ${over ? 'border-brand bg-brand-subtle' : 'border-stroke'}`}>
+        ${over ? 'border-primary bg-primary-container' : 'border-outline-variant'}`}>
       <FileUp size={20} className="shrink-0 text-fg3" aria-hidden />
       <div className="min-w-0 flex-1">
         {file
-          ? <p className="text-fg1 break-all">{file.name} <span className="text-fg3">· {formatBytes(file.size)}</span></p>
-          : <p className="text-fg2">Перетащите сюда файл сметы из ГРАНД-Сметы (.gsfx или .xml)</p>}
-        {several && <p className="text-xs text-danger">Одна загрузка — один файл: перетащите их по одному.</p>}
+          ? <p className="text-on-surface break-all">{file.name} <span className="text-fg3">· {formatBytes(file.size)}</span></p>
+          : <p className="text-on-surface-variant">Перетащите сюда файл сметы из ГРАНД-Сметы (.gsfx или .xml)</p>}
+        {several && <p className="text-xs text-error">Одна загрузка — один файл: перетащите их по одному.</p>}
       </div>
       <Button variant="outlined" size="sm" onClick={() => input.current?.click()}>{file ? 'Другой файл' : 'Выбрать файл'}</Button>
       <input ref={input} type="file" className="hidden" accept={ACCEPT} aria-label="Файл сметы"

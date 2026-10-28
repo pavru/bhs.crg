@@ -127,31 +127,31 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
     if (!to) delete next.maxDate;
     onChange(next);
   }
-  const inputCls = 'w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm';
+  const inputCls = 'w-full px-3 py-2 rounded-lg border border-outline bg-surface text-sm';
 
   if (baseType === 'string') {
     return (
       <div className="space-y-3">
         <div>
-          <label className="block text-sm font-medium text-fg1 mb-1">Шаблон (regex)</label>
+          <label className="block text-sm font-medium text-on-surface mb-1">Шаблон (regex)</label>
           <input type="text" className={`${inputCls} font-mono`} placeholder="например: ^[\w.]+@[\w]+\.\w+$"
             value={constraints.pattern ?? ''}
             onChange={e => e.target.value ? set('pattern', e.target.value) : unset('pattern')} />
         </div>
         <div>
-          <label className="block text-sm font-medium text-fg1 mb-1">Сообщение об ошибке</label>
+          <label className="block text-sm font-medium text-on-surface mb-1">Сообщение об ошибке</label>
           <input type="text" className={inputCls} placeholder="например: Введите корректный email"
             value={constraints.patternMessage ?? ''}
             onChange={e => e.target.value ? set('patternMessage', e.target.value) : unset('patternMessage')} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-fg1 mb-1">Мин. длина</label>
+            <label className="block text-sm font-medium text-on-surface mb-1">Мин. длина</label>
             <input type="number" min={0} className={inputCls} value={constraints.minLength ?? ''}
               onChange={e => e.target.value ? set('minLength', Number(e.target.value)) : unset('minLength')} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-fg1 mb-1">Макс. длина</label>
+            <label className="block text-sm font-medium text-on-surface mb-1">Макс. длина</label>
             <input type="number" min={0} className={inputCls} value={constraints.maxLength ?? ''}
               onChange={e => e.target.value ? set('maxLength', Number(e.target.value)) : unset('maxLength')} />
           </div>
@@ -164,21 +164,21 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-fg1 mb-1">Минимум</label>
+            <label className="block text-sm font-medium text-on-surface mb-1">Минимум</label>
             <input type="number" className={inputCls} value={constraints.min ?? ''}
               onChange={e => e.target.value ? set('min', Number(e.target.value)) : unset('min')} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-fg1 mb-1">Максимум</label>
+            <label className="block text-sm font-medium text-on-surface mb-1">Максимум</label>
             <input type="number" className={inputCls} value={constraints.max ?? ''}
               onChange={e => e.target.value ? set('max', Number(e.target.value)) : unset('max')} />
           </div>
         </div>
         <label className="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" className="w-4 h-4 rounded accent-brand"
+          <input type="checkbox" className="w-4 h-4 rounded accent-primary"
             checked={constraints.integer ?? false}
             onChange={e => e.target.checked ? set('integer', true) : unset('integer')} />
-          <span className="text-sm text-fg1">Только целые числа</span>
+          <span className="text-sm text-on-surface">Только целые числа</span>
         </label>
       </div>
     );
@@ -187,13 +187,13 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
   return (
     <div className="space-y-3">
       <div>
-        <label className="block text-sm font-medium text-fg1 mb-1">Точность</label>
-        <div className="inline-flex rounded-full border border-stroke-strong overflow-hidden">
+        <label className="block text-sm font-medium text-on-surface mb-1">Точность</label>
+        <div className="inline-flex rounded-full border border-outline overflow-hidden">
           {DATE_PRECISIONS.map(p => (
             <button key={p.value} type="button"
               onClick={() => p.value === 'day' ? unset('datePrecision') : set('datePrecision', p.value)}
               className={`px-3 py-1.5 text-sm transition-colors ${
-                precision === p.value ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
+                precision === p.value ? 'bg-primary-container text-brand-hover font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
               {p.label} ({dateMaskText(p.value)})
             </button>
           ))}
@@ -220,14 +220,14 @@ function ConstraintTester({ def }: { def: PrimitiveTypeDef }) {
   const ok = has && !err;
   const placeholder = def.baseType === 'date' ? dateMaskText(def.constraints.datePrecision) : def.baseType === 'number' ? 'например: 42' : 'введите образец';
   const StatusIcon = ok ? CheckCircle2 : AlertCircle;
-  const tone = !has ? 'text-fg4' : ok ? 'text-success' : 'text-danger';
+  const tone = !has ? 'text-fg4' : ok ? 'text-success' : 'text-error';
   return (
     <div>
-      <label className="block text-sm font-medium text-fg1 mb-1">Проверка образца</label>
-      <div className="flex items-center gap-2 rounded-lg bg-base border border-stroke px-3 py-2">
+      <label className="block text-sm font-medium text-on-surface mb-1">Проверка образца</label>
+      <div className="flex items-center gap-2 rounded-lg bg-surface-container-low border border-outline-variant px-3 py-2">
         <StatusIcon size={16} className={`shrink-0 ${tone}`} />
         <input value={sample} onChange={e => setSample(e.target.value)} placeholder={placeholder} spellCheck={false}
-          className="flex-1 min-w-0 bg-transparent text-sm font-mono outline-none text-fg1 placeholder:text-fg4" />
+          className="flex-1 min-w-0 bg-transparent text-sm font-mono outline-none text-on-surface placeholder:text-fg4" />
         <Tooltip content={has && !ok ? (err ?? '') : undefined}>
           <span className={`text-xs shrink-0 max-w-[45%] truncate ${tone}`}>
             {!has ? 'по ограничениям' : ok ? 'соответствует' : err}
@@ -244,14 +244,14 @@ function BaseTypeSegmented({ value, onChange, disabled }: {
   value: 'string' | 'number' | 'date'; onChange: (v: 'string' | 'number' | 'date') => void; disabled?: boolean;
 }) {
   return (
-    <div className={`inline-flex rounded-full border border-stroke-strong overflow-hidden ${disabled ? 'opacity-60' : ''}`}>
+    <div className={`inline-flex rounded-full border border-outline overflow-hidden ${disabled ? 'opacity-60' : ''}`}>
       {BASE_TYPES.map(bt => {
         const Icon = baseTypeIcon(bt.value);
         const on = value === bt.value;
         return (
           <button key={bt.value} type="button" disabled={disabled} onClick={() => onChange(bt.value)}
             className={`flex items-center gap-1.5 px-4 py-1.5 text-sm transition-colors disabled:cursor-not-allowed ${
-              on ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
+              on ? 'bg-primary-container text-brand-hover font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
             <Icon size={15} className="shrink-0" /> {bt.label}
           </button>
         );
@@ -264,7 +264,7 @@ function BaseTypeSegmented({ value, onChange, disabled }: {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="border border-stroke rounded-xl bg-surface p-4 space-y-3">
+    <div className="border border-outline-variant rounded-xl bg-surface p-4 space-y-3">
       <p className="text-xs font-medium text-fg3 uppercase tracking-wide">{title}</p>
       {children}
     </div>
@@ -302,16 +302,16 @@ function PrimitiveCreateForm({ onSaved, onCancel }: { onSaved: () => void; onCan
         <TextField label="Код" value={code} onChange={e => setCode(e.target.value)} className="font-mono" />
       </div>
       <div>
-        <label className="block text-sm font-medium text-fg1 mb-1">Базовый тип</label>
+        <label className="block text-sm font-medium text-on-surface mb-1">Базовый тип</label>
         <BaseTypeSegmented value={baseType} onChange={bt => { setBaseType(bt); setConstraints({}); }} />
       </div>
       <TextField label="Описание" value={description} onChange={e => setDescription(e.target.value)} />
-      <div className="border-t border-stroke pt-3">
-        <p className="text-sm font-medium text-fg1 mb-3">Ограничения</p>
+      <div className="border-t border-outline-variant pt-3">
+        <p className="text-sm font-medium text-on-surface mb-3">Ограничения</p>
         <ConstraintEditor baseType={baseType} constraints={constraints} onChange={setConstraints} />
       </div>
-      {error && <p className="text-sm text-danger">{error}</p>}
-      <div className="flex justify-end gap-2 border-t border-stroke pt-3">
+      {error && <p className="text-sm text-error">{error}</p>}
+      <div className="flex justify-end gap-2 border-t border-outline-variant pt-3">
         <Button type="button" variant="text" onClick={onCancel}>Отмена</Button>
         <Button type="button" variant="filled" onClick={handleSave} loading={create.isPending}>
           {create.isPending ? 'Сохранение…' : 'Сохранить'}
@@ -336,8 +336,8 @@ function TypeDetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, 
         <>
           <div className="flex items-center gap-2 flex-wrap">
             <DetailTitle>{name || '(без названия)'}</DetailTitle>
-            <span className={`${badge} bg-muted text-fg3`}>{chip}</span>
-            {usedBy > 0 && <span className={`${badge} bg-brand-subtle text-brand`}>используется: {usedBy}</span>}
+            <span className={`${badge} bg-surface-container text-fg3`}>{chip}</span>
+            {usedBy > 0 && <span className={`${badge} bg-primary-container text-primary`}>используется: {usedBy}</span>}
           </div>
           <span className="text-xs text-fg4 font-mono">{code}</span>
         </>
@@ -408,7 +408,7 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
               <TextField label="Код" value={type.code} onChange={() => {}} disabled className="font-mono" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-fg1 mb-1">Базовый тип</label>
+              <label className="block text-sm font-medium text-on-surface mb-1">Базовый тип</label>
               <BaseTypeSegmented value={type.baseType} onChange={() => {}} disabled />
               <p className="text-xs text-fg3 mt-1">Базовый тип нельзя изменить после создания.</p>
             </div>
@@ -433,7 +433,7 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
                       <button type="button"
                         onClick={() => setAllowedTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code])}
                         className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                          on ? 'bg-tertiary-subtle border-tertiary/50 text-on-tertiary-subtle' : 'border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1'}`}>
+                          on ? 'bg-tertiary-container border-tertiary/50 text-on-tertiary-container' : 'border-outline-variant text-fg3 hover:border-outline hover:text-on-surface'}`}>
                         {t.label}
                       </button>
                     </Tooltip>
@@ -447,7 +447,7 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
                 {unknownAllowed.map(code => (
                   <Tooltip key={code} content="Тэг модуля, выключенного на этом экземпляре. Разрешение остаётся и заработает, когда модуль включат.">
                     <span
-                      className="rounded-full border border-dashed border-stroke px-2 py-0.5 text-caption text-fg4">
+                      className="rounded-full border border-dashed border-outline-variant px-2 py-0.5 text-caption text-fg4">
                       {code}
                     </span>
                   </Tooltip>
@@ -456,7 +456,7 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
             )}
           </Card>
 
-          {error && <p className="text-sm text-danger">{error}</p>}
+          {error && <p className="text-sm text-error">{error}</p>}
         </div>
       </div>
       <ConfirmDialog open={confirmDelete} onOpenChange={setConfirmDelete}
@@ -530,7 +530,7 @@ function EnumTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSaveAll
             <ValuesEditor values={values} onChange={setValues} />
           </Card>
 
-          {error && <p className="text-sm text-danger">{error}</p>}
+          {error && <p className="text-sm text-error">{error}</p>}
         </div>
       </div>
       <ConfirmDialog open={confirmDelete} onOpenChange={setConfirmDelete}
@@ -572,33 +572,33 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
     return (
       <button key={t.id} type="button" onClick={() => onSelect(t.id)} aria-current={active ? 'true' : undefined}
         className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors ${
-          active ? 'bg-brand-subtle text-brand-hover' : 'hover:bg-muted'}`}>
+          active ? 'bg-primary-container text-brand-hover' : 'hover:bg-surface-container'}`}>
         <Icon size={17} className={`shrink-0 ${active ? 'text-brand-hover' : 'text-fg4'}`} />
         <span className="min-w-0 flex-1">
           {/* Строка 1 — только имя, полный приоритет ширины. */}
-          <span className={`block text-sm font-medium truncate ${active ? 'text-brand-hover' : 'text-fg1'}`}>{t.name}</span>
+          <span className={`block text-sm font-medium truncate ${active ? 'text-brand-hover' : 'text-on-surface'}`}>{t.name}</span>
           {/* Строка 2 — код (mono, capped) · превью; оба truncate, длинный код не ломает строку 1. */}
           <span className="flex items-baseline gap-1 min-w-0 text-fg4">
             <span className="font-mono text-caption truncate max-w-[45%] shrink-0" title={t.code}>{t.code}</span>
             {t.preview && <span className="text-xs truncate min-w-0">{`· ${t.preview}`}</span>}
           </span>
         </span>
-        <span className="text-caption px-1.5 py-0.5 rounded-full bg-muted text-fg3 shrink-0">{t.chip}</span>
+        <span className="text-caption px-1.5 py-0.5 rounded-full bg-surface-container text-fg3 shrink-0">{t.chip}</span>
       </button>
     );
   };
 
   const tab = (m: Mode, label: string) => (
     <button type="button" onClick={() => onMode(m)}
-      className={`relative flex-1 h-12 text-sm transition-colors ${mode === m ? 'text-brand font-medium' : 'text-fg3 hover:text-fg2'}`}>
+      className={`relative flex-1 h-12 text-sm transition-colors ${mode === m ? 'text-primary font-medium' : 'text-fg3 hover:text-on-surface-variant'}`}>
       {label}
-      {mode === m && <span className="absolute left-0 right-0 bottom-0 h-0.5 bg-brand rounded-t" />}
+      {mode === m && <span className="absolute left-0 right-0 bottom-0 h-0.5 bg-primary rounded-t" />}
     </button>
   );
 
   return (
     <>
-      <div className="flex border-b border-stroke shrink-0">
+      <div className="flex border-b border-outline-variant shrink-0">
         {tab('primitive', 'Примитивные')}
         {tab('enum', 'Перечисления')}
       </div>

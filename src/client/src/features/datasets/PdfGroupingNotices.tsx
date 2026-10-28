@@ -29,7 +29,7 @@ export function MissingPartsNotice({ fileId, missing, dirty }: {
 
   return (
     <div role="alert" data-testid="missing-parts" className="mb-3 shrink-0 flex items-start gap-2 rounded-lg
-      border border-warning-border bg-warning-subtle px-3 py-2 text-xs text-warning">
+      border border-warning-border bg-warning-container px-3 py-2 text-xs text-warning">
       <TriangleAlert size={13} className="shrink-0 mt-0.5" />
       <p className="flex-1">
         {ruCount(missing, 'документ', 'документа', 'документов')} без файла в хранилище: генерация выпустит
@@ -56,7 +56,7 @@ export function MissingPartsNotice({ fileId, missing, dirty }: {
 /** Отказ сохранения разбиения — строкой под шапкой. */
 export function GroupingSaveError({ error }: { error: unknown }) {
   return (
-    <p className="text-sm text-danger mb-3">
+    <p className="text-sm text-error mb-3">
       {(error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Не удалось сохранить'}
     </p>
   );

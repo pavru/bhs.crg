@@ -310,8 +310,8 @@ export function ExtractToCommonDataModal({
         )}
 
         <div>
-          <label className="block text-sm font-medium text-fg2 mb-1">Тип</label>
-          <div className="h-10 flex items-center rounded-md border border-stroke bg-base px-3 text-sm text-fg2">
+          <label className="block text-sm font-medium text-on-surface-variant mb-1">Тип</label>
+          <div className="h-10 flex items-center rounded-md border border-outline-variant bg-surface-container-low px-3 text-sm text-on-surface-variant">
             {compositeType.name}
           </div>
           <p className="text-xs text-fg4 mt-1">Задан полем — выбирать нечего.</p>
@@ -320,7 +320,7 @@ export function ExtractToCommonDataModal({
         <TextField label="Наименование" value={name} onChange={e => setName(e.target.value)} required autoFocus />
 
         <div>
-          <label className="block text-sm font-medium text-fg2 mb-1">Уровень</label>
+          <label className="block text-sm font-medium text-on-surface-variant mb-1">Уровень</label>
           {noPlace ? (
             /* Пустой Select был бы тупиком: список без пунктов, баннер про ограничение и работающая
                кнопка, кладущая запись шире разрешённого. Говорим прямо. */
@@ -346,17 +346,17 @@ export function ExtractToCommonDataModal({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-fg2 mb-1">
+          <label className="block text-sm font-medium text-on-surface-variant mb-1">
             Псевдонимы <span className="text-xs text-fg4 font-normal">(для поиска при связывании с источниками)</span>
           </label>
           {aliases.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-1.5">
               {aliases.map(a => (
-                <span key={a} className="inline-flex items-center gap-1 text-xs bg-muted text-fg2 rounded-2xl pl-2.5 pr-1 py-0.5 max-w-full">
+                <span key={a} className="inline-flex items-center gap-1 text-xs bg-surface-container text-on-surface-variant rounded-2xl pl-2.5 pr-1 py-0.5 max-w-full">
                   <span className="min-w-0 break-words">{a}</span>
                   <Tooltip content="Удалить" name>
                     <button type="button" onClick={() => setAliases(prev => prev.filter(x => x !== a))}
-                      className="text-fg4 hover:text-danger transition-colors shrink-0">
+                      className="text-fg4 hover:text-error transition-colors shrink-0">
                       <X size={11} />
                     </button>
                   </Tooltip>
@@ -368,7 +368,7 @@ export function ExtractToCommonDataModal({
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addAlias(); } }}
             onBlur={addAlias}
             placeholder="Добавить псевдоним и Enter..."
-            className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
+            className="w-full border border-outline rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
         </div>
 
         {duplicate && (
@@ -408,18 +408,18 @@ export function ExtractToCommonDataModal({
           </Note>
         )}
 
-        <div className="rounded-lg border border-stroke bg-base/40 px-3 py-2">
+        <div className="rounded-lg border border-outline-variant bg-surface-container-low/40 px-3 py-2">
           <div className="text-xs text-fg3 mb-1">
             Переносится{checking ? ' · проверяем дубликаты…' : ''}
           </div>
-          <div className="text-sm text-fg2 break-words">{objectSummary(values, subFields, typeDefs)}</div>
+          <div className="text-sm text-on-surface-variant break-words">{objectSummary(values, subFields, typeDefs)}</div>
           <div className="text-xs text-fg4 mt-1">
             Полей: {Object.keys(values ?? {}).length}
             {nestedRefCount(values) > 0 && `, из них ссылок на каталог: ${nestedRefCount(values)}`}
           </div>
         </div>
 
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <p className="text-sm text-error">{error}</p>}
       </div>
     </WindowStep>
   );
@@ -435,12 +435,12 @@ function Note({ tone, icon, title, children }: {
   tone: 'danger' | 'warning'; icon: React.ReactNode; title: string; children: React.ReactNode;
 }) {
   const cls = tone === 'danger'
-    ? 'border-danger/40 bg-danger-subtle text-danger'
-    : 'border-warning/40 bg-warning-subtle text-warning';
+    ? 'border-error/40 bg-error-container text-error'
+    : 'border-warning/40 bg-warning-container text-warning';
   return (
     <div className={`rounded-lg border px-3 py-2 text-sm ${cls}`}>
       <div className="flex items-center gap-1.5 font-medium mb-1">{icon}{title}</div>
-      <div className="text-fg2">{children}</div>
+      <div className="text-on-surface-variant">{children}</div>
     </div>
   );
 }

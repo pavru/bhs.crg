@@ -22,8 +22,8 @@ export interface PrintFormContext {
 
 export function FileTypeIcon({ mimeType }: { mimeType: string }) {
   if (mimeType.startsWith('image/')) return <ImageIcon size={16} className="text-tertiary shrink-0" />;
-  if (mimeType === 'application/pdf') return <FileText size={16} className="text-danger shrink-0" />;
-  if (mimeType.includes('word')) return <FileText size={16} className="text-brand shrink-0" />;
+  if (mimeType === 'application/pdf') return <FileText size={16} className="text-error shrink-0" />;
+  if (mimeType.includes('word')) return <FileText size={16} className="text-primary shrink-0" />;
   if (mimeType.includes('sheet') || mimeType.includes('excel')) return <FileSpreadsheet size={16} className="text-success shrink-0" />;
   return <FileText size={16} className="text-fg4 shrink-0" />;
 }
@@ -91,7 +91,7 @@ function PdfPreviewBody({ attachment, onClose }: { attachment: FileAttachment; o
       {/* Своя область наложения и обрезка: лист не выходит за неё поверх строки. */}
       <div data-testid="file-preview-area" className="relative isolate overflow-hidden h-[70vh] max-sm:h-auto max-sm:flex-1 min-h-0">
         {error
-          ? <p className="text-sm text-danger py-4 text-center">{error}</p>
+          ? <p className="text-sm text-error py-4 text-center">{error}</p>
           : (
             // «Скачать» — выход из отказа «не читается как PDF», который велит скачать оригинал.
             <PdfViewer source={blob} documentKey={attachment.blobPath} title={attachment.fileName}
@@ -116,10 +116,10 @@ function FilePreviewBody({ attachment }: { attachment: FileAttachment }) {
     <>
       {!value && !error && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 size={24} className="animate-spin text-brand" />
+          <Loader2 size={24} className="animate-spin text-primary" />
         </div>
       )}
-      {error && <p className="text-sm text-danger py-4 text-center">{error}</p>}
+      {error && <p className="text-sm text-error py-4 text-center">{error}</p>}
       {objectUrl && category === 'image' && (
         <img src={objectUrl} alt={attachment.fileName}
           className="max-w-full max-h-[70vh] object-contain mx-auto block rounded" />
@@ -129,7 +129,7 @@ function FilePreviewBody({ attachment }: { attachment: FileAttachment }) {
           <FileSpreadsheet size={48} className="text-success" />
           <p className="text-sm text-fg3">Предпросмотр недоступен для этого формата.</p>
           <a href={objectUrl} download={attachment.fileName}
-            className="inline-flex items-center gap-2 h-9 px-4 bg-brand hover:bg-brand-hover active:bg-brand-pressed text-on-brand text-sm font-medium rounded-full shadow-[var(--md-sys-elevation-level1)] transition-colors">
+            className="inline-flex items-center gap-2 h-9 px-4 bg-primary hover:bg-brand-hover active:bg-brand-pressed text-on-primary text-sm font-medium rounded-full shadow-[var(--md-sys-elevation-level1)] transition-colors">
             <Download size={14} /> Скачать
           </a>
         </div>
@@ -180,8 +180,8 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
 
   if (uploading) {
     return (
-      <div className="flex items-center gap-2 border border-stroke rounded-lg px-3 py-2.5">
-        <Loader2 size={14} className="animate-spin text-brand shrink-0" />
+      <div className="flex items-center gap-2 border border-outline-variant rounded-lg px-3 py-2.5">
+        <Loader2 size={14} className="animate-spin text-primary shrink-0" />
         <span className="text-sm text-fg3">Загрузка файла...</span>
       </div>
     );
@@ -190,26 +190,26 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
   if (attachment) {
     return (
       <>
-        <div className="flex items-center gap-2 border border-stroke rounded-lg px-3 py-2 bg-base">
+        <div className="flex items-center gap-2 border border-outline-variant rounded-lg px-3 py-2 bg-surface-container-low">
           <FileTypeIcon mimeType={attachment.mimeType} />
-          <span className="flex-1 text-sm text-fg1 font-medium truncate">{attachment.fileName}</span>
+          <span className="flex-1 text-sm text-on-surface font-medium truncate">{attachment.fileName}</span>
           <span className="text-xs text-fg4 shrink-0">{formatBytes(attachment.size)}</span>
           <Tooltip content="Предпросмотр" name>
             <button type="button" onClick={() => setPreviewOpen(true)}
-              className="p-1 text-fg4 hover:text-brand transition-colors shrink-0">
+              className="p-1 text-fg4 hover:text-primary transition-colors shrink-0">
               <Eye size={14} />
             </button>
           </Tooltip>
           {!readOnly && (
             <Tooltip content="Удалить" name>
               <button type="button" onClick={() => onChange(null)}
-                className="p-1 text-fg4 hover:text-danger transition-colors shrink-0">
+                className="p-1 text-fg4 hover:text-error transition-colors shrink-0">
                 <Trash2 size={13} />
               </button>
             </Tooltip>
           )}
         </div>
-        {uploadError && <p className="text-xs text-danger mt-1">{uploadError}</p>}
+        {uploadError && <p className="text-xs text-error mt-1">{uploadError}</p>}
         <FilePreviewModal open={previewOpen} onOpenChange={setPreviewOpen} attachment={attachment} />
       </>
     );
@@ -217,21 +217,21 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
 
   if (readOnly)
     return (
-      <div className="flex items-center justify-center border border-dashed border-stroke rounded-lg py-5">
+      <div className="flex items-center justify-center border border-dashed border-outline-variant rounded-lg py-5">
         <span className="text-xs text-fg4">Файла нет</span>
       </div>
     );
 
   return (
     <>
-      <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-stroke-strong rounded-lg py-5 cursor-pointer hover:border-brand hover:bg-brand-subtle transition-colors">
+      <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-outline rounded-lg py-5 cursor-pointer hover:border-primary hover:bg-primary-container transition-colors">
         <Upload size={18} className="text-fg4" />
         <span className="text-sm text-fg3">Нажмите для выбора файла</span>
         <span className="text-xs text-fg4">PDF, DOCX, XLSX, PNG, JPG (до 50 МБ)</span>
         <input type="file" accept=".pdf,.docx,.xlsx,.xls,.png,.jpg,.jpeg,.gif,.webp"
           className="hidden" onChange={handleFile} />
       </label>
-      {uploadError && <p className="text-xs text-danger mt-1">{uploadError}</p>}
+      {uploadError && <p className="text-xs text-error mt-1">{uploadError}</p>}
     </>
   );
 }

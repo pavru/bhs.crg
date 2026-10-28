@@ -13,7 +13,7 @@ import { REASON_LENGTH } from './correction';
 export function WaybillLockNote({ closed, correctable }: { closed: string; correctable: boolean }) {
   const can = useCan();
   return (
-    <p role="status" className="flex items-start gap-2 text-xs text-fg2" data-testid="waybill-locked">
+    <p role="status" className="flex items-start gap-2 text-xs text-on-surface-variant" data-testid="waybill-locked">
       <Lock size={13} className="shrink-0 mt-0.5 text-fg3" />
       <span>
         Заперта: {closed}. Вернуть в черновик и править обычным путём нельзя — её материалы вошли в закрытый
@@ -53,7 +53,7 @@ export function WaybillCorrectionBar({
 }) {
   if (unneeded)
     return (
-      <div role="alert" className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle
+      <div role="alert" className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-container
         px-3 py-2 text-xs text-warning">
         <TriangleAlert size={13} className="shrink-0 mt-0.5" />
         <p className="flex-1">
@@ -68,7 +68,7 @@ export function WaybillCorrectionBar({
 
   return (
     <div className="space-y-2" data-testid="waybill-correction-bar">
-      <div role="status" className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle
+      <div role="status" className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-container
         px-3 py-2 text-xs text-warning">
         <PencilLine size={13} className="shrink-0 mt-0.5" />
         <p className="flex-1">

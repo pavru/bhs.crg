@@ -72,7 +72,7 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
     return (
       <Tooltip content="Показать предпросмотр" name>
         <button type="button" onClick={() => setOpenPersist(true)}
-          className="hidden xl:flex flex-col items-center gap-2 w-11 shrink-0 border-l border-stroke pt-4 text-fg4 hover:text-brand hover:bg-muted transition-colors">
+          className="hidden xl:flex flex-col items-center gap-2 w-11 shrink-0 border-l border-outline-variant pt-4 text-fg4 hover:text-primary hover:bg-surface-container transition-colors">
           <PanelRightOpen size={18} />
           <span className="text-xs [writing-mode:vertical-rl] rotate-180 tracking-wide">Предпросмотр</span>
         </button>
@@ -81,10 +81,10 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
   }
 
   return (
-    <div data-testid="document-preview" className="hidden xl:flex flex-col w-[44%] min-w-[380px] shrink-0 border-l border-stroke bg-muted/40">
-      <div className="flex items-center gap-2 shrink-0 px-3 h-11 border-b border-stroke bg-surface">
+    <div data-testid="document-preview" className="hidden xl:flex flex-col w-[44%] min-w-[380px] shrink-0 border-l border-outline-variant bg-surface-container/40">
+      <div className="flex items-center gap-2 shrink-0 px-3 h-11 border-b border-outline-variant bg-surface">
         <FileText size={16} className="text-fg4 shrink-0" />
-        <span className="text-sm font-medium text-fg1 flex-1">Предпросмотр документа</span>
+        <span className="text-sm font-medium text-on-surface flex-1">Предпросмотр документа</span>
         {updatedAt && state.kind === 'pdf' && (
           <span className="text-xs text-fg4">обновлено {timeAgo(updatedAt)}</span>
         )}
@@ -114,8 +114,8 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
         )}
         {state.kind === 'error' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 text-fg4">
-            <FileWarning size={28} className="text-danger" />
-            <p className="text-sm text-danger">Не удалось построить предпросмотр</p>
+            <FileWarning size={28} className="text-error" />
+            <p className="text-sm text-error">Не удалось построить предпросмотр</p>
             {/* whitespace-pre-line — отказ компилятора шаблона приходит несколькими строками (issue #1047). */}
             <p className="text-xs break-words max-w-full whitespace-pre-line">{state.message}</p>
             <Button size="sm" variant="text" onClick={() => void run()} className="mt-1">Повторить</Button>

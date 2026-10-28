@@ -35,7 +35,7 @@ export function DocumentObservationsChip({ setId, documentId }: {
         className="shrink-0" title="Замечания внешнего анализа, упоминающие этот документ">
         <span className="hidden sm:inline">Замечания</span>
         {unreviewed > 0 && (
-          <span className="text-caption px-1.5 py-0.5 rounded-full bg-warning-subtle text-warning">
+          <span className="text-caption px-1.5 py-0.5 rounded-full bg-warning-container text-warning">
             {unreviewed}
           </span>
         )}
@@ -51,15 +51,15 @@ export function DocumentObservationsChip({ setId, documentId }: {
           {mine.length === 0 && <EmptyState icon={<Bot size={28} />} title="Замечаний нет" />}
 
           {mine.map(o => (
-            <div key={o.id} className={`px-3 py-2 border border-stroke rounded-lg ${
+            <div key={o.id} className={`px-3 py-2 border border-outline-variant rounded-lg ${
               isUnreviewed(o) ? '' : 'opacity-60'}`}>
               <div className="flex items-start gap-2">
                 <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${
-                  o.severity === 'Error' ? 'bg-warning-subtle text-warning' : 'bg-muted text-fg3'}`}>
+                  o.severity === 'Error' ? 'bg-warning-container text-warning' : 'bg-surface-container text-fg3'}`}>
                   {SEVERITY_LABELS[o.severity]}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm text-fg1">{o.title}</div>
+                  <div className="text-sm text-on-surface">{o.title}</div>
                   {o.detail && <p className="text-xs text-fg3 mt-0.5 whitespace-pre-wrap">{o.detail}</p>}
                   {o.reviewNote && (
                     <p className="text-caption text-fg3 mt-1">

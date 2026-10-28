@@ -50,8 +50,8 @@ export function CorrectionPreviewDialog({ preview, pending, error, reason, note,
       <div className="space-y-3 text-sm">
         {pending && <p className="text-fg3">Считаем, что запишет исправление…</p>}
         {!pending && error != null && (
-          <div role="alert" className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger-subtle
-            px-3 py-2 text-xs text-danger">
+          <div role="alert" className="flex items-start gap-2 rounded-lg border border-error/30 bg-error-container
+            px-3 py-2 text-xs text-error">
             <TriangleAlert size={14} className="shrink-0 mt-0.5" />
             <span>{apiError(error, 'Исправление не посчитано')}</span>
           </div>
@@ -73,13 +73,13 @@ function Shown({ preview, reason, note, places }: {
           <RefreshCw size={13} className="shrink-0 mt-0.5" /> {note}
         </p>
       )}
-      <p className="text-fg1">
+      <p className="text-on-surface">
         Исправление ляжет днём <b>{formatDate(preview.day)}</b>. Версия {preview.version} уйдёт в историю.
       </p>
-      <blockquote className="border-l-2 border-stroke pl-3 text-xs text-fg2">
+      <blockquote className="border-l-2 border-outline-variant pl-3 text-xs text-on-surface-variant">
         Причина: {reason.trim()}
       </blockquote>
-      {preview.vatMode && <p className="text-fg1">{vatShiftText(preview.vatMode)}</p>}
+      {preview.vatMode && <p className="text-on-surface">{vatShiftText(preview.vatMode)}</p>}
       {rows.length === 0
         ? (
           <p className="text-fg3">
@@ -111,7 +111,7 @@ function ServiceRecord({ record, places }: { record: CorrectionRecordView; place
   return (
     <div className="text-xs">
       <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
-        className="inline-flex items-center gap-1 text-fg2 hover:text-fg1">
+        className="inline-flex items-center gap-1 text-on-surface-variant hover:text-on-surface">
         {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
         {title} — {formatDate(record.day)}, строк: {record.lines.length}
       </button>

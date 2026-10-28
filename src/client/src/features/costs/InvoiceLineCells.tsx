@@ -8,7 +8,7 @@ import type { LineDraft } from './invoiceLines';
 /** Позиция запертой строки — словом; пометка «запомнено» тоже словом: отменять здесь нечего. */
 export function LockedPosition({ draft }: { draft: LineDraft }) {
   return (
-    <span className={draft.nomenclatureLost ? 'text-danger' : undefined}>
+    <span className={draft.nomenclatureLost ? 'text-error' : undefined}>
       {draft.nomenclatureLost ? (draft.nomenclatureMoved ? LOST.movedPosition : LOST.position)
         : draft.nomenclatureName === null ? '—'
         : withArchiveWord(draft.nomenclatureName, !!draft.nomenclatureArchived)}
@@ -42,7 +42,7 @@ export function Cell({ value, label, numeric, placeholder, onChange, onBlur }: {
   return (
     <input value={value} aria-label={label} placeholder={placeholder}
       onChange={e => onChange(e.target.value)} onBlur={onBlur}
-      className="w-full rounded border border-stroke bg-surface px-1.5 py-1 text-xs text-fg1
-        outline-none focus:border-brand placeholder:text-fg4" />
+      className="w-full rounded border border-outline-variant bg-surface px-1.5 py-1 text-xs text-on-surface
+        outline-none focus:border-primary placeholder:text-fg4" />
   );
 }

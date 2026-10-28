@@ -163,11 +163,11 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
   const cellBase = 'flex items-center justify-center rounded-full text-sm transition-colors focus:outline-none disabled:opacity-38 disabled:pointer-events-none';
   // Индикатор роллинг-фокуса (issue #338): виден ВСЕГДА (не только при :focus-visible), т.к. при
   // открытии мышью фокус на активной ячейке есть, но :focus-visible не срабатывает → «нет курсора».
-  // На выбранной ячейке (bg-brand) — инсет-кольцо цветом текста на заливке, иначе — brand. Не белое:
+  // На выбранной ячейке (bg-primary) — инсет-кольцо цветом текста на заливке, иначе — brand. Не белое:
   // в тёмной теме заливка светлая, и белое кольцо на ней не видно (issue #1462).
   const focusRing = (isFocus: boolean, isSel: boolean) =>
-    !isFocus ? '' : isSel ? 'ring-2 ring-on-brand/70 ring-inset' : 'ring-2 ring-brand ring-inset';
-  const HEADER_BTN = 'flex items-center justify-center h-8 w-8 rounded-full text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors disabled:opacity-38 disabled:pointer-events-none';
+    !isFocus ? '' : isSel ? 'ring-2 ring-on-primary/70 ring-inset' : 'ring-2 ring-primary ring-inset';
+  const HEADER_BTN = 'flex items-center justify-center h-8 w-8 rounded-full text-fg3 hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors disabled:opacity-38 disabled:pointer-events-none';
   // Стрелка шапки неактивна, если соседняя страница целиком за границей.
   const lastShown = view === 'years' ? pageStart + YEARS_PER_PAGE - 1 : fy;
   const prevOff = view === 'days' ? !!min && toISO(fy, fm, 1) <= min : (view === 'years' ? pageStart : fy) <= minY;
@@ -193,13 +193,13 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
         <ChevronLeft size={18} />
       </button>
       {view === 'years' ? (
-        <span className="text-sm font-medium text-fg1 tabular-nums">
+        <span className="text-sm font-medium text-on-surface tabular-nums">
           {clampYear(pageStart)}–{clampYear(pageStart + YEARS_PER_PAGE - 1)}
         </span>
       ) : (
         <Tooltip content="Выбрать год">
           <button type="button" onClick={() => setView('years')}
-            className="flex items-center gap-1 px-2 h-8 rounded-full text-sm font-medium text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
+            className="flex items-center gap-1 px-2 h-8 rounded-full text-sm font-medium text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
             {view === 'days' ? `${months[fm - 1]} ${fy}` : fy}
             <ChevronDown size={14} className="text-fg4" />
           </button>
@@ -233,14 +233,14 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
               const filled = isSel || place === 'start' || place === 'end';
               return (
                 <div key={di} role="gridcell" aria-selected={isSel} className="h-9 flex items-center justify-center relative">
-                  {place && <span aria-hidden className={`absolute inset-y-0.5 bg-brand-subtle ${BAND[place]}`} />}
+                  {place && <span aria-hidden className={`absolute inset-y-0.5 bg-primary-container ${BAND[place]}`} />}
                   <button type="button" data-focus={isFocus} tabIndex={isFocus ? 0 : -1}
                     aria-current={isToday ? 'date' : undefined} disabled={outOfRange(iso, min, max)}
                     onClick={() => selectDay(fy, fm, d)}
                     className={`${cellBase} relative h-9 w-9 ${focusRing(isFocus, filled)} ${
-                      filled ? 'bg-brand text-on-brand font-medium'
-                      : isToday ? `text-brand hover:bg-brand-subtle ${isFocus ? '' : 'ring-1 ring-brand'}`
-                      : 'text-fg1 hover:bg-black/5 dark:hover:bg-white/10'}`}>
+                      filled ? 'bg-primary text-on-primary font-medium'
+                      : isToday ? `text-primary hover:bg-primary-container ${isFocus ? '' : 'ring-1 ring-primary'}`
+                      : 'text-on-surface hover:bg-black/5 dark:hover:bg-white/10'}`}>
                     {d}
                   </button>
                 </div>
@@ -266,9 +266,9 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
               aria-current={isCur ? 'date' : undefined} onClick={() => selectMonth(fy, m)}
               disabled={outOfRange(toISO(fy, m, 1), min, max, 'month')}
               className={`${cellBase} flex-1 h-11 ${focusRing(isFocus, filled)} ${
-                filled ? 'bg-brand text-on-brand font-medium' : place === 'mid' ? 'bg-brand-subtle text-fg1'
-                : isCur ? `text-brand hover:bg-brand-subtle ${isFocus ? '' : 'ring-1 ring-brand'}`
-                : 'text-fg1 hover:bg-black/5 dark:hover:bg-white/10'}`}>
+                filled ? 'bg-primary text-on-primary font-medium' : place === 'mid' ? 'bg-primary-container text-on-surface'
+                : isCur ? `text-primary hover:bg-primary-container ${isFocus ? '' : 'ring-1 ring-primary'}`
+                : 'text-on-surface hover:bg-black/5 dark:hover:bg-white/10'}`}>
               {mn}
             </button>
             </div>
@@ -291,9 +291,9 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
               aria-current={isCur ? 'date' : undefined} onClick={() => selectYear(y)}
               disabled={outOfRange(toISO(y, 1, 1), min, max, 'year')}
               className={`${cellBase} flex-1 h-11 tabular-nums ${focusRing(isFocus, filled)} ${
-                filled ? 'bg-brand text-on-brand font-medium' : place === 'mid' ? 'bg-brand-subtle text-fg1'
-                : isCur ? `text-brand hover:bg-brand-subtle ${isFocus ? '' : 'ring-1 ring-brand'}`
-                : 'text-fg1 hover:bg-black/5 dark:hover:bg-white/10'}`}>
+                filled ? 'bg-primary text-on-primary font-medium' : place === 'mid' ? 'bg-primary-container text-on-surface'
+                : isCur ? `text-primary hover:bg-primary-container ${isFocus ? '' : 'ring-1 ring-primary'}`
+                : 'text-on-surface hover:bg-black/5 dark:hover:bg-white/10'}`}>
               {y}
             </button>
             </div>
@@ -316,7 +316,7 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
       {header}
       {body}
       {(onClear || showToday) && (
-        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-stroke">
+        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-outline-variant">
           {onClear && <Button variant="text" size="sm" onClick={onClear}>Очистить</Button>}
           {showToday && (
             <Button variant="text" size="sm" className="ml-auto" aria-label={`${todayLabel}, ${spokenDate(todayISO, locale, precision)}`}

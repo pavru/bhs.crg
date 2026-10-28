@@ -154,7 +154,7 @@ export function ProxySettingsSection() {
       </div>
 
       {result && (
-        <p className={`text-xs ${result.ok ? 'text-success' : 'text-danger'}`}>
+        <p className={`text-xs ${result.ok ? 'text-success' : 'text-error'}`}>
           {result.message}
           {result.target && <span className="block text-fg4">Проверяли на {result.target}, {result.ms} мс.</span>}
         </p>

@@ -69,7 +69,7 @@ export function UpdateSettingsSection() {
 
   return (
     <CollapsibleSection title="Обновления" storageKey="updates" defaultOpen={false}>
-      <label className="flex items-start gap-2 text-sm text-fg2">
+      <label className="flex items-start gap-2 text-sm text-on-surface-variant">
         <input type="checkbox" className="mt-0.5" checked={enabled}
           disabled={isLoading || save.isPending}
           onChange={e => void toggle(e.target.checked)} />
@@ -95,14 +95,14 @@ export function UpdateSettingsSection() {
           <span className="text-xs text-fg3">
             Установлена <b>{data.installed}</b>
             {data.updateAvailable && data.latest
-              ? <> · доступна <b className="text-brand">{data.latest}</b></>
+              ? <> · доступна <b className="text-primary">{data.latest}</b></>
               : data.latest ? ' · это последняя версия' : ''}
           </span>
         )}
       </div>
 
       {save.isError && (
-        <p className="text-xs text-danger">Настройку сохранить не удалось — значение осталось прежним.</p>
+        <p className="text-xs text-error">Настройку сохранить не удалось — значение осталось прежним.</p>
       )}
 
       {data && (
@@ -127,7 +127,7 @@ export function UpdateSettingsSection() {
         <p className="text-xs text-fg3">
           Что изменилось — на{' '}
           <a href={data.releaseUrl} target="_blank" rel="noopener noreferrer"
-            className="text-brand hover:underline">странице выпуска</a>.
+            className="text-primary hover:underline">странице выпуска</a>.
           {' '}Обновление выполняется вручную — см. инструкцию по развёртыванию.
         </p>
       )}

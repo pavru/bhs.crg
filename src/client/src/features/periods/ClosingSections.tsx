@@ -35,7 +35,7 @@ export function ClosingSections({ sections, stale, before = null }: {
     <div className={`space-y-4 ${stale ? 'opacity-50' : ''}`} aria-busy={stale}>
       {sections.map(section => (
         <section key={section.module} aria-label={section.title}>
-          <h3 className="text-sm font-semibold text-fg1">{section.title}</h3>
+          <h3 className="text-sm font-semibold text-on-surface">{section.title}</h3>
           <p className="text-xs text-fg3">{section.dateRule}</p>
 
           <Group title="Не завершено — закрытию не мешает" group="unfinished" section={section} before={before} warn
@@ -51,7 +51,7 @@ export function ClosingSections({ sections, stale, before = null }: {
       {/* Раздел, исчезнувший целиком, — тоже изменение: без него его «не завершено» пропало бы молча. */}
       {gone.map(section => (
         <section key={`gone:${section.module}`} aria-label={section.title} className="text-note text-fg3">
-          <h3 className="text-sm font-semibold text-fg2">{section.title}</h3>
+          <h3 className="text-sm font-semibold text-on-surface-variant">{section.title}</h3>
           <p>
             Раздела больше нет: модуль о закрытии уже ничего не сообщает.
             {unfinishedSummary([section]) && <Was text={`было не завершено: ${unfinishedSummary([section])}`} />}
@@ -78,7 +78,7 @@ function Group({ title, group, section, before, empty, warn }: {
         <ul className="mt-0.5 space-y-1">
           {lines.map(line => (
             <li key={line.key} className="text-note">
-              <div className={`flex items-baseline gap-1.5 ${warn ? 'text-fg1' : 'text-fg2'}`}>
+              <div className={`flex items-baseline gap-1.5 ${warn ? 'text-on-surface' : 'text-on-surface-variant'}`}>
                 {warn && <TriangleAlert size={13} className="shrink-0 self-center text-warning" aria-hidden />}
                 <span className="min-w-0 break-words">
                   {line.text}: <Figure line={line} />
@@ -116,7 +116,7 @@ function Figure({ line }: { line: ClosingLine }) {
   return (
     <Tooltip content="Открыть список — в новой вкладке">
       <a href={link} target="_blank" rel="noreferrer"
-        className="text-brand hover:underline">
+        className="text-primary hover:underline">
         {text}
         <ArrowUpRight size={12} className="inline-block align-baseline ml-0.5" aria-hidden />
       </a>
@@ -126,5 +126,5 @@ function Figure({ line }: { line: ClosingLine }) {
 
 function Was({ text }: { text: string | null }) {
   if (!text) return null;
-  return <span className="ml-1.5 rounded bg-warning/15 px-1 text-xs text-fg2">{text}</span>;
+  return <span className="ml-1.5 rounded bg-warning/15 px-1 text-xs text-on-surface-variant">{text}</span>;
 }

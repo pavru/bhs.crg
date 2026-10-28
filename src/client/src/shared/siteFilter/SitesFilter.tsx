@@ -68,10 +68,10 @@ export function SitesFilter({ hidden, partial = false }: { hidden?: number; part
       ) : <Popover.Trigger asChild>{chip}</Popover.Trigger>}
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6} data-testid="sites-filter-popover" aria-labelledby={heading}
-          className="z-50 w-80 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-lg border border-stroke bg-surface p-4"
+          className="z-50 w-80 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-lg border border-outline-variant bg-surface p-4"
           style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
           <div className="flex items-center justify-between mb-2">
-            <h2 id={heading} className="text-sm font-semibold text-fg1">Стройки в списках</h2>
+            <h2 id={heading} className="text-sm font-semibold text-on-surface">Стройки в списках</h2>
             <Popover.Close asChild>
               <IconButton label="Закрыть" size="sm"><X size={14} /></IconButton>
             </Popover.Close>
@@ -112,16 +112,16 @@ function Choices({ on, onPick, onDone, favorites, all }: {
   };
   return (
     <div role="radiogroup" aria-label="Какие стройки показывать" onKeyDown={onKeyDown}
-      className="-mx-2 mb-3 pb-3 border-b border-stroke">
+      className="-mx-2 mb-3 pb-3 border-b border-outline-variant">
       {items.map((item, i) => {
         const checked = item.value === on;
         return (
           <button key={item.label} ref={el => { refs.current[i] = el; }} type="button" role="radio"
             aria-checked={checked} tabIndex={checked ? 0 : -1}
             onClick={() => { if (!checked) onPick(item.value); onDone(); }}
-            className="w-full flex items-center gap-2 h-9 px-2 rounded-md text-left text-sm hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-            <Check size={16} aria-hidden className={`shrink-0 ${checked ? 'text-brand' : 'invisible'}`} />
-            <span className={`flex-1 ${checked ? 'font-medium text-fg1' : 'text-fg2'}`}>{item.label}</span>
+            className="w-full flex items-center gap-2 h-9 px-2 rounded-md text-left text-sm hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            <Check size={16} aria-hidden className={`shrink-0 ${checked ? 'text-primary' : 'invisible'}`} />
+            <span className={`flex-1 ${checked ? 'font-medium text-on-surface' : 'text-on-surface-variant'}`}>{item.label}</span>
             <span className="text-xs tabular-nums text-fg3">{item.note}</span>
           </button>
         );

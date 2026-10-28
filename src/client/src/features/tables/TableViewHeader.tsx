@@ -126,11 +126,11 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
   }
 
   const row = (key: string, to: string, label: string, chosen: boolean, note?: string | null, actions: RowAction[] = []) => (
-    <li key={key} className="flex items-center gap-1 rounded-md hover:bg-muted">
+    <li key={key} className="flex items-center gap-1 rounded-md hover:bg-surface-container">
       {/* Открытое ведёт туда же, где человек стоит: щелчок по отмеченному не сбрасывает несохранённое. */}
       <Link to={chosen ? { hash } : to} onClick={() => setOpen(false)} aria-current={chosen ? 'page' : undefined}
-        className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 text-sm text-fg1">
-        <Check size={13} aria-hidden className={chosen ? 'text-brand shrink-0' : 'invisible shrink-0'} />
+        className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 text-sm text-on-surface">
+        <Check size={13} aria-hidden className={chosen ? 'text-primary shrink-0' : 'invisible shrink-0'} />
         <span className="truncate">{label}</span>
         {note && <span className="shrink-0 text-xs text-fg4">{note}</span>}
       </Link>
@@ -148,7 +148,7 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
             <Tooltip content="Выбрать представление">
               <Popover.Trigger asChild>
                 <button type="button"
-                  className="flex items-center gap-2 rounded-md -mx-1.5 px-1.5 py-0.5 hover:bg-muted max-w-[calc(100%+0.75rem)]">
+                  className="flex items-center gap-2 rounded-md -mx-1.5 px-1.5 py-0.5 hover:bg-surface-container max-w-[calc(100%+0.75rem)]">
                   <Table2 size={18} className="text-fg3 shrink-0" aria-hidden />
                   <span className="truncate">{title}</span>
                   <ChevronDown size={16} className="text-fg3 shrink-0" aria-hidden />
@@ -157,7 +157,7 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
             </Tooltip>
             <Popover.Portal>
               <Popover.Content align="start" sideOffset={6} aria-label="Представления таблицы"
-                className="z-40 w-80 max-h-[70vh] overflow-auto rounded-lg bg-surface border border-stroke p-2 focus:outline-none"
+                className="z-40 w-80 max-h-[70vh] overflow-auto rounded-lg bg-surface border border-outline-variant p-2 focus:outline-none"
                 style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
                 <ul>
                   {/* К таблице целиком — с тем же отбором: из представления к ней уходят посмотреть те же строки всеми колонками. */}
@@ -167,7 +167,7 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
                   {groups.ready.map(p => row(p.code, `${path}/${encodeURIComponent(p.code)}`, p.title,
                     lookup.state === 'found' && lookup.preset.code === p.code))}
                 </Group>
-                {!off && savedProblem && <p role="alert" className="mt-2 px-2 text-xs text-danger">{savedProblem}</p>}
+                {!off && savedProblem && <p role="alert" className="mt-2 px-2 text-xs text-error">{savedProblem}</p>}
                 {!off && !savedProblem && !saved && <p className="mt-2 px-2 text-xs text-fg4">Сохранённые представления загружаются…</p>}
                 {!off && saved && (
                   <>

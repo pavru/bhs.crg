@@ -47,9 +47,9 @@ export function InvoicePartyNote({ invoiceId, side, party, chosen, offered, onCh
   return (
     <div className="mt-0.5 text-xs min-w-0">
       {created && created === chosen && (
-        <p className="text-fg2">
+        <p className="text-on-surface-variant">
           Заведена и поставлена в поле — сохраните счёт.{' '}
-          <Link to="/common-data" target="_blank" className="text-brand hover:underline">Дополнить в каталоге ↗</Link>
+          <Link to="/common-data" target="_blank" className="text-primary hover:underline">Дополнить в каталоге ↗</Link>
         </p>
       )}
       {shown && (
@@ -76,7 +76,7 @@ export function InvoicePartyNote({ invoiceId, side, party, chosen, offered, onCh
 
 function Act({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   return (
-    <button type="button" className="shrink-0 text-brand hover:underline" onClick={onClick}>{children}</button>
+    <button type="button" className="shrink-0 text-primary hover:underline" onClick={onClick}>{children}</button>
   );
 }
 
@@ -91,11 +91,11 @@ function Details({ party, pick, canCreate, onChoose, onRetry }: {
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button type="button" className="shrink-0 text-brand hover:underline">{pick ? 'Выбрать' : 'подробнее'}</button>
+        <button type="button" className="shrink-0 text-primary hover:underline">{pick ? 'Выбрать' : 'подробнее'}</button>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6}
-          className="z-50 w-[360px] max-w-[90vw] rounded-lg bg-surface border border-stroke p-3 text-xs text-fg2 space-y-2 focus:outline-none"
+          className="z-50 w-[360px] max-w-[90vw] rounded-lg bg-surface border border-outline-variant p-3 text-xs text-on-surface-variant space-y-2 focus:outline-none"
           style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           <p>{partyWhy(party, canCreate)}</p>
           {candidates.length > 0 && (
@@ -104,7 +104,7 @@ function Details({ party, pick, canCreate, onChoose, onRetry }: {
                 const role = inheritsFrom(c, party.candidates);
                 const body = (
                   <>
-                    <span className="flex items-center gap-1 text-fg1">
+                    <span className="flex items-center gap-1 text-on-surface">
                       <span className="truncate">{c.name ?? 'запись без названия'}</span>
                       {c.archived && <ArchivedMark words={false} />}
                     </span>
@@ -118,7 +118,7 @@ function Details({ party, pick, canCreate, onChoose, onRetry }: {
                   <li key={c.id}>
                     {pick && !c.archived
                       ? (
-                        <button type="button" className="w-full text-left rounded px-2 py-1 hover:bg-muted"
+                        <button type="button" className="w-full text-left rounded px-2 py-1 hover:bg-surface-container"
                           onClick={() => { onChoose(c.id); setOpen(false); }}>{body}</button>
                       )
                       : <div className="px-2 py-1">{body}</div>}
@@ -187,12 +187,12 @@ function CreateDialog({ invoiceId, side, party, onClose, onDone }: {
         <TextField label="Название" value={name} onChange={e => setName(e.target.value)} autoFocus
           invalid={tooLong}
           error={tooLong ? `Длиннее ${NAME_LIMIT} знаков (${name.trim().length}) — сократите до названия организации` : undefined} />
-        <p className="text-xs text-fg2">ИНН: <span className="text-fg1">{party.taxId}</span> — из файла, не правится.</p>
+        <p className="text-xs text-on-surface-variant">ИНН: <span className="text-on-surface">{party.taxId}</span> — из файла, не правится.</p>
         <p className="text-xs text-fg3">
           В справочник попадут только название и ИНН. Остальные реквизиты дополните в каталоге.
         </p>
         {refusal && (
-          <div role="alert" className="rounded-lg border border-danger/30 bg-danger-subtle px-3 py-2 text-xs text-danger">
+          <div role="alert" className="rounded-lg border border-error/30 bg-error-container px-3 py-2 text-xs text-error">
             <p>Организация не заведена: {refusal}</p>
             <Link to="/common-data" target="_blank" className="underline hover:no-underline">
               Открыть справочник организаций ↗

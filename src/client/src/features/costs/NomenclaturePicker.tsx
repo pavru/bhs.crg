@@ -87,8 +87,8 @@ export function NomenclaturePicker({
         <Tooltip content={archived && !lost ? ARCHIVED_HINT : undefined}>
           <button type="button" onClick={() => setOpen(true)}
             className={`min-w-0 flex-1 text-left text-xs px-2 py-1 rounded border truncate
-              ${lost ? 'border-danger/30 text-danger'
-                : chosen ? 'border-stroke text-fg1' : 'border-warning-border text-warning'}`}>
+              ${lost ? 'border-error/30 text-error'
+                : chosen ? 'border-outline-variant text-on-surface' : 'border-warning-border text-warning'}`}>
             {/* Три состояния, и путать их нельзя: потерю чинит справочник, пустое имя — тоже справочник,
                 но позиция на месте, а «выбрать позицию» — работа человека за формой. */}
             {lost ? lostText ?? LOST.position
@@ -102,7 +102,7 @@ export function NomenclaturePicker({
         {chosen && clearable && (
           <Tooltip content="Снять позицию" name>
             <button type="button" onClick={onClear}
-              className="shrink-0 text-fg4 hover:text-fg1 p-0.5">
+              className="shrink-0 text-fg4 hover:text-on-surface p-0.5">
               <X size={12} />
             </button>
           </Tooltip>
@@ -304,21 +304,21 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
         </div>
       )}>
       <div ref={ref} className={narrow ? 'flex-1 min-h-0 overflow-y-auto'
-        : 'flex-1 min-h-0 grid grid-cols-[minmax(0,55fr)_minmax(0,45fr)] border-t border-stroke'}>
+        : 'flex-1 min-h-0 grid grid-cols-[minmax(0,55fr)_minmax(0,45fr)] border-t border-outline-variant'}>
         <div className={`space-y-3 px-6 pt-3 pb-4 ${narrow ? '' : 'overflow-y-auto'}`}>
           {plate}
-          <div className="flex items-center gap-2 rounded-md border border-stroke-strong px-2.5 h-10">
+          <div className="flex items-center gap-2 rounded-md border border-outline px-2.5 h-10">
             <Search size={15} className="text-fg4 shrink-0" />
             <input ref={focus} value={typed}
               onChange={e => type(e.target.value)} onKeyDown={keys}
               placeholder="наименование или часть наименования" aria-label="Поиск позиции" data-search=""
               role="combobox" aria-expanded={lists !== ''} aria-controls={lists || undefined} aria-autocomplete="list"
               aria-activedescendant={activeOption}
-              className="flex-1 bg-transparent text-sm outline-none text-fg1 placeholder:text-fg4" />
+              className="flex-1 bg-transparent text-sm outline-none text-on-surface placeholder:text-fg4" />
           </div>
 
           {found.isError && (
-            <p className="flex items-start gap-2 text-xs text-danger">
+            <p className="flex items-start gap-2 text-xs text-error">
               <TriangleAlert size={13} className="shrink-0 mt-0.5" />
               <span>Справочник не прочитан: {apiError(found.error, 'сервер отказал')}. ⚠️ Это НЕ
                 «позиций нет»: их список сюда не доехал.</span>
@@ -345,7 +345,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
                 {directory.length > 0 && (
                   <div className="space-y-1.5">
                     {/* Число — строк под заголовком: кандидаты и выбранная стоят выше и здесь не повторяются. */}
-                    <h4 id={allHeadingId} className="text-xs font-medium text-fg2">
+                    <h4 id={allHeadingId} className="text-xs font-medium text-on-surface-variant">
                       Остальные позиции справочника ({directory.length})
                     </h4>
                     <div id={allId} role="listbox" aria-labelledby={allHeadingId} className="-mx-2 space-y-0.5">
@@ -399,7 +399,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
 
         {/* Карточка остаётся, когда курсор ушёл со списка: её уводят читать, а не терять. */}
         {!narrow && (
-          <aside aria-label="Карточка позиции" className="overflow-y-auto border-l border-stroke px-5 py-4">
+          <aside aria-label="Карточка позиции" className="overflow-y-auto border-l border-outline-variant px-5 py-4">
             <NomenclatureCardPanel id={selection.active}
               compare={selection.active ? compare(active?.matched ?? null) : undefined}
               head={active ? { name: active.name, type: active.type, why: active.why } : null} onPick={onPick} />
@@ -438,9 +438,9 @@ function LinePlate({ from, line }: { from: LineWords; line?: PickerLine }) {
   const name = (from.name ?? '').trim();
   if (!line && !name && !meta) return null;
   return (
-    <div className="rounded-lg bg-muted px-3 py-2 space-y-0.5">
+    <div className="rounded-lg bg-surface-container px-3 py-2 space-y-0.5">
       {line && <p className="text-caption text-fg3">{line.where}</p>}
-      {name && <p className="text-sm leading-snug text-fg1 line-clamp-2" title={name}>{name}</p>}
+      {name && <p className="text-sm leading-snug text-on-surface line-clamp-2" title={name}>{name}</p>}
       {meta && <p className="text-xs text-fg3 tabular-nums">{meta}</p>}
     </div>
   );

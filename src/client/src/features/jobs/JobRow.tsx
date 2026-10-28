@@ -42,17 +42,17 @@ export function JobRow({ job }: { job: ActiveJob }) {
     <div className="group flex items-center gap-3.5 pl-5 pr-3 py-3">
       {/* Аватар-статус: иконка типа в круге + вращающийся спиннер-кольцо (indeterminate). */}
       <div className="relative w-10 h-10 shrink-0">
-        <div className="absolute inset-0 rounded-full bg-muted flex items-center justify-center text-fg3">
+        <div className="absolute inset-0 rounded-full bg-surface-container flex items-center justify-center text-fg3">
           {/* Через createElement, а не <Icon/>: локальная переменная с большой буквы читается
               линтом как компонент, ОПРЕДЕЛЁННЫЙ в рендере, — а здесь это готовый компонент,
               выбранный из модульного набора по виду задачи (issue #858). */}
           {createElement(kindIcon(job.kind), { size: 18 })}
         </div>
-        <Loader2 size={40} className="absolute inset-0 animate-spin motion-reduce:animate-none text-brand" strokeWidth={2} />
+        <Loader2 size={40} className="absolute inset-0 animate-spin motion-reduce:animate-none text-primary" strokeWidth={2} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-fg1 truncate flex-1">{job.title}</p>
+          <p className="text-sm font-medium text-on-surface truncate flex-1">{job.title}</p>
           {/* Вне озвучки: раздел задач — живая область, и тикающий таймер диктор читал бы каждую секунду. */}
           <span aria-hidden="true" className="text-xs tabular-nums text-fg4 shrink-0">{elapsed(job, now)}</span>
         </div>

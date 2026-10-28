@@ -63,7 +63,7 @@ export function InvoiceMoreMenu({ view, onRejected }: {
         errorTitle="Счёт не отклонён"
         confirmLabel="Отклонить счёт" confirmDanger={false}
         description={(
-          <div className="space-y-2 text-sm text-fg2">
+          <div className="space-y-2 text-sm text-on-surface-variant">
             <p>По счёту решено не платить. Он <b>останется в реестре</b> с состоянием «Отклонён»:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li>в затраты, в «К оплате» и в сроки оплаты не входит;</li>

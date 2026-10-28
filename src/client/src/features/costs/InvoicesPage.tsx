@@ -397,7 +397,7 @@ export function InvoicesPage() {
             )}
             {invoices.isPending && <p className="px-3 py-2 text-xs text-fg3">Загрузка…</p>}
             {invoices.isError && (
-              <p className="px-3 py-2 text-xs text-danger">
+              <p className="px-3 py-2 text-xs text-error">
                 Список не пришёл. Это отказ чтения, а не пустой список: счета могут быть.
               </p>
             )}
@@ -418,7 +418,7 @@ export function InvoicesPage() {
               <div className="px-3 py-2 text-xs text-fg3 space-y-1">
                 <p>{onlyUpload ? uploadEmpty(query) : emptyText(queue, query, queues)}</p>
                 {(onlyUpload || (queue && !query.trim())) && (
-                  <button type="button" className="underline hover:text-fg1" onClick={() => setFilter(null)}>
+                  <button type="button" className="underline hover:text-on-surface" onClick={() => setFilter(null)}>
                     Показать все счета
                   </button>
                 )}
@@ -461,13 +461,13 @@ export function InvoicesPage() {
         ) : opened.kind === 'missing' ? (
           // Мёртвая ссылка. «Повторить» здесь нет: повтор ответит тем же.
           <div className="flex-1 grid place-items-center p-6">
-            <p className="text-sm text-fg2" data-testid="invoice-missing">Счёта нет: его удалили или ссылка неверна.</p>
+            <p className="text-sm text-on-surface-variant" data-testid="invoice-missing">Счёта нет: его удалили или ссылка неверна.</p>
           </div>
         ) : opened.kind === 'unread' ? (
           // Только для счёта, не прочитанного НИ РАЗУ: неудачное перечитывание открытого форму не снимает.
           <div className="flex-1 grid place-items-center p-6">
             <div className="max-w-md text-center space-y-2">
-              <p className="text-sm text-danger">Счёт не открылся: {apiError(opened.error, 'сервер отказал')}</p>
+              <p className="text-sm text-error">Счёт не открылся: {apiError(opened.error, 'сервер отказал')}</p>
               <p className="text-xs text-fg3">
                 Это отказ чтения, а не пустой счёт — сам счёт в списке остался.
               </p>
@@ -501,7 +501,7 @@ export function InvoicesPage() {
               {/* Ширина панели: форма — главное, скан — опора. Отсюда 40 % и потолок: на широком
                   экране бумага не должна отъедать место у полей, которые правят. */}
               {hasScan && wide && !gone && (
-                <aside className="w-[40%] max-w-[620px] min-w-[340px] shrink-0 border-l border-stroke flex flex-col min-h-0">
+                <aside className="w-[40%] max-w-[620px] min-w-[340px] shrink-0 border-l border-outline-variant flex flex-col min-h-0">
                   <InvoiceScanPanel
                     invoiceId={opened.id}
                     blobPath={fileProp(scan, 'blobPath')}

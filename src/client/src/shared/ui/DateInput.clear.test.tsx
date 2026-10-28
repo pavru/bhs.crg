@@ -150,7 +150,7 @@ describe('DateInput: очистка', () => {
     render(<Form initial="" />);
     selectAll();
     expect(screen.queryByText('Выделена вся дата')).toBeNull();
-    expect(seg('ММ').className.split(' ')).not.toContain('bg-brand-subtle'); // `focus:` — не в счёт
+    expect(seg('ММ').className.split(' ')).not.toContain('bg-primary-container'); // `focus:` — не в счёт
   });
 
   it('Ctrl+A → Ctrl+X: дата в буфер, поле стёрто целиком', () => {

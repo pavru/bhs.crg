@@ -64,7 +64,7 @@ function PartEditor({ part, onChange, onRemove, sources, index }: {
     // space-y-3, а не -2: ниже стоит Select с постоянно поднятой меткой, и она выступает над рамкой
     // поля примерно на 8px (см. OutlinedField) — при 8px зазора от ряда чипов оставалось три
     // пикселя, метка читалась приклеенной к колонкам. Та же причина, что и в issue #727.
-    <div className="space-y-3 rounded-md bg-muted/40 p-2">
+    <div className="space-y-3 rounded-md bg-surface-container/40 p-2">
       <div className="flex items-center gap-2">
         <Select label={`Источник ${index + 1}`} value={part.sourceId}
           onValueChange={v => onChange({ ...EMPTY_PART, sourceId: v })}
@@ -81,7 +81,7 @@ function PartEditor({ part, onChange, onRemove, sources, index }: {
       </div>
 
       {part.sourceId && columns.length === 0 && (
-        <p className="text-xs text-danger">У источника нет разобранной схемы — колонки не выбрать.</p>
+        <p className="text-xs text-error">У источника нет разобранной схемы — колонки не выбрать.</p>
       )}
 
       {columns.length > 0 && (
@@ -98,7 +98,7 @@ function PartEditor({ part, onChange, onRemove, sources, index }: {
                 return (
                   <button key={c} type="button" onClick={() => toggleKey(c)}
                     className={`text-xs px-2 py-1 rounded-full transition-colors ${
-                      on ? 'bg-brand-subtle text-brand font-medium' : 'bg-base text-fg3 hover:text-fg1'}`}>
+                      on ? 'bg-primary-container text-primary font-medium' : 'bg-surface-container-low text-fg3 hover:text-on-surface'}`}>
                     {c}
                   </button>
                 );
@@ -123,7 +123,7 @@ function SideEditor({ title, parts, onChange, sources }: {
   sources: { source: DataSetSource; fileName: string }[];
 }) {
   return (
-    <div className="space-y-2 rounded-lg border border-stroke p-3">
+    <div className="space-y-2 rounded-lg border border-outline-variant p-3">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wide text-fg4">{title}</span>
         <Button variant="text" size="sm" onClick={() => onChange([...parts, EMPTY_PART])}>
@@ -213,9 +213,9 @@ export function ReconciliationEditor({ existing, onClose }: {
           <SideEditor title="Справа" parts={right} onChange={setRight} sources={sources} />
         </div>
 
-        <div className="rounded-lg border border-stroke p-3 space-y-3">
+        <div className="rounded-lg border border-outline-variant p-3 space-y-3">
           <div className="text-xs font-semibold uppercase tracking-wide text-fg4">Правило</div>
-          <div className="flex items-center gap-2 text-sm text-fg2">
+          <div className="flex items-center gap-2 text-sm text-on-surface-variant">
             <span>Слева должно быть</span>
             <Select value={operator} onValueChange={v => setOperator(v as ComparisonOperator)}
               aria-label="Оператор" className="w-40">

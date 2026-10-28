@@ -48,14 +48,14 @@ function num(v: number | null): string {
 function FindingLine({ f, onDecide }: { f: Finding; onDecide: (f: Finding) => void }) {
   const open = needsAttention(f);
   return (
-    <div className={`px-3 py-2 border-b border-stroke text-sm ${open ? '' : 'opacity-60'}`}>
+    <div className={`px-3 py-2 border-b border-outline-variant text-sm ${open ? '' : 'opacity-60'}`}>
       <div className="flex items-center gap-2">
         <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${
-          f.status === 'Match' ? 'text-fg4' : open ? 'bg-danger-subtle text-danger' : 'bg-muted text-fg3'}`}>
+          f.status === 'Match' ? 'text-fg4' : open ? 'bg-error-container text-error' : 'bg-surface-container text-fg3'}`}>
           {f.resolved ? 'Устранено' : STATUS_LABELS[f.status]}
         </span>
-        <span className="flex-1 truncate text-fg1" title={f.label}>{f.label}</span>
-        <span className="tabular-nums text-fg2 shrink-0">
+        <span className="flex-1 truncate text-on-surface" title={f.label}>{f.label}</span>
+        <span className="tabular-nums text-on-surface-variant shrink-0">
           {num(f.leftValue)} <span className="text-fg4">/</span> {num(f.rightValue)}
         </span>
         {/* Кнопка видна всегда, а не на hover (#680): скрытое действие на непривычном экране
@@ -94,11 +94,11 @@ function ReconciliationBlock({ id, name, unresolved }: {
   const lastRun = runs[0] ?? null;
 
   return (
-    <div className="border border-stroke rounded-lg overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-2 bg-muted/40">
+    <div className="border border-outline-variant rounded-lg overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2 bg-surface-container/40">
         <Scale size={14} className="text-fg4 shrink-0" />
         <div className="flex-1 min-w-0">
-          <div className="truncate text-sm font-medium text-fg1">{name}</div>
+          <div className="truncate text-sm font-medium text-on-surface">{name}</div>
           {/* Когда прогон был и чем кончился — обязательная часть блока, а не украшение: список
               находок строится по последнему УДАЧНОМУ прогону, поэтому без этой строки «Всё
               разобрано» читалось бы одинаково и когда расхождений нет, и когда сверку ни разу не
@@ -112,12 +112,12 @@ function ReconciliationBlock({ id, name, unresolved }: {
         {/* История прогонов, алиасы и правка определения живут только в разделе «Сверка»: здесь
             разбирают находки, а не настраивают сверку. */}
         <Link to={`/reconciliations?id=${id}`}
-          className="inline-flex items-center gap-1 text-caption text-brand hover:underline shrink-0">
+          className="inline-flex items-center gap-1 text-caption text-primary hover:underline shrink-0">
           <ExternalLink size={11} /> Открыть в «Сверке»
         </Link>
         <button type="button" onClick={() => setOnlyOpen(v => !v)}
           className={`text-caption px-2 py-0.5 rounded-full transition-colors ${
-            onlyOpen ? 'bg-brand-subtle text-brand font-medium' : 'text-fg3 hover:bg-base'}`}>
+            onlyOpen ? 'bg-primary-container text-primary font-medium' : 'text-fg3 hover:bg-surface-container-low'}`}>
           не разобрано: {unresolved}
         </button>
         <Button variant="text" size="sm" loading={run.isPending}
@@ -132,7 +132,7 @@ function ReconciliationBlock({ id, name, unresolved }: {
       {/* Неудачный прогон обязан быть виден: ниже показаны находки предыдущего удачного, и без
           этой плашки они выдавали бы себя за сегодняшний результат. */}
       {lastRun?.status === 'Failed' && (
-        <div className="px-3 py-2 bg-danger-subtle text-danger text-xs">
+        <div className="px-3 py-2 bg-error-container text-error text-xs">
           <strong>Последний прогон не выполнен.</strong> {lastRun.error}
         </div>
       )}
@@ -171,14 +171,14 @@ function ObservationCard({ o, documentNames, onReview }: {
   onReview: (o: Observation) => void;
 }) {
   return (
-    <div className={`px-3 py-2 border border-stroke rounded-lg ${isUnreviewed(o) ? '' : 'opacity-60'}`}>
+    <div className={`px-3 py-2 border border-outline-variant rounded-lg ${isUnreviewed(o) ? '' : 'opacity-60'}`}>
       <div className="flex items-start gap-2">
         <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${
-          o.severity === 'Error' ? 'bg-warning-subtle text-warning' : 'bg-muted text-fg3'}`}>
+          o.severity === 'Error' ? 'bg-warning-container text-warning' : 'bg-surface-container text-fg3'}`}>
           {SEVERITY_LABELS[o.severity]}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm text-fg1">{o.title}</div>
+          <div className="text-sm text-on-surface">{o.title}</div>
           {o.detail && <p className="text-xs text-fg3 mt-0.5 line-clamp-2">{o.detail}</p>}
           {/* Имена документов, а не идентификаторы: «документ 77de9193» человеку ничего не говорит. */}
           {(o.references.documentIds ?? []).length > 0 && (
@@ -226,9 +226,9 @@ export function SetProblemsPanel({ setId, setName, documentNames }: {
     <div className="flex-1 min-w-0 overflow-y-auto p-4 space-y-5">
       <div className="flex items-center gap-2">
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-fg2">
+          <p className="text-sm text-on-surface-variant">
             {problems && problems.needsAttention > 0
-              ? <>Требует разбора: <b className="text-fg1">{problems.needsAttention}</b>
+              ? <>Требует разбора: <b className="text-on-surface">{problems.needsAttention}</b>
                   <span className="text-fg4"> — {problems.unresolvedFindings} по сверке,
                   {' '}{problems.unreviewedObservations} замечаний анализа</span></>
               : 'Всё разобрано.'}
@@ -270,7 +270,7 @@ export function SetProblemsPanel({ setId, setName, documentNames }: {
           {/* Журнал агента целиком (и его чистка) — в разделе «Сверка»: удалять записи с вкладки
               комплекта незачем, здесь их разбирают. */}
           <Link to="/reconciliations?view=observations"
-            className="inline-flex items-center gap-1 text-caption font-normal normal-case tracking-normal text-brand hover:underline">
+            className="inline-flex items-center gap-1 text-caption font-normal normal-case tracking-normal text-primary hover:underline">
             <ExternalLink size={11} /> Весь журнал
           </Link>
         </h3>

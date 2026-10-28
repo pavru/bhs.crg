@@ -46,11 +46,11 @@ export function TimeInput({ label, value, onChange, onProblem, onIncomplete, onC
     return (
       <div role="group" aria-label={label} className={`flex items-center min-w-0 ${className}`}>
         {readOnly || disabled
-          ? <span className="truncate text-fg2">{value}</span>
+          ? <span className="truncate text-on-surface-variant">{value}</span>
           // Как у даты: ввод начинается щелчком или Enter, а не фокусом — проход Tab'ом не стирает показанное.
           : <button type="button" onClick={startOver} aria-describedby={describedBy}
               aria-label={`${value} — не время, набрать время заново`}
-              className="truncate text-left text-fg2 rounded-sm focus:outline-none focus-visible:bg-brand-subtle">
+              className="truncate text-left text-on-surface-variant rounded-sm focus:outline-none focus-visible:bg-primary-container">
               {value}
             </button>}
         {problemMark}

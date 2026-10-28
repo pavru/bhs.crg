@@ -158,7 +158,7 @@ function BackupFilesPanel() {
         <span className="text-fg3 text-xs">Что включать:</span>
         {([['Full', 'настройку и проектные данные'], ['Configuration', 'только настройку']] as const)
           .map(([value, label]) => (
-            <label key={value} className="flex items-center gap-1.5 text-xs text-fg2">
+            <label key={value} className="flex items-center gap-1.5 text-xs text-on-surface-variant">
               <input type="radio" name="backup-scope" checked={scope === value}
                 onChange={() => setScope(value)} disabled={busy} />
               {label}
@@ -198,33 +198,33 @@ function BackupFilesPanel() {
       )}
 
       {error && (
-        <p className="text-xs text-danger flex items-start gap-1">
+        <p className="text-xs text-error flex items-start gap-1">
           <XCircle size={13} className="shrink-0 mt-px" /> <span>{error}</span>
         </p>
       )}
 
       {isPending && <p className="text-xs text-fg4">Список копий загружается…</p>}
-      {isError && <p className="text-xs text-danger">Не удалось прочитать каталог копий.</p>}
+      {isError && <p className="text-xs text-error">Не удалось прочитать каталог копий.</p>}
 
       {!isPending && !isError && files.length === 0 && (
         <p className="text-xs text-fg4">Копий пока нет.</p>
       )}
 
       {files.length > 0 && (
-        <ul className="divide-y divide-muted border-t border-b border-muted">
+        <ul className="divide-y divide-surface-container border-t border-b border-surface-container">
           {files.map(f => (
             <li key={f.fileName} className="py-1.5">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setExpanded(expanded === f.fileName ? null : f.fileName)}
-                  className="p-0.5 text-fg4 hover:text-fg2"
+                  className="p-0.5 text-fg4 hover:text-on-surface-variant"
                   aria-label={expanded === f.fileName ? 'Свернуть состав' : 'Показать состав'}
                 >
                   {expanded === f.fileName ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </button>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-fg1 truncate">
+                  <p className="text-sm text-on-surface truncate">
                     {f.fileName}
                     <span className="ml-2 text-caption text-fg4 font-normal">
                       {f.includesProjectData ? 'полная' : 'настройка'}
@@ -279,7 +279,7 @@ function BackupFilesPanel() {
                       {f.sections.map(s => (
                         <div key={s.label} className="flex justify-between gap-2">
                           <span className="text-fg3 truncate">{s.label}</span>
-                          <span className="text-fg2 font-mono">{s.count}</span>
+                          <span className="text-on-surface-variant font-mono">{s.count}</span>
                         </div>
                       ))}
                     </div>
@@ -376,7 +376,7 @@ function IconAction({ title, onClick, danger, disabled, children }: {
         onClick={onClick}
         disabled={disabled}
         className={`p-1.5 rounded-md transition-colors disabled:opacity-50 ${
-          danger ? 'text-fg3 hover:text-danger hover:bg-danger-subtle' : 'text-fg3 hover:text-fg1 hover:bg-base'
+          danger ? 'text-fg3 hover:text-error hover:bg-error-container' : 'text-fg3 hover:text-on-surface hover:bg-surface-container-low'
         }`}
       >
         {children}
@@ -406,11 +406,11 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
     <div className="flex flex-col min-h-0 flex-1">
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
         <div className={`flex items-center gap-3 rounded-lg p-3 ${
-          report.success ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'
+          report.success ? 'bg-success-container text-success' : 'bg-error-container text-error'
         }`}>
           {report.success
             ? <CheckCircle size={20} className="text-success shrink-0" />
-            : <XCircle size={20} className="text-danger shrink-0" />}
+            : <XCircle size={20} className="text-error shrink-0" />}
           <span className="text-sm font-medium">
             {report.success
               ? `Восстановление выполнено успешно (${total} записей)`
@@ -419,14 +419,14 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
         </div>
 
         {report.conversionNotice && (
-          <div className="flex gap-2 rounded-lg border border-brand-subtle bg-brand-subtle p-3 text-sm text-brand-pressed">
+          <div className="flex gap-2 rounded-lg border border-primary-container bg-primary-container p-3 text-sm text-brand-pressed">
             <Info size={16} className="shrink-0 mt-0.5" />
             <span>{report.conversionNotice}</span>
           </div>
         )}
 
         {report.success && (
-          <div className="rounded-lg border border-stroke overflow-hidden">
+          <div className="rounded-lg border border-outline-variant overflow-hidden">
             <DataGrid framed={false} columns={STAT_COLUMNS} rowKey={r => r.label} rows={[
               { label: 'Типы полей', created: report.primitiveTypesCreated ?? 0, updated: report.primitiveTypesUpdated ?? 0 },
               { label: 'Перечисления', created: report.enumTypesCreated ?? 0, updated: report.enumTypesUpdated ?? 0 },
@@ -453,7 +453,7 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
               состоянию не вернётся — он останется. Поведение выбрано намеренно (безопаснее не
               удалять), но оператор вправе знать о нём до того, как удивится.
             */}
-            <p className={`px-4 py-2 text-xs text-fg3 ${report.typstUserLibRestored ? 'border-t border-stroke' : ''}`}>
+            <p className={`px-4 py-2 text-xs text-fg3 ${report.typstUserLibRestored ? 'border-t border-outline-variant' : ''}`}>
               Восстановление добавляет и обновляет записи, но <b>не удаляет</b> то, чего в копии нет:
               созданное после снятия копии останется на месте. Кроме библиотеки Typst — её дерево
               файлов замещается целиком.
@@ -462,7 +462,7 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
         )}
 
         {report.warnings.length > 0 && (
-          <div className="rounded-lg border border-warning-border bg-warning-subtle p-3 space-y-1">
+          <div className="rounded-lg border border-warning-border bg-warning-container p-3 space-y-1">
             <p className="text-xs font-semibold text-warning uppercase tracking-wide mb-2">
               Предупреждения ({report.warnings.length})
             </p>

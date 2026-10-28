@@ -72,8 +72,8 @@ interface PasteMappingModalProps {
  * с её строками. Тело монтируется по открытию (issue #858): каждое открытие начинается с того
  * текста, с которым вставку позвали, и разбирает его до первого рендера — а не эффектом после него.
  */
-const MAP_HEAD = 'bg-base px-2 py-1.5 text-fg3 font-medium border-b border-stroke';
-const MAP_CELL = 'px-2 py-1.5 border-b border-stroke';
+const MAP_HEAD = 'bg-surface-container-low px-2 py-1.5 text-fg3 font-medium border-b border-outline-variant';
+const MAP_CELL = 'px-2 py-1.5 border-b border-outline-variant';
 
 export function PasteMappingModal(props: PasteMappingModalProps) {
   return props.open ? <PasteMappingModalBody {...props} /> : null;
@@ -307,14 +307,14 @@ function PasteMappingModalBody({
           </div>
         }>
         <div className="space-y-4">
-          <p className="text-sm text-fg2">Скопируйте ячейки в Excel и вставьте сюда (Ctrl+V):</p>
+          <p className="text-sm text-on-surface-variant">Скопируйте ячейки в Excel и вставьте сюда (Ctrl+V):</p>
           <textarea autoFocus value={rawText} onChange={e => setRawText(e.target.value)}
             onPaste={e => {
               const text = e.clipboardData.getData('text/plain');
               if (text.trim()) { e.preventDefault(); setRawText(text); initMapping(text); setStep('map'); }
             }}
             placeholder="Вставьте данные из Excel..." rows={7}
-            className="w-full border border-stroke-strong rounded-md px-3 py-2 text-xs font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface resize-none" />
+            className="w-full border border-outline rounded-md px-3 py-2 text-xs font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface resize-none" />
         </div>
       </WindowStep>
     );
@@ -337,30 +337,30 @@ function PasteMappingModalBody({
           </div>
         }>
         <div className="space-y-3 text-sm">
-          <p className="text-fg2">Будет вставлено строк: <span className="font-medium text-fg1">{pending.rows.length}</span>
+          <p className="text-on-surface-variant">Будет вставлено строк: <span className="font-medium text-on-surface">{pending.rows.length}</span>
             {pending.rows.length < importCount && (
               <span className="text-fg4"> (из {importCount}: остальные не дали ни одного значения)</span>
             )}
           </p>
           {pending.linked + pending.inline > 0 && (
             <ul className="space-y-1.5">
-              <li className="text-fg2">🔗 Связано с каталогом: <span className="font-medium text-fg1">{pending.linked}</span></li>
-              <li className="text-fg2">
-                📝 Встроенные данные (без связи с каталогом): <span className="font-medium text-fg1">{pending.inline}</span>
+              <li className="text-on-surface-variant">🔗 Связано с каталогом: <span className="font-medium text-on-surface">{pending.linked}</span></li>
+              <li className="text-on-surface-variant">
+                📝 Встроенные данные (без связи с каталогом): <span className="font-medium text-on-surface">{pending.inline}</span>
               </li>
             </ul>
           )}
           {pending.rejects.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-fg2">
-                ⚠️ Не разобрано: <span className="font-medium text-fg1">{pending.rejects.length}</span>
+              <p className="text-on-surface-variant">
+                ⚠️ Не разобрано: <span className="font-medium text-on-surface">{pending.rejects.length}</span>
                 {' '}{ruPlural(pending.rejects.length, 'ячейка', 'ячейки', 'ячеек')}
               </p>
               <ul className="space-y-0.5 max-h-40 overflow-y-auto">
                 {pending.rejects.slice(0, REJECTS_SHOWN).map((c, i) => (
                   <li key={i} className="text-xs text-fg3">
                     строка {c.line}, «{c.title}»: {c.reason}
-                    {' — '}<span className="font-mono text-fg1">{c.raw}</span>
+                    {' — '}<span className="font-mono text-on-surface">{c.raw}</span>
                   </li>
                 ))}
               </ul>
@@ -420,7 +420,7 @@ function PasteMappingModalBody({
       }>
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-fg2 cursor-pointer">
+          <label className="flex items-center gap-2 text-sm text-on-surface-variant cursor-pointer">
             <input type="checkbox" checked={skipHeader}
               onChange={e => {
                 const checked = e.target.checked;
@@ -429,7 +429,7 @@ function PasteMappingModalBody({
                 setMatchFields({});
                 clearPending();
               }}
-              className="w-4 h-4 rounded border-stroke-strong text-brand" />
+              className="w-4 h-4 rounded border-outline text-primary" />
             Первая строка — заголовки
           </label>
           <span className="text-xs text-fg4">Найдено строк данных: {importCount}</span>
@@ -437,7 +437,7 @@ function PasteMappingModalBody({
         {/* Форма, а не таблица данных (#1354): строка — поле, в клетках — выбор. Поэтому сетка
             раскладки, а не таблица: читать здесь нечего, здесь задают. */}
         <div className="overflow-x-auto">
-          <div className="grid grid-cols-3 min-w-[480px] text-xs border border-stroke rounded-md overflow-hidden [&>div:last-child>div]:border-b-0">
+          <div className="grid grid-cols-3 min-w-[480px] text-xs border border-outline-variant rounded-md overflow-hidden [&>div:last-child>div]:border-b-0">
             <div className={MAP_HEAD}>Поле таблицы</div>
             <div className={MAP_HEAD}>Столбец из Excel</div>
             <div className={MAP_HEAD}>Сопоставить по</div>
@@ -448,8 +448,8 @@ function PasteMappingModalBody({
               return (
                 <div key={f.key} className="contents">
                   <div className={MAP_CELL}>
-                    <span className="text-fg1 font-medium">{f.title}</span>
-                    {f.required && <span className="text-danger ml-0.5">*</span>}
+                    <span className="text-on-surface font-medium">{f.title}</span>
+                    {f.required && <span className="text-error ml-0.5">*</span>}
                   </div>
                   <div className={MAP_CELL}>
                     <Select size="sm" className={selectCls} aria-label={`Колонка для «${f.title}»`}

@@ -40,7 +40,7 @@ export function SourceOriginIcon(
   // а уход туда из формы документа потерял бы несохранённые реквизиты. Действие человек найдёт там,
   // где путь к нему есть, — в обзоре источников документа (кнопка «Источники» в шапке).
   const title = stale ? `${originText}. ${staleReasonText(staleReason)}` : originText;
-  const cls = stale ? 'text-warning' : 'text-brand';
+  const cls = stale ? 'text-warning' : 'text-primary';
 
   return (
     <Tooltip content={title}>

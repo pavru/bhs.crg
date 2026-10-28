@@ -65,7 +65,7 @@ function suggestComplexTokens(columnNames: string[], complexFields: SchemaField[
  * сравнивая строки между собой.
  *
  * Только ПЕРЕНОС: ширина, размер и цвет задаются на месте. Смешивать их здесь нельзя — в Tailwind
- * побеждает не порядок классов в атрибуте, а порядок правил в стилях: `text-fg2` из общей строки
+ * побеждает не порядок классов в атрибуте, а порядок правил в стилях: `text-on-surface-variant` из общей строки
  * перебил бы локальный `text-fg4`, а `shrink-0` — локальный `flex-1` (у shorthand `flex` проигрывает
  * именно flex-shrink).
  *
@@ -119,14 +119,14 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
   };
   const segBtn = (m: 'ref' | 'inline', label: string) => (
     <button type="button" onClick={() => { setModeOverride(m); onChange(undefined); }}
-      className={`px-2 py-0.5 transition-colors ${mode === m ? 'bg-brand text-on-brand' : 'text-fg3 hover:bg-muted'}`}>{label}</button>
+      className={`px-2 py-0.5 transition-colors ${mode === m ? 'bg-primary text-on-primary' : 'text-fg3 hover:bg-surface-container'}`}>{label}</button>
   );
 
   return (
-    <div className="space-y-1 rounded-md border border-stroke/60 p-1.5">
+    <div className="space-y-1 rounded-md border border-outline-variant/60 p-1.5">
       <div className="flex items-center gap-2">
-        <Tooltip content={`${field.title} (${field.key}) — составное поле`}><span className={`flex-1 min-w-0 text-xs text-fg2 ${MAP_LABEL}`}>{field.title}</span></Tooltip>
-        <div className="flex rounded-md border border-stroke overflow-hidden text-caption shrink-0">
+        <Tooltip content={`${field.title} (${field.key}) — составное поле`}><span className={`flex-1 min-w-0 text-xs text-on-surface-variant ${MAP_LABEL}`}>{field.title}</span></Tooltip>
+        <div className="flex rounded-md border border-outline-variant overflow-hidden text-caption shrink-0">
           {segBtn('ref', '🔗 По ссылке')}{segBtn('inline', '{} Встроенный')}
         </div>
       </div>
@@ -147,7 +147,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
             ) : <Tooltip content="У типа нет полей-идентификаторов — только по имени"><span className="w-36 shrink-0 text-xs text-fg4 px-2 text-right">по имени</span></Tooltip>}
           </div>
           {refModeVal === 'identity' && (
-            <div className="pl-2 space-y-1 border-l border-stroke">
+            <div className="pl-2 space-y-1 border-l border-outline-variant">
               {identityFields.map(idf => (
                 <div key={idf.key} className="flex items-center gap-2">
                   <Tooltip content={idf.key}><span className={`w-40 shrink-0 text-caption text-fg4 ${MAP_LABEL}`}>{idf.title}</span></Tooltip>
@@ -163,7 +163,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
         </>
       ) : (
         <>
-          <div className="pl-2 space-y-1 border-l border-brand/40">
+          <div className="pl-2 space-y-1 border-l border-primary/40">
             {scalarSubs.map(sf => (
               <div key={sf.key} className="flex items-center gap-2">
                 <Tooltip content={`${sf.title} (${sf.key})`}><span className={`w-40 shrink-0 text-caption text-fg3 ${MAP_LABEL}`}>{sf.title}</span></Tooltip>
@@ -179,10 +179,10 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
                 <div key={sf.key}>
                   <button type="button"
                     onClick={() => setExpanded(p => toggleInSet(p, sf.key))}
-                    className="flex items-center gap-1 py-0.5 text-caption text-fg3 hover:text-fg1">
+                    className="flex items-center gap-1 py-0.5 text-caption text-fg3 hover:text-on-surface">
                     {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                     <Tooltip content={`${sf.title} (${sf.key}) — составное поле`}><span className={`text-left ${MAP_LABEL}`}>{sf.title}</span></Tooltip>
-                    {inlineFields[sf.key] && <span className="text-brand">•</span>}
+                    {inlineFields[sf.key] && <span className="text-primary">•</span>}
                     <span className="text-fg4">(составное)</span>
                   </button>
                   {open && (
@@ -320,7 +320,7 @@ export function MappingEditor({
           {scalarMappable.map(f => (
             <div key={f.key} className="flex items-center gap-2">
               <Tooltip content={`${f.title} (${f.key})`}>
-                <span className={`w-56 shrink-0 text-xs text-fg2 ${MAP_LABEL}`}>
+                <span className={`w-56 shrink-0 text-xs text-on-surface-variant ${MAP_LABEL}`}>
                   {f.title}
                 </span>
               </Tooltip>
@@ -340,7 +340,7 @@ export function MappingEditor({
             return (
               <div key={f.key} className="flex items-center gap-2">
                 <Tooltip content={`${f.title} (${f.key}) — файл-вложение`}>
-                  <span className={`w-56 shrink-0 text-xs text-fg2 ${MAP_LABEL}`}>
+                  <span className={`w-56 shrink-0 text-xs text-on-surface-variant ${MAP_LABEL}`}>
                     {f.title} <span className="text-fg4">📎</span>
                   </span>
                 </Tooltip>
@@ -361,7 +361,7 @@ export function MappingEditor({
             return (
               <div key={f.key} className="flex items-center gap-2">
                 <Tooltip content={`${f.title} (${f.key}) — ссылка на документ${targetType ? ` типа «${targetType.name}»` : ''}`}>
-                  <span className={`w-56 shrink-0 text-xs text-fg2 flex items-center gap-1 ${MAP_LABEL}`}>
+                  <span className={`w-56 shrink-0 text-xs text-on-surface-variant flex items-center gap-1 ${MAP_LABEL}`}>
                     <Link2 size={12} className="shrink-0 text-fg4" />
                     {f.title}
                   </span>
@@ -464,7 +464,7 @@ function AddBindingPanel({
   }
 
   return (
-    <div className="rounded-xl p-4 space-y-4 border border-stroke bg-base">
+    <div className="rounded-xl p-4 space-y-4 border border-outline-variant bg-surface-container-low">
       <div>
         <label className="block text-xs font-medium mb-1 text-fg3">
           Источник данных
@@ -491,7 +491,7 @@ function AddBindingPanel({
 
       {selectedSource && (
         materializeTypeId ? (
-          <div className="rounded-lg border border-brand/40 bg-brand/5 p-3 space-y-2">
+          <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 space-y-2">
             <p className="text-xs text-fg3">
               Источник материализуется в тип <b>{allDocTypes.find(t => t.id === materializeTypeId)?.name ?? '—'}</b>.
               Маппинг задан на источнике — выберите только поле-цель совместимого типа.
@@ -519,19 +519,19 @@ function AddBindingPanel({
         )
       )}
 
-      {error && <p className="text-xs text-danger">{error}</p>}
+      {error && <p className="text-xs text-error">{error}</p>}
 
       <div className="flex gap-2">
         <button
           onClick={handleSave}
           disabled={!sourceId || create.isPending}
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-on-brand disabled:opacity-40 bg-brand"
+          className="px-3 py-1.5 rounded-md text-sm font-medium text-on-primary disabled:opacity-40 bg-primary"
         >
           {create.isPending ? 'Сохранение...' : 'Сохранить привязку'}
         </button>
         <button
           onClick={onDone}
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-fg2 bg-muted"
+          className="px-3 py-1.5 rounded-md text-sm font-medium text-on-surface-variant bg-surface-container"
         >
           Отмена
         </button>
@@ -594,11 +594,11 @@ function BindingRow({
   const mappedCount = Object.keys(mapping).filter(k => mapping[k]).length;
 
   return (
-    <div className="border-b border-stroke last:border-0">
+    <div className="border-b border-outline-variant last:border-0">
       <div className="flex items-center gap-2 px-4 py-3">
-        <Database size={14} className="text-brand shrink-0" />
+        <Database size={14} className="text-primary shrink-0" />
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium truncate text-fg1">
+          <div className="text-sm font-medium truncate text-on-surface">
             {source?.name ?? '—'}
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -623,7 +623,7 @@ function BindingRow({
           <Tooltip content="Удалить" name>
             <button
               onClick={() => setConfirming(true)}
-              className="p-1.5 rounded text-fg4 hover:text-danger transition-colors"
+              className="p-1.5 rounded text-fg4 hover:text-error transition-colors"
             >
               <Trash2 size={13} />
             </button>
@@ -631,11 +631,11 @@ function BindingRow({
         ) : (
           <div className="flex items-center gap-1.5 text-xs">
             <button onClick={handleDelete} disabled={del.isPending}
-              className="px-2 py-0.5 rounded text-on-danger text-xs bg-danger">
+              className="px-2 py-0.5 rounded text-on-error text-xs bg-error">
               Да
             </button>
             <button onClick={() => setConfirming(false)}
-              className="px-2 py-0.5 rounded text-xs bg-muted text-fg2">
+              className="px-2 py-0.5 rounded text-xs bg-surface-container text-on-surface-variant">
               Нет
             </button>
           </div>
@@ -655,11 +655,11 @@ function BindingRow({
           />
           <div className="flex gap-2">
             <button onClick={handleSave} disabled={update.isPending}
-              className="px-3 py-1.5 rounded-md text-sm font-medium text-on-brand bg-brand">
+              className="px-3 py-1.5 rounded-md text-sm font-medium text-on-primary bg-primary">
               {update.isPending ? 'Сохранение...' : 'Сохранить'}
             </button>
             <button onClick={handleAutoRemap} disabled={autoMap.isPending}
-              className="px-3 py-1.5 rounded-md text-sm font-medium text-fg2 bg-muted">
+              className="px-3 py-1.5 rounded-md text-sm font-medium text-on-surface-variant bg-surface-container">
               Авто-маппинг
             </button>
             <button onClick={() => setEditing(false)}
@@ -692,7 +692,7 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl overflow-hidden border border-stroke bg-surface">
+      <div className="rounded-xl overflow-hidden border border-outline-variant bg-surface">
         {bindings.length === 0 && !adding ? (
           <div className="p-6 text-center text-sm text-fg4">
             Нет привязок к наборам данных
@@ -724,13 +724,13 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
         <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={() => setAdding(true)}
-            className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md transition-colors text-brand bg-brand-subtle"
+            className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md transition-colors text-primary bg-primary-container"
           >
             <Plus size={14} /> Добавить источник данных
           </button>
           <button
             onClick={() => setApplyingTemplate(true)}
-            className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md transition-colors text-fg2 bg-muted"
+            className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md transition-colors text-on-surface-variant bg-surface-container"
           >
             <LayoutTemplate size={14} /> Из шаблона
           </button>
@@ -738,7 +738,7 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
             <button
               onClick={handlePreview}
               disabled={previewing}
-              className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md transition-colors disabled:opacity-50 text-fg2 bg-muted"
+              className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md transition-colors disabled:opacity-50 text-on-surface-variant bg-surface-container"
             >
               {previewing
                 ? <Loader2 size={14} className="animate-spin" />
@@ -769,7 +769,7 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
               Загрузка и разбор файлов...
             </div>
           ) : previewError ? (
-            <p className="text-xs text-danger">
+            <p className="text-xs text-error">
               {previewError instanceof Error ? previewError.message : 'Ошибка проверки'}
             </p>
           ) : previewResults ? (

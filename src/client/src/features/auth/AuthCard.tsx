@@ -10,15 +10,15 @@ export function AuthCard({ title, subtitle, children }: {
   const productName = useProductName();
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-base p-4">
-      <div className="w-full max-w-sm rounded-[28px] bg-surface border border-stroke p-8"
+    <div className="min-h-screen flex items-center justify-center bg-surface-container-low p-4">
+      <div className="w-full max-w-sm rounded-[28px] bg-surface border border-outline-variant p-8"
         style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
         <div className="flex items-center gap-3 mb-6">
-          <BrandLogo className="w-11 h-11 rounded-lg bg-brand text-on-brand"
+          <BrandLogo className="w-11 h-11 rounded-lg bg-primary text-on-primary"
             style={{ boxShadow: 'var(--md-sys-elevation-level1)' }} iconSize={22} />
-          <span className="text-2xl font-semibold text-brand leading-none">{productName}</span>
+          <span className="text-2xl font-semibold text-primary leading-none">{productName}</span>
         </div>
-        <h1 className="text-xl font-normal text-fg1">{title}</h1>
+        <h1 className="text-xl font-normal text-on-surface">{title}</h1>
         {subtitle && <p className="mt-1.5 mb-6 text-sm text-fg3">{subtitle}</p>}
         <div className={subtitle ? '' : 'mt-6'}>{children}</div>
       </div>

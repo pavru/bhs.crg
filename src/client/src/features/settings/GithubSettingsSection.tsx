@@ -110,7 +110,7 @@ export function GithubSettingsSection() {
         <a
           href="https://github.com/settings/personal-access-tokens"
           target="_blank" rel="noreferrer"
-          className="inline-flex items-center gap-1 text-xs text-brand hover:underline"
+          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
         >
           Где выпустить токен <ExternalLink size={12} />
         </a>

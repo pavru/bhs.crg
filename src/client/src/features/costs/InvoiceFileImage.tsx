@@ -92,9 +92,9 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-stroke shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant shrink-0">
         <FileSpreadsheet size={14} className="text-fg3 shrink-0" />
-        <span className="text-xs text-fg2 truncate flex-1">{fileName ?? 'Файл счёта'}</span>
+        <span className="text-xs text-on-surface-variant truncate flex-1">{fileName ?? 'Файл счёта'}</span>
         {/* Во вкладке — полный просмотрщик браузера: поиск, печать с настройками (issue #1490). */}
         <Button size="sm" icon={<ExternalLink size={13} />} disabled={!bytes}
           onClick={() => { if (bytes) void openInNewTab(bytes); }}>
@@ -105,7 +105,7 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
       {/* Одна строка (issue #1495, вариант Б): короткая фраза, чип и «Перестроить»; в узкой колонке чип с
           кнопкой уходят на вторую строку вместе. Фраза не обрезается — многоточие срезало бы как раз
           «документ — оригинал»; остальное, что о виде сказать, — в её подсказке и окне. */}
-      <div className="px-3 py-1.5 border-b border-stroke bg-muted text-xs text-fg2 shrink-0" data-testid="image-caveat">
+      <div className="px-3 py-1.5 border-b border-outline-variant bg-surface-container text-xs text-on-surface-variant shrink-0" data-testid="image-caveat">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <CaveatPhrase about={`Вид для чтения${image.pages ? `, ${image.pages} стр.` : ''}: ${IMAGE_CAVEAT}. `
             + `Построен ${image.builtAt ? formatDateTime(image.builtAt) : ''} из файла${fileName ? ` «${fileName}»` : ''}. `
@@ -126,7 +126,7 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
           )}
         </div>
         {lines.length > 0 && (
-          <ul className="mt-1 space-y-0.5 text-fg2">
+          <ul className="mt-1 space-y-0.5 text-on-surface-variant">
             {lines.map((line, i) => (
               // Не предупреждение: вид не испорчен, он лишь по прежним параметрам.
               <li key={`${i}|${line.text}`} className="flex items-start gap-1.5" data-testid={line.kind}>
@@ -137,7 +137,7 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
         )}
       </div>
       {/* Своя область наложения и обрезка: лист не выходит за неё поверх строки-оговорки (issue #1490). */}
-      <div className="relative isolate overflow-hidden flex-1 min-h-0 bg-base">
+      <div className="relative isolate overflow-hidden flex-1 min-h-0 bg-surface-container-low">
         {failed
           ? (
             // Отказ ДО документа — связь или хранилище, а не PDF: это говорит место, а не просмотрщик.
@@ -167,14 +167,14 @@ function CaveatPhrase({ about }: { about: string }) {
       <Tooltip content={about}>
         <Popover.Trigger asChild>
           <button type="button" data-testid="image-caveat-phrase"
-            className="flex-auto text-left rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-            <span className="font-medium text-fg1">Вид для чтения</span> · документ — оригинал
+            className="flex-auto text-left rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            <span className="font-medium text-on-surface">Вид для чтения</span> · документ — оригинал
           </button>
         </Popover.Trigger>
       </Tooltip>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6} aria-label="Вид для чтения" data-testid="image-caveat-about"
-          className="z-50 w-72 max-w-(--radix-popover-content-available-width) rounded-lg border border-stroke bg-surface p-3 text-xs text-fg1"
+          className="z-50 w-72 max-w-(--radix-popover-content-available-width) rounded-lg border border-outline-variant bg-surface p-3 text-xs text-on-surface"
           style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           {about}
         </Popover.Content>
@@ -200,18 +200,18 @@ export function RefusedImage({ invoiceId, blobPath, fileName, image, canEdit, re
   const toast = useToast();
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-stroke shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant shrink-0">
         <FileSpreadsheet size={14} className="text-fg3 shrink-0" />
-        <span className="text-xs text-fg2 truncate flex-1">{fileName ?? 'Файл счёта'}</span>
+        <span className="text-xs text-on-surface-variant truncate flex-1">{fileName ?? 'Файл счёта'}</span>
         <OriginalButton invoiceId={invoiceId} fileName={fileName} label="Оригинал" />
       </div>
-      <div className="flex-1 min-h-0 bg-base">
+      <div className="flex-1 min-h-0 bg-surface-container-low">
         <Centered>
           <div className="flex flex-col items-center gap-2 max-w-sm" data-testid="image-refused">
             {image.aboutFile
               ? <FileX size={20} className="text-warning" />
               : <CloudOff size={20} className="text-fg3" />}
-            <span className="text-sm font-medium text-fg1">
+            <span className="text-sm font-medium text-on-surface">
               {image.aboutFile ? 'Вид для чтения не построен' : 'Вид для чтения пока не построен'}
             </span>
             <span>{image.reason}</span>

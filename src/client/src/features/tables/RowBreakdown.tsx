@@ -19,7 +19,7 @@ function breakdownColumns(breakdown: TableBreakdown): DataGridColumn<BreakdownRo
     return column;
   });
   if (breakdown.narrowed)
-    columns.push({ key: 'named', label: 'Отбор', cell: row => row.named ? <span className="text-brand">в отборе</span> : null });
+    columns.push({ key: 'named', label: 'Отбор', cell: row => row.named ? <span className="text-primary">в отборе</span> : null });
   return columns;
 }
 
@@ -38,14 +38,14 @@ export function RowBreakdown({ breakdown, grain }: { breakdown: TableBreakdown; 
   // как «счёт не разнесён».
   if (breakdown.refusal)
     return (
-      <section aria-label={breakdown.title} className="mb-3 pb-3 border-b border-stroke">
+      <section aria-label={breakdown.title} className="mb-3 pb-3 border-b border-outline-variant">
         <h3 className="text-xs font-medium uppercase tracking-wide text-fg3">{breakdown.title}</h3>
-        <p role="alert" className="mt-0.5 text-sm text-danger">{breakdown.refusal}</p>
+        <p role="alert" className="mt-0.5 text-sm text-error">{breakdown.refusal}</p>
       </section>
     );
 
   return (
-    <section aria-label={breakdown.title} className="mb-3 pb-3 border-b border-stroke">
+    <section aria-label={breakdown.title} className="mb-3 pb-3 border-b border-outline-variant">
       <h3 className="text-xs font-medium uppercase tracking-wide text-fg3">{breakdown.title}</h3>
       {breakdown.note && <p className="mt-0.5 text-xs text-fg3">{breakdown.note}</p>}
 
@@ -53,11 +53,11 @@ export function RowBreakdown({ breakdown, grain }: { breakdown: TableBreakdown; 
         rows={breakdown.rows} emphasized={row => row.named} />
 
       {totals.length > 0 && (
-        <dl className="mt-1.5 pt-1.5 border-t border-stroke/60 text-sm">
+        <dl className="mt-1.5 pt-1.5 border-t border-outline-variant/60 text-sm">
           {totals.map(total => (
             <div key={total.key} className="flex justify-between gap-3">
               <dt className="text-fg3">{total.label}</dt>
-              <dd className="tabular-nums text-fg1">{total.value}</dd>
+              <dd className="tabular-nums text-on-surface">{total.value}</dd>
             </div>
           ))}
         </dl>

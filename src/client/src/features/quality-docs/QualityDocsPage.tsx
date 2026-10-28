@@ -160,7 +160,7 @@ export function QualityDocsPage() {
 
   const nav = (
     <>
-      <div className="p-3 border-b border-stroke shrink-0">
+      <div className="p-3 border-b border-outline-variant shrink-0">
         <NavSearchInput value={search} onChange={setSearch} placeholder="Материал или документ…" />
       </div>
       {/* Список скроллится САМ: без этого длинный перечень растит страницу и уносит шапку. */}
@@ -246,7 +246,7 @@ export function QualityDocsPage() {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           {/* Имени мало: в библиотеке два документа с одинаковым названием и разным содержимым. */}
-          <h2 className="text-lg font-semibold text-fg1 break-words">{current.displayName}</h2>
+          <h2 className="text-lg font-semibold text-on-surface break-words">{current.displayName}</h2>
           <p className="text-xs text-fg3 mt-0.5">
             {[typeNameOf(current, docTypes),
               byTag(current, docTypes, FUNCTIONAL_TAG.docNumber) && `№ ${byTag(current, docTypes, FUNCTIONAL_TAG.docNumber)}`,
@@ -262,7 +262,7 @@ export function QualityDocsPage() {
       <DocRequisites doc={current} docTypes={docTypes} />
 
       <div>
-        <h3 className="text-sm font-medium text-fg2 mb-2 flex items-center gap-2">
+        <h3 className="text-sm font-medium text-on-surface-variant mb-2 flex items-center gap-2">
           <Link2 size={14} className="text-fg4" />
           Связки материалов · {linksByDoc.get(current.id)?.length ?? 0}
         </h3>
@@ -281,7 +281,7 @@ export function QualityDocsPage() {
     <ListDetailShell view={ld}
       title="Документы качества"
       subtitle="Библиотека сертификатов и деклараций; связки материалов — на карточке документа"
-      icon={<ShieldCheck size={20} className="text-brand" />}
+      icon={<ShieldCheck size={20} className="text-primary" />}
       actions={
         <>
           <Button variant="outlined" icon={<Globe size={15} />} onClick={() => setWebOpen(true)}>
@@ -373,11 +373,11 @@ function DocRequisites({ doc, docTypes }: { doc: QualityDocument; docTypes: Docu
 
   if (rows.length === 0) return null;
   return (
-    <dl className="rounded-lg border border-stroke bg-base px-3 py-2 text-xs space-y-1">
+    <dl className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-xs space-y-1">
       {rows.map(r => (
         <div key={r.key} className="flex gap-2">
           <dt className="text-fg4 shrink-0 w-40">{r.title}</dt>
-          <dd className="text-fg2 min-w-0 break-words">{r.value}</dd>
+          <dd className="text-on-surface-variant min-w-0 break-words">{r.value}</dd>
         </div>
       ))}
     </dl>
@@ -447,25 +447,25 @@ function WebSearchModal({ open, onClose, docTypes }: {
         <input value={query} onChange={e => setQuery(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') void run(); }}
           placeholder="Напр.: Выключатель автоматический EKF AV-10"
-          className="flex-1 min-w-[260px] border border-stroke-strong rounded-md px-3 py-2 text-sm bg-surface text-fg1" />
+          className="flex-1 min-w-[260px] border border-outline rounded-md px-3 py-2 text-sm bg-surface text-on-surface" />
         <Button variant="filled" onClick={run} disabled={searching || !query.trim()}
           loading={searching} icon={<Search size={14} />}>
           Найти
         </Button>
       </div>
-      {error && <p className="text-sm text-danger mt-2">{error}</p>}
+      {error && <p className="text-sm text-error mt-2">{error}</p>}
       {candidates && (
         candidates.length === 0
           ? <p className="text-sm text-fg4 mt-3">Ничего не найдено.</p>
           : (
-            <div className="mt-3 divide-y divide-muted border border-stroke rounded-md max-h-96 overflow-y-auto">
+            <div className="mt-3 divide-y divide-surface-container border border-outline-variant rounded-md max-h-96 overflow-y-auto">
               {candidates.map(c => (
                 <div key={c.url} className="flex items-start gap-3 px-3 py-2">
-                  <span className="text-caption px-1.5 py-0.5 rounded bg-brand-subtle text-brand shrink-0 mt-0.5">
+                  <span className="text-caption px-1.5 py-0.5 rounded bg-primary-container text-primary shrink-0 mt-0.5">
                     {SOURCE_LABEL[c.source] ?? c.source}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm text-fg1 truncate">{c.title || c.url}</p>
+                    <p className="text-sm text-on-surface truncate">{c.title || c.url}</p>
                     {c.snippet && <p className="text-xs text-fg4 line-clamp-2">{c.snippet}</p>}
                     <a href={c.url} target="_blank" rel="noopener noreferrer"
                       className="text-xs text-brand-hover inline-flex items-center gap-1 mt-0.5">
@@ -474,7 +474,7 @@ function WebSearchModal({ open, onClose, docTypes }: {
                   </div>
                   <Tooltip content="Скачать файл по ссылке и добавить в библиотеку (если это прямой PDF/скан)">
                     <button onClick={() => importOne(c)} disabled={importingUrl === c.url}
-                      className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border border-stroke hover:bg-base disabled:opacity-50 shrink-0">
+                      className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border border-outline-variant hover:bg-surface-container-low disabled:opacity-50 shrink-0">
                       {importingUrl === c.url ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} В библиотеку
                     </button>
                   </Tooltip>

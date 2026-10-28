@@ -147,7 +147,7 @@ function ConfirmDialogBody({
           style={{ backdropFilter: 'blur(2px)' }}
         />
         <Dialog.Content
-          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-[28px] p-6 w-full max-w-sm bg-surface border border-stroke focus:outline-none"
+          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-[28px] p-6 w-full max-w-sm bg-surface border border-outline-variant focus:outline-none"
           style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}
           ref={content}
           // Идёт запрос или показан отказ — окно держит человека, см. `DialogHold`.
@@ -165,19 +165,19 @@ function ConfirmDialogBody({
             if (rule.outside === 'hint') pointAtExit(content.current, false);
           }}
         >
-          <Dialog.Title className="text-sm font-semibold mb-2 text-fg1">
+          <Dialog.Title className="text-sm font-semibold mb-2 text-on-surface">
             {blockedView ? (exitFailed ?? errorTitle) : title}
           </Dialog.Title>
 
           {blockedView ? (
             <>
-              <div className="mt-2 flex items-start gap-2.5 rounded-md bg-danger-subtle px-3 py-2.5 text-xs text-fg1">
-                <AlertTriangle size={16} className="shrink-0 mt-0.5 text-danger" />
+              <div className="mt-2 flex items-start gap-2.5 rounded-md bg-error-container px-3 py-2.5 text-xs text-on-surface">
+                <AlertTriangle size={16} className="shrink-0 mt-0.5 text-error" />
                 <div className="max-h-40 overflow-y-auto whitespace-pre-line min-w-0">{error ?? blocked}</div>
               </div>
-              {exit?.note && <p className="mt-3 text-xs text-fg2">{exit.note}</p>}
+              {exit?.note && <p className="mt-3 text-xs text-on-surface-variant">{exit.note}</p>}
               {exit?.secondary && (
-                <div className="mt-3 pt-3 border-t border-stroke text-xs text-fg2">
+                <div className="mt-3 pt-3 border-t border-outline-variant text-xs text-on-surface-variant">
                   <p>{exit.secondary.note}</p>
                   {exit.secondary.action && (
                     <Button variant="text" danger size="sm" className="mt-1 -ml-3" disabled={busy}
@@ -197,7 +197,7 @@ function ConfirmDialogBody({
               )}
 
               {requireCheckbox && (
-                <label className="flex items-start gap-2 mb-4 text-xs text-fg2 cursor-pointer select-none">
+                <label className="flex items-start gap-2 mb-4 text-xs text-on-surface-variant cursor-pointer select-none">
                   <Checkbox size="sm" checked={checked} onChange={setChecked} />
                   {requireCheckbox}
                 </label>

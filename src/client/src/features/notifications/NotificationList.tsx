@@ -49,9 +49,9 @@ async function openResult(linkUrl: string) {
 
 // Аватар-иконка уведомления: для ошибок — error-container, иначе — соответствующий контейнер.
 const SEVERITY: Record<NotificationSeverity, { icon: typeof Info; color: string; bg: string }> = {
-  Info:    { icon: Info,          color: 'text-brand',   bg: 'bg-brand-subtle' },
-  Warning: { icon: AlertTriangle, color: 'text-warning', bg: 'bg-warning-subtle' },
-  Error:   { icon: AlertCircle,   color: 'text-danger',  bg: 'bg-danger-subtle' },
+  Info:    { icon: Info,          color: 'text-primary',   bg: 'bg-primary-container' },
+  Warning: { icon: AlertTriangle, color: 'text-warning', bg: 'bg-warning-container' },
+  Error:   { icon: AlertCircle,   color: 'text-error',  bg: 'bg-error-container' },
 };
 
 function relTime(iso: string): string {
@@ -71,20 +71,20 @@ function NotificationRow({ n }: { n: NotificationDto }) {
   const meta = SEVERITY[n.severity];
   const Icon = meta.icon;
   return (
-    <div className={`group flex gap-3.5 pl-5 pr-3 py-4 transition-colors ${n.isRead ? '' : 'bg-tonal'}`}>
+    <div className={`group flex gap-3.5 pl-5 pr-3 py-4 transition-colors ${n.isRead ? '' : 'bg-secondary-container'}`}>
       <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${meta.bg}`}>
         <Icon size={20} className={meta.color} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-fg1 truncate">{n.title}</p>
-          {!n.isRead && <span className="shrink-0 w-2 h-2 rounded-full bg-brand" />}
+          <p className="text-sm font-medium text-on-surface truncate">{n.title}</p>
+          {!n.isRead && <span className="shrink-0 w-2 h-2 rounded-full bg-primary" />}
         </div>
         <p className="text-note leading-[1.45] text-fg3 mt-1 break-words whitespace-pre-wrap">{n.message}</p>
         {n.linkUrl && (isExternalLink(n.linkUrl) ? (
           <a
             href={n.linkUrl} target="_blank" rel="noreferrer"
-            className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-tonal text-on-tonal hover:brightness-95 transition"
+            className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-secondary-container text-on-secondary-container hover:brightness-95 transition"
           >
             <ExternalLink size={13} /> {n.linkLabel ?? 'Открыть'}
           </a>
@@ -92,7 +92,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
           <button
             type="button"
             onClick={() => { void openResult(n.linkUrl!); }}
-            className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-tonal text-on-tonal hover:brightness-95 transition"
+            className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-secondary-container text-on-secondary-container hover:brightness-95 transition"
           >
             <Download size={13} /> {n.linkLabel ?? 'Открыть результат'}
           </button>
@@ -102,7 +102,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
             <button
               type="button"
               onClick={() => navigate(n.linkUrl!)}
-              className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-tonal text-on-tonal hover:brightness-95 transition"
+              className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-secondary-container text-on-secondary-container hover:brightness-95 transition"
             >
               <ArrowRight size={13} /> {n.linkLabel ?? 'Открыть'}
             </button>
@@ -110,7 +110,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
         ))}
         <div className="flex items-center gap-2 mt-2 text-xs text-fg3">
           {n.source && (
-            <span className="inline-flex items-center h-6 px-3 rounded-lg border border-stroke font-medium">{n.source}</span>
+            <span className="inline-flex items-center h-6 px-3 rounded-lg border border-outline-variant font-medium">{n.source}</span>
           )}
           <span>{relTime(n.createdAt)}</span>
         </div>
@@ -137,8 +137,8 @@ function healthLook(c: ComponentHealth): { dot: string; tone: string; label: str
   if (c.state === 'Flapping') return { dot: 'bg-warning', tone: 'text-warning', label: 'отвечает через раз' };
   // «Не проверяли» — не норма и не отказ: сервис за упавшим прокси, и сказано о нём одной строкой
   // выше. Выдать это за норму значило бы спрятать, за отказ — обвинить невиновного.
-  if (c.state === 'Unknown') return { dot: 'bg-fg4', tone: 'text-fg3', label: 'не проверяли' };
-  return { dot: 'bg-danger', tone: 'text-danger', label: c.detail ? 'сбой' : 'недоступен' };
+  if (c.state === 'Unknown') return { dot: 'bg-outline', tone: 'text-fg3', label: 'не проверяли' };
+  return { dot: 'bg-error', tone: 'text-error', label: c.detail ? 'сбой' : 'недоступен' };
 }
 
 /**
@@ -159,14 +159,14 @@ function HealthNote() {
     ? `${bad[0].name} — ${healthLook(bad[0]).label}`
     : `не в норме: ${bad.length} из ${health.length}`;
   return (
-    <div className="shrink-0 border-b border-stroke">
+    <div className="shrink-0 border-b border-outline-variant">
       <button type="button" aria-expanded={open} onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-2.5 pl-5 pr-4 py-2.5 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand">
-        <HeartPulse size={18} className={`shrink-0 ${down ? 'text-danger' : 'text-warning'}`} />
+        className="w-full flex items-center gap-2.5 pl-5 pr-4 py-2.5 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
+        <HeartPulse size={18} className={`shrink-0 ${down ? 'text-error' : 'text-warning'}`} />
         {/* Переносом, а не обрезкой: обрезанным оказывалось как раз имя сервиса — то, ради чего строка. */}
         <span className="flex-1 min-w-0">
-          <span className="font-medium text-fg1">Состояние системы:</span>{' '}
-          <span className={down ? 'text-danger' : 'text-warning'}>{summary}</span>
+          <span className="font-medium text-on-surface">Состояние системы:</span>{' '}
+          <span className={down ? 'text-error' : 'text-warning'}>{summary}</span>
         </span>
         <ChevronDown size={16} className={`shrink-0 text-fg3 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
@@ -178,7 +178,7 @@ function HealthNote() {
               <Tooltip key={c.code} content={c.detail ?? undefined}>
                 <div className="flex items-center gap-2.5 h-9 text-sm">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
-                  <span className="text-fg1 flex-1 truncate">
+                  <span className="text-on-surface flex-1 truncate">
                     {c.name}
                     {c.viaProxy && <span className="ml-1.5 text-xs text-fg4">через прокси</span>}
                   </span>
@@ -210,7 +210,7 @@ export function NotificationList({ items, unread, className = '' }: {
   return (
     <section aria-labelledby={heading} className={`flex flex-col ${className}`}>
       <div className="shrink-0 flex items-center gap-2 pl-5 pr-2 py-2">
-        <h2 id={heading} className="flex-1 text-base font-medium text-fg1">Уведомления</h2>
+        <h2 id={heading} className="flex-1 text-base font-medium text-on-surface">Уведомления</h2>
         <IconButton label="Отметить все прочитанными" onClick={() => markAll.mutate()} disabled={unread === 0}>
           <CheckCheck size={18} />
         </IconButton>
@@ -225,7 +225,7 @@ export function NotificationList({ items, unread, className = '' }: {
           Нет новых уведомлений
         </div>
       ) : (
-        <div className="min-h-0 overflow-y-auto divide-y divide-stroke">
+        <div className="min-h-0 overflow-y-auto divide-y divide-outline-variant">
           {items.map(n => <NotificationRow key={n.id} n={n} />)}
         </div>
       )}

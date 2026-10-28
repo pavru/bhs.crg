@@ -56,9 +56,9 @@ function NewTemplateForm({ documentTypeId, docType, allDocTypes, onClose, onCrea
         <p className="text-xs text-fg4">
           Будет создан Typst-шаблон с колонтитулами, нумерацией страниц и списком всех реквизитов типа документа.
         </p>
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <p className="text-sm text-error">{error}</p>}
       </div>
-      <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-2">
+      <div className="shrink-0 px-6 py-3 border-t border-outline-variant flex justify-end gap-2">
         <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
         <Button type="submit" variant="filled" loading={mutation.isPending}>
           {mutation.isPending ? 'Создание…' : 'Создать'}

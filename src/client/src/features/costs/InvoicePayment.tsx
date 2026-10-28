@@ -42,8 +42,8 @@ export function InvoiceLockNote({ lockedBy }: { lockedBy: string }) {
   const can = useCan();
 
   return (
-    <div role="note" className="flex items-start gap-2 rounded-lg border border-stroke bg-muted px-3 py-2
-      text-xs text-fg2">
+    <div role="note" className="flex items-start gap-2 rounded-lg border border-outline-variant bg-surface-container px-3 py-2
+      text-xs text-on-surface-variant">
       <Lock size={14} className="shrink-0 mt-0.5 text-fg3" />
       <span>
         Счёт заперт: {lockedBy}. Поля, строки и разноску обычной правкой не изменить.
@@ -99,7 +99,7 @@ export function InvoicePayment({ view, dirty }: {
   }
 
   return (
-    <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs text-fg2">
+    <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs text-on-surface-variant">
       {/* Текст платёжного документа денег не двигает — открыт и запертому (spec v3.3 п. 1.5). */}
       <PaidDocument view={view} editable={canPay} />
       <span>
@@ -236,7 +236,7 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
     return (
       <Modal open onOpenChange={o => { if (!o) onDone(); }} title={`Оплата: ${invoiceTitle(view)}`}
         acknowledge="Понятно">
-        <p role="alert" className="text-note text-fg1">
+        <p role="alert" className="text-note text-on-surface">
           Оплатить нельзя: {posting.refusal}.
           {posting.refusal.includes('расходится') && ' Исправьте строки или сумму счёта.'}
         </p>
@@ -256,7 +256,7 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
       }>
       <div className="space-y-4">
         {error && (
-          <p role="alert" className="text-note text-danger">
+          <p role="alert" className="text-note text-error">
             {error}{changed.size > 0 && ' Расклад обновлён — проверьте перенос.'}
           </p>
         )}
@@ -275,14 +275,14 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
         </div>
 
         {posting?.total != null && (
-          <p className="text-note text-fg2">К оплате <b className="tabular-nums">{formatMoney(posting.total)}</b></p>
+          <p className="text-note text-on-surface-variant">К оплате <b className="tabular-nums">{formatMoney(posting.total)}</b></p>
         )}
 
         <div>
           <h3 className="text-xs font-medium text-fg3 mb-1.5">Когда войдёт в затраты</h3>
           {failed
             ? (
-              <p role="alert" className="text-note text-danger">
+              <p role="alert" className="text-note text-error">
                 Расклад не получен: {failed}{' '}
                 <button type="button" className="underline" onClick={() => void ask(paidOn || null)}>Повторить</button>
               </p>
@@ -330,12 +330,12 @@ export function CancelDialog({ view, onDone }: { view: InvoiceView; onDone: () =
         </div>
       }>
       <div className="space-y-4">
-        <p className="text-note text-fg2">
+        <p className="text-note text-on-surface-variant">
           Счёт вернётся в «не оплачен», учётные даты долей сотрутся. Запись об оплате в журнале действий
           остаётся: отмена записывается рядом, с причиной.
         </p>
         {view.payment.lockedBy !== null && (
-          <p className="text-note text-fg2">
+          <p className="text-note text-on-surface-variant">
             Счёт заперт: {view.payment.lockedBy}. Закрытый месяц отмена не изменит — она ляжет в книгу
             исправлений днём отмены. Удалить счёт после этого будет нельзя, только отклонить.
           </p>
@@ -343,7 +343,7 @@ export function CancelDialog({ view, onDone }: { view: InvoiceView; onDone: () =
         <TextAreaField label="Причина отмены" value={reason} onChange={e => setReason(e.target.value)}
           rows={3} required
           hint={view.payment.lockedBy !== null ? 'её увидят в журнале действий и в книге исправлений' : 'её увидят в журнале действий'} />
-        {error && <p role="alert" className="text-note text-danger">{error}</p>}
+        {error && <p role="alert" className="text-note text-error">{error}</p>}
       </div>
     </Modal>
   );
@@ -357,7 +357,7 @@ function PostedDialog({ view, onDone }: { view: InvoiceView; onDone: () => void 
     <Modal open wide nothingToLose onOpenChange={o => { if (!o) onDone(); }} title={`Расклад оплаты: ${invoiceTitle(view)}`}
       footer={<div className="flex justify-end"><ModalExit>Закрыть</ModalExit></div>}>
       {isLoading ? <p className="text-note text-fg3">Читаем расклад…</p>
-        : error || !data ? <p role="alert" className="text-note text-danger">Расклад не получен: {apiError(error, 'сервер не ответил')}</p>
+        : error || !data ? <p role="alert" className="text-note text-error">Расклад не получен: {apiError(error, 'сервер не ответил')}</p>
           : <PaymentPostingTable posting={data} expanded />}
     </Modal>
   );

@@ -6,10 +6,10 @@
  */
 export function panelLink(isActive: boolean, muted = false): string {
   return 'flex items-center h-10 px-3 rounded-full text-sm select-none transition-colors ' +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ' +
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ' +
     (isActive
-      ? `bg-tonal text-on-tonal${muted ? '' : ' font-medium'}`
-      : `${muted ? 'text-fg3' : 'text-fg2'} hover:bg-black/5 dark:hover:bg-white/10`);
+      ? `bg-secondary-container text-on-tonal${muted ? '' : ' font-medium'}`
+      : `${muted ? 'text-fg3' : 'text-on-surface-variant'} hover:bg-black/5 dark:hover:bg-white/10`);
 }
 
 /** Микрозаголовок навигации и групп — по docs/UI.md, «Заголовки». Один на подпанель и меню раздела. */

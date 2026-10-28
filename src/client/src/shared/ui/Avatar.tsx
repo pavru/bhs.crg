@@ -16,7 +16,7 @@ export function Avatar({ src, name, email, className = 'w-10 h-10 text-base', al
     return <span className={base}><img src={src} alt={alt} className="w-full h-full object-cover" /></span>;
   }
   return (
-    <span className={`${base} bg-brand-subtle text-on-brand-subtle font-medium`}>
+    <span className={`${base} bg-primary-container text-on-primary-container font-medium`}>
       {initialsOf(name, email)}
     </span>
   );

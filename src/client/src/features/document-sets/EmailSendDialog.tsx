@@ -71,7 +71,7 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
     setUnchecked(new Set()); setExternal(''); setSubject(''); setBody('');
   }
 
-  const field = "w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface";
+  const field = "w-full border border-outline rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface";
 
   return (
     <Modal open={open} onOpenChange={o => { if (!o) leave(); }} title={`Отправить: ${itemName}`}
@@ -90,13 +90,13 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
       }>
       <div className="space-y-4">
         {!ready && (
-          <p className="flex items-start gap-2 text-sm text-warning bg-warning-subtle rounded-md p-3">
+          <p className="flex items-start gap-2 text-sm text-warning bg-warning-container rounded-md p-3">
             <AlertTriangle size={16} className="shrink-0 mt-0.5" /> {notReadyHint}
           </p>
         )}
 
         {recipientsError && (
-          <p className="flex items-start gap-2 text-sm text-warning bg-warning-subtle rounded-md p-3">
+          <p className="flex items-start gap-2 text-sm text-warning bg-warning-container rounded-md p-3">
             <AlertTriangle size={16} className="shrink-0 mt-0.5" />
             Список подписчиков не загрузился — отправляйте по адресам, введённым вручную.
             Пустой список здесь означал бы «подписчиков нет», а это не так.
@@ -105,12 +105,12 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
 
         {recipients.length > 0 && (
           <div>
-            <p className="text-xs font-medium text-fg2 mb-1">Подписчики (с учётом наследования)</p>
-            <div className="rounded-md border border-stroke divide-y divide-muted max-h-40 overflow-y-auto">
+            <p className="text-xs font-medium text-on-surface-variant mb-1">Подписчики (с учётом наследования)</p>
+            <div className="rounded-md border border-outline-variant divide-y divide-surface-container max-h-40 overflow-y-auto">
               {recipients.map(r => (
-                <label key={r.userId} className={`flex items-center gap-2 px-2.5 py-1.5 text-sm ${r.validEmail ? 'cursor-pointer hover:bg-base' : 'opacity-60'}`}>
+                <label key={r.userId} className={`flex items-center gap-2 px-2.5 py-1.5 text-sm ${r.validEmail ? 'cursor-pointer hover:bg-surface-container-low' : 'opacity-60'}`}>
                   <input type="checkbox" disabled={!r.validEmail} checked={r.validEmail && !unchecked.has(r.userId)} onChange={() => toggleSub(r.userId)} />
-                  <span className="text-fg1 flex-1 min-w-0 truncate">{r.displayName}</span>
+                  <span className="text-on-surface flex-1 min-w-0 truncate">{r.displayName}</span>
                   <span className="text-xs text-fg4 min-w-0 truncate">{r.email || '—'}</span>
                   {!r.validEmail && <AlertTriangle size={13} className="text-warning shrink-0" />}
                 </label>
@@ -120,22 +120,22 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
         )}
 
         <div>
-          <label className="block text-xs font-medium text-fg2 mb-1">Внешние адреса (контрагенты)</label>
+          <label className="block text-xs font-medium text-on-surface-variant mb-1">Внешние адреса (контрагенты)</label>
           <textarea className={field + ' min-h-16 resize-y'} value={external} onChange={e => { setExternal(e.target.value); setError(''); }}
             placeholder="Через запятую: client@zakazchik.ru, tn@stroynadzor.ru" />
-          {externalBad.length > 0 && <p className="text-caption text-danger mt-0.5">Неверные: {externalBad.join(', ')}</p>}
+          {externalBad.length > 0 && <p className="text-caption text-error mt-0.5">Неверные: {externalBad.join(', ')}</p>}
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-fg2 mb-1">Тема (необязательно)</label>
+          <label className="block text-xs font-medium text-on-surface-variant mb-1">Тема (необязательно)</label>
           <input className={field} value={subject} onChange={e => setSubject(e.target.value)} placeholder={defaultSubjectHint} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-fg2 mb-1">Текст (необязательно)</label>
+          <label className="block text-xs font-medium text-on-surface-variant mb-1">Текст (необязательно)</label>
           <textarea className={field + ' min-h-24 resize-y'} value={body} onChange={e => setBody(e.target.value)} placeholder={defaultBodyHint} />
         </div>
 
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <p className="text-sm text-error">{error}</p>}
         {queued && (
           <p className="text-sm text-success flex items-center gap-1.5">
             <CheckCircle size={15} /> Отправка запущена — ход виден на кнопке активности в шапке.

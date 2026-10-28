@@ -85,7 +85,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
     ...(filter.supplierId === null ? [{
       key: 'supplier', label: 'Поставщик', wrap: true,
       cell: (item: SupplierMatchItem) => (
-        <span className="text-fg2">
+        <span className="text-on-surface-variant">
           {supplierLabel({ name: item.supplierName, lost: item.supplierLost })}
           {item.supplierArchived && <ArchivedMark className="ml-1" />}
         </span>
@@ -112,7 +112,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
             line={{ where: supplierMatchWhere(item.supplierName) }}
             onPick={id => void repoint(item, id)} onClear={() => {}} />
           {issueNote(item.issue) && (
-            <p className={`mt-0.5 ${item.issue === 'lost' ? 'text-danger' : 'text-fg4'}`}>
+            <p className={`mt-0.5 ${item.issue === 'lost' ? 'text-error' : 'text-fg4'}`}>
               {issueNote(item.issue)}
             </p>
           )}
@@ -124,7 +124,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
       cell: item => (
         <Tooltip content="Забыть соответствие" name>
           <button type="button" disabled={point.isPending} onClick={() => setForgettingId(item.id)}
-            className="text-fg3 hover:text-danger p-1"><Trash2 size={14} /></button>
+            className="text-fg3 hover:text-error p-1"><Trash2 size={14} /></button>
         </Tooltip>
       ) },
   ];
@@ -148,12 +148,12 @@ export function SupplierMatchesDialog({ initial, onClose }: {
             <SelectItem key={s.id} value={s.id}>{supplierLabel(s)} ({s.count})</SelectItem>
           ))}
         </Select>
-        <label className="flex flex-1 min-w-[14rem] items-center gap-1 rounded border border-stroke bg-surface px-2 py-1">
+        <label className="flex flex-1 min-w-[14rem] items-center gap-1 rounded border border-outline-variant bg-surface px-2 py-1">
           <Search size={14} className="text-fg4" />
           <input value={typed} placeholder="Артикул или наименование у поставщика"
             aria-label="Поиск по артикулу или наименованию у поставщика" data-search=""
             onChange={e => setTyped(e.target.value)}
-            className="flex-1 bg-transparent text-sm text-fg1 outline-none" />
+            className="flex-1 bg-transparent text-sm text-on-surface outline-none" />
         </label>
         {/* Нули не рисуются: чип без записей — дверь в пустой список. Нажатый остаётся, чтобы его снять. */}
         {((data?.counts.lost ?? 0) > 0 || filter.issue === 'lost') && (
@@ -171,7 +171,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
       </div>
 
       {list.isError ? (
-        <div className="rounded-lg border border-danger/30 px-3 py-2 text-sm text-danger">
+        <div className="rounded-lg border border-error/30 px-3 py-2 text-sm text-error">
           Список соответствий не прочитан: {apiError(list.error)} Это не «соответствий нет».{' '}
           <button type="button" className="underline" onClick={() => void list.refetch()}>Повторить</button>
         </div>
@@ -181,7 +181,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
         filtered ? (
           <p className="py-6 text-center text-sm text-fg3">
             По этому отбору соответствий нет.{' '}
-            <button type="button" className="text-brand hover:underline" onClick={reset}>
+            <button type="button" className="text-primary hover:underline" onClick={reset}>
               Сбросить отбор
             </button>
           </p>
@@ -205,7 +205,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
             {/* Разом — только у одного поставщика: его соответствия держат его запись от удаления, и
                 забывать сотню по одному значило бы не забыть никогда. */}
             {chosen && (
-              <button type="button" className="ml-auto text-danger hover:underline" onClick={() => setForgettingAll(true)}>
+              <button type="button" className="ml-auto text-error hover:underline" onClick={() => setForgettingAll(true)}>
                 Забыть все соответствия поставщика ({chosen.count})
               </button>
             )}
@@ -238,7 +238,7 @@ function IssueChip({ active, danger = false, onClick, children }: {
   return (
     <button type="button" onClick={onClick} aria-pressed={active}
       className={`rounded-full border px-2 py-0.5 text-xs
-        ${active ? 'border-brand bg-muted text-fg1' : danger ? 'border-danger/30 text-danger' : 'border-stroke text-fg3'}`}>
+        ${active ? 'border-primary bg-surface-container text-on-surface' : danger ? 'border-error/30 text-error' : 'border-outline-variant text-fg3'}`}>
       {children}
     </button>
   );

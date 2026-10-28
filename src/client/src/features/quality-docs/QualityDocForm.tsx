@@ -228,12 +228,12 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
     const locked = isLockedField(f);
     // Тонкая левая полоска, а не значок: полей в форме бывает сорок, а в плотной сетке в две
     // колонки значок съедает ширину у самого значения.
-    const mark = recognizedKeys.has(f.key) ? ' border-l-2 border-brand pl-2' : '';
+    const mark = recognizedKeys.has(f.key) ? ' border-l-2 border-primary pl-2' : '';
     const cls = (isWideField(f) ? 'col-span-2' : 'col-span-1 min-w-0') + mark;
     const hint = recognizedKeys.has(f.key) ? RECOGNIZED_HINT : undefined;
     const label = (
-      <label className="block text-xs font-medium text-fg2 mb-1">{f.title}
-        {f.required && !locked && <span className="ml-0.5 text-danger">*</span>}
+      <label className="block text-xs font-medium text-on-surface-variant mb-1">{f.title}
+        {f.required && !locked && <span className="ml-0.5 text-error">*</span>}
         {locked && <LockedFieldIcon className="ml-1 align-text-bottom" />}</label>
     );
     // Составное, массив и ссылка под замком сегодня не заводятся (белый список видов значения в
@@ -261,7 +261,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
             primitiveTypeDef={primitiveDef(f)} enumTypeDef={enumDef(f)} readOnly={locked} />
           {locked && <p className="text-caption text-fg4 mt-0.5 flex items-center gap-1"><LockedFieldIcon />{LOCKED_HINT}</p>}
           {constraintErrors[f.key] && (
-            <p className="text-xs text-danger mt-0.5">{constraintErrors[f.key]}</p>
+            <p className="text-xs text-error mt-0.5">{constraintErrors[f.key]}</p>
           )}
         </div>
       </Tooltip>
@@ -338,9 +338,9 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
 
       {/* Раскладка как в редакторе реквизитов: простые поля по два в ряд, широкие — на обе колонки.
           Ключ схемы в подписи не показываем — он нужен настройщику типа, а не тому, кто заполняет. */}
-      <div className="border-t border-muted pt-3">{renderFields(fields)}</div>
+      <div className="border-t border-surface-container pt-3">{renderFields(fields)}</div>
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <p className="text-sm text-error">{error}</p>}
       <div className="flex items-center gap-2 pt-1">
         <Button variant="filled" onClick={handleSave} loading={busy}
           disabled={busy || recognizing || uploading || imageUploading || !typeId} title={imageUploading ? "Дождитесь загрузки изображения" : undefined}>

@@ -24,10 +24,10 @@ export function SectionRail({ sections, isActive, onSelect }: {
         <button key={section.key} type="button" onClick={() => onSelect(section.key)}
           aria-current={isActive(section.key) ? 'true' : undefined}
           className={`w-full flex items-center gap-2 text-left text-sm px-2.5 py-1.5 rounded-lg transition-colors
-            ${isActive(section.key) ? 'bg-surface text-fg1 font-medium' : 'text-fg3 hover:bg-surface hover:text-fg1'}`}>
+            ${isActive(section.key) ? 'bg-surface text-on-surface font-medium' : 'text-fg3 hover:bg-surface hover:text-on-surface'}`}>
           <span className="flex-1 truncate">{section.title}</span>
           {section.missing && <>
-            <span className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" aria-hidden="true" />
+            <span className="w-1.5 h-1.5 rounded-full bg-error shrink-0" aria-hidden="true" />
             <span className="sr-only">не заполнено</span>
           </>}
           <span className="text-xs text-fg4 shrink-0">{section.count}</span>

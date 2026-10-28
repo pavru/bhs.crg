@@ -56,18 +56,18 @@ export function RolePicker({ value, known = [], onChange, disabled, ariaLabel = 
       <DropdownMenu.Trigger asChild disabled={disabled}>
         <button type="button" aria-label={ariaLabel}
           className={`inline-flex items-center justify-between gap-2 w-full h-9 px-3 rounded-md border
-            border-stroke-strong bg-surface text-sm text-left transition-colors
-            focus:outline-none focus-visible:ring-2 focus-visible:ring-brand
-            data-[state=open]:ring-2 data-[state=open]:ring-brand
+            border-outline bg-surface text-sm text-left transition-colors
+            focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
+            data-[state=open]:ring-2 data-[state=open]:ring-primary
             disabled:opacity-50 disabled:pointer-events-none
-            ${chosen.length > 0 ? 'text-fg1' : 'text-fg4'} ${className}`}>
+            ${chosen.length > 0 ? 'text-on-surface' : 'text-fg4'} ${className}`}>
           <span className="min-w-0 flex-1 truncate">{label}</span>
           <ChevronDown size={15} className="text-fg4 shrink-0" aria-hidden="true" />
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="start" sideOffset={4}
-          className="z-50 min-w-[16rem] max-h-80 overflow-auto rounded-md border border-stroke bg-surface py-1"
+          className="z-50 min-w-[16rem] max-h-80 overflow-auto rounded-md border border-outline-variant bg-surface py-1"
           style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
           {/* Пустое меню — это отказ, переодетый в результат: выбрать нечего и непонятно почему. */}
           {roles.length === 0 && (
@@ -81,12 +81,12 @@ export function RolePicker({ value, known = [], onChange, disabled, ariaLabel = 
             <DropdownMenu.CheckboxItem key={r.name} checked={chosen.includes(r.name)}
               onSelect={e => e.preventDefault()} onCheckedChange={() => setDraft(toggleRole(chosen, r.name))}
               className="flex items-start gap-2 px-3 py-1.5 text-sm cursor-pointer select-none outline-none
-                data-[highlighted]:bg-base">
-              <span className="w-4 shrink-0 pt-0.5 text-brand">
+                data-[highlighted]:bg-surface-container-low">
+              <span className="w-4 shrink-0 pt-0.5 text-primary">
                 {chosen.includes(r.name) && <Check size={14} />}
               </span>
               <span className="min-w-0">
-                <span className="block text-fg1">{r.title}</span>
+                <span className="block text-on-surface">{r.title}</span>
                 {r.summary && <span className="block text-xs text-fg4">{r.summary}</span>}
               </span>
             </DropdownMenu.CheckboxItem>

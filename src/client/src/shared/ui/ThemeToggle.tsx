@@ -18,16 +18,16 @@ export function ThemeToggle({ label }: {
   const { theme, setTheme } = useTheme();
   return (
     <div role="group" aria-label={label}
-      className="flex h-10 rounded-full border border-stroke-strong overflow-hidden">
+      className="flex h-10 rounded-full border border-outline overflow-hidden">
       {THEME_OPTIONS.map(({ value, icon: Icon, label: optionLabel, hint }, i) => {
         const active = theme === value;
         return (
           <Tooltip key={value} content={hint ? `${optionLabel} — ${hint}` : optionLabel}>
             <button type="button" onClick={() => setTheme(value)} aria-label={optionLabel} aria-pressed={active}
               className={'flex-1 flex items-center justify-center gap-1 text-xs transition-colors ' +
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand ' +
-                `${i > 0 ? 'border-l border-stroke-strong' : ''} ` +
-                (active ? 'bg-tonal text-on-tonal' : 'text-fg3 hover:bg-black/5 dark:hover:bg-white/10')}>
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ' +
+                `${i > 0 ? 'border-l border-outline' : ''} ` +
+                (active ? 'bg-secondary-container text-on-secondary-container' : 'text-fg3 hover:bg-black/5 dark:hover:bg-white/10')}>
               {active && <Check size={14} className="shrink-0" />}
               <Icon size={16} />
             </button>

@@ -247,7 +247,7 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
               // Сумма части — ответ сервера, и только для несменённой части: у правленой прежнее
               // число уже неверно, а своё форма не считает.
               return (
-                <div className="text-fg2">
+                <div className="text-on-surface-variant">
                   {!dirty && saved?.amount != null ? formatMoney(saved.amount) : '—'}
                   {!dirty && saved && saved.rounding !== 0 && (
                     <Tooltip content="Копейки округления уходят в последнюю часть — так сумма частей равна сумме строки">

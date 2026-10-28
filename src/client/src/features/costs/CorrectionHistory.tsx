@@ -35,7 +35,7 @@ export function CorrectionHistory({ view, gone }: { view: InvoiceView; gone: boo
     { key: 'kind', label: 'Вид', cell: e => (
       <>
         {e.version != null ? `${bookKindTitle(e.kind)} (версия ${e.version})` : bookKindTitle(e.kind)}
-        {e.vatMode && <span className="block text-xs text-fg2">{vatShiftText(e.vatMode)}</span>}
+        {e.vatMode && <span className="block text-xs text-on-surface-variant">{vatShiftText(e.vatMode)}</span>}
       </>
     ) },
     { key: 'reason', label: 'Причина', wrap: true, cell: e => e.reason ?? '—' },
@@ -47,18 +47,18 @@ export function CorrectionHistory({ view, gone }: { view: InvoiceView; gone: boo
     <section className="space-y-3" aria-label="Исправления">
       <h2 className="text-base font-semibold">Исправления</h2>
       {book.isPending && <p className="text-xs text-fg3">Загружаем историю счёта…</p>}
-      {book.error != null && <p className="text-xs text-danger">История счёта не загрузилась: {apiError(book.error)}</p>}
+      {book.error != null && <p className="text-xs text-error">История счёта не загрузилась: {apiError(book.error)}</p>}
       {book.data && (
         <>
           <DataGrid density="compact" rows={entries} rowKey={e => String(e.seq)} columns={columns}
             onRowOpen={e => setOpen(o => (o === e.seq ? null : e.seq))} rowOpen={e => e.seq === open} />
           {selected && (
             <div className="space-y-2">
-              <p className="text-xs text-fg2">
+              <p className="text-xs text-on-surface-variant">
                 {bookKindTitle(selected.kind)} от {formatDate(selected.day)}
                 {selected.lines.length === 0 ? ` — ${bookEmpty(selected.kind, selected.vatMode)}` : ':'}
               </p>
-              {selected.vatMode && <p className="text-xs text-fg1">{vatShiftText(selected.vatMode)}</p>}
+              {selected.vatMode && <p className="text-xs text-on-surface">{vatShiftText(selected.vatMode)}</p>}
               {selected.lines.length > 0 && (
                 <BookLines places={places} rows={bookEntryRows(selected, formatDate)} />
               )}

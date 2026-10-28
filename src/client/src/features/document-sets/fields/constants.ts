@@ -5,16 +5,16 @@ export const STATUS_LABELS: Record<string, string> = {
   Draft: 'Черновик', Generating: 'Генерация...', Generated: 'Готово', Failed: 'Ошибка',
 };
 export const STATUS_COLORS: Record<string, string> = {
-  Draft: 'bg-muted text-fg2',
-  Generating: 'bg-warning-subtle text-warning',
-  Generated: 'bg-success-subtle text-success',
-  Failed: 'bg-danger-subtle text-danger',
+  Draft: 'bg-surface-container text-on-surface-variant',
+  Generating: 'bg-warning-container text-warning',
+  Generated: 'bg-success-container text-success',
+  Failed: 'bg-error-container text-error',
 };
 export const SCOPE_COLORS: Record<CatalogScope, string> = {
-  Set: 'bg-success-subtle text-success',
-  Section: 'bg-brand-subtle text-brand-hover',
-  Construction: 'bg-warning-subtle text-warning',
-  System: 'bg-muted text-fg2',
+  Set: 'bg-success-container text-success',
+  Section: 'bg-primary-container text-brand-hover',
+  Construction: 'bg-warning-container text-warning',
+  System: 'bg-surface-container text-on-surface-variant',
 };
 
 export function fieldInputClass(invalid = false, readOnly = false) {
@@ -22,10 +22,10 @@ export function fieldInputClass(invalid = false, readOnly = false) {
     // Курсор обычный, а не `not-allowed`: поле ДОСТУПНО — в него можно встать, выделить значение и
     // скопировать. `not-allowed` — знак отключённого контрола, и на read-only он просто врёт
     // (issue #958). Отличие от обычного поля несёт фон и приглушённый текст.
-    return 'w-full border rounded-md px-3 py-2 text-sm text-fg3 bg-muted border-stroke';
+    return 'w-full border rounded-md px-3 py-2 text-sm text-fg3 bg-surface-container border-outline-variant';
   }
-  return `w-full border rounded-md px-3 py-2 text-sm text-fg1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface ${
-    invalid ? 'border-danger focus-visible:ring-danger' : 'border-stroke-strong'
+  return `w-full border rounded-md px-3 py-2 text-sm text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface ${
+    invalid ? 'border-error focus-visible:ring-error' : 'border-outline'
   }`;
 }
 
@@ -96,7 +96,7 @@ export function defaultColWidth(f: SchemaField) {
 export const ROW_DRAG_MIME = 'application/x-crg-array-row';
 
 export const CELL_INPUT =
-  'w-full h-full px-1.5 bg-transparent border-none outline-none text-xs text-fg1 tabular-nums focus:bg-brand-subtle';
+  'w-full h-full px-1.5 bg-transparent border-none outline-none text-xs text-on-surface tabular-nums focus:bg-primary-container';
 
 export function tryPrettyJson(val: unknown): string {
   try { return JSON.stringify(val, null, 2); } catch { return '{}'; }

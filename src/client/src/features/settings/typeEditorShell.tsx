@@ -16,16 +16,16 @@ export function SectionCard({ icon, title, count, countClass, open, onToggle, ch
   children: React.ReactNode;
 }) {
   return (
-    <div className="border border-stroke rounded-lg bg-surface overflow-hidden">
+    <div className="border border-outline-variant rounded-lg bg-surface overflow-hidden">
       <button type="button" onClick={onToggle}
-        className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-muted/40 transition-colors">
+        className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container/40 transition-colors">
         <span className="text-fg4 shrink-0">{icon}</span>
-        <span className="text-sm font-medium text-fg2">{title}</span>
-        {count != null && count > 0 && <span className={`text-xs ${countClass ?? 'text-brand'}`}>({count})</span>}
+        <span className="text-sm font-medium text-on-surface-variant">{title}</span>
+        {count != null && count > 0 && <span className={`text-xs ${countClass ?? 'text-primary'}`}>({count})</span>}
         <span className="flex-1" />
         {open ? <ChevronUp size={16} className="text-fg4 shrink-0" /> : <ChevronDown size={16} className="text-fg4 shrink-0" />}
       </button>
-      {open && <div className="px-3 pb-3 pt-1 border-t border-stroke">{children}</div>}
+      {open && <div className="px-3 pb-3 pt-1 border-t border-outline-variant">{children}</div>}
     </div>
   );
 }

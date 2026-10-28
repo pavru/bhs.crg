@@ -57,8 +57,8 @@ export function DecisionDialog({ finding, onClose, onSave, onRemove }: {
         </div>
       }>
       <div className="space-y-4">
-        <div className="rounded-lg bg-muted px-3 py-2">
-          <div className="text-sm font-medium text-fg1">{finding.label}</div>
+        <div className="rounded-lg bg-surface-container px-3 py-2">
+          <div className="text-sm font-medium text-on-surface">{finding.label}</div>
           <div className="text-xs text-fg3 mt-0.5">
             {STATUS_LABELS[finding.status]} · слева {finding.leftValue ?? '—'} · справа {finding.rightValue ?? '—'}
           </div>

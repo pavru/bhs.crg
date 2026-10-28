@@ -53,22 +53,22 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
   }
 
   return (
-    <div className="border-t border-stroke bg-surface">
+    <div className="border-t border-outline-variant bg-surface">
       <button onClick={() => setOpen(v => !v)} aria-expanded={open}
-        className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-base transition-colors text-left">
+        className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-surface-container-low transition-colors text-left">
         <SlidersHorizontal size={13} className="text-fg4" />
-        <span className="text-xs font-medium text-fg2 flex-1">Параметры шаблона{rows.length > 0 ? ` (${rows.length})` : ''}</span>
+        <span className="text-xs font-medium text-on-surface-variant flex-1">Параметры шаблона{rows.length > 0 ? ` (${rows.length})` : ''}</span>
         {open ? <ChevronUp size={13} className="text-fg4" /> : <ChevronDown size={13} className="text-fg4" />}
       </button>
       {open && (
-        <div className="px-4 pb-4 pt-3 border-t border-muted space-y-2">
+        <div className="px-4 pb-4 pt-3 border-t border-surface-container space-y-2">
           <p className="text-caption text-fg4">
             Доступны в Typst как <code className="text-fg3">data.params.имя</code>. Значение по умолчанию можно
             переопределить на конкретном документе.
           </p>
           {rows.map(({ id, p }, i) => (
             <div key={id}
-              className={`flex items-center gap-1.5 rounded ${dragIdx === i ? 'ring-1 ring-brand' : ''}`}
+              className={`flex items-center gap-1.5 rounded ${dragIdx === i ? 'ring-1 ring-primary' : ''}`}
               onDragOver={dragIdx !== null ? e => e.preventDefault() : undefined}
               onDrop={dragIdx !== null ? e => { e.preventDefault(); move(dragIdx, i); setDragIdx(null); } : undefined}>
               {/* Перетаскивание и стрелки вместе — как в списке вариантов перечисления: мышью
@@ -89,9 +89,9 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
                 </span>
               </Tooltip>
               <input value={p.name} onChange={e => patch(i, { name: e.target.value })} placeholder="имя"
-                className="w-24 text-xs border border-stroke-strong rounded px-1.5 py-1 bg-surface text-fg1" />
+                className="w-24 text-xs border border-outline rounded px-1.5 py-1 bg-surface text-on-surface" />
               <input value={p.label} onChange={e => patch(i, { label: e.target.value })} placeholder="подпись"
-                className="flex-1 min-w-0 text-xs border border-stroke-strong rounded px-1.5 py-1 bg-surface text-fg1" />
+                className="flex-1 min-w-0 text-xs border border-outline rounded px-1.5 py-1 bg-surface text-on-surface" />
               <Select size="sm" className="w-auto" aria-label={`Тип параметра ${p.name || i + 1}`} value={p.type}
                 onValueChange={type => patch(i, { type: type as TemplateParam['type'], default: type === 'boolean' ? false : type === 'number' ? 0 : '' })}>
                 <SelectItem value="string">текст</SelectItem>
@@ -104,13 +104,13 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
                   isFirst={i === 0} isLast={i === rows.length - 1} />
                 <Tooltip content="Удалить параметр" name>
                   <button onClick={() => save(rows.filter((_, idx) => idx !== i))}
-                    className="p-1 text-stroke-strong hover:text-danger"><Trash2 size={12} /></button>
+                    className="p-1 text-stroke-strong hover:text-error"><Trash2 size={12} /></button>
                 </Tooltip>
               </span>
             </div>
           ))}
           <button onClick={() => save([...rows, { id: newLocalId(), p: { name: '', label: '', type: 'string', default: '' } }])}
-            className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover">
+            className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover">
             <Plus size={12} /> Добавить параметр
           </button>
         </div>
@@ -132,6 +132,6 @@ function ParamDefault({ type, value, onChange }: {
   return (
     <input type={type === 'number' ? 'number' : 'text'} value={value == null ? '' : String(value)}
       onChange={e => onChange(type === 'number' ? Number(e.target.value) : e.target.value)} placeholder="по умолч."
-      className="w-20 shrink-0 text-xs border border-stroke-strong rounded px-1.5 py-1 bg-surface text-fg1" />
+      className="w-20 shrink-0 text-xs border border-outline rounded px-1.5 py-1 bg-surface text-on-surface" />
   );
 }

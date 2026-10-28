@@ -23,7 +23,7 @@ export function TypstBlocksPanel({ problems, currentTypeId, onSelectType }: {
 }) {
   if (problems.length === 0)
     return (
-      <div className="flex items-center gap-2 p-2.5 rounded-md text-sm bg-success-subtle text-success">
+      <div className="flex items-center gap-2 p-2.5 rounded-md text-sm bg-success-container text-success">
         <CheckCircle2 size={15} className="shrink-0" /> Все Typst-блоки собираются
       </div>
     );
@@ -34,8 +34,8 @@ export function TypstBlocksPanel({ problems, currentTypeId, onSelectType }: {
   const warns = problems.length - errors;
 
   return (
-    <div className="rounded-md border border-stroke overflow-hidden text-xs">
-      <div className="px-3 py-2 font-medium bg-base text-fg2">
+    <div className="rounded-md border border-outline-variant overflow-hidden text-xs">
+      <div className="px-3 py-2 font-medium bg-surface-container-low text-on-surface-variant">
         Проблемы сборки блоков: {errors} ошиб.{warns ? `, ${warns} предупр.` : ''}
       </div>
       {here.length > 0 && <Group title="В этом типе" items={here} />}
@@ -50,23 +50,23 @@ function Group({ title, items, onSelectType }: {
   return (
     <div>
       <div className="px-3 pt-2 pb-1 text-caption font-semibold uppercase tracking-wide text-fg4">{title}</div>
-      <div className="divide-y divide-muted">
+      <div className="divide-y divide-surface-container">
         {items.map((p, i) => (
           <div key={i} className="flex items-start gap-2 px-3 py-2">
             {p.severity === 'error'
-              ? <AlertCircle size={14} className="text-danger shrink-0 mt-0.5" />
+              ? <AlertCircle size={14} className="text-error shrink-0 mt-0.5" />
               : <AlertTriangle size={14} className="text-warning shrink-0 mt-0.5" />}
             <div className="min-w-0 flex-1">
               {p.fnName && (
                 <div className="text-fg3">
-                  <code className="text-fg2">{p.fnName}</code>
+                  <code className="text-on-surface-variant">{p.fnName}</code>
                   {p.line != null ? ` · строка ${p.line}` : ''} · {CODE_LABEL[p.code] ?? p.code}
                 </div>
               )}
-              <p className={p.severity === 'error' ? 'text-danger' : 'text-fg2'}>{p.message}</p>
+              <p className={p.severity === 'error' ? 'text-error' : 'text-on-surface-variant'}>{p.message}</p>
               {onSelectType && p.typeId && (
                 <button type="button" onClick={() => onSelectType(p.typeId!)}
-                  className="inline-flex items-center gap-1 mt-1 text-brand hover:text-brand-hover">
+                  className="inline-flex items-center gap-1 mt-1 text-primary hover:text-brand-hover">
                   Перейти к «{p.typeName ?? 'типу'}» <ArrowRight size={12} />
                 </button>
               )}

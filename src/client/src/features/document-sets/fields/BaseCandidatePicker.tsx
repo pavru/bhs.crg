@@ -51,15 +51,15 @@ function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCan
       <button key={`${c.kind}:${c.id}`} type="button" role="option" aria-selected={on} id={`bcp-opt-${gi}`}
         onMouseEnter={() => setActive(gi)} onClick={() => pick(c)}
         className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md transition-colors ${
-          on ? 'bg-tonal text-on-tonal' : 'hover:bg-brand-subtle'}`}>
+          on ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-primary-container'}`}>
         {c.proxy
-          ? <Link2 size={13} className={`shrink-0 ${on ? 'text-on-tonal' : 'text-brand'}`} />
+          ? <Link2 size={13} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-primary'}`} />
           : c.kind === 'instance'
-            ? <FileText size={13} className={`shrink-0 ${on ? 'text-on-tonal' : 'text-brand'}`} />
-            : <Database size={13} className={`shrink-0 ${on ? 'text-on-tonal' : 'text-brand'}`} />}
-        <span className={`flex-1 font-medium truncate ${on ? 'text-on-tonal' : 'text-fg1'}`}>{c.name}</span>
+            ? <FileText size={13} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-primary'}`} />
+            : <Database size={13} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-primary'}`} />}
+        <span className={`flex-1 font-medium truncate ${on ? 'text-on-secondary-container' : 'text-on-surface'}`}>{c.name}</span>
         {c.targetIsProxy && <span className="text-caption text-warning shrink-0">роль</span>}
-        <span className={`text-caption shrink-0 ${on ? 'text-on-tonal/80' : 'text-fg4'}`}>{c.scopeLabel}</span>
+        <span className={`text-caption shrink-0 ${on ? 'text-on-secondary-container/80' : 'text-fg4'}`}>{c.scopeLabel}</span>
       </button>
     );
   };
@@ -73,7 +73,7 @@ function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCan
         <input value={search} onChange={e => { setSearch(e.target.value); setActive(0); }} onKeyDown={onKey}
           placeholder="Поиск…" autoFocus role="combobox" aria-expanded aria-controls="bcp-listbox"
           aria-activedescendant={ordered.length ? `bcp-opt-${active}` : undefined}
-          className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
+          className="w-full border border-outline rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
         {filtered.length === 0 ? (
           <p className="text-sm text-fg4 text-center py-4">Нет подходящих кандидатов.</p>
         ) : (
@@ -114,25 +114,25 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   return (
-    <div className="rounded-xl border border-stroke bg-surface p-4 space-y-2">
-      <p className="text-sm font-medium text-fg1">
+    <div className="rounded-xl border border-outline-variant bg-surface p-4 space-y-2">
+      <p className="text-sm font-medium text-on-surface">
         {selected?.proxy ? 'Роль — ссылка на реальный объект' : 'Базовый экземпляр'}
         {title && !selected?.proxy && <span className="font-normal ml-1 text-fg4">({title})</span>}
       </p>
       {selected ? (
         <>
-        <div className="flex items-center gap-2 rounded-md border border-brand-subtle bg-brand-subtle px-3 py-2">
+        <div className="flex items-center gap-2 rounded-md border border-primary-container bg-primary-container px-3 py-2">
           {selected.proxy
-            ? <Link2 size={14} className="text-brand shrink-0" />
+            ? <Link2 size={14} className="text-primary shrink-0" />
             : selected.kind === 'instance'
-              ? <FileText size={14} className="text-brand shrink-0" />
-              : <Database size={14} className="text-brand shrink-0" />}
+              ? <FileText size={14} className="text-primary shrink-0" />
+              : <Database size={14} className="text-primary shrink-0" />}
           <span className="flex-1 text-sm font-medium text-brand-hover truncate">
             {selected.proxy && <span className="text-fg4 font-normal">→ </span>}{selected.name}
           </span>
           <span className="text-caption text-fg4 shrink-0">{selected.scopeLabel}</span>
           <Tooltip content="Снять ссылку" name>
-            <button type="button" onClick={onClear} className="text-brand hover:text-danger transition-colors">
+            <button type="button" onClick={onClear} className="text-primary hover:text-error transition-colors">
               <Unlink size={13} />
             </button>
           </Tooltip>
@@ -148,14 +148,14 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
         <div className="flex items-center gap-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2">
           <span className="flex-1 text-sm text-warning truncate">Базовый экземпляр недоступен (удалён или вне области видимости)</span>
           <Tooltip content="Снять ссылку" name>
-            <button type="button" onClick={onClear} className="text-brand hover:text-danger transition-colors">
+            <button type="button" onClick={onClear} className="text-primary hover:text-error transition-colors">
               <Unlink size={13} />
             </button>
           </Tooltip>
         </div>
       ) : (
         <button type="button" onClick={() => setPickerOpen(true)}
-          className="flex items-center gap-2 text-sm text-brand hover:text-brand-hover border border-dashed border-brand-subtle rounded-md px-3 py-2 w-full hover:bg-brand-subtle transition-colors">
+          className="flex items-center gap-2 text-sm text-primary hover:text-brand-hover border border-dashed border-primary-container rounded-md px-3 py-2 w-full hover:bg-primary-container transition-colors">
           <Link2 size={14} />
           Выбрать базовый экземпляр или роль...
         </button>

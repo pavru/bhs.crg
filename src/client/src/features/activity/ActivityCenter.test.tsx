@@ -67,14 +67,14 @@ describe('кнопка активности', () => {
     items = [note('1'), note('2'), note('3', 'Info', true)];
     const button = shown();
     expect(button.getAttribute('aria-label')).toBe('Уведомления — новых уведомлений: 2');
-    expect(within(button).getByText('2').className).toContain('bg-brand');
+    expect(within(button).getByText('2').className).toContain('bg-primary');
   });
 
   it('новая ошибка красит число и названа в имени', () => {
     items = [note('1'), note('2', 'Error')];
     const button = shown();
     expect(button.getAttribute('aria-label')).toBe('Уведомления — новых уведомлений: 2, среди них ошибка');
-    expect(within(button).getByText('2').className).toContain('bg-danger');
+    expect(within(button).getByText('2').className).toContain('bg-error');
   });
 
   it('с задачей — пилюля, имя называет и задачу, и уведомления', () => {

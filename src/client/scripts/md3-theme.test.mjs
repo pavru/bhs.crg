@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { loadDesign } from './color-classes-lib.mjs';
+import { loadDeclarations } from './color-classes-lib.mjs';
 import { generate, readTheme, themeDir } from './md3-theme.mjs';
 
 // Сторож темы MD3 (эпик sharedui-md3, [UI-57] [UI-58] [UI-59]): почему файлы генерируются — в
@@ -40,32 +40,11 @@ const OWN_VALUE = ['fg3', 'fg-disabled', 'brand-hover', 'brand-pressed', 'warnin
 const UTILITIES = ['bg', 'text', 'border', 'border-t', 'ring', 'outline', 'divide', 'fill', 'stroke', 'from',
   'accent', 'caret', 'decoration'];
 
-/** Переменные :root светлой и тёмной темы из сгенерированных файлов — тёмная поверх светлой. */
-function themeVars() {
-  const light = new Map();
-  const dark = new Map();
-  for (const name of ['md3-tokens.css', 'md3-legacy.css']) {
-    const css = read(join(themeDir, name));
-    for (const [, selector, body] of css.matchAll(/^(:root(?:\[data-theme="dark"\])?) \{\n([^}]*)\}/gm))
-      for (const [, k, v] of body.matchAll(/(--[\w-]+):\s*([^;]+);/g)) (selector === ':root' ? light : dark).set(k, v.trim());
-  }
-  return { light, dark: new Map([...light, ...dark]) };
-}
-
-let design;
-let vars;
+let declarations;
 beforeAll(async () => {
-  design = await loadDesign(read(join(srcRoot, 'index.css')), srcRoot);
-  vars = themeVars();
+  declarations = await loadDeclarations(srcRoot);
+  declarations.prime(UTILITIES.flatMap(u => Object.entries(ALIAS_ROLE).flatMap(([old, role]) => [`${u}-${old}`, `${u}-${role}`])));
 });
-
-/** Объявления класса без селектора, переменные — значениями темы. */
-function declarations(cls, mode) {
-  const [css] = design.candidatesToCss([cls]);
-  if (css == null) return null;
-  const resolve = text => text.replace(/var\((--[\w-]+)\)/g, (m, k) => vars[mode].has(k) ? resolve(vars[mode].get(k)) : m);
-  return resolve(css.slice(css.indexOf('{') + 1, css.lastIndexOf('}'))).replace(/\s+/g, ' ').trim();
-}
 
 describe('тема MD3: старые имена рисуют прежнее', () => {
   it('перечень старых имён в описании темы — тот же, что в договоре', () => {

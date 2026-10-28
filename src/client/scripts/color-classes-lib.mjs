@@ -56,3 +56,36 @@ export async function loadColorCheck(indexCssPath) {
     return classes.filter(c => !known.get(c));
   };
 }
+
+/**
+ * Объявления класса без селектора, переменные — значениями темы: `(класс, 'light' | 'dark') → текст`
+ * или null, если Tailwind класс не порождает. Так сверяют «рисует то же»: тема MD3 — псевдоним и его
+ * роль (md3-theme.test.mjs), кодмод — пару карты (md3-migrate.test.mjs). Переменные — из
+ * сгенерированных файлов темы, тёмная поверх светлой. `.prime(классы)` — разобрать их заранее одним
+ * вызовом движка; без него класс разбирается при первом обращении.
+ */
+export async function loadDeclarations(srcRoot) {
+  const read = file => readFile(file, 'utf8').then(t => t.replaceAll('\r\n', '\n'));
+  const design = await loadDesign(await read(join(srcRoot, 'index.css')), srcRoot);
+  const light = new Map();
+  const dark = new Map();
+  for (const name of ['md3-tokens.css', 'md3-legacy.css']) {
+    const css = await read(join(srcRoot, 'theme', name));
+    for (const [, selector, body] of css.matchAll(/^(:root(?:\[data-theme="dark"\])?) \{\n([^}]*)\}/gm))
+      for (const [, k, v] of body.matchAll(/(--[\w-]+):\s*([^;]+);/g)) (selector === ':root' ? light : dark).set(k, v.trim());
+  }
+  const vars = { light, dark: new Map([...light, ...dark]) };
+  // Движок зовётся пачкой: `prime` отдаёт ему все классы теста одним вызовом, а не по одному.
+  const raw = new Map();
+  const prime = classes => {
+    const fresh = [...new Set(classes)].filter(c => !raw.has(c));
+    if (fresh.length) design.candidatesToCss(fresh).forEach((css, i) => raw.set(fresh[i], css));
+  };
+  return Object.assign((cls, mode) => {
+    prime([cls]);
+    const css = raw.get(cls);
+    if (css == null) return null;
+    const resolve = text => text.replace(/var\((--[\w-]+)\)/g, (m, k) => vars[mode].has(k) ? resolve(vars[mode].get(k)) : m);
+    return resolve(css.slice(css.indexOf('{') + 1, css.lastIndexOf('}'))).replace(/\s+/g, ' ').trim();
+  }, { prime });
+}

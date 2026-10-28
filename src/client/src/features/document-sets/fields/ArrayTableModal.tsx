@@ -210,7 +210,7 @@ function ArrayTableModalBody({
                 else if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); moveRow(i, i + 1); }
               }}
               aria-label={`Переместить строку ${i + 1}: стрелки вверх/вниз`}
-              className="cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 focus-visible:outline-none focus-visible:text-brand">
+              className="cursor-grab active:cursor-grabbing text-fg4 hover:text-on-surface-variant focus-visible:outline-none focus-visible:text-primary">
               <GripVertical size={12} />
             </button>
           </Tooltip>
@@ -222,8 +222,8 @@ function ArrayTableModalBody({
       key: f.key, label: f.title, size: getW(f),
       header: (
         <>
-          <span className="block truncate font-semibold text-fg2 select-none">
-            {f.title}{f.required && <span className="text-danger ml-0.5">*</span>}
+          <span className="block truncate font-semibold text-on-surface-variant select-none">
+            {f.title}{f.required && <span className="text-error ml-0.5">*</span>}
           </span>
           {/* Шапка липкая, а значит позиционирована: разделитель встаёт по её правому краю. */}
           <div role="separator" aria-orientation="vertical" tabIndex={0}
@@ -234,7 +234,7 @@ function ArrayTableModalBody({
               else if (e.key === 'ArrowRight') { e.preventDefault(); setColWidths(p => ({ ...p, [f.key]: getW(f) + 16 })); }
             }}
             className="absolute inset-y-0 right-0 z-[1] w-[5px] cursor-col-resize transition-colors
-              hover:bg-brand-subtle/40 focus-visible:bg-brand focus-visible:outline-none" />
+              hover:bg-primary-container/40 focus-visible:bg-primary focus-visible:outline-none" />
         </>
       ),
       cell: (row, i) => {
@@ -258,7 +258,7 @@ function ArrayTableModalBody({
           <div className="flex items-center gap-1">
             {selected.size > 0 ? (
               <>
-                <span className="text-sm font-medium text-fg2 px-2">Выбрано: {selected.size}</span>
+                <span className="text-sm font-medium text-on-surface-variant px-2">Выбрано: {selected.size}</span>
                 <Button variant="text" size="sm" danger icon={<Trash2 size={13} />} onClick={deleteSelected}>Удалить выбранные</Button>
                 <Button variant="text" size="sm" onClick={() => setSelected(new Set())}>Сбросить</Button>
               </>

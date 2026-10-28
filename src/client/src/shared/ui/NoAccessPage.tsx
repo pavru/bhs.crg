@@ -25,7 +25,7 @@ export function NoAccessPage({ what, missing }: {
       <div className="max-w-md space-y-4 text-center">
         <Lock size={40} className="mx-auto text-fg4" aria-hidden />
 
-        <h1 className="text-xl font-medium text-fg1">
+        <h1 className="text-xl font-medium text-on-surface">
           {what === undefined ? 'Нет доступных разделов' : `Раздел «${what}» недоступен`}
         </h1>
 
@@ -76,6 +76,6 @@ export function NoAccessPage({ what, missing }: {
 
 function Code({ children }: { children: string }) {
   return (
-    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-fg2">{children}</code>
+    <code className="rounded bg-surface-container px-1.5 py-0.5 font-mono text-xs text-on-surface-variant">{children}</code>
   );
 }

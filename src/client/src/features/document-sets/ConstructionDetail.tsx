@@ -66,7 +66,7 @@ export function ConstructionDetail() {
   useDocumentTitle(construction ? `Стройка «${construction.name}»` : null);
 
   if (isLoading) return <div className="p-6 text-sm text-fg4">Загрузка...</div>;
-  if (!construction) return <div className="p-6 text-sm text-danger">Стройка не найдена</div>;
+  if (!construction) return <div className="p-6 text-sm text-error">Стройка не найдена</div>;
 
   const sectionsN = construction.sections.length;
   const setsN = construction.sections.reduce((a, s) => a + s.documentSets.length, 0);
@@ -74,7 +74,7 @@ export function ConstructionDetail() {
 
   const contextCrumbs = (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <Link to="/document-sets" className="text-xs text-fg4 hover:text-fg2 transition-colors">Стройки</Link>
+      <Link to="/document-sets" className="text-xs text-fg4 hover:text-on-surface-variant transition-colors">Стройки</Link>
       {/* Прямая ссылка на неизбранную стройку (#1218): открыта полностью, а крошка ведёт в список,
           где её нет, — строка говорит почему. */}
       <NotFavoriteNote constructionId={constructionId!} />
@@ -98,7 +98,7 @@ export function ConstructionDetail() {
       })}
       {canEdit && (
         <button type="button" onClick={() => setAddSectionOpen(true)}
-          className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-sm text-brand hover:bg-brand-subtle transition-colors">
+          className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-sm text-primary hover:bg-primary-container transition-colors">
           <Plus size={16} className="shrink-0" /> Добавить раздел
         </button>
       )}
@@ -144,7 +144,7 @@ export function ConstructionDetail() {
             <TextField label="Название раздела (дисциплина)" value={newSectionName}
               onChange={e => setNewSectionName(e.target.value)} required autoFocus
               hint="например: Электроснабжение, Слаботочные системы" />
-            {sectionError && <p className="text-sm text-danger">{sectionError}</p>}
+            {sectionError && <p className="text-sm text-error">{sectionError}</p>}
           </form>
         )}
       </Modal>

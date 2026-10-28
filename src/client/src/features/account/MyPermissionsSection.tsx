@@ -42,12 +42,12 @@ export function MyPermissionsSection() {
       {groups.map(group => {
         const expanded = open === group.module;
         return (
-          <div key={group.module} className="rounded-md border border-stroke">
+          <div key={group.module} className="rounded-md border border-outline-variant">
             <button type="button" onClick={() => setOpen(expanded ? null : group.module)}
               aria-expanded={expanded}
-              className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-fg1 rounded-md
-                         transition-colors hover:bg-base focus-visible:outline-none
-                         focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand">
+              className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-on-surface rounded-md
+                         transition-colors hover:bg-surface-container-low focus-visible:outline-none
+                         focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
               <ChevronRight size={16}
                 className={`text-fg3 shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />
               <span className="flex-1">{group.title}</span>
@@ -55,10 +55,10 @@ export function MyPermissionsSection() {
             </button>
 
             {expanded && (
-              <ul className="px-3 pb-3 pt-1 space-y-2 border-t border-stroke">
+              <ul className="px-3 pb-3 pt-1 space-y-2 border-t border-outline-variant">
                 {group.permissions.map(p => (
                   <li key={p.code}>
-                    <div className="text-sm text-fg1">{p.gives}</div>
+                    <div className="text-sm text-on-surface">{p.gives}</div>
                     <div className="text-xs text-fg3">{p.opens}</div>
                     <code className="text-caption text-fg4">{p.code}</code>
                     {/* У человека с одной ролью «Руководитель» этого права в составе роли нет:

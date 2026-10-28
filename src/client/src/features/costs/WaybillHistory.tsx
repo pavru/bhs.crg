@@ -55,16 +55,16 @@ export function WaybillHistory({ view, gone }: { view: WaybillView; gone: boolea
 
   return (
     <section className="space-y-3" aria-label="Исправления" data-testid="waybill-history">
-      <h3 className="text-sm font-medium text-fg2">Исправления</h3>
+      <h3 className="text-sm font-medium text-on-surface-variant">Исправления</h3>
       {versions.isPending && <p className="text-xs text-fg3">Загружаем историю накладной…</p>}
-      {versions.error != null && <p className="text-xs text-danger">История накладной не загрузилась: {apiError(versions.error)}</p>}
+      {versions.error != null && <p className="text-xs text-error">История накладной не загрузилась: {apiError(versions.error)}</p>}
       {versions.data && (
         <>
           <DataGrid density="compact" rows={events} rowKey={e => String(e.version)} columns={columns}
             onRowOpen={e => setOpen(o => (o === e.version ? null : e.version))} rowOpen={e => e.version === open} />
           {selected && (
             <div className="space-y-2">
-              <p className="text-xs text-fg2">
+              <p className="text-xs text-on-surface-variant">
                 Прежнее содержимое — версия {selected.version}: № {selected.prior.number ?? 'без номера'}
                 {selected.prior.issuedOn ? ` от ${formatDate(selected.prior.issuedOn)}` : ''}
                 {selected.prior.warehouse ? `, склад «${selected.prior.warehouse}»` : ''}

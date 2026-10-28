@@ -65,7 +65,7 @@ export function MatchDialog({ revision, rows, sections, target, onClose }: {
       ) : row ? (
         <RowMatch key={row.id} row={row} match={matchRow} {...common} />
       ) : (
-        <p role="alert" className="text-sm text-danger">Строки больше нет в редакции — перечитайте смету.</p>
+        <p role="alert" className="text-sm text-error">Строки больше нет в редакции — перечитайте смету.</p>
       )}
     </Modal>
   );
@@ -127,7 +127,7 @@ function SectionMatch({ code, rows, sections, match, onNext, revision, seen, set
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-fg2">
+      <p className="text-sm text-on-surface-variant">
         {section?.name ?? (code === null ? 'Строки вне разделов ЛСР' : '')} · ред. {revision.number} ·{' '}
         {formatCount(works)} {ruPlural(works, 'строка-работа', 'строки-работы', 'строк-работ')}, сопоставлено {formatCount(matched)} ·{' '}
         <b className="font-medium">ждут {formatCount(inSection.filter(waiting).length)}</b>
@@ -155,7 +155,7 @@ function SectionMatch({ code, rows, sections, match, onNext, revision, seen, set
 
       <Checkbox checked={remember} onChange={setRemember}
         label="Запомнить для шифров раздела — следующий импорт подставит сам" />
-      {refusal && <p role="alert" className="text-sm text-danger">{refusal.text}</p>}
+      {refusal && <p role="alert" className="text-sm text-error">{refusal.text}</p>}
 
       {creating && (
         <NewWorkTypeStep sourceUnit={chosenUnit} onBack={() => setCreating(false)}
@@ -256,9 +256,9 @@ function RowMatch({ row, match, revision, seen, setVersion, busy, onClose }: Com
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg bg-muted px-3 py-2 space-y-0.5">
+      <div className="rounded-lg bg-surface-container px-3 py-2 space-y-0.5">
         <p className="font-mono text-xs text-fg3">{row.rateCode}</p>
-        <p className="text-sm text-fg1">{row.name}</p>
+        <p className="text-sm text-on-surface">{row.name}</p>
         <p className="text-xs text-fg3 tabular-nums">
           {row.sourceVolume !== null ? formatQuantity(row.sourceVolume) : '—'} {row.sourceUnit} · ред. {revision.number}
         </p>
@@ -266,7 +266,7 @@ function RowMatch({ row, match, revision, seen, setVersion, busy, onClose }: Com
 
       {current && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-fg2">Сейчас: <b className="font-medium text-fg1">{current}</b>
+          <span className="text-on-surface-variant">Сейчас: <b className="font-medium text-on-surface">{current}</b>
             {row.volume !== null && <span className="text-fg3 tabular-nums"> · {formatQuantity(row.volume)}</span>}</span>
           {remembered && <StatusBadge tone="quiet" title={remembered.text}>запомнено</StatusBadge>}
           <Button size="sm" variant="text" disabled={busy} onClick={clear}>
@@ -278,7 +278,7 @@ function RowMatch({ row, match, revision, seen, setVersion, busy, onClose }: Com
       <RateChoiceFields state={state} sample={{ label: rowNumber(row), volume: row.sourceVolume }} />
       <Checkbox checked={remember} onChange={setRemember}
         label={row.rateCode ? `Запомнить для шифра «${row.rateCode}» — следующий импорт подставит сам` : 'Запомнить для шифра'} />
-      {refusal && <p role="alert" className="text-sm text-danger">{refusal.text}</p>}
+      {refusal && <p role="alert" className="text-sm text-error">{refusal.text}</p>}
 
       {creating && (
         <NewWorkTypeStep sourceUnit={row.sourceUnit} onBack={() => setCreating(false)}
@@ -297,7 +297,7 @@ function Footer({ canCreate, onNew, hint, children }: {
   canCreate: boolean; onNew: () => void; hint: string | null; children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2 border-t border-stroke pt-3">
+    <div className="flex flex-wrap items-center justify-end gap-2 border-t border-outline-variant pt-3">
       {canCreate && (
         <Button size="sm" variant="text" icon={<Plus size={16} />} className="mr-auto" onClick={onNew}>Новый вид работы</Button>
       )}

@@ -11,7 +11,7 @@ export function SegmentProblemMark({ id, problem, showIcon, compact }: { id: str
       <span id={id} className="sr-only" aria-live="polite">{problem ?? ''}</span>
       {problem && showIcon && (
         <Tooltip content={problem}>
-          <span className="ml-1 shrink-0 flex items-center text-danger">
+          <span className="ml-1 shrink-0 flex items-center text-error">
             <AlertCircle size={compact ? 13 : 14} aria-hidden />
           </span>
         </Tooltip>

@@ -31,7 +31,7 @@ export function JsonPathBuilder({ value, onChange, placeholder, preview }: JsonP
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder ?? '$.items[*]'}
         spellCheck={false}
-        className="w-full border border-stroke-strong rounded-md px-2 py-1.5 text-xs font-mono bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        className="w-full border border-outline rounded-md px-2 py-1.5 text-xs font-mono bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       />
       {preview && <JsonPathPreviewPanel spec={previewSpec} />}
     </div>
@@ -44,18 +44,18 @@ function JsonPathPreviewPanel({ spec }: { spec: ExpressionPreviewSpec | null }) 
   if (!spec) return null;
 
   return (
-    <div className="text-xs rounded-md border border-stroke bg-base px-2 py-1.5">
+    <div className="text-xs rounded-md border border-outline-variant bg-surface-container-low px-2 py-1.5">
       {isFetching ? (
         <span className="flex items-center gap-1.5 text-fg4">
           <Loader2 size={11} className="animate-spin" /> Проверка...
         </span>
       ) : error ? (
-        <span className="text-danger">
+        <span className="text-error">
           {(error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Не удалось проверить выражение'}
         </span>
       ) : data ? (
         <div className="space-y-0.5">
-          <span className="font-medium text-fg2">
+          <span className="font-medium text-on-surface-variant">
             {spec.expr ? `Значений найдено: ${data.matchCount}` : `Узлов найдено: ${data.matchCount}`}
           </span>
           {data.samples.length > 0 && (

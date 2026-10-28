@@ -153,12 +153,12 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
   const searching = !!search.trim();
   const row = (entry: CommonDataEntry, siblings: CommonDataEntry[], border: boolean) => batch.picked ? (
     <PickRow key={entry.id} entry={entry} checked={batch.picked.has(entry.id)}
-      onToggle={() => batch.toggle(entry.id)} className={border ? 'border-t border-muted' : ''} />
+      onToggle={() => batch.toggle(entry.id)} className={border ? 'border-t border-surface-container' : ''} />
   ) : (
     <ObjectRow key={entry.id} entry={entry} siblings={siblings} resolvePool={scopeChain}
       onEdit={setEditEntry} onDelete={canEdit(entry) ? setDeleteTarget : undefined} deleteDisabled={deleteMutation.isPending}
       onArchive={archiveAction(entry)} archiveDisabled={archive.pending}
-      showPreview className={border ? 'border-t border-muted' : ''} />
+      showPreview className={border ? 'border-t border-surface-container' : ''} />
   );
   // Список одной группы: действующие, под ними — свёрнутое «В архиве: N». При поиске архив раскрыт:
   // совпавшая архивная запись обязана быть на виду, иначе её заведут второй раз.
@@ -217,9 +217,9 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
           <div className="relative mb-1">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
             <input value={typeSearch} onChange={e => setTypeSearch(e.target.value)} placeholder="Тип…" aria-label="Поиск типа"
-              className="w-full h-8 pl-7 pr-6 rounded-md text-xs bg-surface border border-stroke text-fg1 outline-none focus-visible:ring-2 focus-visible:ring-brand placeholder:text-fg4" />
+              className="w-full h-8 pl-7 pr-6 rounded-md text-xs bg-surface border border-outline-variant text-on-surface outline-none focus-visible:ring-2 focus-visible:ring-primary placeholder:text-fg4" />
             {typeSearch && (
-              <button onClick={() => setTypeSearch('')} aria-label="Очистить" className="absolute right-1.5 top-1/2 -translate-y-1/2 text-fg4 hover:text-fg2">
+              <button onClick={() => setTypeSearch('')} aria-label="Очистить" className="absolute right-1.5 top-1/2 -translate-y-1/2 text-fg4 hover:text-on-surface-variant">
                 <X size={12} />
               </button>
             )}
@@ -282,11 +282,11 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
           <div className="text-center py-10 text-fg4 text-sm">Ничего не найдено</div>
         ) : filterTypeId ? (
           // Выбран один тип — плоский список без аккордеона (тип уже виден в рейле).
-          <div className="border border-stroke rounded-xl overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 bg-surface border-b border-stroke">
-              <span className="flex-1 text-sm font-medium text-fg2">{selectedType?.name ?? 'Без типа'}</span>
+          <div className="border border-outline-variant rounded-xl overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 bg-surface border-b border-outline-variant">
+              <span className="flex-1 text-sm font-medium text-on-surface-variant">{selectedType?.name ?? 'Без типа'}</span>
               {selectedType && isDocType(selectedType.id) && (
-                <span className="text-xs bg-warning-subtle text-warning border border-warning-border px-1.5 py-0.5 rounded-full">внеш. документ</span>
+                <span className="text-xs bg-warning-container text-warning border border-warning-border px-1.5 py-0.5 rounded-full">внеш. документ</span>
               )}
               <span className="text-xs text-fg4">{filtered.filter(isLive).length}</span>
               {batch.menu}
@@ -299,32 +299,32 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
             {groups.map(({ type: t, items }) => {
               const isOpen = searching || expandedTypes.has(t.id);
               return (
-                <div key={t.id} className="border border-stroke rounded-xl overflow-hidden">
+                <div key={t.id} className="border border-outline-variant rounded-xl overflow-hidden">
                   <button type="button" onClick={() => toggleType(t.id)} aria-expanded={isOpen}
-                    className="w-full flex items-center gap-2 px-4 py-3 bg-surface hover:bg-base transition-colors text-left">
+                    className="w-full flex items-center gap-2 px-4 py-3 bg-surface hover:bg-surface-container-low transition-colors text-left">
                     {isOpen ? <ChevronUp size={14} className="text-fg4 shrink-0" /> : <ChevronDown size={14} className="text-fg4 shrink-0" />}
-                    <span className="flex-1 text-sm font-medium text-fg2">{t.name}</span>
+                    <span className="flex-1 text-sm font-medium text-on-surface-variant">{t.name}</span>
                     {isDocType(t.id) && (
-                      <span className="text-xs bg-warning-subtle text-warning border border-warning-border px-1.5 py-0.5 rounded-full">внеш. документ</span>
+                      <span className="text-xs bg-warning-container text-warning border border-warning-border px-1.5 py-0.5 rounded-full">внеш. документ</span>
                     )}
                     <span className="text-xs text-fg4 font-mono">{t.code}</span>
                     <span className="text-xs text-fg4 ml-1">{items.filter(isLive).length}</span>
                   </button>
-                  {isOpen && <div className="border-t border-stroke">{rows(items)}</div>}
+                  {isOpen && <div className="border-t border-outline-variant">{rows(items)}</div>}
                 </div>
               );
             })}
             {noType.length > 0 && (() => {
               const isOpen = searching || expandedTypes.has(NO_TYPE);
               return (
-                <div className="border border-stroke rounded-xl overflow-hidden">
+                <div className="border border-outline-variant rounded-xl overflow-hidden">
                   <button type="button" onClick={() => toggleType(NO_TYPE)} aria-expanded={isOpen}
-                    className="w-full flex items-center gap-2 px-4 py-3 bg-surface hover:bg-base transition-colors text-left">
+                    className="w-full flex items-center gap-2 px-4 py-3 bg-surface hover:bg-surface-container-low transition-colors text-left">
                     {isOpen ? <ChevronUp size={14} className="text-fg4 shrink-0" /> : <ChevronDown size={14} className="text-fg4 shrink-0" />}
                     <span className="flex-1 text-sm font-medium text-fg3 italic">Без типа</span>
                     <span className="text-xs text-fg4">{noType.filter(isLive).length}</span>
                   </button>
-                  {isOpen && <div className="border-t border-stroke">{rows(noType)}</div>}
+                  {isOpen && <div className="border-t border-outline-variant">{rows(noType)}</div>}
                 </div>
               );
             })()}
@@ -372,8 +372,8 @@ function TypeNavItem({ icon, label, count, active, doc, muted, profile, onClick 
   return (
     <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
       className={`w-full flex items-center gap-2 px-2.5 h-9 rounded-lg text-left transition-colors ${
-        active ? 'bg-brand-subtle text-brand-hover font-medium'
-          : profile ? 'text-brand-hover hover:bg-brand-subtle' : 'text-fg2 hover:bg-muted'}`}>
+        active ? 'bg-primary-container text-brand-hover font-medium'
+          : profile ? 'text-brand-hover hover:bg-primary-container' : 'text-on-surface-variant hover:bg-surface-container'}`}>
       {icon && <span className={`shrink-0 ${active || profile ? 'text-brand-hover' : doc ? 'text-warning' : 'text-fg4'}`}>{icon}</span>}
       <span className={`flex-1 truncate text-sm ${muted ? 'italic text-fg3' : ''}`}>{label}</span>
       {count != null && <span className="text-xs text-fg4 tabular-nums shrink-0">{count}</span>}
@@ -439,13 +439,13 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
   return (
     <div className="max-w-2xl">
       <div className="flex items-start gap-3 mb-4">
-        <span className="shrink-0 w-10 h-10 rounded-lg bg-brand-subtle text-brand-hover flex items-center justify-center">
+        <span className="shrink-0 w-10 h-10 rounded-lg bg-primary-container text-brand-hover flex items-center justify-center">
           <Building2 size={18} />
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-semibold text-fg1">Данные: {SCOPE_LABELS[scope]}</h2>
-            <span className="text-xs bg-brand-subtle text-brand-hover px-1.5 py-0.5 rounded-full">уровень</span>
+            <h2 className="text-base font-semibold text-on-surface">Данные: {SCOPE_LABELS[scope]}</h2>
+            <span className="text-xs bg-primary-container text-brand-hover px-1.5 py-0.5 rounded-full">уровень</span>
           </div>
           <p className="text-xs text-fg3 mt-0.5">Тип: {type.name} · единственная запись уровня.</p>
         </div>
@@ -454,15 +454,15 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
         </Button>
       </div>
 
-      <div className="rounded-lg border border-stroke bg-surface p-3 mb-3">
-        <p className="text-xs text-fg2">
+      <div className="rounded-lg border border-outline-variant bg-surface p-3 mb-3">
+        <p className="text-xs text-on-surface-variant">
           Эти данные доступны <span className="font-medium">во всех документах уровня</span> — в шаблоне через ключ:
         </p>
         <div className="flex items-center gap-2 mt-1.5">
-          <code className="text-xs font-mono bg-muted text-fg1 px-2 py-1 rounded">data.{key}.*</code>
+          <code className="text-xs font-mono bg-surface-container text-on-surface px-2 py-1 rounded">data.{key}.*</code>
           <Tooltip content="Скопировать ключ" name>
             <button type="button" onClick={copy}
-              className="text-fg4 hover:text-brand transition-colors">
+              className="text-fg4 hover:text-primary transition-colors">
               {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
             </button>
           </Tooltip>
@@ -470,11 +470,11 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
       </div>
 
       {preview.length > 0 ? (
-        <div className="rounded-lg border border-stroke divide-y divide-muted">
+        <div className="rounded-lg border border-outline-variant divide-y divide-surface-container">
           {preview.map(([k, v]) => (
             <div key={k} className="flex items-center gap-3 px-3 py-2 text-sm">
               <span className="text-fg3 min-w-[10rem] shrink-0">{k}</span>
-              <span className="text-fg1 truncate">{String(v)}</span>
+              <span className="text-on-surface truncate">{String(v)}</span>
             </div>
           ))}
         </div>

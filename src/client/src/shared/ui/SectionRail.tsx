@@ -49,7 +49,7 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel }: {
         aria-current={on ? 'true' : undefined}
         className="group flex flex-col items-center gap-1 w-20 pb-2 text-xs select-none focus-visible:outline-none">
         <SectionPill icon={Icon} on={on} />
-        <span className={on ? 'font-semibold text-fg1' : 'font-medium text-fg2'}>{section.def.label}</span>
+        <span className={on ? 'font-semibold text-on-surface' : 'font-medium text-on-surface-variant'}>{section.def.label}</span>
       </Link>
     );
   };
@@ -60,9 +60,9 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel }: {
           логотипом; длинное обрезается, целиком — в подсказке. */}
       <Tooltip content={productName} side="right">
         <Link to="/" onClick={guardedClick('/')} aria-label={`${productName} — на главную`}
-          className="mt-3 mb-4 flex flex-col items-center gap-0.5 w-20 shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-          <BrandLogo className="w-8 h-8 text-brand" iconSize={24} />
-          <span className="w-full px-1 text-caption font-semibold text-brand text-center truncate">{productName}</span>
+          className="mt-3 mb-4 flex flex-col items-center gap-0.5 w-20 shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          <BrandLogo className="w-8 h-8 text-primary" iconSize={24} />
+          <span className="w-full px-1 text-caption font-semibold text-primary text-center truncate">{productName}</span>
         </Link>
       </Tooltip>
 
@@ -70,7 +70,7 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel }: {
         {work.map(item)}
         {system.length > 0 && (
           <>
-            {work.length > 0 && <div aria-hidden="true" className="w-10 h-px bg-stroke mt-2 mb-3" />}
+            {work.length > 0 && <div aria-hidden="true" className="w-10 h-px bg-outline-variant mt-2 mb-3" />}
             {system.map(item)}
           </>
         )}
@@ -86,8 +86,8 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel }: {
 export function SectionPill({ icon: Icon, on, wide = false }: { icon: RailSectionDef['icon']; on: boolean; wide?: boolean }) {
   return (
     <span className={`flex items-center justify-center ${wide ? 'w-16' : 'w-14'} h-8 rounded-full transition-colors ` +
-      'group-focus-visible:ring-2 group-focus-visible:ring-brand ' +
-      (on ? 'bg-tonal text-on-tonal' : 'text-fg3 group-hover:bg-black/5 dark:group-hover:bg-white/10')}>
+      'group-focus-visible:ring-2 group-focus-visible:ring-primary ' +
+      (on ? 'bg-secondary-container text-on-secondary-container' : 'text-fg3 group-hover:bg-black/5 dark:group-hover:bg-white/10')}>
       <Icon size={wide ? 22 : 20} />
     </span>
   );
@@ -108,10 +108,10 @@ export function SectionPanel({ def, groups, outside, onHide }: {
 }) {
   return (
     <nav id={PANEL_ID} data-testid="section-panel" aria-label={def.title}
-      className="w-60 shrink-0 flex flex-col px-3 py-4 bg-surface border-l border-stroke overflow-y-auto">
+      className="w-60 shrink-0 flex flex-col px-3 py-4 bg-surface border-l border-outline-variant overflow-y-auto">
       <div className="flex items-start gap-1 pl-3 pb-3">
         <div className="flex-1 min-w-0 pt-1">
-          <h2 className="text-base font-semibold text-fg1 break-words">{def.title}</h2>
+          <h2 className="text-base font-semibold text-on-surface break-words">{def.title}</h2>
           <p className="text-xs text-fg3">{def.hint}</p>
         </div>
         <IconButton label="Скрыть панель раздела" size="lg" onClick={onHide}

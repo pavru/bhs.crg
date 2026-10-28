@@ -391,7 +391,7 @@ export function CatalogEntryForm({
 
           if (locked) {
             const lockedLabel = (
-              <label className="flex items-center gap-1.5 text-sm font-medium text-fg2 mb-1">
+              <label className="flex items-center gap-1.5 text-sm font-medium text-on-surface-variant mb-1">
                 {field.title}
                 <LockedFieldIcon />
               </label>
@@ -423,7 +423,7 @@ export function CatalogEntryForm({
             const columns = gridColumnsOf(rows, itemType ? resolveEffectiveFields(itemType, allDocTypes) : null);
             return (
               <div key={field.key}>
-                <label className="flex items-center gap-1.5 text-sm font-medium text-fg2 mb-1">
+                <label className="flex items-center gap-1.5 text-sm font-medium text-on-surface-variant mb-1">
                   {field.title}
                   <SourceOriginIcon origin={recognizedBoundKeys.has(field.key) ? 'Recognized' : undefined} plural
                     stale={staleBoundKeys.has(field.key)} staleReason={staleReasonOfKey(field.key)} />
@@ -446,12 +446,12 @@ export function CatalogEntryForm({
                 : (typeof val === 'string' ? val : JSON.stringify(val));
             return (
               <div key={field.key}>
-                <label className="flex items-center gap-1.5 text-sm font-medium text-fg2 mb-1">
+                <label className="flex items-center gap-1.5 text-sm font-medium text-on-surface-variant mb-1">
                   {field.title}
                   <SourceOriginIcon origin={recognizedBoundKeys.has(field.key) ? 'Recognized' : undefined}
                     stale={staleBoundKeys.has(field.key)} staleReason={staleReasonOfKey(field.key)} />
                 </label>
-                <div className="w-full border border-stroke rounded-md px-3 py-2 text-sm bg-muted text-fg2">
+                <div className="w-full border border-outline-variant rounded-md px-3 py-2 text-sm bg-surface-container text-on-surface-variant">
                   {refId ? <BoundRefValue entryId={refId} /> : (display ?? <em className="text-fg4">нет данных</em>)}
                 </div>
               </div>
@@ -474,7 +474,7 @@ export function CatalogEntryForm({
                   {proxyOverridden && (
                     <Tooltip content="Вернуть к наследованию от реального объекта">
                       <button type="button" onClick={() => setValue(field.key, undefined)}
-                        className="text-caption text-brand hover:text-brand-hover flex items-center gap-0.5 shrink-0">
+                        className="text-caption text-primary hover:text-brand-hover flex items-center gap-0.5 shrink-0">
                         <CornerUpLeft size={11} /> наследовать
                       </button>
                     </Tooltip>
@@ -483,9 +483,9 @@ export function CatalogEntryForm({
               )}
               {field.type === 'complex' || field.type === 'array' ? (
                 <div>
-                  <label className="block text-sm font-medium text-fg2 mb-1">
+                  <label className="block text-sm font-medium text-on-surface-variant mb-1">
                     {field.title}
-                    {field.required && <span className="ml-0.5 text-danger">*</span>}
+                    {field.required && <span className="ml-0.5 text-error">*</span>}
                     <ValueIssueBadge count={deepIssueCount(valueIssues, field.key)} className="ml-1.5 align-middle" />
                   </label>
                   {field.type === 'array' ? (
@@ -504,9 +504,9 @@ export function CatalogEntryForm({
                 </div>
               ) : field.type === 'doc-ref' ? (
                 <div>
-                  <label className="block text-sm font-medium text-fg2 mb-1">
+                  <label className="block text-sm font-medium text-on-surface-variant mb-1">
                     {field.title}
-                    {field.required && <span className="ml-0.5 text-danger">*</span>}
+                    {field.required && <span className="ml-0.5 text-error">*</span>}
                   </label>
                   <DocRefCatalogPickerField field={field} allDocTypes={allDocTypes} value={val}
                     onChange={v => setValue(field.key, v ?? undefined)}
@@ -514,15 +514,15 @@ export function CatalogEntryForm({
                 </div>
               ) : field.type === 'image' ? (
                 <div>
-                  <label className="block text-sm font-medium text-fg2 mb-1">
-                    {field.title}{field.required && <span className="ml-0.5 text-danger">*</span>}
+                  <label className="block text-sm font-medium text-on-surface-variant mb-1">
+                    {field.title}{field.required && <span className="ml-0.5 text-error">*</span>}
                   </label>
                   <ImageField value={val} onChange={v => setValue(field.key, v)} />
                 </div>
               ) : field.type === 'file' ? (
                 <div>
-                  <label className="block text-sm font-medium text-fg2 mb-1">
-                    {field.title}{field.required && <span className="ml-0.5 text-danger">*</span>}
+                  <label className="block text-sm font-medium text-on-surface-variant mb-1">
+                    {field.title}{field.required && <span className="ml-0.5 text-error">*</span>}
                   </label>
                   <FileField value={val} onChange={v => setValue(field.key, v)} />
                 </div>
@@ -533,7 +533,7 @@ export function CatalogEntryForm({
                     invalid={!!constraintErrors[field.key]}
                     primitiveTypeDef={getPrimitiveDef(field)} enumTypeDef={getEnumDef(field)} />
                   {constraintErrors[field.key] && (
-                    <p className="text-xs text-danger mt-0.5">{constraintErrors[field.key]}</p>
+                    <p className="text-xs text-error mt-0.5">{constraintErrors[field.key]}</p>
                   )}
                   {/* Расхождение сохранённого значения с типом — после ошибки ввода: та про то, что
                       набирают сейчас, это про то, что уже лежит в записи (issue #644). */}
@@ -552,7 +552,7 @@ export function CatalogEntryForm({
       return (
         <SuggestOwner type={typeId} scope={scope} scopeId={scopeId}><div className="space-y-4">
           {fields.map(f => recognizedKeys.has(f.key)
-            ? <Tooltip key={f.key} content={RECOGNIZED_HINT}><div className="border-l-2 border-brand pl-2">{renderCell(f)}</div></Tooltip>
+            ? <Tooltip key={f.key} content={RECOGNIZED_HINT}><div className="border-l-2 border-primary pl-2">{renderCell(f)}</div></Tooltip>
             : renderCell(f))}
         </div></SuggestOwner>
       );
@@ -619,17 +619,17 @@ export function CatalogEntryForm({
 
       {/* Алиасы (issue #74) — доп. имена для поиска записи при связывании с источниками */}
       <div>
-        <label className="block text-sm font-medium text-fg2 mb-1">
+        <label className="block text-sm font-medium text-on-surface-variant mb-1">
           Псевдонимы <span className="text-xs text-fg4 font-normal">(для поиска при связывании с источниками)</span>
         </label>
         {aliases.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-1.5">
             {aliases.map(a => (
-              <span key={a} className="inline-flex items-center gap-1 text-xs bg-muted text-fg2 rounded-2xl pl-2.5 pr-1 py-0.5 max-w-full">
+              <span key={a} className="inline-flex items-center gap-1 text-xs bg-surface-container text-on-surface-variant rounded-2xl pl-2.5 pr-1 py-0.5 max-w-full">
                 <span className="min-w-0 break-words">{a}</span>
                 <Tooltip content="Удалить" name>
                   <button type="button" onClick={() => setAliases(prev => prev.filter(x => x !== a))}
-                    className="text-fg4 hover:text-danger transition-colors shrink-0">
+                    className="text-fg4 hover:text-error transition-colors shrink-0">
                     <X size={11} />
                   </button>
                 </Tooltip>
@@ -641,15 +641,15 @@ export function CatalogEntryForm({
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addAlias(); } }}
           onBlur={addAlias}
           placeholder="Добавить псевдоним и Enter..."
-          className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
+          className="w-full border border-outline rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
       </div>
 
       {!entry ? (
         <div>
-          <label className="block text-sm font-medium text-fg2 mb-1">Тип</label>
+          <label className="block text-sm font-medium text-on-surface-variant mb-1">Тип</label>
           <button type="button" onClick={() => setPickerOpen(true)} aria-label="Тип"
-            className="w-full h-10 flex items-center justify-between gap-2 rounded-md border border-stroke-strong bg-surface px-3 text-sm text-left transition-colors hover:border-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand">
-            <span className={typeId ? 'text-fg1 truncate' : 'text-fg4'}>
+            className="w-full h-10 flex items-center justify-between gap-2 rounded-md border border-outline bg-surface px-3 text-sm text-left transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
+            <span className={typeId ? 'text-on-surface truncate' : 'text-fg4'}>
               {typeId ? (allSelectableTypes.find(c => c.id === typeId)?.name ?? typeId) : 'Выберите тип…'}
             </span>
             <ChevronDown size={16} className="text-fg4 shrink-0" />
@@ -670,7 +670,7 @@ export function CatalogEntryForm({
         </div>
       ) : (
         <p className="text-sm text-fg3">
-          Тип: <span className="font-medium text-fg2">
+          Тип: <span className="font-medium text-on-surface-variant">
             {allSelectableTypes.find(ct => ct.id === entry.compositeTypeId)?.name ?? entry.compositeTypeId}
           </span>
         </p>
@@ -726,17 +726,17 @@ export function CatalogEntryForm({
       )}
 
       {isProxy && (
-        <div className="rounded-md bg-brand-subtle/40 px-3 py-2 text-xs text-fg3 flex items-center justify-between gap-2">
+        <div className="rounded-md bg-primary-container/40 px-3 py-2 text-xs text-fg3 flex items-center justify-between gap-2">
           <span>Роль наследует все поля реального объекта — заполните только переопределяемые, пустые берутся у реального.</span>
           {!showAllProxyFields && (
             <button type="button" onClick={() => setShowAllProxyFields(true)}
-              className="text-brand hover:text-brand-hover font-medium shrink-0">Переопределить ещё…</button>
+              className="text-primary hover:text-brand-hover font-medium shrink-0">Переопределить ещё…</button>
           )}
         </div>
       )}
 
       {selectedType && sections.length > 0 && (
-        <div className="space-y-3 pt-1 border-t border-muted">
+        <div className="space-y-3 pt-1 border-t border-surface-container">
           {sections.map(section => {
             if (!section.title) {
               return <div key={section.key}>{renderFields(section.fields)}</div>;
@@ -744,16 +744,16 @@ export function CatalogEntryForm({
             const isExpanded = expandedGroups.has(section.key);
             return (
               <div key={section.key} id={`cat-section-${section.key}`}
-                className="border border-stroke rounded-lg overflow-hidden scroll-mt-2">
+                className="border border-outline-variant rounded-lg overflow-hidden scroll-mt-2">
                 <button type="button" onClick={() => toggleGroup(section.key)}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 bg-base hover:bg-muted transition-colors text-left">
+                  className="w-full flex items-center gap-2 px-3 py-2.5 bg-surface-container-low hover:bg-surface-container transition-colors text-left">
                   {isExpanded
                     ? <ChevronUp size={13} className="text-fg4 shrink-0" />
                     : <ChevronDown size={13} className="text-fg4 shrink-0" />}
-                  <span className="text-xs font-semibold uppercase tracking-wide text-fg2 flex-1">{section.title}</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant flex-1">{section.title}</span>
                   {/* Метка на заголовке: свёрнутая группа иначе прячет причину отказа. */}
                   {section.fields.some(f => Object.keys(constraintErrors).some(k => violationRootKey(k) === f.key)) && (
-                    <Tooltip content="Есть ошибка формата"><span className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" /></Tooltip>
+                    <Tooltip content="Есть ошибка формата"><span className="w-1.5 h-1.5 rounded-full bg-error shrink-0" /></Tooltip>
                   )}
                   <span className="text-xs text-fg4">{section.fields.length} п.</span>
                 </button>
@@ -765,11 +765,11 @@ export function CatalogEntryForm({
       )}
 
       {twin && <ArchivedTwinNote twin={twin} busy={isPending} onReturned={onClose} onCreateAnyway={() => void save(true)} />}
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <p className="text-sm text-error">{error}</p>}
       </div>
       </div>
       </div>
-      <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-2">
+      <div className="shrink-0 px-6 py-3 border-t border-outline-variant flex justify-end gap-2">
         <RecordWriteGate doorCode={ownDoorCode(typeId, allDocTypes)} onClose={onClose}>
         <Button type="submit" variant="filled" loading={isPending} disabled={isPending || recognizing || uploading}
           title={uploading ? "Дождитесь загрузки изображения" : undefined}>

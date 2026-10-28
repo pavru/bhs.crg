@@ -32,18 +32,18 @@ const STYLE = {
   // четыре вкладки, и на телефоне они иначе ломались в две строки и раздвигали страницу. Отсюда и черта
   // под вкладкой без `-mb-px`: прокручиваемый ряд обрезал бы её, наезжающую на линию ряда.
   underline: {
-    list: 'flex overflow-x-auto [scrollbar-width:none] border-b border-stroke',
+    list: 'flex overflow-x-auto [scrollbar-width:none] border-b border-outline-variant',
     tab: 'inline-flex shrink-0 items-center gap-1.5 h-12 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ' +
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand',
-    on: 'border-brand text-brand',
-    off: 'border-transparent text-fg3 hover:text-fg1',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
+    on: 'border-primary text-primary',
+    off: 'border-transparent text-fg3 hover:text-on-surface',
   },
   segmented: {
-    list: 'inline-flex bg-muted rounded-lg p-0.5',
+    list: 'inline-flex bg-surface-container rounded-lg p-0.5',
     tab: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ' +
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
-    on: 'bg-surface text-fg1 font-medium shadow-sm',
-    off: 'text-fg3 hover:text-fg1',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+    on: 'bg-surface text-on-surface font-medium shadow-sm',
+    off: 'text-fg3 hover:text-on-surface',
   },
 } as const;
 

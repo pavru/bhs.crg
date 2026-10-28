@@ -215,12 +215,12 @@ export function EditGrid<Row>({
               // Черта там, куда ляжет тащимая строка: над строкой либо под последней. Тенью, а не
               // рамкой — рамка сдвинула бы строки на её толщину, и строка уехала бы из-под курсора.
               const dropMark = !drag || drag.dragging === null ? null
-                : drag.target === i ? 'inset 0 2px 0 0 var(--color-brand)'
-                : drag.target === rows.length && i === rows.length - 1 ? 'inset 0 -2px 0 0 var(--color-brand)'
+                : drag.target === i ? 'inset 0 2px 0 0 var(--color-primary)'
+                : drag.target === rows.length && i === rows.length - 1 ? 'inset 0 -2px 0 0 var(--color-primary)'
                 : null;
               return (
                 <tr key={rowKey(row, i)} data-row={i} {...rowData?.(row, i)}
-                  className={`${dtRow} ${chosen ? 'bg-brand-subtle' : ''} ${drag?.dragging === i ? 'opacity-40' : ''}`}
+                  className={`${dtRow} ${chosen ? 'bg-primary-container' : ''} ${drag?.dragging === i ? 'opacity-40' : ''}`}
                   style={dropMark ? { boxShadow: dropMark } : undefined}
                   {...(drag ? {
                     onDragOver: (e: DragEvent) => drag.onOver(e, i),
@@ -232,8 +232,8 @@ export function EditGrid<Row>({
                     return (
                       <Cell key={c.key} data-cell data-r={i} data-c={ci} scope={c.rowHeader ? 'row' : undefined}
                         style={pinStyle(c, 5)}
-                        className={`${td} text-fg1 ${c.rowHeader ? 'text-left font-normal' : ''} `
-                          + `${c.align === 'right' ? dtNum : ''} ${pinClass(c)} ${c.pin ? (chosen ? 'bg-brand-subtle' : 'bg-surface') : ''}`}>
+                        className={`${td} text-on-surface ${c.rowHeader ? 'text-left font-normal' : ''} `
+                          + `${c.align === 'right' ? dtNum : ''} ${pinClass(c)} ${c.pin ? (chosen ? 'bg-primary-container' : 'bg-surface') : ''}`}>
                         {c.cell(row, i)}
                       </Cell>
                     );
@@ -279,13 +279,13 @@ export function EditGrid<Row>({
 }
 
 /** Итоговая строка: липнет к низу, как у `DataGrid`, — итог виден при любой длине черновика. */
-const FOOT = 'sticky bottom-0 z-10 bg-muted border-t border-stroke px-2 py-1.5 text-xs text-fg2 align-top';
+const FOOT = 'sticky bottom-0 z-10 bg-surface-container border-t border-outline-variant px-2 py-1.5 text-xs text-on-surface-variant align-top';
 
 function RemoveButton({ index, label, onClick }: { index: number; label: string; onClick: () => void }) {
   return (
     <Tooltip content={label}>
       <button type="button" data-remove={index} onClick={onClick} aria-label={label}
-        className="rounded-sm p-0.5 text-fg4 hover:text-danger focus-visible:outline-2">
+        className="rounded-sm p-0.5 text-fg4 hover:text-error focus-visible:outline-2">
         <Trash2 size={13} aria-hidden />
       </button>
     </Tooltip>

@@ -64,9 +64,9 @@ export function SectionDetail() {
   })());
 
   if (isLoading) return <div className="p-6 text-sm text-fg4">Загрузка...</div>;
-  if (!construction) return <div className="p-6 text-sm text-danger">Стройка не найдена</div>;
+  if (!construction) return <div className="p-6 text-sm text-error">Стройка не найдена</div>;
   const section = construction.sections.find(s => s.id === sectionId);
-  if (!section) return <div className="p-6 text-sm text-danger">Раздел не найден</div>;
+  if (!section) return <div className="p-6 text-sm text-error">Раздел не найден</div>;
 
   const setsInSection = section.documentSets.length;
   const docsInSection = section.documentSets.reduce((acc, ds) => acc + (ds.documentCount ?? 0), 0);
@@ -84,9 +84,9 @@ export function SectionDetail() {
 
   const contextCrumbs = (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <Link to="/document-sets" className="text-xs text-fg4 hover:text-fg2 transition-colors">Стройки</Link>
+      <Link to="/document-sets" className="text-xs text-fg4 hover:text-on-surface-variant transition-colors">Стройки</Link>
       <Link to={`/document-sets/${constructionId}`}
-        className="text-caption px-2 py-0.5 rounded-full border border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1 transition-colors">
+        className="text-caption px-2 py-0.5 rounded-full border border-outline-variant text-fg3 hover:border-outline hover:text-on-surface transition-colors">
         Стройка: {construction.name}
       </Link>
       <NotFavoriteNote constructionId={constructionId!} />
@@ -112,7 +112,7 @@ export function SectionDetail() {
         })}
         {canAddSet && (
           <button type="button" onClick={() => setAddSetOpen(true)}
-            className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-sm text-brand hover:bg-brand-subtle transition-colors">
+            className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-sm text-primary hover:bg-primary-container transition-colors">
             <Plus size={16} className="shrink-0" /> Добавить комплект
           </button>
         )}
@@ -158,7 +158,7 @@ export function SectionDetail() {
           <form id="add-set-form" onSubmit={handleAddSet} className="space-y-4">
             <TextField label="Наименование" value={newSetName} onChange={e => setNewSetName(e.target.value)}
               required autoFocus hint="например: Кабельный журнал, секция 2" />
-            {addError && <p className="text-sm text-danger">{addError}</p>}
+            {addError && <p className="text-sm text-error">{addError}</p>}
           </form>
         )}
       </Modal>

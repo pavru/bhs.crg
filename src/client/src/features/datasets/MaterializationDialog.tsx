@@ -241,7 +241,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
     ...previewModel.groups.flatMap(g => g.leaves.map((l): DataGridColumn<Record<string, unknown>> => ({
       key: l.key, label: leafLabel(l), hint: l.key, wrap: true,
       group: g.parentKey ? { key: g.parentKey, label: lastSeg(g.parentKey), hint: g.parentKey } : undefined,
-      cell: row => <span className="text-fg2">{renderCell(getPath(row, l.path))}</span>,
+      cell: row => <span className="text-on-surface-variant">{renderCell(getPath(row, l.path))}</span>,
     }))),
   ];
 
@@ -266,7 +266,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
             несохранённая настройка выглядела бы как мёртвое нажатие (issue #1141 — отказ «источник
             тем временем изменили»; тем же путём доходит и отказ проверки настройки). */}
         {save.error && (
-          <p role="alert" className="text-xs text-danger">
+          <p role="alert" className="text-xs text-error">
             {apiError(save.error, 'Не удалось сохранить материализацию')}
           </p>
         )}
@@ -301,7 +301,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
           }} />
 
         {selectedType && (
-          <div className="rounded-lg border border-stroke p-3 space-y-3">
+          <div className="rounded-lg border border-outline-variant p-3 space-y-3">
             {/* Тип-документ можно не собирать, а назвать: строка ссылается на уже существующий
                 документ комплекта (issue #725). Составным типам выбирать не из чего. */}
             {isDocumentType && (
@@ -309,12 +309,12 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input type="radio" name="materialize-source-mode" checked={!byIdMode}
                     onChange={() => switchByIdMode(false)} />
-                  <span className={byIdMode ? 'text-fg3' : 'text-fg1'}>собрать из колонок</span>
+                  <span className={byIdMode ? 'text-fg3' : 'text-on-surface'}>собрать из колонок</span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input type="radio" name="materialize-source-mode" checked={byIdMode}
                     onChange={() => switchByIdMode(true)} />
-                  <span className={byIdMode ? 'text-fg1' : 'text-fg3'}>существующий документ по Ид</span>
+                  <span className={byIdMode ? 'text-on-surface' : 'text-fg3'}>существующий документ по Ид</span>
                 </label>
               </div>
             )}
@@ -337,11 +337,11 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input type="radio" name="materialize-mode" checked={!byRowType} onChange={() => switchMode(false)} />
-                    <span className={byRowType ? 'text-fg3' : 'text-fg1'}>один вариант на все строки</span>
+                    <span className={byRowType ? 'text-fg3' : 'text-on-surface'}>один вариант на все строки</span>
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input type="radio" name="materialize-mode" checked={byRowType} onChange={() => switchMode(true)} />
-                    <span className={byRowType ? 'text-fg1' : 'text-fg3'}>вариант по типу документа строки</span>
+                    <span className={byRowType ? 'text-on-surface' : 'text-fg3'}>вариант по типу документа строки</span>
                   </label>
                 </div>
               )}
@@ -387,7 +387,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
             )}
 
             {problem && (
-              <p className="text-xs text-danger flex items-start gap-1">
+              <p className="text-xs text-error flex items-start gap-1">
                 <AlertTriangle size={13} className="shrink-0 mt-px" /> {problem}
               </p>
             )}
@@ -397,7 +397,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
         {typeId && (
           <div>
             <button type="button" onClick={() => setShowPreview(v => !v)}
-              className="text-xs text-brand hover:text-brand-hover">
+              className="text-xs text-primary hover:text-brand-hover">
               {showPreview ? 'Скрыть предпросмотр' : 'Предпросмотр материализации'}
             </button>
             {showPreview && (
@@ -407,14 +407,14 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                 {preview.isLoading ? (
                   <p className="text-xs text-fg4 p-3">Загрузка…</p>
                 ) : preview.data?.error ? (
-                  <p className="text-xs text-danger p-3">{preview.data.error}</p>
+                  <p className="text-xs text-error p-3">{preview.data.error}</p>
                 ) : preview.data && preview.data.rows.length > 0 ? (
                   previewModel.leaves.length === 0 ? (
                     <p className="text-xs text-fg4 p-3">Нет заполненных полей — задайте маппинг.</p>
                   ) : (
                     <>
                       {previewModel.unwrappedLabel && (
-                        <p className="text-caption text-fg4 px-2 pt-2">Вариант: <span className="text-fg2">{previewModel.unwrappedLabel}</span></p>
+                        <p className="text-caption text-fg4 px-2 pt-2">Вариант: <span className="text-on-surface-variant">{previewModel.unwrappedLabel}</span></p>
                       )}
                       <DataGrid framed={false} density="compact" className="min-h-0" columns={previewColumns} rows={previewModel.rows} />
                     </>
@@ -425,7 +425,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                 {/* Пропущенные видны ВСЕГДА, а не по раскрытию: строка, не доехавшая до реестра, —
                     это и есть то, ради чего предпросмотр открывают. */}
                 {!!preview.data?.skipped?.length && (
-                  <div className="px-2 py-1.5 border-t border-stroke space-y-0.5">
+                  <div className="px-2 py-1.5 border-t border-outline-variant space-y-0.5">
                     <p className="text-caption text-warning flex items-center gap-1">
                       <AlertTriangle size={11} /> Пропущено строк: {preview.data.skipped.length}
                     </p>

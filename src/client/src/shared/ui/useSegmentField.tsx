@@ -445,11 +445,11 @@ export function useSegmentField<K extends string>(model: SegmentModel<K>, {
 
   const segClass = [
     'border-0 outline-none bg-transparent text-center min-w-0 p-0',
-    disabled ? 'cursor-not-allowed' : 'focus:bg-brand-subtle',
+    disabled ? 'cursor-not-allowed' : 'focus:bg-primary-container',
     'rounded-sm tabular-nums',
-    problem ? 'text-danger' : '',
+    problem ? 'text-error' : '',
     // Выделенное Ctrl+A значение подсвечено целиком, как один текст.
-    allSelected ? 'bg-brand-subtle' : '',
+    allSelected ? 'bg-primary-container' : '',
   ].join(' ');
 
   /** Сегменты с разделителями и объявление выделения — внутрь группы поля. */

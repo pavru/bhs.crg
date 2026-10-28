@@ -83,7 +83,7 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
               <Tooltip content={locked ? 'Обязательное поле — на нём завязано разбиение документов' : undefined}>
                 <input value={f.name} onChange={e => update(i, { name: e.target.value })}
                   readOnly={locked} placeholder="Позиция"
-                  className={`w-full border border-stroke-strong rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-1 focus-visible:ring-brand bg-surface ${
+                  className={`w-full border border-outline rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface ${
                     locked ? 'pr-7 text-fg3 cursor-not-allowed' : ''}`} />
               </Tooltip>
               {locked && (
@@ -93,7 +93,7 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
             </div>
             <input value={f.description ?? ''} onChange={e => update(i, { description: e.target.value })}
               placeholder="Что это за колонка — своими словами"
-              className="border border-stroke-strong rounded px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-brand bg-surface" />
+              className="border border-outline rounded px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
             <Select value={f.type || 'string'} onValueChange={type => update(i, { type })}
               aria-label={`Тип: ${f.name.trim() || `строка ${i + 1}`}`}>
               {FIELD_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
@@ -103,14 +103,14 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
                 isFirst={i === 0} isLast={i === fields.length - 1} />
               <Tooltip content={locked ? 'Обязательное поле — удалить нельзя' : 'Удалить'} name>
                 <button type="button" onClick={() => remove(i)} disabled={locked}
-                  className="p-0.5 text-fg4 hover:text-danger disabled:opacity-25"><Trash2 size={13} /></button>
+                  className="p-0.5 text-fg4 hover:text-error disabled:opacity-25"><Trash2 size={13} /></button>
               </Tooltip>
             </span>
           </div>
         );
       })}
       <button type="button" onClick={() => onChange([...fields, withRowUid({ name: '', description: '', type: 'string' })])}
-        className="flex items-center gap-1 text-sm text-brand hover:text-brand-hover pt-0.5">
+        className="flex items-center gap-1 text-sm text-primary hover:text-brand-hover pt-0.5">
         <Plus size={13} /> {addLabel}
       </button>
     </div>
@@ -128,7 +128,7 @@ function ShapeEditor({ shape, onChange }: { shape: RecognitionTableShape; onChan
   return (
     <div className="space-y-1.5">
       {flags.map(f => (
-        <label key={f.key} className="flex items-start gap-2 text-sm text-fg2 cursor-pointer">
+        <label key={f.key} className="flex items-start gap-2 text-sm text-on-surface-variant cursor-pointer">
           <input type="checkbox" checked={shape[f.key]} onChange={e => onChange({ ...shape, [f.key]: e.target.checked })}
             className="mt-0.5 accent-[var(--md-sys-color-primary)]" />
           <span>
@@ -197,10 +197,10 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
             <DetailTitle>{profile.name}</DetailTitle>
             <span className="text-xs font-normal text-fg4">{info.label}</span>
             {profile.isBuiltIn && (
-              <span className="text-caption px-1.5 py-0.5 rounded bg-muted text-fg3">встроенный</span>
+              <span className="text-caption px-1.5 py-0.5 rounded bg-surface-container text-fg3">встроенный</span>
             )}
             {profile.isModified && (
-              <span className="text-caption px-1.5 py-0.5 rounded bg-brand-subtle text-brand-pressed">изменён</span>
+              <span className="text-caption px-1.5 py-0.5 rounded bg-primary-container text-brand-pressed">изменён</span>
             )}
           </span>
         }
@@ -224,7 +224,7 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
 
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5">
         {profile.builtInOutdated && (
-          <div className="flex gap-2 rounded-lg border border-warning-border bg-warning-subtle p-3 text-sm text-warning">
+          <div className="flex gap-2 rounded-lg border border-warning-border bg-warning-container p-3 text-sm text-warning">
             <AlertTriangle size={16} className="shrink-0 mt-0.5" />
             <span>
               Заводская версия этого профиля обновилась в новой версии системы, но ваши правки сохранены —
@@ -237,7 +237,7 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
 
         {info.hasScalarFields && (
           <section>
-            <p className="text-sm font-medium text-fg1 mb-1">Поля документа</p>
+            <p className="text-sm font-medium text-on-surface mb-1">Поля документа</p>
             <p className="text-xs text-fg4 mb-2">
               Отдельные значения, которые модель извлекает из документа. Описание — главная подсказка:
               по нему модель понимает, что искать.
@@ -249,7 +249,7 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
 
         {info.isTabular && (
           <section>
-            <p className="text-sm font-medium text-fg1 mb-1">Колонки таблицы</p>
+            <p className="text-sm font-medium text-on-surface mb-1">Колонки таблицы</p>
             <p className="text-xs text-fg4 mb-2">
               Модель вернёт по одной строке на каждую строку таблицы с этими колонками.
             </p>
@@ -260,7 +260,7 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
 
         {info.supportsShape && (
           <section>
-            <p className="text-sm font-medium text-fg1 mb-1">Форма таблицы</p>
+            <p className="text-sm font-medium text-on-surface mb-1">Форма таблицы</p>
             <p className="text-xs text-fg4 mb-2">
               То, что набором колонок не выразить. Текст подсказки формируем мы — вы выбираете признаки.
             </p>
@@ -268,7 +268,7 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
           </section>
         )}
 
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <p className="text-sm text-error">{error}</p>}
       </div>
 
       <ConfirmDialog
@@ -334,8 +334,8 @@ function CreateProfileForm({ kinds, onSaved, onCancel }: {
           Вид определяет, какой промпт применяется, и после создания не меняется.
         </p>
       </div>
-      {error && <p className="text-sm text-danger">{error}</p>}
-      <div className="flex justify-end gap-2 border-t border-stroke pt-3">
+      {error && <p className="text-sm text-error">{error}</p>}
+      <div className="flex justify-end gap-2 border-t border-outline-variant pt-3">
         <Button type="button" variant="text" onClick={onCancel}>Отмена</Button>
         <Button type="button" variant="filled" onClick={save} loading={create.isPending}>
           {create.isPending ? 'Создание…' : 'Создать'}
@@ -392,11 +392,11 @@ export function RecognitionProfilesPage() {
   const row = (p: RecognitionProfile) => (
     <button key={p.id} type="button" onClick={() => { ld.showDetail(); setSelectedId(p.id); }}
       className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-        selected?.id === p.id ? 'bg-brand-subtle text-brand-pressed' : 'text-fg2 hover:bg-base'}`}>
+        selected?.id === p.id ? 'bg-primary-container text-brand-pressed' : 'text-on-surface-variant hover:bg-surface-container-low'}`}>
       <span className="flex items-center gap-1.5">
         <span className="text-sm truncate flex-1 min-w-0">{p.name}</span>
         {p.builtInOutdated && <AlertTriangle size={12} className="text-warning shrink-0" aria-label="Заводской профиль обновился" />}
-        {p.isModified && <Tooltip content="Изменён"><span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" /></Tooltip>}
+        {p.isModified && <Tooltip content="Изменён"><span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" /></Tooltip>}
       </span>
       <span className="block text-xs text-fg4 truncate">
         {p.kindInfo.label} · {profileSummary(p)}{p.isBuiltIn ? '' : ' · свой'}
@@ -452,7 +452,7 @@ export function RecognitionProfilesPage() {
                 они есть и почему их не видно, — иначе «у меня был профиль» выглядит потерей. */}
             {hiddenLine && (
               <Tooltip content={hidden.map(h => h.name).join('\n')}>
-                <p className="flex items-start gap-1.5 border-t border-stroke px-3 py-2 text-xs text-fg4">
+                <p className="flex items-start gap-1.5 border-t border-outline-variant px-3 py-2 text-xs text-fg4">
                   <EyeOff size={12} className="shrink-0 mt-0.5" />
                   <span>{hiddenLine}</span>
                 </p>

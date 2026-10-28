@@ -79,10 +79,10 @@ export function MaterialLabelSection() {
               Выполнить
             </Button>
           )}
-          {busy && <Loader2 size={14} className="animate-spin text-brand" />}
+          {busy && <Loader2 size={14} className="animate-spin text-primary" />}
         </div>
 
-        {error && <p className="text-xs text-danger">{error}</p>}
+        {error && <p className="text-xs text-error">{error}</p>}
 
         {done && (
           <p className="text-xs text-success">Готово: имён восстановлено {done.named}.</p>
@@ -96,7 +96,7 @@ export function MaterialLabelSection() {
                   : 'ни один из материалов не встречается в подключённых наборах данных.'}
               </p>
             : (
-              <ul className="text-xs text-fg2 space-y-1">
+              <ul className="text-xs text-on-surface-variant space-y-1">
                 <li>Связок без имени: <b>{report.linksWithoutLabel}</b></li>
                 <li>Имя найдётся: <b>{report.named}</b> (прочитано документов: {report.documentsScanned})</li>
                 {report.documentsFailed > 0 && (

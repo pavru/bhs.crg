@@ -86,8 +86,8 @@ export function SiteCostsPage() {
           {/* Подпись над полем — своя, а не рамочная у Select: рядом период той же высоты, и подпись у него
               та же — legend `DateRange` размера md. */}
           <div>
-            <span className="block mb-1 text-sm font-medium text-fg1">Стройка</span>
-            <Select aria-label="Стройка" className="w-64 h-8 rounded-md border border-stroke bg-surface px-2 text-sm"
+            <span className="block mb-1 text-sm font-medium text-on-surface">Стройка</span>
+            <Select aria-label="Стройка" className="w-64 h-8 rounded-md border border-outline-variant bg-surface px-2 text-sm"
               value={site ?? ALL} stayOpenOn={REVEAL_CHOICE} onValueChange={value => value === REVEAL_CHOICE ? choices.reveal()
                 : set({ site: value === ALL ? null : value })}>
               <SelectItem value={ALL}>Все стройки</SelectItem>
@@ -114,7 +114,7 @@ export function SiteCostsPage() {
         </div>
 
         {report.isError ? (
-          <p role="alert" className="text-sm text-danger">{apiError(report.error, 'Отчёт не построился')}</p>
+          <p role="alert" className="text-sm text-error">{apiError(report.error, 'Отчёт не построился')}</p>
         ) : !data ? (
           <p className="text-sm text-fg4">Отчёт строится…</p>
         ) : (
@@ -188,7 +188,7 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
         ...(foldedNow ? shown : data.sites).map((line): Line => ({ kind: 'figure', key: `site:${line.id ?? line.name}`, indent: true, figure: line,
           link: line.linked ? siteCostsLinks.object(data, line.name) : undefined, label: line.name,
           name: <button type="button" onClick={() => line.id && onSite(line.id)}
-            className="text-left text-brand hover:underline">{line.name}</button> })),
+            className="text-left text-primary hover:underline">{line.name}</button> })),
         ...(data.articles.length > 0 ? [{ kind: 'group', key: 'group:articles', title: OUTSIDE_SITES } satisfies Line] : []),
         ...data.articles.map((line): Line => ({ kind: 'figure', key: `article:${line.id ?? line.name}`, indent: true, name: line.name, figure: line,
           link: line.linked ? siteCostsLinks.object(data, line.name) : undefined })),
@@ -224,7 +224,7 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
             <DataGrid className="mt-1.5" columns={columns} rows={lines} rowKey={l => l.key} section={sectionOf}
               // Итог — главное число отчёта: им сверяют реестр. Поэтому он не мельче строк над ним и
               // выделен целиком, а не одним названием.
-              footer={c => <span className="text-sm font-medium text-fg1">{c.cell?.(total, -1)}</span>} />
+              footer={c => <span className="text-sm font-medium text-on-surface">{c.cell?.(total, -1)}</span>} />
           )}
 
           {/* Месяц, где лежит разница (разбор Дизайнера, п. 7): исправление закрытого периода лежит днём
@@ -241,7 +241,7 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
           {closing && data.unmatchedNow && (
             <p className="mt-1 pl-4 text-sm text-fg3">
               Без позиции номенклатуры сейчас: {invoicesText(data.unmatchedNow.invoices)} —{' '}
-              <button type="button" onClick={() => onView('corrected')} className="text-brand hover:underline">
+              <button type="button" onClick={() => onView('corrected')} className="text-primary hover:underline">
                 сумма и список во взгляде «с исправлениями»
               </button>
             </p>
@@ -264,7 +264,7 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
         </section>
       </ViewPanel>
 
-      <section aria-label="Не входит в затраты" className="border-t border-stroke pt-3">
+      <section aria-label="Не входит в затраты" className="border-t border-outline-variant pt-3">
         <h2 className="text-xs font-medium uppercase tracking-wide text-fg3">Не входит в затраты</h2>
         <DataGrid className="mt-1.5" columns={costColumns('Показатель', undefined, linkNote)} rowKey={l => l.key} rows={[{
           kind: 'figure', key: 'payable', figure: data.payable, label: 'К оплате',
@@ -299,10 +299,10 @@ function Segmented<T>({ label, value, options, onChange }: {
   label: string; value: T; options: [string, T][]; onChange: (value: T) => void;
 }) {
   return (
-    <div role="group" aria-label={label} className="inline-flex rounded-md border border-stroke overflow-hidden">
+    <div role="group" aria-label={label} className="inline-flex rounded-md border border-outline-variant overflow-hidden">
       {options.map(([text, option]) => (
         <button key={text} type="button" aria-pressed={value === option} onClick={() => onChange(option)}
-          className={`h-8 px-3 text-sm ${value === option ? 'bg-brand-subtle text-fg1 font-medium' : 'text-fg2 hover:bg-muted'}`}>
+          className={`h-8 px-3 text-sm ${value === option ? 'bg-primary-container text-on-surface font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
           {text}
         </button>
       ))}
@@ -326,7 +326,7 @@ function sectionOf(line: Line): ReactNode | null {
     <>
       {line.title}
       {line.action && (
-        <button type="button" onClick={line.action.onClick} className="ml-2 font-normal text-fg3 underline hover:text-fg1">
+        <button type="button" onClick={line.action.onClick} className="ml-2 font-normal text-fg3 underline hover:text-on-surface">
           {line.action.label}
         </button>
       )}
@@ -378,7 +378,7 @@ function costColumns(
         <span data-testid="site-costs-folded" className="pl-4 text-fg3">
           {foldedText(line.folded.count)}
           {corrections && line.folded.corrections !== null && <CorrectionIcon text={correctionsText({ amount: line.folded.corrections })} />}
-          <button type="button" onClick={line.onUnfold} className="ml-2 text-xs underline hover:text-fg1">Показать построчно</button>
+          <button type="button" onClick={line.onUnfold} className="ml-2 text-xs underline hover:text-on-surface">Показать построчно</button>
         </span>
       ) : line.kind === 'figure' ? (
         <span className={`${line.indent ? 'pl-4' : ''} ${line.muted ? 'text-fg3' : ''}`}>
@@ -387,7 +387,7 @@ function costColumns(
         </span>
       ) : null },
     { key: 'invoices', label: 'Счетов', hint: countHint, align: 'right', width: 'w-24',
-      cell: line => line.kind === 'figure' ? <span className="text-fg2">{formatCount(line.figure.invoices)}</span> : null },
+      cell: line => line.kind === 'figure' ? <span className="text-on-surface-variant">{formatCount(line.figure.invoices)}</span> : null },
     { key: 'amount', label: 'Сумма', align: 'right', width: 'w-40',
       cell: line => {
         if (line.kind === 'folded') return <span className="text-fg3">{formatMoney(line.folded.amount)}{NO_LINK}</span>;
@@ -410,7 +410,7 @@ function RegistryLink({ to, label, note }: { to: string; label: string; note?: s
   return (
     <Tooltip content={title}>
       <Link to={to} aria-label={title}
-        className="ml-1.5 inline-flex align-middle rounded-sm text-fg3 hover:text-brand focus-visible:outline-2">
+        className="ml-1.5 inline-flex align-middle rounded-sm text-fg3 hover:text-primary focus-visible:outline-2">
         <ArrowUpRight size={14} aria-hidden />
       </Link>
     </Tooltip>

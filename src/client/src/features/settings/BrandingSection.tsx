@@ -96,7 +96,7 @@ export function BrandingSection() {
           показанную настройку не закрывает. */}
       {isError && !data && (
         <div className="flex items-center gap-3" data-testid="branding-load-failed">
-          <span className="text-sm text-danger">Название и логотип не загрузились.</span>
+          <span className="text-sm text-error">Название и логотип не загрузились.</span>
           <Button variant="outlined" size="sm" onClick={() => void refetch()}>Повторить</Button>
         </div>
       )}
@@ -118,7 +118,7 @@ export function BrandingSection() {
         </Button>
       </div>
 
-      <div className="border-t border-stroke pt-4">
+      <div className="border-t border-outline-variant pt-4">
         <p className="text-xs text-fg3 mb-2">
           Логотип — PNG, JPEG, WebP или SVG, до 5 МБ. Он же доступен печатным формам как ассет
           уровня системы: в шаблоне это{' '}
@@ -196,7 +196,7 @@ function LogoRow({ data, uploading, removing, onUpload, onRemove }: {
   const busy = uploading || removing;
   return (
     <div className="flex flex-wrap items-center gap-4" data-testid="branding-logo-row">
-      <div className="flex items-center justify-center w-16 h-16 rounded-lg border border-stroke bg-surface overflow-hidden">
+      <div className="flex items-center justify-center w-16 h-16 rounded-lg border border-outline-variant bg-surface overflow-hidden">
         {!logo && <span className="text-caption text-fg4">нет</span>}
         {logo && unread && (
           <span className="text-caption leading-tight text-center text-warning" data-testid="branding-logo-unread">
@@ -239,18 +239,18 @@ function IconPreviews({ icons }: { icons: BrandIcons }) {
   const tab = brandIconUrl('tab', icons.version);
   if (missing)
     return (
-      <p className="border-l border-stroke pl-4 text-caption leading-tight text-warning max-w-[9rem]"
+      <p className="border-l border-outline-variant pl-4 text-caption leading-tight text-warning max-w-[9rem]"
         data-testid="brand-icon-previews-missing">
         Значки построены, но их картинки не загрузились.
       </p>
     );
   return (
-    <div className="flex items-end gap-4 border-l border-stroke pl-4" data-testid="brand-icon-previews">
+    <div className="flex items-end gap-4 border-l border-outline-variant pl-4" data-testid="brand-icon-previews">
       <figure className="flex flex-col items-center gap-1">
         {/* 16 точек, а не 32, как в файле: крупнее значок на вкладке не бывает нигде, и для широкого
             логотипа это разница между «видно» и «полоска». Половины закреплены и с темой приложения
             не переключаются: вкладка браузера ей не следует. */}
-        <div className="flex rounded-md border border-stroke overflow-hidden">
+        <div className="flex rounded-md border border-outline-variant overflow-hidden">
           <span className="flex items-center justify-center w-7 h-7 bg-tab-light">
             <img src={tab} alt="Значок вкладки на светлом фоне" width={16} height={16} onError={fail} />
           </span>
@@ -267,7 +267,7 @@ function IconPreviews({ icons }: { icons: BrandIcons }) {
             разглядеть. 40 точек: меньше 48 этот значок на телефоне не бывает, а 40 ещё помещается
             в строку. */}
         <img src={brandIconUrl('apple', icons.version)} alt="Значок приложения" width={40} height={40}
-          className="rounded-[22%] border border-stroke" onError={fail} />
+          className="rounded-[22%] border border-outline-variant" onError={fail} />
         <figcaption className="text-caption text-fg4">приложение</figcaption>
       </figure>
     </div>
@@ -282,7 +282,7 @@ function IconsNote({ icons, named }: { icons: BrandIcons; named: boolean }) {
     // Заметность даёт заливка и то, что плашка стоит на месте ожидаемого результата — превью.
     return (
       <p role="status" data-testid="brand-icons-failed"
-        className="mt-3 flex items-start gap-1.5 rounded px-2 py-1.5 text-xs bg-warning-subtle text-warning border border-warning-border max-w-xl">
+        className="mt-3 flex items-start gap-1.5 rounded px-2 py-1.5 text-xs bg-warning-container text-warning border border-warning-border max-w-xl">
         <AlertTriangle size={13} className="shrink-0 mt-px" />
         <span>{failure}</span>
       </p>

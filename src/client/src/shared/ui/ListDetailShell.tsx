@@ -59,13 +59,13 @@ export function ListDetailShell({ overlay, nav, navWidth = 'w-80', detail, view,
           <div className="flex-1 min-h-0 flex">
             <nav aria-label={header.title} data-testid="ld-nav"
               // Под концом списка — место для плавающей кнопки, пока она есть (#1434, `--fab-clearance`).
-              className={`w-full ${NAV_WIDE[navWidth]} shrink-0 @2xl/ld:border-r border-stroke flex flex-col bg-base pb-[var(--fab-clearance,0px)] ${
+              className={`w-full ${NAV_WIDE[navWidth]} shrink-0 @2xl/ld:border-r border-outline-variant flex flex-col bg-surface-container-low pb-[var(--fab-clearance,0px)] ${
                 onDetail ? '@max-2xl/ld:hidden' : ''}`}>
               {nav}
             </nav>
             <div data-testid="ld-detail" className={`flex-1 min-w-0 min-h-0 flex flex-col ${onDetail ? '' : '@max-2xl/ld:hidden'}`}>
               <button type="button" onClick={current.showList}
-                className="@2xl/ld:hidden shrink-0 flex items-center gap-2 h-11 px-4 border-b border-stroke text-sm font-medium text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand">
+                className="@2xl/ld:hidden shrink-0 flex items-center gap-2 h-11 px-4 border-b border-outline-variant text-sm font-medium text-primary hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
                 <ArrowLeft size={16} className="shrink-0" />
                 {backLabel ?? 'К списку'}
               </button>
@@ -131,14 +131,14 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
   return (
     <button type="button" onClick={() => { if (!chevron && !filter) view?.showDetail(); onClick(); }} aria-current={active ? 'true' : undefined}
       className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left transition-colors ${
-        highlight ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
+        highlight ? 'bg-primary-container text-brand-hover font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
       <span className={`shrink-0 ${highlight ? 'text-brand-hover' : 'text-fg4'}`}>{icon}</span>
       <span className="flex-1 truncate text-sm">{label}</span>
       {progress != null && (
         <Tooltip content={progressTitle ?? `Готовность по плану: ${progress}%`}>
           <span
             className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 tabular-nums ${
-              progress === 100 ? 'bg-brand-subtle text-brand' : 'bg-muted text-fg3'}`}>
+              progress === 100 ? 'bg-primary-container text-primary' : 'bg-surface-container text-fg3'}`}>
             {progress}%
           </span>
         </Tooltip>
@@ -147,7 +147,7 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
         <Tooltip content={`Требует разбора: ${alert}`}>
           <span
             className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${
-              alertDanger ? 'bg-danger-subtle text-danger' : 'bg-warning-subtle text-warning'}`}>
+              alertDanger ? 'bg-error-container text-error' : 'bg-warning-container text-warning'}`}>
             {alert > 99 ? '99+' : alert}
           </span>
         </Tooltip>
@@ -158,10 +158,10 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
           <ChevronRight size={14} className="shrink-0 text-fg4" />
         </>
       ) : note ? (
-        <span className="text-caption px-1.5 py-0.5 rounded-full shrink-0 bg-muted text-fg3">{note}</span>
+        <span className="text-caption px-1.5 py-0.5 rounded-full shrink-0 bg-surface-container text-fg3">{note}</span>
       ) : (
         count != null && count > 0 && (
-          <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${highlight ? 'bg-white/50 text-brand-hover' : 'bg-brand-subtle text-brand'}`}>{count}</span>
+          <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${highlight ? 'bg-white/50 text-brand-hover' : 'bg-primary-container text-primary'}`}>{count}</span>
         )
       )}
     </button>
@@ -171,7 +171,7 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
 /** Имя выбранного объекта в `DetailHeader` (issue #1352): `h2` — на ступень ниже заголовка страницы,
  *  крупно, но тише его (`font-normal`). Длинное обрезается, полностью — в подсказке. */
 export function DetailTitle({ children }: { children: string }) {
-  return <h2 className="text-xl font-normal text-fg1 truncate min-w-0" title={children}>{children}</h2>;
+  return <h2 className="text-xl font-normal text-on-surface truncate min-w-0" title={children}>{children}</h2>;
 }
 
 /** Sticky-шапка detail: слева доменный `heading` (имя+бейджи+код), справа dirty-бейдж + «Сохранить»
@@ -185,11 +185,11 @@ export function DetailHeader({ heading, dirty, saving, onSaveAll, onRevert, acti
   actions?: ReactNode;
 }) {
   return (
-    <div className="shrink-0 px-6 py-4 border-b border-stroke bg-surface">
+    <div className="shrink-0 px-6 py-4 border-b border-outline-variant bg-surface">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">{heading}</div>
         <div className="flex items-center gap-1.5 shrink-0">
-          {dirty && <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-warning-subtle text-warning">есть изменения</span>}
+          {dirty && <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-warning-container text-warning">есть изменения</span>}
           {onRevert && (
             <Button variant="text" size="sm" disabled={!dirty || saving} onClick={onRevert}>Отмена</Button>
           )}

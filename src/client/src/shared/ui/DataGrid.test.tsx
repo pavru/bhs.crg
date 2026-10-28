@@ -53,9 +53,9 @@ describe('DataGrid: клетка по строке (#1354)', () => {
   it('тон строки — заливкой; у открытой строки её перекрывает подсветка открытия', () => {
     grid([{ key: 'name', label: 'Имя' }], { tone: () => 'warning', rowOpen: p => p.id === '2' });
     const [, anna, boris] = screen.getAllByRole('row');
-    expect(anna.className).toContain('bg-warning-subtle');
-    expect(boris.className).not.toContain('bg-warning-subtle');
-    expect(boris.className).toContain('bg-brand-subtle');
+    expect(anna.className).toContain('bg-warning-container');
+    expect(boris.className).not.toContain('bg-warning-container');
+    expect(boris.className).toContain('bg-primary-container');
   });
 
   it('шапка рисует своё, а имя колонки остаётся подписью', () => {

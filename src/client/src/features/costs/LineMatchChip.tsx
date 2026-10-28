@@ -67,7 +67,7 @@ export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRest
         )}
         <Tooltip content="Отменить подстановку" name>
           <button type="button" onClick={onCancel}
-            className="text-fg4 hover:text-fg1 p-0.5">
+            className="text-fg4 hover:text-on-surface p-0.5">
             <X size={12} />
           </button>
         </Tooltip>
@@ -80,7 +80,7 @@ export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRest
       return (
         <span className="shrink-0 text-caption text-fg4">
           отменено ·{' '}
-          <button type="button" className="text-brand hover:underline" onClick={() => onRestore(offer)}>вернуть</button>
+          <button type="button" className="text-primary hover:underline" onClick={() => onRestore(offer)}>вернуть</button>
         </span>
       );
 
@@ -150,7 +150,7 @@ function Explained({ label, warning = false, children }: { label: string; warnin
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6}
-          className="z-50 w-[340px] max-w-[90vw] rounded-lg bg-surface border border-stroke p-3 text-xs text-fg2 space-y-2 focus:outline-none"
+          className="z-50 w-[340px] max-w-[90vw] rounded-lg bg-surface border border-outline-variant p-3 text-xs text-on-surface-variant space-y-2 focus:outline-none"
           style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           {children}
         </Popover.Content>
@@ -162,7 +162,7 @@ function Explained({ label, warning = false, children }: { label: string; warnin
 function Action({ onClick, children }: { onClick: () => void; children: ReactNode }) {
   return (
     <Popover.Close asChild>
-      <button type="button" onClick={onClick} className="text-brand hover:underline">{children}</button>
+      <button type="button" onClick={onClick} className="text-primary hover:underline">{children}</button>
     </Popover.Close>
   );
 }

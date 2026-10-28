@@ -29,14 +29,14 @@ export function SearchInput({
         aria-label={ariaLabel ?? 'Поиск'}
         autoFocus={autoFocus}
         data-search=""
-        className={`w-full h-10 pl-9 pr-9 text-sm bg-surface border border-stroke-strong text-fg1 outline-none focus-visible:ring-2 focus-visible:ring-brand placeholder:text-fg4 ${rounded === 'full' ? 'rounded-full' : 'rounded-md'} ${className}`}
+        className={`w-full h-10 pl-9 pr-9 text-sm bg-surface border border-outline text-on-surface outline-none focus-visible:ring-2 focus-visible:ring-primary placeholder:text-fg4 ${rounded === 'full' ? 'rounded-full' : 'rounded-md'} ${className}`}
       />
       {value && (
         <button
           type="button"
           onClick={() => onChange('')}
           aria-label="Очистить поиск"
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-fg4 hover:text-fg2 transition-colors"
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-fg4 hover:text-on-surface-variant transition-colors"
         >
           <X size={15} />
         </button>

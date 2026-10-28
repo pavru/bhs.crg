@@ -49,12 +49,12 @@ export function InvoiceScanDrop({ enabled, onFiles, children }: {
     <div className="relative flex-1 min-h-0 flex flex-col" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       {children}
       {enabled && dragging && over === null && (
-        <div className="absolute inset-1 z-10 rounded-lg border-2 border-dashed border-stroke pointer-events-none" />
+        <div className="absolute inset-1 z-10 rounded-lg border-2 border-dashed border-outline-variant pointer-events-none" />
       )}
       {enabled && over !== null && (
-        <div className="absolute inset-1 z-10 rounded-lg border-2 border-dashed border-brand bg-brand-subtle/80
+        <div className="absolute inset-1 z-10 rounded-lg border-2 border-dashed border-primary bg-primary-container/80
           flex items-center justify-center p-4 text-center pointer-events-none">
-          <span className="text-sm font-medium text-brand">
+          <span className="text-sm font-medium text-primary">
             {over > 1
               ? `Отпустите — заведём ${ruCount(over, 'черновик', 'черновика', 'черновиков')}, по одному на файл`
               : 'Отпустите — заведём черновик из файла'}
@@ -98,15 +98,15 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
   const bad = batch.refused !== null || batch.halted !== null;
 
   return (
-    <div className="px-3 py-2 border-y border-stroke bg-surface text-xs space-y-1.5" role="status">
+    <div className="px-3 py-2 border-y border-outline-variant bg-surface text-xs space-y-1.5" role="status">
       <div className="flex items-start gap-2">
-        <p className={`flex-1 ${bad ? 'text-danger' : 'text-fg2'}`}>{batchTitle(batch)}</p>
+        <p className={`flex-1 ${bad ? 'text-error' : 'text-on-surface-variant'}`}>{batchTitle(batch)}</p>
         {batch.phase === 'running' && <Button size="sm" onClick={stopBatch}>Остановить</Button>}
         {done && <IconButton label="Закрыть" size="sm" onClick={dismissBatch}><X size={14} /></IconButton>}
       </div>
       {!done && (
-        <div className="h-1 rounded bg-muted overflow-hidden" aria-hidden>
-          <div className="h-full bg-brand transition-[width]" style={{ width: `${(batch.settled / batch.total) * 100}%` }} />
+        <div className="h-1 rounded bg-surface-container overflow-hidden" aria-hidden>
+          <div className="h-full bg-primary transition-[width]" style={{ width: `${(batch.settled / batch.total) * 100}%` }} />
         </div>
       )}
       {/* Пакет не хранится нигде, кроме этой вкладки: уйти с неё до конца — оставить файлы неотправленными. */}
@@ -114,7 +114,7 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
       {batch.rejected.length > 0 && (
         <ul className="max-h-24 overflow-y-auto space-y-0.5">
           {batch.rejected.map((r, i) => (
-            <li key={`${r.name}-${i}`} className="text-fg2">
+            <li key={`${r.name}-${i}`} className="text-on-surface-variant">
               <span className="font-medium break-all">{r.name}</span> — {r.reason}
             </li>
           ))}
@@ -127,18 +127,18 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
           здесь нет: ему нужны версия счёта и диалог с перечнем уходящего — они на форме, в одном щелчке. */}
       {repeats && (
         <div data-testid="upload-repeats">
-          <p className="text-fg2">{repeats}</p>
+          <p className="text-on-surface-variant">{repeats}</p>
           <ul className="max-h-24 overflow-y-auto space-y-0.5">
             {repeated.map(r => {
               const words = repeatWords(r);
               return (
-                <li key={r.id} className="text-fg2">
+                <li key={r.id} className="text-on-surface-variant">
                   <Tooltip content="Открыть новый черновик">
-                    <button type="button" className="font-medium break-all underline hover:text-fg1" onClick={() => onOpen(r.id)}>{r.name}</button>
+                    <button type="button" className="font-medium break-all underline hover:text-on-surface" onClick={() => onOpen(r.id)}>{r.name}</button>
                   </Tooltip>
                   {' — '}{words.lead}
                   <Tooltip content="Открыть прежний счёт">
-                    <button type="button" className="underline hover:text-fg1"
+                    <button type="button" className="underline hover:text-on-surface"
                       onClick={() => onOpen(r.others[0].id)}>{words.link}</button>
                   </Tooltip>
                   {words.tail}
@@ -152,7 +152,7 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
         <p className="text-fg3" data-testid="upload-line">
           {line.text && `${line.text} `}
           <Tooltip content={line.title}>
-            <button type="button" className="underline hover:text-fg1"
+            <button type="button" className="underline hover:text-on-surface"
               onClick={line.action === 'only' ? onOnly : onShowAll}>{line.label}</button>
           </Tooltip>
         </p>

@@ -50,7 +50,7 @@ function DocumentSearchPanel() {
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
         <input value={text} onChange={e => setText(e.target.value)}
           placeholder="Найти документ по всем комплектам (имя, тип, реквизиты)…"
-          className="w-full pl-9 pr-8 py-2 text-sm border border-stroke-strong rounded-md bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" />
+          className="w-full pl-9 pr-8 py-2 text-sm border border-outline rounded-md bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
         {text && (
           <IconButton label="Очистить" size="sm" onClick={() => setText('')}
             className="absolute right-1.5 top-1/2 -translate-y-1/2">
@@ -59,26 +59,26 @@ function DocumentSearchPanel() {
         )}
       </div>
       {active && (
-        <div className="mt-2 border border-stroke rounded-lg overflow-hidden bg-surface">
+        <div className="mt-2 border border-outline-variant rounded-lg overflow-hidden bg-surface">
           {isFetching && results.length === 0 ? (
             <div className="px-3 py-3 text-xs text-fg4">Поиск…</div>
           ) : results.length === 0 ? (
             <div className="px-3 py-3 text-xs text-fg4">Ничего не найдено по «{q.trim()}»</div>
           ) : (
-            <ul className="divide-y divide-muted max-h-96 overflow-y-auto">
+            <ul className="divide-y divide-surface-container max-h-96 overflow-y-auto">
               {results.map(r => (
                 <li key={r.instanceId}>
                   <button onClick={() => navigate(documentPath(r.constructionId, r.setId, r.instanceId))}
-                    className="w-full text-left px-3 py-2 hover:bg-base transition-colors flex items-center gap-3">
+                    className="w-full text-left px-3 py-2 hover:bg-surface-container-low transition-colors flex items-center gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm text-fg1 truncate">{r.name || r.typeName}</div>
+                      <div className="text-sm text-on-surface truncate">{r.name || r.typeName}</div>
                       <div className="text-xs text-fg4 truncate">
                         {r.constructionName} › {r.sectionName} › {r.setName}
                         {r.name && <span> · {r.typeName}</span>}
                         {filter.active && !filter.favorites.has(r.constructionId) && <span> · ☆ не в избранном</span>}
                       </div>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded font-medium shrink-0 ${STATUS_COLORS[r.status] ?? 'bg-muted text-fg2'}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded font-medium shrink-0 ${STATUS_COLORS[r.status] ?? 'bg-surface-container text-on-surface-variant'}`}>
                       {STATUS_LABELS[r.status] ?? r.status}
                     </span>
                   </button>
@@ -181,7 +181,7 @@ export function ConstructionsList() {
           {shown.map(c => {
             const setsCount = c.sections.reduce((acc, s) => acc + s.documentSets.length, 0);
             return (
-              <div key={c.id} className={`bg-surface border border-stroke rounded-xl p-5 flex flex-col gap-3 hover:border-brand hover:shadow-[var(--md-sys-elevation-level2)] transition-all group cursor-pointer ${filter.visible(c.id) ? '' : 'opacity-60'}`}
+              <div key={c.id} className={`bg-surface border border-outline-variant rounded-xl p-5 flex flex-col gap-3 hover:border-primary hover:shadow-[var(--md-sys-elevation-level2)] transition-all group cursor-pointer ${filter.visible(c.id) ? '' : 'opacity-60'}`}
                 onClick={() => editId !== c.id && navigate(`/document-sets/${c.id}`)}>
                 <div className="flex items-start justify-between gap-2">
                   <FavoriteStar id={c.id} onToggled={() => setKept(new Set(shown.map(x => x.id)))} />
@@ -190,9 +190,9 @@ export function ConstructionsList() {
                       onBlur={() => commitRename(c)}
                       onKeyDown={e => { if (e.key === 'Enter') commitRename(c); if (e.key === 'Escape') { e.stopPropagation(); setEditId(null); } }}
                       autoFocus onClick={e => e.stopPropagation()}
-                      className="flex-1 text-base font-semibold border-b border-brand bg-transparent outline-none" />
+                      className="flex-1 text-base font-semibold border-b border-primary bg-transparent outline-none" />
                   ) : (
-                    <h3 className="text-base font-semibold text-fg1 flex-1">{c.name}</h3>
+                    <h3 className="text-base font-semibold text-on-surface flex-1">{c.name}</h3>
                   )}
                   {canEdit && <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
                     <IconButton label="Переименовать" size="sm"
@@ -233,7 +233,7 @@ export function ConstructionsList() {
                 {c.sections.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {c.sections.slice(0, 4).map(s => (
-                      <span key={s.id} className="text-xs bg-brand-subtle text-brand px-2 py-0.5 rounded-full">{s.name}</span>
+                      <span key={s.id} className="text-xs bg-primary-container text-primary px-2 py-0.5 rounded-full">{s.name}</span>
                     ))}
                     {c.sections.length > 4 && (
                       <span className="text-xs text-fg4">+{c.sections.length - 4} ещё</span>
@@ -259,7 +259,7 @@ export function ConstructionsList() {
           <form id="create-construction-form" onSubmit={handleCreate} className="space-y-4">
             <TextField label="Название стройки" value={newName} onChange={e => setNewName(e.target.value)}
               required autoFocus hint="например: ЖК Северный, корпус 1" />
-            {createError && <p className="text-sm text-danger">{createError}</p>}
+            {createError && <p className="text-sm text-error">{createError}</p>}
           </form>
         )}
       </Modal>

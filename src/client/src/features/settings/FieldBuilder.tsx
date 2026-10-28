@@ -43,7 +43,7 @@ export function JsonPreview({
     // Подложка и текст — теми же классами, что у остальных блоков кода в клиенте
     // (`BugReportsPage`, `ErrorBoundary`): тема здесь такая же, как везде, а не прибитая
     // тёмная литералами (issue #1065).
-    <pre className="rounded-lg px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre leading-relaxed select-all bg-black/5 dark:bg-white/5 text-fg2">
+    <pre className="rounded-lg px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre leading-relaxed select-all bg-black/5 dark:bg-white/5 text-on-surface-variant">
       {json}
     </pre>
   );
@@ -139,31 +139,31 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
   }, [testOpen, sample, expr, testRefs]);
 
   return (
-    <div className="rounded-md border border-brand/30 bg-brand-subtle/40 p-2 space-y-1.5">
+    <div className="rounded-md border border-primary/30 bg-primary-container/40 p-2 space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <span className="text-caption text-fg3 font-medium">Формула (JavaScript)</span>
         <div className="flex items-center gap-1.5">
           <button type="button" onClick={() => setTestOpen(o => !o)}
-            className="text-caption px-2 py-0.5 rounded border border-stroke-strong text-fg3 hover:bg-muted">
+            className="text-caption px-2 py-0.5 rounded border border-outline text-fg3 hover:bg-surface-container">
             Проверить на образце
           </button>
           <div className="relative">
             <button type="button" onClick={() => { setPickOpen(o => !o); setPickFilter(''); }}
-              className="text-caption px-2 py-0.5 rounded border border-stroke-strong text-brand hover:bg-brand/10">
+              className="text-caption px-2 py-0.5 rounded border border-outline text-primary hover:bg-primary/10">
               + Вставить поле
             </button>
             {pickOpen && (
-              <div className="absolute right-0 top-full mt-1 z-50 w-64 bg-surface border border-stroke rounded-lg shadow-lg py-1">
+              <div className="absolute right-0 top-full mt-1 z-50 w-64 bg-surface border border-outline-variant rounded-lg shadow-lg py-1">
                 <input autoFocus value={pickFilter} onChange={e => setPickFilter(e.target.value)}
                   placeholder="Фильтр…" spellCheck={false}
-                  className="mx-2 mb-1 w-[calc(100%-1rem)] border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand" />
+                  className="mx-2 mb-1 w-[calc(100%-1rem)] border border-outline-variant rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary" />
                 <div className="max-h-52 overflow-auto">
                   {filtered.length === 0
                     ? <p className="px-3 py-2 text-xs text-fg4">Нет полей</p>
                     : filtered.map(f => (
                       <button key={f.key} type="button" onClick={() => insertRef(f.key)}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-base">
-                        <code className="text-caption font-mono text-brand shrink-0 max-w-[45%] truncate">{f.key}</code>
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-surface-container-low">
+                        <code className="text-caption font-mono text-primary shrink-0 max-w-[45%] truncate">{f.key}</code>
                         <span className="text-xs text-fg3 truncate flex-1">{f.title || '—'}</span>
                         <span className="text-caption text-fg4 shrink-0">{f.type}</span>
                       </button>
@@ -177,13 +177,13 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
       <textarea ref={taRef} value={expr} spellCheck={false} rows={2}
         onChange={e => onChange({ expression: e.target.value })}
         placeholder={'get("Количество") * get("Цена")'}
-        className="w-full font-mono text-xs border border-stroke-strong rounded px-2 py-1.5 bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand resize-y" />
+        className="w-full font-mono text-xs border border-outline rounded px-2 py-1.5 bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary resize-y" />
 
       {/* Инлайн-статус валидации (#309/#311) */}
       {inCycle ? (
-        <p className="text-caption text-danger">⚠ Циклическая зависимость — поле ссылается само на себя (прямо или через другие расчётные).</p>
+        <p className="text-caption text-error">⚠ Циклическая зависимость — поле ссылается само на себя (прямо или через другие расчётные).</p>
       ) : syntaxError ? (
-        <Tooltip content={syntaxError}><p className="text-caption text-danger">✗ Синтаксическая ошибка: {syntaxError}</p></Tooltip>
+        <Tooltip content={syntaxError}><p className="text-caption text-error">✗ Синтаксическая ошибка: {syntaxError}</p></Tooltip>
       ) : unknownRefs.length > 0 ? (
         <p className="text-caption text-warning">⚠ Неизвестные поля: {unknownRefs.map(k => `«${k}»`).join(', ')}</p>
       ) : expr.trim() ? (
@@ -191,7 +191,7 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
       ) : null}
 
       {testOpen && (
-        <div className="rounded border border-stroke bg-surface p-2 space-y-1.5">
+        <div className="rounded border border-outline-variant bg-surface p-2 space-y-1.5">
           {testRefs.length === 0
             ? <p className="text-caption text-fg4">Формула не ссылается на поля.</p>
             : testRefs.map(k => (
@@ -199,13 +199,13 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
                 <code className="font-mono text-fg3 w-28 truncate shrink-0">{k}</code>
                 <input value={sample[k] ?? ''} onChange={e => setSample(s => ({ ...s, [k]: e.target.value }))}
                   placeholder="образцовое значение"
-                  className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand" />
+                  className="flex-1 border border-outline-variant rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary" />
               </label>
             ))}
           <div className="text-caption pt-0.5">
             {testResult?.error
-              ? <span className="text-danger">Ошибка: {testResult.error}</span>
-              : <span className="text-fg2">Результат: <strong className="font-mono">{String(testResult?.value ?? '—')}</strong></span>}
+              ? <span className="text-error">Ошибка: {testResult.error}</span>
+              : <span className="text-on-surface-variant">Результат: <strong className="font-mono">{String(testResult?.value ?? '—')}</strong></span>}
           </div>
         </div>
       )}
@@ -318,32 +318,32 @@ export function FieldCard({
 
   return (
     <div
-      className={`border rounded-lg overflow-hidden bg-surface transition-colors ${dragging ? 'border-brand' : 'border-stroke'}`}
+      className={`border rounded-lg overflow-hidden bg-surface transition-colors ${dragging ? 'border-primary' : 'border-outline-variant'}`}
       onDragOver={onDragOver}
       onDrop={onDrop}>
       {/* Свёрнутая шапка карточки: drag handle + сводка + chip типа + chevron */}
-      <div className="flex items-center gap-2 pl-2 pr-3 py-2 hover:bg-muted/40 transition-colors"
+      <div className="flex items-center gap-2 pl-2 pr-3 py-2 hover:bg-surface-container/40 transition-colors"
         draggable onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <GripVertical size={15} className="text-fg4 shrink-0 cursor-grab" />
         <button type="button" onClick={onToggleOpen}
           className="flex-1 min-w-0 flex items-center gap-2 text-left">
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-1.5">
-              <span className="text-sm font-medium text-fg1 truncate">{field.title || '(без названия)'}</span>
-              {field.required && <span className="text-caption text-danger shrink-0">обяз.</span>}
-              {keyConflict && <span className="text-caption text-danger shrink-0">! ключ занят</span>}
+              <span className="text-sm font-medium text-on-surface truncate">{field.title || '(без названия)'}</span>
+              {field.required && <span className="text-caption text-error shrink-0">обяз.</span>}
+              {keyConflict && <span className="text-caption text-error shrink-0">! ключ занят</span>}
             </span>
             <span className="block text-xs text-fg4 font-mono truncate">{field.key || '—'}</span>
           </span>
           <ModuleFieldBadge field={field} /><SuggestOffBadge field={field} />
           {chips.slice(0, 2).map(tc => <FunctionalTagBadge key={tc} registry={tagRegistry} entry={tc} />)}
           {chips.length > 2 && <span className="text-caption text-fg4 shrink-0">+{chips.length - 2}</span>}
-          <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-fg3 shrink-0">{fieldTypeSummary(field, reg)}</span>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-surface-container text-fg3 shrink-0">{fieldTypeSummary(field, reg)}</span>
           {open ? <ChevronUp size={16} className="text-fg4 shrink-0" /> : <ChevronDown size={16} className="text-fg4 shrink-0" />}
         </button>
       </div>
       {open && (
-      <div className="px-3 pb-3 pt-2 border-t border-stroke space-y-2">
+      <div className="px-3 pb-3 pt-2 border-t border-outline-variant space-y-2">
       <div className="grid grid-cols-[1fr_1fr_160px_72px_76px] gap-2 items-center">
         {/* Title */}
         <input
@@ -351,7 +351,7 @@ export function FieldCard({
           value={field.title}
           onChange={e => updateTitle(e.target.value)}
           placeholder="Название"
-          className="border border-stroke-strong rounded-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
+          className="border border-outline rounded-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
         />
         {/* Key — стабильный идентификатор хранения (issue #355) */}
         <div className="relative">
@@ -363,16 +363,16 @@ export function FieldCard({
               placeholder="КлючПоля"
               spellCheck={false}
               className={`w-full border rounded-md pl-3 pr-7 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 ${
-                keyConflict ? 'border-danger focus-visible:ring-danger' : 'border-stroke-strong focus-visible:ring-brand'
-              } ${keyLocked ? 'bg-muted/60 text-fg3 cursor-default' : 'bg-surface'}`}
+                keyConflict ? 'border-error focus-visible:ring-error' : 'border-outline focus-visible:ring-primary'
+              } ${keyLocked ? 'bg-surface-container/60 text-fg3 cursor-default' : 'bg-surface'}`}
             />
           </Tooltip>
           {keyConflict ? (
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-danger">!</span>
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-error">!</span>
           ) : keyLocked ? (
             <Tooltip content="Изменить ключ (осторожно: осиротит данные документов)" name>
               <button type="button" onClick={() => setConfirmUnlock(true)}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-fg4 hover:text-fg2">
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-fg4 hover:text-on-surface-variant">
                 <Lock size={13} />
               </button>
             </Tooltip>
@@ -387,7 +387,7 @@ export function FieldCard({
         {/* Type — открывает searchable TypePicker (issue #197) */}
         <Tooltip content="Выбрать тип поля">
           <button type="button" onClick={() => setPickerOpen(true)}
-            className="flex items-center justify-between gap-1 border border-stroke-strong rounded-md px-2 py-1.5 text-sm bg-surface hover:bg-muted/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+            className="flex items-center justify-between gap-1 border border-outline rounded-md px-2 py-1.5 text-sm bg-surface hover:bg-surface-container/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <span className="truncate text-left">{fieldTypeSummary(field, reg)}</span>
             <ChevronDown size={14} className="text-fg4 shrink-0" />
           </button>
@@ -395,7 +395,7 @@ export function FieldCard({
         {/* Required (у расчётного поля неприменимо — заменяется меткой ƒ) */}
         {field.computed ? (
           <Tooltip content="Расчётное поле — значение вычисляется формулой">
-            <span className="flex items-center justify-center gap-1 text-caption text-brand">
+            <span className="flex items-center justify-center gap-1 text-caption text-primary">
               <FunctionSquare size={12} /> вычисл.
             </span>
           </Tooltip>
@@ -405,7 +405,7 @@ export function FieldCard({
               type="checkbox"
               checked={field.required}
               onChange={e => onChange({ required: e.target.checked })}
-              className="w-4 h-4 rounded border-stroke-strong text-brand"
+              className="w-4 h-4 rounded border-outline text-primary"
             />
             <span className="text-xs text-fg3">да</span>
           </label>
@@ -415,14 +415,14 @@ export function FieldCard({
           <MoveButtons onUp={() => onMoveUp?.()} onDown={() => onMoveDown?.()}
             isFirst={!!isFirst} isLast={!!isLast} />
           <button type="button" onClick={onRemove}
-            className="p-1 text-fg4 hover:text-danger">
+            className="p-1 text-fg4 hover:text-error">
             <Trash2 size={12} />
           </button>
         </div>
       </div>
       {/* Предупреждение о дрейфе данных при изменённом ключе существующего поля (issue #355). */}
       {keyChanged && (
-        <p className="text-xs text-danger flex items-start gap-1.5">
+        <p className="text-xs text-error flex items-start gap-1.5">
           <Lock size={12} className="shrink-0 mt-0.5" />
           <span>Ключ изменён с «<span className="font-mono">{savedKey}</span>» — данные существующих
             документов останутся под старым ключом (осиротеют). Перенос старый→новый — через «Аудит»
@@ -459,10 +459,10 @@ export function FieldCard({
               onChange={e => onChange(e.target.checked
                 ? { computed: true, required: false, defaultValue: undefined }
                 : { computed: undefined, expression: undefined })}
-              className="w-4 h-4 rounded border-stroke-strong text-brand"
+              className="w-4 h-4 rounded border-outline text-primary"
             />
-            <span className="text-xs text-fg2 flex items-center gap-1">
-              <FunctionSquare size={13} className="text-brand" /> Вычисляемое (формула)
+            <span className="text-xs text-on-surface-variant flex items-center gap-1">
+              <FunctionSquare size={13} className="text-primary" /> Вычисляемое (формула)
             </span>
           </label>
           {/* Подсказка по введённому ранее (issue #1533): флажок, причина вместо него или ничего. */}
@@ -483,7 +483,7 @@ export function FieldCard({
                 type="checkbox"
                 checked={!!field.defaultValue}
                 onChange={e => onChange({ defaultValue: e.target.checked ? true : undefined })}
-                className="w-3.5 h-3.5 rounded border-stroke-strong text-brand"
+                className="w-3.5 h-3.5 rounded border-outline text-primary"
               />
               <span className="text-xs text-fg3">{field.defaultValue ? 'true' : 'не задано'}</span>
             </label>
@@ -516,7 +516,7 @@ export function FieldCard({
                     : field.type === 'number' ? Number(v) : v,
                 });
               }}
-              className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand"
+              className="flex-1 border border-outline-variant rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
             />
           )}
         </div>
@@ -534,21 +534,21 @@ export function FieldCard({
                   onChange({ options: opts });
                 }}
                 placeholder={`Вариант ${oi + 1}`}
-                className="flex-1 border border-stroke-strong rounded px-2 py-1 text-xs focus:outline-none focus-visible:ring-1 focus-visible:ring-brand bg-surface"
+                className="flex-1 border border-outline rounded px-2 py-1 text-xs focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface"
               />
               <button type="button"
                 onClick={() => {
                   const opts = (field.options ?? []).filter((_, j) => j !== oi);
                   onChange({ options: opts });
                 }}
-                className="p-0.5 text-fg4 hover:text-danger">
+                className="p-0.5 text-fg4 hover:text-error">
                 <Trash2 size={11} />
               </button>
             </div>
           ))}
           <button type="button"
             onClick={() => onChange({ options: [...(field.options ?? []), ''] })}
-            className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover">
+            className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover">
             <Plus size={11} /> Добавить вариант
           </button>
         </div>
@@ -564,7 +564,7 @@ export function FieldCard({
             {unknownTags.map(code => (
               <Tooltip key={code} content="Тэг модуля, выключенного на этом экземпляре. Значение остаётся в схеме и заработает, когда модуль включат.">
                 <span
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-stroke px-2 py-0.5 text-caption text-fg4">
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-outline-variant px-2 py-0.5 text-caption text-fg4">
                   <Lock size={9} />{code}
                 </span>
               </Tooltip>
@@ -709,9 +709,9 @@ export function DefaultValueCell({ field, override, enumTypes, onOverrideDefault
   const cur = override?.defaultValue;
   const hasDv = cur !== undefined;
   const parentDv = field.defaultValue;
-  const inputCls = 'w-full border rounded px-1.5 py-0.5 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand ' + (hasDv ? 'border-brand-subtle' : 'border-stroke');
+  const inputCls = 'w-full border rounded px-1.5 py-0.5 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary ' + (hasDv ? 'border-primary-container' : 'border-outline-variant');
   // Своя рамка у переопределённого значения сильнее рамки Select: иначе победил бы порядок правил в CSS.
-  const selectCls = hasDv ? 'border-brand-subtle!' : '';
+  const selectCls = hasDv ? 'border-primary-container!' : '';
 
   if (field.type === 'boolean') {
     return (

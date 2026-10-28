@@ -24,17 +24,17 @@ export function PasteArchivedNote({ cells, canReturn, checked, onChange }: {
 }) {
   const names = [...new Map(cells.map(c => [c.hit.entryId, c.hit.displayName ?? '(без названия)'])).values()];
   return (
-    <div className="space-y-1.5 border-t border-muted pt-3">
-      <p className="text-fg2 flex items-center gap-1.5">
+    <div className="space-y-1.5 border-t border-surface-container pt-3">
+      <p className="text-on-surface-variant flex items-center gap-1.5">
         <Archive size={13} className="text-fg3 shrink-0" />
-        В архиве: <span className="font-medium text-fg1">{cells.length}</span>
+        В архиве: <span className="font-medium text-on-surface">{cells.length}</span>
       </p>
       <p className="text-xs text-fg3">
         {names.slice(0, NAMES_SHOWN).join(', ')}
         {names.length > NAMES_SHOWN && ` и ещё ${names.length - NAMES_SHOWN}`}
       </p>
       {canReturn && (
-        <label className="flex items-center gap-2 text-sm text-fg1 cursor-pointer">
+        <label className="flex items-center gap-2 text-sm text-on-surface cursor-pointer">
           <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
           Вернуть из архива и связать ({names.length})
         </label>

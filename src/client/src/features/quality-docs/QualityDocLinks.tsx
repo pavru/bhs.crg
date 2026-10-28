@@ -146,7 +146,7 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
         <p className="text-sm text-fg4 py-4 text-center">Ни одна связка не подходит под поиск.</p>
       )}
       {shown.map(link => (
-        <div key={link.id} className="group flex items-start gap-3 rounded-md px-3 py-2 hover:bg-base">
+        <div key={link.id} className="group flex items-start gap-3 rounded-md px-3 py-2 hover:bg-surface-container-low">
           <input type="checkbox" checked={selected.has(link.id)} onChange={() => toggle(link.id)}
             aria-label={`Выбрать ${nameOf(link)}`} className="mt-1 shrink-0" />
           {/* Уровень связи (issue #649): до этого он не показывался вовсе, хотя управляет и
@@ -156,7 +156,7 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
             {/* Метка первой строкой во всю ширину: имена материалов доходят до сотни знаков,
                 колонки на четверть экрана здесь противопоказаны. Ключ — второй строкой и
                 моноширинным: это машинная строка, и вид должен об этом говорить. */}
-            <p className="text-sm text-fg1 leading-snug break-words">{nameOf(link)}</p>
+            <p className="text-sm text-on-surface leading-snug break-words">{nameOf(link)}</p>
             {link.materialLabel && (
               <p className="text-xs text-fg4 font-mono break-all">{link.materialKey}</p>
             )}
@@ -181,14 +181,14 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
       {/* Число — по ВИДИМЫМ выбранным: действия работают именно над ними, и подпись обязана
           совпадать с тем, что произойдёт. Скрытые поиском строки в счёт не идут. */}
       {chosen.length > 0 && (
-        <div className="sticky bottom-0 flex items-center gap-2 rounded-md border border-stroke bg-surface px-3 py-2 shadow-sm">
-          <span className="text-sm text-fg2">Выбрано: {chosen.length}</span>
+        <div className="sticky bottom-0 flex items-center gap-2 rounded-md border border-outline-variant bg-surface px-3 py-2 shadow-sm">
+          <span className="text-sm text-on-surface-variant">Выбрано: {chosen.length}</span>
           <Button variant="filled" size="sm" icon={<Replace size={13} />}
             onClick={() => setBulkRelink(true)}>Перепривязать ({chosen.length})</Button>
           <Button variant="outlined" size="sm" icon={<Unlink size={13} />}
             onClick={() => setBulkBreak(true)}>Разорвать ({chosen.length})</Button>
           <button type="button" onClick={() => setSelected(new Set())}
-            className="ml-auto text-xs text-fg4 hover:text-fg2">Снять выбор</button>
+            className="ml-auto text-xs text-fg4 hover:text-on-surface-variant">Снять выбор</button>
         </div>
       )}
 

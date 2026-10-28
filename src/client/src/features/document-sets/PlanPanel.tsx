@@ -117,7 +117,7 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
     <div className="mx-auto max-w-3xl space-y-4">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-sm font-medium text-fg1">План по документам</h2>
+          <h2 className="text-sm font-medium text-on-surface">План по документам</h2>
           <p className="text-xs text-fg4 mt-0.5">
             Каких документов и сколько должно быть в комплекте. Готовность считается по выпущенным:
             черновик не закрывает позицию. Плана нет — проценты нигде не показываются.
@@ -138,8 +138,8 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
           description="Добавьте типы документов и укажите количество — тогда на комплекте, разделе и стройке появится процент готовности." />
       ) : (
         <>
-          <div className="border border-stroke rounded-xl overflow-hidden">
-            <div className="grid grid-cols-[1fr_7rem_7rem_2.5rem] gap-2 px-3 py-2 bg-muted text-caption uppercase tracking-wide text-fg4">
+          <div className="border border-outline-variant rounded-xl overflow-hidden">
+            <div className="grid grid-cols-[1fr_7rem_7rem_2.5rem] gap-2 px-3 py-2 bg-surface-container text-caption uppercase tracking-wide text-fg4">
               <span>Тип документа</span>
               <span className="text-right">План</span>
               <span className="text-right">Выпущено</span>
@@ -147,8 +147,8 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
             </div>
             {rows.map((r, i) => (
               <div key={r.documentTypeId}
-                className="grid grid-cols-[1fr_7rem_7rem_2.5rem] gap-2 items-center px-3 py-1.5 border-t border-stroke text-sm">
-                <span className="truncate text-fg1" title={r.typeName}>{r.typeName}</span>
+                className="grid grid-cols-[1fr_7rem_7rem_2.5rem] gap-2 items-center px-3 py-1.5 border-t border-outline-variant text-sm">
+                <span className="truncate text-on-surface" title={r.typeName}>{r.typeName}</span>
                 <input type="number" min={1} value={r.plannedCount}
                   aria-label={`План по типу «${r.typeName}»`}
                   onChange={e => {
@@ -156,17 +156,17 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
                     const n = Math.max(1, Math.floor(Number(e.target.value) || 1));
                     setRows(prev => prev.map((x, j) => (j === i ? { ...x, plannedCount: n } : x)));
                   }}
-                  className="h-8 px-2 rounded-lg border border-stroke bg-surface text-right tabular-nums
-                             focus:outline-none focus:border-brand" />
+                  className="h-8 px-2 rounded-lg border border-outline-variant bg-surface text-right tabular-nums
+                             focus:outline-none focus:border-primary" />
                 <Tooltip content={actualOf(r.documentTypeId) === null ? 'Станет известно после сохранения' : undefined}>
                   <span className={`text-right tabular-nums ${
-                    (actualOf(r.documentTypeId) ?? -1) >= r.plannedCount ? 'text-brand' : 'text-fg3'}`}>
+                    (actualOf(r.documentTypeId) ?? -1) >= r.plannedCount ? 'text-primary' : 'text-fg3'}`}>
                     {actualOf(r.documentTypeId) ?? '—'}
                   </span>
                 </Tooltip>
                 <button type="button" aria-label={`Убрать «${r.typeName}» из плана`}
                   onClick={() => setRows(prev => prev.filter((_, j) => j !== i))}
-                  className="h-7 w-7 grid place-items-center rounded-lg text-fg4 hover:text-danger hover:bg-danger-subtle transition-colors">
+                  className="h-7 w-7 grid place-items-center rounded-lg text-fg4 hover:text-error hover:bg-error-container transition-colors">
                   <Trash2 size={15} />
                 </button>
               </div>
@@ -174,7 +174,7 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
           </div>
 
           <p className="text-xs text-fg4">
-            Закрыто позиций: <span className="tabular-nums text-fg2">{closed} из {planned}</span>.
+            Закрыто позиций: <span className="tabular-nums text-on-surface-variant">{closed} из {planned}</span>.
             {' '}Документы сверх плана в счёт не идут, типы вне плана — тоже.
             {unknownFacts && ' По добавленным строкам выпущенное посчитается после сохранения.'}
           </p>

@@ -28,7 +28,7 @@ export function InvoiceTwinNotes({ view, onOpenInvoice }: { view: InvoiceView; o
   return (
     <>
       {sameFile.length > 0 && (loud ? (
-        <div className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2"
+        <div className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-container px-3 py-2"
           data-testid="same-file-note">
           <Copy size={14} className="text-warning shrink-0 mt-0.5" />
           <div className="min-w-0 text-xs text-warning">
@@ -58,7 +58,7 @@ export function InvoiceTwinNotes({ view, onOpenInvoice }: { view: InvoiceView; o
         </p>
       ))}
       {duplicates.length > 0 && (
-        <div className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2">
+        <div className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-container px-3 py-2">
           <Copy size={14} className="text-warning shrink-0 mt-0.5" />
           <div className="min-w-0 text-xs text-warning">
             <span>Похоже на дубликат — у этого поставщика уже есть счёт с тем же номером и датой: </span>

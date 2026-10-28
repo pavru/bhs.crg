@@ -24,7 +24,7 @@ export function PlanProgressBadge({ progress, className = '' }: {
     <Tooltip content={planTitle(progress)}>
       <span className={`inline-flex items-center gap-1.5 text-caption ${className}`}>
         <span className={`px-2 py-0.5 rounded-full tabular-nums ${
-          done ? 'bg-brand-subtle text-brand' : 'bg-muted text-fg2'}`}>
+          done ? 'bg-primary-container text-primary' : 'bg-surface-container text-on-surface-variant'}`}>
           {progress.ready} / {progress.planned} · {progress.percent}%
         </span>
         {/* Неразобранное сверкой держит процент на 99 % — без этой оговорки цифра выглядит

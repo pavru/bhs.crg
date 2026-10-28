@@ -221,7 +221,7 @@ export function InvoiceForm({
           else if (await save()) go?.();
         }} />
       {/* ── Шапка: без прокрутки ─────────────────────────────────────────────── */}
-      <div className="shrink-0 border-b border-stroke bg-surface px-5 py-3 space-y-3 outline-none"
+      <div className="shrink-0 border-b border-outline-variant bg-surface px-5 py-3 space-y-3 outline-none"
         ref={header} tabIndex={-1} role="group" data-testid="invoice-header"
         aria-label={`Счёт № ${asInput(view.requisites[K.number]) || 'без номера'}`}>
         {gone && <InvoiceGoneNotice onClose={onClose} />}
@@ -276,8 +276,8 @@ export function InvoiceForm({
         {!gone && <InvoicePayment view={view} dirty={dirty} />}
 
         {organizationsError != null && (
-          <div className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger-subtle
-            px-3 py-2 text-xs text-danger">
+          <div className="flex items-start gap-2 rounded-lg border border-error/30 bg-error-container
+            px-3 py-2 text-xs text-error">
             <TriangleAlert size={14} className="shrink-0 mt-0.5" />
             <span>
               Справочник организаций не прочитан: {apiError(organizationsError, 'сервер отказал')}.
@@ -377,7 +377,7 @@ function BlockFields({
     <>
       {(titled || marks.length > 0) && (
         <div className="flex items-center gap-3">
-          {titled && <h2 className="text-sm font-medium text-fg2">{block.title}</h2>}
+          {titled && <h2 className="text-sm font-medium text-on-surface-variant">{block.title}</h2>}
           <div className="flex-1" />
           {/* Кнопки нет, когда снимать нечего: пустой перечень сервер отвергает, и предлагать
               действие, которое заведомо откажет, — обман. */}

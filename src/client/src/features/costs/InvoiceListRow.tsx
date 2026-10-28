@@ -41,15 +41,15 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
 
   return (
     <button ref={row} type="button" onClick={onClick} data-testid="invoice-row"
-      className={`w-full text-left px-3 py-2 border-b border-stroke/60 transition-colors ` +
-        `${active ? 'bg-brand-subtle' : 'hover:bg-muted'}`}>
+      className={`w-full text-left px-3 py-2 border-b border-outline-variant/60 transition-colors ` +
+        `${active ? 'bg-primary-container' : 'hover:bg-surface-container'}`}>
       <div className="flex items-center gap-2">
         {/* Номера нет, скан есть — имя файла: три черновика из скана подряд иначе неразличимы. */}
         {item.number || !item.scanFileName
-          ? <span className="text-sm text-fg1 font-medium truncate">{item.number ?? 'без номера'}</span>
+          ? <span className="text-sm text-on-surface font-medium truncate">{item.number ?? 'без номера'}</span>
           : (
             <Tooltip content="Номера ещё нет — это имя файла счёта">
-              <span className="inline-flex items-center gap-1 min-w-0 text-sm text-fg2">
+              <span className="inline-flex items-center gap-1 min-w-0 text-sm text-on-surface-variant">
                 <ScanLine size={12} className="shrink-0 text-fg3" aria-hidden />
                 <span className="truncate">{item.scanFileName}</span>
               </span>
@@ -57,7 +57,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
           )}
         {item.issuedOn && <span className="text-xs text-fg3 shrink-0">{formatDate(item.issuedOn)}</span>}
         <div className="flex-1" />
-        {item.total != null && <span className="text-xs text-fg2 shrink-0">{formatMoney(item.total)}</span>}
+        {item.total != null && <span className="text-xs text-on-surface-variant shrink-0">{formatMoney(item.total)}</span>}
       </div>
       <div className="flex items-center gap-2 mt-0.5">
         <SupplierName item={item} />
@@ -65,7 +65,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
         {/* Значки-счётчики. Нулей не рисуем: число «0» у каждой строки читается как шум. */}
         {lost > 0 && (
           <Tooltip content={lostTitle(item)}>
-            <span className="inline-flex items-center gap-0.5 text-xs text-danger shrink-0" aria-label={`Удалённых записей: ${lost}`}>
+            <span className="inline-flex items-center gap-0.5 text-xs text-error shrink-0" aria-label={`Удалённых записей: ${lost}`}>
               <TriangleAlert size={11} aria-hidden />{lost}
             </span>
           </Tooltip>
@@ -121,7 +121,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
         )}
       </div>
       {where && (
-        <div className={`mt-0.5 text-xs truncate ${queue === 'lost' ? 'text-danger' : 'text-fg3'}`}>{where}</div>
+        <div className={`mt-0.5 text-xs truncate ${queue === 'lost' ? 'text-error' : 'text-fg3'}`}>{where}</div>
       )}
       {readiness && (
         <Tooltip content={readiness.title}>
@@ -140,7 +140,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
   );
 }
 
-const SCAN_TONE = { quiet: 'text-fg3', danger: 'text-danger', warning: 'text-warning' } as const;
+const SCAN_TONE = { quiet: 'text-fg3', danger: 'text-error', warning: 'text-warning' } as const;
 const DUE_TONE = SCAN_TONE;
 
 /**
@@ -165,8 +165,8 @@ export function InvoiceLeftRow({ number, onClick, exit, active = true }: {
         ? `Счёт ${EXIT_WORD[exit]} и из очереди ушёл. Строка остаётся, чтобы к нему можно было вернуться`
         : 'Счёт под этот отбор больше не попадает. Строка остаётся, пока он открыт'}>
       <button type="button" onClick={onClick} data-testid={exit ? 'row-exit' : undefined}
-        className={`w-full text-left px-3 py-2 border-b border-stroke/60 ${active ? 'bg-brand-subtle' : 'hover:bg-muted'}`}>
-        <div className="text-sm text-fg1 font-medium truncate">{number || 'без номера'}</div>
+        className={`w-full text-left px-3 py-2 border-b border-outline-variant/60 ${active ? 'bg-primary-container' : 'hover:bg-surface-container'}`}>
+        <div className="text-sm text-on-surface font-medium truncate">{number || 'без номера'}</div>
         <div className="mt-0.5 inline-flex items-center gap-1 text-xs text-fg3">
           <Check size={11} aria-hidden /> {exit ? EXIT_WORD[exit] : 'больше не в отборе'}
         </div>
@@ -202,7 +202,7 @@ function SupplierName({ item }: { item: InvoiceListItem }) {
     <Tooltip content={lost
         ? 'Запись справочника удалена. Откройте счёт и выберите другую организацию'
         : 'Ссылка на организацию есть, а в справочнике организаций её нет: запись удалили либо перевели в другой вид. Что именно — скажет открытый счёт'}>
-      <span className="inline-flex items-center gap-1 text-xs text-danger truncate">
+      <span className="inline-flex items-center gap-1 text-xs text-error truncate">
         <TriangleAlert size={11} /> {lost ? LOST.organization : MISSING.organization}
       </span>
     </Tooltip>

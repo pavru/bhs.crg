@@ -19,7 +19,7 @@ export function RateChoiceFields({ state, sample }: { state: RateChoiceState; sa
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {types.isError ? (
-        <p role="alert" className="text-sm text-danger">{apiError(types.error, 'Классификатор видов работ не прочитался')}</p>
+        <p role="alert" className="text-sm text-error">{apiError(types.error, 'Классификатор видов работ не прочитался')}</p>
       ) : (
         <Select label="Вид работы" value={state.workTypeId} onValueChange={state.pick} disabled={!types.data}
           placeholder={types.data ? (types.data.length ? 'Выберите вид работы' : 'Классификатор пуст') : 'Читаем классификатор…'}>
@@ -28,7 +28,7 @@ export function RateChoiceFields({ state, sample }: { state: RateChoiceState; sa
       )}
       <div className="space-y-1">
         <span className="text-xs text-fg3">Пересчёт единицы</span>
-        <div className="flex items-center gap-2 text-sm text-fg1">
+        <div className="flex items-center gap-2 text-sm text-on-surface">
           <span className="tabular-nums">{sourceUnit ?? 'без единицы'}</span>
           <ArrowRight size={14} aria-hidden className="text-fg4" />
           <span>{unit}</span>
@@ -39,7 +39,7 @@ export function RateChoiceFields({ state, sample }: { state: RateChoiceState; sa
         {chosen && (
           <p className="text-xs text-fg3">
             {result !== null && sample
-              ? <>например, {sample.label}: {formatQuantity(sample.volume!)} × {formatQuantity(factor!)} = <b className="font-medium text-fg1">{formatQuantity(result)} {unit}</b></>
+              ? <>например, {sample.label}: {formatQuantity(sample.volume!)} × {formatQuantity(factor!)} = <b className="font-medium text-on-surface">{formatQuantity(result)} {unit}</b></>
               : factor !== null ? `сколько «${unit}» в одной «${sourceUnit ?? 'единице расценки'}»` : null}
             {factor !== null && !state.typed.trim() && ' · коэффициент предложен единицами'}
           </p>

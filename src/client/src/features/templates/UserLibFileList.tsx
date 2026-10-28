@@ -54,7 +54,7 @@ export function UserLibFileList({
         <NavSection label="Файлы библиотеки" />
         <Tooltip content="Создать файл" name>
           <button type="button" onClick={() => onCreate()}
-            className="h-6 w-6 inline-flex items-center justify-center rounded text-fg3 hover:text-fg1 hover:bg-muted transition-colors">
+            className="h-6 w-6 inline-flex items-center justify-center rounded text-fg3 hover:text-on-surface hover:bg-surface-container transition-colors">
             <Plus size={14} />
           </button>
         </Tooltip>
@@ -75,7 +75,7 @@ export function UserLibFileList({
           <Tooltip content={`Создать файл в «${row.path}»`} name>
             <button type="button" onClick={() => onCreate(row.path)}
               className="h-5 w-5 shrink-0 inline-flex items-center justify-center rounded text-fg4
-                         hover:text-fg1 hover:bg-muted opacity-0 group-hover/dir:opacity-100
+                         hover:text-on-surface hover:bg-surface-container opacity-0 group-hover/dir:opacity-100
                          focus-visible:opacity-100 transition-colors">
               <Plus size={12} />
             </button>
@@ -105,17 +105,17 @@ function FileRow({ label, depth, icon, active, dirty, errors, warnings, title, o
   errors: number; warnings: number; title?: string; onClick: () => void; actions?: React.ReactNode;
 }) {
   return (
-    <div className={`group flex items-center gap-1 pr-1.5 ${active ? 'bg-brand-subtle' : 'hover:bg-muted'}`}>
+    <div className={`group flex items-center gap-1 pr-1.5 ${active ? 'bg-primary-container' : 'hover:bg-surface-container'}`}>
       <Tooltip content={title}>
         <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
           className="flex-1 min-w-0 flex items-center gap-1.5 py-1.5 text-left text-sm"
           style={{ paddingLeft: `${0.75 + depth}rem` }}>
-          <span className={`shrink-0 ${active ? 'text-brand' : 'text-fg3'}`}>{icon}</span>
-          <span className={`truncate ${active ? 'text-fg1 font-medium' : 'text-fg2'}`}>{label}</span>
+          <span className={`shrink-0 ${active ? 'text-primary' : 'text-fg3'}`}>{icon}</span>
+          <span className={`truncate ${active ? 'text-on-surface font-medium' : 'text-on-surface-variant'}`}>{label}</span>
           {/* Ошибка может прилететь из файла, который сейчас закрыт — бейдж на его строке
               единственное место, где её видно. */}
           {errors > 0 && (
-            <Tooltip content={`Ошибок: ${errors}`}><span className="shrink-0 text-danger"><AlertCircle size={12} /></span></Tooltip>
+            <Tooltip content={`Ошибок: ${errors}`}><span className="shrink-0 text-error"><AlertCircle size={12} /></span></Tooltip>
           )}
           {errors === 0 && warnings > 0 && (
             <Tooltip content={`Замечаний: ${warnings}`}><span className="shrink-0 text-warning"><AlertTriangle size={12} /></span></Tooltip>

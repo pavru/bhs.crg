@@ -65,13 +65,13 @@ export class ErrorBoundary extends Component<
 
     return (
       <div className={isPage
-        ? 'min-h-screen flex items-center justify-center p-6 bg-base'
+        ? 'min-h-screen flex items-center justify-center p-6 bg-surface-container-low'
         : 'flex-1 min-h-0 flex items-center justify-center p-6'}>
-        <div className="max-w-lg w-full rounded-xl border border-danger/30 bg-danger-subtle/40 p-5">
+        <div className="max-w-lg w-full rounded-xl border border-error/30 bg-error-container/40 p-5">
           <div className="flex items-start gap-3">
-            <AlertTriangle size={20} className="text-danger shrink-0 mt-0.5" />
+            <AlertTriangle size={20} className="text-error shrink-0 mt-0.5" />
             <div className="min-w-0 flex-1">
-              <h2 className="text-base font-medium text-fg1">{title}</h2>
+              <h2 className="text-base font-medium text-on-surface">{title}</h2>
               <p className="text-sm text-fg3 mt-1">
                 Произошла ошибка при отображении. Сохранённые данные целы — можно попробовать снова
                 или перезагрузить страницу.
@@ -92,17 +92,17 @@ export class ErrorBoundary extends Component<
                       received: error.message,
                       stack: error.stack ?? undefined,
                     })}
-                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border border-stroke text-fg2 hover:bg-base transition-colors">
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border border-outline-variant text-on-surface-variant hover:bg-surface-container-low transition-colors">
                     <Bug size={14} /> Сообщить об ошибке
                   </button>
                 )}
                 <button type="button" onClick={this.reset}
-                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium bg-brand text-on-brand hover:bg-brand-hover transition-colors">
+                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium bg-primary text-on-primary hover:bg-brand-hover transition-colors">
                   <RotateCcw size={14} /> Попробовать снова
                 </button>
                 {allowReload && (
                   <button type="button" onClick={() => window.location.reload()}
-                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border border-stroke text-fg2 hover:bg-base transition-colors">
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border border-outline-variant text-on-surface-variant hover:bg-surface-container-low transition-colors">
                     <RefreshCw size={14} /> Перезагрузить страницу
                   </button>
                 )}
@@ -110,14 +110,14 @@ export class ErrorBoundary extends Component<
                   // `data-modal-exit` — договор окна без шапки: по этой метке Esc и клик мимо
                   // находят выход, когда закрыть сразу нельзя (в редакторе остались правки).
                   <button type="button" onClick={onClose} data-modal-exit=""
-                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border border-stroke text-fg2 hover:bg-base transition-colors">
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border border-outline-variant text-on-surface-variant hover:bg-surface-container-low transition-colors">
                     <X size={14} /> Закрыть
                   </button>
                 )}
               </div>
 
               <button type="button" onClick={() => this.setState({ expanded: !expanded })}
-                className="inline-flex items-center gap-1 mt-3 text-xs text-fg4 hover:text-fg2 transition-colors">
+                className="inline-flex items-center gap-1 mt-3 text-xs text-fg4 hover:text-on-surface-variant transition-colors">
                 {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                 Подробности ошибки
               </button>

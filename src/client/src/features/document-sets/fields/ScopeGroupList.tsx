@@ -38,7 +38,7 @@ export function ScopeGroupList({
           <div key={g.scope}>
             {/* Заголовок группы = scope-бейдж + счётчик; сворачиваемая секция (a11y-кнопка). */}
             <button type="button" onClick={() => toggle(g.scope)} aria-expanded={expanded}
-              className="w-full flex items-center gap-2 px-1 py-1.5 text-left rounded-md hover:bg-base transition-colors">
+              className="w-full flex items-center gap-2 px-1 py-1.5 text-left rounded-md hover:bg-surface-container-low transition-colors">
               {expanded ? <ChevronDown size={13} className="text-fg4 shrink-0" /> : <ChevronRight size={13} className="text-fg4 shrink-0" />}
               <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${SCOPE_COLORS[g.scope]}`}>
                 {SCOPE_LABELS[g.scope]}
@@ -57,12 +57,12 @@ export function ScopeGroupList({
                       id={optionIdOf?.(entry)}
                       onMouseEnter={() => onHover?.(entry)} onClick={() => onSelect(entry)}
                       className={`w-full flex items-center px-3 py-2 text-sm text-left rounded-md transition-colors ${
-                        on ? 'bg-tonal text-on-tonal' : 'hover:bg-brand-subtle'}`}>
-                      <span className={`flex-1 font-medium truncate ${on ? 'text-on-tonal' : 'text-fg1'}`}>
+                        on ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-primary-container'}`}>
+                      <span className={`flex-1 font-medium truncate ${on ? 'text-on-secondary-container' : 'text-on-surface'}`}>
                         {entry.displayName}
                       </span>
                       {hint && (
-                        <span className={`text-caption shrink-0 ml-2 truncate max-w-[45%] ${on ? 'text-on-tonal' : 'text-fg4'}`}>
+                        <span className={`text-caption shrink-0 ml-2 truncate max-w-[45%] ${on ? 'text-on-secondary-container' : 'text-fg4'}`}>
                           {hint}
                         </span>
                       )}

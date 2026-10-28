@@ -33,8 +33,8 @@ export function DocumentTemplateParams({ setId, instance, template, participatin
   return (
     <div className="space-y-2">
       <div className="flex items-baseline gap-2 flex-wrap">
-        <label className="block text-xs font-medium text-fg2">
-          Параметры · <span className="text-fg1">«{template.name}»</span>
+        <label className="block text-xs font-medium text-on-surface-variant">
+          Параметры · <span className="text-on-surface">«{template.name}»</span>
         </label>
         {!participating && (
           <Tooltip content="Шаблон не отмечен для генерации">
@@ -48,18 +48,18 @@ export function DocumentTemplateParams({ setId, instance, template, participatin
       {declared.length === 0 ? (
         <p className="text-caption text-fg4">У этого шаблона нет объявленных параметров.</p>
       ) : (
-        <div className="rounded-md border border-stroke p-2.5 space-y-1.5">
+        <div className="rounded-md border border-outline-variant p-2.5 space-y-1.5">
           {declared.map(p => {
             const overridden = Object.prototype.hasOwnProperty.call(overrides, p.name);
             const value = overridden ? overrides[p.name] : p.default;
             return (
               <div key={p.name} className="flex items-center gap-2">
-                <Tooltip content={p.name}><span className="text-xs text-fg2 flex-1 min-w-0 truncate">{p.label || p.name}</span></Tooltip>
+                <Tooltip content={p.name}><span className="text-xs text-on-surface-variant flex-1 min-w-0 truncate">{p.label || p.name}</span></Tooltip>
                 <ParamValueInput type={p.type} value={value}
                   onChange={v => commit({ ...overrides, [p.name]: v })} />
                 {overridden ? (
                   <Tooltip content="Сбросить к значению по умолчанию">
-                    <button onClick={() => { const n = { ...overrides }; delete n[p.name]; commit(n); }} className="text-caption text-fg4 hover:text-brand shrink-0">
+                    <button onClick={() => { const n = { ...overrides }; delete n[p.name]; commit(n); }} className="text-caption text-fg4 hover:text-primary shrink-0">
                       сброс
                     </button>
                   </Tooltip>
@@ -83,6 +83,6 @@ function ParamValueInput({ type, value, onChange }: {
   return (
     <input type={type === 'number' ? 'number' : 'text'} value={value == null ? '' : String(value)}
       onChange={e => onChange(type === 'number' ? Number(e.target.value) : e.target.value)}
-      className="w-40 shrink-0 text-xs border border-stroke-strong rounded px-1.5 py-1 bg-surface text-fg1" />
+      className="w-40 shrink-0 text-xs border border-outline rounded px-1.5 py-1 bg-surface text-on-surface" />
   );
 }

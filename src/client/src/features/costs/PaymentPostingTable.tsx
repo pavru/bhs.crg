@@ -34,7 +34,7 @@ export function PaymentPostingTable({ posting, changed, expanded = false }: {
 
   if (!warning && !shown)
     return (
-      <div className="text-note text-fg2">
+      <div className="text-note text-on-surface-variant">
         Вся сумма войдёт в затраты {formatDate(posting.paidOn)}.{' '}
         <button type="button" className="underline decoration-dotted underline-offset-2 text-fg3"
           onClick={() => setShown(true)}>
@@ -66,7 +66,7 @@ export function PaymentPostingTable({ posting, changed, expanded = false }: {
         : money(row.amount) },
     { key: 'accountingOn', label: 'Учётная дата', width: 'w-28',
       cell: ({ row, part }) => part ? null : (
-        <span className={`tabular-nums ${row.moved ? 'text-warning font-medium' : 'text-fg2'}`}>
+        <span className={`tabular-nums ${row.moved ? 'text-warning font-medium' : 'text-on-surface-variant'}`}>
           {formatDate(row.accountingOn)}
         </span>
       ) },

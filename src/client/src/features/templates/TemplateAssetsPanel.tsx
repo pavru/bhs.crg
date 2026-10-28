@@ -33,8 +33,8 @@ function AssetReference({ asset }: { asset: TemplateAssetDto }) {
     // «имя ассета» тут не работает, а выглядело бы рабочим.
     return (
       <span className="text-xs truncate flex-1 min-w-0">
-        <span className="text-fg1">{asset.name}</span>
-        <span className="text-danger"> — семейство не распознано, шрифт не подключится</span>
+        <span className="text-on-surface">{asset.name}</span>
+        <span className="text-error"> — семейство не распознано, шрифт не подключится</span>
       </span>
     );
   }
@@ -51,7 +51,7 @@ function AssetReference({ asset }: { asset: TemplateAssetDto }) {
         {/* Переносим, а не обрезаем: панель живёт в узкой колонке, и «/assets/Г…» не отвечает на
             вопрос, ради которого строку и переделали, — что писать в шаблоне. Имя файла ушло в
             подсказку: теперь оно не конкурирует за ширину с тем, на что реально ссылаются. */}
-        <code className="text-xs font-mono text-fg1 break-all leading-snug">{reference}</code>
+        <code className="text-xs font-mono text-on-surface break-all leading-snug">{reference}</code>
         {copied
           ? <Check size={11} className="text-success shrink-0 mt-0.5" />
           : <Copy size={11} className="text-fg4 opacity-0 group-hover/ref:opacity-100 shrink-0 mt-0.5" />}
@@ -79,12 +79,12 @@ function AssetRow({ asset }: { asset: TemplateAssetDto }) {
   }
 
   return (
-    <div className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-base group">
+    <div className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-container-low group">
       {asset.kind === 'Image'
-        ? <ImageIcon size={13} className="text-brand shrink-0" />
+        ? <ImageIcon size={13} className="text-primary shrink-0" />
         : <FontIcon size={13} className="text-tertiary shrink-0" />}
       <AssetReference asset={asset} />
-      {error && <span className="text-xs text-danger shrink-0">{error}</span>}
+      {error && <span className="text-xs text-error shrink-0">{error}</span>}
       <IconButton label="Заменить файл" size="sm" onClick={() => replaceInputRef.current?.click()}
         disabled={replaceMutation.isPending}
         className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0">
@@ -134,11 +134,11 @@ function UploadButton({ scope, scopeId }: { scope: TemplateAssetScope; scopeId: 
     <div className="flex items-center gap-2">
       <button type="button" onClick={() => inputRef.current?.click()}
         disabled={uploadMutation.isPending}
-        className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover disabled:opacity-50">
+        className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover disabled:opacity-50">
         <Upload size={11} /> Добавить ассет
       </button>
       <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleFile} />
-      {error && <span className="text-xs text-danger">{error}</span>}
+      {error && <span className="text-xs text-error">{error}</span>}
     </div>
   );
 }
@@ -158,17 +158,17 @@ export function TemplateAssetsPanel({ scope, scopeId, title, hintScopes }: {
   const { data: assets = [] } = useListTemplateAssets(scope, scopeId);
 
   return (
-    <div className="border-t border-stroke bg-surface">
+    <div className="border-t border-outline-variant bg-surface">
       <button onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-base transition-colors text-left">
+        className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-surface-container-low transition-colors text-left">
         <ImageIcon size={13} className="text-fg4" />
-        <span className="text-xs font-medium text-fg2 flex-1">
+        <span className="text-xs font-medium text-on-surface-variant flex-1">
           {title}{assets.length > 0 ? ` (${assets.length})` : ''}
         </span>
         {open ? <ChevronUp size={13} className="text-fg4" /> : <ChevronDown size={13} className="text-fg4" />}
       </button>
       {open && (
-        <div className="px-4 pb-4 pt-2 border-t border-muted space-y-2">
+        <div className="px-4 pb-4 pt-2 border-t border-surface-container space-y-2">
           {assets.length === 0 ? (
             <p className="text-xs text-fg4 italic">Ассетов нет.</p>
           ) : (

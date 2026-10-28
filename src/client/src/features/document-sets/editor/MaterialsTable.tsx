@@ -25,10 +25,10 @@ function RowPill({ onClick, title, tone = 'tonal', children }: {
     <Tooltip content={title}>
       <button type="button" onClick={onClick}
         className={'flex items-center gap-1 px-1.5 py-0.5 text-xs rounded-full shrink-0 '
-          + 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand '
+          + 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary '
           + (tone === 'brand'
-            ? 'bg-brand hover:bg-brand-hover text-on-brand'
-            : 'bg-tonal text-on-tonal hover:brightness-[.97]')}>
+            ? 'bg-primary hover:bg-brand-hover text-on-primary'
+            : 'bg-secondary-container text-on-secondary-container hover:brightness-[.97]')}>
         {children}
       </button>
     </Tooltip>
@@ -125,16 +125,16 @@ export function MaterialsTable({
                     единственный путь починки шёл через destructive-действие. */}
                 <Tooltip content="Перепривязать к другому документу" name>
                   <button onClick={() => openPickerFor(m)}
-                    className="p-0.5 text-fg4 hover:text-brand"><Replace size={13} /></button>
+                    className="p-0.5 text-fg4 hover:text-primary"><Replace size={13} /></button>
                 </Tooltip>
                 <Tooltip content="Снять связь" name>
                   <button onClick={() => setBreaking({ link, label: m.label })}
-                    className="p-0.5 text-fg4 hover:text-danger"><Unlink size={13} /></button>
+                    className="p-0.5 text-fg4 hover:text-error"><Unlink size={13} /></button>
                 </Tooltip>
               </span>
             ) : suggestion ? (
               <span className="flex items-center gap-1.5">
-                <span className="text-caption px-1 py-0.5 rounded bg-brand-subtle text-brand shrink-0">{Math.round(suggestion.score * 100)}%</span>
+                <span className="text-caption px-1 py-0.5 rounded bg-primary-container text-primary shrink-0">{Math.round(suggestion.score * 100)}%</span>
                 <Tooltip content="Просмотреть предложенный документ">
                   <button onClick={() => setViewDoc(suggestion.doc)}
                     className="flex-1 min-w-0 text-left text-fg3 italic hover:underline truncate">

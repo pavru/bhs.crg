@@ -14,7 +14,7 @@ import { SortSpecDialog } from './SortSpecDialog';
 import type { ColumnExprDef, ComputedColumn, DataSetProcessingTemplate, RowFilterDef, SortSpec } from '@/shared/api/types';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
-const FIELD_CLS = 'border border-stroke rounded-md px-3 py-1.5 text-sm bg-surface text-fg1';
+const FIELD_CLS = 'border border-outline-variant rounded-md px-3 py-1.5 text-sm bg-surface text-on-surface';
 
 interface TemplateFormState {
   name: string;
@@ -46,7 +46,7 @@ function ExtractionFields({
   function removeColumn(i: number) { onColumnsChange(columns.filter((_, idx) => idx !== i)); }
 
   return (
-    <div className="space-y-2 rounded-lg p-3 border border-stroke bg-base">
+    <div className="space-y-2 rounded-lg p-3 border border-outline-variant bg-surface-container-low">
       <div>
         <label className="block text-xs font-medium mb-1 text-fg3">
           Extraction — row-selector <span className="font-normal">(XPath/JSONPath/имя листа — по формату файла; необязательно)</span>
@@ -58,7 +58,7 @@ function ExtractionFields({
       <div>
         <div className="flex items-center justify-between mb-1">
           <label className="block text-xs font-medium text-fg3">Колонки — относительно строки</label>
-          <button type="button" onClick={addColumn} className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover">
+          <button type="button" onClick={addColumn} className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover">
             <Plus size={12} /> Колонка
           </button>
         </div>
@@ -70,7 +70,7 @@ function ExtractionFields({
                 placeholder="Название" className={`w-32 shrink-0 text-xs ${FIELD_CLS} px-2 py-1`} />
               <input value={col.expr} onChange={e => updateColumn(i, { expr: e.target.value })}
                 placeholder="Выражение" className={`flex-1 min-w-0 font-mono text-xs ${FIELD_CLS} px-2 py-1`} />
-              <button type="button" onClick={() => removeColumn(i)} className="p-1 text-fg4 hover:text-danger shrink-0">
+              <button type="button" onClick={() => removeColumn(i)} className="p-1 text-fg4 hover:text-error shrink-0">
                 <Trash2 size={13} />
               </button>
             </div>
@@ -109,7 +109,7 @@ function TemplateForm({
 
   const toggleCls = (active: boolean) =>
     `flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-      active ? 'border-brand text-brand bg-brand-subtle' : 'border-stroke text-fg3 bg-base'
+      active ? 'border-primary text-primary bg-primary-container' : 'border-outline-variant text-fg3 bg-surface-container-low'
     }`;
 
   function handleSave() {
@@ -139,30 +139,30 @@ function TemplateForm({
       <div className="flex gap-2 flex-wrap">
         <button type="button" onClick={() => setFilterOpen(true)} className={toggleCls(filterCount > 0)}>
           <Filter size={12} /> Фильтрация
-          {filterCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-on-brand text-caption bg-brand">{filterCount}</span>}
+          {filterCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-on-primary text-caption bg-primary">{filterCount}</span>}
         </button>
         <button type="button" onClick={() => setTransformsOpen(true)} className={toggleCls(transformCount > 0)}>
           <FunctionSquare size={12} /> Преобразования
-          {transformCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-on-brand text-caption bg-brand">{transformCount}</span>}
+          {transformCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-on-primary text-caption bg-primary">{transformCount}</span>}
         </button>
         <button type="button" onClick={() => setSortOpen(true)} className={toggleCls(sortCount > 0)}>
           <ArrowUpDown size={12} /> Сортировка
-          {sortCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-on-brand text-caption bg-brand">{sortCount}</span>}
+          {sortCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-on-primary text-caption bg-primary">{sortCount}</span>}
         </button>
       </div>
 
-      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
+      {error && <p role="alert" className="text-xs text-error">{error}</p>}
 
       <div className="flex gap-2 pt-1">
         <button
           onClick={handleSave}
           disabled={saving || !name.trim()}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-on-brand disabled:opacity-40 bg-brand"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-on-primary disabled:opacity-40 bg-primary"
         >
           <Check size={13} />
           {saving ? 'Сохранение...' : 'Сохранить'}
         </button>
-        <button onClick={onCancel} className="px-3 py-1.5 rounded-md text-sm font-medium text-fg2 bg-muted">
+        <button onClick={onCancel} className="px-3 py-1.5 rounded-md text-sm font-medium text-on-surface-variant bg-surface-container">
           Отмена
         </button>
       </div>
@@ -198,34 +198,34 @@ function TemplateRow({ template }: { template: DataSetProcessingTemplate }) {
   }
 
   return (
-    <div className="border-b border-stroke last:border-0">
+    <div className="border-b border-outline-variant last:border-0">
       <div className="flex items-center gap-3 px-4 py-3">
-        <Layers size={13} className="text-brand shrink-0" />
+        <Layers size={13} className="text-primary shrink-0" />
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-fg1">{template.name}</div>
+          <div className="text-sm font-medium text-on-surface">{template.name}</div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             {!template.sheetOrPath && filterCount === 0 && transformCount === 0 && sortCount === 0 && (
               <span className="text-xs text-fg4">Без обработки</span>
             )}
             {template.sheetOrPath && (
               <Tooltip content={template.sheetOrPath}>
-                <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand">
+                <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-primary-container text-primary">
                   <Route size={9} /> Extraction
                 </span>
               </Tooltip>
             )}
             {filterCount > 0 && (
-              <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand">
+              <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-primary-container text-primary">
                 <Filter size={9} /> {filterCount}
               </span>
             )}
             {transformCount > 0 && (
-              <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand">
+              <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-primary-container text-primary">
                 <FunctionSquare size={9} /> {transformCount}
               </span>
             )}
             {sortCount > 0 && (
-              <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand">
+              <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-primary-container text-primary">
                 <ArrowUpDown size={9} /> {sortCount}
               </span>
             )}
@@ -242,10 +242,10 @@ function TemplateRow({ template }: { template: DataSetProcessingTemplate }) {
           <div className="flex items-center gap-1.5 text-xs">
             <span className="text-fg3">Удалить?</span>
             <button onClick={() => del.mutateAsync({ id: template.id }).then(() => setConfirming(false))}
-              disabled={del.isPending} className="px-2 py-0.5 rounded text-on-danger bg-danger" style={{ fontSize: '11px' }}>
+              disabled={del.isPending} className="px-2 py-0.5 rounded text-on-error bg-error" style={{ fontSize: '11px' }}>
               Да
             </button>
-            <button onClick={() => setConfirming(false)} className="px-2 py-0.5 rounded bg-muted text-fg2" style={{ fontSize: '11px' }}>
+            <button onClick={() => setConfirming(false)} className="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant" style={{ fontSize: '11px' }}>
               Нет
             </button>
           </div>
@@ -253,7 +253,7 @@ function TemplateRow({ template }: { template: DataSetProcessingTemplate }) {
       </div>
 
       {editing && (
-        <div className="px-4 pb-4 bg-base">
+        <div className="px-4 pb-4 bg-surface-container-low">
           <TemplateForm initial={template} onSave={handleSave} onCancel={() => setEditing(false)} saving={update.isPending} />
         </div>
       )}
@@ -281,7 +281,7 @@ export function ProcessingTemplatesDialog({ onClose }: { onClose: () => void }) 
         можно свободно скорректировать (см. «применить шаблон» у каждого источника).
       </p>
 
-      <div className="rounded-xl overflow-hidden mb-4 border border-stroke bg-surface">
+      <div className="rounded-xl overflow-hidden mb-4 border border-outline-variant bg-surface">
         {isLoading ? (
           <div className="p-6 text-center text-sm text-fg4">Загрузка...</div>
         ) : templates.length === 0 && !adding ? (
@@ -292,12 +292,12 @@ export function ProcessingTemplatesDialog({ onClose }: { onClose: () => void }) 
       </div>
 
       {adding ? (
-        <div className="rounded-xl p-4 border border-stroke bg-base">
+        <div className="rounded-xl p-4 border border-outline-variant bg-surface-container-low">
           <p className="text-xs font-semibold mb-3 text-fg3">Новый шаблон</p>
           <TemplateForm onSave={handleCreate} onCancel={() => setAdding(false)} saving={create.isPending} />
         </div>
       ) : (
-        <button onClick={() => setAdding(true)} className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md text-brand bg-brand-subtle">
+        <button onClick={() => setAdding(true)} className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md text-primary bg-primary-container">
           <Plus size={14} /> Добавить шаблон
         </button>
       )}

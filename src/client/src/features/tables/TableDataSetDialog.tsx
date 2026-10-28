@@ -78,7 +78,7 @@ export function TableDataSetDialog({ address, initialName, body, columns, all, o
       <form onSubmit={submit} className="space-y-3">
         <TextField label="Название источника" value={name} maxLength={200} autoFocus required error={error ?? undefined}
           onChange={e => { setName(e.target.value); setError(null); }} />
-        <div className="space-y-1.5 text-sm text-fg2">
+        <div className="space-y-1.5 text-sm text-on-surface-variant">
           <p>
             Колонки: {kept.map(c => c.label).join(', ')}.
             {added.length > 0 && ` Для отбора и сортировки добавятся: ${added.join(', ')}.`}

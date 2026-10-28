@@ -223,9 +223,9 @@ describe('Calendar: лента периода', () => {
     const { container } = render(<Calendar value="2026-10-24" range={['2026-10-12', '2026-10-24']} onSelect={() => {}} />);
     const grid = screen.getByRole('grid', { name: 'Календарь' });
     const day = (n: string) => within(grid).getAllByRole('button').find(b => b.textContent === n)!;
-    expect(day('12').className).toContain('bg-brand ');
-    expect(day('24').className).toContain('bg-brand ');
+    expect(day('12').className).toContain('bg-primary ');
+    expect(day('24').className).toContain('bg-primary ');
     // Полоса ленты — у каждого дня с 12 по 24 включительно: 13 дней.
-    expect(container.querySelectorAll('span.bg-brand-subtle')).toHaveLength(13);
+    expect(container.querySelectorAll('span.bg-primary-container')).toHaveLength(13);
   });
 });

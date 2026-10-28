@@ -91,13 +91,13 @@ function PasteDialog({ mode, onClose, onAdd }: {
           <textarea value={text} onChange={e => setText(e.target.value)} rows={5}
             aria-label="Таблица из буфера"
             placeholder="Вставьте сюда таблицу товаров — из Excel, из PDF или из письма"
-            className="w-full rounded-lg border border-stroke bg-muted px-3 py-2 text-xs font-mono
-              text-fg1 outline-none focus:border-brand" />
+            className="w-full rounded-lg border border-outline-variant bg-surface-container px-3 py-2 text-xs font-mono
+              text-on-surface outline-none focus:border-primary" />
 
           {table.length > 0 && (
             <>
               <p className="text-xs text-fg4">
-                Разобрано строк: <b className="text-fg2">{rows.length}</b>
+                Разобрано строк: <b className="text-on-surface-variant">{rows.length}</b>
                 {hasHeader(table) && ' (первая строка принята за шапку и в счёт не пойдёт)'}. Роли
                 колонок ниже — <b>догадка</b>: проверьте их, прежде чем добавлять.
               </p>

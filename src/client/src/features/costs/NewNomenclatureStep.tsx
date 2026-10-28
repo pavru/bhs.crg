@@ -17,7 +17,7 @@ import { usePickerSelection } from './pickerSelection';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { SuggestField } from '@/shared/ui/SuggestField';
 
-const field = 'w-full rounded border border-stroke bg-surface px-2 py-1 text-sm text-fg1 outline-none';
+const field = 'w-full rounded border border-outline-variant bg-surface px-2 py-1 text-sm text-on-surface outline-none';
 
 /**
  * Шаг «Новая позиция номенклатуры» в окне выбора позиции (задача C3, issue #1079, ТЗ COST-7.1).
@@ -209,7 +209,7 @@ export function NewNomenclatureStep({ from, plate, narrow, onBack, onPick }: {
       {narrow || !kind || !fit ? form : (
         <div className="grid grid-cols-[minmax(0,55fr)_minmax(0,45fr)] gap-5">
           {form}
-          <aside aria-label="Карточка позиции" className="self-start sticky top-0 border-l border-stroke pl-5">
+          <aside aria-label="Карточка позиции" className="self-start sticky top-0 border-l border-outline-variant pl-5">
             <NomenclatureCardPanel id={shownId} pick="filled" onPick={onPick}
               head={shownHead && { name: shownHead.name, type: shownHead.type }}
               compare={{ title: 'Набрано ↔ в справочнике', rows: card => typedVsCard(kind, draft, card) }} />
@@ -232,7 +232,7 @@ function Similar({ body, settled, similar, create, onPick, hover, leave, active 
   leave: () => void;
   active: string | null;
 }) {
-  const head = <p className="text-xs font-medium text-fg2">Похожие в справочнике</p>;
+  const head = <p className="text-xs font-medium text-on-surface-variant">Похожие в справочнике</p>;
 
   if (!body) return <div className="space-y-1">{head}
     <p className="text-xs text-fg4">Назовите позицию — проверим, нет ли такой в справочнике.</p></div>;
@@ -258,13 +258,13 @@ function Similar({ body, settled, similar, create, onPick, hover, leave, active 
   if (exact) return (
     <div className="space-y-1">{head}
       {exact.archived ? (
-        <p className="text-xs text-fg2">
+        <p className="text-xs text-on-surface-variant">
           В архиве есть такая позиция: «{exact.name ?? 'без названия'}». Заводить заново не нужно —
           вернуть из архива может тот, кто ведёт справочник.
         </p>
       ) : (
         <>
-          <p className="text-xs text-fg2">Такая позиция уже есть:</p>
+          <p className="text-xs text-on-surface-variant">Такая позиция уже есть:</p>
           <Row position={exact} action="Выбрать" onPick={onPick} />
         </>
       )}
@@ -302,7 +302,7 @@ function Row({ position, why, action, onPick, active = false, onHover }: {
 }) {
   const label = (
     <>
-      <span className="text-sm text-fg1 truncate">{position.name ?? 'без названия'}</span>
+      <span className="text-sm text-on-surface truncate">{position.name ?? 'без названия'}</span>
       {why && <span className="text-caption text-fg3 truncate">{why}</span>}
       <span className="text-caption text-fg4 shrink-0">{position.type}</span>
     </>
@@ -311,15 +311,15 @@ function Row({ position, why, action, onPick, active = false, onHover }: {
   // заведут заново.
   if (position.archived) return (
     <div onMouseMove={active ? undefined : onHover}
-      className={`px-3 py-1.5 rounded flex items-baseline gap-2 ${active ? 'bg-muted' : ''}`}>
+      className={`px-3 py-1.5 rounded flex items-baseline gap-2 ${active ? 'bg-surface-container' : ''}`}>
       {label}<span className="ml-auto text-caption text-fg4 shrink-0">в архиве</span>
     </div>
   );
   return (
     <button type="button" onClick={() => onPick(position.id, position.name)}
       onMouseMove={active ? undefined : onHover}
-      className={`w-full text-left px-3 py-1.5 rounded flex items-baseline gap-2 ${active ? 'bg-muted' : 'hover:bg-muted'}`}>
-      {label}<span className="ml-auto text-xs text-brand shrink-0">{action}</span>
+      className={`w-full text-left px-3 py-1.5 rounded flex items-baseline gap-2 ${active ? 'bg-surface-container' : 'hover:bg-surface-container'}`}>
+      {label}<span className="ml-auto text-xs text-primary shrink-0">{action}</span>
     </button>
   );
 }

@@ -93,7 +93,7 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
   const columns: DataGridColumn<SupplierTermsItem>[] = [
     { key: 'supplier', label: 'Поставщик', wrap: true,
       cell: item => (
-        <span className={item.supplierLost ? 'text-danger' : 'text-fg2'}>
+        <span className={item.supplierLost ? 'text-error' : 'text-on-surface-variant'}>
           {termsSupplier(item)}
           {item.supplierArchived && <ArchivedMark className="ml-1" />}
         </span>
@@ -109,8 +109,8 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
               onChange={e => setTyped(t => ({ ...t, [item.supplierId]: e.target.value }))}
               onBlur={() => void change(item)}
               onKeyDown={e => { if (e.key === 'Enter') void change(item); }}
-              className={`w-24 rounded border bg-surface px-2 py-0.5 text-sm text-fg1
-                ${typeof days !== 'number' ? 'border-danger' : 'border-stroke'}`} />
+              className={`w-24 rounded border bg-surface px-2 py-0.5 text-sm text-on-surface
+                ${typeof days !== 'number' ? 'border-error' : 'border-outline-variant'}`} />
           </Tooltip>
         );
       } },
@@ -121,7 +121,7 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
         <Tooltip content="Снять условия" name>
           <button type="button" disabled={saving.has(item.supplierId)}
             onClick={() => setRemovingId(item.supplierId)}
-            className="text-fg3 hover:text-danger p-1"><Trash2 size={14} /></button>
+            className="text-fg3 hover:text-error p-1"><Trash2 size={14} /></button>
         </Tooltip>
       ) },
   ];
@@ -154,7 +154,7 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
       </div>
 
       {terms.isError ? (
-        <div className="rounded-lg border border-danger/30 px-3 py-2 text-sm text-danger">
+        <div className="rounded-lg border border-error/30 px-3 py-2 text-sm text-error">
           Условия не прочитаны: {apiError(terms.error)} Это не «условий нет».{' '}
           <button type="button" className="underline" onClick={() => void terms.refetch()}>Повторить</button>
         </div>

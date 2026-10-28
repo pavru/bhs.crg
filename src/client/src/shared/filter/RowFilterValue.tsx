@@ -189,7 +189,7 @@ function ValueList({ column, values, marked, describedBy, inputRef, onChange }: 
           type="button"
           onClick={() => add()}
           disabled={!draft.trim()}
-          className="text-xs px-2 py-1 rounded text-fg2 bg-muted hover:bg-brand-subtle disabled:opacity-40"
+          className="text-xs px-2 py-1 rounded text-on-surface-variant bg-surface-container hover:bg-primary-container disabled:opacity-40"
         >
           Добавить
         </button>
@@ -222,7 +222,7 @@ function OptionList({ options, values, strays, onChange }: {
   return (
     <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-3 gap-y-1">
       {options.map(o => (
-        <label key={o} className="inline-flex items-center gap-1 text-xs text-fg1 cursor-pointer">
+        <label key={o} className="inline-flex items-center gap-1 text-xs text-on-surface cursor-pointer">
           <Checkbox size="sm" checked={values.includes(o)} onChange={() => toggle(o)} />
           {o}
         </label>
@@ -252,7 +252,7 @@ function ValueChip({ label, warning = false, stray = false, onRemove }: {
   onRemove: () => void;
 }) {
   return (
-    <Chip removeOnly selected={!warning} tone={warning ? 'warning' : undefined} className={warning ? 'bg-warning-subtle!' : ''}
+    <Chip removeOnly selected={!warning} tone={warning ? 'warning' : undefined} className={warning ? 'bg-warning-container!' : ''}
       data-stray={stray ? '' : undefined} onRemove={onRemove} removeLabel={`Убрать «${label}»`}>
       {/* У значения вне перечня причину называет строка под отметками — значку имя не нужно. */}
       {warning && (stray

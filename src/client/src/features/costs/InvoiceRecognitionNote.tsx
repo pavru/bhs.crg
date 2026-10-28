@@ -18,7 +18,7 @@ import { UnplacedReads } from './UnplacedReads';
 export function RecognitionChip({ recognition }: { recognition: InvoiceRecognition | undefined }) {
   if (recognition?.state !== 'running') return null;
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-fg2" role="status">
+    <span className="inline-flex items-center gap-1 text-xs text-on-surface-variant" role="status">
       <Loader2 size={12} className="animate-spin" aria-hidden /> Распознаётся…
       {recognition.progress && <span className="text-fg3">{recognition.progress}</span>}
     </span>
@@ -133,7 +133,7 @@ export function RecognitionNotes({ recognition }: { recognition: InvoiceRecognit
   if (notes.length === 0 && !lines && !unplaced?.length) return null;
   return (
     <section className="space-y-1 text-xs">
-      <h2 className="text-sm font-medium text-fg2">Замечания распознавания</h2>
+      <h2 className="text-sm font-medium text-on-surface-variant">Замечания распознавания</h2>
       {(notes.length > 0 || lines) && (
         <ul className="list-disc pl-4 space-y-0.5 text-warning">
           {notes.map(note => <li key={note}>{note}</li>)}
@@ -153,7 +153,7 @@ export function OfferLine({ offer, onTake }: { offer: FieldOffer; onTake: (value
         <span className="truncate">В файле: {offer.text}</span>
         {offer.take !== undefined
           ? (
-            <button type="button" className="shrink-0 text-brand hover:underline" onClick={() => onTake(offer.take)}>
+            <button type="button" className="shrink-0 text-primary hover:underline" onClick={() => onTake(offer.take)}>
               Взять
             </button>
           )
@@ -168,8 +168,8 @@ function Strip({ quiet, children }: { quiet: boolean; children: React.ReactNode 
   return (
     <div role={quiet ? 'status' : 'alert'}
       className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${quiet
-        ? 'border-stroke bg-muted text-fg2'
-        : 'border-danger/30 bg-danger-subtle text-danger'}`}>
+        ? 'border-outline-variant bg-surface-container text-on-surface-variant'
+        : 'border-error/30 bg-error-container text-error'}`}>
       {quiet ? <ScanLine size={14} className="shrink-0 mt-0.5 text-fg3" /> : <TriangleAlert size={14} className="shrink-0 mt-0.5" />}
       {children}
     </div>

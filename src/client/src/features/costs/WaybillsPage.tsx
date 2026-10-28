@@ -152,7 +152,7 @@ export function WaybillsPage() {
           <div className="flex-1 overflow-y-auto">
             {waybills.isPending && <p className="px-3 py-2 text-xs text-fg3">Загрузка…</p>}
             {waybills.isError && (
-              <p className="px-3 py-2 text-xs text-danger">
+              <p className="px-3 py-2 text-xs text-error">
                 Список не пришёл. Это отказ чтения, а не пустой список: накладные могут быть.
               </p>
             )}
@@ -198,7 +198,7 @@ export function WaybillsPage() {
           // «Повторить» здесь нет: накладной нет, и повтор ответит тем же.
           <div className="flex-1 grid place-items-center p-6" data-testid="waybill-gone">
             <div className="max-w-md text-center space-y-2">
-              <p className="text-sm text-fg2">Накладной нет: её удалили или ссылка неверна.</p>
+              <p className="text-sm text-on-surface-variant">Накладной нет: её удалили или ссылка неверна.</p>
               <Button size="sm" variant="outlined" onClick={() => closeGone(opened.id)}>Закрыть</Button>
             </div>
           </div>
@@ -206,7 +206,7 @@ export function WaybillsPage() {
           // Только для накладной, не прочитанной НИ РАЗУ: неудачное перечитывание открытой форму не снимает.
           <div className="flex-1 grid place-items-center p-6">
             <div className="max-w-md text-center space-y-2">
-              <p className="text-sm text-danger">Накладная не открылась: {apiError(opened.error, 'сервер отказал')}</p>
+              <p className="text-sm text-error">Накладная не открылась: {apiError(opened.error, 'сервер отказал')}</p>
               <p className="text-xs text-fg3">Это отказ чтения, а не пустая накладная.</p>
               <Button size="sm" variant="outlined" onClick={() => void view.refetch()}>Повторить</Button>
             </div>
@@ -231,10 +231,10 @@ export function WaybillsPage() {
 function ListRow({ item, active, onClick }: { item: WaybillListItem; active: boolean; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick}
-      className={`w-full text-left px-3 py-2 border-b border-stroke/60 transition-colors ` +
-        `${active ? 'bg-brand-subtle' : 'hover:bg-muted'}`}>
+      className={`w-full text-left px-3 py-2 border-b border-outline-variant/60 transition-colors ` +
+        `${active ? 'bg-primary-container' : 'hover:bg-surface-container'}`}>
       <div className="flex items-center gap-2">
-        <span className="text-sm text-fg1 font-medium truncate">{item.number ?? 'без номера'}</span>
+        <span className="text-sm text-on-surface font-medium truncate">{item.number ?? 'без номера'}</span>
         {item.issuedOn && <span className="text-xs text-fg3 shrink-0">{formatDate(item.issuedOn)}</span>}
         <div className="flex-1" />
         <span className={`text-xs shrink-0 ${item.state === 'Posted' ? 'text-success' : 'text-fg4'}`}>
@@ -242,7 +242,7 @@ function ListRow({ item, active, onClick }: { item: WaybillListItem; active: boo
         </span>
       </div>
       <div className="flex items-center gap-2 mt-0.5">
-        <span className={`text-xs truncate ${item.constructionName ? 'text-fg3' : item.constructionId ? 'text-danger' : 'text-fg4'}`}>
+        <span className={`text-xs truncate ${item.constructionName ? 'text-fg3' : item.constructionId ? 'text-error' : 'text-fg4'}`}>
           {item.constructionName ?? (item.constructionId ? MISSING.construction : 'стройка не выбрана')}
         </span>
         <div className="flex-1" />

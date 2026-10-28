@@ -18,17 +18,17 @@ import { ObservationReviewDialog, ObservationReferences } from './ObservationRev
  */
 
 const SEVERITY_STYLE: Record<Observation['severity'], string> = {
-  Error: 'bg-danger-subtle text-danger',
-  Warning: 'bg-warning-subtle text-warning',
-  Info: 'bg-muted text-fg3',
+  Error: 'bg-error-container text-error',
+  Warning: 'bg-warning-container text-warning',
+  Info: 'bg-surface-container text-fg3',
 };
 
 const STATUS_STYLE: Record<ObservationStatus, string> = {
-  New: 'bg-brand-subtle text-brand',
-  Confirmed: 'bg-muted text-fg2',
-  Rejected: 'bg-muted text-fg4',
+  New: 'bg-primary-container text-primary',
+  Confirmed: 'bg-surface-container text-on-surface-variant',
+  Rejected: 'bg-surface-container text-fg4',
   // Отозвано агентом: не исчезает и не выглядит разобранным — закрывает всё равно человек.
-  Retracted: 'bg-warning-subtle text-warning',
+  Retracted: 'bg-warning-container text-warning',
 };
 
 function ObservationRow({ o, setPath, onReview }: {
@@ -36,13 +36,13 @@ function ObservationRow({ o, setPath, onReview }: {
 }) {
   const dim = !isUnreviewed(o);
   return (
-    <div className={`px-4 py-3 border-b border-stroke group ${dim ? 'opacity-70' : ''}`}>
+    <div className={`px-4 py-3 border-b border-outline-variant group ${dim ? 'opacity-70' : ''}`}>
       <div className="flex items-start gap-2">
         <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${SEVERITY_STYLE[o.severity]}`}>
           {SEVERITY_LABELS[o.severity]}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm text-fg1">{o.title}</div>
+          <div className="text-sm text-on-surface">{o.title}</div>
           {o.detail && <p className="text-xs text-fg3 mt-0.5 line-clamp-3">{o.detail}</p>}
           <ObservationReferences o={o} setPath={setPath} />
           {o.reviewNote && (
@@ -87,8 +87,8 @@ export function ObservationsPanel() {
 
   return (
     <div className="flex-1 min-w-0 flex flex-col">
-      <div className="px-4 py-3 border-b border-stroke shrink-0">
-        <h2 className="text-base font-semibold text-fg1 flex items-center gap-2">
+      <div className="px-4 py-3 border-b border-outline-variant shrink-0">
+        <h2 className="text-base font-semibold text-on-surface flex items-center gap-2">
           <Bot size={16} className="text-fg3" /> Замечания анализа
         </h2>
         {/* Происхождение — не мелкий шрифт ради приличия, а суть: это не результат проверки системы. */}
@@ -98,10 +98,10 @@ export function ObservationsPanel() {
       </div>
 
       {items.length > 0 && (
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-stroke text-xs shrink-0">
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant text-xs shrink-0">
           <button type="button" onClick={() => setOnlyNew(v => !v)}
             className={`px-2 py-1 rounded-full transition-colors ${
-              onlyNew ? 'bg-brand-subtle text-brand font-medium' : 'text-fg3 hover:bg-muted'}`}>
+              onlyNew ? 'bg-primary-container text-primary font-medium' : 'text-fg3 hover:bg-surface-container'}`}>
             Не разобрано: {unreviewed}
           </button>
           <span className="text-fg4">всего {items.length}</span>

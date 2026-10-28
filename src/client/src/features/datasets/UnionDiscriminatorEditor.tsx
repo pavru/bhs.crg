@@ -82,7 +82,7 @@ export function UnionDiscriminatorEditor({
         </Select>
       </div>
 
-      <div className="rounded-lg border border-stroke divide-y divide-stroke">
+      <div className="rounded-lg border border-outline-variant divide-y divide-outline-variant">
         {variants.map(v => {
           const ids = discriminator.rules[v.key] ?? [];
           const isOpen = open === v.key;
@@ -94,26 +94,26 @@ export function UnionDiscriminatorEditor({
               <button
                 type="button"
                 onClick={() => setOpen(isOpen ? '' : v.key)}
-                className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-base transition-colors"
+                className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-surface-container-low transition-colors"
               >
                 {isOpen ? <ChevronDown size={13} className="text-fg4 shrink-0" /> : <ChevronRight size={13} className="text-fg4 shrink-0" />}
-                <span className={`text-xs font-medium ${disabled ? 'text-fg4' : 'text-fg2'}`}>{v.title}</span>
+                <span className={`text-xs font-medium ${disabled ? 'text-fg4' : 'text-on-surface-variant'}`}>{v.title}</span>
                 <span className="flex-1 flex flex-wrap gap-1">
                   {ids.map(id => (
                     <span key={id}
                       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption border ${
                         conflicting.has(id)
-                          ? 'bg-danger-subtle text-danger border-danger/30'
-                          : 'bg-base text-fg3 border-stroke'}`}>
+                          ? 'bg-error-container text-error border-error/30'
+                          : 'bg-surface-container-low text-fg3 border-outline-variant'}`}>
                       {typeName(id)}
-                      <X size={10} className="cursor-pointer hover:text-danger"
+                      <X size={10} className="cursor-pointer hover:text-error"
                         onClick={e => { e.stopPropagation(); setRules(v.key, ids.filter(x => x !== id)); }} />
                     </span>
                   ))}
                 </span>
                 {disabled && <span className="text-caption text-fg4 shrink-0">выключен, строки пропускаются</span>}
                 {needsMapping && (
-                  <span className="text-caption text-danger shrink-0 flex items-center gap-1">
+                  <span className="text-caption text-error shrink-0 flex items-center gap-1">
                     <AlertTriangle size={11} /> нет маппинга
                   </span>
                 )}

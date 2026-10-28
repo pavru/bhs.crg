@@ -26,7 +26,7 @@ export function ValueIssueBadge({ count, className = '' }: { count: number; clas
   return (
     <Tooltip content={`Значений не по типу: ${count}`}>
       <span
-        className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-warning-subtle text-warning border border-warning-border text-caption font-semibold leading-none ${className}`}>
+        className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-warning-container text-warning border border-warning-border text-caption font-semibold leading-none ${className}`}>
         {count}
       </span>
     </Tooltip>

@@ -132,9 +132,9 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   // Рамка обвязки (issue #1464) — как у `Select`: кольцо, пока фокус внутри или открыт календарь.
   const frame = !size ? '' : [
     FRAME[size], 'rounded-md border transition-colors',
-    readOnly ? 'bg-muted text-fg3 border-stroke' : `bg-surface text-fg1 ${markInvalid ? 'border-danger' : 'border-stroke-strong'}`,
-    readOnly || disabled ? '' : `focus-within:ring-2 ${markInvalid ? 'focus-within:ring-danger' : 'focus-within:ring-brand'}`,
-    pickerOpen ? `ring-2 ${markInvalid ? 'ring-danger' : 'ring-brand'}` : '', disabled ? 'opacity-50' : '',
+    readOnly ? 'bg-surface-container text-fg3 border-outline-variant' : `bg-surface text-on-surface ${markInvalid ? 'border-error' : 'border-outline'}`,
+    readOnly || disabled ? '' : `focus-within:ring-2 ${markInvalid ? 'focus-within:ring-error' : 'focus-within:ring-primary'}`,
+    pickerOpen ? `ring-2 ${markInvalid ? 'ring-error' : 'ring-primary'}` : '', disabled ? 'opacity-50' : '',
   ].join(' ');
 
   // Крестик поля формы — один на обе ветки: у «не даты» и у сегментов (макет #1463, вариант В).
@@ -147,12 +147,12 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   const segments = foreign ? (
     <div role="group" aria-label={label} className={`flex items-center group min-w-0 ${frame} ${className}`}>
       {readOnly || disabled
-        ? <span className="truncate text-fg2">{value}</span>
+        ? <span className="truncate text-on-surface-variant">{value}</span>
         // Ввод начинается щелчком, Enter или пробелом, а не фокусом: проход Tab'ом по форме не должен
         // стирать показанное и уводить фокус в сегменты (ревью PR #1542).
         : <button type="button" onClick={startOver} aria-describedby={describedBy}
             aria-label={`${value} — не дата, набрать дату заново`}
-            className="truncate text-left text-fg2 rounded-sm focus:outline-none focus-visible:bg-brand-subtle">
+            className="truncate text-left text-on-surface-variant rounded-sm focus:outline-none focus-visible:bg-primary-container">
             {value}
           </button>}
       {problemMark}
@@ -171,7 +171,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
         {showCalendar && (
           <Popover.Trigger asChild>
             <button ref={triggerRef} type="button" disabled={disabled} aria-label="Открыть календарь"
-              className={`shrink-0 flex items-center justify-center rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+              className={`shrink-0 flex items-center justify-center rounded-full text-fg4 hover:text-primary hover:bg-black/5 dark:hover:bg-white/10 transition disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                 size === 'sm' ? SM_TRIGGER : '-my-1.5 h-8 w-8'} ${
                 compact ? `${COMPACT_TRIGGER} opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100` : ''}`}>
               <CalendarDays size={compact || size === 'sm' ? 14 : 16} />
@@ -243,7 +243,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
         <Popover.Content ref={contentRef} align="start" sideOffset={6} collisionPadding={8} hideWhenDetached
           onKeyDown={onCalendarTab} onCloseAutoFocus={onCalendarClosed} {...fieldFocus}
           onOpenAutoFocus={() => { tabbedOut.current = false; }}
-          className="z-50 rounded-2xl bg-surface border border-stroke focus:outline-none"
+          className="z-50 rounded-2xl bg-surface border border-outline-variant focus:outline-none"
           style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           <Calendar value={calendarValue} precision={precision}
             onSelect={pick} onClose={() => setPickerOpen(false)}

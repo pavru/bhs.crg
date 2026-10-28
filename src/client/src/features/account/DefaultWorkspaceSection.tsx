@@ -45,8 +45,8 @@ export function DefaultWorkspaceSection() {
   }
 
   return (
-    <div className="mt-8 pt-6 border-t border-stroke">
-      <h2 className="flex items-center gap-2 text-sm font-semibold text-fg1 mb-1">
+    <div className="mt-8 pt-6 border-t border-outline-variant">
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface mb-1">
         <LayoutGrid size={15} className="text-fg3" /> Рабочее пространство
       </h2>
       <p className="text-xs text-fg4 mb-4">

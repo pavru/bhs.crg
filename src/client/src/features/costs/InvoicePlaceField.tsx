@@ -54,7 +54,7 @@ export function InvoicePlaceField({ current, places, label, disabled, onPick }: 
   const trigger = (
     <button type="button" role="combobox" aria-label={label} aria-expanded={open} aria-haspopup="listbox"
       disabled={disabled} data-state={open ? 'open' : 'closed'}
-      className="inline-flex items-center justify-between gap-1 min-w-56 max-w-full h-7 px-2 rounded-md border border-stroke-strong bg-surface text-xs text-fg1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand data-[state=open]:ring-2 data-[state=open]:ring-brand disabled:opacity-50 disabled:pointer-events-none">
+      className="inline-flex items-center justify-between gap-1 min-w-56 max-w-full h-7 px-2 rounded-md border border-outline bg-surface text-xs text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary data-[state=open]:ring-2 data-[state=open]:ring-primary disabled:opacity-50 disabled:pointer-events-none">
       <span ref={textRef} className={`min-w-0 flex-1 truncate text-left ${shown.muted ? 'text-fg4' : ''}`}>{shown.text}</span>
       <ChevronDown size={15} aria-hidden className="text-fg4 shrink-0" />
     </button>
@@ -68,7 +68,7 @@ export function InvoicePlaceField({ current, places, label, disabled, onPick }: 
       {anchored(<Popover.Trigger asChild>{trigger}</Popover.Trigger>)}
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={4} collisionPadding={8}
-          className="z-50 w-80 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) flex flex-col overflow-hidden rounded-md border border-stroke bg-surface p-1"
+          className="z-50 w-80 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) flex flex-col overflow-hidden rounded-md border border-outline-variant bg-surface p-1"
           style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           {body}
         </Popover.Content>
@@ -82,9 +82,9 @@ export function InvoicePlaceField({ current, places, label, disabled, onPick }: 
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
         <Dialog.Content aria-describedby={undefined} data-modal-state="free"
-          className="fixed inset-x-0 bottom-0 z-50 max-h-[80dvh] flex flex-col overflow-hidden rounded-t-xl border-t border-stroke bg-surface p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] focus:outline-none"
+          className="fixed inset-x-0 bottom-0 z-50 max-h-[80dvh] flex flex-col overflow-hidden rounded-t-xl border-t border-outline-variant bg-surface p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] focus:outline-none"
           style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
-          <Dialog.Title className="px-2 pt-1 pb-2 text-sm font-semibold text-fg1">{label}</Dialog.Title>
+          <Dialog.Title className="px-2 pt-1 pb-2 text-sm font-semibold text-on-surface">{label}</Dialog.Title>
           {body}
         </Dialog.Content>
       </Dialog.Portal>
@@ -166,12 +166,12 @@ function Choices({ places, value, label, onPick }: {
         aria-description={row && row.sections > 0 ? `${ruCount(row.sections, 'раздел', 'раздела', 'разделов')}, стрелка вправо — разделы` : undefined}
         onMouseMove={() => setActiveKey(key(option))}
         onClick={() => activate(option)}
-        className={`min-w-0 flex-1 px-3 py-1.5 rounded text-sm cursor-pointer select-none break-words ${option === active ? 'bg-brand-subtle text-brand-hover' : 'text-fg1'} aria-selected:font-medium`}>
+        className={`min-w-0 flex-1 px-3 py-1.5 rounded text-sm cursor-pointer select-none break-words ${option === active ? 'bg-primary-container text-brand-hover' : 'text-on-surface'} aria-selected:font-medium`}>
         {text}
       </div>
       {row && row.sections > 0 && (
         <button type="button" tabIndex={-1} aria-hidden onMouseDown={keepFocus} onClick={() => step(row.place.construction)}
-          className="shrink-0 inline-flex items-center gap-0.5 h-7 px-1.5 rounded text-xs text-fg3 hover:text-fg1 hover:bg-brand-subtle">
+          className="shrink-0 inline-flex items-center gap-0.5 h-7 px-1.5 rounded text-xs text-fg3 hover:text-on-surface hover:bg-primary-container">
           {row.sections}<ChevronRight size={14} />
         </button>
       )}
@@ -185,10 +185,10 @@ function Choices({ places, value, label, onPick }: {
         role="combobox" aria-expanded aria-controls={`${ids}-list`} aria-activedescendant={active?.id}
         placeholder={site ? 'Найти раздел' : 'Найти стройку или раздел'}
         onChange={e => { setQuery(e.target.value); setActiveKey(null); }} onKeyDown={onKeyDown}
-        className="mx-1 mb-1 h-8 px-2 rounded border border-stroke-strong bg-surface text-sm text-fg1 placeholder:text-fg4 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" />
+        className="mx-1 mb-1 h-8 px-2 rounded border border-outline bg-surface text-sm text-on-surface placeholder:text-fg4 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
       {site && !query.trim() && (
         <button type="button" onMouseDown={keepFocus} onClick={() => step(null)}
-          className="mx-1 inline-flex items-center gap-1 h-7 px-2 rounded text-xs text-fg2 hover:bg-brand-subtle"
+          className="mx-1 inline-flex items-center gap-1 h-7 px-2 rounded text-xs text-on-surface-variant hover:bg-primary-container"
           aria-label={`Назад к стройкам из разделов «${site.name}»`}>
           <ChevronLeft size={14} aria-hidden />{site.name}
         </button>

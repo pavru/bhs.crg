@@ -34,7 +34,7 @@ export function PdfPages({ doc, layout, scale, rotation, range, prepared }: {
         const n = i + 1;
         return (
           <div key={n} role="group" aria-label={`Страница ${n} из ${layout.tops.length}`} data-page={n}
-            className="absolute bg-white overflow-hidden shadow-[var(--md-sys-elevation-level1)] dark:shadow-none dark:outline dark:outline-1 dark:outline-stroke"
+            className="absolute bg-white overflow-hidden shadow-[var(--md-sys-elevation-level1)] dark:shadow-none dark:outline dark:outline-1 dark:outline-outline-variant"
             style={{
               top, width: layout.widths[i], height: layout.heights[i],
               left: `max(${CANVAS_PADDING}px, calc(50% - ${layout.widths[i] / 2}px))`,
@@ -126,7 +126,7 @@ function PdfPage({ doc, n, scale, rotation, prepared, baseWidth, baseHeight }: {
       </div>
       {failed && (
         // Отказ листа — на поверхности токеном, а не на белом: в тёмной теме кнопка на белом не читалась бы.
-        <div className="absolute inset-0 flex flex-col items-center justify-start gap-2 pt-12 text-center text-xs text-fg2 bg-surface">
+        <div className="absolute inset-0 flex flex-col items-center justify-start gap-2 pt-12 text-center text-xs text-on-surface-variant bg-surface">
           <span>Страница {n} не отрисовалась.</span>
           <Button size="sm" variant="outlined" icon={<RotateCw size={13} />} onClick={() => setAttempt(a => a + 1)}>
             Повторить

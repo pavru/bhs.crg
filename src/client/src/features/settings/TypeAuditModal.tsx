@@ -89,27 +89,27 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
             <Loader2 size={16} className="animate-spin" /> Проверка инстансов…
           </div>
         ) : isError ? (
-          <p className="text-sm text-danger py-6 text-center">Не удалось выполнить аудит.</p>
+          <p className="text-sm text-error py-6 text-center">Не удалось выполнить аудит.</p>
         ) : (
           <div className="space-y-4">
             <p className="text-xs text-fg4">
-              Проверено инстансов (с подтипами): <b className="text-fg2">{data?.instanceCount ?? 0}</b>.
-              {total > 0 && <> Найдено расхождений: <b className="text-fg2">{total}</b>.</>}
+              Проверено инстансов (с подтипами): <b className="text-on-surface-variant">{data?.instanceCount ?? 0}</b>.
+              {total > 0 && <> Найдено расхождений: <b className="text-on-surface-variant">{total}</b>.</>}
             </p>
 
             {total === 0 ? (
-              <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-success-subtle text-success">
+              <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-success-container text-success">
                 <CheckCircle2 size={15} className="shrink-0" /> Данные инстансов соответствуют текущей схеме.
               </div>
             ) : (
               groups.map(([code, rows]) => (
-                <div key={code} className="rounded-md border border-stroke overflow-hidden">
-                  <div className="flex items-center gap-2 px-3 py-2 bg-base text-xs font-medium text-fg2">
+                <div key={code} className="rounded-md border border-outline-variant overflow-hidden">
+                  <div className="flex items-center gap-2 px-3 py-2 bg-surface-container-low text-xs font-medium text-on-surface-variant">
                     <AlertTriangle size={13} className="text-warning shrink-0" />
                     {CATEGORY_LABEL[code] ?? code}
                     <span className="text-fg4 font-normal">· {rows.length}</span>
                   </div>
-                  <div className="divide-y divide-muted">
+                  <div className="divide-y divide-surface-container">
                     {rows.map(row => {
                       // Сообщение в ключе обязательно: у одного значения бывает несколько претензий
                       // сразу («не целое» и «меньше допустимого»), и обе лежат по одному пути.
@@ -121,10 +121,10 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
                         <div key={k}>
                           <button type="button"
                             onClick={() => setExpanded(s => toggleInSet(s, k))}
-                            className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-base transition-colors">
+                            className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-surface-container-low transition-colors">
                             {isOpen ? <ChevronDown size={14} className="text-fg4 shrink-0 mt-0.5" /> : <ChevronRight size={14} className="text-fg4 shrink-0 mt-0.5" />}
                             <span className="min-w-0 flex-1">
-                              <code className="text-xs text-fg2 break-all">{row.path}</code>
+                              <code className="text-xs text-on-surface-variant break-all">{row.path}</code>
                               <span className="block text-xs text-fg4">{row.message}</span>
                             </span>
                             <span className="text-xs text-fg4 tabular-nums shrink-0 mt-0.5">{row.instances.length} инст.</span>

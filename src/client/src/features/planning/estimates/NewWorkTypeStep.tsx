@@ -64,7 +64,7 @@ export function NewWorkTypeStep({ sourceUnit, onBack, onCreated }: {
           <TextField label="Наименование" required value={name} onChange={e => setName(e.target.value)} />
         </div>
         {units.isError ? (
-          <p role="alert" className="text-sm text-danger">{apiError(units.error, 'Единицы измерения не прочитались')}</p>
+          <p role="alert" className="text-sm text-error">{apiError(units.error, 'Единицы измерения не прочитались')}</p>
         ) : (
           <Select label="Единица измерения" required value={unitId} onValueChange={setPicked} disabled={!units.data}
             hint={sourceUnit ? `Единица расценки — «${sourceUnit}»; коэффициент пересчёта предложит окно.` : undefined}
@@ -72,7 +72,7 @@ export function NewWorkTypeStep({ sourceUnit, onBack, onCreated }: {
             {units.data?.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
           </Select>
         )}
-        {refusal && <p role="alert" className="text-sm text-danger">{refusal}</p>}
+        {refusal && <p role="alert" className="text-sm text-error">{refusal}</p>}
       </div>
     </WindowStep>
   );

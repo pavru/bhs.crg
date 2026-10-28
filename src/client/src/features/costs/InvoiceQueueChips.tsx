@@ -66,7 +66,7 @@ export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, on
       )}
       {failed && (
         <Tooltip content="Сколько счетов не распознано, с удалёнными и с архивными записями — не посчитано. Это не «ноль». Нажмите, чтобы повторить">
-          <button type="button" onClick={onRetry} className="text-fg3 underline hover:text-fg1">
+          <button type="button" onClick={onRetry} className="text-fg3 underline hover:text-on-surface">
             Отборы не посчитаны
           </button>
         </Tooltip>
@@ -87,10 +87,10 @@ function Chip({ active, icon: Icon, label, count, title, tone, onClick, ariaLabe
   onClick: () => void;
   ariaLabel?: string;
 }) {
-  const look = active ? 'border-brand text-brand bg-brand-subtle'
-    : tone === 'danger' ? 'border-danger text-danger hover:bg-danger-subtle'
-    : tone === 'doubt' ? 'border-warning text-warning hover:bg-muted'
-    : 'border-stroke text-fg3 hover:text-fg1';
+  const look = active ? 'border-primary text-primary bg-primary-container'
+    : tone === 'danger' ? 'border-error text-error hover:bg-error-container'
+    : tone === 'doubt' ? 'border-warning text-warning hover:bg-surface-container'
+    : 'border-outline-variant text-fg3 hover:text-on-surface';
   const Shown = active ? Check : Icon;
   return (
     <Tooltip content={title}>

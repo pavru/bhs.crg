@@ -131,30 +131,30 @@ function TypstBlockDialog({ render, typeCode, onSave, onClose }: {
       <div className="flex-1 min-h-0 flex flex-col gap-3 px-6 pt-2 pb-4">
         <div className="grid grid-cols-2 gap-3 shrink-0">
           <div>
-            <label className="block text-xs font-medium text-fg2 mb-1">Название варианта</label>
+            <label className="block text-xs font-medium text-on-surface-variant mb-1">Название варианта</label>
             <input
               value={draft.name}
               onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
               placeholder="Название варианта"
-              className="w-full border border-stroke-strong rounded-md px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
+              className="w-full border border-outline rounded-md px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-fg2 mb-1">Имя функции Typst</label>
+            <label className="block text-xs font-medium text-on-surface-variant mb-1">Имя функции Typst</label>
             <input
               value={draft.fnName}
               onChange={e => setDraft(d => ({ ...d, fnName: e.target.value }))}
               placeholder="typst_fn_name"
               spellCheck={false}
-              className="w-full border border-stroke-strong rounded-md px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
+              className="w-full border border-outline rounded-md px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
             />
           </div>
         </div>
 
-        <label className="block text-xs font-medium text-fg2 shrink-0">
+        <label className="block text-xs font-medium text-on-surface-variant shrink-0">
           Тело функции — выражение Typst (<code className="font-mono">it</code> — данные объекта):
         </label>
-        <div className="flex-1 min-h-0 border border-stroke-strong rounded-md overflow-hidden">
+        <div className="flex-1 min-h-0 border border-outline rounded-md overflow-hidden">
           <Editor
             height="100%"
             defaultLanguage="typst"
@@ -189,9 +189,9 @@ function TypstBlockDialog({ render, typeCode, onSave, onClose }: {
             Импорт: <code className="font-mono text-tertiary">#import "typeblocks.typ": *</code>
             {' · '}
             Вызов из шаблона:{' '}
-            <code className="font-mono text-brand">#{typeCode || 'КодТипа'}.{draft.fnName}(data.КлючПоля)</code>
+            <code className="font-mono text-primary">#{typeCode || 'КодТипа'}.{draft.fnName}(data.КлючПоля)</code>
             {' · '}
-            из блока этого же типа: <code className="font-mono text-brand">{draft.fnName}(…)</code>
+            из блока этого же типа: <code className="font-mono text-primary">{draft.fnName}(…)</code>
           </p>
         )}
       </div>
@@ -239,36 +239,36 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
       {renders.map((r, i) => {
         const lines = r.block ? r.block.split('\n').length : 0;
         return (
-          <div key={i} className="border border-stroke rounded-lg p-3 space-y-2 bg-base">
+          <div key={i} className="border border-outline-variant rounded-lg p-3 space-y-2 bg-surface-container-low">
             <div className="flex items-center gap-2">
               <div className="flex-1 grid grid-cols-2 gap-2">
                 <input
                   value={r.name}
                   onChange={e => update(i, { name: e.target.value })}
                   placeholder="Название варианта"
-                  className="border border-stroke-strong rounded-md px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
+                  className="border border-outline rounded-md px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
                 />
                 <input
                   value={r.fnName}
                   onChange={e => update(i, { fnName: e.target.value })}
                   placeholder="typst_fn_name"
                   spellCheck={false}
-                  className="border border-stroke-strong rounded-md px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
+                  className="border border-outline rounded-md px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
                 />
               </div>
               <button type="button" onClick={() => remove(i)}
-                className="p-1 text-fg4 hover:text-danger shrink-0">
+                className="p-1 text-fg4 hover:text-error shrink-0">
                 <Trash2 size={13} />
               </button>
             </div>
             {/* Код правится только в полноэкранном редакторе (не inline, issue #197 Фаза C) */}
             <button type="button" onClick={() => setEditingIndex(i)}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-md border border-stroke bg-surface hover:bg-muted/50 transition-colors text-left">
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-md border border-outline-variant bg-surface hover:bg-surface-container/50 transition-colors text-left">
               <Code size={14} className="text-fg4 shrink-0" />
-              <span className="text-sm text-fg2 flex-1">Редактировать Typst-код</span>
+              <span className="text-sm text-on-surface-variant flex-1">Редактировать Typst-код</span>
               {problemsByFn?.[r.fnName.trim()] === 'error' && (
                 <Tooltip content="Ошибка сборки блока">
-                  <span className="inline-flex items-center gap-1 text-xs text-danger shrink-0">
+                  <span className="inline-flex items-center gap-1 text-xs text-error shrink-0">
                     <AlertCircle size={13} /> не собирается
                   </span>
                 </Tooltip>
@@ -283,14 +283,14 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
               <p className="text-xs text-fg4">
                 Импорт: <code className="font-mono text-tertiary">#import "typeblocks.typ": *</code>
                 {' · '}
-                Вызов: <code className="font-mono text-brand">#{typeCode || 'КодТипа'}.{r.fnName}(data.КлючПоля)</code>
+                Вызов: <code className="font-mono text-primary">#{typeCode || 'КодТипа'}.{r.fnName}(data.КлючПоля)</code>
               </p>
             )}
           </div>
         );
       })}
       <button type="button" onClick={add}
-        className="flex items-center gap-1.5 text-sm text-brand hover:text-brand-hover mt-1">
+        className="flex items-center gap-1.5 text-sm text-primary hover:text-brand-hover mt-1">
         <Plus size={14} /> Добавить вариант
       </button>
 

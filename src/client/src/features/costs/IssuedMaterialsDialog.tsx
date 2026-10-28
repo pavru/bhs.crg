@@ -50,14 +50,14 @@ export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
         {!site && <p className="text-xs text-fg4">Перечень считается по стройке — из проведённых накладных.</p>}
         {site && materials.isPending && <p className="text-xs text-fg3">Загрузка…</p>}
         {site && materials.isError && (
-          <p className="text-xs text-danger">Перечень не пришёл: {apiError(materials.error, 'сервер отказал')}</p>
+          <p className="text-xs text-error">Перечень не пришёл: {apiError(materials.error, 'сервер отказал')}</p>
         )}
 
         {site && data && (
           <>
             {data.unmatchedLines > 0 && (
               <p role="status" className="flex items-start gap-2 rounded-lg border border-warning-border
-                bg-warning-subtle px-3 py-2 text-xs text-warning">
+                bg-warning-container px-3 py-2 text-xs text-warning">
                 <TriangleAlert size={13} className="shrink-0 mt-0.5" />
                 Не сопоставлено: {data.unmatchedLines} {linesWord(data.unmatchedLines)} в накладных
                 ({data.unmatchedWaybills}). В перечне ниже их нет — выдано больше, чем показано. Найти их:

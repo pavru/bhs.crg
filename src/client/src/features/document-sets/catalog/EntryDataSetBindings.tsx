@@ -76,7 +76,7 @@ function AddEntryBindingPanel({
   }
 
   return (
-    <div className="rounded-xl p-4 space-y-4 border border-stroke bg-base">
+    <div className="rounded-xl p-4 space-y-4 border border-outline-variant bg-surface-container-low">
       <div>
         <label className="block text-xs font-medium mb-1 text-fg3">Источник данных</label>
         {files.length === 0 ? (
@@ -121,18 +121,18 @@ function AddEntryBindingPanel({
         />
       )}
 
-      {error && <p className="text-xs text-danger">{error}</p>}
+      {error && <p className="text-xs text-error">{error}</p>}
 
       <div className="flex gap-2">
         <button
           type="button"
           onClick={handleSave}
           disabled={!sourceId || create.isPending}
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-on-brand disabled:opacity-40 bg-brand"
+          className="px-3 py-1.5 rounded-md text-sm font-medium text-on-primary disabled:opacity-40 bg-primary"
         >
           {create.isPending ? 'Сохранение...' : 'Сохранить привязку'}
         </button>
-        <button type="button" onClick={onDone} className="px-3 py-1.5 rounded-md text-sm font-medium text-fg2 bg-muted">
+        <button type="button" onClick={onDone} className="px-3 py-1.5 rounded-md text-sm font-medium text-on-surface-variant bg-surface-container">
           Отмена
         </button>
       </div>
@@ -167,11 +167,11 @@ function EntryBindingRow({
   }
 
   return (
-    <div className="border-b border-stroke last:border-0">
+    <div className="border-b border-outline-variant last:border-0">
       <div className="flex items-center gap-2 px-4 py-3">
-        <Database size={14} className="text-brand shrink-0" />
+        <Database size={14} className="text-primary shrink-0" />
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium truncate text-fg1">{source?.name ?? '—'}</div>
+          <div className="text-sm font-medium truncate text-on-surface">{source?.name ?? '—'}</div>
           <div className="text-xs text-fg4 mt-0.5">
             {file?.name} · {source?.materializeTypeId
               ? `материализация → ${allDocTypes.find(t => t.id === source.materializeTypeId)?.name ?? 'тип'}`
@@ -191,8 +191,8 @@ function EntryBindingRow({
           </IconButton>
         ) : (
           <div className="flex items-center gap-1.5 text-xs">
-            <button type="button" onClick={handleDelete} disabled={del.isPending} className="px-2 py-0.5 rounded text-on-danger text-xs bg-danger">Да</button>
-            <button type="button" onClick={() => setConfirming(false)} className="px-2 py-0.5 rounded text-xs bg-muted text-fg2">Нет</button>
+            <button type="button" onClick={handleDelete} disabled={del.isPending} className="px-2 py-0.5 rounded text-on-error text-xs bg-error">Да</button>
+            <button type="button" onClick={() => setConfirming(false)} className="px-2 py-0.5 rounded text-xs bg-surface-container text-on-surface-variant">Нет</button>
           </div>
         )}
       </div>
@@ -209,7 +209,7 @@ function EntryBindingRow({
             onChange={(m, t) => { setMappingState(m); setTargetFieldKey(t); }}
           />
           <div className="flex gap-2">
-            <button type="button" onClick={handleSave} disabled={update.isPending} className="px-3 py-1.5 rounded-md text-sm font-medium text-on-brand bg-brand">
+            <button type="button" onClick={handleSave} disabled={update.isPending} className="px-3 py-1.5 rounded-md text-sm font-medium text-on-primary bg-primary">
               {update.isPending ? 'Сохранение...' : 'Сохранить'}
             </button>
             <button type="button" onClick={() => setEditing(false)} className="px-3 py-1.5 rounded-md text-sm font-medium text-fg3">
@@ -232,11 +232,11 @@ export function EntryDataSetBindings({
   const { data: files } = useEntryAvailableFiles(setId, scope, scopeId);
 
   return (
-    <div className="rounded-lg border border-stroke p-3 space-y-2">
+    <div className="rounded-lg border border-outline-variant p-3 space-y-2">
       <p className="text-xs font-semibold text-fg3 uppercase tracking-wide">Наборы данных</p>
 
       {bindings.length > 0 && (
-        <div className="rounded-xl overflow-hidden border border-stroke bg-surface">
+        <div className="rounded-xl overflow-hidden border border-outline-variant bg-surface">
           {bindings.map(b => (
             <EntryBindingRow key={b.id} binding={b} entryId={entryId} schemaFields={schemaFields} allDocTypes={allDocTypes} />
           ))}
@@ -250,7 +250,7 @@ export function EntryDataSetBindings({
         />
       ) : (
         <button type="button" onClick={() => setAdding(true)}
-          className="flex items-center gap-1.5 text-sm text-brand hover:text-brand-hover transition-colors">
+          className="flex items-center gap-1.5 text-sm text-primary hover:text-brand-hover transition-colors">
           <Plus size={14} /> Привязать источник данных
         </button>
       )}

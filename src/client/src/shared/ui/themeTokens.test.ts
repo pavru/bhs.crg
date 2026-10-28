@@ -22,7 +22,7 @@ import { offendingLines } from '@/shared/testing/clientSources';
  * рядом, — и ловить их значило бы спорить с принятым в проекте способом писать полупрозрачные
  * подложки. Цвет, который тему НЕ переживает, — это литерал: hex, `rgb()/hsl()`, произвольное
  * значение Tailwind и именованный цвет в инлайн-стиле; они и ловятся. Одно исключение тему всё же
- * не переживает — белое на сплошной заливке роли (`bg-brand text-white`): в тёмной теме заливка
+ * не переживает — белое на сплошной заливке роли (`bg-primary text-white`): в тёмной теме заливка
  * светлая. Его ловит не этот сторож, а храповик интерфейса, правило `white-on-fill` (#1462) — и то
  * лишь когда заливка и белое стоят в одной строке классов; пару родитель/ребёнок он не видит.
  */
@@ -48,7 +48,7 @@ const isColorLiteral = (line: string) => RULES.some(re => re.test(line));
  * Где литерал допустим — каждый случай с причиной, а не списком «так исторически».
  *
  * `templateBlank` — заготовка Typst-ДОКУМЕНТА, а не разметки. Внесена авансом: цвета там сегодня
- * нет, но появится он как `rgb("#c4c6d0")`, и совет «возьмите `border-stroke`» внутри Typst
+ * нет, но появится он как `rgb("#c4c6d0")`, и совет «возьмите `border-outline-variant`» внутри Typst
  * неприменим — сторож звал бы чинить тем, чего в этом языке нет.
  */
 const ALLOWED = [
@@ -61,7 +61,7 @@ describe('цвета в клиентском коде', () => {
     const offenders = offendingLines(isColorLiteral, ALLOWED);
     expect(offenders, offenders.length
       ? 'Эти цвета не переживут смену темы (issue #1065) — возьмите токен '
-        + '(`border-stroke`, `bg-muted`, `text-fg2`, `var(--color-brand)`):\n' + offenders.join('\n')
+        + '(`border-outline-variant`, `bg-surface-container`, `text-on-surface-variant`, `var(--color-primary)`):\n' + offenders.join('\n')
       : '').toEqual([]);
   });
 
@@ -85,9 +85,9 @@ describe('цвета в клиентском коде', () => {
     // перечислений вида «(issue #305, #870)».
     const fake = {
       '/src/features/Ok.tsx': '  // Вынесено из ComplexFields (issue #1014), правка #1065, см. #858 и #154.',
-      '/src/features/Ok2.tsx': "  const cls = 'border border-stroke bg-muted';",
+      '/src/features/Ok2.tsx': "  const cls = 'border border-outline-variant bg-surface-container';",
       '/src/features/Ok3.tsx': '   * MD3 outlined-поле (issue #574) — рамка solid, как у соседей.',
-      '/src/features/Ok4.tsx': '  <pre className="bg-black/5 dark:bg-white/5 text-fg2" />',
+      '/src/features/Ok4.tsx': '  <pre className="bg-black/5 dark:bg-white/5 text-on-surface-variant" />',
       '/src/features/Ok5.tsx': "  style={{ background: 'transparent', color: 'currentColor' }}",
     };
     expect(offendingLines(isColorLiteral, [], fake)).toEqual([]);

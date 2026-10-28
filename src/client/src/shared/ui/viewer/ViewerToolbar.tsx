@@ -33,7 +33,7 @@ export interface ToolbarProps {
 export function ViewerToolbar(p: ToolbarProps) {
   return (
     <div role="group" aria-label="Просмотр файла" data-testid="viewer-toolbar"
-      className="shrink-0 h-10 flex items-center gap-1 px-2 border-t border-stroke bg-surface">
+      className="shrink-0 h-10 flex items-center gap-1 px-2 border-t border-outline-variant bg-surface">
       {p.numPages > 1 && (
         <>
           <IconButton label="Предыдущая страница" size="sm" disabled={p.page <= 1} onClick={() => p.onPage(p.page - 1)}>
@@ -43,7 +43,7 @@ export function ViewerToolbar(p: ToolbarProps) {
           <IconButton label="Следующая страница" size="sm" disabled={p.page >= p.numPages} onClick={() => p.onPage(p.page + 1)}>
             <ChevronRight size={16} />
           </IconButton>
-          <span aria-hidden className="w-px h-5 bg-stroke mx-1 shrink-0" />
+          <span aria-hidden className="w-px h-5 bg-outline-variant mx-1 shrink-0" />
         </>
       )}
       {!p.narrow && (
@@ -91,22 +91,22 @@ function PageField({ page, numPages, onPage }: { page: number; numPages: number;
         // Набор после Enter или Esc — фокус в поле остался, а onFocus второй раз не придёт: правка
         // начинается с первой клавиши, иначе поле показывало бы текущий номер, а копило невидимое.
         onChange={e => { setText(e.target.value); setEditing(true); }}
-        className="w-[4ch] h-6 rounded border border-stroke bg-surface text-center text-xs text-fg1 tabular-nums focus:outline-none focus:border-brand" />
+        className="w-[4ch] h-6 rounded border border-outline-variant bg-surface text-center text-xs text-on-surface tabular-nums focus:outline-none focus:border-primary" />
       <span id={total}>из {numPages}</span>
     </span>
   );
 }
 
 const itemCls =
-  'flex items-center justify-between gap-3 px-3 py-1.5 text-sm text-fg2 cursor-pointer select-none outline-none ' +
-  'data-[highlighted]:bg-base data-[disabled]:opacity-40 data-[disabled]:pointer-events-none';
+  'flex items-center justify-between gap-3 px-3 py-1.5 text-sm text-on-surface-variant cursor-pointer select-none outline-none ' +
+  'data-[highlighted]:bg-surface-container-low data-[disabled]:opacity-40 data-[disabled]:pointer-events-none';
 
 /** Меню масштаба по образцу `LayoutChooser`: чип с меню, открывается вверх — панель внизу. */
 function ZoomMenu(p: ToolbarProps) {
   const item = (key: string, label: ReactNode, onSelect: () => void, opts: { checked?: boolean; hint?: string; disabled?: boolean } = {}) => (
     <DropdownMenu.Item key={key} className={itemCls} onSelect={onSelect} disabled={opts.disabled}>
-      <span className={opts.checked ? 'text-fg1 font-medium' : undefined}>{label}</span>
-      {opts.checked ? <Check size={14} className="text-brand" aria-hidden />
+      <span className={opts.checked ? 'text-on-surface font-medium' : undefined}>{label}</span>
+      {opts.checked ? <Check size={14} className="text-primary" aria-hidden />
         : opts.hint && <span className="text-xs text-fg4">{opts.hint}</span>}
     </DropdownMenu.Item>
   );
@@ -117,15 +117,15 @@ function ZoomMenu(p: ToolbarProps) {
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content side="top" align="start" sideOffset={6}
-          className="z-50 min-w-48 rounded-md border border-stroke bg-surface py-1"
+          className="z-50 min-w-48 rounded-md border border-outline-variant bg-surface py-1"
           style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
           {item('width', 'По ширине', () => p.onMode('width'), { checked: p.mode === 'width', hint: 'Ctrl 0' })}
           {item('page', 'Страница целиком', () => p.onMode('page'), { checked: p.mode === 'page' })}
-          <DropdownMenu.Separator className="my-1 h-px bg-stroke" />
+          <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
           {ZOOM_PRESETS.map(z => item(String(z), zoomLabel(z), () => p.onMode(z), { checked: p.mode === z }))}
           {p.narrow && (
             <>
-              <DropdownMenu.Separator className="my-1 h-px bg-stroke" />
+              <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
               {item('out', 'Уменьшить', p.onZoomOut, { hint: 'Ctrl −', disabled: !p.canZoomOut })}
               {item('in', 'Увеличить', p.onZoomIn, { hint: 'Ctrl +', disabled: !p.canZoomIn })}
             </>

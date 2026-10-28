@@ -71,7 +71,7 @@ describe('журнал действий рядами', () => {
 
     const list = await screen.findByRole('list', { name: 'Записи ряда' });
     expect(within(list).getAllByRole('listitem')).toHaveLength(3);
-    expect(within(list).getByText('4 строки', { selector: '.text-fg1' })).toBeTruthy();
+    expect(within(list).getByText('4 строки', { selector: '.text-on-surface' })).toBeTruthy();
     expect(apiClient.get).toHaveBeenCalledWith('/activity/series/s1', { params: { action: 'costs.invoice.lines' } });
     expect(screen.getByRole('button', { name: /свернуть записи/ }).getAttribute('aria-expanded')).toBe('true');
   });

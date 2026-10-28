@@ -32,8 +32,8 @@ export function CostViewsBand({ data, closing, onChange }: {
   const view: View = closing ? 'closing' : 'corrected';
 
   return (
-    <section aria-label="Закрытые периоды" className="rounded-lg border border-stroke bg-muted px-3 py-2 space-y-1.5 text-sm">
-      <p className="text-fg2">
+    <section aria-label="Закрытые периоды" className="rounded-lg border border-outline-variant bg-surface-container px-3 py-2 space-y-1.5 text-sm">
+      <p className="text-on-surface-variant">
         В периоде есть исправления после закрытия: {data.differs === 'totals'
           ? 'итоги взглядов различаются.'
           : 'итоги равны, различаются разделы, поставщики или дни.'}

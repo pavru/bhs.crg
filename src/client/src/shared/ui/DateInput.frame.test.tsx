@@ -17,7 +17,7 @@ const classes = () => group().className.split(/\s+/);
 describe('DateInput: обвязка size', () => {
   it('md — h-9 с рамкой и крестиком у заполненного; sm — h-7, без крестика', () => {
     render(<DateInput label="Дата" value="2026-11-03" onChange={() => {}} size="md" />);
-    expect(classes()).toEqual(expect.arrayContaining(['h-9', 'border', 'border-stroke-strong', 'rounded-md']));
+    expect(classes()).toEqual(expect.arrayContaining(['h-9', 'border', 'border-outline', 'rounded-md']));
     expect(screen.queryByRole('button', { name: 'Очистить дату' })).toBeTruthy();
     cleanup();
     render(<DateInput label="Дата" value="2026-11-03" onChange={() => {}} size="sm" />);
@@ -27,11 +27,11 @@ describe('DateInput: обвязка size', () => {
 
   it('invalid — красная рамка и aria-invalid у сегментов; readOnly — фон muted без календаря', () => {
     render(<DateInput label="Дата" value="2026-11-03" onChange={() => {}} size="md" invalid />);
-    expect(classes()).toContain('border-danger');
+    expect(classes()).toContain('border-error');
     expect(screen.getByPlaceholderText('ДД').getAttribute('aria-invalid')).toBe('true');
     cleanup();
     render(<DateInput label="Дата" value="2026-11-03" onChange={() => {}} size="md" readOnly />);
-    expect(classes()).toContain('bg-muted');
+    expect(classes()).toContain('bg-surface-container');
     expect(screen.queryByRole('button', { name: 'Открыть календарь' })).toBeNull();
   });
 
@@ -41,8 +41,8 @@ describe('DateInput: обвязка size', () => {
     const trigger = screen.getByRole('button', { name: 'Открыть календарь' });
     expect(trigger.className.split(/\s+/)).toEqual(expect.arrayContaining(['h-6', 'w-6', 'before:-inset-1']));
     fireEvent.click(trigger);
-    expect(classes()).toContain('ring-danger');
-    expect(classes()).not.toContain('ring-brand');
+    expect(classes()).toContain('ring-error');
+    expect(classes()).not.toContain('ring-primary');
   });
 
   it('без size рамки нет — её рисует оболочка или ячейка', () => {

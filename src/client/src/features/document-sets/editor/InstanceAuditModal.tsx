@@ -66,9 +66,9 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
             <Loader2 size={16} className="animate-spin" /> Проверка…
           </div>
         ) : isError ? (
-          <p className="text-sm text-danger py-6 text-center">Не удалось выполнить аудит.</p>
+          <p className="text-sm text-error py-6 text-center">Не удалось выполнить аудит.</p>
         ) : total === 0 ? (
-          <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-success-subtle text-success">
+          <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-success-container text-success">
             <CheckCircle2 size={15} className="shrink-0" /> Документ соответствует текущей схеме — исправлять нечего.
           </div>
         ) : (
@@ -78,13 +78,13 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
               Удаление необратимо (старое значение вернётся в ответе для ручного отката).
             </p>
             {groups.map(([code, items]) => (
-              <div key={code} className="rounded-md border border-stroke overflow-hidden">
-                <div className="flex items-center gap-2 px-3 py-2 bg-base text-xs font-medium text-fg2">
+              <div key={code} className="rounded-md border border-outline-variant overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-2 bg-surface-container-low text-xs font-medium text-on-surface-variant">
                   <AlertTriangle size={13} className="text-warning shrink-0" />
                   {CATEGORY_LABEL[code] ?? code}
                   <span className="text-fg4 font-normal">· {items.length}</span>
                 </div>
-                <div className="divide-y divide-muted">
+                <div className="divide-y divide-surface-container">
                   {items.map(f => {
                     const canRename = f.code === 'orphan-key' && isTopLevel(f.path);
                     return (
@@ -93,7 +93,7 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
                       <div key={`${f.path} ${f.message}`} className="px-3 py-2.5">
                         <div className="flex items-start gap-2">
                           <span className="min-w-0 flex-1">
-                            <code className="text-xs text-fg2 break-all">{f.path}</code>
+                            <code className="text-xs text-on-surface-variant break-all">{f.path}</code>
                             <span className="block text-xs text-fg4">{f.message}</span>
                           </span>
                         </div>
