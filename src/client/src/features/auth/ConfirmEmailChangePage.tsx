@@ -3,7 +3,9 @@ import { Link, useSearchParams } from 'react-router';
 import { AuthCard } from './AuthCard';
 import { useConfirmEmailChange } from '@/shared/api/auth';
 import { apiError } from '@/shared/utils/apiError';
-import { CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { CheckCircle, ErrorIcon } from '@/shared/ui/icons';
 
 /** Подтверждение смены адреса входа по ссылке из письма на новый адрес (issue #148).
  *  uid/email(новый)/token — из query, POST один раз при монтировании. */
@@ -35,12 +37,12 @@ export function ConfirmEmailChangePage() {
   return (
     <AuthCard title="Смена адреса входа">
       {status === 'pending' && (
-        <p className="flex items-center gap-2 text-sm text-fg3"><Loader2 size={16} className="animate-spin" /> Подтверждаем…</p>
+        <p className="flex items-center gap-2 text-sm text-fg3"><CircularProgress size={18} /> Подтверждаем…</p>
       )}
       {status === 'ok' && (
         <div className="space-y-4">
           <p className="flex items-start gap-2 text-sm text-on-surface-variant">
-            <CheckCircle2 size={18} className="shrink-0 mt-0.5 text-success" />
+            <Icon icon={CheckCircle} size={18} className="shrink-0 mt-0.5 text-success" />
             Адрес входа изменён на <span className="font-medium">{newEmail}</span>. Войдите с новым email.
           </p>
           <Link to="/login" className="inline-block text-sm font-medium text-primary hover:underline">Перейти ко входу</Link>
@@ -49,7 +51,7 @@ export function ConfirmEmailChangePage() {
       {status === 'error' && (
         <div className="space-y-4">
           <p className="flex items-start gap-2 text-sm text-error">
-            <AlertCircle size={18} className="shrink-0 mt-0.5" /> {error}
+            <Icon icon={ErrorIcon} size={18} className="shrink-0 mt-0.5" /> {error}
           </p>
           <Link to="/login" className="inline-block text-sm font-medium text-primary hover:underline">Вернуться ко входу</Link>
         </div>

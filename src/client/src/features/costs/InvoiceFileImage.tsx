@@ -1,6 +1,7 @@
 import * as Popover from '@radix-ui/react-popover';
 import { useEffect, useState } from 'react';
-import { CloudOff, Download, ExternalLink, FileSpreadsheet, FileX, Info, RotateCw } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CloudOff, Download, Info, OpenInNew, RotateRight, ScanDelete, TableChart } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { loadInvoiceScan } from '@/shared/api/invoices';
 import { loadInvoiceImage, useRebuildInvoiceImage, type InvoiceImage } from '@/shared/api/invoiceImage';
@@ -35,7 +36,7 @@ export function OriginalButton({ invoiceId, fileName, label }: {
   const kinds = useFileKinds();
   const toast = useToast();
   return (
-    <Button size="sm" loading={busy} icon={<Download size={13} />}
+    <Button size="sm" loading={busy} icon={<Icon icon={Download} size={18} />}
       title={fileName ? `Скачать оригинал: ${fileName}` : 'Скачать оригинал'}
       onClick={async () => {
         setBusy(true);
@@ -93,10 +94,10 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant shrink-0">
-        <FileSpreadsheet size={14} className="text-fg3 shrink-0" />
+        <Icon icon={TableChart} size={18} className="text-fg3 shrink-0" />
         <span className="text-xs text-on-surface-variant truncate flex-1">{fileName ?? 'Файл счёта'}</span>
         {/* Во вкладке — полный просмотрщик браузера: поиск, печать с настройками (issue #1490). */}
-        <Button size="sm" icon={<ExternalLink size={13} />} disabled={!bytes}
+        <Button size="sm" icon={<Icon icon={OpenInNew} size={18} />} disabled={!bytes}
           onClick={() => { if (bytes) void openInNewTab(bytes); }}>
           Открыть во вкладке
         </Button>
@@ -117,7 +118,7 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
                 <LayoutChooser image={image} notice={notice} profiles={profiles} rebuilding={rebuild.isPending}
                   onRebuild={rebuildWith} />
               )}
-              <Button size="sm" variant="text" loading={rebuild.isPending} icon={<RotateCw size={12} />}
+              <Button size="sm" variant="text" loading={rebuild.isPending} icon={<Icon icon={RotateRight} size={18} />}
                 className="shrink-0" title="Построить вид заново. Сам файл и распознанное остаются как были."
                 onClick={() => void rebuildWith()}>
                 {rebuild.isPending ? 'Перестраиваем…' : 'Перестроить'}
@@ -130,7 +131,7 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
             {lines.map((line, i) => (
               // Не предупреждение: вид не испорчен, он лишь по прежним параметрам.
               <li key={`${i}|${line.text}`} className="flex items-start gap-1.5" data-testid={line.kind}>
-                <Info size={12} aria-hidden className="shrink-0 mt-0.5 text-fg3" />{line.text}
+                <Icon icon={Info} size={18} aria-hidden className="shrink-0 mt-0.5 text-fg3" />{line.text}
               </li>
             ))}
           </ul>
@@ -201,7 +202,7 @@ export function RefusedImage({ invoiceId, blobPath, fileName, image, canEdit, re
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant shrink-0">
-        <FileSpreadsheet size={14} className="text-fg3 shrink-0" />
+        <Icon icon={TableChart} size={18} className="text-fg3 shrink-0" />
         <span className="text-xs text-on-surface-variant truncate flex-1">{fileName ?? 'Файл счёта'}</span>
         <OriginalButton invoiceId={invoiceId} fileName={fileName} label="Оригинал" />
       </div>
@@ -209,8 +210,8 @@ export function RefusedImage({ invoiceId, blobPath, fileName, image, canEdit, re
         <Centered>
           <div className="flex flex-col items-center gap-2 max-w-sm" data-testid="image-refused">
             {image.aboutFile
-              ? <FileX size={20} className="text-warning" />
-              : <CloudOff size={20} className="text-fg3" />}
+              ? <Icon icon={ScanDelete} size={20} className="text-warning" />
+              : <Icon icon={CloudOff} size={20} className="text-fg3" />}
             <span className="text-sm font-medium text-on-surface">
               {image.aboutFile ? 'Вид для чтения не построен' : 'Вид для чтения пока не построен'}
             </span>
@@ -222,13 +223,13 @@ export function RefusedImage({ invoiceId, blobPath, fileName, image, canEdit, re
             </span>
             <div className="flex gap-2 mt-1">
               {!image.aboutFile && (
-                <Button size="sm" variant="outlined" loading={retrying} icon={<RotateCw size={13} />} onClick={onRetry}>
+                <Button size="sm" variant="outlined" loading={retrying} icon={<Icon icon={RotateRight} size={18} />} onClick={onRetry}>
                   Повторить
                 </Button>
               )}
               {/* Запомненный отказ сам не пройдёт — а конвертер мог споткнуться и разово. */}
               {image.aboutFile && canEdit && (
-                <Button size="sm" variant="outlined" loading={rebuild.isPending} icon={<RotateCw size={13} />}
+                <Button size="sm" variant="outlined" loading={rebuild.isPending} icon={<Icon icon={RotateRight} size={18} />}
                   onClick={() => rebuild.mutateAsync()
                     .then(next => { if (next.state === 'refused') toast.info(`Вид снова не построен. ${next.reason ?? ''}`); })
                     .catch(e => toast.apiError(e, 'Вид не построен'))}>

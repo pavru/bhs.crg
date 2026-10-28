@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { FileText, Files } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Description, FileCopy } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { useCommonDataForScope } from '@/shared/api/commonData';
 import type {
@@ -435,7 +436,7 @@ function RefPickerModalBody({
                     onClick={() => { const i = indexByKey.get(key); if (i != null) choose(options[i]); }}
                     className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md transition-colors ${
                       on ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-primary-container'}`}>
-                    <Files size={14} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-fg4'}`} />
+                    <Icon icon={FileCopy} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-fg4'}`} />
                     <span className={`flex-1 font-medium truncate ${on ? 'text-on-secondary-container' : 'text-on-surface'}`}>
                       {label}
                     </span>
@@ -470,7 +471,7 @@ function RefPickerModalBody({
                     onClick={() => { const i = indexByKey.get(key); if (i != null) choose(options[i]); }}
                     className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md transition-colors ${
                       on ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-primary-container'}`}>
-                    <FileText size={14} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-fg4'}`} />
+                    <Icon icon={Description} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-fg4'}`} />
                     <span className={`flex-1 font-medium truncate ${on ? 'text-on-secondary-container' : 'text-on-surface'}`}>
                       {label}
                     </span>

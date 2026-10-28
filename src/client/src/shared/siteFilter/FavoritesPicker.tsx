@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Search, Star } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Search, Star } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { apiError } from '@/shared/utils/apiError';
@@ -52,7 +53,7 @@ export function FavoritesPicker({ maxHeight = 'max-h-72' }: { maxHeight?: string
       </p>
       {filter.sites.length >= SEARCH_FROM && (
         <div className="relative">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
+          <Icon icon={Search} size={18} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
           <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Название стройки…"
             aria-label="Название стройки"
             className="w-full h-8 pl-8 pr-2 text-sm border border-outline rounded-md bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
@@ -69,7 +70,7 @@ export function FavoritesPicker({ maxHeight = 'max-h-72' }: { maxHeight?: string
                 <label className="flex items-center gap-2 px-1 py-1 rounded hover:bg-surface-container-low cursor-pointer text-sm text-on-surface">
                   <Checkbox size="sm" checked={checked} disabled={busy}
                     onChange={() => run(() => filter.setFavorite(s.id, !checked))} />
-                  <Star size={13} className={checked ? 'text-primary fill-current' : 'text-fg4'} aria-hidden />
+                  <Icon icon={Star} size={18} className={checked ? 'text-primary fill-current' : 'text-fg4'} aria-hidden />
                   <span className="truncate">{s.name}</span>
                 </label>
               </li>

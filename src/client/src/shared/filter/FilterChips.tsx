@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import * as Popover from '@radix-ui/react-popover';
-import { BookX, Plus, SlidersHorizontal, TriangleAlert } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, SearchOff, Tune, Warning } from '@/shared/ui/icons';
 import type { FilterCondition, FilterNode } from '@/shared/api/types';
 import { ConditionEditor } from './ConditionEditor';
 import { ConditionHint } from './ConditionHint';
@@ -72,7 +73,7 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
             initial={offeredCondition(name, columns)}
             onSubmit={cond => onChange(chipAdded(cond))}>
             <button type="button" className={`${CHIP_CLS} border-dashed border-outline-variant text-fg3 hover:text-on-surface px-2.5 py-1 gap-1`}>
-              <Plus size={12} aria-hidden /> {columnLabel(columns.find(c => c.name === name), name)}
+              <Icon icon={Add} size={18} aria-hidden /> {columnLabel(columns.find(c => c.name === name), name)}
             </button>
           </ConditionPopover>
         ))}
@@ -81,7 +82,7 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
           <ConditionPopover columns={columns} initial={NEW_CONDITION} submit="Добавить"
             onSubmit={cond => onChange(chipAdded(cond))}>
             <button type="button" className={`${CHIP_CLS} border-dashed border-outline-variant text-fg3 hover:text-on-surface px-2.5 py-1 gap-1`}>
-              <Plus size={12} aria-hidden /> условие
+              <Icon icon={Add} size={18} aria-hidden /> условие
             </button>
           </ConditionPopover>
         )}
@@ -89,7 +90,7 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
         {onAdvanced && view.mode === 'chips' && (
           <button type="button" onClick={onAdvanced}
             className="inline-flex items-center gap-1 text-xs text-fg3 hover:text-on-surface px-1.5 py-1">
-            <SlidersHorizontal size={12} aria-hidden /> Расширенный
+            <Icon icon={Tune} size={18} aria-hidden /> Расширенный
           </button>
         )}
 
@@ -138,10 +139,10 @@ function ConditionChip({ cond, columns, onChange, onRemove }: {
     <Tooltip content={problem ? `Условие не выполнится: ${problem}` : notice ? noticeText(notice) : undefined}>
       <ConditionPopover columns={columns} initial={cond} submit="Применить" onSubmit={onChange}>
         <Chip menu selected={!problem && !notice} tone={problem ? 'danger' : notice ? 'warning' : undefined}
-          icon={problem ? TriangleAlert : undefined} className={notice ? 'bg-warning-container!' : ''}
+          icon={problem ? Warning : undefined} className={notice ? 'bg-warning-container!' : ''}
           data-notice={notice ? '' : undefined}
           onRemove={onRemove} removeLabel={`Снять условие «${text}»`}>
-          {notice && <BookX size={12} aria-label="нет в справочнике" className="inline align-[-2px] mr-1" />}
+          {notice && <Icon icon={SearchOff} size={18} aria-label="нет в справочнике" className="inline align-[-2px] mr-1" />}
           {text}
         </Chip>
       </ConditionPopover>

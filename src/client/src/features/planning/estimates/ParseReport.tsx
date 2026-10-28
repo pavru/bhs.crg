@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { AlertTriangle, ChevronDown, ChevronRight, FileText, Info } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ChevronRight, Description, Info, KeyboardArrowDown, Warning, type IconDef } from '@/shared/ui/icons';
 import { costHidden } from '@/shared/api/planningEstimates';
 import type { EstimateImport, SkippedPosition, UnparsedPosition } from '@/shared/api/planningImports';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
@@ -36,11 +37,11 @@ export function ParseReport({ report, sectionName }: { report: EstimateImport; s
         <dd className="text-on-surface">{capitalize(targetLabel(report.target, sectionName))}</dd>
       </dl>
 
-      {verdict.kind === 'refused' && <Band tone="danger" icon={AlertTriangle}><b className="font-medium">Файл не разобран:</b> {verdict.text}</Band>}
+      {verdict.kind === 'refused' && <Band tone="danger" icon={Warning}><b className="font-medium">Файл не разобран:</b> {verdict.text}</Band>}
       {/* Пометки сервера — над итогом, а не в конце: «это другой расчёт» решает, создавать ли вообще (макет 1в). */}
       {notes.map(m => (
         <Band key={m.code} tone={m.code === 'otherCalculation' ? 'warning' : 'info'}
-          icon={m.code === 'notEstimate' ? FileText : m.code === 'otherCalculation' ? AlertTriangle : Info}>
+          icon={m.code === 'notEstimate' ? Description : m.code === 'otherCalculation' ? Warning : Info}>
           {m.text}
         </Band>
       ))}
@@ -77,10 +78,10 @@ const BAND: Record<Tone, string> = {
   danger: 'border border-error/30 bg-error-container text-error',
 };
 
-function Band({ tone, icon: Icon, children }: { tone: Tone; icon: typeof Info; children: React.ReactNode }) {
+function Band({ tone, icon, children }: { tone: Tone; icon: IconDef; children: React.ReactNode }) {
   return (
     <div role={tone === 'danger' ? 'alert' : undefined} className={`flex items-start gap-2 rounded-md px-3 py-2 ${BAND[tone]}`}>
-      <Icon size={16} className="mt-0.5 shrink-0" aria-hidden />
+      <Icon icon={icon} size={18} className="mt-0.5 shrink-0" aria-hidden />
       <p className="min-w-0">{children}</p>
     </div>
   );
@@ -93,7 +94,7 @@ function Disclosure({ tone, title, hint, children }: { tone: Tone; title: string
     <div className={`rounded-md ${BAND[tone]}`}>
       <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
         className="flex w-full items-start gap-2 px-3 py-2 text-left">
-        {open ? <ChevronDown size={16} className="mt-0.5 shrink-0" aria-hidden /> : <ChevronRight size={16} className="mt-0.5 shrink-0" aria-hidden />}
+        {open ? <Icon icon={KeyboardArrowDown} size={18} className="mt-0.5 shrink-0" aria-hidden /> : <Icon icon={ChevronRight} size={18} className="mt-0.5 shrink-0" aria-hidden />}
         <span className="min-w-0">
           <span className="font-medium">{title}</span>
           {hint && <span className="block text-xs text-fg3">{hint}</span>}

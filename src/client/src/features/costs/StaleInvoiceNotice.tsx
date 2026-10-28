@@ -1,4 +1,5 @@
-import { RefreshCw, TriangleAlert } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Refresh, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 
 /**
@@ -19,13 +20,13 @@ export function StaleInvoiceNotice({ what, onReread }: {
   return (
     <div role="alert" className="flex items-start gap-2 rounded-lg border border-warning-border
       bg-warning-container px-3 py-2 text-xs text-warning">
-      <TriangleAlert size={13} className="shrink-0 mt-0.5" />
+      <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
       <p className="flex-1">
         Счёт тем временем изменили — {what} на экране собраны по прежнему виду и поверх чужой правки
         не сохранятся. Набранное остаётся здесь: перенесите нужное себе, затем перечитайте счёт —
         несохранённые правки заменятся сохранёнными.
       </p>
-      <Button size="sm" variant="outlined" icon={<RefreshCw size={12} />} onClick={onReread}>
+      <Button size="sm" variant="outlined" icon={<Icon icon={Refresh} size={18} />} onClick={onReread}>
         Перечитать счёт
       </Button>
     </div>

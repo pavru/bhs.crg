@@ -1,4 +1,5 @@
-import { AlertCircle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ErrorIcon } from '@/shared/ui/icons';
 
 /**
  * Индикатор БИТОЙ ссылки на поле редактора реквизитов (issue #332): целевой объект удалён.
@@ -19,7 +20,7 @@ export const BROKEN_LABEL = 'text-error line-through opacity-70';
 export function BrokenRefNote({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`flex items-center gap-1.5 text-error ${compact ? 'text-caption px-3 pb-1.5' : 'text-xs mt-1'}`}>
-      <AlertCircle size={compact ? 11 : 13} className="shrink-0" />
+      <Icon icon={ErrorIcon} size={18} className="shrink-0" />
       <span>{BROKEN_REF_MESSAGE}</span>
     </div>
   );

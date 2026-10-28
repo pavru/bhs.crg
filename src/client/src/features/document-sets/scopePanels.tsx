@@ -12,6 +12,7 @@ import { DataSetsResource } from '@/features/datasets/DataSetsResource';
 import { EstimatesPanel } from '@/features/planning/estimates/EstimatesPanel';
 import { CatalogPanel } from './CatalogPanel';
 import { SubscribersResource } from './SubscribersResource';
+import { Icon } from '@/shared/ui/Icon';
 
 /** Чья это панель: стройки или её раздела. Панель получает только это — не внутренности карточки. */
 export interface PanelScope {
@@ -61,7 +62,7 @@ export function useScopePanels(level: PanelLevel, base: string, scope: PanelScop
   const { work, own } = panelsAt(level, access, workspace.inside, active?.id, panels);
 
   const items = (list: ShownPanel[]) => list.map(p => (
-    <NavItem key={p.id} icon={<p.icon size={17} />} label={p.label} active={p.id === active?.id}
+    <NavItem key={p.id} icon={<Icon icon={p.icon} size={18} />} label={p.label} active={p.id === active?.id}
       note={p.outside ? 'вне пространства' : undefined} onClick={() => navigate(`${base}/${p.id}`)} />
   ));
 

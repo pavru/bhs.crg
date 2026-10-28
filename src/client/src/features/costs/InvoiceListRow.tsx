@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { AlarmClock, Archive, Ban, Check, Clock, History, ListChecks, Loader2, ScanLine, Sparkles, TriangleAlert } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { Alarm, Archive, Block, Check, Checklist, DocumentScanner, HistoryIcon, Schedule, StarShine, Warning } from '@/shared/ui/icons';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import type { InvoiceListItem, InvoiceQueue } from '@/shared/api/invoices';
 import { formatDate, formatMoney } from '@/shared/format/format';
@@ -50,7 +52,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
           : (
             <Tooltip content="Номера ещё нет — это имя файла счёта">
               <span className="inline-flex items-center gap-1 min-w-0 text-sm text-on-surface-variant">
-                <ScanLine size={12} className="shrink-0 text-fg3" aria-hidden />
+                <Icon icon={DocumentScanner} size={18} className="shrink-0 text-fg3" aria-hidden />
                 <span className="truncate">{item.scanFileName}</span>
               </span>
             </Tooltip>
@@ -66,7 +68,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
         {lost > 0 && (
           <Tooltip content={lostTitle(item)}>
             <span className="inline-flex items-center gap-0.5 text-xs text-error shrink-0" aria-label={`Удалённых записей: ${lost}`}>
-              <TriangleAlert size={11} aria-hidden />{lost}
+              <Icon icon={Warning} size={18} aria-hidden />{lost}
             </span>
           </Tooltip>
         )}
@@ -74,21 +76,21 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
           <Tooltip content={`Записи в архиве — ${placesText(item.references?.archived)}. Счёт верен: запись цела, её лишь убрали из выбора.`}>
             <span className="inline-flex items-center gap-0.5 text-xs text-fg3 shrink-0"
               aria-label={`Записей в архиве: ${archived}`}>
-              <Archive size={11} aria-hidden />{archived}
+              <Icon icon={Archive} size={18} aria-hidden />{archived}
             </span>
           </Tooltip>
         )}
         {item.unconfirmedCount > 0 && (
           <Tooltip content="Распознано, не подтверждено">
             <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0">
-              <Sparkles size={11} />{item.unconfirmedCount}
+              <Icon icon={StarShine} size={18} />{item.unconfirmedCount}
             </span>
           </Tooltip>
         )}
         {due && (
           <Tooltip content={due.title}>
             <span className={`inline-flex items-center gap-0.5 text-xs shrink-0 ${DUE_TONE[due.tone]}`} data-testid="row-due">
-              {due.tone === 'danger' ? <AlarmClock size={11} aria-hidden /> : <Clock size={11} aria-hidden />}{due.text}
+              {due.tone === 'danger' ? <Icon icon={Alarm} size={18} aria-hidden /> : <Icon icon={Schedule} size={18} aria-hidden />}{due.text}
             </span>
           </Tooltip>
         )}
@@ -96,7 +98,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
         {rejected && (
           <Tooltip content="По счёту не платим">
             <span className="inline-flex items-center gap-0.5 text-xs text-fg3 shrink-0">
-              <Ban size={11} aria-hidden />отклонён
+              <Icon icon={Block} size={18} aria-hidden />отклонён
             </span>
           </Tooltip>
         )}
@@ -105,7 +107,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
         {item.corrected && (
           <Tooltip content="Менялся после закрытия периода — история в карточке счёта, секция «Исправления»">
             <span className="inline-flex items-center gap-0.5 text-xs text-fg3 shrink-0">
-              <History size={11} aria-hidden />исправлен
+              <Icon icon={HistoryIcon} size={18} aria-hidden />исправлен
             </span>
           </Tooltip>
         )}
@@ -115,7 +117,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
         {!rejected && item.linesWithoutNomenclature > 0 && (
           <Tooltip content={`Строк ждёт позиции номенклатуры: ${item.linesWithoutNomenclature} из ${item.linesCount}`}>
             <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0">
-              <ListChecks size={11} />{item.linesWithoutNomenclature}
+              <Icon icon={Checklist} size={18} />{item.linesWithoutNomenclature}
             </span>
           </Tooltip>
         )}
@@ -132,7 +134,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
       )}
       {scan && (
         <div className={`mt-0.5 flex items-center gap-1 text-xs ${SCAN_TONE[scan.tone]}`}>
-          {scan.running && <Loader2 size={11} className="animate-spin shrink-0" aria-hidden />}
+          {scan.running && <CircularProgress size={18} className="shrink-0" />}
           <span className="truncate">{scan.text}</span>
         </div>
       )}
@@ -168,7 +170,7 @@ export function InvoiceLeftRow({ number, onClick, exit, active = true }: {
         className={`w-full text-left px-3 py-2 border-b border-outline-variant/60 ${active ? 'bg-primary-container' : 'hover:bg-surface-container'}`}>
         <div className="text-sm text-on-surface font-medium truncate">{number || 'без номера'}</div>
         <div className="mt-0.5 inline-flex items-center gap-1 text-xs text-fg3">
-          <Check size={11} aria-hidden /> {exit ? EXIT_WORD[exit] : 'больше не в отборе'}
+          <Icon icon={Check} size={18} aria-hidden /> {exit ? EXIT_WORD[exit] : 'больше не в отборе'}
         </div>
       </button>
     </Tooltip>
@@ -203,7 +205,7 @@ function SupplierName({ item }: { item: InvoiceListItem }) {
         ? 'Запись справочника удалена. Откройте счёт и выберите другую организацию'
         : 'Ссылка на организацию есть, а в справочнике организаций её нет: запись удалили либо перевели в другой вид. Что именно — скажет открытый счёт'}>
       <span className="inline-flex items-center gap-1 text-xs text-error truncate">
-        <TriangleAlert size={11} /> {lost ? LOST.organization : MISSING.organization}
+        <Icon icon={Warning} size={18} /> {lost ? LOST.organization : MISSING.organization}
       </span>
     </Tooltip>
   );

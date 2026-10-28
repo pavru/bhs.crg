@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Check, ChevronDown, ChevronRight, RefreshCw, TriangleAlert } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Check, ChevronRight, KeyboardArrowDown, Refresh, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { apiError } from '@/shared/utils/apiError';
@@ -41,7 +42,7 @@ export function CorrectionPreviewDialog({ preview, pending, error, reason, note,
         <>
           <ModalExit>Вернуться к правке</ModalExit>
           {shown && (
-            <Button variant="filled" icon={<Check size={13} />} loading={writing} onClick={() => onWrite(shown)}>
+            <Button variant="filled" icon={<Icon icon={Check} size={18} />} loading={writing} onClick={() => onWrite(shown)}>
               Записать исправление
             </Button>
           )}
@@ -52,7 +53,7 @@ export function CorrectionPreviewDialog({ preview, pending, error, reason, note,
         {!pending && error != null && (
           <div role="alert" className="flex items-start gap-2 rounded-lg border border-error/30 bg-error-container
             px-3 py-2 text-xs text-error">
-            <TriangleAlert size={14} className="shrink-0 mt-0.5" />
+            <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <span>{apiError(error, 'Исправление не посчитано')}</span>
           </div>
         )}
@@ -70,7 +71,7 @@ function Shown({ preview, reason, note, places }: {
     <>
       {note && (
         <p role="status" className="flex items-start gap-2 text-xs text-warning">
-          <RefreshCw size={13} className="shrink-0 mt-0.5" /> {note}
+          <Icon icon={Refresh} size={18} className="shrink-0 mt-0.5" /> {note}
         </p>
       )}
       <p className="text-on-surface">
@@ -112,7 +113,7 @@ function ServiceRecord({ record, places }: { record: CorrectionRecordView; place
     <div className="text-xs">
       <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
         className="inline-flex items-center gap-1 text-on-surface-variant hover:text-on-surface">
-        {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+        {open ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
         {title} — {formatDate(record.day)}, строк: {record.lines.length}
       </button>
       {open && (

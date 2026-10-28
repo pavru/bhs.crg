@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Link2, FileText, Database, ChevronDown, Repeat, Unlink, AlertTriangle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ChangeCircle, Database, Description, KeyboardArrowDown, LinkIcon, LinkOff, Warning } from '@/shared/ui/icons';
 import { BaseCandidatePicker } from './BaseCandidatePicker';
 import type { BaseCandidate } from './baseCandidates';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -26,7 +27,7 @@ export function BaseInstanceChip({
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  const Icon = selected?.proxy ? Link2 : selected?.kind === 'catalog' ? Database : FileText;
+  const icon = selected?.proxy ? LinkIcon : selected?.kind === 'catalog' ? Database : Description;
   const chipLabel = selected && `${selected.proxy ? 'Роль' : 'Основа'}: ${selected.name}`;
 
   // База выбрана — тональный chip с меню (Заменить / Отвязать); read-only при !editable.
@@ -36,11 +37,11 @@ export function BaseInstanceChip({
         <button type="button"
           className={`flex items-center gap-1.5 h-7 pl-2.5 pr-2 rounded-lg text-xs font-medium bg-primary-container text-brand-hover max-w-[16rem] transition-colors ${
             editable ? 'hover:bg-primary-container/70 cursor-pointer' : 'cursor-default'}`}>
-          <Icon size={13} className="shrink-0" />
+          <Icon icon={icon} size={18} className="shrink-0" />
           {/* Полный текст обрезанной подписи — нативным title: подсказка на самой кнопке не видна,
               пока она неактивна (только чтение), а обрезана подпись и тогда. */}
           <span className="truncate" title={chipLabel}>{chipLabel}</span>
-          {editable && <ChevronDown size={13} className="shrink-0 opacity-70" />}
+          {editable && <Icon icon={KeyboardArrowDown} size={18} className="shrink-0 opacity-70" />}
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
@@ -49,12 +50,12 @@ export function BaseInstanceChip({
           style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
           <DropdownMenu.Item onSelect={() => setPickerOpen(true)}
             className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer select-none outline-none text-on-surface-variant data-[highlighted]:bg-surface-container-low">
-            <Repeat size={14} className="text-fg4" /> Заменить основу…
+            <Icon icon={ChangeCircle} size={18} className="text-fg4" /> Заменить основу…
           </DropdownMenu.Item>
           <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
           <DropdownMenu.Item onSelect={onClear}
             className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer select-none outline-none text-error data-[highlighted]:bg-surface-container-low">
-            <Unlink size={14} /> Отвязать
+            <Icon icon={LinkOff} size={18} /> Отвязать
           </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
@@ -66,7 +67,7 @@ export function BaseInstanceChip({
     <Tooltip content="Базовый экземпляр недоступен (удалён или вне области видимости) — нажмите, чтобы отвязать">
       <button type="button" onClick={editable ? onClear : undefined} disabled={!editable}
         className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium bg-warning-container text-warning max-w-[16rem]">
-        <AlertTriangle size={13} className="shrink-0" />
+        <Icon icon={Warning} size={18} className="shrink-0" />
         <span className="truncate">Основа недоступна</span>
       </button>
     </Tooltip>
@@ -77,7 +78,7 @@ export function BaseInstanceChip({
     <Tooltip content="Предзаполнить поля из базового экземпляра или роли">
       <button type="button" onClick={() => setPickerOpen(true)}
         className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium border border-dashed border-primary-container text-primary hover:bg-primary-container transition-colors">
-        <Link2 size={13} className="shrink-0" />
+        <Icon icon={LinkIcon} size={18} className="shrink-0" />
         <span>Выбрать основу</span>
       </button>
     </Tooltip>

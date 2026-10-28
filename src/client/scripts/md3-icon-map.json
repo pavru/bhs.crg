@@ -1,0 +1,759 @@
+{
+  "//": "Таблица lucide → Material Symbols для кодмода значков (scripts/md3-icons-migrate.mjs, sharedui-md3-03, [UI-60]). Ключ — имя lucide; symbol — имя файла в @material-symbols/svg-400/outlined, export — имя в shared/ui/icons, fill — у значка есть вариант с заливкой (только разделы навигации); spinner — индикатор хода, переходит в CircularProgress; type — тип LucideIcon, переходит в IconDef; files — другой значок в названном файле (путь от src/), когда у одного значка lucide разные смыслы. Смысловые решения — design.md change sharedui-md3-03-icons.",
+  "icons": {
+    "Trash2": {
+      "symbol": "delete",
+      "export": "Delete"
+    },
+    "AlertTriangle": {
+      "symbol": "warning",
+      "export": "Warning"
+    },
+    "Plus": {
+      "symbol": "add",
+      "export": "Add"
+    },
+    "ChevronDown": {
+      "symbol": "keyboard_arrow_down",
+      "export": "KeyboardArrowDown"
+    },
+    "Loader2": {
+      "spinner": true
+    },
+    "X": {
+      "symbol": "close",
+      "export": "Close"
+    },
+    "ChevronRight": {
+      "symbol": "chevron_right",
+      "export": "ChevronRight"
+    },
+    "Check": {
+      "symbol": "check",
+      "export": "Check"
+    },
+    "FileText": {
+      "symbol": "description",
+      "export": "Description"
+    },
+    "TriangleAlert": {
+      "symbol": "warning",
+      "export": "Warning"
+    },
+    "RefreshCw": {
+      "symbol": "refresh",
+      "export": "Refresh"
+    },
+    "Link2": {
+      "symbol": "link",
+      "export": "LinkIcon"
+    },
+    "AlertCircle": {
+      "symbol": "error",
+      "export": "ErrorIcon"
+    },
+    "Pencil": {
+      "symbol": "edit",
+      "export": "Edit"
+    },
+    "Lock": {
+      "symbol": "lock",
+      "export": "LockIcon"
+    },
+    "Search": {
+      "symbol": "search",
+      "export": "Search"
+    },
+    "Database": {
+      "symbol": "database",
+      "export": "Database",
+      "fill": true
+    },
+    "CheckCircle2": {
+      "symbol": "check_circle",
+      "export": "CheckCircle"
+    },
+    "ShieldCheck": {
+      "symbol": "verified_user",
+      "export": "VerifiedUser"
+    },
+    "ExternalLink": {
+      "symbol": "open_in_new",
+      "export": "OpenInNew"
+    },
+    "Unlink": {
+      "symbol": "link_off",
+      "export": "LinkOff"
+    },
+    "Archive": {
+      "symbol": "archive",
+      "export": "Archive"
+    },
+    "Download": {
+      "symbol": "download",
+      "export": "Download"
+    },
+    "Upload": {
+      "symbol": "upload",
+      "export": "Upload"
+    },
+    "Layers": {
+      "symbol": "layers",
+      "export": "Layers"
+    },
+    "ChevronUp": {
+      "symbol": "keyboard_arrow_up",
+      "export": "KeyboardArrowUp"
+    },
+    "Save": {
+      "symbol": "save",
+      "export": "Save"
+    },
+    "FileSpreadsheet": {
+      "symbol": "table_chart",
+      "export": "TableChart"
+    },
+    "Info": {
+      "symbol": "info",
+      "export": "Info"
+    },
+    "Copy": {
+      "symbol": "content_copy",
+      "export": "ContentCopy"
+    },
+    "Star": {
+      "symbol": "star",
+      "export": "Star"
+    },
+    "Eye": {
+      "symbol": "visibility",
+      "export": "Visibility"
+    },
+    "Building2": {
+      "symbol": "apartment",
+      "export": "Apartment",
+      "fill": true
+    },
+    "LucideIcon": {
+      "type": true
+    },
+    "RotateCcw": {
+      "symbol": "restart_alt",
+      "export": "RestartAlt",
+      "files": {
+        "features/reconciliations/ObservationReviewDialog.tsx": {
+          "symbol": "undo",
+          "export": "Undo"
+        }
+      }
+    },
+    "History": {
+      "symbol": "history",
+      "export": "HistoryIcon"
+    },
+    "GripVertical": {
+      "symbol": "drag_indicator",
+      "export": "DragIndicator"
+    },
+    "Mail": {
+      "symbol": "mail",
+      "export": "Mail"
+    },
+    "ArchiveRestore": {
+      "symbol": "unarchive",
+      "export": "Unarchive"
+    },
+    "ChevronLeft": {
+      "symbol": "chevron_left",
+      "export": "ChevronLeft"
+    },
+    "ScanText": {
+      "symbol": "document_scanner",
+      "export": "DocumentScanner"
+    },
+    "Boxes": {
+      "symbol": "widgets",
+      "export": "Widgets"
+    },
+    "ClipboardList": {
+      "symbol": "assignment",
+      "export": "Assignment",
+      "fill": true
+    },
+    "EyeOff": {
+      "symbol": "visibility_off",
+      "export": "VisibilityOff"
+    },
+    "Undo2": {
+      "symbol": "undo",
+      "export": "Undo"
+    },
+    "Table2": {
+      "symbol": "table",
+      "export": "Table"
+    },
+    "CheckCircle": {
+      "symbol": "check_circle",
+      "export": "CheckCircle"
+    },
+    "FolderOpen": {
+      "symbol": "folder_open",
+      "export": "FolderOpen"
+    },
+    "LayoutGrid": {
+      "symbol": "grid_view",
+      "export": "GridView"
+    },
+    "LogOut": {
+      "symbol": "logout",
+      "export": "Logout"
+    },
+    "PencilLine": {
+      "symbol": "edit_note",
+      "export": "EditNote"
+    },
+    "RotateCw": {
+      "symbol": "rotate_right",
+      "export": "RotateRight"
+    },
+    "ListChecks": {
+      "symbol": "checklist",
+      "export": "Checklist"
+    },
+    "ScanLine": {
+      "symbol": "document_scanner",
+      "export": "DocumentScanner"
+    },
+    "FunctionSquare": {
+      "symbol": "function",
+      "export": "FunctionIcon"
+    },
+    "Bot": {
+      "symbol": "smart_toy",
+      "export": "SmartToy"
+    },
+    "Bug": {
+      "symbol": "bug_report",
+      "export": "BugReport"
+    },
+    "Image": {
+      "symbol": "image",
+      "export": "ImageIcon"
+    },
+    "Users": {
+      "symbol": "group",
+      "export": "Group"
+    },
+    "ArrowRight": {
+      "symbol": "arrow_forward",
+      "export": "ArrowForward"
+    },
+    "XCircle": {
+      "symbol": "cancel",
+      "export": "Cancel"
+    },
+    "CircleCheck": {
+      "symbol": "check_circle",
+      "export": "CheckCircle"
+    },
+    "Ban": {
+      "symbol": "block",
+      "export": "Block"
+    },
+    "Printer": {
+      "symbol": "print",
+      "export": "Print"
+    },
+    "ArrowUpRight": {
+      "symbol": "arrow_outward",
+      "export": "ArrowOutward"
+    },
+    "Truck": {
+      "symbol": "local_shipping",
+      "export": "LocalShipping"
+    },
+    "ArrowLeft": {
+      "symbol": "arrow_back",
+      "export": "ArrowBack"
+    },
+    "SlidersHorizontal": {
+      "symbol": "tune",
+      "export": "Tune"
+    },
+    "Link2Off": {
+      "symbol": "link_off",
+      "export": "LinkOff"
+    },
+    "Globe": {
+      "symbol": "language",
+      "export": "Language"
+    },
+    "Activity": {
+      "symbol": "monitoring",
+      "export": "Monitoring"
+    },
+    "Scale": {
+      "symbol": "balance",
+      "export": "Balance"
+    },
+    "Folder": {
+      "symbol": "folder",
+      "export": "Folder"
+    },
+    "Cpu": {
+      "symbol": "memory",
+      "export": "Memory"
+    },
+    "BookX": {
+      "symbol": "search_off",
+      "export": "SearchOff"
+    },
+    "Monitor": {
+      "symbol": "monitor",
+      "export": "Monitor"
+    },
+    "Wrench": {
+      "symbol": "build",
+      "export": "Build",
+      "fill": true
+    },
+    "KeyRound": {
+      "symbol": "key",
+      "export": "Key"
+    },
+    "Calculator": {
+      "symbol": "calculate",
+      "export": "Calculate",
+      "fill": true
+    },
+    "CircleHelp": {
+      "symbol": "help",
+      "export": "Help"
+    },
+    "SearchCheck": {
+      "symbol": "search_check",
+      "export": "SearchCheck"
+    },
+    "FileX": {
+      "symbol": "scan_delete",
+      "export": "ScanDelete"
+    },
+    "CheckCheck": {
+      "symbol": "done_all",
+      "export": "DoneAll"
+    },
+    "Sparkles": {
+      "symbol": "star_shine",
+      "export": "StarShine"
+    },
+    "Clock": {
+      "symbol": "schedule",
+      "export": "Schedule"
+    },
+    "FileUp": {
+      "symbol": "upload_file",
+      "export": "UploadFile"
+    },
+    "Maximize2": {
+      "symbol": "open_in_full",
+      "export": "OpenInFull"
+    },
+    "Tags": {
+      "symbol": "sell",
+      "export": "Sell"
+    },
+    "ChartNoAxesColumn": {
+      "symbol": "bar_chart",
+      "export": "BarChart"
+    },
+    "Scissors": {
+      "symbol": "content_cut",
+      "export": "ContentCut"
+    },
+    "Filter": {
+      "symbol": "filter_alt",
+      "export": "FilterAlt"
+    },
+    "ArrowUpDown": {
+      "symbol": "swap_vert",
+      "export": "SwapVert"
+    },
+    "GitBranch": {
+      "symbol": "call_split",
+      "export": "CallSplit",
+      "files": {
+        "features/datasets/RowFilterDialog.tsx": {
+          "symbol": "account_tree",
+          "export": "AccountTree"
+        }
+      }
+    },
+    "Type": {
+      "symbol": "title",
+      "export": "Title"
+    },
+    "Wand2": {
+      "symbol": "wand_stars",
+      "export": "WandStars"
+    },
+    "Replace": {
+      "symbol": "change_circle",
+      "export": "ChangeCircle"
+    },
+    "Target": {
+      "symbol": "target",
+      "export": "Target"
+    },
+    "FolderInput": {
+      "symbol": "folder_copy",
+      "export": "FolderCopy",
+      "files": {
+        "features/settings/TypeGroupAccordion.tsx": {
+          "symbol": "drive_file_move",
+          "export": "DriveFileMove"
+        }
+      }
+    },
+    "Play": {
+      "symbol": "play_arrow",
+      "export": "PlayArrow"
+    },
+    "CalendarCheck": {
+      "symbol": "calendar_check",
+      "export": "CalendarCheck"
+    },
+    "Bookmark": {
+      "symbol": "bookmark",
+      "export": "Bookmark"
+    },
+    "CircleSlash": {
+      "symbol": "block",
+      "export": "Block"
+    },
+    "Send": {
+      "symbol": "send",
+      "export": "Send"
+    },
+    "Braces": {
+      "symbol": "data_object",
+      "export": "DataObject"
+    },
+    "Minus": {
+      "symbol": "remove",
+      "export": "Remove"
+    },
+    "Code": {
+      "symbol": "code",
+      "export": "Code"
+    },
+    "User": {
+      "symbol": "person",
+      "export": "Person"
+    },
+    "BookOpen": {
+      "symbol": "menu_book",
+      "export": "MenuBook"
+    },
+    "FileCode": {
+      "symbol": "code_blocks",
+      "export": "CodeBlocks"
+    },
+    "LogIn": {
+      "symbol": "login",
+      "export": "Login"
+    },
+    "Sun": {
+      "symbol": "light_mode",
+      "export": "LightMode"
+    },
+    "Moon": {
+      "symbol": "dark_mode",
+      "export": "DarkMode"
+    },
+    "ArrowDown": {
+      "symbol": "arrow_downward",
+      "export": "ArrowDownward"
+    },
+    "ArrowUp": {
+      "symbol": "arrow_upward",
+      "export": "ArrowUpward"
+    },
+    "CalendarDays": {
+      "symbol": "calendar_month",
+      "export": "CalendarMonth"
+    },
+    "Palette": {
+      "symbol": "palette",
+      "export": "Palette"
+    },
+    "Bell": {
+      "symbol": "notifications",
+      "export": "Notifications"
+    },
+    "MailCheck": {
+      "symbol": "mark_email_read",
+      "export": "MarkEmailRead"
+    },
+    "ShieldAlert": {
+      "symbol": "gpp_maybe",
+      "export": "GppMaybe"
+    },
+    "Divide": {
+      "symbol": "equal",
+      "export": "Equal"
+    },
+    "Percent": {
+      "symbol": "percent",
+      "export": "Percent"
+    },
+    "CloudOff": {
+      "symbol": "cloud_off",
+      "export": "CloudOff"
+    },
+    "ClipboardPaste": {
+      "symbol": "content_paste",
+      "export": "ContentPaste"
+    },
+    "AlarmClock": {
+      "symbol": "alarm",
+      "export": "Alarm"
+    },
+    "Grid3x3": {
+      "symbol": "grid_on",
+      "export": "GridOn"
+    },
+    "Banknote": {
+      "symbol": "payments",
+      "export": "Payments"
+    },
+    "ListTodo": {
+      "symbol": "checklist",
+      "export": "Checklist"
+    },
+    "CalendarClock": {
+      "symbol": "calendar_clock",
+      "export": "CalendarClock"
+    },
+    "ArrowRightLeft": {
+      "symbol": "swap_horiz",
+      "export": "SwapHoriz"
+    },
+    "PackageCheck": {
+      "symbol": "inventory",
+      "export": "Inventory"
+    },
+    "ZoomIn": {
+      "symbol": "zoom_in",
+      "export": "ZoomIn"
+    },
+    "Route": {
+      "symbol": "route",
+      "export": "RouteIcon"
+    },
+    "BookmarkPlus": {
+      "symbol": "bookmark_add",
+      "export": "BookmarkAdd"
+    },
+    "FileDown": {
+      "symbol": "space_dashboard",
+      "export": "SpaceDashboard"
+    },
+    "CornerUpLeft": {
+      "symbol": "restart_alt",
+      "export": "RestartAlt"
+    },
+    "LayoutTemplate": {
+      "symbol": "space_dashboard",
+      "export": "SpaceDashboard"
+    },
+    "PlayCircle": {
+      "symbol": "play_circle",
+      "export": "PlayCircle"
+    },
+    "PanelRightClose": {
+      "symbol": "right_panel_close",
+      "export": "RightPanelClose"
+    },
+    "PanelRightOpen": {
+      "symbol": "right_panel_open",
+      "export": "RightPanelOpen"
+    },
+    "FileWarning": {
+      "symbol": "scan_delete",
+      "export": "ScanDelete"
+    },
+    "Stethoscope": {
+      "symbol": "stethoscope",
+      "export": "Stethoscope"
+    },
+    "Circle": {
+      "symbol": "circle",
+      "export": "Circle"
+    },
+    "CircleDot": {
+      "symbol": "radio_button_checked",
+      "export": "RadioButtonChecked"
+    },
+    "Clipboard": {
+      "symbol": "content_paste",
+      "export": "ContentPaste"
+    },
+    "Repeat": {
+      "symbol": "change_circle",
+      "export": "ChangeCircle"
+    },
+    "Share2": {
+      "symbol": "share",
+      "export": "Share"
+    },
+    "Files": {
+      "symbol": "file_copy",
+      "export": "FileCopy"
+    },
+    "FolderOutput": {
+      "symbol": "drive_file_move",
+      "export": "DriveFileMove"
+    },
+    "BellOff": {
+      "symbol": "notifications_off",
+      "export": "NotificationsOff"
+    },
+    "HeartPulse": {
+      "symbol": "monitor_heart",
+      "export": "MonitorHeart"
+    },
+    "Crosshair": {
+      "symbol": "my_location",
+      "export": "MyLocation"
+    },
+    "PlugZap": {
+      "symbol": "power",
+      "export": "Power"
+    },
+    "ImageIcon": {
+      "symbol": "image",
+      "export": "ImageIcon"
+    },
+    "CaseSensitive": {
+      "symbol": "match_case",
+      "export": "MatchCase"
+    },
+    "Hash": {
+      "symbol": "numbers",
+      "export": "Numbers"
+    },
+    "Calendar": {
+      "symbol": "calendar_month",
+      "export": "CalendarMonth"
+    },
+    "List": {
+      "symbol": "list",
+      "export": "List"
+    },
+    "RectangleHorizontal": {
+      "symbol": "crop_landscape",
+      "export": "CropLandscape"
+    },
+    "RectangleVertical": {
+      "symbol": "crop_portrait",
+      "export": "CropPortrait"
+    },
+    "HelpCircle": {
+      "symbol": "help",
+      "export": "Help"
+    },
+    "Columns3": {
+      "symbol": "view_column",
+      "export": "ViewColumn"
+    },
+    "Library": {
+      "symbol": "library_books",
+      "export": "LibraryBooks"
+    },
+    "MessageCircleWarning": {
+      "symbol": "feedback",
+      "export": "Feedback"
+    },
+    "UserRound": {
+      "symbol": "person",
+      "export": "Person"
+    },
+    "MailWarning": {
+      "symbol": "mark_email_unread",
+      "export": "MarkEmailUnread"
+    },
+    "Paperclip": {
+      "symbol": "attach_file",
+      "export": "AttachFile"
+    },
+    "CornerDownLeft": {
+      "symbol": "keyboard_return",
+      "export": "KeyboardReturn"
+    },
+    "CalendarRange": {
+      "symbol": "date_range",
+      "export": "DateRange"
+    },
+    "House": {
+      "symbol": "home",
+      "export": "Home"
+    },
+    "Settings": {
+      "symbol": "settings",
+      "export": "Settings"
+    },
+    "Tag": {
+      "symbol": "label",
+      "export": "Label"
+    },
+    "ReceiptText": {
+      "symbol": "receipt_long",
+      "export": "ReceiptLong"
+    },
+    "LayoutList": {
+      "symbol": "view_list",
+      "export": "ViewList"
+    },
+    "FilePlus2": {
+      "symbol": "note_add",
+      "export": "NoteAdd"
+    },
+    "MoreVertical": {
+      "symbol": "more_vert",
+      "export": "MoreVert"
+    },
+    "PanelLeftClose": {
+      "symbol": "left_panel_close",
+      "export": "LeftPanelClose"
+    },
+    "PanelLeftOpen": {
+      "symbol": "left_panel_open",
+      "export": "LeftPanelOpen"
+    },
+    "DatabaseZap": {
+      "symbol": "database",
+      "export": "Database",
+      "fill": true
+    },
+    "MapPin": {
+      "symbol": "location_on",
+      "export": "LocationOn"
+    },
+    "Package": {
+      "symbol": "package_2",
+      "export": "Package2"
+    },
+    "Ruler": {
+      "symbol": "straighten",
+      "export": "Straighten"
+    },
+    "FileQuestion": {
+      "symbol": "unknown_document",
+      "export": "UnknownDocument"
+    },
+    "Settings2": {
+      "symbol": "settings",
+      "export": "Settings"
+    }
+  }
+}

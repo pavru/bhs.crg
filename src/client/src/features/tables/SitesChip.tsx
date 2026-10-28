@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Star } from 'lucide-react';
+import { Star } from '@/shared/ui/icons';
 import { Chip } from '@/shared/ui/Chip';
 import { useCostsArticles } from '@/shared/api/articles';
 import type { TableColumn } from '@/shared/api/tables';

@@ -1,5 +1,6 @@
 import { useRef, type KeyboardEvent, type ReactNode } from 'react';
-import type { LucideIcon } from 'lucide-react';
+import { Icon } from './Icon';
+import type { IconDef } from './icons';
 import { Tooltip } from './Tooltip';
 
 /**
@@ -17,7 +18,7 @@ import { Tooltip } from './Tooltip';
 export interface TabItem<T extends string> {
   value: T;
   label: ReactNode;
-  icon?: LucideIcon;
+  icon?: IconDef;
   /** Число или пометка после подписи (счётчик ошибок, точка «не сохранено»). */
   badge?: ReactNode;
   disabled?: boolean;
@@ -78,7 +79,7 @@ export function Tabs<T extends string>({ id, items, value, onChange, variant = '
     <div role="tablist" className={`${s.list} ${className}`} {...aria}>
       {items.map((it, i) => {
         const on = it.value === value;
-        const Icon = it.icon;
+        const icon = it.icon;
         return (
           <Tooltip key={it.value} content={it.title}>
             <button type="button" role="tab" id={tabId(id, it.value)}
@@ -88,7 +89,7 @@ export function Tabs<T extends string>({ id, items, value, onChange, variant = '
               onClick={() => { if (!on) onChange(it.value); }}
               onKeyDown={e => onKey(e, i)}
               className={`${s.tab} ${on ? s.on : s.off} disabled:opacity-40 disabled:pointer-events-none`}>
-              {Icon && <Icon size={14} aria-hidden className="shrink-0" />}
+              {icon && <Icon icon={icon} size={18} aria-hidden className="shrink-0" />}
               {it.label}
               {it.badge}
             </button>

@@ -1,4 +1,5 @@
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { KeyboardArrowDown, KeyboardArrowUp } from '@/shared/ui/icons';
 
 // Оформительские куски страниц-редакторов типа list-detail (issue #197 / #210): свёрнутая
 // карточка-секция. Диалог-гард при уходе с несохранёнными правками переехал в общие компоненты
@@ -23,7 +24,7 @@ export function SectionCard({ icon, title, count, countClass, open, onToggle, ch
         <span className="text-sm font-medium text-on-surface-variant">{title}</span>
         {count != null && count > 0 && <span className={`text-xs ${countClass ?? 'text-primary'}`}>({count})</span>}
         <span className="flex-1" />
-        {open ? <ChevronUp size={16} className="text-fg4 shrink-0" /> : <ChevronDown size={16} className="text-fg4 shrink-0" />}
+        {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-fg4 shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" />}
       </button>
       {open && <div className="px-3 pb-3 pt-1 border-t border-outline-variant">{children}</div>}
     </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Link2, Link2Off, Check, X } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Check, Close, LinkIcon, LinkOff } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -33,7 +34,7 @@ export function AliasesPanel() {
     <div className="flex-1 min-w-0 flex flex-col">
       <div className="px-4 py-3 border-b border-outline-variant shrink-0">
         <h2 className="text-base font-semibold text-on-surface flex items-center gap-2">
-          <Link2 size={16} className="text-fg3" /> Алиасы позиций
+          <Icon icon={LinkIcon} size={18} className="text-fg3" /> Алиасы позиций
         </h2>
         <p className="text-xs text-fg3 mt-0.5">
           Наименования, признанные одним и тем же. В сверке участвуют только применяемые.
@@ -44,7 +45,7 @@ export function AliasesPanel() {
         {isLoading && <p className="px-4 py-3 text-sm text-fg4">Загрузка…</p>}
         {!isLoading && items.length === 0 && (
           <div className="p-6">
-            <EmptyState icon={<Link2 size={32} />} title="Алиасов нет"
+            <EmptyState icon={<Icon icon={LinkIcon} size={40} />} title="Алиасов нет"
               description="Свяжите две позиции в списке находок, если они называются по-разному, но означают одно." />
           </div>
         )}
@@ -63,7 +64,7 @@ export function AliasesPanel() {
                     await review.mutateAsync({ id: a.id, status: 'Confirmed' });
                     toast.success('Применяется. Прогоните сверку, чтобы позиции слились');
                   }}>
-                  <Check size={14} /> Применять
+                  <Icon icon={Check} size={18} /> Применять
                 </Button>
               )}
               {a.status !== 'Rejected' && (
@@ -72,12 +73,12 @@ export function AliasesPanel() {
                     await review.mutateAsync({ id: a.id, status: 'Rejected' });
                     toast.info('Отклонено');
                   }}>
-                  <X size={14} /> Отклонить
+                  <Icon icon={Close} size={18} /> Отклонить
                 </Button>
               )}
               <Button variant="text" size="sm" danger className="shrink-0 opacity-0 group-hover:opacity-100"
                 onClick={() => setBreaking(a)}>
-                <Link2Off size={14} /> Разорвать
+                <Icon icon={LinkOff} size={18} /> Разорвать
               </Button>
             </div>
             {(a.note || a.confirmedBy || a.proposedBy) && (

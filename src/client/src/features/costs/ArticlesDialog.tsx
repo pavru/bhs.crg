@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Archive, ArchiveRestore, Check, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Archive, Check, Close, Delete, Edit, Unarchive } from '@/shared/ui/icons';
 import { ArchivedRows } from '@/shared/ui/ArchivedRows';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog, type RefusalExit } from '@/shared/ui/ConfirmDialog';
@@ -94,11 +95,11 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
             className={FIELD} />
           <Tooltip content="Сохранить название" name>
             <button type="button" onClick={() => void rename()}
-              className="text-fg3 hover:text-primary p-1"><Check size={14} /></button>
+              className="text-fg3 hover:text-primary p-1"><Icon icon={Check} size={18} /></button>
           </Tooltip>
           <Tooltip content="Отменить" name>
             <button type="button" onClick={() => setEditing(null)}
-              className="text-fg3 hover:text-on-surface p-1"><X size={14} /></button>
+              className="text-fg3 hover:text-on-surface p-1"><Icon icon={Close} size={18} /></button>
           </Tooltip>
         </>
       ) : (
@@ -107,24 +108,24 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
           <Tooltip content={`Переименовать «${article.name}»`} name>
             <button type="button"
               onClick={() => setEditing({ id: article.id, name: article.name })}
-              className="text-fg3 hover:text-primary p-1"><Pencil size={14} /></button>
+              className="text-fg3 hover:text-primary p-1"><Icon icon={Edit} size={18} /></button>
           </Tooltip>
           {article.archived ? (
             <Tooltip content={`Вернуть «${article.name}» из архива`} name>
               <button type="button" disabled={archive.isPending}
                 onClick={() => void setArchived(article, false)}
-                className="text-fg3 hover:text-primary p-1"><ArchiveRestore size={14} /></button>
+                className="text-fg3 hover:text-primary p-1"><Icon icon={Unarchive} size={18} /></button>
             </Tooltip>
           ) : (
             <Tooltip content={`В архив «${article.name}»`} name>
               <button type="button" disabled={archive.isPending}
                 onClick={() => void setArchived(article, true)}
-                className="text-fg3 hover:text-primary p-1"><Archive size={14} /></button>
+                className="text-fg3 hover:text-primary p-1"><Icon icon={Archive} size={18} /></button>
             </Tooltip>
           )}
           <Tooltip content={`Удалить «${article.name}»`} name>
             <button type="button" onClick={() => setDeleting(article)}
-              className="text-fg3 hover:text-error p-1"><Trash2 size={14} /></button>
+              className="text-fg3 hover:text-error p-1"><Icon icon={Delete} size={18} /></button>
           </Tooltip>
         </>
       )}
@@ -156,7 +157,7 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
         <input value={name} placeholder="Например, «Склад»" aria-label="Новая статья"
           onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void add(); }}
           className={FIELD} />
-        <Button size="sm" variant="outlined" icon={<Plus size={14} />} disabled={!name.trim()}
+        <Button size="sm" variant="outlined" icon={<Icon icon={Add} size={18} />} disabled={!name.trim()}
           loading={save.isPending && !editing} onClick={() => void add()}>
           Добавить
         </Button>

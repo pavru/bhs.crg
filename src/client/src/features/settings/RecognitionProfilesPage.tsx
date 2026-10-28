@@ -1,5 +1,6 @@
 import { Fragment, useMemo, useState } from 'react';
-import { Plus, Trash2, Lock, RotateCcw, ScanText, AlertTriangle, EyeOff } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Delete, DocumentScanner, LockIcon, RestartAlt, VisibilityOff, Warning } from '@/shared/ui/icons';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
@@ -87,7 +88,7 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
                     locked ? 'pr-7 text-fg3 cursor-not-allowed' : ''}`} />
               </Tooltip>
               {locked && (
-                <Lock size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-fg4"
+                <Icon icon={LockIcon} size={18} className="absolute right-2 top-1/2 -translate-y-1/2 text-fg4"
                   aria-label="Обязательное поле" />
               )}
             </div>
@@ -103,7 +104,7 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
                 isFirst={i === 0} isLast={i === fields.length - 1} />
               <Tooltip content={locked ? 'Обязательное поле — удалить нельзя' : 'Удалить'} name>
                 <button type="button" onClick={() => remove(i)} disabled={locked}
-                  className="p-0.5 text-fg4 hover:text-error disabled:opacity-25"><Trash2 size={13} /></button>
+                  className="p-0.5 text-fg4 hover:text-error disabled:opacity-25"><Icon icon={Delete} size={18} /></button>
               </Tooltip>
             </span>
           </div>
@@ -111,7 +112,7 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
       })}
       <button type="button" onClick={() => onChange([...fields, withRowUid({ name: '', description: '', type: 'string' })])}
         className="flex items-center gap-1 text-sm text-primary hover:text-brand-hover pt-0.5">
-        <Plus size={13} /> {addLabel}
+        <Icon icon={Add} size={18} /> {addLabel}
       </button>
     </div>
   );
@@ -212,11 +213,11 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
         actions={
           <>
             {profile.isBuiltIn ? (
-              <Button variant="text" size="sm" icon={<RotateCcw size={14} />}
+              <Button variant="text" size="sm" icon={<Icon icon={RestartAlt} size={18} />}
                 disabled={!profile.isModified || reset.isPending}
                 onClick={() => setConfirmReset(true)}>Сбросить к заводским</Button>
             ) : (
-              <Button variant="text" size="sm" icon={<Trash2 size={14} />}
+              <Button variant="text" size="sm" icon={<Icon icon={Delete} size={18} />}
                 onClick={() => setConfirmDelete(true)}>Удалить</Button>
             )}
           </>
@@ -225,7 +226,7 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5">
         {profile.builtInOutdated && (
           <div className="flex gap-2 rounded-lg border border-warning-border bg-warning-container p-3 text-sm text-warning">
-            <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+            <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <span>
               Заводская версия этого профиля обновилась в новой версии системы, но ваши правки сохранены —
               обновление к вам не применялось. «Сбросить к заводским» вернёт актуальный набор параметров.
@@ -395,7 +396,7 @@ export function RecognitionProfilesPage() {
         selected?.id === p.id ? 'bg-primary-container text-brand-pressed' : 'text-on-surface-variant hover:bg-surface-container-low'}`}>
       <span className="flex items-center gap-1.5">
         <span className="text-sm truncate flex-1 min-w-0">{p.name}</span>
-        {p.builtInOutdated && <AlertTriangle size={12} className="text-warning shrink-0" aria-label="Заводской профиль обновился" />}
+        {p.builtInOutdated && <Icon icon={Warning} size={18} className="text-warning shrink-0" aria-label="Заводской профиль обновился" />}
         {p.isModified && <Tooltip content="Изменён"><span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" /></Tooltip>}
       </span>
       <span className="block text-xs text-fg4 truncate">
@@ -409,7 +410,7 @@ export function RecognitionProfilesPage() {
       <ListDetailShell view={ld}
         title="Профили распознавания"
         subtitle="Параметры к промптам распознавания: какие поля и колонки извлекать из документа"
-        icon={<ScanText size={20} className="text-fg3" />}
+        icon={<Icon icon={DocumentScanner} size={20} className="text-fg3" />}
         actions={
           <span className="flex items-center gap-3">
             {/* Причина — текстом рядом, а не подсказкой на кнопке: выключенная кнопка событий
@@ -417,7 +418,7 @@ export function RecognitionProfilesPage() {
             {noKinds && (
               <span className="text-xs text-fg4">Ни один включённый модуль не объявляет видов профилей</span>
             )}
-            <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}
+            <Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setCreateOpen(true)}
               disabled={!kinds || noKinds}>
               Добавить профиль
             </Button>
@@ -453,7 +454,7 @@ export function RecognitionProfilesPage() {
             {hiddenLine && (
               <Tooltip content={hidden.map(h => h.name).join('\n')}>
                 <p className="flex items-start gap-1.5 border-t border-outline-variant px-3 py-2 text-xs text-fg4">
-                  <EyeOff size={12} className="shrink-0 mt-0.5" />
+                  <Icon icon={VisibilityOff} size={18} className="shrink-0 mt-0.5" />
                   <span>{hiddenLine}</span>
                 </p>
               </Tooltip>

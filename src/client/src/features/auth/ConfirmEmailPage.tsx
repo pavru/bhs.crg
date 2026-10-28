@@ -3,7 +3,9 @@ import { Link, useSearchParams } from 'react-router';
 import { AuthCard } from './AuthCard';
 import { useConfirmEmail } from '@/shared/api/auth';
 import { apiError } from '@/shared/utils/apiError';
-import { CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { CheckCircle, ErrorIcon } from '@/shared/ui/icons';
 
 /** Подтверждение адреса по ссылке из письма (issue #148). email/token — из query,
  *  POST выполняется один раз при монтировании. */
@@ -34,12 +36,12 @@ export function ConfirmEmailPage() {
   return (
     <AuthCard title="Подтверждение адреса">
       {status === 'pending' && (
-        <p className="flex items-center gap-2 text-sm text-fg3"><Loader2 size={16} className="animate-spin" /> Подтверждаем…</p>
+        <p className="flex items-center gap-2 text-sm text-fg3"><CircularProgress size={18} /> Подтверждаем…</p>
       )}
       {status === 'ok' && (
         <div className="space-y-4">
           <p className="flex items-start gap-2 text-sm text-on-surface-variant">
-            <CheckCircle2 size={18} className="shrink-0 mt-0.5 text-success" /> Адрес подтверждён. Спасибо!
+            <Icon icon={CheckCircle} size={18} className="shrink-0 mt-0.5 text-success" /> Адрес подтверждён. Спасибо!
           </p>
           <Link to="/login" className="inline-block text-sm font-medium text-primary hover:underline">Перейти ко входу</Link>
         </div>
@@ -47,7 +49,7 @@ export function ConfirmEmailPage() {
       {status === 'error' && (
         <div className="space-y-4">
           <p className="flex items-start gap-2 text-sm text-error">
-            <AlertCircle size={18} className="shrink-0 mt-0.5" /> {error}
+            <Icon icon={ErrorIcon} size={18} className="shrink-0 mt-0.5" /> {error}
           </p>
           <Link to="/login" className="inline-block text-sm font-medium text-primary hover:underline">Вернуться ко входу</Link>
         </div>

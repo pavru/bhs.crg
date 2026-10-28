@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Pencil, ArrowLeft } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ArrowBack, Edit } from '@/shared/ui/icons';
 import { DocumentObservationsChip } from './DocumentObservations';
 import { useRenameDocumentInstance, useResolutionDiagnostics, brokenRefPaths } from '@/shared/api/documentSets';
 import { useListDataSetBindings } from '@/shared/api/datasets';
@@ -60,7 +61,7 @@ function InstanceNameEditor({ instance, setId, docType }: {
       <span className={`text-sm font-medium truncate ${instance.name ? 'text-on-surface' : 'text-fg3'}`}>
         {instance.name || docType?.name || 'Документ'}
       </span>
-      <Pencil size={12} className="text-fg4 shrink-0 opacity-0 group-hover/name:opacity-100 transition-opacity" />
+      <Icon icon={Edit} size={18} className="text-fg4 shrink-0 opacity-0 group-hover/name:opacity-100 transition-opacity" />
     </button>
   );
 }
@@ -191,7 +192,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           <Tooltip content="К комплекту">
             <button type="button" onClick={() => guardedLeave(onClose)} aria-label="К комплекту"
               className="flex items-center justify-center w-11 h-11 shrink-0 rounded-full text-fg3 hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-              <ArrowLeft size={20} />
+              <Icon icon={ArrowBack} size={20} />
             </button>
           </Tooltip>
           <div className="flex-1 min-w-0">

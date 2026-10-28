@@ -1,4 +1,4 @@
-import { Archive, TriangleAlert } from 'lucide-react';
+import { Archive, Warning } from '@/shared/ui/icons';
 import { Chip } from '@/shared/ui/Chip';
 import { useTableShortcuts, type TableShortcut } from '@/shared/api/tables';
 import { shortcutCount, shortcutShown, shortcutState, shortcutTitle, type ShortcutFilter } from './tableShortcuts';
@@ -35,7 +35,7 @@ export function ShortcutChips({ address, filter, enabled, onToggle }: {
         const state = shortcutState(filter, s);
         // Тихий отбор (архив) — без красного: строки под ним верны, их стоит заметить, а не чинить.
         return (
-          <Chip key={s.code} selected={state === 'on'} icon={s.quiet ? Archive : TriangleAlert}
+          <Chip key={s.code} selected={state === 'on'} icon={s.quiet ? Archive : Warning}
             tone={s.quiet ? 'neutral' : 'danger'} count={shortcutCount(s)}
             disabled={state === 'complex' || state === 'broken'}
             title={shortcutTitle(s, state)} onClick={() => onToggle(s)}>

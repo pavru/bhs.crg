@@ -7,7 +7,8 @@ import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
 import { useAssetCompletion } from '@/shared/ui/typstAssetCompletion';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { Save, AlertCircle, AlertTriangle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ErrorIcon, Save, Warning } from '@/shared/ui/icons';
 import {
   useTypstUserLib, useSaveTypstUserLib,
   type UserLibFile, type UserLibCheck, type UserLibError,
@@ -233,7 +234,7 @@ export function UserLibPanel() {
   if (!data) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-3 text-sm">
-        <AlertCircle size={20} className="text-error" />
+        <Icon icon={ErrorIcon} size={20} className="text-error" />
         <p className="text-on-surface-variant">Не удалось загрузить библиотеку.</p>
         <p className="text-fg4 text-xs max-w-sm text-center">
           Правка недоступна, пока библиотека не прочитана: сохранение заменяет дерево целиком и
@@ -298,7 +299,7 @@ export function UserLibPanel() {
             {error && <span className="text-xs text-error max-w-xs truncate" title={error}>{error}</span>}
             {isDirty && <span className="text-xs text-fg3">Изменено: {dirty.size}</span>}
             <Button variant="filled" size="sm" onClick={handleSave} loading={saveMutation.isPending}
-              icon={<Save size={12} />}>
+              icon={<Icon icon={Save} size={18} />}>
               {saveMutation.isPending ? 'Сохранение…' : 'Сохранить всё'}
             </Button>
           </div>
@@ -331,7 +332,7 @@ export function UserLibPanel() {
             которая читалась бы как «всё в порядке» (issue #500). */}
         {!checkApplies && (
           <div className="px-4 py-1.5 border-b border-outline-variant text-xs text-fg3 flex items-center gap-2">
-            <AlertCircle size={12} className="shrink-0 text-fg4" />
+            <Icon icon={ErrorIcon} size={18} className="shrink-0 text-fg4" />
             {check === null
               ? 'Собираемость библиотеки не проверялась в этом сеансе — сохраните, чтобы проверить.'
               : 'Библиотека изменилась после последней проверки — сохраните, чтобы проверить собираемость.'}
@@ -420,11 +421,11 @@ function DiagnosticBlock({ tone, title, items, alive, onGo }: {
   alive: (path: string) => boolean;
   onGo: (path: string) => void;
 }) {
-  const Icon = tone === 'danger' ? AlertCircle : AlertTriangle;
+  const icon = tone === 'danger' ? ErrorIcon : Warning;
   return (
     <div className={`px-4 py-2 border-b border-outline-variant flex items-start gap-2 ${
       tone === 'danger' ? 'bg-error-container' : 'bg-warning-container'}`}>
-      <Icon size={14} className={`shrink-0 mt-0.5 ${tone === 'danger' ? 'text-error' : 'text-warning'}`} />
+      <Icon icon={icon} size={18} className={`shrink-0 mt-0.5 ${tone === 'danger' ? 'text-error' : 'text-warning'}`} />
       <div className="min-w-0 text-xs">
         {title && (
           <p className={`font-medium ${tone === 'danger' ? 'text-error' : 'text-warning'}`}>{title}</p>

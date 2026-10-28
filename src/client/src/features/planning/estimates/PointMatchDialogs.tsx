@@ -1,5 +1,6 @@
 import { useId, useRef, useState } from 'react';
-import { Search } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Search } from '@/shared/ui/icons';
 import { planRefusal, type PlanRefusal } from '@/shared/api/planningEstimates';
 import {
   usePlanNomenclature, usePointRateMatch, usePointResourceMatch, type RateMatch, type ResourceMatch,
@@ -86,7 +87,7 @@ export function PointResourceDialog({ item, onClose }: { item: ResourceMatch; on
           <p className="text-xs text-fg3">Сейчас: {item.nomenclatureName ?? 'позиция без названия'}</p>
         </div>
         <div className="flex items-center gap-2 rounded-md border border-outline px-2.5 h-10">
-          <Search size={15} className="text-fg4 shrink-0" />
+          <Icon icon={Search} size={18} className="text-fg4 shrink-0" />
           <input value={typed} onChange={e => type(e.target.value)} aria-label="Поиск позиции"
             placeholder="наименование или часть наименования" className="flex-1 bg-transparent text-sm outline-none text-on-surface placeholder:text-fg4" />
         </div>

@@ -1,4 +1,4 @@
-import { Database, FileSpreadsheet, Table2, Users } from 'lucide-react';
+import { Database, Group, Table, TableChart, type IconDef } from './icons';
 import type { AccessInfo } from '@/shared/api/access';
 import { allowed } from './navAccess';
 import { pageOwners, railSections, workNav, type NavItem, type PageOwner, type RailId } from './navConfig';
@@ -28,7 +28,7 @@ export interface ConstructionPanel {
   /** Сегмент адреса: `/document-sets/{id}/{panel}` и `/document-sets/{id}/sections/{sid}/{panel}`. */
   id: string;
   label: string;
-  icon: typeof Database;
+  icon: IconDef;
   block: PanelBlock;
   /**
    * Уровни, где панель есть. Множество, а не одно значение: «Наборы данных» и «Ход работ» живут и в
@@ -48,13 +48,13 @@ const BOTH: PanelLevel[] = ['construction', 'section'];
 export const constructionPanels: ConstructionPanel[] = [
   // Сметы стройки (plan-09, ТЗ PLAN-20) — и на странице раздела: смета привязана к разделу (`sectionId`), и
   // там видны его сметы.
-  { id: 'estimates', label: 'Сметы', icon: FileSpreadsheet, block: 'work', levels: BOTH, module: 'plan',
+  { id: 'estimates', label: 'Сметы', icon: TableChart, block: 'work', levels: BOTH, module: 'plan',
     permission: 'plan.estimate.read' },
   { id: 'catalog', label: 'Каталог', icon: Database, block: 'own', levels: BOTH },
   // Наборы данных — раздел ядра `datasets` (ревью PR #1330): в пространстве, которое его не объявило,
   // пункта нет, как и в главном меню; открытая по ссылке панель получает плашку.
-  { id: 'datasets', label: 'Наборы данных', icon: Table2, block: 'own', levels: BOTH, section: 'datasets' },
-  { id: 'subscribers', label: 'Подписчики', icon: Users, block: 'own', levels: BOTH },
+  { id: 'datasets', label: 'Наборы данных', icon: Table, block: 'own', levels: BOTH, section: 'datasets' },
+  { id: 'subscribers', label: 'Подписчики', icon: Group, block: 'own', levels: BOTH },
 ];
 
 /** Адреса, занятые соседними маршрутами карточки стройки: панель с таким `id` их бы перекрыла. */

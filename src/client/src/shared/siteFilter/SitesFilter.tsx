@@ -1,5 +1,6 @@
 import * as Popover from '@radix-ui/react-popover';
-import { Building2, Check, Star, X } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Apartment, Check, Close, Star } from '@/shared/ui/icons';
 import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { IconButton } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
@@ -35,7 +36,7 @@ export function SitesFilter({ hidden, partial = false }: { hidden?: number; part
   if (filter.status === 'unavailable') return null;
 
   if (filter.status === 'loading') {
-    return <Chip icon={Building2} disabled data-testid="sites-filter">Стройки…</Chip>;
+    return <Chip icon={Apartment} disabled data-testid="sites-filter">Стройки…</Chip>;
   }
 
   const count = filter.favorites.size;
@@ -44,11 +45,11 @@ export function SitesFilter({ hidden, partial = false }: { hidden?: number; part
 
   const chip = filter.status === 'error' ? (
     // Не пришло — сказать, а не изображать загрузку: списки при этом полные, отбор не действует.
-    <Chip icon={Building2} tone="warning" menu data-testid="sites-filter-error">
+    <Chip icon={Apartment} tone="warning" menu data-testid="sites-filter-error">
       Все стройки — избранные не загрузились
     </Chip>
   ) : (
-    <Chip icon={filter.active ? Star : Building2} selected={filter.active} menu count={hiddenText}
+    <Chip icon={filter.active ? Star : Apartment} selected={filter.active} menu count={hiddenText}
       data-testid="sites-filter"
       // Имя начинается с видимой подписи (WCAG 2.5.3): голосом нажимают то, что видят.
       aria-label={filter.active
@@ -73,7 +74,7 @@ export function SitesFilter({ hidden, partial = false }: { hidden?: number; part
           <div className="flex items-center justify-between mb-2">
             <h2 id={heading} className="text-sm font-semibold text-on-surface">Стройки в списках</h2>
             <Popover.Close asChild>
-              <IconButton label="Закрыть" size="sm"><X size={14} /></IconButton>
+              <IconButton label="Закрыть" size="sm"><Icon icon={Close} size={18} /></IconButton>
             </Popover.Close>
           </div>
           {/* Выбирать между «избранными» и «всеми» можно, только когда избранное есть: иначе положение
@@ -120,7 +121,7 @@ function Choices({ on, onPick, onDone, favorites, all }: {
             aria-checked={checked} tabIndex={checked ? 0 : -1}
             onClick={() => { if (!checked) onPick(item.value); onDone(); }}
             className="w-full flex items-center gap-2 h-9 px-2 rounded-md text-left text-sm hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-            <Check size={16} aria-hidden className={`shrink-0 ${checked ? 'text-primary' : 'invisible'}`} />
+            <Icon icon={Check} size={18} aria-hidden className={`shrink-0 ${checked ? 'text-primary' : 'invisible'}`} />
             <span className={`flex-1 ${checked ? 'font-medium text-on-surface' : 'text-on-surface-variant'}`}>{item.label}</span>
             <span className="text-xs tabular-nums text-fg3">{item.note}</span>
           </button>

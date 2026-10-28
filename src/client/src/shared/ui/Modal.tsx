@@ -1,5 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { X } from 'lucide-react';
+import { Icon } from './Icon';
+import { Close } from './icons';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Button, type ButtonProps } from './Button';
 import {
@@ -286,7 +287,7 @@ function ModalBody({
                   aria-label="Закрыть"
                   className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors text-fg3 hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${busy ? BUSY_EXIT : ''}`}
                 >
-                  <X size={18} />
+                  <Icon icon={Close} size={18} />
                 </button>
               )}
             </div>

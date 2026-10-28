@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Ban, Trash2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Block, Delete } from '@/shared/ui/icons';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
 import { useToast } from '@/shared/ui/Toast';
@@ -47,10 +48,10 @@ export function InvoiceMoreMenu({ view, onRejected }: {
 
   const actions: RowAction[] = [];
   if (!rejected && !view.payment.paid)
-    actions.push({ key: 'reject', label: 'Отклонить…', icon: <Ban size={14} />, onSelect: () => setAsking(true) });
+    actions.push({ key: 'reject', label: 'Отклонить…', icon: <Icon icon={Block} size={18} />, onSelect: () => setAsking(true) });
   if (askDelete)
     actions.push({
-      key: 'delete', label: 'Удалить счёт…', icon: <Trash2 size={14} />, danger: true,
+      key: 'delete', label: 'Удалить счёт…', icon: <Icon icon={Delete} size={18} />, danger: true,
       onSelect: () => askDelete('menu'),
     });
 

@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
-import {
-  ChevronDown, ChevronUp, ShieldCheck, Loader2,
-  RefreshCw, X, CornerUpLeft,
-} from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { Close, KeyboardArrowDown, KeyboardArrowUp, Refresh, RestartAlt, VerifiedUser } from '@/shared/ui/icons';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Button } from '@/shared/ui/Button';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
@@ -475,7 +474,7 @@ export function CatalogEntryForm({
                     <Tooltip content="Вернуть к наследованию от реального объекта">
                       <button type="button" onClick={() => setValue(field.key, undefined)}
                         className="text-caption text-primary hover:text-brand-hover flex items-center gap-0.5 shrink-0">
-                        <CornerUpLeft size={11} /> наследовать
+                        <Icon icon={RestartAlt} size={18} /> наследовать
                       </button>
                     </Tooltip>
                   )}
@@ -630,7 +629,7 @@ export function CatalogEntryForm({
                 <Tooltip content="Удалить" name>
                   <button type="button" onClick={() => setAliases(prev => prev.filter(x => x !== a))}
                     className="text-fg4 hover:text-error transition-colors shrink-0">
-                    <X size={11} />
+                    <Icon icon={Close} size={18} />
                   </button>
                 </Tooltip>
               </span>
@@ -652,7 +651,7 @@ export function CatalogEntryForm({
             <span className={typeId ? 'text-on-surface truncate' : 'text-fg4'}>
               {typeId ? (allSelectableTypes.find(c => c.id === typeId)?.name ?? typeId) : 'Выберите тип…'}
             </span>
-            <ChevronDown size={16} className="text-fg4 shrink-0" />
+            <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" />
           </button>
           <TypePicker
             open={pickerOpen} onOpenChange={setPickerOpen}
@@ -680,13 +679,13 @@ export function CatalogEntryForm({
       {attachment && (
         <div className="flex items-center gap-2">
           <Button type="button" variant="tonal" size="sm" onClick={handleRecognize}
-            loading={recognizing} icon={<ShieldCheck size={14} />}
+            loading={recognizing} icon={<Icon icon={VerifiedUser} size={18} />}
             title="Заполнит простые поля по штампу/реквизитам файла — ссылочные и составные поля не тронет">
             Распознать «{attachment.fileName}»
           </Button>
           {recognizing && (
             <span className="flex items-center gap-1.5 text-xs text-fg3">
-              <Loader2 size={12} className="animate-spin" /> Идёт распознавание — дождитесь завершения перед сохранением…
+              <CircularProgress size={18} /> Идёт распознавание — дождитесь завершения перед сохранением…
             </span>
           )}
         </div>
@@ -709,12 +708,12 @@ export function CatalogEntryForm({
                   значения, а человек будет уверен, что обновился до актуальных. Молчать здесь —
                   худший вариант из трёх: обновление выглядит удавшимся. */}
               <Button type="button" variant="outlined" size="sm" onClick={handleRefreshFromSource}
-                loading={refreshingFromSource} icon={<RefreshCw size={14} />}
+                loading={refreshingFromSource} icon={<Icon icon={Refresh} size={18} />}
                 title={staleRefreshHint}>
                 Обновить из источника
               </Button>
               <Button type="button" variant="outlined" size="sm" onClick={() => runBindingCheck()}
-                loading={checkingBindings} icon={<ShieldCheck size={14} />}>
+                loading={checkingBindings} icon={<Icon icon={VerifiedUser} size={18} />}>
                 Проверить связки
               </Button>
             </div>
@@ -748,8 +747,8 @@ export function CatalogEntryForm({
                 <button type="button" onClick={() => toggleGroup(section.key)}
                   className="w-full flex items-center gap-2 px-3 py-2.5 bg-surface-container-low hover:bg-surface-container transition-colors text-left">
                   {isExpanded
-                    ? <ChevronUp size={13} className="text-fg4 shrink-0" />
-                    : <ChevronDown size={13} className="text-fg4 shrink-0" />}
+                    ? <Icon icon={KeyboardArrowUp} size={18} className="text-fg4 shrink-0" />
+                    : <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" />}
                   <span className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant flex-1">{section.title}</span>
                   {/* Метка на заголовке: свёрнутая группа иначе прячет причину отказа. */}
                   {section.fields.some(f => Object.keys(constraintErrors).some(k => violationRootKey(k) === f.key)) && (

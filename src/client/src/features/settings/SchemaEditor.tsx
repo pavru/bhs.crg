@@ -8,7 +8,8 @@
 import { useState, useMemo, useRef } from 'react';
 import { apiError } from '@/shared/utils/apiError';
 import { SchemaLevelBanner } from './SchemaLevelBanner';
-import { Braces, Code, Cpu, HelpCircle, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Code, DataObject, Help, Memory, Refresh, Warning } from '@/shared/ui/icons';
 import { Markdown } from '@/shared/ui/Markdown';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -246,7 +247,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
           схемы. Чистим по кнопке и обычным «Сохранить»: молча править чужую схему нельзя. */}
       {danglingRefs.length > 0 && (
         <div className="flex items-start gap-2 rounded-md border border-warning/50 bg-warning/10 px-3 py-2">
-          <AlertTriangle size={14} className="text-warning shrink-0 mt-0.5" />
+          <Icon icon={Warning} size={18} className="text-warning shrink-0 mt-0.5" />
           <div className="text-xs text-on-surface-variant space-y-1 flex-1 min-w-0">
             <p>В схеме есть ссылки на поля, которых нет ни среди своих, ни среди унаследованных —
               скорее всего опечатка в ключе:</p>
@@ -276,7 +277,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
               className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded ${
                 showJson ? 'bg-on-surface text-surface-container' : 'text-fg3 hover:text-on-surface hover:bg-surface-container'
               }`}>
-              <Braces size={12} /> JSON
+              <Icon icon={DataObject} size={18} /> JSON
             </button>
           )}
         </div>
@@ -320,7 +321,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
       )}
 
       {!showJson && applicableTypeTags.length > 0 && (
-        <SectionCard icon={<Cpu size={15} />} title="Функциональные тэги типа"
+        <SectionCard icon={<Icon icon={Memory} size={18} />} title="Функциональные тэги типа"
           count={docTypeTags.length} countClass="text-tertiary"
           open={showTypeTags} onToggle={() => setShowTypeTags(v => !v)}>
           <div className="flex flex-wrap gap-1.5 pt-2">
@@ -371,7 +372,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
       )}
 
       {!showJson && (
-        <SectionCard icon={<HelpCircle size={15} />} title="Справка для пользователя"
+        <SectionCard icon={<Icon icon={Help} size={18} />} title="Справка для пользователя"
           count={help.trim() ? 1 : 0} countClass="text-primary"
           open={showHelp} onToggle={() => setShowHelp(v => !v)}>
           <div className="pt-2 space-y-2">
@@ -399,14 +400,14 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
       )}
 
       {!showJson && (docType.kind === 'Composite' || docType.kind === 'Document') && (
-        <SectionCard icon={<Code size={15} />} title="Typst-блоки (варианты отображения)"
+        <SectionCard icon={<Icon icon={Code} size={18} />} title="Typst-блоки (варианты отображения)"
           count={typstRenders.length} countClass="text-tertiary"
           open={showTypstRenders} onToggle={() => setShowTypstRenders(v => !v)}>
           <div className="pt-2 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-xs text-fg4">Функции отображения для Typst-шаблонов.</p>
-              <Button variant="text" size="sm" icon={<RefreshCw size={13} className={blocksCheck.checking ? 'animate-spin' : ''} />}
-                disabled={blocksCheck.checking} onClick={() => void blocksCheck.run(typstRenders)}>
+              <Button variant="text" size="sm" icon={<Icon icon={Refresh} size={18} />}
+                loading={blocksCheck.checking} onClick={() => void blocksCheck.run(typstRenders)}>
                 Проверить блоки
               </Button>
             </div>

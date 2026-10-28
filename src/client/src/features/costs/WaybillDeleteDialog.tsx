@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Delete } from '@/shared/ui/icons';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { useToast } from '@/shared/ui/Toast';
@@ -48,7 +49,7 @@ export function WaybillDeleteMenu({ view, canEdit, dirty, onDeleted }: {
     <>
       {canDeleteWaybill(view, canEdit) && (
         <RowActionsMenu ariaLabel="Ещё" actions={[{
-          key: 'delete', label: 'Удалить накладную…', icon: <Trash2 size={14} />, danger: true,
+          key: 'delete', label: 'Удалить накладную…', icon: <Icon icon={Delete} size={18} />, danger: true,
           onSelect: () => setSeen(view.version),
         }]} />
       )}

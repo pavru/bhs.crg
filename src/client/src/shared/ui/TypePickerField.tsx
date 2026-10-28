@@ -1,5 +1,6 @@
-import { createElement, useId, useRef, useState } from 'react';
-import { Boxes, Search, X } from 'lucide-react';
+import { useId, useRef, useState } from 'react';
+import { Icon } from './Icon';
+import { Close, Search, Widgets } from './icons';
 import { TypePicker, type PickType } from './TypePicker';
 import { typeIcon } from './typeIcons';
 import { OutlinedField } from './OutlinedField';
@@ -53,7 +54,7 @@ export function TypePickerField({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const labelId = useId();
   const selected = value ? types.find(t => t.id === value) : undefined;
-  const icon = selected ? typeIcon(selected) : Boxes;
+  const icon = selected ? typeIcon(selected) : Widgets;
   const code = selected?.code.trim();
   const framed = label !== undefined;
   /**
@@ -89,9 +90,7 @@ export function TypePickerField({
       className={`inline-flex items-center gap-2 overflow-hidden ${triggerClass}`}
       data-state={open ? 'open' : 'closed'}
     >
-      {/* createElement, а не <Icon/>: переменная с большой буквы читается линтом как компонент,
-          определённый в рендере, — здесь же это готовый компонент из набора (issue #858). */}
-      {createElement(icon, { size: 16, className: `shrink-0 ${selected ? 'text-fg3' : 'text-fg4'}` })}
+      <Icon icon={icon} size={18} className={`shrink-0 ${selected ? 'text-fg3' : 'text-fg4'}`} />
       {/* Подсказка — на самом обрезаемом тексте, а не на кнопке (issue #548): подсказку кнопки
           наследуют и лупа, и код типа, и всплывало бы имя типа поверх них. */}
       <Tooltip content={selected ? (showCode ? `${selected.name} (${code})` : selected.name) : undefined}>
@@ -103,7 +102,7 @@ export function TypePickerField({
       {/* Место под крестик резервируем В ПОТОКЕ, а не правым паддингом: паддинг сдвинул бы влево и
           саму лупу (она такой же элемент потока), и у края поля осталась бы дыра. */}
       {showClear && <span aria-hidden className="w-[22px] shrink-0" />}
-      <Search size={15} className="shrink-0 text-fg4" />
+      <Icon icon={Search} size={18} className="shrink-0 text-fg4" />
     </button>
   );
 
@@ -129,7 +128,7 @@ export function TypePickerField({
           `group-focus-within:opacity-100 group-focus-within:pointer-events-auto ` +
           `[@media(pointer:coarse)]:opacity-100 [@media(pointer:coarse)]:pointer-events-auto ` +
           `focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm`}>
-        <X size={14} />
+        <Icon icon={Close} size={18} />
       </button>
     </Tooltip>
   );

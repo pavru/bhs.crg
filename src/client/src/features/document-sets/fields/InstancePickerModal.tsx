@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { FileText } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Description } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { useCommonDataForSet } from '@/shared/api/commonData';
 import type { CommonDataEntry, DocumentInstance, DocumentType, FieldRef } from '@/shared/api/types';
@@ -85,7 +86,7 @@ export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, ot
                 return (
                   <button key={inst.id} onClick={() => selectInstance(inst)}
                     className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md hover:bg-primary-container transition-colors">
-                    <FileText size={14} className="text-fg4 shrink-0" />
+                    <Icon icon={Description} size={18} className="text-fg4 shrink-0" />
                     <span className="flex-1 min-w-0">
                       <span className="block font-medium text-on-surface truncate">
                         {inst.name || dt?.name || '—'}

@@ -1,4 +1,5 @@
-import { CircleCheck, ListTodo } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CheckCircle, Checklist } from '@/shared/ui/icons';
 import { goTo, type ReadinessItem } from './invoiceReadiness';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
@@ -25,14 +26,14 @@ export function InvoiceReadinessLine({ items, unsaved }: {
   if (items.length === 0)
     return (
       <p className="flex items-start gap-1.5 text-xs text-success" data-testid="invoice-readiness">
-        <CircleCheck size={13} className="shrink-0 mt-0.5" />
+        <Icon icon={CheckCircle} size={18} className="shrink-0 mt-0.5" />
         <span>Всё готово к «Разобран».{stale}</span>
       </p>
     );
 
   return (
     <p className="flex items-start gap-1.5 text-xs text-on-surface-variant" data-testid="invoice-readiness">
-      <ListTodo size={13} className="shrink-0 mt-0.5 text-fg3" />
+      <Icon icon={Checklist} size={18} className="shrink-0 mt-0.5 text-fg3" />
       <span>
         До «Разобран» осталось:{' '}
         {items.map((item, index) => (

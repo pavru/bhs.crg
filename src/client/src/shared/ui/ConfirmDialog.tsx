@@ -1,6 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useRef, useState, type ReactNode } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { Icon } from './Icon';
+import { Warning } from './icons';
 import { Button } from './Button';
 import { Checkbox } from './Checkbox';
 import { apiError } from '@/shared/utils/apiError';
@@ -172,7 +173,7 @@ function ConfirmDialogBody({
           {blockedView ? (
             <>
               <div className="mt-2 flex items-start gap-2.5 rounded-md bg-error-container px-3 py-2.5 text-xs text-on-surface">
-                <AlertTriangle size={16} className="shrink-0 mt-0.5 text-error" />
+                <Icon icon={Warning} size={18} className="shrink-0 mt-0.5 text-error" />
                 <div className="max-h-40 overflow-y-auto whitespace-pre-line min-w-0">{error ?? blocked}</div>
               </div>
               {exit?.note && <p className="mt-3 text-xs text-on-surface-variant">{exit.note}</p>}

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { Archive } from 'lucide-react';
+import { Archive } from './icons';
 import { Checkbox } from './Checkbox';
 import { PageHeader } from './PageHeader';
 import { Chip } from './Chip';

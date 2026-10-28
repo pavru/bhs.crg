@@ -1,4 +1,5 @@
-import { Search, X } from 'lucide-react';
+import { Icon } from './Icon';
+import { Close, Search } from './icons';
 
 /**
  * Единое поле поиска списка (issue #249): иконка-лупа слева, кнопка очистки (✕) справа при непустом
@@ -20,7 +21,7 @@ export function SearchInput({
 }) {
   return (
     <div className="relative">
-      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
+      <Icon icon={Search} size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
       <input
         value={value}
         onChange={e => onChange(e.target.value)}
@@ -38,7 +39,7 @@ export function SearchInput({
           aria-label="Очистить поиск"
           className="absolute right-2.5 top-1/2 -translate-y-1/2 text-fg4 hover:text-on-surface-variant transition-colors"
         >
-          <X size={15} />
+          <Icon icon={Close} size={18} />
         </button>
       )}
     </div>

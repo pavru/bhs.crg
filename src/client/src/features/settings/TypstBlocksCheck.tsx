@@ -1,4 +1,5 @@
-import { CheckCircle2, AlertCircle, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ArrowForward, CheckCircle, ErrorIcon, Warning } from '@/shared/ui/icons';
 import type { TypstBlockProblem } from '@/shared/api/documentTypes';
 
 /**
@@ -24,7 +25,7 @@ export function TypstBlocksPanel({ problems, currentTypeId, onSelectType }: {
   if (problems.length === 0)
     return (
       <div className="flex items-center gap-2 p-2.5 rounded-md text-sm bg-success-container text-success">
-        <CheckCircle2 size={15} className="shrink-0" /> Все Typst-блоки собираются
+        <Icon icon={CheckCircle} size={18} className="shrink-0" /> Все Typst-блоки собираются
       </div>
     );
 
@@ -54,8 +55,8 @@ function Group({ title, items, onSelectType }: {
         {items.map((p, i) => (
           <div key={i} className="flex items-start gap-2 px-3 py-2">
             {p.severity === 'error'
-              ? <AlertCircle size={14} className="text-error shrink-0 mt-0.5" />
-              : <AlertTriangle size={14} className="text-warning shrink-0 mt-0.5" />}
+              ? <Icon icon={ErrorIcon} size={18} className="text-error shrink-0 mt-0.5" />
+              : <Icon icon={Warning} size={18} className="text-warning shrink-0 mt-0.5" />}
             <div className="min-w-0 flex-1">
               {p.fnName && (
                 <div className="text-fg3">
@@ -67,7 +68,7 @@ function Group({ title, items, onSelectType }: {
               {onSelectType && p.typeId && (
                 <button type="button" onClick={() => onSelectType(p.typeId!)}
                   className="inline-flex items-center gap-1 mt-1 text-primary hover:text-brand-hover">
-                  Перейти к «{p.typeName ?? 'типу'}» <ArrowRight size={12} />
+                  Перейти к «{p.typeName ?? 'типу'}» <Icon icon={ArrowForward} size={18} />
                 </button>
               )}
             </div>

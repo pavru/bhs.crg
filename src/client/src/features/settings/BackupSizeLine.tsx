@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Warning } from '@/shared/ui/icons';
 import { formatBytes } from '@/shared/api/attachments';
 import { apiError, isConflict } from '@/shared/utils/apiError';
 import { fetchBackupSize } from '@/shared/api/backup';
@@ -35,7 +36,7 @@ export function BackupSizeLine({ scope }: { scope: BackupScope }) {
   if (isError && isConflict(error)) {
     return (
       <p className="text-xs text-warning flex items-start gap-1">
-        <AlertTriangle size={13} className="shrink-0 mt-px" />
+        <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
         <span>{apiError(error, 'Хранилище файлов отказало в ответе.')}</span>
       </p>
     );
@@ -60,7 +61,7 @@ export function BackupSizeLine({ scope }: { scope: BackupScope }) {
       */}
       {exceedsUploadLimit && (
         <p className="text-xs text-warning flex items-start gap-1">
-          <AlertTriangle size={13} className="shrink-0 mt-px" />
+          <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
           <span>
             Копия крупнее {formatBytes(data.limitBytes)} — через браузер её не загрузить. Для
             переноса кладите файл в каталог на сервере (путь показан ниже); скачивать и загружать
@@ -70,7 +71,7 @@ export function BackupSizeLine({ scope }: { scope: BackupScope }) {
       )}
       {variant.missingBlobCount > 0 && (
         <p className="text-xs text-warning flex items-start gap-1">
-          <AlertTriangle size={13} className="shrink-0 mt-px" />
+          <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
           <span>
             Файлов нет в хранилище: {variant.missingBlobCount}. В копию они не попадут — ссылки на
             них останутся битыми и после восстановления.

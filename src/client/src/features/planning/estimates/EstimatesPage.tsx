@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Route, Routes, useNavigate, useParams } from 'react-router';
-import { FileSpreadsheet, Upload } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { TableChart, Upload } from '@/shared/ui/icons';
 import { useConstructionDirectory } from '@/shared/api/constructions';
 import { useAllEstimates, type Estimate } from '@/shared/api/planningEstimates';
 import { Button } from '@/shared/ui/Button';
@@ -68,9 +69,9 @@ function AllEstimates() {
 
   return (
     <>
-      <PageHeader icon={<FileSpreadsheet size={18} aria-hidden />} title="Сметы" subtitle="Сметы всех строек, по стройкам"
+      <PageHeader icon={<Icon icon={TableChart} size={18} aria-hidden />} title="Сметы" subtitle="Сметы всех строек, по стройкам"
         actions={editable && (
-          <Button variant="filled" icon={<Upload size={16} aria-hidden />} onClick={() => setImporting(true)}>Загрузить смету</Button>
+          <Button variant="filled" icon={<Icon icon={Upload} size={18} aria-hidden />} onClick={() => setImporting(true)}>Загрузить смету</Button>
         )} />
       <ImportDialog open={importing} onClose={() => setImporting(false)}
         onCreated={created => navigate(`/estimates/${created.estimateId}`, { state: openingOf(created) })} />
@@ -79,7 +80,7 @@ function AllEstimates() {
       ) : !pages.data || filter.status === 'loading' ? (
         <p className="text-sm text-fg4">Читаем сметы…</p>
       ) : loaded.length === 0 ? (
-        <EmptyState icon={<FileSpreadsheet size={28} aria-hidden />} title="Смет пока нет"
+        <EmptyState icon={<Icon icon={TableChart} size={40} aria-hidden />} title="Смет пока нет"
           description="Смета появляется загрузкой файла ЛСР из ГРАНД-Сметы в стройку." />
       ) : (
         <>

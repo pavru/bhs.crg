@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Check, X, RotateCcw, FileText, Layers } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Check, Close, Description, Layers, Undo } from '@/shared/ui/icons';
 import { Link } from 'react-router';
 import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
@@ -51,16 +52,16 @@ export function ObservationReferences({ o, setPath, nameOf }: {
       {docs.map(id => setPath ? (
         <Link key={id} to={documentUnder(setPath, id)}
           className="inline-flex items-center gap-1 text-primary hover:underline">
-          <FileText size={11} /> {label(id)}
+          <Icon icon={Description} size={18} /> {label(id)}
         </Link>
       ) : (
         <span key={id} className="inline-flex items-center gap-1 text-fg4">
-          <FileText size={11} /> {label(id)}
+          <Icon icon={Description} size={18} /> {label(id)}
         </span>
       ))}
       {sourceId && (
         <Link to="/datasets" className="inline-flex items-center gap-1 text-primary hover:underline">
-          <Layers size={11} /> источник {sourceId.slice(0, 8)}
+          <Icon icon={Layers} size={18} /> источник {sourceId.slice(0, 8)}
           {rows.length > 0 && <span className="text-fg4">· строк {rows.length}</span>}
         </Link>
       )}
@@ -104,16 +105,16 @@ export function ObservationReviewDialog({ observation, setPath, nameOf, onClose 
         <div className="flex flex-wrap items-center justify-end gap-2">
           {observation.status !== 'New' && (
             <Button disabled={review.isPending} onClick={() => decide('New')}>
-              <RotateCcw size={14} /> Вернуть в работу
+              <Icon icon={Undo} size={18} /> Вернуть в работу
             </Button>
           )}
           <span className="flex-1" />
           <Button disabled={review.isPending} onClick={onClose}>Отмена</Button>
           <Button danger disabled={review.isPending} onClick={() => decide('Rejected')}>
-            <X size={14} /> Отклонить
+            <Icon icon={Close} size={18} /> Отклонить
           </Button>
           <Button variant="filled" loading={review.isPending} onClick={() => decide('Confirmed')}>
-            <Check size={14} /> Подтвердить
+            <Icon icon={Check} size={18} /> Подтвердить
           </Button>
         </div>
       }>

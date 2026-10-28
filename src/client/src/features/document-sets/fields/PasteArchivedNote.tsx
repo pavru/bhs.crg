@@ -1,4 +1,5 @@
-import { Archive } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Archive } from '@/shared/ui/icons';
 import type { ObjectResolveResult } from '@/shared/api/objects';
 
 /** Ячейка вставки, чьё значение совпало с записью в архиве: куда положить ссылку, если запись вернут. */
@@ -26,7 +27,7 @@ export function PasteArchivedNote({ cells, canReturn, checked, onChange }: {
   return (
     <div className="space-y-1.5 border-t border-surface-container pt-3">
       <p className="text-on-surface-variant flex items-center gap-1.5">
-        <Archive size={13} className="text-fg3 shrink-0" />
+        <Icon icon={Archive} size={18} className="text-fg3 shrink-0" />
         В архиве: <span className="font-medium text-on-surface">{cells.length}</span>
       </p>
       <p className="text-xs text-fg3">

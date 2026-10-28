@@ -4,7 +4,9 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useToast } from '@/shared/ui/Toast';
-import { CheckCircle2, AlertTriangle, ChevronRight, ChevronDown, Loader2, Trash2, Wand2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { CheckCircle, ChevronRight, Delete, KeyboardArrowDown, WandStars, Warning } from '@/shared/ui/icons';
 import { useAuditDocumentType, useApplyAuditFixes, type AuditFix } from '@/shared/api/documentTypes';
 import { Select, SelectItem } from '@/shared/ui/Select';
 
@@ -86,7 +88,7 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
       <Modal open={open} onOpenChange={o => { if (!o) onClose(); }} title={`Аудит типа «${typeName}»`} wide>
         {isLoading ? (
           <div className="flex items-center gap-2 py-8 justify-center text-fg4 text-sm">
-            <Loader2 size={16} className="animate-spin" /> Проверка инстансов…
+            <CircularProgress size={18} /> Проверка инстансов…
           </div>
         ) : isError ? (
           <p className="text-sm text-error py-6 text-center">Не удалось выполнить аудит.</p>
@@ -99,13 +101,13 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
 
             {total === 0 ? (
               <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-success-container text-success">
-                <CheckCircle2 size={15} className="shrink-0" /> Данные инстансов соответствуют текущей схеме.
+                <Icon icon={CheckCircle} size={18} className="shrink-0" /> Данные инстансов соответствуют текущей схеме.
               </div>
             ) : (
               groups.map(([code, rows]) => (
                 <div key={code} className="rounded-md border border-outline-variant overflow-hidden">
                   <div className="flex items-center gap-2 px-3 py-2 bg-surface-container-low text-xs font-medium text-on-surface-variant">
-                    <AlertTriangle size={13} className="text-warning shrink-0" />
+                    <Icon icon={Warning} size={18} className="text-warning shrink-0" />
                     {CATEGORY_LABEL[code] ?? code}
                     <span className="text-fg4 font-normal">· {rows.length}</span>
                   </div>
@@ -122,7 +124,7 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
                           <button type="button"
                             onClick={() => setExpanded(s => toggleInSet(s, k))}
                             className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-surface-container-low transition-colors">
-                            {isOpen ? <ChevronDown size={14} className="text-fg4 shrink-0 mt-0.5" /> : <ChevronRight size={14} className="text-fg4 shrink-0 mt-0.5" />}
+                            {isOpen ? <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0 mt-0.5" /> : <Icon icon={ChevronRight} size={18} className="text-fg4 shrink-0 mt-0.5" />}
                             <span className="min-w-0 flex-1">
                               <code className="text-xs text-on-surface-variant break-all">{row.path}</code>
                               <span className="block text-xs text-fg4">{row.message}</span>
@@ -144,13 +146,13 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
                                 {/* Приведение (issue #643) идёт ПЕРВЫМ и без подтверждения: для
                                     расхождения с типом это исправление, а удаление — потеря. */}
                                 {canCoerce && (
-                                  <Button variant="text" size="sm" icon={<Wand2 size={13} />}
+                                  <Button variant="text" size="sm" icon={<Icon icon={WandStars} size={18} />}
                                     disabled={applyFixes.isPending}
                                     onClick={() => apply(row, 'coerce')}>
                                     Привести во всех ({row.instances.length})
                                   </Button>
                                 )}
-                                <Button variant="text" size="sm" danger icon={<Trash2 size={13} />}
+                                <Button variant="text" size="sm" danger icon={<Icon icon={Delete} size={18} />}
                                   disabled={applyFixes.isPending}
                                   onClick={() => setConfirmRow(row)}>
                                   Удалить во всех ({row.instances.length})

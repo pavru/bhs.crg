@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ChevronLeft, ChevronRight } from '@/shared/ui/icons';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { FilterChips } from '@/shared/filter/FilterChips';
@@ -340,12 +341,12 @@ function Pager({ view, data, onChange }: {
         <div className="flex items-center gap-1">
           <button type="button" className={button} disabled={view.page <= 1} aria-label="Предыдущая страница"
             onClick={() => onChange(v => withPageStep(v, view, -1))}>
-            <ChevronLeft size={15} aria-hidden />
+            <Icon icon={ChevronLeft} size={18} aria-hidden />
           </button>
           <span>Страница {view.page} из {pages}</span>
           <button type="button" className={button} disabled={view.page >= pages} aria-label="Следующая страница"
             onClick={() => onChange(v => withPageStep(v, view, 1))}>
-            <ChevronRight size={15} aria-hidden />
+            <Icon icon={ChevronRight} size={18} aria-hidden />
           </button>
         </div>
       )}

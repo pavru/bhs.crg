@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Delete } from '@/shared/ui/icons';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import type { ComputedColumn } from '@/shared/api/types';
@@ -38,7 +39,7 @@ function ColumnRow({
           onClick={onRemove}
           className="p-1.5 rounded mt-4 text-fg4 hover:text-error transition-colors"
         >
-          <Trash2 size={13} />
+          <Icon icon={Delete} size={18} />
         </button>
       </div>
       <div className="space-y-1">
@@ -221,7 +222,7 @@ export function ComputedColumnsDialog({
         onClick={addColumn}
         className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md text-primary bg-primary-container"
       >
-        <Plus size={13} /> Добавить колонку
+        <Icon icon={Add} size={18} /> Добавить колонку
       </button>
 
       {refusal && <p role="alert" className="mt-3 text-xs text-error">{refusal}</p>}

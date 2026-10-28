@@ -1,6 +1,7 @@
 import { formatDateTime } from '@/shared/format/format';
 import { useState } from 'react';
-import { CalendarCheck, ChevronDown, ChevronRight, Lock, Undo2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CalendarCheck, ChevronRight, KeyboardArrowDown, LockIcon, Undo } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
@@ -90,7 +91,7 @@ export function PeriodsPage() {
 
   return (
     <div className="px-6 py-4 max-w-5xl">
-      <PageHeader icon={<CalendarCheck size={18} aria-hidden />} title="Учётный период" className="mb-1" />
+      <PageHeader icon={<Icon icon={CalendarCheck} size={18} aria-hidden />} title="Учётный период" className="mb-1" />
       <p className="text-note text-fg3 mb-4 max-w-3xl">
         Граница закрытого учёта компании и строек. Закрытие компании закрывает все стройки; стройку
         можно закрыть и дальше компании. Сегодня по часам компании — {ruDate(data.today)}:
@@ -116,12 +117,12 @@ export function PeriodsPage() {
           cell: state => (
             <div className="flex items-center justify-end gap-1">
               {state.reopenable && (
-                <Button size="sm" icon={<Undo2 size={14} />}
+                <Button size="sm" icon={<Icon icon={Undo} size={18} />}
                   onClick={() => setDialog({ kind: 'reopen', constructionId: state.constructionId })}>
                   Отменить закрытие
                 </Button>
               )}
-              <Button size="sm" variant="tonal" icon={<Lock size={14} />}
+              <Button size="sm" variant="tonal" icon={<Icon icon={LockIcon} size={18} />}
                 onClick={() => setDialog({ kind: 'close', constructionId: state.constructionId })}>
                 Закрыть период
               </Button>
@@ -374,7 +375,7 @@ function History({ records, nameOf }: {
                 <>
                   <button type="button" aria-expanded={open.has(r.id)} onClick={() => toggle(r.id)}
                     className="mt-0.5 inline-flex items-center gap-0.5 text-xs text-primary hover:underline">
-                    {open.has(r.id) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                    {open.has(r.id) ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
                     Что показал диалог при закрытии
                   </button>
                   {open.has(r.id) && (

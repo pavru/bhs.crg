@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Layers } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Layers } from '@/shared/ui/icons';
 import { DataSetsResource } from './DataSetsResource';
 import { ProcessingTemplatesDialog } from './ProcessingTemplatesDialog';
 import { Button } from '@/shared/ui/Button';
@@ -17,7 +18,7 @@ export function DataSetsPage() {
       <PageHeader title="Наборы данных" className="mb-4"
         subtitle="Системные наборы доступны во всех комплектах. Наборы уровня стройки, раздела и комплекта управляются на соответствующих страницах."
         actions={
-          <Button variant="tonal" size="sm" icon={<Layers size={14} />} onClick={() => setTemplatesOpen(true)}>
+          <Button variant="tonal" size="sm" icon={<Icon icon={Layers} size={18} />} onClick={() => setTemplatesOpen(true)}>
             Шаблоны обработки
           </Button>
         } />

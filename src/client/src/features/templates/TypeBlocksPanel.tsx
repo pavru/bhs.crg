@@ -4,7 +4,8 @@ import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { useTheme } from '@/shared/ui/themeContext';
 import { useTypeBlocks, type TypeBlockFile, type TypeBlocksProblem } from '@/shared/api/typstUserLib';
 import { NavSection } from '@/shared/ui/ListDetailShell';
-import { FileCode, LogIn, Lock, AlertTriangle, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ChevronRight, CodeBlocks, ErrorIcon, KeyboardArrowDown, LockIcon, Login, Warning } from '@/shared/ui/icons';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
 /** Точка входа — её импортирует шаблон; модули лежат в подпапке `typeblocks/`. */
@@ -61,7 +62,7 @@ export function TypeBlocksPanel() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant bg-surface">
-        <Lock size={13} className="text-fg4 shrink-0" />
+        <Icon icon={LockIcon} size={18} className="text-fg4 shrink-0" />
         <p className="text-xs text-fg3">
           Собранные блоки типов — только чтение. Шаблон подключает импортом{' '}
           <code className="font-mono">#import "typeblocks.typ": *</code> (в новых шаблонах строка уже
@@ -84,13 +85,13 @@ export function TypeBlocksPanel() {
           <div className="w-56 shrink-0 border-r border-outline-variant overflow-y-auto py-1">
             <NavSection label="Точка входа" />
             <FileRow
-              label={ENTRYPOINT} icon={<LogIn size={13} />} title="Импортирует модули и диспетч по типу"
+              label={ENTRYPOINT} icon={<Icon icon={Login} size={18} />} title="Импортирует модули и диспетч по типу"
               active={current?.path === ENTRYPOINT} onClick={() => setSelected(ENTRYPOINT)}
             />
             <NavSection label={`Модули типов (${modules.length})`} />
             {modules.map(f => (
               <FileRow
-                key={f.path} label={f.path.replace(/^typeblocks\//, '')} icon={<FileCode size={13} />}
+                key={f.path} label={f.path.replace(/^typeblocks\//, '')} icon={<Icon icon={CodeBlocks} size={18} />}
                 title={f.path} active={current?.path === f.path} onClick={() => setSelected(f.path)}
               />
             ))}
@@ -146,8 +147,8 @@ function ProblemsBanner({ problems }: { problems: TypeBlocksProblem[] }) {
                      ${danger ? 'bg-error-container text-error' : 'bg-warning-container text-warning'}`}>
       <button type="button" onClick={() => setOpen(o => !o)}
         className="flex items-center gap-2 w-full text-left" aria-expanded={open}>
-        {open ? <ChevronDown size={13} className="shrink-0" /> : <ChevronRight size={13} className="shrink-0" />}
-        {danger ? <AlertCircle size={13} className="shrink-0" /> : <AlertTriangle size={13} className="shrink-0" />}
+        {open ? <Icon icon={KeyboardArrowDown} size={18} className="shrink-0" /> : <Icon icon={ChevronRight} size={18} className="shrink-0" />}
+        {danger ? <Icon icon={ErrorIcon} size={18} className="shrink-0" /> : <Icon icon={Warning} size={18} className="shrink-0" />}
         <span>
           {danger
             ? `Сборка блоков сообщает об ошибках: ${errors}`

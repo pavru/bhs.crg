@@ -2,7 +2,8 @@ import { formatDateTime } from '@/shared/format/format';
 import { useState, useEffect, type ReactNode } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router';
-import { Eye, EyeOff, ShieldAlert } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { GppMaybe, Visibility, VisibilityOff } from '@/shared/ui/icons';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useAppVersion } from '@/shared/api/version';
 import { BrandLogo } from '@/shared/ui/Brand';
@@ -185,7 +186,7 @@ function SignInForm() {
           trailing={
             <IconButton label={showPassword ? 'Скрыть пароль' : 'Показать пароль'} size="sm"
               onClick={() => setShowPassword(v => !v)}>
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              {showPassword ? <Icon icon={VisibilityOff} size={18} /> : <Icon icon={Visibility} size={18} />}
             </IconButton>
           } />
 
@@ -260,7 +261,7 @@ function FirstAdminForm() {
         subtitle="Система установлена, пользователей ещё нет. Заведите администратора — он получит полные права." />
 
       <p className="flex gap-2 mb-6 text-xs leading-relaxed text-fg3 bg-warning/10 border border-warning/30 rounded-xl p-3">
-        <ShieldAlert size={16} className="shrink-0 mt-0.5 text-warning" />
+        <Icon icon={GppMaybe} size={18} className="shrink-0 mt-0.5 text-warning" />
         <span>
           Пока администратора нет, эта форма открыта любому, кто дотянется до адреса системы.
           Заведите учётную запись сразу — после этого регистрация закроется сама.
@@ -278,7 +279,7 @@ function FirstAdminForm() {
           trailing={
             <IconButton label={showPassword ? 'Скрыть пароль' : 'Показать пароль'} size="sm"
               onClick={() => setShowPassword(v => !v)}>
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              {showPassword ? <Icon icon={VisibilityOff} size={18} /> : <Icon icon={Visibility} size={18} />}
             </IconButton>
           } />
         <TextField label="Подтверждение пароля" type={showPassword ? 'text' : 'password'}

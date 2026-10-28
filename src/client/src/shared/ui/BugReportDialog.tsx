@@ -1,5 +1,7 @@
 ﻿import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ChevronDown, ChevronRight, Loader2, Monitor, Paperclip, X } from 'lucide-react';
+import { Icon } from './Icon';
+import { CircularProgress } from './CircularProgress';
+import { AttachFile, ChevronRight, Close, KeyboardArrowDown, Monitor, Warning } from './icons';
 import { Modal, ModalExit } from './Modal';
 import { Button } from './Button';
 import { TextAreaField } from './TextAreaField';
@@ -135,7 +137,7 @@ export function BugReportDialog({ open, prefill, onClose }: {
         <div className="flex items-center justify-end gap-2">
           <ModalExit />
           <Button variant="filled" onClick={() => void send()} disabled={sending}>
-            {sending && <Loader2 size={15} className="animate-spin" />} Отправить
+            {sending && <CircularProgress size={18} />} Отправить
           </Button>
         </div>
       }
@@ -156,13 +158,13 @@ export function BugReportDialog({ open, prefill, onClose }: {
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outlined" size="sm" onClick={() => fileRef.current?.click()} disabled={sending}>
-              <Paperclip size={14} /> Загрузить файл
+              <Icon icon={AttachFile} size={18} /> Загрузить файл
             </Button>
             {/* Кнопки съёмки нет там, где API недоступно (не secure context — например http://
                 внутри сети). Показать её сломанной значило бы обещать несуществующее. */}
             {canCapture && (
               <Button variant="outlined" size="sm" onClick={() => void capture()} disabled={sending}>
-                <Monitor size={14} /> Снять экран
+                <Icon icon={Monitor} size={18} /> Снять экран
               </Button>
             )}
             <input
@@ -182,7 +184,7 @@ export function BugReportDialog({ open, prefill, onClose }: {
                   {' '}В GitHub снимок не передаётся.
                 </p>
                 <Button variant="text" size="sm" onClick={removeShot}>
-                  <X size={14} /> Убрать
+                  <Icon icon={Close} size={18} /> Убрать
                 </Button>
               </div>
             </div>
@@ -196,7 +198,7 @@ export function BugReportDialog({ open, prefill, onClose }: {
             onClick={() => setContextOpen(o => !o)}
             className="w-full flex items-center gap-1.5 px-3 py-2 text-left text-xs text-fg3 hover:text-on-surface-variant transition-colors"
           >
-            {contextOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            {contextOpen ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
             Вместе с сообщением уйдёт: версия · экран · браузер · последние ошибки API
           </button>
           {contextOpen && <ContextFacts prefill={prefill} version={version?.version} commit={version?.commit} />}
@@ -204,7 +206,7 @@ export function BugReportDialog({ open, prefill, onClose }: {
 
         {error && (
           <p className="flex items-start gap-1.5 text-sm text-error">
-            <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {error}
+            <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" /> {error}
           </p>
         )}
       </div>

@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Loader2, FileText, ExternalLink, ShieldCheck } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { Description, OpenInNew, VerifiedUser } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { usePreviewDataSetSource } from '@/shared/api/datasets';
@@ -22,7 +24,7 @@ function SourceBoundary({ boundary }: { boundary?: string | null }) {
   if (!boundary) return null;
   return (
     <div className="px-1 pt-2 text-xs text-fg3 flex items-start gap-1.5">
-      <ShieldCheck size={13} className="mt-0.5 shrink-0 text-fg4" />
+      <Icon icon={VerifiedUser} size={18} className="mt-0.5 shrink-0 text-fg4" />
       <span>{boundary}</span>
     </div>
   );
@@ -61,7 +63,7 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
         const size = sizeRaw != null && sizeRaw !== '' && !Number.isNaN(Number(sizeRaw)) ? formatBytes(Number(sizeRaw)) : null;
         return (
           <div key={i} className="flex items-center gap-3 rounded-md px-3 py-2 bg-surface-container">
-            <FileText size={14} className="text-fg4 shrink-0" />
+            <Icon icon={Description} size={18} className="text-fg4 shrink-0" />
             <div className="min-w-0 flex-1">
               <div className="text-xs font-medium truncate text-on-surface">
                 {name ?? <em className="text-fg4">без названия</em>}
@@ -75,7 +77,7 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
                 onClick={() => path && handleOpen(i, path)}
                 disabled={!path || opening === i}
                 className="flex items-center gap-1 shrink-0 px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant hover:bg-surface disabled:opacity-40 disabled:hover:bg-transparent">
-                {opening === i ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
+                {opening === i ? <CircularProgress size={18} /> : <Icon icon={OpenInNew} size={18} />}
                 Просмотреть
               </button>
             </Tooltip>
@@ -120,7 +122,7 @@ export function SourcePreviewDialog({ source, onClose }: { source: DataSetSource
 
       {isFetching ? (
         <div className="flex items-center gap-2 py-8 justify-center text-sm text-fg4">
-          <Loader2 size={16} className="animate-spin" /> Загрузка...
+          <CircularProgress size={18} /> Загрузка...
         </div>
       ) : error ? (
         <p className="text-sm text-error py-4">

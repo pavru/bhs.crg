@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Check, ChevronDown } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Check, KeyboardArrowDown } from '@/shared/ui/icons';
 import { useRoles } from '@/shared/api/roles';
 import type { RoleRef } from '@/shared/api/users';
 import { toggleRole, sameRoles } from './rolePickerDraft';
@@ -62,7 +63,7 @@ export function RolePicker({ value, known = [], onChange, disabled, ariaLabel = 
             disabled:opacity-50 disabled:pointer-events-none
             ${chosen.length > 0 ? 'text-on-surface' : 'text-fg4'} ${className}`}>
           <span className="min-w-0 flex-1 truncate">{label}</span>
-          <ChevronDown size={15} className="text-fg4 shrink-0" aria-hidden="true" />
+          <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" aria-hidden="true" />
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
@@ -83,7 +84,7 @@ export function RolePicker({ value, known = [], onChange, disabled, ariaLabel = 
               className="flex items-start gap-2 px-3 py-1.5 text-sm cursor-pointer select-none outline-none
                 data-[highlighted]:bg-surface-container-low">
               <span className="w-4 shrink-0 pt-0.5 text-primary">
-                {chosen.includes(r.name) && <Check size={14} />}
+                {chosen.includes(r.name) && <Icon icon={Check} size={18} />}
               </span>
               <span className="min-w-0">
                 <span className="block text-on-surface">{r.title}</span>

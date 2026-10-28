@@ -1,4 +1,5 @@
-import type { LucideIcon } from 'lucide-react';
+import { Icon } from './Icon';
+import type { IconDef } from './icons';
 import type { ReactNode } from 'react';
 import { Tooltip } from './Tooltip';
 
@@ -28,9 +29,9 @@ const TONE: Record<StatusTone, { fill: string; border: string }> = {
   quiet: { fill: 'text-fg3', border: 'border-outline-variant' },
 };
 
-export function StatusBadge({ tone = 'neutral', icon: Icon, bordered = false, title, className = '', children }: {
+export function StatusBadge({ tone = 'neutral', icon, bordered = false, title, className = '', children }: {
   tone?: StatusTone;
-  icon?: LucideIcon;
+  icon?: IconDef;
   bordered?: boolean;
   title?: string;
   className?: string;
@@ -43,7 +44,7 @@ export function StatusBadge({ tone = 'neutral', icon: Icon, bordered = false, ti
       <span
         className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-medium whitespace-nowrap ` +
           `${t.fill} ${outlined ? `border ${t.border}` : ''} ${className}`}>
-        {Icon && <Icon size={12} aria-hidden className="shrink-0" />}
+        {icon && <Icon icon={icon} size={18} aria-hidden className="shrink-0" />}
         {children}
       </span>
     </Tooltip>

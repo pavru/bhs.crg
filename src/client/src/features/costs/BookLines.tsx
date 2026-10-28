@@ -1,4 +1,5 @@
-import { CircleHelp } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Help } from '@/shared/ui/icons';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { formatDate, formatMoney } from '@/shared/format/format';
 import type { CorrectionLineView } from '@/shared/api/invoiceCorrection';
@@ -30,7 +31,7 @@ export function BookLines({ rows, places }: { rows: PreviewRow[]; places: Places
             {l.vatUnknown && (
               <Tooltip content="НДС неизвестен: сумма без НДС не посчитана точно">
                 <span className="text-warning">
-                  <CircleHelp size={12} aria-label="НДС неизвестен" />
+                  <Icon icon={Help} size={18} aria-label="НДС неизвестен" />
                 </span>
               </Tooltip>
             )}

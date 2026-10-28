@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Icon } from './Icon';
+import { Cancel, CheckCircle, Warning } from './icons';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { Checkbox } from './Checkbox';
@@ -68,7 +69,7 @@ export function SendMessageDialog({ open, onClose, candidates, title = 'Отпр
                     <Checkbox size="sm" checked={selected.has(c.id)} disabled={!ok} onChange={() => toggle(c.id)} />
                     <span className="text-on-surface flex-1 min-w-0 truncate">{c.displayName || c.email}</span>
                     <span className="text-xs text-fg4 min-w-0 truncate">{c.email || '—'}</span>
-                    {!ok && <AlertTriangle size={13} className="text-warning shrink-0" />}
+                    {!ok && <Icon icon={Warning} size={18} className="text-warning shrink-0" />}
                   </label>
                 );
               })}
@@ -87,10 +88,10 @@ export function SendMessageDialog({ open, onClose, candidates, title = 'Отпр
 
         {result && (result.ok
           ? <p className="text-sm text-success flex items-center gap-1.5">
-              <CheckCircle size={15} /> Отправлено получателям: {result.sent}
+              <Icon icon={CheckCircle} size={18} /> Отправлено получателям: {result.sent}
               {result.skipped && result.skipped.length > 0 && <span className="text-warning ml-1">(пропущены без email: {result.skipped.join(', ')})</span>}
             </p>
-          : <p className="text-sm text-error flex items-start gap-1.5"><XCircle size={15} className="shrink-0 mt-0.5" /> {result.error}</p>
+          : <p className="text-sm text-error flex items-start gap-1.5"><Icon icon={Cancel} size={18} className="shrink-0 mt-0.5" /> {result.error}</p>
         )}
       </div>
     </Modal>

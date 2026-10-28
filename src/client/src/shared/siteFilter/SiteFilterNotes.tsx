@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Star } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Star } from '@/shared/ui/icons';
 import { useSiteFilterState } from './siteFilterContext';
 import { useToggleFavorite } from './useToggleFavorite';
 import { IconButton } from '@/shared/ui/Button';
@@ -26,7 +27,7 @@ export function FavoriteStar({ id, onToggled }: { id: string; onToggled?: () => 
         await toggle(id, !on);
         setBusy(false);
       }}>
-      <Star size={16} className={on ? 'text-primary fill-current' : 'text-fg4'} aria-hidden />
+      <Icon icon={Star} size={18} className={on ? 'text-primary fill-current' : 'text-fg4'} aria-hidden />
     </IconButton>
   );
 }
@@ -42,7 +43,7 @@ export function NotFavoriteNote({ constructionId }: { constructionId: string }) 
   if (!filter.active || !constructionId || filter.favorites.has(constructionId)) return null;
   return (
     <span className="inline-flex items-center gap-1.5 ml-2 text-xs text-fg3" data-testid="not-favorite-note">
-      <Star size={12} aria-hidden />
+      <Icon icon={Star} size={18} aria-hidden />
       <span>Стройка не в избранном — в списках она скрыта.</span>
       <button type="button" className={link} onClick={() => void toggle(constructionId, true)}>Добавить в избранное</button>
     </span>
@@ -71,7 +72,7 @@ export function FilterHidesAll({ text, action, onShowAll, testId }: {
 export function NotInListNotice({ text, onShowAll, testId }: { text: string; onShowAll: () => void; testId: string }) {
   return (
     <p className="flex items-center gap-1.5 px-4 py-1.5 text-xs text-fg3 border-b border-outline-variant" data-testid={testId}>
-      <Star size={12} aria-hidden />
+      <Icon icon={Star} size={18} aria-hidden />
       <span>{text}.</span>
       <button type="button" className={quiet} onClick={onShowAll}>Показать все</button>
     </p>

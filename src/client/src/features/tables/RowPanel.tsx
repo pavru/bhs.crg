@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
-import { X } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Close } from '@/shared/ui/icons';
 import { DataGridValue } from '@/shared/ui/DataGrid';
 import { columnUnavailable } from '@/shared/ui/dataGridStates';
 import { useTable } from '@/shared/api/tables';
@@ -50,7 +51,7 @@ export function RowPanel({ address, rowKey, filter, grain, link, onClose }: {
         {link && values && <Link to={link.to} className="text-xs text-primary underline hover:text-on-surface">{link.label}</Link>}
         <button ref={close} type="button" onClick={onClose} aria-label="Закрыть строку"
           className="p-1 rounded-md text-fg3 hover:text-on-surface hover:bg-surface-container">
-          <X size={15} aria-hidden />
+          <Icon icon={Close} size={18} aria-hidden />
         </button>
       </header>
 

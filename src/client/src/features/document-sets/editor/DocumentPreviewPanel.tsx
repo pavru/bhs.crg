@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, RefreshCw, PanelRightClose, PanelRightOpen, FileWarning, FileText } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { Description, Refresh, RightPanelClose, RightPanelOpen, ScanDelete } from '@/shared/ui/icons';
 import { previewDocument, type PreviewResult } from '@/shared/api/documentSets';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Button, IconButton } from '@/shared/ui/Button';
@@ -73,7 +75,7 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
       <Tooltip content="Показать предпросмотр" name>
         <button type="button" onClick={() => setOpenPersist(true)}
           className="hidden xl:flex flex-col items-center gap-2 w-11 shrink-0 border-l border-outline-variant pt-4 text-fg4 hover:text-primary hover:bg-surface-container transition-colors">
-          <PanelRightOpen size={18} />
+          <Icon icon={RightPanelOpen} size={18} />
           <span className="text-xs [writing-mode:vertical-rl] rotate-180 tracking-wide">Предпросмотр</span>
         </button>
       </Tooltip>
@@ -83,16 +85,16 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
   return (
     <div data-testid="document-preview" className="hidden xl:flex flex-col w-[44%] min-w-[380px] shrink-0 border-l border-outline-variant bg-surface-container/40">
       <div className="flex items-center gap-2 shrink-0 px-3 h-11 border-b border-outline-variant bg-surface">
-        <FileText size={16} className="text-fg4 shrink-0" />
+        <Icon icon={Description} size={18} className="text-fg4 shrink-0" />
         <span className="text-sm font-medium text-on-surface flex-1">Предпросмотр документа</span>
         {updatedAt && state.kind === 'pdf' && (
           <span className="text-xs text-fg4">обновлено {timeAgo(updatedAt)}</span>
         )}
         <IconButton size="sm" label="Обновить" onClick={() => void run()} disabled={state.kind === 'loading'}>
-          <RefreshCw size={15} className={busy ? 'animate-spin' : ''} />
+          {busy ? <CircularProgress size={18} /> : <Icon icon={Refresh} size={18} />}
         </IconButton>
         <IconButton size="sm" label="Скрыть предпросмотр" onClick={() => setOpenPersist(false)}>
-          <PanelRightClose size={16} />
+          <Icon icon={RightPanelClose} size={18} />
         </IconButton>
       </div>
       <div className="flex-1 min-h-0 relative">
@@ -102,19 +104,19 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
         )}
         {state.kind === 'loading' && (
           <div className="absolute inset-0 flex items-center justify-center text-fg4">
-            <Loader2 size={22} className="animate-spin" />
+            <CircularProgress size={24} />
           </div>
         )}
         {state.kind === 'no-template' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 text-fg4">
-            <FileWarning size={28} />
+            <Icon icon={ScanDelete} size={40} />
             <p className="text-sm">Нет шаблона для предпросмотра</p>
             <p className="text-xs">Добавьте шаблон типа документа и отметьте его по умолчанию.</p>
           </div>
         )}
         {state.kind === 'error' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 text-fg4">
-            <FileWarning size={28} className="text-error" />
+            <Icon icon={ScanDelete} size={40} className="text-error" />
             <p className="text-sm text-error">Не удалось построить предпросмотр</p>
             {/* whitespace-pre-line — отказ компилятора шаблона приходит несколькими строками (issue #1047). */}
             <p className="text-xs break-words max-w-full whitespace-pre-line">{state.message}</p>

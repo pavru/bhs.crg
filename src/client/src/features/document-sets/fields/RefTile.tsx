@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Link2, RefreshCw, Unlink } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { LinkIcon, LinkOff, Refresh } from '@/shared/ui/icons';
 import { SCOPE_LABELS, type FieldRef } from '@/shared/api/types';
 import { SCOPE_COLORS } from './constants';
 import { ArchivedRefMark } from './ArchivedRefs';
@@ -20,7 +21,7 @@ export function RefTile({ value, onReplace, onClear, children }: {
 }) {
   return (
     <div className="flex items-center gap-1.5 border border-outline-variant rounded-lg pl-3 pr-1.5 py-1.5 bg-surface-container-low">
-      <Link2 size={16} className="text-fg4 shrink-0" />
+      <Icon icon={LinkIcon} size={18} className="text-fg4 shrink-0" />
       <span className="flex-1 text-sm text-primary font-medium truncate">{value.displayName}</span>
       <ArchivedRefMark value={value} />
       {value.scope && (
@@ -31,13 +32,13 @@ export function RefTile({ value, onReplace, onClear, children }: {
       <Tooltip content="Заменить ссылку" name>
         <button type="button" onClick={onReplace}
           className="p-1.5 rounded-full text-fg4 hover:text-primary hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0">
-          <RefreshCw size={14} />
+          <Icon icon={Refresh} size={18} />
         </button>
       </Tooltip>
       <Tooltip content="Снять ссылку" name>
         <button type="button" onClick={onClear}
           className="p-1.5 rounded-full text-fg4 hover:text-error hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0">
-          <Unlink size={14} />
+          <Icon icon={LinkOff} size={18} />
         </button>
       </Tooltip>
       {children}

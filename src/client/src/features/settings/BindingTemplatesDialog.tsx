@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, Pencil, Check, Database } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Check, Database, Delete, Edit } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import {
   useListBindingTemplates, useCreateBindingTemplate,
@@ -137,7 +138,7 @@ function TemplateForm({
           disabled={saving || !name.trim()}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-on-primary disabled:opacity-40 bg-primary"
         >
-          <Check size={13} />
+          <Icon icon={Check} size={18} />
           {saving ? 'Сохранение...' : 'Сохранить'}
         </button>
         <button
@@ -189,7 +190,7 @@ function TemplateRow({
     <div className="border-b border-outline-variant last:border-0">
       {/* Заголовок */}
       <div className="flex items-center gap-3 px-4 py-3">
-        <Database size={13} className="text-primary shrink-0" />
+        <Icon icon={Database} size={18} className="text-primary shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-on-surface">{template.name}</div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -206,7 +207,7 @@ function TemplateRow({
             onClick={() => setEditing(e => !e)}
             className="p-1.5 rounded text-fg3"
           >
-            <Pencil size={13} />
+            <Icon icon={Edit} size={18} />
           </button>
         </Tooltip>
         {!confirming ? (
@@ -215,7 +216,7 @@ function TemplateRow({
               onClick={() => setConfirming(true)}
               className="p-1.5 rounded text-fg4 hover:text-error transition-colors"
             >
-              <Trash2 size={13} />
+              <Icon icon={Delete} size={18} />
             </button>
           </Tooltip>
         ) : (
@@ -327,7 +328,7 @@ export function BindingTemplatesDialog({
           onClick={() => setAdding(true)}
           className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md text-primary bg-primary-container"
         >
-          <Plus size={14} /> Добавить шаблон
+          <Icon icon={Add} size={18} /> Добавить шаблон
         </button>
       )}
     </Modal>

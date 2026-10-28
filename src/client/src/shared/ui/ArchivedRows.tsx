@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import { Archive, ChevronDown, ChevronUp } from 'lucide-react';
+import { Icon } from './Icon';
+import { Archive, KeyboardArrowDown, KeyboardArrowUp } from './icons';
 
 /**
  * Архивные записи в конце списка — свёрнутой строкой «В архиве: N» (issue #1185). Общая для
@@ -20,9 +21,9 @@ export function ArchivedRows({ count, forceOpen = false, children }: {
     <>
       <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={shown} disabled={forceOpen}
         className="w-full flex items-center gap-2 px-4 py-2 border-t border-surface-container text-left text-xs text-fg3 enabled:hover:bg-surface-container-low transition-colors">
-        <Archive size={13} className="shrink-0" />
+        <Icon icon={Archive} size={18} className="shrink-0" />
         <span className="flex-1">В архиве: {count}</span>
-        {!forceOpen && (shown ? <ChevronUp size={13} className="shrink-0" /> : <ChevronDown size={13} className="shrink-0" />)}
+        {!forceOpen && (shown ? <Icon icon={KeyboardArrowUp} size={18} className="shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="shrink-0" />)}
       </button>
       {shown && children}
     </>

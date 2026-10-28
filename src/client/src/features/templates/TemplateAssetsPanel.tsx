@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Image as ImageIcon, Type as FontIcon, Upload, RefreshCw, Trash2, Copy, Check } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Check, ContentCopy, Delete, ImageIcon, KeyboardArrowDown, KeyboardArrowUp, Refresh, Title, Upload } from '@/shared/ui/icons';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { IconButton } from '@/shared/ui/Button';
 import {
@@ -53,8 +54,8 @@ function AssetReference({ asset }: { asset: TemplateAssetDto }) {
             подсказку: теперь оно не конкурирует за ширину с тем, на что реально ссылаются. */}
         <code className="text-xs font-mono text-on-surface break-all leading-snug">{reference}</code>
         {copied
-          ? <Check size={11} className="text-success shrink-0 mt-0.5" />
-          : <Copy size={11} className="text-fg4 opacity-0 group-hover/ref:opacity-100 shrink-0 mt-0.5" />}
+          ? <Icon icon={Check} size={18} className="text-success shrink-0 mt-0.5" />
+          : <Icon icon={ContentCopy} size={18} className="text-fg4 opacity-0 group-hover/ref:opacity-100 shrink-0 mt-0.5" />}
       </button>
     </Tooltip>
   );
@@ -81,19 +82,19 @@ function AssetRow({ asset }: { asset: TemplateAssetDto }) {
   return (
     <div className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-container-low group">
       {asset.kind === 'Image'
-        ? <ImageIcon size={13} className="text-primary shrink-0" />
-        : <FontIcon size={13} className="text-tertiary shrink-0" />}
+        ? <Icon icon={ImageIcon} size={18} className="text-primary shrink-0" />
+        : <Icon icon={Title} size={18} className="text-tertiary shrink-0" />}
       <AssetReference asset={asset} />
       {error && <span className="text-xs text-error shrink-0">{error}</span>}
       <IconButton label="Заменить файл" size="sm" onClick={() => replaceInputRef.current?.click()}
         disabled={replaceMutation.isPending}
         className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0">
-        <RefreshCw size={12} />
+        <Icon icon={Refresh} size={18} />
       </IconButton>
       <input ref={replaceInputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleReplace} />
       <IconButton label="Удалить" size="sm" danger onClick={() => setConfirmDelete(true)}
         className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0">
-        <Trash2 size={12} />
+        <Icon icon={Delete} size={18} />
       </IconButton>
       <ConfirmDialog
         open={confirmDelete}
@@ -135,7 +136,7 @@ function UploadButton({ scope, scopeId }: { scope: TemplateAssetScope; scopeId: 
       <button type="button" onClick={() => inputRef.current?.click()}
         disabled={uploadMutation.isPending}
         className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover disabled:opacity-50">
-        <Upload size={11} /> Добавить ассет
+        <Icon icon={Upload} size={18} /> Добавить ассет
       </button>
       <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleFile} />
       {error && <span className="text-xs text-error">{error}</span>}
@@ -161,11 +162,11 @@ export function TemplateAssetsPanel({ scope, scopeId, title, hintScopes }: {
     <div className="border-t border-outline-variant bg-surface">
       <button onClick={() => setOpen(v => !v)}
         className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-surface-container-low transition-colors text-left">
-        <ImageIcon size={13} className="text-fg4" />
+        <Icon icon={ImageIcon} size={18} className="text-fg4" />
         <span className="text-xs font-medium text-on-surface-variant flex-1">
           {title}{assets.length > 0 ? ` (${assets.length})` : ''}
         </span>
-        {open ? <ChevronUp size={13} className="text-fg4" /> : <ChevronDown size={13} className="text-fg4" />}
+        {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-fg4" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-fg4" />}
       </button>
       {open && (
         <div className="px-4 pb-4 pt-2 border-t border-surface-container space-y-2">

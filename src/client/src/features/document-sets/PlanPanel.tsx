@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Plus, Trash2, Target, AlertTriangle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Delete, Target, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useToast } from '@/shared/ui/Toast';
@@ -41,7 +42,7 @@ export function PlanPanel({ setId }: { setId: string }) {
   if (isError) {
     return (
       <div className="mx-auto max-w-3xl">
-        <EmptyState icon={<AlertTriangle size={22} />} title="План не загрузился"
+        <EmptyState icon={<Icon icon={Warning} size={24} />} title="План не загрузился"
           description={`Экран не знает, что сейчас в плане, поэтому правка заблокирована: сохранение заменяет план целиком и стёрло бы то, чего не видит. ${
             error instanceof Error ? error.message : ''}`}
           action={<Button variant="filled" size="sm" onClick={() => void refetch()}>Повторить</Button>} />
@@ -124,7 +125,7 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="text" size="sm" icon={<Plus size={16} />} onClick={() => setPickerOpen(true)}>
+          <Button variant="text" size="sm" icon={<Icon icon={Add} size={18} />} onClick={() => setPickerOpen(true)}>
             Добавить тип
           </Button>
           <Button variant="filled" size="sm" disabled={!dirty} loading={replace.isPending} onClick={save}>
@@ -134,7 +135,7 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
       </header>
 
       {rows.length === 0 ? (
-        <EmptyState icon={<Target size={22} />} title="Плана нет"
+        <EmptyState icon={<Icon icon={Target} size={24} />} title="Плана нет"
           description="Добавьте типы документов и укажите количество — тогда на комплекте, разделе и стройке появится процент готовности." />
       ) : (
         <>
@@ -167,7 +168,7 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
                 <button type="button" aria-label={`Убрать «${r.typeName}» из плана`}
                   onClick={() => setRows(prev => prev.filter((_, j) => j !== i))}
                   className="h-7 w-7 grid place-items-center rounded-lg text-fg4 hover:text-error hover:bg-error-container transition-colors">
-                  <Trash2 size={15} />
+                  <Icon icon={Delete} size={18} />
                 </button>
               </div>
             ))}

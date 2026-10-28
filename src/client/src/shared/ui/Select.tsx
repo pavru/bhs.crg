@@ -1,5 +1,6 @@
 import * as RS from '@radix-ui/react-select';
-import { Check, ChevronDown } from 'lucide-react';
+import { Icon } from './Icon';
+import { Check, KeyboardArrowDown } from './icons';
 import { forwardRef, useId, useRef, useState, type ReactNode } from 'react';
 import { OutlinedField } from './OutlinedField';
 
@@ -145,7 +146,7 @@ export function Select({
         {/* min-w-0 + truncate: длинное выбранное значение обрезается многоточием, а не переносится
             на вторую строку, распирая триггер фиксированной высоты. */}
         <span className="min-w-0 flex-1 truncate text-left"><RS.Value placeholder={placeholder} /></span>
-        <RS.Icon className="text-fg4 shrink-0"><ChevronDown size={15} /></RS.Icon>
+        <RS.Icon className="text-fg4 shrink-0"><Icon icon={KeyboardArrowDown} size={18} /></RS.Icon>
       </RS.Trigger>
       <RS.Portal>
         <RS.Content position="popper" sideOffset={4}
@@ -182,7 +183,7 @@ export const SelectItem = forwardRef<HTMLDivElement, { value: string; disabled?:
       <RS.Item ref={ref} value={value} disabled={disabled} className={`${ITEM} ${className}`}>
         <RS.ItemText>{children}</RS.ItemText>
         <RS.ItemIndicator className="absolute right-2 inline-flex text-primary">
-          <Check size={14} />
+          <Icon icon={Check} size={18} />
         </RS.ItemIndicator>
       </RS.Item>
     );

@@ -1,5 +1,6 @@
 import { useState, useRef, useLayoutEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { Icon } from './Icon';
+import { ChevronLeft, ChevronRight, KeyboardArrowDown } from './icons';
 import type { DatePrecision } from '@/shared/api/types';
 import { parseISO, toISO, daysInMonth, monthMatrix, dayInWeek, outOfRange, truncISO, MIN_YEAR, MAX_YEAR } from '@/shared/utils/date';
 import { firstDayOfWeek, monthNames, spokenDate, weekdayNames } from '@/shared/format/dateMask';
@@ -190,7 +191,7 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
     <div className="flex items-center justify-between mb-2 px-1">
       <button type="button" aria-label="Назад" className={HEADER_BTN} disabled={prevOff}
         onClick={() => view === 'years' ? setFy(y => clampYear(y - YEARS_PER_PAGE)) : view === 'months' ? focusOn(fy - 1, fm, 1, 'month') : shiftMonth(-1)}>
-        <ChevronLeft size={18} />
+        <Icon icon={ChevronLeft} size={18} />
       </button>
       {view === 'years' ? (
         <span className="text-sm font-medium text-on-surface tabular-nums">
@@ -201,13 +202,13 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
           <button type="button" onClick={() => setView('years')}
             className="flex items-center gap-1 px-2 h-8 rounded-full text-sm font-medium text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
             {view === 'days' ? `${months[fm - 1]} ${fy}` : fy}
-            <ChevronDown size={14} className="text-fg4" />
+            <Icon icon={KeyboardArrowDown} size={18} className="text-fg4" />
           </button>
         </Tooltip>
       )}
       <button type="button" aria-label="Вперёд" className={HEADER_BTN} disabled={nextOff}
         onClick={() => view === 'years' ? setFy(y => clampYear(y + YEARS_PER_PAGE)) : view === 'months' ? focusOn(fy + 1, fm, 1, 'month') : shiftMonth(1)}>
-        <ChevronRight size={18} />
+        <Icon icon={ChevronRight} size={18} />
       </button>
     </div>
   );

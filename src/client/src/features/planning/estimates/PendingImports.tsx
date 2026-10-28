@@ -1,4 +1,5 @@
-import { Upload } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Upload } from '@/shared/ui/icons';
 import { useConstructionImports, waitingDecision, type EstimateImportItem } from '@/shared/api/planningImports';
 import { Button } from '@/shared/ui/Button';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
@@ -35,7 +36,7 @@ export function PendingImports({ constructionId, enabled, only, onOpen }: {
         const state = i.interrupted ? INTERRUPTED : STATE[i.state as keyof typeof STATE];
         return (
           <li key={i.id} className="flex items-center gap-2 rounded-md bg-surface-container px-3 py-1.5 text-sm text-on-surface-variant">
-            <Upload size={16} className="shrink-0 text-fg3" aria-hidden />
+            <Icon icon={Upload} size={18} className="shrink-0 text-fg3" aria-hidden />
             <span className="min-w-0 flex-1">
               Импорт <b className="font-medium text-on-surface break-all">{i.fileName}</b>
               {' · '}{i.target.newEstimate ? `новая смета «${i.target.newEstimate.name}»` : `в смету «${i.target.estimateName ?? '…'}»`}

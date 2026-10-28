@@ -1,4 +1,5 @@
-import { AlertTriangle } from 'lucide-react';
+import { Icon } from './Icon';
+import { Warning } from './icons';
 import { Tooltip } from './Tooltip';
 
 /**
@@ -12,7 +13,7 @@ export function ValueIssueHint({ messages, compact }: { messages: string[] | und
   if (!messages?.length) return null;
   return (
     <p className={`${compact ? 'text-caption mt-0.5' : 'text-xs mt-1'} text-warning flex items-start gap-1`}>
-      <AlertTriangle size={compact ? 11 : 12} className="shrink-0 mt-[3px]" />
+      <Icon icon={Warning} size={18} className="shrink-0 mt-[3px]" />
       <span>{messages.join(' ')}</span>
     </p>
   );

@@ -2,7 +2,8 @@ import Editor from '@/shared/ui/CodeEditor';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { useTheme } from '@/shared/ui/themeContext';
 import { useSystemTypstLib } from '@/shared/api/typstUserLib';
-import { Lock } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { LockIcon } from '@/shared/ui/icons';
 
 /**
  * Просмотр системной Typst-библиотеки (issue #344) — ХАРДКОД, только чтение. Авто-подключается к
@@ -19,7 +20,7 @@ export function SystemLibPanel() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant bg-surface">
-        <Lock size={13} className="text-fg4 shrink-0" />
+        <Icon icon={LockIcon} size={18} className="text-fg4 shrink-0" />
         <p className="text-xs text-fg3">
           {/* Было «авто-подключается, импортировать не нужно» — неверно: шаблон пишется в tmpDir
               ДОСЛОВНО (issue #353), преамбулу компиляция не подставляет. Импорт живёт в самом

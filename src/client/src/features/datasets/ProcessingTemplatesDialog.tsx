@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Trash2, Pencil, Check, Layers, Filter, FunctionSquare, ArrowUpDown, Route } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Check, Delete, Edit, FilterAlt, FunctionIcon, Layers, RouteIcon, SwapVert } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { IconButton } from '@/shared/ui/Button';
 import {
@@ -59,7 +60,7 @@ function ExtractionFields({
         <div className="flex items-center justify-between mb-1">
           <label className="block text-xs font-medium text-fg3">Колонки — относительно строки</label>
           <button type="button" onClick={addColumn} className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover">
-            <Plus size={12} /> Колонка
+            <Icon icon={Add} size={18} /> Колонка
           </button>
         </div>
         {columns.length === 0 && <p className="text-xs text-fg4 py-0.5">Колонки не заданы.</p>}
@@ -71,7 +72,7 @@ function ExtractionFields({
               <input value={col.expr} onChange={e => updateColumn(i, { expr: e.target.value })}
                 placeholder="Выражение" className={`flex-1 min-w-0 font-mono text-xs ${FIELD_CLS} px-2 py-1`} />
               <button type="button" onClick={() => removeColumn(i)} className="p-1 text-fg4 hover:text-error shrink-0">
-                <Trash2 size={13} />
+                <Icon icon={Delete} size={18} />
               </button>
             </div>
           ))}
@@ -138,15 +139,15 @@ function TemplateForm({
 
       <div className="flex gap-2 flex-wrap">
         <button type="button" onClick={() => setFilterOpen(true)} className={toggleCls(filterCount > 0)}>
-          <Filter size={12} /> Фильтрация
+          <Icon icon={FilterAlt} size={18} /> Фильтрация
           {filterCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-on-primary text-caption bg-primary">{filterCount}</span>}
         </button>
         <button type="button" onClick={() => setTransformsOpen(true)} className={toggleCls(transformCount > 0)}>
-          <FunctionSquare size={12} /> Преобразования
+          <Icon icon={FunctionIcon} size={18} /> Преобразования
           {transformCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-on-primary text-caption bg-primary">{transformCount}</span>}
         </button>
         <button type="button" onClick={() => setSortOpen(true)} className={toggleCls(sortCount > 0)}>
-          <ArrowUpDown size={12} /> Сортировка
+          <Icon icon={SwapVert} size={18} /> Сортировка
           {sortCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-on-primary text-caption bg-primary">{sortCount}</span>}
         </button>
       </div>
@@ -159,7 +160,7 @@ function TemplateForm({
           disabled={saving || !name.trim()}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-on-primary disabled:opacity-40 bg-primary"
         >
-          <Check size={13} />
+          <Icon icon={Check} size={18} />
           {saving ? 'Сохранение...' : 'Сохранить'}
         </button>
         <button onClick={onCancel} className="px-3 py-1.5 rounded-md text-sm font-medium text-on-surface-variant bg-surface-container">
@@ -200,7 +201,7 @@ function TemplateRow({ template }: { template: DataSetProcessingTemplate }) {
   return (
     <div className="border-b border-outline-variant last:border-0">
       <div className="flex items-center gap-3 px-4 py-3">
-        <Layers size={13} className="text-primary shrink-0" />
+        <Icon icon={Layers} size={18} className="text-primary shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-on-surface">{template.name}</div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -210,33 +211,33 @@ function TemplateRow({ template }: { template: DataSetProcessingTemplate }) {
             {template.sheetOrPath && (
               <Tooltip content={template.sheetOrPath}>
                 <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-primary-container text-primary">
-                  <Route size={9} /> Extraction
+                  <Icon icon={RouteIcon} size={18} /> Extraction
                 </span>
               </Tooltip>
             )}
             {filterCount > 0 && (
               <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-primary-container text-primary">
-                <Filter size={9} /> {filterCount}
+                <Icon icon={FilterAlt} size={18} /> {filterCount}
               </span>
             )}
             {transformCount > 0 && (
               <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-primary-container text-primary">
-                <FunctionSquare size={9} /> {transformCount}
+                <Icon icon={FunctionIcon} size={18} /> {transformCount}
               </span>
             )}
             {sortCount > 0 && (
               <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-primary-container text-primary">
-                <ArrowUpDown size={9} /> {sortCount}
+                <Icon icon={SwapVert} size={18} /> {sortCount}
               </span>
             )}
           </div>
         </div>
         <IconButton label="Редактировать" size="sm" onClick={() => setEditing(e => !e)}>
-          <Pencil size={13} />
+          <Icon icon={Edit} size={18} />
         </IconButton>
         {!confirming ? (
           <IconButton label="Удалить" size="sm" danger onClick={() => setConfirming(true)}>
-            <Trash2 size={13} />
+            <Icon icon={Delete} size={18} />
           </IconButton>
         ) : (
           <div className="flex items-center gap-1.5 text-xs">
@@ -298,7 +299,7 @@ export function ProcessingTemplatesDialog({ onClose }: { onClose: () => void }) 
         </div>
       ) : (
         <button onClick={() => setAdding(true)} className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md text-primary bg-primary-container">
-          <Plus size={14} /> Добавить шаблон
+          <Icon icon={Add} size={18} /> Добавить шаблон
         </button>
       )}
     </Modal>

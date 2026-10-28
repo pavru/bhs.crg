@@ -1,4 +1,5 @@
-import { Minus, Plus } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Remove } from '@/shared/ui/icons';
 import { tagLabelOf, tagOrder, type TagDefinition } from '@/shared/api/tags';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
@@ -56,7 +57,7 @@ export function FunctionalTagChip({ tag, entry, onToggle, onOrderChange }: {
           >
             <button type="button" className={arrowClass} onClick={() => step(-1)}
               disabled={(order ?? 0) <= 1} aria-label={`Уменьшить порядок: ${tag.label}`}>
-              <Minus size={11} />
+              <Icon icon={Remove} size={18} />
             </button>
             <input
               type="text"
@@ -71,7 +72,7 @@ export function FunctionalTagChip({ tag, entry, onToggle, onOrderChange }: {
             />
             <button type="button" className={arrowClass} onClick={() => step(1)}
               disabled={(order ?? 0) >= 99} aria-label={`Увеличить порядок: ${tag.label}`}>
-              <Plus size={11} />
+              <Icon icon={Add} size={18} />
             </button>
           </span>
         </Tooltip>

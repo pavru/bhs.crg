@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Info, AlertTriangle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Info, Warning } from '@/shared/ui/icons';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { useChangedSince } from '@/shared/hooks/useChangedSince';
@@ -326,7 +327,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                   {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </Select>
                 <span className="text-caption text-fg4 flex items-center gap-1">
-                  <Info size={11} /> строка целиком становится ссылкой на документ — поля берутся из него самого
+                  <Icon icon={Info} size={18} /> строка целиком становится ссылкой на документ — поля берутся из него самого
                 </span>
               </div>
             ) : effectiveFields.length === 0 ? (
@@ -350,7 +351,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                 <div className="space-y-1.5">
                   <Tooltip content="Заполняется ровно один из вариантов">
                     <span className="text-caption text-fg4 flex items-center gap-1">
-                      <Info size={11} /> выберите вариант — заполняется ровно один
+                      <Icon icon={Info} size={18} /> выберите вариант — заполняется ровно один
                     </span>
                   </Tooltip>
                   <VariantPicker
@@ -388,7 +389,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
 
             {problem && (
               <p className="text-xs text-error flex items-start gap-1">
-                <AlertTriangle size={13} className="shrink-0 mt-px" /> {problem}
+                <Icon icon={Warning} size={18} className="shrink-0 mt-px" /> {problem}
               </p>
             )}
           </div>
@@ -427,7 +428,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                 {!!preview.data?.skipped?.length && (
                   <div className="px-2 py-1.5 border-t border-outline-variant space-y-0.5">
                     <p className="text-caption text-warning flex items-center gap-1">
-                      <AlertTriangle size={11} /> Пропущено строк: {preview.data.skipped.length}
+                      <Icon icon={Warning} size={18} /> Пропущено строк: {preview.data.skipped.length}
                     </p>
                     {preview.data.skipped.slice(0, 8).map(sk => (
                       <p key={sk.rowNumber} className="text-caption text-fg4">

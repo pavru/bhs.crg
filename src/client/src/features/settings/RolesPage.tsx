@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Plus, ShieldCheck, Trash2, Users as UsersIcon, Pencil } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Delete, Edit, Group, VerifiedUser } from '@/shared/ui/icons';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
@@ -104,7 +105,7 @@ export function RolesPage() {
         <RoleBadge role={r} />
       </div>
       <div className="text-caption text-fg4 mt-0.5 flex items-center gap-2">
-        <span className="inline-flex items-center gap-1"><UsersIcon size={11} />{r.users}</span>
+        <span className="inline-flex items-center gap-1"><Icon icon={Group} size={18} />{r.users}</span>
         <span>прав: {r.permissions.length}</span>
       </div>
     </button>
@@ -116,7 +117,7 @@ export function RolesPage() {
       title="Роли и права"
       subtitle="Роль — это набор прав. Состав правится здесь, выдаётся роль на экране «Пользователи»."
       actions={
-        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
+        <Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setCreateOpen(true)}>
           Новая роль
         </Button>
       }
@@ -137,7 +138,7 @@ export function RolesPage() {
           <div className="flex items-start justify-between gap-4 mb-1">
             <div>
               <h2 className="text-lg font-semibold text-on-surface flex items-center gap-2">
-                <ShieldCheck size={18} className="text-fg3" />
+                <Icon icon={VerifiedUser} size={18} className="text-fg3" />
                 {selected.title}
               </h2>
               {selected.summary && <p className="text-sm text-fg3 mt-1">{selected.summary}</p>}
@@ -145,12 +146,12 @@ export function RolesPage() {
             <div className="flex items-center gap-1 shrink-0">
               {!selected.system && (
                 <IconButton label="Переименовать" size="sm" onClick={() => setRenameTarget(selected)}>
-                  <Pencil size={14} />
+                  <Icon icon={Edit} size={18} />
                 </IconButton>
               )}
               {!selected.system && (
                 <IconButton label="Удалить роль" size="sm" danger onClick={() => setDeleteTarget(selected)}>
-                  <Trash2 size={14} />
+                  <Icon icon={Delete} size={18} />
                 </IconButton>
               )}
             </div>

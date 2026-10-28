@@ -4,7 +4,8 @@
  * Выделено из `DocumentTypesPage.tsx` (issue #1031).
  */
 import { useState } from 'react';
-import { Braces } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { DataObject } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
 import { TextField } from '@/shared/ui/TextField';
@@ -150,7 +151,7 @@ export function CreateForm({
               className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded ${
                 showJson ? 'bg-on-surface text-surface-container' : 'text-fg3 hover:text-on-surface hover:bg-surface-container'
               }`}>
-              <Braces size={12} /> JSON
+              <Icon icon={DataObject} size={18} /> JSON
             </button>
           )}
         </div>

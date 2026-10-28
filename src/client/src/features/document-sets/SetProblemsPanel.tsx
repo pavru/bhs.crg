@@ -1,7 +1,8 @@
 import { formatDateTime } from '@/shared/format/format';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { Play, FileSpreadsheet, AlertTriangle, Bot, Scale, ExternalLink } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Balance, OpenInNew, PlayArrow, SmartToy, TableChart, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useToast } from '@/shared/ui/Toast';
@@ -96,7 +97,7 @@ function ReconciliationBlock({ id, name, unresolved }: {
   return (
     <div className="border border-outline-variant rounded-lg overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 bg-surface-container/40">
-        <Scale size={14} className="text-fg4 shrink-0" />
+        <Icon icon={Balance} size={18} className="text-fg4 shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="truncate text-sm font-medium text-on-surface">{name}</div>
           {/* Когда прогон был и чем кончился — обязательная часть блока, а не украшение: список
@@ -113,7 +114,7 @@ function ReconciliationBlock({ id, name, unresolved }: {
             разбирают находки, а не настраивают сверку. */}
         <Link to={`/reconciliations?id=${id}`}
           className="inline-flex items-center gap-1 text-caption text-primary hover:underline shrink-0">
-          <ExternalLink size={11} /> Открыть в «Сверке»
+          <Icon icon={OpenInNew} size={18} /> Открыть в «Сверке»
         </Link>
         <button type="button" onClick={() => setOnlyOpen(v => !v)}
           className={`text-caption px-2 py-0.5 rounded-full transition-colors ${
@@ -126,7 +127,7 @@ function ReconciliationBlock({ id, name, unresolved }: {
             if (r.status === 'Failed') toast.error(r.error ?? 'Прогон не выполнен');
             else toast.success('Пересчитано');
           }}>
-          <Play size={13} /> Прогнать
+          <Icon icon={PlayArrow} size={18} /> Прогнать
         </Button>
       </div>
       {/* Неудачный прогон обязан быть виден: ниже показаны находки предыдущего удачного, и без
@@ -243,7 +244,7 @@ export function SetProblemsPanel({ setId, setName, documentNames }: {
             } catch (e) { toast.apiError(e, 'Не удалось выгрузить отчёт'); }
             finally { setBusy(false); }
           }}>
-          <FileSpreadsheet size={14} /> Отчёт
+          <Icon icon={TableChart} size={18} /> Отчёт
         </Button>
       </div>
 
@@ -265,13 +266,13 @@ export function SetProblemsPanel({ setId, setName, documentNames }: {
       {/* ── Утверждения агента ──────────────────────────────────────────────── */}
       <section className="space-y-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-fg4 flex items-center gap-1.5">
-          <Bot size={13} /> Замечания анализа
+          <Icon icon={SmartToy} size={18} /> Замечания анализа
           <span className="flex-1" />
           {/* Журнал агента целиком (и его чистка) — в разделе «Сверка»: удалять записи с вкладки
               комплекта незачем, здесь их разбирают. */}
           <Link to="/reconciliations?view=observations"
             className="inline-flex items-center gap-1 text-caption font-normal normal-case tracking-normal text-primary hover:underline">
-            <ExternalLink size={11} /> Весь журнал
+            <Icon icon={OpenInNew} size={18} /> Весь журнал
           </Link>
         </h3>
         {/* Происхождение обязано быть видно рядом с данными: это утверждения, а не результат системы. */}
@@ -280,7 +281,7 @@ export function SetProblemsPanel({ setId, setName, documentNames }: {
         </p>
 
         {observations.length === 0 && (
-          <EmptyState icon={<AlertTriangle size={28} />} title="Замечаний нет"
+          <EmptyState icon={<Icon icon={Warning} size={40} />} title="Замечаний нет"
             description="Здесь появятся находки внешнего агента, если попросить его записать их в журнал." />
         )}
 

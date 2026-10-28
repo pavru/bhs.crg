@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Grid3x3 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { GridOn } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { useToast } from '@/shared/ui/Toast';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
@@ -83,7 +84,7 @@ export function InvoiceObject({ view, locked }: {
       )}
       <span className={calm ? 'text-fg4' : 'text-warning'}>{status}</span>
       {correcting?.allocation && <span className="text-warning">разноска изменена в исправлении — запишется с ним</span>}
-      <Button size="sm" variant="text" icon={<Grid3x3 size={13} />} onClick={() => setMatrix({})}>
+      <Button size="sm" variant="text" icon={<Icon icon={GridOn} size={18} />} onClick={() => setMatrix({})}>
         {canEdit && !correcting ? 'на несколько объектов' : 'разноска по объектам'}
       </Button>
 

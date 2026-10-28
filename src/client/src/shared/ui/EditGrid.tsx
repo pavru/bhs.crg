@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, type CSSProperties, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Icon } from './Icon';
+import { Add, Delete } from './icons';
 import { Button } from './Button';
 import { dtCard, dtNum, dtRow, dtTableCompact, dtTableSized, dtTdEdit, dtTdSheet, dtThCompact } from './dataTable';
 import type { DataGridDrag } from './DataGrid';
@@ -266,7 +267,7 @@ export function EditGrid<Row>({
         </table>
       </div>
       {add && (
-        <Button ref={addButton} size="sm" variant="outlined" icon={<Plus size={13} />}
+        <Button ref={addButton} size="sm" variant="outlined" icon={<Icon icon={Add} size={18} />}
           onClick={() => {
             pendingFocus.current = { kind: 'added' };
             add.onAdd();
@@ -286,7 +287,7 @@ function RemoveButton({ index, label, onClick }: { index: number; label: string;
     <Tooltip content={label}>
       <button type="button" data-remove={index} onClick={onClick} aria-label={label}
         className="rounded-sm p-0.5 text-fg4 hover:text-error focus-visible:outline-2">
-        <Trash2 size={13} aria-hidden />
+        <Icon icon={Delete} size={18} aria-hidden />
       </button>
     </Tooltip>
   );

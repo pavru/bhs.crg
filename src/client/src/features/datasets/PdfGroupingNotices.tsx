@@ -1,4 +1,5 @@
-import { Scissors, TriangleAlert } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ContentCut, Warning } from '@/shared/ui/icons';
 import { useRecutGrouping } from '@/shared/api/datasets';
 import { Button } from '@/shared/ui/Button';
 import { useToast } from '@/shared/ui/Toast';
@@ -30,7 +31,7 @@ export function MissingPartsNotice({ fileId, missing, dirty }: {
   return (
     <div role="alert" data-testid="missing-parts" className="mb-3 shrink-0 flex items-start gap-2 rounded-lg
       border border-warning-border bg-warning-container px-3 py-2 text-xs text-warning">
-      <TriangleAlert size={13} className="shrink-0 mt-0.5" />
+      <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
       <p className="flex-1">
         {ruCount(missing, 'документ', 'документа', 'документов')} без файла в хранилище: генерация выпустит
         их без вложений.{' '}
@@ -39,7 +40,7 @@ export function MissingPartsNotice({ fileId, missing, dirty }: {
           : 'Вырезать их можно заново из файла набора — по текущему разбиению, оно не изменится.'}
       </p>
       {!dirty && (
-        <Button size="sm" variant="outlined" icon={<Scissors size={13} />} loading={recut.isPending}
+        <Button size="sm" variant="outlined" icon={<Icon icon={ContentCut} size={18} />} loading={recut.isPending}
           onClick={() => recut.mutate(undefined, {
             onSuccess: r => r.missingParts > 0
               ? toast.error(`Вырезаны не все: без файла осталось ${ruCount(r.missingParts, 'документ', 'документа', 'документов')}.`)

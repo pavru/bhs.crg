@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react';
-import { Database, Pencil, Trash2, Plus, LayoutTemplate, PlayCircle, Loader2, ChevronDown, ChevronRight, Link2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { Add, ChevronRight, Database, Delete, Edit, KeyboardArrowDown, LinkIcon, PlayCircle, SpaceDashboard } from '@/shared/ui/icons';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { ApplyTemplateDialog } from './ApplyTemplateDialog';
 import { BindingPreviewPanel } from './BindingPreviewPanel';
@@ -180,7 +182,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
                   <button type="button"
                     onClick={() => setExpanded(p => toggleInSet(p, sf.key))}
                     className="flex items-center gap-1 py-0.5 text-caption text-fg3 hover:text-on-surface">
-                    {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                    {open ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
                     <Tooltip content={`${sf.title} (${sf.key}) — составное поле`}><span className={`text-left ${MAP_LABEL}`}>{sf.title}</span></Tooltip>
                     {inlineFields[sf.key] && <span className="text-primary">•</span>}
                     <span className="text-fg4">(составное)</span>
@@ -362,7 +364,7 @@ export function MappingEditor({
               <div key={f.key} className="flex items-center gap-2">
                 <Tooltip content={`${f.title} (${f.key}) — ссылка на документ${targetType ? ` типа «${targetType.name}»` : ''}`}>
                   <span className={`w-56 shrink-0 text-xs text-on-surface-variant flex items-center gap-1 ${MAP_LABEL}`}>
-                    <Link2 size={12} className="shrink-0 text-fg4" />
+                    <Icon icon={LinkIcon} size={18} className="shrink-0 text-fg4" />
                     {f.title}
                   </span>
                 </Tooltip>
@@ -596,7 +598,7 @@ function BindingRow({
   return (
     <div className="border-b border-outline-variant last:border-0">
       <div className="flex items-center gap-2 px-4 py-3">
-        <Database size={14} className="text-primary shrink-0" />
+        <Icon icon={Database} size={18} className="text-primary shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium truncate text-on-surface">
             {source?.name ?? '—'}
@@ -616,7 +618,7 @@ function BindingRow({
             onClick={() => setEditing(e => !e)}
             className="p-1.5 rounded text-xs text-fg3"
           >
-            <Pencil size={13} />
+            <Icon icon={Edit} size={18} />
           </button>
         </Tooltip>
         {!confirming ? (
@@ -625,7 +627,7 @@ function BindingRow({
               onClick={() => setConfirming(true)}
               className="p-1.5 rounded text-fg4 hover:text-error transition-colors"
             >
-              <Trash2 size={13} />
+              <Icon icon={Delete} size={18} />
             </button>
           </Tooltip>
         ) : (
@@ -726,13 +728,13 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
             onClick={() => setAdding(true)}
             className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md transition-colors text-primary bg-primary-container"
           >
-            <Plus size={14} /> Добавить источник данных
+            <Icon icon={Add} size={18} /> Добавить источник данных
           </button>
           <button
             onClick={() => setApplyingTemplate(true)}
             className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md transition-colors text-on-surface-variant bg-surface-container"
           >
-            <LayoutTemplate size={14} /> Из шаблона
+            <Icon icon={SpaceDashboard} size={18} /> Из шаблона
           </button>
           {bindings.length > 0 && (
             <button
@@ -741,8 +743,8 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
               className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md transition-colors disabled:opacity-50 text-on-surface-variant bg-surface-container"
             >
               {previewing
-                ? <Loader2 size={14} className="animate-spin" />
-                : <PlayCircle size={14} />
+                ? <CircularProgress size={18} />
+                : <Icon icon={PlayCircle} size={18} />
               }
               {previewing ? 'Проверка...' : 'Проверить данные'}
             </button>
@@ -765,7 +767,7 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
           </div>
           {previewing ? (
             <div className="py-4 text-center text-sm text-fg4">
-              <Loader2 size={16} className="inline-block animate-spin mr-2" />
+              <CircularProgress size={18} className="inline-block mr-2" />
               Загрузка и разбор файлов...
             </div>
           ) : previewError ? (

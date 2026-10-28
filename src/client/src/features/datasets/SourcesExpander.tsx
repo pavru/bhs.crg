@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import {
-  Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2,
-  BookmarkPlus, ScanText, FileDown, Download, AlertTriangle, Boxes, Scissors, Type, SlidersHorizontal, Link2,
-} from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { Add, BookmarkAdd, ContentCopy, ContentCut, Delete, DocumentScanner, Download, Edit, FilterAlt, FunctionIcon, LinkIcon, SpaceDashboard, SwapVert, Title, Tune, Visibility, Warning, Widgets } from '@/shared/ui/icons';
 import { parseSourceColumnNames, countFilterConditions, nextSourceName, staleReasonText } from '@/shared/api/datasetHelpers';
 import { ruCount } from '@/shared/utils/pluralize';
 import { apiError } from '@/shared/utils/apiError';
@@ -81,7 +80,7 @@ function SourceNameDialog({ title, hint, defaultName, takenNames, isPending, err
  */
 function SourceRowCountBadge({ sourceId }: { sourceId: string }) {
   const { data, isFetching, error } = usePreviewDataSetSource(sourceId, 1);
-  if (isFetching && data === undefined) return <Loader2 size={11} className="inline-block ml-2 animate-spin text-fg4" />;
+  if (isFetching && data === undefined) return <CircularProgress size={18} className="inline-block ml-2 text-fg4" />;
 
   // Отказ НЕ превращаем в «0 строк» (issue #966): ноль читается как «источник пуст», то есть отказ
   // приходит сюда переодетым в результат — и переодетым в самом неудачном месте, потому что именно
@@ -160,22 +159,22 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
 
   const badge = (n: number) => (n > 0 ? String(n) : undefined);
   const actions: RowAction[] = [
-    { key: 'filter', label: 'Фильтрация строк', icon: <Filter size={13} />, onSelect: () => openProcessing('filter'), active: filterCount > 0, badge: badge(filterCount) },
-    { key: 'transform', label: 'Вычисляемые колонки', icon: <FunctionSquare size={13} />, onSelect: () => openProcessing('transforms'), active: transformCount > 0, badge: badge(transformCount) },
-    { key: 'sort', label: 'Сортировка строк', icon: <ArrowUpDown size={13} />, onSelect: () => openProcessing('sort'), active: sortCount > 0, badge: badge(sortCount) },
-    { key: 'apply-tpl', label: 'Применить шаблон', icon: <FileDown size={13} />, disabled: templates.length === 0 || applyTemplateMutation.isPending,
+    { key: 'filter', label: 'Фильтрация строк', icon: <Icon icon={FilterAlt} size={18} />, onSelect: () => openProcessing('filter'), active: filterCount > 0, badge: badge(filterCount) },
+    { key: 'transform', label: 'Вычисляемые колонки', icon: <Icon icon={FunctionIcon} size={18} />, onSelect: () => openProcessing('transforms'), active: transformCount > 0, badge: badge(transformCount) },
+    { key: 'sort', label: 'Сортировка строк', icon: <Icon icon={SwapVert} size={18} />, onSelect: () => openProcessing('sort'), active: sortCount > 0, badge: badge(sortCount) },
+    { key: 'apply-tpl', label: 'Применить шаблон', icon: <Icon icon={SpaceDashboard} size={18} />, disabled: templates.length === 0 || applyTemplateMutation.isPending,
       submenu: templates.map(t => ({ key: t.id, label: t.name, onSelect: () => applyTemplate(t.id) })) },
-    { key: 'save-tpl', label: 'Сохранить как шаблон…', icon: <BookmarkPlus size={13} />, onSelect: () => openProcessing('template') },
-    { key: 'export', label: 'Экспорт', icon: <Download size={13} />, submenu: [
+    { key: 'save-tpl', label: 'Сохранить как шаблон…', icon: <Icon icon={BookmarkAdd} size={18} />, onSelect: () => openProcessing('template') },
+    { key: 'export', label: 'Экспорт', icon: <Icon icon={Download} size={18} />, submenu: [
       { key: 'export-xlsx', label: 'XLSX', onSelect: () => runExport('xlsx') },
       { key: 'export-xls', label: 'XLS', onSelect: () => runExport('xls') },
       { key: 'export-csv', label: 'CSV', onSelect: () => runExport('csv') },
     ] },
-    { key: 'rename', label: 'Переименовать…', icon: <Type size={13} />, onSelect: () => setRenaming(true) },
-    { key: 'duplicate', label: 'Создать копию…', icon: <Copy size={13} />, onSelect: () => setDuplicating(true), disabled: duplicateMutation.isPending },
-    { key: 'materialize', label: src.materializeTypeId ? 'Материализация (настроена)' : 'Материализация…', icon: <Boxes size={13} />, onSelect: () => setMaterializing(src) },
-    ...(canManageExtraction && !fixedExtraction ? [{ key: 'edit', label: 'Редактировать', icon: <Pencil size={13} />, onSelect: () => onEdit(src) }] : []),
-    ...(canManageExtraction ? [{ key: 'delete', label: 'Удалить источник', icon: <Trash2 size={13} />, danger: true, onSelect: () => setConfirmDelete(true) }] : []),
+    { key: 'rename', label: 'Переименовать…', icon: <Icon icon={Title} size={18} />, onSelect: () => setRenaming(true) },
+    { key: 'duplicate', label: 'Создать копию…', icon: <Icon icon={ContentCopy} size={18} />, onSelect: () => setDuplicating(true), disabled: duplicateMutation.isPending },
+    { key: 'materialize', label: src.materializeTypeId ? 'Материализация (настроена)' : 'Материализация…', icon: <Icon icon={Widgets} size={18} />, onSelect: () => setMaterializing(src) },
+    ...(canManageExtraction && !fixedExtraction ? [{ key: 'edit', label: 'Редактировать', icon: <Icon icon={Edit} size={18} />, onSelect: () => onEdit(src) }] : []),
+    ...(canManageExtraction ? [{ key: 'delete', label: 'Удалить источник', icon: <Icon icon={Delete} size={18} />, danger: true, onSelect: () => setConfirmDelete(true) }] : []),
   ];
 
   return (
@@ -190,7 +189,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
               <Tooltip content={`${staleReasonText(src.staleReason)}. Распознайте заново.`}>
                 <span
                   className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-container text-warning align-middle">
-                  <AlertTriangle size={10} /> устарело
+                  <Icon icon={Warning} size={18} /> устарело
                 </span>
               </Tooltip>
             )}
@@ -202,7 +201,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
                 : 'Источник материализуется в тип — маппинг задан на источнике (issue #19).'}>
                 <span
                   className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-primary/10 text-primary align-middle">
-                  <Boxes size={10} /> материализация{src.materializeByIdColumn ? ' · по Ид' : ''}
+                  <Icon icon={Widgets} size={18} /> материализация{src.materializeByIdColumn ? ' · по Ид' : ''}
                 </span>
               </Tooltip>
             )}
@@ -212,7 +211,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
               <Tooltip content={`На источник ссылаются привязки документов (${src.bindingCount}). При удалении они перестанут работать.`}>
                 <span
                   className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-surface-container text-fg3 align-middle">
-                  <Link2 size={10} /> {ruCount(src.bindingCount, 'привязка', 'привязки', 'привязок')}
+                  <Icon icon={LinkIcon} size={18} /> {ruCount(src.bindingCount, 'привязка', 'привязки', 'привязок')}
                 </span>
               </Tooltip>
             )}
@@ -223,7 +222,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
               как «листов нет». Текст целиком, не чипом: он объясняет, а не помечает. */}
           {src.warning && (
             <p className="mt-1 flex items-start gap-1 text-warning">
-              <AlertTriangle size={11} className="mt-0.5 shrink-0" />
+              <Icon icon={Warning} size={18} className="mt-0.5 shrink-0" />
               <span>{src.warning}</span>
             </p>
           )}
@@ -240,7 +239,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
           {passiveLabel && <Tooltip content="Заполняется вместе с главным источником той же тройки/пары"><span className="text-fg4 italic">{passiveLabel}</span></Tooltip>}
           <Tooltip content="Просмотреть результат обработки" name>
             <button onClick={() => setPreviewing(true)} className="p-1 text-fg4 hover:text-primary">
-              <Eye size={13} />
+              <Icon icon={Visibility} size={18} />
             </button>
           </Tooltip>
           <RowActionsMenu actions={actions} ariaLabel="Действия над источником" hasActive={hasActiveProcessing} />
@@ -334,18 +333,18 @@ export function FileRecognizeActions({ file }: { file: DataSetFile }) {
     <>
       <IconButton label={profile ? 'Распознать заново' : 'Распознать'} size="sm"
         onClick={() => handleRecognizeDataset()} disabled={recognizeFile.isPending || recognizing}>
-        {recognizing ? <Loader2 size={15} className="animate-spin" /> : <ScanText size={15} />}
+        {recognizing ? <CircularProgress size={18} /> : <Icon icon={DocumentScanner} size={18} />}
       </IconButton>
       {isGostDataset && (
         <IconButton label="Разбиение — перенос страниц, типы таблиц, распознавание таблицы" size="sm"
           onClick={() => navigate(`/datasets/files/${file.id}/grouping`, { state: { sourceName: file.name } })}>
-          <Scissors size={15} />
+          <Icon icon={ContentCut} size={18} />
         </IconButton>
       )}
       {/* Профили распознавания набора (issue #412) — параметры к промптам штампа/обложки/счёта. */}
       <IconButton label="Профили распознавания набора — какими параметрами читать штамп, обложку, счёт" size="sm"
         onClick={() => setFileProfilesDialog(true)}>
-        <SlidersHorizontal size={15} />
+        <Icon icon={Tune} size={18} />
       </IconButton>
       {profileDialog && (
         <PdfSourceDialog fileId={file.id} onClose={() => setProfileDialog(false)}
@@ -410,7 +409,7 @@ export function SourcesPanel({
           Источники{sources.length > 0 ? ` · ${sources.length}` : ''}
         </span>
         {canManageExtraction && !systemDeadEnd && (
-          <Button variant="outlined" size="sm" icon={<Plus size={14} />} onClick={() => setEditing('new')}>
+          <Button variant="outlined" size="sm" icon={<Icon icon={Add} size={18} />} onClick={() => setEditing('new')}>
             Добавить источник
           </Button>
         )}
@@ -458,7 +457,7 @@ export function SourcesPanel({
                     {c.warning && (
                       <Tooltip content={c.warning}>
                         <span className="ml-1 inline-flex items-center gap-0.5 text-warning align-middle">
-                          <AlertTriangle size={10} /> с оговоркой
+                          <Icon icon={Warning} size={18} /> с оговоркой
                         </span>
                       </Tooltip>
                     )}
@@ -468,7 +467,7 @@ export function SourcesPanel({
                       <button type="button" disabled={recognizeTable.isPending}
                         onClick={() => recognizeTable.mutate(c.firstPageIndex!)}
                         className="flex items-center gap-0.5 text-primary hover:text-brand-hover disabled:opacity-50">
-                        <ScanText size={11} /> Распознать таблицу
+                        <Icon icon={DocumentScanner} size={18} /> Распознать таблицу
                       </button>
                     </Tooltip>
                   ) : existing > 0 ? (
@@ -476,7 +475,7 @@ export function SourcesPanel({
                     // без имени в наборе оказались бы два неразличимых «Документы комплекта».
                     <button type="button" disabled={createSource.isPending} onClick={() => setAddingMore(c)}
                       className="flex items-center gap-0.5 text-primary hover:text-brand-hover disabled:opacity-50">
-                      <Plus size={11} /> Добавить ещё
+                      <Icon icon={Add} size={18} /> Добавить ещё
                     </button>
                   ) : (
                     // Имя кандидата может быть уже занято другим источником — у ГОСТ-набора два
@@ -488,7 +487,7 @@ export function SourcesPanel({
                         fileId: file.id, name: nextSourceName(sourceNames, c.name), sheetOrPath: c.sheetOrPath,
                       })}
                       className="flex items-center gap-0.5 text-primary hover:text-brand-hover disabled:opacity-50">
-                      <Plus size={11} /> Создать
+                      <Icon icon={Add} size={18} /> Создать
                     </button>
                   )}
                 </div>

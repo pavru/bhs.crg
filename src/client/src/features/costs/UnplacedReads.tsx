@@ -1,5 +1,6 @@
 import { Fragment, useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ChevronRight, KeyboardArrowDown } from '@/shared/ui/icons';
 import type { UnplacedRead } from '@/shared/api/invoiceRecognition';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
@@ -41,7 +42,7 @@ export function UnplacedReads({ list }: { list: readonly UnplacedRead[] | null }
         return (
           <button type="button" aria-expanded={open.has(group.id)} onClick={() => setOpen(was => toggleInSet(was, group.id))}
             className="inline-flex items-center gap-0.5 text-left">
-            {open.has(group.id) ? <ChevronDown size={12} aria-hidden /> : <ChevronRight size={12} aria-hidden />}
+            {open.has(group.id) ? <Icon icon={KeyboardArrowDown} size={18} aria-hidden /> : <Icon icon={ChevronRight} size={18} aria-hidden />}
             {key}
           </button>
         );
@@ -71,7 +72,7 @@ export function UnplacedReads({ list }: { list: readonly UnplacedRead[] | null }
         <button type="button" aria-expanded={shown} onClick={() => setShown(s => !s)}
           className="inline-flex items-center gap-0.5 text-primary hover:underline">
           {shown ? 'Скрыть' : 'Показать'}
-          <ChevronDown size={12} aria-hidden className={shown ? 'rotate-180' : undefined} />
+          <Icon icon={KeyboardArrowDown} size={18} aria-hidden className={shown ? 'rotate-180' : undefined} />
         </button>
       </p>
       {shown && (

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ClipboardPaste } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ContentPaste } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
@@ -40,7 +41,7 @@ export function InvoiceLinesPaste({ mode, onAdd }: {
 
   return (
     <>
-      <Button size="sm" variant="outlined" icon={<ClipboardPaste size={13} />}
+      <Button size="sm" variant="outlined" icon={<Icon icon={ContentPaste} size={18} />}
         onClick={() => setOpen(true)}>
         Вставить из буфера
       </Button>

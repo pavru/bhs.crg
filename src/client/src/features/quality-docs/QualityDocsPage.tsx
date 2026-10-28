@@ -1,10 +1,9 @@
 import { formatDate } from '@/shared/format/format';
 import { useState, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  Plus, Pencil, Trash2, ShieldCheck, FileText, Search, Globe, ExternalLink, Download, Loader2,
-  AlertTriangle, Clock, CircleSlash, Link2, Unlink,
-} from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { Add, Block, Delete, Description, Download, Edit, Language, LinkIcon, LinkOff, OpenInNew, Schedule, Search, VerifiedUser, Warning, type IconDef } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
@@ -42,10 +41,10 @@ const SOURCE_LABEL: Record<string, string> = { file: 'Файл', fgis: 'ФГИС
  *  имена полей не хардкодим, для того тэги и заведены. */
 const byTag = docFieldByTag;
 
-const STATE_META: Record<DocState, { label: string; icon: typeof AlertTriangle; danger: boolean }> = {
-  expired: { label: 'Просрочен, связки живы', icon: AlertTriangle, danger: true },
-  expiring: { label: `Истекает ≤ ${EXPIRING_SOON_DAYS} дней`, icon: Clock, danger: false },
-  unlinked: { label: 'Без связок', icon: CircleSlash, danger: false },
+const STATE_META: Record<DocState, { label: string; icon: IconDef; danger: boolean }> = {
+  expired: { label: 'Просрочен, связки живы', icon: Warning, danger: true },
+  expiring: { label: `Истекает ≤ ${EXPIRING_SOON_DAYS} дней`, icon: Schedule, danger: false },
+  unlinked: { label: 'Без связок', icon: Block, danger: false },
 };
 
 // Выбор в URL + память последнего открытого (issue #787, общий хелпер). Фильтр состояния входит
@@ -143,7 +142,7 @@ export function QualityDocsPage() {
   const outsideList = current && !visibleDocs.some(d => d.id === current.id) ? current : null;
 
   const docRow = (d: QualityDocument) => (
-    <NavItem key={d.id} icon={<ShieldCheck size={15} />}
+    <NavItem key={d.id} icon={<Icon icon={VerifiedUser} size={18} />}
       label={isAmbiguous(d, ambiguousNames)
         ? `${d.displayName} · ${docNumberOf(d, docTypes) || 'без номера'}`
         : d.displayName}
@@ -172,9 +171,9 @@ export function QualityDocsPage() {
               const items = states.get(s);
               if (!items?.length) return null;
               const meta = STATE_META[s];
-              const Icon = meta.icon;
+              const icon = meta.icon;
               return (
-                <NavItem key={s} icon={<Icon size={15} />} label={meta.label} filter
+                <NavItem key={s} icon={<Icon icon={icon} size={18} />} label={meta.label} filter
                   active={stateFilter === s}
                   count={meta.danger ? undefined : items.length}
                   alert={meta.danger ? items.length : undefined} alertDanger={meta.danger}
@@ -216,29 +215,29 @@ export function QualityDocsPage() {
 
   const actions: RowAction[] = current ? [
     ...(current.scanBlobPath
-      ? [{ key: 'scan', label: 'Открыть скан', icon: <FileText size={13} />,
+      ? [{ key: 'scan', label: 'Открыть скан', icon: <Icon icon={Description} size={18} />,
         onSelect: () => void openAttachment(current.scanBlobPath!) }]
       : []),
-    { key: 'edit', label: 'Редактировать', icon: <Pencil size={13} />, onSelect: () => setEditDoc(current) },
+    { key: 'edit', label: 'Редактировать', icon: <Icon icon={Edit} size={18} />, onSelect: () => setEditDoc(current) },
     // «Разорвать все» — пунктом меню, а не кнопкой (issue #556): действие редкое и опасное, под руку
     // попадаться не должно.
     ...((linksByDoc.get(current.id)?.length ?? 0) > 0
       ? [{ key: 'unlink-all', label: `Разорвать все связки (${linksByDoc.get(current.id)!.length})`,
-        icon: <Unlink size={13} />, danger: true, onSelect: () => setBreakAll(current) }]
+        icon: <Icon icon={LinkOff} size={18} />, danger: true, onSelect: () => setBreakAll(current) }]
       : []),
-    { key: 'delete', label: 'Удалить документ', icon: <Trash2 size={13} />, danger: true,
+    { key: 'delete', label: 'Удалить документ', icon: <Icon icon={Delete} size={18} />, danger: true,
       onSelect: () => setDeleteTarget(current) },
   ] : [];
 
   const detail = !current ? (
     <div className="flex-1 min-w-0 flex items-center justify-center">
-    <EmptyState icon={<ShieldCheck size={30} />}
+    <EmptyState icon={<Icon icon={VerifiedUser} size={40} />}
       title={docs.length === 0 ? 'Документов качества пока нет' : 'Выберите документ'}
       description={docs.length === 0
         ? 'Добавьте первый документ — можно загрузить скан и распознать реквизиты, либо найти в интернете.'
         : 'Слева — библиотека и связанные с документами материалы. Здесь видно, что именно висит на выбранном документе.'}
       action={docs.length === 0
-        ? <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>Добавить документ</Button>
+        ? <Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setCreateOpen(true)}>Добавить документ</Button>
         : undefined} />
     </div>
   ) : (
@@ -263,7 +262,7 @@ export function QualityDocsPage() {
 
       <div>
         <h3 className="text-sm font-medium text-on-surface-variant mb-2 flex items-center gap-2">
-          <Link2 size={14} className="text-fg4" />
+          <Icon icon={LinkIcon} size={18} className="text-fg4" />
           Связки материалов · {linksByDoc.get(current.id)?.length ?? 0}
         </h3>
         {/* Фильтруем строки ТОЛЬКО если запрос попал в связки. Иначе человек, нашедший документ по
@@ -281,13 +280,13 @@ export function QualityDocsPage() {
     <ListDetailShell view={ld}
       title="Документы качества"
       subtitle="Библиотека сертификатов и деклараций; связки материалов — на карточке документа"
-      icon={<ShieldCheck size={20} className="text-primary" />}
+      icon={<Icon icon={VerifiedUser} size={20} className="text-primary" />}
       actions={
         <>
-          <Button variant="outlined" icon={<Globe size={15} />} onClick={() => setWebOpen(true)}>
+          <Button variant="outlined" icon={<Icon icon={Language} size={18} />} onClick={() => setWebOpen(true)}>
             Найти в интернете
           </Button>
-          <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
+          <Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setCreateOpen(true)}>
             Добавить документ
           </Button>
         </>
@@ -449,7 +448,7 @@ function WebSearchModal({ open, onClose, docTypes }: {
           placeholder="Напр.: Выключатель автоматический EKF AV-10"
           className="flex-1 min-w-[260px] border border-outline rounded-md px-3 py-2 text-sm bg-surface text-on-surface" />
         <Button variant="filled" onClick={run} disabled={searching || !query.trim()}
-          loading={searching} icon={<Search size={14} />}>
+          loading={searching} icon={<Icon icon={Search} size={18} />}>
           Найти
         </Button>
       </div>
@@ -469,13 +468,13 @@ function WebSearchModal({ open, onClose, docTypes }: {
                     {c.snippet && <p className="text-xs text-fg4 line-clamp-2">{c.snippet}</p>}
                     <a href={c.url} target="_blank" rel="noopener noreferrer"
                       className="text-xs text-brand-hover inline-flex items-center gap-1 mt-0.5">
-                      <ExternalLink size={11} /> Открыть
+                      <Icon icon={OpenInNew} size={18} /> Открыть
                     </a>
                   </div>
                   <Tooltip content="Скачать файл по ссылке и добавить в библиотеку (если это прямой PDF/скан)">
                     <button onClick={() => importOne(c)} disabled={importingUrl === c.url}
                       className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border border-outline-variant hover:bg-surface-container-low disabled:opacity-50 shrink-0">
-                      {importingUrl === c.url ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} В библиотеку
+                      {importingUrl === c.url ? <CircularProgress size={18} /> : <Icon icon={Download} size={18} />} В библиотеку
                     </button>
                   </Tooltip>
                 </div>

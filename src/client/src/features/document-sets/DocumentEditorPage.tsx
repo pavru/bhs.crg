@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
-import { FileText } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Description } from '@/shared/ui/icons';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -79,7 +80,7 @@ function EditorFrame({ set, setPath, instanceId, docTypes }: {
 
   if (!instance) {
     return (
-      <EmptyState className="m-6" icon={<FileText size={28} />} title="Документа в комплекте нет"
+      <EmptyState className="m-6" icon={<Icon icon={Description} size={40} />} title="Документа в комплекте нет"
         description="Его удалили или перенесли в другой комплект."
         action={<Link to={setPath} className="text-sm text-brand-hover">К комплекту «{set.name}»</Link>} />
     );

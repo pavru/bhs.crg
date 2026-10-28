@@ -1,4 +1,5 @@
-import { ArrowRight } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ArrowForward } from '@/shared/ui/icons';
 import { NumberInput } from '@/shared/ui/NumberInput';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { apiError } from '@/shared/utils/apiError';
@@ -30,7 +31,7 @@ export function RateChoiceFields({ state, sample }: { state: RateChoiceState; sa
         <span className="text-xs text-fg3">Пересчёт единицы</span>
         <div className="flex items-center gap-2 text-sm text-on-surface">
           <span className="tabular-nums">{sourceUnit ?? 'без единицы'}</span>
-          <ArrowRight size={14} aria-hidden className="text-fg4" />
+          <Icon icon={ArrowForward} size={18} aria-hidden className="text-fg4" />
           <span>{unit}</span>
           <span className="text-fg3">×</span>
           <NumberInput value={state.typed} onChange={state.type} label="Коэффициент пересчёта" className="w-24"

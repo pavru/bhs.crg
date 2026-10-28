@@ -1,7 +1,8 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ChevronRight, KeyboardArrowDown, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { useToast } from '@/shared/ui/Toast';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
@@ -64,7 +65,7 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
           <>
             <button type="button" aria-expanded={shown} onClick={() => setOpen(was => toggleInSet(was, r.id))}
               className="flex items-start gap-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
-              {shown ? <ChevronDown size={13} className="mt-0.5 shrink-0 text-fg4" /> : <ChevronRight size={13} className="mt-0.5 shrink-0 text-fg4" />}
+              {shown ? <Icon icon={KeyboardArrowDown} size={18} className="mt-0.5 shrink-0 text-fg4" /> : <Icon icon={ChevronRight} size={18} className="mt-0.5 shrink-0 text-fg4" />}
               <span>{r.name}{r.archived && <ArchivedMark className="ml-1.5" />}</span>
             </button>
             {r.untraceable > 0 && !shown && <div className="pl-[17px] text-warning">{r.untraceable} не покажет никто</div>}
@@ -238,7 +239,7 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
 function Alert({ tone, children }: { tone: 'danger' | 'warning'; children: ReactNode }) {
   return (
     <div role="alert" className={`mt-2 flex items-start gap-2.5 rounded-md px-3 py-2.5 text-xs text-on-surface ${tone === 'danger' ? 'bg-error-container' : 'bg-warning-container'}`}>
-      <AlertTriangle size={16} className={`shrink-0 mt-0.5 ${tone === 'danger' ? 'text-error' : 'text-warning'}`} aria-hidden />
+      <Icon icon={Warning} size={18} className={`shrink-0 mt-0.5 ${tone === 'danger' ? 'text-error' : 'text-warning'}`} aria-hidden />
       <div className="min-w-0 whitespace-pre-line">{children}</div>
     </div>
   );

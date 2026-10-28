@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
-import { Lock, LogOut, PencilLine, Save, TriangleAlert, X } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Close, EditNote, LockIcon, Logout, Save, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
 import { useCan } from '@/shared/api/access';
@@ -14,7 +15,7 @@ export function WaybillLockNote({ closed, correctable }: { closed: string; corre
   const can = useCan();
   return (
     <p role="status" className="flex items-start gap-2 text-xs text-on-surface-variant" data-testid="waybill-locked">
-      <Lock size={13} className="shrink-0 mt-0.5 text-fg3" />
+      <Icon icon={LockIcon} size={18} className="shrink-0 mt-0.5 text-fg3" />
       <span>
         Заперта: {closed}. Вернуть в черновик и править обычным путём нельзя — её материалы вошли в закрытый
         период.
@@ -55,12 +56,12 @@ export function WaybillCorrectionBar({
     return (
       <div role="alert" className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-container
         px-3 py-2 text-xs text-warning">
-        <TriangleAlert size={13} className="shrink-0 mt-0.5" />
+        <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
         <p className="flex-1">
           Исправление больше не нужно: закрытие периода отменили, и накладная не заперта. Её правят обычным путём —
           верните в черновик, поправьте и проведите снова. Набранное здесь не сохранится: перенесите нужное себе.
         </p>
-        <Button size="sm" variant="outlined" icon={<LogOut size={12} />} onClick={onRelease}>
+        <Button size="sm" variant="outlined" icon={<Icon icon={Logout} size={18} />} onClick={onRelease}>
           Выйти из исправления
         </Button>
       </div>
@@ -70,7 +71,7 @@ export function WaybillCorrectionBar({
     <div className="space-y-2" data-testid="waybill-correction-bar">
       <div role="status" className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-container
         px-3 py-2 text-xs text-warning">
-        <PencilLine size={13} className="shrink-0 mt-0.5" />
+        <Icon icon={EditNote} size={18} className="shrink-0 mt-0.5" />
         <p className="flex-1">
           Исправление закрытого периода: накладная останется проведённой, прежнее содержимое ляжет в историю.
           Правьте шапку и строки — запишется всё одним исправлением.
@@ -82,8 +83,8 @@ export function WaybillCorrectionBar({
           containerClassName="flex-1 min-w-64" value={reason}
           hint="Ляжет в историю накладной и в журнал: через год исправление объяснит только она"
           onChange={e => onReason(e.target.value)} />
-        <Button variant="text" icon={<X size={13} />} disabled={writing} onClick={onCancel}>Отменить исправление</Button>
-        <Button variant="filled" icon={<Save size={13} />} disabled={!ready} loading={writing} onClick={onWrite}>
+        <Button variant="text" icon={<Icon icon={Close} size={18} />} disabled={writing} onClick={onCancel}>Отменить исправление</Button>
+        <Button variant="filled" icon={<Icon icon={Save} size={18} />} disabled={!ready} loading={writing} onClick={onWrite}>
           Записать исправление
         </Button>
       </div>

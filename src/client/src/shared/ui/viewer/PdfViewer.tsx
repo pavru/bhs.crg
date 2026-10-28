@@ -1,5 +1,6 @@
 import { Component, lazy, Suspense, type ReactNode } from 'react';
-import { ExternalLink, FileText, X } from 'lucide-react';
+import { Icon } from '../Icon';
+import { Close, Description, OpenInNew } from '../icons';
 import { Modal } from '../Modal';
 import { Button, IconButton } from '../Button';
 import { ViewerMessage } from './ViewerMessage';
@@ -87,15 +88,15 @@ export function ViewerTitleBar({ title, source, onClose }: {
 }) {
   return (
     <div className="shrink-0 h-12 flex items-center gap-2 pl-4 pr-2 border-b border-outline-variant bg-surface">
-      <FileText size={16} className="text-fg3 shrink-0" aria-hidden />
+      <Icon icon={Description} size={18} className="text-fg3 shrink-0" aria-hidden />
       <span className="flex-1 min-w-0 truncate text-sm font-medium text-on-surface">{title}</span>
       {source && (
-        <Button size="sm" variant="outlined" icon={<ExternalLink size={13} />} onClick={() => openInNewTab(source)}>
+        <Button size="sm" variant="outlined" icon={<Icon icon={OpenInNew} size={18} />} onClick={() => openInNewTab(source)}>
           Открыть во вкладке
         </Button>
       )}
       <IconButton label="Закрыть" data-modal-exit onClick={onClose}>
-        <X size={18} />
+        <Icon icon={Close} size={18} />
       </IconButton>
     </div>
   );

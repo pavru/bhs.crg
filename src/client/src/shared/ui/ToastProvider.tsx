@@ -1,6 +1,7 @@
 import * as RT from '@radix-ui/react-toast';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CheckCircle2, AlertTriangle, Info, X, type LucideIcon } from 'lucide-react';
+import { Icon } from './Icon';
+import { CheckCircle, Close, Info, Warning, type IconDef } from './icons';
 import { traceIdOf } from '@/shared/api/client';
 import { apiError } from '@/shared/utils/apiError';
 import { openBugReport } from './bugReportBus';
@@ -15,7 +16,7 @@ import { ToastCtx, type ToastApi, type ToastItem, type ToastOptions, type ToastV
 const MAX_VISIBLE = 3;
 const DEFAULT_DURATION: Record<ToastVariant, number> = { success: 4000, info: 4000, error: 8000 };
 
-const VARIANT_ICON: Record<ToastVariant, LucideIcon> = { success: CheckCircle2, error: AlertTriangle, info: Info };
+const VARIANT_ICON: Record<ToastVariant, IconDef> = { success: CheckCircle, error: Warning, info: Info };
 const VARIANT_ICON_COLOR: Record<ToastVariant, string> = {
   success: 'text-success', error: 'text-error', info: 'text-fg3',
 };
@@ -54,7 +55,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 function ToastCard({ item, onRemove }: { item: ToastItem; onRemove: () => void }) {
   const variant = item.variant ?? 'info';
-  const Icon = VARIANT_ICON[variant];
+  const icon = VARIANT_ICON[variant];
   const bg = variant === 'error' ? 'bg-error-container' : 'bg-surface';
   return (
     <RT.Root
@@ -68,7 +69,7 @@ function ToastCard({ item, onRemove }: { item: ToastItem; onRemove: () => void }
         data-[swipe=cancel]:translate-x-0 data-[swipe=cancel]:transition-transform
         data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)]`}
     >
-      <Icon size={18} className={`mt-0.5 shrink-0 ${VARIANT_ICON_COLOR[variant]}`} />
+      <Icon icon={icon} size={18} className={`mt-0.5 shrink-0 ${VARIANT_ICON_COLOR[variant]}`} />
       <RT.Description className="flex-1 min-w-0 text-sm text-on-surface">{item.message}</RT.Description>
       {!item.action && item.traceId && (
         <RT.Action altText="Сообщить об ошибке" asChild
@@ -86,7 +87,7 @@ function ToastCard({ item, onRemove }: { item: ToastItem; onRemove: () => void }
         </RT.Action>
       )}
       <RT.Close aria-label="Закрыть" className="shrink-0 text-fg4 hover:text-on-surface-variant transition-colors">
-        <X size={15} />
+        <Icon icon={Close} size={18} />
       </RT.Close>
     </RT.Root>
   );

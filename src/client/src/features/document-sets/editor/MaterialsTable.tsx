@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { AlertTriangle, Check, Link2, Replace, ShieldCheck, Unlink } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ChangeCircle, Check, LinkIcon, LinkOff, VerifiedUser, Warning } from '@/shared/ui/icons';
 import { ScopeIcon } from '@/shared/ui/ScopeIcon';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
@@ -86,7 +87,7 @@ export function MaterialsTable({
                 + 'либо разные товары — тогда заведите две связки.'}>
               <span
                 className="shrink-0 text-warning">
-                <AlertTriangle size={13} />
+                <Icon icon={Warning} size={18} />
               </span>
             </Tooltip>
           )}
@@ -100,7 +101,7 @@ export function MaterialsTable({
           <>
             {link ? (
               <span className="flex items-center gap-1.5">
-                <ShieldCheck size={13} className="text-success shrink-0" />
+                <Icon icon={VerifiedUser} size={18} className="text-success shrink-0" />
                 {/* Уровень показываем, ТОЛЬКО когда он расходится с селектором (issue
                     #681): в обычном случае он у всех строк один, и повторённый 130 раз
                     значок стал бы фоном. А расхождение — ровно то место, где человек
@@ -125,11 +126,11 @@ export function MaterialsTable({
                     единственный путь починки шёл через destructive-действие. */}
                 <Tooltip content="Перепривязать к другому документу" name>
                   <button onClick={() => openPickerFor(m)}
-                    className="p-0.5 text-fg4 hover:text-primary"><Replace size={13} /></button>
+                    className="p-0.5 text-fg4 hover:text-primary"><Icon icon={ChangeCircle} size={18} /></button>
                 </Tooltip>
                 <Tooltip content="Снять связь" name>
                   <button onClick={() => setBreaking({ link, label: m.label })}
-                    className="p-0.5 text-fg4 hover:text-error"><Unlink size={13} /></button>
+                    className="p-0.5 text-fg4 hover:text-error"><Icon icon={LinkOff} size={18} /></button>
                 </Tooltip>
               </span>
             ) : suggestion ? (
@@ -143,7 +144,7 @@ export function MaterialsTable({
                 </Tooltip>
                 <RowPill tone="brand" onClick={() => void acceptSuggestion(m, suggestion.doc.id)}
                   title="Привязать предложенный документ">
-                  <Check size={12} /> привязать
+                  <Icon icon={Check} size={18} /> привязать
                 </RowPill>
                 {/* Подсказка — это согласие с догадкой машины, а не вход в выбор (issue
                     #680). Промахнулась догадка — до этой кнопки уйти из строки было
@@ -159,7 +160,7 @@ export function MaterialsTable({
                     предмет жалобы, а мерцающая колонка на 130 строках недоступна ни с
                     клавиатуры, ни с тача. */}
                 <RowPill onClick={() => openPickerFor(m)} title="Выбрать документ качества для этого материала">
-                  <Link2 size={12} /> Связать
+                  <Icon icon={LinkIcon} size={18} /> Связать
                 </RowPill>
               </span>
             )}

@@ -1,4 +1,5 @@
-import { DatabaseZap, ScanText } from 'lucide-react';
+import { Icon } from './Icon';
+import { Database, DocumentScanner } from './icons';
 import type { DataOrigin, DataSetStaleReason } from '@/shared/api/types';
 import { staleReasonText } from '@/shared/api/datasetHelpers';
 import { Tooltip } from './Tooltip';
@@ -46,8 +47,8 @@ export function SourceOriginIcon(
     <Tooltip content={title}>
       <span>
         {recognized
-          ? <ScanText size={12} className={cls} aria-hidden />
-          : <DatabaseZap size={12} className={cls} aria-hidden />}
+          ? <Icon icon={DocumentScanner} size={18} className={cls} aria-hidden />
+          : <Icon icon={Database} size={18} className={cls} aria-hidden />}
         {/* Подсказка на span доступна только мышью — тем, кто ведёт форму с клавиатуры, признак
             обязан достаться текстом (проект keyboard-first, issue #107). */}
         <span className="sr-only">{title}</span>

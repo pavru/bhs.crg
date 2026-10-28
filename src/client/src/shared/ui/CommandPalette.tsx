@@ -1,5 +1,6 @@
 ﻿import * as Dialog from '@radix-ui/react-dialog';
-import { Search, Sun, Moon, Monitor, LogOut, CornerDownLeft, type LucideIcon } from 'lucide-react';
+import { Icon } from './Icon';
+import { DarkMode, KeyboardReturn, LightMode, Logout, Monitor, Search, type IconDef } from './icons';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useTheme } from '@/shared/ui/themeContext';
@@ -24,7 +25,7 @@ interface Cmd {
   /** Группа в списке: «Действия» или раздел рейла. */
   group: string;
   kind: Kind;
-  icon: LucideIcon;
+  icon: IconDef;
   run: () => void;
 }
 
@@ -78,7 +79,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
 
   // Без useMemo: источники — новые массивы на каждую отрисовку, и запоминание не срабатывало бы
   // никогда (ревью PR #1478); список из трёх десятков пунктов дешевле, чем видимость оптимизации.
-  const act = (id: string, label: string, words: string, icon: LucideIcon, run: () => void): Cmd =>
+  const act = (id: string, label: string, words: string, icon: IconDef, run: () => void): Cmd =>
     ({ id, label, words, group: ACTIONS, kind: 'action', icon, run });
   const nav = [
       // Группы палитры — разделы рейла (issue #1429): найденное подписано тем же именем, под которым
@@ -90,10 +91,10 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
   }));
   const items: Cmd[] = [
     ...actions.map(a => act(a.id, a.label, a.words, a.icon, () => toScreen(intentHref(a)))),
-    act('theme-light', 'Тема: светлая', 'оформление день', Sun, () => setTheme('light')),
-    act('theme-dark', 'Тема: тёмная', 'оформление ночь', Moon, () => setTheme('dark')),
+    act('theme-light', 'Тема: светлая', 'оформление день', LightMode, () => setTheme('light')),
+    act('theme-dark', 'Тема: тёмная', 'оформление ночь', DarkMode, () => setTheme('dark')),
     act('theme-system', 'Тема: авто (как в системе)', 'оформление', Monitor, () => setTheme('system')),
-    act('logout', 'Выйти', 'выход из системы', LogOut, () => leave(logout)),
+    act('logout', 'Выйти', 'выход из системы', Logout, () => leave(logout)),
     ...nav,
   ];
 
@@ -137,7 +138,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
         >
           <Dialog.Title className="sr-only">Поиск и действия</Dialog.Title>
           <div className="flex items-center gap-3 border-b border-outline-variant pl-5 pr-4">
-            <Search size={18} aria-hidden className="shrink-0 text-primary" />
+            <Icon icon={Search} size={18} aria-hidden className="shrink-0 text-primary" />
             <input
               ref={input} autoFocus value={query} onKeyDown={onKey} aria-label="Поиск и действия"
               onChange={e => { setQuery(e.target.value); setActive(0); }}
@@ -173,7 +174,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
                   >
                     <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${
                       it.kind === 'action' ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-fg3'}`}>
-                      <it.icon size={16} aria-hidden />
+                      <Icon icon={it.icon} size={18} aria-hidden />
                     </span>
                     <span className="flex-1">
                       {highlight(it.label, words).map((p, k) => p.hit
@@ -185,7 +186,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
                     </span>
                     {i === current && (
                       <span className="flex items-center gap-1 text-caption">
-                        Enter <CornerDownLeft size={14} aria-hidden />
+                        Enter <Icon icon={KeyboardReturn} size={18} aria-hidden />
                       </span>
                     )}
                   </button>

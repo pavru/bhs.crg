@@ -1,4 +1,5 @@
-import { ExternalLink, TriangleAlert } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { OpenInNew, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { useAccess, NO_ACCESS } from '@/shared/api/access';
 import { useNomenclatureCard, type NomenclatureCard } from '@/shared/api/nomenclatureCard';
@@ -166,7 +167,7 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
           {link && (
             <a href={link.to} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-              {link.label} <ExternalLink size={12} />
+              {link.label} <Icon icon={OpenInNew} size={18} />
             </a>
           )}
         </div>
@@ -191,7 +192,7 @@ function Title({ name, why, archived = false }: { name: string | null; why?: str
 export function Refusal({ children }: { children: React.ReactNode }) {
   return (
     <p className="flex items-start gap-2 text-xs text-error">
-      <TriangleAlert size={13} className="shrink-0 mt-0.5" />
+      <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
       <span>{children}</span>
     </p>
   );

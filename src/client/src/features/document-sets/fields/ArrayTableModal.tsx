@@ -7,7 +7,8 @@
  * (`./ComplexCells`); на редакторы полей не ссылается, поэтому цикла здесь нет.</p>
  */
 import { useState } from 'react';
-import { Clipboard, GripVertical, Trash2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ContentPaste, Delete, DragIndicator } from '@/shared/ui/icons';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { ModalExit } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
@@ -211,7 +212,7 @@ function ArrayTableModalBody({
               }}
               aria-label={`Переместить строку ${i + 1}: стрелки вверх/вниз`}
               className="cursor-grab active:cursor-grabbing text-fg4 hover:text-on-surface-variant focus-visible:outline-none focus-visible:text-primary">
-              <GripVertical size={12} />
+              <Icon icon={DragIndicator} size={18} />
             </button>
           </Tooltip>
           <span className="text-xs text-fg4 font-mono">{i + 1}</span>
@@ -259,12 +260,12 @@ function ArrayTableModalBody({
             {selected.size > 0 ? (
               <>
                 <span className="text-sm font-medium text-on-surface-variant px-2">Выбрано: {selected.size}</span>
-                <Button variant="text" size="sm" danger icon={<Trash2 size={13} />} onClick={deleteSelected}>Удалить выбранные</Button>
+                <Button variant="text" size="sm" danger icon={<Icon icon={Delete} size={18} />} onClick={deleteSelected}>Удалить выбранные</Button>
                 <Button variant="text" size="sm" onClick={() => setSelected(new Set())}>Сбросить</Button>
               </>
             ) : (
               <>
-                <Button variant="text" size="sm" icon={<Clipboard size={13} />} onClick={handlePasteClick}>Вставить из Excel</Button>
+                <Button variant="text" size="sm" icon={<Icon icon={ContentPaste} size={18} />} onClick={handlePasteClick}>Вставить из Excel</Button>
               </>
             )}
           </div>

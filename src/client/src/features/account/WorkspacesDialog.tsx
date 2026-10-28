@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Delete, Edit } from '@/shared/ui/icons';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -123,13 +124,13 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
               {!dirty && (
                 <Tooltip content="Изменить" name>
                   <button type="button" onClick={() => edit(own)} className="p-1 text-fg3 hover:text-on-surface">
-                    <Pencil size={14} />
+                    <Icon icon={Edit} size={18} />
                   </button>
                 </Tooltip>
               )}
               <Tooltip content="Удалить" name>
                 <button type="button" onClick={() => setRemoving(own)} className="p-1 text-fg3 hover:text-error">
-                  <Trash2 size={14} />
+                  <Icon icon={Delete} size={18} />
                 </button>
               </Tooltip>
             </li>
@@ -138,7 +139,7 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
       )}
 
       {!draft ? (
-        <Button variant="outlined" icon={<Plus size={16} />} onClick={() => setDraft(blank())}>Новое пространство</Button>
+        <Button variant="outlined" icon={<Icon icon={Add} size={18} />} onClick={() => setDraft(blank())}>Новое пространство</Button>
       ) : (
         <div className="space-y-3 rounded-lg border border-outline-variant p-3" data-testid="workspace-form">
           <TextField label="Имя" value={draft.name} maxLength={NAME_MAX} autoFocus

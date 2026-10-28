@@ -1,4 +1,4 @@
-import { FilePlus2, Building2, ScanLine, Truck, type LucideIcon } from 'lucide-react';
+import { Apartment, DocumentScanner, LocalShipping, NoteAdd, type IconDef } from './icons';
 import type { AccessInfo } from '@/shared/api/access';
 import { hasPermission } from '@/shared/api/access';
 import { workNav } from './navConfig';
@@ -23,7 +23,7 @@ export interface PaletteAction {
   label: string;
   /** Слова, по которым действие ещё ищется, кроме подписи: «создать», «загрузить», «скан». */
   words: string;
-  icon: LucideIcon;
+  icon: IconDef;
   /** Экран, который действие исполняет: адрес пункта навигации. */
   to: string;
   /** Право кнопки на экране — то самое, которым экран её показывает. */
@@ -41,20 +41,20 @@ export const INTENT_PARAM = 'do';
 export const PALETTE_ACTIONS = {
   invoiceNew: {
     id: 'invoice-new', label: 'Новый счёт', words: 'создать завести черновик счета на оплату',
-    icon: FilePlus2, to: '/invoices', permission: 'costs.invoice.edit',
+    icon: NoteAdd, to: '/invoices', permission: 'costs.invoice.edit',
   },
   invoiceScan: {
     id: 'invoice-scan', label: 'Счёт из файла', words: 'загрузить скан pdf распознать файлы счета',
     // Основное — «из скана» (решение владельца от 08.10.2026): счёт приезжает бумагой.
-    icon: ScanLine, to: '/invoices', permission: 'costs.invoice.edit', primary: true,
+    icon: DocumentScanner, to: '/invoices', permission: 'costs.invoice.edit', primary: true,
   },
   waybillNew: {
     id: 'waybill-new', label: 'Новая накладная', words: 'создать завести расходную накладные',
-    icon: Truck, to: '/waybills', permission: 'costs.waybill.edit', primary: true,
+    icon: LocalShipping, to: '/waybills', permission: 'costs.waybill.edit', primary: true,
   },
   constructionNew: {
     id: 'construction-new', label: 'Новая стройка', words: 'создать завести объект стройки',
-    icon: Building2, to: '/document-sets', permission: 'core.constructions.edit', primary: true,
+    icon: Apartment, to: '/document-sets', permission: 'core.constructions.edit', primary: true,
   },
 } as const satisfies Record<string, PaletteAction>;
 

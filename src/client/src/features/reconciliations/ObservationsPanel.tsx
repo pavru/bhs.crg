@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Bot } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { SmartToy } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useListConstructions } from '@/shared/api/constructions';
@@ -89,7 +90,7 @@ export function ObservationsPanel() {
     <div className="flex-1 min-w-0 flex flex-col">
       <div className="px-4 py-3 border-b border-outline-variant shrink-0">
         <h2 className="text-base font-semibold text-on-surface flex items-center gap-2">
-          <Bot size={16} className="text-fg3" /> Замечания анализа
+          <Icon icon={SmartToy} size={18} className="text-fg3" /> Замечания анализа
         </h2>
         {/* Происхождение — не мелкий шрифт ради приличия, а суть: это не результат проверки системы. */}
         <p className="text-xs text-fg3 mt-0.5">
@@ -112,7 +113,7 @@ export function ObservationsPanel() {
         {isLoading && <p className="px-4 py-3 text-sm text-fg4">Загрузка…</p>}
         {!isLoading && shown.length === 0 && (
           <div className="p-6">
-            <EmptyState icon={<Bot size={32} />}
+            <EmptyState icon={<Icon icon={SmartToy} size={40} />}
               title={items.length === 0 ? 'Замечаний нет' : 'Всё разобрано'}
               description={items.length === 0
                 ? 'Здесь появятся находки внешнего агента, если попросить его записать их в журнал.'

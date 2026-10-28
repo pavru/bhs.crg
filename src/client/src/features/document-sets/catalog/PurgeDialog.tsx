@@ -1,6 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { useToast } from '@/shared/ui/Toast';
 import type { PurgeHolder, PurgeOffer } from '@/shared/api/recordPurge';
@@ -122,7 +123,7 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
           {refused ? (
             <>
               <div className="mt-2 flex items-start gap-2.5 rounded-md bg-error-container px-3 py-2.5 text-xs text-on-surface" role="alert">
-                <AlertTriangle size={16} className="shrink-0 mt-0.5 text-error" aria-hidden />
+                <Icon icon={Warning} size={18} className="shrink-0 mt-0.5 text-error" aria-hidden />
                 <div className="max-h-40 overflow-y-auto whitespace-pre-line min-w-0">{refused}</div>
               </div>
               <div className="flex justify-end mt-4">

@@ -1,4 +1,5 @@
-import { Link2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { LinkIcon } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { scopeBreakdownText } from '@/features/quality-docs/linkScopes';
 import type { MaterialQualityLink } from '@/shared/api/qualityDocs';
@@ -19,7 +20,7 @@ export function BulkSelectionBar({ selected, setSelected, openPickerForSelected,
     <div className="sticky bottom-0 rounded-md border border-outline-variant bg-surface px-3 py-2 shadow-sm">
       <div className="flex items-center gap-2">
         <span className="text-sm text-on-surface-variant">Выбрано: {selected.size}</span>
-        <Button variant="filled" size="sm" onClick={openPickerForSelected} icon={<Link2 size={13} />}>
+        <Button variant="filled" size="sm" onClick={openPickerForSelected} icon={<Icon icon={LinkIcon} size={18} />}>
           Связать выбранные ({selected.size})
         </Button>
         <button onClick={() => setSelected(new Set())}

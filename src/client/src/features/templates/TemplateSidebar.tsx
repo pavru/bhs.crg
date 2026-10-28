@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Trash2, Star, ChevronDown, ChevronUp, AlertTriangle, Copy, Lock, FileText, ExternalLink } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, ContentCopy, Delete, Description, KeyboardArrowDown, KeyboardArrowUp, LockIcon, OpenInNew, Star, Warning } from '@/shared/ui/icons';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal } from '@/shared/ui/Modal';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
@@ -118,7 +119,7 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
                 </span>
                 {protected_ && (
                   <span className="flex items-center gap-1 text-xs text-fg4 shrink-0">
-                    {usage[t.id]?.count ? <Lock size={11} className="text-fg3" /> : null}
+                    {usage[t.id]?.count ? <Icon icon={LockIcon} size={18} className="text-fg3" /> : null}
                     {protectReason(t, i === 0) ?? 'защищена'}
                   </span>
                 )}
@@ -213,7 +214,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
         <span className="text-sm font-medium text-on-surface-variant">Шаблоны</span>
         <Tooltip content="Новый шаблон" name>
           <button onClick={onNew} className="text-primary hover:text-brand-hover transition-colors">
-            <Plus size={16} />
+            <Icon icon={Add} size={18} />
           </button>
         </Tooltip>
       </div>
@@ -241,15 +242,15 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                   className="flex-1 flex items-center gap-1.5 px-3 py-2.5 text-left min-w-0"
                 >
                   {isExpanded
-                    ? <ChevronUp size={12} className="text-fg4 shrink-0" />
-                    : <ChevronDown size={12} className="text-fg4 shrink-0" />}
-                  {hasDefault && <Star size={10} className="fill-warning text-warning shrink-0" />}
+                    ? <Icon icon={KeyboardArrowUp} size={18} className="text-fg4 shrink-0" />
+                    : <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" />}
+                  {hasDefault && <Icon icon={Star} size={18} className="fill-warning text-warning shrink-0" />}
                   <span className={`text-sm truncate flex-1 ${isGroupSelected ? 'text-brand-hover font-medium' : 'text-on-surface'}`}>
                     {group.name}
                   </span>
                   <span className="text-xs text-fg4 shrink-0">v{latestVersion}</span>
                   {tooMany && (
-                    <AlertTriangle size={12} className="text-warning shrink-0" />
+                    <Icon icon={Warning} size={18} className="text-warning shrink-0" />
                   )}
                 </button>
                 <Tooltip content="Дублировать шаблон" name>
@@ -257,7 +258,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                     onClick={() => onDuplicate(group)}
                     className="px-2 py-2.5 text-stroke-strong hover:text-primary opacity-0 group-hover/grp:opacity-100 transition-all shrink-0"
                   >
-                    <Copy size={13} />
+                    <Icon icon={ContentCopy} size={18} />
                   </button>
                 </Tooltip>
                 <Tooltip content="Удалить шаблон со всеми версиями" name>
@@ -265,7 +266,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                     onClick={() => onDeleteGroup(group)}
                     className="px-2 py-2.5 text-stroke-strong hover:text-error opacity-0 group-hover/grp:opacity-100 transition-all shrink-0"
                   >
-                    <Trash2 size={13} />
+                    <Icon icon={Delete} size={18} />
                   </button>
                 </Tooltip>
               </div>
@@ -292,7 +293,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                           {used > 0 && (
                             <Tooltip content={`Используется в ${used} докум.`}>
                               <span className="flex items-center gap-0.5 text-xs text-fg4 shrink-0">
-                                <FileText size={10} /> {used}
+                                <Icon icon={Description} size={18} /> {used}
                               </span>
                             </Tooltip>
                           )}
@@ -303,9 +304,9 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                       </button>
                       <div className="pr-1 opacity-0 group-hover/ver:opacity-100 focus-within:opacity-100 transition-all shrink-0">
                         <RowActionsMenu ariaLabel={`Действия версии v${t.version}`} actions={[
-                          { key: 'open', label: 'Открыть', icon: <ExternalLink size={13} />, onSelect: () => onSelect(t) },
+                          { key: 'open', label: 'Открыть', icon: <Icon icon={OpenInNew} size={18} />, onSelect: () => onSelect(t) },
                           {
-                            key: 'delete', label: 'Удалить версию…', danger: true, icon: <Trash2 size={13} />,
+                            key: 'delete', label: 'Удалить версию…', danger: true, icon: <Icon icon={Delete} size={18} />,
                             disabled: deleteBlocked,
                             badge: used > 0 ? `${used} докум.` : undefined,
                             onSelect: () => onDelete(t),
@@ -317,7 +318,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                   })}
                   {tooMany && (
                     <div className="mx-3 mb-2 mt-1 px-2 py-1.5 bg-warning-container border border-warning-border rounded-md flex items-center gap-2">
-                      <AlertTriangle size={11} className="text-warning shrink-0" />
+                      <Icon icon={Warning} size={18} className="text-warning shrink-0" />
                       <span className="text-xs text-warning flex-1">Много версий</span>
                       <button
                         onClick={() => onCleanup(group)}

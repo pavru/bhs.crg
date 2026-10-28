@@ -1,4 +1,4 @@
-import { Loader2 } from 'lucide-react';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { useExpressionPreview, type ExpressionPreviewSpec } from '@/shared/api/datasets';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 
@@ -47,7 +47,7 @@ function JsonPathPreviewPanel({ spec }: { spec: ExpressionPreviewSpec | null }) 
     <div className="text-xs rounded-md border border-outline-variant bg-surface-container-low px-2 py-1.5">
       {isFetching ? (
         <span className="flex items-center gap-1.5 text-fg4">
-          <Loader2 size={11} className="animate-spin" /> Проверка...
+          <CircularProgress size={18} /> Проверка...
         </span>
       ) : error ? (
         <span className="text-error">

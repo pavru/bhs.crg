@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import { TriangleAlert } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useToast } from '@/shared/ui/Toast';
@@ -108,7 +109,7 @@ export function InvoiceGoneNotice({ onClose }: { onClose: () => void }) {
   return (
     <div role="alert" data-testid="invoice-gone" className="flex items-start gap-2 rounded-lg border
       border-error/30 bg-error-container px-3 py-2 text-xs text-error">
-      <TriangleAlert size={13} className="shrink-0 mt-0.5" />
+      <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
       <p className="flex-1">
         Этого счёта больше нет — его удалили, пока он был открыт у вас. Набранное осталось на экране:
         перенесите нужное себе. Сохранить его уже некуда.

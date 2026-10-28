@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image as ImageIcon, Trash2, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { ChevronRight, Delete, ImageIcon, KeyboardArrowDown } from '@/shared/ui/icons';
 import { formatBytes, uploadImage, loadAttachmentObjectUrl } from '@/shared/api/attachments';
 import { beginUpload, endUpload } from '@/shared/ui/uploadsInFlight';
 import { apiError } from '@/shared/utils/apiError';
@@ -132,7 +134,7 @@ export function ImageField({ value, onChange, readOnly = false }: {
     return (
       <>
         <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-outline rounded-lg py-6 cursor-pointer hover:border-primary hover:bg-primary-container transition-colors">
-          <ImageIcon size={20} className="text-fg4" />
+          <Icon icon={ImageIcon} size={20} className="text-fg4" />
           <span className="text-sm text-fg3">Нажмите для выбора изображения</span>
           {/* Предел называем ДО выбора файла, а не после отказа (issue #521): по образцу аватара,
               где о правиле сказано заранее («Изображение уменьшится автоматически»). Узнать об
@@ -158,7 +160,7 @@ export function ImageField({ value, onChange, readOnly = false }: {
         {pending && (
           <Tooltip content="Загружается в хранилище">
             <span className="absolute top-1.5 right-1.5 rounded bg-surface/90 p-1">
-              <Loader2 size={13} className="animate-spin text-primary" />
+              <CircularProgress size={18} className="text-primary" />
             </span>
           </Tooltip>
         )}
@@ -168,11 +170,11 @@ export function ImageField({ value, onChange, readOnly = false }: {
       <div className="flex items-center gap-4">
         <button type="button" onClick={() => { pick.current++; setPending(null); setShrunk(null); onChange(null); }}
           className="flex items-center gap-1.5 text-xs text-error hover:text-error transition-colors">
-          <Trash2 size={12} /> Удалить изображение
+          <Icon icon={Delete} size={18} /> Удалить изображение
         </button>
         <button type="button" onClick={() => setSizeOpen(o => !o)} disabled={!img}
           className="flex items-center gap-1 text-xs text-fg3 hover:text-on-surface transition-colors">
-          {sizeOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          {sizeOpen ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
           Размер и выравнивание{!sizeOpen && hasSize ? ' ·' : ''}
         </button>
       </div>

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Button, type ButtonProps } from './Button';
 import type { PaletteAction } from './paletteActions';
 import { useReportsPrimaryBusy } from './primaryFabContext';
+import { Icon } from './Icon';
 
 /**
  * Кнопка основного действия экрана (issue #1434, ревью PR #1502) — filled-кнопка с подписью действия
@@ -16,9 +17,8 @@ import { useReportsPrimaryBusy } from './primaryFabContext';
 export function PrimaryActionButton({ action, icon, loading = false, className = '', ...rest }:
   Omit<ButtonProps, 'variant' | 'children' | 'icon'> & { action: PaletteAction; icon?: ReactNode }) {
   useReportsPrimaryBusy(action.id, loading);
-  const Icon = action.icon;
   return (
-    <Button variant="filled" icon={icon ?? <Icon size={16} />} loading={loading} className={`max-md:hidden ${className}`} {...rest}>
+    <Button variant="filled" icon={icon ?? <Icon icon={action.icon} size={18} />} loading={loading} className={`max-md:hidden ${className}`} {...rest}>
       {action.label}
     </Button>
   );

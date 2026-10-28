@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { FileText, Plus, RefreshCw, Trash2, Unlink } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Delete, Description, LinkOff, Refresh } from '@/shared/ui/icons';
 import type { CatalogScope, DocumentInstance, DocumentType, FieldRef } from '@/shared/api/types';
 import { isFieldRef, isInstanceRef } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
@@ -46,7 +47,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
       <Tooltip content="Заменить ссылку" name>
         <button type="button" onClick={() => setPickerOpen(true)}
           className={`p-1 transition-colors shrink-0 ${tone}`}>
-          <RefreshCw size={13} />
+          <Icon icon={Refresh} size={18} />
         </button>
       </Tooltip>
     );
@@ -62,12 +63,12 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
       return (
         <div>
           <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${BROKEN_PLATE}`}>
-            <FileText size={14} className="text-error shrink-0" />
+            <Icon icon={Description} size={18} className="text-error shrink-0" />
             <span className={`flex-1 min-w-0 text-sm font-medium truncate ${BROKEN_LABEL}`}>{iRef.displayName}</span>
             {replaceButton('text-error hover:text-on-surface')}
             <Tooltip content="Снять ссылку" name>
               <button type="button" onClick={() => onChange(null)}
-                className="p-1 text-error hover:text-on-surface transition-colors"><Unlink size={13} /></button>
+                className="p-1 text-error hover:text-on-surface transition-colors"><Icon icon={LinkOff} size={18} /></button>
             </Tooltip>
           </div>
           <BrokenRefNote />
@@ -77,7 +78,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
     }
     return (
       <div className="flex items-center gap-2 border border-primary/30 rounded-lg px-3 py-2 bg-primary-container">
-        <FileText size={14} className="text-primary shrink-0" />
+        <Icon icon={Description} size={18} className="text-primary shrink-0" />
         <span className="flex-1 min-w-0">
           <span className="block text-sm text-on-primary-container font-medium truncate">{label}</span>
           {inst?.name && dt && <span className="block text-xs text-on-primary-container/70 truncate">{dt.name}</span>}
@@ -91,7 +92,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
         <Tooltip content="Снять ссылку" name>
           <button type="button" onClick={() => onChange(null)}
             className="p-1 text-on-primary-container/70 hover:text-error transition-colors">
-            <Unlink size={13} />
+            <Icon icon={LinkOff} size={18} />
           </button>
         </Tooltip>
         {picker}
@@ -104,12 +105,12 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
       return (
         <div>
           <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${BROKEN_PLATE}`}>
-            <FileText size={14} className="text-error shrink-0" />
+            <Icon icon={Description} size={18} className="text-error shrink-0" />
             <span className={`flex-1 min-w-0 text-sm font-medium truncate ${BROKEN_LABEL}`}>{cRef.displayName}</span>
             {replaceButton('text-error hover:text-on-surface')}
             <Tooltip content="Снять ссылку" name>
               <button type="button" onClick={() => onChange(null)}
-                className="p-1 text-error hover:text-on-surface transition-colors"><Unlink size={13} /></button>
+                className="p-1 text-error hover:text-on-surface transition-colors"><Icon icon={LinkOff} size={18} /></button>
             </Tooltip>
           </div>
           <BrokenRefNote />
@@ -119,7 +120,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
     }
     return (
       <div className="flex items-center gap-2 border border-warning-border rounded-lg px-3 py-2 bg-warning-container">
-        <FileText size={14} className="text-warning shrink-0" />
+        <Icon icon={Description} size={18} className="text-warning shrink-0" />
         <span className="flex-1 min-w-0">
           <span className="block text-sm text-warning font-medium truncate">{cRef.displayName}</span>
           <span className="block text-xs text-warning truncate">Общие данные</span>
@@ -128,7 +129,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
         <Tooltip content="Снять ссылку" name>
           <button type="button" onClick={() => onChange(null)}
             className="p-1 text-warning hover:text-error transition-colors">
-            <Unlink size={13} />
+            <Icon icon={LinkOff} size={18} />
           </button>
         </Tooltip>
         {picker}
@@ -140,7 +141,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
     <>
       <button type="button" onClick={() => setPickerOpen(true)}
         className="flex items-center gap-2 px-3 py-2 text-sm text-primary hover:text-brand-hover border border-dashed border-primary/40 rounded-lg hover:bg-primary-container transition-colors w-full">
-        <FileText size={13} /> Выбрать документ...
+        <Icon icon={Description} size={18} /> Выбрать документ...
       </button>
       {picker}
     </>
@@ -193,7 +194,7 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
         </span>
         <button type="button" onClick={() => setPickerOpen(true)}
           className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover px-2 py-0.5 rounded hover:bg-primary-container transition-colors">
-          <Plus size={11} /> Добавить
+          <Icon icon={Add} size={18} /> Добавить
         </button>
       </div>
       {items.length === 0 ? (
@@ -213,10 +214,10 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
               return (
                 <div key={i}>
                   <div className={`flex items-center gap-2 px-3 py-2 ${BROKEN_PLATE}`}>
-                    <FileText size={13} className="text-error shrink-0" />
+                    <Icon icon={Description} size={18} className="text-error shrink-0" />
                     <span className={`flex-1 min-w-0 text-sm truncate ${BROKEN_LABEL}`}>{ref.displayName}</span>
                     <button type="button" onClick={() => removeRef(i)}
-                      className="p-1 text-error hover:text-on-surface shrink-0"><Trash2 size={13} /></button>
+                      className="p-1 text-error hover:text-on-surface shrink-0"><Icon icon={Delete} size={18} /></button>
                   </div>
                   <BrokenRefNote compact />
                 </div>
@@ -224,7 +225,7 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
             }
             return (
               <div key={i} className="flex items-center gap-2 px-3 py-2">
-                <FileText size={13} className={isCatalog ? 'text-warning shrink-0' : 'text-primary shrink-0'} />
+                <Icon icon={Description} size={18} className={isCatalog ? 'text-warning shrink-0' : 'text-primary shrink-0'} />
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm text-on-surface-variant truncate">{label}</span>
                   {isCatalog ? (
@@ -240,7 +241,7 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
                 )}
                 <button type="button" onClick={() => removeRef(i)}
                   className="p-1 text-fg4 hover:text-error shrink-0">
-                  <Trash2 size={13} />
+                  <Icon icon={Delete} size={18} />
                 </button>
               </div>
             );

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type Ref } from 'react';
-import { BookX } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { SearchOff } from '@/shared/ui/icons';
 import type { FilterCondition } from '@/shared/api/types';
 import { choiceStrays, opArity, valueFits, type FilterColumn } from './rowFilterModel';
 import { Checkbox } from '@/shared/ui/Checkbox';
@@ -232,7 +233,7 @@ function OptionList({ options, values, strays, onChange }: {
       ))}
       {strays.map(v => (
         <p key={`note:${v}`} className="flex w-full items-center gap-1 text-xs text-warning">
-          <BookX size={12} aria-hidden className="shrink-0" />«{v}» — нет в перечне колонки
+          <Icon icon={SearchOff} size={18} aria-hidden className="shrink-0" />«{v}» — нет в перечне колонки
         </p>
       ))}
     </div>
@@ -256,8 +257,8 @@ function ValueChip({ label, warning = false, stray = false, onRemove }: {
       data-stray={stray ? '' : undefined} onRemove={onRemove} removeLabel={`Убрать «${label}»`}>
       {/* У значения вне перечня причину называет строка под отметками — значку имя не нужно. */}
       {warning && (stray
-        ? <BookX size={10} aria-hidden className="inline align-[-1px] mr-1" />
-        : <BookX size={10} aria-label="нет в справочнике" className="inline align-[-1px] mr-1" />)}
+        ? <Icon icon={SearchOff} size={18} aria-hidden className="inline align-[-1px] mr-1" />
+        : <Icon icon={SearchOff} size={18} aria-label="нет в справочнике" className="inline align-[-1px] mr-1" />)}
       {label}
     </Chip>
   );

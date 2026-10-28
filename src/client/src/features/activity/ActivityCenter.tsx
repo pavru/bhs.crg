@@ -1,6 +1,8 @@
 import { useId, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
-import { Bell } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { Notifications } from '@/shared/ui/icons';
 import { useActiveJobs } from '@/shared/api/jobs';
 import { useNotifications } from '@/shared/api/notifications';
 import { JobRow } from '@/features/jobs/JobRow';
@@ -58,14 +60,14 @@ export function ActivityCenter() {
             (busy ? 'gap-2 pl-2.5 pr-3 text-on-surface-variant' : 'w-10 max-md:w-11 text-fg3')}>
           {busy ? (
             <>
-              <ProgressRing />
+              <CircularProgress size={20} className="text-primary" />
               {/* На телефоне — кольцо и число: подпись выдавливала аватар из первой строки шапки (#1430). */}
               <span className="max-sm:hidden max-w-45 truncate text-sm font-medium">{doing}</span>
               {unread > 0 && <Count n={unread} error={hasUnreadError} />}
             </>
           ) : (
             <>
-              <Bell size={20} />
+              <Icon icon={Notifications} size={20} />
               {unread > 0 && <span className="absolute top-0.5 right-0.5"><Count n={unread} error={hasUnreadError} /></span>}
             </>
           )}
@@ -105,17 +107,5 @@ function Count({ n, error }: { n: number; error: boolean }) {
         (error ? 'bg-error text-surface' : 'bg-primary text-on-primary')}>
       {n > 99 ? '99+' : n}
     </span>
-  );
-}
-
-/** Кольцо хода: дорожка и бегущая по ней дуга. Хода в числах задача не сообщает — кольцо неопределённое. */
-function ProgressRing() {
-  return (
-    <svg viewBox="0 0 20 20" width={20} height={20} aria-hidden="true"
-      className="shrink-0 animate-spin motion-reduce:animate-none">
-      <circle cx="10" cy="10" r="8" fill="none" strokeWidth="2.5" className="stroke-outline-variant" />
-      <circle cx="10" cy="10" r="8" fill="none" strokeWidth="2.5" strokeLinecap="round"
-        strokeDasharray="14 50.3" className="stroke-primary" />
-    </svg>
   );
 }

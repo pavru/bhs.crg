@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { TriangleAlert } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Warning } from '@/shared/ui/icons';
 import { TextField } from '@/shared/ui/TextField';
 import { PrimitiveInput } from '@/features/document-sets/fields/PrimitiveInput';
 import { isLockedField } from '@/features/document-sets/fields/lockedFields';
@@ -99,7 +100,7 @@ export function UnshownExtras({ extras }: { extras: InvoiceExtras }) {
   if (extras.error != null)
     return (
       <p className="flex items-start gap-2 text-xs text-warning" data-testid="invoice-extras-unread">
-        <TriangleAlert size={14} className="shrink-0 mt-0.5" />
+        <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
         <span>
           Схема типа «Счёт» не прочитана: {apiError(extras.error, 'сервер отказал')}. Поля, дописанные в тип,
           не показаны — их значения в счёте сохраняются как есть.

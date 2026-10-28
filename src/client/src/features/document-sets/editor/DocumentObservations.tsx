@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Bot } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { SmartToy } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { EmptyState } from '@/shared/ui/EmptyState';
@@ -31,7 +32,7 @@ export function DocumentObservationsChip({ setId, documentId }: {
 
   return (
     <>
-      <Button variant="text" size="sm" icon={<Bot size={15} />} onClick={() => setOpen(true)}
+      <Button variant="text" size="sm" icon={<Icon icon={SmartToy} size={18} />} onClick={() => setOpen(true)}
         className="shrink-0" title="Замечания внешнего анализа, упоминающие этот документ">
         <span className="hidden sm:inline">Замечания</span>
         {unreviewed > 0 && (
@@ -48,7 +49,7 @@ export function DocumentObservationsChip({ setId, documentId }: {
             Утверждения внешнего ИИ-агента. Система их не проверяла; разбирать — на странице комплекта.
           </p>
 
-          {mine.length === 0 && <EmptyState icon={<Bot size={28} />} title="Замечаний нет" />}
+          {mine.length === 0 && <EmptyState icon={<Icon icon={SmartToy} size={40} />} title="Замечаний нет" />}
 
           {mine.map(o => (
             <div key={o.id} className={`px-3 py-2 border border-outline-variant rounded-lg ${

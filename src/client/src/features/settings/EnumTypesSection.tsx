@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Trash2, GripVertical } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Delete, DragIndicator } from '@/shared/ui/icons';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
@@ -51,7 +52,7 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
                  соседние поля «Код»/«Название» нечего. Ставить свой тип всё равно правильнее. */
               onDragStart={e => { e.dataTransfer.setData('text/plain', ''); setDragIdx(i); }}
               onDragEnd={() => setDragIdx(null)}>
-              <GripVertical size={14} />
+              <Icon icon={DragIndicator} size={18} />
             </span>
           </Tooltip>
           <input value={v.code} onChange={e => update(i, { code: e.target.value })} placeholder="APPROVED"
@@ -61,14 +62,14 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
           <span className="flex items-center gap-0.5">
             <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
               isFirst={i === 0} isLast={i === values.length - 1} />
-            <Tooltip content="Удалить" name><button type="button" onClick={() => remove(i)} className="p-0.5 text-fg4 hover:text-error"><Trash2 size={13} /></button></Tooltip>
+            <Tooltip content="Удалить" name><button type="button" onClick={() => remove(i)} className="p-0.5 text-fg4 hover:text-error"><Icon icon={Delete} size={18} /></button></Tooltip>
           </span>
         </div>
       ))}
       <button type="button"
         onClick={() => onChange([...values, withRowUid({ code: '', label: '' })])}
         className="flex items-center gap-1 text-sm text-primary hover:text-brand-hover pt-0.5">
-        <Plus size={13} /> Добавить вариант
+        <Icon icon={Add} size={18} /> Добавить вариант
       </button>
     </div>
   );

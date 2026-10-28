@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { LogOut, PencilLine, SearchCheck, TriangleAlert, X } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Close, EditNote, Logout, SearchCheck, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
 import { useToast } from '@/shared/ui/Toast';
@@ -120,12 +121,12 @@ export function CorrectionBar({ view, draft, edits, onResetHeader }: {
     return (
       <div role="alert" className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-container
         px-3 py-2 text-xs text-warning">
-        <TriangleAlert size={13} className="shrink-0 mt-0.5" />
+        <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
         <p className="flex-1">
           Исправление больше не нужно — правьте как обычно: счёт больше не заперт. Набранное в шапке и строках
           останется несохранённым — сохраните его обычными кнопками; разноску из исправления наберите заново.
         </p>
-        <Button size="sm" variant="outlined" icon={<LogOut size={12} />} onClick={draft.release}>
+        <Button size="sm" variant="outlined" icon={<Icon icon={Logout} size={18} />} onClick={draft.release}>
           Выйти из исправления
         </Button>
       </div>
@@ -135,7 +136,7 @@ export function CorrectionBar({ view, draft, edits, onResetHeader }: {
     <div className="space-y-2" data-testid="correction-bar">
       <div role="status" className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-container
         px-3 py-2 text-xs text-warning">
-        <PencilLine size={13} className="shrink-0 mt-0.5" />
+        <Icon icon={EditNote} size={18} className="shrink-0 mt-0.5" />
         <p className="flex-1">
           Исправление закрытого периода: изменения лягут в книгу, закрытый месяц не изменится. Правьте шапку,
           строки и разноску — запишется всё одним исправлением.
@@ -147,8 +148,8 @@ export function CorrectionBar({ view, draft, edits, onResetHeader }: {
           containerClassName="flex-1 min-w-64" value={draft.reason}
           hint="Ляжет в версию счёта и в журнал: через год исправление объяснит только она"
           onChange={e => draft.setReason(e.target.value)} />
-        <Button variant="text" icon={<X size={13} />} onClick={cancel}>Отменить исправление</Button>
-        <Button variant="filled" icon={<SearchCheck size={13} />} disabled={!readyToCheck(content) || stale}
+        <Button variant="text" icon={<Icon icon={Close} size={18} />} onClick={cancel}>Отменить исправление</Button>
+        <Button variant="filled" icon={<Icon icon={SearchCheck} size={18} />} disabled={!readyToCheck(content) || stale}
           onClick={check}>
           Проверить исправление…
         </Button>

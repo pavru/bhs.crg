@@ -1,4 +1,5 @@
-import { FileCode, Folder, LogIn, Plus, AlertCircle, AlertTriangle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, CodeBlocks, ErrorIcon, Folder, Login, Warning } from '@/shared/ui/icons';
 import { NavSection } from '@/shared/ui/ListDetailShell';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { buildRows, ENTRYPOINT } from './userLibTree';
@@ -43,7 +44,7 @@ export function UserLibFileList({
     <div className="flex-1 min-h-0 overflow-y-auto pb-2">
       <NavSection label="Точка входа" />
       <FileRow
-        label={ENTRYPOINT} depth={0} icon={<LogIn size={13} />}
+        label={ENTRYPOINT} depth={0} icon={<Icon icon={Login} size={18} />}
         active={selected === ENTRYPOINT} dirty={dirty.has(ENTRYPOINT)}
         errors={errorsBy.get(ENTRYPOINT) ?? 0} warnings={warningsBy.get(ENTRYPOINT) ?? 0}
         title="Подключает всё, что ниже"
@@ -55,7 +56,7 @@ export function UserLibFileList({
         <Tooltip content="Создать файл" name>
           <button type="button" onClick={() => onCreate()}
             className="h-6 w-6 inline-flex items-center justify-center rounded text-fg3 hover:text-on-surface hover:bg-surface-container transition-colors">
-            <Plus size={14} />
+            <Icon icon={Add} size={18} />
           </button>
         </Tooltip>
       </div>
@@ -70,20 +71,20 @@ export function UserLibFileList({
            Это ускоритель, а не единственный путь: создание через шапку секции остаётся. */
         <div key={`d:${row.path}`} className="group/dir flex items-center gap-1.5 py-1 pr-2 text-xs text-fg4"
           style={{ paddingLeft: `${0.75 + row.depth}rem` }}>
-          <Folder size={12} className="shrink-0" />
+          <Icon icon={Folder} size={18} className="shrink-0" />
           <span className="truncate flex-1">{row.label}</span>
           <Tooltip content={`Создать файл в «${row.path}»`} name>
             <button type="button" onClick={() => onCreate(row.path)}
               className="h-5 w-5 shrink-0 inline-flex items-center justify-center rounded text-fg4
                          hover:text-on-surface hover:bg-surface-container opacity-0 group-hover/dir:opacity-100
                          focus-visible:opacity-100 transition-colors">
-              <Plus size={12} />
+              <Icon icon={Add} size={18} />
             </button>
           </Tooltip>
         </div>
       ) : (
         <FileRow
-          key={row.path} label={row.label} depth={row.depth} icon={<FileCode size={13} />}
+          key={row.path} label={row.label} depth={row.depth} icon={<Icon icon={CodeBlocks} size={18} />}
           active={selected === row.path} dirty={dirty.has(row.path)}
           errors={errorsBy.get(row.path) ?? 0} warnings={warningsBy.get(row.path) ?? 0}
           title={row.path}
@@ -115,10 +116,10 @@ function FileRow({ label, depth, icon, active, dirty, errors, warnings, title, o
           {/* Ошибка может прилететь из файла, который сейчас закрыт — бейдж на его строке
               единственное место, где её видно. */}
           {errors > 0 && (
-            <Tooltip content={`Ошибок: ${errors}`}><span className="shrink-0 text-error"><AlertCircle size={12} /></span></Tooltip>
+            <Tooltip content={`Ошибок: ${errors}`}><span className="shrink-0 text-error"><Icon icon={ErrorIcon} size={18} /></span></Tooltip>
           )}
           {errors === 0 && warnings > 0 && (
-            <Tooltip content={`Замечаний: ${warnings}`}><span className="shrink-0 text-warning"><AlertTriangle size={12} /></span></Tooltip>
+            <Tooltip content={`Замечаний: ${warnings}`}><span className="shrink-0 text-warning"><Icon icon={Warning} size={18} /></span></Tooltip>
           )}
           {dirty && <Tooltip content="Не сохранено"><span className="shrink-0 h-1.5 w-1.5 rounded-full bg-fg3" /></Tooltip>}
         </button>

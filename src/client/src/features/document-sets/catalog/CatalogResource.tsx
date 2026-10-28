@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
-import { Plus, Search, ChevronDown, ChevronUp, Database, FileText, Layers, X, Building2, Pencil, Copy, Check } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Apartment, Check, Close, ContentCopy, Database, Description, Edit, KeyboardArrowDown, KeyboardArrowUp, Layers, Search } from '@/shared/ui/icons';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -215,26 +216,26 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
       <aside className="w-48 shrink-0 sticky top-0 self-start space-y-0.5">
         {rail.groups.length > TYPE_SEARCH_THRESHOLD && (
           <div className="relative mb-1">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
+            <Icon icon={Search} size={18} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
             <input value={typeSearch} onChange={e => setTypeSearch(e.target.value)} placeholder="Тип…" aria-label="Поиск типа"
               className="w-full h-8 pl-7 pr-6 rounded-md text-xs bg-surface border border-outline-variant text-on-surface outline-none focus-visible:ring-2 focus-visible:ring-primary placeholder:text-fg4" />
             {typeSearch && (
               <button onClick={() => setTypeSearch('')} aria-label="Очистить" className="absolute right-1.5 top-1/2 -translate-y-1/2 text-fg4 hover:text-on-surface-variant">
-                <X size={12} />
+                <Icon icon={Close} size={18} />
               </button>
             )}
           </div>
         )}
         {profileType && (
-          <TypeNavItem icon={<Building2 size={15} />} label={`Данные: ${SCOPE_LABELS[scope]}`}
+          <TypeNavItem icon={<Icon icon={Apartment} size={18} />} label={`Данные: ${SCOPE_LABELS[scope]}`}
             count={undefined} active={filterTypeId === PROFILE} profile
             onClick={() => setFilterTypeId(PROFILE)} />
         )}
-        <TypeNavItem icon={<Layers size={15} />} label="Все записи" count={normalEntries.filter(isLive).length}
+        <TypeNavItem icon={<Icon icon={Layers} size={18} />} label="Все записи" count={normalEntries.filter(isLive).length}
           active={!filterTypeId} onClick={() => setFilterTypeId('')} />
         {railGroups.map(({ type: t, items }) => (
           <TypeNavItem key={t.id}
-            icon={isDocType(t.id) ? <FileText size={15} /> : <Database size={15} />}
+            icon={isDocType(t.id) ? <Icon icon={Description} size={18} /> : <Icon icon={Database} size={18} />}
             label={t.name} count={items.filter(isLive).length} doc={isDocType(t.id)}
             active={filterTypeId === t.id} onClick={() => setFilterTypeId(t.id)} />
         ))}
@@ -259,7 +260,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
           {batch.picked ? batch.bar(filtered.map(e => e.id)) : (
             <>
               <span className="flex-1" />
-              <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddOpen(true)}>Добавить запись</Button>
+              <Button variant="filled" size="sm" icon={<Icon icon={Add} size={18} />} onClick={() => setAddOpen(true)}>Добавить запись</Button>
             </>
           )}
         </div>
@@ -275,9 +276,9 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
         {isLoading ? (
           <div className="text-center py-12 text-fg4 text-sm">Загрузка...</div>
         ) : entries.length === 0 ? (
-          <EmptyState icon={<Database size={30} />} title="Каталог пуст"
+          <EmptyState icon={<Icon icon={Database} size={40} />} title="Каталог пуст"
             description="Добавьте справочные данные (организации, лица, объекты) этого уровня."
-            action={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setAddOpen(true)}>Добавить запись</Button>} />
+            action={<Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setAddOpen(true)}>Добавить запись</Button>} />
         ) : filtered.length === 0 ? (
           <div className="text-center py-10 text-fg4 text-sm">Ничего не найдено</div>
         ) : filterTypeId ? (
@@ -302,7 +303,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
                 <div key={t.id} className="border border-outline-variant rounded-xl overflow-hidden">
                   <button type="button" onClick={() => toggleType(t.id)} aria-expanded={isOpen}
                     className="w-full flex items-center gap-2 px-4 py-3 bg-surface hover:bg-surface-container-low transition-colors text-left">
-                    {isOpen ? <ChevronUp size={14} className="text-fg4 shrink-0" /> : <ChevronDown size={14} className="text-fg4 shrink-0" />}
+                    {isOpen ? <Icon icon={KeyboardArrowUp} size={18} className="text-fg4 shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" />}
                     <span className="flex-1 text-sm font-medium text-on-surface-variant">{t.name}</span>
                     {isDocType(t.id) && (
                       <span className="text-xs bg-warning-container text-warning border border-warning-border px-1.5 py-0.5 rounded-full">внеш. документ</span>
@@ -320,7 +321,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
                 <div className="border border-outline-variant rounded-xl overflow-hidden">
                   <button type="button" onClick={() => toggleType(NO_TYPE)} aria-expanded={isOpen}
                     className="w-full flex items-center gap-2 px-4 py-3 bg-surface hover:bg-surface-container-low transition-colors text-left">
-                    {isOpen ? <ChevronUp size={14} className="text-fg4 shrink-0" /> : <ChevronDown size={14} className="text-fg4 shrink-0" />}
+                    {isOpen ? <Icon icon={KeyboardArrowUp} size={18} className="text-fg4 shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" />}
                     <span className="flex-1 text-sm font-medium text-fg3 italic">Без типа</span>
                     <span className="text-xs text-fg4">{noType.filter(isLive).length}</span>
                   </button>
@@ -440,7 +441,7 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
     <div className="max-w-2xl">
       <div className="flex items-start gap-3 mb-4">
         <span className="shrink-0 w-10 h-10 rounded-lg bg-primary-container text-brand-hover flex items-center justify-center">
-          <Building2 size={18} />
+          <Icon icon={Apartment} size={18} />
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
@@ -449,7 +450,7 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
           </div>
           <p className="text-xs text-fg3 mt-0.5">Тип: {type.name} · единственная запись уровня.</p>
         </div>
-        <Button variant="outlined" size="sm" icon={<Pencil size={14} />} onClick={onEdit} disabled={!object}>
+        <Button variant="outlined" size="sm" icon={<Icon icon={Edit} size={18} />} onClick={onEdit} disabled={!object}>
           Редактировать
         </Button>
       </div>
@@ -463,7 +464,7 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
           <Tooltip content="Скопировать ключ" name>
             <button type="button" onClick={copy}
               className="text-fg4 hover:text-primary transition-colors">
-              {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
+              {copied ? <Icon icon={Check} size={18} className="text-success" /> : <Icon icon={ContentCopy} size={18} />}
             </button>
           </Tooltip>
         </div>

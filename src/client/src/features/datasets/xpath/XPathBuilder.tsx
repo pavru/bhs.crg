@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
-import { Plus, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { Add, Delete, Warning } from '@/shared/ui/icons';
 import { parseXPath, toXPath, type XPathModel, type XPathStep, type XPathPredicate } from './xpathModel';
 import { useExpressionPreview, type ExpressionPreviewSpec } from '@/shared/api/datasets';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
@@ -47,7 +49,7 @@ export function XPathBuilder({ value, onChange, placeholder, preview }: XPathBui
       />
       {unparseable ? (
         <p className="text-xs text-warning flex items-start gap-1.5 py-1">
-          <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+          <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
           Выражение вне поддерживаемого конструктором набора (необычные оси, функции,
           объединения) — конструктор недоступен, редактируйте текст выше напрямую.
           Он снова заработает, если выражение станет распознаваемым.
@@ -71,7 +73,7 @@ function XPathPreviewPanel({ spec }: { spec: ExpressionPreviewSpec | null }) {
     <div className="text-xs rounded-md border border-outline-variant bg-surface-container-low px-2 py-1.5">
       {isFetching ? (
         <span className="flex items-center gap-1.5 text-fg4">
-          <Loader2 size={11} className="animate-spin" /> Проверка...
+          <CircularProgress size={18} /> Проверка...
         </span>
       ) : error ? (
         <span className="text-error">
@@ -115,7 +117,7 @@ function StepsEditor({ model, onChange }: { model: XPathModel; onChange: (m: XPa
       ))}
       <button type="button" onClick={addStep}
         className="text-xs text-primary hover:text-brand-hover flex items-center gap-1 px-1.5 py-1 shrink-0">
-        <Plus size={12} /> Шаг
+        <Icon icon={Add} size={18} /> Шаг
       </button>
     </div>
   );
@@ -151,7 +153,7 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
           placeholder={step.axis === 'attribute' ? 'атрибут' : 'элемент / *'}
           className="w-24 text-xs font-mono border-b border-transparent hover:border-outline-variant focus:border-primary bg-transparent outline-none" />
         <button type="button" onClick={onRemove} className="text-fg4 hover:text-error shrink-0">
-          <Trash2 size={11} />
+          <Icon icon={Delete} size={18} />
         </button>
       </div>
       <div className="flex flex-wrap gap-1">

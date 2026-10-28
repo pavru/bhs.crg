@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { TriangleAlert } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Warning } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { apiError } from '@/shared/utils/apiError';
 import type { CostsConstruction } from '@/shared/api/invoices';
@@ -58,7 +59,7 @@ export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
             {data.unmatchedLines > 0 && (
               <p role="status" className="flex items-start gap-2 rounded-lg border border-warning-border
                 bg-warning-container px-3 py-2 text-xs text-warning">
-                <TriangleAlert size={13} className="shrink-0 mt-0.5" />
+                <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
                 Не сопоставлено: {data.unmatchedLines} {linesWord(data.unmatchedLines)} в накладных
                 ({data.unmatchedWaybills}). В перечне ниже их нет — выдано больше, чем показано. Найти их:
                 отбор «Сопоставить» в списке накладных.

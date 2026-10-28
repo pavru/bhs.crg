@@ -40,7 +40,7 @@ export function TimeInput({ label, value, onChange, onProblem, onIncomplete, onC
   const { foreign, problem, problemId, describedBy, groupProps, segments, selectedAnnouncement, startOver } = useSegmentField(model, {
     label, value, onChange, onProblem, onIncomplete, onCommit, disabled, readOnly, required, invalid, hintId,
   });
-  const problemMark = <SegmentProblemMark id={problemId} problem={problem} showIcon={!onProblem} compact={false} />;
+  const problemMark = <SegmentProblemMark id={problemId} problem={problem} showIcon={!onProblem} />;
 
   if (foreign) {
     return (

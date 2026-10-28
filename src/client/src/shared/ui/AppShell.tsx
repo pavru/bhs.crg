@@ -27,7 +27,8 @@ import { SectionPanel, SectionRail, ShowPanelButton } from '@/shared/ui/SectionR
 import { useFavoriteSitesGroup, withFavoriteSites } from '@/shared/siteFilter/favoriteSitesGroup';
 import { useNavSections } from '@/shared/ui/navSections';
 import { activeRail, panelAt, railDef } from '@/shared/ui/railSections';
-import { CircleHelp, MailWarning, X, Search } from 'lucide-react';
+import { Icon } from './Icon';
+import { Close, Help, MarkEmailUnread, Search } from './icons';
 import { IconButton } from './Button';
 
 /**
@@ -153,7 +154,7 @@ function Shell() {
           {/* Видимый вход в справку: клавишу «?» знает только тот, кто её уже нашёл. На телефоне
               справки по клавишам нет — клавиатуры там нет, а место в строке нужно аватару. */}
           <IconButton label="Справка и горячие клавиши" size="lg" className="max-md:hidden" onClick={() => setHelpOpen(true)}>
-            <CircleHelp size={20} />
+            <Icon icon={Help} size={20} />
           </IconButton>
           <span className="pl-1"><AccountMenu admin={admin} /></span>
         </header>
@@ -211,7 +212,7 @@ function SearchButton({ onOpen }: { onOpen: () => void }) {
           остаётся значок поиска. Метка держится дольше подписи: учить клавише — смысл кнопки. */}
       <button type="button" onClick={onOpen} aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'}
         className="@container flex-1 min-w-10 max-md:min-w-11 max-w-160 flex items-center gap-2.5 h-10 max-md:h-11 px-2.5 mx-1 md:mx-3 overflow-hidden rounded-full bg-surface-container-low text-sm text-fg3 hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-        <Search size={18} className="shrink-0" />
+        <Icon icon={Search} size={18} className="shrink-0" />
         <span className="flex-1 min-w-0 truncate text-left @max-[8rem]:sr-only">Найти счёт, стройку или действие</span>
         <kbd className="hidden @[14rem]:inline shrink-0 rounded border border-outline-variant px-1.5 text-caption text-fg4">{mac ? '⌘ K' : 'Ctrl K'}</kbd>
       </button>
@@ -231,7 +232,7 @@ function EmailConfirmBanner() {
 
   return (
     <div className="shrink-0 flex items-center gap-2 px-4 py-2 text-sm bg-warning-container text-warning border-b border-warning/30">
-      <MailWarning size={16} className="shrink-0" />
+      <Icon icon={MarkEmailUnread} size={18} className="shrink-0" />
       <span className="flex-1">
         Email <span className="font-medium">{account.email}</span> не подтверждён.{' '}
         {sent
@@ -246,7 +247,7 @@ function EmailConfirmBanner() {
       </span>
       <button type="button" onClick={() => setDismissed(true)} aria-label="Скрыть"
         className="shrink-0 p-1 rounded hover:bg-warning/10">
-        <X size={14} />
+        <Icon icon={Close} size={18} />
       </button>
     </div>
   );

@@ -1,5 +1,6 @@
 import { useId, useRef, useState } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Search } from '@/shared/ui/icons';
 import { useCan } from '@/shared/api/access';
 import { planRefusal, type EstimateRevision, type EstimateRow, type PlanRefusal } from '@/shared/api/planningEstimates';
 import {
@@ -151,7 +152,7 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
       </div>
 
       <div className="flex items-center gap-2 rounded-md border border-outline px-2.5 h-10">
-        <Search size={15} className="text-fg4 shrink-0" />
+        <Icon icon={Search} size={18} className="text-fg4 shrink-0" />
         <input value={typed} onChange={e => type(e.target.value)} placeholder="наименование или часть наименования"
           aria-label="Поиск позиции" className="flex-1 bg-transparent text-sm outline-none text-on-surface placeholder:text-fg4" />
       </div>
@@ -196,7 +197,7 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
 
       <div className="flex flex-wrap items-center justify-end gap-2 border-t border-outline-variant pt-3">
         {canCreate && (
-          <Button size="sm" variant="text" icon={<Plus size={16} />} className="mr-auto" onClick={() => setCreating(true)}>Новая позиция…</Button>
+          <Button size="sm" variant="text" icon={<Icon icon={Add} size={18} />} className="mr-auto" onClick={() => setCreating(true)}>Новая позиция…</Button>
         )}
         <ModalExit>Закрыть</ModalExit>
         <Button variant="text" disabled={match.isPending} onClick={onDone}>Пропустить</Button>
