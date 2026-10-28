@@ -96,6 +96,30 @@ describe('RowFilterValue: «да / нет» — Select', () => {
   });
 });
 
+describe('RowFilterValue: перечень со словами, похожими на «значения нет»', () => {
+  function Choice({ options }: { options: string[] }) {
+    const [cond, setCond] = useState<FilterCondition>({ type: 'condition', column: 'Код', op: 'eq', value: '' });
+    return (
+      <>
+        <RowFilterValue cond={cond} column={{ kind: 'choice', options }} onChange={setCond} />
+        <output data-testid="cond">{JSON.stringify(cond.value)}</output>
+      </>
+    );
+  }
+
+  it('пустое слово перечня пунктом не рисуется — список открывается, а не падает', () => {
+    render(<Choice options={['', 'А']} />);
+    fireEvent.keyDown(combo('Значение'), { key: 'Enter' });
+    expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['— значение —', 'А']);
+  });
+
+  it('слово «∅» — обычное значение, а не служебное «не выбрано»', () => {
+    render(<Choice options={['∅', 'А']} />);
+    pick('Значение', '∅');
+    expect(JSON.parse(screen.getByTestId('cond').textContent!)).toBe('∅');
+  });
+});
+
 describe('FilterChips: Select в поповере чипа', () => {
   function Chips() {
     const [filter, setFilter] = useState<FilterNode | null>(null);

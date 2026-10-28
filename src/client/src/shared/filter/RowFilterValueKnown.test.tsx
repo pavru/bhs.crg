@@ -97,6 +97,9 @@ describe('RowFilterValue: значение вне закрытого переч�
     expect(stray.textContent).toContain('Частично');
     // Тон — у пилюли Chip, обёртки кнопки с текстом (#1469).
     expect(stray.parentElement!.className).toContain('border-warning-border');
+    expect(stray.parentElement!.className).toContain('bg-warning-subtle');
+    // Жетон — подпись, а не кнопка: нажать в нём нечего, кроме крестика.
+    expect(stray.tagName).toBe('SPAN');
     expect(stray.parentElement!.className).not.toContain('text-danger');
     expect(screen.getByText(/нет в перечне колонки/).className).toContain('text-warning');
     fireEvent.click(screen.getByRole('button', { name: 'Убрать «Частично»' }));

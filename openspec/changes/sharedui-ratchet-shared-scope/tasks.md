@@ -8,8 +8,8 @@
   `white-on-fill`, `portal-container`, `native-date` — как были; обход — `features`, `shared` (+ корень
   для `everywhere`) [UI-47]. Проверка — `ui-ratchet.test.mjs`: `shared/filter` в обходе, `shared/ui` —
   нет для общих правил и да для `white-on-fill`
-- [x] 1.2 `fixed-width` без медиазапросов: `(?<![\w-])` перед именем свойства [UI-47]. Проверка — тест:
-  `'(min-width: 768px)'` не считается, `style={{ width: 120 }}` считается; `npm run ui:ratchet:update` на
+- [x] 1.2 `fixed-width` без медиазапросов: свойство сразу после `(` с `min-`/`max-` не считается [UI-47]. Проверка — тест:
+  `'(min-width: 768px)'` не считается, `style={{ width: 120 }}` и `'min-width: 520px'` строкой CSS считаются; `npm run ui:ratchet:update` на
   дереве до переводов меняет только раздел `shared/`
 - [x] 1.3 Сводка храповика называет новую область (`ui-ratchet.mjs`, первая строка вывода) [UI-47].
   Проверка — вывод `npm run ui:ratchet`

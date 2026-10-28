@@ -3,8 +3,7 @@ import type { FilterCondition, FilterOp } from '@/shared/api/types';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { columnLabel, operatorsFor, opLabel, withColumn, withOperator, type FilterColumn } from './rowFilterModel';
 import { RowFilterValue } from './RowFilterValue';
-
-const FIELD_CLS = 'border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1';
+import { FIELD_CLS } from './fieldClass';
 
 /**
  * Три поля одного условия — колонка, оператор, значение. Один редактор на оба лица отбора: строку

@@ -45,6 +45,9 @@ describe('храповик интерфейса: счёт', () => {
       .toEqual({});
     expect(countViolations('<div style={{ width: 120 }} />', { dir: 'shared', file: 'shared/filter/x.tsx' }))
       .toEqual({ 'fixed-width': 1 });
+    // Та же запись строкой CSS — ширина элемента, а не условие медиазапроса.
+    expect(countViolations("el.style.cssText = 'min-width: 520px'; box.style.width = 'x'; const css = \"max-width:200px\";"))
+      .toEqual({ 'fixed-width': 2 });
   });
 
   /** Подсказка браузера вместо нашей (issue #1394): атрибут в любой строке многострочного тега. */
@@ -317,6 +320,9 @@ describe('храповик интерфейса: какие каталоги о�
     expect(scopeNote(RULES.find(r => r.id === 'native-pdf-frame')))
       .toBe('native-pdf-frame — и в shared/ui/, кроме shared/ui/viewer/');
     expect(defaultScopeNote()).toBe('features/ и shared/ без shared/ui/');
+    // Уже области по умолчанию — тоже названо: иначе сводка приписала бы правилу shared/.
+    expect(scopeNote({ id: 'x', dirs: ['features'] })).toBe('x — без shared/');
+    expect(scopeNote({ id: 'y', dirs: ['features', 'shared', 'app'] })).toBe('y — и в app/, shared/ui/');
   });
 });
 

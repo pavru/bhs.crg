@@ -10,8 +10,7 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 import { SuggestField } from '@/shared/ui/SuggestField';
 import { shownValue } from './chipsModel';
 import { conditionNotice } from './conditionNotice';
-
-const FIELD_CLS = 'border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1';
+import { FIELD_CLS } from './fieldClass';
 
 /**
  * Что полю значения нужно знать о колонке: вид, у колонки-выбора — её перечень, у колонки с открытым
@@ -69,7 +68,9 @@ function ValueInput({ column, value, onChange, placeholder, onEnter, onAccept, o
         emptyItem="— значение —" className="flex-1 min-w-0 min-h-7" aria-label={placeholder}>
         {kind === 'boolean'
           ? <><SelectItem value="true">да</SelectItem><SelectItem value="false">нет</SelectItem></>
-          : (column?.options ?? []).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+          // Пустое слово перечня — то же «значения нет», что пункт «— значение —»: пунктом Radix его не
+          // берёт вовсе (пустое значение пункта — отказ всего списка).
+          : (column?.options ?? []).filter(o => o !== '').map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
       </Select>
     );
 
@@ -239,9 +240,9 @@ function OptionList({ options, values, strays, onChange }: {
 }
 
 /**
- * Значение списка жетоном: `Chip` со снятием (#1469) — крестик рисует он. Нажать в самом жетоне нечего,
- * поэтому его текст вне Tab: с клавиатуры до жетона доходят крестиком «Убрать «…»».
- * `warning` — значение вне справочника или перечня (UI-56): тон предупреждения и значок, а не только цвет.
+ * Значение списка жетоном: `Chip removeOnly` (#1469) — нажать в нём нечего, кроме крестика «Убрать «…»»,
+ * и текст — подпись, а не кнопка. Значение в списке — бренд, как было; `warning` — значение вне
+ * справочника или перечня (UI-56): тон предупреждения с заливкой и значок, а не только цвет.
  */
 function ValueChip({ label, warning = false, stray = false, onRemove }: {
   label: string;
@@ -251,8 +252,8 @@ function ValueChip({ label, warning = false, stray = false, onRemove }: {
   onRemove: () => void;
 }) {
   return (
-    <Chip tone={warning ? 'warning' : 'neutral'} tabIndex={-1} data-stray={stray ? '' : undefined}
-      onRemove={onRemove} removeLabel={`Убрать «${label}»`}>
+    <Chip removeOnly selected={!warning} tone={warning ? 'warning' : undefined} className={warning ? 'bg-warning-subtle!' : ''}
+      data-stray={stray ? '' : undefined} onRemove={onRemove} removeLabel={`Убрать «${label}»`}>
       {/* У значения вне перечня причину называет строка под отметками — значку имя не нужно. */}
       {warning && (stray
         ? <BookX size={10} aria-hidden className="inline align-[-1px] mr-1" />

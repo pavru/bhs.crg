@@ -130,11 +130,15 @@ function ConditionChip({ cond, columns, onChange, onRemove }: {
   const problem = chipProblem(cond, columns);
   const notice = problem ? null : conditionNotice(cond, columns.find(c => c.name === cond.column));
   // Подсказка — у триггера поповера целиком (docs/UI.md, «Подсказка»): `ConditionPopover` отдаёт ему
-  // то, что пришло от `Tooltip`, а `Chip` — своей кнопке-тексту.
+  // то, что пришло от `Tooltip`, а `Chip` — своей кнопке-тексту. Годное условие — в цвете бренда
+  // («отбор стоит»), `menu` — чип открывает окошко и нажатым не бывает. Пометка — заливкой поверх
+  // тона (`bg-…!`, как пометка поверх рамки поля): тон `warning` у Chip без заливки, а пометка обязана
+  // читаться целиком, а не одной рамкой.
   return (
     <Tooltip content={problem ? `Условие не выполнится: ${problem}` : notice ? noticeText(notice) : undefined}>
       <ConditionPopover columns={columns} initial={cond} submit="Применить" onSubmit={onChange}>
-        <Chip tone={problem ? 'danger' : notice ? 'warning' : 'neutral'} icon={problem ? TriangleAlert : undefined}
+        <Chip menu selected={!problem && !notice} tone={problem ? 'danger' : notice ? 'warning' : undefined}
+          icon={problem ? TriangleAlert : undefined} className={notice ? 'bg-warning-subtle!' : ''}
           data-notice={notice ? '' : undefined}
           onRemove={onRemove} removeLabel={`Снять условие «${text}»`}>
           {notice && <BookX size={12} aria-label="нет в справочнике" className="inline align-[-2px] mr-1" />}
