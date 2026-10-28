@@ -4,6 +4,7 @@ using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Activity;
 using BHS.CRG.Infrastructure.Activity;
 using BHS.CRG.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit.Abstractions;
 
@@ -305,6 +306,79 @@ public class ActivitySeriesTests(IntegrationTestFixture fixture, ITestOutputHelp
         var rows = await RowsAsync();
         Assert.Equal(3, rows.Count);
         Assert.All(rows, r => Assert.Equal(1, r.Count));
+    }
+
+    /// <summary>
+    /// Предыдущая запись цели ссылается на сессию, головы которой в журнале нет. Новая правка начинает
+    /// свою сессию, а не роняет действие отказом материализации.
+    /// </summary>
+    [Fact]
+    public async Task Сессия_без_головы_начинается_заново_а_не_роняет_запись()
+    {
+        var orphan = ActivityRecord.Create(Head.Code, Ivan.Id, Ivan.Name, _invoice, "Счёт № 14", after: "номер",
+            id: Guid.NewGuid(), occurredAt: _clock.GetUtcNow(), sessionId: Guid.NewGuid(), seriesHead: false);
+        await ImportAsync([orphan]);
+        _clock.Advance(TimeSpan.FromSeconds(1));
+
+        await WriteAsync(Ivan, Head, after: "дата");
+
+        var fresh = (await RecordsAsync())[^1];
+        Assert.Equal(fresh.Id, fresh.SessionId);
+        Assert.True(fresh.SeriesHead);
+    }
+
+    /// <summary>Сворачиваемый вид в транзакции со снимком — отказ, а не ряд, склеенный по старому снимку.</summary>
+    [Fact]
+    public async Task Сворачиваемый_вид_в_транзакции_со_снимком_отказ()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
+
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Journal(scope, Ivan, _clock).RecordAsync(Head, _invoice, "Счёт № 14", after: "номер"));
+        Assert.Contains("RepeatableRead", refused.Message);
+    }
+
+    /// <summary>
+    /// Несворачиваемая запись в чужой транзакции не ждёт замка цели. Иначе вызывающий, пишущий журнал
+    /// по нескольким целям, сцепился бы с другим таким же взаимной блокировкой.
+    /// </summary>
+    [Fact]
+    public async Task Одиночная_запись_в_чужой_транзакции_не_ждёт_замка_цели()
+    {
+        using var holder = fixture.Services.CreateScope();
+        var held = holder.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var lockTx = await held.Database.BeginTransactionAsync();
+        await held.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(hashtextextended({_invoice}, 0))");
+
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var tx = await db.Database.BeginTransactionAsync();
+        var write = Journal(scope, Ivan, _clock).RecordAsync(Marked, _invoice, "Счёт № 14");
+
+        Assert.Same(write, await Task.WhenAny(write, Task.Delay(TimeSpan.FromSeconds(5))));
+        await write;
+        await tx.CommitAsync();
+        await lockTx.RollbackAsync();
+    }
+
+    /// <summary>Раскрытие ряда отдаёт не больше потолка — первые записи по времени.</summary>
+    [Fact]
+    public async Task Раскрытие_ряда_ограничено_потолком()
+    {
+        var session = Guid.NewGuid();
+        var records = Enumerable.Range(0, ActivityLog.MaxSeries + 1).Select(i => ActivityRecord.Create(
+            Head.Code, Ivan.Id, Ivan.Name, _invoice, "Счёт № 14", after: "номер",
+            id: i == 0 ? session : Guid.NewGuid(), occurredAt: _clock.GetUtcNow().AddSeconds(i),
+            sessionId: session, seriesHead: i == 0)).ToList();
+        await ImportAsync(records);
+
+        var series = await SeriesAsync(session, Head.Code);
+        Assert.Equal(ActivityLog.MaxSeries, series.Count);
+        Assert.Equal(session, series[0].Id);
+        Assert.Equal(ActivityLog.MaxSeries + 1, Assert.Single(await RowsAsync()).Count);
     }
 
     // ── Помощники ────────────────────────────────────────────────────────────────────────────
