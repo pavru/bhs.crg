@@ -50,22 +50,22 @@
   [UI-60]. Проверка — `rg "lucide" src/client/src src/client/package.json` пусто; `npx tsc -b` зелёный
 - [x] 2.3 Уровни `lucide-import` и `spinner-icon` — 0 [UI-60] [UI-61]. Проверка — `npm run ui:ratchet`
   зелёный, в `ui-baseline.json` правила пусты
-- [ ] 2.4 Геометрия живых прогонов (25 файлов с `boundingBox`) поправлена там, где выросли значки, — с
+- [x] 2.4 Геометрия живых прогонов (25 файлов с `boundingBox`) поправлена там, где выросли значки, — с
   объяснением в описании PR [UI-60]. Проверка — весь `test:e2e:ci` зелёный; ни одна проверка не ослаблена
-  без причины в описании
+  без причины в описании. Итог: правок не понадобилось — `test:e2e:ci` зелёный на обоих PR (на втором — 378 прогонов, без повторов)
 - [x] 2.5 Бюджет: `npm run build` на master и ветке, gzip основного чанка [UI-60]. Проверка — разница не
   больше бюджета `design.md`, оба числа в описании PR
-- [ ] 2.6 Снимки 5–7 ключевых экранов до и после в обеих темах на 1366×768 и 375 px (зонтик, 5.2).
+- [x] 2.6 Снимки 5–7 ключевых экранов до и после в обеих темах на 1366×768 и 375 px (зонтик, 5.2).
   Проверка — снимки в описании PR
 - [ ] 2.7 После слияния — `/design-sync` из основной копии: превью и `config.json` без lucide. Проверка —
   в превью дизайн-системы нет `lucide-react`
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~AgentRulesCopy"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста; `lucide-import`,
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~AgentRulesCopy"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 3.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста; `lucide-import`,
   `spinner-icon`, `icon-size` — 0
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 3.5 `cd src/client && npm run -s test:e2e:ci` — весь список живых прогонов зелёный в каждом из двух
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.5 `cd src/client && npm run -s test:e2e:ci` — весь список живых прогонов зелёный в каждом из двух
   PR: значки стоят в общих компонентах и оболочке (зонтик, 5.1)
