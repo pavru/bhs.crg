@@ -52,5 +52,5 @@
 - [x] 4.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста, `legacy-class` ниже
   прежнего уровня
 - [x] 4.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 4.5 `cd src/client && npm run -s test:e2e:ci` — весь список живых прогонов зелёный: правка общих
+- [x] 4.5 `cd src/client && npm run -s test:e2e:ci` — весь список живых прогонов зелёный: правка общих
   компонентов `shared/ui` (зонтик, 5.1)
