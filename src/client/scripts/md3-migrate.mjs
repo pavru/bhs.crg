@@ -2,7 +2,8 @@
 // Перевод старых имён на роли MD3 (эпик sharedui-md3, [UI-58]) — перезапускаемой командой по карте
 // md3-class-map.json, а не руками и не серией sed: классы живут в любых строках (className, карты
 // вариантов, clsx, шаблоны, константы, ожидания тестов, комментарии), а ветка, начатая до перевода,
-// обязана обновляться механически — принять master в конфликтах, запустить команду, закоммитить.
+// обязана обновляться механически — слить перевод с версией ветки в конфликтах, запустить команду,
+// закоммитить (docs/UI.md, «Перевод: как обновить ветку»).
 //
 // Один проход по исходному тексту: строка собирается из кусков, результат замены повторно не
 // заменяется (карта `a → b`, `b → c` даёт из `a b` строку `b c`, а не `c c`). Повторный запуск ничего не
@@ -13,9 +14,10 @@
 //   npm run md3:migrate -- --check — только проверить: код 1, если есть что менять
 
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { COLOR_UTILITIES, stripComments } from './class-scan.mjs';
+import { CLASS_AFTER, CLASS_BEFORE, COLOR_UTILITIES, stripComments } from './class-scan.mjs';
+import { entries, themeDir } from './md3-theme.mjs';
 import theme from '../src/theme/md3-theme.json' with { type: 'json' };
 import classMap from './md3-class-map.json' with { type: 'json' };
 
@@ -23,17 +25,13 @@ const here = dirname(fileURLToPath(import.meta.url));
 export const clientRoot = join(here, '..');
 const UTILITY = new RegExp(`^(?:${COLOR_UTILITIES})$`);
 
-/** Пары «имя — значение» без ключей-комментариев («//»). */
-const entries = obj => Object.entries(obj ?? {}).filter(([k]) => !k.startsWith('//'));
-
-// Переменная (`--f-shadow16`, `--color-brand`) или класс с границей сторожа словаря (`CANDIDATE` из
-// class-scan.mjs): перед классом — начало, пробел, кавычка, скобка или `:` варианта (`hover:`,
-// `data-[…]:`), после — конец, пробел, кавычка, скобка, запятая или `\` (кавычка в строке: `\'bg-brand\'`). Класс — любой, не только цветовой:
-// `classes` карты дописывают и радиусы (sharedui-md3-06). Группы: 1 — переменная; 2 — `!` и `-` впереди;
-// 3 — класс без вариантов; 4 — прозрачность и `!` в конце.
+// Переменная (`--f-shadow16`, `--color-brand`) или класс с границей сторожей (`CLASS_BEFORE`,
+// `CLASS_AFTER` из class-scan.mjs — одна на обоих: что команда переводит, то храповик legacy-class и
+// видит). Класс — любой, не только цветовой: `classes` карты дописывают и радиусы (sharedui-md3-06).
+// Группы: 1 — переменная; 2 — `!` и `-` впереди; 3 — класс без вариантов; 4 — прозрачность и `!` в конце.
 const TOKEN = new RegExp(
   '(?<![\\w-])(--[a-z][\\w-]*)'
-  + `|(?<=^|[\\s'"\`:{(.])(!?-?)([a-z][\\w-]*)((?:\\/(?:[\\w.]+|\\[[^\\]\\s]+\\]))?!?)(?=$|[\\s'"\`}),;\\\\.:])`, 'gm');
+  + `|${CLASS_BEFORE}(!?-?)([a-z][\\w-]*)((?:\\/(?:[\\w.]+|\\[[^\\]\\s]+\\]))?!?)${CLASS_AFTER}`, 'gm');
 
 /**
  * Правила из карты. `aliases` — все старые имена цвета (описание темы): имя без пары в `names` —
@@ -65,10 +63,19 @@ export function compile(map = classMap, aliases = entries(theme.aliases).map(([k
     return { to: `${color.utility}-${to}`, pair: `${color.name} → ${to}` };
   };
 
+  // Имя, которое для какой-то утилиты не переводится по смыслу (`text-fg4`: текст цветом обводки), —
+  // в `var(--color-…)` неоднозначно: утилиты у переменной нет, и чем она станет, по ней не видно.
+  // `notColor` — пропуск не о цвете (`text-base` — размер текста), имя переменной он не задевает.
+  const ambiguousVar = new Map(entries(map.classes)
+    .filter(([k, v]) => v.skip && !v.notColor && colorName(k))
+    .map(([k, v]) => [colorName(k).name, `${k} — ${v.skip}`]));
+
   /** Переменная → `{ to }`, `{ reason }` или null. */
   const variable = name => {
     if (vars[name]) return { to: vars[name], pair: `${name} → ${vars[name]}` };
     const color = name.match(/^--color-(.+)$/)?.[1];
+    if (color && ambiguousVar.has(color))
+      return { reason: `--color-${color} — переменная без утилиты, а ${ambiguousVar.get(color)}` };
     if (color && names[color]?.to) return { to: `--color-${names[color].to}`, pair: `${color} → ${names[color].to}` };
     if (color && known.includes(color)) return { reason: `${color} — нет пары в карте (роли того же смысла нет: sharedui-md3-04, -05)` };
     if (name.startsWith('--f-')) return { reason: `${name} — нет строки в vars карты: значения без роли MD3` };
@@ -79,15 +86,27 @@ export function compile(map = classMap, aliases = entries(theme.aliases).map(([k
 }
 
 const isTest = file => /\.test\.[cm]?[tj]sx?$/.test(file);
+const NEGATIVE = /\.not\s*\.|\.toBe\(\s*false\s*\)|\.toBeFalsy\(\)|\.toBeNull\(\)|\.toBeUndefined\(\)|\.toHaveLength\(\s*0\s*\)/;
 
 /**
- * Перевод текста файла. `file` — путь для отчёта (и признак теста: в тесте строка с `.not.` —
- * отрицательное ожидание, её переписывают руками так, чтобы ожидание снова могло упасть).
+ * Отрицательное ожидание: место внутри цепочки `expect(…)…;`, где есть `.not.`, `toBe(false)`,
+ * `toBeFalsy()`, `toBeNull()` и подобное. Цепочка — от последнего `expect(` до `;` после места, если
+ * между `expect(` и местом нет `;`: многострочное ожидание узнаётся так же, как однострочное.
+ */
+function inNegativeExpect(text, index) {
+  const start = text.lastIndexOf('expect(', index);
+  if (start < 0 || text.slice(start, index).includes(';')) return false;
+  const end = text.indexOf(';', index);
+  return NEGATIVE.test(text.slice(start, end < 0 ? text.length : end));
+}
+
+/**
+ * Перевод текста файла. `file` — путь для отчёта (и признак теста: отрицательное ожидание переписывают
+ * руками так, чтобы оно снова могло упасть, — см. `inNegativeExpect`).
  * Возвращает новый текст, замены (`{ line, from, to, pair, comment }`) и нетронутое (`{ line, token, reason }`).
  */
 export function migrateText(text, { file = '', rules = compile() } = {}) {
   const stripped = stripComments(text);
-  const lines = text.split('\n');
   const replaced = [];
   const untouched = [];
   let line = 1;
@@ -101,7 +120,7 @@ export function migrateText(text, { file = '', rules = compile() } = {}) {
       untouched.push({ line, token, reason: hit.reason });
       return whole;
     }
-    if (isTest(file) && lines[line - 1].includes('.not.')) {
+    if (isTest(file) && inNegativeExpect(text, index)) {
       untouched.push({ line, token, reason: 'отрицательное ожидание теста — переписать руками, чтобы снова могло упасть' });
       return whole;
     }
@@ -113,13 +132,21 @@ export function migrateText(text, { file = '', rules = compile() } = {}) {
 
 const SOURCE = /\.(?:[cm]?[tj]sx?|css)$/;
 
-/** Файлы под `root`. `theme/` — сами псевдонимы и сгенерированная тема: их не переводят. */
+// Не переводятся при любом корне: src/theme/ — сами псевдонимы и сгенерированная тема (`--color-fg1: …`
+// перевёлся бы в роль), scripts/ — сама команда, её карта и фикстуры старых имён у тестов сторожей.
+// Регистр сравнивается без учёта на Windows: буква диска у cwd и у import.meta.url бывает разной.
+const norm = p => process.platform === 'win32' ? p.toLowerCase() : p;
+const NEVER = [themeDir, here].map(norm);
+const outside = path => !NEVER.some(dir => norm(path) === dir || norm(path).startsWith(dir + sep));
+
+/** Файлы под `root`, кроме `NEVER`, node_modules и dist. */
 export function sourceFiles(root) {
-  if (statSync(root).isFile()) return [root];
-  return readdirSync(root, { recursive: true })
-    .map(f => String(f).replaceAll('\\', '/'))
-    .filter(f => SOURCE.test(f) && !f.startsWith('theme/') && !f.includes('node_modules/'))
-    .map(f => join(root, f));
+  const abs = resolve(root);
+  if (!outside(abs)) return [];
+  if (statSync(abs).isFile()) return [abs];
+  return readdirSync(abs, { withFileTypes: true }).flatMap(e =>
+    e.isDirectory() ? (e.name === 'node_modules' || e.name === 'dist' ? [] : sourceFiles(join(abs, e.name)))
+      : SOURCE.test(e.name) ? sourceFiles(join(abs, e.name)) : []);
 }
 
 /** Перевод файлов: `write` — записать изменённые. Возвращает отчёт по файлам. */

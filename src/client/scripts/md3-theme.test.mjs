@@ -41,7 +41,10 @@ const UTILITIES = ['bg', 'text', 'border', 'border-t', 'ring', 'outline', 'divid
   'accent', 'caret', 'decoration'];
 
 let declarations;
-beforeAll(async () => { declarations = await loadDeclarations(srcRoot); });
+beforeAll(async () => {
+  declarations = await loadDeclarations(srcRoot);
+  declarations.prime(UTILITIES.flatMap(u => Object.entries(ALIAS_ROLE).flatMap(([old, role]) => [`${u}-${old}`, `${u}-${role}`])));
+});
 
 describe('тема MD3: старые имена рисуют прежнее', () => {
   it('перечень старых имён в описании темы — тот же, что в договоре', () => {

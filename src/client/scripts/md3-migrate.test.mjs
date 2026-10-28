@@ -1,11 +1,11 @@
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { COLOR_UTILITIES } from './class-scan.mjs';
 import { loadDeclarations } from './color-classes-lib.mjs';
-import { compile, formatReport, migrateFiles, migrateText, sourceFiles } from './md3-migrate.mjs';
+import { clientRoot, compile, formatReport, migrateFiles, migrateText, sourceFiles } from './md3-migrate.mjs';
 import classMap from './md3-class-map.json' with { type: 'json' };
 
 // Кодмод перевода старых имён (эпик sharedui-md3, [UI-58]): почему команда, а не sed, — в md3-migrate.mjs.
@@ -43,6 +43,13 @@ describe('md3:migrate: что переводит', () => {
     expect(migrated("querySelectorAll('span.bg-brand-subtle'); getByText('x', { selector: '.text-fg1' })"))
       .toBe("querySelectorAll('span.bg-primary-container'); getByText('x', { selector: '.text-on-surface' })");
     expect(migrated('.bg-brand:hover, .row.border-stroke { }')).toBe('.bg-primary:hover, .row.border-outline-variant { }');
+  });
+
+  it('путь файла с именем класса — не класс', () => {
+    const source = "import icon from './bg-brand.svg'; url('text-fg1.png') 'bg-brand.tsx'";
+    expect(migrated(source)).toBe(source);
+    // А точка в конце фразы комментария — граница.
+    expect(migrated('// фон — bg-brand.')).toBe('// фон — bg-primary.');
   });
 
   it('длинное имя — целиком: on-brand-subtle — не brand-subtle', () => {
@@ -94,6 +101,17 @@ describe('md3:migrate: неоднозначное не трогает, а наз
     expect(migrated('"border-stroke-strong bg-fg4"')).toBe('"border-outline bg-outline"');
   });
 
+  it('var(--color-fg4) и var(--color-stroke-strong) — неоднозначны: text-fg4 не переводится, а у переменной утилиты нет', () => {
+    const source = 'border-l-[var(--color-fg4)] [color:var(--color-stroke-strong)]';
+    expect(migrated(source)).toBe(source);
+    expect(run(source).untouched).toEqual([
+      { line: 1, token: '--color-fg4', reason: expect.stringContaining('text-fg4') },
+      { line: 1, token: '--color-stroke-strong', reason: expect.stringContaining('text-stroke-strong') },
+    ]);
+    // Пропуск не о цвете (text-base) переменную не задевает.
+    expect(migrated('[color:var(--color-base)]')).toBe('[color:var(--color-surface-container-low)]');
+  });
+
   it('переменные без пары: var(--color-fg3), --f-fg3', () => {
     const source = 'border-l-[var(--color-fg3)] [color:var(--f-fg3)]';
     expect(migrated(source)).toBe(source);
@@ -107,6 +125,21 @@ describe('md3:migrate: неоднозначное не трогает, а наз
     expect(u).toEqual([{ line: 1, token: 'text-danger', reason: expect.stringContaining('отрицательное ожидание') }]);
     // Вне теста «.not.» — просто текст.
     expect(migrated("a.not.b('text-danger')")).toBe("a.not.b('text-error')");
+  });
+
+  it('отрицательное ожидание на нескольких строках и без .not. — тоже', () => {
+    const source = [
+      'expect(cls)',
+      '  .not',
+      ".toContain('text-danger');",
+      "expect(el.classList.contains('bg-brand')).toBe(false);",
+      "expect(screen.queryByText('x', { selector: '.bg-brand' })).toBeNull();",
+      "const keep = 'bg-brand'; expect(x).not.toBe(1);",
+    ].join('\n');
+    const { text, untouched: u } = run(source, 'src/x.test.tsx');
+    expect(u.map(x => [x.line, x.token])).toEqual([[3, 'text-danger'], [4, 'bg-brand'], [5, 'bg-brand']]);
+    // Класс до `expect(` той же строки — не в цепочке ожидания: переводится.
+    expect(text.split('\n')[5]).toBe("const keep = 'bg-primary'; expect(x).not.toBe(1);");
   });
 });
 
@@ -123,6 +156,13 @@ describe('md3:migrate: один проход', () => {
     const twice = run(once);
     expect(twice.text).toBe(once);
     expect(twice.replaced).toEqual([]);
+  });
+
+  it('src/theme/ и scripts/ не обходятся при любом корне: там сами псевдонимы и фикстуры старых имён', () => {
+    const files = sourceFiles(clientRoot).map(f => relative(clientRoot, f).replaceAll('\\', '/'));
+    expect(files).toContain('src/main.tsx');
+    expect(files.filter(f => /^(?:src\/theme|scripts|node_modules)\//.test(f))).toEqual([]);
+    expect(sourceFiles(join(clientRoot, 'src', 'theme'))).toEqual([]);
   });
 
   it('второй прогон по дереву — «замен 0», --check — код 0', () => {
@@ -152,7 +192,11 @@ describe('md3:migrate: пары карты рисуют то же', () => {
   const utilities = COLOR_UTILITIES.split('|')
     .flatMap(u => u === 'border-[xytblrse]' ? [...'xytblrse'].map(s => `border-${s}`) : [u]);
   let declarations;
-  beforeAll(async () => { declarations = await loadDeclarations(join(import.meta.dirname, '..', 'src')); });
+  beforeAll(async () => {
+    declarations = await loadDeclarations(join(import.meta.dirname, '..', 'src'));
+    const names = Object.entries(classMap.names).filter(([k]) => !k.startsWith('//')).flatMap(([old, { to }]) => [old, to]);
+    declarations.prime(utilities.flatMap(u => names.map(n => `${u}-${n}`)));
+  });
 
   /** Пары `same: true`, у которых старый и новый класс рисуют разное, — с утилитой и темой. */
   const mismatches = names => Object.entries(names).filter(([k, v]) => !k.startsWith('//') && v.same).flatMap(([old, { to }]) =>

@@ -21,7 +21,7 @@ const HEADER = '/* Сгенерировано scripts/md3-theme.mjs из src/the
   + '   Правка — в md3-theme.json, затем: npm run md3:theme */\n';
 
 /** Пары «имя — значение» без ключей-комментариев («//»). */
-const entries = obj => Object.entries(obj ?? {}).filter(([k]) => !k.startsWith('//'));
+export const entries = obj => Object.entries(obj ?? {}).filter(([k]) => !k.startsWith('//'));
 
 /** Переменная роли: своя роль (`ext`) — `--md-ext-color-*`, роль схемы MD3 — `--md-sys-color-*`. */
 export function roleVar(theme, role) {

@@ -170,12 +170,25 @@ describe('храповик интерфейса: счёт', () => {
       '<button className="bg-primary text-white" />',
       '<span className="bg-[var(--md-sys-color-error)] text-white" />',
       '<i className="hover:bg-[var(--md-ext-color-success)] fill-white" /> <b className="bg-warning ring-white" />',
-      '<button className="bg-brand text-white" />',
-    ].join('\n'))).toEqual({ 'white-on-fill': 5 });
+    ].join('\n'))).toEqual({ 'white-on-fill': 4 });
     expect(countViolations([
       '<div className="bg-primary-container text-white" />',
       '<div className="bg-[var(--md-sys-color-primary-container)] text-white" />',
       '<div className="bg-error-container text-white" /> <div className="bg-primary text-on-primary" />',
+    ].join('\n'))).toEqual({});
+  });
+
+  /** Старые имена — пока живы псевдонимы ([UI-58]): ветка, начатая до перевода, пишет ими. */
+  it('белое на заливке старым именем и его переменной; парный старый токен — не нарушение', () => {
+    expect(countViolations([
+      '<button className="bg-brand text-white" />',
+      '<span className="bg-danger/90 text-white" />',
+      '<i className="bg-[var(--color-danger)] shadow-white" />',
+    ].join('\n'))).toEqual({ 'white-on-fill': 3 });
+    expect(countViolations([
+      '<button className="bg-brand text-on-brand hover:bg-brand-hover">A</button>',
+      '<span className="bg-danger text-on-danger ring-on-danger">!</span>',
+      '<div className="bg-brand-subtle text-on-brand-subtle dark:hover:bg-white/10">B</div>',
     ].join('\n'))).toEqual({});
   });
 
@@ -343,6 +356,16 @@ describe('храповик интерфейса: словарь MD3 (sharedui-md
       '<div className="hover:bg-brand-subtle text-fg1 border-stroke/50" />',
       "const s = { boxShadow: 'inset 0 2px 0 0 var(--color-brand)' }; const d = 'var(--color-fg3)';",
       '/* text-fg2 в комментарии не рисуется */',
+    ].join('\n'), { dir: 'shared', file: 'shared/ui/x.tsx' })).toEqual({ 'legacy-class': 5 });
+  });
+
+  /** Граница класса — та же, что у кодмода md3:migrate (sharedui-md3-02): что он переводит, то сторож и видит. */
+  it('старые имена в селекторе и в строке внутри строки; путь файла — не класс', () => {
+    expect(countAll([
+      "querySelectorAll('span.bg-brand-subtle'); getByText('x', { selector: '.text-fg1' })",
+      '.bg-brand:hover, .row.border-stroke { }',
+      "const t = '${on ? \\'border-brand-subtle\\' : \\'\\'}';",
+      "import icon from './bg-brand.svg'; url('text-fg1.png')",
     ].join('\n'), { dir: 'shared', file: 'shared/ui/x.tsx' })).toEqual({ 'legacy-class': 5 });
   });
 
