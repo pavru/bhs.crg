@@ -288,33 +288,26 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
     }
 
     /// <summary>Записи журнала по всем действиям модуля — только о счёте и статьях этого теста: база у хоста общая.</summary>
-    private async Task<List<BHS.CRG.Application.Activity.ActivityRow>> RecordsOfAsync(params Guid[] targets)
+    private async Task<List<ActivityRecord>> RecordsOfAsync(params Guid[] targets)
     {
-        var records = new List<BHS.CRG.Application.Activity.ActivityRow>();
+        var records = new List<ActivityRecord>();
         foreach (var action in new InvoiceActions().Actions)
             records.AddRange(await RecordsOfAsync(action, targets));
         return records;
     }
 
     /// <summary>
-    /// Записи одного действия, новые первыми. ⚠️ Журнал читается ДО КОНЦА, страница за страницей: база у
-    /// хоста общая на все классы, и записей «счёт заведён» в ней больше страницы — первая страница молча
-    /// отдала бы «записей нет» там, где они есть.
+    /// ЗАПИСИ одного действия, новые первыми, — сырые, а не ряды страницы журнала. Правки шапки и строк
+    /// одной сессии сворачиваются в ряд (ТЗ COST-6), а сумм обязана не нести ни одна запись, в том числе
+    /// из середины серии: раскрытый ряд показывает каждую.
     /// </summary>
-    private async Task<List<BHS.CRG.Application.Activity.ActivityRow>> RecordsOfAsync(ModuleActivityAction action, params Guid[] targets)
+    private async Task<List<ActivityRecord>> RecordsOfAsync(ModuleActivityAction action, params Guid[] targets)
     {
-        const int Page = 200;
         using var scope = host.Services.CreateScope();
-        var journal = scope.ServiceProvider.GetRequiredService<IActivityLog>();
         var ids = targets.Select(t => t.ToString()).ToHashSet();
-
-        var records = new List<BHS.CRG.Application.Activity.ActivityRow>();
-        for (var skip = 0; ; skip += Page)
-        {
-            var page = await journal.ReadAsync(skip, Page, ActivityVisibility.Whole, action.Code);
-            records.AddRange(page.Where(r => r.TargetId is { } id && ids.Contains(id)));
-            if (page.Count < Page) return records;
-        }
+        return [.. (await scope.ServiceProvider.GetRequiredService<IActivityLog>().ExportAsync())
+            .Where(r => r.Action == action.Code && r.TargetId is { } id && ids.Contains(id))
+            .Reverse()];
     }
 
     private async Task<int> CountAsync(ModuleActivityAction action, Guid invoice) =>

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { formatTime } from '@/shared/format/format';
 import { apiClient } from './client';
 
 /**
@@ -24,10 +25,44 @@ export interface ActivityRecord {
   after: string | null;
 }
 
+/**
+ * Ряд журнала — серия записей одного вида одной сессии правки (ТЗ CORE-28.2): подряд идущие правки
+ * одного объекта одним человеком. Запись, которая ни с чем не свернулась, — ряд из одной записи.
+ *
+ * Поля записи — от первой записи серии, кроме `target`: он от последней (цель могла переименоваться),
+ * прежнее имя — в `firstTarget`. `before` и `after` уже слиты сервером по правилу вида.
+ */
+export interface ActivityRow extends ActivityRecord {
+  /** Сколько записей в серии. */
+  count: number;
+  /** Время последней записи; у одиночной совпадает с `occurredAt`. */
+  lastAt: string;
+  /** Имя цели в начале серии — только если оно сменилось. */
+  firstTarget: string | null;
+  /** Ключ раскрытия — только у ряда, которому есть что раскрывать (`count > 1`). */
+  sessionId: string | null;
+}
+
 export interface ActivityPage {
-  /** Сколько записей отвечает отбору: список показывает часть, и врать про конец нельзя. */
+  /** Сколько РЯДОВ отвечает отбору: список показывает часть, и врать про конец нельзя. */
   total: number;
-  items: ActivityRecord[];
+  items: ActivityRow[];
+}
+
+/** Раскрывается ли ряд в записи: у одиночного раскрывать нечего, и ключа сервер не отдаёт. */
+export function isSeries(row: ActivityRow): row is ActivityRow & { sessionId: string } {
+  return row.count > 1 && row.sessionId !== null;
+}
+
+/**
+ * Подпись свёрнутого ряда: «×9 · 14:02–14:19». Время — по тем же правилам, что у колонки «Когда»;
+ * совпавшие минуты не повторяются. У одиночного ряда подписи нет — `null`.
+ */
+export function seriesLabel(row: ActivityRow): string | null {
+  if (!isSeries(row)) return null;
+  const from = formatTime(row.occurredAt);
+  const to = formatTime(row.lastAt);
+  return `×${row.count} · ${from === to ? from : `${from}–${to}`}`;
 }
 
 export interface ActivityActionOption {
@@ -41,6 +76,21 @@ export function useActivity(skip: number, take: number, action: string | null) {
     queryFn: () => apiClient
       .get<ActivityPage>('/activity', { params: { skip, take, action: action || undefined } })
       .then(r => r.data),
+  });
+}
+
+/**
+ * Записи одного ряда (ТЗ CORE-28.2) — по времени. Читаются только раскрытым рядом: страница журнала
+ * их не несёт, чтобы не возить сотню записей ради одной строки. Скрытая от читающего серия отвечает
+ * так же, как несуществующая, — 404.
+ */
+export function useActivitySeries(sessionId: string | null, action: string) {
+  return useQuery({
+    queryKey: ['activity', 'series', sessionId, action],
+    queryFn: () => apiClient
+      .get<ActivityRecord[]>(`/activity/series/${sessionId}`, { params: { action } })
+      .then(r => r.data),
+    enabled: sessionId !== null,
   });
 }
 
