@@ -326,10 +326,15 @@ describe('храповик интерфейса: словарь MD3 (sharedui-md
       .toEqual({ 'legacy-token': 1 });
   });
 
-  it('сгенерированная тема своих --legacy-* не считает; стили — только legacy-token', () => {
-    expect(countAll(':root { --legacy-fg3: #5b5f67; } @theme inline { --color-fg3: var(--legacy-fg3); }',
+  it('сгенерированная тема своих --legacy-* и старых имён не считает; стили — только legacy-*', () => {
+    expect(countAll(':root { --legacy-fg3: #5b5f67; } @theme inline { --color-fg3: var(--legacy-fg3); --color-x: var(--color-brand); }',
       { dir: 'theme', file: 'theme/md3-legacy.css' })).toEqual({});
     expect(countAll('.a { width: 520px; } .b { color: #fff; } <table>', { dir: ROOT, file: 'index.css' })).toEqual({});
+  });
+
+  it('старое имя в файле стилей — тоже legacy-class', () => {
+    expect(countAll('.x { outline: 2px solid var(--color-brand); } /* var(--color-fg1) */',
+      { dir: 'shared', file: 'shared/ui/viewer/textLayer.css' })).toEqual({ 'legacy-class': 1 });
   });
 
   it('старые имена — с вариантом, прозрачностью и через var(--color-…)', () => {
@@ -368,7 +373,7 @@ describe('храповик интерфейса: какие каталоги о�
     expect(scopeNote(RULES.find(r => r.id === 'portal-container'))).toBe('portal-container — и в shared/ui/');
     expect(scopeNote(RULES.find(r => r.id === 'table'))).toBeNull();
     expect(scopeNote(RULES.find(r => r.id === 'legacy-token'))).toBe('legacy-token — весь src/ со стилями, кроме theme/');
-    expect(scopeNote(RULES.find(r => r.id === 'legacy-class'))).toBe('legacy-class — весь src/');
+    expect(scopeNote(RULES.find(r => r.id === 'legacy-class'))).toBe('legacy-class — весь src/ со стилями, кроме theme/');
     expect(scopeNote(RULES.find(r => r.id === 'native-pdf-frame')))
       .toBe('native-pdf-frame — и в shared/ui/, кроме shared/ui/viewer/');
     expect(defaultScopeNote()).toBe('features/ и shared/ без shared/ui/');

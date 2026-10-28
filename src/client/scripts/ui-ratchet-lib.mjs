@@ -2,7 +2,7 @@
 // процесс — в ui-ratchet.mjs, здесь только то, что проверяет тест.
 
 import ts from 'typescript';
-import { COLOR_UTILITIES, colorCandidates, stripComments } from './color-classes-lib.mjs';
+import { COLOR_UTILITIES, scanCandidates, stripComments } from './class-scan.mjs';
 import theme from '../src/theme/md3-theme.json' with { type: 'json' };
 
 const COLORS = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
@@ -19,9 +19,10 @@ const LEGACY_VAR = new RegExp(`var\\(--color-(?:${LEGACY_NAMES})\\)`, 'g');
 const LEGACY_HINT = LEGACY.filter(([, to]) => typeof to === 'string').map(([k, to]) => `${k} → ${to}`).join(', ');
 
 /** Старые имена цвета классом и `var(--color-…)` вне комментариев — см. правило `legacy-class`. */
-function countLegacyClasses(text) {
-  const classes = colorCandidates(text).filter(c => LEGACY_CLASS.test(c.cls) && !/^text-base(?:\/|$)/.test(c.cls));
-  return classes.length + (stripComments(text).match(LEGACY_VAR)?.length ?? 0);
+function countLegacyClasses(source) {
+  const text = stripComments(source);
+  const classes = scanCandidates(text).filter(c => LEGACY_CLASS.test(c.cls) && !/^text-base(?:\/|$)/.test(c.cls));
+  return classes.length + (text.match(LEGACY_VAR)?.length ?? 0);
 }
 
 /**
@@ -205,10 +206,13 @@ export const RULES = [
     id: 'legacy-class',
     // Старые имена цвета (text-fg1, bg-brand…) — переходные псевдонимы ролей MD3 ([UI-58]): рисуют
     // прежнее, но расти им нельзя. Перечень — псевдонимы описания темы, граница класса — та же, что у
-    // сторожа словаря (любая цветовая утилита, вариант, прозрачность). Плюс `var(--color-<старое>)`.
+    // сторожа словаря (любая цветовая утилита, вариант, прозрачность). Плюс `var(--color-<старое>)` —
+    // и в файлах стилей: там старое имя пишут именно так. `theme/` — сами псевдонимы.
     // `text-base` — размер текста, а не цвет. Снимается финалом эпика вместе с псевдонимами.
     count: countLegacyClasses,
     everywhere: true,
+    styles: true,
+    skip: ['theme/'],
     instead: `класс роли MD3 вместо старого имени: ${LEGACY_HINT}; у fg3, fg-disabled, brand-hover, brand-pressed, warning-border, stroke-subtle роли того же цвета нет — их снимают sharedui-md3-04 и -05 (docs/UI.md, «Цвет»)`,
   },
 ];

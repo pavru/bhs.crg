@@ -103,6 +103,10 @@ Tailwind (`bg-indigo-50`, `text-purple-700`, `border-red-200`) запрещен�
 | `success`, `success-container`, `on-success` | `success`, `success-subtle`, `on-success` | успех, «оплачен» |
 | `warning`, `warning-container`, `on-warning` | `warning`, `warning-subtle`, `on-warning` | предупреждение |
 | `inverse-surface`, `inverse-on-surface`, `scrim` и прочие роли схемы | — | роли есть, классы существуют; ими рисуют новые экраны |
+| `tab-light`, `tab-dark` | — | половины превью значка вкладки: фон страницы светлой и тёмной темы, с темой не переключаются |
+
+У роли `shadow` класса нет: цвет тени рисуют уровни (`--md-sys-elevation-*`, «Тени»), а класс роли
+перехватил бы имена утилит тени — `text-shadow` красил бы текст.
 
 **Имена без роли того же цвета** — `fg3`, `fg-disabled`, `brand-hover`, `brand-pressed`,
 `warning-border`, `stroke-subtle` — держат своё значение (переменные `--legacy-*` внутри
@@ -125,9 +129,9 @@ Tailwind (`bg-indigo-50`, `text-purple-700`, `border-red-200`) запрещен�
   `var(--md-ext-color-success)`. Токен Fluent и `--legacy-*` вне `src/theme/` не пропустит храповик
   (`legacy-token`). Бывшие токены переводятся так: тени `shadow4/16/28` → `--md-sys-elevation-level1/2/3`,
   бренд → `--md-sys-color-primary`, текст на бренде → `--md-sys-color-on-primary`, половины превью
-  значка → `--md-ext-color-tab-light/dark`, остальное — по таблице выше.
-- **Нужного цвета нет** — роль заводится в `src/client/src/theme/md3-theme.json` (значения обеих тем),
-  затем `npm run md3:theme` пишет переменные, слой Tailwind и псевдонимы. Сгенерированные файлы
+  значка → `bg-tab-light` / `bg-tab-dark`, остальное — по таблице выше.
+- **Нужного цвета нет** — роль заводится в `src/client/src/theme/md3-theme.json` (значения обеих тем:
+  роль одной темы генератор не примет, как и псевдоним с именем роли), затем `npm run md3:theme` пишет переменные, слой Tailwind и псевдонимы. Сгенерированные файлы
   `src/theme/*.css` руками не правят: тест темы (`scripts/md3-theme.test.mjs`) сравнивает их с генерацией.
   Своих синонимов ролей (`text-on-surface-muted`) не заводят.
 - Класс с именем, которого нет среди ролей и псевдонимов (`bg-surface2`, `text-fg`),
@@ -560,7 +564,7 @@ Tailwind (`bg-indigo-50`, `text-purple-700`, `border-red-200`) запрещен�
   строек — такие же экраны, а `shared/ui/` рисует то, что правила запрещают экранам. Граница — по пути
   файла: новый каталог `shared/<x>` под присмотром сам. Правило со своей областью называет её:
   `white-on-fill`, `portal-container` и `native-pdf-frame` смотрят и `shared/ui/`, `native-date`,
-  `legacy-token` и `legacy-class` — весь `src/`. Ниже «в экранах» — эта область.
+  `legacy-token` и `legacy-class` — весь `src/` со стилями. Ниже «в экранах» — эта область.
 - Сырую палитру, `<table>`, нативный `<select>`, `text-[Npx]` и свой `<h1>` в экранах — тот же
   храповик: по файлам, новое не добавлять. Нативных `<select>` нет нигде, кроме `shared/ui`,
   исключений тоже (#1353, #1469): уровень — ноль.
@@ -619,7 +623,8 @@ Tailwind (`bg-indigo-50`, `text-purple-700`, `border-red-200`) запрещен�
   `legacy-token` ([UI-57]), уровень — ноль навсегда. Смотрит **весь `src/` вместе со стилями** (`.css`):
   тень и цвет пишут и туда. Подсказка отказа называет переменную MD3 вместо.
 - Старое имя цвета (`text-fg1`, `hover:bg-brand-subtle`, `border-stroke/50`, `var(--color-brand)`) —
-  тот же храповик, правило `legacy-class` ([UI-58]): по файлам, весь `src/`, только вниз. Перечень имён
+  тот же храповик, правило `legacy-class` ([UI-58]): по файлам, весь `src/` вместе со стилями (`.css`:
+  там старое имя пишут как `var(--color-brand)`), только вниз. Перечень имён
   берётся из псевдонимов описания темы, граница класса — та же, что у сторожа словаря. Имена, общие у
   обоих словарей (`text-success`, `bg-surface`, `text-tertiary`), и размер `text-base` не считаются.
   Снимается финалом эпика вместе с псевдонимами.

@@ -30,6 +30,24 @@ export function roleVar(theme, role) {
   throw new Error(`md3-theme.json: роли «${role}» нет ни в roles, ни в ext`);
 }
 
+/**
+ * Роли без класса Tailwind. `shadow` рисуют уровни тени (`--md-sys-elevation-*`), а её класс
+ * перехватил бы имена утилит тени: `text-shadow` красил бы текст в цвет тени, и сторож цветовых
+ * классов принимал бы его как известный.
+ */
+export const NO_CLASS = ['shadow'];
+
+/**
+ * Значение половины превью значка: ссылка «тема.роль» (`light.surface-container-low`). Числом её не
+ * пишут — превью обязано совпадать с фоном страницы и после смены палитры.
+ */
+function staticValue(theme, name, ref) {
+  const [mode, role] = String(ref).split('.');
+  const value = theme.roles[mode]?.[role] ?? theme.ext[mode]?.[role];
+  if (!value) throw new Error(`md3-theme.json: static.${name} — «${ref}» не ссылка «light|dark.<роль>»`);
+  return value;
+}
+
 /** Описание темы с диска. */
 export const readTheme = () => JSON.parse(readFileSync(join(themeDir, 'md3-theme.json'), 'utf8'));
 
@@ -37,9 +55,18 @@ export const readTheme = () => JSON.parse(readFileSync(join(themeDir, 'md3-theme
 export function generate(theme) {
   if (theme.mode !== 'values')
     throw new Error(`md3-theme.json: режим «${theme.mode}» генератор пока не знает — только values`);
-  for (const part of ['roles', 'ext', 'elevation'])
-    for (const name of entries(theme[part].light).map(([k]) => k))
-      if (!(name in theme[part].dark)) throw new Error(`md3-theme.json: у ${part}.${name} нет значения тёмной темы`);
+  // Темы — одним набором имён в обе стороны: роль только тёмной темы ушла бы в переменные без
+  // класса (слой Tailwind строится по светлой) и без значения светлой темы.
+  for (const part of ['roles', 'ext', 'elevation']) {
+    const [light, dark] = ['light', 'dark'].map(mode => entries(theme[part][mode]).map(([k]) => k));
+    for (const name of light.filter(k => !dark.includes(k))) throw new Error(`md3-theme.json: у ${part}.${name} нет значения тёмной темы`);
+    for (const name of dark.filter(k => !light.includes(k))) throw new Error(`md3-theme.json: у ${part}.${name} нет значения светлой темы`);
+  }
+  // Псевдоним с именем роли пишет свой --color-* после слоя ролей и молча перекрывает класс роли.
+  const classes = [...entries(theme.roles.light), ...entries(theme.ext.light), ...entries(theme.static)].map(([k]) => k);
+  for (const [name] of entries(theme.aliases))
+    if (classes.includes(name)) throw new Error(`md3-theme.json: псевдоним «${name}» совпадает с именем роли — класс роли он перекрыл бы`);
+  const statics = entries(theme.static).map(([k, ref]) => [k, staticValue(theme, k, ref)]);
 
   const block = (selector, lines) => `${selector} {\n${lines.map(l => `  ${l}`).join('\n')}\n}\n`;
   const scheme = mode => [
@@ -53,7 +80,7 @@ export function generate(theme) {
       `--md-ref-typeface-plain: ${theme.typeface.plain};`,
       ...scheme('light'),
       // Половины превью значка вкладки: с темой не переключаются, в тёмной не переопределяются.
-      ...entries(theme.static).map(([k, v]) => `--md-ext-color-${k}: ${v};`),
+      ...statics.map(([k, v]) => `--md-ext-color-${k}: ${v};`),
     ]),
     block(':root[data-theme="dark"]', scheme('dark')),
   ].join('\n');
@@ -61,8 +88,9 @@ export function generate(theme) {
   const tailwind = [
     HEADER,
     block('@theme inline', [
-      ...entries(theme.roles.light).map(([k]) => `--color-${k}: var(--md-sys-color-${k});`),
-      ...entries(theme.ext.light).map(([k]) => `--color-${k}: var(--md-ext-color-${k});`),
+      ...entries(theme.roles.light).filter(([k]) => !NO_CLASS.includes(k))
+        .map(([k]) => `--color-${k}: var(--md-sys-color-${k});`),
+      ...[...entries(theme.ext.light), ...statics].map(([k]) => `--color-${k}: var(--md-ext-color-${k});`),
     ]),
   ].join('\n');
 

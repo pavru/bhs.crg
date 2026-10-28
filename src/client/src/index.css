@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Сторожа в scripts/ держат в фикстурах тестов запрещённые классы — в сборку их не брать. */
+@source not "../scripts";
 /* Тема MD3 (эпик sharedui-md3, [UI-57]): переменные ролей, слой Tailwind и старые имена-псевдонимы.
    Все три файла генерирует npm run md3:theme из src/theme/md3-theme.json — правка цвета там. */
 @import "./theme/md3-tokens.css";

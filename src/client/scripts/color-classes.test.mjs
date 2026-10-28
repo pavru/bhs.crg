@@ -2,7 +2,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { colorCandidates, loadColorCheck } from './color-classes-lib.mjs';
+import { colorCandidates } from './class-scan.mjs';
+import { loadColorCheck } from './color-classes-lib.mjs';
 
 // Сторож цветовых классов без токена (issue #1362): почему так — в color-classes-lib.mjs.
 const srcRoot = join(dirname(fileURLToPath(import.meta.url)), '..', 'src');

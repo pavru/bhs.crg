@@ -113,3 +113,37 @@ describe('тема MD3: сервер согласован с палитрой', 
       + 'Сервер повторяет цвет темы — поправьте константу вместе с палитрой.').toBe(want.toLowerCase());
   });
 });
+
+describe('тема MD3: генератор отказывает кривому описанию', () => {
+  const variant = change => { const t = structuredClone(theme); change(t); return t; };
+
+  it('роль только одной темы', () => {
+    expect(() => generate(variant(t => { t.roles.dark['surface-bright-2'] = '#000000'; })))
+      .toThrow('у roles.surface-bright-2 нет значения светлой темы');
+    expect(() => generate(variant(t => { delete t.ext.dark.success; })))
+      .toThrow('у ext.success нет значения тёмной темы');
+  });
+
+  it('псевдоним с именем роли', () => {
+    expect(() => generate(variant(t => { t.aliases.surface = 'primary'; })))
+      .toThrow('псевдоним «surface» совпадает с именем роли');
+  });
+
+  it('половина превью значка числом, а не ссылкой на роль', () => {
+    expect(() => generate(variant(t => { t.static['tab-light'] = '#f4f2f7'; })))
+      .toThrow('static.tab-light — «#f4f2f7» не ссылка');
+  });
+});
+
+describe('тема MD3: классы ролей', () => {
+  it('половины превью значка — классом роли, с фоном страницы своей темы', () => {
+    expect(declarations('bg-tab-light', 'dark')).toBe(`background-color: ${theme.roles.light['surface-container-low']};`);
+    expect(declarations('bg-tab-dark', 'light')).toBe(`background-color: ${theme.roles.dark['surface-container-low']};`);
+  });
+
+  it('у роли shadow класса нет: text-shadow — не цвет текста', () => {
+    // Цвет тени рисуют уровни --md-sys-elevation-*; класс роли перехватил бы утилиты тени.
+    expect(declarations('text-shadow', 'light')).toBeNull();
+    expect(declarations('bg-shadow', 'light')).toBeNull();
+  });
+});

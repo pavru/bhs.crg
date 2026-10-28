@@ -37,13 +37,15 @@
 
 ### Раскладка файлов
 - `src/client/src/theme/md3-theme.json` — описание: `mode: "values"`, `seed: "#1d5fb0"` (для 04),
-  `roles.light/dark` — значения всех ролей, `ext` — свои роли, `static` — `tab-light/dark`,
+  `roles.light/dark` — значения всех ролей, `ext` — свои роли, `static` — `tab-light/dark` ссылкой
+  «тема.роль» (`light.surface-container-low`), а не числом: превью обязано совпадать с фоном страницы и
+  после 04,
   `elevation` — три уровня по темам, `aliases` — старое имя → роль или `{ legacy: { light, dark } }`.
 - Генератор пишет три файла, все с шапкой «сгенерировано, руками не править»:
   - `theme/md3-tokens.css` — `:root` и `:root[data-theme="dark"]`: `--md-sys-color-*`, `--md-ext-color-*`,
     `--md-sys-elevation-level1..3`, `--md-ref-typeface-plain`;
   - `theme/md3-tailwind.css` — `@theme inline { --color-<роль>: var(--md-sys-color-<роль>) }`, один к
-    одному;
+    одному, включая `tab-light/dark`; кроме `shadow` — её класс перехватил бы `text-shadow`;
   - `theme/md3-legacy.css` — `@theme inline` псевдонимов и значения имён без роли. Финал (20) удаляет
     файл целиком, а не правит строки.
 - `index.css` импортирует три файла; радиусы `--radius-sm..xl` получают нынешние числа прямо в `@theme`
@@ -86,8 +88,9 @@
 - Тени: `--f-shadow4/16/28` → `--md-sys-elevation-level1/2/3` с нынешними значениями обеих тем (уровни MD3 по
   назначению: приподнятый контрол, меню, окно). Значения MD3 и уровни 4–5 приносит 06.
 - `--f-brand` → `--md-sys-color-primary`, `--f-brand-text` → `--md-sys-color-on-primary`, `--f-tab-*` →
-  `--md-ext-color-tab-*`; `--f-fg3` в `DEPTH_COLORS` → `var(--color-fg3)` (псевдоним, считается в
-  `legacy-class`, уходит с 04).
+  `--md-ext-color-tab-*`; `--f-fg3` в `DEPTH_COLORS` → классы `border-l-fg3` и
+  `border-l-[color-mix(…var(--color-fg3))]` (псевдоним, считается в `legacy-class`, уходит с 04): из
+  класса переменную темы Tailwind выводит в сборку сам, из инлайн-стиля — только если увидел строку.
 - Замена — одной таблицей в PR (57 мест). Перезапускаемым кодмодом её делает 02: карта 02 содержит и
   строки `--f-*`, чтобы чужая ветка с `--f-*` чинилась тем же `npm run md3:migrate`.
 
@@ -107,7 +110,11 @@
   правила с `everywhere` — только его собственный (раньше к нему подмешивался пропуск `shared/ui/`
   области по умолчанию, и `native-date` молча не смотрел `shared/ui/`; нарушений там 0, уровень не
   изменился). Текст `--f-` в `src/` остаётся только в самом правиле и фикстурах его теста. `legacy-class` —
-  перечень имён из `aliases` описания темы, граница класса — `CANDIDATE` из `color-classes-lib.mjs`.
+  перечень имён из `aliases` описания темы, граница класса — `CANDIDATE` из `class-scan.mjs` (разбор без
+  Tailwind: храповику движок не нужен); смотрит и стили, кроме `src/theme/`.
+- Генератор отказывает описанию, где роль есть только в одной теме или псевдоним совпадает с именем
+  роли (его `--color-*` перекрыл бы класс роли). Фикстуры сторожей в `scripts/` в сборку не идут:
+  `@source not "../scripts"` в `index.css`.
 - `white-on-fill`: `ROLE` — `primary|error|success|warning` и старые имена до 20; `FILL` —
   `var(--md-sys-color-(primary|error))`, `var(--md-ext-color-(success|warning))`, `var(--color-<роль>)`.
 - `color-classes.test.mjs`: фикстура произвольного значения — на `--md-sys-*`, совет в сообщении — роли
