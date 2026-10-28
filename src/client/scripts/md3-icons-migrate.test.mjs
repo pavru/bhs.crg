@@ -124,6 +124,86 @@ describe('значки: кодмод', () => {
     expect(unknown).toEqual([{ name: 'Pizza', where: ['features/f.tsx'] }]);
   });
 
+  it('{ Icon } в деструктуризации — имя свойства прежнее: { Icon: icon }', () => {
+    const { files } = run({ 'features/h.tsx': [
+      "import type { LucideIcon } from 'lucide-react';",
+      'export function H({ item }: { item: { Icon: LucideIcon } }) {',
+      '  const { Icon } = item;',
+      '  return <Icon size={16} />;',
+      '}',
+    ].join('\n') });
+    expect(files['features/h.tsx'].text).toContain('const { Icon: icon } = item;');
+    expect(files['features/h.tsx'].text).toContain('return <Icon icon={icon} size={18} />;');
+  });
+
+  it('импорт целиком, по умолчанию и реэкспорт из пакета — отказ, файл не тронут', () => {
+    const fixtures = {
+      'features/i.tsx': "import * as L from 'lucide-react';\nexport const I = () => <L.Trash2 />;",
+      'features/j.tsx': "export { Trash2 } from 'lucide-react';",
+    };
+    const result = migrateIcons(Object.keys(fixtures).map(path), { read: p => fixtures[Object.keys(fixtures).find(f => path(f) === p.replaceAll('\\', '/'))] });
+    expect(result.refused).toEqual([
+      { form: "import * as L from 'lucide-react'", file: 'features/i.tsx' },
+      { form: "export … from 'lucide-react'", file: 'features/j.tsx' },
+    ]);
+    expect(result.files).toEqual([]);
+  });
+
+  it('импорт из shared/ui уже стоит — имена дописываются в него, без псевдонимов', () => {
+    const { files } = run({ 'features/k.tsx': [
+      "import { Icon } from '@/shared/ui/Icon';",
+      "import { Delete } from '@/shared/ui/icons';",
+      "import { Trash2, X } from 'lucide-react';",
+      'export const K = () => <><Icon icon={Delete} /><Trash2 size={14} /><X /></>;',
+    ].join('\n') });
+    expect(files['features/k.tsx'].text).toBe([
+      "import { Icon } from '@/shared/ui/Icon';",
+      "import { Delete, Close } from '@/shared/ui/icons';",
+      'export const K = () => <><Icon icon={Delete} /><Icon icon={Delete} size={18} /><Icon icon={Close} /></>;',
+    ].join('\n'));
+  });
+
+  it('Icon в двух функциях — обе переменные со строчной, компонент без псевдонима', () => {
+    const { files } = run({ 'shared/ui/Two.tsx': [
+      "import type { LucideIcon } from 'lucide-react';",
+      'export function A({ icon: Icon }: { icon: LucideIcon }) { return <Icon />; }',
+      'export function B({ icon: Icon }: { icon: LucideIcon }) { return <Icon size={20} />; }',
+    ].join('\n') });
+    expect(files['shared/ui/Two.tsx'].text).toBe([
+      "import { Icon } from './Icon';",
+      "import type { IconDef } from './icons';",
+      'export function A({ icon }: { icon: IconDef }) { return <Icon icon={icon} />; }',
+      'export function B({ icon }: { icon: IconDef }) { return <Icon icon={icon} size={20} />; }',
+    ].join('\n'));
+  });
+
+  it('export { Trash2 } — под прежним именем, с отметкой в отчёте', () => {
+    const { files } = run({ 'features/l.ts': "import { Trash2 } from 'lucide-react';\nexport { Trash2 };" });
+    expect(files['features/l.ts'].text).toBe("import { Delete } from '@/shared/ui/icons';\nexport { Delete as Trash2 };");
+    expect(files['features/l.ts'].notes[0].note).toMatch(/экспортируется под прежним именем/);
+  });
+
+  it('размер классом в выражении className — в отчёт', () => {
+    const { files } = run({ 'features/m.tsx': [
+      "import { Check } from 'lucide-react';",
+      'export const M = ({ c }: { c: string }) => <Check className={`w-3 h-3 ${c}`} />;',
+    ].join('\n') });
+    expect(files['features/m.tsx'].notes.map(n => n.note)).toContain('размер классом в выражении className — перенести в проп size руками');
+  });
+
+  it('подпапка shared/ui — импорт относительным путём', () => {
+    const { files } = run({ 'shared/ui/viewer/N.tsx': "import { X } from 'lucide-react';\nexport const N = () => <X />;" });
+    expect(files['shared/ui/viewer/N.tsx'].text).toContain("import { Icon } from '../Icon';");
+    expect(files['shared/ui/viewer/N.tsx'].text).toContain("import { Close } from '../icons';");
+  });
+
+  it('каждый файл читается один раз', () => {
+    const p = path('features/o.tsx');
+    const reads = [];
+    migrateIcons([p], { read: f => { reads.push(f); return "import { X } from 'lucide-react';\nexport const O = () => <X />;"; } });
+    expect(reads.filter(f => f.replaceAll('\\', '/') === p)).toHaveLength(1);
+  });
+
   it('второй прогон — замен 0', () => {
     const once = run({ 'features/g.tsx': "import { Trash2 } from 'lucide-react';\nexport const G = () => <Trash2 size={14} />;" });
     const twice = run({ 'features/g.tsx': once.files['features/g.tsx'].text });

@@ -210,6 +210,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       + 'Допишите их в таблицу (symbol — имя файла @material-symbols/svg-400/outlined) и в manifest.json.');
     process.exit(1);
   }
+  if (icons.refused.length) {
+    console.error(`\nИмпорт lucide, который команда не переводит, — значки не записаны:\n${
+      icons.refused.map(r => `  ${r.file}: ${r.form}`).join('\n')}\n`
+      + "Перепишите на именованный импорт (import { Trash2 } from 'lucide-react') и запустите снова.");
+    process.exit(1);
+  }
   if (!check) for (const f of icons.files) if (f.changes) writeFileSync(f.path, f.text, 'utf8');
   console.log(`\n${formatIconReport(icons, { check })}`);
   if (check && (report.some(r => r.replaced.length) || icons.files.some(f => f.changes))) {

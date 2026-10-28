@@ -1,6 +1,6 @@
 import { Component, lazy, Suspense, type ReactNode } from 'react';
-import { Icon } from '@/shared/ui/Icon';
-import { Close, Description, OpenInNew } from '@/shared/ui/icons';
+import { Icon } from '../Icon';
+import { Close, Description, OpenInNew } from '../icons';
 import { Modal } from '../Modal';
 import { Button, IconButton } from '../Button';
 import { ViewerMessage } from './ViewerMessage';

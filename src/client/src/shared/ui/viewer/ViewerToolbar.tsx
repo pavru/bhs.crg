@@ -1,6 +1,6 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Icon } from '@/shared/ui/Icon';
-import { Add, Check, ChevronLeft, ChevronRight, Remove, RotateRight } from '@/shared/ui/icons';
+import { Icon } from '../Icon';
+import { Add, Check, ChevronLeft, ChevronRight, Remove, RotateRight } from '../icons';
 import { useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { IconButton } from '../Button';
 import { Chip } from '../Chip';

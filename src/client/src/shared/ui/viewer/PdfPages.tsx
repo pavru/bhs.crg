@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Icon } from '@/shared/ui/Icon';
-import { RotateRight } from '@/shared/ui/icons';
+import { Icon } from '../Icon';
+import { RotateRight } from '../icons';
 import { Button } from '../Button';
 import type { PdfDocument, PageTask } from './pdfEngine';
 import { CANVAS_PADDING, type Layout } from './viewerState';

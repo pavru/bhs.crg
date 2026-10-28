@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { Icon } from '@/shared/ui/Icon';
-import { Language, LockIcon, Memory, OpenInNew, Refresh, ScanDelete, UnknownDocument } from '@/shared/ui/icons';
+import { Icon } from '../Icon';
+import { Language, LockIcon, Memory, OpenInNew, Refresh, ScanDelete, UnknownDocument } from '../icons';
 import { Button } from '../Button';
 import type { FailureKind } from './pdfEngine';
 import { openInNewTab, type PdfBytes } from './openInNewTab';

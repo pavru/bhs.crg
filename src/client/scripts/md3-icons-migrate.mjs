@@ -19,7 +19,7 @@
 // без смысла места (вращение по условию, размер выражением, `fill`) — отчёт с файлом и строкой.
 
 import { readFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, posix, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { ICON_SCALE } from './ui-ratchet-lib.mjs';
@@ -87,12 +87,25 @@ function scaleExpr(node, sf) {
   return null;
 }
 
-/** Импорт из shared/ui: внутри shared/ui — соседним путём, снаружи — через `@/`. */
-const uiModule = (file, name) => (dirname(file) === 'shared/ui' ? `./${name}` : `@/shared/ui/${name}`);
+/** Импорт из shared/ui: внутри shared/ui (и его подпапок) — относительным путём, снаружи — через `@/`. */
+const uiModule = (file, name) => {
+  if (!file.startsWith('shared/ui/')) return `@/shared/ui/${name}`;
+  const rel = posix.relative(posix.dirname(file), `shared/ui/${name}`);
+  return rel.startsWith('.') ? rel : `./${rel}`;
+};
+
+/** Импорт lucide, который команда не переводит: целиком, по умолчанию, реэкспорт из пакета. */
+function refusedForm(st) {
+  if (ts.isExportDeclaration(st)) return `export … from 'lucide-react'`;
+  const clause = st.importClause;
+  if (clause?.name) return `import ${clause.name.text} from 'lucide-react'`;
+  if (clause?.namedBindings && ts.isNamespaceImport(clause.namedBindings)) return `import * as ${clause.namedBindings.name.text} from 'lucide-react'`;
+  return null;
+}
 
 /**
  * Перевод одного файла. `file` — путь от src/ (для `files` таблицы и путей импорта). Возвращает текст,
- * число замен, отчёт (`{ line, note }`) и имена lucide вне таблицы.
+ * число замен, отчёт (`{ line, note }`), имена lucide вне таблицы и формы импорта, которые не переводятся.
  */
 export function migrateIconFile(sf, checker, { file, map = iconMap.icons }) {
   const text = sf.text;
@@ -104,8 +117,15 @@ export function migrateIconFile(sf, checker, { file, map = iconMap.icons }) {
   const note = (node, msg) => notes.push({ line: lineOf(node), note: msg });
   const edit = (start, end, to) => edits.push({ start, end, to });
 
+  // Импорт целиком или по умолчанию — отказ: `L.Trash2` по имени не узнать, а удалённый импорт оставил бы
+  // его висеть.
+  const lucideStatements = sf.statements.filter(st => (ts.isImportDeclaration(st) || ts.isExportDeclaration(st))
+    && st.moduleSpecifier && ts.isStringLiteral(st.moduleSpecifier) && st.moduleSpecifier.text === 'lucide-react');
+  const refused = lucideStatements.map(refusedForm).filter(Boolean);
+  if (refused.length) return { text, changes: 0, notes: [], unknown: [], refused };
+
   // Импорты lucide: символ привязки → запись таблицы (с поправкой места из `files`).
-  const lucideImports = sf.statements.filter(st => ts.isImportDeclaration(st) && st.moduleSpecifier.text === 'lucide-react');
+  const lucideImports = lucideStatements.filter(ts.isImportDeclaration);
   const bound = new Map();
   for (const decl of lucideImports)
     for (const el of decl.importClause?.namedBindings?.elements ?? []) {
@@ -135,7 +155,8 @@ export function migrateIconFile(sf, checker, { file, map = iconMap.icons }) {
 
   // Переменная со значком под именем компонента (`const Icon = it.icon`, `{ icon: Icon }`) — со строчной:
   // после перевода это значение, а не компонент, и имя `Icon` нужно самому компоненту. Экспортируемые
-  // и те, чьё новое имя занято, не трогаем: тогда компонент получит псевдоним.
+  // и те, чьё новое имя занято, не трогаем: тогда компонент получит псевдоним. Имя, занятое только такими
+  // же переименованными (`Icon` в двух функциях), свободно: каждая получает `icon` в своей области.
   const renamed = new Map();
   const declared = node => {
     if ((ts.isVariableDeclaration(node) || ts.isBindingElement(node) || ts.isParameter(node))
@@ -143,9 +164,11 @@ export function migrateIconFile(sf, checker, { file, map = iconMap.icons }) {
       const sym = checker.getSymbolAtLocation(node.name);
       const to = node.name.text[0].toLowerCase() + node.name.text.slice(1);
       const exported = ts.isVariableDeclaration(node) && ts.getCombinedModifierFlags(node) & ts.ModifierFlags.Export;
-      if (sym && !exported && !names.has(to) && isLucideType(checker.getTypeOfSymbolAtLocation(sym, node.name))) {
+      const holders = names.get(to);
+      if (sym && !exported && (!holders || [...holders].every(h => renamed.get(h) === to))
+        && isLucideType(checker.getTypeOfSymbolAtLocation(sym, node.name))) {
         renamed.set(sym, to);
-        names.set(to, new Set([sym]));
+        (holders ?? names.set(to, new Set()).get(to)).add(sym);
       }
     }
     ts.forEachChild(node, declared);
@@ -154,9 +177,25 @@ export function migrateIconFile(sf, checker, { file, map = iconMap.icons }) {
   const taken = new Set([...names].filter(([, syms]) => [...syms].some(sym => !renamed.has(sym))).map(([n]) => n));
   for (const to of renamed.values()) taken.add(to);
   const exprText = node => (ts.isIdentifier(node) && renamed.get(symOf(node))) || node.getText(sf);
+  // Импорты файла из shared/ui (ветка, начатая после перевода, уже их знает) — дописываются, а не дублируются.
+  const MODULES = ['Icon', 'CircularProgress', 'icons'];
+  const moduleOf = name => (MODULES.includes(name) ? name : 'icons');
+  const uiImports = mod => sf.statements.filter(st => ts.isImportDeclaration(st)
+    && [uiModule(file, mod), `@/shared/ui/${mod}`].includes(st.moduleSpecifier.text)
+    && st.importClause?.namedBindings && ts.isNamedImports(st.importClause.namedBindings));
+  /** Локальное имя `name`, уже импортированное из своего модуля (значение — не из `import type`). */
+  const imported = name => {
+    for (const decl of uiImports(moduleOf(name)))
+      for (const el of decl.importClause.namedBindings.elements)
+        if ((el.propertyName ?? el.name).text === name && (name === 'IconDef' || !(decl.importClause.isTypeOnly || el.isTypeOnly)))
+          return el.name.text;
+    return null;
+  };
+  const reused = new Set();
   // Псевдоним при совпадении: `alt`, затем `alt2`, `alt3`… Первое обращение решает за весь файл.
   const aliases = new Map();
   const local = (name, alt) => {
+    if (!aliases.has(name) && imported(name)) { aliases.set(name, imported(name)); reused.add(name); }
     if (!aliases.has(name)) {
       let alias = name;
       for (let n = 1; taken.has(alias); n++) alias = n === 1 ? alt : `${alt}${n}`;
@@ -187,8 +226,11 @@ export function migrateIconFile(sf, checker, { file, map = iconMap.icons }) {
       } else if (name === 'className' && p.initializer) {
         const cls = staticString(p.initializer);
         if (cls === null) {
-          if (/(?<![\w-])animate-spin(?![\w-])/.test(p.initializer.getText(sf)))
+          const expr = p.initializer.getText(sf);
+          if (/(?<![\w-])animate-spin(?![\w-])/.test(expr))
             note(p, spinner ? 'вращение по условию у индикатора — сверить' : 'вращение значка по условию — показать CircularProgress на время хода руками');
+          if (/(?<![\w:-])(?:size|w|h)-\d/.test(expr))
+            note(p, 'размер классом в выражении className — перенести в проп size руками');
           continue;
         }
         const tokens = cls.split(/\s+/).filter(Boolean);
@@ -253,7 +295,24 @@ export function migrateIconFile(sf, checker, { file, map = iconMap.icons }) {
       const el = node.parent;
       if (ts.isBindingElement(el) && el.name === node && el.propertyName?.getText(sf) === to)
         edit(el.propertyName.getStart(sf), node.end, to);   // `{ icon: Icon }` → `{ icon }`
-      else edit(node.getStart(sf), node.end, ts.isShorthandPropertyAssignment(el) ? `${node.text}: ${to}` : to);
+      else {
+        // `{ Icon }` в деструктуризации и `{ Icon }` в литерале объекта — имя свойства остаётся прежним.
+        const shorthand = ts.isShorthandPropertyAssignment(el)
+          || (ts.isBindingElement(el) && el.name === node && !el.propertyName && ts.isObjectBindingPattern(el.parent));
+        edit(node.getStart(sf), node.end, shorthand ? `${node.text}: ${to}` : to);
+      }
+    } else if (ts.isExportSpecifier(node) && !node.parent.parent.moduleSpecifier) {
+      // `export { Trash2 }` — наружу под прежним именем: потребители узнают значок по типу и переводятся
+      // тем же прогоном.
+      const own = node.propertyName ?? node.name;
+      const entry = bound.get(checker.getExportSpecifierLocalTargetSymbol(node) ?? checker.getSymbolAtLocation(own));
+      if (entry && !entry.type && !entry.spinner) {
+        const to = value(entry.export);
+        edit(own.getStart(sf), own.end, node.propertyName ? to : `${to} as ${node.name.text}`);
+        note(node, `значок ${node.name.text} экспортируется под прежним именем — теперь это IconDef`);
+        changes++;
+      } else if (entry) note(node, `${node.name.text} экспортируется — перевести руками`);
+      return;
     } else if (ts.isIdentifier(node) && !handled.has(node) && !ts.isImportSpecifier(node.parent)) {
       const entry = lucideOf(node);
       // `typeof Trash2` — тип значка, а не конкретного: IconDef, иначе `typeof Database` потребовал бы заливку.
@@ -274,20 +333,29 @@ export function migrateIconFile(sf, checker, { file, map = iconMap.icons }) {
   };
   visit(sf);
 
-  // Импорты: на место первого lucide — нужные из shared/ui, остальные lucide — долой.
-  const named = (names, alias) => names.map(n => (alias(n) === n ? n : `${n} as ${alias(n)}`)).join(', ');
+  // Импорты: недостающие имена — в уже стоящий импорт модуля, иначе новой строкой на место первого
+  // lucide; остальные lucide — долой.
+  const spec = n => (local(n) === n ? n : `${n} as ${local(n)}`);
   const lines = [];
-  if (usesIcon) lines.push(`import { ${named(['Icon'], n => local(n))} } from '${uiModule(file, 'Icon')}';`);
-  if (usesSpinner) lines.push(`import { ${named(['CircularProgress'], n => local(n))} } from '${uiModule(file, 'CircularProgress')}';`);
-  const icons = [...values].sort();
-  if (icons.length || usesType) {
-    const list = [named(icons, n => local(n)), usesType ? `type ${named(['IconDef'], n => local(n))}` : ''].filter(Boolean).join(', ');
-    lines.push(`import ${icons.length ? '' : 'type '}{ ${icons.length ? list : named(['IconDef'], n => local(n))} } from '${uiModule(file, 'icons')}';`);
+  for (const [mod, vals, types] of [['Icon', usesIcon ? ['Icon'] : [], []],
+    ['CircularProgress', usesSpinner ? ['CircularProgress'] : [], []], ['icons', [...values].sort(), usesType ? ['IconDef'] : []]]) {
+    const v = vals.filter(n => !reused.has(n)), t = types.filter(n => !reused.has(n));
+    if (!v.length && !t.length) continue;
+    const decls = uiImports(mod);
+    const into = decls.find(d => !d.importClause.isTypeOnly) ?? (v.length ? undefined : decls[0]);
+    if (into) {
+      const list = [...v.map(spec), ...t.map(n => (into.importClause.isTypeOnly ? spec(n) : `type ${spec(n)}`))].join(', ');
+      const els = into.importClause.namedBindings.elements;
+      if (els.length) edit(els.at(-1).end, els.at(-1).end, `, ${list}`);
+      else edit(into.importClause.namedBindings.getStart(sf) + 1, into.importClause.namedBindings.end - 1, ` ${list} `);
+    } else if (v.length) lines.push(`import { ${[...v.map(spec), ...t.map(n => `type ${spec(n)}`)].join(', ')} } from '${uiModule(file, mod)}';`);
+    else lines.push(`import type { ${t.map(spec).join(', ')} } from '${uiModule(file, mod)}';`);
   }
   if (lucideImports.length) {
-    lucideImports.forEach((decl, i) => (i === 0
+    lucideImports.forEach((decl, i) => (i === 0 && lines.length
       ? edit(decl.getStart(sf), decl.end, lines.join('\n'))
-      : edit(decl.getFullStart(), decl.end, '')));
+      : i === 0 ? edit(decl.getStart(sf), decl.end + (/^\r?\n/.exec(text.slice(decl.end))?.[0].length ?? 0), '')
+        : edit(decl.getFullStart(), decl.end, '')));
   } else if (lines.length) {
     const last = sf.statements.filter(ts.isImportDeclaration).at(-1);
     edit(last ? last.end : 0, last ? last.end : 0, `${last ? '\n' : ''}${lines.join('\n')}${last ? '' : '\n'}`);
@@ -296,29 +364,34 @@ export function migrateIconFile(sf, checker, { file, map = iconMap.icons }) {
   edits.sort((a, b) => b.start - a.start || b.end - a.end);
   let out = text;
   for (const e of edits) out = out.slice(0, e.start) + e.to + out.slice(e.end);
-  return { text: out, changes, notes, unknown };
+  return { text: out, changes, notes, unknown, refused: [] };
 }
 
 /**
  * Перевод файлов `paths` (абсолютные). Файлы без lucide и без значков в переменных не меняются; если
  * lucide нигде нет, программа TypeScript не строится вовсе — повторный запуск мгновенный.
  */
-export function migrateIcons(paths, { read = path => readFileSync(path, 'utf8'), srcRoot = join(clientRoot, 'src'), map = iconMap.icons } = {}) {
+export function migrateIcons(paths, { read: readFile = path => readFileSync(path, 'utf8'), srcRoot = join(clientRoot, 'src'), map = iconMap.icons } = {}) {
+  // Каждый файл читается один раз: и для проверки «есть ли lucide», и программой TypeScript.
+  const texts = new Map();
+  const read = path => (texts.has(path) ? texts.get(path) : texts.set(path, readFile(path)).get(path));
   const code = paths.filter(p => /\.tsx?$/.test(p) && !p.endsWith('.d.ts'));
-  if (!code.some(p => read(p).includes('lucide-react'))) return { files: [], unknown: [] };
+  if (!code.some(p => read(p).includes('lucide-react'))) return { files: [], unknown: [], refused: [] };
   const program = iconProgram(code, { read, map });
   const checker = program.getTypeChecker();
   const files = [];
   const unknown = new Map();
+  const refused = [];
   for (const path of code) {
     const sf = program.getSourceFile(path);
     if (!sf) continue;
     const file = relative(srcRoot, path).replaceAll('\\', '/');
     const result = migrateIconFile(sf, checker, { file, map });
     for (const name of result.unknown) (unknown.get(name) ?? unknown.set(name, []).get(name)).push(file);
+    for (const form of result.refused) refused.push({ form, file });
     if (result.changes || result.notes.length) files.push({ path, file, ...result });
   }
-  return { files, unknown: [...unknown].map(([name, where]) => ({ name, where })) };
+  return { files, unknown: [...unknown].map(([name, where]) => ({ name, where })), refused };
 }
 
 /** Отчёт текстом: число замен, затем места для глаз с `файл:строка`. */
