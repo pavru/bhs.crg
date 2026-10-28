@@ -38,6 +38,17 @@ export function readPath(name) {
   return paths[0][1];
 }
 
+/**
+ * Глобальные имена браузера и языка (`Error`, `Image`, `History`, `Lock`…): экспорт с таким именем
+ * затеняет глобальное в каждом файле, который его импортирует, и `throw new Error()` там перестаёт
+ * собираться. Имена языка — из самого Node, имена DOM — из lib.dom.d.ts TypeScript: в Node их нет.
+ */
+export const reservedNames = () => new Set([
+  ...Object.getOwnPropertyNames(globalThis),
+  ...Array.from(readFileSync(join(clientRoot, 'node_modules', 'typescript', 'lib', 'lib.dom.d.ts'), 'utf8')
+    .matchAll(/^declare (?:var|function) (\w+)/gm), m => m[1]),
+]);
+
 /** `check_circle` → `CheckCircle`, `123` → `N123`: имя экспорта обязано быть идентификатором. */
 export const exportName = name => {
   const pascal = name.split(/[_-]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('');
@@ -46,21 +57,27 @@ export const exportName = name => {
 
 /**
  * Текст icons.generated.ts. Чистая функция — её же зовёт тест дрейфа; `read(name)` отдаёт путь
- * значка или null (`name` — имя файла с суффиксом `-fill` для заливки).
+ * значка или null (`name` — имя файла с суффиксом `-fill` для заливки), `reserved` — имена, которые
+ * экспорт затенять не вправе (`reservedNames`).
  */
-export function generate(manifest, read, version) {
-  const icons = Object.entries(manifest.icons ?? {}).sort(([a], [b]) => a.localeCompare(b));
-  const missing = icons.flatMap(([name, o]) => [name, ...(o.fill ? [`${name}-fill`] : [])]).filter(n => read(n) === null);
+export function generate(manifest, read, version, reserved = new Set()) {
+  // Порядок — по кодам символов, не localeCompare: тот зависит от языка машины, и тест дрейфа
+  // краснел бы в CI на файле, верно сгенерированном локально.
+  const icons = Object.entries(manifest.icons ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  const paths = new Map(icons.flatMap(([name, o]) => [name, ...(o.fill ? [`${name}-fill`] : [])]).map(n => [n, read(n)]));
+  const missing = [...paths].filter(([, d]) => d === null).map(([n]) => n);
   if (missing.length)
     throw new Error(`manifest.json: в @material-symbols/svg-400/outlined нет ${missing.join(', ')} — имена сверяют с файлами пакета`);
   const seen = new Map();
   const lines = icons.map(([name, o]) => {
     const id = o.export ?? exportName(name);
+    if (reserved.has(id))
+      throw new Error(`manifest.json: экспорт ${id} у значка ${name} затеняет глобальное имя; задайте поле export (например, ${id}Icon)`);
     if (seen.has(id)) throw new Error(`manifest.json: экспорт ${id} у двух значков — ${seen.get(id)} и ${name}; один задайте полем export`);
     seen.set(id, name);
     return o.fill
-      ? `export const ${id}: FilledIconDef = { d: '${read(name)}', fill: '${read(`${name}-fill`)}' };`
-      : `export const ${id}: IconDef = { d: '${read(name)}' };`;
+      ? `export const ${id}: FilledIconDef = { d: '${paths.get(name)}', fill: '${paths.get(`${name}-fill`)}' };`
+      : `export const ${id}: IconDef = { d: '${paths.get(name)}' };`;
   });
   return [
     '// Сгенерировано scripts/icons-generate.mjs из src/shared/ui/icons/manifest.json — руками не править.',
@@ -74,6 +91,6 @@ export function generate(manifest, read, version) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  writeFileSync(join(iconsDir, 'icons.generated.ts'), generate(readManifest(), readPath, packageVersion()), 'utf8');
+  writeFileSync(join(iconsDir, 'icons.generated.ts'), generate(readManifest(), readPath, packageVersion(), reservedNames()), 'utf8');
   console.log('Набор значков записан: src/shared/ui/icons/icons.generated.ts.');
 }

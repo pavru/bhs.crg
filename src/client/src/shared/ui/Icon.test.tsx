@@ -43,4 +43,10 @@ describe('Icon', () => {
     const img = screen.getByRole('img', { name: 'Закрыто' });
     expect(img.hasAttribute('aria-hidden')).toBe(false);
   });
+
+  it('пустое имя — не имя: значок скрыт, а не изображение без имени', () => {
+    const { container } = render(<Icon icon={Close} aria-label="" />);
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(container.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+  });
 });

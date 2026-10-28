@@ -21,7 +21,8 @@ export type IconProps = SvgProps & Variant & {
  * (решение владельца 28.10.2026). Вращать значок нельзя: ход операции — `CircularProgress`.
  */
 export function Icon({ icon, size = 24, filled = false, ...rest }: IconProps) {
-  const named = rest['aria-label'] !== undefined || rest['aria-labelledby'] !== undefined;
+  // Пустое имя — не имя: `aria-label=""` дал бы изображение без имени, а такой значок скрывают.
+  const named = !!rest['aria-label'] || !!rest['aria-labelledby'];
   return (
     <svg viewBox="0 -960 960 960" width={size} height={size} fill="currentColor" focusable="false"
       {...(named ? { role: 'img' } : { 'aria-hidden': true })} {...rest}>

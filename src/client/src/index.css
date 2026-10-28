@@ -79,14 +79,15 @@ body {
 
 /* Круговой индикатор хода MD3 (shared/ui/CircularProgress, [UI-61]): вращение и «дыхание» дуги.
    --md-progress-c — длина окружности, её ставит компонент. При prefers-reduced-motion дуга стоит,
-   а вращение втрое медленнее — индикатор не пропадает. */
+   а вращение втрое медленнее — индикатор не пропадает. Последний кадр дуги совпадает с первым
+   (сдвиг на целую окружность), иначе на стыке циклов дуга прыгала бы на 5 % круга. */
 @keyframes md-progress-rotate {
   to { transform: rotate(360deg); }
 }
 @keyframes md-progress-arc {
   0%   { stroke-dasharray: calc(var(--md-progress-c) * 0.05) var(--md-progress-c); stroke-dashoffset: 0; }
   50%  { stroke-dasharray: calc(var(--md-progress-c) * 0.7) var(--md-progress-c); stroke-dashoffset: calc(var(--md-progress-c) * -0.1); }
-  100% { stroke-dasharray: calc(var(--md-progress-c) * 0.05) var(--md-progress-c); stroke-dashoffset: calc(var(--md-progress-c) * -0.95); }
+  100% { stroke-dasharray: calc(var(--md-progress-c) * 0.05) var(--md-progress-c); stroke-dashoffset: calc(var(--md-progress-c) * -1); }
 }
 .md-progress { animation: md-progress-rotate 1.6s linear infinite; }
 .md-progress-arc { animation: md-progress-arc 1.33s ease-in-out infinite; }

@@ -1,6 +1,7 @@
 // Счёт и сравнение для храповика интерфейса (issue #1349). Чистые функции: файловая система и
 // процесс — в ui-ratchet.mjs, здесь только то, что проверяет тест.
 
+import { posix } from 'node:path';
 import ts from 'typescript';
 import { COLOR_UTILITIES, scanCandidates, stripComments } from './class-scan.mjs';
 import theme from '../src/theme/md3-theme.json' with { type: 'json' };
@@ -23,6 +24,9 @@ const LEGACY_HINT = LEGACY.filter(([, to]) => typeof to === 'string').map(([k, t
  * отсюда не прочесть. Расхождение ловит ui-ratchet.test.mjs.
  */
 export const ICON_SCALE = [18, 20, 24, 40, 48];
+
+/** Импорт прежнего набора или пакета Material Symbols — см. правило `lucide-import`. */
+const ICON_PACKAGE_IMPORT = /\bfrom\s+['"](?:lucide-react|@material-symbols\/)[^'"]*['"]|\bimport\(\s*['"](?:lucide-react|@material-symbols\/)/g;
 
 /** Старые имена цвета классом и `var(--color-…)` вне комментариев — см. правило `legacy-class`. */
 function countLegacyClasses(source) {
@@ -227,26 +231,28 @@ export const RULES = [
     // Прежний набор значков и пакет Material Symbols в обход набора shared/ui ([UI-60], sharedui-md3-03):
     // `from 'lucide-react'`, `from '@material-symbols/…'` и динамический `import()` их же. В бандл едут
     // только значки манифеста; пакет читает генератор (scripts/icons-generate.mjs), а он вне src/.
-    pattern: /\bfrom\s+['"](?:lucide-react|@material-symbols\/)[^'"]*['"]|\bimport\(\s*['"](?:lucide-react|@material-symbols\/)/g,
+    // Комментарии не в счёт: пояснение «раньше здесь был lucide» не должно держать правило над нулём.
+    count: text => stripComments(text).match(ICON_PACKAGE_IMPORT)?.length ?? 0,
     everywhere: true,
     instead: 'значок — Icon (shared/ui/Icon) со значком из набора shared/ui/icons: <Icon icon={Delete} size={18} />; значка нет в наборе — имя файла пакета в src/shared/ui/icons/manifest.json и npm run icons:generate (docs/UI.md, «Значки»)',
   },
   {
     id: 'spinner-icon',
     // Вращающийся значок вместо индикатора хода ([UI-61]): `animate-spin` у компонента (значок набора,
-    // прежний Loader2) или у `<svg>`. Сам индикатор вращается законно — он назван путём (`skip`).
+    // прежний Loader2) или у `<svg>`. Сам индикатор крутится своим классом `md-progress` (index.css) —
+    // исключение ему не нужно, и вернувшийся в него `animate-spin` правило заметит.
     count: countSpinnerIcons,
     everywhere: true,
-    skip: ['shared/ui/CircularProgress.tsx'],
     instead: 'ход операции — CircularProgress (shared/ui/CircularProgress: size — ступень шкалы, label — когда индикатор стоит один); кнопка в ожидании ответа — Button loading (docs/UI.md, «Значки»)',
   },
   {
     id: 'icon-size',
-    // Размер `<Icon>` вне шкалы ([UI-60]): литерал, которым `size` может стать (ветвь условия, `||`, `??`).
+    // Размер `<Icon>` вне шкалы ([UI-60]): литерал, которым `size` может стать (ветвь условия, `||`, `??`),
+    // и размер мимо `size` — классом (`h-3.5 w-3.5`) или `style`: CSS перекрывает атрибуты width/height.
     // Переменную не считает: её держит тип `IconSize`, а размер, пришедший пропом, сверен у источника.
     count: countIconSizes,
     everywhere: true,
-    instead: `размер значка — ступень шкалы ${ICON_SCALE.join(', ')}: 18 — текст, кнопка, чип, строка; 20 и 24 — кнопка-иконка и навигация; 40 и 48 — только пустые состояния (docs/UI.md, «Значки»)`,
+    instead: `размер значка — только пропом size, ступень шкалы ${ICON_SCALE.join(', ')}, не классом h-/w-/size- и не style: 18 — текст, кнопка, чип, строка; 20 и 24 — кнопка-иконка и навигация; 40 и 48 — только пустые состояния (docs/UI.md, «Значки»)`,
   },
 ];
 
@@ -480,14 +486,24 @@ function sizeLiterals(node) {
   return [];
 }
 
+/** Модуль значка от src/: `Icon` из другого модуля — чужой компонент, его размер не наш. */
+const ICON_MODULE = 'shared/ui/Icon';
+
 /**
- * Имена, под которыми файл импортирует `Icon` из shared/ui/Icon (`./Icon`, `../../shared/ui/Icon`,
- * `@/shared/ui/Icon`, с `as`). Локальное `const Icon = def.icon` — чужой компонент, его размер не наш.
+ * Ведёт ли импорт `spec` из файла `file` (путь от src/) в shared/ui/Icon: `@/shared/ui/Icon` или
+ * относительный путь, который туда приходит. Без пути файла — относительный, кончающийся на него.
  */
-function iconTags(sf) {
+function isIconModule(spec, file) {
+  if (spec === `@/${ICON_MODULE}`) return true;
+  if (!spec.startsWith('.')) return false;
+  return file ? posix.join(posix.dirname(file), spec) === ICON_MODULE : spec.endsWith(`/${ICON_MODULE}`);
+}
+
+/** Имена, под которыми файл импортирует `Icon` из shared/ui/Icon (с `as` тоже). */
+function iconTags(sf, file) {
   const tags = new Set();
   for (const st of sf.statements) {
-    const named = ts.isImportDeclaration(st) && /(?:^|\/)Icon$/.test(st.moduleSpecifier.text) && st.importClause?.namedBindings;
+    const named = ts.isImportDeclaration(st) && isIconModule(st.moduleSpecifier.text, file) && st.importClause?.namedBindings;
     if (named && ts.isNamedImports(named))
       for (const el of named.elements)
         if ((el.propertyName ?? el.name).text === 'Icon') tags.add(el.name.text);
@@ -495,16 +511,23 @@ function iconTags(sf) {
   return tags;
 }
 
-/** `<Icon size={…}>` с литералом вне шкалы — см. правило `icon-size`. */
-function countIconSizes(text) {
+/** Размер классом (`h-4`, `sm:w-5`, `size-3.5`, `min-h-6`) — в тексте значения className. */
+const SIZE_CLASS = /(?<![\w-])(?:(?:min-|max-)?[wh]|size)-[^\s'"`}]/;
+/** Размер в `style`: ключ ширины или высоты. */
+const SIZE_STYLE = /\b(?:min|max)?(?:[wW]idth|[hH]eight)\s*:/;
+
+/** `<Icon size={…}>` с литералом вне шкалы или размер мимо `size` — см. правило `icon-size`. */
+function countIconSizes(text, file) {
   if (!text.includes('Icon')) return 0;
   const sf = parse(text);
-  const tags = iconTags(sf);
+  const tags = iconTags(sf, file);
   if (!tags.size) return 0;
   let n = 0;
   const visit = node => {
     if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && tags.has(node.tagName.getText(sf))
-      && sizeLiterals(attrOf(node, 'size', sf)).some(v => !ICON_SCALE.includes(v)))
+      && (sizeLiterals(attrOf(node, 'size', sf)).some(v => !ICON_SCALE.includes(v))
+        || SIZE_CLASS.test(attrOf(node, 'className', sf)?.getText(sf) ?? '')
+        || SIZE_STYLE.test(attrOf(node, 'style', sf)?.getText(sf) ?? '')))
       n++;
     ts.forEachChild(node, visit);
   };
@@ -644,7 +667,7 @@ export function scopeNote(rule) {
 export function countViolations(text, { dir = 'features', file } = {}) {
   const counts = {};
   for (const rule of RULES.filter(r => watches(r, dir, file))) {
-    const n = rule.count ? rule.count(text) : text.match(rule.pattern)?.length ?? 0;
+    const n = rule.count ? rule.count(text, file) : text.match(rule.pattern)?.length ?? 0;
     if (n > 0) counts[rule.id] = n;
   }
   return counts;

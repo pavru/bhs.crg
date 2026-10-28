@@ -387,9 +387,12 @@ describe('храповик интерфейса: значки (sharedui-md3-03)'
     ].join('\n'), screen)).toEqual({ 'lucide-import': 3 });
     expect(countViolations("import { X } from 'lucide-react';", { dir: 'shared', file: 'shared/ui/Chip.tsx' }))
       .toEqual({ 'lucide-import': 1 });
+    // Пояснение в комментарии — не импорт.
+    expect(countViolations("// раньше: import { X } from 'lucide-react';\n/* from '@material-symbols/svg-400' */", screen))
+      .toEqual({});
   });
 
-  it('вращающийся значок — у компонента и svg; сам индикатор — законно', () => {
+  it('вращающийся значок — у компонента и svg, в том числе в самом индикаторе', () => {
     expect(countViolations([
       '<Loader2 size={14} className="animate-spin" />',
       '<Icon icon={Sync} className={`text-primary ${busy ? \'animate-spin\' : \'\'}`} />',
@@ -397,12 +400,12 @@ describe('храповик интерфейса: значки (sharedui-md3-03)'
       '<div className="animate-spin rounded-full" /> <Icon icon={Sync} className="animate-spin-slow" />',
     ].join('\n'), screen)).toEqual({ 'spinner-icon': 3 });
     expect(countViolations('<svg className="animate-spin" />', { dir: 'shared', file: 'shared/ui/CircularProgress.tsx' }))
-      .toEqual({});
+      .toEqual({ 'spinner-icon': 1 });
   });
 
   it('размер значка вне шкалы — литералом и ветвью условия; переменную держит тип', () => {
     expect(countViolations([
-      "import { Icon } from '../../shared/ui/Icon';",
+      "import { Icon } from '../shared/ui/Icon';",
       '<Icon icon={Close} size={13} />',
       '<Icon icon={Close} size={compact ? 16 : 20} />',
       '<Icon icon={Close} size={18} /> <Icon icon={Close} size={big ? 48 : 24} /> <Icon icon={Close} size={size} />',
@@ -412,6 +415,25 @@ describe('храповик интерфейса: значки (sharedui-md3-03)'
     expect(countViolations("import { Icon as Glyph } from '@/shared/ui/Icon';\n<Glyph icon={Close} size={12} />", screen))
       .toEqual({ 'icon-size': 1 });
     expect(countViolations('const Icon = section.def.icon;\n<Icon size={20} />', screen)).toEqual({});
+  });
+
+  it('значок — только Icon из shared/ui/Icon, а не любой модуль с именем Icon', () => {
+    const own = "import { Icon } from './Icon';\n<Icon size={16} />";
+    expect(countViolations(own, screen)).toEqual({});
+    expect(countViolations(own, { dir: 'shared', file: 'shared/ui/Chip.tsx' })).toEqual({ 'icon-size': 1 });
+    expect(countViolations("import { Icon } from '../../widgets/Icon';\n<Icon size={16} />", screen)).toEqual({});
+    expect(countViolations("import { Icon } from '../../shared/ui/Icon';\n<Icon size={16} />",
+      { dir: 'features', file: 'features/costs/x.tsx' })).toEqual({ 'icon-size': 1 });
+  });
+
+  it('размер мимо size — классом или style', () => {
+    expect(countViolations([
+      "import { Icon } from '@/shared/ui/Icon';",
+      '<Icon icon={Close} className="h-3.5 w-3.5" />',
+      '<Icon icon={Close} className={cn("text-primary", dense && "sm:size-4")} />',
+      '<Icon icon={Close} style={{ height: 13 }} />',
+      '<Icon icon={Close} className="shrink-0 text-error" style={{ color: c }} />',
+    ].join('\n'), screen)).toEqual({ 'icon-size': 3 });
   });
 
   it('шкала храповика — та же, что у типа IconSize', async () => {

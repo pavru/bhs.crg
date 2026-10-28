@@ -83,6 +83,24 @@
   `strokeWidth` снимается; `LucideIcon` → `IconDef`; `Loader2 … animate-spin` → `<CircularProgress … />`.
   Запускается из `npm run md3:migrate` — чужая ветка обновляется одной командой (D3).
 - Значок вне таблицы — отказ кодмода с перечнем, а не угаданная замена.
+- Размер классом у значка lucide (`className="h-4 w-4"`) кодмод переводит в `size` по шкале и снимает
+  класс: у `Icon` размер мимо `size` — нарушение `icon-size`.
+- Экспорт, затеняющий глобальное имя, генератор не пропускает (ревью PR 1): у `error`, `function`,
+  `history`, `image`, `lock`, `symbol` в манифесте поле `export` — `ErrorIcon`, `FunctionIcon`…
+
+Смысловые вопросы таблицы — решение владельца 28.10.2026, все девять по рекомендации:
+
+| # | lucide | Решение |
+|---|---|---|
+| 1 | `RotateCcw`, `CornerUpLeft` | развести: «Вернуть в работу» — `undo`, остальные четыре — `restart_alt` |
+| 2 | `FolderInput` (TypeGroupAccordion) | `drive_file_move`, не `folder_copy` |
+| 3 | `GitBranch` (RowFilterDialog) | `account_tree`, не `call_split` |
+| 4 | `LayoutTemplate`, `FileDown` | один `space_dashboard` |
+| 5 | `FileX`, `FileWarning` | один `scan_delete` |
+| 6 | `BookX` | `search_off` |
+| 7 | `Tag`, `Tags` | разные: `label` и `sell` |
+| 8 | звезда «по умолчанию» (EditorPanel) | контуром, без исключения из правила заливки |
+| 9 | `FileCheck2` в `Brand.tsx` | вне набора: рисунок вписан в `Brand.tsx` отдельным SVG |
 
 ### Сторожа
 - `lucide-import`: импорт `lucide-react` и импорт `@material-symbols/*` вне `scripts/icons-generate.mjs`,
