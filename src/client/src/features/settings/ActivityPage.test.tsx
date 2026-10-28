@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 import type { ActivityRecord, ActivityRow } from '@/shared/api/activity';
@@ -33,18 +33,24 @@ const RECORDS: ActivityRecord[] = [
   { ...SERIES, id: 'e3', occurredAt: '2026-10-28T11:19:00Z', before: '5 строк', after: '7 строк' },
 ];
 
-function open(series: ActivityRow = SERIES) {
+function serve(series: ActivityRow, records: ActivityRecord[]) {
   vi.mocked(apiClient.get).mockImplementation((url: string) => Promise.resolve({
     data: url === '/activity' ? { total: 2, items: [series, SINGLE] }
       : url === '/activity/actions' ? []
-      : url === '/activity/series/s1' ? RECORDS
+      : url === '/activity/series/s1' ? records
       : undefined,
   }) as never);
+}
+
+function open(series: ActivityRow = SERIES) {
+  serve(series, RECORDS);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider client={client}>
       <ActivityPage />
     </QueryClientProvider>,
   );
+  return client;
 }
 
 describe('журнал действий рядами', () => {
@@ -77,5 +83,20 @@ describe('журнал действий рядами', () => {
 
     const list = await screen.findByRole('list', { name: 'Записи ряда' });
     expect(within(list).getByText('Показаны первые 3 из 900.')).toBeTruthy();
+  });
+
+  it('серия выросла при раскрытом ряде — записи перечитываются, а не объявляются обрезанными', async () => {
+    const client = open();
+    fireEvent.click(await screen.findByRole('button', { name: /показать записи/ }));
+    await screen.findByRole('list', { name: 'Записи ряда' });
+
+    const grown = [...RECORDS, { ...SERIES, id: 'e4', occurredAt: '2026-10-28T11:25:00Z', before: '7 строк', after: '8 строк' }];
+    serve({ ...SERIES, count: 4 }, grown);
+    // Перечитывается только страница: раскрытие обязано догнать её само, по числу ряда.
+    await act(() => client.invalidateQueries({ queryKey: ['activity', 0] }));
+
+    await waitFor(() => expect(within(screen.getByRole('list', { name: 'Записи ряда' }))
+      .getAllByRole('listitem')).toHaveLength(4));
+    expect(screen.queryByText(/Показаны первые/)).toBeNull();
   });
 });

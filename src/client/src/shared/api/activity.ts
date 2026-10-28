@@ -83,10 +83,14 @@ export function useActivity(skip: number, take: number, action: string | null) {
  * Записи одного ряда (ТЗ CORE-28.2) — по времени. Читаются только раскрытым рядом: страница журнала
  * их не несёт, чтобы не возить сотню записей ради одной строки. Скрытая от читающего серия отвечает
  * так же, как несуществующая, — 404.
+ *
+ * `count` — число записей ряда, и оно в ключе нарочно: серия выросла — раскрытие перечитывается. Иначе
+ * записи из кэша оказались бы короче свежего числа, и экран сказал бы «показана часть» там, где
+ * сервер ничего не обрезал (ревью PR #1670).
  */
-export function useActivitySeries(sessionId: string | null, action: string) {
+export function useActivitySeries(sessionId: string | null, action: string, count: number) {
   return useQuery({
-    queryKey: ['activity', 'series', sessionId, action],
+    queryKey: ['activity', 'series', sessionId, action, count],
     queryFn: () => apiClient
       .get<ActivityRecord[]>(`/activity/series/${sessionId}`, { params: { action } })
       .then(r => r.data),

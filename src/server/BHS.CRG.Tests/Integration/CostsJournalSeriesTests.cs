@@ -49,6 +49,32 @@ public class CostsJournalSeriesTests(InvoiceLineHost host) : InvoiceLineTestBase
         Assert.DoesNotContain("1234", $"{header.Before}{header.After}{edited.Before}{edited.After}");
     }
 
+    /// <summary>
+    /// Смена режима НДС посреди серии видна в ряду, а не только в раскрытии: ряд берёт «было» первой
+    /// записи со сменой и «стало» последней, и последняя обязана назвать режим, даже если сама его не
+    /// меняла (ревью PR #1670).
+    /// </summary>
+    [Fact]
+    public async Task Смена_режима_НДС_посреди_серии_видна_в_ряду()
+    {
+        var (client, _) = await SignInAsync("Admin");
+        var invoice = await CreateAsync(client);
+        await LinesAsync(client, invoice, [Line(cable, quantity: 1, price: 100m)]);
+
+        var onTop = Line(cable, quantity: 2, price: 100m, rate: 22m);
+        onTop.Remove("amount");
+        onTop["netAmount"] = null;
+        await OkAsync(await client.PutAsJsonAsync($"/api/costs/invoices/{invoice}/lines",
+            new Dictionary<string, object?> { ["vatMode"] = "OnTop", ["lines"] = new object[] { onTop } }));
+        onTop["quantity"] = 3m;
+        await LinesAsync(client, invoice, [onTop]);
+
+        var edited = Assert.Single(await RowsAsync(invoice), r => r.Action == InvoiceActions.LinesChanged.Code);
+        Assert.Equal(3, edited.Count);
+        Assert.Equal("в том числе", edited.Before);
+        Assert.Equal("строк: 1; НДС: сверху", edited.After);
+    }
+
     [Fact]
     public async Task Разобран_посреди_правки_стоит_отдельным_рядом()
     {

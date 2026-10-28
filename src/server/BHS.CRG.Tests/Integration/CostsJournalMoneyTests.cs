@@ -290,10 +290,8 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
     /// <summary>Записи журнала по всем действиям модуля — только о счёте и статьях этого теста: база у хоста общая.</summary>
     private async Task<List<ActivityRecord>> RecordsOfAsync(params Guid[] targets)
     {
-        var records = new List<ActivityRecord>();
-        foreach (var action in new InvoiceActions().Actions)
-            records.AddRange(await RecordsOfAsync(action, targets));
-        return records;
+        var codes = new InvoiceActions().Actions.Select(action => action.Code).ToHashSet();
+        return [.. (await ExportAsync(targets)).Where(r => codes.Contains(r.Action))];
     }
 
     /// <summary>
@@ -301,13 +299,18 @@ public class CostsJournalMoneyTests(InvoiceScanHost host) : InvoiceLineTestBase(
     /// одной сессии сворачиваются в ряд (ТЗ COST-6), а сумм обязана не нести ни одна запись, в том числе
     /// из середины серии: раскрытый ряд показывает каждую.
     /// </summary>
-    private async Task<List<ActivityRecord>> RecordsOfAsync(ModuleActivityAction action, params Guid[] targets)
+    private async Task<List<ActivityRecord>> RecordsOfAsync(ModuleActivityAction action, params Guid[] targets) =>
+        [.. (await ExportAsync(targets)).Where(r => r.Action == action.Code)];
+
+    /// <summary>Записи об этих целях, новые первыми, — одной выгрузкой журнала: он общий на все тесты хоста.</summary>
+    private async Task<IEnumerable<ActivityRecord>> ExportAsync(Guid[] targets)
     {
         using var scope = host.Services.CreateScope();
         var ids = targets.Select(t => t.ToString()).ToHashSet();
-        return [.. (await scope.ServiceProvider.GetRequiredService<IActivityLog>().ExportAsync())
-            .Where(r => r.Action == action.Code && r.TargetId is { } id && ids.Contains(id))
-            .Reverse()];
+        return (await scope.ServiceProvider.GetRequiredService<IActivityLog>().ExportAsync())
+            .Where(r => r.TargetId is { } id && ids.Contains(id))
+            .Reverse()
+            .ToList();
     }
 
     private async Task<int> CountAsync(ModuleActivityAction action, Guid invoice) =>

@@ -67,7 +67,7 @@ function What({ row }: { row: ActivityRow }) {
 }
 
 function SeriesRecords({ sessionId, action, count }: { sessionId: string; action: string; count: number }) {
-  const { data, isLoading, isError } = useActivitySeries(sessionId, action);
+  const { data, isLoading, isError } = useActivitySeries(sessionId, action, count);
   if (isLoading) return <div className="text-fg4 text-xs mt-1.5">Загрузка...</div>;
   if (isError || !data)
     return <div className="text-danger text-xs mt-1.5">Записи ряда не загрузились — обновите страницу.</div>;
@@ -79,7 +79,8 @@ function SeriesRecords({ sessionId, action, count }: { sessionId: string; action
           <Change record={record} />
         </li>
       ))}
-      {/* Сервер отдаёт не больше потолка записей ряда — молча обрезанный список выглядел бы целым. */}
+      {/* Сервер отдаёт не больше потолка записей ряда — молча обрезанный список выглядел бы целым.
+          Записи читаются под то же число, что у ряда (ключ запроса), поэтому «меньше» — это обрезка. */}
       {data.length < count && (
         <li className="text-fg3 text-xs">Показаны первые {data.length} из {count}.</li>
       )}

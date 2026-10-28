@@ -53,15 +53,34 @@ public class ActivityFoldInventoryTests
             "В переписи виды, которые свёртку больше не объявляют: " + string.Join(", ", stale) + ". Уберите строки.");
     }
 
+    /// <summary>
+    /// Объявление действий, которое сторож не может создать, — отказ, а не пропуск (ревью PR #1670):
+    /// пропущенный класс со свёрткой выглядел бы как перепись без нарушений.
+    /// </summary>
+    [Fact]
+    public void Перепись_видит_все_объявления_модулей()
+    {
+        var unreadable = Declarations().Where(t => t.GetConstructor(Type.EmptyTypes) is null)
+            .Select(t => t.FullName).Order(StringComparer.Ordinal).ToList();
+
+        Assert.True(unreadable.Count == 0,
+            "Объявления действий журнала без конструктора без параметров: " + string.Join(", ", unreadable) +
+            ". Сторож переписи их не создаст и их свёртку не увидит — дайте классу такой конструктор " +
+            "или научите сторож создавать его.");
+    }
+
     /// <summary>Виды ядра и всех модулей решения, объявившие свёртку.</summary>
     private static IEnumerable<string> Folded() =>
         ActivityActions.All.Where(a => a.Fold is not null).Select(a => a.Code)
-            .Concat(SolutionModules.Names
-                .Select(name => Assembly.Load(new AssemblyName(name)))
-                .SelectMany(assembly => assembly.GetTypes())
-                .Where(t => typeof(IModuleActivityActions).IsAssignableFrom(t) && t is { IsAbstract: false, IsInterface: false }
-                    && t.GetConstructor(Type.EmptyTypes) is not null)
+            .Concat(Declarations()
+                .Where(t => t.GetConstructor(Type.EmptyTypes) is not null)
                 .SelectMany(t => ((IModuleActivityActions)Activator.CreateInstance(t)!).Actions)
                 .Where(a => a.Fold is not null)
                 .Select(a => a.Code));
+
+    private static IEnumerable<Type> Declarations() =>
+        SolutionModules.Names
+            .Select(name => Assembly.Load(new AssemblyName(name)))
+            .SelectMany(assembly => assembly.GetTypes())
+            .Where(t => typeof(IModuleActivityActions).IsAssignableFrom(t) && t is { IsAbstract: false, IsInterface: false });
 }

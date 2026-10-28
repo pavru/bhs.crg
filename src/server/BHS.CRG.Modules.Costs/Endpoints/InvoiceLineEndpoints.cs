@@ -76,12 +76,13 @@ public static class InvoiceLineEndpoints
         var (invoice, changed, reason, worth) = await desk.WriteAsync(id, write => PlaceAsync(write.Invoice), ct);
 
         // Журнал правки строк — ДО запоминания: строки уже записаны, и запись о них не должна зависеть
-        // от того, чем кончится запоминание (ревью PR #1262).
+        // от того, чем кончится запоминание (ревью PR #1262). Режим НДС — в КАЖДОМ «стало», а не только при
+        // смене: ряд серии берёт «стало» последней записи (ТЗ CORE-28.3), и смена режима посреди серии
+        // иначе пропала бы из ряда — «было» его называет, а «стало» молчит.
         if (changed)
             await log.RecordAsync(InvoiceActions.LinesChanged, invoice.Id.ToString(),
                 InvoiceEndpoints.Label(invoice), before: modeWas is { } was ? VatModes.Shown(was) : null,
-                after: $"строк: {parsed.Count}" + (modeWas is null ? "" : $"; НДС: {VatModes.Shown(invoice.VatMode)}"),
-                ct: ct);
+                after: $"строк: {parsed.Count}; НДС: {VatModes.Shown(invoice.VatMode)}", ct: ct);
 
         if (reason is not null)
             await log.RecordAsync(InvoiceActions.Draft, invoice.Id.ToString(),
