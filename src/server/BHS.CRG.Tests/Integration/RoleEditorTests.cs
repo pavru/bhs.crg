@@ -485,7 +485,7 @@ public class RoleEditorTests(IntegrationTestFixture fixture) : IAsyncLifetime
             scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Тест"));
     }
 
-    private async Task<IReadOnlyList<BHS.CRG.Domain.Activity.ActivityRecord>> RecordsAsync(ActivityAction action)
+    private async Task<IReadOnlyList<BHS.CRG.Application.Activity.ActivityRow>> RecordsAsync(ActivityAction action)
     {
         using var scope = fixture.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<IActivityLog>().ReadAsync(0, 100, ActivityVisibility.Whole, action.Code);

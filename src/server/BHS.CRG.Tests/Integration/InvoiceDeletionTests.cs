@@ -45,7 +45,7 @@ public sealed class InvoiceDeletionTests(InvoiceScanHost host)
             .AsNoTracking().FirstOrDefaultAsync(i => i.Id == invoice);
     }
 
-    private async Task<List<ActivityRecord>> JournalAsync(Guid invoice, string action)
+    private async Task<List<BHS.CRG.Application.Activity.ActivityRow>> JournalAsync(Guid invoice, string action)
     {
         using var scope = host.Services.CreateScope();
         var records = await scope.ServiceProvider.GetRequiredService<IActivityLog>()

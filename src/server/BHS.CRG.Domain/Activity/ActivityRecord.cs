@@ -67,6 +67,21 @@ public class ActivityRecord : BHS.CRG.Domain.Common.IAppendOnlyRecord
     public string? After { get; private set; }
 
     /// <summary>
+    /// Сессия правки (ТЗ CORE-28.2): <c>Id</c> первой записи сессии, у первой — свой собственный.
+    ///
+    /// ⚠️ Ставится ОДИН раз, при вставке, и больше не меняется: журнал только дописывается, и свёртка
+    /// подряд идущих правок держится не на обновлении последней записи, а на ключе новой. Граница
+    /// сессии — <c>ActivitySession</c>.
+    /// </summary>
+    public Guid SessionId { get; private set; }
+
+    /// <summary>
+    /// Первая запись своего вида в сессии — голова ряда на экране журнала. Страница журнала идёт по
+    /// головам: они неизменны, и страницы не едут, пока серия растёт.
+    /// </summary>
+    public bool SeriesHead { get; private set; }
+
+    /// <summary>
     /// Собирает запись. <paramref name="occurredAt" /> задаётся только при восстановлении копии:
     /// приехавшая запись сохраняет своё время, иначе восстановление выдало бы чужие действия за
     /// сегодняшние.
@@ -77,14 +92,23 @@ public class ActivityRecord : BHS.CRG.Domain.Common.IAppendOnlyRecord
     /// приходил бы ПОСЛЕ удавшегося действия — роль уже сменилась, а запрос отвечает 500. Платой в
     /// <c>IActivityLog</c> заявлена потеря записи, а не падение действия; обрезанный хвост эту
     /// плату соблюдает, отказ вставки — нет.
+    ///
+    /// Сессия не названа (<paramref name="sessionId" /> = <c>null</c>) — запись одиночна: начинает свою
+    /// сессию и сама её голова. Так ложатся и записи копии старого формата, где сессий не было.
     /// </summary>
     public static ActivityRecord Create(
         string action, Guid? actorId, string actorName,
         string? targetId = null, string? targetLabel = null,
         string? before = null, string? after = null,
-        Guid? id = null, DateTimeOffset? occurredAt = null) => new()
+        Guid? id = null, DateTimeOffset? occurredAt = null,
+        Guid? sessionId = null, bool seriesHead = true)
+    {
+        var recordId = id ?? Guid.NewGuid();
+        return new()
         {
-            Id = id ?? Guid.NewGuid(),
+            Id = recordId,
+            SessionId = sessionId ?? recordId,
+            SeriesHead = sessionId is null || seriesHead,
             OccurredAt = occurredAt ?? DateTimeOffset.UtcNow,
             Action = action,
             ActorId = actorId,
@@ -94,6 +118,7 @@ public class ActivityRecord : BHS.CRG.Domain.Common.IAppendOnlyRecord
             Before = before,
             After = after,
         };
+    }
 
     /// <summary>
     /// Укоротить до ширины колонки, пометив обрез многоточием: строка «Иван Иванов…» читается как

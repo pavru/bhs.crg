@@ -30,12 +30,35 @@ public static class ActivityEndpoints
             IUserPermissions permissions, IActivityLog log, ActivityActionCatalog actions, CancellationToken ct) =>
         {
             var visible = actions.VisibleTo(await permissions.ForAsync(principal, ct));
-            var records = await log.ReadAsync(skip ?? 0, take ?? 50, visible, action, ct);
+            var rows = await log.ReadAsync(skip ?? 0, take ?? 50, visible, action, ct);
             return Results.Ok(new ActivityPageDto(
                 await log.CountAsync(visible, action, ct),
-                [.. records.Select(r => new ActivityRecordDto(
+                [.. rows.Select(r => new ActivityRowDto(
                     r.Id, r.OccurredAt, r.Action, actions.Title(r.Action),
-                    r.ActorId, r.ActorName, r.TargetLabel, r.Before, r.After))]));
+                    r.ActorId, r.ActorName, r.TargetLabel, r.Before, r.After,
+                    r.Count, r.LastAt, r.FirstTargetLabel,
+                    // Ключ раскрытия — только у ряда, которому есть что раскрывать.
+                    r.Count > 1 ? r.SessionId : null))]));
+        });
+
+        // Записи одного ряда (ТЗ CORE-28.2). Только чтение, поэтому ни If-Match, ни ворот модуля:
+        // журнал — служба ядра, а отбор по праву вида — та же видимость, что у страницы.
+        //
+        // ⚠️ Пусто — 404 и для «нет такой серии», и для «скрыта от читающего»: различая их, ответ
+        // сообщал бы, что серия есть, тому, кому её не видно.
+        g.MapGet("/series/{sessionId:guid}", async (Guid sessionId, string? action, ClaimsPrincipal principal,
+            IUserPermissions permissions, IActivityLog log, ActivityActionCatalog actions, CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(action))
+                return Results.BadRequest(new { error = "Назовите вид ряда: ?action=<код действия>." });
+
+            var visible = actions.VisibleTo(await permissions.ForAsync(principal, ct));
+            var records = await log.SeriesAsync(sessionId, action, visible, ct);
+            return records.Count == 0
+                ? Results.NotFound()
+                : Results.Ok(records.Select(r => new ActivityRecordDto(
+                    r.Id, r.OccurredAt, r.Action, actions.Title(r.Action),
+                    r.ActorId, r.ActorName, r.TargetLabel, r.Before, r.After)));
         });
 
         // Список действий для отбора на экране. Строится из каталога, а не из того, что уже
@@ -51,7 +74,16 @@ public static class ActivityEndpoints
                 .Select(a => new ActivityActionDto(a.Code, a.Title))));
     }
 
-    private record ActivityPageDto(int Total, ActivityRecordDto[] Items);
+    private record ActivityPageDto(int Total, ActivityRowDto[] Items);
+
+    /// <summary>
+    /// Ряд серии. <c>Target</c> — метка цели последней записи, <c>FirstTarget</c> — первой, если она
+    /// менялась. ⚠️ Идентификатора цели здесь нет, как и у записи: журнал её показывает, а не ведёт к ней.
+    /// </summary>
+    private record ActivityRowDto(
+        Guid Id, DateTimeOffset OccurredAt, string Action, string ActionTitle,
+        Guid? ActorId, string ActorName, string? Target, string? Before, string? After,
+        int Count, DateTimeOffset LastAt, string? FirstTarget, Guid? SessionId);
 
     private record ActivityRecordDto(
         Guid Id, DateTimeOffset OccurredAt, string Action, string ActionTitle,

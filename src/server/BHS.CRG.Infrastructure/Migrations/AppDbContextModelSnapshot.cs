@@ -53,6 +53,12 @@ namespace BHS.CRG.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("OccurredAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("SeriesHead")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("TargetId")
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
@@ -66,6 +72,16 @@ namespace BHS.CRG.Infrastructure.Migrations
                     b.HasIndex("Action");
 
                     b.HasIndex("OccurredAt");
+
+                    b.HasIndex("SessionId");
+
+                    b.HasIndex("OccurredAt", "Id")
+                        .IsDescending()
+                        .HasDatabaseName("IX_activity_log_series_heads")
+                        .HasFilter("\"SeriesHead\"");
+
+                    b.HasIndex("TargetId", "OccurredAt", "Id")
+                        .IsDescending(false, true, true);
 
                     b.ToTable("activity_log", (string)null);
                 });

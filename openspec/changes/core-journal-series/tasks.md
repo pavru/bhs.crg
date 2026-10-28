@@ -6,12 +6,12 @@
 
 ## 1. Объявление свёртки (PR 1)
 
-- [ ] 1.1 `ModuleActivityFold` и `ModuleFoldRule` в `BHS.CRG.Modules/Ports/IModuleActivityLog.cs`. Их
+- [x] 1.1 `ModuleActivityFold` и `ModuleFoldRule` в `BHS.CRG.Modules/Ports/IModuleActivityLog.cs`. Их
   принимает `ModuleActivityAction(Code, Title, ReadPermission?, Fold?)` — необязательный параметр, вызовы
   модулей не меняются. В ядре — `ActivityFold` и `FoldRule` в `Application/Activity`, а
   `ActivityAction(Code, Title, Fold?)` получает необязательное поле (D4) [CORE-28.3]. Проверка —
   `dotnet build BHS.CRG.slnx` без правок модулей, `ModuleBoundaryTests` зелёный.
-- [ ] 1.2 `ActivityActionCatalog` переводит `ModuleActivityFold` в `ActivityFold` и проверяет при старте
+- [x] 1.2 `ActivityActionCatalog` переводит `ModuleActivityFold` в `ActivityFold` и проверяет при старте
   (D4, проверки 1–3) [CORE-28.3]:
   - группа своего модуля;
   - одно право чтения на группу;
@@ -19,13 +19,13 @@
 
   Проверка — тесты каталога: чужая группа, разные права в группе, свёртка у `core.modules.changed`.
   Каждый случай роняет сборку каталога с названной причиной, а годное объявление проходит.
-- [ ] 1.3 `ModuleActivityLogPort` передаёт в `IActivityLog` вид из каталога по коду, вместе с `Fold`
+- [x] 1.3 `ModuleActivityLogPort` передаёт в `IActivityLog` вид из каталога по коду, вместе с `Fold`
   (D4) [CORE-28.3]. Проверка — тест: модульный вид с объявленной свёрткой доходит до `RecordAsync` с
   `Fold`.
 
 ## 2. Сессия при записи (PR 1)
 
-- [ ] 2.1 `ActivityRecord`: поля `SessionId` и `SeriesHead`. Фабрика принимает их, сеттеров нет. Миграция
+- [x] 2.1 `ActivityRecord`: поля `SessionId` и `SeriesHead`. Фабрика принимает их, сеттеров нет. Миграция
   ядра (D8) [CORE-28.2]:
 
   ```
@@ -39,11 +39,11 @@
 
   Проверка — на пересозданной базе старт применяет миграцию. Тест миграции: прежняя запись —
   одиночная голова.
-- [ ] 2.2 `ActivitySession` — константы окна (10 минут, 60 минут) и правило «продолжает ли» (D2)
+- [x] 2.2 `ActivitySession` — константы окна (10 минут, 60 минут) и правило «продолжает ли» (D2)
   [CORE-28.2]: тот же автор, не `null`, одна группа, пауза, интервал, дата по поясу компании.
   Проверка — модульные тесты правила на каждое условие: граница ровно в 10 и 60 минут; полночь по
   поясу, отличному от UTC.
-- [ ] 2.3 `ActivityLog.RecordAsync` (D3) [CORE-28.2]:
+- [x] 2.3 `ActivityLog.RecordAsync` (D3) [CORE-28.2]:
   - запись с целью — транзакция и `pg_advisory_xact_lock` по цели;
   - сворачиваемый вид с автором — чтение предыдущей записи цели и решение `ActivitySession`;
   - остальное — одиночная голова.
@@ -57,7 +57,7 @@
 
 ## 3. Чтение рядами и записи серии (PR 1)
 
-- [ ] 3.1 `IActivityLog.ReadAsync` и `CountAsync` идут по головам. Добор хвостов — одним запросом по
+- [x] 3.1 `IActivityLog.ReadAsync` и `CountAsync` идут по головам. Добор хвостов — одним запросом по
   `SessionId` и `Action`. Слияние `Before` и `After` по `FoldRule` (`Span`, `Union`) (D5) [CORE-28.2].
   `LastAsync` и `ExportAsync` по-прежнему сырые.
 
@@ -70,11 +70,11 @@
   - старые записи одиночными.
 
   Сверка состава модулей (`ModuleCompositionJournal`) зелёная.
-- [ ] 3.2 `GET /api/activity` отдаёт `ActivityRowDto`: прежние поля, `count`, `lastAt`, `firstTarget`,
+- [x] 3.2 `GET /api/activity` отдаёт `ActivityRowDto`: прежние поля, `count`, `lastAt`, `firstTarget`,
   `sessionId` (только если `count > 1`). `TargetId` не отдаётся (D5) [CORE-28.2]. Проверка —
   интеграционный тест: читатель с `core.audit.read` без `costs.invoice.read` не видит ни ряда, ни его
   записей, общее число их не учитывает. `CostsJournalMoneyTests` зелёный.
-- [ ] 3.3 `GET /api/activity/series/{sessionId}?action=` под `core.audit.read`, с той же видимостью.
+- [x] 3.3 `GET /api/activity/series/{sessionId}?action=` под `core.audit.read`, с той же видимостью.
   Пусто — 404, одинаковый для «нет» и «скрыта» (D6) [CORE-28.2]. Адрес только читает, поэтому If-Match
   не нужен — исключение названо в D6. Проверка:
   - интеграционные тесты сценариев «Записи ряда раскрываются»: раскрытие, скрытая сессия — 404, без
@@ -83,13 +83,13 @@
 
 ## 4. Копия (PR 1)
 
-- [ ] 4.1 `BackupActivityRecord`: `SessionId` и `SeriesHead`, оба необязательные. Импорт без них — как
+- [x] 4.1 `BackupActivityRecord`: `SessionId` и `SeriesHead`, оба необязательные. Импорт без них — как
   одиночная голова. Восстановление по-прежнему пропускает известные `Id` (D7) [CORE-28.2] [CORE-26].
   Проверка — `BackupManifestCoverageTests` зелёный. Тесты:
   - копия, снятая посреди серии, на чистом экземпляре даёт те же ряды;
   - на работающем — без дублей;
   - копия старого формата восстанавливается одиночными рядами без отказа.
-- [ ] 4.2 Документация: `docs/DEV_NOTES.md` — раздел «Серии журнала действий» (почему ключ при вставке,
+- [x] 4.2 Документация: `docs/DEV_NOTES.md` — раздел «Серии журнала действий» (почему ключ при вставке,
   окно, замок, запретный перечень). `docs/ADMIN_GUIDE.md` — строка о свёрнутых рядах на экране журнала.
   Проверка — `npm run toc` в `docs/tools` не меняет содержание, или содержание перестроено.
 

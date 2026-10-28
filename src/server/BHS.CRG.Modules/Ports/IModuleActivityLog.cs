@@ -21,7 +21,12 @@ namespace BHS.CRG.Modules.Ports;
 /// справочник видел бы в журнале, какие счета оплачены. Такое действие называет право чтения своих
 /// данных. Не названо — хватает открытого модуля. ⚠️ Право обязано быть объявлено этим же модулем:
 /// проверяется при старте, иначе запись не увидел бы никто.</param>
-public sealed record ModuleActivityAction(string Code, string Title, string? ReadPermission = null)
+/// <param name="Fold">Свёртка подряд идущих записей одной цели в ряд журнала (ТЗ CORE-28.3). Не
+/// названа — каждая запись стоит отдельным рядом. ⚠️ Объявлять её можно только у правок, которые идут
+/// потоком (шапка и строки черновика); переходы, оплата, исправление и удаление не сворачиваются —
+/// перечень сворачиваемых видов закрыт сторожем <c>ActivityFoldInventoryTests</c>.</param>
+public sealed record ModuleActivityAction(
+    string Code, string Title, string? ReadPermission = null, ModuleActivityFold? Fold = null)
 {
     /// <summary>
     /// Что не так с объявлением; <c>null</c> — годное. Проверяется при записи, а не только при
@@ -47,6 +52,32 @@ public sealed record ModuleActivityAction(string Code, string Title, string? Rea
         return null;
     }
 }
+
+/// <summary>
+/// Как слить «было» и «стало» серии в один ряд журнала (ТЗ CORE-28.3). Зеркало ядрового
+/// <c>FoldRule</c> — сверяет <c>ModulePortMirrorTests</c>.
+/// </summary>
+public enum ModuleFoldRule
+{
+    /// <summary>Первое непустое значение серии в «было», последнее непустое — в «стало».</summary>
+    Span,
+
+    /// <summary>Объединение перечней через «, » в порядке первого появления.</summary>
+    Union,
+}
+
+/// <summary>
+/// Объявление свёртки вида журнала модуля (ТЗ CORE-28.3).
+///
+/// <para>Группа, а не флаг «да/нет»: при автосохранении шапка и строки чередуются, и сессия правки
+/// обязана пережить переход от одного вида к другому — она держится, пока оба вида объявили одну
+/// группу. Правило нужно, потому что ряд показывает одно «было» и одно «стало» за всю серию.</para>
+/// </summary>
+/// <param name="Group">Код группы с префиксом модуля: <c>costs.invoice.edit</c>. Проверяется при
+/// старте: группа своего модуля, и у всех видов группы одно право чтения.</param>
+/// <param name="Before">Как слить «было».</param>
+/// <param name="After">Как слить «стало».</param>
+public sealed record ModuleActivityFold(string Group, ModuleFoldRule Before, ModuleFoldRule After);
 
 /// <summary>
 /// Журнал действий для модуля (ТЗ CORE-25, CORE-28) — тот же, что у ядра, а не свой.

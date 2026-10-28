@@ -220,7 +220,7 @@ public partial class BackupService
             // через службу, а не из набора: прямой доступ к журналу есть только у неё.
             ActivityLog: activity.Select(r => new BackupActivityRecord(
                 r.Id, r.OccurredAt, r.Action, r.ActorId, r.ActorName,
-                r.TargetId, r.TargetLabel, r.Before, r.After)).ToArray(),
+                r.TargetId, r.TargetLabel, r.Before, r.After, r.SessionId, r.SeriesHead)).ToArray(),
             PeriodClosures: full ? closures.Select(c => new BackupPeriodClosure(
                 c.Id, c.Kind.ToString(), c.Contour.ToString(), c.ConstructionId, c.From, c.Through,
                 c.At, c.ById, c.ByName, c.Reason, c.CancelsId, c.Report)).ToArray() : null,

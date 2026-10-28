@@ -3,7 +3,9 @@
 /// <summary>Действие, которое журнал умеет записывать: код в базе и название для человека.</summary>
 /// <param name="Code">Код вида <c>ядро.объект.действие</c> — он и хранится в записи.</param>
 /// <param name="Title">Название на экране журнала: «Изменена роль пользователя».</param>
-public sealed record ActivityAction(string Code, string Title);
+/// <param name="Fold">Свёртка подряд идущих записей одной цели в ряд (ТЗ CORE-28.3); <c>null</c> —
+/// каждая запись стоит отдельным рядом.</param>
+public sealed record ActivityAction(string Code, string Title, ActivityFold? Fold = null);
 
 /// <summary>
 /// Что журнал записывает (ТЗ CORE-28). Этап 1: состав модулей, роли и права, схемы типов.

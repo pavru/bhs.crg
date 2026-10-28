@@ -45,6 +45,9 @@ public sealed class ModuleActivityLogPort(IActivityLog log, ActivityActionCatalo
                 "берётся из каталога при чтении, чтобы правка названия доезжала и до старых записей. " +
                 "Пишите действие тем же объявлением, которым оно объявлено.");
 
-        return log.RecordAsync(new ActivityAction(action.Code, action.Title), targetId, targetLabel, before, after, ct);
+        // Вид — ИЗ КАТАЛОГА, а не собранный заново из вызова (ТЗ CORE-28.3): в каталоге он уже со
+        // свёрткой, переведённой и проверенной при старте. Собранный здесь, он терял бы её молча, и
+        // объявленные сворачиваемыми записи ложились бы одиночными.
+        return log.RecordAsync(catalog.Find(action.Code)!, targetId, targetLabel, before, after, ct);
     }
 }

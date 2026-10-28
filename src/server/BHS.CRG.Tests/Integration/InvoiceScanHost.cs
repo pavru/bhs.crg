@@ -198,7 +198,7 @@ public sealed class InvoiceScanHost : InvoiceLineHost
     /// где ждали НОЛЬ, при любом поведении (ревью PR #1263). Конец задачи — знак, после которого записи
     /// уже не появится: журнал она пишет последним.</para>
     /// </summary>
-    public async Task<IReadOnlyList<BHS.CRG.Domain.Activity.ActivityRecord>> JournalAsync(
+    public async Task<IReadOnlyList<BHS.CRG.Application.Activity.ActivityRow>> JournalAsync(
         HttpClient client, Guid invoice, string action)
     {
         using var scope = Services.CreateScope();

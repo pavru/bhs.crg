@@ -43,6 +43,19 @@ public class ModulePortMirrorTests
     }
 
     /// <summary>
+    /// Правило свёртки ряда журнала — зеркало ядрового (ТЗ CORE-28.3). Каталог переводит его по имени:
+    /// значение, которого нет в ядре, уронило бы старт, а не запись.
+    /// </summary>
+    [Fact]
+    public void Правило_свёртки_журнала_повторяет_ядровое()
+    {
+        var mirrored = Enum.GetNames<ModuleFoldRule>().OrderBy(x => x, StringComparer.Ordinal);
+        var core = Enum.GetNames<BHS.CRG.Application.Activity.FoldRule>().OrderBy(x => x, StringComparer.Ordinal);
+
+        Assert.Equal(core, mirrored);
+    }
+
+    /// <summary>
     /// Действие модуля для журнала объявляется по форме <c>модуль.объект.действие</c> — иначе отказ.
     ///
     /// Форма проверяется в контрактах, префикс — в приложении (см.

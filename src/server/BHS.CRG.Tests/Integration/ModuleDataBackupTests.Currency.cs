@@ -367,7 +367,7 @@ public partial class ModuleDataBackupTests
         return await scope.ServiceProvider.GetRequiredService<IAppSettingsStore>().GetAsync(Currency);
     }
 
-    private async Task<IReadOnlyList<BHS.CRG.Domain.Activity.ActivityRecord>> CurrencyChangesAsync()
+    private async Task<IReadOnlyList<BHS.CRG.Application.Activity.ActivityRow>> CurrencyChangesAsync()
     {
         using var scope = fixture.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<IActivityLog>()

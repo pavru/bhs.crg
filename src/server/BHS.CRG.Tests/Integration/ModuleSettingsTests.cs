@@ -357,7 +357,7 @@ public class ModuleSettingsTests(InvoiceLineHost host) : InvoiceLineTestBase(hos
         return body.GetProperty("modules").EnumerateArray().Single(m => m.GetProperty("code").GetString() == "costs");
     }
 
-    private async Task<IReadOnlyList<BHS.CRG.Domain.Activity.ActivityRecord>> ChangesAsync()
+    private async Task<IReadOnlyList<BHS.CRG.Application.Activity.ActivityRow>> ChangesAsync()
     {
         using var scope = host.Services.CreateScope();
         var all = await scope.ServiceProvider.GetRequiredService<IActivityLog>()

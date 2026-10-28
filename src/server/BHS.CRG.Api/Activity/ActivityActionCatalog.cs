@@ -22,8 +22,13 @@ namespace BHS.CRG.Api.Activity;
 /// <para>⚠️ Префикс кода обязан быть кодом включённого модуля. Иначе модуль объявил бы
 /// <c>core.user.deleted</c> и писал бы действия от имени ядра: на экране журнала такую строку не
 /// отличить от настоящей.</para>
+///
+/// <para>⚠️ Свёртка вида (ТЗ CORE-28.3) проверяется здесь же: группа своего модуля, одно право чтения
+/// на группу и ни одного вида ядра из <see cref="NeverFolded" />. Перечень сворачиваемых видов модулей
+/// держит сторож <c>ActivityFoldInventoryTests</c>: переходы и оплату модуля каталог распознать не
+/// может, а человек, вписывающий вид в перечень, — может.</para>
 /// </summary>
-public sealed class ActivityActionCatalog
+public sealed class ActivityActionCatalog : IActivityActionLookup
 {
     /// <summary>Владелец действий ядра — первая часть их кода.</summary>
     public const string CoreOwner = "core";
@@ -33,11 +38,27 @@ public sealed class ActivityActionCatalog
     private readonly Dictionary<string, string> _readPermission = new(StringComparer.Ordinal);
     private readonly ModuleRegistry _modules;
 
+    /// <summary>
+    /// Виды ядра, которые не сворачиваются никогда (ТЗ CORE-28.3): пользователи, роли и права, состав
+    /// модулей, закрытие периода, удаление и архив. Каждая такая запись — отдельное свидетельство, и
+    /// ряд «×3» спрятал бы, что право выдавали трижды.
+    /// </summary>
+    public static readonly IReadOnlySet<string> NeverFolded = new HashSet<string>(StringComparer.Ordinal)
+    {
+        ActivityActions.UserCreated.Code, ActivityActions.UserRoleChanged.Code, ActivityActions.UserDeleted.Code,
+        ActivityActions.RoleCreated.Code, ActivityActions.RolePermissionsChanged.Code,
+        ActivityActions.RoleRenamed.Code, ActivityActions.RoleDeleted.Code,
+        ActivityActions.ModulesChanged.Code, ActivityActions.PeriodClosed.Code, ActivityActions.PeriodReopened.Code,
+        ActivityActions.RecordArchived.Code, ActivityActions.RecordUnarchived.Code,
+        ActivityActions.RecordPurged.Code, ActivityActions.ScopePurged.Code, ActivityActions.TableViewDeleted.Code,
+    };
+
     public ActivityActionCatalog(IEnumerable<IModuleActivityActions> declarations, ModuleRegistry modules,
         PermissionCatalog permissions)
     {
         _modules = modules;
-        _byCode = ActivityActions.All.ToDictionary(a => a.Code, StringComparer.OrdinalIgnoreCase);
+        CheckCoreFolds(ActivityActions.All);
+        _byCode =ActivityActions.All.ToDictionary(a => a.Code, StringComparer.OrdinalIgnoreCase);
 
         foreach (var declared in declarations.SelectMany(d => d.Actions))
         {
@@ -72,9 +93,71 @@ public sealed class ActivityActionCatalog
                 _readPermission[declared.Code] = permission;
             }
 
-            _byCode[declared.Code] = new ActivityAction(declared.Code, declared.Title);
+            if (declared.Fold is { } fold && !fold.Group.StartsWith(module + ".", StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    $"Действие журнала «{declared.Code}» сворачивается в группу «{fold.Group}», а группа " +
+                    $"обязана начинаться с кода своего модуля «{module}.». Чужая группа склеила бы правку " +
+                    "одного модуля с правкой другого в один ряд.");
+
+            _byCode[declared.Code] = new ActivityAction(declared.Code, declared.Title, Fold(declared.Fold));
+        }
+
+        CheckGroupPermissions();
+    }
+
+    /// <summary>
+    /// Свёртка у вида ядра из запретного перечня или с чужой группой — отказ старта (ТЗ CORE-28.3).
+    /// Отдельным методом, потому что каталог ядра — поля-константы, и проверить отказ иначе как
+    /// подменой перечня нечем.
+    /// </summary>
+    public static void CheckCoreFolds(IEnumerable<ActivityAction> core)
+    {
+        foreach (var action in core)
+        {
+            if (action.Fold is not { } fold) continue;
+
+            if (NeverFolded.Contains(action.Code))
+                throw new InvalidOperationException(
+                    $"Действие журнала «{action.Code}» объявило свёртку, а оно из тех, что не сворачиваются " +
+                    "никогда: пользователи, роли и права, состав модулей, закрытие периода, удаление и архив. " +
+                    "Каждая такая запись — отдельное свидетельство, и ряд «×N» спрятал бы, сколько их было.");
+
+            if (!fold.Group.StartsWith(CoreOwner + ".", StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    $"Действие журнала «{action.Code}» сворачивается в группу «{fold.Group}», а группа " +
+                    $"ядра обязана начинаться с «{CoreOwner}.».");
         }
     }
+
+    // Виды одной группы закрыты одним правом: иначе один читатель видел бы серию, а другой — её
+    // обрывки, и одна сессия у разных читателей распадалась бы по-разному.
+    private void CheckGroupPermissions()
+    {
+        var split = _byCode.Values
+            .Where(a => a.Fold is not null)
+            .GroupBy(a => a.Fold!.Group, StringComparer.Ordinal)
+            .FirstOrDefault(g => g.Select(a => _readPermission.GetValueOrDefault(a.Code)).Distinct().Count() > 1);
+
+        if (split is not null)
+            throw new InvalidOperationException(
+                $"Виды журнала группы свёртки «{split.Key}» закрыты разными правами чтения: " +
+                string.Join(", ", split.Select(a =>
+                    $"{a.Code} — {_readPermission.GetValueOrDefault(a.Code) ?? "без права"}")) +
+                ". Один читатель видел бы серию целиком, а другой — её обрывки.");
+    }
+
+    private static ActivityFold? Fold(ModuleActivityFold? fold) =>
+        fold is null ? null : new ActivityFold(fold.Group, Rule(fold.Before), Rule(fold.After));
+
+    // По имени, а не по числу: порядок значений двух перечислений никто не сверяет, имена сверяет
+    // ModulePortMirrorTests.
+    private static FoldRule Rule(ModuleFoldRule rule) => Enum.Parse<FoldRule>(rule.ToString());
+
+    /// <summary>
+    /// Вид по коду — вместе со свёрткой. Порт модуля пишет вид ИЗ КАТАЛОГА: собранный заново из
+    /// объявления, он потерял бы свёртку молча.
+    /// </summary>
+    public ActivityAction? Find(string code) => _byCode.GetValueOrDefault(code);
 
     /// <summary>
     /// Что из журнала видно обладателю этих прав (issue #1104): ядро, модули, которые ему открыты, — и

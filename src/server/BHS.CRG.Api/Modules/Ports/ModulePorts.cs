@@ -41,6 +41,8 @@ public static class ModulePorts
         // модулей за время работы не меняется, а объявления обязаны быть проверены ОДИН раз и при
         // старте (разрешается в StartupTasks).
         services.AddSingleton<Activity.ActivityActionCatalog>();
+        services.AddSingleton<BHS.CRG.Application.Activity.IActivityActionLookup>(
+            sp => sp.GetRequiredService<Activity.ActivityActionCatalog>());
 
         services.AddScoped<IModuleActivityLog, ModuleActivityLogPort>();
         // Файлы и их читаемые образы (issue #1269) — по ключу, коду модуля (ТЗ CORE-37.2): у каждого

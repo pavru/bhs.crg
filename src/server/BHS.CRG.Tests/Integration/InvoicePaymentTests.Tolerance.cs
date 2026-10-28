@@ -419,7 +419,7 @@ public partial class InvoicePaymentTests
     }
 
     /// <summary>События «книга выровнена сменой допуска» у счёта.</summary>
-    private async Task<List<BHS.CRG.Domain.Activity.ActivityRecord>> ToleranceEventsAsync(Guid invoice)
+    private async Task<List<BHS.CRG.Application.Activity.ActivityRow>> ToleranceEventsAsync(Guid invoice)
     {
         using var scope = host.Services.CreateScope();
         return [.. (await scope.ServiceProvider.GetRequiredService<IActivityLog>()

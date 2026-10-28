@@ -32,5 +32,15 @@ public class ActivityRecordConfiguration : IEntityTypeConfiguration<ActivityReco
         // Читают журнал всегда одинаково: свежие сверху, иногда с фильтром по действию.
         b.HasIndex(e => e.OccurredAt);
         b.HasIndex(e => e.Action);
+
+        // Серии (ТЗ CORE-28.2). Предыдущая запись цели ищется при каждой записи — под замком цели, то
+        // есть этот поиск обязан быть одним индексным шагом. Хвосты рядов страницы добираются по сессии,
+        // а сама страница идёт по головам — частичный индекс держит только их.
+        b.HasIndex(e => new { e.TargetId, e.OccurredAt, e.Id }).IsDescending(false, true, true);
+        b.HasIndex(e => e.SessionId);
+        b.HasIndex(e => new { e.OccurredAt, e.Id })
+            .IsDescending(true, true)
+            .HasFilter("\"SeriesHead\"")
+            .HasDatabaseName("IX_activity_log_series_heads");
     }
 }

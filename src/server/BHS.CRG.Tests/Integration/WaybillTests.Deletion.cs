@@ -20,7 +20,7 @@ namespace BHS.CRG.Tests.Integration;
 /// </summary>
 public partial class WaybillTests
 {
-    private async Task<List<ActivityRecord>> JournalAsync(Guid waybill, string action)
+    private async Task<List<BHS.CRG.Application.Activity.ActivityRow>> JournalAsync(Guid waybill, string action)
     {
         using var scope = host.Services.CreateScope();
         var records = await scope.ServiceProvider.GetRequiredService<IActivityLog>()

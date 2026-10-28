@@ -288,8 +288,7 @@ public class ActivityLogTests(IntegrationTestFixture fixture) : IAsyncLifetime
         // уронив его целиком, мы проверяли бы не эндпоинт, а невзлетевший хост.
         using var broken = fixture.WithWebHostBuilder(b => b.ConfigureTestServices(s =>
             s.AddScoped<IActivityLog>(sp => new JournalFailingOnUserCreated(
-                sp.GetRequiredService<AppDbContext>(),
-                sp.GetRequiredService<IActivityActor>()))));
+                ActivatorUtilities.CreateInstance<ActivityLog>(sp)))));
 
         var email = $"bootstrap_{Guid.NewGuid():N}@test.local";
         var created = await broken.CreateClient().PostAsJsonAsync("/api/auth/register",
@@ -306,9 +305,8 @@ public class ActivityLogTests(IntegrationTestFixture fixture) : IAsyncLifetime
     }
 
     /// <summary>Журнал, который отказывает на заведении пользователя и работает во всём остальном.</summary>
-    private sealed class JournalFailingOnUserCreated(AppDbContext db, IActivityActor actor) : IActivityLog
+    private sealed class JournalFailingOnUserCreated(ActivityLog inner) : IActivityLog
     {
-        private readonly ActivityLog inner = new(db, actor);
 
         public Task RecordAsync(ActivityAction action, string? targetId = null, string? targetLabel = null,
             string? before = null, string? after = null, CancellationToken ct = default) =>
@@ -316,9 +314,13 @@ public class ActivityLogTests(IntegrationTestFixture fixture) : IAsyncLifetime
                 ? throw new InvalidOperationException("журнал недоступен")
                 : inner.RecordAsync(action, targetId, targetLabel, before, after, ct);
 
-        public Task<IReadOnlyList<ActivityRecord>> ReadAsync(int skip, int take, ActivityVisibility visible,
+        public Task<IReadOnlyList<ActivityRow>> ReadAsync(int skip, int take, ActivityVisibility visible,
             string? action = null, CancellationToken ct = default) =>
             inner.ReadAsync(skip, take, visible, action, ct);
+
+        public Task<IReadOnlyList<ActivityRecord>> SeriesAsync(Guid sessionId, string action,
+            ActivityVisibility visible, CancellationToken ct = default) =>
+            inner.SeriesAsync(sessionId, action, visible, ct);
 
         public Task<int> CountAsync(ActivityVisibility visible, string? action = null,
             CancellationToken ct = default) => inner.CountAsync(visible, action, ct);
@@ -383,7 +385,7 @@ public class ActivityLogTests(IntegrationTestFixture fixture) : IAsyncLifetime
     private static IActivityLog Journal(IServiceScope scope) =>
         scope.ServiceProvider.GetRequiredService<IActivityLog>();
 
-    private async Task<IReadOnlyList<ActivityRecord>> RecordsAsync(ActivityAction action)
+    private async Task<IReadOnlyList<ActivityRow>> RecordsAsync(ActivityAction action)
     {
         using var scope = fixture.Services.CreateScope();
         return await Journal(scope).ReadAsync(0, 100, ActivityVisibility.Whole, action.Code);
