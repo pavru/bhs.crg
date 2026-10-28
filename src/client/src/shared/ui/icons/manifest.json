@@ -1,0 +1,8 @@
+{
+  "//": "Значки Material Symbols Outlined (вес 400), которые попадают в бандл ([UI-60], sharedui-md3-03). Ключ — имя файла в @material-symbols/svg-400/outlined; fill — нужен вариант -fill (только разделы навигации); export — имя экспорта, когда PascalCase от имени затеняет глобальное (Error, Image, History…): такой генератор отказывает. После правки: npm run icons:generate, и оба файла — в коммит.",
+  "icons": {
+    "close": {},
+    "database": { "fill": true },
+    "delete": {}
+  }
+}
