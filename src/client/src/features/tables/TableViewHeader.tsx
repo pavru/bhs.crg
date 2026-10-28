@@ -158,7 +158,7 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
             <Popover.Portal>
               <Popover.Content align="start" sideOffset={6} aria-label="Представления таблицы"
                 className="z-40 w-80 max-h-[70vh] overflow-auto rounded-lg bg-surface border border-stroke p-2 focus:outline-none"
-                style={{ boxShadow: 'var(--f-shadow16)' }}>
+                style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
                 <ul>
                   {/* К таблице целиком — с тем же отбором: из представления к ней уходят посмотреть те же строки всеми колонками. */}
                   {row('table', `${path}${wholeTableHash(view)}`, 'Таблица целиком', lookup.state === 'table')}

@@ -37,7 +37,7 @@ export function SectionMenu({ value, children }: { value: SectionMenuValue; chil
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="start" sideOffset={6} data-testid="section-menu"
           className="z-50 w-72 max-w-[calc(100vw-1rem)] max-h-[70vh] overflow-y-auto rounded-2xl border border-stroke bg-surface p-2 focus:outline-none"
-          style={{ boxShadow: 'var(--f-shadow28)' }}>
+          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
           {all.map((group, i) => (
             <DropdownMenu.Group key={group.label ?? i} className={i > 0 ? 'mt-2' : undefined}>
               {group.label && <DropdownMenu.Label className={`${MICRO_HEADING} pt-1`}>{group.label}</DropdownMenu.Label>}

@@ -226,7 +226,7 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
           // То же, что у `PurgeDialog`: запрос, исход или набранное подтверждение держат человека.
           data-modal-state={busy ? 'busy' : refused ?? unknown ?? fresh ? 'result' : input ? 'touched' : 'free'}
           className="fixed left-1/2 top-4 sm:top-1/2 -translate-x-1/2 sm:-translate-y-1/2 z-50 rounded-[28px] p-6 w-[calc(100%-2rem)] max-w-xl max-h-[calc(100dvh-2rem)] overflow-y-auto bg-surface border border-stroke focus:outline-none"
-          style={{ boxShadow: 'var(--f-shadow28)' }}>
+          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
           <Dialog.Title className="text-sm font-semibold mb-2 text-fg1">{title}</Dialog.Title>
           {body}
         </Dialog.Content>

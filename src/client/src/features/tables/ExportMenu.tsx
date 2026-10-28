@@ -57,7 +57,7 @@ export function ExportMenu({ address, count, body, xlsx: canXlsx, dataset }: {
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="end" sideOffset={6}
           className="z-50 min-w-[14rem] rounded-lg bg-surface border border-stroke py-1 focus:outline-none"
-          style={{ boxShadow: 'var(--f-shadow16)' }}>
+          style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           {canXlsx && (
             <DropdownMenu.Item className={itemCls} disabled={busy} onSelect={() => void xlsx()}>
               В XLSX · {formatCount(count)} {ruPlural(count, 'строка', 'строки', 'строк')}

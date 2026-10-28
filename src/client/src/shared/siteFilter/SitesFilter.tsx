@@ -69,7 +69,7 @@ export function SitesFilter({ hidden, partial = false }: { hidden?: number; part
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6} data-testid="sites-filter-popover" aria-labelledby={heading}
           className="z-50 w-80 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-lg border border-stroke bg-surface p-4"
-          style={{ boxShadow: 'var(--f-shadow28)' }}>
+          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
           <div className="flex items-center justify-between mb-2">
             <h2 id={heading} className="text-sm font-semibold text-fg1">Стройки в списках</h2>
             <Popover.Close asChild>

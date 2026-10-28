@@ -46,7 +46,7 @@ export function BaseInstanceChip({
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="end" sideOffset={4}
           className="z-50 min-w-[12rem] rounded-md border border-stroke bg-surface py-1"
-          style={{ boxShadow: 'var(--f-shadow28)' }}>
+          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
           <DropdownMenu.Item onSelect={() => setPickerOpen(true)}
             className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer select-none outline-none text-fg2 data-[highlighted]:bg-base">
             <Repeat size={14} className="text-fg4" /> Заменить основу…

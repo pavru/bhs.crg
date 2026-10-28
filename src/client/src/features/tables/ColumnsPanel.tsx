@@ -62,7 +62,7 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
       <Popover.Portal>
         <Popover.Content align="end" sideOffset={6} aria-label="Колонки и итоги"
           className="z-50 w-[26rem] max-h-[70vh] overflow-auto rounded-lg bg-surface border border-stroke p-3 focus:outline-none"
-          style={{ boxShadow: 'var(--f-shadow16)' }}>
+          style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           <ul className="space-y-0.5">
             {order.map((key, i) => {
               const place = shown.indexOf(key);

@@ -148,7 +148,7 @@ function ConfirmDialogBody({
         />
         <Dialog.Content
           className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-[28px] p-6 w-full max-w-sm bg-surface border border-stroke focus:outline-none"
-          style={{ boxShadow: 'var(--f-shadow28)' }}
+          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}
           ref={content}
           // Идёт запрос или показан отказ — окно держит человека, см. `DialogHold`.
           data-modal-state={busy ? 'busy' : rule ? 'result' : 'free'}

@@ -85,7 +85,8 @@ function FilterConditionRow({
 
 // ─── Group editor (recursive) ─────────────────────────────────────────────────
 
-const DEPTH_COLORS = ['var(--f-brand)', 'color-mix(in srgb, var(--f-brand) 50%, var(--f-fg3))', 'var(--f-fg3)'];
+// Полоска слева — классом, а не стилем: переменную темы из класса Tailwind выводит в сборку сам.
+const DEPTH_ACCENTS = ['border-l-primary', 'border-l-[color-mix(in_srgb,var(--color-primary)_50%,var(--color-fg3))]', 'border-l-fg3'];
 
 function FilterGroupEditor({
   group,
@@ -127,7 +128,7 @@ function FilterGroupEditor({
     onChange({ ...group, children: group.children.filter((_, idx) => idx !== i) });
   }
 
-  const accentColor = DEPTH_COLORS[Math.min(depth, DEPTH_COLORS.length - 1)];
+  const accent = DEPTH_ACCENTS[Math.min(depth, DEPTH_ACCENTS.length - 1)];
 
   const content = (
     <div>
@@ -207,9 +208,9 @@ function FilterGroupEditor({
   // Root: no visual box
   if (depth === 0) return content;
 
-  // Sub-group: visually wrapped (left accent colour is depth-based → stays inline)
+  // Sub-group: visually wrapped (left accent colour is depth-based)
   return (
-    <div className="rounded-r-lg p-2.5 bg-base" style={{ borderLeft: `3px solid ${accentColor}` }}>
+    <div className={`rounded-r-lg p-2.5 bg-base border-l-3 ${accent}`}>
       {content}
     </div>
   );

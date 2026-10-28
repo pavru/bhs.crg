@@ -12,10 +12,10 @@ export function AuthCard({ title, subtitle, children }: {
   return (
     <div className="min-h-screen flex items-center justify-center bg-base p-4">
       <div className="w-full max-w-sm rounded-[28px] bg-surface border border-stroke p-8"
-        style={{ boxShadow: 'var(--f-shadow16)' }}>
+        style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
         <div className="flex items-center gap-3 mb-6">
           <BrandLogo className="w-11 h-11 rounded-lg bg-brand text-on-brand"
-            style={{ boxShadow: 'var(--f-shadow4)' }} iconSize={22} />
+            style={{ boxShadow: 'var(--md-sys-elevation-level1)' }} iconSize={22} />
           <span className="text-2xl font-semibold text-brand leading-none">{productName}</span>
         </div>
         <h1 className="text-xl font-normal text-fg1">{title}</h1>

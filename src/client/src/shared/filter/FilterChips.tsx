@@ -196,7 +196,7 @@ function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, ch
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6}
           className="z-50 w-72 rounded-lg bg-surface border border-stroke p-3 focus:outline-none"
-          style={{ boxShadow: 'var(--f-shadow16)' }}>
+          style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           <form className="group/condition" onSubmit={e => { e.preventDefault(); apply(); }}>
             <ConditionEditor stacked cond={draft} columns={columns} onChange={setDraft} hintId={hintId} valueRef={valueRef} />
             {/* Подсказка, а не запрет — как в диалоге (issue #1137): годно ли условие, решает сервер, а его

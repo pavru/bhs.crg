@@ -76,7 +76,7 @@ export function ActivityCenter() {
             раздел «Выполняется» стоят на месте, как у прежнего колокольчика (ревью PR #1450). */}
         <Popover.Content align="end" sideOffset={8} collisionPadding={8} aria-label="Активность"
           className="z-50 w-100 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) flex flex-col overflow-hidden rounded-2xl border border-stroke bg-surface focus:outline-none"
-          style={{ boxShadow: 'var(--f-shadow16)' }}>
+          style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           {busy && (
             <section aria-labelledby={jobsHeading} className="shrink-0 border-b border-stroke pt-1">
               <h2 id={jobsHeading} className="px-5 pt-2 text-base font-medium text-fg1">Выполняется</h2>

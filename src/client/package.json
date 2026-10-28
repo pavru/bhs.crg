@@ -12,6 +12,7 @@
     "lint:ratchet:update": "node scripts/lint-ratchet.mjs --update",
     "ui:ratchet": "node scripts/ui-ratchet.mjs",
     "ui:ratchet:update": "node scripts/ui-ratchet.mjs --update",
+    "md3:theme": "node scripts/md3-theme.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

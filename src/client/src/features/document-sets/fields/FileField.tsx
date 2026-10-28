@@ -129,7 +129,7 @@ function FilePreviewBody({ attachment }: { attachment: FileAttachment }) {
           <FileSpreadsheet size={48} className="text-success" />
           <p className="text-sm text-fg3">Предпросмотр недоступен для этого формата.</p>
           <a href={objectUrl} download={attachment.fileName}
-            className="inline-flex items-center gap-2 h-9 px-4 bg-brand hover:bg-brand-hover active:bg-brand-pressed text-on-brand text-sm font-medium rounded-full shadow-[var(--f-shadow4)] transition-colors">
+            className="inline-flex items-center gap-2 h-9 px-4 bg-brand hover:bg-brand-hover active:bg-brand-pressed text-on-brand text-sm font-medium rounded-full shadow-[var(--md-sys-elevation-level1)] transition-colors">
             <Download size={14} /> Скачать
           </a>
         </div>

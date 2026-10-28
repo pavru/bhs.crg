@@ -181,7 +181,7 @@ export function ConstructionsList() {
           {shown.map(c => {
             const setsCount = c.sections.reduce((acc, s) => acc + s.documentSets.length, 0);
             return (
-              <div key={c.id} className={`bg-surface border border-stroke rounded-xl p-5 flex flex-col gap-3 hover:border-brand hover:shadow-[var(--f-shadow16)] transition-all group cursor-pointer ${filter.visible(c.id) ? '' : 'opacity-60'}`}
+              <div key={c.id} className={`bg-surface border border-stroke rounded-xl p-5 flex flex-col gap-3 hover:border-brand hover:shadow-[var(--md-sys-elevation-level2)] transition-all group cursor-pointer ${filter.visible(c.id) ? '' : 'opacity-60'}`}
                 onClick={() => editId !== c.id && navigate(`/document-sets/${c.id}`)}>
                 <div className="flex items-start justify-between gap-2">
                   <FavoriteStar id={c.id} onToggled={() => setKept(new Set(shown.map(x => x.id)))} />

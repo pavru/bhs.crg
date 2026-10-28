@@ -130,7 +130,7 @@ function ShapeEditor({ shape, onChange }: { shape: RecognitionTableShape; onChan
       {flags.map(f => (
         <label key={f.key} className="flex items-start gap-2 text-sm text-fg2 cursor-pointer">
           <input type="checkbox" checked={shape[f.key]} onChange={e => onChange({ ...shape, [f.key]: e.target.checked })}
-            className="mt-0.5 accent-[var(--f-brand)]" />
+            className="mt-0.5 accent-[var(--md-sys-color-primary)]" />
           <span>
             {f.label}
             <span className="block text-xs text-fg4">{f.hint}</span>

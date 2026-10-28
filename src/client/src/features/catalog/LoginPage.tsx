@@ -19,7 +19,7 @@ import { Tooltip } from '@/shared/ui/Tooltip';
  * Фоновая сетка бренд-панели (по макету 2a) — тонкие линии 34×34.
  *
  * <p>Цвет линий — `on-brand` с малой прозрачностью, а не прибитый белый (issue #1065): в тёмной
- * теме бренд СВЕТЛЫЙ (`--f-brand` = светло-голубой, `--f-brand-text` — тёмно-синий), и белые линии
+ * теме бренд СВЕТЛЫЙ (роль `primary` — светло-голубая, `on-primary` — тёмно-синяя), и белые линии
  * на нём исчезали вместе с белым текстом панели.</p>
  */
 const GRID_LINE = 'color-mix(in srgb, var(--color-on-brand) 8%, transparent)';
@@ -56,7 +56,7 @@ export function LoginPage() {
           установившего, оказывался нерабочим (issue #826). */}
       <div
         className="w-full max-w-md md:max-w-[900px] md:min-h-[600px] flex overflow-hidden rounded-[28px] bg-surface border border-stroke"
-        style={{ boxShadow: 'var(--f-shadow16)' }}
+        style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}
       >
         {/* ── Бренд-панель (слева, только на широких экранах) ───────────────── */}
         <div
@@ -86,7 +86,7 @@ export function LoginPage() {
           {/* Компактный бренд для узких экранов (панель скрыта) */}
           <div className="flex md:hidden items-center gap-3 mb-6">
             <BrandLogo className="w-11 h-11 rounded-lg bg-brand text-on-brand"
-              style={{ boxShadow: 'var(--f-shadow4)' }} iconSize={22} />
+              style={{ boxShadow: 'var(--md-sys-elevation-level1)' }} iconSize={22} />
             <span className="text-2xl font-semibold text-brand leading-none">{productName}</span>
           </div>
 

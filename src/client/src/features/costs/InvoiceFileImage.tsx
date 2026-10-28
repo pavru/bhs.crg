@@ -175,7 +175,7 @@ function CaveatPhrase({ about }: { about: string }) {
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6} aria-label="Вид для чтения" data-testid="image-caveat-about"
           className="z-50 w-72 max-w-(--radix-popover-content-available-width) rounded-lg border border-stroke bg-surface p-3 text-xs text-fg1"
-          style={{ boxShadow: 'var(--f-shadow16)' }}>
+          style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           {about}
         </Popover.Content>
       </Popover.Portal>

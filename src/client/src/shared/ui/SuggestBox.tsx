@@ -174,7 +174,7 @@ export function SuggestBox({
           onOpenAutoFocus={e => e.preventDefault()} onCloseAutoFocus={e => e.preventDefault()}
           // Щелчок по самому полю — не «мимо»: список закрыл бы и тут же открылся бы вводом.
           onInteractOutside={e => { if (e.target === input.current) e.preventDefault(); }}
-          className="z-50 overflow-hidden rounded-md border border-stroke bg-surface p-1 shadow-[var(--f-shadow16)]"
+          className="z-50 overflow-hidden rounded-md border border-stroke bg-surface p-1 shadow-[var(--md-sys-elevation-level2)]"
           // Не уже поля; в узкой клетке сетки — не уже 18rem, чтобы марка кабеля не ложилась в столбик.
           style={{ width: 'max(var(--radix-popover-trigger-width), 18rem)', maxWidth: 'min(32rem, calc(100vw - 32px))' }}>
           <SuggestOptions items={items} q={view?.q ?? ''} listId={listId} active={active} onPick={accept} />

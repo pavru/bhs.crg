@@ -107,7 +107,7 @@ function RequiredChip({ field, override, onOverride, onReset }: {
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="start" sideOffset={4}
           className="z-50 min-w-[210px] rounded-xl border border-stroke bg-surface p-1 text-sm text-fg1"
-          style={{ boxShadow: 'var(--f-shadow16)' }}>
+          style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           <ReqItem onSelect={onReset} active={!overridden}>Как у родителя ({parentLabel})</ReqItem>
           <ReqItem onSelect={() => onOverride(true)} active={overridden && effective}>Обязательное</ReqItem>
           <ReqItem onSelect={() => onOverride(false)} active={overridden && !effective}>Опциональное</ReqItem>

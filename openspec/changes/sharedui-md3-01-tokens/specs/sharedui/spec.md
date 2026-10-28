@@ -7,7 +7,8 @@
 полного набора ролей схемы MD3 и `--md-ext-color-<роль>` для своих ролей (`success`, `warning` по четыре
 роли, половины превью значка). Обе темы MUST переключаться атрибутом `data-theme` на `<html>`. Класс
 Tailwind SHALL быть ролью без префикса и без переименования: `bg-primary`, `text-on-surface-variant`,
-`border-outline-variant`.
+`border-outline-variant`. Роль `shadow` класса SHALL NOT иметь: цвет тени рисуют уровни тени, а
+класс роли перехватил бы имена утилит тени (`text-shadow`).
 
 #### Scenario: Роль в обеих темах
 - **WHEN** элемент с `bg-surface-container-high text-on-surface` показан в светлой, затем в тёмной теме

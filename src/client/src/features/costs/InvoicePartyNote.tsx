@@ -96,7 +96,7 @@ function Details({ party, pick, canCreate, onChoose, onRetry }: {
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6}
           className="z-50 w-[360px] max-w-[90vw] rounded-lg bg-surface border border-stroke p-3 text-xs text-fg2 space-y-2 focus:outline-none"
-          style={{ boxShadow: 'var(--f-shadow16)' }}>
+          style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           <p>{partyWhy(party, canCreate)}</p>
           {candidates.length > 0 && (
             <ul className="space-y-1">

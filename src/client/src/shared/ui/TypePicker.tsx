@@ -136,7 +136,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'Ð’Ñ
         <Dialog.Content
           data-modal-state="free"
           className="fixed left-1/2 top-16 z-50 w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 flex flex-col max-h-[calc(100vh-8rem)] overflow-hidden rounded-2xl border border-stroke bg-surface focus:outline-none"
-          style={{ boxShadow: 'var(--f-shadow28)' }}
+          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}
         >
           <Dialog.Title className="sr-only">{title}</Dialog.Title>
           <div className="flex items-center gap-2 border-b border-stroke px-4 shrink-0">
