@@ -68,7 +68,7 @@ export function RolePicker({ value, known = [], onChange, disabled, ariaLabel = 
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="start" sideOffset={4}
           className="z-50 min-w-[16rem] max-h-80 overflow-auto rounded-md border border-stroke bg-surface py-1"
-          style={{ boxShadow: 'var(--f-shadow28)' }}>
+          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
           {/* Пустое меню — это отказ, переодетый в результат: выбрать нечего и непонятно почему. */}
           {roles.length === 0 && (
             <div className="px-3 py-2 text-xs text-fg4">

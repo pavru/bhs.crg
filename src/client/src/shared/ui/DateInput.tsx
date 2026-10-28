@@ -244,7 +244,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
           onKeyDown={onCalendarTab} onCloseAutoFocus={onCalendarClosed} {...fieldFocus}
           onOpenAutoFocus={() => { tabbedOut.current = false; }}
           className="z-50 rounded-2xl bg-surface border border-stroke focus:outline-none"
-          style={{ boxShadow: 'var(--f-shadow16)' }}>
+          style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           <Calendar value={calendarValue} precision={precision}
             onSelect={pick} onClose={() => setPickerOpen(false)}
             min={min} max={max} range={range}

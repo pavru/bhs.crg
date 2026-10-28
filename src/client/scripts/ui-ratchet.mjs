@@ -36,8 +36,9 @@ const update = process.argv.includes('--update');
 // Под присмотром — экраны и обвязка shared/, кроме shared/ui/ (#1469): там живут сами DataGrid и
 // Select, которые эти элементы и заворачивают; граница — по пути файла (`watches`). Другие каталоги —
 // только правилами, которые их назвали (`dirs`). Тесты не считаются: разметка в фикстурах — не интерфейс. Правило со всем src/ (`everywhere`) добавляет каждый каталог и корень
-// (`ROOT`: App.tsx, main.tsx) — список каталогов берётся с диска (`dirsToScan`).
-const code = f => /\.(tsx?|jsx?)$/.test(f) && !/\.test\.[tj]sx?$/.test(f);
+// (`ROOT`: App.tsx, main.tsx) — список каталогов берётся с диска (`dirsToScan`). Файлы стилей
+// читаются тоже, но считают их только правила со `styles` (legacy-token): см. `watches`.
+const code = f => /\.(tsx?|jsx?|css)$/.test(f) && !/\.test\.[tj]sx?$/.test(f);
 const sources = dir => dir === ROOT
   ? readdirSync(srcRoot, { withFileTypes: true }).filter(e => e.isFile() && code(e.name)).map(e => e.name)
   : readdirSync(join(srcRoot, dir), { recursive: true })

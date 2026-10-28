@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { compare, countViolations, dirsToScan, scopeNote, defaultScopeNote, RULES, ROOT } from './ui-ratchet-lib.mjs';
+import { compare, countViolations as countAll, dirsToScan, scopeNote, defaultScopeNote, RULES, ROOT } from './ui-ratchet-lib.mjs';
+
+// Фикстуры правил написаны старыми именами цвета (text-fg1, bg-brand): их переводит sharedui-md3-02.
+// Здесь счёт прочих правил — без legacy-class, а его самого проверяет свой блок ниже.
+const countViolations = (text, opts) =>
+  Object.fromEntries(Object.entries(countAll(text, opts)).filter(([rule]) => rule !== 'legacy-class'));
 
 // Храповик интерфейса (issue #1349): что считается нарушением и как сравнивается с уровнем.
 describe('храповик интерфейса: счёт', () => {
@@ -153,9 +158,24 @@ describe('храповик интерфейса: счёт', () => {
       '<span className="bg-brand/90 text-white" />',
       '<button className="hover:bg-brand-hover fill-white" />',
       '<div className="bg-success stroke-white divide-white" />',
-      '<div className="bg-[var(--f-brand)] text-white" /> <i className="bg-[var(--color-danger)] shadow-white" />',
+      '<div className="bg-[var(--md-sys-color-primary)] text-white" /> <i className="bg-[var(--color-danger)] shadow-white" />',
       '<Badge iconClassName="bg-warning text-white" />',
     ].join('\n'))).toEqual({ 'white-on-fill': 6 });
+  });
+
+  /** Роли MD3 и переменные темы — тот же сторож, что у старых имён (sharedui-md3-01, [UI-58]). */
+  it('белое на заливке роли MD3 и её переменной; контейнер роли — не заливка', () => {
+    expect(countViolations([
+      '<button className="bg-primary text-white" />',
+      '<span className="bg-[var(--md-sys-color-error)] text-white" />',
+      '<i className="hover:bg-[var(--md-ext-color-success)] fill-white" /> <b className="bg-warning ring-white" />',
+      '<button className="bg-brand text-white" />',
+    ].join('\n'))).toEqual({ 'white-on-fill': 5 });
+    expect(countViolations([
+      '<div className="bg-primary-container text-white" />',
+      '<div className="bg-[var(--md-sys-color-primary-container)] text-white" />',
+      '<div className="bg-error-container text-white" /> <div className="bg-primary text-on-primary" />',
+    ].join('\n'))).toEqual({});
   });
 
   /** Календарь, портированный внутрь окна (issue #1521): его резал край окна. */
@@ -296,6 +316,36 @@ describe('храповик интерфейса: счёт', () => {
   });
 });
 
+describe('храповик интерфейса: словарь MD3 (sharedui-md3-01)', () => {
+  it('токены Fluent — в коде и в стилях, по всему src/', () => {
+    expect(countAll('<div className="shadow-[var(--f-shadow16)]" style={{ boxShadow: "var(--f-shadow28)" }} />',
+      { dir: 'features', file: 'features/x.tsx' })).toEqual({ 'legacy-token': 2 });
+    expect(countAll('.x { outline: 2px solid var(--f-brand); }', { dir: ROOT, file: 'index.css' }))
+      .toEqual({ 'legacy-token': 1 });
+    expect(countAll('const c = "var(--legacy-fg3)";', { dir: 'shared', file: 'shared/ui/x.ts' }))
+      .toEqual({ 'legacy-token': 1 });
+  });
+
+  it('сгенерированная тема своих --legacy-* не считает; стили — только legacy-token', () => {
+    expect(countAll(':root { --legacy-fg3: #5b5f67; } @theme inline { --color-fg3: var(--legacy-fg3); }',
+      { dir: 'theme', file: 'theme/md3-legacy.css' })).toEqual({});
+    expect(countAll('.a { width: 520px; } .b { color: #fff; } <table>', { dir: ROOT, file: 'index.css' })).toEqual({});
+  });
+
+  it('старые имена — с вариантом, прозрачностью и через var(--color-…)', () => {
+    expect(countAll([
+      '<div className="hover:bg-brand-subtle text-fg1 border-stroke/50" />',
+      "const s = { boxShadow: 'inset 0 2px 0 0 var(--color-brand)' }; const d = 'var(--color-fg3)';",
+      '/* text-fg2 в комментарии не рисуется */',
+    ].join('\n'), { dir: 'shared', file: 'shared/ui/x.tsx' })).toEqual({ 'legacy-class': 5 });
+  });
+
+  it('имена ролей, общие у обоих словарей, и размер text-base — не старые имена', () => {
+    expect(countAll('text-success bg-surface text-tertiary text-base text-base/6 bg-primary text-on-surface-variant on-warning'))
+      .toEqual({});
+  });
+});
+
 describe('храповик интерфейса: какие каталоги обходить', () => {
   const top = ['assets', 'features', 'shared', 'widgets'];
 
@@ -317,6 +367,8 @@ describe('храповик интерфейса: какие каталоги о�
     expect(scopeNote(RULES.find(r => r.id === 'white-on-fill'))).toBe('white-on-fill — и в shared/ui/');
     expect(scopeNote(RULES.find(r => r.id === 'portal-container'))).toBe('portal-container — и в shared/ui/');
     expect(scopeNote(RULES.find(r => r.id === 'table'))).toBeNull();
+    expect(scopeNote(RULES.find(r => r.id === 'legacy-token'))).toBe('legacy-token — весь src/ со стилями, кроме theme/');
+    expect(scopeNote(RULES.find(r => r.id === 'legacy-class'))).toBe('legacy-class — весь src/');
     expect(scopeNote(RULES.find(r => r.id === 'native-pdf-frame')))
       .toBe('native-pdf-frame — и в shared/ui/, кроме shared/ui/viewer/');
     expect(defaultScopeNote()).toBe('features/ и shared/ без shared/ui/');

@@ -108,7 +108,7 @@ function RevisionTabs({ estimate, selected, onSelect }: {
           <DropdownMenu.Portal>
             <DropdownMenu.Content align="start" sideOffset={4}
               className="z-50 min-w-44 rounded-md border border-stroke bg-surface py-1"
-              style={{ boxShadow: 'var(--f-shadow28)' }}>
+              style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
               {more.map(r => (
                 <DropdownMenu.Item key={r.id} onSelect={() => onSelect(r.id)}
                   className="flex items-center gap-2 px-3 py-1.5 text-sm text-fg2 cursor-pointer select-none outline-none data-[highlighted]:bg-base">

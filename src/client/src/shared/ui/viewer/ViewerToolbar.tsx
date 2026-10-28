@@ -118,7 +118,7 @@ function ZoomMenu(p: ToolbarProps) {
       <DropdownMenu.Portal>
         <DropdownMenu.Content side="top" align="start" sideOffset={6}
           className="z-50 min-w-48 rounded-md border border-stroke bg-surface py-1"
-          style={{ boxShadow: 'var(--f-shadow28)' }}>
+          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
           {item('width', 'По ширине', () => p.onMode('width'), { checked: p.mode === 'width', hint: 'Ctrl 0' })}
           {item('page', 'Страница целиком', () => p.onMode('page'), { checked: p.mode === 'page' })}
           <DropdownMenu.Separator className="my-1 h-px bg-stroke" />

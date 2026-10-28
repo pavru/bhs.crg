@@ -1,193 +1,12 @@
 @import "tailwindcss";
-
-/* ── Fluent 2 design tokens ────────────────────────────────────────────────── */
-
-:root {
-  /* Typography — Roboto (MD3, issue #110 фаза 0) */
-  --f-font:      'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --f-font-mono: 'Roboto Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
-
-  /* Surface layers → MD3 surface / surface-container-* */
-  --f-bg1: #fdfbff;   /* card / panel        (surface)                 */
-  --f-bg2: #f4f2f7;   /* page background     (surface-container-low)   */
-  --f-bg3: #eef0f4;   /* input, subtle       (surface-container)       */
-  --f-bg4: #e9e7ee;   /* selected, hover-deep(surface-container-high)  */
-
-  /* Половины превью значка вкладки в настройке оформления (issue #1315). С темой НЕ переключаются
-     и в тёмной теме не переопределяются: вкладка браузера теме приложения не следует, и показать
-     значок надо на обеих. Значения — фон страницы светлой и тёмной темы (--f-bg2). */
-  --f-tab-light: #f4f2f7;
-  --f-tab-dark: #191c20;
-
-  /* Foregrounds → MD3 on-surface / on-surface-variant / outline */
-  --f-fg1: #1a1c1e;   /* primary text        (on-surface)              */
-  --f-fg2: #44474e;   /* secondary / labels  (on-surface-variant)      */
-  --f-fg3: #5b5f67;   /* tertiary / placeholder                        */
-  --f-fg4: #74777f;   /* caption             (outline)                 */
-  --f-fg-disabled: #a3a5ab;
-
-  /* Strokes → MD3 outline / outline-variant */
-  --f-stroke1: #74777f;  /* stronger border  (outline)                 */
-  --f-stroke2: #c4c6d0;  /* default border   (outline-variant)         */
-  --f-stroke3: #e3e1e6;  /* subtle separator (surface-container-highest)*/
-
-  /* Brand → MD3 primary / primary-container */
-  --f-brand:         #1d5fb0;  /* primary            */
-  --f-brand-hover:   #17518f;
-  --f-brand-pressed: #124074;
-  --f-brand-bg2:     #d6e3ff;  /* primary-container  */
-  --f-brand-fg:      #1d5fb0;  /* brand-coloured text*/
-  --f-brand-text:    #ffffff;  /* on-primary         */
-
-  /* MD3 tonal / container roles (для фаз 1–3: filled-tonal, чипы, плашки) */
-  --f-secondary-container:    #dae2f9;
-  --f-on-secondary-container: #131c2b;
-  --f-on-primary-container:   #001b3c;
-
-  /* MD3 tertiary — третий акцент, отличный от бренда: функциональные тэги, значки видов файлов
-     (issue #1348; раньше — сырая палитра purple-*). */
-  --f-tertiary:              #7340b8;
-  --f-tertiary-container:    #efe0ff;
-  --f-on-tertiary-container: #2b0b5e;
-
-  /* Status → MD3 error + производные контейнеры */
-  --f-success-bg: #d7f0e3;
-  --f-success-fg: #1b8a5b;
-  --f-warning-bg: #fbeecb;
-  --f-warning-fg: #7a5900;
-  --f-warning-stroke: #c49500;
-  --f-danger-bg:  #ffdad6;  /* error-container */
-  --f-danger-fg:  #ba1a1a;  /* error          */
-  /* Текст НА сплошной заливке состояния (issue #1462): on-error и т. п. В светлой теме — белый, как
-     был. Кроме success: белый на его зелёном — 4,35:1, ниже 4,5, поэтому почти чёрный (4,62:1).
-     Белым он не был нигде: сплошной зелёной заливки с текстом в интерфейсе не было. */
-  --f-success-text: #000a05;
-  --f-warning-text: #ffffff;
-  --f-danger-text:  #ffffff;  /* on-error       */
-
-  /* Elevation shadows → MD3 levels (тёплый сине-серый scrim-тон) */
-  --f-shadow4:  0 1px 2px rgba(16,35,63,.30), 0 1px 3px 1px rgba(16,35,63,.12);
-  --f-shadow16: 0 2px 8px rgba(16,35,63,.12), 0 1px 2px rgba(16,35,63,.10);
-  --f-shadow28: 0 8px 24px rgba(0,0,0,.28), 0 2px 6px rgba(0,0,0,.14);
-
-  /* Border radii — MD3 (issue #110 фаза 3): карточки/панели крупнее (xl → 16),
-     диалоги задают radius 28 напрямую. sm/md/lg — контролы/чипы. */
-  --f-r-sm: 4px;
-  --f-r-md: 6px;
-  --f-r-lg: 10px;
-  --f-r-xl: 16px;
-}
-
-/* ── Dark theme ──────────────────────────────────────────────────────────────── */
-
-:root[data-theme="dark"] {
-  /* MD3 dark surfaces */
-  --f-bg1: #111318;   /* surface                 */
-  --f-bg2: #191c20;   /* surface-container-low   */
-  --f-bg3: #1d2024;   /* surface-container       */
-  --f-bg4: #282a2f;   /* surface-container-high  */
-
-  --f-fg1: #e2e2e6;   /* on-surface          */
-  --f-fg2: #c4c6d0;   /* on-surface-variant  */
-  --f-fg3: #a8abb3;
-  --f-fg4: #8e9099;   /* outline             */
-  --f-fg-disabled: #5c5f66;
-
-  --f-stroke1: #8e9099;  /* outline         */
-  --f-stroke2: #43474e;  /* outline-variant */
-  --f-stroke3: #282a2f;
-
-  --f-brand:         #a7c8ff;  /* primary           */
-  --f-brand-hover:   #bcd4ff;
-  --f-brand-pressed: #8bb3f0;
-  --f-brand-bg2:     #004787;  /* primary-container */
-  --f-brand-fg:      #a7c8ff;
-  --f-brand-text:    #00315f;  /* on-primary        */
-
-  --f-secondary-container:    #3b4858;
-  --f-on-secondary-container: #dae2f9;
-  --f-on-primary-container:   #d6e3ff;
-
-  --f-tertiary:              #d4b8ff;
-  --f-tertiary-container:    #4b2c7f;
-  --f-on-tertiary-container: #efe0ff;
-
-  --f-success-bg: #06301f;
-  --f-success-fg: #5fd39a;
-  --f-warning-bg: #3a2a00;
-  --f-warning-fg: #fcba60;
-  --f-warning-stroke: #5a3c00;
-  --f-danger-bg:  #5c1417;
-  --f-danger-fg:  #ffb4ab;  /* error */
-  /* Заливки здесь светлые: белый на них — 1,7:1, его не прочесть (issue #1462). Тёмный тон той же
-     роли — 7:1 и выше, как у on-primary. */
-  --f-success-text: #003920;
-  --f-warning-text: #432c00;
-  --f-danger-text:  #690005;  /* on-error */
-
-  --f-shadow4:  0 1px 2px rgba(0,0,0,.40), 0 1px 3px 1px rgba(0,0,0,.24);
-  --f-shadow16: 0 2px 8px rgba(0,0,0,.36), 0 1px 2px rgba(0,0,0,.24);
-  --f-shadow28: 0 8px 24px rgba(0,0,0,.48), 0 2px 6px rgba(0,0,0,.28);
-}
-
-/* ── Tailwind v4: map color scales to Fluent tokens ─────────────────────────── */
+/* Тема MD3 (эпик sharedui-md3, [UI-57]): переменные ролей, слой Tailwind и старые имена-псевдонимы.
+   Все три файла генерирует npm run md3:theme из src/theme/md3-theme.json — правка цвета там. */
+@import "./theme/md3-tokens.css";
+@import "./theme/md3-tailwind.css";
+@import "./theme/md3-legacy.css";
 
 @theme inline {
-  /* ── Semantic colour vocabulary (preferred) ─────────────────────────────────
-     Use these everywhere: text-fg1, bg-surface, border-stroke, text-brand, etc.
-     They map onto the Fluent --f-* runtime tokens, so they flip with the theme. */
-
-  /* Text */
-  --color-fg1: var(--f-fg1);          /* primary text          */
-  --color-fg2: var(--f-fg2);          /* secondary / labels    */
-  --color-fg3: var(--f-fg3);          /* tertiary / placeholder*/
-  --color-fg4: var(--f-fg4);          /* caption               */
-  --color-fg-disabled: var(--f-fg-disabled);
-
-  /* Surfaces */
-  --color-surface:      var(--f-bg1); /* cards / panels / popovers */
-  --color-base:         var(--f-bg2); /* page / app background     */
-  --color-muted:        var(--f-bg3); /* input fills, subtle zones */
-  --color-muted-hover:  var(--f-bg4); /* selected / deep hover     */
-
-  /* Strokes */
-  --color-stroke:        var(--f-stroke2); /* default border  */
-  --color-stroke-strong: var(--f-stroke1);
-  --color-stroke-subtle: var(--f-stroke3);
-
-  /* Fonts */
-  --font-mono: var(--f-font-mono);   /* utility: font-mono → Roboto Mono (код, версия) */
-
-  /* Brand */
-  --color-brand:         var(--f-brand);
-  --color-brand-hover:   var(--f-brand-hover);
-  --color-brand-pressed: var(--f-brand-pressed);
-  --color-brand-subtle:  var(--f-brand-bg2);          /* primary-container      */
-  --color-on-brand:        var(--f-brand-text);       /* on-primary (текст на filled) */
-  --color-on-brand-subtle: var(--f-on-primary-container);
-
-  /* Tonal (MD3 secondary-container) — для filled-tonal кнопок/чипов (фазы 1–3) */
-  --color-tonal:    var(--f-secondary-container);
-  --color-on-tonal: var(--f-on-secondary-container);
-
-  /* Tertiary (MD3) — функциональные тэги, значки видов файлов */
-  --color-tertiary:           var(--f-tertiary);
-  --color-tertiary-subtle:    var(--f-tertiary-container);
-  --color-on-tertiary-subtle: var(--f-on-tertiary-container);
-
-  /* Status */
-  --color-success:         var(--f-success-fg);
-  --color-success-subtle:  var(--f-success-bg);
-  --color-warning:         var(--f-warning-fg);
-  --color-warning-subtle:  var(--f-warning-bg);
-  --color-warning-border:  var(--f-warning-stroke);
-  --color-danger:          var(--f-danger-fg);
-  --color-danger-subtle:   var(--f-danger-bg);
-  /* Текст и значок на сплошной заливке состояния — пара к bg-success / bg-warning / bg-danger, как
-     text-on-brand к bg-brand. Не text-white: в тёмной теме заливки светлые (issue #1462). */
-  --color-on-success:      var(--f-success-text);
-  --color-on-warning:      var(--f-warning-text);
-  --color-on-danger:       var(--f-danger-text);
+  --font-mono: 'Roboto Mono', ui-monospace, 'Cascadia Code', Consolas, monospace; /* код, версия */
 
   /* Шкала текста (issue #1350). Основа — Tailwind: text-xs 12/16, text-sm 14/20, text-base 16/24.
      Две ступени, которых в ней нет, названы ролями (назначение — docs/UI.md, «Текст»):
@@ -198,11 +17,12 @@
   --text-note: 13px;
   --text-note--line-height: 20px;
 
-  /* Border radius — шкала MD3 на именах Tailwind (назначение — docs/UI.md) */
-  --radius-sm: var(--f-r-sm);   /* 4px  — чип, бейдж, мелкий контрол */
-  --radius-md: var(--f-r-md);   /* 6px  — поле ввода, кнопка-иконка   */
-  --radius-lg: var(--f-r-lg);   /* 10px — плашка, всплывающее меню    */
-  --radius-xl: var(--f-r-xl);   /* 16px — карточка, панель            */
+  /* Border radius — на именах Tailwind (назначение — docs/UI.md); шкалу MD3 приносит sharedui-md3-06.
+     Диалоги задают radius 28 напрямую. */
+  --radius-sm: 4px;    /* чип, бейдж, мелкий контрол */
+  --radius-md: 6px;    /* поле ввода, кнопка-иконка   */
+  --radius-lg: 10px;   /* плашка, всплывающее меню    */
+  --radius-xl: 16px;   /* карточка, панель            */
 }
 
 /* ── dark: variant using data-theme ─────────────────────────────────────────── */
@@ -212,11 +32,11 @@
 *, *::before, *::after { box-sizing: border-box; }
 
 body {
-  font-family: var(--f-font);
+  font-family: var(--md-ref-typeface-plain);
   font-size: 14px;
   line-height: 1.5;
-  background-color: var(--f-bg2);
-  color: var(--f-fg1);
+  background-color: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -240,12 +60,12 @@ body {
    Put in @layer base so Tailwind utility classes can still override. */
 @layer base {
   input, select, textarea {
-    color: var(--f-fg1);
-    background-color: var(--f-bg1);
+    color: var(--md-sys-color-on-surface);
+    background-color: var(--md-sys-color-surface);
   }
   option {
-    color: var(--f-fg1);
-    background-color: var(--f-bg1);
+    color: var(--md-sys-color-on-surface);
+    background-color: var(--md-sys-color-surface);
   }
 }
 
@@ -258,6 +78,6 @@ body {
 /* Кнопка выхода диалога, показанная после клика мимо или Esc (issue #1235): кольцо на ~600 мс,
    без движения — проходит и при prefers-reduced-motion. Вне слоёв, чтобы не спорить с утилитами. */
 [data-modal-hint] {
-  outline: 2px solid var(--f-brand);
+  outline: 2px solid var(--md-sys-color-primary);
   outline-offset: 2px;
 }

@@ -34,8 +34,9 @@ public static class BrandIconComposer
     public static readonly SKColor LightTile = new(0xff, 0xff, 0xff);
 
     /// <summary>
-    /// Тёмная плитка под светлый логотип. Это поверхность тёмной темы приложения (<c>--f-bg1</c>,
-    /// <c>#111318</c>) — то, на чём светлый логотип уже стоит в шапке.
+    /// Тёмная плитка под светлый логотип. Это поверхность тёмной темы приложения (роль MD3
+    /// <c>surface</c>, <c>#111318</c>) — то, на чём светлый логотип уже стоит в шапке. Сверяет с
+    /// описанием темы клиента <c>md3-theme.test.mjs</c>.
     /// </summary>
     public static readonly SKColor DarkTile = new(0x11, 0x13, 0x18);
 

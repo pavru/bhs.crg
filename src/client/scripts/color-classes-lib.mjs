@@ -16,12 +16,12 @@
 
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { __unstable__loadDesignSystem } from 'tailwindcss';
 
 const require = createRequire(import.meta.url);
 
-const COLOR_UTILITIES = [
+export const COLOR_UTILITIES = [
   'bg', 'text', 'border', 'border-[xytblrse]', 'ring', 'ring-offset', 'inset-ring', 'outline', 'divide',
   'fill', 'stroke', 'from', 'via', 'to', 'shadow', 'inset-shadow', 'drop-shadow', 'text-shadow', 'accent',
   'caret', 'decoration',
@@ -69,17 +69,18 @@ export function colorCandidates(source) {
 }
 
 /**
- * Дизайн-система Tailwind по index.css клиента — та же, что собирает vite. Возвращает проверку:
- * какие из классов Tailwind НЕ порождает.
+ * Дизайн-система Tailwind по тексту index.css клиента — та же, что собирает vite. `base` — каталог,
+ * от которого читаются относительные импорты (файлы темы `./theme/*.css`).
  */
-export async function loadColorCheck(indexCssPath) {
-  const css = await readFile(indexCssPath, 'utf8');
+export async function loadDesign(css, base) {
   const design = await __unstable__loadDesignSystem(css, {
-    base: dirname(indexCssPath),
-    // Единственный импорт index.css — сам `tailwindcss`. Что-то ещё появилось — пусть скажет.
-    loadStylesheet: async id => {
-      if (id !== 'tailwindcss') throw new Error(`Сторож цветовых классов не умеет импорт «${id}» из index.css`);
-      const path = require.resolve('tailwindcss/index.css');
+    base,
+    // Импорты index.css — сам `tailwindcss` и сгенерированные файлы темы рядом. Что-то ещё
+    // появилось — пусть скажет.
+    loadStylesheet: async (id, from) => {
+      const path = id === 'tailwindcss' ? require.resolve('tailwindcss/index.css')
+        : id.startsWith('./theme/') ? join(from, id) : null;
+      if (!path) throw new Error(`Сторож цветовых классов не умеет импорт «${id}» из index.css`);
       return { path, base: dirname(path), content: await readFile(path, 'utf8') };
     },
   });
@@ -87,7 +88,14 @@ export async function loadColorCheck(indexCssPath) {
   // причиной, а не зелёный сторож, который ничего не проверяет.
   if (typeof design.candidatesToCss !== 'function')
     throw new Error('У дизайн-системы Tailwind нет candidatesToCss — сторож цветовых классов надо перевести на новый API');
+  return design;
+}
 
+/**
+ * Дизайн-система по index.css клиента. Возвращает проверку: какие из классов Tailwind НЕ порождает.
+ */
+export async function loadColorCheck(indexCssPath) {
+  const design = await loadDesign(await readFile(indexCssPath, 'utf8'), dirname(indexCssPath));
   const known = new Map();
   return classes => {
     const fresh = [...new Set(classes)].filter(c => !known.has(c));

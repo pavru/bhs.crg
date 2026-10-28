@@ -26,14 +26,19 @@ describe('цветовые классы: что сторож видит', () => 
   });
 
   it('произвольные значения и не-классы не берёт', () => {
-    expect(colorCandidates('bg-[var(--f-bg3)] text-(--x) context-menu textual')).toEqual([]);
+    expect(colorCandidates('bg-[var(--md-sys-color-surface-container)] text-(--x) context-menu textual')).toEqual([]);
   });
 });
 
 describe('цветовые классы: что Tailwind не порождает', () => {
   it('имена, которых нет в @theme, — отказ', () => {
-    expect(unknown(['bg-surface2', 'text-fg', 'border-primary', 'border-danger-border', 'stroke-strong']))
-      .toEqual(['bg-surface2', 'text-fg', 'border-primary', 'border-danger-border', 'stroke-strong']);
+    expect(unknown(['bg-surface2', 'text-fg', 'text-on-surface-muted', 'border-danger-border', 'stroke-strong']))
+      .toEqual(['bg-surface2', 'text-fg', 'text-on-surface-muted', 'border-danger-border', 'stroke-strong']);
+  });
+
+  it('роли MD3 — и те, которыми ещё никто не рисует, — проходят', () => {
+    expect(unknown(['bg-primary', 'text-on-surface-variant', 'bg-surface-container-high', 'border-outline-variant',
+      'bg-inverse-surface', 'text-inverse-on-surface', 'bg-scrim/32', 'text-on-success-container'])).toEqual([]);
   });
 
   it('токены, прозрачность и не-цветовые значения тех же утилит — проходят', () => {
@@ -53,7 +58,7 @@ it('в клиенте нет цветовых классов без токена
 
   // Сообщение называет выход: без него класс заменяют первым похожим, и он снова не рисуется.
   expect(offenders, 'Цветовые классы без токена — Tailwind их не рисует, место остаётся без цвета.\n'
-    + 'Токены — @theme inline в src/index.css; что для чего — docs/UI.md, «Цвет»\n'
-    + '(text-fg → text-fg1, bg-surface2 → bg-muted, *-primary → *-brand, border-danger-border → border-danger/30).\n'
+    + 'Цвет — роль MD3 (src/theme/md3-theme.json); что для чего — docs/UI.md, «Цвет»\n'
+    + '(text-fg → text-on-surface, bg-surface2 → bg-surface-container, *-brand → *-primary, border-danger-border → border-error/30).\n'
     + 'В комментарии называйте класс целиком (bg-stroke-strong, а не stroke-strong).').toEqual([]);
 });

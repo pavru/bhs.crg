@@ -62,7 +62,7 @@ function ToastCard({ item, onRemove }: { item: ToastItem; onRemove: () => void }
       // error — foreground (assertive/role=alert); успех/инфо — background (polite/role=status).
       type={variant === 'error' ? 'foreground' : 'background'}
       onOpenChange={open => { if (!open) onRemove(); }}
-      className={`flex items-start gap-2.5 rounded-lg border border-stroke ${bg} px-3.5 py-3 shadow-[var(--f-shadow16)]
+      className={`flex items-start gap-2.5 rounded-lg border border-stroke ${bg} px-3.5 py-3 shadow-[var(--md-sys-elevation-level2)]
         data-[state=open]:[animation:toast-in_150ms_ease-out]
         data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)]
         data-[swipe=cancel]:translate-x-0 data-[swipe=cancel]:transition-transform

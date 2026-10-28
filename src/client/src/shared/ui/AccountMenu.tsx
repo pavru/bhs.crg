@@ -82,7 +82,7 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="end" sideOffset={8}
           className="z-50 w-80 max-w-[calc(100vw-1rem)] rounded-2xl border border-stroke bg-surface overflow-hidden focus:outline-none"
-          style={{ boxShadow: 'var(--f-shadow28)' }}>
+          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
           <div className="flex items-center gap-3.5 px-5 pt-5 pb-3">
             <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-12 h-12 text-base" />
             <div className="min-w-0">

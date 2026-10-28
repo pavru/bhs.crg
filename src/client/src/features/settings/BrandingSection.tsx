@@ -251,10 +251,10 @@ function IconPreviews({ icons }: { icons: BrandIcons }) {
             логотипа это разница между «видно» и «полоска». Половины закреплены и с темой приложения
             не переключаются: вкладка браузера ей не следует. */}
         <div className="flex rounded-md border border-stroke overflow-hidden">
-          <span className="flex items-center justify-center w-7 h-7 bg-[var(--f-tab-light)]">
+          <span className="flex items-center justify-center w-7 h-7 bg-[var(--md-ext-color-tab-light)]">
             <img src={tab} alt="Значок вкладки на светлом фоне" width={16} height={16} onError={fail} />
           </span>
-          <span className="flex items-center justify-center w-7 h-7 bg-[var(--f-tab-dark)]">
+          <span className="flex items-center justify-center w-7 h-7 bg-[var(--md-ext-color-tab-dark)]">
             <img src={tab} alt="Значок вкладки на тёмном фоне" width={16} height={16} onError={fail} />
           </span>
         </div>

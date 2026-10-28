@@ -227,7 +227,7 @@ function ModalBody({
               // ложилось бы в край экрана, скруглёнными углами вплотную (ревью PR #1386).
               wide ? 'w-[calc(100%-2rem)] max-w-4xl' : 'w-full max-w-lg'
             } ${NARROW_FULL}`}
-          style={fullScreen ? undefined : { boxShadow: 'var(--f-shadow28)' }}
+          style={fullScreen ? undefined : { boxShadow: 'var(--md-sys-elevation-level3)' }}
           // «Тронуто»: первый же ввод внутри содержимого.
           // ⚠️ НЕ `onInputCapture`. React исполняет перехват `input` отдельным заходом, ДО того как
           // дойдёт до `onChange` поля, и сразу перерисовывает: управляемое поле получает прежнее
@@ -325,7 +325,7 @@ function ModalBody({
 
           {asking && (
             <div className={`absolute inset-0 z-10 flex items-center justify-center bg-black/40 ${fullScreen ? '' : 'rounded-[28px]'}`}>
-              <div className="rounded-3xl p-5 w-80 bg-surface border border-stroke" style={{ boxShadow: 'var(--f-shadow28)' }}>
+              <div className="rounded-3xl p-5 w-80 bg-surface border border-stroke" style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
                 <p className="text-sm font-semibold mb-1 text-fg1">
                   Закрыть без сохранения?
                 </p>

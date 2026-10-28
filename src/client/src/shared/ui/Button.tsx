@@ -45,8 +45,8 @@ function variantClass(variant: ButtonVariant, danger: boolean): string {
   switch (variant) {
     case 'filled':
       return danger
-        ? 'bg-danger text-on-danger shadow-[var(--f-shadow4)] hover:brightness-95 active:brightness-90'
-        : 'bg-brand text-on-brand shadow-[var(--f-shadow4)] hover:bg-brand-hover active:bg-brand-pressed';
+        ? 'bg-danger text-on-danger shadow-[var(--md-sys-elevation-level1)] hover:brightness-95 active:brightness-90'
+        : 'bg-brand text-on-brand shadow-[var(--md-sys-elevation-level1)] hover:bg-brand-hover active:bg-brand-pressed';
     case 'tonal':
       return 'bg-tonal text-on-tonal hover:brightness-[.97] active:brightness-95';
     case 'outlined':

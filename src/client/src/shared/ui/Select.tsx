@@ -149,7 +149,7 @@ export function Select({
       </RS.Trigger>
       <RS.Portal>
         <RS.Content position="popper" sideOffset={4}
-          className="z-50 min-w-[var(--radix-select-trigger-width)] max-h-[var(--radix-select-content-available-height)] overflow-hidden rounded-md border border-stroke bg-surface shadow-[var(--f-shadow16)]">
+          className="z-50 min-w-[var(--radix-select-trigger-width)] max-h-[var(--radix-select-content-available-height)] overflow-hidden rounded-md border border-stroke bg-surface shadow-[var(--md-sys-elevation-level2)]">
           <RS.Viewport className="p-1">
             {emptyItem !== undefined && <SelectItem value={EMPTY}>{emptyItem}</SelectItem>}
             {children}

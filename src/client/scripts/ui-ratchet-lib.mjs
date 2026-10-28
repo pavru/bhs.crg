@@ -2,12 +2,27 @@
 // процесс — в ui-ratchet.mjs, здесь только то, что проверяет тест.
 
 import ts from 'typescript';
+import { COLOR_UTILITIES, colorCandidates, stripComments } from './color-classes-lib.mjs';
+import theme from '../src/theme/md3-theme.json' with { type: 'json' };
 
 const COLORS = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
 const UTILITIES = 'bg|text|border|ring|ring-offset|outline|divide|fill|stroke|from|via|to|shadow|accent|caret|decoration|placeholder';
 
 /** Каталог файлов из корня src/ (App.tsx, main.tsx) — для `countViolations({ dir })` и `dirsToScan`. */
 export const ROOT = '.';
+
+// Старые имена цвета — псевдонимы из описания темы (правило `legacy-class`); длинные — первыми.
+const LEGACY = Object.entries(theme.aliases).filter(([k]) => !k.startsWith('//'));
+const LEGACY_NAMES = LEGACY.map(([k]) => k).sort((a, b) => b.length - a.length).join('|');
+const LEGACY_CLASS = new RegExp(`^(?:${COLOR_UTILITIES})-(?:${LEGACY_NAMES})(?:/[\\w.]+)?$`);
+const LEGACY_VAR = new RegExp(`var\\(--color-(?:${LEGACY_NAMES})\\)`, 'g');
+const LEGACY_HINT = LEGACY.filter(([, to]) => typeof to === 'string').map(([k, to]) => `${k} → ${to}`).join(', ');
+
+/** Старые имена цвета классом и `var(--color-…)` вне комментариев — см. правило `legacy-class`. */
+function countLegacyClasses(text) {
+  const classes = colorCandidates(text).filter(c => LEGACY_CLASS.test(c.cls) && !/^text-base(?:\/|$)/.test(c.cls));
+  return classes.length + (stripComments(text).match(LEGACY_VAR)?.length ?? 0);
+}
 
 /**
  * Классы нарушений. У каждого — куда идти вместо: сообщение отказа обязано называть выход, иначе
@@ -124,7 +139,7 @@ export const RULES = [
     // ползунок у ребёнка (так был пропущен Switch, ревью #1477), заливка через style. Её ловит ревью.
     count: countWhiteOnFill,
     dirs: ['features', 'shared'],
-    instead: 'текст и значок на заливке — парный токен: bg-brand → text-on-brand, bg-danger → text-on-danger, bg-success → text-on-success, bg-warning → text-on-warning; кольцо — ring-on-*, точка — bg-on-* (docs/UI.md, «Цвет»)',
+    instead: 'текст и значок на заливке — парная роль: bg-primary → text-on-primary, bg-error → text-on-error, bg-success → text-on-success, bg-warning → text-on-warning; кольцо — ring-on-*, точка — bg-on-* (docs/UI.md, «Цвет»)',
   },
   {
     id: 'portal-container',
@@ -174,6 +189,27 @@ export const RULES = [
     dirs: ['features', 'shared'],
     skip: ['shared/ui/viewer/'],
     instead: 'показ PDF — PdfViewer (shared/ui/viewer: source — байты, documentKey, title, actions — выход места; overlay — во весь экран); «во вкладке» — openInNewTab, печать — Ctrl+P в просмотрщике (docs/UI.md, таблица контролов)',
+  },
+  {
+    id: 'legacy-token',
+    // Токены Fluent `--f-*` (эпик sharedui-md3, [UI-57]): удалены целиком, уровень 0 навсегда. И
+    // `--legacy-*` — значения старых имён без роли MD3: живут только в сгенерированной теме (`skip`),
+    // а снаружи — это обход псевдонима. Смотрит и стили (`styles`): тень и цвет пишут и в CSS.
+    pattern: /--(?:f|legacy)-[\w-]/g,
+    everywhere: true,
+    styles: true,
+    skip: ['theme/'],
+    instead: 'переменная MD3: --f-shadow4/16/28 → --md-sys-elevation-level1/2/3, --f-brand → --md-sys-color-primary, цвет — --md-sys-color-<роль> или класс роли (bg-primary, text-on-surface); --legacy-* — только внутри src/theme/ (docs/UI.md, «Цвет»)',
+  },
+  {
+    id: 'legacy-class',
+    // Старые имена цвета (text-fg1, bg-brand…) — переходные псевдонимы ролей MD3 ([UI-58]): рисуют
+    // прежнее, но расти им нельзя. Перечень — псевдонимы описания темы, граница класса — та же, что у
+    // сторожа словаря (любая цветовая утилита, вариант, прозрачность). Плюс `var(--color-<старое>)`.
+    // `text-base` — размер текста, а не цвет. Снимается финалом эпика вместе с псевдонимами.
+    count: countLegacyClasses,
+    everywhere: true,
+    instead: `класс роли MD3 вместо старого имени: ${LEGACY_HINT}; у fg3, fg-disabled, brand-hover, brand-pressed, warning-border, stroke-subtle роли того же цвета нет — их снимают sharedui-md3-04 и -05 (docs/UI.md, «Цвет»)`,
   },
 ];
 
@@ -237,11 +273,12 @@ function countNativeCheckboxes(text) {
   return n;
 }
 
-// Сплошная заливка роли (с наведением и нажатием) — классом или произвольным значением на токене
-// (`bg-[var(--f-brand)]`), — и белое поверх неё. `bg-brand-subtle` — контейнер, на нём свой текст
-// (text-on-brand-subtle), и заливкой он не считается. Белый фон с прозрачностью — слой состояния.
-const ROLE = 'brand(?:-hover|-pressed)?|danger|success|warning';
-const FILL = new RegExp(`(?<![\\w-])(?:[\\w-]+:)*bg-(?:(?:${ROLE})(?![\\w-])|\\[var\\(--(?:color-(?:${ROLE})|f-brand(?:-hover|-pressed)?|f-(?:danger|success|warning)-fg)\\)\\])`);
+// Сплошная заливка роли (с наведением и нажатием) — классом или произвольным значением на переменной
+// (`bg-[var(--md-sys-color-primary)]`), — и белое поверх неё. Роли MD3 и старые имена-псевдонимы
+// (brand, danger — до финала эпика) в обоих словарях. `bg-primary-container` — контейнер, на нём свой
+// текст (text-on-primary-container), и заливкой он не считается. Белый фон с прозрачностью — слой состояния.
+const ROLE = 'primary|error|success|warning|brand(?:-hover|-pressed)?|danger';
+const FILL = new RegExp(`(?<![\\w-])(?:[\\w-]+:)*bg-(?:(?:${ROLE})(?![\\w-])|\\[var\\(--(?:color-(?:${ROLE})|md-sys-color-(?:primary|error)|md-ext-color-(?:success|warning))\\)\\])`);
 const WHITE = /(?<![\w-])(?:[\w-]+:)*(?:(?:text|ring|border|outline|fill|stroke|divide|decoration|shadow|accent|caret|from|via|to)-white(?![\w-])|bg-white(?![\w/-]))/;
 
 /** Белое на сплошной заливке — см. правило `white-on-fill`. */
@@ -456,12 +493,14 @@ export const defaultScopeNote = () =>
 /**
  * Каталоги, которые правило называет (см. `dirs` у RULES); правило с `everywhere` смотрит любой. Файл
  * (путь от src/) под префиксом из `skip` правило не смотрит; без пути — решает один каталог. Правило без
- * `dirs` пропускает и префиксы области по умолчанию.
+ * `dirs` и без `everywhere` пропускает и префиксы области по умолчанию. Файл стилей (`.css`) смотрят
+ * только правила со `styles`: прочие ищут разметку и классы в коде.
  */
 export const dirsOf = rule => rule.dirs ?? DEFAULT_SCOPE.dirs;
-export const skipOf = rule => rule.dirs ? rule.skip ?? [] : [...DEFAULT_SCOPE.skip, ...rule.skip ?? []];
+export const skipOf = rule => rule.dirs || rule.everywhere === true ? rule.skip ?? [] : [...DEFAULT_SCOPE.skip, ...rule.skip ?? []];
 export const watches = (rule, dir, file) => (rule.everywhere === true || dirsOf(rule).includes(dir))
-  && !(file && skipOf(rule).some(prefix => file.startsWith(prefix)));
+  && !(file && skipOf(rule).some(prefix => file.startsWith(prefix)))
+  && !(file?.endsWith('.css') && rule.styles !== true);
 
 /**
  * Какие каталоги src/ обходить. `topDirs` — каталоги в корне src/ с диска: правило с `everywhere`
@@ -478,7 +517,8 @@ export function dirsToScan(rules, topDirs) {
  * (`x — без shared/`: каталоги по умолчанию, которых правило не смотрит). Совпадает — null.
  */
 export function scopeNote(rule) {
-  if (rule.everywhere === true) return `${rule.id} — весь src/`;
+  if (rule.everywhere === true)
+    return `${rule.id} — весь src/${rule.styles ? ' со стилями' : ''}${rule.skip?.length ? `, кроме ${rule.skip.join(', ')}` : ''}`;
   if (!rule.dirs) return null;
   const more = [
     ...rule.dirs.filter(d => !DEFAULT_SCOPE.dirs.includes(d)).map(d => `${d}/`),

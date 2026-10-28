@@ -121,6 +121,11 @@ public static class BrandManifest
     /// значение стоит в <c>index.html</c> (<c>theme-color</c>).
     /// </summary>
     public const string ThemeColor = "#109e92";
+
+    /// <summary>
+    /// Фон страницы светлой темы — роль MD3 <c>surface-container-low</c>. Сверяет с описанием темы
+    /// клиента <c>md3-theme.test.mjs</c>.
+    /// </summary>
     public const string BackgroundColor = "#f4f2f7";
 
     private static readonly JsonSerializerOptions Json = new()

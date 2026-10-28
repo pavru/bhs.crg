@@ -133,7 +133,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
           data-modal-state="transient"
           aria-describedby={undefined}
           className="fixed left-1/2 top-16 z-50 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 overflow-hidden rounded-[28px] border border-stroke bg-surface focus:outline-none"
-          style={{ boxShadow: 'var(--f-shadow28)' }}
+          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}
         >
           <Dialog.Title className="sr-only">Поиск и действия</Dialog.Title>
           <div className="flex items-center gap-3 border-b border-stroke pl-5 pr-4">

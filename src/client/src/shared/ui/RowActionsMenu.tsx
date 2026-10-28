@@ -44,7 +44,7 @@ function renderAction(action: RowAction) {
         <DropdownMenu.Portal>
           <DropdownMenu.SubContent
             className="z-50 min-w-[10rem] max-h-72 overflow-auto rounded-md border border-stroke bg-surface py-1"
-            style={{ boxShadow: 'var(--f-shadow28)' }}>
+            style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
             {action.submenu.length === 0
               ? <div className="px-3 py-1.5 text-xs text-fg4">Нет вариантов</div>
               : action.submenu.map(sub => (
@@ -91,7 +91,7 @@ export function RowActionsMenu({ actions, ariaLabel = 'Действия', hasAct
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="end" sideOffset={4} onClick={e => e.stopPropagation()}
           className="z-50 min-w-[11rem] rounded-md border border-stroke bg-surface py-1"
-          style={{ boxShadow: 'var(--f-shadow28)' }}>
+          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
           {normal.map(renderAction)}
           {danger.length > 0 && normal.length > 0 && (
             <DropdownMenu.Separator className="my-1 h-px bg-stroke" />

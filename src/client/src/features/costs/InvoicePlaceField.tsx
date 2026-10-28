@@ -69,7 +69,7 @@ export function InvoicePlaceField({ current, places, label, disabled, onPick }: 
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={4} collisionPadding={8}
           className="z-50 w-80 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) flex flex-col overflow-hidden rounded-md border border-stroke bg-surface p-1"
-          style={{ boxShadow: 'var(--f-shadow16)' }}>
+          style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
           {body}
         </Popover.Content>
       </Popover.Portal>
@@ -83,7 +83,7 @@ export function InvoicePlaceField({ current, places, label, disabled, onPick }: 
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
         <Dialog.Content aria-describedby={undefined} data-modal-state="free"
           className="fixed inset-x-0 bottom-0 z-50 max-h-[80dvh] flex flex-col overflow-hidden rounded-t-xl border-t border-stroke bg-surface p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] focus:outline-none"
-          style={{ boxShadow: 'var(--f-shadow28)' }}>
+          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
           <Dialog.Title className="px-2 pt-1 pb-2 text-sm font-semibold text-fg1">{label}</Dialog.Title>
           {body}
         </Dialog.Content>

@@ -34,7 +34,7 @@ export function PdfPages({ doc, layout, scale, rotation, range, prepared }: {
         const n = i + 1;
         return (
           <div key={n} role="group" aria-label={`Страница ${n} из ${layout.tops.length}`} data-page={n}
-            className="absolute bg-white overflow-hidden shadow-[var(--f-shadow4)] dark:shadow-none dark:outline dark:outline-1 dark:outline-stroke"
+            className="absolute bg-white overflow-hidden shadow-[var(--md-sys-elevation-level1)] dark:shadow-none dark:outline dark:outline-1 dark:outline-stroke"
             style={{
               top, width: layout.widths[i], height: layout.heights[i],
               left: `max(${CANVAS_PADDING}px, calc(50% - ${layout.widths[i] / 2}px))`,

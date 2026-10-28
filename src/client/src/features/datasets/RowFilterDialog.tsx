@@ -85,7 +85,7 @@ function FilterConditionRow({
 
 // ─── Group editor (recursive) ─────────────────────────────────────────────────
 
-const DEPTH_COLORS = ['var(--f-brand)', 'color-mix(in srgb, var(--f-brand) 50%, var(--f-fg3))', 'var(--f-fg3)'];
+const DEPTH_COLORS = ['var(--md-sys-color-primary)', 'color-mix(in srgb, var(--md-sys-color-primary) 50%, var(--color-fg3))', 'var(--color-fg3)'];
 
 function FilterGroupEditor({
   group,

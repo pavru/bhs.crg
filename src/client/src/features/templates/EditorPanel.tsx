@@ -355,7 +355,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
             {template.isActive ? (
               <Tooltip content="Сохранить в текущую версию (Ctrl+S)">
                 <button type="button" onClick={handleSave} disabled={saving}
-                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-brand text-on-brand shadow-[var(--f-shadow4)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
+                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-brand text-on-brand shadow-[var(--md-sys-elevation-level1)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
                   <Save size={12} /> {saving ? 'Сохранение…' : 'Сохранить'}
                 </button>
               </Tooltip>
@@ -363,14 +363,14 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
               // Историческую версию in-place не сохранить — левая кнопка ведёт на форк.
               <Tooltip content="Историческая версия — сохранить как новую">
                 <button type="button" onClick={() => setNewVersionOpen(true)} disabled={saving}
-                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-brand text-on-brand shadow-[var(--f-shadow4)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
+                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-brand text-on-brand shadow-[var(--md-sys-elevation-level1)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
                   <GitBranch size={12} /> Сохранить как новую
                 </button>
               </Tooltip>
             )}
             <Tooltip content="Ещё варианты сохранения" name>
               <button type="button" onClick={() => setSaveMenuOpen(v => !v)} disabled={saving}
-                className="inline-flex items-center h-8 px-1.5 rounded-r-full border-l border-on-brand/25 bg-brand text-on-brand shadow-[var(--f-shadow4)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
+                className="inline-flex items-center h-8 px-1.5 rounded-r-full border-l border-on-brand/25 bg-brand text-on-brand shadow-[var(--md-sys-elevation-level1)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
                 <ChevronDown size={13} />
               </button>
             </Tooltip>
