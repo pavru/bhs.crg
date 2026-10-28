@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
-import { Columns3, EyeOff, Unlink } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { LinkOff, ViewColumn, VisibilityOff } from '@/shared/ui/icons';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { defaultColumnKeys, type TableColumn } from '@/shared/api/tables';
 import { AGGREGATES, aggregatesFor } from './tableTotals';
@@ -55,7 +56,7 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
       <Popover.Trigger asChild>
         <button type="button"
           className="inline-flex items-center gap-1.5 rounded-md border border-outline-variant px-2.5 py-1 text-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container">
-          <Columns3 size={13} aria-hidden />
+          <Icon icon={ViewColumn} size={18} aria-hidden />
           {view.columns ? `Колонки: ${shown.length} из ${all.length}` : 'Колонки'}
         </button>
       </Popover.Trigger>
@@ -130,12 +131,12 @@ function ColumnRow({ column, label, checked, total, onShown, onTotal, move }: {
         <span className={`truncate ${column ? '' : 'line-through text-fg4'}`}>{label}</span>
         {closed && (
           <span className="shrink-0 inline-flex items-center gap-1 text-xs text-fg4">
-            <EyeOff size={11} aria-hidden /> {column?.reason ?? 'нет права'}
+            <Icon icon={VisibilityOff} size={18} aria-hidden /> {column?.reason ?? 'нет права'}
           </span>
         )}
         {!column && (
           <span className="shrink-0 inline-flex items-center gap-1 text-xs text-fg4">
-            <Unlink size={11} aria-hidden /> поля нет в типе
+            <Icon icon={LinkOff} size={18} aria-hidden /> поля нет в типе
           </span>
         )}
       </label>

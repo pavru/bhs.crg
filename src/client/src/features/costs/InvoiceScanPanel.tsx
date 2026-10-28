@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Download, ExternalLink, FileText, FileUp, Maximize2, RotateCw } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Description, Download, OpenInFull, OpenInNew, RotateRight, UploadFile } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { loadInvoiceScan } from '@/shared/api/invoices';
 import { loadInvoiceImage, useInvoiceImage } from '@/shared/api/invoiceImage';
@@ -52,7 +53,7 @@ export function InvoiceScanPanel({ invoiceId, blobPath, fileName }: {
         <div className="flex flex-col items-center gap-2">
           <span>Чем показать файл, выяснить не удалось: сервер не ответил. Файл приложен — дело в связи, а не в нём.</span>
           <div className="flex gap-2">
-            <Button size="sm" variant="outlined" loading={image.isFetching} icon={<RotateCw size={13} />}
+            <Button size="sm" variant="outlined" loading={image.isFetching} icon={<Icon icon={RotateRight} size={18} />}
               onClick={() => void image.refetch()}>
               Повторить
             </Button>
@@ -116,18 +117,18 @@ function OriginalFile({ invoiceId, blobPath, fileName }: {
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant shrink-0">
-        <FileText size={14} className="text-fg3 shrink-0" />
+        <Icon icon={Description} size={18} className="text-fg3 shrink-0" />
         <span className="text-xs text-on-surface-variant truncate flex-1">{fileName ?? 'Файл счёта'}</span>
         {canOpen
           ? (
             // Выход в полный просмотрщик браузера (поиск, печать с настройками), а не «крупнее»: крупнее
             // делает масштаб в панели (issue #1491, [UI-20]).
-            <Button size="sm" icon={<ExternalLink size={13} />} onClick={() => void openInNewTab(blob)}>
+            <Button size="sm" icon={<Icon icon={OpenInNew} size={18} />} onClick={() => void openInNewTab(blob)}>
               Открыть во вкладке
             </Button>
           )
           : (
-            <Button size="sm" icon={<Download size={13} />}
+            <Button size="sm" icon={<Icon icon={Download} size={18} />}
               onClick={() => saveScan(blob, fileName, mimeType, kinds.data)}>
               Скачать
             </Button>
@@ -155,7 +156,7 @@ function OriginalFile({ invoiceId, blobPath, fileName }: {
                 не пришёл. Дело в связи, а не в файле — повторите или скачайте его кнопкой выше.
               </span>
               <Button size="sm" variant="text" className="mt-2" loading={kinds.isFetching}
-                icon={<RotateCw size={13} />} onClick={() => void kinds.refetch()}>
+                icon={<Icon icon={RotateRight} size={18} />} onClick={() => void kinds.refetch()}>
                 Повторить
               </Button>
             </div>
@@ -237,7 +238,7 @@ export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
 
   return (
     <div className="flex items-start gap-2 rounded-lg border border-outline-variant bg-surface-container px-3 py-2">
-      <FileText size={14} className="text-fg3 shrink-0 mt-0.5" />
+      <Icon icon={Description} size={18} className="text-fg3 shrink-0 mt-0.5" />
       <div className="min-w-0 flex-1">
         {refused
           ? (
@@ -256,7 +257,7 @@ export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
         {(built || refused) && (
           <div className="flex gap-2 mt-1">
             {built && (
-              <Button size="sm" variant="text" icon={<Maximize2 size={13} />} onClick={openReading}>
+              <Button size="sm" variant="text" icon={<Icon icon={OpenInFull} size={18} />} onClick={openReading}>
                 Открыть вид для чтения
               </Button>
             )}
@@ -264,7 +265,7 @@ export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
           </div>
         )}
         {!built && !refused && (
-          <Button size="sm" variant="text" loading={busy || kinds.isLoading || image.isLoading} icon={<Maximize2 size={13} />}
+          <Button size="sm" variant="text" loading={busy || kinds.isLoading || image.isLoading} icon={<Icon icon={OpenInFull} size={18} />}
             onClick={() => void openFile()}>
             Открыть файл
           </Button>
@@ -295,7 +296,7 @@ export function ScanUploadButton({ hasScan, busy, onPick }: {
 
   return (
     <>
-      <Button size="sm" variant="outlined" loading={busy} icon={<FileUp size={13} />}
+      <Button size="sm" variant="outlined" loading={busy} icon={<Icon icon={UploadFile} size={18} />}
         onClick={() => input.current?.click()}>
         {hasScan ? 'Заменить файл' : 'Приложить файл'}
       </Button>

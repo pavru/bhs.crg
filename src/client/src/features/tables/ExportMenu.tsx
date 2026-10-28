@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Download } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Download } from '@/shared/ui/icons';
 import { exportTable, type TableColumn, type TableExportBody } from '@/shared/api/tables';
 import { formatCount } from '@/shared/format/format';
 import { useToast } from '@/shared/ui/Toast';
@@ -50,7 +51,7 @@ export function ExportMenu({ address, count, body, xlsx: canXlsx, dataset }: {
       <DropdownMenu.Trigger asChild>
         <button type="button" disabled={busy}
           className="inline-flex items-center gap-1.5 rounded-md border border-outline-variant px-2.5 py-1 text-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container disabled:opacity-60">
-          <Download size={13} aria-hidden />
+          <Icon icon={Download} size={18} aria-hidden />
           {busy ? 'Выгружается…' : 'Выгрузить'}
         </button>
       </DropdownMenu.Trigger>

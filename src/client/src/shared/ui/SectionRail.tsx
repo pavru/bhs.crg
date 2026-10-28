@@ -1,6 +1,7 @@
 import type { MouseEvent } from 'react';
 import { Link } from 'react-router';
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Icon } from './Icon';
+import { LeftPanelClose, LeftPanelOpen } from './icons';
 import { BrandLogo } from '@/shared/ui/Brand';
 import { useProductName } from '@/shared/api/branding';
 import { useGuardedNavClick } from '@/shared/ui/NavigationGuard';
@@ -43,12 +44,12 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel }: {
 
   const item = (section: RailSection) => {
     const on = section.def.id === active;
-    const Icon = section.def.icon;
+    const icon = section.def.icon;
     return (
       <Link key={section.def.id} to={section.home} onClick={guardedSection(section)}
         aria-current={on ? 'true' : undefined}
         className="group flex flex-col items-center gap-1 w-20 pb-2 text-xs select-none focus-visible:outline-none">
-        <SectionPill icon={Icon} on={on} />
+        <SectionPill icon={icon} on={on} />
         <span className={on ? 'font-semibold text-on-surface' : 'font-medium text-on-surface-variant'}>{section.def.label}</span>
       </Link>
     );
@@ -83,12 +84,12 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel }: {
  * Значок раздела в плашке — один на рейл и нижнюю навигацию телефона (#1434): выбранный раздел
  * выглядит одинаково, где бы человек его ни увидел. `wide` — плашка нижней строки, шире под палец.
  */
-export function SectionPill({ icon: Icon, on, wide = false }: { icon: RailSectionDef['icon']; on: boolean; wide?: boolean }) {
+export function SectionPill({ icon, on, wide = false }: { icon: RailSectionDef['icon']; on: boolean; wide?: boolean }) {
   return (
     <span className={`flex items-center justify-center ${wide ? 'w-16' : 'w-14'} h-8 rounded-full transition-colors ` +
       'group-focus-visible:ring-2 group-focus-visible:ring-primary ' +
       (on ? 'bg-secondary-container text-on-secondary-container' : 'text-fg3 group-hover:bg-black/5 dark:group-hover:bg-white/10')}>
-      <Icon size={wide ? 22 : 20} />
+      <Icon icon={icon} size={wide ? 24 : 20} filled={on} />
     </span>
   );
 }
@@ -116,7 +117,7 @@ export function SectionPanel({ def, groups, outside, onHide }: {
         </div>
         <IconButton label="Скрыть панель раздела" size="lg" onClick={onHide}
           aria-expanded aria-controls={PANEL_ID}>
-          <PanelLeftClose size={18} />
+          <Icon icon={LeftPanelClose} size={18} />
         </IconButton>
       </div>
       <PageList groups={groups} />
@@ -129,7 +130,7 @@ export function SectionPanel({ def, groups, outside, onHide }: {
 export function ShowPanelButton({ onShow }: { onShow: () => void }) {
   return (
     <IconButton label="Показать панель раздела" onClick={onShow} aria-expanded={false}>
-      <PanelLeftOpen size={18} />
+      <Icon icon={LeftPanelOpen} size={18} />
     </IconButton>
   );
 }

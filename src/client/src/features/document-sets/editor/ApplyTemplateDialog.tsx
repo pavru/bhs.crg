@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react';
-import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { CheckCircle, ErrorIcon } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { useListBindingTemplates } from '@/shared/api/bindingTemplates';
 import { useAvailableDataSetFiles, useCreateDataSetBinding } from '@/shared/api/datasets';
@@ -49,8 +51,8 @@ function ColumnMatchPreview({
           return (
             <div key={fieldKey} className="flex items-center gap-2 text-xs">
               {found
-                ? <CheckCircle2 size={12} className="text-success shrink-0" />
-                : <AlertCircle size={12} className="text-error shrink-0" />
+                ? <Icon icon={CheckCircle} size={18} className="text-success shrink-0" />
+                : <Icon icon={ErrorIcon} size={18} className="text-error shrink-0" />
               }
               <span className="truncate text-fg3 shrink-0 w-30" title={fieldKey}>
                 {fieldKey}
@@ -169,7 +171,7 @@ export function ApplyTemplateDialog({
             disabled={!selectedTemplate || !selectedSource || create.isPending}
             className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium text-on-primary disabled:opacity-40 bg-primary"
           >
-            {create.isPending && <Loader2 size={13} className="animate-spin" />}
+            {create.isPending && <CircularProgress size={18} />}
             Создать привязку
           </button>
           <button

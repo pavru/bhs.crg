@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { AlertTriangle, AlertCircle, Eye } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ErrorIcon, Visibility, Warning } from '@/shared/ui/icons';
 import { useServerForm } from '@/shared/hooks/useServerForm';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
@@ -175,7 +176,7 @@ function EngineCard({
             <span
               className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-error-container text-error border border-error/30 shrink-0"
             >
-              <AlertCircle size={11} /> не работает: модель без зрения
+              <Icon icon={ErrorIcon} size={18} /> не работает: модель без зрения
             </span>
           </Tooltip>
         )}
@@ -184,7 +185,7 @@ function EngineCard({
             <span
               className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-container text-warning border border-warning-border shrink-0"
             >
-              <AlertTriangle size={11} /> не участвует: {missing}
+              <Icon icon={Warning} size={18} /> не участвует: {missing}
             </span>
           </Tooltip>
         )}
@@ -209,14 +210,14 @@ function EngineCard({
           движок цепочка пропускает, а этот — берёт и получает отказ. */}
       {blind && (
         <p className="flex items-start gap-1.5 rounded px-2 py-1.5 text-xs bg-error-container text-error border border-error/30">
-          <AlertCircle size={13} className="shrink-0 mt-px" />
+          <Icon icon={ErrorIcon} size={18} className="shrink-0 mt-px" />
           <span>{blindIssue}</span>
         </p>
       )}
 
       {form.enabled && !blind && modelIssue && (
         <p className="flex items-start gap-1.5 rounded px-2 py-1.5 text-xs bg-warning-container text-warning border border-warning-border">
-          <AlertTriangle size={13} className="shrink-0 mt-px" />
+          <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
           <span>{modelIssue}</span>
         </p>
       )}
@@ -274,7 +275,7 @@ function EngineCard({
         <div className="flex items-center gap-2 flex-wrap">
           <Button type="button" variant="text" onClick={() => checkVision.mutate(meta.key)}
             disabled={checkVision.isPending || unsaved}>
-            <Eye size={13} className="mr-1" /> Проверить зрение
+            <Icon icon={Visibility} size={18} className="mr-1" /> Проверить зрение
           </Button>
           <span className="text-xs text-fg4">
             {unsaved

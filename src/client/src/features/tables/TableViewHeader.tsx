@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import * as Popover from '@radix-ui/react-popover';
-import { Check, ChevronDown, Table2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Check, KeyboardArrowDown, Table } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -130,7 +131,7 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
       {/* Открытое ведёт туда же, где человек стоит: щелчок по отмеченному не сбрасывает несохранённое. */}
       <Link to={chosen ? { hash } : to} onClick={() => setOpen(false)} aria-current={chosen ? 'page' : undefined}
         className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 text-sm text-on-surface">
-        <Check size={13} aria-hidden className={chosen ? 'text-primary shrink-0' : 'invisible shrink-0'} />
+        <Icon icon={Check} size={18} aria-hidden className={chosen ? 'text-primary shrink-0' : 'invisible shrink-0'} />
         <span className="truncate">{label}</span>
         {note && <span className="shrink-0 text-xs text-fg4">{note}</span>}
       </Link>
@@ -149,9 +150,9 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
               <Popover.Trigger asChild>
                 <button type="button"
                   className="flex items-center gap-2 rounded-md -mx-1.5 px-1.5 py-0.5 hover:bg-surface-container max-w-[calc(100%+0.75rem)]">
-                  <Table2 size={18} className="text-fg3 shrink-0" aria-hidden />
+                  <Icon icon={Table} size={18} className="text-fg3 shrink-0" aria-hidden />
                   <span className="truncate">{title}</span>
-                  <ChevronDown size={16} className="text-fg3 shrink-0" aria-hidden />
+                  <Icon icon={KeyboardArrowDown} size={18} className="text-fg3 shrink-0" aria-hidden />
                 </button>
               </Popover.Trigger>
             </Tooltip>

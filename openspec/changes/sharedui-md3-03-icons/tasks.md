@@ -41,19 +41,19 @@
 
 ## 2. Перевод экранов (PR 2)
 
-- [ ] 2.1 `scripts/md3-icons-migrate.mjs` по таблице 0.4, вызов из `npm run md3:migrate`: импорты, JSX,
+- [x] 2.1 `scripts/md3-icons-migrate.mjs` по таблице 0.4, вызов из `npm run md3:migrate`: импорты, JSX,
   ссылки-значения, `LucideIcon` → `IconDef`, `strokeWidth`, `Loader2 animate-spin` → `CircularProgress`,
   размеры — на ступень шкалы; значок вне таблицы — отказ с перечнем; отчёт значков в низких контейнерах
   [UI-60] [UI-61]. Проверка — vitest кодмода на фикстурах (импорт с `as`, значение в карте, тип, спиннер в
   кнопке); второй прогон — «замен 0»
-- [ ] 2.2 Прогон по `src/`; 7 тестов с lucide переведены; `lucide-react` удалён из `package.json`
+- [x] 2.2 Прогон по `src/`; 7 тестов с lucide переведены; `lucide-react` удалён из `package.json`
   [UI-60]. Проверка — `rg "lucide" src/client/src src/client/package.json` пусто; `npx tsc -b` зелёный
-- [ ] 2.3 Уровни `lucide-import` и `spinner-icon` — 0 [UI-60] [UI-61]. Проверка — `npm run ui:ratchet`
+- [x] 2.3 Уровни `lucide-import` и `spinner-icon` — 0 [UI-60] [UI-61]. Проверка — `npm run ui:ratchet`
   зелёный, в `ui-baseline.json` правила пусты
 - [ ] 2.4 Геометрия живых прогонов (25 файлов с `boundingBox`) поправлена там, где выросли значки, — с
   объяснением в описании PR [UI-60]. Проверка — весь `test:e2e:ci` зелёный; ни одна проверка не ослаблена
   без причины в описании
-- [ ] 2.5 Бюджет: `npm run build` на master и ветке, gzip основного чанка [UI-60]. Проверка — разница не
+- [x] 2.5 Бюджет: `npm run build` на master и ветке, gzip основного чанка [UI-60]. Проверка — разница не
   больше бюджета `design.md`, оба числа в описании PR
 - [ ] 2.6 Снимки 5–7 ключевых экранов до и после в обеих темах на 1366×768 и 375 px (зонтик, 5.2).
   Проверка — снимки в описании PR

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router';
-import { Plus, Trash2, Pencil, Layers, Building2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Apartment, Delete, Edit, Layers } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
@@ -90,7 +91,7 @@ export function ConstructionDetail() {
         const p = problemOf(problems, s.id);
         const done = planOf(plan, s.id);
         return (
-          <NavItem key={s.id} icon={<Layers size={17} />} label={s.name} count={idOn ? s.documentSets.length : undefined} chevron
+          <NavItem key={s.id} icon={<Icon icon={Layers} size={18} />} label={s.name} count={idOn ? s.documentSets.length : undefined} chevron
             progress={done?.percent ?? null} progressTitle={planTitle(done)}
             alert={p?.needsAttention} alertDanger={p?.hasArithmeticProblems}
             onClick={() => navigate(`/document-sets/${constructionId}/sections/${s.id}`)} />
@@ -99,7 +100,7 @@ export function ConstructionDetail() {
       {canEdit && (
         <button type="button" onClick={() => setAddSectionOpen(true)}
           className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-sm text-primary hover:bg-primary-container transition-colors">
-          <Plus size={16} className="shrink-0" /> Добавить раздел
+          <Icon icon={Add} size={18} className="shrink-0" /> Добавить раздел
         </button>
       )}
       {panels.ownNav('Эта стройка')}
@@ -109,10 +110,10 @@ export function ConstructionDetail() {
   const headerAction = (
     <>
       {canEdit && <>
-        <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddSectionOpen(true)}>Добавить раздел</Button>
+        <Button variant="filled" size="sm" icon={<Icon icon={Add} size={18} />} onClick={() => setAddSectionOpen(true)}>Добавить раздел</Button>
         <RowActionsMenu ariaLabel="Действия стройки" actions={[
-          { key: 'rename', label: 'Переименовать', icon: <Pencil size={14} />, onSelect: () => { setRenameVal(construction.name); setRenameOpen(true); } },
-          { key: 'delete', label: 'Удалить стройку', icon: <Trash2 size={14} />, danger: true, onSelect: () => setDeleteConfirm(true) },
+          { key: 'rename', label: 'Переименовать', icon: <Icon icon={Edit} size={18} />, onSelect: () => { setRenameVal(construction.name); setRenameOpen(true); } },
+          { key: 'delete', label: 'Удалить стройку', icon: <Icon icon={Delete} size={18} />, danger: true, onSelect: () => setDeleteConfirm(true) },
         ]} />
       </>}
     </>
@@ -126,7 +127,7 @@ export function ConstructionDetail() {
 
   return (
     <>
-      <ListDetailShell title={construction.name} icon={<Building2 size={20} />} breadcrumb={contextCrumbs}
+      <ListDetailShell title={construction.name} icon={<Icon icon={Apartment} size={20} />} breadcrumb={contextCrumbs}
         badge={<PlanProgressBadge progress={plan?.own} />}
         actions={headerAction} nav={nav} detail={detail} backLabel="К разделам" />
 

@@ -1,5 +1,6 @@
 import * as Popover from '@radix-ui/react-popover';
-import { Check, Printer, X } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Check, Close, Print } from '@/shared/ui/icons';
 import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
@@ -40,7 +41,7 @@ export function LayoutChooser({ image, notice, profiles, rebuilding, onRebuild }
         <Popover.Trigger asChild>
           {/* Не шире строки: длинное имя профиля обрезается многоточием и не выталкивает «Перестроить»,
               целиком оно — в окне выбора. Слово состояния не обрезается никогда: ради него оно в подписи. */}
-          <Chip icon={Printer} menu className="min-w-0 max-w-full" data-testid="layout-chip">
+          <Chip icon={Print} menu className="min-w-0 max-w-full" data-testid="layout-chip">
             <span className="flex min-w-0">
               <span className="truncate" data-testid="layout-chip-lead">{chipLabel.lead}</span>
               {chipLabel.state && <span className="shrink-0 whitespace-pre" data-testid="layout-chip-state">{chipLabel.state}</span>}
@@ -55,7 +56,7 @@ export function LayoutChooser({ image, notice, profiles, rebuilding, onRebuild }
           <div className="flex items-center justify-between mb-1">
             <h2 id={heading} className="text-sm font-semibold text-on-surface">Раскладка вида</h2>
             <Popover.Close asChild>
-              <IconButton label="Закрыть" size="sm"><X size={14} /></IconButton>
+              <IconButton label="Закрыть" size="sm"><Icon icon={Close} size={18} /></IconButton>
             </Popover.Close>
           </div>
           {state && <p className="text-xs text-on-surface-variant mb-2" data-testid="layout-notice">{state}</p>}
@@ -106,7 +107,7 @@ function Choices({ profiles, shown, value, onPick }: {
           <button key={p.id} ref={el => { refs.current[i] = el; }} type="button" role="radio"
             aria-checked={checked} tabIndex={checked || (!value && i === 0) ? 0 : -1} onClick={() => onPick(p.id)}
             className="w-full flex items-start gap-2 px-2 py-1.5 rounded-md text-left hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-            <Check size={16} aria-hidden className={`shrink-0 mt-0.5 ${checked ? 'text-primary' : 'invisible'}`} />
+            <Icon icon={Check} size={18} aria-hidden className={`shrink-0 mt-0.5 ${checked ? 'text-primary' : 'invisible'}`} />
             <span className="min-w-0 flex-1">
               <span className="flex items-baseline gap-2">
                 <span className={`text-sm truncate ${checked ? 'font-medium text-on-surface' : 'text-on-surface-variant'}`}>{p.name}</span>

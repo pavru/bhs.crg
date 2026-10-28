@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useMemo } from 'react';
-import { AlertTriangle, AlertCircle, CheckCircle2, Circle, CircleDot, Database, ScanText, Info, ChevronDown, ChevronRight, FunctionSquare } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CheckCircle, ChevronRight, Circle, Database, DocumentScanner, ErrorIcon, FunctionIcon, Info, KeyboardArrowDown, RadioButtonChecked, Warning } from '@/shared/ui/icons';
 import { Markdown } from '@/shared/ui/Markdown';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
@@ -47,8 +48,8 @@ function SourceBoundDocField(
   return (
     <div className="flex items-center gap-2 border border-primary/40 rounded-lg px-3 py-2 bg-primary/5">
       {recognized
-        ? <ScanText size={14} className={`${tone} shrink-0`} />
-        : <Database size={14} className={`${tone} shrink-0`} />}
+        ? <Icon icon={DocumentScanner} size={18} className={`${tone} shrink-0`} />
+        : <Icon icon={Database} size={18} className={`${tone} shrink-0`} />}
       <span className="text-xs text-fg3">
         {recognized
           // Плашка вместо самих ссылок — единственное, что человек тут видит; промолчав о
@@ -442,7 +443,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                 <label className="mb-1 flex items-center gap-1 text-xs font-medium text-on-surface-variant">
                   <span className="truncate">{field.title}</span>
                   <span className="inline-flex items-center gap-0.5 text-caption text-primary shrink-0">
-                    <FunctionSquare size={11} /> вычисляется
+                    <Icon icon={FunctionIcon} size={18} /> вычисляется
                   </span>
                 </label>
                 <Tooltip content={field.expression}>
@@ -719,8 +720,8 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
           <div className="rounded-lg border border-outline-variant bg-primary-container/30">
             <button type="button" onClick={() => setHelpOpen(o => !o)}
               className="w-full flex items-center gap-2 px-3 py-2 text-left">
-              {helpOpen ? <ChevronDown size={14} className="text-primary shrink-0" /> : <ChevronRight size={14} className="text-primary shrink-0" />}
-              <Info size={14} className="text-primary shrink-0" />
+              {helpOpen ? <Icon icon={KeyboardArrowDown} size={18} className="text-primary shrink-0" /> : <Icon icon={ChevronRight} size={18} className="text-primary shrink-0" />}
+              <Icon icon={Info} size={18} className="text-primary shrink-0" />
               <span className="text-sm font-medium text-on-surface">Справка</span>
             </button>
             {helpOpen && (
@@ -742,7 +743,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
       {missingRequired.length > 0 && (
         <div className="shrink-0 px-6 pt-3">
           <div className="flex items-start gap-2.5 rounded-lg border border-warning-border bg-warning-container px-3 py-2 text-xs text-warning">
-            <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+            <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <span>
               Черновик — не заполнено обязательных: <b>{missingRequired.length}</b>. Их можно заполнить позже или
               привязать к источнику данных; для генерации PDF потребуются.
@@ -759,19 +760,19 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
               const isActive = item.key === activeItem.key;
               const stats = sectionStats(item.fields);
               const broken = brokenInFields(item.fields);
-              let Icon = Circle, iconCls = 'text-fg4';
+              let icon = Circle, iconCls = 'text-fg4';
               // Битые ссылки — наивысший приоритет индикатора раздела (issue #334): всегда danger.
-              if (broken > 0) { Icon = AlertCircle; iconCls = 'text-error'; }
-              else if (showValidation && stats.missing > 0) { Icon = AlertCircle; iconCls = 'text-error'; }
-              else if (stats.total > 0 && stats.filled === stats.total) { Icon = CheckCircle2; iconCls = 'text-primary'; }
-              else if (isActive) { Icon = CircleDot; iconCls = 'text-primary'; }
-              else if (stats.filled > 0) { Icon = CircleDot; iconCls = 'text-fg3'; }
+              if (broken > 0) { icon = ErrorIcon; iconCls = 'text-error'; }
+              else if (showValidation && stats.missing > 0) { icon = ErrorIcon; iconCls = 'text-error'; }
+              else if (stats.total > 0 && stats.filled === stats.total) { icon = CheckCircle; iconCls = 'text-primary'; }
+              else if (isActive) { icon = RadioButtonChecked; iconCls = 'text-primary'; }
+              else if (stats.filled > 0) { icon = RadioButtonChecked; iconCls = 'text-fg3'; }
               return (
                 <button key={item.key} type="button" onClick={() => setActiveKey(item.key)}
                   aria-current={isActive ? 'true' : undefined}
                   className={`w-full flex items-center gap-3 text-left px-3 h-11 rounded-full transition-colors ${
                     isActive ? 'bg-primary-container text-brand-hover font-medium' : 'text-fg3 hover:bg-surface-container hover:text-on-surface'}`}>
-                  <Icon size={18} className={`shrink-0 ${iconCls}`} />
+                  <Icon icon={icon} size={18} className={`shrink-0 ${iconCls}`} />
                   <span className="flex-1 truncate text-sm">{item.title}</span>
                   <BrokenCountBadge count={broken} className="shrink-0" />
                   <ValueIssueBadge count={issueCountInFields(valueIssues, item.fields.map(f => f.key))} className="shrink-0" />

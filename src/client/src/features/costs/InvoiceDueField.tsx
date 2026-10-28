@@ -1,4 +1,5 @@
-import { RotateCcw } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { RestartAlt } from '@/shared/ui/icons';
 import { useDueByRule, type InvoiceView } from '@/shared/api/invoices';
 import { Button } from '@/shared/ui/Button';
 import { DateField } from '@/shared/ui/DateField';
@@ -27,7 +28,7 @@ export function InvoiceDueField({ view, edits, current, set, locked, hint, requi
         value={asInput(current).slice(0, 10)} readOnly={locked}
         onChange={iso => set(K.dueDate, iso ? iso.slice(0, 10) : null)} />
       {offerRule && (
-        <Button variant="text" size="sm" className="mt-0.5 -ml-2" icon={<RotateCcw size={13} />}
+        <Button variant="text" size="sm" className="mt-0.5 -ml-2" icon={<Icon icon={RestartAlt} size={18} />}
           loading={byRule.isPending}
           onClick={() => byRule.mutateAsync({ id: view.id, seen: view.version })
             .catch(e => toast.apiError(e, 'Срок не пересчитан'))}>

@@ -5,7 +5,8 @@ import { useSearchParams } from 'react-router';
 import { PALETTE_ACTIONS } from '@/shared/ui/paletteActions';
 import { PrimaryActionButton } from '@/shared/ui/PrimaryActionButton';
 import { usePaletteIntent } from '@/shared/ui/usePaletteIntent';
-import { History, ListChecks, PackageCheck, Plus, Truck } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Checklist, HistoryIcon, Inventory, LocalShipping } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
@@ -124,11 +125,11 @@ export function WaybillsPage() {
       subtitle="Проведённая накладная — материалы, выданные на стройку"
       actions={
         <>
-          <Button variant="outlined" icon={<PackageCheck size={16} />} onClick={() => setMaterialsOpen(true)}>
+          <Button variant="outlined" icon={<Icon icon={Inventory} size={18} />} onClick={() => setMaterialsOpen(true)}>
             Материалы на объекте
           </Button>
           {/* На телефоне — плавающей кнопкой (#1434). */}
-          {canEdit && <PrimaryActionButton action={PALETTE_ACTIONS.waybillNew} icon={<Plus size={16} />}
+          {canEdit && <PrimaryActionButton action={PALETTE_ACTIONS.waybillNew} icon={<Icon icon={Add} size={18} />}
             loading={create.isPending} onClick={addDraft} />}
           {materialsOpen && (
             <IssuedMaterialsDialog sites={sites.data ?? []} sitesFailed={sites.isError}
@@ -142,7 +143,7 @@ export function WaybillsPage() {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-1.5">
             <label className="flex items-center gap-2 text-xs text-fg3 cursor-pointer">
               <input type="checkbox" checked={unmatched} onChange={e => setUnmatched(e.target.checked)} />
-              <ListChecks size={13} />
+              <Icon icon={Checklist} size={18} />
               Только «Сопоставить»
             </label>
             {/* Очередь «Сопоставить» стройками не урезается (#1222) — отбора «Стройки» под ней нет. Под
@@ -189,7 +190,7 @@ export function WaybillsPage() {
         // «Не выбрано», «грузится», «нет такой», «не пришло» и «открыта» — разные вещи: см. `openRecord`.
         opened.kind === 'none' ? (
           <div className="flex-1 grid place-items-center">
-            <EmptyState icon={<Truck size={28} />} title="Выберите накладную"
+            <EmptyState icon={<Icon icon={LocalShipping} size={40} />} title="Выберите накладную"
               description={canEdit ? 'Или заведите новую — черновик сохранится пустым.' : undefined} />
           </div>
         ) : opened.kind === 'loading' ? (
@@ -250,7 +251,7 @@ function ListRow({ item, active, onClick }: { item: WaybillListItem; active: boo
         {item.unmatched > 0 && (
           <Tooltip content={`Не сопоставлено строк: ${item.unmatched} из ${item.lines}`}>
             <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0">
-              <ListChecks size={11} />{item.unmatched}
+              <Icon icon={Checklist} size={18} />{item.unmatched}
             </span>
           </Tooltip>
         )}
@@ -259,7 +260,7 @@ function ListRow({ item, active, onClick }: { item: WaybillListItem; active: boo
           открывается, а без пометки накладная закрытого месяца выглядела бы такой, какой её закрыли. */}
       {item.correctedAfterClosing && (
         <div className="flex items-center gap-1 mt-0.5 text-xs text-fg3" data-testid="waybill-corrected">
-          <History size={11} className="shrink-0" aria-hidden />
+          <Icon icon={HistoryIcon} size={18} className="shrink-0" aria-hidden />
           <span className="truncate">{correctionMarkText(item.correctedAfterClosing)}</span>
         </div>
       )}

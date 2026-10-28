@@ -10,7 +10,8 @@ import { Modal } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { useToast } from '@/shared/ui/Toast';
 import { ruCount } from '@/shared/utils/pluralize';
-import { BookOpen, Save, Star, CheckCircle, ChevronDown, GitBranch, History } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CallSplit, CheckCircle, HistoryIcon, KeyboardArrowDown, MenuBook, Save, Star } from '@/shared/ui/icons';
 import type { Template, DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields } from '@/shared/api/schema';
 import { useSaveTemplateContent, useCreateTemplateVersion, useSetTemplateDefault } from '@/shared/api/templates';
@@ -64,7 +65,7 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
     <div className="relative" ref={ref}>
       <ToolbarButton active={open} onClick={() => setOpen(v => !v)} title="Вставить реквизит">
         <span className="flex items-center gap-1 text-xs font-mono">
-          <BookOpen size={12} /> Реквизит
+          <Icon icon={MenuBook} size={18} /> Реквизит
         </span>
       </ToolbarButton>
       {open && (
@@ -109,7 +110,7 @@ function NewVersionDialog({ nextVersion, saving, onCancel, onConfirm }: {
       footer={
         <div className="flex justify-end gap-2">
           <Button type="button" variant="text" onClick={onCancel}>Отмена</Button>
-          <Button type="button" variant="filled" loading={saving} icon={<GitBranch size={12} />}
+          <Button type="button" variant="filled" loading={saving} icon={<Icon icon={CallSplit} size={18} />}
             onClick={() => onConfirm(comment)}>
             {saving ? 'Создание…' : `Создать v${nextVersion}`}
           </Button>
@@ -329,22 +330,22 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
             </span>
           </Tooltip>
           {template.isActive ? (
-            <span className="text-xs text-success flex items-center gap-1"><CheckCircle size={12} /> активный</span>
+            <span className="text-xs text-success flex items-center gap-1"><Icon icon={CheckCircle} size={18} /> активный</span>
           ) : (
             <Tooltip content="Не активная версия — правится только форком в новую">
               <span className="text-xs text-fg4 flex items-center gap-1">
-                <History size={12} /> историческая
+                <Icon icon={HistoryIcon} size={18} /> историческая
               </span>
             </Tooltip>
           )}
           {template.isDefault ? (
             <span className="text-xs text-warning flex items-center gap-1">
-              <Star size={11} className="fill-warning text-warning" /> по умолчанию
+              <Icon icon={Star} size={18} className="fill-warning text-warning" /> по умолчанию
             </span>
           ) : (
             <button onClick={handleSetDefault} disabled={defaultMutation.isPending}
               className="flex items-center gap-1 px-2 py-1 text-xs border border-warning-border text-warning hover:bg-warning-container rounded disabled:opacity-50 transition-colors">
-              <Star size={11} /> Сделать по умолчанию
+              <Icon icon={Star} size={18} /> Сделать по умолчанию
             </button>
           )}
           {savedMsg && <span className="text-xs text-success">Сохранено ✓</span>}
@@ -356,7 +357,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
               <Tooltip content="Сохранить в текущую версию (Ctrl+S)">
                 <button type="button" onClick={handleSave} disabled={saving}
                   className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-primary text-on-primary shadow-[var(--md-sys-elevation-level1)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
-                  <Save size={12} /> {saving ? 'Сохранение…' : 'Сохранить'}
+                  <Icon icon={Save} size={18} /> {saving ? 'Сохранение…' : 'Сохранить'}
                 </button>
               </Tooltip>
             ) : (
@@ -364,14 +365,14 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
               <Tooltip content="Историческая версия — сохранить как новую">
                 <button type="button" onClick={() => setNewVersionOpen(true)} disabled={saving}
                   className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-primary text-on-primary shadow-[var(--md-sys-elevation-level1)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
-                  <GitBranch size={12} /> Сохранить как новую
+                  <Icon icon={CallSplit} size={18} /> Сохранить как новую
                 </button>
               </Tooltip>
             )}
             <Tooltip content="Ещё варианты сохранения" name>
               <button type="button" onClick={() => setSaveMenuOpen(v => !v)} disabled={saving}
                 className="inline-flex items-center h-8 px-1.5 rounded-r-full border-l border-on-primary/25 bg-primary text-on-primary shadow-[var(--md-sys-elevation-level1)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
-                <ChevronDown size={13} />
+                <Icon icon={KeyboardArrowDown} size={18} />
               </button>
             </Tooltip>
             {saveMenuOpen && (
@@ -379,7 +380,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
                 <button type="button"
                   onClick={() => { setSaveMenuOpen(false); setNewVersionOpen(true); }}
                   className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-surface-container-low transition-colors">
-                  <GitBranch size={14} className="text-primary shrink-0 mt-0.5" />
+                  <Icon icon={CallSplit} size={18} className="text-primary shrink-0 mt-0.5" />
                   <span>
                     <span className="block text-sm text-on-surface">Сохранить как новую версию…</span>
                     <span className="block text-xs text-fg4">Создаст v{template.version + 1}, сохранит историю текущей</span>

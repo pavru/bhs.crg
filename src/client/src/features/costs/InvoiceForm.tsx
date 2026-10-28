@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CheckCheck, PencilLine, Save, Sparkles, TriangleAlert } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { DoneAll, EditNote, Save, StarShine, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { DateField } from '@/shared/ui/DateField';
@@ -235,7 +236,7 @@ export function InvoiceForm({
           <RecognitionChip recognition={watch.recognition} />
           {view.unconfirmed.length > 0 && (
             <span className="inline-flex items-center gap-1 text-xs text-warning">
-              <Sparkles size={12} /> распознано, не подтверждено: {view.unconfirmed.length}
+              <Icon icon={StarShine} size={18} /> распознано, не подтверждено: {view.unconfirmed.length}
             </span>
           )}
           <div className="flex-1" />
@@ -258,12 +259,12 @@ export function InvoiceForm({
               }} />
           )}
           {correctable && !correcting && (
-            <Button variant="outlined" size="sm" icon={<PencilLine size={14} />} onClick={correction.start}>
+            <Button variant="outlined" size="sm" icon={<Icon icon={EditNote} size={18} />} onClick={correction.start}>
               Исправить
             </Button>
           )}
           {!quiet && (
-            <Button variant="filled" size="sm" icon={<Save size={14} />} disabled={!dirty}
+            <Button variant="filled" size="sm" icon={<Icon icon={Save} size={18} />} disabled={!dirty}
               loading={update.isPending} onClick={save}>
               Сохранить
             </Button>
@@ -278,7 +279,7 @@ export function InvoiceForm({
         {organizationsError != null && (
           <div className="flex items-start gap-2 rounded-lg border border-error/30 bg-error-container
             px-3 py-2 text-xs text-error">
-            <TriangleAlert size={14} className="shrink-0 mt-0.5" />
+            <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <span>
               Справочник организаций не прочитан: {apiError(organizationsError, 'сервер отказал')}.
               Поставщика и плательщика выбрать не из чего — остальные поля правятся и сохраняются.
@@ -330,7 +331,7 @@ export function InvoiceForm({
               Сверьте их по скану.
             </p>
             {!quiet && (
-              <Button size="sm" variant="outlined" icon={<CheckCheck size={13} />} loading={confirm.isPending}
+              <Button size="sm" variant="outlined" icon={<Icon icon={DoneAll} size={18} />} loading={confirm.isPending}
                 onClick={() => confirmBlock({ id: 'unshown', title: '', fields: orphanMarks })}>
                 Всё верно ({orphanMarks.length})
               </Button>
@@ -382,7 +383,7 @@ function BlockFields({
           {/* Кнопки нет, когда снимать нечего: пустой перечень сервер отвергает, и предлагать
               действие, которое заведомо откажет, — обман. */}
           {marks.length > 0 && !quiet && (
-            <Button size="sm" variant="outlined" icon={<CheckCheck size={13} />} loading={confirming}
+            <Button size="sm" variant="outlined" icon={<Icon icon={DoneAll} size={18} />} loading={confirming}
               onClick={() => onConfirm(block)}>
               Всё верно ({marks.length})
             </Button>

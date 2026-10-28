@@ -1,4 +1,5 @@
-import { Unlink } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { LinkOff } from '@/shared/ui/icons';
 import type { InvoiceView } from '@/shared/api/invoices';
 import { lostSummary } from './lostReferences';
 
@@ -31,7 +32,7 @@ export function LostReferencesNote({ view, locked }: {
   return (
     <div role="note" className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${alarming
       ? 'border-error/30 bg-error-container text-error' : 'border-outline-variant bg-surface-container text-on-surface-variant'}`}>
-      <Unlink size={14} className="shrink-0 mt-0.5" />
+      <Icon icon={LinkOff} size={18} className="shrink-0 mt-0.5" />
       <div className="min-w-0 space-y-0.5">
         {summary.count > 0 && (
           <p>

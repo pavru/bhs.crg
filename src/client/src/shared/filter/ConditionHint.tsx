@@ -1,5 +1,6 @@
 import type { RefObject } from 'react';
-import { BookX } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { SearchOff } from '@/shared/ui/icons';
 import type { FilterCondition } from '@/shared/api/types';
 import { conditionNotice, missActions, missText, noticeText } from './conditionNotice';
 import { choiceStrays, conditionProblem, type FilterColumn } from './rowFilterModel';
@@ -53,7 +54,7 @@ export function ConditionHint({ cond, columns, onChange, id, fieldRef, className
         <p key={line.key} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           {/* Значок — с текстом, а не отдельным переносом: окошко чипа узкое. */}
           <span className="inline-flex items-start gap-1">
-            <BookX size={12} aria-hidden className="mt-0.5 shrink-0" />
+            <Icon icon={SearchOff} size={18} aria-hidden className="mt-0.5 shrink-0" />
             <span>{line.text}</span>
           </span>
           {line.actions.map(a => (

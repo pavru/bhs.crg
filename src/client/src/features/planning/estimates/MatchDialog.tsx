@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add } from '@/shared/ui/icons';
 import { useCan } from '@/shared/api/access';
 import {
   planRefusal, useWorkTypeNames, type EstimateRevision, type EstimateRow, type PlanRefusal, type RevisionSection,
@@ -299,7 +300,7 @@ function Footer({ canCreate, onNew, hint, children }: {
   return (
     <div className="flex flex-wrap items-center justify-end gap-2 border-t border-outline-variant pt-3">
       {canCreate && (
-        <Button size="sm" variant="text" icon={<Plus size={16} />} className="mr-auto" onClick={onNew}>Новый вид работы</Button>
+        <Button size="sm" variant="text" icon={<Icon icon={Add} size={18} />} className="mr-auto" onClick={onNew}>Новый вид работы</Button>
       )}
       {hint && <span className={`text-xs text-fg3 ${canCreate ? '' : 'mr-auto'}`}>{hint}</span>}
       <ModalExit />

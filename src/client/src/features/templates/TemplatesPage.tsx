@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router';
-import { Library, Lock, Boxes } from 'lucide-react';
+import { LibraryBooks, LockIcon, Widgets } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { Button } from '@/shared/ui/Button';
@@ -75,9 +75,9 @@ type PageMode = 'templates' | 'userlib' | 'systemlib' | 'typeblocks';
 const TABS_ID = 'templates-mode';
 const MODES: TabItem<PageMode>[] = [
   { value: 'templates', label: 'Шаблоны документов' },
-  { value: 'userlib', label: 'Общие функции Typst', icon: Library },
-  { value: 'systemlib', label: 'Системные функции', icon: Lock },
-  { value: 'typeblocks', label: 'Блоки типов', icon: Boxes },
+  { value: 'userlib', label: 'Общие функции Typst', icon: LibraryBooks },
+  { value: 'systemlib', label: 'Системные функции', icon: LockIcon },
+  { value: 'typeblocks', label: 'Блоки типов', icon: Widgets },
 ];
 
 /**

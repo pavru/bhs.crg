@@ -1,5 +1,4 @@
 import type { CSSProperties } from 'react';
-import { FileCheck2 } from 'lucide-react';
 import { useBranding, logoUrl } from '@/shared/api/branding';
 import { useImageFailure } from './useImageFailure';
 
@@ -32,7 +31,23 @@ export function BrandLogo(
 
   return (
     <span className={`flex items-center justify-center shrink-0 ${className}`} style={style}>
-      <FileCheck2 size={iconSize} />
+      <ProductMark size={iconSize} />
     </span>
+  );
+}
+
+/**
+ * Знак продукта — документ с галкой. Рисунок свой, вне набора значков shared/ui/icons (решение владельца
+ * 28.10.2026, sharedui-md3-03): знак не меняется вместе с набором. Линии — прежний FileCheck2 lucide
+ * (ISC), толщина 2 в квадрате 24.
+ */
+function ProductMark({ size }: { size: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2}
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false">
+      <path d="M10.5 22H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.706.706l3.588 3.588A2.4 2.4 0 0 1 20 8v6" />
+      <path d="M14 2v5a1 1 0 0 0 1 1h5" />
+      <path d="m14 20 2 2 4-4" />
+    </svg>
   );
 }

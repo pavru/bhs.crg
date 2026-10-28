@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ClipboardList, House, Wrench } from 'lucide-react';
+import { Assignment, Build, Home } from './icons';
 import type { AccessInfo } from '@/shared/api/access';
 import { HOME_ENTRY_RANK, entryPage, entryRankProblems } from './entryPage';
 import { settingsNav, workNav, type NavItem } from './navConfig';
@@ -25,10 +25,10 @@ const enter = (items: NavItem[], ws: Workspace, a: AccessInfo) =>
   entryPage(splitNav(visibleNav(items, a), ws, a).inside, a, items);
 
 // Пункты модулей — тестовые: настоящие вписывают plan-09 («Сметы») и work-03 («Мои отчёты»).
-const estimates: NavItem = { to: '/estimates', label: 'Сметы', icon: ClipboardList, module: 'plan', permission: 'plan.estimate.read', rail: 'plan' };
-const myReports: NavItem = { to: '/my-reports', label: 'Мои отчёты', icon: Wrench, module: 'work', permission: 'work.facts.write', rail: 'plan', entry: 10 };
+const estimates: NavItem = { to: '/estimates', label: 'Сметы', icon: Assignment, module: 'plan', permission: 'plan.estimate.read', rail: 'plan' };
+const myReports: NavItem = { to: '/my-reports', label: 'Мои отчёты', icon: Build, module: 'work', permission: 'work.facts.write', rail: 'plan', entry: 10 };
 // Пункт Главной вписывает shell-08: пункт ядра без права с рангом Главной.
-const home: NavItem = { to: '/home', label: 'Главная', icon: House, rail: 'constructions', entry: HOME_ENTRY_RANK };
+const home: NavItem = { to: '/home', label: 'Главная', icon: Home, rail: 'constructions', entry: HOME_ENTRY_RANK };
 
 const nav = [...workNav, estimates, myReports, ...settingsNav];
 const withHome = [home, ...nav];

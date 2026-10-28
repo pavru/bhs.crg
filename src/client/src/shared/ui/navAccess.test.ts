@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { visibleNav, allowed, missingFor, permissionsOf } from './navAccess';
-import { ClipboardList } from 'lucide-react';
+import { Assignment } from './icons';
 import { workNav, settingsNav, type NavItem } from './navConfig';
 import type { AccessInfo } from '@/shared/api/access';
 
@@ -68,7 +68,7 @@ describe('навигация по правам', () => {
  */
 describe('пункт под списком прав', () => {
   const progress: NavItem = {
-    to: '/progress', label: 'Ход работ', icon: ClipboardList, rail: 'plan',
+    to: '/progress', label: 'Ход работ', icon: Assignment, rail: 'plan',
     permission: ['plan.estimate.read', 'costs.report.read'],
   };
   const both = [{ code: 'plan', available: false }, { code: 'costs', available: false }];

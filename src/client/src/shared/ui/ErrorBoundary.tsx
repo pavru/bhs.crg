@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { AlertTriangle, RotateCcw, RefreshCw, ChevronDown, ChevronRight, Bug, X } from 'lucide-react';
+import { Icon } from './Icon';
+import { BugReport, ChevronRight, Close, KeyboardArrowDown, Refresh, RestartAlt, Warning } from './icons';
 import { canOpenBugReport, openBugReport } from './bugReportBus';
 import { getToken } from '@/shared/api/token';
 
@@ -69,7 +70,7 @@ export class ErrorBoundary extends Component<
         : 'flex-1 min-h-0 flex items-center justify-center p-6'}>
         <div className="max-w-lg w-full rounded-xl border border-error/30 bg-error-container/40 p-5">
           <div className="flex items-start gap-3">
-            <AlertTriangle size={20} className="text-error shrink-0 mt-0.5" />
+            <Icon icon={Warning} size={20} className="text-error shrink-0 mt-0.5" />
             <div className="min-w-0 flex-1">
               <h2 className="text-base font-medium text-on-surface">{title}</h2>
               <p className="text-sm text-fg3 mt-1">
@@ -93,17 +94,17 @@ export class ErrorBoundary extends Component<
                       stack: error.stack ?? undefined,
                     })}
                     className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border border-outline-variant text-on-surface-variant hover:bg-surface-container-low transition-colors">
-                    <Bug size={14} /> Сообщить об ошибке
+                    <Icon icon={BugReport} size={18} /> Сообщить об ошибке
                   </button>
                 )}
                 <button type="button" onClick={this.reset}
                   className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium bg-primary text-on-primary hover:bg-brand-hover transition-colors">
-                  <RotateCcw size={14} /> Попробовать снова
+                  <Icon icon={RestartAlt} size={18} /> Попробовать снова
                 </button>
                 {allowReload && (
                   <button type="button" onClick={() => window.location.reload()}
                     className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border border-outline-variant text-on-surface-variant hover:bg-surface-container-low transition-colors">
-                    <RefreshCw size={14} /> Перезагрузить страницу
+                    <Icon icon={Refresh} size={18} /> Перезагрузить страницу
                   </button>
                 )}
                 {onClose && (
@@ -111,14 +112,14 @@ export class ErrorBoundary extends Component<
                   // находят выход, когда закрыть сразу нельзя (в редакторе остались правки).
                   <button type="button" onClick={onClose} data-modal-exit=""
                     className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border border-outline-variant text-on-surface-variant hover:bg-surface-container-low transition-colors">
-                    <X size={14} /> Закрыть
+                    <Icon icon={Close} size={18} /> Закрыть
                   </button>
                 )}
               </div>
 
               <button type="button" onClick={() => this.setState({ expanded: !expanded })}
                 className="inline-flex items-center gap-1 mt-3 text-xs text-fg4 hover:text-on-surface-variant transition-colors">
-                {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                {expanded ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
                 Подробности ошибки
               </button>
               {expanded && (

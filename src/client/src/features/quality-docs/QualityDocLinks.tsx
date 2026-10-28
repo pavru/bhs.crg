@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, Link2, Unlink, Replace } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ChangeCircle, LinkIcon, LinkOff, Warning } from '@/shared/ui/icons';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Button } from '@/shared/ui/Button';
 import { ScopeIcon } from '@/shared/ui/ScopeIcon';
@@ -135,7 +136,7 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
 
   if (links.length === 0) {
     return (
-      <EmptyState icon={<Link2 size={28} />} title="Связок нет"
+      <EmptyState icon={<Icon icon={LinkIcon} size={40} />} title="Связок нет"
         description="К этому документу не привязан ни один материал. Привязка делается на вкладке «Документы качества» внутри документа комплекта." />
     );
   }
@@ -166,13 +167,13 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
           {anomalyOf(link) && (
             <Tooltip content={anomalyOf(link)!}>
               <span aria-label={anomalyOf(link)!} role="img"
-                className="mt-1 shrink-0 text-warning"><AlertTriangle size={13} /></span>
+                className="mt-1 shrink-0 text-warning"><Icon icon={Warning} size={18} /></span>
             </Tooltip>
           )}
           <div className="flex items-center gap-1 shrink-0">
-            <Button variant="text" size="sm" icon={<Replace size={13} />}
+            <Button variant="text" size="sm" icon={<Icon icon={ChangeCircle} size={18} />}
               onClick={() => setRelinking(link)}>Перепривязать</Button>
-            <Button variant="text" size="sm" icon={<Unlink size={13} />}
+            <Button variant="text" size="sm" icon={<Icon icon={LinkOff} size={18} />}
               onClick={() => setBreaking(link)}>Разорвать</Button>
           </div>
         </div>
@@ -183,9 +184,9 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
       {chosen.length > 0 && (
         <div className="sticky bottom-0 flex items-center gap-2 rounded-md border border-outline-variant bg-surface px-3 py-2 shadow-sm">
           <span className="text-sm text-on-surface-variant">Выбрано: {chosen.length}</span>
-          <Button variant="filled" size="sm" icon={<Replace size={13} />}
+          <Button variant="filled" size="sm" icon={<Icon icon={ChangeCircle} size={18} />}
             onClick={() => setBulkRelink(true)}>Перепривязать ({chosen.length})</Button>
-          <Button variant="outlined" size="sm" icon={<Unlink size={13} />}
+          <Button variant="outlined" size="sm" icon={<Icon icon={LinkOff} size={18} />}
             onClick={() => setBulkBreak(true)}>Разорвать ({chosen.length})</Button>
           <button type="button" onClick={() => setSelected(new Set())}
             className="ml-auto text-xs text-fg4 hover:text-on-surface-variant">Снять выбор</button>

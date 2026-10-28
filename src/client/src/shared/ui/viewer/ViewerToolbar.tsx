@@ -1,5 +1,6 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Check, ChevronLeft, ChevronRight, Minus, Plus, RotateCw } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Check, ChevronLeft, ChevronRight, Remove, RotateRight } from '@/shared/ui/icons';
 import { useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { IconButton } from '../Button';
 import { Chip } from '../Chip';
@@ -37,29 +38,29 @@ export function ViewerToolbar(p: ToolbarProps) {
       {p.numPages > 1 && (
         <>
           <IconButton label="Предыдущая страница" size="sm" disabled={p.page <= 1} onClick={() => p.onPage(p.page - 1)}>
-            <ChevronLeft size={16} />
+            <Icon icon={ChevronLeft} size={18} />
           </IconButton>
           <PageField page={p.page} numPages={p.numPages} onPage={p.onPage} />
           <IconButton label="Следующая страница" size="sm" disabled={p.page >= p.numPages} onClick={() => p.onPage(p.page + 1)}>
-            <ChevronRight size={16} />
+            <Icon icon={ChevronRight} size={18} />
           </IconButton>
           <span aria-hidden className="w-px h-5 bg-outline-variant mx-1 shrink-0" />
         </>
       )}
       {!p.narrow && (
         <IconButton label="Уменьшить" title="Уменьшить (Ctrl −)" size="sm" disabled={!p.canZoomOut} onClick={p.onZoomOut}>
-          <Minus size={16} />
+          <Icon icon={Remove} size={18} />
         </IconButton>
       )}
       <ZoomMenu {...p} />
       {!p.narrow && (
         <IconButton label="Увеличить" title="Увеличить (Ctrl +)" size="sm" disabled={!p.canZoomIn} onClick={p.onZoomIn}>
-          <Plus size={16} />
+          <Icon icon={Add} size={18} />
         </IconButton>
       )}
       <span className="flex-1" />
       <IconButton label="Повернуть по часовой" size="sm" onClick={p.onRotate}>
-        <RotateCw size={16} />
+        <Icon icon={RotateRight} size={18} />
       </IconButton>
     </div>
   );
@@ -106,7 +107,7 @@ function ZoomMenu(p: ToolbarProps) {
   const item = (key: string, label: ReactNode, onSelect: () => void, opts: { checked?: boolean; hint?: string; disabled?: boolean } = {}) => (
     <DropdownMenu.Item key={key} className={itemCls} onSelect={onSelect} disabled={opts.disabled}>
       <span className={opts.checked ? 'text-on-surface font-medium' : undefined}>{label}</span>
-      {opts.checked ? <Check size={14} className="text-primary" aria-hidden />
+      {opts.checked ? <Icon icon={Check} size={18} className="text-primary" aria-hidden />
         : opts.hint && <span className="text-xs text-fg4">{opts.hint}</span>}
     </DropdownMenu.Item>
   );

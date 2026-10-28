@@ -1,10 +1,8 @@
 import { formatDayTime } from '@/shared/format/format';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import {
-  AlertTriangle, Bug, Check, ChevronDown, ChevronRight, Copy, ExternalLink,
-  Image as ImageIcon, Send, Undo2, X,
-} from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { BugReport, Check, ChevronRight, Close, ContentCopy, ImageIcon, KeyboardArrowDown, OpenInNew, Send, Undo, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { Modal } from '@/shared/ui/Modal';
@@ -77,7 +75,7 @@ export function BugReportsPage() {
         <span className="truncate">{r.author}</span>
         <span>·</span>
         <span className="shrink-0">{formatDayTime(r.createdAt)}</span>
-        {r.hasScreenshot && <ImageIcon size={11} className="shrink-0" aria-label="со снимком экрана" />}
+        {r.hasScreenshot && <Icon icon={ImageIcon} size={18} className="shrink-0" aria-label="со снимком экрана" />}
         {r.githubIssueNumber && <span className="shrink-0">· #{r.githubIssueNumber}</span>}
       </div>
     </button>
@@ -89,7 +87,7 @@ export function BugReportsPage() {
       subtitle={data && data.total > data.items.length
         ? `Показаны последние ${data.items.length} из ${data.total} — более старые в списке не видны`
         : 'Что пользователи сообщают из приложения. Наружу уходит только то, что вы отредактируете'}
-      icon={<Bug size={20} className="text-fg3" />}
+      icon={<Icon icon={BugReport} size={20} className="text-fg3" />}
       overlay={isLoading
         ? <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка…</div>
         : (reports?.length ?? 0) === 0
@@ -175,7 +173,7 @@ function ReportBody({ report, githubConfigured }: {
         <div className="flex items-center gap-1.5 shrink-0">
           {closed ? (
             <Button variant="outlined" size="sm" onClick={() => reopen.mutate(report.id)}>
-              <Undo2 size={14} /> Вернуть в разбор
+              <Icon icon={Undo} size={18} /> Вернуть в разбор
             </Button>
           ) : (
             <>
@@ -189,15 +187,15 @@ function ReportBody({ report, githubConfigured }: {
                     setIssueTitle(prev => prev || defaultIssueTitle(report.message));
                     setForwardOpen(true);
                   }}>
-                  <Send size={14} /> Отправить в GitHub
+                  <Icon icon={Send} size={18} /> Отправить в GitHub
                 </Button>
               )}
               <Button variant="outlined" size="sm" onClick={() => setRejectOpen(true)}>
-                <X size={14} /> Отклонить
+                <Icon icon={Close} size={18} /> Отклонить
               </Button>
               <Button variant="filled" size="sm"
                 onClick={() => { setVersion(''); setFixError(null); setFixOpen(true); }}>
-                <Check size={14} /> Исправлено…
+                <Icon icon={Check} size={18} /> Исправлено…
               </Button>
             </>
           )}
@@ -216,7 +214,7 @@ function ReportBody({ report, githubConfigured }: {
             <h3 className="text-xs font-semibold uppercase tracking-wide text-fg4">Снимок экрана</h3>
             <Button variant="outlined" size="sm"
               onClick={() => { void openAttachment(report.screenshotBlobPath!); }}>
-              <ExternalLink size={14} /> Открыть снимок
+              <Icon icon={OpenInNew} size={18} /> Открыть снимок
             </Button>
             <p className="text-xs text-fg4">В GitHub снимок не передаётся — он остаётся здесь.</p>
           </section>
@@ -226,7 +224,7 @@ function ReportBody({ report, githubConfigured }: {
         <section>
           <button type="button" onClick={() => setTechOpen(o => !o)}
             className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-fg4 hover:text-on-surface-variant transition-colors">
-            {techOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />} Технический контекст
+            {techOpen ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />} Технический контекст
           </button>
           {techOpen && <TechBlock tech={report.tech} />}
         </section>
@@ -246,7 +244,7 @@ function ReportBody({ report, githubConfigured }: {
                 Сохранить
               </Button>
               <Button variant="text" size="sm" onClick={() => { void copyDraft(); }}>
-                <Copy size={14} /> Скопировать
+                <Icon icon={ContentCopy} size={18} /> Скопировать
               </Button>
             </div>
           </div>
@@ -319,7 +317,7 @@ function ReportBody({ report, githubConfigured }: {
             </p>
             {forwardError && (
               <p className="flex items-start gap-1.5 text-sm text-error">
-                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {forwardError}
+                <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" /> {forwardError}
               </p>
             )}
           </div>
@@ -385,7 +383,7 @@ function ReportBody({ report, githubConfigured }: {
             onChange={e => setVersion(e.target.value)} hint="Например, 0.145.0" />
           {fixError && (
             <p className="flex items-start gap-1.5 text-sm text-error">
-              <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {fixError}
+              <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" /> {fixError}
             </p>
           )}
         </div>

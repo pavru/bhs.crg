@@ -1,4 +1,5 @@
-import { Archive, Check, ListChecks, ScanLine, TriangleAlert } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Archive, Check, Checklist, DocumentScanner, Warning, type IconDef } from '@/shared/ui/icons';
 import type { ReactNode } from 'react';
 import type { InvoiceQueue } from '@/shared/api/invoices';
 import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
@@ -36,7 +37,7 @@ export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, on
       {/* «Разобрать» (ТЗ COST-6.2, issue #1292) — рабочая очередь: все недоведённые счета, то есть
           черновики. Отбирает и считает СЕРВЕР. Чип стоит всегда; числа нет, пока оно не пришло либо
           равно нулю, — «не посчитано» нулём не рисуем. */}
-      <Chip active={queue === 'parsing'} icon={ListChecks} label={QUEUE_LABEL.parsing}
+      <Chip active={queue === 'parsing'} icon={Checklist} label={QUEUE_LABEL.parsing}
         count={parsing ? String(parsing) : undefined}
         title={'Черновики — счета, не доведённые до «Разобран». Чего не хватает каждому, видно в его строке.'
           + (parsing == null ? ' Сколько их — не посчитано.' : ` Сейчас их: ${parsing}.`)}
@@ -47,7 +48,7 @@ export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, on
       {/* Числа не пришли — чип остаётся, без числа: адрес чисел падает вместе с опросом ссылок ядра,
           к распознаванию не относящимся, а сам отбор при этом работает. */}
       {(queue === 'unrecognized' || failed || (queues?.unrecognized ?? 0) > 0) && (
-        <Chip active={queue === 'unrecognized'} icon={ScanLine} label={QUEUE_LABEL.unrecognized}
+        <Chip active={queue === 'unrecognized'} icon={DocumentScanner} label={QUEUE_LABEL.unrecognized}
           count={queues && queues.unrecognized > 0 ? String(queues.unrecognized) : undefined}
           title={'Черновики с файлом, в которых нет строк: файл не распознан, прочитан без строк или не распознавался.'
             + (queues ? '' : ' Сколько их — не посчитано.')}
@@ -55,7 +56,7 @@ export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, on
           ariaLabel={`${QUEUE_LABEL.unrecognized}, счетов: ${queues?.unrecognized || 'нет'}`} />
       )}
       {lost && (
-        <Chip active={queue === 'lost'} icon={TriangleAlert} label={QUEUE_LABEL.lost} count={lost.count}
+        <Chip active={queue === 'lost'} icon={Warning} label={QUEUE_LABEL.lost} count={lost.count}
           title={lost.title} tone={lost.doubt ? 'doubt' : 'danger'} onClick={() => toggle('lost')}
           ariaLabel={`${QUEUE_LABEL.lost}, счетов: ${lost.count || 'нет'}`} />
       )}
@@ -76,9 +77,9 @@ export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, on
   );
 }
 
-function Chip({ active, icon: Icon, label, count, title, tone, onClick, ariaLabel }: {
+function Chip({ active, icon, label, count, title, tone, onClick, ariaLabel }: {
   active: boolean;
-  icon: typeof Check;
+  icon: IconDef;
   label: string;
   count?: string;
   title: string;
@@ -91,12 +92,12 @@ function Chip({ active, icon: Icon, label, count, title, tone, onClick, ariaLabe
     : tone === 'danger' ? 'border-error text-error hover:bg-error-container'
     : tone === 'doubt' ? 'border-warning text-warning hover:bg-surface-container'
     : 'border-outline-variant text-fg3 hover:text-on-surface';
-  const Shown = active ? Check : Icon;
+  const shown = active ? Check : icon;
   return (
     <Tooltip content={title}>
       <button type="button" aria-pressed={active} aria-label={ariaLabel} onClick={onClick}
         className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 bg-surface ${look}`}>
-        <Shown size={12} aria-hidden />
+        <Icon icon={shown} size={18} aria-hidden />
         {label}
         {count && <span className="font-medium">{count}</span>}
       </button>

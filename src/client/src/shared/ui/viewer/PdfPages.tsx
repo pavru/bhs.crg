@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { RotateCw } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { RotateRight } from '@/shared/ui/icons';
 import { Button } from '../Button';
 import type { PdfDocument, PageTask } from './pdfEngine';
 import { CANVAS_PADDING, type Layout } from './viewerState';
@@ -128,7 +129,7 @@ function PdfPage({ doc, n, scale, rotation, prepared, baseWidth, baseHeight }: {
         // Отказ листа — на поверхности токеном, а не на белом: в тёмной теме кнопка на белом не читалась бы.
         <div className="absolute inset-0 flex flex-col items-center justify-start gap-2 pt-12 text-center text-xs text-on-surface-variant bg-surface">
           <span>Страница {n} не отрисовалась.</span>
-          <Button size="sm" variant="outlined" icon={<RotateCw size={13} />} onClick={() => setAttempt(a => a + 1)}>
+          <Button size="sm" variant="outlined" icon={<Icon icon={RotateRight} size={18} />} onClick={() => setAttempt(a => a + 1)}>
             Повторить
           </Button>
         </div>

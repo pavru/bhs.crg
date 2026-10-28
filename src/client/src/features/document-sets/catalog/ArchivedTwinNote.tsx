@@ -1,4 +1,5 @@
-import { Archive, ArchiveRestore } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Archive, Unarchive } from '@/shared/ui/icons';
 import { useSetCommonDataArchive, type ArchivedTwin } from '@/shared/api/commonData';
 import { useCan } from '@/shared/api/access';
 import { Button } from '@/shared/ui/Button';
@@ -40,7 +41,7 @@ export function ArchivedTwinNote({ twin, busy, onReturned, onCreateAnyway }: {
   return (
     <div className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 space-y-2">
       <p className="text-sm text-on-surface flex items-center gap-1.5">
-        <Archive size={14} className="text-fg3 shrink-0" />
+        <Icon icon={Archive} size={18} className="text-fg3 shrink-0" />
         Такая запись есть в архиве: «{twin.archivedName}».
       </p>
       <p className="text-xs text-fg3">
@@ -50,7 +51,7 @@ export function ArchivedTwinNote({ twin, busy, onReturned, onCreateAnyway }: {
       </p>
       <div className="flex gap-2">
         {canReturn && (
-          <Button type="button" variant="tonal" size="sm" icon={<ArchiveRestore size={13} />}
+          <Button type="button" variant="tonal" size="sm" icon={<Icon icon={Unarchive} size={18} />}
             loading={unarchive.isPending} disabled={pending} onClick={() => void giveBack()}>
             Вернуть из архива
           </Button>

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Delete } from '@/shared/ui/icons';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -337,7 +338,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
                 </p>
                 <button type="button" onClick={addColumn}
                   className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover">
-                  <Plus size={13} /> Колонка
+                  <Icon icon={Add} size={18} /> Колонка
                 </button>
               </div>
               {columns.length === 0 && (
@@ -358,7 +359,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
                     </div>
                     <button type="button" onClick={() => removeColumn(i)}
                       className="p-1.5 text-fg4 hover:text-error shrink-0">
-                      <Trash2 size={14} />
+                      <Icon icon={Delete} size={18} />
                     </button>
                   </div>
                 ))}

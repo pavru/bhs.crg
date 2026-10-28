@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, SlidersHorizontal, Plus, Trash2, GripVertical } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Delete, DragIndicator, KeyboardArrowDown, KeyboardArrowUp, Tune } from '@/shared/ui/icons';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { useUpdateTemplateParameters } from '@/shared/api/templates';
 import { moveItem } from '@/shared/utils/moveItem';
@@ -56,9 +57,9 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
     <div className="border-t border-outline-variant bg-surface">
       <button onClick={() => setOpen(v => !v)} aria-expanded={open}
         className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-surface-container-low transition-colors text-left">
-        <SlidersHorizontal size={13} className="text-fg4" />
+        <Icon icon={Tune} size={18} className="text-fg4" />
         <span className="text-xs font-medium text-on-surface-variant flex-1">Параметры шаблона{rows.length > 0 ? ` (${rows.length})` : ''}</span>
-        {open ? <ChevronUp size={13} className="text-fg4" /> : <ChevronDown size={13} className="text-fg4" />}
+        {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-fg4" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-fg4" />}
       </button>
       {open && (
         <div className="px-4 pb-4 pt-3 border-t border-surface-container space-y-2">
@@ -85,7 +86,7 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
                 <span className="text-fg4 cursor-grab shrink-0" draggable
                   onDragStart={e => { e.dataTransfer.setData(DRAG_MIME, String(i)); setDragIdx(i); }}
                   onDragEnd={() => setDragIdx(null)}>
-                  <GripVertical size={13} />
+                  <Icon icon={DragIndicator} size={18} />
                 </span>
               </Tooltip>
               <input value={p.name} onChange={e => patch(i, { name: e.target.value })} placeholder="имя"
@@ -104,14 +105,14 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
                   isFirst={i === 0} isLast={i === rows.length - 1} />
                 <Tooltip content="Удалить параметр" name>
                   <button onClick={() => save(rows.filter((_, idx) => idx !== i))}
-                    className="p-1 text-stroke-strong hover:text-error"><Trash2 size={12} /></button>
+                    className="p-1 text-stroke-strong hover:text-error"><Icon icon={Delete} size={18} /></button>
                 </Tooltip>
               </span>
             </div>
           ))}
           <button onClick={() => save([...rows, { id: newLocalId(), p: { name: '', label: '', type: 'string', default: '' } }])}
             className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover">
-            <Plus size={12} /> Добавить параметр
+            <Icon icon={Add} size={18} /> Добавить параметр
           </button>
         </div>
       )}

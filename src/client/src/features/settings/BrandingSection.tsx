@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { AlertTriangle, Upload, Trash2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Delete, Upload, Warning } from '@/shared/ui/icons';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
@@ -210,12 +211,12 @@ function LogoRow({ data, uploading, removing, onUpload, onRemove }: {
         )}
       </div>
 
-      <Button variant="outlined" icon={<Upload size={14} />} onClick={onUpload} loading={uploading}
+      <Button variant="outlined" icon={<Icon icon={Upload} size={18} />} onClick={onUpload} loading={uploading}
         disabled={removing}>
         {data.hasLogo ? 'Заменить' : 'Загрузить'}
       </Button>
       {data.hasLogo && (
-        <Button variant="text" icon={<Trash2 size={14} />} onClick={onRemove} disabled={busy}>
+        <Button variant="text" icon={<Icon icon={Delete} size={18} />} onClick={onRemove} disabled={busy}>
           Убрать
         </Button>
       )}
@@ -283,7 +284,7 @@ function IconsNote({ icons, named }: { icons: BrandIcons; named: boolean }) {
     return (
       <p role="status" data-testid="brand-icons-failed"
         className="mt-3 flex items-start gap-1.5 rounded px-2 py-1.5 text-xs bg-warning-container text-warning border border-warning-border max-w-xl">
-        <AlertTriangle size={13} className="shrink-0 mt-px" />
+        <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
         <span>{failure}</span>
       </p>
     );
@@ -294,7 +295,7 @@ function IconsNote({ icons, named }: { icons: BrandIcons; named: boolean }) {
   // к разборчивому значку — та же «Заменить» строкой выше.
   return (
     <p data-testid="brand-icons-elongated" className="mt-3 flex items-start gap-1.5 text-xs text-warning max-w-xl">
-      <AlertTriangle size={13} className="shrink-0 mt-px" />
+      <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
       <span>{elongated}</span>
     </p>
   );

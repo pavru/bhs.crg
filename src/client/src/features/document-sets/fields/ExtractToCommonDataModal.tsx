@@ -1,5 +1,6 @@
 import { useContext, useState, useEffect, useMemo } from 'react';
-import { AlertTriangle, ArchiveRestore, Link2, X } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Close, LinkIcon, Unarchive, Warning } from '@/shared/ui/icons';
 import { ModalExit } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
 import { Button } from '@/shared/ui/Button';
@@ -281,7 +282,7 @@ export function ExtractToCommonDataModal({
       }>
       <div className="space-y-4">
         {blocking.length > 0 && (
-          <Note tone="danger" icon={<AlertTriangle size={14} />}
+          <Note tone="danger" icon={<Icon icon={Warning} size={18} />}
             title="Внутри есть ссылки, которые вне своего комплекта не разворачиваются">
             <p className="mb-1">
               Ссылки на документ и его поля резолвятся только в том комплекте, где документ живёт.
@@ -299,7 +300,7 @@ export function ExtractToCommonDataModal({
         )}
 
         {violationList.length > 0 && (
-          <Note tone="danger" icon={<AlertTriangle size={14} />}
+          <Note tone="danger" icon={<Icon icon={Warning} size={18} />}
             title="Значения не соответствуют ограничениям типов">
             <ul className="list-disc pl-4 space-y-0.5">
               {violationList.map(([path, message]) => (
@@ -324,7 +325,7 @@ export function ExtractToCommonDataModal({
           {noPlace ? (
             /* Пустой Select был бы тупиком: список без пунктов, баннер про ограничение и работающая
                кнопка, кладущая запись шире разрешённого. Говорим прямо. */
-            <Note tone="danger" icon={<AlertTriangle size={14} />} title="Положить запись некуда">
+            <Note tone="danger" icon={<Icon icon={Warning} size={18} />} title="Положить запись некуда">
               Внутри есть ссылка на запись уровня «{SCOPE_LABELS[allowedMax]}», а этот уровень отсюда
               недоступен: {setId ? 'комплект ещё загружается' : 'форма не знает нужного контейнера'}.
               Вынести объект можно из редактора документа того комплекта.
@@ -357,7 +358,7 @@ export function ExtractToCommonDataModal({
                   <Tooltip content="Удалить" name>
                     <button type="button" onClick={() => setAliases(prev => prev.filter(x => x !== a))}
                       className="text-fg4 hover:text-error transition-colors shrink-0">
-                      <X size={11} />
+                      <Icon icon={Close} size={18} />
                     </button>
                   </Tooltip>
                 </span>
@@ -372,7 +373,7 @@ export function ExtractToCommonDataModal({
         </div>
 
         {duplicate && (
-          <Note tone="warning" icon={<AlertTriangle size={14} />}
+          <Note tone="warning" icon={<Icon icon={Warning} size={18} />}
             title={duplicate.match.archived
               ? (duplicate.strong
                 ? 'Такая запись есть в архиве — совпали поля идентичности'
@@ -391,11 +392,11 @@ export function ExtractToCommonDataModal({
               Поиск идёт в выбранном уровне и выше: записи более узкого уровня отсюда не видны.
             </p>
             {!duplicate.match.archived ? (
-              <Button variant="tonal" size="sm" icon={<Link2 size={13} />} onClick={() => void linkExisting()}>
+              <Button variant="tonal" size="sm" icon={<Icon icon={LinkIcon} size={18} />} onClick={() => void linkExisting()}>
                 Связать с существующей
               </Button>
             ) : canReturn ? (
-              <Button variant="tonal" size="sm" icon={<ArchiveRestore size={13} />}
+              <Button variant="tonal" size="sm" icon={<Icon icon={Unarchive} size={18} />}
                 loading={unarchive.isPending} disabled={unarchive.isPending} onClick={() => void linkExisting()}>
                 Вернуть из архива и связать
               </Button>

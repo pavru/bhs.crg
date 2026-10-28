@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
-import { Activity, ClipboardList } from 'lucide-react';
+import { Assignment, Monitoring } from '@/shared/ui/icons';
 import type { AccessInfo } from '@/shared/api/access';
 import { constructionPanels, type ConstructionPanel } from '@/shared/ui/constructionPanels';
 import { WorkspaceContext, useWorkspace } from '@/shared/ui/workspaceContext';
@@ -19,11 +19,11 @@ afterEach(cleanup);
 
 // Панели блока «Работы» — тестовые: настоящие вписывают plan-25 («Ход работ») и plan-09 («Сметы»).
 const progress: ConstructionPanel = {
-  id: 'progress', label: 'Ход работ', icon: Activity, block: 'work', levels: ['construction'],
+  id: 'progress', label: 'Ход работ', icon: Monitoring, block: 'work', levels: ['construction'],
   section: 'progress', permission: 'costs.report.read',
 };
 const estimates: ConstructionPanel = {
-  id: 'estimates', label: 'Сметы', icon: ClipboardList, block: 'work', levels: ['construction'],
+  id: 'estimates', label: 'Сметы', icon: Assignment, block: 'work', levels: ['construction'],
   module: 'plan', permission: 'plan.estimate.read',
 };
 const registry = [progress, estimates, ...constructionPanels.filter(p => p.id === 'catalog')];

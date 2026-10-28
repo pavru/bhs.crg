@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import {
-  FileText, FileSpreadsheet, Image as ImageIcon,
-  Eye, Loader2, Trash2, Upload, Download,
-} from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { Delete, Description, Download, ImageIcon, TableChart, Upload, Visibility } from '@/shared/ui/icons';
 import {
   type FileAttachment, isFileAttachment, getFileCategory,
   uploadAttachment, uploadPrintForm, loadAttachmentBlob, loadAttachmentObjectUrl, formatBytes, saveBlob,
@@ -21,11 +20,11 @@ export interface PrintFormContext {
 }
 
 export function FileTypeIcon({ mimeType }: { mimeType: string }) {
-  if (mimeType.startsWith('image/')) return <ImageIcon size={16} className="text-tertiary shrink-0" />;
-  if (mimeType === 'application/pdf') return <FileText size={16} className="text-error shrink-0" />;
-  if (mimeType.includes('word')) return <FileText size={16} className="text-primary shrink-0" />;
-  if (mimeType.includes('sheet') || mimeType.includes('excel')) return <FileSpreadsheet size={16} className="text-success shrink-0" />;
-  return <FileText size={16} className="text-fg4 shrink-0" />;
+  if (mimeType.startsWith('image/')) return <Icon icon={ImageIcon} size={18} className="text-tertiary shrink-0" />;
+  if (mimeType === 'application/pdf') return <Icon icon={Description} size={18} className="text-error shrink-0" />;
+  if (mimeType.includes('word')) return <Icon icon={Description} size={18} className="text-primary shrink-0" />;
+  if (mimeType.includes('sheet') || mimeType.includes('excel')) return <Icon icon={TableChart} size={18} className="text-success shrink-0" />;
+  return <Icon icon={Description} size={18} className="text-fg4 shrink-0" />;
 }
 
 export function FilePreviewModal({ open, onOpenChange, attachment }: {
@@ -96,7 +95,7 @@ function PdfPreviewBody({ attachment, onClose }: { attachment: FileAttachment; o
             // «Скачать» — выход из отказа «не читается как PDF», который велит скачать оригинал.
             <PdfViewer source={blob} documentKey={attachment.blobPath} title={attachment.fileName}
               actions={blob && (
-                <Button size="sm" variant="tonal" icon={<Download size={13} />}
+                <Button size="sm" variant="tonal" icon={<Icon icon={Download} size={18} />}
                   onClick={() => saveBlob(blob, attachment.fileName)}>
                   Скачать
                 </Button>
@@ -116,7 +115,7 @@ function FilePreviewBody({ attachment }: { attachment: FileAttachment }) {
     <>
       {!value && !error && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 size={24} className="animate-spin text-primary" />
+          <CircularProgress size={24} className="text-primary" />
         </div>
       )}
       {error && <p className="text-sm text-error py-4 text-center">{error}</p>}
@@ -126,11 +125,11 @@ function FilePreviewBody({ attachment }: { attachment: FileAttachment }) {
       )}
       {objectUrl && category === 'office' && (
         <div className="flex flex-col items-center gap-4 py-10">
-          <FileSpreadsheet size={48} className="text-success" />
+          <Icon icon={TableChart} size={48} className="text-success" />
           <p className="text-sm text-fg3">Предпросмотр недоступен для этого формата.</p>
           <a href={objectUrl} download={attachment.fileName}
             className="inline-flex items-center gap-2 h-9 px-4 bg-primary hover:bg-brand-hover active:bg-brand-pressed text-on-primary text-sm font-medium rounded-full shadow-[var(--md-sys-elevation-level1)] transition-colors">
-            <Download size={14} /> Скачать
+            <Icon icon={Download} size={18} /> Скачать
           </a>
         </div>
       )}
@@ -181,7 +180,7 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
   if (uploading) {
     return (
       <div className="flex items-center gap-2 border border-outline-variant rounded-lg px-3 py-2.5">
-        <Loader2 size={14} className="animate-spin text-primary shrink-0" />
+        <CircularProgress size={18} className="text-primary shrink-0" />
         <span className="text-sm text-fg3">Загрузка файла...</span>
       </div>
     );
@@ -197,14 +196,14 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
           <Tooltip content="Предпросмотр" name>
             <button type="button" onClick={() => setPreviewOpen(true)}
               className="p-1 text-fg4 hover:text-primary transition-colors shrink-0">
-              <Eye size={14} />
+              <Icon icon={Visibility} size={18} />
             </button>
           </Tooltip>
           {!readOnly && (
             <Tooltip content="Удалить" name>
               <button type="button" onClick={() => onChange(null)}
                 className="p-1 text-fg4 hover:text-error transition-colors shrink-0">
-                <Trash2 size={13} />
+                <Icon icon={Delete} size={18} />
               </button>
             </Tooltip>
           )}
@@ -225,7 +224,7 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
   return (
     <>
       <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-outline rounded-lg py-5 cursor-pointer hover:border-primary hover:bg-primary-container transition-colors">
-        <Upload size={18} className="text-fg4" />
+        <Icon icon={Upload} size={18} className="text-fg4" />
         <span className="text-sm text-fg3">Нажмите для выбора файла</span>
         <span className="text-xs text-fg4">PDF, DOCX, XLSX, PNG, JPG (до 50 МБ)</span>
         <input type="file" accept=".pdf,.docx,.xlsx,.xls,.png,.jpg,.jpeg,.gif,.webp"

@@ -6,7 +6,8 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 import { useToast } from '@/shared/ui/Toast';
 import { useListDataSetFiles } from '@/shared/api/datasets';
 import type { DataSetSource } from '@/shared/api/types';
-import { Plus, Trash2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Delete } from '@/shared/ui/icons';
 import {
   useCreateReconciliation, useUpdateReconciliation,
   OPERATOR_LABELS, sidePartsOf,
@@ -75,7 +76,7 @@ function PartEditor({ part, onChange, onRemove, sources, index }: {
         </Select>
         {onRemove && (
           <Button variant="text" size="sm" danger onClick={onRemove} aria-label="Убрать источник">
-            <Trash2 size={14} />
+            <Icon icon={Delete} size={18} />
           </Button>
         )}
       </div>
@@ -127,7 +128,7 @@ function SideEditor({ title, parts, onChange, sources }: {
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wide text-fg4">{title}</span>
         <Button variant="text" size="sm" onClick={() => onChange([...parts, EMPTY_PART])}>
-          <Plus size={14} /> Источник
+          <Icon icon={Add} size={18} /> Источник
         </Button>
       </div>
 

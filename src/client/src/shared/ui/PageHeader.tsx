@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from 'react';
-import { ChevronDown, LayoutList } from 'lucide-react';
+import { Icon } from './Icon';
+import { KeyboardArrowDown, ViewList } from './icons';
 import { IconButton } from './Button';
 import { SectionMenu } from './SectionMenu';
 import { useSectionMenu } from './sectionMenuContext';
@@ -56,7 +57,7 @@ export function PageHeader({ title, subtitle, icon, badge, breadcrumb, actions, 
         <button type="button" data-testid="section-menu-trigger" aria-describedby={hint}
           className="flex items-center gap-1 max-w-[calc(100%+0.5rem)] min-h-11 -ml-2 px-2 rounded-xl text-left hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary data-[state=open]:bg-secondary-container data-[state=open]:text-on-secondary-container">
           <span className="truncate">{title}</span>
-          <ChevronDown size={20} className="shrink-0 text-fg3" aria-hidden />
+          <Icon icon={KeyboardArrowDown} size={20} className="shrink-0 text-fg3" aria-hidden />
         </button>
       </SectionMenu>
     </h1>
@@ -83,7 +84,7 @@ export function PageHeader({ title, subtitle, icon, badge, breadcrumb, actions, 
                 {/* Свой значок: у заголовка-контрола уже есть «▾», и второй такой же рядом читался бы
                     повтором той же стрелки (ревью PR #1488). */}
                 <IconButton label={`Другие страницы раздела «${section.def.title}»`} size="lg" className="min-h-11 min-w-11" data-testid="section-menu-trigger">
-                  <LayoutList size={20} />
+                  <Icon icon={ViewList} size={20} />
                 </IconButton>
               </SectionMenu>
             )}

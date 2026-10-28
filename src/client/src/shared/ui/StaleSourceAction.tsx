@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { AlertTriangle, RefreshCw, Loader2 } from 'lucide-react';
+import { Icon } from './Icon';
+import { CircularProgress } from './CircularProgress';
+import { Refresh, Warning } from './icons';
 import { useRecognizeSource, isManualGroupingConflict, recognitionRefusal, type RecognitionRefusal } from '@/shared/api/datasets';
 import { staleReasonText } from '@/shared/api/datasetHelpers';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -47,14 +49,14 @@ export function StaleSourceAction({ source }: { source: DataSetBindingSource | u
       <Tooltip content={staleReasonText(source.staleReason)}>
         <span
           className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-container text-warning shrink-0">
-          <AlertTriangle size={10} /> устарело
+          <Icon icon={Warning} size={18} /> устарело
         </span>
       </Tooltip>
       {scope !== 'None' && (
       <Tooltip content="Перераспознать источник">
         <button type="button" onClick={() => setConfirm(true)} disabled={recognize.isPending}
           className="p-1.5 rounded text-warning disabled:opacity-50 shrink-0" aria-label="Перераспознать источник">
-          {recognize.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+          {recognize.isPending ? <CircularProgress size={18} /> : <Icon icon={Refresh} size={18} />}
         </button>
       </Tooltip>
       )}

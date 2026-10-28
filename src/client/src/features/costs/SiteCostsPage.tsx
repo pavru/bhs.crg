@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { ArrowUpRight, ChartNoAxesColumn, History } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ArrowOutward, BarChart, HistoryIcon } from '@/shared/ui/icons';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -79,7 +80,7 @@ export function SiteCostsPage() {
   return (
     <div className="h-full overflow-auto">
       <div className="max-w-3xl px-6 py-5 space-y-4">
-        <PageHeader icon={<ChartNoAxesColumn size={18} aria-hidden />} title="Затраты по стройке"
+        <PageHeader icon={<Icon icon={BarChart} size={18} aria-hidden />} title="Затраты по стройке"
           subtitle="Отчёт построен по счетам на оплату. Расходные накладные в него пока не входят." />
 
         <div className="flex flex-wrap items-end gap-3">
@@ -214,10 +215,10 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
 
           {empty ? (
             adjusted ? (
-              <EmptyState icon={<ChartNoAxesColumn size={28} />} title="Затраты за период — ноль"
+              <EmptyState icon={<Icon icon={BarChart} size={40} />} title="Затраты за период — ноль"
                 description="Деньги, вошедшие в эти месяцы, и корректировки закрытых периодов в сумме дали ноль." />
             ) : (
-              <EmptyState icon={<ChartNoAxesColumn size={28} />} title="За период оплаченных счетов нет"
+              <EmptyState icon={<Icon icon={BarChart} size={40} />} title="За период оплаченных счетов нет"
                 description={data.site ? `На стройку «${data.site.name}» в эти месяцы не вошло ничего.` : 'В эти учётные месяцы не вошло ни одного платежа.'} />
             )
           ) : (
@@ -354,7 +355,7 @@ function CorrectionIcon({ text }: { text: string }) {
   return (
     <Tooltip content={title}>
       <span role="img" aria-label={title} className="ml-1.5 inline-flex align-middle text-fg3">
-        <History size={14} aria-hidden />
+        <Icon icon={HistoryIcon} size={18} aria-hidden />
       </span>
     </Tooltip>
   );
@@ -411,7 +412,7 @@ function RegistryLink({ to, label, note }: { to: string; label: string; note?: s
     <Tooltip content={title}>
       <Link to={to} aria-label={title}
         className="ml-1.5 inline-flex align-middle rounded-sm text-fg3 hover:text-primary focus-visible:outline-2">
-        <ArrowUpRight size={14} aria-hidden />
+        <Icon icon={ArrowOutward} size={18} aria-hidden />
       </Link>
     </Tooltip>
   );

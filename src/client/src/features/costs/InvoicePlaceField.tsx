@@ -1,6 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Popover from '@radix-ui/react-popover';
-import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ChevronLeft, ChevronRight, KeyboardArrowDown } from '@/shared/ui/icons';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactElement } from 'react';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { useHistoryLayer } from '@/shared/ui/historyLayers';
@@ -56,7 +57,7 @@ export function InvoicePlaceField({ current, places, label, disabled, onPick }: 
       disabled={disabled} data-state={open ? 'open' : 'closed'}
       className="inline-flex items-center justify-between gap-1 min-w-56 max-w-full h-7 px-2 rounded-md border border-outline bg-surface text-xs text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary data-[state=open]:ring-2 data-[state=open]:ring-primary disabled:opacity-50 disabled:pointer-events-none">
       <span ref={textRef} className={`min-w-0 flex-1 truncate text-left ${shown.muted ? 'text-fg4' : ''}`}>{shown.text}</span>
-      <ChevronDown size={15} aria-hidden className="text-fg4 shrink-0" />
+      <Icon icon={KeyboardArrowDown} size={18} aria-hidden className="text-fg4 shrink-0" />
     </button>
   );
   // Полная подпись — подсказкой, когда в поле она усечена («Комарова 36 / 4 эт.» шире поля на узкой шапке).
@@ -172,7 +173,7 @@ function Choices({ places, value, label, onPick }: {
       {row && row.sections > 0 && (
         <button type="button" tabIndex={-1} aria-hidden onMouseDown={keepFocus} onClick={() => step(row.place.construction)}
           className="shrink-0 inline-flex items-center gap-0.5 h-7 px-1.5 rounded text-xs text-fg3 hover:text-on-surface hover:bg-primary-container">
-          {row.sections}<ChevronRight size={14} />
+          {row.sections}<Icon icon={ChevronRight} size={18} />
         </button>
       )}
     </div>
@@ -190,7 +191,7 @@ function Choices({ places, value, label, onPick }: {
         <button type="button" onMouseDown={keepFocus} onClick={() => step(null)}
           className="mx-1 inline-flex items-center gap-1 h-7 px-2 rounded text-xs text-on-surface-variant hover:bg-primary-container"
           aria-label={`Назад к стройкам из разделов «${site.name}»`}>
-          <ChevronLeft size={14} aria-hidden />{site.name}
+          <Icon icon={ChevronLeft} size={18} aria-hidden />{site.name}
         </button>
       )}
       <div id={`${ids}-list`} role="listbox" className="min-h-0 overflow-y-auto"

@@ -1,9 +1,7 @@
 import { useId, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
-import {
-  BellOff, Info, AlertTriangle, AlertCircle, X, Check, CheckCheck, Trash2, HeartPulse, Download,
-  ArrowRight, ExternalLink, ChevronDown,
-} from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ArrowForward, Check, Close, Delete, DoneAll, Download, ErrorIcon, Info, KeyboardArrowDown, MonitorHeart, NotificationsOff, OpenInNew, Warning, type IconDef } from '@/shared/ui/icons';
 import { useGuardedNavigate } from '@/shared/ui/NavigationGuard';
 import { formatDayTime } from '@/shared/format/format';
 import { IconButton } from '@/shared/ui/Button';
@@ -48,10 +46,10 @@ async function openResult(linkUrl: string) {
 }
 
 // Аватар-иконка уведомления: для ошибок — error-container, иначе — соответствующий контейнер.
-const SEVERITY: Record<NotificationSeverity, { icon: typeof Info; color: string; bg: string }> = {
+const SEVERITY: Record<NotificationSeverity, { icon: IconDef; color: string; bg: string }> = {
   Info:    { icon: Info,          color: 'text-primary',   bg: 'bg-primary-container' },
-  Warning: { icon: AlertTriangle, color: 'text-warning', bg: 'bg-warning-container' },
-  Error:   { icon: AlertCircle,   color: 'text-error',  bg: 'bg-error-container' },
+  Warning: { icon: Warning, color: 'text-warning', bg: 'bg-warning-container' },
+  Error:   { icon: ErrorIcon,   color: 'text-error',  bg: 'bg-error-container' },
 };
 
 function relTime(iso: string): string {
@@ -69,11 +67,11 @@ function NotificationRow({ n }: { n: NotificationDto }) {
   const markRead = useMarkNotificationRead();
   const dismiss = useDismissNotification();
   const meta = SEVERITY[n.severity];
-  const Icon = meta.icon;
+  const icon = meta.icon;
   return (
     <div className={`group flex gap-3.5 pl-5 pr-3 py-4 transition-colors ${n.isRead ? '' : 'bg-secondary-container'}`}>
       <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${meta.bg}`}>
-        <Icon size={20} className={meta.color} />
+        <Icon icon={icon} size={20} className={meta.color} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -86,7 +84,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
             href={n.linkUrl} target="_blank" rel="noreferrer"
             className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-secondary-container text-on-secondary-container hover:brightness-95 transition"
           >
-            <ExternalLink size={13} /> {n.linkLabel ?? 'Открыть'}
+            <Icon icon={OpenInNew} size={18} /> {n.linkLabel ?? 'Открыть'}
           </a>
         ) : isDownloadLink(n.linkUrl) ? (
           <button
@@ -94,7 +92,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
             onClick={() => { void openResult(n.linkUrl!); }}
             className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-secondary-container text-on-secondary-container hover:brightness-95 transition"
           >
-            <Download size={13} /> {n.linkLabel ?? 'Открыть результат'}
+            <Icon icon={Download} size={18} /> {n.linkLabel ?? 'Открыть результат'}
           </button>
         ) : (
           // Уведомления — сигнал, а не рабочее место: уходя на экран, закрываем его за собой.
@@ -104,7 +102,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
               onClick={() => navigate(n.linkUrl!)}
               className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-secondary-container text-on-secondary-container hover:brightness-95 transition"
             >
-              <ArrowRight size={13} /> {n.linkLabel ?? 'Открыть'}
+              <Icon icon={ArrowForward} size={18} /> {n.linkLabel ?? 'Открыть'}
             </button>
           </Popover.Close>
         ))}
@@ -118,12 +116,12 @@ function NotificationRow({ n }: { n: NotificationDto }) {
       <div className="shrink-0 self-start flex flex-col items-center">
         {!n.isRead && (
           <IconButton label="Отметить прочитанным" size="sm" onClick={() => markRead.mutate(n.id)}>
-            <Check size={16} />
+            <Icon icon={Check} size={18} />
           </IconButton>
         )}
         <IconButton label="Удалить" size="sm" danger onClick={() => dismiss.mutate(n.id)}
           className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity">
-          <X size={16} />
+          <Icon icon={Close} size={18} />
         </IconButton>
       </div>
     </div>
@@ -162,13 +160,13 @@ function HealthNote() {
     <div className="shrink-0 border-b border-outline-variant">
       <button type="button" aria-expanded={open} onClick={() => setOpen(v => !v)}
         className="w-full flex items-center gap-2.5 pl-5 pr-4 py-2.5 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
-        <HeartPulse size={18} className={`shrink-0 ${down ? 'text-error' : 'text-warning'}`} />
+        <Icon icon={MonitorHeart} size={18} className={`shrink-0 ${down ? 'text-error' : 'text-warning'}`} />
         {/* Переносом, а не обрезкой: обрезанным оказывалось как раз имя сервиса — то, ради чего строка. */}
         <span className="flex-1 min-w-0">
           <span className="font-medium text-on-surface">Состояние системы:</span>{' '}
           <span className={down ? 'text-error' : 'text-warning'}>{summary}</span>
         </span>
-        <ChevronDown size={16} className={`shrink-0 text-fg3 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <Icon icon={KeyboardArrowDown} size={18} className={`shrink-0 text-fg3 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <div className="pl-5 pr-4 pb-2">
@@ -212,16 +210,16 @@ export function NotificationList({ items, unread, className = '' }: {
       <div className="shrink-0 flex items-center gap-2 pl-5 pr-2 py-2">
         <h2 id={heading} className="flex-1 text-base font-medium text-on-surface">Уведомления</h2>
         <IconButton label="Отметить все прочитанными" onClick={() => markAll.mutate()} disabled={unread === 0}>
-          <CheckCheck size={18} />
+          <Icon icon={DoneAll} size={18} />
         </IconButton>
         <IconButton label="Очистить все" onClick={() => clearAll.mutate()} disabled={items.length === 0}>
-          <Trash2 size={18} />
+          <Icon icon={Delete} size={18} />
         </IconButton>
       </div>
       <HealthNote />
       {items.length === 0 ? (
         <div className="px-6 py-9 text-center text-sm text-fg3">
-          <BellOff size={36} className="mx-auto mb-2 opacity-50" />
+          <Icon icon={NotificationsOff} size={40} className="mx-auto mb-2 opacity-50" />
           Нет новых уведомлений
         </div>
       ) : (

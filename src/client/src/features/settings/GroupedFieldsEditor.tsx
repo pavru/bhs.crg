@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ModuleFieldBadge } from './ModuleFieldBadge';
-import { GripVertical, Layers, Trash2, Plus, Lock } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Delete, DragIndicator, Layers, LockIcon } from '@/shared/ui/icons';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Button } from '@/shared/ui/Button';
 import { FIELD_UID, withFieldUid, type SchemaField, type FieldGroup } from '@/shared/api/schema';
@@ -261,7 +262,7 @@ export function GroupedFieldsEditor({
                   ? renderOwn(m.own, null, ungroupedMemberKeys, i)
                   : renderInherited(m.inh!, null))}
               {zone.appendLine && ungroupedMembers.length > 0 && <DropLine />}
-              <Button type="button" variant="tonal" onClick={addField} icon={<Plus size={14} />} className="w-full justify-center">
+              <Button type="button" variant="tonal" onClick={addField} icon={<Icon icon={Add} size={18} />} className="w-full justify-center">
                 Добавить поле
               </Button>
             </div>
@@ -288,10 +289,10 @@ export function GroupedFieldsEditor({
                 <button type="button" draggable
                   onDragStart={() => setDragGroupKey(group.key)} onDragEnd={endGroupDrag}
                   className="cursor-grab active:cursor-grabbing text-fg4 hover:text-on-surface-variant shrink-0 focus-visible:outline-none focus-visible:text-primary" aria-label={`Переместить группу «${group.title || group.key}» перетаскиванием`}>
-                  <GripVertical size={14} />
+                  <Icon icon={DragIndicator} size={18} />
                 </button>
               </Tooltip>
-              <Layers size={14} className="text-fg4 shrink-0" />
+              <Icon icon={Layers} size={18} className="text-fg4 shrink-0" />
               <input
                 value={group.title}
                 onChange={e => renameGroup(group.key, e.target.value)}
@@ -301,10 +302,10 @@ export function GroupedFieldsEditor({
               <span className="text-xs text-fg4 shrink-0">{members.length}</span>
               <div className="flex items-center gap-0.5 shrink-0">
                 <MoveButtons onUp={() => moveGroup(group.key, -1)} onDown={() => moveGroup(group.key, 1)}
-                  isFirst={gi === 0} isLast={gi === groups.length - 1} size={13} />
+                  isFirst={gi === 0} isLast={gi === groups.length - 1} />
                 <Tooltip content="Удалить группу (поля → «Без группы»)" name>
                   <button type="button" onClick={() => deleteGroup(group.key)}
-                    className="p-1 text-fg4 hover:text-error"><Trash2 size={13} /></button>
+                    className="p-1 text-fg4 hover:text-error"><Icon icon={Delete} size={18} /></button>
                 </Tooltip>
               </div>
             </div>
@@ -335,7 +336,7 @@ export function GroupedFieldsEditor({
           placeholder="Название новой группы"
           className="flex-1 border border-dashed border-outline rounded-md px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus:border-primary"
         />
-        <Button type="button" variant="outlined" size="sm" onClick={addGroup} disabled={!newGroupTitle.trim()} icon={<Plus size={14} />}>
+        <Button type="button" variant="outlined" size="sm" onClick={addGroup} disabled={!newGroupTitle.trim()} icon={<Icon icon={Add} size={18} />}>
           Группа
         </Button>
       </div>
@@ -362,8 +363,8 @@ function InheritedRow({ field, typeLabel, dragging, onDragStart, onDragEnd, onDr
     <div
       className={`flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg border transition-colors ${dragging ? 'border-primary' : 'border-outline-variant bg-surface-container/40'}`}
       draggable onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDrop={onDrop}>
-      <GripVertical size={15} className="text-fg4 shrink-0 cursor-grab" />
-      <Lock size={12} className="text-fg4 shrink-0" />
+      <Icon icon={DragIndicator} size={18} className="text-fg4 shrink-0 cursor-grab" />
+      <Icon icon={LockIcon} size={18} className="text-fg4 shrink-0" />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
           <span className="text-sm text-on-surface-variant truncate">{field.title || field.key}</span>

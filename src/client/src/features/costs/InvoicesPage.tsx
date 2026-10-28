@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router';
-import { CalendarClock, FileText, Link2, Plus, Tags } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, CalendarClock, Description, LinkIcon, Sell } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
@@ -336,7 +337,7 @@ export function InvoicesPage() {
           {/* Справочник статей вне строек (F3) — у того, кто его ведёт, а не у всех: остальным он виден
               только в выборе цели разноски. */}
           {hasPermission(access, 'costs.articles.edit') && (
-            <Button variant="outlined" icon={<Tags size={16} />} onClick={() => setArticlesOpen(true)}>
+            <Button variant="outlined" icon={<Icon icon={Sell} size={18} />} onClick={() => setArticlesOpen(true)}>
               Статьи вне строек
             </Button>
           )}
@@ -346,15 +347,15 @@ export function InvoicesPage() {
           {hasPermission(access, 'costs.invoice.edit') && (
             <>
               {/* Соответствия наименований (C3, #1079) — у того, кто вводит счета: он их и запоминает. */}
-              <Button variant="outlined" icon={<Link2 size={16} />} onClick={() => setMatchesOpen(true)}>
+              <Button variant="outlined" icon={<Icon icon={LinkIcon} size={18} />} onClick={() => setMatchesOpen(true)}>
                 Соответствия
               </Button>
               {/* Условия поставщиков (C4, #1080) — рядом с соответствиями и у того же человека: отсрочку
                   в счёт подставляют они, и видит, что подставлять нечего, тот, кто вводит счета. */}
-              <Button variant="outlined" icon={<CalendarClock size={16} />} onClick={() => setTermsOpen(true)}>
+              <Button variant="outlined" icon={<Icon icon={CalendarClock} size={18} />} onClick={() => setTermsOpen(true)}>
                 Условия поставщиков
               </Button>
-              <Button variant="outlined" icon={<Plus size={16} />} loading={create.isPending} onClick={addDraft}>
+              <Button variant="outlined" icon={<Icon icon={Add} size={18} />} loading={create.isPending} onClick={addDraft}>
                 Новый счёт
               </Button>
               {/* На телефоне это действие — плавающая кнопка (#1434): кнопка сама там прячется. */}
@@ -453,7 +454,7 @@ export function InvoicesPage() {
         // строке ничего не меняет.
         opened.kind === 'none' ? (
           <div className="flex-1 grid place-items-center">
-            <EmptyState icon={<FileText size={28} />} title="Выберите счёт"
+            <EmptyState icon={<Icon icon={Description} size={40} />} title="Выберите счёт"
               description="Или заведите новый — черновик сохранится пустым." />
           </div>
         ) : opened.kind === 'loading' ? (

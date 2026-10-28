@@ -1,4 +1,5 @@
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ChevronRight, KeyboardArrowDown } from '@/shared/ui/icons';
 import type { CommonDataEntry, CatalogScope } from '@/shared/api/types';
 import { SCOPE_LABELS } from '@/shared/api/types';
 import { SCOPE_COLORS } from './constants';
@@ -39,7 +40,7 @@ export function ScopeGroupList({
             {/* Заголовок группы = scope-бейдж + счётчик; сворачиваемая секция (a11y-кнопка). */}
             <button type="button" onClick={() => toggle(g.scope)} aria-expanded={expanded}
               className="w-full flex items-center gap-2 px-1 py-1.5 text-left rounded-md hover:bg-surface-container-low transition-colors">
-              {expanded ? <ChevronDown size={13} className="text-fg4 shrink-0" /> : <ChevronRight size={13} className="text-fg4 shrink-0" />}
+              {expanded ? <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" /> : <Icon icon={ChevronRight} size={18} className="text-fg4 shrink-0" />}
               <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${SCOPE_COLORS[g.scope]}`}>
                 {SCOPE_LABELS[g.scope]}
               </span>

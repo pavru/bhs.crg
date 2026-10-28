@@ -6,7 +6,8 @@
  * поэтому вынимается, не замыкая цикл.</p>
  */
 import { useState } from 'react';
-import { Link2, X } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Close, LinkIcon } from '@/shared/ui/icons';
 import { DateInput } from '@/shared/ui/DateInput';
 import type { CatalogScope, DocumentType, EnumTypeDef, PrimitiveTypeDef } from '@/shared/api/types';
 import { isFieldRef } from '@/shared/api/types';
@@ -37,14 +38,14 @@ export function ComplexCellPicker({ value, onChange, compositeType, setId, allDo
       <button type="button" onClick={() => setPickerOpen(true)}
         className="flex-1 min-w-0 h-full flex items-center gap-1 px-1.5 focus:outline-none focus:bg-primary-container">
         {ref
-          ? <><Link2 size={10} className="text-primary shrink-0" /><span className="text-xs truncate text-brand-hover">{ref.displayName}</span><ArchivedRefMark value={ref} words={false} /></>
+          ? <><Icon icon={LinkIcon} size={18} className="text-primary shrink-0" /><span className="text-xs truncate text-brand-hover">{ref.displayName}</span><ArchivedRefMark value={ref} words={false} /></>
           : <span className="text-xs text-fg4">—</span>
         }
       </button>
       {ref && (
         <button type="button" onClick={e => { e.stopPropagation(); onChange(undefined); }}
           className="shrink-0 p-0.5 mr-0.5 text-stroke-strong hover:text-error transition-colors">
-          <X size={9} />
+          <Icon icon={Close} size={18} />
         </button>
       )}
       <RefPickerModal open={pickerOpen} onOpenChange={setPickerOpen}

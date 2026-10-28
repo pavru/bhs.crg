@@ -1,5 +1,5 @@
 import { Children, forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
-import { Loader2 } from 'lucide-react';
+import { CircularProgress } from './CircularProgress';
 import { Tooltip } from './Tooltip';
 
 /**
@@ -103,7 +103,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         {...rest}
         disabled={disabled || loading}
       >
-        {loading ? <Loader2 size={16} className="animate-spin shrink-0" /> : icon}
+        {loading ? <CircularProgress size={18} className="shrink-0" /> : icon}
         {children}
         {trailingIcon}
       </button>

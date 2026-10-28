@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Plus, X, AlertTriangle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, ChevronRight, Close, KeyboardArrowDown, Warning } from '@/shared/ui/icons';
 import { MappingEditor } from '@/features/document-sets/editor/DataSetsTab';
 import { parseSourceColumnNames } from '@/shared/api/datasetHelpers';
 import type { SchemaField } from '@/shared/api/schema';
@@ -96,7 +97,7 @@ export function UnionDiscriminatorEditor({
                 onClick={() => setOpen(isOpen ? '' : v.key)}
                 className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-surface-container-low transition-colors"
               >
-                {isOpen ? <ChevronDown size={13} className="text-fg4 shrink-0" /> : <ChevronRight size={13} className="text-fg4 shrink-0" />}
+                {isOpen ? <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" /> : <Icon icon={ChevronRight} size={18} className="text-fg4 shrink-0" />}
                 <span className={`text-xs font-medium ${disabled ? 'text-fg4' : 'text-on-surface-variant'}`}>{v.title}</span>
                 <span className="flex-1 flex flex-wrap gap-1">
                   {ids.map(id => (
@@ -106,7 +107,7 @@ export function UnionDiscriminatorEditor({
                           ? 'bg-error-container text-error border-error/30'
                           : 'bg-surface-container-low text-fg3 border-outline-variant'}`}>
                       {typeName(id)}
-                      <X size={10} className="cursor-pointer hover:text-error"
+                      <Icon icon={Close} size={18} className="cursor-pointer hover:text-error"
                         onClick={e => { e.stopPropagation(); setRules(v.key, ids.filter(x => x !== id)); }} />
                     </span>
                   ))}
@@ -114,7 +115,7 @@ export function UnionDiscriminatorEditor({
                 {disabled && <span className="text-caption text-fg4 shrink-0">выключен, строки пропускаются</span>}
                 {needsMapping && (
                   <span className="text-caption text-error shrink-0 flex items-center gap-1">
-                    <AlertTriangle size={11} /> нет маппинга
+                    <Icon icon={Warning} size={18} /> нет маппинга
                   </span>
                 )}
               </button>
@@ -122,7 +123,7 @@ export function UnionDiscriminatorEditor({
               {isOpen && (
                 <div className="px-3 pb-3 space-y-2">
                   <div className="flex items-center gap-2">
-                    <Plus size={12} className="text-fg4 shrink-0" />
+                    <Icon icon={Add} size={18} className="text-fg4 shrink-0" />
                     <Select size="sm" className="flex-1" aria-label="Добавить тип документа"
                       value="" placeholder="— добавить тип документа —"
                       onValueChange={id => { if (id) setRules(v.key, [...ids, id]); }}>

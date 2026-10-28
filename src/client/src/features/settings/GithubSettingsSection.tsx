@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Check, ExternalLink } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Check, OpenInNew } from '@/shared/ui/icons';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
@@ -85,7 +86,7 @@ export function GithubSettingsSection() {
 
       {saved?.hasToken && (
         <p className="flex items-center gap-1.5 text-xs text-success">
-          <Check size={13} /> Токен задан
+          <Icon icon={Check} size={18} /> Токен задан
         </p>
       )}
 
@@ -112,7 +113,7 @@ export function GithubSettingsSection() {
           target="_blank" rel="noreferrer"
           className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
         >
-          Где выпустить токен <ExternalLink size={12} />
+          Где выпустить токен <Icon icon={OpenInNew} size={18} />
         </a>
       </div>
     </CollapsibleSection>

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Database, Link2Off } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Database, LinkOff } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { MappingEditor } from './DataSetsTab';
@@ -145,7 +146,7 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
             : isBound ? 'Привязка к источнику' : 'Привязать к источнику'}
           className={`inline-flex items-center justify-center rounded transition-colors ${
             isBound ? 'text-primary hover:text-brand-hover' : 'text-fg4 opacity-0 group-hover:opacity-100 hover:text-on-surface-variant'}`}>
-          <Database size={13} />
+          <Icon icon={Database} size={18} />
         </button>
       </Tooltip>
 
@@ -154,7 +155,7 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
           <div className="flex items-center justify-between gap-2">
             <div>
               {isBound && (
-                <Button variant="text" size="sm" danger onClick={unbind} disabled={busy} icon={<Link2Off size={14} />}>
+                <Button variant="text" size="sm" danger onClick={unbind} disabled={busy} icon={<Icon icon={LinkOff} size={18} />}>
                   Отвязать
                 </Button>
               )}

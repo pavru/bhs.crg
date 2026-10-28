@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Save } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Save } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { useToast } from '@/shared/ui/Toast';
@@ -178,7 +179,7 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
           </span>
           <ModalExit>{canEdit ? 'Отмена' : 'Закрыть'}</ModalExit>
           {canEdit && !gone && (
-            <Button variant="filled" icon={<Save size={13} />} loading={replace.isPending} onClick={save}>
+            <Button variant="filled" icon={<Icon icon={Save} size={18} />} loading={replace.isPending} onClick={save}>
               Сохранить разноску
             </Button>
           )}

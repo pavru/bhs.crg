@@ -1,7 +1,8 @@
 import { LOST } from './lostReferences';
 import { ARCHIVED_HINT, withArchiveWord } from '@/shared/ui/archive';
 import { useCallback, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { Search, TriangleAlert, X } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Close, Search, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
@@ -103,7 +104,7 @@ export function NomenclaturePicker({
           <Tooltip content="Снять позицию" name>
             <button type="button" onClick={onClear}
               className="shrink-0 text-fg4 hover:text-on-surface p-0.5">
-              <X size={12} />
+              <Icon icon={Close} size={18} />
             </button>
           </Tooltip>
         )}
@@ -308,7 +309,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
         <div className={`space-y-3 px-6 pt-3 pb-4 ${narrow ? '' : 'overflow-y-auto'}`}>
           {plate}
           <div className="flex items-center gap-2 rounded-md border border-outline px-2.5 h-10">
-            <Search size={15} className="text-fg4 shrink-0" />
+            <Icon icon={Search} size={18} className="text-fg4 shrink-0" />
             <input ref={focus} value={typed}
               onChange={e => type(e.target.value)} onKeyDown={keys}
               placeholder="наименование или часть наименования" aria-label="Поиск позиции" data-search=""
@@ -319,7 +320,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
 
           {found.isError && (
             <p className="flex items-start gap-2 text-xs text-error">
-              <TriangleAlert size={13} className="shrink-0 mt-0.5" />
+              <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
               <span>Справочник не прочитан: {apiError(found.error, 'сервер отказал')}. ⚠️ Это НЕ
                 «позиций нет»: их список сюда не доехал.</span>
             </p>

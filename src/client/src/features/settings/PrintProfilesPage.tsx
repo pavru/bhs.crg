@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { Plus, Printer } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Print } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
@@ -62,9 +63,9 @@ export function PrintProfilesPage() {
       <ListDetailShell view={ld}
         title="Профили печати"
         subtitle="Как раскладывать на страницы файлы Excel, в которых автор не задал раскладку, — для вида для чтения у счетов"
-        icon={<Printer size={20} className="text-fg3" />}
+        icon={<Icon icon={Print} size={20} className="text-fg3" />}
         actions={
-          <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)} disabled={!loaded}>
+          <Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setCreateOpen(true)} disabled={!loaded}>
             Добавить профиль
           </Button>
         }

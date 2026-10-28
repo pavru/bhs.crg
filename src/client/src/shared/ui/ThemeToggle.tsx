@@ -1,4 +1,5 @@
-import { Check } from 'lucide-react';
+import { Icon } from './Icon';
+import { Check } from './icons';
 import { useTheme } from '@/shared/ui/themeContext';
 import { THEME_OPTIONS } from '@/shared/ui/themeOptions';
 import { Tooltip } from './Tooltip';
@@ -19,7 +20,7 @@ export function ThemeToggle({ label }: {
   return (
     <div role="group" aria-label={label}
       className="flex h-10 rounded-full border border-outline overflow-hidden">
-      {THEME_OPTIONS.map(({ value, icon: Icon, label: optionLabel, hint }, i) => {
+      {THEME_OPTIONS.map(({ value, icon, label: optionLabel, hint }, i) => {
         const active = theme === value;
         return (
           <Tooltip key={value} content={hint ? `${optionLabel} — ${hint}` : optionLabel}>
@@ -28,8 +29,8 @@ export function ThemeToggle({ label }: {
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ' +
                 `${i > 0 ? 'border-l border-outline' : ''} ` +
                 (active ? 'bg-secondary-container text-on-secondary-container' : 'text-fg3 hover:bg-black/5 dark:hover:bg-white/10')}>
-              {active && <Check size={14} className="shrink-0" />}
-              <Icon size={16} />
+              {active && <Icon icon={Check} size={18} className="shrink-0" />}
+              <Icon icon={icon} size={18} />
             </button>
           </Tooltip>
         );

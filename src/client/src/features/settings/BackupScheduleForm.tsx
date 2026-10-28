@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
-import { AlertTriangle, XCircle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Cancel, Warning } from '@/shared/ui/icons';
 import { useServerForm } from '@/shared/hooks/useServerForm';
 import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
@@ -131,13 +132,13 @@ export function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
 
       {error && (
         <p className="text-xs text-error flex items-start gap-1">
-          <XCircle size={13} className="shrink-0 mt-px" /> <span>{error}</span>
+          <Icon icon={Cancel} size={18} className="shrink-0 mt-px" /> <span>{error}</span>
         </p>
       )}
 
       {status.lastError ? (
         <p className="text-xs text-error flex items-start gap-1">
-          <AlertTriangle size={13} className="shrink-0 mt-px" />
+          <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
           <span>
             Последняя плановая копия не удалась
             {status.lastErrorAt && <> ({formatDayTime(status.lastErrorAt)})</>}: {status.lastError}

@@ -5,7 +5,8 @@
  * которые его зовут, не знает.
  */
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { EyeOff, Check, RotateCcw } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Check, RestartAlt, VisibilityOff } from '@/shared/ui/icons';
 import { Switch } from '@/shared/ui/Switch';
 import type { DocumentType, EnumTypeDef } from '@/shared/api/types';
 import { type SchemaField } from '@/shared/api/schema';
@@ -60,7 +61,7 @@ export function InheritedFieldsPanel({
         return (
           <div key={field.key} className={`${cols} rounded-md px-2 py-2 hover:bg-surface-container/50 transition-colors ${isExcluded ? 'opacity-55' : ''}`}>
             <span className="flex items-center gap-1.5 min-w-0">
-              {isExcluded && <EyeOff size={14} className="text-fg4 shrink-0" />}
+              {isExcluded && <Icon icon={VisibilityOff} size={18} className="text-fg4 shrink-0" />}
               <span className={`text-sm font-mono truncate ${isExcluded ? 'line-through text-fg4' : 'text-on-surface-variant'}`}>{field.key}</span>
             </span>
             <span className="text-sm text-on-surface-variant truncate">{field.title}</span>
@@ -114,7 +115,7 @@ function RequiredChip({ field, override, onOverride, onReset }: {
           {overridden && (
             <>
               <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
-              <ReqItem onSelect={onReset}><RotateCcw size={13} className="text-fg4" /> Сбросить переопределение</ReqItem>
+              <ReqItem onSelect={onReset}><Icon icon={RestartAlt} size={18} className="text-fg4" /> Сбросить переопределение</ReqItem>
             </>
           )}
         </DropdownMenu.Content>
@@ -127,7 +128,7 @@ function ReqItem({ children, onSelect, active }: { children: React.ReactNode; on
   return (
     <DropdownMenu.Item onSelect={onSelect}
       className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-pointer outline-none data-[highlighted]:bg-surface-container">
-      <Check size={14} className={active ? 'text-primary' : 'invisible'} />
+      <Icon icon={Check} size={18} className={active ? 'text-primary' : 'invisible'} />
       <span className="flex-1">{children}</span>
     </DropdownMenu.Item>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject } from 'react';
-import { Info, RectangleHorizontal, RectangleVertical, RotateCcw, Trash2, type LucideIcon } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CropLandscape, CropPortrait, Delete, Info, RestartAlt, type IconDef } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -107,12 +108,12 @@ export function PrintProfileDetail({ profile, otherNames, onDeleted, onEditState
             {/* Сброс — только у правленого профиля по умолчанию; у своего заводских параметров нет.
                 Удалить профиль по умолчанию нельзя — кнопки у него нет вовсе. */}
             {modified && (
-              <Button variant="text" size="sm" icon={<RotateCcw size={14} />} onClick={() => setConfirmReset(true)}>
+              <Button variant="text" size="sm" icon={<Icon icon={RestartAlt} size={18} />} onClick={() => setConfirmReset(true)}>
                 Сбросить к заводским
               </Button>
             )}
             {!profile.isSystem && (
-              <Button variant="text" size="sm" icon={<Trash2 size={14} />} onClick={() => setConfirmDelete(true)}>
+              <Button variant="text" size="sm" icon={<Icon icon={Delete} size={18} />} onClick={() => setConfirmDelete(true)}>
                 Удалить
               </Button>
             )}
@@ -140,7 +141,7 @@ export function PrintProfileDetail({ profile, otherNames, onDeleted, onEditState
 
           <ChoiceRow label="Ориентация" error={issues.orientation} value={draft.orientation}
             options={ORIENTATIONS.map(o => ({
-              value: o.value, label: o.label, icon: o.value === 'portrait' ? RectangleVertical : RectangleHorizontal,
+              value: o.value, label: o.label, icon: o.value === 'portrait' ? CropPortrait : CropLandscape,
             }))}
             onChange={orientation => edit({ orientation }, ['orientation', ...MARGIN_PATHS])} />
 
@@ -188,7 +189,7 @@ export function PrintProfileDetail({ profile, otherNames, onDeleted, onEditState
 function WhereApplied() {
   return (
     <div className="flex gap-2 rounded-lg bg-surface-container p-3 text-xs text-fg3">
-      <Info size={14} className="shrink-0 mt-0.5 text-on-surface-variant" />
+      <Icon icon={Info} size={18} className="shrink-0 mt-0.5 text-on-surface-variant" />
       <div className="space-y-1">
         <p>
           Профиль действует на книги Excel (.xlsx), где автор не задал вписывание или масштаб. Бумагу и
@@ -207,7 +208,7 @@ function WhereApplied() {
  */
 function ChoiceRow<T extends string>({ label, hint, error, value, options, onChange }: {
   label: string; hint?: string; error?: string; value: T;
-  options: { value: T; label: React.ReactNode; icon?: LucideIcon }[];
+  options: { value: T; label: React.ReactNode; icon?: IconDef }[];
   onChange: (value: T) => void;
 }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);

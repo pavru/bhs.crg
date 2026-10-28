@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ArrowRightLeft, ChevronDown, ChevronRight } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ChevronRight, KeyboardArrowDown, SwapHoriz } from '@/shared/ui/icons';
 import type { PaymentPosting, PostingPart, PostingRow } from '@/shared/api/invoicePayment';
 import { formatDate, formatMoney } from '@/shared/format/format';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
@@ -53,7 +54,7 @@ export function PaymentPostingTable({ posting, changed, expanded = false }: {
             <button type="button" disabled={!expandable} onClick={() => setOpen(was => toggleInSet(was, key))}
               aria-expanded={expandable ? open.has(key) : undefined}
               className="inline-flex items-center gap-1 text-left disabled:cursor-default">
-              {expandable && (open.has(key) ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
+              {expandable && (open.has(key) ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />)}
               {row.name}
             </button>
             {row.note && <div className="text-warning mt-0.5">{row.note}</div>}
@@ -76,7 +77,7 @@ export function PaymentPostingTable({ posting, changed, expanded = false }: {
     <div className="space-y-2">
       {warning && (
         <p role="note" className="flex items-start gap-1.5 text-note text-warning">
-          <ArrowRightLeft size={14} className="shrink-0 mt-0.5" /> {warning}
+          <Icon icon={SwapHoriz} size={18} className="shrink-0 mt-0.5" /> {warning}
         </p>
       )}
       <DataGrid density="compact" className="max-h-72" columns={columns} rowKey={line => line.key}

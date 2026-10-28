@@ -1,4 +1,6 @@
-import { Loader2, Search } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { Search } from '@/shared/ui/icons';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import type { CatalogScope } from '@/shared/api/types';
 
@@ -21,7 +23,7 @@ export function ScopeToolbar({ isFetching, refetch, materialsCount, linkedCount,
     <div className="flex items-center gap-3 flex-wrap">
       <button onClick={() => refetch()} disabled={isFetching}
         className="flex items-center gap-2 text-sm px-3 py-2 rounded-md bg-surface-container text-on-surface-variant disabled:opacity-50">
-        {isFetching ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />} Обновить материалы
+        {isFetching ? <CircularProgress size={18} /> : <Icon icon={Search} size={18} />} Обновить материалы
       </button>
       <span className="text-xs text-fg4">{materialsCount} материалов · привязано {linkedCount}</span>
       <div className="ml-auto flex items-center gap-2">

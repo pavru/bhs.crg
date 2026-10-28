@@ -1,5 +1,6 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { MoreVertical, ChevronRight } from 'lucide-react';
+import { Icon } from './Icon';
+import { ChevronRight, MoreVert } from './icons';
 import type { ReactNode } from 'react';
 
 export interface RowAction {
@@ -39,7 +40,7 @@ function renderAction(action: RowAction) {
       <DropdownMenu.Sub key={action.key}>
         <DropdownMenu.SubTrigger className={itemCls} disabled={action.disabled}>
           <Row action={action} />
-          <ChevronRight size={13} className="ml-auto text-fg4" />
+          <Icon icon={ChevronRight} size={18} className="ml-auto text-fg4" />
         </DropdownMenu.SubTrigger>
         <DropdownMenu.Portal>
           <DropdownMenu.SubContent
@@ -84,7 +85,7 @@ export function RowActionsMenu({ actions, ariaLabel = 'Действия', hasAct
       <DropdownMenu.Trigger asChild>
         <button type="button" aria-label={ariaLabel} onClick={e => e.stopPropagation()}
           className="relative p-1 rounded text-fg4 hover:text-on-surface hover:bg-surface-container-low outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
-          <MoreVertical size={14} />
+          <Icon icon={MoreVert} size={18} />
           {hasActive && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-primary" />}
         </button>
       </DropdownMenu.Trigger>

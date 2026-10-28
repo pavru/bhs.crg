@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Calculator, Check, Divide, Percent, Plus, Save, Trash2, X } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Calculate, Check, Close, Delete, Equal, Percent, Save } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { useToast } from '@/shared/ui/Toast';
@@ -180,8 +181,8 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
           </span>
           {preview ? (
             <>
-              <Button variant="text" icon={<X size={13} />} onClick={() => reset(view)}>Отменить предпросмотр</Button>
-              <Button variant="filled" icon={<Check size={13} />} loading={replace.isPending} onClick={save}>
+              <Button variant="text" icon={<Icon icon={Close} size={18} />} onClick={() => reset(view)}>Отменить предпросмотр</Button>
+              <Button variant="filled" icon={<Icon icon={Check} size={18} />} loading={replace.isPending} onClick={save}>
                 Применить
               </Button>
             </>
@@ -189,7 +190,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
             <>
               <ModalExit>Закрыть</ModalExit>
               {canEdit && (
-                <Button variant="filled" icon={drafting ? <Check size={13} /> : <Save size={13} />} disabled={!dirty}
+                <Button variant="filled" icon={drafting ? <Icon icon={Check} size={18} /> : <Icon icon={Save} size={18} />} disabled={!dirty}
                   loading={replace.isPending} onClick={save}>
                   {drafting ? 'Готово' : 'Сохранить разноску'}
                 </Button>
@@ -204,20 +205,20 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
         )}
         {canEdit && (
           <div className="flex items-center gap-2 flex-wrap">
-            <Button size="sm" variant="outlined" icon={<Plus size={13} />} disabled={!editable}
+            <Button size="sm" variant="outlined" icon={<Icon icon={Add} size={18} />} disabled={!editable}
               onClick={() => { setTargets(prev => [...prev, newTarget()]); setDirty(true); }}>
               Добавить объект
             </Button>
-            <Button size="sm" variant="outlined" icon={<Divide size={13} />} disabled={!editable || splitOff}
+            <Button size="sm" variant="outlined" icon={<Icon icon={Equal} size={18} />} disabled={!editable || splitOff}
               loading={previewing.isPending} onClick={() => split('equal')}>
               Поровну
             </Button>
-            <Button size="sm" variant="outlined" icon={<Percent size={13} />} disabled={!editable || splitOff}
+            <Button size="sm" variant="outlined" icon={<Icon icon={Percent} size={18} />} disabled={!editable || splitOff}
               loading={previewing.isPending} onClick={() => split('percent')}>
               По %
             </Button>
             {pending && (
-              <Button size="sm" variant="outlined" icon={<Calculator size={13} />} disabled={!editable || splitOff}
+              <Button size="sm" variant="outlined" icon={<Icon icon={Calculate} size={18} />} disabled={!editable || splitOff}
                 loading={previewing.isPending} onClick={() => split('document')}>
                 Пересчитать по строкам
               </Button>
@@ -320,7 +321,7 @@ function TargetHeader({ target, number, places, onChange, onRemove }: {
         <Tooltip content={`Убрать объект ${number}`} name>
           <button type="button" onClick={onRemove}
             className="text-fg4 hover:text-error p-0.5">
-            <Trash2 size={13} />
+            <Icon icon={Delete} size={18} />
           </button>
         </Tooltip>
       </div>

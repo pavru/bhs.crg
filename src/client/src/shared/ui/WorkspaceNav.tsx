@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router';
-import { ChevronDown, ChevronRight, LayoutGrid } from 'lucide-react';
+import { Icon } from './Icon';
+import { ChevronRight, GridView, KeyboardArrowDown } from './icons';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useGuardedNavClick, useGuardedNavigate } from './NavigationGuard';
@@ -37,7 +38,7 @@ export function OutsideNav({ items }: { items: NavItem[] }) {
     <div data-testid="outside-nav" className="mt-3">
       <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-2 px-3 py-2 rounded-full text-left text-xs text-fg3 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-        {open ? <ChevronDown size={14} className="shrink-0" /> : <ChevronRight size={14} className="shrink-0" />}
+        {open ? <Icon icon={KeyboardArrowDown} size={18} className="shrink-0" /> : <Icon icon={ChevronRight} size={18} className="shrink-0" />}
         <span>{caption}</span>
       </button>
       {open && (
@@ -71,7 +72,7 @@ export function OutsideBanner({ items, inside }: { items: NavItem[]; inside: Nav
   return (
     <div className="shrink-0 flex items-center gap-2 px-4 py-1.5 text-sm bg-surface-container-low text-on-surface-variant border-b border-outline-variant"
       data-testid="outside-banner">
-      <LayoutGrid size={14} className="shrink-0 text-fg3" />
+      <Icon icon={GridView} size={18} className="shrink-0 text-fg3" />
       <span className="flex-1 min-w-0 truncate">
         «{owner.label}» открыт вне пространства «{ws.current.name}»
       </span>

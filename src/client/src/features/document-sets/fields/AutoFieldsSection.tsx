@@ -5,7 +5,8 @@
  * ни одного редактора полей не зовёт.</p>
  */
 import { useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronUp, Database } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Database, KeyboardArrowDown, KeyboardArrowUp } from '@/shared/ui/icons';
 import { LOCKED_HINT } from './lockedFields';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
@@ -21,11 +22,11 @@ export function AutoFieldsSection(
     <div className="border border-dashed border-outline-variant rounded-lg overflow-hidden">
       <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open}
         className="w-full flex items-center gap-2 px-3 py-2 bg-surface-container-low/40 hover:bg-surface-container-low transition-colors text-left">
-        {open ? <ChevronUp size={12} className="text-fg4 shrink-0" /> : <ChevronDown size={12} className="text-fg4 shrink-0" />}
+        {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-fg4 shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" />}
         {/* Глиф называет НАЗНАЧЕНИЕ секции, а не её содержимое, и продублирован подписью рядом —
             поэтому он приглушён: brand в этой строке должен быть ровно один, и указывать он должен
             на факт, ради которого сюда смотрят. */}
-        <Database size={11} className="text-fg4 shrink-0" />
+        <Icon icon={Database} size={18} className="text-fg4 shrink-0" />
         <span className="text-xs text-fg3 flex-1">Заполняются автоматически</span>
         {/* Факт в подписи самой раскрывашки — здесь он НЕСУЩИЙ, а не дублирующий: секция свёрнута
             по умолчанию, и значок у поля внутри неё человек по умолчанию не видит вовсе. Отдельной

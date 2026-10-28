@@ -1,5 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { Search, Ban } from 'lucide-react';
+import { Icon } from './Icon';
+import { Block, Search } from './icons';
 import { typeIcon } from './typeIcons';
 import { useMemo, useRef, useState } from 'react';
 import { Tooltip } from './Tooltip';
@@ -140,7 +141,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
         >
           <Dialog.Title className="sr-only">{title}</Dialog.Title>
           <div className="flex items-center gap-2 border-b border-outline-variant px-4 shrink-0">
-            <Search size={16} className="shrink-0 text-fg4" />
+            <Icon icon={Search} size={18} className="shrink-0 text-fg4" />
             {/* Выделение возвращает на первую строку сам ввод, а не эффект (issue #858). */}
             <input ref={input} autoFocus value={query} onChange={e => { setQuery(e.target.value); setActive(0); }} onKeyDown={onKey}
               placeholder="Поиск типа по имени или коду…" aria-label="Поиск типа"
@@ -153,7 +154,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
                 <button type="button" onMouseEnter={() => setActive(0)} onClick={chooseNone}
                   className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                     active === 0 ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface hover:bg-black/5 dark:hover:bg-white/10'}`}>
-                  <Ban size={16} className={active === 0 ? 'text-on-secondary-container' : 'text-fg4'} />
+                  <Icon icon={Block} size={18} className={active === 0 ? 'text-on-secondary-container' : 'text-fg4'} />
                   <span className="flex-1 truncate" title={noneOption!.label}>{noneOption!.label}</span>
                 </button>
               </li>
@@ -170,7 +171,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
                 <ul>
                   {g.items.map(t => {
                     const i = ++idx;
-                    const Icon = typeIcon(t);
+                    const icon = typeIcon(t);
                     const code = t.code.trim();
                     const showCode = !!code && code.toLowerCase() !== t.name.trim().toLowerCase();
                     return (
@@ -178,7 +179,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
                         <button type="button" onMouseEnter={() => setActive(i)} onClick={() => choose(t)}
                           className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                             i === active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface hover:bg-black/5 dark:hover:bg-white/10'}`}>
-                          <Icon size={16} className={i === active ? 'text-on-secondary-container' : 'text-fg3'} />
+                          <Icon icon={icon} size={18} className={i === active ? 'text-on-secondary-container' : 'text-fg3'} />
                           <Tooltip content={showCode ? `${t.name} (${code})` : t.name}><span className="flex-1 truncate">{t.name}</span></Tooltip>
                           {showCode && <span className={`text-caption font-mono shrink-0 ${i === active ? 'text-on-secondary-container/80' : 'text-fg4'}`}>{code}</span>}
                         </button>

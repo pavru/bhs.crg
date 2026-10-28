@@ -1,9 +1,8 @@
 import { formatDateTime } from '@/shared/format/format';
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import {
-  Plus, Play, AlertTriangle, CheckCircle2, CircleSlash, History, Scale, Bot, FileSpreadsheet, Link2,
-} from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Balance, Block, CheckCircle, HistoryIcon, LinkIcon, PlayArrow, SmartToy, TableChart, Warning } from '@/shared/ui/icons';
 import { useServerForm } from '@/shared/hooks/useServerForm';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -39,7 +38,7 @@ function StatusBadge({ f }: { f: Finding }) {
   if (f.resolved) {
     return (
       <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-primary-container text-primary shrink-0">
-        <CheckCircle2 size={12} /> Устранено
+        <Icon icon={CheckCircle} size={18} /> Устранено
       </span>
     );
   }
@@ -52,7 +51,7 @@ function StatusBadge({ f }: { f: Finding }) {
   return (
     <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full shrink-0 ${
       muted ? 'bg-surface-container text-fg3' : 'bg-error-container text-error'}`}>
-      {muted ? <CircleSlash size={12} /> : <AlertTriangle size={12} />} {STATUS_LABELS[f.status]}
+      {muted ? <Icon icon={Block} size={18} /> : <Icon icon={Warning} size={18} />} {STATUS_LABELS[f.status]}
     </span>
   );
 }
@@ -229,7 +228,7 @@ export function ReconciliationsPage() {
   }
 
   const reconciliationRow = (i: typeof items[number]) => (
-    <NavItem key={i.id} icon={<Scale size={16} />} label={i.name}
+    <NavItem key={i.id} icon={<Icon icon={Balance} size={18} />} label={i.name}
       active={view === 'reconciliation' && i.id === selectedId}
       onClick={() => { setView('reconciliation'); setSelectedId(i.id); setRunId(null); }} />
   );
@@ -255,11 +254,11 @@ export function ReconciliationsPage() {
         {/* Отдельной секцией, а не в общем списке: находка сверки — результат арифметики,
             замечание — утверждение агента. Смешать значит выдать одно за другое. */}
         <NavSection label="Внешний анализ" />
-        <NavItem icon={<Bot size={16} />} label="Замечания агента"
+        <NavItem icon={<Icon icon={SmartToy} size={18} />} label="Замечания агента"
           count={observations.filter(isUnreviewed).length}
           active={view === 'observations'}
           onClick={() => setView('observations')} />
-        <NavItem icon={<Link2 size={16} />} label="Алиасы позиций"
+        <NavItem icon={<Icon icon={LinkIcon} size={18} />} label="Алиасы позиций"
           count={aliases.filter(a => a.status === 'Proposed').length}
           active={view === 'aliases'}
           onClick={() => setView('aliases')} />
@@ -270,7 +269,7 @@ export function ReconciliationsPage() {
   const detail = view === 'observations' ? <ObservationsPanel />
     : view === 'aliases' ? <AliasesPanel />
     : !selected ? (
-    <EmptyState icon={<Scale size={32} />} title="Выберите сверку"
+    <EmptyState icon={<Icon icon={Balance} size={40} />} title="Выберите сверку"
       description="Сверка сопоставляет два источника по доменному ключу и показывает расхождения." />
   ) : (
     <div className="flex-1 min-w-0 flex flex-col">
@@ -283,12 +282,12 @@ export function ReconciliationsPage() {
         </div>
         {runs.length > 1 && (
           <div className="shrink-0 flex items-center gap-1.5 text-fg4">
-            <History size={14} />
+            <Icon icon={HistoryIcon} size={18} />
             <RunPicker runs={runs} value={runId} onChange={setRunId} />
           </div>
         )}
         <Button variant="filled" onClick={onRun} disabled={run.isPending} className="shrink-0">
-          <Play size={14} /> {run.isPending ? 'Считаю…' : 'Прогнать'}
+          <Icon icon={PlayArrow} size={18} /> {run.isPending ? 'Считаю…' : 'Прогнать'}
         </Button>
         {canEdit && (
           <RowActionsMenu actions={[
@@ -322,7 +321,7 @@ export function ReconciliationsPage() {
 
       {linking.length > 0 && (
         <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant bg-primary-container shrink-0">
-          <Link2 size={14} className="text-primary shrink-0" />
+          <Icon icon={LinkIcon} size={18} className="text-primary shrink-0" />
           <span className="text-xs text-primary flex-1 truncate">
             {linking.length === 1
               ? 'Выберите вторую позицию, чтобы связать их как одну'
@@ -380,12 +379,12 @@ export function ReconciliationsPage() {
                   {sets.map(s => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
                 </Select>
                 <Button onClick={downloadReport} loading={reportBusy}>
-                  <FileSpreadsheet size={14} /> Отчёт
+                  <Icon icon={TableChart} size={18} /> Отчёт
                 </Button>
               </>
             )}
             {canEdit && (
-              <Button variant="filled" onClick={() => setEditing('new')}><Plus size={14} /> Создать</Button>
+              <Button variant="filled" onClick={() => setEditing('new')}><Icon icon={Add} size={18} /> Создать</Button>
             )}
           </>
         }

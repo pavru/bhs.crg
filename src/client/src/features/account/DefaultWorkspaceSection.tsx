@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { LayoutGrid } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { GridView } from '@/shared/ui/icons';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { useToast } from '@/shared/ui/Toast';
@@ -47,7 +48,7 @@ export function DefaultWorkspaceSection() {
   return (
     <div className="mt-8 pt-6 border-t border-outline-variant">
       <h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface mb-1">
-        <LayoutGrid size={15} className="text-fg3" /> Рабочее пространство
+        <Icon icon={GridView} size={18} className="text-fg3" /> Рабочее пространство
       </h2>
       <p className="text-xs text-fg4 mb-4">
         С какого пространства начинать работу. Свои пространства заводятся в переключателе в шапке.

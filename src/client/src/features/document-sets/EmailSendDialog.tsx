@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { AlertTriangle, CheckCircle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CheckCircle, Warning } from '@/shared/ui/icons';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -91,13 +92,13 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
       <div className="space-y-4">
         {!ready && (
           <p className="flex items-start gap-2 text-sm text-warning bg-warning-container rounded-md p-3">
-            <AlertTriangle size={16} className="shrink-0 mt-0.5" /> {notReadyHint}
+            <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" /> {notReadyHint}
           </p>
         )}
 
         {recipientsError && (
           <p className="flex items-start gap-2 text-sm text-warning bg-warning-container rounded-md p-3">
-            <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+            <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             Список подписчиков не загрузился — отправляйте по адресам, введённым вручную.
             Пустой список здесь означал бы «подписчиков нет», а это не так.
           </p>
@@ -112,7 +113,7 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
                   <input type="checkbox" disabled={!r.validEmail} checked={r.validEmail && !unchecked.has(r.userId)} onChange={() => toggleSub(r.userId)} />
                   <span className="text-on-surface flex-1 min-w-0 truncate">{r.displayName}</span>
                   <span className="text-xs text-fg4 min-w-0 truncate">{r.email || '—'}</span>
-                  {!r.validEmail && <AlertTriangle size={13} className="text-warning shrink-0" />}
+                  {!r.validEmail && <Icon icon={Warning} size={18} className="text-warning shrink-0" />}
                 </label>
               ))}
             </div>
@@ -138,7 +139,7 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
         {error && <p className="text-sm text-error">{error}</p>}
         {queued && (
           <p className="text-sm text-success flex items-center gap-1.5">
-            <CheckCircle size={15} /> Отправка запущена — ход виден на кнопке активности в шапке.
+            <Icon icon={CheckCircle} size={18} /> Отправка запущена — ход виден на кнопке активности в шапке.
           </p>
         )}
       </div>

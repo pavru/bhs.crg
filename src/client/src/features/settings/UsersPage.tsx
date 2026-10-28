@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Plus, KeyRound, Trash2, ShieldCheck, User as UserIcon, Mail } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Delete, Key, Mail, Person, VerifiedUser } from '@/shared/ui/icons';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
@@ -52,8 +53,8 @@ export function UsersPage() {
                   Ролей может быть несколько, и щит ставится, если ТАКАЯ есть хотя бы
                   одна: «все права» плюс что-то ещё — всё равно все права. */}
               {u.roles.some(ur => roles.find(r => r.name === ur.name)?.allPermissions)
-                ? <ShieldCheck size={14} className="text-primary shrink-0" />
-                : <UserIcon size={14} className="text-fg4 shrink-0" />}
+                ? <Icon icon={VerifiedUser} size={18} className="text-primary shrink-0" />
+                : <Icon icon={Person} size={18} className="text-fg4 shrink-0" />}
               {u.displayName || u.email}
               {isSelf && <span className="text-caption text-fg4 font-normal">(вы)</span>}
             </div>
@@ -75,12 +76,12 @@ export function UsersPage() {
         return (
           <div className="flex items-center justify-end gap-1 opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 transition-opacity">
             <IconButton label="Сбросить пароль" size="sm" onClick={() => setResetFor(u)}>
-              <KeyRound size={14} />
+              <Icon icon={Key} size={18} />
             </IconButton>
             <IconButton label="Удалить" size="sm" danger onClick={() => setDeleteTarget(u)}
               disabled={isSelf || del.isPending}
               title={isSelf ? 'Нельзя удалить себя' : 'Удалить'}>
-              <Trash2 size={14} />
+              <Icon icon={Delete} size={18} />
             </IconButton>
           </div>
         );
@@ -90,10 +91,10 @@ export function UsersPage() {
   return (
     <div className="px-6 py-4 max-w-4xl">
       <PageHeader title="Пользователи" className="mb-4" actions={<>
-        <Button variant="tonal" icon={<Mail size={15} />} onClick={() => setSendOpen(true)}>
+        <Button variant="tonal" icon={<Icon icon={Mail} size={18} />} onClick={() => setSendOpen(true)}>
           Отправить сообщение
         </Button>
-        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
+        <Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setCreateOpen(true)}>
           Добавить пользователя
         </Button>
       </>} />

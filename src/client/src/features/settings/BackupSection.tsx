@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  AlertTriangle, CheckCircle, ChevronDown, ChevronRight, Download, Info, Loader2, RotateCcw,
-  Trash2, Upload, XCircle,
-} from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { Cancel, CheckCircle, ChevronRight, Delete, Download, Info, KeyboardArrowDown, RestartAlt, Upload, Warning } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -170,13 +169,13 @@ function BackupFilesPanel() {
 
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="filled" onClick={handleCreate} disabled={busy || create.isPending || full}>
-          {busy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+          {busy ? <CircularProgress size={18} /> : <Icon icon={Download} size={18} />}
           {job
             ? (job.progress ? `Копирование: ${job.progress}` : 'Копирование…')
             : scheduledRunning ? 'Идёт плановое копирование…' : 'Создать копию'}
         </Button>
         <Button variant="outlined" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-          {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+          {uploading ? <CircularProgress size={18} /> : <Icon icon={Upload} size={18} />}
           {uploading ? 'Загрузка…' : 'Загрузить копию'}
         </Button>
         <input ref={fileInputRef} type="file" accept=".zip" className="hidden" onChange={handleUpload} />
@@ -189,7 +188,7 @@ function BackupFilesPanel() {
 
       {full && (
         <p className="text-xs text-warning flex items-start gap-1">
-          <AlertTriangle size={13} className="shrink-0 mt-px" />
+          <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
           <span>
             Каталог заполнен: новая копия не создастся, пока не удалить старые. Старые не убираются
             сами — иначе однажды исчезла бы та единственная, которая понадобится.
@@ -199,7 +198,7 @@ function BackupFilesPanel() {
 
       {error && (
         <p className="text-xs text-error flex items-start gap-1">
-          <XCircle size={13} className="shrink-0 mt-px" /> <span>{error}</span>
+          <Icon icon={Cancel} size={18} className="shrink-0 mt-px" /> <span>{error}</span>
         </p>
       )}
 
@@ -221,7 +220,7 @@ function BackupFilesPanel() {
                   className="p-0.5 text-fg4 hover:text-on-surface-variant"
                   aria-label={expanded === f.fileName ? 'Свернуть состав' : 'Показать состав'}
                 >
-                  {expanded === f.fileName ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  {expanded === f.fileName ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
                 </button>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-on-surface truncate">
@@ -245,14 +244,14 @@ function BackupFilesPanel() {
                   </p>
                   {f.problem && (
                     <p className="text-xs text-warning flex items-start gap-1 mt-0.5">
-                      <AlertTriangle size={12} className="shrink-0 mt-px" /> <span>{f.problem}</span>
+                      <Icon icon={Warning} size={18} className="shrink-0 mt-px" /> <span>{f.problem}</span>
                     </p>
                   )}
                   {/* Пропущенное при СНЯТИИ копии — здесь, а не только в журнале: узнать об этом
                       при восстановлении значит узнать после аварии. */}
                   {f.warnings?.map((w, i) => (
                     <p key={i} className="text-xs text-warning flex items-start gap-1 mt-0.5">
-                      <AlertTriangle size={12} className="shrink-0 mt-px" /> <span>{w}</span>
+                      <Icon icon={Warning} size={18} className="shrink-0 mt-px" /> <span>{w}</span>
                     </p>
                   ))}
                 </div>
@@ -260,14 +259,14 @@ function BackupFilesPanel() {
                   <IconAction title="Скачать" onClick={() => handleDownload(f)}
                     disabled={downloading !== null}>
                     {downloading === f.fileName
-                      ? <Loader2 size={14} className="animate-spin" />
-                      : <Download size={14} />}
+                      ? <CircularProgress size={18} />
+                      : <Icon icon={Download} size={18} />}
                   </IconAction>
                   <IconAction title="Восстановить из этой копии" onClick={() => setToRestore(f)}>
-                    <RotateCcw size={14} />
+                    <Icon icon={RestartAlt} size={18} />
                   </IconAction>
                   <IconAction title="Удалить копию" danger onClick={() => setToDelete(f)}>
-                    <Trash2 size={14} />
+                    <Icon icon={Delete} size={18} />
                   </IconAction>
                 </div>
               </div>
@@ -409,8 +408,8 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
           report.success ? 'bg-success-container text-success' : 'bg-error-container text-error'
         }`}>
           {report.success
-            ? <CheckCircle size={20} className="text-success shrink-0" />
-            : <XCircle size={20} className="text-error shrink-0" />}
+            ? <Icon icon={CheckCircle} size={20} className="text-success shrink-0" />
+            : <Icon icon={Cancel} size={20} className="text-error shrink-0" />}
           <span className="text-sm font-medium">
             {report.success
               ? `Восстановление выполнено успешно (${total} записей)`
@@ -420,7 +419,7 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
 
         {report.conversionNotice && (
           <div className="flex gap-2 rounded-lg border border-primary-container bg-primary-container p-3 text-sm text-brand-pressed">
-            <Info size={16} className="shrink-0 mt-0.5" />
+            <Icon icon={Info} size={18} className="shrink-0 mt-0.5" />
             <span>{report.conversionNotice}</span>
           </div>
         )}

@@ -1,4 +1,5 @@
-import { Check, ChevronDown, X, type LucideIcon } from 'lucide-react';
+import { Icon } from './Icon';
+import { Check, Close, KeyboardArrowDown, type IconDef } from './icons';
 import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react';
 import { Tooltip } from './Tooltip';
 
@@ -30,7 +31,7 @@ export interface ChipProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>,
   /** На саму кнопку: радиогруппа переводит фокус стрелками. */
   ref?: Ref<HTMLButtonElement>;
   selected?: boolean;
-  icon?: LucideIcon;
+  icon?: IconDef;
   count?: ReactNode;
   tone?: 'neutral' | 'warning' | 'danger';
   dashed?: boolean;
@@ -56,17 +57,17 @@ function chipClass({ selected = false, tone = 'neutral', dashed = false }:
   return `${BASE} ${selected ? SELECTED : `${TONE[tone]}${dashed ? ' border-dashed' : ''}`}`;
 }
 
-export function Chip({ children, selected, icon: Icon, count, tone, dashed, onRemove, removeLabel, menu = false, removeOnly = false, className = '', type = 'button', ...rest }: ChipProps) {
+export function Chip({ children, selected, icon, count, tone, dashed, onRemove, removeLabel, menu = false, removeOnly = false, className = '', type = 'button', ...rest }: ChipProps) {
   const toggles = selected !== undefined && !menu && !removeOnly;
   const radio = rest.role === 'radio';
   const state = radio ? { 'aria-checked': !!selected } : { 'aria-pressed': toggles ? selected : undefined };
-  const Shown = toggles && selected ? Check : Icon;
+  const shown = toggles && selected ? Check : icon;
   const body = (
     <>
-      {Shown && <Shown size={12} aria-hidden className="shrink-0" />}
+      {shown && <Icon icon={shown} size={18} aria-hidden className="shrink-0" />}
       <span className="min-w-0 truncate">{children}</span>
       {count !== undefined && <span className="font-medium tabular-nums">· {count}</span>}
-      {menu && <ChevronDown size={12} aria-hidden className="shrink-0" />}
+      {menu && <Icon icon={KeyboardArrowDown} size={18} aria-hidden className="shrink-0" />}
     </>
   );
 
@@ -94,7 +95,7 @@ export function Chip({ children, selected, icon: Icon, count, tone, dashed, onRe
         <button type="button" onClick={onRemove} aria-label={removeLabel ?? 'Снять'}
           disabled={rest.disabled}
           className="pl-0.5 pr-2 py-1 rounded-r-full hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-          <X size={12} aria-hidden />
+          <Icon icon={Close} size={18} aria-hidden />
         </button>
       </Tooltip>
     </span>

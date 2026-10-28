@@ -2,7 +2,9 @@ import { formatDate } from '@/shared/format/format';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
-import { Upload, Trash2, Database, RefreshCw, Download, FileText, LayoutGrid, ChevronRight, Loader2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { ChevronRight, Database, Delete, Description, Download, GridView, Refresh, Upload } from '@/shared/ui/icons';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -37,7 +39,7 @@ function FileNavItem({ icon, label, secondary, count, active, recognizing, stale
       className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left transition-colors ${
         active ? 'bg-primary-container text-brand-hover' : 'text-on-surface-variant hover:bg-surface-container'}`}>
       <span className={`shrink-0 ${active ? 'text-brand-hover' : 'text-fg4'}`}>
-        {recognizing ? <Loader2 size={15} className="animate-spin text-primary" /> : icon}
+        {recognizing ? <CircularProgress size={18} className="text-primary" /> : icon}
       </span>
       <span className="flex-1 min-w-0">
         <span className={`block truncate text-sm ${active ? 'font-medium' : ''}`} title={label}>{label}</span>
@@ -107,22 +109,22 @@ function FileDetail({ file, inherited, job }: {
               <input ref={updateInputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleReplace} />
               <FileRecognizeActions file={file} />
               <IconButton label="Скачать оригинальный файл" size="sm" onClick={handleDownload} disabled={downloading}>
-                <Download size={15} className={downloading ? 'opacity-50' : ''} />
+                <Icon icon={Download} size={18} className={downloading ? 'opacity-50' : ''} />
               </IconButton>
               <IconButton label="Обновить файл (привязки сохранятся)" size="sm"
                 onClick={() => updateInputRef.current?.click()} disabled={update.isPending}>
-                <RefreshCw size={15} className={update.isPending ? 'animate-spin' : ''} />
+                {update.isPending ? <CircularProgress size={18} /> : <Icon icon={Refresh} size={18} />}
               </IconButton>
             </>
           )}
           <IconButton label="Удалить набор" size="sm" danger onClick={() => setConfirming(true)}>
-            <Trash2 size={15} />
+            <Icon icon={Delete} size={18} />
           </IconButton>
         </div>
       </div>
       {job && (
         <div className="flex items-center gap-2 px-4 py-2 text-xs bg-primary-container/50 border-b border-outline-variant text-on-surface-variant">
-          <Loader2 size={13} className="animate-spin text-primary shrink-0" />
+          <CircularProgress size={18} className="text-primary shrink-0" />
           <span className="flex-1 min-w-0 truncate">{job.progress ?? job.title ?? 'Распознаётся…'}</span>
           {job.status === 'Queued' && (
             <button onClick={() => cancel.mutate(job.id)} disabled={cancel.isPending}
@@ -174,7 +176,7 @@ function AllFilesOverview({ files, inheritedCount, onOpen }: {
         const names = f.sources.map(s => s.name).slice(0, 4).join(' · ');
         return (
           <div key={f.id} className="flex items-center gap-3 rounded-lg border border-outline-variant bg-surface px-4 py-3">
-            <FileText size={16} className="text-primary shrink-0" />
+            <Icon icon={Description} size={18} className="text-primary shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-on-surface truncate" title={f.name}>{f.name}</span>
@@ -184,7 +186,7 @@ function AllFilesOverview({ files, inheritedCount, onOpen }: {
                 {sourcesLabel(f.sources.length)}{names && `: ${names}`}{f.sources.length > 4 ? ' …' : ''}
               </div>
             </div>
-            <Button variant="outlined" size="sm" onClick={() => onOpen(f.id)} icon={<ChevronRight size={14} />}>Открыть</Button>
+            <Button variant="outlined" size="sm" onClick={() => onOpen(f.id)} icon={<Icon icon={ChevronRight} size={18} />}>Открыть</Button>
           </div>
         );
       })}
@@ -322,14 +324,14 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
     <>
       <input ref={fileInputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleFileInput} />
       <Button variant="tonal" size="sm" onClick={() => fileInputRef.current?.click()}
-        loading={uploading} icon={<Upload size={14} />}>
+        loading={uploading} icon={<Icon icon={Upload} size={18} />}>
         {uploading ? 'Загрузка…' : 'Загрузить файл'}
       </Button>
       {/* Набор без файла: сырьё — данные самой системы. На уровень нужен один, поэтому кнопка
           прячется, как только он появился, и не показывается там, где консолидаций нет. */}
       {offerSystemFile && (
         <Button variant="text" size="sm" onClick={() => { void addSystemFile(); }}
-          loading={createSystem.isPending} icon={<Database size={14} />}>
+          loading={createSystem.isPending} icon={<Icon icon={Database} size={18} />}>
           Данные системы
         </Button>
       )}
@@ -352,16 +354,16 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
         // экран обязан остаться рейлом, иначе к ним нет входа вовсе.
         <>
           <input ref={fileInputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleFileInput} />
-          <EmptyState icon={<Database size={30} />} title="Пока нет наборов данных"
+          <EmptyState icon={<Icon icon={Database} size={40} />} title="Пока нет наборов данных"
             description={'Загрузите файл (CSV, XLSX, XML, JSON, ZIP, PDF) или перетащите его сюда — из него можно собирать источники для колонок и таблиц документов.'
               + (offerSystemFile ? ' Либо возьмите данные самой системы: например, перечень документов комплекта.' : '')}
             action={
               <div className="flex items-center gap-2">
                 <Button variant="filled" size="sm" onClick={() => fileInputRef.current?.click()}
-                  loading={uploading} icon={<Upload size={14} />}>Загрузить файл</Button>
+                  loading={uploading} icon={<Icon icon={Upload} size={18} />}>Загрузить файл</Button>
                 {offerSystemFile && (
                   <Button variant="outlined" size="sm" onClick={() => { void addSystemFile(); }}
-                    loading={createSystem.isPending} icon={<Database size={14} />}>Данные системы</Button>
+                    loading={createSystem.isPending} icon={<Icon icon={Database} size={18} />}>Данные системы</Button>
                 )}
               </div>
             } />
@@ -371,10 +373,10 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
         <div className="flex gap-5 items-start">
           {/* Рейл файлов */}
           <aside className="w-56 shrink-0 sticky top-0 self-start space-y-0.5">
-            <FileNavItem icon={<LayoutGrid size={15} />} label="Все наборы" count={files.length}
+            <FileNavItem icon={<Icon icon={GridView} size={18} />} label="Все наборы" count={files.length}
               active={isAll} onClick={() => setSelected(ALL)} />
             {files.map(f => (
-              <FileNavItem key={f.id} icon={<FileText size={15} />} label={f.name}
+              <FileNavItem key={f.id} icon={<Icon icon={Description} size={18} />} label={f.name}
                 secondary={`${DATA_SET_FORMAT_LABELS[f.format]} · ${sourcesLabel(f.sources.length)}`}
                 active={selected === f.id} recognizing={!!jobForFile(f)} stale={fileStale(f)}
                 onClick={() => setSelected(f.id)} />
@@ -388,7 +390,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
                 <button type="button" onClick={() => setInheritedOpen(!inheritedOpen, selectedInherited)}
                   aria-expanded={inheritedOpen}
                   className="w-full flex items-center gap-1.5 mt-2 pt-2 px-1.5 border-t border-outline-variant text-left text-xs text-fg3 hover:text-primary">
-                  <ChevronRight size={13} className={`shrink-0 transition-transform ${inheritedOpen ? 'rotate-90' : ''}`} />
+                  <Icon icon={ChevronRight} size={18} className={`shrink-0 transition-transform ${inheritedOpen ? 'rotate-90' : ''}`} />
                   <span className="flex-1 min-w-0">
                     Доступны здесь: {inheritedOpen ? '' : 'ещё '}
                     <span className="text-primary font-medium">{ruCount(inheritedFiles.length, 'набор', 'набора', 'наборов')}</span>
@@ -396,7 +398,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
                   </span>
                 </button>
                 {inheritedOpen && inheritedFiles.map(f => (
-                  <FileNavItem key={f.id} icon={<FileText size={15} />} label={f.name}
+                  <FileNavItem key={f.id} icon={<Icon icon={Description} size={18} />} label={f.name}
                     secondary={`${DATA_SET_FORMAT_LABELS[f.format]} · ${sourcesLabel(f.sources.length)}`}
                     active={selected === f.id} recognizing={!!jobForFile(f)} stale={fileStale(f)}
                     level={<LevelChip file={f} />}

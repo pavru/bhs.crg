@@ -1,4 +1,5 @@
-import { Copy } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ContentCopy } from '@/shared/ui/icons';
 import type { InvoiceView } from '@/shared/api/invoices';
 import { DRAFT, useInvoiceDelete } from './invoiceDelete';
 import { K, duplicateLabel, sameFileLabel, twinsOf } from './invoiceFields';
@@ -30,7 +31,7 @@ export function InvoiceTwinNotes({ view, onOpenInvoice }: { view: InvoiceView; o
       {sameFile.length > 0 && (loud ? (
         <div className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-container px-3 py-2"
           data-testid="same-file-note">
-          <Copy size={14} className="text-warning shrink-0 mt-0.5" />
+          <Icon icon={ContentCopy} size={18} className="text-warning shrink-0 mt-0.5" />
           <div className="min-w-0 text-xs text-warning">
             <span>{sameFile.length > 1 ? 'Этот файл уже приложен к другим счетам: ' : 'Этот файл уже приложен к другому счёту: '}</span>
             {sameFile.map((s, i) => (
@@ -59,7 +60,7 @@ export function InvoiceTwinNotes({ view, onOpenInvoice }: { view: InvoiceView; o
       ))}
       {duplicates.length > 0 && (
         <div className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-container px-3 py-2">
-          <Copy size={14} className="text-warning shrink-0 mt-0.5" />
+          <Icon icon={ContentCopy} size={18} className="text-warning shrink-0 mt-0.5" />
           <div className="min-w-0 text-xs text-warning">
             <span>Похоже на дубликат — у этого поставщика уже есть счёт с тем же номером и датой: </span>
             {duplicates.map((d, i) => <span key={d.id}>{i > 0 && ', '}{link(d.id, duplicateLabel(d))}</span>)}

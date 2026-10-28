@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Search, Trash2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Delete, Search } from '@/shared/ui/icons';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -124,7 +125,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
       cell: item => (
         <Tooltip content="Забыть соответствие" name>
           <button type="button" disabled={point.isPending} onClick={() => setForgettingId(item.id)}
-            className="text-fg3 hover:text-error p-1"><Trash2 size={14} /></button>
+            className="text-fg3 hover:text-error p-1"><Icon icon={Delete} size={18} /></button>
         </Tooltip>
       ) },
   ];
@@ -149,7 +150,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
           ))}
         </Select>
         <label className="flex flex-1 min-w-[14rem] items-center gap-1 rounded border border-outline-variant bg-surface px-2 py-1">
-          <Search size={14} className="text-fg4" />
+          <Icon icon={Search} size={18} className="text-fg4" />
           <input value={typed} placeholder="Артикул или наименование у поставщика"
             aria-label="Поиск по артикулу или наименованию у поставщика" data-search=""
             onChange={e => setTyped(e.target.value)}

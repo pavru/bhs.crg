@@ -2,7 +2,8 @@ import { useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Link, useLocation } from 'react-router';
 import { ownerItem, type RailSection } from '@/shared/ui/railSections';
-import { LogOut, MessageCircleWarning, UserRound } from 'lucide-react';
+import { Icon } from './Icon';
+import { Feedback, Logout, Person } from './icons';
 import { formatDateTime } from '@/shared/format/format';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useAccount } from '@/shared/api/account';
@@ -60,7 +61,7 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
   const { pathname } = useLocation();
   const here = pathname.startsWith('/profile');
   const inAdmin = !!admin && !!ownerItem(pathname, admin.groups.flatMap(g => g.items));
-  const AdminIcon = admin?.def.icon;
+  const adminIcon = admin?.def.icon;
   // «Назад» на телефоне закрывает меню, а не страницу (issue #1418).
   const [open, setOpen] = useState(false);
   useHistoryLayer(open, () => { setOpen(false); return true; });
@@ -95,7 +96,7 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
           <div className="px-2 pb-2">
             <DropdownMenu.Item asChild className={item + (here ? ' bg-secondary-container text-on-secondary-container' : '')}>
               <Link to="/profile" onClick={guardedClick('/profile')} aria-current={here ? 'page' : undefined}>
-                <UserRound size={20} className="text-fg3 shrink-0" />Профиль и пароль
+                <Icon icon={Person} size={20} className="text-fg3 shrink-0" />Профиль и пароль
               </Link>
             </DropdownMenu.Item>
 
@@ -110,13 +111,13 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
               </div>
               <DropdownMenu.RadioGroup value={theme} onValueChange={v => setTheme(v as typeof theme)}
                 className="flex rounded-full border border-outline overflow-hidden">
-                {THEME_OPTIONS.map(({ value, icon: Icon, label }, i) => (
+                {THEME_OPTIONS.map(({ value, icon, label }, i) => (
                   <DropdownMenu.RadioItem key={value} value={value} onSelect={e => e.preventDefault()}
                     className={'flex-1 flex items-center justify-center gap-1.5 h-9 text-xs cursor-pointer select-none outline-none ' +
                       'data-[highlighted]:ring-2 data-[highlighted]:ring-inset data-[highlighted]:ring-primary ' +
                       (i > 0 ? 'border-l border-outline ' : '') +
                       (theme === value ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/10')}>
-                    <Icon size={16} className="shrink-0" />{label}
+                    <Icon icon={icon} size={18} className="shrink-0" />{label}
                   </DropdownMenu.RadioItem>
                 ))}
               </DropdownMenu.RadioGroup>
@@ -125,17 +126,17 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
             {/* Постоянная дверь к форме сообщения (issue #834): она нужна и тогда, когда ошибка НЕ
                 показала своего экрана — «работает не так, как ожидал» тоже сообщение. */}
             <DropdownMenu.Item className={item} onSelect={() => bugReport.open({ origin: 'account' })}>
-              <MessageCircleWarning size={20} className="text-fg3 shrink-0" />Сообщить о проблеме
+              <Icon icon={Feedback} size={20} className="text-fg3 shrink-0" />Сообщить о проблеме
             </DropdownMenu.Item>
           </div>
 
-          {admin && AdminIcon && (
+          {admin && adminIcon && (
             <>
               <DropdownMenu.Separator className="h-px bg-outline-variant" />
               <div className="p-2">
                 <DropdownMenu.Item asChild className={item + (inAdmin ? ' bg-secondary-container text-on-secondary-container' : '')}>
                   <Link to={admin.home} onClick={guardedClick(admin.home)} data-testid="account-admin">
-                    <AdminIcon size={20} className="text-fg3 shrink-0" />{admin.def.title}
+                    <Icon icon={adminIcon} size={20} className="text-fg3 shrink-0" />{admin.def.title}
                   </Link>
                 </DropdownMenu.Item>
               </div>
@@ -145,7 +146,7 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
           <DropdownMenu.Separator className="h-px bg-outline-variant" />
           <div className="p-2">
             <DropdownMenu.Item className={item} onSelect={() => guardedLeave(logout)}>
-              <LogOut size={20} className="text-fg3 shrink-0" />Выйти
+              <Icon icon={Logout} size={20} className="text-fg3 shrink-0" />Выйти
             </DropdownMenu.Item>
           </div>
 

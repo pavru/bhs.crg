@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import { ListChecks, SearchCheck } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Checklist, SearchCheck } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { useCan } from '@/shared/api/access';
@@ -40,11 +41,11 @@ export function usePurgeBatchControls({ scope, scopeId, type }: {
   const menu: ReactNode = offered && type && !picked ? (
     <RowActionsMenu ariaLabel={`Очистка: ${type.name}`} actions={[
       {
-        key: 'find', label: 'Найти занятые выключенными модулями…', icon: <SearchCheck size={14} />,
+        key: 'find', label: 'Найти занятые выключенными модулями…', icon: <Icon icon={SearchCheck} size={18} />,
         onSelect: () => setDialog({ typeId: type.id, scope, scopeId }),
       },
       {
-        key: 'pick', label: 'Выбрать записи для удаления с потерей ссылок', icon: <ListChecks size={14} />,
+        key: 'pick', label: 'Выбрать записи для удаления с потерей ссылок', icon: <Icon icon={Checklist} size={18} />,
         onSelect: () => setPicking({ where, ids: new Set() }),
       },
     ]} />

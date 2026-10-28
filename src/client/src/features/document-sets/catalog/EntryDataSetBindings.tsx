@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Database, Pencil, Trash2, Plus } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Database, Delete, Edit } from '@/shared/ui/icons';
 import { IconButton } from '@/shared/ui/Button';
 import { StaleSourceAction } from '@/shared/ui/StaleSourceAction';
 import { ruCount } from '@/shared/utils/pluralize';
@@ -169,7 +170,7 @@ function EntryBindingRow({
   return (
     <div className="border-b border-outline-variant last:border-0">
       <div className="flex items-center gap-2 px-4 py-3">
-        <Database size={14} className="text-primary shrink-0" />
+        <Icon icon={Database} size={18} className="text-primary shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium truncate text-on-surface">{source?.name ?? '—'}</div>
           <div className="text-xs text-fg4 mt-0.5">
@@ -183,11 +184,11 @@ function EntryBindingRow({
             каталога и документа свои, но расходиться им в этом нельзя. */}
         <StaleSourceAction source={source} />
         <IconButton label="Редактировать маппинг" size="sm" onClick={() => setEditing(e => !e)}>
-          <Pencil size={13} />
+          <Icon icon={Edit} size={18} />
         </IconButton>
         {!confirming ? (
           <IconButton label="Удалить" size="sm" danger onClick={() => setConfirming(true)}>
-            <Trash2 size={13} />
+            <Icon icon={Delete} size={18} />
           </IconButton>
         ) : (
           <div className="flex items-center gap-1.5 text-xs">
@@ -251,7 +252,7 @@ export function EntryDataSetBindings({
       ) : (
         <button type="button" onClick={() => setAdding(true)}
           className="flex items-center gap-1.5 text-sm text-primary hover:text-brand-hover transition-colors">
-          <Plus size={14} /> Привязать источник данных
+          <Icon icon={Add} size={18} /> Привязать источник данных
         </button>
       )}
     </div>

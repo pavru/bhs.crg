@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router';
-import { ArrowLeft, ChevronDown, Loader2, Pencil, Trash2, AlertTriangle, AlertCircle, Save, ZoomIn, Table2, RefreshCw } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { ArrowBack, Delete, Edit, ErrorIcon, KeyboardArrowDown, Refresh, Save, Table, Warning, ZoomIn } from '@/shared/ui/icons';
 import {
   useFilePages, useApplyGrouping, useRecognizeDocumentTable, useRecognizeDocument, useSetDocumentProfile,
   loadPageThumbnailUrl, loadPageImageUrl, recognitionRefusal, type RecognitionRefusal,
@@ -95,7 +97,7 @@ function PageThumbnail({ fileId, pageIndex }: { fileId: string; pageIndex: numbe
       ) : failed ? (
         <span className="text-caption text-fg4 px-1 text-center">нет превью</span>
       ) : (
-        <Loader2 size={14} className="animate-spin text-fg4" />
+        <CircularProgress size={18} className="text-fg4" />
       )}
     </div>
   );
@@ -129,7 +131,7 @@ function PageTile({
         <button
             onClick={e => { e.stopPropagation(); onView(pageIndex); }}
             className="absolute top-1.5 right-1.5 p-1 rounded bg-surface/90 border border-outline-variant text-fg3 opacity-70 hover:text-primary hover:opacity-100 transition-opacity">
-            <ZoomIn size={12} />
+            <Icon icon={ZoomIn} size={18} />
           </button>
       </Tooltip>
         <div className="flex items-center justify-between mt-1 px-0.5">
@@ -137,8 +139,8 @@ function PageTile({
           {/* Лист без ответа виден отдельно от «подозрительной» группы: у первого поля пусты потому,
               что их неоткуда взять, у второй — потому что распозналось не то. Лечится это по-разному. */}
           {noAnswer
-            ? <AlertCircle size={10} className="text-error" />
-            : suspicious && <AlertTriangle size={10} className="text-warning" />}
+            ? <Icon icon={ErrorIcon} size={18} className="text-error" />
+            : suspicious && <Icon icon={Warning} size={18} className="text-warning" />}
         </div>
       </div>
     </Tooltip>
@@ -169,7 +171,7 @@ function PageViewer({ fileId, pageIndex, onClose }: { fileId: string; pageIndex:
       {failed ? (
         <p className="text-sm text-error py-10 text-center">Не удалось загрузить изображение листа.</p>
       ) : !url ? (
-        <div className="flex items-center justify-center py-16 text-fg4"><Loader2 size={20} className="animate-spin" /></div>
+        <div className="flex items-center justify-center py-16 text-fg4"><CircularProgress size={20} /></div>
       ) : (
         <>
           {/* Центрируем img через mx-auto (НЕ flex justify-center): при зуме, когда картинка шире/выше
@@ -208,7 +210,7 @@ function SelectionActionBar({
       <div className="relative">
         <button onClick={() => setMenuOpen(o => !o)}
           className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant hover:bg-surface-container-low">
-          Перенести в группу <ChevronDown size={11} />
+          Перенести в группу <Icon icon={KeyboardArrowDown} size={18} />
         </button>
         {menuOpen && (
           <div className="absolute z-10 mt-1 w-52 rounded-md border border-outline-variant bg-surface shadow-lg py-1">
@@ -300,12 +302,12 @@ function GroupSection({
           </div>
         ) : (
           <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 text-left group/title min-w-0">
-            {suspicious && <AlertTriangle size={13} className="text-warning shrink-0" />}
+            {suspicious && <Icon icon={Warning} size={18} className="text-warning shrink-0" />}
             <span className="text-sm font-medium text-on-surface truncate">
               {group.name ?? <em className="text-fg4">без названия</em>}
             </span>
             <span className="text-xs text-fg4 shrink-0">· {group.code}</span>
-            <Pencil size={11} className="text-stroke-strong opacity-0 group-hover/title:opacity-100 shrink-0" />
+            <Icon icon={Edit} size={18} className="text-stroke-strong opacity-0 group-hover/title:opacity-100 shrink-0" />
           </button>
         )}
         <span className="text-xs text-fg4 shrink-0">{group.pageIndices.length} л.</span>
@@ -313,7 +315,7 @@ function GroupSection({
           <Tooltip content="Расформировать (страницы станут без группы)" name>
             <button onClick={() => onDisband(group.id)}
               className="p-1 text-stroke-strong hover:text-error shrink-0">
-              <Trash2 size={13} />
+              <Icon icon={Delete} size={18} />
             </button>
           </Tooltip>
         )}
@@ -340,7 +342,7 @@ function GroupSection({
             <Tooltip content={dirty ? 'Сначала сохраните разбиение' : isHiddenBound(group.profileId, hiddenProfiles) ? 'Профиль группы принадлежит выключенному модулю — выберите другой' : 'Распознать таблицу этого документа как отдельный источник данных'}>
               <button onClick={() => onRecognizeTable(firstPage)} disabled={dirty || tableBusyPage === firstPage || isHiddenBound(group.profileId, hiddenProfiles)}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant hover:bg-surface-container-low disabled:opacity-50">
-                {tableBusyPage === firstPage ? <Loader2 size={12} className="animate-spin" /> : <Table2 size={12} />}
+                {tableBusyPage === firstPage ? <CircularProgress size={18} /> : <Icon icon={Table} size={18} />}
                 Таблица
               </button>
             </Tooltip>
@@ -348,7 +350,7 @@ function GroupSection({
           <Tooltip content={dirty ? 'Сначала сохраните разбиение' : 'Перераспознать только этот документ (не весь набор)'}>
             <button onClick={() => onRecognizeDoc(firstPage)} disabled={dirty || docBusyPage === firstPage}
               className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant hover:bg-surface-container-low disabled:opacity-50">
-              {docBusyPage === firstPage ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              {docBusyPage === firstPage ? <CircularProgress size={18} /> : <Icon icon={Refresh} size={18} />}
               Перераспознать
             </button>
           </Tooltip>
@@ -525,7 +527,7 @@ export function PdfGroupingEditor() {
 
   if (!fileId) return null;
   if (isLoading || !groups) {
-    return <div className="p-6 flex items-center gap-2 text-sm text-fg4"><Loader2 size={16} className="animate-spin" /> Загрузка...</div>;
+    return <div className="p-6 flex items-center gap-2 text-sm text-fg4"><CircularProgress size={18} /> Загрузка...</div>;
   }
   if (error || !data) {
     return <div className="p-6 text-sm text-error">Не удалось загрузить страницы источника.</div>;
@@ -538,7 +540,7 @@ export function PdfGroupingEditor() {
           <Tooltip content="Назад">
             <button onClick={() => navigate(-1)} aria-label="Назад"
               className="p-1.5 text-fg4 hover:text-on-surface rounded transition-colors">
-              <ArrowLeft size={16} />
+              <Icon icon={ArrowBack} size={18} />
             </button>
           </Tooltip>
         }
@@ -564,11 +566,11 @@ export function PdfGroupingEditor() {
               className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors ${
                 suspiciousOnly ? 'border-warning bg-warning/10 text-warning' : 'border-outline-variant text-on-surface-variant hover:bg-surface-container-low'
               }`}>
-              <AlertTriangle size={12} /> {suspiciousOnly ? 'Показать все' : `⚠ ${suspiciousPageCount} подозрительных`}
+              <Icon icon={Warning} size={18} /> {suspiciousOnly ? 'Показать все' : `⚠ ${suspiciousPageCount} подозрительных`}
             </button>
           )}
           <Button variant="filled" onClick={handleSave} disabled={!dirty} loading={applyMutation.isPending}
-            icon={<Save size={14} />}>
+            icon={<Icon icon={Save} size={18} />}>
             Сохранить
           </Button>
         </>} />

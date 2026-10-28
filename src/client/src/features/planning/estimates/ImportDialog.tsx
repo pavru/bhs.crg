@@ -1,5 +1,7 @@
 import { useRef, useState, type DragEvent } from 'react';
-import { FileUp, Loader2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { UploadFile } from '@/shared/ui/icons';
 import { useConstructionDirectory, useGetConstruction } from '@/shared/api/constructions';
 import { planRefusal, useConstructionEstimates, type EstimateKind } from '@/shared/api/planningEstimates';
 import {
@@ -212,7 +214,7 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
         )}
         {step === 'parsing' && (
           <div className="flex items-start gap-3 text-sm">
-            <Loader2 size={18} className="mt-0.5 shrink-0 animate-spin text-primary" aria-hidden />
+            <CircularProgress size={18} className="mt-0.5 shrink-0 text-primary" />
             <div role="status" className="space-y-1">
               <p className="text-on-surface">Разбираем {data ? <b className="font-medium">{data.fileName}</b> : 'файл'}{data?.progress ? ` — ${data.progress}` : '…'}</p>
               <p className="text-fg3">Разбор идёт в фоне: окно можно закрыть — импорт останется над сметами стройки, и отчёт откроется оттуда.</p>
@@ -300,7 +302,7 @@ function FilePick({ file, onFile }: { file: File | null; onFile: (file: File) =>
       onDrop={onDrop}
       className={`flex flex-wrap items-center gap-3 rounded-lg border-2 border-dashed px-4 py-3 text-sm
         ${over ? 'border-primary bg-primary-container' : 'border-outline-variant'}`}>
-      <FileUp size={20} className="shrink-0 text-fg3" aria-hidden />
+      <Icon icon={UploadFile} size={20} className="shrink-0 text-fg3" aria-hidden />
       <div className="min-w-0 flex-1">
         {file
           ? <p className="text-on-surface break-all">{file.name} <span className="text-fg3">· {formatBytes(file.size)}</span></p>

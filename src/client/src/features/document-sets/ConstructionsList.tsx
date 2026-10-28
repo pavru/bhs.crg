@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { Plus, Trash2, Pencil, Building2, Search, X } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Apartment, Close, Delete, Edit, Search } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
@@ -47,14 +48,14 @@ function DocumentSearchPanel() {
   return (
     <div className="mb-5">
       <div className="relative">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
+        <Icon icon={Search} size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
         <input value={text} onChange={e => setText(e.target.value)}
           placeholder="Найти документ по всем комплектам (имя, тип, реквизиты)…"
           className="w-full pl-9 pr-8 py-2 text-sm border border-outline rounded-md bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
         {text && (
           <IconButton label="Очистить" size="sm" onClick={() => setText('')}
             className="absolute right-1.5 top-1/2 -translate-y-1/2">
-            <X size={14} />
+            <Icon icon={Close} size={18} />
           </IconButton>
         )}
       </div>
@@ -162,7 +163,7 @@ export function ConstructionsList() {
     <div className="px-6 pt-4 pb-[calc(1rem+var(--fab-clearance,0px))]">
       {/* На телефоне «Новая стройка» — плавающей кнопкой (#1434), и здесь, и в пустом состоянии. */}
       <PageHeader title="Стройки" className="mb-4" actions={canEdit && (
-        <PrimaryActionButton action={PALETTE_ACTIONS.constructionNew} icon={<Plus size={16} />} onClick={() => setCreateOpen(true)} />
+        <PrimaryActionButton action={PALETTE_ACTIONS.constructionNew} icon={<Icon icon={Add} size={18} />} onClick={() => setCreateOpen(true)} />
       )} />
 
       {idOn ? <DocumentSearchPanel /> : <HiddenByWorkspace module="id" what="Поиск документов и комплекты строек" />}
@@ -172,9 +173,9 @@ export function ConstructionsList() {
       {isLoading || filter.status === 'loading' ? (
         <div className="text-center py-10 text-fg4 text-sm">Загрузка...</div>
       ) : constructions.length === 0 ? (
-        <EmptyState icon={<Building2 size={30} />} title="Пока нет строек"
+        <EmptyState icon={<Icon icon={Apartment} size={40} />} title="Пока нет строек"
           description="Создайте первую стройку, чтобы начать вести исполнительную документацию по её разделам и комплектам."
-          action={canEdit ? <PrimaryActionButton action={PALETTE_ACTIONS.constructionNew} icon={<Plus size={16} />}
+          action={canEdit ? <PrimaryActionButton action={PALETTE_ACTIONS.constructionNew} icon={<Icon icon={Add} size={18} />}
             onClick={() => setCreateOpen(true)} /> : undefined} />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -197,11 +198,11 @@ export function ConstructionsList() {
                   {canEdit && <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
                     <IconButton label="Переименовать" size="sm"
                       onClick={e => { e.stopPropagation(); setEditId(c.id); setEditName(c.name); }}>
-                      <Pencil size={13} />
+                      <Icon icon={Edit} size={18} />
                     </IconButton>
                     <IconButton label="Удалить" size="sm" danger
                       onClick={e => { e.stopPropagation(); setDeleteTarget(c); }}>
-                      <Trash2 size={13} />
+                      <Icon icon={Delete} size={18} />
                     </IconButton>
                   </div>}
                 </div>

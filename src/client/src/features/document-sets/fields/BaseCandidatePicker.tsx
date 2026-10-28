@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { FileText, Database, Link2, Unlink, AlertTriangle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Database, Description, LinkIcon, LinkOff, Warning } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { type BaseCandidate } from './baseCandidates';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -53,10 +54,10 @@ function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCan
         className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md transition-colors ${
           on ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-primary-container'}`}>
         {c.proxy
-          ? <Link2 size={13} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-primary'}`} />
+          ? <Icon icon={LinkIcon} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-primary'}`} />
           : c.kind === 'instance'
-            ? <FileText size={13} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-primary'}`} />
-            : <Database size={13} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-primary'}`} />}
+            ? <Icon icon={Description} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-primary'}`} />
+            : <Icon icon={Database} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-primary'}`} />}
         <span className={`flex-1 font-medium truncate ${on ? 'text-on-secondary-container' : 'text-on-surface'}`}>{c.name}</span>
         {c.targetIsProxy && <span className="text-caption text-warning shrink-0">роль</span>}
         <span className={`text-caption shrink-0 ${on ? 'text-on-secondary-container/80' : 'text-fg4'}`}>{c.scopeLabel}</span>
@@ -123,23 +124,23 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
         <>
         <div className="flex items-center gap-2 rounded-md border border-primary-container bg-primary-container px-3 py-2">
           {selected.proxy
-            ? <Link2 size={14} className="text-primary shrink-0" />
+            ? <Icon icon={LinkIcon} size={18} className="text-primary shrink-0" />
             : selected.kind === 'instance'
-              ? <FileText size={14} className="text-primary shrink-0" />
-              : <Database size={14} className="text-primary shrink-0" />}
+              ? <Icon icon={Description} size={18} className="text-primary shrink-0" />
+              : <Icon icon={Database} size={18} className="text-primary shrink-0" />}
           <span className="flex-1 text-sm font-medium text-brand-hover truncate">
             {selected.proxy && <span className="text-fg4 font-normal">→ </span>}{selected.name}
           </span>
           <span className="text-caption text-fg4 shrink-0">{selected.scopeLabel}</span>
           <Tooltip content="Снять ссылку" name>
             <button type="button" onClick={onClear} className="text-primary hover:text-error transition-colors">
-              <Unlink size={13} />
+              <Icon icon={LinkOff} size={18} />
             </button>
           </Tooltip>
         </div>
         {selected.targetIsProxy && (
           <p className="text-caption text-warning flex items-center gap-1">
-            <AlertTriangle size={11} className="shrink-0" />
+            <Icon icon={Warning} size={18} className="shrink-0" />
             «{selected.name}» — тоже роль. Цепочка ссылок усложняет прослеживание данных.
           </p>
         )}
@@ -149,14 +150,14 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
           <span className="flex-1 text-sm text-warning truncate">Базовый экземпляр недоступен (удалён или вне области видимости)</span>
           <Tooltip content="Снять ссылку" name>
             <button type="button" onClick={onClear} className="text-primary hover:text-error transition-colors">
-              <Unlink size={13} />
+              <Icon icon={LinkOff} size={18} />
             </button>
           </Tooltip>
         </div>
       ) : (
         <button type="button" onClick={() => setPickerOpen(true)}
           className="flex items-center gap-2 text-sm text-primary hover:text-brand-hover border border-dashed border-primary-container rounded-md px-3 py-2 w-full hover:bg-primary-container transition-colors">
-          <Link2 size={14} />
+          <Icon icon={LinkIcon} size={18} />
           Выбрать базовый экземпляр или роль...
         </button>
       )}

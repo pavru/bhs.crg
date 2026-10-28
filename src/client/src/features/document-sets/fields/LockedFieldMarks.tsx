@@ -1,4 +1,5 @@
-import { Lock } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { LockIcon } from '@/shared/ui/icons';
 import { LOCKED_HINT } from './lockedFields';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
@@ -19,7 +20,7 @@ export function LockedFieldIcon({ className = '' }: { className?: string }) {
     <Tooltip content={LOCKED_HINT}>
       <span aria-label={LOCKED_HINT} role="img"
         className={`inline-block shrink-0 text-fg4 ${className}`}>
-        <Lock size={11} />
+        <Icon icon={LockIcon} size={18} />
       </span>
     </Tooltip>
   );

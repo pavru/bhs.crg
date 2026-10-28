@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Trash2, Mail, Plus, AlertTriangle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Delete, Mail, Warning } from '@/shared/ui/icons';
 import { useAccess, NO_ACCESS, hasPermission } from '@/shared/api/access';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { useListUsers } from '@/shared/api/users';
@@ -60,7 +61,7 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
         <div className="flex justify-end">
           <button onClick={() => setSendOpen(true)}
             className="flex items-center gap-1 text-xs px-2 py-1 rounded text-primary hover:bg-primary-container transition-colors">
-            <Mail size={12} /> Сообщение
+            <Icon icon={Mail} size={18} /> Сообщение
           </button>
         </div>
       )}
@@ -76,7 +77,7 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
               {!s.validEmail && (
                 <Tooltip content="Нет валидного email — писем не получит">
                   <span className="shrink-0">
-                    <AlertTriangle size={13} className="text-warning" />
+                    <Icon icon={Warning} size={18} className="text-warning" />
                   </span>
                 </Tooltip>
               )}
@@ -84,7 +85,7 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
                 <Tooltip content="Убрать из подписчиков" name>
                   <button onClick={() => remove.mutate({ id: s.id, scope, scopeId })}
                     className="p-0.5 text-stroke-strong hover:text-error opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all">
-                    <Trash2 size={13} />
+                    <Icon icon={Delete} size={18} />
                   </button>
                 </Tooltip>
               )}
@@ -101,7 +102,7 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
           </Select>
           <button onClick={handleAdd} disabled={!addUserId || add.isPending}
             className="flex items-center gap-1 text-sm px-3 py-1.5 border border-outline rounded-md hover:bg-surface-container-low transition-colors disabled:opacity-50">
-            <Plus size={13} /> Добавить
+            <Icon icon={Add} size={18} /> Добавить
           </button>
         </div>
       )}

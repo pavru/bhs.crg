@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { ClipboardList } from 'lucide-react';
+import { Assignment } from './icons';
 import type { AccessInfo } from '@/shared/api/access';
 import { CommandPalette } from './CommandPalette';
 import { paletteLabels as labels } from '@/shared/testing/palette';
@@ -21,7 +21,7 @@ vi.mock('./navConfig', async importOriginal => {
   return {
     ...real,
     workNav: [...real.workNav, {
-      to: '/progress', label: 'Ход работ', icon: ClipboardList, rail: 'plan',
+      to: '/progress', label: 'Ход работ', icon: Assignment, rail: 'plan',
       permission: ['plan.estimate.read', 'costs.report.read'],
     }],
   };

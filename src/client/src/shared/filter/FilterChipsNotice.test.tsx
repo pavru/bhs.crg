@@ -2,6 +2,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { FilterCondition, FilterNode } from '@/shared/api/types';
+import { SearchOff, Warning, type IconDef } from '@/shared/ui/icons';
 import { FilterChips } from './FilterChips';
 import type { FilterChange } from './chipsModel';
 import type { FilterColumn } from './rowFilterModel';
@@ -51,8 +52,10 @@ describe('FilterChips: пометка значения вне справочни
     });
     expect(container.querySelectorAll('[data-notice]')).toHaveLength(1);
     expect(screen.getAllByLabelText('нет в справочнике')).toHaveLength(1);
-    expect(container.querySelectorAll('.lucide-triangle-alert')).toHaveLength(1);
-    expect(container.querySelectorAll('.lucide-book-x')).toHaveLength(1);
+    // Значок узнаётся по пути: класса с именем, как у lucide, у значка набора нет.
+    const drawn = (icon: IconDef) => [...container.querySelectorAll('path')].filter(p => p.getAttribute('d') === icon.d);
+    expect(drawn(Warning)).toHaveLength(1);
+    expect(drawn(SearchOff)).toHaveLength(1);
   });
 
   it('в окошке чипа — замена на похожее; помеченный отбор применяется', () => {

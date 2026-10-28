@@ -6,7 +6,8 @@ import { useTheme } from '@/shared/ui/themeContext';
 import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
 import { useAssetCompletion } from '@/shared/ui/typstAssetCompletion';
 import { markTypeBlockModel } from '@/shared/ui/typstDispatchCompletion';
-import { Plus, Trash2, Maximize2, Code, AlertCircle, AlertTriangle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Code, Delete, ErrorIcon, OpenInFull, Warning } from '@/shared/ui/icons';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import type { DocumentType } from '@/shared/api/types';
@@ -258,26 +259,26 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
               </div>
               <button type="button" onClick={() => remove(i)}
                 className="p-1 text-fg4 hover:text-error shrink-0">
-                <Trash2 size={13} />
+                <Icon icon={Delete} size={18} />
               </button>
             </div>
             {/* Код правится только в полноэкранном редакторе (не inline, issue #197 Фаза C) */}
             <button type="button" onClick={() => setEditingIndex(i)}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-md border border-outline-variant bg-surface hover:bg-surface-container/50 transition-colors text-left">
-              <Code size={14} className="text-fg4 shrink-0" />
+              <Icon icon={Code} size={18} className="text-fg4 shrink-0" />
               <span className="text-sm text-on-surface-variant flex-1">Редактировать Typst-код</span>
               {problemsByFn?.[r.fnName.trim()] === 'error' && (
                 <Tooltip content="Ошибка сборки блока">
                   <span className="inline-flex items-center gap-1 text-xs text-error shrink-0">
-                    <AlertCircle size={13} /> не собирается
+                    <Icon icon={ErrorIcon} size={18} /> не собирается
                   </span>
                 </Tooltip>
               )}
               {problemsByFn?.[r.fnName.trim()] === 'warning' && (
-                <AlertTriangle size={13} className="text-warning shrink-0" />
+                <Icon icon={Warning} size={18} className="text-warning shrink-0" />
               )}
               <span className="text-xs text-fg4 shrink-0">{lines > 0 ? `${lines} стр.` : 'пусто'}</span>
-              <Maximize2 size={13} className="text-fg4 shrink-0" />
+              <Icon icon={OpenInFull} size={18} className="text-fg4 shrink-0" />
             </button>
             {r.fnName && (
               <p className="text-xs text-fg4">
@@ -291,7 +292,7 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
       })}
       <button type="button" onClick={add}
         className="flex items-center gap-1.5 text-sm text-primary hover:text-brand-hover mt-1">
-        <Plus size={14} /> Добавить вариант
+        <Icon icon={Add} size={18} /> Добавить вариант
       </button>
 
       {editingIndex !== null && renders[editingIndex] && (

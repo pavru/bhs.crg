@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Loader2, FileText, Download, Eye, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Mail, Stethoscope } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { BugReport, CheckCircle, Description, Download, ErrorIcon, Mail, Stethoscope, VerifiedUser, Visibility, Warning } from '@/shared/ui/icons';
 import { useAccess, NO_ACCESS, hasPermission } from '@/shared/api/access';
 import { useEmailDocument } from '@/shared/api/documentSets';
 import { EmailSendDialog } from '../EmailSendDialog';
@@ -28,7 +30,7 @@ function DiagnosticsPanel({ diagnostics, objectName }: { diagnostics: Resolution
   if (diagnostics.length === 0) {
     return (
       <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-success-container text-success">
-        <CheckCircle2 size={15} className="shrink-0" /> Проблем разрешения ссылок не найдено
+        <Icon icon={CheckCircle} size={18} className="shrink-0" /> Проблем разрешения ссылок не найдено
       </div>
     );
   }
@@ -43,8 +45,8 @@ function DiagnosticsPanel({ diagnostics, objectName }: { diagnostics: Resolution
         {[...errors, ...warnings].map((d, i) => (
           <div key={i} className="flex items-start gap-2 px-3 py-2 text-xs">
             {d.severity === 'error'
-              ? <AlertCircle size={14} className="text-error shrink-0 mt-0.5" />
-              : <AlertTriangle size={14} className="text-warning shrink-0 mt-0.5" />}
+              ? <Icon icon={ErrorIcon} size={18} className="text-error shrink-0 mt-0.5" />
+              : <Icon icon={Warning} size={18} className="text-warning shrink-0 mt-0.5" />}
             <div className="min-w-0">
               <div className="text-fg3">Реквизит: <code className="text-on-surface-variant">{d.path}</code></div>
               <p className={d.severity === 'error' ? 'text-error' : 'text-on-surface-variant'}>{d.message}</p>
@@ -161,7 +163,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
     <div className="space-y-5">
       <div className={`p-3 rounded-md text-sm ${STATUS_COLORS[instance.status] ?? 'bg-surface-container-low text-on-surface-variant'}`}>
         Статус: <strong>{STATUS_LABELS[instance.status] ?? instance.status}</strong>
-        {instance.status === 'Generating' && <Loader2 size={14} className="inline-block ml-2 animate-spin" />}
+        {instance.status === 'Generating' && <CircularProgress size={18} className="inline-block ml-2" />}
       </div>
 
       <div className="space-y-1">
@@ -209,17 +211,17 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
 
       <div className="flex gap-3">
         <Button variant="filled" onClick={() => handleGenerate()} disabled={noTemplates}
-          loading={mutation.isPending} icon={<FileText size={14} />}>
+          loading={mutation.isPending} icon={<Icon icon={Description} size={18} />}>
           Сгенерировать PDF
         </Button>
         <Button variant="outlined" onClick={handleValidate} loading={validating}
           title="Проверить разрешение ссылок (каталог, наборы данных) без генерации"
-          icon={<ShieldCheck size={14} />}>
+          icon={<Icon icon={VerifiedUser} size={18} />}>
           Проверить ссылки
         </Button>
         <Button variant="outlined" onClick={() => setAuditOpen(true)}
           title="Найти в документе поля, которых нет в текущей схеме типа, и исправить"
-          icon={<Stethoscope size={14} />}>
+          icon={<Icon icon={Stethoscope} size={18} />}>
           Аудит документа
         </Button>
         <InstanceAuditModal setId={setId} instanceId={instance.id} docName={instance.name || 'без названия'}
@@ -227,13 +229,13 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
         <Button variant="outlined" onClick={handleDebugBundle} disabled={debugBusy || noTemplates}
           loading={debugBusy}
           title="Скачать ZIP с template.typ, data.json, typeblocks.typ и userlib.typ для отладки во внешнем инструменте (typst compile template.typ)"
-          icon={<Bug size={14} />}>
+          icon={<Icon icon={BugReport} size={18} />}>
           Отладочный пакет
         </Button>
       </div>
       {(mutation.isPending || instance.status === 'Generating') && (
         <p className="flex items-center gap-2 text-xs text-fg4">
-          <Loader2 size={12} className="animate-spin shrink-0" />
+          <CircularProgress size={18} className="shrink-0" />
           Генерация PDF может занять несколько секунд — идёт сбор данных и компиляция Typst.
         </p>
       )}
@@ -250,7 +252,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
               <Tooltip content="Отправить сгенерированные PDF документа по почте (подписчикам и/или на внешние адреса)">
                 <button onClick={() => setEmailOpen(true)}
                   className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-outline-variant rounded-md hover:bg-surface-container-low transition-colors">
-                  <Mail size={13} className="text-primary" /> Отправить по почте
+                  <Icon icon={Mail} size={18} className="text-primary" /> Отправить по почте
                 </button>
               </Tooltip>
             )}
@@ -267,11 +269,11 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
                       говорит сама вкладка. */}
                   <button onClick={() => { setError(''); previewGeneratedFile(instance.id, f.templateId).catch((e: Error) => setError(e.message)); }} disabled={busy}
                     className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-outline-variant rounded-md hover:bg-surface-container-low disabled:opacity-40 disabled:pointer-events-none">
-                    <Eye size={13} className="text-primary" /> Открыть
+                    <Icon icon={Visibility} size={18} className="text-primary" /> Открыть
                   </button>
                   <button onClick={() => downloadGeneratedFile(instance.id, f.templateId)} disabled={busy}
                     className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-outline-variant rounded-md hover:bg-surface-container-low disabled:opacity-40 disabled:pointer-events-none">
-                    <Download size={13} className="text-primary" /> Скачать
+                    <Icon icon={Download} size={18} className="text-primary" /> Скачать
                   </button>
                 </div>
               );

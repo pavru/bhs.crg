@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CalendarRange, ClipboardList, Activity } from 'lucide-react';
+import { Assignment, DateRange, Monitoring } from './icons';
 import type { AccessInfo } from '@/shared/api/access';
 import {
   constructionPanels, defaultPanel, panelPageOwners, panelRegistryProblems, panelsAt, type ConstructionPanel,
@@ -20,15 +20,15 @@ function access(permissions: string[], ...open: { code: string }[]): AccessInfo 
 // Панели блока «Работы» — тестовые: «Ход работ» вписывает plan-25, «График» — plan-20. «Сметы» здесь — тестовый
 // вариант настоящих (plan-09): только у стройки, чтобы ветки уровня и адреса раздела было на чём проверить.
 const progress: ConstructionPanel = {
-  id: 'progress', label: 'Ход работ', icon: Activity, block: 'work', levels: ['construction', 'section'],
+  id: 'progress', label: 'Ход работ', icon: Monitoring, block: 'work', levels: ['construction', 'section'],
   section: 'progress', permission: ['plan.estimate.read', 'costs.report.read'],
 };
 const estimates: ConstructionPanel = {
-  id: 'estimates', label: 'Сметы', icon: ClipboardList, block: 'work', levels: ['construction'],
+  id: 'estimates', label: 'Сметы', icon: Assignment, block: 'work', levels: ['construction'],
   module: 'plan', permission: 'plan.estimate.read',
 };
 const schedule: ConstructionPanel = {
-  id: 'schedule', label: 'График', icon: CalendarRange, block: 'work', levels: ['construction'],
+  id: 'schedule', label: 'График', icon: DateRange, block: 'work', levels: ['construction'],
   module: 'plan', permission: 'plan.schedule.read',
 };
 const core = constructionPanels.filter(p => !p.module);
@@ -36,7 +36,7 @@ const registry = [progress, estimates, schedule, ...core];
 const catalog = constructionPanels.find(p => p.id === 'catalog')!;
 
 // Пункт модуля в меню нужен правилу порядка: раздел рейла модуля берётся из его пунктов.
-const planItem: NavItem = { to: '/estimates', label: 'Сметы', icon: ClipboardList, module: 'plan', permission: 'plan.estimate.read', rail: 'plan' };
+const planItem: NavItem = { to: '/estimates', label: 'Сметы', icon: Assignment, module: 'plan', permission: 'plan.estimate.read', rail: 'plan' };
 const nav = [...workNav, planItem];
 
 const ids = (list: { id: string }[]) => list.map(p => p.id);

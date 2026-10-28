@@ -9,7 +9,7 @@ import { formatFieldValue, type FieldTypeDefs } from '@/shared/utils/fieldDispla
  * значение — дату ISO там, где поле внутри того же объекта показывает «ДД.ММ.ГГГГ».
  *
  * Живёт отдельным модулем (issue #663), а не в `ComplexFields.tsx`: функция чистая, и её зовёт
- * `extractToCommonData` — тянуть ради неё в тест всё дерево контролов (Radix, lucide, react-query)
+ * `extractToCommonData` — тянуть ради неё в тест всё дерево контролов (Radix, значки, react-query)
  * значило бы проверять React там, где проверяется текст.
  */
 export function objectSummary(

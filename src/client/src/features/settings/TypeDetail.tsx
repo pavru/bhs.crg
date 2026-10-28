@@ -5,7 +5,8 @@
  * он нужен только предупреждению об удалении.
  */
 import { useState } from 'react';
-import { Trash2, Copy, Database, ShieldCheck } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ContentCopy, Database, Delete, VerifiedUser } from '@/shared/ui/icons';
 import { BindingTemplatesDialog } from './BindingTemplatesDialog';
 import { TypeAuditModal } from './TypeAuditModal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -183,13 +184,13 @@ export function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, 
               onChange={group => groupMutation.mutate({ id: docType.id, group },
                 { onError: e => toast.apiError(e, 'Не удалось изменить группу типа') })} />
             <RowActionsMenu ariaLabel="Действия типа" actions={[
-              { key: 'dup', label: 'Дублировать', icon: <Copy size={14} />, onSelect: onDuplicate },
-              { key: 'audit', label: 'Аудит инстансов', icon: <ShieldCheck size={14} />, onSelect: () => setAuditOpen(true) },
+              { key: 'dup', label: 'Дублировать', icon: <Icon icon={ContentCopy} size={18} />, onSelect: onDuplicate },
+              { key: 'audit', label: 'Аудит инстансов', icon: <Icon icon={VerifiedUser} size={18} />, onSelect: () => setAuditOpen(true) },
               ...(docType.kind === 'Document'
-                ? [{ key: 'tpl', label: 'Шаблоны данных', icon: <Database size={14} />, onSelect: () => setTemplatesOpen(true) }]
+                ? [{ key: 'tpl', label: 'Шаблоны данных', icon: <Icon icon={Database} size={18} />, onSelect: () => setTemplatesOpen(true) }]
                 : []),
               { key: 'del', label: 'Удалить тип', danger: true, disabled: deleteMutation.isPending,
-                icon: <Trash2 size={14} />, onSelect: () => setDeleteConfirmOpen(true) },
+                icon: <Icon icon={Delete} size={18} />, onSelect: () => setDeleteConfirmOpen(true) },
             ]} />
           </>
         } />

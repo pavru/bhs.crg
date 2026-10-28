@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { CircleCheck, Save, Undo2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CheckCircle, Save, Undo } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { EditGrid } from '@/shared/ui/EditGrid';
@@ -325,7 +326,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
           <>
             <InvoiceLinesPaste mode={mode} onAdd={add} />
             {!correcting && (
-              <Button size="sm" variant="filled" icon={<Save size={13} />} disabled={!dirty}
+              <Button size="sm" variant="filled" icon={<Icon icon={Save} size={18} />} disabled={!dirty}
                 loading={replace.isPending} onClick={save}>
                 Сохранить строки
               </Button>
@@ -382,14 +383,14 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
         {/* У отклонённого — тоже возврат: «Разобран» ему сервер откажет словами «верните в черновик». */}
         {still || correcting ? null : parsed || rejected
           ? (
-            <Button size="sm" variant="outlined" icon={<Undo2 size={13} />} loading={state.isPending}
+            <Button size="sm" variant="outlined" icon={<Icon icon={Undo} size={18} />} loading={state.isPending}
               onClick={() => move('draft')}>
               Вернуть в черновик
             </Button>
           )
           : (
             // Перечень пуст — «Разобран» становится главным действием: условия выполнены, осталось решение.
-            <Button size="sm" variant={settled ? 'filled' : 'outlined'} icon={<CircleCheck size={13} />}
+            <Button size="sm" variant={settled ? 'filled' : 'outlined'} icon={<Icon icon={CheckCircle} size={18} />}
               loading={state.isPending} onClick={() => move('parsed')}>
               Разобран
             </Button>

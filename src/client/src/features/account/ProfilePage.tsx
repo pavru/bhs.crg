@@ -11,7 +11,8 @@ import { AppearanceSection } from './AppearanceSection';
 import { MyPermissionsSection } from './MyPermissionsSection';
 import { DefaultWorkspaceSection } from './DefaultWorkspaceSection';
 import { FavoriteSitesSection } from './FavoriteSitesSection';
-import { KeyRound, CheckCircle2, AlertCircle, Mail, Upload, Trash2, Palette, ShieldCheck } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CheckCircle, Delete, ErrorIcon, Key, Mail, Palette, Upload, VerifiedUser } from '@/shared/ui/icons';
 import { PageHeader } from '@/shared/ui/PageHeader';
 
 /** Ответ сервера → имя в форме. Пока учётка не загружена — пусто, как и раньше. */
@@ -104,12 +105,12 @@ export function ProfilePage() {
           className="w-16 h-16 text-xl" />
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
-            <Button type="button" variant="outlined" size="sm" icon={<Upload size={14} />}
+            <Button type="button" variant="outlined" size="sm" icon={<Icon icon={Upload} size={18} />}
               loading={updateAvatar.isPending} onClick={() => avatarInput.current?.click()}>
               {account.avatar ? 'Заменить фото' : 'Загрузить фото'}
             </Button>
             {account.avatar && (
-              <Button type="button" variant="text" size="sm" icon={<Trash2 size={14} />}
+              <Button type="button" variant="text" size="sm" icon={<Icon icon={Delete} size={18} />}
                 loading={updateAvatar.isPending} onClick={removeAvatar}>
                 Удалить
               </Button>
@@ -127,9 +128,9 @@ export function ProfilePage() {
           <div className="flex flex-wrap items-center gap-2 text-sm text-on-surface">
             {account.email}
             {account.emailConfirmed
-              ? <span className="inline-flex items-center gap-1 text-xs text-success"><CheckCircle2 size={13} /> подтверждён</span>
+              ? <span className="inline-flex items-center gap-1 text-xs text-success"><Icon icon={CheckCircle} size={18} /> подтверждён</span>
               : <>
-                  <span className="inline-flex items-center gap-1 text-xs text-warning"><AlertCircle size={13} /> не подтверждён</span>
+                  <span className="inline-flex items-center gap-1 text-xs text-warning"><Icon icon={ErrorIcon} size={18} /> не подтверждён</span>
                   <Button type="button" variant="text" size="sm" loading={resend.isPending} onClick={resendConfirmation}>
                     Отправить письмо
                   </Button>
@@ -160,7 +161,7 @@ export function ProfilePage() {
           <Button type="submit" variant="filled" loading={update.isPending} disabled={!dirty}>
             Сохранить
           </Button>
-          <Button type="button" variant="text" icon={<KeyRound size={14} />} onClick={() => setPwOpen(true)}>
+          <Button type="button" variant="text" icon={<Icon icon={Key} size={18} />} onClick={() => setPwOpen(true)}>
             Сменить пароль
           </Button>
         </div>
@@ -170,7 +171,7 @@ export function ProfilePage() {
           «Настройке системы», где язык лежал за административным правом. */}
       <div className="mt-8 pt-6 border-t border-outline-variant">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface mb-4">
-          <Palette size={15} className="text-fg3" /> Оформление и язык
+          <Icon icon={Palette} size={18} className="text-fg3" /> Оформление и язык
         </h2>
         <AppearanceSection />
       </div>
@@ -185,7 +186,7 @@ export function ProfilePage() {
           этого раздела», который иначе задают администратору. */}
       <div className="mt-8 pt-6 border-t border-outline-variant">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface mb-1">
-          <ShieldCheck size={15} className="text-fg3" /> Мои права
+          <Icon icon={VerifiedUser} size={18} className="text-fg3" /> Мои права
         </h2>
         <p className="text-xs text-fg4 mb-4">
           Что открывают выданные вам роли. Изменить их может только администратор.
@@ -195,7 +196,7 @@ export function ProfilePage() {
 
       <div className="mt-8 pt-6 border-t border-outline-variant">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface mb-1">
-          <Mail size={15} className="text-fg3" /> Сменить email
+          <Icon icon={Mail} size={18} className="text-fg3" /> Сменить email
         </h2>
         <p className="text-xs text-fg4 mb-4">
           Отправим письмо на новый адрес — он станет адресом входа после перехода по ссылке.

@@ -1,6 +1,7 @@
 import { formatDateTime, formatTime } from '@/shared/format/format';
 import { useState } from 'react';
-import { History, ArrowRight, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ArrowForward, ChevronLeft, ChevronRight, HistoryIcon, KeyboardArrowDown } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -50,7 +51,7 @@ function What({ row }: { row: ActivityRow }) {
       <div className="flex items-center gap-2 flex-wrap">
         <span>{row.actionTitle}</span>
         {label && (
-          <Chip icon={open ? ChevronDown : ChevronRight} aria-expanded={open}
+          <Chip icon={open ? KeyboardArrowDown : ChevronRight} aria-expanded={open}
             aria-label={`${label}: ${open ? 'свернуть' : 'показать'} записи`}
             onClick={() => setOpen(o => !o)}>
             <span className="tabular-nums">{label}</span>
@@ -95,7 +96,7 @@ function Change({ record }: { record: ActivityRecord }) {
     return (
       <span className="inline-flex items-center gap-1.5 flex-wrap">
         <span className="text-fg3 line-through decoration-outline/50">{record.before}</span>
-        <ArrowRight size={13} className="text-fg4 shrink-0" />
+        <Icon icon={ArrowForward} size={18} className="text-fg4 shrink-0" />
         <span className="text-on-surface">{record.after}</span>
       </span>
     );
@@ -118,7 +119,7 @@ export function ActivityPage() {
 
   return (
     <div className="px-6 py-4 max-w-5xl">
-      <PageHeader icon={<History size={18} aria-hidden />} title="Журнал действий" className="mb-4" actions={
+      <PageHeader icon={<Icon icon={HistoryIcon} size={18} aria-hidden />} title="Журнал действий" className="mb-4" actions={
         <div className="w-64">
           {/* aria-label обязателен: видимой подписи у отбора нет — её заменяет заголовок рядом,
               а тот читалке отбор не называет, и объявлен он был бы просто «список». */}
@@ -148,9 +149,9 @@ export function ActivityPage() {
               Строки {page * PAGE + 1}–{page * PAGE + records.length} из {total}
             </span>
             <div className="flex items-center gap-2">
-              <Button variant="tonal" disabled={page === 0} icon={<ChevronLeft size={15} />}
+              <Button variant="tonal" disabled={page === 0} icon={<Icon icon={ChevronLeft} size={18} />}
                 onClick={() => setPage(p => Math.max(0, p - 1))}>Новее</Button>
-              <Button variant="tonal" disabled={(page + 1) * PAGE >= total} icon={<ChevronRight size={15} />}
+              <Button variant="tonal" disabled={(page + 1) * PAGE >= total} icon={<Icon icon={ChevronRight} size={18} />}
                 onClick={() => setPage(p => p + 1)}>Раньше</Button>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Check, ChevronDown, LayoutGrid, Settings2 } from 'lucide-react';
+import { Icon } from './Icon';
+import { Check, GridView, KeyboardArrowDown, Settings } from './icons';
 import { useState } from 'react';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
 import { WorkspacesDialog } from '@/features/account/WorkspacesDialog';
@@ -36,7 +37,7 @@ export function WorkspaceSwitcher() {
   const item = (w: Workspace) => (
     <DropdownMenu.Item key={w.key} className={itemCls} onSelect={() => ws.choose(w.key)}
       data-testid="workspace-option">
-      <Check size={14} className={`mt-0.5 shrink-0 ${w.key === ws.current.key ? 'text-primary' : 'invisible'}`} />
+      <Icon icon={Check} size={18} className={`mt-0.5 shrink-0 ${w.key === ws.current.key ? 'text-primary' : 'invisible'}`} />
       <span className="min-w-0">
         <span className="block truncate text-on-surface">{w.name}</span>
         {composition(w) && (
@@ -52,11 +53,11 @@ export function WorkspaceSwitcher() {
         <DropdownMenu.Trigger asChild>
           <button type="button" data-testid="workspace-switcher" aria-label={`Рабочее пространство: ${ws.current.name}`}
             className="flex items-center gap-1.5 min-w-0 max-w-60 h-9 max-md:h-11 pl-3 pr-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-            <LayoutGrid size={16} className="shrink-0 text-fg3" />
+            <Icon icon={GridView} size={18} className="shrink-0 text-fg3" />
             <Tooltip content={composition(ws.current) ?? ws.current.name}>
               <span className="min-w-0 truncate text-sm font-medium text-on-surface">{ws.current.name}</span>
             </Tooltip>
-            <ChevronDown size={14} className="shrink-0 text-fg3" />
+            <Icon icon={KeyboardArrowDown} size={18} className="shrink-0 text-fg3" />
           </button>
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
@@ -77,7 +78,7 @@ export function WorkspaceSwitcher() {
             <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
             {/* Создание — отсюда, последним пунктом (AUTH-16.5): нужда осознаётся при переключении. */}
             <DropdownMenu.Item className={itemCls} onSelect={() => setSetupOpen(true)}>
-              <Settings2 size={14} className="mt-0.5 shrink-0 text-fg3" />
+              <Icon icon={Settings} size={18} className="mt-0.5 shrink-0 text-fg3" />
               <span className="text-on-surface">Настроить пространства…</span>
             </DropdownMenu.Item>
           </DropdownMenu.Content>

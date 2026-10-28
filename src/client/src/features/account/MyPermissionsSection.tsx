@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ChevronRight } from '@/shared/ui/icons';
 import { useMyPermissions } from '@/shared/api/account';
 
 /**
@@ -48,7 +49,7 @@ export function MyPermissionsSection() {
               className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-on-surface rounded-md
                          transition-colors hover:bg-surface-container-low focus-visible:outline-none
                          focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
-              <ChevronRight size={16}
+              <Icon icon={ChevronRight} size={18}
                 className={`text-fg3 shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />
               <span className="flex-1">{group.title}</span>
               <span className="text-xs text-fg4 tabular-nums">{group.permissions.length}</span>

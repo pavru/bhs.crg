@@ -1,8 +1,6 @@
 import { useState } from 'react';
-import {
-  Plus, Trash2, Copy, CaseSensitive, Hash, Calendar, List as ListIcon,
-  CheckCircle2, AlertCircle,
-} from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, CalendarMonth, CheckCircle, ContentCopy, Delete, ErrorIcon, List, MatchCase, Numbers, type IconDef } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
@@ -64,7 +62,7 @@ const DATE_PRECISION_LABEL: Record<DatePrecision, string> = {
   day: 'полная', month: 'месяц и год', year: 'только год',
 };
 
-const baseTypeIcon = (bt: string) => bt === 'number' ? Hash : bt === 'date' ? Calendar : CaseSensitive;
+const baseTypeIcon = (bt: string) => bt === 'number' ? Numbers : bt === 'date' ? CalendarMonth : MatchCase;
 
 /** Проактивный контент «Удаление невозможно» (issue #275): типы документов, использующие тип поля.
  *  Пусто → undefined (диалог в обычном режиме подтверждения). */
@@ -219,13 +217,13 @@ function ConstraintTester({ def }: { def: PrimitiveTypeDef }) {
   const err = has ? validateSample(sample, def) : null;
   const ok = has && !err;
   const placeholder = def.baseType === 'date' ? dateMaskText(def.constraints.datePrecision) : def.baseType === 'number' ? 'например: 42' : 'введите образец';
-  const StatusIcon = ok ? CheckCircle2 : AlertCircle;
+  const statusIcon = ok ? CheckCircle : ErrorIcon;
   const tone = !has ? 'text-fg4' : ok ? 'text-success' : 'text-error';
   return (
     <div>
       <label className="block text-sm font-medium text-on-surface mb-1">Проверка образца</label>
       <div className="flex items-center gap-2 rounded-lg bg-surface-container-low border border-outline-variant px-3 py-2">
-        <StatusIcon size={16} className={`shrink-0 ${tone}`} />
+        <Icon icon={statusIcon} size={18} className={`shrink-0 ${tone}`} />
         <input value={sample} onChange={e => setSample(e.target.value)} placeholder={placeholder} spellCheck={false}
           className="flex-1 min-w-0 bg-transparent text-sm font-mono outline-none text-on-surface placeholder:text-fg4" />
         <Tooltip content={has && !ok ? (err ?? '') : undefined}>
@@ -246,13 +244,13 @@ function BaseTypeSegmented({ value, onChange, disabled }: {
   return (
     <div className={`inline-flex rounded-full border border-outline overflow-hidden ${disabled ? 'opacity-60' : ''}`}>
       {BASE_TYPES.map(bt => {
-        const Icon = baseTypeIcon(bt.value);
+        const icon = baseTypeIcon(bt.value);
         const on = value === bt.value;
         return (
           <button key={bt.value} type="button" disabled={disabled} onClick={() => onChange(bt.value)}
             className={`flex items-center gap-1.5 px-4 py-1.5 text-sm transition-colors disabled:cursor-not-allowed ${
               on ? 'bg-primary-container text-brand-hover font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
-            <Icon size={15} className="shrink-0" /> {bt.label}
+            <Icon icon={icon} size={18} className="shrink-0" /> {bt.label}
           </button>
         );
       })}
@@ -346,8 +344,8 @@ function TypeDetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, 
         <>
           <GroupPicker groups={allGroups} value={group} onChange={onGroup} />
           <RowActionsMenu ariaLabel="Действия типа" actions={[
-            { key: 'dup', label: 'Дублировать', icon: <Copy size={14} />, onSelect: onDuplicate },
-            { key: 'del', label: 'Удалить', danger: true, icon: <Trash2 size={14} />, onSelect: onDelete },
+            { key: 'dup', label: 'Дублировать', icon: <Icon icon={ContentCopy} size={18} />, onSelect: onDuplicate },
+            { key: 'del', label: 'Удалить', danger: true, icon: <Icon icon={Delete} size={18} />, onSelect: onDelete },
           ]} />
         </>
       } />
@@ -556,10 +554,10 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
   const q = query.trim().toLowerCase();
   // Чип во вкладке «Перечисления» = счётчик вариантов (безликое «Перечисление» = шум);
   // в primitive-режиме чип — базовый тип. Единый смысл: одна вторичная метка, различающая строки.
-  type Row = { id: string; name: string; code: string; chip: string; preview: string; icon: React.ComponentType<{ size?: number; className?: string }> };
+  type Row = { id: string; name: string; code: string; chip: string; preview: string; icon: IconDef };
   const allRows: Row[] = mode === 'primitive'
     ? primitives.map(t => ({ id: t.id, name: t.name, code: t.code, chip: BASE_TYPE_LABEL[t.baseType] ?? t.baseType, preview: humanConstraintPreview(t.baseType, t.constraints), icon: baseTypeIcon(t.baseType) }))
-    : enums.map(t => ({ id: t.id, name: t.name, code: t.code, chip: `${t.values.length} вар.`, preview: humanEnumPreview(t.values), icon: ListIcon }));
+    : enums.map(t => ({ id: t.id, name: t.name, code: t.code, chip: `${t.values.length} вар.`, preview: humanEnumPreview(t.values), icon: List }));
   const items = q ? allRows.filter(t => `${t.name} ${t.code}`.toLowerCase().includes(q)) : allRows;
   // Открытый тип, не прошедший поиск, остаётся в рейле отдельной строкой (issue #792): иначе он
   // виден только в детали, а в списке ни строки, ни подсветки.
@@ -568,12 +566,11 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
 
   const typeRow = (t: Row) => {
     const active = t.id === selectedId;
-    const Icon = t.icon;
     return (
       <button key={t.id} type="button" onClick={() => onSelect(t.id)} aria-current={active ? 'true' : undefined}
         className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors ${
           active ? 'bg-primary-container text-brand-hover' : 'hover:bg-surface-container'}`}>
-        <Icon size={17} className={`shrink-0 ${active ? 'text-brand-hover' : 'text-fg4'}`} />
+        <Icon icon={t.icon} size={18} className={`shrink-0 ${active ? 'text-brand-hover' : 'text-fg4'}`} />
         <span className="min-w-0 flex-1">
           {/* Строка 1 — только имя, полный приоритет ширины. */}
           <span className={`block text-sm font-medium truncate ${active ? 'text-brand-hover' : 'text-on-surface'}`}>{t.name}</span>
@@ -695,7 +692,7 @@ export function PrimitiveTypesPage() {
         <ListDetailShell view={ld}
           title="Типы полей"
           subtitle="Пользовательские типы реквизитов (строка/число/дата) и перечисления"
-          actions={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>{addLabel}</Button>}
+          actions={<Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setCreateOpen(true)}>{addLabel}</Button>}
           nav={<FieldTypeListPanel mode={mode} onMode={requestMode}
             primitives={sortedPrim} enums={sortedEnum}
             selectedId={mode === 'primitive' ? (selectedPrim?.id ?? null) : (selectedEnum?.id ?? null)}

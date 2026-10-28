@@ -1,4 +1,5 @@
-import { ArrowUpRight, TriangleAlert } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ArrowOutward, Warning } from '@/shared/ui/icons';
 import type { ClosingLine, ClosingSection } from '@/shared/api/periods';
 import { formatMoney } from '@/shared/format/format';
 import { figure, goneLines, goneSections, localLink, unfinishedSummary, wasText, type ClosingGroup } from './closing';
@@ -79,7 +80,7 @@ function Group({ title, group, section, before, empty, warn }: {
           {lines.map(line => (
             <li key={line.key} className="text-note">
               <div className={`flex items-baseline gap-1.5 ${warn ? 'text-on-surface' : 'text-on-surface-variant'}`}>
-                {warn && <TriangleAlert size={13} className="shrink-0 self-center text-warning" aria-hidden />}
+                {warn && <Icon icon={Warning} size={18} className="shrink-0 self-center text-warning" aria-hidden />}
                 <span className="min-w-0 break-words">
                   {line.text}: <Figure line={line} />
                   <Was text={wasText(before, section.module, group, line)} />
@@ -118,7 +119,7 @@ function Figure({ line }: { line: ClosingLine }) {
       <a href={link} target="_blank" rel="noreferrer"
         className="text-primary hover:underline">
         {text}
-        <ArrowUpRight size={12} className="inline-block align-baseline ml-0.5" aria-hidden />
+        <Icon icon={ArrowOutward} size={18} className="inline-block align-baseline ml-0.5" aria-hidden />
       </a>
     </Tooltip>
   );

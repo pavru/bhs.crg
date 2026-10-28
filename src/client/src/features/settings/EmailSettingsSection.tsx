@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Mail, Send, CheckCircle, XCircle, AlertTriangle, PlugZap } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Cancel, CheckCircle, Mail, Power, Send, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { useServerForm } from '@/shared/hooks/useServerForm';
@@ -107,20 +108,20 @@ export function EmailSettingsSection() {
         </Button>
         <Button variant="outlined" onClick={handleTestConnection} disabled={testConn.isPending || !form.host}
           title="Проверить соединение и аутентификацию по введённым значениям (письмо не отправляется)"
-          icon={<PlugZap size={14} />}>
+          icon={<Icon icon={Power} size={18} />}>
           {testConn.isPending ? 'Проверка...' : 'Проверить подключение'}
         </Button>
         {saved && <span className="text-sm text-success">Сохранено</span>}
-        {saveError && <span className="text-sm text-error flex items-center gap-1"><XCircle size={14} /> {saveError}</span>}
+        {saveError && <span className="text-sm text-error flex items-center gap-1"><Icon icon={Cancel} size={18} /> {saveError}</span>}
         {connResult && (connResult.ok
-          ? <span className="text-sm text-success flex items-center gap-1"><CheckCircle size={14} /> Подключение успешно</span>
-          : <span className="text-sm text-error flex items-center gap-1"><XCircle size={14} /> {connResult.error}</span>
+          ? <span className="text-sm text-success flex items-center gap-1"><Icon icon={CheckCircle} size={18} /> Подключение успешно</span>
+          : <span className="text-sm text-error flex items-center gap-1"><Icon icon={Cancel} size={18} /> {connResult.error}</span>
         )}
       </div>
 
       {/* Тест-отправка */}
       <div className="border-t border-surface-container pt-3 space-y-2">
-        <p className="text-sm font-medium text-on-surface-variant flex items-center gap-1.5"><Send size={14} className="text-fg4" /> Тест-отправка</p>
+        <p className="text-sm font-medium text-on-surface-variant flex items-center gap-1.5"><Icon icon={Send} size={18} className="text-fg4" /> Тест-отправка</p>
         <div className="flex items-center gap-2">
           <input className={fieldCls + ' flex-1'} value={testTo} onChange={e => setTestTo(e.target.value)}
             placeholder="Адрес для проверки" />
@@ -130,14 +131,14 @@ export function EmailSettingsSection() {
           </button>
         </div>
         {testResult && (testResult.ok
-          ? <p className="text-xs text-success flex items-center gap-1"><CheckCircle size={13} /> Письмо отправлено</p>
-          : <p className="text-xs text-error flex items-start gap-1"><XCircle size={13} className="shrink-0 mt-0.5" /> {testResult.error}</p>
+          ? <p className="text-xs text-success flex items-center gap-1"><Icon icon={CheckCircle} size={18} /> Письмо отправлено</p>
+          : <p className="text-xs text-error flex items-start gap-1"><Icon icon={Cancel} size={18} className="shrink-0 mt-0.5" /> {testResult.error}</p>
         )}
       </div>
 
       {/* Проверка email пользователей */}
       <div className="border-t border-surface-container pt-3 space-y-1.5">
-        <p className="text-sm font-medium text-on-surface-variant flex items-center gap-1.5"><Mail size={14} className="text-fg4" /> Email пользователей</p>
+        <p className="text-sm font-medium text-on-surface-variant flex items-center gap-1.5"><Icon icon={Mail} size={18} className="text-fg4" /> Email пользователей</p>
         {userStatus.length === 0 ? (
           <p className="text-xs text-fg4">Нет пользователей</p>
         ) : (
@@ -147,8 +148,8 @@ export function EmailSettingsSection() {
                 <span className="text-on-surface flex-1 min-w-0 truncate">{u.displayName}</span>
                 <span className="text-xs text-fg4 min-w-0 truncate">{u.email || '—'}</span>
                 {u.valid
-                  ? <CheckCircle size={14} className="text-success shrink-0" />
-                  : <AlertTriangle size={14} className="text-warning shrink-0" />}
+                  ? <Icon icon={CheckCircle} size={18} className="text-success shrink-0" />
+                  : <Icon icon={Warning} size={18} className="text-warning shrink-0" />}
               </div>
             ))}
           </div>

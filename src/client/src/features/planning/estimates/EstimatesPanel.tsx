@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Route, Routes, useNavigate, useParams } from 'react-router';
-import { FileSpreadsheet, Upload } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { TableChart, Upload } from '@/shared/ui/icons';
 import { useGetConstruction } from '@/shared/api/constructions';
 import { costHidden, useConstructionEstimates, type Estimate } from '@/shared/api/planningEstimates';
 import { Button } from '@/shared/ui/Button';
@@ -61,7 +62,7 @@ function EstimateList({ constructionId, sectionId, base }: { constructionId: str
           <p className="text-xs text-fg3">План {sectionId ? 'раздела' : 'стройки'} считается по действующим редакциям смет</p>
         </div>
         {editable && (
-          <Button variant="filled" size="sm" icon={<Upload size={16} aria-hidden />} onClick={() => setImporting({})}>Загрузить смету</Button>
+          <Button variant="filled" size="sm" icon={<Icon icon={Upload} size={18} aria-hidden />} onClick={() => setImporting({})}>Загрузить смету</Button>
         )}
       </div>
       {/* На странице раздела — импорты его смет и новых смет раздела. */}
@@ -72,7 +73,7 @@ function EstimateList({ constructionId, sectionId, base }: { constructionId: str
         sectionId={sectionId} importId={importing?.importId}
         onCreated={created => navigate(`${base}/${created.estimateId}`, { state: openingOf(created) })} />
       {items.length === 0 ? (
-        <EmptyState icon={<FileSpreadsheet size={28} aria-hidden />}
+        <EmptyState icon={<Icon icon={TableChart} size={40} aria-hidden />}
           title={sectionId ? 'У раздела смет нет' : 'У стройки смет нет'}
           description="Смета появляется загрузкой файла ЛСР из ГРАНД-Сметы." />
       ) : (

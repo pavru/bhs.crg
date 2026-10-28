@@ -4,7 +4,8 @@ import { AuthCard } from './AuthCard';
 import { TextField } from '@/shared/ui/TextField';
 import { Button } from '@/shared/ui/Button';
 import { useForgotPassword } from '@/shared/api/auth';
-import { MailCheck } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { MarkEmailRead } from '@/shared/ui/icons';
 
 /** Запрос ссылки для сброса пароля (issue #148). Ответ всегда «письмо отправлено»,
  *  существование адреса не раскрываем. */
@@ -24,7 +25,7 @@ export function ForgotPasswordPage() {
       <AuthCard title="Проверьте почту">
         <div className="space-y-4">
           <p className="flex items-start gap-2 text-sm text-on-surface-variant">
-            <MailCheck size={18} className="shrink-0 mt-0.5 text-success" />
+            <Icon icon={MarkEmailRead} size={18} className="shrink-0 mt-0.5 text-success" />
             Если аккаунт с адресом <span className="font-medium">{email.trim()}</span> существует,
             мы отправили письмо со ссылкой для сброса пароля. Ссылка действует 1 час.
           </p>

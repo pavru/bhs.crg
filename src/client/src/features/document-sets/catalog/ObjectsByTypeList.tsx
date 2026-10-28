@@ -1,4 +1,5 @@
-import { Trash2, Link2, FileText, Archive, ArchiveRestore } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Archive, Delete, Description, LinkIcon, Unarchive } from '@/shared/ui/icons';
 import { IconButton } from '@/shared/ui/Button';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import { ARCHIVED_WORD } from '@/shared/ui/archive';
@@ -28,7 +29,7 @@ export function ProxyRoleMarker({ entry, siblings, resolvePool, onOpen }: {
     <Tooltip content="Открыть реальный объект">
       <button type="button" onClick={e => { e.stopPropagation(); onOpen(target); }}
         className="flex items-center gap-1 text-caption text-fg4 hover:text-primary shrink-0 max-w-[180px] truncate transition-colors">
-        <Link2 size={11} className="shrink-0" />→ {target.displayName}{target.archived && ` · ${ARCHIVED_WORD}`}
+        <Icon icon={LinkIcon} size={18} className="shrink-0" />→ {target.displayName}{target.archived && ` · ${ARCHIVED_WORD}`}
       </button>
     </Tooltip>
   );
@@ -60,7 +61,6 @@ export function ObjectRow({
   docKind?: boolean;   // тип-документ во внешнем каталоге — иконка + бейдж (в плотном виде панели)
   className?: string;
 }) {
-  const icon = dense ? 12 : 13;
   // Превью строки: только собственные скалярные поля. Исключаем служебные ключи (`_baseRef` и пр.,
   // с префиксом `_`) — иначе в UI протекал сырой uuid; и составные/массивные значения (объекты) —
   // иначе рендерился `[object Object]` (их содержимое смотрят в редакторе записи).
@@ -77,7 +77,7 @@ export function ObjectRow({
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit(entry); } }}
       aria-label={`Редактировать «${entry.displayName}»`}
       className={`group flex items-center cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset ${dense ? 'gap-3 px-3 py-2 hover:bg-surface-container' : 'gap-4 px-4 py-3 hover:bg-surface-container-low'} ${className}`}>
-      {docKind && dense && <FileText size={12} className="text-warning shrink-0" />}
+      {docKind && dense && <Icon icon={Description} size={18} className="text-warning shrink-0" />}
       {/* Архивная: имя приглушено, но не зачёркнуто — запись цела, её только нет в выборе. */}
       <span className={`flex-1 min-w-[8rem] flex items-center gap-2 text-sm ${entry.archived ? 'text-on-surface-variant' : 'text-on-surface'} ${dense ? '' : 'font-medium'}`}>
         <span className="truncate">{entry.displayName}</span>
@@ -94,13 +94,13 @@ export function ObjectRow({
         {onArchive && (
           <IconButton label={entry.archived ? 'Вернуть из архива' : 'В архив'} size="sm"
             onClick={e => { e.stopPropagation(); onArchive(entry); }} disabled={archiveDisabled}>
-            {entry.archived ? <ArchiveRestore size={icon} /> : <Archive size={icon} />}
+            {entry.archived ? <Icon icon={Unarchive} size={18} /> : <Icon icon={Archive} size={18} />}
           </IconButton>
         )}
         {onDelete && (
           <IconButton label="Удалить" size="sm" danger
             onClick={e => { e.stopPropagation(); onDelete(entry); }} disabled={deleteDisabled}>
-            <Trash2 size={icon} />
+            <Icon icon={Delete} size={18} />
           </IconButton>
         )}
       </div>

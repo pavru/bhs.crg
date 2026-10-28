@@ -1,5 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
-import { Loader2, ShieldCheck, Upload, Eye } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { Upload, VerifiedUser, Visibility } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { apiError } from '@/shared/utils/apiError';
 import { refusalIssues } from '@/shared/api/refusals';
@@ -317,19 +319,19 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
             e.target.value = ''; // иначе повторный выбор того же файла не даёт onChange
             if (f) void handleScan(f);
           }} />
-        <Button variant="outlined" size="sm" icon={<Upload size={14} />} loading={uploading}
+        <Button variant="outlined" size="sm" icon={<Icon icon={Upload} size={18} />} loading={uploading}
           onClick={() => scanInputRef.current?.click()}>
           Скан-копия
         </Button>
         {scan && <span className="text-xs text-fg3 truncate max-w-[180px]" title={scan.fileName}>{scan.fileName}</span>}
         {scan && (
-          <Button variant="text" size="sm" icon={<Eye size={14} />}
+          <Button variant="text" size="sm" icon={<Icon icon={Visibility} size={18} />}
             onClick={() => void openAttachment(scan.blobPath)}>
             Просмотр
           </Button>
         )}
         {scan && (
-          <Button variant="tonal" size="sm" icon={<ShieldCheck size={14} />} loading={recognizing}
+          <Button variant="tonal" size="sm" icon={<Icon icon={VerifiedUser} size={18} />} loading={recognizing}
             onClick={handleRecognize}>
             Распознать скан
           </Button>
@@ -349,7 +351,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
         <Button variant="text" onClick={onCancel}>Отмена</Button>
         {recognizing && (
           <span className="flex items-center gap-1.5 text-xs text-fg3">
-            <Loader2 size={12} className="animate-spin" /> Идёт распознавание — дождитесь завершения перед сохранением…
+            <CircularProgress size={18} /> Идёт распознавание — дождитесь завершения перед сохранением…
           </span>
         )}
       </div>

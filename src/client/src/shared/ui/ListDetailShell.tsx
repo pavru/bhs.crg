@@ -1,6 +1,7 @@
 import { useContext, type ReactNode } from 'react';
 import { ListDetailViewContext as ViewContext, useListDetailView, type ListDetailView } from './listDetailView';
-import { ArrowLeft, ChevronRight } from 'lucide-react';
+import { Icon } from './Icon';
+import { ArrowBack, ChevronRight } from './icons';
 import { Button } from './Button';
 import { PageHeader, type PageHeaderProps } from './PageHeader';
 import { SearchInput } from './SearchInput';
@@ -66,7 +67,7 @@ export function ListDetailShell({ overlay, nav, navWidth = 'w-80', detail, view,
             <div data-testid="ld-detail" className={`flex-1 min-w-0 min-h-0 flex flex-col ${onDetail ? '' : '@max-2xl/ld:hidden'}`}>
               <button type="button" onClick={current.showList}
                 className="@2xl/ld:hidden shrink-0 flex items-center gap-2 h-11 px-4 border-b border-outline-variant text-sm font-medium text-primary hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
-                <ArrowLeft size={16} className="shrink-0" />
+                <Icon icon={ArrowBack} size={18} className="shrink-0" />
                 {backLabel ?? 'К списку'}
               </button>
               {/* `*:min-w-0` — карточке, а не каждой странице: без него широкая таблица в карточке
@@ -155,7 +156,7 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
       {chevron ? (
         <>
           {count != null && <span className="text-xs text-fg4 shrink-0">{count}</span>}
-          <ChevronRight size={14} className="shrink-0 text-fg4" />
+          <Icon icon={ChevronRight} size={18} className="shrink-0 text-fg4" />
         </>
       ) : note ? (
         <span className="text-caption px-1.5 py-0.5 rounded-full shrink-0 bg-surface-container text-fg3">{note}</span>

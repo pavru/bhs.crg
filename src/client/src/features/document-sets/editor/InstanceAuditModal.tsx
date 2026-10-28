@@ -3,7 +3,9 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useToast } from '@/shared/ui/Toast';
-import { CheckCircle2, AlertTriangle, Loader2, Trash2, Wand2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { CheckCircle, Delete, WandStars, Warning } from '@/shared/ui/icons';
 import { useAuditInstance, useApplyInstanceAuditFixes } from '@/shared/api/documentSets';
 import type { AuditFinding } from '@/shared/api/documentTypes';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -63,13 +65,13 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
       <Modal open={open} onOpenChange={o => { if (!o) onClose(); }} title={`Аудит документа «${docName}»`} wide>
         {isLoading ? (
           <div className="flex items-center gap-2 py-8 justify-center text-fg4 text-sm">
-            <Loader2 size={16} className="animate-spin" /> Проверка…
+            <CircularProgress size={18} /> Проверка…
           </div>
         ) : isError ? (
           <p className="text-sm text-error py-6 text-center">Не удалось выполнить аудит.</p>
         ) : total === 0 ? (
           <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-success-container text-success">
-            <CheckCircle2 size={15} className="shrink-0" /> Документ соответствует текущей схеме — исправлять нечего.
+            <Icon icon={CheckCircle} size={18} className="shrink-0" /> Документ соответствует текущей схеме — исправлять нечего.
           </div>
         ) : (
           <div className="space-y-4">
@@ -80,7 +82,7 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
             {groups.map(([code, items]) => (
               <div key={code} className="rounded-md border border-outline-variant overflow-hidden">
                 <div className="flex items-center gap-2 px-3 py-2 bg-surface-container-low text-xs font-medium text-on-surface-variant">
-                  <AlertTriangle size={13} className="text-warning shrink-0" />
+                  <Icon icon={Warning} size={18} className="text-warning shrink-0" />
                   {CATEGORY_LABEL[code] ?? code}
                   <span className="text-fg4 font-normal">· {items.length}</span>
                 </div>
@@ -107,12 +109,12 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
                           {/* Для расхождения с типом приведение — исправление, а удаление — потеря
                               значения; поэтому оно первое и без подтверждения (issue #643). */}
                           {f.code === 'value-type' && (
-                            <Button variant="text" size="sm" icon={<Wand2 size={13} />}
+                            <Button variant="text" size="sm" icon={<Icon icon={WandStars} size={18} />}
                               disabled={applyFixes.isPending} onClick={() => apply('coerce', f.path)}>
                               Привести к типу
                             </Button>
                           )}
-                          <Button variant="text" size="sm" danger icon={<Trash2 size={13} />}
+                          <Button variant="text" size="sm" danger icon={<Icon icon={Delete} size={18} />}
                             disabled={applyFixes.isPending} onClick={() => setConfirm(f)}>
                             Удалить
                           </Button>

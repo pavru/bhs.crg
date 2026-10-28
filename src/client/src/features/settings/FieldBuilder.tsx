@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Plus, Trash2, Cpu, GripVertical, ChevronDown, ChevronUp, Lock, Link2, FunctionSquare, AlertTriangle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Delete, DragIndicator, FunctionIcon, KeyboardArrowDown, KeyboardArrowUp, LinkIcon, LockIcon, Memory, Warning } from '@/shared/ui/icons';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Button } from '@/shared/ui/Button';
@@ -324,7 +325,7 @@ export function FieldCard({
       {/* Свёрнутая шапка карточки: drag handle + сводка + chip типа + chevron */}
       <div className="flex items-center gap-2 pl-2 pr-3 py-2 hover:bg-surface-container/40 transition-colors"
         draggable onDragStart={onDragStart} onDragEnd={onDragEnd}>
-        <GripVertical size={15} className="text-fg4 shrink-0 cursor-grab" />
+        <Icon icon={DragIndicator} size={18} className="text-fg4 shrink-0 cursor-grab" />
         <button type="button" onClick={onToggleOpen}
           className="flex-1 min-w-0 flex items-center gap-2 text-left">
           <span className="min-w-0 flex-1">
@@ -339,7 +340,7 @@ export function FieldCard({
           {chips.slice(0, 2).map(tc => <FunctionalTagBadge key={tc} registry={tagRegistry} entry={tc} />)}
           {chips.length > 2 && <span className="text-caption text-fg4 shrink-0">+{chips.length - 2}</span>}
           <span className="text-xs px-2 py-0.5 rounded-full bg-surface-container text-fg3 shrink-0">{fieldTypeSummary(field, reg)}</span>
-          {open ? <ChevronUp size={16} className="text-fg4 shrink-0" /> : <ChevronDown size={16} className="text-fg4 shrink-0" />}
+          {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-fg4 shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" />}
         </button>
       </div>
       {open && (
@@ -373,13 +374,13 @@ export function FieldCard({
             <Tooltip content="Изменить ключ (осторожно: осиротит данные документов)" name>
               <button type="button" onClick={() => setConfirmUnlock(true)}
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-fg4 hover:text-on-surface-variant">
-                <Lock size={13} />
+                <Icon icon={LockIcon} size={18} />
               </button>
             </Tooltip>
           ) : keyAutoNew ? (
             <Tooltip content="Ключ авто-генерируется из названия">
               <span className="absolute right-2 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none">
-                <Link2 size={13} />
+                <Icon icon={LinkIcon} size={18} />
               </span>
             </Tooltip>
           ) : null}
@@ -389,14 +390,14 @@ export function FieldCard({
           <button type="button" onClick={() => setPickerOpen(true)}
             className="flex items-center justify-between gap-1 border border-outline rounded-md px-2 py-1.5 text-sm bg-surface hover:bg-surface-container/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <span className="truncate text-left">{fieldTypeSummary(field, reg)}</span>
-            <ChevronDown size={14} className="text-fg4 shrink-0" />
+            <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" />
           </button>
         </Tooltip>
         {/* Required (у расчётного поля неприменимо — заменяется меткой ƒ) */}
         {field.computed ? (
           <Tooltip content="Расчётное поле — значение вычисляется формулой">
             <span className="flex items-center justify-center gap-1 text-caption text-primary">
-              <FunctionSquare size={12} /> вычисл.
+              <Icon icon={FunctionIcon} size={18} /> вычисл.
             </span>
           </Tooltip>
         ) : (
@@ -416,14 +417,14 @@ export function FieldCard({
             isFirst={!!isFirst} isLast={!!isLast} />
           <button type="button" onClick={onRemove}
             className="p-1 text-fg4 hover:text-error">
-            <Trash2 size={12} />
+            <Icon icon={Delete} size={18} />
           </button>
         </div>
       </div>
       {/* Предупреждение о дрейфе данных при изменённом ключе существующего поля (issue #355). */}
       {keyChanged && (
         <p className="text-xs text-error flex items-start gap-1.5">
-          <Lock size={12} className="shrink-0 mt-0.5" />
+          <Icon icon={LockIcon} size={18} className="shrink-0 mt-0.5" />
           <span>Ключ изменён с «<span className="font-mono">{savedKey}</span>» — данные существующих
             документов останутся под старым ключом (осиротеют). Перенос старый→новый — через «Аудит»
             (переименование осиротевшего ключа в поле схемы).</span>
@@ -434,7 +435,7 @@ export function FieldCard({
           спорило бы с первым. */}
       {similarKey && !keyConflict && (
         <p className="text-xs text-warning flex items-start gap-1.5">
-          <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+          <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
           <span>Ключ похож на «<span className="font-mono">{similarKey}</span>» — опечатка? Два почти
             одинаковых ключа дают в форме два поля, а в данных — две несвязанные ячейки.</span>
         </p>
@@ -462,7 +463,7 @@ export function FieldCard({
               className="w-4 h-4 rounded border-outline text-primary"
             />
             <span className="text-xs text-on-surface-variant flex items-center gap-1">
-              <FunctionSquare size={13} className="text-primary" /> Вычисляемое (формула)
+              <Icon icon={FunctionIcon} size={18} className="text-primary" /> Вычисляемое (формула)
             </span>
           </label>
           {/* Подсказка по введённому ранее (issue #1533): флажок, причина вместо него или ничего. */}
@@ -542,14 +543,14 @@ export function FieldCard({
                   onChange({ options: opts });
                 }}
                 className="p-0.5 text-fg4 hover:text-error">
-                <Trash2 size={11} />
+                <Icon icon={Delete} size={18} />
               </button>
             </div>
           ))}
           <button type="button"
             onClick={() => onChange({ options: [...(field.options ?? []), ''] })}
             className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover">
-            <Plus size={11} /> Добавить вариант
+            <Icon icon={Add} size={18} /> Добавить вариант
           </button>
         </div>
       )}
@@ -558,14 +559,14 @@ export function FieldCard({
           значило бы оставить поле с невидимой меткой, которая оживёт при включении модуля. */}
       {unknownTags.length > 0 && (
         <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)] flex items-start gap-2">
-          <Cpu size={12} className="mt-1 text-stroke-strong" />
+          <Icon icon={Memory} size={18} className="mt-1 text-stroke-strong" />
           <span className="text-xs text-fg4 shrink-0 w-28 mt-1">Тэги модуля:</span>
           <div className="flex flex-wrap gap-1.5">
             {unknownTags.map(code => (
               <Tooltip key={code} content="Тэг модуля, выключенного на этом экземпляре. Значение остаётся в схеме и заработает, когда модуль включат.">
                 <span
                   className="inline-flex items-center gap-1 rounded-full border border-dashed border-outline-variant px-2 py-0.5 text-caption text-fg4">
-                  <Lock size={9} />{code}
+                  <Icon icon={LockIcon} size={18} />{code}
                 </span>
               </Tooltip>
             ))}
@@ -575,7 +576,7 @@ export function FieldCard({
       {/* Функциональные тэги поля (для primitive — из типа поля, иначе из реестра) */}
       {applicableTags.length > 0 && (
         <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)] flex items-start gap-2">
-          <Cpu size={12} className={`mt-1 ${chips.length ? 'text-tertiary' : 'text-stroke-strong'}`} />
+          <Icon icon={Memory} size={18} className={`mt-1 ${chips.length ? 'text-tertiary' : 'text-stroke-strong'}`} />
           <span className="text-xs text-fg4 shrink-0 w-28 mt-1">Функц. тэги:</span>
           <div className="flex flex-wrap gap-1.5">
             {applicableTags.map(t => {
@@ -687,7 +688,7 @@ export function FieldBuilder({ fields, onChange, disabledKeys, persistedKeys, co
           onDrop={dragIndex !== null ? () => { move(dragIndex, i); setDragIndex(null); } : undefined}
         />
       ))}
-      <Button type="button" variant="tonal" onClick={add} icon={<Plus size={14} />} className="w-full justify-center">
+      <Button type="button" variant="tonal" onClick={add} icon={<Icon icon={Add} size={18} />} className="w-full justify-center">
         Добавить поле
       </Button>
     </div>

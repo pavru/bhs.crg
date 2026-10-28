@@ -1,4 +1,5 @@
-import { Lock } from 'lucide-react';
+import { Icon } from './Icon';
+import { LockIcon } from './icons';
 import type { MissingAccess } from './navAccess';
 
 /**
@@ -23,7 +24,7 @@ export function NoAccessPage({ what, missing }: {
   return (
     <div className="flex h-full items-center justify-center p-8">
       <div className="max-w-md space-y-4 text-center">
-        <Lock size={40} className="mx-auto text-fg4" aria-hidden />
+        <Icon icon={LockIcon} size={40} className="mx-auto text-fg4" aria-hidden />
 
         <h1 className="text-xl font-medium text-on-surface">
           {what === undefined ? 'Нет доступных разделов' : `Раздел «${what}» недоступен`}

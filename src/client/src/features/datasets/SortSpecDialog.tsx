@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Delete } from '@/shared/ui/icons';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { useChangedSince } from '@/shared/hooks/useChangedSince';
@@ -52,7 +53,7 @@ function SortRow({
         className="rounded shrink-0" upTitle="Выше приоритетом" downTitle="Ниже приоритетом" />
       <Tooltip content="Удалить" name>
         <button type="button" onClick={onRemove} className="p-1 rounded text-fg4 hover:text-error shrink-0">
-          <Trash2 size={12} />
+          <Icon icon={Delete} size={18} />
         </button>
       </Tooltip>
     </div>
@@ -154,7 +155,7 @@ export function SortSpecDialog({
         onClick={addLevel}
         className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md text-primary bg-primary-container"
       >
-        <Plus size={13} /> Добавить уровень сортировки
+        <Icon icon={Add} size={18} /> Добавить уровень сортировки
       </button>
 
       {refusal && <p role="alert" className="mt-3 text-xs text-error">{refusal}</p>}

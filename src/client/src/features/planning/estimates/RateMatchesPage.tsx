@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Bookmark, Crosshair, Trash2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Bookmark, Delete, MyLocation } from '@/shared/ui/icons';
 import { useCan } from '@/shared/api/access';
 import {
   useForgetMatch, useMatchList, type MatchIssue, type MatchListKind, type RateMatch, type ResourceMatch,
@@ -31,7 +32,7 @@ export function RateMatchesPage() {
   return (
     <div className="h-full overflow-auto">
       <div className="mx-auto max-w-5xl px-6 py-5 space-y-4">
-        <PageHeader icon={<Bookmark size={18} aria-hidden />} title="Запомненные сопоставления"
+        <PageHeader icon={<Icon icon={Bookmark} size={18} aria-hidden />} title="Запомненные сопоставления"
           subtitle="Что импорт смет подставляет сам: шифры — видами работ, ресурсы — позициями номенклатуры" />
         <Tabs id="match-lists" value={tab} onChange={setTab}
           items={[{ value: 'rate', label: 'Шифры расценок' }, { value: 'resource', label: 'Материалы' }]} />
@@ -145,8 +146,8 @@ function actionsColumn<T>(onPoint: (m: T) => void, onForget: (m: T) => void): Da
     key: 'actions', label: 'Действия', width: 'w-12',
     cell: m => (
       <RowActionsMenu actions={[
-        { key: 'point', label: 'Перенацелить…', icon: <Crosshair size={16} />, onSelect: () => onPoint(m) },
-        { key: 'forget', label: 'Забыть…', icon: <Trash2 size={16} />, danger: true, onSelect: () => onForget(m) },
+        { key: 'point', label: 'Перенацелить…', icon: <Icon icon={MyLocation} size={18} />, onSelect: () => onPoint(m) },
+        { key: 'forget', label: 'Забыть…', icon: <Icon icon={Delete} size={18} />, danger: true, onSelect: () => onForget(m) },
       ]} />
     ),
   };

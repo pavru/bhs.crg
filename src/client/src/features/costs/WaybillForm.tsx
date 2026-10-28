@@ -1,6 +1,7 @@
 import { LOST, MISSING } from './lostReferences';
 import { useEffect, useRef, useState } from 'react';
-import { CircleCheck, PencilLine, RefreshCw, Save, TriangleAlert, Undo2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CheckCircle, EditNote, Refresh, Save, Undo, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
@@ -265,24 +266,24 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
           {!mayEdit && <span className="text-xs text-fg3">Только чтение: права вводить накладные нет</span>}
           {canEdit && !posted && (
             <>
-              <Button size="sm" variant="outlined" icon={<Save size={13} />} disabled={!dirty || busy}
+              <Button size="sm" variant="outlined" icon={<Icon icon={Save} size={18} />} disabled={!dirty || busy}
                 loading={save.isPending} onClick={() => void saveDraft()}>
                 Сохранить
               </Button>
-              <Button size="sm" variant="filled" icon={<CircleCheck size={13} />} disabled={busy}
+              <Button size="sm" variant="filled" icon={<Icon icon={CheckCircle} size={18} />} disabled={busy}
                 loading={state.isPending} onClick={() => void post()}>
                 Провести
               </Button>
             </>
           )}
           {correctable && !correcting && (
-            <Button size="sm" variant="outlined" icon={<PencilLine size={13} />} disabled={busy}
+            <Button size="sm" variant="outlined" icon={<Icon icon={EditNote} size={18} />} disabled={busy}
               onClick={() => setCorrecting(true)}>
               Исправить
             </Button>
           )}
           {canEdit && posted && !closed && (
-            <Button size="sm" variant="outlined" icon={<Undo2 size={13} />} disabled={busy}
+            <Button size="sm" variant="outlined" icon={<Icon icon={Undo} size={18} />} disabled={busy}
               loading={state.isPending} onClick={() => void backToDraft()}>
               Вернуть в черновик
             </Button>
@@ -293,7 +294,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
         {gone && (
           <div role="alert" data-testid="waybill-gone-open" className="flex items-start gap-2 rounded-lg border
             border-error/30 bg-error-container px-3 py-2 text-xs text-error">
-            <TriangleAlert size={13} className="shrink-0 mt-0.5" />
+            <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <p className="flex-1">
               Этой накладной больше нет — её удалили, пока она была открыта у вас. Набранное осталось на
               экране: перенесите нужное себе. Сохранить его уже некуда.
@@ -304,19 +305,19 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
         {outdated && !gone && (
           <div role="alert" className="flex items-start gap-2 rounded-lg border border-error/30
             bg-error-container px-3 py-2 text-xs text-error">
-            <TriangleAlert size={13} className="shrink-0 mt-0.5" />
+            <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <span className="flex-1">
               Накладную тем временем изменили. Ваши правки на экране целы, но сохранить их поверх нельзя —
               сервер откажет. Перечитайте накладную и внесите правки заново.
             </span>
-            <Button size="sm" variant="outlined" icon={<RefreshCw size={13} />} onClick={() => adopt(fresh)}>
+            <Button size="sm" variant="outlined" icon={<Icon icon={Refresh} size={18} />} onClick={() => adopt(fresh)}>
               Перечитать, отбросив правки
             </Button>
           </div>
         )}
         {note && (
           <p role="status" className="flex items-start gap-2 text-xs text-warning">
-            <TriangleAlert size={13} className="shrink-0 mt-0.5" />{note}
+            <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />{note}
           </p>
         )}
         {closed && !correcting && <WaybillLockNote closed={closed} correctable={correctable} />}

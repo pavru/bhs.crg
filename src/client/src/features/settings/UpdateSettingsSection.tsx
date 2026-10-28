@@ -1,5 +1,6 @@
 import { formatDateTime, formatTime } from '@/shared/format/format';
-import { RefreshCw } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Refresh } from '@/shared/ui/icons';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Button } from '@/shared/ui/Button';
 import { useServerForm } from '@/shared/hooks/useServerForm';
@@ -86,7 +87,7 @@ export function UpdateSettingsSection() {
         onChange={v => void toggleProxy(v)} />
 
       <div className="flex items-center gap-3 flex-wrap">
-        <Button type="button" variant="outlined" size="sm" icon={<RefreshCw size={14} />}
+        <Button type="button" variant="outlined" size="sm" icon={<Icon icon={Refresh} size={18} />}
           loading={check.isPending} disabled={!enabled}
           onClick={() => check.mutate()}>
           Проверить сейчас

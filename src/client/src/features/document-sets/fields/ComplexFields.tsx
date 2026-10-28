@@ -11,7 +11,8 @@
  * (`./AutoFieldsSection`) и чистые помощники (`./complexFieldHelpers`).</p>
  */
 import { useState, useEffect, useRef } from 'react';
-import { AlertTriangle, ChevronDown, ChevronUp, FileSpreadsheet, GripVertical, Info, Link2, Pencil, Plus, RefreshCw, Share2, Trash2, Unlink } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Delete, DragIndicator, Edit, Info, KeyboardArrowDown, KeyboardArrowUp, LinkIcon, LinkOff, Refresh, Share, TableChart, Warning } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
 import { useOwnWindow } from '@/shared/ui/modalControl';
@@ -284,7 +285,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
             }}
             aria-label={`Переместить строку ${i + 1}: стрелки вверх и вниз`}
             className="shrink-0 cursor-grab active:cursor-grabbing text-fg4 hover:text-on-surface-variant focus-visible:outline-none focus-visible:text-primary">
-            <GripVertical size={12} />
+            <Icon icon={DragIndicator} size={18} />
           </button>
         </Tooltip>
         <span className={`text-xs font-mono w-5 text-right shrink-0 ${danger ? 'text-error' : 'text-fg4'}`}>
@@ -337,8 +338,8 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         <button type="button" onClick={toggleCollapsed}
           className="flex items-center gap-1.5 min-w-0 text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors">
           {collapsed
-            ? <ChevronDown size={12} className="shrink-0 text-fg4" />
-            : <ChevronUp size={12} className="shrink-0 text-fg4" />}
+            ? <Icon icon={KeyboardArrowDown} size={18} className="shrink-0 text-fg4" />
+            : <Icon icon={KeyboardArrowUp} size={18} className="shrink-0 text-fg4" />}
           <span className="truncate">{field.title}</span>
           {compositeType && compositeType.name !== field.title && (
             <span className="text-xs text-fg4 font-normal shrink-0">({compositeType.name})</span>
@@ -354,7 +355,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
             <span className="text-xs text-on-surface-variant px-1">Выбрано: {chosen.length}</span>
             <button type="button" onClick={() => setConfirmBulk(true)}
               className="flex items-center gap-1 text-xs text-error hover:text-error px-2 py-0.5 rounded hover:bg-error-container transition-colors">
-              <Trash2 size={11} /> Удалить выбранные
+              <Icon icon={Delete} size={18} /> Удалить выбранные
             </button>
             <button type="button" onClick={() => setSelected(new Set())}
               className="text-xs text-fg4 hover:text-on-surface-variant px-2 py-0.5 rounded hover:bg-outline-variant transition-colors">
@@ -366,18 +367,18 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
           {hasTableFields && (
             <button type="button" onClick={() => setTableOpen(true)}
               className="flex items-center gap-1 text-xs text-fg3 hover:text-on-surface-variant px-2 py-0.5 rounded hover:bg-outline-variant transition-colors">
-              <FileSpreadsheet size={11} /> Таблица
+              <Icon icon={TableChart} size={18} /> Таблица
             </button>
           )}
           {compositeType && (
             <button type="button" onClick={() => setCatalogPickerOpen(true)}
               className="flex items-center gap-1 text-xs text-warning hover:text-warning px-2 py-0.5 rounded hover:bg-warning-container transition-colors">
-              <Link2 size={11} /> Из каталога
+              <Icon icon={LinkIcon} size={18} /> Из каталога
             </button>
           )}
           <button type="button" onClick={addRow}
             className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover px-2 py-0.5 rounded hover:bg-primary-container transition-colors">
-            <Plus size={11} /> Добавить строку
+            <Icon icon={Add} size={18} /> Добавить строку
           </button>
         </div>
         )}
@@ -397,10 +398,10 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                     <div {...dropTarget(i)}
                       className={`flex items-center gap-2 px-3 py-2 ${BROKEN_PLATE} ${selectedRing(i)}`}>
                       {rowChrome(i, true)}
-                      <Link2 size={12} className="text-error shrink-0" />
+                      <Icon icon={LinkIcon} size={18} className="text-error shrink-0" />
                       <span className={`flex-1 text-sm truncate ${BROKEN_LABEL}`}>{item.displayName}</span>
                       <button type="button" onClick={() => removeItem(i)}
-                        className="p-1 text-error hover:text-on-surface shrink-0"><Trash2 size={13} /></button>
+                        className="p-1 text-error hover:text-on-surface shrink-0"><Icon icon={Delete} size={18} /></button>
                     </div>
                     <BrokenRefNote compact />
                   </div>
@@ -410,12 +411,12 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                 <div key={i} {...dropTarget(i)}
                   className={`flex items-center gap-2 px-3 py-2 ${selected.has(i) ? 'bg-primary-container' : 'hover:bg-surface-container-low'}`}>
                   {rowChrome(i)}
-                  <Link2 size={12} className="text-warning shrink-0" />
+                  <Icon icon={LinkIcon} size={18} className="text-warning shrink-0" />
                   <span className="flex-1 text-sm text-warning truncate">{item.displayName}</span>
                   <ArchivedRefMark value={item} />
                   <button type="button" onClick={() => removeItem(i)}
                     className="p-1 text-fg4 hover:text-error shrink-0">
-                    <Trash2 size={13} />
+                    <Icon icon={Delete} size={18} />
                   </button>
                 </div>
               );
@@ -441,7 +442,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                     ? `${BROKEN_PLATE} ${selectedRing(i)}`
                     : selected.has(i) ? 'bg-primary-container' : 'hover:bg-surface-container-low'}`}>
                   {rowChrome(i, wrappedBroken)}
-                  <Link2 size={12} className={`shrink-0 ${wrappedBroken ? 'text-error' : 'text-warning'}`} />
+                  <Icon icon={LinkIcon} size={18} className={`shrink-0 ${wrappedBroken ? 'text-error' : 'text-warning'}`} />
                   <span className={`flex-1 text-sm truncate ${wrappedBroken ? BROKEN_LABEL : 'text-warning'}`}>{wrapped.ref.displayName}</span>
                   <ArchivedRefMark value={wrapped.ref} />
                   <span className="text-caption text-fg4 shrink-0 truncate max-w-[40%]">{wrapped.label}</span>
@@ -449,12 +450,12 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   <Tooltip content="Редактировать" name>
                     <button type="button" onClick={() => setRowModal(i)}
                       className="p-1 text-fg4 hover:text-on-surface-variant shrink-0">
-                      <Pencil size={13} />
+                      <Icon icon={Edit} size={18} />
                     </button>
                   </Tooltip>
                   <button type="button" onClick={() => removeItem(i)}
                     className="p-1 text-fg4 hover:text-error shrink-0">
-                    <Trash2 size={13} />
+                    <Icon icon={Delete} size={18} />
                   </button>
                 </div>
                 {wrappedBroken && <BrokenRefNote compact />}
@@ -480,19 +481,19 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                 {extraVariants.length > 1 && (
                   <Tooltip content={overfilledNote(extraVariants)}>
                     <span className="flex items-center gap-1 text-caption text-warning shrink-0" role="img" aria-label={overfilledNote(extraVariants)}>
-                      <AlertTriangle size={12} /> вариантов: {extraVariants.length}
+                      <Icon icon={Warning} size={18} /> вариантов: {extraVariants.length}
                     </span>
                   </Tooltip>
                 )}
                 <Tooltip content="Редактировать" name>
                   <button type="button" onClick={() => setRowModal(i)}
                     className="p-1 text-fg4 hover:text-on-surface-variant shrink-0">
-                    <Pencil size={13} />
+                    <Icon icon={Edit} size={18} />
                   </button>
                 </Tooltip>
                 <button type="button" onClick={() => removeItem(i)}
                   className="p-1 text-fg4 hover:text-error shrink-0">
-                  <Trash2 size={13} />
+                  <Icon icon={Delete} size={18} />
                 </button>
               </div>
             );
@@ -514,7 +515,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               {/* Вынос строки в переиспользуемую запись (issue #663) — по одной: массовый вынос
                   отдельной задачей, у него свой selection-state. */}
               {canExtract ? (
-                <Button variant="text" size="sm" icon={<Share2 size={13} />}
+                <Button variant="text" size="sm" icon={<Icon icon={Share} size={18} />}
                   // Строка-ссылка выносу не подлежит: получилась бы запись, всё содержимое которой —
                   // ссылка на другую запись, то есть лишнее звено в цепочке (у неё есть предел, #723).
                   // ComplexFieldGroup такую ветку до выноса не доводит вовсе; у массива защиты не было.
@@ -698,18 +699,18 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
       return (
         <div>
           <div className={`flex items-center gap-1.5 rounded-lg pl-3 pr-1.5 py-1.5 ${BROKEN_PLATE}`}>
-            <Link2 size={16} className="text-error shrink-0" />
+            <Icon icon={LinkIcon} size={18} className="text-error shrink-0" />
             <span className={`flex-1 text-sm font-medium truncate ${BROKEN_LABEL}`}>{value.displayName}</span>
             <Tooltip content="Заменить ссылку" name>
               <button type="button" onClick={() => setPickerOpen(true)}
                 className="p-1.5 rounded-full text-error hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0">
-                <RefreshCw size={14} />
+                <Icon icon={Refresh} size={18} />
               </button>
             </Tooltip>
             <Tooltip content="Снять ссылку" name>
               <button type="button" onClick={() => onChange({})}
                 className="p-1.5 rounded-full text-error hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0">
-                <Unlink size={14} />
+                <Icon icon={LinkOff} size={18} />
               </button>
             </Tooltip>
           </div>
@@ -780,12 +781,12 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
           </button>
           <button type="button" onClick={() => setPickerOpen(true)}
             className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover px-2 py-0.5 rounded hover:bg-primary-container transition-colors shrink-0">
-            <Link2 size={11} /> Из каталога
+            <Icon icon={LinkIcon} size={18} /> Из каталога
           </button>
           <Tooltip content="Редактировать" name>
             <button type="button" onClick={() => setModalOpen(true)}
               className="p-1 text-fg4 hover:text-on-surface-variant transition-colors shrink-0">
-              <Pencil size={13} />
+              <Icon icon={Edit} size={18} />
             </button>
           </Tooltip>
         </div>
@@ -796,7 +797,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
               {/* Команда идёт в футер уже существующей модалки, а не четвёртой иконкой в ряд поля
                   (issue #663): ряд и так несёт три действия. */}
               {canExtract ? (
-                <Button variant="text" size="sm" icon={<Share2 size={13} />} disabled={isEmpty}
+                <Button variant="text" size="sm" icon={<Icon icon={Share} size={18} />} disabled={isEmpty}
                   title={isEmpty ? 'Нечего выносить — объект пуст' : undefined}
                   onClick={() => setExtractOpen(true)}>
                   Вынести в общие данные…
@@ -820,10 +821,10 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
       <div className="border border-dashed border-outline-variant rounded-lg px-3 py-3 bg-surface-container-low/40">
         <div className="text-sm text-fg3 mb-2">{compositeType ? compositeType.name : 'Составной тип'}</div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="tonal" size="sm" icon={<Link2 size={13} />} onClick={() => setPickerOpen(true)}>
+          <Button variant="tonal" size="sm" icon={<Icon icon={LinkIcon} size={18} />} onClick={() => setPickerOpen(true)}>
             Выбрать из каталога
           </Button>
-          <Button variant="text" size="sm" icon={<Pencil size={13} />} onClick={() => setCollapsed(false)}>
+          <Button variant="text" size="sm" icon={<Icon icon={Edit} size={18} />} onClick={() => setCollapsed(false)}>
             Заполнить вручную
           </Button>
         </div>
@@ -838,7 +839,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
       <div className={`flex items-center justify-between px-3 py-2 bg-surface-container-low ${collapsed ? '' : 'border-b border-outline-variant'}`}>
         <button type="button" onClick={() => setCollapsed(v => !v)}
           className="flex items-center gap-1.5 min-w-0 text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors">
-          {collapsed ? <ChevronDown size={12} className="shrink-0 text-fg4" /> : <ChevronUp size={12} className="shrink-0 text-fg4" />}
+          {collapsed ? <Icon icon={KeyboardArrowDown} size={18} className="shrink-0 text-fg4" /> : <Icon icon={KeyboardArrowUp} size={18} className="shrink-0 text-fg4" />}
           <span className="truncate">
             {isEmpty
               ? <span className="text-fg4 font-normal">{compositeType ? compositeType.name : 'Составной тип'}</span>
@@ -848,7 +849,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
         <div className="flex items-center gap-1 shrink-0">
           <button type="button" onClick={() => setPickerOpen(true)}
             className="flex items-center gap-1.5 text-xs text-primary hover:text-brand-hover px-2 py-0.5 rounded hover:bg-primary-container transition-colors">
-            <Link2 size={11} /> Выбрать из каталога
+            <Icon icon={LinkIcon} size={18} /> Выбрать из каталога
           </button>
           {/* Обратное движение (issue #663) — в kebab, а не четвёртой кнопкой: конвенция «>3 действий
               в ряду → меню». У пустого объекта прячем меню целиком: пункт в нём ровно один, и
@@ -856,7 +857,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
               В футерах модалок тот же случай выражен как disabled — там кнопка не одна. */}
           {canExtract && !isEmpty && (
             <RowActionsMenu ariaLabel="Действия составного поля" actions={[{
-              key: 'extract', label: 'Вынести в общие данные…', icon: <Share2 size={14} />,
+              key: 'extract', label: 'Вынести в общие данные…', icon: <Icon icon={Share} size={18} />,
               onSelect: () => setExtractOpen(true),
             }]} />
           )}
@@ -975,13 +976,13 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
   const overfilled = filledVariants(subValues, subFields);
   const chip = overfilled.length > 1 ? (
     <span className="text-caption text-warning flex items-start gap-1" role="alert">
-      <AlertTriangle size={11} className="shrink-0 mt-0.5" />
+      <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
       <span>{overfilledNote(overfilled)}</span>
     </span>
   ) : (
     <Tooltip content="Заполняется ровно один из вариантов">
       <span className="text-caption text-fg4 flex items-center gap-1 shrink-0">
-        <Info size={11} /> заполните одно из
+        <Icon icon={Info} size={18} /> заполните одно из
       </span>
     </Tooltip>
   );
@@ -1013,13 +1014,13 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
           {overfilled.length > 1 && (
             <Tooltip content={overfilledNote(overfilled)}>
               <span className="flex items-center gap-1 text-caption text-warning shrink-0" role="img" aria-label={overfilledNote(overfilled)}>
-                <AlertTriangle size={12} /> вариантов: {overfilled.length}
+                <Icon icon={Warning} size={18} /> вариантов: {overfilled.length}
               </span>
             </Tooltip>
           )}
           <Tooltip content="Редактировать" name>
             <button type="button" onClick={() => setModalOpen(true)}
-              className="p-1 text-fg4 hover:text-on-surface-variant transition-colors shrink-0"><Pencil size={13} /></button>
+              className="p-1 text-fg4 hover:text-on-surface-variant transition-colors shrink-0"><Icon icon={Edit} size={18} /></button>
           </Tooltip>
         </div>
         <Modal open={modalOpen} onOpenChange={setModalOpen} wide title={field.title}

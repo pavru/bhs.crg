@@ -1,7 +1,8 @@
 import { formatDateTime } from '@/shared/format/format';
 import { useState, useEffect, useRef } from 'react';
 import { Navigate, useNavigate, useParams, useSearchParams, Link } from 'react-router';
-import { Plus, Trash2, Download, Pencil, FolderOpen, Eye, GripVertical, Copy, FolderInput, FolderOutput, Layers, FileText, Mail, Database, Table2, Users, AlertTriangle, Target } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, ContentCopy, Database, Delete, Description, Download, DragIndicator, DriveFileMove, Edit, FolderCopy, FolderOpen, Group, Layers, Mail, Table, Target, Visibility, Warning } from '@/shared/ui/icons';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
@@ -192,20 +193,20 @@ export function SetDetail() {
 
   const nav = (
     <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2 space-y-0.5">
-      <NavItem icon={<FileText size={17} />} label="Документы" count={set.instances.length}
+      <NavItem icon={<Icon icon={Description} size={18} />} label="Документы" count={set.instances.length}
         active={activePanel === 'documents'} onClick={() => goPanel('documents')} />
       <NavSection label="Этот комплект" />
-      <NavItem icon={<Database size={17} />} label="Каталог" active={activePanel === 'catalog'} onClick={() => goPanel('catalog')} />
-      <NavItem icon={<Table2 size={17} />} label="Наборы данных" active={activePanel === 'datasets'} onClick={() => goPanel('datasets')} />
-      <NavItem icon={<Users size={17} />} label="Подписчики" active={activePanel === 'subscribers'} onClick={() => goPanel('subscribers')} />
+      <NavItem icon={<Icon icon={Database} size={18} />} label="Каталог" active={activePanel === 'catalog'} onClick={() => goPanel('catalog')} />
+      <NavItem icon={<Icon icon={Table} size={18} />} label="Наборы данных" active={activePanel === 'datasets'} onClick={() => goPanel('datasets')} />
+      <NavItem icon={<Icon icon={Group} size={18} />} label="Подписчики" active={activePanel === 'subscribers'} onClick={() => goPanel('subscribers')} />
       {/* План — рядом с ресурсами комплекта, а не в настройках: сколько документов должно быть,
           решают там же, где их и заводят. */}
-      <NavItem icon={<Target size={17} />} label="План"
+      <NavItem icon={<Icon icon={Target} size={18} />} label="План"
         progress={plan?.own.percent ?? null}
         active={activePanel === 'plan'} onClick={() => goPanel('plan')} />
       {/* Проблемы живут здесь, а не в разделе «Сверка»: комплект — тот уровень, где их разбирают. */}
       {canReconcile && (
-        <NavItem icon={<AlertTriangle size={17} />} label="Проблемы"
+        <NavItem icon={<Icon icon={Warning} size={18} />} label="Проблемы"
           count={problems?.needsAttention || undefined}
           active={activePanel === 'issues'} onClick={() => goPanel('issues')} />
       )}
@@ -217,22 +218,22 @@ export function SetDetail() {
       {activePanel === 'documents' && (
         <>
           {output && (
-            <Button variant="outlined" size="sm" icon={<Download size={15} />} onClick={() => downloadSetOutput(set.id, set.name)}
+            <Button variant="outlined" size="sm" icon={<Icon icon={Download} size={18} />} onClick={() => downloadSetOutput(set.id, set.name)}
               title={`Собран ${formatDateTime(output.generatedAt)}`}>Скачать</Button>
           )}
           {canSend && output && (
-            <Button variant="outlined" size="sm" icon={<Mail size={15} />} onClick={() => setEmailKitOpen(true)}
+            <Button variant="outlined" size="sm" icon={<Icon icon={Mail} size={18} />} onClick={() => setEmailKitOpen(true)}
               title="Отправить собранный комплект по почте">Почта</Button>
           )}
-          <Button variant="tonal" size="sm" icon={<Layers size={15} />} loading={assembleMutation.isPending || watching}
+          <Button variant="tonal" size="sm" icon={<Icon icon={Layers} size={18} />} loading={assembleMutation.isPending || watching}
             disabled={assembleMutation.isPending || watching || set.instances.length === 0} onClick={handleAssemble}
             title="Собрать все документы комплекта в один PDF">Собрать</Button>
-          <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddDocOpen(true)}>Добавить документ</Button>
+          <Button variant="filled" size="sm" icon={<Icon icon={Add} size={18} />} onClick={() => setAddDocOpen(true)}>Добавить документ</Button>
         </>
       )}
       <RowActionsMenu ariaLabel="Действия комплекта" actions={[
-        { key: 'rename', label: 'Переименовать', icon: <Pencil size={14} />, onSelect: () => { setRenameSetVal(set.name); setRenameSetOpen(true); } },
-        { key: 'delete', label: 'Удалить комплект', icon: <Trash2 size={14} />, danger: true, onSelect: () => setDeleteSetConfirm(true) },
+        { key: 'rename', label: 'Переименовать', icon: <Icon icon={Edit} size={18} />, onSelect: () => { setRenameSetVal(set.name); setRenameSetOpen(true); } },
+        { key: 'delete', label: 'Удалить комплект', icon: <Icon icon={Delete} size={18} />, danger: true, onSelect: () => setDeleteSetConfirm(true) },
       ]} />
     </>
   );
@@ -246,13 +247,13 @@ export function SetDetail() {
             <button type="button" draggable
               onDragStart={() => setDragIndex(index)} onDragEnd={endDrag}
               className="cursor-grab active:cursor-grabbing text-fg4 hover:text-on-surface-variant shrink-0 focus-visible:outline-none focus-visible:text-primary" aria-label={`Переместить документ ${index + 1} перетаскиванием`}>
-              <GripVertical size={14} />
+              <Icon icon={DragIndicator} size={18} />
             </button>
           </Tooltip>
           <div className="flex flex-col items-center -my-1">
             <MoveButtons onUp={() => moveDoc(index, -1)} onDown={() => moveDoc(index, 1)}
               isFirst={index === 0} isLast={index === lastIndex}
-              busy={reorderMutation.isPending} size={13}
+              busy={reorderMutation.isPending}
               className="hover:text-primary transition-colors" />
           </div>
         </div>
@@ -283,12 +284,12 @@ export function SetDetail() {
                 <Tooltip content="Открыть PDF">
                   <button onClick={() => previewGeneratedFile(inst.id, pdfFiles[0].templateId).catch((e: Error) => toast.error(e.message))}
                     className="flex items-center gap-1 px-2 py-1 text-xs border border-outline-variant rounded hover:bg-primary-container hover:border-primary-container text-on-surface-variant hover:text-brand-hover transition-colors">
-                    <Eye size={11} /> PDF
+                    <Icon icon={Visibility} size={18} /> PDF
                   </button>
                 </Tooltip>
                 <IconButton label="Скачать PDF" size="sm"
                   onClick={() => downloadGeneratedFile(inst.id, pdfFiles[0].templateId)}>
-                  <Download size={13} />
+                  <Icon icon={Download} size={18} />
                 </IconButton>
               </>
             )}
@@ -296,7 +297,7 @@ export function SetDetail() {
               <Tooltip content="Несколько PDF — открыть документ для выбора">
                 <button onClick={() => openDocument(inst)}
                   className="flex items-center gap-1 px-2 py-1 text-xs border border-outline-variant rounded hover:bg-primary-container hover:border-primary-container text-on-surface-variant hover:text-brand-hover transition-colors">
-                  <Eye size={11} /> {pdfFiles.length} PDF
+                  <Icon icon={Visibility} size={18} /> {pdfFiles.length} PDF
                 </button>
               </Tooltip>
             )}
@@ -306,15 +307,15 @@ export function SetDetail() {
     { key: 'actions', label: '', width: 'w-10', align: 'right', interactive: true,
       cell: inst => (
         <RowActionsMenu ariaLabel="Действия документа" actions={[
-          { key: 'dup', label: 'Дублировать', icon: <Copy size={14} />,
+          { key: 'dup', label: 'Дублировать', icon: <Icon icon={ContentCopy} size={18} />,
             disabled: duplicateMutation.isPending,
             onSelect: () => duplicateMutation.mutate({ setId: set.id, instanceId: inst.id },
               { onError: e => toast.apiError(e, 'Не удалось дублировать документ') }) },
-          { key: 'copy', label: 'Скопировать в комплект', icon: <FolderInput size={14} />,
+          { key: 'copy', label: 'Скопировать в комплект', icon: <Icon icon={FolderCopy} size={18} />,
             onSelect: () => setCopyInstance(inst) },
-          { key: 'move', label: 'Перенести в комплект', icon: <FolderOutput size={14} />,
+          { key: 'move', label: 'Перенести в комплект', icon: <Icon icon={DriveFileMove} size={18} />,
             onSelect: () => setMoveInstance(inst) },
-          { key: 'del', label: 'Удалить документ', icon: <Trash2 size={14} />, danger: true,
+          { key: 'del', label: 'Удалить документ', icon: <Icon icon={Delete} size={18} />, danger: true,
             disabled: deleteMutation.isPending, onSelect: () => setDeleteTarget(inst) },
         ]} />
       ) },
@@ -327,9 +328,9 @@ export function SetDetail() {
 
       {set.instances.length === 0 ? (
         <div className="bg-surface border border-outline-variant rounded-xl overflow-hidden">
-          <EmptyState className="m-4 border-0" icon={<FileText size={30} />} title="В комплекте пока нет документов"
+          <EmptyState className="m-4 border-0" icon={<Icon icon={Description} size={40} />} title="В комплекте пока нет документов"
             description="Добавьте документ нужного типа — заполните реквизиты и сгенерируйте PDF."
-            action={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setAddDocOpen(true)}>Добавить документ</Button>} />
+            action={<Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setAddDocOpen(true)}>Добавить документ</Button>} />
         </div>
       ) : (
         <DataGrid columns={documentColumns} rows={set.instances} rowKey={inst => inst.id} onRowOpen={openDocument}
@@ -362,7 +363,7 @@ export function SetDetail() {
 
   return (
     <>
-      <ListDetailShell title={set.name} icon={<FolderOpen size={20} />} breadcrumb={contextCrumbs}
+      <ListDetailShell title={set.name} icon={<Icon icon={FolderOpen} size={20} />} breadcrumb={contextCrumbs}
         badge={<PlanProgressBadge progress={plan?.own} />}
         actions={headerAction} nav={nav} detail={detail} backLabel="К разделам" />
 

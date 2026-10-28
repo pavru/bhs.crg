@@ -1,5 +1,6 @@
 import { useId, useRef, useState } from 'react';
-import { Plus, Trash2, GitBranch } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { AccountTree, Add, Delete } from '@/shared/ui/icons';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import type { FilterCondition, FilterGroup, RowFilterDef } from '@/shared/api/types';
@@ -72,7 +73,7 @@ function FilterConditionRow({
             onClick={onRemove}
             className="p-1 rounded opacity-0 group-hover/cond:opacity-100 transition-all text-fg4 hover:text-error"
           >
-            <Trash2 size={12} />
+            <Icon icon={Delete} size={18} />
           </button>
         </Tooltip>
       </div>
@@ -140,7 +141,7 @@ function FilterGroupEditor({
           onClick={addCondition}
           className="flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors text-on-surface-variant bg-surface-container hover:bg-primary-container"
         >
-          <Plus size={11} /> Условие
+          <Icon icon={Add} size={18} /> Условие
         </button>
         {depth < 2 && (
           <button
@@ -148,7 +149,7 @@ function FilterGroupEditor({
             onClick={addSubGroup}
             className="flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors text-on-surface-variant bg-surface-container hover:bg-primary-container"
           >
-            <GitBranch size={11} /> Группа
+            <Icon icon={AccountTree} size={18} /> Группа
           </button>
         )}
         {onRemove && (
@@ -158,7 +159,7 @@ function FilterGroupEditor({
               onClick={onRemove}
               className="flex items-center gap-1 text-xs px-2 py-1 rounded ml-auto transition-colors text-fg4 hover:text-error"
             >
-              <Trash2 size={11} /> Удалить группу
+              <Icon icon={Delete} size={18} /> Удалить группу
             </button>
           </Tooltip>
         )}

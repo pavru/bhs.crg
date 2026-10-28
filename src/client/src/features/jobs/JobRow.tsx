@@ -1,14 +1,16 @@
-import { createElement, useEffect, useState, type ComponentType } from 'react';
-import { Loader2, X, ScanText, FileText, Layers, Activity } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { Close, Description, DocumentScanner, Layers, Monitoring, type IconDef } from '@/shared/ui/icons';
 import { useCancelJob, type ActiveJob } from '@/shared/api/jobs';
 import { IconButton } from '@/shared/ui/Button';
 
 /** Иконка типа задачи по kind (для аватара-статуса). */
-function kindIcon(kind: string): ComponentType<{ size?: number; className?: string }> {
-  if (/recogni|распозн/i.test(kind)) return ScanText;
-  if (/generat|генер/i.test(kind)) return FileText;
+function kindIcon(kind: string): IconDef {
+  if (/recogni|распозн/i.test(kind)) return DocumentScanner;
+  if (/generat|генер/i.test(kind)) return Description;
   if (/assembl|сбор|kit/i.test(kind)) return Layers;
-  return Activity;
+  return Monitoring;
 }
 
 /** Прошедшее время задачи m:ss (от старта, иначе от постановки). */
@@ -43,12 +45,9 @@ export function JobRow({ job }: { job: ActiveJob }) {
       {/* Аватар-статус: иконка типа в круге + вращающийся спиннер-кольцо (indeterminate). */}
       <div className="relative w-10 h-10 shrink-0">
         <div className="absolute inset-0 rounded-full bg-surface-container flex items-center justify-center text-fg3">
-          {/* Через createElement, а не <Icon/>: локальная переменная с большой буквы читается
-              линтом как компонент, ОПРЕДЕЛЁННЫЙ в рендере, — а здесь это готовый компонент,
-              выбранный из модульного набора по виду задачи (issue #858). */}
-          {createElement(kindIcon(job.kind), { size: 18 })}
+          <Icon icon={kindIcon(job.kind)} size={18} />
         </div>
-        <Loader2 size={40} className="absolute inset-0 animate-spin motion-reduce:animate-none text-primary" strokeWidth={2} />
+        <CircularProgress size={40} className="absolute inset-0 text-primary" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -64,7 +63,7 @@ export function JobRow({ job }: { job: ActiveJob }) {
       {queued && (
         <IconButton label="Отменить задачу" title="Отменить (задача ещё в очереди)" danger
           onClick={() => cancel.mutate(job.id)} disabled={cancel.isPending}>
-          <X size={16} />
+          <Icon icon={Close} size={18} />
         </IconButton>
       )}
     </div>

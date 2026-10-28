@@ -1,5 +1,6 @@
 import { useState, type DragEvent, type ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Close } from '@/shared/ui/icons';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { carriesFiles, droppedFiles, useFileDragActive } from '@/shared/ui/fileDrop';
 import { ruCount } from '@/shared/utils/pluralize';
@@ -102,7 +103,7 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
       <div className="flex items-start gap-2">
         <p className={`flex-1 ${bad ? 'text-error' : 'text-on-surface-variant'}`}>{batchTitle(batch)}</p>
         {batch.phase === 'running' && <Button size="sm" onClick={stopBatch}>Остановить</Button>}
-        {done && <IconButton label="Закрыть" size="sm" onClick={dismissBatch}><X size={14} /></IconButton>}
+        {done && <IconButton label="Закрыть" size="sm" onClick={dismissBatch}><Icon icon={Close} size={18} /></IconButton>}
       </div>
       {!done && (
         <div className="h-1 rounded bg-surface-container overflow-hidden" aria-hidden>

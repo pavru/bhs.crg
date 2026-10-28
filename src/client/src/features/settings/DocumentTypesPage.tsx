@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { Plus, ChevronRight, Folder, FileText, Boxes } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, ChevronRight, Description, Folder, Widgets } from '@/shared/ui/icons';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -137,7 +138,7 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
         <ListDetailShell view={ld}
           title={title}
           subtitle={kind === 'Composite' ? 'Переиспользуемые структуры полей для использования внутри типов документов' : undefined}
-          actions={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>{addLabel}</Button>}
+          actions={<Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setCreateOpen(true)}>{addLabel}</Button>}
           overlay={overlay}
           nav={<TypeListPanel
             groupOrder={groupOrder} byGroup={byGroup} allDocTypes={allDocTypes}
@@ -214,14 +215,14 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
 
   const typeRow = (t: DocumentType) => {
     const active = t.id === selectedId;
-    const Icon = t.kind === 'Composite' ? Boxes : FileText;
+    const icon = t.kind === 'Composite' ? Widgets : Description;
     return (
       <button key={t.id} type="button" onClick={() => onSelect(t.id)}
         ref={active ? activeRow : undefined}
         aria-current={active ? 'true' : undefined}
         className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left transition-colors ${
           active ? 'bg-primary-container text-brand-hover font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
-        <Icon size={17} className="shrink-0" />
+        <Icon icon={icon} size={18} className="shrink-0" />
         <span className="flex-1 truncate text-sm">{t.name}</span>
         <span className="text-xs text-fg4 shrink-0">{fieldCount(t, allDocTypes)}</span>
       </button>
@@ -258,8 +259,8 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
               <button type="button" onClick={() => toggleGroup(g)}
                 aria-expanded={open}
                 className="w-full flex items-center gap-1.5 px-3 pt-3 pb-1 text-caption font-semibold uppercase tracking-wide text-fg4 hover:text-on-surface-variant transition-colors">
-                <ChevronRight size={12} className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
-                <Folder size={12} className="shrink-0" />
+                <Icon icon={ChevronRight} size={18} className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
+                <Icon icon={Folder} size={18} className="shrink-0" />
                 <span className="truncate flex-1 text-left">{g || 'Без группы'}</span>
                 <span className="opacity-70">{items.length}</span>
               </button>

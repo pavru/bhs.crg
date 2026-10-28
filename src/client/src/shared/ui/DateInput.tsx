@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
-import { CalendarDays, X } from 'lucide-react';
+import { Icon } from './Icon';
+import { CalendarMonth, Close } from './icons';
 import type { DatePrecision } from '@/shared/api/types';
 import { IconButton } from './Button';
 import { Calendar } from './Calendar';
@@ -127,7 +128,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
     },
   });
 
-  const problemMark = <SegmentProblemMark id={problemId} problem={problem} showIcon={!onProblem} compact={compact} />;
+  const problemMark = <SegmentProblemMark id={problemId} problem={problem} showIcon={!onProblem} />;
 
   // Рамка обвязки (issue #1464) — как у `Select`: кольцо, пока фокус внутри или открыт календарь.
   const frame = !size ? '' : [
@@ -140,7 +141,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   // Крестик поля формы — один на обе ветки: у «не даты» и у сегментов (макет #1463, вариант В).
   const clearButton = !compact && size !== 'sm' && clearable && (
     <IconButton label="Очистить дату" size="sm" onClick={clear} className={`-my-1.5 ${CLEAR_REVEAL}`}>
-      <X size={16} />
+      <Icon icon={Close} size={18} />
     </IconButton>
   );
 
@@ -174,7 +175,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
               className={`shrink-0 flex items-center justify-center rounded-full text-fg4 hover:text-primary hover:bg-black/5 dark:hover:bg-white/10 transition disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                 size === 'sm' ? SM_TRIGGER : '-my-1.5 h-8 w-8'} ${
                 compact ? `${COMPACT_TRIGGER} opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100` : ''}`}>
-              <CalendarDays size={compact || size === 'sm' ? 14 : 16} />
+              <Icon icon={CalendarMonth} size={18} />
             </button>
           </Popover.Trigger>
         )}

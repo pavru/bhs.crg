@@ -1,4 +1,5 @@
-import { ArrowUp, ArrowDown } from 'lucide-react';
+import { Icon } from './Icon';
+import { ArrowDownward, ArrowUpward, type IconSize } from './icons';
 import { Tooltip } from './Tooltip';
 
 /**
@@ -14,7 +15,7 @@ import { Tooltip } from './Tooltip';
  */
 export function MoveButtons({
   onUp, onDown, isFirst, isLast, busy = false,
-  size = 12, className = '', upTitle = 'Выше', downTitle = 'Ниже',
+  size = 18, className = '', upTitle = 'Выше', downTitle = 'Ниже',
 }: {
   onUp: () => void;
   onDown: () => void;
@@ -23,7 +24,7 @@ export function MoveButtons({
   /** Перестановка временно недоступна (например, сохраняется предыдущая) — по той же причине
    *  не `disabled`: фокус нужен пользователю ПОСЛЕ того, как сохранение закончится. */
   busy?: boolean;
-  size?: number;
+  size?: IconSize;
   /** Доп. классы для каждой кнопки (отступы/цвета конкретного редактора). */
   className?: string;
   upTitle?: string;
@@ -36,12 +37,12 @@ export function MoveButtons({
     <>
       <Tooltip content={upTitle} name>
         <button type="button" onClick={() => { if (!upBlocked) onUp(); }} aria-disabled={upBlocked} className={cls}>
-          <ArrowUp size={size} />
+          <Icon icon={ArrowUpward} size={size} />
         </button>
       </Tooltip>
       <Tooltip content={downTitle} name>
         <button type="button" onClick={() => { if (!downBlocked) onDown(); }} aria-disabled={downBlocked} className={cls}>
-          <ArrowDown size={size} />
+          <Icon icon={ArrowDownward} size={size} />
         </button>
       </Tooltip>
     </>

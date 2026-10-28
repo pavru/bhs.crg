@@ -12,6 +12,9 @@
 //
 //   npm run md3:migrate            — перевести src/ и напечатать отчёт
 //   npm run md3:migrate -- --check — только проверить: код 1, если есть что менять
+//
+// Вторым проходом — значки lucide → Material Symbols (md3-icons-migrate.mjs, sharedui-md3-03): по уже
+// переведённому тексту, потому что оба прохода правят className.
 
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
@@ -20,6 +23,7 @@ import { CLASS_AFTER, CLASS_BEFORE, COLOR_UTILITIES, stripComments } from './cla
 import { entries, themeDir } from './md3-theme.mjs';
 import theme from '../src/theme/md3-theme.json' with { type: 'json' };
 import classMap from './md3-class-map.json' with { type: 'json' };
+import { formatIconReport, migrateIcons } from './md3-icons-migrate.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const clientRoot = join(here, '..');
@@ -199,8 +203,17 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const files = (roots.length ? roots : [join(clientRoot, 'src')]).flatMap(r => sourceFiles(r));
   const report = migrateFiles(files, { write: !check });
   console.log(formatReport(report, { check }));
-  if (check && report.some(r => r.replaced.length)) {
-    console.error('\nЕсть старые имена с парой в карте — выполните npm run md3:migrate и закоммитьте.');
+  const icons = migrateIcons(files);
+  if (icons.unknown.length) {
+    console.error(`\nЗначки lucide вне таблицы scripts/md3-icon-map.json — значки не записаны:\n${
+      icons.unknown.map(u => `  ${u.name}: ${u.where.join(', ')}`).join('\n')}\n`
+      + 'Допишите их в таблицу (symbol — имя файла @material-symbols/svg-400/outlined) и в manifest.json.');
+    process.exit(1);
+  }
+  if (!check) for (const f of icons.files) if (f.changes) writeFileSync(f.path, f.text, 'utf8');
+  console.log(`\n${formatIconReport(icons, { check })}`);
+  if (check && (report.some(r => r.replaced.length) || icons.files.some(f => f.changes))) {
+    console.error('\nЕсть старые имена с парой в карте или значки lucide — выполните npm run md3:migrate и закоммитьте.');
     process.exit(1);
   }
 }

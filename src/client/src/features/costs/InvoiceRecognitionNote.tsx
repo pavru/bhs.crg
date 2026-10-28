@@ -1,4 +1,6 @@
-import { Loader2, RefreshCw, ScanLine, TriangleAlert } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { DocumentScanner, Refresh, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { useToast } from '@/shared/ui/Toast';
 import { useStartRecognition, type InvoiceRecognition } from '@/shared/api/invoiceRecognition';
@@ -19,7 +21,7 @@ export function RecognitionChip({ recognition }: { recognition: InvoiceRecogniti
   if (recognition?.state !== 'running') return null;
   return (
     <span className="inline-flex items-center gap-1 text-xs text-on-surface-variant" role="status">
-      <Loader2 size={12} className="animate-spin" aria-hidden /> Распознаётся…
+      <CircularProgress size={18} /> Распознаётся…
       {recognition.progress && <span className="text-fg3">{recognition.progress}</span>}
     </span>
   );
@@ -46,7 +48,7 @@ export function RecognitionBanner({ invoiceId, recognition, unread, onRetryRead,
     return (
       <Strip quiet>
         <span className="flex-1">Состояние распознавания не пришло — это не «не распознан».</span>
-        <Button size="sm" variant="outlined" icon={<RefreshCw size={12} />} onClick={onRetryRead}>Повторить</Button>
+        <Button size="sm" variant="outlined" icon={<Icon icon={Refresh} size={18} />} onClick={onRetryRead}>Повторить</Button>
       </Strip>
     );
   }
@@ -60,7 +62,7 @@ export function RecognitionBanner({ invoiceId, recognition, unread, onRetryRead,
           {canEdit && !recognition.canStart && recognition.whyNot && ` Распознать ещё раз нельзя: ${recognition.whyNot}.`}
         </span>
         {canEdit && recognition.canStart && (
-          <Button size="sm" variant="outlined" icon={<RefreshCw size={12} />} loading={start.isPending}
+          <Button size="sm" variant="outlined" icon={<Icon icon={Refresh} size={18} />} loading={start.isPending}
             onClick={() => start.mutateAsync(invoiceId).catch(e => toast.apiError(e, 'Распознавание не запущено'))}>
             Распознать ещё раз
           </Button>
@@ -87,7 +89,7 @@ export function RecognitionBanner({ invoiceId, recognition, unread, onRetryRead,
       )}
       {/* Сам файл не читается (#1343): повтор на том же файле даст то же самое — путь только другой файл. */}
       {canEdit && recognition.canStart && recognition.reason !== 'BadFile' && (
-        <Button size="sm" variant="outlined" icon={<RefreshCw size={12} />} loading={start.isPending}
+        <Button size="sm" variant="outlined" icon={<Icon icon={Refresh} size={18} />} loading={start.isPending}
           onClick={() => start.mutateAsync(invoiceId).catch(e => toast.apiError(e, 'Распознавание не запущено'))}>
           Распознать ещё раз
         </Button>
@@ -113,7 +115,7 @@ export function RecognitionStart({ invoiceId, recognition, explain }: {
   if (!recognition.canStart)
     return explain && recognition.whyNot ? <span className="text-xs text-fg3">Не распознаётся: {recognition.whyNot}</span> : null;
   return (
-    <Button size="sm" variant="outlined" icon={<ScanLine size={13} />} loading={start.isPending}
+    <Button size="sm" variant="outlined" icon={<Icon icon={DocumentScanner} size={18} />} loading={start.isPending}
       onClick={() => start.mutateAsync(invoiceId).catch(e => toast.apiError(e, 'Распознавание не запущено'))}>
       Распознать файл
     </Button>
@@ -170,7 +172,7 @@ function Strip({ quiet, children }: { quiet: boolean; children: React.ReactNode 
       className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${quiet
         ? 'border-outline-variant bg-surface-container text-on-surface-variant'
         : 'border-error/30 bg-error-container text-error'}`}>
-      {quiet ? <ScanLine size={14} className="shrink-0 mt-0.5 text-fg3" /> : <TriangleAlert size={14} className="shrink-0 mt-0.5" />}
+      {quiet ? <Icon icon={DocumentScanner} size={18} className="shrink-0 mt-0.5 text-fg3" /> : <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />}
       {children}
     </div>
   );

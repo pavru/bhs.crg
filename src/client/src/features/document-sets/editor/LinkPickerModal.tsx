@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { ShieldCheck, Search, Globe, ExternalLink, Download, Eye } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Download, Language, OpenInNew, Search, VerifiedUser, Visibility } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { apiError } from '@/shared/utils/apiError';
 import { Button } from '@/shared/ui/Button';
@@ -178,7 +179,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                     : queryTokens.length > 0 ? 'По материалу в библиотеке ничего не найдено.'
                     : 'Нет подходящих (непросроченных) документов.'}
                 </p>
-                <Button variant="filled" size="sm" onClick={enterSearch} icon={<Globe size={14} />}>
+                <Button variant="filled" size="sm" onClick={enterSearch} icon={<Icon icon={Language} size={18} />}>
                   Искать в интернете
                 </Button>
               </div>
@@ -187,7 +188,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                 {visible.map(({ d, expired, validUntil, score }) => (
                   <div key={d.id} className="flex items-center gap-2 px-3 py-2 hover:bg-primary-container transition-colors">
                     <button onClick={() => onPick(d)} className="flex-1 flex items-center gap-2 min-w-0 text-left">
-                      <ShieldCheck size={14} className={expired ? 'text-fg4 shrink-0' : 'text-primary shrink-0'} />
+                      <Icon icon={VerifiedUser} size={18} className={expired ? 'text-fg4 shrink-0' : 'text-primary shrink-0'} />
                       {/* Номер документа рядом с именем (issue #588): два сертификата в библиотеке
                           назывались одинаково, а внутри были разные номера, органы и области
                           продукции — по имени человек выбирал вслепую. */}
@@ -208,7 +209,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                     {d.scanBlobPath && (
                       <Tooltip content="Просмотр скана (в новой вкладке)" name>
                         <button onClick={() => void openAttachment(d.scanBlobPath!)}
-                          className="p-1 text-fg4 hover:text-primary shrink-0"><Eye size={14} /></button>
+                          className="p-1 text-fg4 hover:text-primary shrink-0"><Icon icon={Visibility} size={18} /></button>
                       </Tooltip>
                     )}
                   </div>
@@ -237,7 +238,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                 placeholder="строка поиска" className="flex-1 py-2 text-sm bg-transparent focus:outline-none" />
             </div>
             <Button variant="filled" size="sm" onClick={() => runSearch()} loading={searching}
-              disabled={!query.trim()} icon={<Search size={14} />}>
+              disabled={!query.trim()} icon={<Icon icon={Search} size={18} />}>
               Найти
             </Button>
           </div>
@@ -251,13 +252,13 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                   <div className="flex-1 min-w-0">
                     <a href={c.url} target="_blank" rel="noreferrer"
                       className="text-sm text-brand-hover hover:underline flex items-center gap-1">
-                      <span className="truncate">{c.title || c.url}</span><ExternalLink size={11} className="shrink-0" />
+                      <span className="truncate">{c.title || c.url}</span><Icon icon={OpenInNew} size={18} className="shrink-0" />
                     </a>
                     {c.snippet && <p className="text-xs text-fg4 line-clamp-2">{c.snippet}</p>}
                   </div>
                   <Button variant="filled" size="sm" onClick={() => importAndLink(c)}
                     loading={importingUrl === c.url} disabled={importingUrl !== null}
-                    icon={<Download size={12} />} className="shrink-0">
+                    icon={<Icon icon={Download} size={18} />} className="shrink-0">
                     В библиотеку
                   </Button>
                 </div>

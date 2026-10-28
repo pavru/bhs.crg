@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, ChevronRight, KeyboardArrowDown } from '@/shared/ui/icons';
 import {
   costHidden, useRevisionRows, useRevisionSections, useUnitNames, useWorkTypeNames,
   type EstimateRevision, type EstimateRow, type HiddenPart, type RevisionSection,
@@ -169,7 +170,7 @@ function WorkTypeCell({ row, names, onMatch }: { row: EstimateRow; names: Names;
       {!row.workTypeId && onMatch && (
         <button type="button" onClick={() => onMatch({ kind: 'row', rowId: row.id })}
           className="inline-flex items-center gap-1 rounded-sm text-sm text-primary hover:underline focus-visible:outline-2">
-          <Plus size={14} aria-hidden />выбрать вид работы
+          <Icon icon={Add} size={18} aria-hidden />выбрать вид работы
         </button>
       )}
       {row.workTypeId && row.volume !== null && (
@@ -222,7 +223,7 @@ function SectionHeading({ section, open, shown, filtering, onToggle, onMatch }: 
   const title = section.code === null
     ? 'Вне разделов'
     : `Раздел ${section.code}${section.name ? `. ${section.name}` : ''}`;
-  const Icon = open ? ChevronDown : ChevronRight;
+  const icon = open ? KeyboardArrowDown : ChevronRight;
   return (
     <div className="flex flex-wrap items-center gap-2">
       {/* С отбором разделы раскрыты сами — сворачивать нечего: под отбором видны только подходящие строки. */}
@@ -231,7 +232,7 @@ function SectionHeading({ section, open, shown, filtering, onToggle, onMatch }: 
       ) : (
         <button type="button" aria-expanded={open} onClick={onToggle}
           className="inline-flex items-center gap-1 rounded-sm text-left text-sm font-medium text-on-surface hover:text-primary focus-visible:outline-2">
-          <Icon size={14} aria-hidden className="shrink-0" />
+          <Icon icon={icon} size={18} aria-hidden className="shrink-0" />
           {title}
         </button>
       )}

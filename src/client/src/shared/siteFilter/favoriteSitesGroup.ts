@@ -1,4 +1,4 @@
-import { Star } from 'lucide-react';
+import { Star } from '@/shared/ui/icons';
 import type { RailId } from '@/shared/ui/navConfig';
 import type { PanelGroup } from '@/shared/ui/railSections';
 import { useSiteFilterState } from './siteFilterContext';

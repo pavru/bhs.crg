@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { ChevronLeft, Lock, Upload } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { ChevronLeft, LockIcon, Upload } from '@/shared/ui/icons';
 import { costHidden, useEstimate, type Estimate, type EstimateRevision } from '@/shared/api/planningEstimates';
 import { Button } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
@@ -59,7 +60,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
         <h2 className="text-base font-semibold text-on-surface min-w-0 truncate">{data.name}</h2>
         <StatusBadge tone="neutral">{KIND_LABEL[data.kind]}</StatusBadge>
         {editable && (
-          <Button variant="outlined" size="sm" className="ml-auto" icon={<Upload size={16} aria-hidden />} onClick={() => setImporting({})}>Новая редакция</Button>
+          <Button variant="outlined" size="sm" className="ml-auto" icon={<Icon icon={Upload} size={18} aria-hidden />} onClick={() => setImporting({})}>Новая редакция</Button>
         )}
       </div>
       <PendingImports constructionId={data.constructionId} enabled={editable} only={i => i.target.estimateId === data.id}
@@ -84,7 +85,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
 function BackLink({ back }: { back: { to: string; label: string } }) {
   return (
     <Link to={back.to} className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-      <ChevronLeft size={16} aria-hidden /> {back.label}
+      <Icon icon={ChevronLeft} size={18} aria-hidden /> {back.label}
     </Link>
   );
 }
@@ -150,7 +151,7 @@ function RevisionBand({ estimate, revision }: { estimate: Estimate; revision: Es
           </StatusBadge>
         )}
       {revision.frozen && (
-        <StatusBadge tone="neutral" icon={Lock} title={`Зафиксирована ${formatDate(revision.frozen.at)}: из неё сделано «${revision.frozen.label}». Строки не правятся.`}>
+        <StatusBadge tone="neutral" icon={LockIcon} title={`Зафиксирована ${formatDate(revision.frozen.at)}: из неё сделано «${revision.frozen.label}». Строки не правятся.`}>
           зафиксирована: {revision.frozen.label}
         </StatusBadge>
       )}

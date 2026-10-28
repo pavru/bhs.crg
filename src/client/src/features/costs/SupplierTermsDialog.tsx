@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Add, Delete } from '@/shared/ui/icons';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -121,7 +122,7 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
         <Tooltip content="Снять условия" name>
           <button type="button" disabled={saving.has(item.supplierId)}
             onClick={() => setRemovingId(item.supplierId)}
-            className="text-fg3 hover:text-error p-1"><Trash2 size={14} /></button>
+            className="text-fg3 hover:text-error p-1"><Icon icon={Delete} size={18} /></button>
         </Tooltip>
       ) },
   ];
@@ -147,7 +148,7 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
           error={parsedNew === 'bad' ? BAD_DAYS : undefined}
           onChange={e => setNewDays(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') void add(); }} />
-        <Button variant="outlined" icon={<Plus size={16} />} loading={adding}
+        <Button variant="outlined" icon={<Icon icon={Add} size={18} />} loading={adding}
           disabled={supplierId === null || typeof parsedNew !== 'number'} onClick={() => void add()}>
           Добавить
         </Button>

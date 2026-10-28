@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { Banknote, Lock, Undo2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { LockIcon, Payments, Undo } from '@/shared/ui/icons';
 import { Link } from 'react-router';
 import { Button } from '@/shared/ui/Button';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
@@ -44,7 +45,7 @@ export function InvoiceLockNote({ lockedBy }: { lockedBy: string }) {
   return (
     <div role="note" className="flex items-start gap-2 rounded-lg border border-outline-variant bg-surface-container px-3 py-2
       text-xs text-on-surface-variant">
-      <Lock size={14} className="shrink-0 mt-0.5 text-fg3" />
+      <Icon icon={LockIcon} size={18} className="shrink-0 mt-0.5 text-fg3" />
       <span>
         Счёт заперт: {lockedBy}. Поля, строки и разноску обычной правкой не изменить.
         {/* Путь исправления (E2, PR 6b-1) называем тому, у кого есть кнопка «Исправить», — остальным он закрыт. */}
@@ -86,7 +87,7 @@ export function InvoicePayment({ view, dirty }: {
 
     return (
       <div className="flex items-center gap-2 flex-wrap text-xs">
-        <Button size="sm" variant="tonal" icon={<Banknote size={14} />} disabled={dirty}
+        <Button size="sm" variant="tonal" icon={<Icon icon={Payments} size={18} />} disabled={dirty}
           onClick={() => setDialog('pay')}>
           Отметить оплату
         </Button>
@@ -110,7 +111,7 @@ export function InvoicePayment({ view, dirty }: {
         </button>
       </span>
       {canCancel && (
-        <Button size="sm" variant="text" danger icon={<Undo2 size={13} />} onClick={() => setDialog('cancel')}>
+        <Button size="sm" variant="text" danger icon={<Icon icon={Undo} size={18} />} onClick={() => setDialog('cancel')}>
           Отменить оплату
         </Button>
       )}

@@ -1,6 +1,7 @@
 import * as Popover from '@radix-ui/react-popover';
 import { useState, type ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Close } from '@/shared/ui/icons';
 import { formatDate } from '@/shared/format/format';
 import type { LineDraft } from './invoiceLines';
 import { byWord, lineKey, matchTrouble, usable, type MatchOffer, type MemoryFate } from './supplierMatches';
@@ -68,7 +69,7 @@ export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRest
         <Tooltip content="Отменить подстановку" name>
           <button type="button" onClick={onCancel}
             className="text-fg4 hover:text-on-surface p-0.5">
-            <X size={12} />
+            <Icon icon={Close} size={18} />
           </button>
         </Tooltip>
       </span>

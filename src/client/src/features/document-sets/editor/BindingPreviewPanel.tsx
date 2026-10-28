@@ -1,4 +1,5 @@
-import { AlertCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CheckCircle, ErrorIcon, Warning } from '@/shared/ui/icons';
 import type { DataSetBindingPreviewResult } from '@/shared/api/types';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
 import { DataGrid, DataGridValue, type DataGridColumn } from '@/shared/ui/DataGrid';
@@ -33,10 +34,10 @@ export function BindingPreviewPanel({ results }: { results: DataSetBindingPrevie
           <div className="flex items-center gap-2 px-3 py-2 bg-surface-container-low">
             {/* Иконка — по режиму: у рабочей привязки `error` несёт предупреждение, и данные под ним есть. */}
             {r.mode === 'error'
-              ? <AlertCircle size={13} className="text-error shrink-0" />
+              ? <Icon icon={ErrorIcon} size={18} className="text-error shrink-0" />
               : r.error
-              ? <AlertTriangle size={13} className="text-warning shrink-0" />
-              : <CheckCircle2 size={13} className="text-success shrink-0" />
+              ? <Icon icon={Warning} size={18} className="text-warning shrink-0" />
+              : <Icon icon={CheckCircle} size={18} className="text-success shrink-0" />
             }
             <span className="text-xs font-medium flex-1 text-on-surface">
               {r.sourceName}

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { Warning } from '@/shared/ui/icons';
 import { useSetDocumentTemplateParams } from '@/shared/api/documentSets';
 import { parseTemplateParams } from '@/features/templates/templateParams';
 import type { DocumentInstance, Template, TemplateParam } from '@/shared/api/types';
@@ -39,7 +40,7 @@ export function DocumentTemplateParams({ setId, instance, template, participatin
         {!participating && (
           <Tooltip content="Шаблон не отмечен для генерации">
             <span className="flex items-center gap-1 text-caption text-warning">
-              <AlertTriangle size={11} className="shrink-0" />
+              <Icon icon={Warning} size={18} className="shrink-0" />
               не участвует — значения сохранятся, но PDF по нему не создастся
             </span>
           </Tooltip>

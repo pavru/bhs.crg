@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, type CSSProperties, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { ArrowDown, ArrowUp, ArrowUpRight, EyeOff, Unlink, X } from 'lucide-react';
+import { Icon } from './Icon';
+import { ArrowDownward, ArrowOutward, ArrowUpward, Close, LinkOff, VisibilityOff } from './icons';
 import {
   dtCard, dtTable, dtTh, dtTd, dtRow, dtNum, dtTableCompact, dtThCompact, dtTdCompact,
 } from './dataTable';
@@ -89,8 +90,8 @@ export interface DataGridSort {
 }
 
 const COLUMN_ICON: Record<ColumnUnavailable, ReactNode> = {
-  'no-right': <EyeOff size={12} aria-hidden />,
-  removed: <Unlink size={12} aria-hidden />,
+  'no-right': <Icon icon={VisibilityOff} size={18} aria-hidden />,
+  removed: <Icon icon={LinkOff} size={18} aria-hidden />,
 };
 
 /**
@@ -226,7 +227,7 @@ export function DataGrid<Row extends object>({
       <span className={`inline-flex items-center gap-1 ${reason ? 'text-fg4' : ''}`}>
         {c.unavailable && COLUMN_ICON[c.unavailable]}
         <span className={c.unavailable === 'removed' ? 'line-through' : ''}>{c.header ?? c.label}</span>
-        {sorted && (sorted.descending ? <ArrowDown size={12} aria-hidden /> : <ArrowUp size={12} aria-hidden />)}
+        {sorted && (sorted.descending ? <Icon icon={ArrowDownward} size={18} aria-hidden /> : <Icon icon={ArrowUpward} size={18} aria-hidden />)}
         {sorted && sort!.length > 1 && <span className="text-caption text-fg4">{order + 1}</span>}
       </span>
     );
@@ -249,7 +250,7 @@ export function DataGrid<Row extends object>({
             <button type="button" onClick={() => onRemoveColumn(c)}
                 aria-label={`Убрать колонку «${c.label}»`}
                 className="ml-1 align-middle text-fg4 hover:text-error">
-                <X size={12} aria-hidden />
+                <Icon icon={Close} size={18} aria-hidden />
               </button>
           </Tooltip>
           )}
@@ -355,7 +356,7 @@ export function DataGrid<Row extends object>({
                           <Link to={link.to} aria-label={link.label}
                             onClick={e => e.stopPropagation()}
                             className="mr-1.5 inline-flex align-middle rounded-sm text-fg3 hover:text-primary focus-visible:outline-2">
-                            <ArrowUpRight size={14} aria-hidden />
+                            <Icon icon={ArrowOutward} size={18} aria-hidden />
                           </Link>
                         </Tooltip>
                       )}

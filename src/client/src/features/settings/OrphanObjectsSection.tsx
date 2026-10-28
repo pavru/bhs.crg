@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Unlink, Loader2 } from 'lucide-react';
+import { Icon } from '@/shared/ui/Icon';
+import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { LinkOff } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { apiClient } from '@/shared/api/client';
@@ -75,7 +77,7 @@ export function OrphanObjectsSection() {
 
         <div className="flex items-center gap-2">
           <Button variant="outlined" size="sm" onClick={() => void check()} loading={busy}
-            icon={<Unlink size={14} />}>
+            icon={<Icon icon={LinkOff} size={18} />}>
             Посчитать
           </Button>
           {report && !nothingToDo && (
@@ -83,7 +85,7 @@ export function OrphanObjectsSection() {
               Удалить
             </Button>
           )}
-          {busy && <Loader2 size={14} className="animate-spin text-primary" />}
+          {busy && <CircularProgress size={18} className="text-primary" />}
         </div>
 
         {error && <p className="text-xs text-error">{error}</p>}

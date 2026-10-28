@@ -1,4 +1,5 @@
-import { Archive } from 'lucide-react';
+import { Icon } from './Icon';
+import { Archive } from './icons';
 import { ARCHIVED_HINT, ARCHIVED_WORD } from './archive';
 import { Tooltip } from './Tooltip';
 
@@ -14,7 +15,7 @@ export function ArchivedMark({ words = true, className = '' }: { words?: boolean
     <Tooltip content={ARCHIVED_HINT}>
       <span aria-label={words ? undefined : ARCHIVED_WORD}
         className={`inline-flex items-center gap-1 text-caption text-fg3 shrink-0 ${className}`}>
-        <Archive size={11} className="shrink-0" />
+        <Icon icon={Archive} size={18} className="shrink-0" />
         {words && ARCHIVED_WORD}
       </span>
     </Tooltip>
