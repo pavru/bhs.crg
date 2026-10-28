@@ -61,12 +61,12 @@ function What({ row }: { row: ActivityRow }) {
       {/* Имя сменилось за серию: «Счёт № 41» был «Счётом № 14» — иначе первые записи ряда
           читались бы как правка другого документа. */}
       {row.firstTarget && <div className="text-fg4 text-xs break-all">была: {row.firstTarget}</div>}
-      {open && isSeries(row) && <SeriesRecords sessionId={row.sessionId} action={row.action} />}
+      {open && isSeries(row) && <SeriesRecords sessionId={row.sessionId} action={row.action} count={row.count} />}
     </>
   );
 }
 
-function SeriesRecords({ sessionId, action }: { sessionId: string; action: string }) {
+function SeriesRecords({ sessionId, action, count }: { sessionId: string; action: string; count: number }) {
   const { data, isLoading, isError } = useActivitySeries(sessionId, action);
   if (isLoading) return <div className="text-fg4 text-xs mt-1.5">Загрузка...</div>;
   if (isError || !data)
@@ -79,6 +79,10 @@ function SeriesRecords({ sessionId, action }: { sessionId: string; action: strin
           <Change record={record} />
         </li>
       ))}
+      {/* Сервер отдаёт не больше потолка записей ряда — молча обрезанный список выглядел бы целым. */}
+      {data.length < count && (
+        <li className="text-fg3 text-xs">Показаны первые {data.length} из {count}.</li>
+      )}
     </ol>
   );
 }

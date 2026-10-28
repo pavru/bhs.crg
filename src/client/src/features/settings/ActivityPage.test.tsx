@@ -33,9 +33,9 @@ const RECORDS: ActivityRecord[] = [
   { ...SERIES, id: 'e3', occurredAt: '2026-10-28T11:19:00Z', before: '5 строк', after: '7 строк' },
 ];
 
-function open() {
+function open(series: ActivityRow = SERIES) {
   vi.mocked(apiClient.get).mockImplementation((url: string) => Promise.resolve({
-    data: url === '/activity' ? { total: 2, items: [SERIES, SINGLE] }
+    data: url === '/activity' ? { total: 2, items: [series, SINGLE] }
       : url === '/activity/actions' ? []
       : url === '/activity/series/s1' ? RECORDS
       : undefined,
@@ -68,5 +68,14 @@ describe('журнал действий рядами', () => {
     expect(within(list).getByText('4 строки', { selector: '.text-fg1' })).toBeTruthy();
     expect(apiClient.get).toHaveBeenCalledWith('/activity/series/s1', { params: { action: 'costs.invoice.lines' } });
     expect(screen.getByRole('button', { name: /свернуть записи/ }).getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('ряд длиннее потолка раскрытия говорит, что показана часть', async () => {
+    open({ ...SERIES, count: 900 });
+
+    fireEvent.click(await screen.findByRole('button', { name: /показать записи/ }));
+
+    const list = await screen.findByRole('list', { name: 'Записи ряда' });
+    expect(within(list).getByText('Показаны первые 3 из 900.')).toBeTruthy();
   });
 });
