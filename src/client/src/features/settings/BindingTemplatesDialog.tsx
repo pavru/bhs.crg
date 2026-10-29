@@ -225,15 +225,13 @@ function TemplateRow({
             <button
               onClick={() => del.mutateAsync({ documentTypeId: docType.id, id: template.id }).then(() => setConfirming(false))}
               disabled={del.isPending}
-              className="px-2 py-0.5 rounded-xs text-on-error bg-error"
-              style={{ fontSize: '11px' }}
+              className="px-2 py-0.5 rounded-xs text-label-small text-on-error bg-error"
             >
               Да
             </button>
             <button
               onClick={() => setConfirming(false)}
-              className="px-2 py-0.5 rounded-xs bg-surface-container text-on-surface-variant"
-              style={{ fontSize: '11px' }}
+              className="px-2 py-0.5 rounded-xs text-label-small bg-surface-container text-on-surface-variant"
             >
               Нет
             </button>

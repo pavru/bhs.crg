@@ -15,8 +15,19 @@ describe('храповик интерфейса: роли текста (sharedui
       .toBe(9);
   });
 
-  it('роль MD3, font-medium, цвет текста и tracking-normal — не нарушение', () => {
-    expect(own('<p className="text-body-medium font-medium text-fg1 text-on-surface-variant tracking-normal text-left text-label-small" />'))
+  it('обход именем: вес числом, свойство в скобках, стиль объектом — тоже нарушение', () => {
+    expect(own('<p className="font-[600] font-[number:500] [font-weight:600] [letter-spacing:.08em] [text-transform:uppercase] [font-size:13px]" />'))
+      .toBe(6);
+    expect(own("<p style={{ fontWeight: 600, letterSpacing: '0.5px', textTransform: 'capitalize', fontSize: '11px' }} />")).toBe(4);
+  });
+
+  it('не обход: [font-weight:inherit] у клетки-заголовка, семейство в скобках, размер числом у Monaco', () => {
+    expect(own('<th className="text-left [font-weight:inherit] font-[Roboto]" />')).toBe(0);
+    expect(own('const options = { fontSize: 13, minimap: { enabled: false } };')).toBe(0);
+  });
+
+  it('роль MD3, font-medium, font-normal, цвет текста и tracking-normal — не нарушение', () => {
+    expect(own('<p className="text-body-medium font-medium font-normal text-fg1 text-on-surface-variant tracking-normal text-left text-label-small" />'))
       .toBe(0);
   });
 

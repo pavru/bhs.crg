@@ -243,10 +243,10 @@ function TemplateRow({ template }: { template: DataSetProcessingTemplate }) {
           <div className="flex items-center gap-1.5 text-body-small">
             <span className="text-on-surface-variant">Удалить?</span>
             <button onClick={() => del.mutateAsync({ id: template.id }).then(() => setConfirming(false))}
-              disabled={del.isPending} className="px-2 py-0.5 rounded-xs text-on-error bg-error" style={{ fontSize: '11px' }}>
+              disabled={del.isPending} className="px-2 py-0.5 rounded-xs text-label-small text-on-error bg-error">
               Да
             </button>
-            <button onClick={() => setConfirming(false)} className="px-2 py-0.5 rounded-xs bg-surface-container text-on-surface-variant" style={{ fontSize: '11px' }}>
+            <button onClick={() => setConfirming(false)} className="px-2 py-0.5 rounded-xs bg-surface-container text-on-surface-variant">
               Нет
             </button>
           </div>

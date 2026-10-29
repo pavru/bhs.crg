@@ -274,7 +274,7 @@ export const RULES = [
     // начертания — ребёнка 17. По строкам кода (classTokens): класс в комментарии не рисуется.
     count: countLegacyType,
     everywhere: true,
-    instead: 'текст — ролью MD3 целиком: text-body-small 12, text-body-medium 14, text-body-large 16 — текст; text-label-small/medium/large — подпись, пометка, кнопка; text-title-small 14/500 — заголовок группы, строчными; text-title-large, text-headline-small — заголовок сводки; вес вне роли — только font-medium (docs/UI.md, «Текст»)',
+    instead: 'текст — ролью MD3 целиком: text-body-small 12, text-body-medium 14, text-body-large 16 — текст; text-label-small/medium/large — подпись, пометка, кнопка; text-title-small 14/500 — заголовок группы, строчными; text-title-large, text-headline-small — заголовок сводки; вес рядом с ролью — font-medium для акцента, font-normal — снять жирность браузера; стиль объектом — тем же классом (docs/UI.md, «Текст»)',
   },
   {
     id: 'lucide-import',
