@@ -5,13 +5,14 @@ import { useAssetCompletion } from '@/shared/ui/typstAssetCompletion';
 import Editor from '@/shared/ui/CodeEditor';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { markTemplateModel } from '@/shared/ui/typstDispatchCompletion';
-import { Button, IconButton } from '@/shared/ui/Button';
+import { Button } from '@/shared/ui/Button';
+import { SplitButton } from '@/shared/ui/SplitButton';
 import { Modal } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { useToast } from '@/shared/ui/Toast';
 import { ruCount } from '@/shared/utils/pluralize';
 import { Icon } from '@/shared/ui/Icon';
-import { CallSplit, CheckCircle, HistoryIcon, KeyboardArrowDown, MenuBook, Save, Star } from '@/shared/ui/icons';
+import { CallSplit, CheckCircle, HistoryIcon, MenuBook, Save, Star } from '@/shared/ui/icons';
 import type { Template, DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields } from '@/shared/api/schema';
 import { useSaveTemplateContent, useCreateTemplateVersion, useSetTemplateDefault } from '@/shared/api/templates';
@@ -144,9 +145,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
   const [error, setError] = useState('');
-  const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [newVersionOpen, setNewVersionOpen] = useState(false);
-  const saveMenuRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null);
   const saveContentMutation = useSaveTemplateContent();
   const newVersionMutation = useCreateTemplateVersion();
@@ -240,16 +239,6 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
   // Эффект СЛОЙНЫЙ: обычный отложен до после отрисовки, и в щель между коммитом и ним Ctrl+S молча
   // сохранил бы прежнее содержимое шаблона (issue #858).
   useLayoutEffect(() => { handleSaveRef.current = handleSave; });
-
-  // Закрытие меню сохранения по клику вне.
-  useEffect(() => {
-    if (!saveMenuOpen) return;
-    function onClick(e: MouseEvent) {
-      if (saveMenuRef.current && !saveMenuRef.current.contains(e.target as Node)) setSaveMenuOpen(false);
-    }
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, [saveMenuOpen]);
 
   // Prevent the browser's native Ctrl+S / Cmd+S ("Save page") using capture phase —
   // this runs before any other handler, including the browser's own shortcut.
@@ -351,45 +340,26 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
           {savedMsg && <span className="text-body-small text-success">Сохранено ✓</span>}
           {error && <span className="text-body-small text-error max-w-xs truncate" title={error}>{error}</span>}
 
-          {/* Сплит-кнопка: слева in-place (Ctrl+S), справа каретка → меню «новая версия» */}
-          <div className="relative flex items-center" ref={saveMenuRef}>
-            {template.isActive ? (
-              <Tooltip content="Сохранить в текущую версию (Ctrl+S)">
-                <button type="button" onClick={handleSave} disabled={saving}
-                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-body-small font-medium rounded-l-full bg-primary text-on-primary shadow-elevation-1 state-layer disabled-container">
-                  <Icon icon={Save} size={18} /> {saving ? 'Сохранение…' : 'Сохранить'}
-                </button>
-              </Tooltip>
-            ) : (
-              // Историческую версию in-place не сохранить — левая кнопка ведёт на форк.
-              <Tooltip content="Историческая версия — сохранить как новую">
-                <button type="button" onClick={() => setNewVersionOpen(true)} disabled={saving}
-                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-body-small font-medium rounded-l-full bg-primary text-on-primary shadow-elevation-1 state-layer disabled-container">
-                  <Icon icon={CallSplit} size={18} /> Сохранить как новую
-                </button>
-              </Tooltip>
-            )}
-            <IconButton label="Ещё варианты сохранения"
-              size="sm"
-              className="rounded-l-none border-l border-on-primary/25 bg-primary shadow-elevation-1 disabled-container [--_state-color:var(--color-on-primary)]"
-              onClick={() => setSaveMenuOpen(v => !v)}
-              disabled={saving}>
-              <Icon icon={KeyboardArrowDown} size={18} className={saving ? undefined : 'text-on-primary'} />
-            </IconButton>
-            {saveMenuOpen && (
-              <div className="absolute top-full right-0 mt-1 z-50 w-72 bg-surface border border-outline-variant rounded-md shadow-elevation-2 py-1">
-                <button type="button"
-                  onClick={() => { setSaveMenuOpen(false); setNewVersionOpen(true); }}
-                  className="w-full flex items-start gap-2 px-3 py-2 text-left state-layer">
-                  <Icon icon={CallSplit} size={18} className="text-primary shrink-0 mt-0.5" />
-                  <span>
-                    <span className="block text-body-medium text-on-surface">Сохранить как новую версию…</span>
-                    <span className="block text-body-small text-on-surface-variant">Создаст v{template.version + 1}, сохранит историю текущей</span>
-                  </span>
-                </button>
-              </div>
-            )}
-          </div>
+          {template.isActive ? (
+            <SplitButton onClick={handleSave} loading={saving} icon={<Icon icon={Save} size={18} />}
+              title="Сохранить в текущую версию (Ctrl+S)" menuLabel="Ещё варианты сохранения"
+              items={[{
+                key: 'new-version',
+                label: 'Сохранить как новую версию…',
+                description: `Создаст v${template.version + 1}, сохранит историю текущей`,
+                icon: <Icon icon={CallSplit} size={18} />,
+                onSelect: () => setNewVersionOpen(true),
+              }]}>
+              {saving ? 'Сохранение…' : 'Сохранить'}
+            </SplitButton>
+          ) : (
+            // Историческую версию на месте не сохранить: основное действие и есть форк, а меню с тем же
+            // окном было бы вторым входом в него — поэтому одна кнопка, без стрелки ([UI-83]).
+            <Button variant="filled" onClick={() => setNewVersionOpen(true)} disabled={saving}
+              icon={<Icon icon={CallSplit} size={18} />} title="Историческая версия — сохранить как новую">
+              Сохранить как новую
+            </Button>
+          )}
         </div>
       </div>
 

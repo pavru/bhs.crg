@@ -110,6 +110,7 @@
     "features/settings/SchemaEditor.tsx": 1
   },
   "icon-button": {},
+  "split-button": {},
   "tabs": {},
   "white-on-fill": {},
   "portal-container": {

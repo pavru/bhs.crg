@@ -113,7 +113,7 @@ split-кнопка — форма MD3, а не наша; зазор 2 px дел�
   чисел нет. Внутренний угол меняют только классы той же стороны (`rounded-l-xs` →
   `active:rounded-l-sm` → `data-[state=open]:rounded-l-full`): одно свойство, а состояние побеждает
   покой по порядку вариантов Tailwind, а не по случаю. Сокращённого `rounded-full` у половин нет вовсе.
-- Переход формы и поворота — токенами движения (`duration-short3`, `ease-standard`), «уменьшить
+- Переход формы и поворота — токенами движения (`duration-(--md-sys-motion-duration-short3)`: класса `duration-short3` в теме нет; `ease-standard`), «уменьшить
   движение» гасит их глобально (`docs/UI.md`, «Движение»).
 - **Тени у половин нет** ни до, ни после `sharedui-md3-10-actions`: filled в MD3 без возвышения, а тень
   на каждой половине отдельно легла бы в зазор 2 px швом. Тень filled `Button` выносится из
@@ -133,6 +133,10 @@ split-кнопка — форма MD3, а не наша; зазор 2 px дел�
   (`FILLED_SHADOW`), её добавляет только `Button` (D0).
 - `BASE`, `variantClass` и `SIZE` экспортируются. Вид `Button` и `IconButton` не меняется: тот же набор
   классов, в другом порядке.
+- **Константы — в своём модуле `shared/ui/buttonClasses.ts`, а не в `Button.tsx`** (уточнено при
+  реализации). Правило линта `react-refresh/only-export-components` пропускает из файла компонентов
+  только строки и числа: функция `variantClass` рядом с `Button` — новая ошибка храповика линта и
+  потерянная горячая замена `Button.tsx`. `Button` и `SplitButton` берут константы оттуда оба.
 
 Итог:
 - Правка вида `Button` в `sharedui-md3-10-actions` переходит в `SplitButton` сама — константы одни.
@@ -210,6 +214,10 @@ interface SplitButtonProps {
 нативной `<button>`, `<a>` и у компонентов `Button`, `IconButton` в `features/`. Нужна опция
 `countElements` для тегов-компонентов (сегодня он смотрит только разметку, `/^[a-z]/`). Плашки и
 панели (`div`, `span`) не считаются: у `RowFilterDialog` `rounded-r-md` — полоса условия.
+
+Предикаты кнопок (`isIconButton`, новый `isSplitHalf`) — в своём модуле `scripts/ui-ratchet-buttons.mjs`,
+как чипы и пометки в `ui-ratchet-pills.mjs` (уточнено при реализации): с правилом `ui-ratchet-lib.mjs` вырос
+бы до 510 строк кода при пороге `FileSizeRatchet` 500.
 
 Уровень — ноль сразу: единственное место переводится тем же PR. Подсказка: «split-кнопка — `SplitButton`
 (shared/ui/SplitButton: items, menuLabel), docs/UI.md».

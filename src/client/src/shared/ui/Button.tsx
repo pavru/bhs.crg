@@ -1,6 +1,7 @@
 import { Children, forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { CircularProgress } from './CircularProgress';
 import { Tooltip } from './Tooltip';
+import { BASE, FILLED_SHADOW, SIZE, variantClass, type ButtonSize, type ButtonVariant } from './buttonClasses';
 
 /**
  * MD3-кнопки (issue #110, фаза 1). Форма — пилюля (rounded-full), label-large (500),
@@ -8,21 +9,8 @@ import { Tooltip } from './Tooltip';
  * на экран/модалку**; заметное вторичное — tonal; обрамлённое — outlined; третичное — text.
  * Плотность компактная (по умолчанию md=36px), spec-высота 40px доступна как lg.
  */
-export type ButtonVariant = 'filled' | 'tonal' | 'outlined' | 'text';
-export type ButtonSize = 'sm' | 'md' | 'lg';
+export type { ButtonVariant, ButtonSize } from './buttonClasses';
 
-// Состояния — слоем MD3 ([UI-64]): наведение, фокус и нажатие — цвет подписи поверх заливки
-// (`state-layer`), кольцо — общее (`focus-ring`), отключённое — `disabled-container` / `disabled-content`.
-// Своих цветов наведения у вариантов нет.
-const BASE =
-  'inline-flex items-center justify-center gap-2 rounded-full font-medium select-none ' +
-  'state-layer focus-ring disabled:pointer-events-none';
-
-const SIZE: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-body-small',
-  md: 'h-9 px-4 text-body-medium',
-  lg: 'h-10 px-6 text-body-medium',
-};
 // text-вариант живёт без заливки → чуть плотнее по горизонтали.
 const TEXT_SIZE: Record<ButtonSize, string> = {
   sm: 'h-8 px-2 text-body-small',
@@ -41,20 +29,6 @@ const MULTILINE_TEXT_SIZE: Record<ButtonSize, string> = {
   md: 'min-h-9 px-3 text-body-medium',
   lg: 'min-h-10 px-4 text-body-medium',
 };
-
-function variantClass(variant: ButtonVariant, danger: boolean): string {
-  switch (variant) {
-    case 'filled':
-      return (danger ? 'bg-error text-on-error' : 'bg-primary text-on-primary')
-        + ' shadow-elevation-1 disabled-container';
-    case 'tonal':
-      return 'bg-secondary-container text-on-secondary-container disabled-container';
-    case 'outlined':
-      return `border border-outline ${danger ? 'text-error' : 'text-primary'} disabled-outlined`;
-    case 'text':
-      return `${danger ? 'text-error' : 'text-primary'} disabled-content`;
-  }
-}
 
 /** Есть ли у кнопки подпись: `{cond && 'Удалить'}` даёт `false`, и это не подпись. */
 const hasLabel = (children: ReactNode) => Children.toArray(children).some(c => c !== '');
@@ -95,7 +69,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       <button
         ref={ref}
         type={type ?? 'button'}
-        className={`${BASE} ${sizeCls} ${variantClass(variant, danger)} ${fullWidth ? 'w-full' : ''} ${className}`}
+        className={`${BASE} rounded-full ${sizeCls} ${variantClass(variant, danger)}${variant === 'filled' ? ` ${FILLED_SHADOW}` : ''} ${fullWidth ? 'w-full' : ''} ${className}`}
         {...rest}
         disabled={disabled || loading}
       >

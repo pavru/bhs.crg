@@ -5,6 +5,7 @@ import { posix } from 'node:path';
 import ts from 'typescript';
 import { containerTextHits, stripComments } from './class-scan.mjs';
 import { isBadge, isChip } from './ui-ratchet-pills.mjs';
+import { isIconButton, isSplitHalf, SPLIT_HALF_COMPONENTS } from './ui-ratchet-buttons.mjs';
 import { countDarkVariants, countLegacyClasses, countLegacyRadii, countLegacyShadows, countLegacyType, countRawStates, LEGACY_HINT } from './ui-ratchet-md3.mjs';
 
 const COLORS = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
@@ -117,6 +118,14 @@ export const RULES = [
     // 32 px, имя для скринридера и подсказку.
     count: text => countElements(text, isIconButton),
     instead: 'кнопка из одной иконки — IconButton (shared/ui/Button: значок ребёнком, label — имя для скринридера, size sm|md|lg — 32/36/40 px, danger); с подписью — Button variant="text"; крестик снятия в пилюле — Chip onRemove (removeLabel), у жетона значения без действия — Chip removeOnly (docs/UI.md, «Узкий экран»: кнопка-иконка не меньше 32 px)',
+  },
+  {
+    id: 'split-button',
+    // Своя половина split-кнопки ([UI-83]): одностороннее скругление у кнопки — нативной <button>, ссылки
+    // или Button / IconButton с перекрытой формой. Вид такой половины держится на порядке утилит в
+    // собранном CSS, и правка кнопки разъединяет пару молча. Плашки и панели (div, span) не считаются.
+    count: text => countElements(text, isSplitHalf, { components: SPLIT_HALF_COMPONENTS }),
+    instead: 'действие с вариантами — SplitButton (shared/ui/SplitButton: onClick — основное действие, items — варианты в меню, menuLabel — имя стрелки); без вариантов — обычная Button (docs/UI.md, таблица контролов)',
   },
   {
     id: 'tabs',
@@ -305,12 +314,6 @@ export const RULES = [
     instead: `размер значка — только пропом size, ступень шкалы ${ICON_SCALE.join(', ')}, не классом h-/w-/size- и не style: 18 — текст, кнопка, чип, строка; 20 и 24 — кнопка-иконка и навигация; 40 и 48 — только пустые состояния (docs/UI.md, «Значки»)`,
   },
 ];
-
-function isIconButton({ tag, element, sf }) {
-  if (tag !== 'button' || !ts.isJsxElement(element)) return false;
-  const kids = element.children.filter(c => !(ts.isJsxText(c) && !c.text.trim()));
-  return kids.length === 1 && ts.isJsxSelfClosingElement(kids[0]) && /^[A-Z]/.test(kids[0].tagName.getText(sf));
-}
 
 function isTabRole({ attrs }) {
   return /^["'{`]*(?:tab|tablist|tabpanel)["'}`]*$/.test(attrs.get('role') ?? '');
@@ -566,15 +569,18 @@ function countIconSizes(text, file) {
   return n;
 }
 
-/** Сколько элементов разметки (тег со строчной буквы) подходят под `match`. */
-function countElements(text, match) {
+/**
+ * Сколько элементов разметки (тег со строчной буквы) подходят под `match`. `components` — компоненты,
+ * которые правило смотрит наравне с разметкой (их имя тегом, как в файле).
+ */
+function countElements(text, match, { components = [] } = {}) {
   if (!text.includes('<')) return 0;
   const sf = parse(text);
   let n = 0;
   const visit = node => {
     if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
       const tag = node.tagName.getText(sf);
-      if (/^[a-z]/.test(tag)) {
+      if (/^[a-z]/.test(tag) || components.includes(tag)) {
         const attrs = new Map(node.attributes.properties.filter(ts.isJsxAttribute)
           .map(p => [p.name.getText(sf), p.initializer?.getText(sf) ?? '']));
         const element = ts.isJsxSelfClosingElement(node) ? node : node.parent;
