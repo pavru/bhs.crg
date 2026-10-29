@@ -34,8 +34,8 @@ describe('state-layer', () => {
 
   it.each([
     ['&:hover, &[data-highlighted]', '--_s: var(--md-sys-state-hover);'],
-    // Нажатие — не у строки: :active зажигается у предков нажатой кнопки, и строка темнела бы от крестика.
-    ['&:focus-visible, &:active:not(tr), &[data-state=open]', '--_s: var(--md-sys-state-pressed);'],
+    // Нажатие — только своё: :active зажигается у предков нажатой кнопки, и строка темнела бы от крестика.
+    ['&:focus-visible, &:active:not(:has(:is(button, a, input, select, textarea, label, [role=button], [tabindex]):active)), &[data-state=open]', '--_s: var(--md-sys-state-pressed);'],
     ['&[data-dragging]', '--_s: var(--md-sys-state-dragged);'],
     ['&:disabled, &[aria-disabled=true], &[data-disabled]', '--_s: 0;'],
   ])('%s → %s', (selectors, body) => {
@@ -94,8 +94,9 @@ describe('кольцо фокуса', () => {
 });
 
 describe('отключённое', () => {
-  const content = 'color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);';
-  const container = 'background-color: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);';
+  // !important — отключённое сильнее наведения элемента: hover:text-… стоит в CSS позже и весит столько же.
+  const content = 'color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent) !important;';
+  const container = 'background-color: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent) !important;';
 
   const off = cls => rule(css(cls), '&:disabled, &[aria-disabled=true], &[data-disabled]');
 
@@ -104,14 +105,14 @@ describe('отключённое', () => {
   });
 
   it('рамку красит только disabled-outlined: у прозрачной рамки серой не появится', () => {
-    expect(off('disabled-outlined')).toContain('border-color: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);');
+    expect(off('disabled-outlined')).toContain('border-color: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent) !important;');
     expect(off('disabled-content')).not.toContain('border-color');
   });
 
   it('у контейнера — on-surface 12 % и без тени, у содержимого — без заливки', () => {
     const filled = rule(css('disabled-container'), '&:disabled, &[aria-disabled=true], &[data-disabled]');
     expect(filled).toContain(container);
-    expect(filled).toContain('box-shadow: none;');
+    expect(filled).toContain('box-shadow: none !important;');
     expect(rule(css('disabled-content'), '&:disabled, &[aria-disabled=true], &[data-disabled]')).not.toContain('background-color');
   });
 });

@@ -107,8 +107,8 @@ export function PrintProfilesPage() {
 function ProfileRow({ profile, active, onClick }: { profile: PrintProfile; active: boolean; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} aria-current={active || undefined}
-      className={`w-full flex items-center gap-3 text-left px-3 py-2 rounded-lg transition-colors ${
-        active ? 'bg-primary-container text-brand-pressed' : 'text-on-surface-variant hover:bg-surface-container-low'}`}>
+      className={`w-full flex items-center gap-3 text-left px-3 py-2 rounded-lg ${
+        active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant state-layer'}`}>
       <SheetSketch paper={profile.paper} orientation={profile.orientation} fit={profile.fit} margins={profile.margins} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">

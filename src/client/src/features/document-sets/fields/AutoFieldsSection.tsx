@@ -21,7 +21,7 @@ export function AutoFieldsSection(
   return (
     <div className="border border-dashed border-outline-variant rounded-lg overflow-hidden">
       <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open}
-        className="w-full flex items-center gap-2 px-3 py-2 bg-surface-container-low/40 hover:bg-surface-container-low transition-colors text-left">
+        className="w-full flex items-center gap-2 px-3 py-2 bg-surface-container-low/40 state-layer text-left">
         {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
         {/* Глиф называет НАЗНАЧЕНИЕ секции, а не её содержимое, и продублирован подписью рядом —
             поэтому он приглушён: brand в этой строке должен быть ровно один, и указывать он должен

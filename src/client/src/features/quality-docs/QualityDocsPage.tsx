@@ -467,13 +467,13 @@ function WebSearchModal({ open, onClose, docTypes }: {
                     <p className="text-sm text-on-surface truncate">{c.title || c.url}</p>
                     {c.snippet && <p className="text-xs text-on-surface-variant line-clamp-2">{c.snippet}</p>}
                     <a href={c.url} target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-brand-hover inline-flex items-center gap-1 mt-0.5">
+                      className="text-xs text-primary inline-flex items-center gap-1 mt-0.5">
                       <Icon icon={OpenInNew} size={18} /> Открыть
                     </a>
                   </div>
                   <Tooltip content="Скачать файл по ссылке и добавить в библиотеку (если это прямой PDF/скан)">
                     <button onClick={() => importOne(c)} disabled={importingUrl === c.url}
-                      className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border border-outline-variant hover:bg-surface-container-low disabled:opacity-50 shrink-0">
+                      className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border border-outline-variant state-layer disabled-outlined shrink-0">
                       {importingUrl === c.url ? <CircularProgress size={18} /> : <Icon icon={Download} size={18} />} В библиотеку
                     </button>
                   </Tooltip>

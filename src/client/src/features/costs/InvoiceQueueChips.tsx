@@ -90,7 +90,7 @@ function Chip({ active, icon, label, count, title, tone, onClick, ariaLabel }: {
 }) {
   const look = active ? 'border-primary text-on-primary-container bg-primary-container'
     : tone === 'danger' ? 'border-error text-error hover:bg-error-container'
-    : tone === 'doubt' ? 'border-warning text-warning hover:bg-surface-container'
+    : tone === 'doubt' ? 'border-warning text-warning state-layer'
     : 'border-outline-variant text-on-surface-variant hover:text-on-surface';
   const shown = active ? Check : icon;
   return (

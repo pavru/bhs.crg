@@ -191,7 +191,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
         <div className="flex items-center gap-3 h-16 px-3 sm:px-4">
           <Tooltip content="К комплекту">
             <button type="button" onClick={() => guardedLeave(onClose)} aria-label="К комплекту"
-              className="flex items-center justify-center w-11 h-11 shrink-0 rounded-full text-on-surface-variant hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+              className="flex items-center justify-center w-11 h-11 shrink-0 rounded-full text-on-surface-variant hover:text-on-surface state-layer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
               <Icon icon={ArrowBack} size={20} />
             </button>
           </Tooltip>

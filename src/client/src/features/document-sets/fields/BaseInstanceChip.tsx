@@ -35,7 +35,7 @@ export function BaseInstanceChip({
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild disabled={!editable}>
         <button type="button"
-          className={`flex items-center gap-1.5 h-7 pl-2.5 pr-2 rounded-lg text-xs font-medium bg-primary-container text-brand-hover max-w-[16rem] transition-colors ${
+          className={`flex items-center gap-1.5 h-7 pl-2.5 pr-2 rounded-lg text-xs font-medium bg-primary-container text-on-primary-container max-w-[16rem] transition-colors ${
             editable ? 'hover:bg-primary-container/70 cursor-pointer' : 'cursor-default'}`}>
           <Icon icon={icon} size={18} className="shrink-0" />
           {/* Полный текст обрезанной подписи — нативным title: подсказка на самой кнопке не видна,
@@ -49,12 +49,12 @@ export function BaseInstanceChip({
           className="z-50 min-w-[12rem] rounded-md border border-outline-variant bg-surface py-1"
           style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
           <DropdownMenu.Item onSelect={() => setPickerOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer select-none outline-none text-on-surface-variant data-[highlighted]:bg-surface-container-low">
+            className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer select-none outline-none text-on-surface-variant state-layer">
             <Icon icon={ChangeCircle} size={18} className="text-on-surface-variant" /> Заменить основу…
           </DropdownMenu.Item>
           <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
           <DropdownMenu.Item onSelect={onClear}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer select-none outline-none text-error data-[highlighted]:bg-surface-container-low">
+            className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer select-none outline-none text-error state-layer">
             <Icon icon={LinkOff} size={18} /> Отвязать
           </DropdownMenu.Item>
         </DropdownMenu.Content>

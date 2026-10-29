@@ -473,7 +473,7 @@ export function CatalogEntryForm({
                   {proxyOverridden && (
                     <Tooltip content="Вернуть к наследованию от реального объекта">
                       <button type="button" onClick={() => setValue(field.key, undefined)}
-                        className="text-caption text-primary hover:text-brand-hover flex items-center gap-0.5 shrink-0">
+                        className="text-caption text-primary flex items-center gap-0.5 shrink-0">
                         <Icon icon={RestartAlt} size={18} /> наследовать
                       </button>
                     </Tooltip>
@@ -729,7 +729,7 @@ export function CatalogEntryForm({
           <span>Роль наследует все поля реального объекта — заполните только переопределяемые, пустые берутся у реального.</span>
           {!showAllProxyFields && (
             <button type="button" onClick={() => setShowAllProxyFields(true)}
-              className="text-primary hover:text-brand-hover font-medium shrink-0">Переопределить ещё…</button>
+              className="text-primary font-medium shrink-0">Переопределить ещё…</button>
           )}
         </div>
       )}
@@ -745,7 +745,7 @@ export function CatalogEntryForm({
               <div key={section.key} id={`cat-section-${section.key}`}
                 className="border border-outline-variant rounded-lg overflow-hidden scroll-mt-2">
                 <button type="button" onClick={() => toggleGroup(section.key)}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 bg-surface-container-low hover:bg-surface-container transition-colors text-left">
+                  className="w-full flex items-center gap-2 px-3 py-2.5 bg-surface-container-low state-layer text-left">
                   {isExpanded
                     ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" />
                     : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}

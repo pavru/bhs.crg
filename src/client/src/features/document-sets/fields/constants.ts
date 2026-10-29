@@ -12,7 +12,7 @@ export const STATUS_COLORS: Record<string, string> = {
 };
 export const SCOPE_COLORS: Record<CatalogScope, string> = {
   Set: 'bg-success-container text-on-success-container',
-  Section: 'bg-primary-container text-brand-hover',
+  Section: 'bg-primary-container text-on-primary-container',
   Construction: 'bg-warning-container text-on-warning-container',
   System: 'bg-surface-container text-on-surface-variant',
 };

@@ -67,7 +67,7 @@ function Group({ title, items, onSelectType }: {
               <p className={p.severity === 'error' ? 'text-error' : 'text-on-surface-variant'}>{p.message}</p>
               {onSelectType && p.typeId && (
                 <button type="button" onClick={() => onSelectType(p.typeId!)}
-                  className="inline-flex items-center gap-1 mt-1 text-primary hover:text-brand-hover">
+                  className="inline-flex items-center gap-1 mt-1 text-primary">
                   Перейти к «{p.typeName ?? 'типу'}» <Icon icon={ArrowForward} size={18} />
                 </button>
               )}

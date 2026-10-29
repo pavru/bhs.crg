@@ -106,7 +106,7 @@ function Choices({ profiles, shown, value, onPick }: {
         return (
           <button key={p.id} ref={el => { refs.current[i] = el; }} type="button" role="radio"
             aria-checked={checked} tabIndex={checked || (!value && i === 0) ? 0 : -1} onClick={() => onPick(p.id)}
-            className="w-full flex items-start gap-2 px-2 py-1.5 rounded-md text-left hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            className="w-full flex items-start gap-2 px-2 py-1.5 rounded-md text-left state-layer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <Icon icon={Check} size={18} aria-hidden className={`shrink-0 mt-0.5 ${checked ? 'text-primary' : 'invisible'}`} />
             <span className="min-w-0 flex-1">
               <span className="flex items-baseline gap-2">

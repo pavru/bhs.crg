@@ -55,7 +55,7 @@ export function InvoicePlaceField({ current, places, label, disabled, onPick }: 
   const trigger = (
     <button type="button" role="combobox" aria-label={label} aria-expanded={open} aria-haspopup="listbox"
       disabled={disabled} data-state={open ? 'open' : 'closed'}
-      className="inline-flex items-center justify-between gap-1 min-w-56 max-w-full h-7 px-2 rounded-md border border-outline bg-surface text-xs text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary data-[state=open]:ring-2 data-[state=open]:ring-primary disabled:opacity-50 disabled:pointer-events-none">
+      className="inline-flex items-center justify-between gap-1 min-w-56 max-w-full h-7 px-2 rounded-md border border-outline bg-surface text-xs text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary data-[state=open]:ring-2 data-[state=open]:ring-primary disabled-outlined disabled:pointer-events-none">
       <span ref={textRef} className={`min-w-0 flex-1 truncate text-left ${shown.muted ? 'text-on-surface-variant' : ''}`}>{shown.text}</span>
       <Icon icon={KeyboardArrowDown} size={18} aria-hidden className="text-on-surface-variant shrink-0" />
     </button>
@@ -81,7 +81,7 @@ export function InvoicePlaceField({ current, places, label, disabled, onPick }: 
     <Dialog.Root open={open} onOpenChange={setOpen}>
       {anchored(<Dialog.Trigger asChild>{trigger}</Dialog.Trigger>)}
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-scrim/32" />
         <Dialog.Content aria-describedby={undefined} data-modal-state="free"
           className="fixed inset-x-0 bottom-0 z-50 max-h-[80dvh] flex flex-col overflow-hidden rounded-t-xl border-t border-outline-variant bg-surface p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] focus:outline-none"
           style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
@@ -167,7 +167,7 @@ function Choices({ places, value, label, onPick }: {
         aria-description={row && row.sections > 0 ? `${ruCount(row.sections, 'раздел', 'раздела', 'разделов')}, стрелка вправо — разделы` : undefined}
         onMouseMove={() => setActiveKey(key(option))}
         onClick={() => activate(option)}
-        className={`min-w-0 flex-1 px-3 py-1.5 rounded text-sm cursor-pointer select-none break-words ${option === active ? 'bg-primary-container text-brand-hover' : 'text-on-surface'} aria-selected:font-medium`}>
+        className={`min-w-0 flex-1 px-3 py-1.5 rounded text-sm cursor-pointer select-none break-words ${option === active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface'} aria-selected:font-medium`}>
         {text}
       </div>
       {row && row.sections > 0 && (

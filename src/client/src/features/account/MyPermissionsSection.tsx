@@ -47,7 +47,7 @@ export function MyPermissionsSection() {
             <button type="button" onClick={() => setOpen(expanded ? null : group.module)}
               aria-expanded={expanded}
               className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-on-surface rounded-md
-                         transition-colors hover:bg-surface-container-low focus-visible:outline-none
+                         state-layer focus-visible:outline-none
                          focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
               <Icon icon={ChevronRight} size={18}
                 className={`text-on-surface-variant shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />

@@ -82,7 +82,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
         {n.linkUrl && (isExternalLink(n.linkUrl) ? (
           <a
             href={n.linkUrl} target="_blank" rel="noreferrer"
-            className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-secondary-container text-on-secondary-container hover:brightness-95 transition"
+            className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-secondary-container text-on-secondary-container state-layer"
           >
             <Icon icon={OpenInNew} size={18} /> {n.linkLabel ?? 'Открыть'}
           </a>
@@ -90,7 +90,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
           <button
             type="button"
             onClick={() => { void openResult(n.linkUrl!); }}
-            className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-secondary-container text-on-secondary-container hover:brightness-95 transition"
+            className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-secondary-container text-on-secondary-container state-layer"
           >
             <Icon icon={Download} size={18} /> {n.linkLabel ?? 'Открыть результат'}
           </button>
@@ -100,7 +100,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
             <button
               type="button"
               onClick={() => navigate(n.linkUrl!)}
-              className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-secondary-container text-on-secondary-container hover:brightness-95 transition"
+              className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-secondary-container text-on-secondary-container state-layer"
             >
               <Icon icon={ArrowForward} size={18} /> {n.linkLabel ?? 'Открыть'}
             </button>
@@ -159,7 +159,7 @@ function HealthNote() {
   return (
     <div className="shrink-0 border-b border-outline-variant">
       <button type="button" aria-expanded={open} onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-2.5 pl-5 pr-4 py-2.5 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
+        className="w-full flex items-center gap-2.5 pl-5 pr-4 py-2.5 text-left text-sm state-layer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
         <Icon icon={MonitorHeart} size={18} className={`shrink-0 ${down ? 'text-error' : 'text-warning'}`} />
         {/* Переносом, а не обрезкой: обрезанным оказывалось как раз имя сервиса — то, ради чего строка. */}
         <span className="flex-1 min-w-0">

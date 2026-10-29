@@ -28,8 +28,8 @@ function RowPill({ onClick, title, tone = 'tonal', children }: {
         className={'flex items-center gap-1 px-1.5 py-0.5 text-xs rounded-full shrink-0 '
           + 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary '
           + (tone === 'brand'
-            ? 'bg-primary hover:bg-brand-hover text-on-primary'
-            : 'bg-secondary-container text-on-secondary-container hover:brightness-[.97]')}>
+            ? 'bg-primary state-layer text-on-primary'
+            : 'bg-secondary-container text-on-secondary-container state-layer')}>
         {children}
       </button>
     </Tooltip>
@@ -117,7 +117,7 @@ export function MaterialsTable({
                     которое она занимала, ушло под «Перепривязать». */}
                 <Tooltip content="Просмотреть документ">
                   <button onClick={() => { const d = docById.get(link.qualityDocumentId); if (d) setViewDoc(d); }}
-                    className="flex-1 min-w-0 text-left text-brand-hover hover:underline truncate">
+                    className="flex-1 min-w-0 text-left text-primary hover:underline truncate">
                     {docName.get(link.qualityDocumentId) ?? '(документ)'}
                   </button>
                 </Tooltip>

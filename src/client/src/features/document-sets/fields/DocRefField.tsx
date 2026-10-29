@@ -140,7 +140,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
   return (
     <>
       <button type="button" onClick={() => setPickerOpen(true)}
-        className="flex items-center gap-2 px-3 py-2 text-sm text-primary hover:text-brand-hover border border-dashed border-primary/40 rounded-lg hover:bg-primary-container transition-colors w-full">
+        className="flex items-center gap-2 px-3 py-2 text-sm text-primary border border-dashed border-primary/40 rounded-lg hover:bg-primary-container transition-colors w-full">
         <Icon icon={Description} size={18} /> Выбрать документ...
       </button>
       {picker}
@@ -193,7 +193,7 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
           Документы <span className="text-on-surface-variant">{items.length} ссылок</span>
         </span>
         <button type="button" onClick={() => setPickerOpen(true)}
-          className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover px-2 py-0.5 rounded hover:bg-primary-container transition-colors">
+          className="flex items-center gap-1 text-xs text-primary px-2 py-0.5 rounded hover:bg-primary-container transition-colors">
           <Icon icon={Add} size={18} /> Добавить
         </button>
       </div>

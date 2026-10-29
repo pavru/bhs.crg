@@ -81,9 +81,9 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Очистка старых версий"
       footer={
         <div className="flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container rounded-md">Отмена</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm text-on-surface-variant state-layer rounded-md">Отмена</button>
           <button onClick={handleDelete} disabled={deleting || toDelete.length === 0}
-            className="px-4 py-2 text-sm bg-error hover:bg-error text-on-error rounded-md disabled:opacity-50 transition-colors">
+            className="px-4 py-2 text-sm bg-error hover:bg-error text-on-error rounded-md disabled-container transition-colors">
             {deleting ? 'Удаление...' : `Удалить ${toDelete.length} вер.`}
           </button>
         </div>
@@ -100,15 +100,15 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
             const checked = toDeleteIds.has(t.id);
             return (
               <label key={t.id}
-                className={`flex items-center gap-3 px-3 py-2.5 text-sm cursor-pointer transition-colors
+                className={`flex items-center gap-3 px-3 py-2.5 text-sm cursor-pointer
                   ${i > 0 ? 'border-t border-surface-container' : ''}
-                  ${protected_ ? 'opacity-60 cursor-not-allowed bg-surface-container-low' : checked ? 'bg-error-container hover:bg-error-container' : 'hover:bg-surface-container-low'}`}>
+                  ${protected_ ? 'opacity-60 cursor-not-allowed bg-surface-container-low' : checked ? 'bg-error-container hover:bg-error-container' : 'state-layer'}`}>
                 <input
                   type="checkbox"
                   checked={checked}
                   disabled={protected_}
                   onChange={() => toggleVersion(t.id)}
-                  className="w-4 h-4 rounded border-outline text-error disabled:opacity-40"
+                  className="w-4 h-4 rounded border-outline text-error disabled-outlined"
                 />
                 <span className="font-mono text-on-surface-variant shrink-0">v{t.version}</span>
                 <span className="flex items-center gap-1.5 flex-1 min-w-0">
@@ -213,7 +213,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
       <div className="px-4 py-3 border-b border-surface-container flex items-center justify-between">
         <span className="text-sm font-medium text-on-surface-variant">Шаблоны</span>
         <Tooltip content="Новый шаблон" name>
-          <button onClick={onNew} className="text-primary hover:text-brand-hover transition-colors">
+          <button onClick={onNew} className="text-primary transition-colors">
             <Icon icon={Add} size={18} />
           </button>
         </Tooltip>
@@ -236,7 +236,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
 
           return (
             <div key={group.name}>
-              <div className={`flex items-center group/grp transition-colors ${isGroupSelected ? 'bg-primary-container' : 'hover:bg-surface-container-low'}`}>
+              <div className={`flex items-center group/grp ${isGroupSelected ? 'bg-primary-container' : 'state-layer'}`}>
                 <button
                   onClick={() => handleGroupHeaderClick(group)}
                   className="flex-1 flex items-center gap-1.5 px-3 py-2.5 text-left min-w-0"
@@ -245,7 +245,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                     ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" />
                     : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
                   {hasDefault && <Icon icon={Star} size={18} className="fill-warning text-warning shrink-0" />}
-                  <span className={`text-sm truncate flex-1 ${isGroupSelected ? 'text-brand-hover font-medium' : 'text-on-surface'}`}>
+                  <span className={`text-sm truncate flex-1 ${isGroupSelected ? 'text-primary font-medium' : 'text-on-surface'}`}>
                     {group.name}
                   </span>
                   <span className="text-xs text-on-surface-variant shrink-0">v{latestVersion}</span>
@@ -279,12 +279,12 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                     const deleteBlocked = t.isActive || t.isDefault;
                     return (
                     <div key={t.id}
-                      className={`flex items-center group/ver transition-colors pl-5
-                        ${selectedTemplate?.id === t.id ? 'bg-primary-container' : 'hover:bg-surface-container-low'}`}>
+                      className={`flex items-center group/ver pl-5
+                        ${selectedTemplate?.id === t.id ? 'bg-primary-container' : 'state-layer'}`}>
                       <button
                         onClick={() => onSelect(t)}
                         className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 text-left min-w-0
-                          ${selectedTemplate?.id === t.id ? 'text-brand-hover' : 'text-on-surface-variant'}`}
+                          ${selectedTemplate?.id === t.id ? 'text-primary' : 'text-on-surface-variant'}`}
                       >
                         <span className="text-xs font-mono shrink-0 w-6">v{t.version}</span>
                         <span className="flex items-center gap-1 flex-1 min-w-0">

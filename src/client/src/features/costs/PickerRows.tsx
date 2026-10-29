@@ -23,7 +23,7 @@ export function PickerOption({ row, id, active, enter, narrow, kinds, onChoose, 
 }) {
   const tone = row.best
     ? `bg-primary-container ${active ? 'ring-1 ring-primary/40' : ''}`
-    : active ? 'bg-surface-container' : 'hover:bg-surface-container';
+    : active ? 'bg-surface-container' : 'state-layer';
   return (
     <div id={id} role="option" aria-selected={active}
       onClick={() => onChoose(row)} onMouseMove={() => { if (!active) onHover(row.id); }}

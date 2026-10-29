@@ -98,8 +98,8 @@ export function RolesPage() {
 
   const row = (r: AppRole) => (
     <button key={r.name} onClick={() => pick(r.name)}
-      className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-        r.name === selected?.name ? 'bg-primary-container' : 'hover:bg-surface-container-low'}`}>
+      className={`w-full text-left px-3 py-2 rounded-lg ${
+        r.name === selected?.name ? 'bg-primary-container' : 'state-layer'}`}>
       <div className="flex items-center gap-2">
         <span className="text-sm text-on-surface truncate">{r.title}</span>
         <RoleBadge role={r} />
@@ -179,7 +179,7 @@ export function RolesPage() {
               <h2 className="text-caption font-medium uppercase tracking-wide text-on-surface-variant mb-2">{group.title}</h2>
               <div className="border border-outline-variant rounded-lg divide-y divide-surface-container bg-surface">
                 {group.permissions.map((p: PermissionInfo) => (
-                  <label key={p.code} className={`flex gap-3 px-4 py-2.5 hover:bg-surface-container-low ${
+                  <label key={p.code} className={`flex gap-3 px-4 py-2.5 state-layer ${
                     locked ? 'cursor-default' : 'cursor-pointer'}`}>
                     <input type="checkbox" className="mt-1 shrink-0" checked={checked.has(p.code)}
                       disabled={locked} onChange={() => toggle(p.code)} />

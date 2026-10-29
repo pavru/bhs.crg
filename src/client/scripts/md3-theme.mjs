@@ -190,18 +190,15 @@ export function generate(source) {
     ]),
   ].join('\n');
 
+  // Своих значений у старых имён больше нет (sharedui-md3-05 снял fg-disabled, brand-hover,
+  // brand-pressed вместе с --legacy-*): псевдоним — только имя роли.
   const aliases = entries(theme.aliases);
-  const own = aliases.filter(([, to]) => typeof to !== 'string');
-  for (const [name, to] of own)
-    if (!to.legacy?.light || !to.legacy?.dark) throw new Error(`md3-theme.json: псевдоним «${name}» без значений legacy обеих тем`);
+  for (const [name, to] of aliases)
+    if (typeof to !== 'string') throw new Error(`md3-theme.json: псевдоним «${name}» — не имя роли MD3`);
   const legacy = [
     HEADER + '/* Старые имена классов — переходные псевдонимы ролей MD3 ([UI-58]): рисуют ровно то же, что до\n'
-      + '   перехода, и расти им нельзя (храповик legacy-class). Имя без роли того же значения держит своё\n'
-      + '   значение переменной --legacy-*. Файл удаляет финал эпика целиком. */\n',
-    block(':root', own.map(([k, to]) => `--legacy-${k}: ${to.legacy.light};`)),
-    block(':root[data-theme="dark"]', own.map(([k, to]) => `--legacy-${k}: ${to.legacy.dark};`)),
-    block('@theme inline', aliases.map(([k, to]) =>
-      `--color-${k}: var(${typeof to === 'string' ? roleVar(theme, to) : `--legacy-${k}`});`)),
+      + '   перехода, и расти им нельзя (храповик legacy-class). Файл удаляет финал эпика целиком. */\n',
+    block('@theme inline', aliases.map(([k, to]) => `--color-${k}: var(${roleVar(theme, to)});`)),
   ].join('\n');
 
   return { 'md3-tokens.css': tokens, 'md3-tailwind.css': tailwind, 'md3-legacy.css': legacy };

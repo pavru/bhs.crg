@@ -104,14 +104,14 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
                 isFirst={i === 0} isLast={i === fields.length - 1} />
               <Tooltip content={locked ? 'Обязательное поле — удалить нельзя' : 'Удалить'} name>
                 <button type="button" onClick={() => remove(i)} disabled={locked}
-                  className="p-0.5 text-on-surface-variant hover:text-error disabled:opacity-25"><Icon icon={Delete} size={18} /></button>
+                  className="p-0.5 text-on-surface-variant hover:text-error disabled-content"><Icon icon={Delete} size={18} /></button>
               </Tooltip>
             </span>
           </div>
         );
       })}
       <button type="button" onClick={() => onChange([...fields, withRowUid({ name: '', description: '', type: 'string' })])}
-        className="flex items-center gap-1 text-sm text-primary hover:text-brand-hover pt-0.5">
+        className="flex items-center gap-1 text-sm text-primary pt-0.5">
         <Icon icon={Add} size={18} /> {addLabel}
       </button>
     </div>
@@ -201,7 +201,7 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
               <span className="text-caption px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">встроенный</span>
             )}
             {profile.isModified && (
-              <span className="text-caption px-1.5 py-0.5 rounded bg-primary-container text-brand-pressed">изменён</span>
+              <span className="text-caption px-1.5 py-0.5 rounded bg-primary-container text-on-primary-container">изменён</span>
             )}
           </span>
         }
@@ -392,8 +392,8 @@ export function RecognitionProfilesPage() {
 
   const row = (p: RecognitionProfile) => (
     <button key={p.id} type="button" onClick={() => { ld.showDetail(); setSelectedId(p.id); }}
-      className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-        selected?.id === p.id ? 'bg-primary-container text-brand-pressed' : 'text-on-surface-variant hover:bg-surface-container-low'}`}>
+      className={`w-full text-left px-3 py-2 rounded-lg ${
+        selected?.id === p.id ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant state-layer'}`}>
       <span className="flex items-center gap-1.5">
         <span className="text-sm truncate flex-1 min-w-0">{p.name}</span>
         {p.builtInOutdated && <Icon icon={Warning} size={18} className="text-warning shrink-0" aria-label="Заводской профиль обновился" />}

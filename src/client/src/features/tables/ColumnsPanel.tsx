@@ -55,7 +55,7 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
     <Popover.Root open={open} onOpenChange={toggle}>
       <Popover.Trigger asChild>
         <button type="button"
-          className="inline-flex items-center gap-1.5 rounded-md border border-outline-variant px-2.5 py-1 text-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container">
+          className="inline-flex items-center gap-1.5 rounded-md border border-outline-variant px-2.5 py-1 text-xs text-on-surface-variant hover:text-on-surface state-layer">
           <Icon icon={ViewColumn} size={18} aria-hidden />
           {view.columns ? `Колонки: ${shown.length} из ${all.length}` : 'Колонки'}
         </button>
@@ -99,7 +99,7 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
             </Select>
             <div className="flex-1" />
             <button type="button" disabled={!customised} onClick={() => onChange(v => withColumnsReset(v, base))}
-              className="text-on-surface-variant hover:text-on-surface disabled:opacity-40 disabled:hover:text-on-surface-variant">
+              className="text-on-surface-variant hover:text-on-surface disabled-content">
               {baseTitle ? `Как в «${baseTitle}»` : 'Как у таблицы'}
             </button>
           </div>
@@ -125,7 +125,7 @@ function ColumnRow({ column, label, checked, total, onShown, onTotal, move }: {
   const totals = column && !column.unavailable ? aggregatesFor(column.kind) : [];
 
   return (
-    <li className="flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-surface-container">
+    <li className="flex items-center gap-2 rounded-md px-1.5 py-1 state-layer">
       <label className="flex-1 min-w-0 flex items-center gap-2 text-sm text-on-surface cursor-pointer">
         <input type="checkbox" checked={checked} onChange={onShown} />
         <span className={`truncate ${column ? '' : 'line-through text-on-surface-variant'}`}>{label}</span>

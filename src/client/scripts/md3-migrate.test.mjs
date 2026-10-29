@@ -90,10 +90,10 @@ describe('md3:migrate: неоднозначное не трогает, а наз
     expect(u).toEqual([{ line: 1, token: 'text-base', reason: expect.stringContaining('размер текста') }]);
   });
 
-  it('text-brand-hover без наведения и с ним — нет пары, не трогается', () => {
-    const source = '"text-brand-hover hover:bg-brand-hover"';
-    expect(migrated(source)).toBe(source);
-    expect(untouched(source)).toEqual(['text-brand-hover', 'bg-brand-hover']);
+  it('brand-hover и brand-pressed (sharedui-md3-05): текст → text-primary, наведение и нажатие — слоем', () => {
+    expect(migrated('"text-brand-hover bg-primary hover:bg-brand-hover active:bg-brand-pressed"'))
+      .toBe('"text-primary bg-primary state-layer"');
+    expect(migrated('"bg-primary-container text-brand-pressed"')).toBe('"bg-primary-container text-on-primary-container"');
   });
 
   it('у текста две роли (sharedui-md3-04): fg3, fg4 и text-stroke-strong → on-surface-variant', () => {
@@ -256,9 +256,9 @@ describe('md3:migrate: пары карты рисуют то же', () => {
   });
 
   it('пара с другим значением краснеет и называет пару и тему', () => {
-    const bad = mismatches({ 'brand-hover': { to: 'primary', same: true } });
+    const bad = mismatches({ fg2: { to: 'primary', same: true } });
     expect(bad.length).toBeGreaterThan(0);
-    expect(bad[0]).toMatch(/^bg-brand-hover → bg-primary \(светлая тема\)/);
+    expect(bad[0]).toMatch(/^bg-fg2 → bg-primary \(светлая тема\)/);
     expect(bad.some(m => m.includes('(тёмная тема)'))).toBe(true);
   });
 });

@@ -178,7 +178,7 @@ function FileRow({ label, icon, title, active, onClick }: {
       <button
         type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
         className={`w-full flex items-center gap-1.5 px-3 py-1.5 text-left text-sm
-                    ${active ? 'bg-primary-container' : 'hover:bg-surface-container'}`}
+                    ${active ? 'bg-primary-container' : 'state-layer'}`}
       >
         <span className={`shrink-0 ${active ? 'text-primary' : 'text-on-surface-variant'}`}>{icon}</span>
         <span className={`truncate ${active ? 'text-on-surface font-medium' : 'text-on-surface-variant'}`}>{label}</span>

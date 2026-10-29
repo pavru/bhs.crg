@@ -121,7 +121,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
   };
   const segBtn = (m: 'ref' | 'inline', label: string) => (
     <button type="button" onClick={() => { setModeOverride(m); onChange(undefined); }}
-      className={`px-2 py-0.5 transition-colors ${mode === m ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container'}`}>{label}</button>
+      className={`px-2 py-0.5 ${mode === m ? 'bg-primary text-on-primary' : 'text-on-surface-variant state-layer'}`}>{label}</button>
   );
 
   return (
@@ -527,7 +527,7 @@ function AddBindingPanel({
         <button
           onClick={handleSave}
           disabled={!sourceId || create.isPending}
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-on-primary disabled:opacity-40 bg-primary"
+          className="px-3 py-1.5 rounded-md text-sm font-medium text-on-primary disabled-container bg-primary"
         >
           {create.isPending ? 'Сохранение...' : 'Сохранить привязку'}
         </button>
@@ -740,7 +740,7 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
             <button
               onClick={handlePreview}
               disabled={previewing}
-              className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md transition-colors disabled:opacity-50 text-on-surface-variant bg-surface-container"
+              className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md transition-colors disabled-container text-on-surface-variant bg-surface-container"
             >
               {previewing
                 ? <CircularProgress size={18} />

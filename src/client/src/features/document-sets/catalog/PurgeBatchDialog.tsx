@@ -222,7 +222,7 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
   return (
     <Dialog.Root open onOpenChange={o => { if (!o && !busy) onClose(false); }}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" style={{ backdropFilter: 'blur(2px)' }} />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-scrim/32" style={{ backdropFilter: 'blur(2px)' }} />
         <Dialog.Content
           // То же, что у `PurgeDialog`: запрос, исход или набранное подтверждение держат человека.
           data-modal-state={busy ? 'busy' : refused ?? unknown ?? fresh ? 'result' : input ? 'touched' : 'free'}

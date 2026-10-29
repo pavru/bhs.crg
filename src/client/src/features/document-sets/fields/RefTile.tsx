@@ -31,13 +31,13 @@ export function RefTile({ value, onReplace, onClear, children }: {
       )}
       <Tooltip content="Заменить ссылку" name>
         <button type="button" onClick={onReplace}
-          className="p-1.5 rounded-full text-on-surface-variant hover:text-primary hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0">
+          className="p-1.5 rounded-full text-on-surface-variant hover:text-primary state-layer shrink-0">
           <Icon icon={Refresh} size={18} />
         </button>
       </Tooltip>
       <Tooltip content="Снять ссылку" name>
         <button type="button" onClick={onClear}
-          className="p-1.5 rounded-full text-on-surface-variant hover:text-error hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0">
+          className="p-1.5 rounded-full text-on-surface-variant hover:text-error state-layer shrink-0">
           <Icon icon={LinkOff} size={18} />
         </button>
       </Tooltip>

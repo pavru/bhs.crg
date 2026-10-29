@@ -27,9 +27,6 @@
   --radius-xl: 16px;   /* карточка, панель            */
 }
 
-/* ── dark: variant using data-theme ─────────────────────────────────────────── */
-@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
-
 /* ── Base ─────────────────────────────────────────────────────────────────────  */
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -61,7 +58,9 @@ body {
   transition-duration: var(--md-sys-motion-duration-short3);
   transition-timing-function: var(--md-sys-motion-easing-standard);
   &:hover, &[data-highlighted] { --_s: var(--md-sys-state-hover); }
-  &:focus-visible, &:active:not(tr), &[data-state=open] { --_s: var(--md-sys-state-pressed); }
+  /* Нажатие — только своё: :active есть и у предков нажатой кнопки, и строка или карточка со слоем
+     темнела бы от вложенного крестика. */
+  &:focus-visible, &:active:not(:has(:is(button, a, input, select, textarea, label, [role=button], [tabindex]):active)), &[data-state=open] { --_s: var(--md-sys-state-pressed); }
   &[data-dragging] { --_s: var(--md-sys-state-dragged); }
   &:disabled, &[aria-disabled=true], &[data-disabled] { --_s: 0; }
 }
@@ -98,28 +97,30 @@ body {
    Одним видом при disabled, aria-disabled (кнопка с подсказкой «почему нельзя») и data-disabled
    (пункт меню Radix). Утилитой, а не парой disabled:-классов: Tooltip переписывает disabled: в
    безусловный класс, и bg-on-surface/12 спорил бы с bg-primary порядком в CSS. Здесь же вес
-   селектора выше заливки элемента. Обводку красит только disabled-outlined: у прозрачной рамки
+   селектора выше заливки элемента. Цвет, заливка, рамка и тень — с !important: наведение элемента
+   (hover:text-on-surface у кнопки-значка) стоит в CSS позже и весит столько же — отключённая кнопка под
+   курсором вспыхивала бы полным цветом. Обводку красит только disabled-outlined: у прозрачной рамки
    (вкладка без черты, строчный Select) серой рамки появиться не должно. Часть со своим цветом
    (разделитель, значок другого цвета) гасит компонент сам. */
 @utility disabled-content {
   &:disabled, &[aria-disabled=true], &[data-disabled] {
-    color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
+    color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent) !important;
     cursor: default;
   }
 }
 @utility disabled-outlined {
   &:disabled, &[aria-disabled=true], &[data-disabled] {
-    color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
-    border-color: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
+    color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent) !important;
+    border-color: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent) !important;
     cursor: default;
   }
 }
 @utility disabled-container {
   &:disabled, &[aria-disabled=true], &[data-disabled] {
-    color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
-    background-color: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
-    border-color: transparent;
-    box-shadow: none;
+    color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent) !important;
+    background-color: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent) !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
     cursor: default;
   }
 }

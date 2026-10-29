@@ -67,7 +67,7 @@ function FindingRow({ f, onDecide, linkable, checked, onToggle }: {
   const left = f.provenance.left;
   const right = f.provenance.right;
   return (
-    <div className="px-3 py-2 border-b border-outline-variant hover:bg-surface-container/40 group">
+    <div className="px-3 py-2 border-b border-outline-variant state-layer group">
       <div className="flex items-center gap-2">
         {/* Связывать имеет смысл только позиции, не нашедшие пары: у остальных пара уже есть. */}
         {linkable && (
@@ -308,8 +308,8 @@ export function ReconciliationsPage() {
       {currentRun?.status === 'Completed' && (
         <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant text-xs shrink-0">
           <button type="button" onClick={() => setOnlyAttention(v => !v)}
-            className={`px-2 py-1 rounded-full transition-colors ${
-              onlyAttention ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
+            className={`px-2 py-1 rounded-full ${
+              onlyAttention ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant state-layer'}`}>
             Требует внимания: {attentionCount}
           </button>
           <span className="text-on-surface-variant">

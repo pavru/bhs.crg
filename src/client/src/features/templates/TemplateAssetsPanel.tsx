@@ -80,7 +80,7 @@ function AssetRow({ asset }: { asset: TemplateAssetDto }) {
   }
 
   return (
-    <div className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-container-low group">
+    <div className="flex items-center gap-2 px-2 py-1.5 rounded state-layer group">
       {asset.kind === 'Image'
         ? <Icon icon={ImageIcon} size={18} className="text-primary shrink-0" />
         : <Icon icon={Title} size={18} className="text-tertiary shrink-0" />}
@@ -135,7 +135,7 @@ function UploadButton({ scope, scopeId }: { scope: TemplateAssetScope; scopeId: 
     <div className="flex items-center gap-2">
       <button type="button" onClick={() => inputRef.current?.click()}
         disabled={uploadMutation.isPending}
-        className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover disabled:opacity-50">
+        className="flex items-center gap-1 text-xs text-primary disabled-content">
         <Icon icon={Upload} size={18} /> Добавить ассет
       </button>
       <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleFile} />
@@ -161,7 +161,7 @@ export function TemplateAssetsPanel({ scope, scopeId, title, hintScopes }: {
   return (
     <div className="border-t border-outline-variant bg-surface">
       <button onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-surface-container-low transition-colors text-left">
+        className="w-full flex items-center gap-2 px-4 py-2.5 state-layer text-left">
         <Icon icon={ImageIcon} size={18} className="text-on-surface-variant" />
         <span className="text-xs font-medium text-on-surface-variant flex-1">
           {title}{assets.length > 0 ? ` (${assets.length})` : ''}

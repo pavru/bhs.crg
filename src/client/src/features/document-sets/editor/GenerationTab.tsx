@@ -183,13 +183,13 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
                 const focused = focusedTemplate?.id === t.id;
                 return (
                   <label key={t.id}
-                    className={`flex items-center gap-2 pr-2.5 text-sm border-l-2 transition-colors cursor-pointer ${focused ? 'bg-primary-container border-primary' : 'border-transparent hover:bg-surface-container-low'}`}>
+                    className={`flex items-center gap-2 pr-2.5 text-sm border-l-2 cursor-pointer ${focused ? 'bg-primary-container border-primary' : 'border-transparent state-layer'}`}>
                     <input type="checkbox" checked={selected} disabled={setTemplatesMutation.isPending}
                       onChange={e => { toggleTemplate(t.id, e.target.checked); setChosenFocus(t.id); }}
                       aria-label={`Использовать шаблон «${t.name}» для генерации`}
                       className="ml-2.5 shrink-0" />
                     <span className="flex-1 min-w-0 py-1.5">
-                      <span className={`truncate ${focused ? 'text-brand-hover font-medium' : 'text-on-surface'}`}>
+                      <span className={`truncate ${focused ? 'text-primary font-medium' : 'text-on-surface'}`}>
                         {t.isDefault ? '★ ' : ''}{t.name} <span className="text-on-surface-variant font-normal">(v{t.version})</span>
                       </span>
                     </span>
@@ -251,7 +251,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
             {canSend && (
               <Tooltip content="Отправить сгенерированные PDF документа по почте (подписчикам и/или на внешние адреса)">
                 <button onClick={() => setEmailOpen(true)}
-                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-outline-variant rounded-md hover:bg-surface-container-low transition-colors">
+                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-outline-variant rounded-md state-layer">
                   <Icon icon={Mail} size={18} className="text-primary" /> Отправить по почте
                 </button>
               </Tooltip>
@@ -268,11 +268,11 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
                       Отказ из открытия доходит один — вкладку не дали открыть: об отказе загрузки
                       говорит сама вкладка. */}
                   <button onClick={() => { setError(''); previewGeneratedFile(instance.id, f.templateId).catch((e: Error) => setError(e.message)); }} disabled={busy}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-outline-variant rounded-md hover:bg-surface-container-low disabled:opacity-40 disabled:pointer-events-none">
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-outline-variant rounded-md state-layer disabled-outlined disabled:pointer-events-none">
                     <Icon icon={Visibility} size={18} className="text-primary" /> Открыть
                   </button>
                   <button onClick={() => downloadGeneratedFile(instance.id, f.templateId)} disabled={busy}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-outline-variant rounded-md hover:bg-surface-container-low disabled:opacity-40 disabled:pointer-events-none">
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-outline-variant rounded-md state-layer disabled-outlined disabled:pointer-events-none">
                     <Icon icon={Download} size={18} className="text-primary" /> Скачать
                   </button>
                 </div>

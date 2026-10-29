@@ -118,7 +118,7 @@ function Details({ party, pick, canCreate, onChoose, onRetry }: {
                   <li key={c.id}>
                     {pick && !c.archived
                       ? (
-                        <button type="button" className="w-full text-left rounded px-2 py-1 hover:bg-surface-container"
+                        <button type="button" className="w-full text-left rounded px-2 py-1 state-layer"
                           onClick={() => { onChoose(c.id); setOpen(false); }}>{body}</button>
                       )
                       : <div className="px-2 py-1">{body}</div>}

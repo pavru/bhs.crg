@@ -302,7 +302,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
               return (
                 <div key={t.id} className="border border-outline-variant rounded-xl overflow-hidden">
                   <button type="button" onClick={() => toggleType(t.id)} aria-expanded={isOpen}
-                    className="w-full flex items-center gap-2 px-4 py-3 bg-surface hover:bg-surface-container-low transition-colors text-left">
+                    className="w-full flex items-center gap-2 px-4 py-3 bg-surface state-layer text-left">
                     {isOpen ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
                     <span className="flex-1 text-sm font-medium text-on-surface-variant">{t.name}</span>
                     {isDocType(t.id) && (
@@ -320,7 +320,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
               return (
                 <div className="border border-outline-variant rounded-xl overflow-hidden">
                   <button type="button" onClick={() => toggleType(NO_TYPE)} aria-expanded={isOpen}
-                    className="w-full flex items-center gap-2 px-4 py-3 bg-surface hover:bg-surface-container-low transition-colors text-left">
+                    className="w-full flex items-center gap-2 px-4 py-3 bg-surface state-layer text-left">
                     {isOpen ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
                     <span className="flex-1 text-sm font-medium text-on-surface-variant italic">Без типа</span>
                     <span className="text-xs text-on-surface-variant">{noType.filter(isLive).length}</span>
@@ -372,10 +372,10 @@ function TypeNavItem({ icon, label, count, active, doc, muted, profile, onClick 
 }) {
   return (
     <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
-      className={`w-full flex items-center gap-2 px-2.5 h-9 rounded-lg text-left transition-colors ${
-        active ? 'bg-primary-container text-brand-hover font-medium'
-          : profile ? 'text-brand-hover hover:bg-primary-container' : 'text-on-surface-variant hover:bg-surface-container'}`}>
-      {icon && <span className={`shrink-0 ${active || profile ? 'text-brand-hover' : doc ? 'text-warning' : 'text-on-surface-variant'}`}>{icon}</span>}
+      className={`w-full flex items-center gap-2 px-2.5 h-9 rounded-lg text-left ${
+        active ? 'bg-primary-container text-on-primary-container font-medium'
+          : profile ? 'text-primary hover:bg-primary-container' : 'text-on-surface-variant state-layer'}`}>
+      {icon && <span className={`shrink-0 ${active || profile ? 'text-primary' : doc ? 'text-warning' : 'text-on-surface-variant'}`}>{icon}</span>}
       <span className={`flex-1 truncate text-sm ${muted ? 'italic text-on-surface-variant' : ''}`}>{label}</span>
       {count != null && <span className="text-xs text-on-surface-variant tabular-nums shrink-0">{count}</span>}
     </button>
@@ -440,13 +440,13 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
   return (
     <div className="max-w-2xl">
       <div className="flex items-start gap-3 mb-4">
-        <span className="shrink-0 w-10 h-10 rounded-lg bg-primary-container text-brand-hover flex items-center justify-center">
+        <span className="shrink-0 w-10 h-10 rounded-lg bg-primary-container text-on-primary-container flex items-center justify-center">
           <Icon icon={Apartment} size={18} />
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h2 className="text-base font-semibold text-on-surface">Данные: {SCOPE_LABELS[scope]}</h2>
-            <span className="text-xs bg-primary-container text-brand-hover px-1.5 py-0.5 rounded-full">уровень</span>
+            <span className="text-xs bg-primary-container text-on-primary-container px-1.5 py-0.5 rounded-full">уровень</span>
           </div>
           <p className="text-xs text-on-surface-variant mt-0.5">Тип: {type.name} · единственная запись уровня.</p>
         </div>

@@ -19,7 +19,7 @@ export function SectionCard({ icon, title, count, countClass, open, onToggle, ch
   return (
     <div className="border border-outline-variant rounded-lg bg-surface overflow-hidden">
       <button type="button" onClick={onToggle}
-        className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container/40 transition-colors">
+        className="w-full flex items-center gap-2 px-3 py-2.5 state-layer">
         <span className="text-on-surface-variant shrink-0">{icon}</span>
         <span className="text-sm font-medium text-on-surface-variant">{title}</span>
         {count != null && count > 0 && <span className={`text-xs ${countClass ?? 'text-primary'}`}>({count})</span>}

@@ -33,7 +33,7 @@ export function FunctionalTagChip({ tag, entry, onToggle, onOrderChange }: {
   const step = (delta: number) => onOrderChange(String(Math.min(99, Math.max(1, (order ?? 0) + delta))));
 
   const arrowClass = 'invisible group-hover:visible group-focus-within:visible '
-    + 'text-tertiary hover:text-on-tertiary-container disabled:opacity-40 shrink-0';
+    + 'text-tertiary hover:text-on-tertiary-container disabled-content shrink-0';
 
   return (
     <span

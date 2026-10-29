@@ -74,7 +74,7 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
     return (
       <Tooltip content="Показать предпросмотр" name>
         <button type="button" onClick={() => setOpenPersist(true)}
-          className="hidden xl:flex flex-col items-center gap-2 w-11 shrink-0 border-l border-outline-variant pt-4 text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors">
+          className="hidden xl:flex flex-col items-center gap-2 w-11 shrink-0 border-l border-outline-variant pt-4 text-on-surface-variant hover:text-primary state-layer">
           <Icon icon={RightPanelOpen} size={18} />
           <span className="text-xs [writing-mode:vertical-rl] rotate-180 tracking-wide">Предпросмотр</span>
         </button>

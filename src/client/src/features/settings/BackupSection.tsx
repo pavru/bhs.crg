@@ -374,8 +374,8 @@ function IconAction({ title, onClick, danger, disabled, children }: {
         aria-label={title}
         onClick={onClick}
         disabled={disabled}
-        className={`p-1.5 rounded-md transition-colors disabled:opacity-50 ${
-          danger ? 'text-on-surface-variant hover:text-on-error-container hover:bg-error-container' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low'
+        className={`p-1.5 rounded-md disabled-content ${
+          danger ? 'text-on-surface-variant hover:text-on-error-container hover:bg-error-container' : 'text-on-surface-variant hover:text-on-surface state-layer'
         }`}
       >
         {children}
@@ -418,7 +418,7 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
         </div>
 
         {report.conversionNotice && (
-          <div className="flex gap-2 rounded-lg border border-primary-container bg-primary-container p-3 text-sm text-brand-pressed">
+          <div className="flex gap-2 rounded-lg border border-primary-container bg-primary-container p-3 text-sm text-on-primary-container">
             <Icon icon={Info} size={18} className="shrink-0 mt-0.5" />
             <span>{report.conversionNotice}</span>
           </div>
@@ -488,5 +488,5 @@ const statCell = (n: number, sign: string, tone: string) => n > 0
 const STAT_COLUMNS: DataGridColumn<Stat>[] = [
   { key: 'label', label: 'Категория' },
   { key: 'created', label: 'Добавлено', align: 'right', width: 'w-28', cell: r => statCell(r.created, '+', 'text-success') },
-  { key: 'updated', label: 'Обновлено', align: 'right', width: 'w-28', cell: r => statCell(r.updated, '~', 'text-brand-hover') },
+  { key: 'updated', label: 'Обновлено', align: 'right', width: 'w-28', cell: r => statCell(r.updated, '~', 'text-primary') },
 ];

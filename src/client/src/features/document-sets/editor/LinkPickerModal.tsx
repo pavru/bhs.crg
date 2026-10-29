@@ -251,7 +251,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                   <span className="text-caption uppercase px-1.5 py-0.5 rounded bg-surface-container-low text-on-surface-variant shrink-0 mt-0.5">{c.source}</span>
                   <div className="flex-1 min-w-0">
                     <a href={c.url} target="_blank" rel="noreferrer"
-                      className="text-sm text-brand-hover hover:underline flex items-center gap-1">
+                      className="text-sm text-primary hover:underline flex items-center gap-1">
                       <span className="truncate">{c.title || c.url}</span><Icon icon={OpenInNew} size={18} className="shrink-0" />
                     </a>
                     {c.snippet && <p className="text-xs text-on-surface-variant line-clamp-2">{c.snippet}</p>}

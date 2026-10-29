@@ -129,7 +129,7 @@ function AddEntryBindingPanel({
           type="button"
           onClick={handleSave}
           disabled={!sourceId || create.isPending}
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-on-primary disabled:opacity-40 bg-primary"
+          className="px-3 py-1.5 rounded-md text-sm font-medium text-on-primary disabled-container bg-primary"
         >
           {create.isPending ? 'Сохранение...' : 'Сохранить привязку'}
         </button>
@@ -251,7 +251,7 @@ export function EntryDataSetBindings({
         />
       ) : (
         <button type="button" onClick={() => setAdding(true)}
-          className="flex items-center gap-1.5 text-sm text-primary hover:text-brand-hover transition-colors">
+          className="flex items-center gap-1.5 text-sm text-primary transition-colors">
           <Icon icon={Add} size={18} /> Привязать источник данных
         </button>
       )}

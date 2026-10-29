@@ -117,8 +117,8 @@ function ReconciliationBlock({ id, name, unresolved }: {
           <Icon icon={OpenInNew} size={18} /> Открыть в «Сверке»
         </Link>
         <button type="button" onClick={() => setOnlyOpen(v => !v)}
-          className={`text-caption px-2 py-0.5 rounded-full transition-colors ${
-            onlyOpen ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container-low'}`}>
+          className={`text-caption px-2 py-0.5 rounded-full ${
+            onlyOpen ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant state-layer'}`}>
           не разобрано: {unresolved}
         </button>
         <Button variant="text" size="sm" loading={run.isPending}

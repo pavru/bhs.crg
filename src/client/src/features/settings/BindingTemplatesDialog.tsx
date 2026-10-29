@@ -136,7 +136,7 @@ function TemplateForm({
         <button
           onClick={() => onSave({ name, targetFieldKey, columnMappings })}
           disabled={saving || !name.trim()}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-on-primary disabled:opacity-40 bg-primary"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-on-primary disabled-container bg-primary"
         >
           <Icon icon={Check} size={18} />
           {saving ? 'Сохранение...' : 'Сохранить'}

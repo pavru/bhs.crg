@@ -116,7 +116,7 @@ function StepsEditor({ model, onChange }: { model: XPathModel; onChange: (m: XPa
           onChange={patch => updateStep(i, patch)} onRemove={() => removeStep(i)} />
       ))}
       <button type="button" onClick={addStep}
-        className="text-xs text-primary hover:text-brand-hover flex items-center gap-1 px-1.5 py-1 shrink-0">
+        className="text-xs text-primary flex items-center gap-1 px-1.5 py-1 shrink-0">
         <Icon icon={Add} size={18} /> Шаг
       </button>
     </div>
@@ -161,7 +161,7 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
           <PredicateEditor key={i} predicate={p}
             onChange={next => updatePredicate(i, next)} onRemove={() => removePredicate(i)} />
         ))}
-        <button type="button" onClick={addPredicate} className="text-caption text-primary hover:text-brand-hover shrink-0">
+        <button type="button" onClick={addPredicate} className="text-caption text-primary shrink-0">
           + условие
         </button>
       </div>
@@ -191,10 +191,10 @@ function PredicateEditor({ predicate, onChange, onRemove }: {
     }
   }
 
-  const inputCls = 'bg-transparent border-b border-primary-container outline-none focus:border-brand-hover';
+  const inputCls = 'bg-transparent border-b border-primary-container outline-none focus:border-primary';
 
   return (
-    <span className="inline-flex items-center gap-1 bg-primary-container border border-primary-container rounded px-1.5 py-0.5 text-caption text-brand-hover">
+    <span className="inline-flex items-center gap-1 bg-primary-container border border-primary-container rounded px-1.5 py-0.5 text-caption text-on-primary-container">
       <Select size="inline" aria-label="Вид условия" value={predicateKind(predicate)} onValueChange={kind => setKind(kind as PredicateKind)}>
         <SelectItem value="exists">путь есть</SelectItem>
         <SelectItem value="equals">путь =</SelectItem>

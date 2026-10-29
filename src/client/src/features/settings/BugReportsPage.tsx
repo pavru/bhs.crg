@@ -63,10 +63,10 @@ export function BugReportsPage() {
   const row = (r: BugReportListItem) => (
     <button key={r.id} type="button" onClick={() => { ld.showDetail(); setPicked(r.id); }}
       aria-current={r.id === selectedId ? 'true' : undefined}
-      className={`w-full text-left px-3 py-2 rounded-xl transition-colors ${
-        r.id === selectedId ? 'bg-primary-container' : 'hover:bg-surface-container'}`}>
+      className={`w-full text-left px-3 py-2 rounded-xl ${
+        r.id === selectedId ? 'bg-primary-container' : 'state-layer'}`}>
       <div className="flex items-start gap-2">
-        <span className={`flex-1 min-w-0 text-sm truncate ${r.id === selectedId ? 'text-brand-hover font-medium' : 'text-on-surface'}`}>
+        <span className={`flex-1 min-w-0 text-sm truncate ${r.id === selectedId ? 'text-primary font-medium' : 'text-on-surface'}`}>
           {r.summary}
         </span>
         <ReportStatus status={r.status} />
@@ -420,7 +420,7 @@ function TechBlock({ tech }: { tech: BugReportTech | null }) {
       )}
 
       {tech.stack && (
-        <pre className="max-h-60 overflow-auto rounded-lg bg-black/5 dark:bg-white/5 p-3 text-caption leading-relaxed whitespace-pre-wrap break-words">
+        <pre className="max-h-60 overflow-auto rounded-lg bg-surface-container p-3 text-caption leading-relaxed whitespace-pre-wrap break-words">
           {tech.stack}
         </pre>
       )}

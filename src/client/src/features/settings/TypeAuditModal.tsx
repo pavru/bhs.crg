@@ -123,7 +123,7 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
                         <div key={k}>
                           <button type="button"
                             onClick={() => setExpanded(s => toggleInSet(s, k))}
-                            className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-surface-container-low transition-colors">
+                            className="w-full flex items-start gap-2 px-3 py-2 text-left state-layer">
                             {isOpen ? <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0 mt-0.5" /> : <Icon icon={ChevronRight} size={18} className="text-on-surface-variant shrink-0 mt-0.5" />}
                             <span className="min-w-0 flex-1">
                               <code className="text-xs text-on-surface-variant break-all">{row.path}</code>

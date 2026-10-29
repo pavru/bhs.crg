@@ -377,7 +377,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
             </button>
           )}
           <button type="button" onClick={addRow}
-            className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover px-2 py-0.5 rounded hover:bg-primary-container transition-colors">
+            className="flex items-center gap-1 text-xs text-primary px-2 py-0.5 rounded hover:bg-primary-container transition-colors">
             <Icon icon={Add} size={18} /> Добавить строку
           </button>
         </div>
@@ -409,7 +409,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               }
               return (
                 <div key={i} {...dropTarget(i)}
-                  className={`flex items-center gap-2 px-3 py-2 ${selected.has(i) ? 'bg-primary-container' : 'hover:bg-surface-container-low'}`}>
+                  className={`flex items-center gap-2 px-3 py-2 ${selected.has(i) ? 'bg-primary-container' : 'state-layer'}`}>
                   {rowChrome(i)}
                   <Icon icon={LinkIcon} size={18} className="text-warning shrink-0" />
                   <span className="flex-1 text-sm text-warning truncate">{item.displayName}</span>
@@ -440,7 +440,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                 <div {...dropTarget(i)}
                   className={`flex items-center gap-2 px-3 py-2 ${wrappedBroken
                     ? `${BROKEN_PLATE} ${selectedRing(i)}`
-                    : selected.has(i) ? 'bg-primary-container' : 'hover:bg-surface-container-low'}`}>
+                    : selected.has(i) ? 'bg-primary-container' : 'state-layer'}`}>
                   {rowChrome(i, wrappedBroken)}
                   <Icon icon={LinkIcon} size={18} className={`shrink-0 ${wrappedBroken ? 'text-error' : 'text-warning'}`} />
                   <span className={`flex-1 text-sm truncate ${wrappedBroken ? BROKEN_LABEL : 'text-warning'}`}>{wrapped.ref.displayName}</span>
@@ -472,7 +472,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
             // issue #102: строка — компактная сводка + ✎ (модалка), без инлайн-раскрытия (источник «портянки»).
             return (
               <div key={i} {...dropTarget(i)}
-                className={`flex items-center gap-2 px-3 py-2 ${selected.has(i) ? 'bg-primary-container' : 'hover:bg-surface-container-low'}`}>
+                className={`flex items-center gap-2 px-3 py-2 ${selected.has(i) ? 'bg-primary-container' : 'state-layer'}`}>
                 {rowChrome(i)}
                 <button type="button" onClick={() => setRowModal(i)}
                   className="flex-1 text-left text-sm text-on-surface-variant hover:text-on-surface truncate">
@@ -703,13 +703,13 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
             <span className={`flex-1 text-sm font-medium truncate ${BROKEN_LABEL}`}>{value.displayName}</span>
             <Tooltip content="Заменить ссылку" name>
               <button type="button" onClick={() => setPickerOpen(true)}
-                className="p-1.5 rounded-full text-error hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0">
+                className="p-1.5 rounded-full text-error hover:text-on-surface state-layer shrink-0">
                 <Icon icon={Refresh} size={18} />
               </button>
             </Tooltip>
             <Tooltip content="Снять ссылку" name>
               <button type="button" onClick={() => onChange({})}
-                className="p-1.5 rounded-full text-error hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0">
+                className="p-1.5 rounded-full text-error hover:text-on-surface state-layer shrink-0">
                 <Icon icon={LinkOff} size={18} />
               </button>
             </Tooltip>
@@ -780,7 +780,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
             {isEmpty ? <span className="text-on-surface-variant">Заполнить…</span> : objectSummary(subValues, subFields, typeDefs)}
           </button>
           <button type="button" onClick={() => setPickerOpen(true)}
-            className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover px-2 py-0.5 rounded hover:bg-primary-container transition-colors shrink-0">
+            className="flex items-center gap-1 text-xs text-primary px-2 py-0.5 rounded hover:bg-primary-container transition-colors shrink-0">
             <Icon icon={LinkIcon} size={18} /> Из каталога
           </button>
           <Tooltip content="Редактировать" name>
@@ -848,7 +848,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
         </button>
         <div className="flex items-center gap-1 shrink-0">
           <button type="button" onClick={() => setPickerOpen(true)}
-            className="flex items-center gap-1.5 text-xs text-primary hover:text-brand-hover px-2 py-0.5 rounded hover:bg-primary-container transition-colors">
+            className="flex items-center gap-1.5 text-xs text-primary px-2 py-0.5 rounded hover:bg-primary-container transition-colors">
             <Icon icon={LinkIcon} size={18} /> Выбрать из каталога
           </button>
           {/* Обратное движение (issue #663) — в kebab, а не четвёртой кнопкой: конвенция «>3 действий

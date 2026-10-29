@@ -398,7 +398,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
         {typeId && (
           <div>
             <button type="button" onClick={() => setShowPreview(v => !v)}
-              className="text-xs text-primary hover:text-brand-hover">
+              className="text-xs text-primary">
               {showPreview ? 'Скрыть предпросмотр' : 'Предпросмотр материализации'}
             </button>
             {showPreview && (

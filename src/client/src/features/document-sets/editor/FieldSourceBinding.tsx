@@ -139,7 +139,7 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
           aria-label={locked ? 'Снять привязку к источнику'
             : isBound ? 'Привязка к источнику' : 'Привязать к источнику'}
           className={`inline-flex items-center justify-center rounded transition-colors ${
-            isBound ? 'text-primary hover:text-brand-hover' : 'text-on-surface-variant opacity-0 group-hover:opacity-100 hover:text-on-surface-variant'}`}>
+            isBound ? 'text-primary' : 'text-on-surface-variant opacity-0 group-hover:opacity-100 hover:text-on-surface-variant'}`}>
           <Icon icon={Database} size={18} />
         </button>
       </Tooltip>

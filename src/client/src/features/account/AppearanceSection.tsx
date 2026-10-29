@@ -62,10 +62,10 @@ export function AppearanceSection() {
               type="button"
               onClick={() => setLocale(opt.value)}
               aria-pressed={isSelected}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-left transition-colors ${
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-left ${
                 isSelected
-                  ? 'bg-primary-container border border-primary-container text-brand-pressed'
-                  : 'border border-transparent text-on-surface-variant hover:bg-surface-container-low'
+                  ? 'bg-primary-container border border-primary-container text-on-primary-container'
+                  : 'border border-transparent text-on-surface-variant state-layer'
               }`}
             >
               <span className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 flex items-center justify-center ${

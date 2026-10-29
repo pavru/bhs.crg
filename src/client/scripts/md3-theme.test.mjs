@@ -40,8 +40,6 @@ const ALIAS_ROLE = {
   'success-subtle': 'success-container', 'warning-subtle': 'warning-container',
   'danger': 'error', 'danger-subtle': 'error-container', 'on-danger': 'on-error',
 };
-/** Имена без роли того же значения — держат своё до ребёнка эпика, который их снимает (04, 05). */
-const OWN_VALUE = ['fg-disabled', 'brand-hover', 'brand-pressed'];
 const UTILITIES = ['bg', 'text', 'border', 'border-t', 'ring', 'outline', 'divide', 'fill', 'stroke', 'from',
   'accent', 'caret', 'decoration'];
 
@@ -54,7 +52,7 @@ beforeAll(async () => {
 describe('тема MD3: старые имена рисуют прежнее', () => {
   it('перечень старых имён в описании темы — тот же, что в договоре', () => {
     expect(Object.keys(theme.aliases).filter(k => !k.startsWith('//')).sort())
-      .toEqual([...Object.keys(ALIAS_ROLE), ...OWN_VALUE].sort());
+      .toEqual(Object.keys(ALIAS_ROLE).sort());
   });
 
   it.each(Object.entries(ALIAS_ROLE))('%s ≡ %s в обеих темах', (old, role) => {
@@ -68,11 +66,8 @@ describe('тема MD3: старые имена рисуют прежнее', ()
       }
   });
 
-  it.each(OWN_VALUE)('%s держит своё значение в обеих темах', old => {
-    for (const mode of ['light', 'dark']) {
-      const value = declarations(`bg-${old}`, mode);
-      expect(value, `bg-${old} (${mode}) не разрешается в цвет`).toMatch(/^background-color: #[0-9a-f]{6};$/);
-    }
+  it('своих значений у старых имён нет: --legacy-* снят (sharedui-md3-05)', () => {
+    expect(generate(readTheme())['md3-legacy.css']).not.toContain('--legacy-');
   });
 });
 

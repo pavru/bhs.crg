@@ -59,7 +59,7 @@ function ExtractionFields({
       <div>
         <div className="flex items-center justify-between mb-1">
           <label className="block text-xs font-medium text-on-surface-variant">Колонки — относительно строки</label>
-          <button type="button" onClick={addColumn} className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover">
+          <button type="button" onClick={addColumn} className="flex items-center gap-1 text-xs text-primary">
             <Icon icon={Add} size={18} /> Колонка
           </button>
         </div>
@@ -158,7 +158,7 @@ function TemplateForm({
         <button
           onClick={handleSave}
           disabled={saving || !name.trim()}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-on-primary disabled:opacity-40 bg-primary"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-on-primary disabled-container bg-primary"
         >
           <Icon icon={Check} size={18} />
           {saving ? 'Сохранение...' : 'Сохранить'}

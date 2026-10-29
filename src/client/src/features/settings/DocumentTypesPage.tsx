@@ -220,8 +220,8 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
       <button key={t.id} type="button" onClick={() => onSelect(t.id)}
         ref={active ? activeRow : undefined}
         aria-current={active ? 'true' : undefined}
-        className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left transition-colors ${
-          active ? 'bg-primary-container text-brand-hover font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
+        className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left ${
+          active ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant state-layer'}`}>
         <Icon icon={icon} size={18} className="shrink-0" />
         <span className="flex-1 truncate text-sm">{t.name}</span>
         <span className="text-xs text-on-surface-variant shrink-0">{fieldCount(t, allDocTypes)}</span>

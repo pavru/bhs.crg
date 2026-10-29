@@ -149,7 +149,7 @@ export function CreateForm({
           {fields.length > 0 && (
             <button type="button" onClick={() => setShowJson(v => !v)}
               className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded ${
-                showJson ? 'bg-on-surface text-surface-container' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
+                showJson ? 'bg-on-surface text-surface-container' : 'text-on-surface-variant hover:text-on-surface state-layer'
               }`}>
               <Icon icon={DataObject} size={18} /> JSON
             </button>

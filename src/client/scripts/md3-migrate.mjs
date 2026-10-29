@@ -13,7 +13,8 @@
 //   npm run md3:migrate            — перевести src/ и напечатать отчёт
 //   npm run md3:migrate -- --check — только проверить: код 1, если есть что менять
 //
-// Вторым проходом — значки lucide → Material Symbols (md3-icons-migrate.mjs, sharedui-md3-03): по уже
+// Первым проходом — самодельные состояния → слой и отключённое MD3 (md3-states-migrate.mjs,
+// sharedui-md3-05): правила о классе с вариантом, до перевода имён. Последним — значки lucide → Material Symbols (md3-icons-migrate.mjs, sharedui-md3-03): по уже
 // переведённому тексту, потому что оба прохода правят className.
 
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
@@ -24,6 +25,7 @@ import { entries, themeDir } from './md3-theme.mjs';
 import theme from '../src/theme/md3-theme.json' with { type: 'json' };
 import classMap from './md3-class-map.json' with { type: 'json' };
 import { formatIconReport, migrateIcons } from './md3-icons-migrate.mjs';
+import { compileStates, migrateStates } from './md3-states-migrate.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const clientRoot = join(here, '..');
@@ -123,7 +125,9 @@ function inNegativeExpect(text, index) {
  * руками так, чтобы оно снова могло упасть, — см. `inNegativeExpect`).
  * Возвращает новый текст, замены (`{ line, from, to, pair, comment }`) и нетронутое (`{ line, token, reason }`).
  */
-export function migrateText(text, { file = '', rules = compile() } = {}) {
+export function migrateText(source, { file = '', rules = compile(), states = compileStates() } = {}) {
+  const pre = migrateStates(source, { rules: states, skip: at => isTest(file) && inNegativeExpect(source, at) });
+  const text = pre.text;
   const stripped = stripComments(text);
   const replaced = [];
   const untouched = [];
@@ -146,7 +150,11 @@ export function migrateText(text, { file = '', rules = compile() } = {}) {
     return variable ? hit.to : `${lead}${hit.to}${tail}`;
   });
   const onContainer = containerText(out, file);
-  return { text: onContainer.text, replaced: [...replaced, ...onContainer.replaced], untouched: [...untouched, ...onContainer.untouched] };
+  return {
+    text: onContainer.text,
+    replaced: [...pre.replaced, ...replaced, ...onContainer.replaced],
+    untouched: [...pre.untouched, ...untouched, ...onContainer.untouched],
+  };
 }
 
 /**
