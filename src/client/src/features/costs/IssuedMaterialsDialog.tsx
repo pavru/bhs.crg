@@ -48,17 +48,17 @@ export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
           {sites.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
         </Select>
 
-        {!site && <p className="text-xs text-on-surface-variant">Перечень считается по стройке — из проведённых накладных.</p>}
-        {site && materials.isPending && <p className="text-xs text-on-surface-variant">Загрузка…</p>}
+        {!site && <p className="text-body-small text-on-surface-variant">Перечень считается по стройке — из проведённых накладных.</p>}
+        {site && materials.isPending && <p className="text-body-small text-on-surface-variant">Загрузка…</p>}
         {site && materials.isError && (
-          <p className="text-xs text-error">Перечень не пришёл: {apiError(materials.error, 'сервер отказал')}</p>
+          <p className="text-body-small text-error">Перечень не пришёл: {apiError(materials.error, 'сервер отказал')}</p>
         )}
 
         {site && data && (
           <>
             {data.unmatchedLines > 0 && (
               <p role="status" className="flex items-start gap-2 rounded-md border border-outline-variant
-                bg-warning-container px-3 py-2 text-xs text-on-warning-container">
+                bg-warning-container px-3 py-2 text-body-small text-on-warning-container">
                 <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
                 Не сопоставлено: {data.unmatchedLines} {linesWord(data.unmatchedLines)} в накладных
                 ({data.unmatchedWaybills}). В перечне ниже их нет — выдано больше, чем показано. Найти их:
@@ -67,7 +67,7 @@ export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
             )}
             {data.items.length === 0
               ? (
-                <p className="text-xs text-on-surface-variant">
+                <p className="text-body-small text-on-surface-variant">
                   {data.unmatchedLines > 0
                     ? 'Сопоставленных строк нет: всё выданное на эту стройку ждёт позиции номенклатуры.'
                     : 'На эту стройку ничего не выдано: проведённых накладных нет.'}

@@ -28,7 +28,7 @@ function WarningLine({ w }: { w: CopyWarning }) {
         <>
           {' '}
           <button type="button" onClick={() => setOpen(o => !o)}
-            className="text-primary state-layer text-xs">
+            className="text-primary state-layer text-body-small">
             {open ? 'скрыть' : 'показать'}
           </button>
           {open && <div className="text-on-surface-variant mt-0.5">{w.names.join(', ')}</div>}

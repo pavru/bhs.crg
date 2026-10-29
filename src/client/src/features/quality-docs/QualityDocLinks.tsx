@@ -144,7 +144,7 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
   return (
     <div className="space-y-1">
       {shown.length === 0 && (
-        <p className="text-sm text-on-surface-variant py-4 text-center">Ни одна связка не подходит под поиск.</p>
+        <p className="text-body-medium text-on-surface-variant py-4 text-center">Ни одна связка не подходит под поиск.</p>
       )}
       {shown.map(link => (
         <div key={link.id} className="group flex items-start gap-3 rounded-sm px-3 py-2 state-layer">
@@ -157,9 +157,9 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
             {/* Метка первой строкой во всю ширину: имена материалов доходят до сотни знаков,
                 колонки на четверть экрана здесь противопоказаны. Ключ — второй строкой и
                 моноширинным: это машинная строка, и вид должен об этом говорить. */}
-            <p className="text-sm text-on-surface leading-snug break-words">{nameOf(link)}</p>
+            <p className="text-body-medium text-on-surface leading-snug break-words">{nameOf(link)}</p>
             {link.materialLabel && (
-              <p className="text-xs text-on-surface-variant font-mono break-all">{link.materialKey}</p>
+              <p className="text-body-small text-on-surface-variant font-mono break-all">{link.materialKey}</p>
             )}
           </div>
           {/* Знак аномалии — рядом со значком уровня, но цветом: он говорит не «какой уровень»,
@@ -183,13 +183,13 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
           совпадать с тем, что произойдёт. Скрытые поиском строки в счёт не идут. */}
       {chosen.length > 0 && (
         <div className="sticky bottom-0 flex items-center gap-2 rounded-sm border border-outline-variant bg-surface px-3 py-2 shadow-elevation-1">
-          <span className="text-sm text-on-surface-variant">Выбрано: {chosen.length}</span>
+          <span className="text-body-medium text-on-surface-variant">Выбрано: {chosen.length}</span>
           <Button variant="filled" size="sm" icon={<Icon icon={ChangeCircle} size={18} />}
             onClick={() => setBulkRelink(true)}>Перепривязать ({chosen.length})</Button>
           <Button variant="outlined" size="sm" icon={<Icon icon={LinkOff} size={18} />}
             onClick={() => setBulkBreak(true)}>Разорвать ({chosen.length})</Button>
           <button type="button" onClick={() => setSelected(new Set())}
-            className="ml-auto text-xs text-on-surface-variant hover:text-on-surface-variant">Снять выбор</button>
+            className="ml-auto text-body-small text-on-surface-variant hover:text-on-surface-variant">Снять выбор</button>
         </div>
       )}
 

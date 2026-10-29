@@ -28,28 +28,28 @@ export function BackupSizeLine({ scope }: { scope: BackupScope }) {
     retry: false,
   });
 
-  if (isPending) return <p className="text-xs text-on-surface-variant">Размер копии оценивается…</p>;
+  if (isPending) return <p className="text-body-small text-on-surface-variant">Размер копии оценивается…</p>;
   // Хранилище отказало (issue #1427) — это не «оценить не удалось», а «копия выйдет без файлов»:
   // самый опасный исход раздела, и выглядеть он обязан предупреждением, а не серой подсказкой.
   // Текст — сервера: он называет, что проверить. Только по 409: у сетевой ошибки текста сервера
   // нет, и apiError показал бы английское «Network Error».
   if (isError && isConflict(error)) {
     return (
-      <p className="text-xs text-warning flex items-start gap-1">
+      <p className="text-body-small text-warning flex items-start gap-1">
         <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
         <span>{apiError(error, 'Хранилище файлов отказало в ответе.')}</span>
       </p>
     );
   }
   // Молча ничего не показывать нельзя, но и мешать копированию нечем: кнопка работает и без оценки.
-  if (isError || !data) return <p className="text-xs text-on-surface-variant">Размер копии оценить не удалось.</p>;
+  if (isError || !data) return <p className="text-body-small text-on-surface-variant">Размер копии оценить не удалось.</p>;
 
   const variant = data.variant;
   const exceedsUploadLimit = variant.totalBytes > data.limitBytes;
 
   return (
     <div className="space-y-1">
-      <p className="text-xs text-on-surface-variant">
+      <p className="text-body-small text-on-surface-variant">
         Размер копии ≈ <b>{formatBytes(variant.totalBytes)}</b>
         {variant.blobCount > 0 && <> · файлов: {variant.blobCount}</>}
       </p>
@@ -60,7 +60,7 @@ export function BackupSizeLine({ scope }: { scope: BackupScope }) {
         копию на новый сервер значит узнать в середине переезда.
       */}
       {exceedsUploadLimit && (
-        <p className="text-xs text-warning flex items-start gap-1">
+        <p className="text-body-small text-warning flex items-start gap-1">
           <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
           <span>
             Копия крупнее {formatBytes(data.limitBytes)} — через браузер её не загрузить. Для
@@ -70,7 +70,7 @@ export function BackupSizeLine({ scope }: { scope: BackupScope }) {
         </p>
       )}
       {variant.missingBlobCount > 0 && (
-        <p className="text-xs text-warning flex items-start gap-1">
+        <p className="text-body-small text-warning flex items-start gap-1">
           <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
           <span>
             Файлов нет в хранилище: {variant.missingBlobCount}. В копию они не попадут — ссылки на

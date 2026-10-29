@@ -21,8 +21,8 @@ export function SectionCard({ icon, title, count, countClass, open, onToggle, ch
       <button type="button" onClick={onToggle}
         className="w-full flex items-center gap-2 px-3 py-2.5 state-layer">
         <span className="text-on-surface-variant shrink-0">{icon}</span>
-        <span className="text-sm font-medium text-on-surface-variant">{title}</span>
-        {count != null && count > 0 && <span className={`text-xs ${countClass ?? 'text-primary'}`}>({count})</span>}
+        <span className="text-body-medium font-medium text-on-surface-variant">{title}</span>
+        {count != null && count > 0 && <span className={`text-body-small ${countClass ?? 'text-primary'}`}>({count})</span>}
         <span className="flex-1" />
         {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
       </button>

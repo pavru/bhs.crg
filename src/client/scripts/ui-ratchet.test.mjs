@@ -6,8 +6,9 @@ import { compare, countViolations as countAll, dirsToScan, scopeNote, defaultSco
 // legacy-class ниже. Здесь счёт прочих правил — без legacy-class, raw-state и dark-variant: фикстуры
 // white-on-fill и пометок держат самодельное наведение нарочно (оно не их нарушение), а эти правила
 // проверяют свои блоки. legacy-radius и legacy-shadow (sharedui-md3-06) — в ui-ratchet-shape.test.mjs: прежние фикстуры
-// пишут rounded, rounded-lg и тени старыми классами, и это не их нарушение.
-const OWN_BLOCK = new Set(['legacy-class', 'raw-state', 'dark-variant', 'legacy-radius', 'legacy-shadow']);
+// пишут rounded, rounded-lg и тени старыми классами, и это не их нарушение. legacy-type (sharedui-md3-07) — в
+// ui-ratchet-type.test.mjs по той же причине: фикстуры пишут text-xs, font-semibold и uppercase.
+const OWN_BLOCK = new Set(['legacy-class', 'raw-state', 'dark-variant', 'legacy-radius', 'legacy-shadow', 'legacy-type']);
 const countViolations = (text, opts) =>
   Object.fromEntries(Object.entries(countAll(text, opts)).filter(([rule]) => !OWN_BLOCK.has(rule)));
 
@@ -374,7 +375,7 @@ describe('храповик интерфейса: словарь MD3 (sharedui-md
   });
 
   it('третий серый в новом файле — legacy-class с советом on-surface-variant (sharedui-md3-04, [UI-63])', () => {
-    expect(countAll('<p className="text-caption text-fg4" />', { dir: 'features', file: 'features/x/New.tsx' }))
+    expect(countAll('<p className="text-label-small text-fg4" />', { dir: 'features', file: 'features/x/New.tsx' }))
       .toEqual({ 'legacy-class': 1 });
     const advice = RULES.find(r => r.id === 'legacy-class').instead;
     expect(advice).toContain('fg3 → on-surface-variant');

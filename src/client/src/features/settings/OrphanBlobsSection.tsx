@@ -85,7 +85,7 @@ export function OrphanBlobsSection() {
   return (
     <CollapsibleSection title="Осиротевшие файлы хранилища" storageKey="orphan-blobs" defaultOpen={false}>
       <div className="space-y-3">
-        <p className="text-xs text-on-surface-variant">
+        <p className="text-body-small text-on-surface-variant">
           Сгенерированные PDF, сканы и вложения, на которые больше не ссылается ни одна запись:
           удаление документа или комплекта убирает записи из базы, но файлы остаются занимать место.
           Считаются только объекты, созданные приложением.
@@ -104,16 +104,16 @@ export function OrphanBlobsSection() {
           {busy && <CircularProgress size={18} className="text-primary" />}
         </div>
 
-        {error && <p className="text-xs text-error">{error}</p>}
+        {error && <p className="text-body-small text-error">{error}</p>}
 
         {done && (
-          <p className="text-xs text-success">
+          <p className="text-body-small text-success">
             Готово: удалено файлов {done.deleted}, освобождено {formatBytes(done.bytes)}.
           </p>
         )}
 
         {blocked && (
-          <p className="text-xs text-error">
+          <p className="text-body-small text-error">
             Хранилище не отвечает — ничего не удалено. Числа ниже недостоверны: «нет размера» и «нет
             связи» с этой стороны выглядят одинаково, а снять записи о живых файлах значило бы
             сделать их недоступными навсегда. Повторите, когда хранилище ответит.
@@ -121,7 +121,7 @@ export function OrphanBlobsSection() {
         )}
 
         {report && (
-          <ul className="text-xs text-on-surface-variant space-y-1">
+          <ul className="text-body-small text-on-surface-variant space-y-1">
             <li>Всего числится за приложением: {report.registered}, из них используются: {report.referenced}</li>
             {report.heldByModules > 0 && (
               <li className="text-on-surface-variant">

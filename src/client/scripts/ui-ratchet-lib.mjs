@@ -5,7 +5,7 @@ import { posix } from 'node:path';
 import ts from 'typescript';
 import { containerTextHits, stripComments } from './class-scan.mjs';
 import { isBadge, isChip } from './ui-ratchet-pills.mjs';
-import { countDarkVariants, countLegacyClasses, countLegacyRadii, countLegacyShadows, countRawStates, LEGACY_HINT } from './ui-ratchet-md3.mjs';
+import { countDarkVariants, countLegacyClasses, countLegacyRadii, countLegacyShadows, countLegacyType, countRawStates, LEGACY_HINT } from './ui-ratchet-md3.mjs';
 
 const COLORS = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
 const UTILITIES = 'bg|text|border|ring|ring-offset|outline|divide|fill|stroke|from|via|to|shadow|accent|caret|decoration|placeholder';
@@ -52,7 +52,7 @@ export const RULES = [
     id: 'text-size',
     // Произвольный размер текста: text-[11px], text-[0.7rem]. Цвет вида text-[#fff] ловит palette.
     pattern: /\btext-\[\d+(?:\.\d+)?(?:px|rem|em)\]/g,
-    instead: 'размер текста — ступенью шкалы (text-caption, text-xs, text-note, text-sm): docs/UI.md, «Текст»',
+    instead: 'размер текста — ролью MD3 (text-body-small, text-body-medium, text-label-small, text-title-small…): docs/UI.md, «Текст»',
   },
   {
     id: 'palette',
@@ -265,6 +265,16 @@ export const RULES = [
     everywhere: true,
     styles: true,
     instead: 'тень — уровнем возвышения MD3 по роли слоя: shadow-elevation-1 (кнопка, карточка), shadow-elevation-2 (меню, список, поповер, палитра), shadow-elevation-3 (окно, плавающая кнопка), 4 и 5 — по таблице; без тени — shadow-none; черта места вставки строки — drop-mark-before / drop-mark-after (docs/UI.md, «Форма и возвышение»)',
+  },
+  {
+    id: 'legacy-type',
+    // Текст вне ролей MD3 ([UI-67], sharedui-md3-07): ступени Tailwind text-xs…9xl, свои caption и note,
+    // начертания font-semibold и крупнее, uppercase и свой tracking-*. Мелкие ступени (xs, sm, base,
+    // caption) кодмод md3:migrate перевёл по значению; note, капс и крупные ступени ждут роли по месту,
+    // начертания — ребёнка 17. По строкам кода (classTokens): класс в комментарии не рисуется.
+    count: countLegacyType,
+    everywhere: true,
+    instead: 'текст — ролью MD3 целиком: text-body-small 12, text-body-medium 14, text-body-large 16 — текст; text-label-small/medium/large — подпись, пометка, кнопка; text-title-small 14/500 — заголовок группы, строчными; text-title-large, text-headline-small — заголовок сводки; вес вне роли — только font-medium (docs/UI.md, «Текст»)',
   },
   {
     id: 'lucide-import',

@@ -35,7 +35,7 @@ const BASE_OPTIONS: EditorProps['options'] = {
 export default function CodeEditor({ options, ...props }: EditorProps) {
   return (
     <Suspense
-      fallback={<div className="h-full w-full flex items-center justify-center text-sm text-on-surface-variant">Загрузка редактора…</div>}
+      fallback={<div className="h-full w-full flex items-center justify-center text-body-medium text-on-surface-variant">Загрузка редактора…</div>}
     >
       <MonacoEditor {...props} options={{ ...BASE_OPTIONS, ...options }} />
     </Suspense>

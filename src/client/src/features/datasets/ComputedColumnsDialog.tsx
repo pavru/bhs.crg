@@ -25,14 +25,14 @@ function ColumnRow({
     <div className="rounded-md p-3 space-y-2 border border-outline-variant bg-surface-container-low">
       <div className="flex items-center gap-2">
         <div className="flex-1 space-y-1">
-          <label className="block text-caption font-medium uppercase tracking-wide text-on-surface-variant">
+          <label className="block text-label-small font-medium uppercase tracking-wide text-on-surface-variant">
             Имя новой колонки
           </label>
           <input
             value={col.alias}
             onChange={e => onChange({ ...col, alias: e.target.value })}
             placeholder="Напр.: ФИО"
-            className="w-full border border-outline-variant rounded-xs px-2 py-1.5 text-xs font-mono bg-surface text-on-surface"
+            className="w-full border border-outline-variant rounded-xs px-2 py-1.5 text-body-small font-mono bg-surface text-on-surface"
           />
         </div>
         <button
@@ -43,7 +43,7 @@ function ColumnRow({
         </button>
       </div>
       <div className="space-y-1">
-        <label className="block text-caption font-medium uppercase tracking-wide text-on-surface-variant">
+        <label className="block text-label-small font-medium uppercase tracking-wide text-on-surface-variant">
           Выражение (JavaScript)
         </label>
         <input
@@ -51,7 +51,7 @@ function ColumnRow({
           onChange={e => onChange({ ...col, expr: e.target.value })}
           onFocus={e => onExprFocus(e.currentTarget, index)}
           placeholder="Напр.: Фамилия + ' ' + Имя"
-          className="w-full border border-outline-variant rounded-xs px-2 py-1.5 text-xs font-mono bg-surface text-on-surface"
+          className="w-full border border-outline-variant rounded-xs px-2 py-1.5 text-body-small font-mono bg-surface text-on-surface"
         />
       </div>
     </div>
@@ -130,7 +130,7 @@ export function ComputedColumnsDialog({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 rounded-sm text-sm font-medium text-on-primary bg-primary disabled-container"
+            className="px-4 py-2 rounded-sm text-body-medium font-medium text-on-primary bg-primary disabled-container"
           >
             {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
@@ -139,7 +139,7 @@ export function ComputedColumnsDialog({
             <button
               onClick={() => void commit(() => onSave(null))}
               disabled={saving}
-              className="ml-auto px-4 py-2 rounded-sm text-sm font-medium text-error bg-surface-container disabled-container"
+              className="ml-auto px-4 py-2 rounded-sm text-body-medium font-medium text-error bg-surface-container disabled-container"
             >
               Сбросить
             </button>
@@ -147,7 +147,7 @@ export function ComputedColumnsDialog({
         </div>
       }
     >
-      <div className="rounded-md p-3 mb-4 text-xs space-y-1 bg-surface-container-low border border-outline-variant">
+      <div className="rounded-md p-3 mb-4 text-body-small space-y-1 bg-surface-container-low border border-outline-variant">
         <p className="font-semibold text-on-surface-variant">Синтаксис JavaScript</p>
         <p className="text-on-surface-variant">
           К колонке можно обратиться тремя способами:{' '}
@@ -172,7 +172,7 @@ export function ComputedColumnsDialog({
       </div>
 
       {sourceColumns.length > 0 && (
-        <div className="rounded-md p-3 mb-4 text-xs bg-surface-container-low border border-outline-variant">
+        <div className="rounded-md p-3 mb-4 text-body-small bg-surface-container-low border border-outline-variant">
           <p className="mb-2 text-on-surface-variant">
             Колонки источника — нажмите, чтобы вставить в выражение
             {columns.length === 0 && <span className="text-on-surface-variant"> (сначала добавьте колонку)</span>}
@@ -202,7 +202,7 @@ export function ComputedColumnsDialog({
 
       <div className="space-y-3 mb-4">
         {columns.length === 0 && (
-          <p className="text-xs py-2 text-center text-on-surface-variant">
+          <p className="text-body-small py-2 text-center text-on-surface-variant">
             Нет вычисляемых колонок.
           </p>
         )}
@@ -220,12 +220,12 @@ export function ComputedColumnsDialog({
 
       <button
         onClick={addColumn}
-        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-sm text-on-primary-container bg-primary-container"
+        className="flex items-center gap-1.5 text-body-small font-medium px-3 py-1.5 rounded-sm text-on-primary-container bg-primary-container"
       >
         <Icon icon={Add} size={18} /> Добавить колонку
       </button>
 
-      {refusal && <p role="alert" className="mt-3 text-xs text-error">{refusal}</p>}
+      {refusal && <p role="alert" className="mt-3 text-body-small text-error">{refusal}</p>}
     </Modal>
   );
 }

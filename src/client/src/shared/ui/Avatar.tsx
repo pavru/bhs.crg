@@ -4,7 +4,7 @@ import { initialsOf } from './avatarHelpers';
  * Аватар пользователя (issue #245): картинка src (data-URI), иначе инициалы на тональном фоне.
  * Размер задаётся через className (классы w-…, h-…, text-…), по умолчанию 40px.
  */
-export function Avatar({ src, name, email, className = 'w-10 h-10 text-base', alt = '' }: {
+export function Avatar({ src, name, email, className = 'w-10 h-10 text-body-large', alt = '' }: {
   src?: string | null;
   name?: string | null;
   email?: string | null;

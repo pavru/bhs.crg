@@ -219,11 +219,11 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
       {parentType && (
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <p className="text-xs font-medium text-on-surface-variant uppercase tracking-wide">
+            <p className="text-body-small font-medium text-on-surface-variant uppercase tracking-wide">
               Унаследовано от «{parentType.name}»
             </p>
             {excludedFields.length > 0 && (
-              <span className="text-xs text-on-surface-variant">(исключено: {excludedFields.length})</span>
+              <span className="text-body-small text-on-surface-variant">(исключено: {excludedFields.length})</span>
             )}
           </div>
           <InheritedFieldsPanel
@@ -248,7 +248,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
       {danglingRefs.length > 0 && (
         <div className="flex items-start gap-2 rounded-sm border border-warning/50 bg-warning/10 px-3 py-2">
           <Icon icon={Warning} size={18} className="text-warning shrink-0 mt-0.5" />
-          <div className="text-xs text-on-surface-variant space-y-1 flex-1 min-w-0">
+          <div className="text-body-small text-on-surface-variant space-y-1 flex-1 min-w-0">
             <p>В схеме есть ссылки на поля, которых нет ни среди своих, ни среди унаследованных —
               скорее всего опечатка в ключе:</p>
             <ul className="space-y-0.5">
@@ -261,7 +261,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
             </ul>
           </div>
           <button type="button" onClick={dropDanglingRefs}
-            className="text-xs px-2 py-1 rounded-xs border border-warning/60 text-on-surface-variant hover:bg-warning/20 shrink-0">
+            className="text-body-small px-2 py-1 rounded-xs border border-warning/60 text-on-surface-variant hover:bg-warning/20 shrink-0">
             Убрать ссылки
           </button>
         </div>
@@ -269,12 +269,12 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-medium text-on-surface-variant uppercase tracking-wide">
+          <p className="text-body-small font-medium text-on-surface-variant uppercase tracking-wide">
             {parentType ? 'Поля и группировка' : 'Поля'}
           </p>
           {(fields.length > 0 || parentEffectiveFields.length > 0) && (
             <button type="button" onClick={() => setShowJson(v => !v)}
-              className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-xs ${
+              className={`flex items-center gap-1.5 text-body-small px-2 py-1 rounded-xs ${
                 showJson ? 'bg-on-surface text-surface-container' : 'text-on-surface-variant hover:text-on-surface state-layer'
               }`}>
               <Icon icon={DataObject} size={18} /> JSON
@@ -308,11 +308,11 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
           а ведёт себя иначе, стоит модуль включить обратно. */}
       {!showJson && unknownTypeTags.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 px-1 pt-1">
-          <span className="text-xs text-on-surface-variant">Тэги модуля:</span>
+          <span className="text-body-small text-on-surface-variant">Тэги модуля:</span>
           {unknownTypeTags.map(code => (
             <Tooltip key={code} content="Тэг модуля, выключенного на этом экземпляре. Пометка остаётся в схеме и заработает, когда модуль включат.">
               <span
-                className="rounded-full border border-dashed border-outline-variant px-2 py-0.5 text-caption text-on-surface-variant">
+                className="rounded-full border border-dashed border-outline-variant px-2 py-0.5 text-label-small text-on-surface-variant">
                 {code}
               </span>
             </Tooltip>
@@ -341,7 +341,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
                     type="button"
                     disabled={blocked}
                     onClick={() => { setDocTypeTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code]); setDirty(true); }}
-                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                    className={`px-2.5 py-1 rounded-full text-body-small border transition-colors ${
                       blocked ? 'border-outline-variant text-on-surface-variant/50 opacity-60 cursor-not-allowed'
                         : on ? 'bg-tertiary-container border-tertiary/50 text-on-tertiary-container'
                           : 'border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface-variant'
@@ -361,7 +361,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
               { code: FUNCTIONAL_TAG.profileSet, level: 'Комплект', key: 'комплект' },
             ].find(x => docTypeTags.includes(x.code));
             return p ? (
-              <p className="mt-2 text-xs text-on-surface-variant">
+              <p className="mt-2 text-body-small text-on-surface-variant">
                 Используется как <span className="text-primary font-medium">профиль уровня «{p.level}»</span>:
                 его объект редактируется в «Общие данные» уровня, поля доступны в шаблоне как{' '}
                 <code className="font-mono bg-surface-container text-on-surface px-1 rounded-xs">data.уровень.{p.key}.*</code>.
@@ -376,11 +376,11 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
           count={help.trim() ? 1 : 0} countClass="text-primary"
           open={showHelp} onToggle={() => setShowHelp(v => !v)}>
           <div className="pt-2 space-y-2">
-            <p className="text-xs text-on-surface-variant">
+            <p className="text-body-small text-on-surface-variant">
               Показывается при редактировании документа этого типа (напр. что подтягивается из профиля
               уровня). Markdown: <code className="font-mono">**жирный**</code>, <code className="font-mono">*курсив*</code>, списки, <code className="font-mono">[ссылки](url)</code>.
             </p>
-            <div className="flex items-center gap-3 text-xs">
+            <div className="flex items-center gap-3 text-body-small">
               <button type="button" onClick={() => setHelpPreview(false)}
                 className={!helpPreview ? 'text-primary font-medium' : 'text-on-surface-variant hover:text-on-surface-variant'}>Текст</button>
               <button type="button" onClick={() => setHelpPreview(true)}
@@ -389,11 +389,11 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
             {helpPreview ? (
               help.trim()
                 ? <div className="rounded-sm border border-outline-variant bg-surface p-3"><Markdown>{help}</Markdown></div>
-                : <p className="text-xs text-on-surface-variant italic px-1">Пусто — введите текст на вкладке «Текст».</p>
+                : <p className="text-body-small text-on-surface-variant italic px-1">Пусто — введите текст на вкладке «Текст».</p>
             ) : (
               <textarea value={help} onChange={e => { setHelp(e.target.value); setDirty(true); }} rows={5}
                 placeholder="Напр.: Проект, адрес и заказчик подтягиваются из профиля стройки — заполнять здесь не нужно."
-                className="w-full border border-outline rounded-sm px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
+                className="w-full border border-outline rounded-sm px-3 py-2 text-body-medium bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
             )}
           </div>
         </SectionCard>
@@ -405,7 +405,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
           open={showTypstRenders} onToggle={() => setShowTypstRenders(v => !v)}>
           <div className="pt-2 space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-xs text-on-surface-variant">Функции отображения для Typst-шаблонов.</p>
+              <p className="text-body-small text-on-surface-variant">Функции отображения для Typst-шаблонов.</p>
               <Button variant="text" size="sm" icon={<Icon icon={Refresh} size={18} />}
                 loading={blocksCheck.checking} onClick={() => void blocksCheck.run(typstRenders)}>
                 Проверить блоки
@@ -427,7 +427,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
         </SectionCard>
       )}
 
-      {!showJson && error && <p className="text-xs text-error pt-1">{error}</p>}
+      {!showJson && error && <p className="text-body-small text-error pt-1">{error}</p>}
 
       {/* Гейт правки полей-идентификаторов (issue #584): показываем, во что превратится ключ и
           сколько связок перестанут находиться. Отмена диалога = отказ, поэтому решение отдаём в
@@ -447,11 +447,11 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
               {ruPlural(identityGate.impact.affectedLinks, 'перестанет', 'перестанут', 'перестанут')}{' '}
               находиться. Сертификаты просто не попадут в документ — ошибки при этом не будет.
             </p>
-            <div className="text-xs font-mono text-on-surface-variant space-y-0.5">
+            <div className="text-body-small font-mono text-on-surface-variant space-y-0.5">
               <p>было: {identityGate.impact.before.join(' | ') || '—'}</p>
               <p>станет: {identityGate.impact.after.join(' | ') || '—'}</p>
             </div>
-            <p className="text-xs text-on-surface-variant">
+            <p className="text-body-small text-on-surface-variant">
               Связки придётся завести заново — на вкладке «Документы качества» в документе.
             </p>
           </div>
@@ -469,16 +469,16 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
         description={pendingMigration && (
           <div className="space-y-1">
             <p>Ключ(и) поля изменены. Перенести значения существующих документов этого типа со старого ключа на новый?</p>
-            <ul className="text-xs font-mono text-on-surface-variant">
+            <ul className="text-body-small font-mono text-on-surface-variant">
               {pendingMigration.map(r => <li key={r.from}>{r.from} → {r.to}</li>)}
             </ul>
             {/* issue #737: ключ держат не только реквизиты — привязки наборов ссылаются на него
                 своим целевым полем и ключами маппинга. Переносим вместе, иначе привязка осиротеет
                 и перестанет заполнять поле молча. */}
-            <p className="text-xs text-on-surface-variant">
+            <p className="text-body-small text-on-surface-variant">
               Вместе с данными переедут привязки наборов данных и шаблоны привязок, нацеленные на этот ключ.
             </p>
-            <p className="text-xs text-on-surface-variant">Без переноса старые значения останутся под прежним ключом (осиротеют) — их потом покажет «Аудит».</p>
+            <p className="text-body-small text-on-surface-variant">Без переноса старые значения останутся под прежним ключом (осиротеют) — их потом покажет «Аудит».</p>
           </div>
         )}
         confirmLabel="Перенести данные"

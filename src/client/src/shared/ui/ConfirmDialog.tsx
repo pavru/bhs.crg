@@ -165,19 +165,19 @@ function ConfirmDialogBody({
             if (rule.outside === 'hint') pointAtExit(content.current, false);
           }}
         >
-          <Dialog.Title className="text-sm font-semibold mb-2 text-on-surface">
+          <Dialog.Title className="text-body-medium font-semibold mb-2 text-on-surface">
             {blockedView ? (exitFailed ?? errorTitle) : title}
           </Dialog.Title>
 
           {blockedView ? (
             <>
-              <div className="mt-2 flex items-start gap-2.5 rounded-sm bg-error-container px-3 py-2.5 text-xs text-on-surface">
+              <div className="mt-2 flex items-start gap-2.5 rounded-sm bg-error-container px-3 py-2.5 text-body-small text-on-surface">
                 <Icon icon={Warning} size={18} className="shrink-0 mt-0.5 text-error" />
                 <div className="max-h-40 overflow-y-auto whitespace-pre-line min-w-0">{error ?? blocked}</div>
               </div>
-              {exit?.note && <p className="mt-3 text-xs text-on-surface-variant">{exit.note}</p>}
+              {exit?.note && <p className="mt-3 text-body-small text-on-surface-variant">{exit.note}</p>}
               {exit?.secondary && (
-                <div className="mt-3 pt-3 border-t border-outline-variant text-xs text-on-surface-variant">
+                <div className="mt-3 pt-3 border-t border-outline-variant text-body-small text-on-surface-variant">
                   <p>{exit.secondary.note}</p>
                   {exit.secondary.action && (
                     <Button variant="text" danger size="sm" className="mt-1 -ml-3" disabled={busy}
@@ -191,13 +191,13 @@ function ConfirmDialogBody({
           ) : (
             <>
               {description && (
-                <div className="text-xs mb-3 text-on-surface-variant space-y-1">
+                <div className="text-body-small mb-3 text-on-surface-variant space-y-1">
                   {description}
                 </div>
               )}
 
               {requireCheckbox && (
-                <label className="flex items-start gap-2 mb-4 text-xs text-on-surface-variant cursor-pointer select-none">
+                <label className="flex items-start gap-2 mb-4 text-body-small text-on-surface-variant cursor-pointer select-none">
                   <Checkbox size="sm" checked={checked} onChange={setChecked} />
                   {requireCheckbox}
                 </label>

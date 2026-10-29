@@ -232,7 +232,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
             {/* Пустой выпадающий список выглядел бы поломкой — когда выбирать не из чего,
                 показываем причину вместо самого поля (issue #606). */}
             {readyCandidates.length === 0 ? (
-              <p className="text-sm text-on-surface-variant">
+              <p className="text-body-medium text-on-surface-variant">
                 {isSystem
                   ? 'Система пока не может ничего консолидировать на этом уровне: либо всё уже добавлено, либо здесь таких данных нет — «Документы комплекта», например, доступны только у набора внутри комплекта.'
                   : pendingTableCount > 0
@@ -273,17 +273,17 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
                   </Select>
                 </div>
                 {shownCandidates.length === 0 && (
-                  <p className="text-xs text-on-surface-variant mt-1">Под поиск ничего не подходит.</p>
+                  <p className="text-body-small text-on-surface-variant mt-1">Под поиск ничего не подходит.</p>
                 )}
               </>
             )}
             {/* Оговорку показываем ДО создания источника: узнать о неполноте данных, уже привязав
                 их к полям документа, — узнать поздно. */}
             {selectedCandidate?.warning && (
-              <p className="text-xs text-warning mt-1">{selectedCandidate.warning}</p>
+              <p className="text-body-small text-warning mt-1">{selectedCandidate.warning}</p>
             )}
             {selectedCandidate && selectedCandidate.columns.length > 0 && (
-              <p className="text-xs text-on-surface-variant mt-1">Колонки: {selectedCandidate.columns.join(', ')}</p>
+              <p className="text-body-small text-on-surface-variant mt-1">Колонки: {selectedCandidate.columns.join(', ')}</p>
             )}
           </div>
         ) : tabular ? (
@@ -296,14 +296,14 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
                 ))}
               </Select>
               {candidates.length === 0 && (
-                <p className="text-xs text-on-surface-variant mt-1">Листы не обнаружены.</p>
+                <p className="text-body-small text-on-surface-variant mt-1">Листы не обнаружены.</p>
               )}
               {selectedCandidate && selectedCandidate.columns.length > 0 && (
-                <p className="text-xs text-on-surface-variant mt-1">Колонки: {selectedCandidate.columns.join(', ')}</p>
+                <p className="text-body-small text-on-surface-variant mt-1">Колонки: {selectedCandidate.columns.join(', ')}</p>
               )}
             </div>
           ) : (
-            <p className="text-xs text-on-surface-variant">
+            <p className="text-body-small text-on-surface-variant">
               Весь файл — колонки определяются автоматически по заголовку
               {candidates[0]?.columns.length ? `: ${candidates[0].columns.join(', ')}` : ''}.
             </p>
@@ -318,13 +318,13 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
                   {entryOptions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                 </Select>
                 {entryOptions.length === 0 && (
-                  <p className="text-xs text-on-surface-variant mt-1">В архиве не найдено XML-файлов.</p>
+                  <p className="text-body-small text-on-surface-variant mt-1">В архиве не найдено XML-файлов.</p>
                 )}
               </div>
             )}
 
             <div>
-              <label className="block text-sm font-medium text-on-surface mb-1">
+              <label className="block text-body-medium font-medium text-on-surface mb-1">
                 Row-selector — путь к строкам (одна строка = один узел; условия сужают до конкретных)
               </label>
               <PathBuilder value={sheetOrPath} onChange={setSheetOrPath} placeholder={DEFAULT_ROW_SELECTOR[pathFormat]}
@@ -333,16 +333,16 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
 
             <div className="border-t border-outline-variant pt-3">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium text-on-surface">
-                  Колонки <span className="text-xs font-normal text-on-surface-variant">— относительно узла строки</span>
+                <p className="text-body-medium font-medium text-on-surface">
+                  Колонки <span className="text-body-small font-normal text-on-surface-variant">— относительно узла строки</span>
                 </p>
                 <button type="button" onClick={addColumn}
-                  className="flex items-center gap-1 text-xs text-primary state-layer">
+                  className="flex items-center gap-1 text-body-small text-primary state-layer">
                   <Icon icon={Add} size={18} /> Колонка
                 </button>
               </div>
               {columns.length === 0 && (
-                <p className="text-xs text-on-surface-variant py-1">
+                <p className="text-body-small text-on-surface-variant py-1">
                   Колонок нет — будут определены автоматически по дочерним элементам/атрибутам строки.
                 </p>
               )}
@@ -351,7 +351,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
                   <div key={i} className="flex items-start gap-2">
                     <input value={col.name} onChange={e => updateColumn(i, { name: e.target.value })}
                       placeholder="Название колонки"
-                      className="w-40 shrink-0 px-2 py-1.5 rounded-sm border border-outline bg-surface text-sm" />
+                      className="w-40 shrink-0 px-2 py-1.5 rounded-sm border border-outline bg-surface text-body-medium" />
                     <div className="flex-1 min-w-0">
                       <PathBuilder value={col.expr} onChange={expr => updateColumn(i, { expr })}
                         placeholder={pathFormat === 'Json' ? 'id или name или info.code' : '@id или Name или Info/Code'}
@@ -368,7 +368,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
           </>
         )}
 
-        {error && <p role="alert" className="text-sm text-error">{error}</p>}
+        {error && <p role="alert" className="text-body-medium text-error">{error}</p>}
       </div>
     </Modal>
   );

@@ -41,7 +41,7 @@ export interface ChipProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>,
   removeOnly?: boolean;
 }
 
-const BASE = 'inline-flex items-center gap-1 rounded-full border text-xs bg-surface';
+const BASE = 'inline-flex items-center gap-1 rounded-full border text-body-small bg-surface';
 /**
  * Состояния — у кнопки, а не у пилюли: у чипа с крестиком их две, и подсвечивается та, что под курсором.
  * Рамку отключённого гасит только чип-кнопка: у половинок чипа с крестиком своей рамки нет.

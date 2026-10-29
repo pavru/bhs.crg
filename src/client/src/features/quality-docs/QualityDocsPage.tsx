@@ -183,7 +183,7 @@ export function QualityDocsPage() {
           </>
         )}
         {!validUntilKnown && (
-          <p className="text-caption text-warning px-3 py-2 leading-snug">
+          <p className="text-label-small text-warning px-3 py-2 leading-snug">
             Срок действия документов системе неизвестен: ни одно поле типа не помечено тэгом
             «срок действия». Поэтому состояния «просрочен» и «истекает» не считаются — и по той же
             причине просроченные документы не прячутся из подсказок.
@@ -205,7 +205,7 @@ export function QualityDocsPage() {
             номер ВСЕМ незачем: тогда он примелькается и перестанет читаться там, где нужен. */}
         {visibleDocs.map(docRow)}
         {visibleDocs.length === 0 && (
-          <p className="text-xs text-on-surface-variant px-3 py-4 text-center">
+          <p className="text-body-small text-on-surface-variant px-3 py-4 text-center">
             {outsideList ? 'Больше ничего не найдено.' : 'Ничего не найдено.'}
           </p>
         )}
@@ -246,7 +246,7 @@ export function QualityDocsPage() {
         <div className="min-w-0">
           {/* Имени мало: в библиотеке два документа с одинаковым названием и разным содержимым. */}
           <h2 className="text-lg font-semibold text-on-surface break-words">{current.displayName}</h2>
-          <p className="text-xs text-on-surface-variant mt-0.5">
+          <p className="text-body-small text-on-surface-variant mt-0.5">
             {[typeNameOf(current, docTypes),
               byTag(current, docTypes, FUNCTIONAL_TAG.docNumber) && `№ ${byTag(current, docTypes, FUNCTIONAL_TAG.docNumber)}`,
               byTag(current, docTypes, FUNCTIONAL_TAG.qualityValidUntil) && `до ${formatDate(byTag(current, docTypes, FUNCTIONAL_TAG.qualityValidUntil))}`,
@@ -261,7 +261,7 @@ export function QualityDocsPage() {
       <DocRequisites doc={current} docTypes={docTypes} />
 
       <div>
-        <h3 className="text-sm font-medium text-on-surface-variant mb-2 flex items-center gap-2">
+        <h3 className="text-body-medium font-medium text-on-surface-variant mb-2 flex items-center gap-2">
           <Icon icon={LinkIcon} size={18} className="text-on-surface-variant" />
           Связки материалов · {linksByDoc.get(current.id)?.length ?? 0}
         </h3>
@@ -291,7 +291,7 @@ export function QualityDocsPage() {
           </Button>
         </>
       }
-      nav={isLoading ? <p className="text-sm text-on-surface-variant p-4">Загрузка…</p> : nav}
+      nav={isLoading ? <p className="text-body-medium text-on-surface-variant p-4">Загрузка…</p> : nav}
       detail={detail}
     />
     {/* Модалки — СНАРУЖИ shell: его проп overlay заменяет собой весь сплит, а не накладывается. */}
@@ -372,7 +372,7 @@ function DocRequisites({ doc, docTypes }: { doc: QualityDocument; docTypes: Docu
 
   if (rows.length === 0) return null;
   return (
-    <dl className="rounded-md border border-outline-variant bg-surface-container-low px-3 py-2 text-xs space-y-1">
+    <dl className="rounded-md border border-outline-variant bg-surface-container-low px-3 py-2 text-body-small space-y-1">
       {rows.map(r => (
         <div key={r.key} className="flex gap-2">
           <dt className="text-on-surface-variant shrink-0 w-40">{r.title}</dt>
@@ -446,34 +446,34 @@ function WebSearchModal({ open, onClose, docTypes }: {
         <input value={query} onChange={e => setQuery(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') void run(); }}
           placeholder="Напр.: Выключатель автоматический EKF AV-10"
-          className="flex-1 min-w-[260px] border border-outline rounded-sm px-3 py-2 text-sm bg-surface text-on-surface" />
+          className="flex-1 min-w-[260px] border border-outline rounded-sm px-3 py-2 text-body-medium bg-surface text-on-surface" />
         <Button variant="filled" onClick={run} disabled={searching || !query.trim()}
           loading={searching} icon={<Icon icon={Search} size={18} />}>
           Найти
         </Button>
       </div>
-      {error && <p className="text-sm text-error mt-2">{error}</p>}
+      {error && <p className="text-body-medium text-error mt-2">{error}</p>}
       {candidates && (
         candidates.length === 0
-          ? <p className="text-sm text-on-surface-variant mt-3">Ничего не найдено.</p>
+          ? <p className="text-body-medium text-on-surface-variant mt-3">Ничего не найдено.</p>
           : (
             <div className="mt-3 divide-y divide-surface-container border border-outline-variant rounded-sm max-h-96 overflow-y-auto">
               {candidates.map(c => (
                 <div key={c.url} className="flex items-start gap-3 px-3 py-2">
-                  <span className="text-caption px-1.5 py-0.5 rounded-xs bg-primary-container text-on-primary-container shrink-0 mt-0.5">
+                  <span className="text-label-small px-1.5 py-0.5 rounded-xs bg-primary-container text-on-primary-container shrink-0 mt-0.5">
                     {SOURCE_LABEL[c.source] ?? c.source}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm text-on-surface truncate">{c.title || c.url}</p>
-                    {c.snippet && <p className="text-xs text-on-surface-variant line-clamp-2">{c.snippet}</p>}
+                    <p className="text-body-medium text-on-surface truncate">{c.title || c.url}</p>
+                    {c.snippet && <p className="text-body-small text-on-surface-variant line-clamp-2">{c.snippet}</p>}
                     <a href={c.url} target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-primary inline-flex items-center gap-1 mt-0.5">
+                      className="text-body-small text-primary inline-flex items-center gap-1 mt-0.5">
                       <Icon icon={OpenInNew} size={18} /> Открыть
                     </a>
                   </div>
                   <Tooltip content="Скачать файл по ссылке и добавить в библиотеку (если это прямой PDF/скан)">
                     <button onClick={() => importOne(c)} disabled={importingUrl === c.url}
-                      className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-sm border border-outline-variant state-layer disabled-outlined shrink-0">
+                      className="flex items-center gap-1.5 text-body-small px-2 py-1 rounded-sm border border-outline-variant state-layer disabled-outlined shrink-0">
                       {importingUrl === c.url ? <CircularProgress size={18} /> : <Icon icon={Download} size={18} />} В библиотеку
                     </button>
                   </Tooltip>

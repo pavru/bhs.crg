@@ -13,7 +13,9 @@ const PILL = /(?<![\w-])rounded-(?:full|sm)\b/;
 const ROUND_PILL = /(?<![\w-])rounded-full\b/;
 const OUTLINE = /(?<![\w:/-])border(?![\w-]*(?:-0|-none|-transparent)\b)/;
 const FULL_WIDTH = /(?<![\w:-])w-full\b/;
-const SMALL_TEXT = /(?<![\w:-])text-(?:xs|caption)\b/;
+// Мелкий текст — роли MD3 12 и 11 px (sharedui-md3-07, [UI-67]) и прежние ступени: ветка, начатая до
+// перевода, приносит их, и пометка в ней не должна пройти мимо правила.
+const SMALL_TEXT = /(?<![\w:-])text-(?:body-small|label-small|label-medium|xs|caption)(?![\w-])/;
 const ROOMY = /(?<![\w:-])(?:p|py|pt|pb)-(?:[1-9]|\[)/;
 const SIZED = /(?<![\w-])(?:(?:w|h|size)-(?:\d|\[|px\b)|inset-)/;
 const SIDE_PADDING = /(?<![\w:-])px-/;

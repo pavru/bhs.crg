@@ -14,7 +14,7 @@ export function ArchivedMark({ words = true, className = '' }: { words?: boolean
   return (
     <Tooltip content={ARCHIVED_HINT}>
       <span aria-label={words ? undefined : ARCHIVED_WORD}
-        className={`inline-flex items-center gap-1 text-caption text-on-surface-variant shrink-0 ${className}`}>
+        className={`inline-flex items-center gap-1 text-label-small text-on-surface-variant shrink-0 ${className}`}>
         <Icon icon={Archive} size={18} className="shrink-0" />
         {words && ARCHIVED_WORD}
       </span>

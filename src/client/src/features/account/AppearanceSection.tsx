@@ -38,7 +38,7 @@ export function AppearanceSection() {
   return (
     <div className="space-y-4">
       <div>
-        <div className="text-xs text-on-surface-variant mb-1" id="profile-theme-label">Тема оформления</div>
+        <div className="text-body-small text-on-surface-variant mb-1" id="profile-theme-label">Тема оформления</div>
         {/* ⚠️ Своё имя у группы, не «Тема оформления» (ревью PR #1000). Такой же переключатель
             стоит в боковой панели на КАЖДОМ экране, и с одинаковым именем получалось две вещи
             сразу: на этой странице две группы с одним названием — для читающего с экрана они
@@ -47,8 +47,8 @@ export function AppearanceSection() {
         <ThemeToggle label="Тема оформления, личная настройка" />
       </div>
 
-      <div className="text-xs text-on-surface-variant">Язык и формат дат</div>
-      <p className="text-xs text-on-surface-variant">
+      <div className="text-body-small text-on-surface-variant">Язык и формат дат</div>
+      <p className="text-body-small text-on-surface-variant">
         Определяет формат дат и чисел в интерфейсе. Тема и язык хранятся в учётной записи и
         приедут на любой компьютер, где вы войдёте.
       </p>
@@ -62,7 +62,7 @@ export function AppearanceSection() {
               type="button"
               onClick={() => setLocale(opt.value)}
               aria-pressed={isSelected}
-              className={`state-layer w-full flex items-center gap-3 px-3 py-2 rounded-sm text-sm text-left ${
+              className={`state-layer w-full flex items-center gap-3 px-3 py-2 rounded-sm text-body-medium text-left ${
                 isSelected
                   ? 'bg-primary-container border border-primary-container text-on-primary-container'
                   : 'border border-transparent text-on-surface-variant'
@@ -75,7 +75,7 @@ export function AppearanceSection() {
               </span>
               <span className="flex-1">{opt.label}</span>
               {opt.value === SYSTEM_LOCALE && (
-                <span className="text-xs text-on-surface-variant font-mono">{navigator.language}</span>
+                <span className="text-body-small text-on-surface-variant font-mono">{navigator.language}</span>
               )}
             </button>
           );
@@ -84,26 +84,26 @@ export function AppearanceSection() {
 
       {/* Preview */}
       <div className="rounded-md bg-surface-container-low border border-outline-variant p-3 space-y-1.5">
-        <p className="text-xs font-medium text-on-surface-variant mb-2">Предпросмотр ({resolved})</p>
-        <div className="flex gap-3 text-sm">
+        <p className="text-body-small font-medium text-on-surface-variant mb-2">Предпросмотр ({resolved})</p>
+        <div className="flex gap-3 text-body-medium">
           <span className="text-on-surface-variant w-20 shrink-0">Дата:</span>
           <span className="text-on-surface font-mono">
             {formatDate(PREVIEW_DATE)}
           </span>
         </div>
-        <div className="flex gap-3 text-sm">
+        <div className="flex gap-3 text-body-medium">
           <span className="text-on-surface-variant w-20 shrink-0">Дата и время:</span>
           <span className="text-on-surface font-mono">
             {formatDateTime(PREVIEW_DATE)}
           </span>
         </div>
-        <div className="flex gap-3 text-sm">
+        <div className="flex gap-3 text-body-medium">
           <span className="text-on-surface-variant w-20 shrink-0">Число:</span>
           <span className="text-on-surface font-mono">
             {formatNumber(PREVIEW_NUMBER)}
           </span>
         </div>
-        <div className="flex gap-3 text-sm">
+        <div className="flex gap-3 text-body-medium">
           <span className="text-on-surface-variant w-20 shrink-0">Валюта:</span>
           <span className="text-on-surface font-mono">
             {formatMoney(PREVIEW_NUMBER)}
@@ -111,9 +111,9 @@ export function AppearanceSection() {
         </div>
       </div>
 
-      {saved && <p className="text-sm text-success">Сохранено</p>}
+      {saved && <p className="text-body-medium text-success">Сохранено</p>}
       {failed && (
-        <p className="text-sm text-error">
+        <p className="text-body-medium text-error">
           Не удалось сохранить — выбор вернулся к прежнему. Повторите попытку.
         </p>
       )}

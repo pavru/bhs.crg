@@ -37,11 +37,11 @@ export function TypeBlocksPanel() {
   const [selected, setSelected] = useState(ENTRYPOINT);
 
   if (isLoading) {
-    return <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">Загрузка...</div>;
+    return <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-medium">Загрузка...</div>;
   }
   if (isError) {
     return (
-      <div className="flex-1 flex items-center justify-center text-error text-sm">
+      <div className="flex-1 flex items-center justify-center text-error text-body-medium">
         Не удалось собрать блоки типов
       </div>
     );
@@ -63,7 +63,7 @@ export function TypeBlocksPanel() {
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant bg-surface">
         <Icon icon={LockIcon} size={18} className="text-on-surface-variant shrink-0" />
-        <p className="text-xs text-on-surface-variant">
+        <p className="text-body-small text-on-surface-variant">
           Собранные блоки типов — только чтение. Шаблон подключает импортом{' '}
           <code className="font-mono">#import "typeblocks.typ": *</code> (в новых шаблонах строка уже
           стоит) одну точку входа, а она реэкспортирует модули, поэтому имена блоков доступны как
@@ -75,7 +75,7 @@ export function TypeBlocksPanel() {
       {problems.length > 0 && <ProblemsBanner problems={problems} />}
 
       {empty ? (
-        <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm text-center px-6">
+        <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-medium text-center px-6">
           Ни у одного типа нет Typst-блоков.
           <br />
           Блоки добавляются в схеме типа, раздел «Typst-блоки»; здесь появятся собранные файлы.
@@ -143,7 +143,7 @@ function ProblemsBanner({ problems }: { problems: TypeBlocksProblem[] }) {
   const danger = errors > 0;
 
   return (
-    <div className={`border-b border-outline-variant px-4 py-2 text-xs
+    <div className={`border-b border-outline-variant px-4 py-2 text-body-small
                      ${danger ? 'bg-error-container text-on-error-container' : 'bg-warning-container text-on-warning-container'}`}>
       <button type="button" onClick={() => setOpen(o => !o)}
         className="flex items-center gap-2 w-full text-left" aria-expanded={open}>
@@ -177,7 +177,7 @@ function FileRow({ label, icon, title, active, onClick }: {
     <Tooltip content={title}>
       <button
         type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
-        className={`state-layer w-full flex items-center gap-1.5 px-3 py-1.5 text-left text-sm
+        className={`state-layer w-full flex items-center gap-1.5 px-3 py-1.5 text-left text-body-medium
                     ${active ? 'bg-primary-container' : ''}`}
       >
         <span className={`shrink-0 ${active ? 'text-primary' : 'text-on-surface-variant'}`}>{icon}</span>

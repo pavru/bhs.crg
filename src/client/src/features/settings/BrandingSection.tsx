@@ -85,7 +85,7 @@ export function BrandingSection() {
 
   return (
     <CollapsibleSection title="Название и логотип" storageKey="branding" defaultOpen={false}>
-      <p className="text-xs text-on-surface-variant">
+      <p className="text-body-small text-on-surface-variant">
         Видны в шапке и на странице входа. Название — ещё в заголовке вкладки и под значком
         установленного приложения; логотип — ещё и сам значок: на вкладке, в закладках и на экране
         телефона. Пока они не заданы, система называет себя общим именем и показывает свой значок.
@@ -97,7 +97,7 @@ export function BrandingSection() {
           показанную настройку не закрывает. */}
       {isError && !data && (
         <div className="flex items-center gap-3" data-testid="branding-load-failed">
-          <span className="text-sm text-error">Название и логотип не загрузились.</span>
+          <span className="text-body-medium text-error">Название и логотип не загрузились.</span>
           <Button variant="outlined" size="sm" onClick={() => void refetch()}>Повторить</Button>
         </div>
       )}
@@ -120,10 +120,10 @@ export function BrandingSection() {
       </div>
 
       <div className="border-t border-outline-variant pt-4">
-        <p className="text-xs text-on-surface-variant mb-2">
+        <p className="text-body-small text-on-surface-variant mb-2">
           Логотип — PNG, JPEG, WebP или SVG, до 5 МБ. Он же доступен печатным формам как ассет
           уровня системы: в шаблоне это{' '}
-          <code className="text-caption">image(&quot;/assets/company-logo.png&quot;)</code>{' '}
+          <code className="text-label-small">image(&quot;/assets/company-logo.png&quot;)</code>{' '}
           — с тем расширением, с каким файл загружен. Значок вкладки и приложения система строит из
           логотипа сама: вписывает его в квадрат целиком, без обрезки.
         </p>
@@ -148,7 +148,7 @@ export function BrandingSection() {
       {/* Постоянно, а не «после смены»: секцию открывают, чтобы менять оформление, а вопрос «почему
           на телефоне старый значок» возникает назавтра — оговорка из состояния сессии к тому
           времени исчезла бы. Касается и названия, и снятия логотипа, поэтому внизу и без условия. */}
-      <p className="text-xs text-on-surface-variant max-w-xl">
+      <p className="text-body-small text-on-surface-variant max-w-xl">
         Приложение, уже установленное на телефон или компьютер, получает новые значок и название не
         сразу: срок выбирает браузер, это может занять несколько дней. На iPhone они сами не
         обновляются: значок с экрана «Домой» удаляют и добавляют заново.
@@ -198,9 +198,9 @@ function LogoRow({ data, uploading, removing, onUpload, onRemove }: {
   return (
     <div className="flex flex-wrap items-center gap-4" data-testid="branding-logo-row">
       <div className="flex items-center justify-center w-16 h-16 rounded-md border border-outline-variant bg-surface overflow-hidden">
-        {!logo && <span className="text-caption text-on-surface-variant">нет</span>}
+        {!logo && <span className="text-label-small text-on-surface-variant">нет</span>}
         {logo && unread && (
-          <span className="text-caption leading-tight text-center text-warning" data-testid="branding-logo-unread">
+          <span className="text-label-small leading-tight text-center text-warning" data-testid="branding-logo-unread">
             {/* Перенос задан явно: в одну строку слова встают в рамку впритык, от края до края. */}
             не<br />читается
           </span>
@@ -240,7 +240,7 @@ function IconPreviews({ icons }: { icons: BrandIcons }) {
   const tab = brandIconUrl('tab', icons.version);
   if (missing)
     return (
-      <p className="border-l border-outline-variant pl-4 text-caption leading-tight text-warning max-w-[9rem]"
+      <p className="border-l border-outline-variant pl-4 text-label-small leading-tight text-warning max-w-[9rem]"
         data-testid="brand-icon-previews-missing">
         Значки построены, но их картинки не загрузились.
       </p>
@@ -259,7 +259,7 @@ function IconPreviews({ icons }: { icons: BrandIcons }) {
             <img src={tab} alt="Значок вкладки на тёмном фоне" width={16} height={16} onError={fail} />
           </span>
         </div>
-        <figcaption className="text-caption text-on-surface-variant">вкладка</figcaption>
+        <figcaption className="text-label-small text-on-surface-variant">вкладка</figcaption>
       </figure>
 
       <figure className="flex flex-col items-center gap-1">
@@ -269,7 +269,7 @@ function IconPreviews({ icons }: { icons: BrandIcons }) {
             в строку. */}
         <img src={brandIconUrl('apple', icons.version)} alt="Значок приложения" width={40} height={40}
           className="rounded-[22%] border border-outline-variant" onError={fail} />
-        <figcaption className="text-caption text-on-surface-variant">приложение</figcaption>
+        <figcaption className="text-label-small text-on-surface-variant">приложение</figcaption>
       </figure>
     </div>
   );
@@ -283,7 +283,7 @@ function IconsNote({ icons, named }: { icons: BrandIcons; named: boolean }) {
     // Заметность даёт заливка и то, что плашка стоит на месте ожидаемого результата — превью.
     return (
       <p role="status" data-testid="brand-icons-failed"
-        className="mt-3 flex items-start gap-1.5 rounded-xs px-2 py-1.5 text-xs bg-warning-container text-on-warning-container border border-outline-variant max-w-xl">
+        className="mt-3 flex items-start gap-1.5 rounded-xs px-2 py-1.5 text-body-small bg-warning-container text-on-warning-container border border-outline-variant max-w-xl">
         <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
         <span>{failure}</span>
       </p>
@@ -294,7 +294,7 @@ function IconsNote({ icons, named }: { icons: BrandIcons; named: boolean }) {
   // Без блокировки и без подтверждения перед загрузкой: вытянутый логотип — законный выбор, а путь
   // к разборчивому значку — та же «Заменить» строкой выше.
   return (
-    <p data-testid="brand-icons-elongated" className="mt-3 flex items-start gap-1.5 text-xs text-warning max-w-xl">
+    <p data-testid="brand-icons-elongated" className="mt-3 flex items-start gap-1.5 text-body-small text-warning max-w-xl">
       <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
       <span>{elongated}</span>
     </p>

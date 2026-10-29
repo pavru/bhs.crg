@@ -40,7 +40,7 @@ export function CollapsibleSection({
         className="w-full flex items-center justify-between gap-2 p-4 text-left state-layer"
         aria-expanded={open}
       >
-        <h2 className="text-sm font-semibold text-on-surface-variant uppercase tracking-wide">{title}</h2>
+        <h2 className="text-body-medium font-semibold text-on-surface-variant uppercase tracking-wide">{title}</h2>
         <span className="flex items-center gap-2">
           {right}
           <Icon icon={KeyboardArrowDown} size={18} className={`text-on-surface-variant shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />

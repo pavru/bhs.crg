@@ -39,21 +39,21 @@ function ObservationRow({ o, setPath, onReview }: {
   return (
     <div className={`px-4 py-3 border-b border-outline-variant group ${dim ? 'opacity-70' : ''}`}>
       <div className="flex items-start gap-2">
-        <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${SEVERITY_STYLE[o.severity]}`}>
+        <span className={`text-label-small px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${SEVERITY_STYLE[o.severity]}`}>
           {SEVERITY_LABELS[o.severity]}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm text-on-surface">{o.title}</div>
-          {o.detail && <p className="text-xs text-on-surface-variant mt-0.5 line-clamp-3">{o.detail}</p>}
+          <div className="text-body-medium text-on-surface">{o.title}</div>
+          {o.detail && <p className="text-body-small text-on-surface-variant mt-0.5 line-clamp-3">{o.detail}</p>}
           <ObservationReferences o={o} setPath={setPath} />
           {o.reviewNote && (
-            <p className="text-caption text-on-surface-variant mt-1">
+            <p className="text-label-small text-on-surface-variant mt-1">
               {OBSERVATION_STATUS_LABELS[o.status]}: {o.reviewNote}
               {o.reviewedBy ? ` (${o.reviewedBy})` : ''}
             </p>
           )}
         </div>
-        <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${STATUS_STYLE[o.status]}`}>
+        <span className={`text-label-small px-1.5 py-0.5 rounded-full shrink-0 ${STATUS_STYLE[o.status]}`}>
           {OBSERVATION_STATUS_LABELS[o.status]}
         </span>
         <Button variant="text" size="sm" onClick={() => onReview(o)}
@@ -89,17 +89,17 @@ export function ObservationsPanel() {
   return (
     <div className="flex-1 min-w-0 flex flex-col">
       <div className="px-4 py-3 border-b border-outline-variant shrink-0">
-        <h2 className="text-base font-semibold text-on-surface flex items-center gap-2">
+        <h2 className="text-body-large font-semibold text-on-surface flex items-center gap-2">
           <Icon icon={SmartToy} size={18} className="text-on-surface-variant" /> Замечания анализа
         </h2>
         {/* Происхождение — не мелкий шрифт ради приличия, а суть: это не результат проверки системы. */}
-        <p className="text-xs text-on-surface-variant mt-0.5">
+        <p className="text-body-small text-on-surface-variant mt-0.5">
           Утверждения внешнего ИИ-агента. Система их не проверяла — подтвердите или отклоните.
         </p>
       </div>
 
       {items.length > 0 && (
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant text-xs shrink-0">
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant text-body-small shrink-0">
           <button type="button" onClick={() => setOnlyNew(v => !v)}
             className={`state-layer px-2 py-1 rounded-full ${
               onlyNew ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant'}`}>
@@ -110,7 +110,7 @@ export function ObservationsPanel() {
       )}
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {isLoading && <p className="px-4 py-3 text-sm text-on-surface-variant">Загрузка…</p>}
+        {isLoading && <p className="px-4 py-3 text-body-medium text-on-surface-variant">Загрузка…</p>}
         {!isLoading && shown.length === 0 && (
           <div className="p-6">
             <EmptyState icon={<Icon icon={SmartToy} size={40} />}

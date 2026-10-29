@@ -53,10 +53,10 @@ function NewTemplateForm({ documentTypeId, docType, allDocTypes, onClose, onCrea
     <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
         <TextField label="Название шаблона" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
-        <p className="text-xs text-on-surface-variant">
+        <p className="text-body-small text-on-surface-variant">
           Будет создан Typst-шаблон с колонтитулами, нумерацией страниц и списком всех реквизитов типа документа.
         </p>
-        {error && <p className="text-sm text-error">{error}</p>}
+        {error && <p className="text-body-medium text-error">{error}</p>}
       </div>
       <div className="shrink-0 px-6 py-3 border-t border-outline-variant flex justify-end gap-2">
         <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
@@ -289,9 +289,9 @@ export function TemplatesPage() {
             <UserLibPanel />
           </div>
         ) : !selectedTypeId ? (
-          <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">Выберите тип документа</div>
+          <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-medium">Выберите тип документа</div>
         ) : templatesLoading ? (
-          <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">Загрузка...</div>
+          <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-medium">Загрузка...</div>
         ) : (
           <div className="flex flex-1 overflow-hidden">
             <TemplateSidebar
@@ -317,7 +317,7 @@ export function TemplatesPage() {
                   onSaved={(updated) => selectTemplate(updated)}
                 />
               ) : (
-                <div className="h-full flex items-center justify-center text-on-surface-variant text-sm">
+                <div className="h-full flex items-center justify-center text-on-surface-variant text-body-medium">
                   Выберите шаблон или создайте новый
                 </div>
               )}

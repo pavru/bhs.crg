@@ -108,7 +108,7 @@ function toUpdate(meta: EngineMeta, f: EngineForm): EngineUpdate {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="block text-xs font-medium text-on-surface-variant mb-1">{label}</span>
+      <span className="block text-body-small font-medium text-on-surface-variant mb-1">{label}</span>
       {children}
     </label>
   );
@@ -167,14 +167,14 @@ function EngineCard({
             onChange={e => onChange({ ...form, enabled: e.target.checked })}
             className="accent-primary"
           />
-          <span className="text-sm font-medium text-on-surface">{meta.label}</span>
+          <span className="text-body-medium font-medium text-on-surface">{meta.label}</span>
         </label>
         {/* Один сигнал, не три: слепота > «модель не обслуживается» > «не участвует». Слепой движок
             не «не участвует» — он участвует и портит данные, и назвать это мягче значит соврать. */}
         {blind && (
           <Tooltip content={blindIssue ?? undefined}>
             <span
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-caption font-medium bg-error-container text-on-error-container border border-error/30 shrink-0"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-label-small font-medium bg-error-container text-on-error-container border border-error/30 shrink-0"
             >
               <Icon icon={ErrorIcon} size={18} /> не работает: модель без зрения
             </span>
@@ -183,7 +183,7 @@ function EngineCard({
         {!blind && notParticipating && (
           <Tooltip content={`Движок включён, но в работе не участвует: ${missing}. Распознавание идёт следующим по списку.`}>
             <span
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-caption font-medium bg-warning-container text-on-warning-container border border-outline-variant shrink-0"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-label-small font-medium bg-warning-container text-on-warning-container border border-outline-variant shrink-0"
             >
               <Icon icon={Warning} size={18} /> не участвует: {missing}
             </span>
@@ -202,21 +202,21 @@ function EngineCard({
           </div>
         )}
       </div>
-      <p className="text-xs text-on-surface-variant">{meta.hint}</p>
+      <p className="text-body-small text-on-surface-variant">{meta.hint}</p>
 
       {/* Беда с моделью — отдельной строкой, а не бейджем в шапке: там она не поместится, а совет
           поставщика («перейдите на такую-то») — самое полезное в этом сообщении и прятать его в
           подсказку по наведению незачем. Отдельно от «не участвует» ещё и по смыслу: ненастроенный
           движок цепочка пропускает, а этот — берёт и получает отказ. */}
       {blind && (
-        <p className="flex items-start gap-1.5 rounded-xs px-2 py-1.5 text-xs bg-error-container text-on-error-container border border-error/30">
+        <p className="flex items-start gap-1.5 rounded-xs px-2 py-1.5 text-body-small bg-error-container text-on-error-container border border-error/30">
           <Icon icon={ErrorIcon} size={18} className="shrink-0 mt-px" />
           <span>{blindIssue}</span>
         </p>
       )}
 
       {form.enabled && !blind && modelIssue && (
-        <p className="flex items-start gap-1.5 rounded-xs px-2 py-1.5 text-xs bg-warning-container text-on-warning-container border border-outline-variant">
+        <p className="flex items-start gap-1.5 rounded-xs px-2 py-1.5 text-body-small bg-warning-container text-on-warning-container border border-outline-variant">
           <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
           <span>{modelIssue}</span>
         </p>
@@ -235,7 +235,7 @@ function EngineCard({
         return (
           opts.length === 0 ? (
             <Field label={meta.modelLabel}>
-              <div className="text-xs text-on-surface-variant px-2.5 py-2 rounded-sm border border-dashed border-outline-variant">
+              <div className="text-body-small text-on-surface-variant px-2.5 py-2 rounded-sm border border-dashed border-outline-variant">
                 {meta.key !== 'Ollama'
                   ? 'Список моделей недоступен'
                   : modelsChecked
@@ -277,7 +277,7 @@ function EngineCard({
             disabled={checkVision.isPending || unsaved}>
             <Icon icon={Visibility} size={18} className="mr-1" /> Проверить зрение
           </Button>
-          <span className="text-xs text-on-surface-variant">
+          <span className="text-body-small text-on-surface-variant">
             {unsaved
               ? 'сохраните настройки — проверим выбранную модель'
               : checkVision.isPending
@@ -398,20 +398,20 @@ export function IntegrationSettingsSection() {
 
   return (
     <CollapsibleSection title="Поиск и распознавание" storageKey="integrations" defaultOpen={false}>
-      <p className="text-xs text-on-surface-variant">
+      <p className="text-body-small text-on-surface-variant">
         Движки распознавания документов качества (vision-LLM) и веб-поиска. Ключи хранятся на сервере
         и не отображаются — оставьте поле пустым, чтобы сохранить текущий.
       </p>
 
-      {isLoading && <p className="text-sm text-on-surface-variant">Загрузка…</p>}
-      {error && <p className="text-sm text-error">Не удалось загрузить настройки.</p>}
+      {isLoading && <p className="text-body-medium text-on-surface-variant">Загрузка…</p>}
+      {error && <p className="text-body-medium text-error">Не удалось загрузить настройки.</p>}
 
       {data && (
         <>
           {/* Распознавание + приоритет */}
           <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-on-surface-variant">Распознавание реквизитов (по приоритету)</h3>
-            <p className="text-xs text-on-surface-variant">
+            <h3 className="text-body-small font-semibold text-on-surface-variant">Распознавание реквизитов (по приоритету)</h3>
+            <p className="text-body-small text-on-surface-variant">
               Движки опрашиваются сверху вниз: первый включённый с заданным ключом обрабатывает документ.
             </p>
             <div className="space-y-2">
@@ -440,8 +440,8 @@ export function IntegrationSettingsSection() {
 
           {/* Веб-поиск */}
           <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-on-surface-variant">Веб-поиск документов</h3>
-            <p className="text-xs text-on-surface-variant">Выдача всех включённых движков объединяется.</p>
+            <h3 className="text-body-small font-semibold text-on-surface-variant">Веб-поиск документов</h3>
+            <p className="text-body-small text-on-surface-variant">Выдача всех включённых движков объединяется.</p>
             <div className="space-y-2">
               {Object.keys(WEB_ENGINES).map(k => web[k] && (
                 <EngineCard
@@ -456,15 +456,15 @@ export function IntegrationSettingsSection() {
             {/* Своя галка, а не галка движка: движок ходит на известный хост API, а здесь адреса
                 произвольные — страницы из выдачи и файлы по ссылке (issue #936). */}
             <div className="rounded-md border border-outline-variant p-3 space-y-1">
-              <p className="text-sm font-medium text-on-surface">Загрузка по внешним ссылкам</p>
-              <p className="text-xs text-on-surface-variant">Страницы из выдачи поиска и файлы, скачиваемые по ссылке.</p>
+              <p className="text-body-medium font-medium text-on-surface">Загрузка по внешним ссылкам</p>
+              <p className="text-body-small text-on-surface-variant">Страницы из выдачи поиска и файлы, скачиваемые по ссылке.</p>
               <ProxyToggle checked={linksViaProxy} onChange={setLinksViaProxy} />
             </div>
           </div>
 
           {/* Домены */}
           <div className="space-y-3">
-            <h3 className="text-xs font-semibold text-on-surface-variant">Домены для тиров поиска</h3>
+            <h3 className="text-body-small font-semibold text-on-surface-variant">Домены для тиров поиска</h3>
             <DomainList
               label="ФГИС"
               hint="Реестры сертификатов/деклараций (site:-фильтр первого тира)."
@@ -483,8 +483,8 @@ export function IntegrationSettingsSection() {
             <Button variant="filled" onClick={handleSave} loading={save.isPending}>
               {save.isPending ? 'Сохранение…' : 'Сохранить'}
             </Button>
-            {saved && <span className="text-sm text-success">Сохранено</span>}
-            {save.isError && <span className="text-sm text-error">Ошибка сохранения</span>}
+            {saved && <span className="text-body-medium text-success">Сохранено</span>}
+            {save.isError && <span className="text-body-medium text-error">Ошибка сохранения</span>}
           </div>
         </>
       )}

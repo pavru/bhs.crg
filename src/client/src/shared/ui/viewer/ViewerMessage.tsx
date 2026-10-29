@@ -62,7 +62,7 @@ export function ViewerMessage({ state, source, actions, loadingText = 'Файл 
   loadingText?: string;
 }) {
   if (state === 'loading') {
-    return <Centered><span className="text-sm text-on-surface-variant">{loadingText}</span></Centered>;
+    return <Centered><span className="text-body-medium text-on-surface-variant">{loadingText}</span></Centered>;
   }
   const t = TEXTS[state];
   return (
@@ -70,8 +70,8 @@ export function ViewerMessage({ state, source, actions, loadingText = 'Файл 
       <div className="flex flex-col items-center gap-2 max-w-xs text-center" role="alert" data-testid="viewer-failure"
         data-state={state}>
         <span className="text-on-surface-variant">{t.icon}</span>
-        <span className="text-sm font-medium text-on-surface">{t.head}</span>
-        {t.text && <span className="text-xs text-on-surface-variant">{t.text}</span>}
+        <span className="text-body-medium font-medium text-on-surface">{t.head}</span>
+        {t.text && <span className="text-body-small text-on-surface-variant">{t.text}</span>}
         <div className="flex flex-wrap justify-center gap-2 mt-1">
           {(state === 'chunk' || state === 'worker') && (
             <Button size="sm" variant="tonal" icon={<Icon icon={Refresh} size={18} />} onClick={() => window.location.reload()}>

@@ -228,7 +228,7 @@ export function DataGrid<Row extends object>({
         {c.unavailable && COLUMN_ICON[c.unavailable]}
         <span className={c.unavailable === 'removed' ? 'line-through' : ''}>{c.header ?? c.label}</span>
         {sorted && (sorted.descending ? <Icon icon={ArrowDownward} size={18} aria-hidden /> : <Icon icon={ArrowUpward} size={18} aria-hidden />)}
-        {sorted && sort!.length > 1 && <span className="text-caption text-on-surface-variant">{order + 1}</span>}
+        {sorted && sort!.length > 1 && <span className="text-label-small text-on-surface-variant">{order + 1}</span>}
       </span>
     );
     return (
@@ -291,8 +291,8 @@ export function DataGrid<Row extends object>({
           {empty ? (
             <tr>
               <td colSpan={Math.max(columns.length, 1)} className={`${td} text-center py-4`}>
-                <div className="text-sm text-on-surface-variant">{empty.title}</div>
-                <div className="text-xs text-on-surface-variant">{empty.hint}</div>
+                <div className="text-body-medium text-on-surface-variant">{empty.title}</div>
+                <div className="text-body-small text-on-surface-variant">{empty.hint}</div>
               </td>
             </tr>
           ) : shown.map((row, i) => {
@@ -302,7 +302,7 @@ export function DataGrid<Row extends object>({
               return (
                 <tr key={key}>
                   <th scope="rowgroup" colSpan={Math.max(columns.length, 1)}
-                    className={`${td} pt-3 text-left text-xs font-medium text-on-surface-variant`}>
+                    className={`${td} pt-3 text-left text-body-small font-medium text-on-surface-variant`}>
                     {heading}
                   </th>
                 </tr>
@@ -378,7 +378,7 @@ export function DataGrid<Row extends object>({
                 const Cell = c.rowHeader ? 'th' : 'td';
                 return (
                   <Cell key={c.key} style={pinStyle(i, 30)} scope={c.rowHeader ? 'row' : undefined}
-                    className={`sticky bottom-0 z-10 bg-surface-container border-t border-outline-variant ${compact ? 'px-2 py-1' : 'px-3 py-1.5'} text-xs text-on-surface-variant `
+                    className={`sticky bottom-0 z-10 bg-surface-container border-t border-outline-variant ${compact ? 'px-2 py-1' : 'px-3 py-1.5'} text-body-small text-on-surface-variant `
                       + `whitespace-nowrap align-top ${c.rowHeader ? 'text-left font-medium' : ''} ${c.align === 'right' ? dtNum : ''} ${pin(i)}`}>
                     {footer(c)}
                   </Cell>

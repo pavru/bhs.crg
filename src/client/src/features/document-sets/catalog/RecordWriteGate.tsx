@@ -20,7 +20,7 @@ export function RecordWriteGate({ doorCode, onClose, children }: {
   return (
     <>
       {!allowed && (
-        <p className="mr-auto self-center text-sm text-on-surface-variant">
+        <p className="mr-auto self-center text-body-medium text-on-surface-variant">
           Только просмотр: записи этого справочника ведёт тот, у кого есть право на него.
         </p>
       )}

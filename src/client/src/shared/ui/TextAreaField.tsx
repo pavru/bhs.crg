@@ -51,7 +51,7 @@ export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>
       <div className="pt-4">
         <textarea
           ref={ref} id={areaId} required={required} rows={rows}
-          className={`block w-full rounded-sm bg-transparent px-4 pb-2 text-sm text-on-surface ` +
+          className={`block w-full rounded-sm bg-transparent px-4 pb-2 text-body-medium text-on-surface ` +
             `outline-none disabled-content ${className}`}
           onFocus={e => { setFocused(true); onFocus?.(e); }}
           onBlur={e => { setFocused(false); onBlur?.(e); }}

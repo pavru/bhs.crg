@@ -70,18 +70,18 @@ function ToastCard({ item, onRemove }: { item: ToastItem; onRemove: () => void }
         data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)]`}
     >
       <Icon icon={icon} size={18} className={`mt-0.5 shrink-0 ${VARIANT_ICON_COLOR[variant]}`} />
-      <RT.Description className="flex-1 min-w-0 text-sm text-on-surface">{item.message}</RT.Description>
+      <RT.Description className="flex-1 min-w-0 text-body-medium text-on-surface">{item.message}</RT.Description>
       {!item.action && item.traceId && (
         <RT.Action altText="Сообщить об ошибке" asChild
           onClick={() => openBugReport({ origin: 'toast', received: item.message })}>
-          <button type="button" className="shrink-0 -my-1 px-2 py-1 rounded-full text-sm font-medium text-primary state-layer focus-ring">
+          <button type="button" className="shrink-0 -my-1 px-2 py-1 rounded-full text-body-medium font-medium text-primary state-layer focus-ring">
             Сообщить
           </button>
         </RT.Action>
       )}
       {item.action && (
         <RT.Action altText={item.action.label} asChild onClick={() => item.action!.onClick()}>
-          <button type="button" className="shrink-0 -my-1 px-2 py-1 rounded-full text-sm font-medium text-primary state-layer focus-ring">
+          <button type="button" className="shrink-0 -my-1 px-2 py-1 rounded-full text-body-medium font-medium text-primary state-layer focus-ring">
             {item.action.label}
           </button>
         </RT.Action>

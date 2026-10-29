@@ -190,7 +190,7 @@ function ValueList({ column, values, marked, describedBy, inputRef, onChange }: 
           type="button"
           onClick={() => add()}
           disabled={!draft.trim()}
-          className="text-xs px-2 py-1 rounded-xs text-on-surface-variant bg-surface-container state-layer focus-ring disabled-container"
+          className="text-body-small px-2 py-1 rounded-xs text-on-surface-variant bg-surface-container state-layer focus-ring disabled-container"
         >
           Добавить
         </button>
@@ -223,7 +223,7 @@ function OptionList({ options, values, strays, onChange }: {
   return (
     <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-3 gap-y-1">
       {options.map(o => (
-        <label key={o} className="inline-flex items-center gap-1 text-xs text-on-surface cursor-pointer">
+        <label key={o} className="inline-flex items-center gap-1 text-body-small text-on-surface cursor-pointer">
           <Checkbox size="sm" checked={values.includes(o)} onChange={() => toggle(o)} />
           {o}
         </label>
@@ -232,7 +232,7 @@ function OptionList({ options, values, strays, onChange }: {
         <ValueChip key={v} warning stray label={v} onRemove={() => onChange(values.filter(x => x !== v))} />
       ))}
       {strays.map(v => (
-        <p key={`note:${v}`} className="flex w-full items-center gap-1 text-xs text-warning">
+        <p key={`note:${v}`} className="flex w-full items-center gap-1 text-body-small text-warning">
           <Icon icon={SearchOff} size={18} aria-hidden className="shrink-0" />«{v}» — нет в перечне колонки
         </p>
       ))}
@@ -281,7 +281,7 @@ function Bounds({ column, from, to, onChange }: {
   return (
     <div className="flex-1 min-w-0 flex items-center gap-1">
       <ValueInput column={column} value={from} placeholder="от" onChange={v => onChange(v, to)} />
-      <span className="text-xs text-on-surface-variant">—</span>
+      <span className="text-body-small text-on-surface-variant">—</span>
       <ValueInput column={column} value={to} placeholder="до" onChange={v => onChange(from, v)} />
     </div>
   );

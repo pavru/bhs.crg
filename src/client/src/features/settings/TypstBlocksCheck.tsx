@@ -24,7 +24,7 @@ export function TypstBlocksPanel({ problems, currentTypeId, onSelectType }: {
 }) {
   if (problems.length === 0)
     return (
-      <div className="flex items-center gap-2 p-2.5 rounded-sm text-sm bg-success-container text-on-success-container">
+      <div className="flex items-center gap-2 p-2.5 rounded-sm text-body-medium bg-success-container text-on-success-container">
         <Icon icon={CheckCircle} size={18} className="shrink-0" /> Все Typst-блоки собираются
       </div>
     );
@@ -35,7 +35,7 @@ export function TypstBlocksPanel({ problems, currentTypeId, onSelectType }: {
   const warns = problems.length - errors;
 
   return (
-    <div className="rounded-sm border border-outline-variant overflow-hidden text-xs">
+    <div className="rounded-sm border border-outline-variant overflow-hidden text-body-small">
       <div className="px-3 py-2 font-medium bg-surface-container-low text-on-surface-variant">
         Проблемы сборки блоков: {errors} ошиб.{warns ? `, ${warns} предупр.` : ''}
       </div>
@@ -50,7 +50,7 @@ function Group({ title, items, onSelectType }: {
 }) {
   return (
     <div>
-      <div className="px-3 pt-2 pb-1 text-caption font-semibold uppercase tracking-wide text-on-surface-variant">{title}</div>
+      <div className="px-3 pt-2 pb-1 text-label-small font-semibold uppercase tracking-wide text-on-surface-variant">{title}</div>
       <div className="divide-y divide-surface-container">
         {items.map((p, i) => (
           <div key={i} className="flex items-start gap-2 px-3 py-2">

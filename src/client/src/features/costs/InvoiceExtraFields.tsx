@@ -99,7 +99,7 @@ function NumberInput({ field, value, onChange, readOnly, label, hint }: InputPro
 export function UnshownExtras({ extras }: { extras: InvoiceExtras }) {
   if (extras.error != null)
     return (
-      <p className="flex items-start gap-2 text-xs text-warning" data-testid="invoice-extras-unread">
+      <p className="flex items-start gap-2 text-body-small text-warning" data-testid="invoice-extras-unread">
         <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
         <span>
           Схема типа «Счёт» не прочитана: {apiError(extras.error, 'сервер отказал')}. Поля, дописанные в тип,
@@ -109,7 +109,7 @@ export function UnshownExtras({ extras }: { extras: InvoiceExtras }) {
     );
   if (extras.unshown.length === 0) return null;
   return (
-    <p className="text-xs text-on-surface-variant" data-testid="invoice-extras-unshown">
+    <p className="text-body-small text-on-surface-variant" data-testid="invoice-extras-unshown">
       В типе «Счёт» есть поля, которых форма счёта не показывает:{' '}
       {extras.unshown.map(({ field, why }) => `«${field.title || field.key}» (${why})`).join(', ')}. Их значения
       в счёте сохраняются как есть.

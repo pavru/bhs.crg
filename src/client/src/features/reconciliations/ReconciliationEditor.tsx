@@ -82,13 +82,13 @@ function PartEditor({ part, onChange, onRemove, sources, index }: {
       </div>
 
       {part.sourceId && columns.length === 0 && (
-        <p className="text-xs text-error">У источника нет разобранной схемы — колонки не выбрать.</p>
+        <p className="text-body-small text-error">У источника нет разобранной схемы — колонки не выбрать.</p>
       )}
 
       {columns.length > 0 && (
         <>
           <div>
-            <div className="text-xs text-on-surface-variant mb-1">
+            <div className="text-body-small text-on-surface-variant mb-1">
               Ключевые колонки {part.keyColumns.length > 0 && (
                 <span className="text-on-surface-variant">— порядок: {part.keyColumns.join(' + ')}</span>
               )}
@@ -98,7 +98,7 @@ function PartEditor({ part, onChange, onRemove, sources, index }: {
                 const on = part.keyColumns.includes(c);
                 return (
                   <button key={c} type="button" onClick={() => toggleKey(c)}
-                    className={`text-xs px-2 py-1 rounded-full transition-colors ${
+                    className={`text-body-small px-2 py-1 rounded-full transition-colors ${
                       on ? 'bg-primary-container text-on-primary-container font-medium' : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface'}`}>
                     {c}
                   </button>
@@ -126,7 +126,7 @@ function SideEditor({ title, parts, onChange, sources }: {
   return (
     <div className="space-y-2 rounded-md border border-outline-variant p-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">{title}</span>
+        <span className="text-body-small font-semibold uppercase tracking-wide text-on-surface-variant">{title}</span>
         <Button variant="text" size="sm" onClick={() => onChange([...parts, EMPTY_PART])}>
           <Icon icon={Add} size={18} /> Источник
         </Button>
@@ -139,7 +139,7 @@ function SideEditor({ title, parts, onChange, sources }: {
       ))}
 
       {parts.length > 1 && (
-        <p className="text-caption text-on-surface-variant">
+        <p className="text-label-small text-on-surface-variant">
           Количества по одной позиции складываются по всем источникам стороны.
         </p>
       )}
@@ -215,8 +215,8 @@ export function ReconciliationEditor({ existing, onClose }: {
         </div>
 
         <div className="rounded-md border border-outline-variant p-3 space-y-3">
-          <div className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Правило</div>
-          <div className="flex items-center gap-2 text-sm text-on-surface-variant">
+          <div className="text-body-small font-semibold uppercase tracking-wide text-on-surface-variant">Правило</div>
+          <div className="flex items-center gap-2 text-body-medium text-on-surface-variant">
             <span>Слева должно быть</span>
             <Select value={operator} onValueChange={v => setOperator(v as ComparisonOperator)}
               aria-label="Оператор" className="w-40">
@@ -236,7 +236,7 @@ export function ReconciliationEditor({ existing, onClose }: {
               <SelectItem value="Percent">в процентах</SelectItem>
             </Select>
           </div>
-          <p className="text-caption text-on-surface-variant">
+          <p className="text-label-small text-on-surface-variant">
             Допуск гасит расхождения округления — без него отчёт забьётся находками на сотые доли.
           </p>
         </div>

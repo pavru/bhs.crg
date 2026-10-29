@@ -307,14 +307,14 @@ function PasteMappingModalBody({
           </div>
         }>
         <div className="space-y-4">
-          <p className="text-sm text-on-surface-variant">Скопируйте ячейки в Excel и вставьте сюда (Ctrl+V):</p>
+          <p className="text-body-medium text-on-surface-variant">Скопируйте ячейки в Excel и вставьте сюда (Ctrl+V):</p>
           <textarea autoFocus value={rawText} onChange={e => setRawText(e.target.value)}
             onPaste={e => {
               const text = e.clipboardData.getData('text/plain');
               if (text.trim()) { e.preventDefault(); setRawText(text); initMapping(text); setStep('map'); }
             }}
             placeholder="Вставьте данные из Excel..." rows={7}
-            className="w-full border border-outline rounded-sm px-3 py-2 text-xs font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface resize-none" />
+            className="w-full border border-outline rounded-sm px-3 py-2 text-body-small font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface resize-none" />
         </div>
       </WindowStep>
     );
@@ -336,7 +336,7 @@ function PasteMappingModalBody({
             </div>
           </div>
         }>
-        <div className="space-y-3 text-sm">
+        <div className="space-y-3 text-body-medium">
           <p className="text-on-surface-variant">Будет вставлено строк: <span className="font-medium text-on-surface">{pending.rows.length}</span>
             {pending.rows.length < importCount && (
               <span className="text-on-surface-variant"> (из {importCount}: остальные не дали ни одного значения)</span>
@@ -358,39 +358,39 @@ function PasteMappingModalBody({
               </p>
               <ul className="space-y-0.5 max-h-40 overflow-y-auto">
                 {pending.rejects.slice(0, REJECTS_SHOWN).map((c, i) => (
-                  <li key={i} className="text-xs text-on-surface-variant">
+                  <li key={i} className="text-body-small text-on-surface-variant">
                     строка {c.line}, «{c.title}»: {c.reason}
                     {' — '}<span className="font-mono text-on-surface">{c.raw}</span>
                   </li>
                 ))}
               </ul>
               {pending.rejects.length > REJECTS_SHOWN && (
-                <p className="text-xs text-on-surface-variant">…и ещё {pending.rejects.length - REJECTS_SHOWN}</p>
+                <p className="text-body-small text-on-surface-variant">…и ещё {pending.rejects.length - REJECTS_SHOWN}</p>
               )}
-              <p className="text-xs text-on-surface-variant">
+              <p className="text-body-small text-on-surface-variant">
                 Значение не уложилось в тип поля целиком, и подставлять вместо него догадку нельзя.
                 {keptRejects > 0 && ` Таких ячеек во вставляемых строках: ${keptRejects} — они останутся пустыми, заполните вручную либо исправьте источник.`}
                 {pending.dropped > 0 && ` Строк, где не разобралось ничего: ${pending.dropped} — они не вставятся вовсе.`}
               </p>
               {numberRejected && (
-                <p className="text-xs text-on-surface-variant">
+                <p className="text-body-small text-on-surface-variant">
                   Числа разбираются по региональной настройке (<span className="text-on-surface-variant">{localeLabel}</span>):
                   десятичный разделитель — её, остальные знаки могут быть только разделителями тысяч.
                 </p>
               )}
               {dateRejected && (
-                <p className="text-xs text-on-surface-variant">
+                <p className="text-body-small text-on-surface-variant">
                   Даты разбираются в порядке региональной настройки (<span className="text-on-surface-variant">{localeLabel}</span>):{' '}
                   {dateHint}. Дата из таблицы с другим порядком дня и месяца читается по настройке, а не угадывается.
                 </p>
               )}
               {(numberRejected || dateRejected) && (
-                <p className="text-xs text-on-surface-variant">Настройка — в профиле, раздел «Внешний вид».</p>
+                <p className="text-body-small text-on-surface-variant">Настройка — в профиле, раздел «Внешний вид».</p>
               )}
             </div>
           )}
           {pending.inline > 0 && (
-            <p className="text-xs text-on-surface-variant">
+            <p className="text-body-small text-on-surface-variant">
               Встроенные ячейки — обычные данные в документе (выбран режим «Встроенно» либо совпадение
               в каталоге не найдено). Их можно дозаполнить/связать вручную после вставки.
             </p>
@@ -420,7 +420,7 @@ function PasteMappingModalBody({
       }>
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-on-surface-variant cursor-pointer">
+          <label className="flex items-center gap-2 text-body-medium text-on-surface-variant cursor-pointer">
             <input type="checkbox" checked={skipHeader}
               onChange={e => {
                 const checked = e.target.checked;
@@ -432,12 +432,12 @@ function PasteMappingModalBody({
               className="w-4 h-4 rounded-xs border-outline text-primary" />
             Первая строка — заголовки
           </label>
-          <span className="text-xs text-on-surface-variant">Найдено строк данных: {importCount}</span>
+          <span className="text-body-small text-on-surface-variant">Найдено строк данных: {importCount}</span>
         </div>
         {/* Форма, а не таблица данных (#1354): строка — поле, в клетках — выбор. Поэтому сетка
             раскладки, а не таблица: читать здесь нечего, здесь задают. */}
         <div className="overflow-x-auto">
-          <div className="grid grid-cols-3 min-w-[480px] text-xs border border-outline-variant rounded-sm overflow-hidden [&>div:last-child>div]:border-b-0">
+          <div className="grid grid-cols-3 min-w-[480px] text-body-small border border-outline-variant rounded-sm overflow-hidden [&>div:last-child>div]:border-b-0">
             <div className={MAP_HEAD}>Поле таблицы</div>
             <div className={MAP_HEAD}>Столбец из Excel</div>
             <div className={MAP_HEAD}>Сопоставить по</div>

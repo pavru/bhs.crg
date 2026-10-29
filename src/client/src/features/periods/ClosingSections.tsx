@@ -36,8 +36,8 @@ export function ClosingSections({ sections, stale, before = null }: {
     <div className={`space-y-4 ${stale ? 'opacity-50' : ''}`} aria-busy={stale}>
       {sections.map(section => (
         <section key={section.module} aria-label={section.title}>
-          <h3 className="text-sm font-semibold text-on-surface">{section.title}</h3>
-          <p className="text-xs text-on-surface-variant">{section.dateRule}</p>
+          <h3 className="text-body-medium font-semibold text-on-surface">{section.title}</h3>
+          <p className="text-body-small text-on-surface-variant">{section.dateRule}</p>
 
           <Group title="Не завершено — закрытию не мешает" group="unfinished" section={section} before={before} warn
             empty="Незавершённого нет." />
@@ -45,14 +45,14 @@ export function ClosingSections({ sections, stale, before = null }: {
             empty="В эти дни ничего не попадает — замораживать нечего." />
 
           {section.amountsHidden && (
-            <p className="mt-1.5 text-xs text-on-surface-variant">Суммы не показаны: у вас нет права их видеть.</p>
+            <p className="mt-1.5 text-body-small text-on-surface-variant">Суммы не показаны: у вас нет права их видеть.</p>
           )}
         </section>
       ))}
       {/* Раздел, исчезнувший целиком, — тоже изменение: без него его «не завершено» пропало бы молча. */}
       {gone.map(section => (
         <section key={`gone:${section.module}`} aria-label={section.title} className="text-note text-on-surface-variant">
-          <h3 className="text-sm font-semibold text-on-surface-variant">{section.title}</h3>
+          <h3 className="text-body-medium font-semibold text-on-surface-variant">{section.title}</h3>
           <p>
             Раздела больше нет: модуль о закрытии уже ничего не сообщает.
             {unfinishedSummary([section]) && <Was text={`было не завершено: ${unfinishedSummary([section])}`} />}
@@ -72,7 +72,7 @@ function Group({ title, group, section, before, empty, warn }: {
 
   return (
     <div className="mt-2">
-      <h4 className="text-xs font-medium uppercase tracking-wide text-on-surface-variant">{title}</h4>
+      <h4 className="text-body-small font-medium uppercase tracking-wide text-on-surface-variant">{title}</h4>
       {lines.length === 0 && gone.length === 0 ? (
         <p className="text-note text-on-surface-variant">{empty}</p>
       ) : (
@@ -86,7 +86,7 @@ function Group({ title, group, section, before, empty, warn }: {
                   <Was text={wasText(before, section.module, group, line)} />
                 </span>
               </div>
-              {line.note && <p className={`text-xs text-on-surface-variant ${warn ? 'pl-5' : ''}`}>{line.note}</p>}
+              {line.note && <p className={`text-body-small text-on-surface-variant ${warn ? 'pl-5' : ''}`}>{line.note}</p>}
             </li>
           ))}
           {/* Исчезнувшая строка — тоже изменение: без неё «было 2 счёта» пропало бы молча. */}
@@ -127,5 +127,5 @@ function Figure({ line }: { line: ClosingLine }) {
 
 function Was({ text }: { text: string | null }) {
   if (!text) return null;
-  return <span className="ml-1.5 rounded-xs bg-warning/15 px-1 text-xs text-on-surface-variant">{text}</span>;
+  return <span className="ml-1.5 rounded-xs bg-warning/15 px-1 text-body-small text-on-surface-variant">{text}</span>;
 }

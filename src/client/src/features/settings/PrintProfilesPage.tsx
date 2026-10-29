@@ -69,20 +69,20 @@ export function PrintProfilesPage() {
             Добавить профиль
           </Button>
         }
-        overlay={isLoading ? <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">Загрузка…</div> : undefined}
+        overlay={isLoading ? <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-medium">Загрузка…</div> : undefined}
         nav={
           <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-0.5" data-testid="print-profiles-list">
             {profiles.map(p => (
               <ProfileRow key={p.id} profile={p} active={selected?.id === p.id} onClick={() => open(p.id)} />
             ))}
-            {isError && <p className="text-sm text-on-surface-variant px-3 py-2">Не удалось получить список профилей</p>}
+            {isError && <p className="text-body-medium text-on-surface-variant px-3 py-2">Не удалось получить список профилей</p>}
           </div>
         }
         detail={selected
           ? <PrintProfileDetail key={selected.id} profile={selected}
               otherNames={profiles.filter(p => p.id !== selected.id).map(p => p.name)}
               onDeleted={() => setSelectedId(null)} onEditState={setEdit} saveRef={saveRef} />
-          : <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">Выберите профиль</div>} />
+          : <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-medium">Выберите профиль</div>} />
 
       <LeaveGuardDialog {...dialogProps} />
       <LeaveGuardDialog
@@ -112,12 +112,12 @@ function ProfileRow({ profile, active, onClick }: { profile: PrintProfile; activ
       <SheetSketch paper={profile.paper} orientation={profile.orientation} fit={profile.fit} margins={profile.margins} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
-          <span className="text-sm truncate min-w-0 flex-1" title={profile.name}>{profile.name}</span>
+          <span className="text-body-medium truncate min-w-0 flex-1" title={profile.name}>{profile.name}</span>
           {isModified(profile) && (
             <Tooltip content="Изменён"><span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" /></Tooltip>
           )}
         </span>
-        <span className="block text-xs text-on-surface-variant truncate">{profileSummary(profile)}</span>
+        <span className="block text-body-small text-on-surface-variant truncate">{profileSummary(profile)}</span>
       </span>
     </button>
   );
@@ -160,8 +160,8 @@ function CreateForm({ names, base, onCreated, onCancel }: {
       <TextField label="Название" autoFocus value={name} maxLength={NAME_MAX} error={error}
         onChange={e => { setName(e.target.value); setError(undefined); }} />
       {base
-        ? <p className="text-xs text-on-surface-variant">Параметры возьмутся из профиля по умолчанию — поменяете в карточке.</p>
-        : <p className="text-xs text-error">Нет профиля по умолчанию — параметры взять неоткуда. Обновите страницу.</p>}
+        ? <p className="text-body-small text-on-surface-variant">Параметры возьмутся из профиля по умолчанию — поменяете в карточке.</p>
+        : <p className="text-body-small text-error">Нет профиля по умолчанию — параметры взять неоткуда. Обновите страницу.</p>}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="text" onClick={onCancel}>Отмена</Button>
         <Button type="submit" variant="filled" loading={create.isPending} disabled={!base}>Создать</Button>

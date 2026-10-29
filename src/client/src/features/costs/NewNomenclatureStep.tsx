@@ -17,7 +17,7 @@ import { usePickerSelection } from './pickerSelection';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { SuggestField } from '@/shared/ui/SuggestField';
 
-const field = 'w-full rounded-xs border border-outline-variant bg-surface px-2 py-1 text-sm text-on-surface outline-none';
+const field = 'w-full rounded-xs border border-outline-variant bg-surface px-2 py-1 text-body-medium text-on-surface outline-none';
 
 /**
  * Шаг «Новая позиция номенклатуры» в окне выбора позиции (задача C3, issue #1079, ТЗ COST-7.1).
@@ -133,14 +133,14 @@ export function NewNomenclatureStep({ from, plate, narrow, onBack, onPick }: {
     <div className="space-y-3">
       {plate}
 
-      {kinds.isPending && <p className="text-xs text-on-surface-variant">Читаем, что спросить о позиции…</p>}
+      {kinds.isPending && <p className="text-body-small text-on-surface-variant">Читаем, что спросить о позиции…</p>}
       {kinds.isError && (
         <Refusal>Новую позицию сейчас не завести: {apiError(kinds.error, 'сервер отказал')}</Refusal>
       )}
 
       {kinds.data && (
         <label className="block space-y-1">
-          <span className="text-xs text-on-surface-variant">Вид</span>
+          <span className="text-body-small text-on-surface-variant">Вид</span>
           <Select aria-label="Вид" value={kind?.typeId ?? ''} onValueChange={pickKind} emptyItem="— выберите вид позиции —">
             {all.map(k => <SelectItem key={k.typeId} value={k.typeId}>{k.name}</SelectItem>)}
           </Select>
@@ -158,7 +158,7 @@ export function NewNomenclatureStep({ from, plate, narrow, onBack, onPick }: {
         <>
           {kind.fields.map(f => (
             <label key={f.key} className="block space-y-1">
-              <span className="text-xs text-on-surface-variant">{f.title}{f.required ? ' *' : ''}</span>
+              <span className="text-body-small text-on-surface-variant">{f.title}{f.required ? ' *' : ''}</span>
               {f.options === null ? (
                 // Подсказка по введённому ранее (issue #1533): производитель, встреченный в прошлом счёте.
                 // Записи номенклатуры — уровня «вся система»; выбранное идёт тем же `type`, что набор,
@@ -173,11 +173,11 @@ export function NewNomenclatureStep({ from, plate, narrow, onBack, onPick }: {
                 </Select>
               )}
               {prefillHint(kind, f, from) && draft.values[f.key] === prefill(kind, from).values[f.key] && (
-                <span className="block text-caption text-on-surface-variant">{prefillHint(kind, f, from)}</span>
+                <span className="block text-label-small text-on-surface-variant">{prefillHint(kind, f, from)}</span>
               )}
             </label>
           ))}
-          <p className="text-caption text-on-surface-variant">
+          <p className="text-label-small text-on-surface-variant">
             В справочник попадёт только названное здесь. Остальные поля вида «{kind.name}» дополните в справочнике.
           </p>
 
@@ -191,7 +191,7 @@ export function NewNomenclatureStep({ from, plate, narrow, onBack, onPick }: {
               </Button>
             )} />
           {missing.length > 0 && body !== null && (
-            <p className="text-caption text-on-surface-variant">Не заполнено: {missing.join(', ')}.</p>
+            <p className="text-label-small text-on-surface-variant">Не заполнено: {missing.join(', ')}.</p>
           )}
           {refused && <Refusal>{refused}</Refusal>}
           {/* Лежащую предлагает сам отказ: ответ о похожих мог не прийти, а выбрать её человек обязан мочь. */}
@@ -232,12 +232,12 @@ function Similar({ body, settled, similar, create, onPick, hover, leave, active 
   leave: () => void;
   active: string | null;
 }) {
-  const head = <p className="text-xs font-medium text-on-surface-variant">Похожие в справочнике</p>;
+  const head = <p className="text-body-small font-medium text-on-surface-variant">Похожие в справочнике</p>;
 
   if (!body) return <div className="space-y-1">{head}
-    <p className="text-xs text-on-surface-variant">Назовите позицию — проверим, нет ли такой в справочнике.</p></div>;
+    <p className="text-body-small text-on-surface-variant">Назовите позицию — проверим, нет ли такой в справочнике.</p></div>;
   if (!settled || similar.isFetching) return <div className="space-y-1">{head}
-    <p className="text-xs text-on-surface-variant">Ищем похожие…</p></div>;
+    <p className="text-body-small text-on-surface-variant">Ищем похожие…</p></div>;
   if (similar.isError || !similar.data) return (
     <div className="space-y-1">{head}
       <Refusal>
@@ -250,7 +250,7 @@ function Similar({ body, settled, similar, create, onPick, hover, leave, active 
 
   const { exact, similar: hits, more, unreadable } = similar.data;
   const unread = unreadable > 0 && (
-    <p className="text-caption text-warning">
+    <p className="text-label-small text-warning">
       Не сверено позиций: {unreadable} — их записи прочитать не удалось. Это не «не похожи».
     </p>
   );
@@ -258,17 +258,17 @@ function Similar({ body, settled, similar, create, onPick, hover, leave, active 
   if (exact) return (
     <div className="space-y-1">{head}
       {exact.archived ? (
-        <p className="text-xs text-on-surface-variant">
+        <p className="text-body-small text-on-surface-variant">
           В архиве есть такая позиция: «{exact.name ?? 'без названия'}». Заводить заново не нужно —
           вернуть из архива может тот, кто ведёт справочник.
         </p>
       ) : (
         <>
-          <p className="text-xs text-on-surface-variant">Такая позиция уже есть:</p>
+          <p className="text-body-small text-on-surface-variant">Такая позиция уже есть:</p>
           <Row position={exact} action="Выбрать" onPick={onPick} />
         </>
       )}
-      <p className="text-xs text-on-surface-variant">Вторую такую же завести нельзя.</p>
+      <p className="text-body-small text-on-surface-variant">Вторую такую же завести нельзя.</p>
     </div>
   );
 
@@ -280,10 +280,10 @@ function Similar({ body, settled, similar, create, onPick, hover, leave, active 
             active={hit.position.id === active} onHover={() => hover(hit.position.id)} />
         ))}
       </div>
-      {more && <p className="text-xs text-warning">Есть ещё похожие — уточните наименование.</p>}
-      {hits.length === 0 && <p className="text-xs text-on-surface-variant">Похожих в справочнике не найдено.</p>}
+      {more && <p className="text-body-small text-warning">Есть ещё похожие — уточните наименование.</p>}
+      {hits.length === 0 && <p className="text-body-small text-on-surface-variant">Похожих в справочнике не найдено.</p>}
       {/* Оговорка — всегда: «не найдено» значит «правила не нашли», а не «дубля нет». */}
-      <p className="text-caption text-on-surface-variant">
+      <p className="text-label-small text-on-surface-variant">
         Сверка — по совпадению слов и значений: написанное иначе («3х2,5» и «3*2.5») она не найдёт.
       </p>
       {unread}
@@ -302,9 +302,9 @@ function Row({ position, why, action, onPick, active = false, onHover }: {
 }) {
   const label = (
     <>
-      <span className="text-sm text-on-surface truncate">{position.name ?? 'без названия'}</span>
-      {why && <span className="text-caption text-on-surface-variant truncate">{why}</span>}
-      <span className="text-caption text-on-surface-variant shrink-0">{position.type}</span>
+      <span className="text-body-medium text-on-surface truncate">{position.name ?? 'без названия'}</span>
+      {why && <span className="text-label-small text-on-surface-variant truncate">{why}</span>}
+      <span className="text-label-small text-on-surface-variant shrink-0">{position.type}</span>
     </>
   );
   // Архивную выбрать нельзя — сервер её в новую строку не примет; но показать обязаны: иначе её
@@ -312,14 +312,14 @@ function Row({ position, why, action, onPick, active = false, onHover }: {
   if (position.archived) return (
     <div onMouseMove={active ? undefined : onHover}
       className={`px-3 py-1.5 rounded-xs flex items-baseline gap-2 ${active ? 'bg-surface-container' : ''}`}>
-      {label}<span className="ml-auto text-caption text-on-surface-variant shrink-0">в архиве</span>
+      {label}<span className="ml-auto text-label-small text-on-surface-variant shrink-0">в архиве</span>
     </div>
   );
   return (
     <button type="button" onClick={() => onPick(position.id, position.name)}
       onMouseMove={active ? undefined : onHover}
       className={`state-layer w-full text-left px-3 py-1.5 rounded-xs flex items-baseline gap-2 ${active ? 'bg-surface-container' : ''}`}>
-      {label}<span className="ml-auto text-xs text-primary shrink-0">{action}</span>
+      {label}<span className="ml-auto text-body-small text-primary shrink-0">{action}</span>
     </button>
   );
 }

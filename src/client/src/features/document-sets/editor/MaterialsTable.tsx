@@ -25,7 +25,7 @@ function RowPill({ onClick, title, tone = 'tonal', children }: {
   return (
     <Tooltip content={title}>
       <button type="button" onClick={onClick}
-        className={'flex items-center gap-1 px-1.5 py-0.5 text-xs rounded-full shrink-0 '
+        className={'flex items-center gap-1 px-1.5 py-0.5 text-body-small rounded-full shrink-0 '
           + 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary '
           + (tone === 'brand'
             ? 'bg-primary state-layer text-on-primary'
@@ -135,7 +135,7 @@ export function MaterialsTable({
               </span>
             ) : suggestion ? (
               <span className="flex items-center gap-1.5">
-                <span className="text-caption px-1 py-0.5 rounded-xs bg-primary-container text-on-primary-container shrink-0">{Math.round(suggestion.score * 100)}%</span>
+                <span className="text-label-small px-1 py-0.5 rounded-xs bg-primary-container text-on-primary-container shrink-0">{Math.round(suggestion.score * 100)}%</span>
                 <Tooltip content="Просмотреть предложенный документ">
                   <button onClick={() => setViewDoc(suggestion.doc)}
                     className="flex-1 min-w-0 text-left text-on-surface-variant italic hover:underline truncate">

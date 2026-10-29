@@ -48,7 +48,7 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel }: {
     return (
       <Link key={section.def.id} to={section.home} onClick={guardedSection(section)}
         aria-current={on ? 'true' : undefined}
-        className="group flex flex-col items-center gap-1 w-20 pb-2 text-xs select-none focus-visible:outline-none">
+        className="group flex flex-col items-center gap-1 w-20 pb-2 text-body-small select-none focus-visible:outline-none">
         <SectionPill icon={icon} on={on} />
         <span className={on ? 'font-semibold text-on-surface' : 'font-medium text-on-surface-variant'}>{section.def.label}</span>
       </Link>
@@ -63,7 +63,7 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel }: {
         <Link to="/" onClick={guardedClick('/')} aria-label={`${productName} — на главную`}
           className="mt-3 mb-4 flex flex-col items-center gap-0.5 w-20 shrink-0 rounded-lg focus-ring">
           <BrandLogo className="w-8 h-8 text-primary" iconSize={24} />
-          <span className="w-full px-1 text-caption font-semibold text-primary text-center truncate">{productName}</span>
+          <span className="w-full px-1 text-label-small font-semibold text-primary text-center truncate">{productName}</span>
         </Link>
       </Tooltip>
 
@@ -113,8 +113,8 @@ export function SectionPanel({ def, groups, outside, onHide }: {
       className="w-60 shrink-0 flex flex-col px-3 py-4 bg-surface border-l border-outline-variant overflow-y-auto">
       <div className="flex items-start gap-1 pl-3 pb-3">
         <div className="flex-1 min-w-0 pt-1">
-          <h2 className="text-base font-semibold text-on-surface break-words">{def.title}</h2>
-          <p className="text-xs text-on-surface-variant">{def.hint}</p>
+          <h2 className="text-body-large font-semibold text-on-surface break-words">{def.title}</h2>
+          <p className="text-body-small text-on-surface-variant">{def.hint}</p>
         </div>
         <IconButton label="Скрыть панель раздела" size="lg" onClick={onHide}
           aria-expanded aria-controls={PANEL_ID}>

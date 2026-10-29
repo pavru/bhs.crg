@@ -68,15 +68,15 @@ export function EmailSettingsSection() {
     catch (e) { setTestResult({ ok: false, error: apiError(e, 'Не удалось отправить.') }); }
   }
 
-  const fieldCls = "w-full border border-outline rounded-sm px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface";
+  const fieldCls = "w-full border border-outline rounded-sm px-3 py-2 text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface";
 
   return (
     <CollapsibleSection title="Почта (SMTP)" storageKey="email" defaultOpen={false}>
-      <p className="text-xs text-on-surface-variant">
+      <p className="text-body-small text-on-surface-variant">
         Настройки исходящей почты для отправки уведомлений и документов подписчикам.
       </p>
 
-      <label className="flex items-center gap-2 text-sm text-on-surface-variant">
+      <label className="flex items-center gap-2 text-body-medium text-on-surface-variant">
         <input type="checkbox" checked={form.enabled} onChange={e => set('enabled', e.target.checked)} />
         Включить отправку почты
       </label>
@@ -95,7 +95,7 @@ export function EmailSettingsSection() {
           value={form.fromName ?? ''} onChange={e => set('fromName', e.target.value)} hint="BHS.CRG" />
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-on-surface-variant">
+      <label className="flex items-center gap-2 text-body-medium text-on-surface-variant">
         <input type="checkbox" checked={form.useSsl} onChange={e => set('useSsl', e.target.checked)} />
         Шифрование (STARTTLS/SSL — порт 587/465)
       </label>
@@ -111,42 +111,42 @@ export function EmailSettingsSection() {
           icon={<Icon icon={Power} size={18} />}>
           {testConn.isPending ? 'Проверка...' : 'Проверить подключение'}
         </Button>
-        {saved && <span className="text-sm text-success">Сохранено</span>}
-        {saveError && <span className="text-sm text-error flex items-center gap-1"><Icon icon={Cancel} size={18} /> {saveError}</span>}
+        {saved && <span className="text-body-medium text-success">Сохранено</span>}
+        {saveError && <span className="text-body-medium text-error flex items-center gap-1"><Icon icon={Cancel} size={18} /> {saveError}</span>}
         {connResult && (connResult.ok
-          ? <span className="text-sm text-success flex items-center gap-1"><Icon icon={CheckCircle} size={18} /> Подключение успешно</span>
-          : <span className="text-sm text-error flex items-center gap-1"><Icon icon={Cancel} size={18} /> {connResult.error}</span>
+          ? <span className="text-body-medium text-success flex items-center gap-1"><Icon icon={CheckCircle} size={18} /> Подключение успешно</span>
+          : <span className="text-body-medium text-error flex items-center gap-1"><Icon icon={Cancel} size={18} /> {connResult.error}</span>
         )}
       </div>
 
       {/* Тест-отправка */}
       <div className="border-t border-surface-container pt-3 space-y-2">
-        <p className="text-sm font-medium text-on-surface-variant flex items-center gap-1.5"><Icon icon={Send} size={18} className="text-on-surface-variant" /> Тест-отправка</p>
+        <p className="text-body-medium font-medium text-on-surface-variant flex items-center gap-1.5"><Icon icon={Send} size={18} className="text-on-surface-variant" /> Тест-отправка</p>
         <div className="flex items-center gap-2">
           <input className={fieldCls + ' flex-1'} value={testTo} onChange={e => setTestTo(e.target.value)}
             placeholder="Адрес для проверки" />
           <button type="button" onClick={handleTest} disabled={testEmail.isPending || !testTo.trim()}
-            className="px-3 py-2 text-sm border border-outline state-layer rounded-sm shrink-0 disabled-outlined">
+            className="px-3 py-2 text-body-medium border border-outline state-layer rounded-sm shrink-0 disabled-outlined">
             {testEmail.isPending ? 'Отправка...' : 'Отправить'}
           </button>
         </div>
         {testResult && (testResult.ok
-          ? <p className="text-xs text-success flex items-center gap-1"><Icon icon={CheckCircle} size={18} /> Письмо отправлено</p>
-          : <p className="text-xs text-error flex items-start gap-1"><Icon icon={Cancel} size={18} className="shrink-0 mt-0.5" /> {testResult.error}</p>
+          ? <p className="text-body-small text-success flex items-center gap-1"><Icon icon={CheckCircle} size={18} /> Письмо отправлено</p>
+          : <p className="text-body-small text-error flex items-start gap-1"><Icon icon={Cancel} size={18} className="shrink-0 mt-0.5" /> {testResult.error}</p>
         )}
       </div>
 
       {/* Проверка email пользователей */}
       <div className="border-t border-surface-container pt-3 space-y-1.5">
-        <p className="text-sm font-medium text-on-surface-variant flex items-center gap-1.5"><Icon icon={Mail} size={18} className="text-on-surface-variant" /> Email пользователей</p>
+        <p className="text-body-medium font-medium text-on-surface-variant flex items-center gap-1.5"><Icon icon={Mail} size={18} className="text-on-surface-variant" /> Email пользователей</p>
         {userStatus.length === 0 ? (
-          <p className="text-xs text-on-surface-variant">Нет пользователей</p>
+          <p className="text-body-small text-on-surface-variant">Нет пользователей</p>
         ) : (
           <div className="rounded-sm border border-outline-variant divide-y divide-surface-container">
             {userStatus.map((u, i) => (
-              <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 text-sm">
+              <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 text-body-medium">
                 <span className="text-on-surface flex-1 min-w-0 truncate">{u.displayName}</span>
-                <span className="text-xs text-on-surface-variant min-w-0 truncate">{u.email || '—'}</span>
+                <span className="text-body-small text-on-surface-variant min-w-0 truncate">{u.email || '—'}</span>
                 {u.valid
                   ? <Icon icon={CheckCircle} size={18} className="text-success shrink-0" />
                   : <Icon icon={Warning} size={18} className="text-warning shrink-0" />}
@@ -154,7 +154,7 @@ export function EmailSettingsSection() {
             ))}
           </div>
         )}
-        <p className="text-caption text-on-surface-variant">⚠ — email не задан или невалиден: такой пользователь не получит писем.</p>
+        <p className="text-label-small text-on-surface-variant">⚠ — email не задан или невалиден: такой пользователь не получит писем.</p>
       </div>
     </CollapsibleSection>
   );

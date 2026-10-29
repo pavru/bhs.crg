@@ -64,10 +64,10 @@ export function SectionDetail() {
     return s ? `Раздел «${s.name}»` : null;
   })());
 
-  if (isLoading) return <div className="p-6 text-sm text-on-surface-variant">Загрузка...</div>;
-  if (!construction) return <div className="p-6 text-sm text-error">Стройка не найдена</div>;
+  if (isLoading) return <div className="p-6 text-body-medium text-on-surface-variant">Загрузка...</div>;
+  if (!construction) return <div className="p-6 text-body-medium text-error">Стройка не найдена</div>;
   const section = construction.sections.find(s => s.id === sectionId);
-  if (!section) return <div className="p-6 text-sm text-error">Раздел не найден</div>;
+  if (!section) return <div className="p-6 text-body-medium text-error">Раздел не найден</div>;
 
   const setsInSection = section.documentSets.length;
   const docsInSection = section.documentSets.reduce((acc, ds) => acc + (ds.documentCount ?? 0), 0);
@@ -85,9 +85,9 @@ export function SectionDetail() {
 
   const contextCrumbs = (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <Link to="/document-sets" className="text-xs text-on-surface-variant hover:text-on-surface-variant transition-colors">Стройки</Link>
+      <Link to="/document-sets" className="text-body-small text-on-surface-variant hover:text-on-surface-variant transition-colors">Стройки</Link>
       <Link to={`/document-sets/${constructionId}`}
-        className="text-caption px-2 py-0.5 rounded-full border border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface transition-colors">
+        className="text-label-small px-2 py-0.5 rounded-full border border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface transition-colors">
         Стройка: {construction.name}
       </Link>
       <NotFavoriteNote constructionId={constructionId!} />
@@ -100,7 +100,7 @@ export function SectionDetail() {
       <HiddenByWorkspace module="id" what="Комплекты раздела" />
       {idOn && <>
         <NavSection label="Комплекты" />
-        {section.documentSets.length === 0 && <p className="px-3 py-1.5 text-xs text-on-surface-variant">Нет комплектов</p>}
+        {section.documentSets.length === 0 && <p className="px-3 py-1.5 text-body-small text-on-surface-variant">Нет комплектов</p>}
         {section.documentSets.map(ds => {
           const p = problemOf(problems, ds.id);
           const done = planOf(plan, ds.id);
@@ -113,7 +113,7 @@ export function SectionDetail() {
         })}
         {canAddSet && (
           <button type="button" onClick={() => setAddSetOpen(true)}
-            className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-sm text-primary hover:bg-primary-container transition-colors">
+            className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-body-medium text-primary hover:bg-primary-container transition-colors">
             <Icon icon={Add} size={18} className="shrink-0" /> Добавить комплект
           </button>
         )}
@@ -159,7 +159,7 @@ export function SectionDetail() {
           <form id="add-set-form" onSubmit={handleAddSet} className="space-y-4">
             <TextField label="Наименование" value={newSetName} onChange={e => setNewSetName(e.target.value)}
               required autoFocus hint="например: Кабельный журнал, секция 2" />
-            {addError && <p className="text-sm text-error">{addError}</p>}
+            {addError && <p className="text-body-medium text-error">{addError}</p>}
           </form>
         )}
       </Modal>

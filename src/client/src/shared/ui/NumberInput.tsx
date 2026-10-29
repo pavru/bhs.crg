@@ -35,13 +35,13 @@ export function NumberInput({ value, onChange, label, unit, placeholder, disable
   return (
     <label className={`${WRAP} ${className}`}>
       {field}
-      <span className="shrink-0 text-xs text-on-surface-variant" aria-hidden="true">{unit}</span>
+      <span className="shrink-0 text-body-small text-on-surface-variant" aria-hidden="true">{unit}</span>
     </label>
   );
 }
 
 const BOX = 'rounded-xs border border-outline-variant bg-surface px-1.5 py-1';
-const TEXT = 'text-right text-xs tabular-nums text-on-surface outline-none placeholder:text-on-surface-variant disabled:text-on-surface-variant';
+const TEXT = 'text-right text-body-small tabular-nums text-on-surface outline-none placeholder:text-on-surface-variant disabled:text-on-surface-variant';
 
 /** Поле без единицы: рамка на самом поле. */
 const BARE = `${BOX} ${TEXT} focus:border-primary disabled:bg-surface-container`;

@@ -157,7 +157,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
       <div className="flex gap-1 mb-3 bg-surface-container rounded-md p-0.5 w-fit">
         {(['pick', 'search', 'create'] as const).map(t => (
           <button key={t} onClick={() => { if (t === 'search') enterSearch(); else setTab(t); }}
-            className={`px-3 py-1.5 text-sm rounded-sm ${tab === t ? 'bg-surface text-on-surface font-medium shadow-elevation-1' : 'text-on-surface-variant'}`}>
+            className={`px-3 py-1.5 text-body-medium rounded-sm ${tab === t ? 'bg-surface text-on-surface font-medium shadow-elevation-1' : 'text-on-surface-variant'}`}>
             {tabLabel[t]}
           </button>
         ))}
@@ -166,15 +166,15 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
       {tab === 'pick' && (
         <div className="space-y-2">
           <SearchInput value={query} onChange={setQuery} placeholder="Поиск по материалу / названию..." />
-          <label className="flex items-center gap-1.5 text-xs text-on-surface-variant cursor-pointer">
+          <label className="flex items-center gap-1.5 text-body-small text-on-surface-variant cursor-pointer">
             <input type="checkbox" checked={includeExpired} onChange={e => setIncludeExpired(e.target.checked)}
               className="w-3.5 h-3.5 rounded-xs border-outline text-primary" />
             Показать просроченные{expiredCount > 0 ? ` (${expiredCount})` : ''}
           </label>
-          {isLoading ? <p className="text-sm text-on-surface-variant py-3 text-center">Загрузка...</p>
+          {isLoading ? <p className="text-body-medium text-on-surface-variant py-3 text-center">Загрузка...</p>
             : visible.length === 0 ? (
               <div className="text-center py-5 space-y-2">
-                <p className="text-sm text-on-surface-variant">
+                <p className="text-body-medium text-on-surface-variant">
                   {docs.length === 0 ? 'Библиотека пуста.'
                     : queryTokens.length > 0 ? 'По материалу в библиотеке ничего не найдено.'
                     : 'Нет подходящих (непросроченных) документов.'}
@@ -193,17 +193,17 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                           назывались одинаково, а внутри были разные номера, органы и области
                           продукции — по имени человек выбирал вслепую. */}
                       <span className="flex-1 min-w-0">
-                        <span className="block text-sm text-on-surface truncate">{d.displayName}</span>
+                        <span className="block text-body-medium text-on-surface truncate">{d.displayName}</span>
                         {/* Только НОМЕР: срок действия у строки уже есть справа, и вторая дата рядом
                             (да ещё в другом формате) читалась бы как два разных срока. */}
                         {docNumberOf(d, allDocTypes) && (
-                          <span className="block text-caption text-on-surface-variant truncate">№ {docNumberOf(d, allDocTypes)}</span>
+                          <span className="block text-label-small text-on-surface-variant truncate">№ {docNumberOf(d, allDocTypes)}</span>
                         )}
                       </span>
                       {queryTokens.length > 0 && score > 0 && (
-                        <span className="text-caption px-1.5 py-0.5 rounded-xs bg-primary-container text-on-primary-container shrink-0">{Math.round(score * 100)}%</span>
+                        <span className="text-label-small px-1.5 py-0.5 rounded-xs bg-primary-container text-on-primary-container shrink-0">{Math.round(score * 100)}%</span>
                       )}
-                      {validUntil && <span className={`text-caption shrink-0 ${expired ? 'text-error' : 'text-on-surface-variant'}`}>
+                      {validUntil && <span className={`text-label-small shrink-0 ${expired ? 'text-error' : 'text-on-surface-variant'}`}>
                         {expired ? 'просрочен ' : 'до '}{formatDatePrecise(validUntil)}</span>}
                     </button>
                     {d.scanBlobPath && (
@@ -235,26 +235,26 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
             <div className="flex-1 flex items-center gap-2 border border-outline rounded-sm px-2 transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
               <input value={query} onChange={e => setQuery(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') void runSearch(); }}
-                placeholder="строка поиска" className="flex-1 py-2 text-sm bg-transparent focus:outline-none" />
+                placeholder="строка поиска" className="flex-1 py-2 text-body-medium bg-transparent focus:outline-none" />
             </div>
             <Button variant="filled" size="sm" onClick={() => runSearch()} loading={searching}
               disabled={!query.trim()} icon={<Icon icon={Search} size={18} />}>
               Найти
             </Button>
           </div>
-          {searchError && <p className="text-sm text-error">{searchError}</p>}
-          {results && results.length === 0 && <p className="text-sm text-on-surface-variant py-3 text-center">Ничего не найдено.</p>}
+          {searchError && <p className="text-body-medium text-error">{searchError}</p>}
+          {results && results.length === 0 && <p className="text-body-medium text-on-surface-variant py-3 text-center">Ничего не найдено.</p>}
           {results && results.length > 0 && (
             <div className="max-h-80 overflow-y-auto divide-y divide-surface-container border border-outline-variant rounded-sm">
               {results.map(c => (
                 <div key={c.url} className="flex items-start gap-2 px-3 py-2">
-                  <span className="text-caption uppercase px-1.5 py-0.5 rounded-xs bg-surface-container-low text-on-surface-variant shrink-0 mt-0.5">{c.source}</span>
+                  <span className="text-label-small uppercase px-1.5 py-0.5 rounded-xs bg-surface-container-low text-on-surface-variant shrink-0 mt-0.5">{c.source}</span>
                   <div className="flex-1 min-w-0">
                     <a href={c.url} target="_blank" rel="noreferrer"
-                      className="text-sm text-primary hover:underline flex items-center gap-1">
+                      className="text-body-medium text-primary hover:underline flex items-center gap-1">
                       <span className="truncate">{c.title || c.url}</span><Icon icon={OpenInNew} size={18} className="shrink-0" />
                     </a>
-                    {c.snippet && <p className="text-xs text-on-surface-variant line-clamp-2">{c.snippet}</p>}
+                    {c.snippet && <p className="text-body-small text-on-surface-variant line-clamp-2">{c.snippet}</p>}
                   </div>
                   <Button variant="filled" size="sm" onClick={() => importAndLink(c)}
                     loading={importingUrl === c.url} disabled={importingUrl !== null}

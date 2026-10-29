@@ -62,14 +62,14 @@ export function UserLibFileList({
       </div>
 
       {files.length === 0 ? (
-        <p className="px-3 py-2 text-xs text-on-surface-variant">
+        <p className="px-3 py-2 text-body-small text-on-surface-variant">
           Пока всё в одном файле. Создайте файл, чтобы вынести часть функций.
         </p>
       ) : rows.map(row => row.kind === 'folder' ? (
         /* «+» на папке — то же правило, что у заголовка секции, уровнем ниже: «создать в этом
            контейнере». Кебаб был бы хуже — единственный пункт под безликим глифом и лишний клик.
            Это ускоритель, а не единственный путь: создание через шапку секции остаётся. */
-        <div key={`d:${row.path}`} className="group/dir flex items-center gap-1.5 py-1 pr-2 text-xs text-on-surface-variant"
+        <div key={`d:${row.path}`} className="group/dir flex items-center gap-1.5 py-1 pr-2 text-body-small text-on-surface-variant"
           style={{ paddingLeft: `${0.75 + row.depth}rem` }}>
           <Icon icon={Folder} size={18} className="shrink-0" />
           <span className="truncate flex-1">{row.label}</span>
@@ -109,7 +109,7 @@ function FileRow({ label, depth, icon, active, dirty, errors, warnings, title, o
     <div className={`state-layer group flex items-center gap-1 pr-1.5 ${active ? 'bg-primary-container' : ''}`}>
       <Tooltip content={title}>
         <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
-          className="flex-1 min-w-0 flex items-center gap-1.5 py-1.5 text-left text-sm"
+          className="flex-1 min-w-0 flex items-center gap-1.5 py-1.5 text-left text-body-medium"
           style={{ paddingLeft: `${0.75 + depth}rem` }}>
           <span className={`shrink-0 ${active ? 'text-primary' : 'text-on-surface-variant'}`}>{icon}</span>
           <span className={`truncate ${active ? 'text-on-surface font-medium' : 'text-on-surface-variant'}`}>{label}</span>

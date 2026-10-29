@@ -58,10 +58,10 @@ function What({ row }: { row: ActivityRow }) {
           </Chip>
         )}
       </div>
-      {row.target && <div className="text-on-surface-variant text-xs break-all">{row.target}</div>}
+      {row.target && <div className="text-on-surface-variant text-body-small break-all">{row.target}</div>}
       {/* Имя сменилось за серию: «Счёт № 41» был «Счётом № 14» — иначе первые записи ряда
           читались бы как правка другого документа. */}
-      {row.firstTarget && <div className="text-on-surface-variant text-xs break-all">была: {row.firstTarget}</div>}
+      {row.firstTarget && <div className="text-on-surface-variant text-body-small break-all">была: {row.firstTarget}</div>}
       {open && isSeries(row) && <SeriesRecords sessionId={row.sessionId} action={row.action} count={row.count} />}
     </>
   );
@@ -69,13 +69,13 @@ function What({ row }: { row: ActivityRow }) {
 
 function SeriesRecords({ sessionId, action, count }: { sessionId: string; action: string; count: number }) {
   const { data, isLoading, isError } = useActivitySeries(sessionId, action, count);
-  if (isLoading) return <div className="text-on-surface-variant text-xs mt-1.5">Загрузка...</div>;
+  if (isLoading) return <div className="text-on-surface-variant text-body-small mt-1.5">Загрузка...</div>;
   if (isError || !data)
-    return <div className="text-error text-xs mt-1.5">Записи ряда не загрузились — обновите страницу.</div>;
+    return <div className="text-error text-body-small mt-1.5">Записи ряда не загрузились — обновите страницу.</div>;
   return (
     <ol className="mt-1.5 border-l border-outline-variant pl-3 space-y-1" aria-label="Записи ряда">
       {data.map(record => (
-        <li key={record.id} className="flex items-baseline gap-2 text-xs">
+        <li key={record.id} className="flex items-baseline gap-2 text-body-small">
           <span className="text-on-surface-variant tabular-nums shrink-0">{formatTime(record.occurredAt)}</span>
           <Change record={record} />
         </li>
@@ -83,7 +83,7 @@ function SeriesRecords({ sessionId, action, count }: { sessionId: string; action
       {/* Сервер отдаёт не больше потолка записей ряда — молча обрезанный список выглядел бы целым.
           Записи читаются под то же число, что у ряда (ключ запроса), поэтому «меньше» — это обрезка. */}
       {data.length < count && (
-        <li className="text-on-surface-variant text-xs">Показаны первые {data.length} из {count}.</li>
+        <li className="text-on-surface-variant text-body-small">Показаны первые {data.length} из {count}.</li>
       )}
     </ol>
   );
@@ -132,9 +132,9 @@ export function ActivityPage() {
       } />
 
       {isLoading ? (
-        <div className="text-center text-on-surface-variant text-sm py-10">Загрузка...</div>
+        <div className="text-center text-on-surface-variant text-body-medium py-10">Загрузка...</div>
       ) : records.length === 0 ? (
-        <div className="text-center text-on-surface-variant text-sm py-10">
+        <div className="text-center text-on-surface-variant text-body-medium py-10">
           Записей нет. Журнал заполняется сам: сменой ролей, правкой схем и составом модулей.
         </div>
       ) : (

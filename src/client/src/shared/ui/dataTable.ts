@@ -15,10 +15,10 @@ export const dtCard = 'overflow-auto rounded-lg border border-outline-variant bg
  * `--dt-head`: по ней же второй этаж двухэтажной шапки липнет под первым (DataGrid), и число не
  * повторяется в двух местах.
  */
-export const dtTable = 'w-full border-separate border-spacing-0 text-sm [--dt-head:42px]';
+export const dtTable = 'w-full border-separate border-spacing-0 text-body-medium [--dt-head:42px]';
 
 const dtThBase =
-  'sticky top-0 z-10 bg-surface-container text-left text-xs font-medium text-on-surface-variant ' +
+  'sticky top-0 z-10 bg-surface-container text-left text-body-small font-medium text-on-surface-variant ' +
   'align-middle border-b border-outline-variant whitespace-nowrap';
 
 /** Ячейка шапки: липкая, на surface-container, вторичный текст. */
@@ -31,7 +31,7 @@ export const dtTd = 'px-3 py-2 border-b border-outline-variant align-middle';
  * Плотная сетка — диалоги и боковые панели (#1354): там сетка одна из нескольких частей, и шапка
  * в 42 px забирала бы место у соседей.
  */
-export const dtTableCompact = 'w-full border-separate border-spacing-0 text-xs [--dt-head:2rem]';
+export const dtTableCompact = 'w-full border-separate border-spacing-0 text-body-small [--dt-head:2rem]';
 export const dtThCompact = `${dtThBase} px-2 h-(--dt-head)`;
 export const dtTdCompact = 'px-2 py-1 border-b border-outline-variant align-middle';
 

@@ -15,8 +15,8 @@ import { OutlinedField } from './OutlinedField';
  *
  * - **слой формы** (`label` задан) — общая MD3-оболочка `OutlinedField` высотой `h-14`, подпись
  *   всегда в вырезе рамки. Свой `<label>` в вызывающем коде НЕ пишем: пока подпись жила снаружи,
- *   у семи площадок набралось четыре разные типографики (`text-xs/on-surface-variant`, `text-sm/on-surface`,
- *   `text-sm/on-surface-variant`, `text-xs` другим серым) — при том, что соседние `TextField` в тех же формах уже носили
+ *   у семи площадок набралось четыре разные типографики (12 px подписью, 14 px основным цветом и подписью,
+ *   12 px другим серым) — при том, что соседние `TextField` в тех же формах уже носили
  *   подпись в вырезе. Связываем через `aria-labelledby`, а не `<label for>`: у кнопки-триггера
  *   щелчок по подписи открывал бы список;
  * - **слой обвязки** (`label` нет) — компактный триггер `h-9` со своей рамкой для шапок, фильтров
@@ -48,7 +48,7 @@ export interface SelectProps {
    *  спорит с ним: какой из двух классов победит, решал бы порядок правил в CSS, а не в строке. */
   className?: string;
   /** Высота слоя обвязки: `md` — 36 px (шапки, фильтры), `sm` — 28 px и мелкий текст (строки
-   *  плотных таблиц и списков, где рядом стоят поля `text-xs`), `inline` — без рамки и фона;
+   *  плотных таблиц и списков, где рядом стоят поля `text-body-small`), `inline` — без рамки и фона;
    *  высоту, поля и цвет текста задаёт место — чип-выражение, ячейка редактируемой таблицы.
    *  В слое формы не действует. */
   size?: 'md' | 'sm' | 'inline';
@@ -91,7 +91,7 @@ const TRIGGER =
 // что у пикера типа). Кольцо фокуса там тоже лишнее: фокус показывает сама оболочка.
 const FRAMED_TRIGGER =
   'inline-flex items-center justify-between gap-2 w-full h-14 px-4 rounded-sm bg-transparent ' +
-  'text-sm text-on-surface data-[placeholder]:text-on-surface-variant outline-none ' +
+  'text-body-medium text-on-surface data-[placeholder]:text-on-surface-variant outline-none ' +
   'disabled-content disabled:pointer-events-none';
 
 // Рамка, фон и цвет текста — в виде, а не в общей основе: у `inline` их нет вовсе, и класс,
@@ -102,8 +102,8 @@ const FRAMED_TRIGGER =
 const BOXED = 'border-outline bg-surface text-on-surface focus:outline-none focus-visible:ring-2 ' +
   'focus-visible:ring-primary data-[state=open]:ring-2 data-[state=open]:ring-primary disabled-outlined';
 const SIZE = {
-  md: `h-9 px-3 text-sm ${BOXED}`,
-  sm: `h-7 px-2 gap-1 text-xs ${BOXED}`,
+  md: `h-9 px-3 text-body-medium ${BOXED}`,
+  sm: `h-7 px-2 gap-1 text-body-small ${BOXED}`,
   inline: 'gap-0.5 border-transparent bg-transparent text-inherit state-layer focus-ring',
 } as const;
 
@@ -175,7 +175,7 @@ export function Select({
 }
 
 const ITEM =
-  'relative flex items-center gap-2 pl-3 pr-8 py-1.5 rounded-xs text-sm text-on-surface select-none cursor-pointer ' +
+  'relative flex items-center gap-2 pl-3 pr-8 py-1.5 rounded-xs text-body-medium text-on-surface select-none cursor-pointer ' +
   'outline-none state-layer data-[state=checked]:font-medium disabled-content data-[disabled]:pointer-events-none';
 
 export const SelectItem = forwardRef<HTMLDivElement, { value: string; disabled?: boolean; children: ReactNode; className?: string }>(
@@ -195,7 +195,7 @@ export const SelectItem = forwardRef<HTMLDivElement, { value: string; disabled?:
 export function SelectGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
     <RS.Group>
-      <RS.Label className="px-3 pt-2 pb-1 text-caption font-semibold uppercase tracking-wide text-on-surface-variant">{label}</RS.Label>
+      <RS.Label className="px-3 pt-2 pb-1 text-label-small font-semibold uppercase tracking-wide text-on-surface-variant">{label}</RS.Label>
       {children}
     </RS.Group>
   );

@@ -46,10 +46,10 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
   if (estimate.isError) return (
     <div className="space-y-3">
       <BackLink back={back} />
-      <p role="alert" className="text-sm text-error">{apiError(estimate.error, 'Смета не прочиталась')}</p>
+      <p role="alert" className="text-body-medium text-error">{apiError(estimate.error, 'Смета не прочиталась')}</p>
     </div>
   );
-  if (!estimate.data) return <p className="text-sm text-on-surface-variant">Читаем смету…</p>;
+  if (!estimate.data) return <p className="text-body-medium text-on-surface-variant">Читаем смету…</p>;
 
   const data = estimate.data;
   const shown = data.revisions.find(r => r.id === chosen) ?? latestRevision(data);
@@ -57,7 +57,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
     <div className="space-y-3">
       <BackLink back={back} />
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-base font-semibold text-on-surface min-w-0 truncate">{data.name}</h2>
+        <h2 className="text-body-large font-semibold text-on-surface min-w-0 truncate">{data.name}</h2>
         <StatusBadge tone="neutral">{KIND_LABEL[data.kind]}</StatusBadge>
         {editable && (
           <Button variant="outlined" size="sm" className="ml-auto" icon={<Icon icon={Upload} size={18} aria-hidden />} onClick={() => setImporting({})}>Новая редакция</Button>
@@ -70,7 +70,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
         onCreated={created => { const next = openingOf(created); setOpening(next); setChosen(next.revisionId); }} />
 
       {shown === null ? (
-        <p className="text-sm text-on-surface-variant">Редакций у сметы нет — их создаёт загрузка файла ЛСР.</p>
+        <p className="text-body-medium text-on-surface-variant">Редакций у сметы нет — их создаёт загрузка файла ЛСР.</p>
       ) : (
         <>
           <RevisionTabs estimate={data} selected={shown.id} onSelect={setChosen} />
@@ -84,7 +84,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
 
 function BackLink({ back }: { back: { to: string; label: string } }) {
   return (
-    <Link to={back.to} className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+    <Link to={back.to} className="inline-flex items-center gap-1 text-body-medium text-primary hover:underline">
       <Icon icon={ChevronLeft} size={18} aria-hidden /> {back.label}
     </Link>
   );
@@ -111,9 +111,9 @@ function RevisionTabs({ estimate, selected, onSelect }: {
               className="z-50 min-w-44 rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
               {more.map(r => (
                 <DropdownMenu.Item key={r.id} onSelect={() => onSelect(r.id)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-on-surface-variant cursor-pointer select-none outline-none state-layer">
+                  className="flex items-center gap-2 px-3 py-1.5 text-body-medium text-on-surface-variant cursor-pointer select-none outline-none state-layer">
                   {revisionLabel(r)}
-                  <span className="ml-auto text-xs text-on-surface-variant">{formatDate(r.importedAt)}</span>
+                  <span className="ml-auto text-body-small text-on-surface-variant">{formatDate(r.importedAt)}</span>
                 </DropdownMenu.Item>
               ))}
             </DropdownMenu.Content>
@@ -135,7 +135,7 @@ function RevisionBand({ estimate, revision }: { estimate: Estimate; revision: Es
   const current = estimate.revisions.find(r => r.current) ?? null;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-sm bg-surface-container px-3 py-2 text-sm text-on-surface-variant">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-sm bg-surface-container px-3 py-2 text-body-medium text-on-surface-variant">
       <span>
         {formatDate(revision.importedAt)}
         {revision.importedBy && ` · ${revision.importedBy}`}

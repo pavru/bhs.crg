@@ -37,19 +37,19 @@ import { useObservations, isUnreviewed } from '@/shared/api/observations';
 function StatusBadge({ f }: { f: Finding }) {
   if (f.resolved) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-primary-container text-on-primary-container shrink-0">
+      <span className="inline-flex items-center gap-1 text-body-small px-1.5 py-0.5 rounded-full bg-primary-container text-on-primary-container shrink-0">
         <Icon icon={CheckCircle} size={18} /> Устранено
       </span>
     );
   }
   if (f.status === 'Match') {
-    return <span className="text-xs text-on-surface-variant shrink-0">Совпадает</span>;
+    return <span className="text-body-small text-on-surface-variant shrink-0">Совпадает</span>;
   }
   // Решение снимает вопрос, даже если расхождение осталось: в этом и смысл персистентного решения —
   // «давальческое оборудование» не должно всплывать каждый прогон.
   const muted = !!f.decision;
   return (
-    <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full shrink-0 ${
+    <span className={`inline-flex items-center gap-1 text-body-small px-1.5 py-0.5 rounded-full shrink-0 ${
       muted ? 'bg-surface-container text-on-surface-variant' : 'bg-error-container text-on-error-container'}`}>
       {muted ? <Icon icon={Block} size={18} /> : <Icon icon={Warning} size={18} />} {STATUS_LABELS[f.status]}
     </span>
@@ -75,8 +75,8 @@ function FindingRow({ f, onDecide, linkable, checked, onToggle }: {
             aria-label={`Выбрать «${f.label}» для связывания`} className="shrink-0 accent-primary" />
         )}
         <StatusBadge f={f} />
-        <span className="flex-1 truncate text-sm text-on-surface" title={f.label}>{f.label}</span>
-        <span className="text-sm tabular-nums text-on-surface-variant shrink-0">
+        <span className="flex-1 truncate text-body-medium text-on-surface" title={f.label}>{f.label}</span>
+        <span className="text-body-medium tabular-nums text-on-surface-variant shrink-0">
           {num(f.leftValue)} <span className="text-on-surface-variant">/</span> {num(f.rightValue)}
         </span>
         <Button variant="text" size="sm" onClick={() => onDecide(f)}
@@ -84,7 +84,7 @@ function FindingRow({ f, onDecide, linkable, checked, onToggle }: {
           {f.decision ? 'Изменить' : 'Разобрать'}
         </Button>
       </div>
-      <div className="flex items-center gap-3 mt-0.5 text-caption text-on-surface-variant">
+      <div className="flex items-center gap-3 mt-0.5 text-label-small text-on-surface-variant">
         {/* Провенанс: без него находку нельзя проверить глазами по документу. */}
         {provenanceSummary(left) && <span>слева: {provenanceSummary(left)}</span>}
         {provenanceSummary(right) && <span>справа: {provenanceSummary(right)}</span>}
@@ -246,7 +246,7 @@ export function ReconciliationsPage() {
         {filtered.length > 0 && <NavSection label="Сверки" />}
         {filtered.map(reconciliationRow)}
         {filtered.length === 0 && !isLoading && (
-          <p className="px-3 py-2 text-sm text-on-surface-variant">
+          <p className="px-3 py-2 text-body-medium text-on-surface-variant">
             {outsideSearch ? 'Больше ничего не найдено' : 'Сверок нет'}
           </p>
         )}
@@ -275,8 +275,8 @@ export function ReconciliationsPage() {
     <div className="flex-1 min-w-0 flex flex-col">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-outline-variant shrink-0">
         <div className="min-w-0 flex-1">
-          <h2 className="text-base font-semibold text-on-surface truncate">{selected.name}</h2>
-          <p className="text-xs text-on-surface-variant mt-0.5">
+          <h2 className="text-body-large font-semibold text-on-surface truncate">{selected.name}</h2>
+          <p className="text-body-small text-on-surface-variant mt-0.5">
             {currentRun ? runSummary(currentRun) : 'Прогонов ещё не было'}
           </p>
         </div>
@@ -300,13 +300,13 @@ export function ReconciliationsPage() {
       {/* Неудачный прогон обязан быть виден: пустой список читается как «расхождений нет», и это
           самое опасное недоразумение в подсистеме. */}
       {currentRun?.status === 'Failed' && (
-        <div className="mx-4 mt-3 px-3 py-2 rounded-md bg-error-container text-on-error-container text-sm">
+        <div className="mx-4 mt-3 px-3 py-2 rounded-md bg-error-container text-on-error-container text-body-medium">
           <strong>Прогон не выполнен.</strong> {currentRun.error}
         </div>
       )}
 
       {currentRun?.status === 'Completed' && (
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant text-xs shrink-0">
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant text-body-small shrink-0">
           <button type="button" onClick={() => setOnlyAttention(v => !v)}
             className={`state-layer px-2 py-1 rounded-full ${
               onlyAttention ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant'}`}>
@@ -322,7 +322,7 @@ export function ReconciliationsPage() {
       {linking.length > 0 && (
         <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant bg-primary-container shrink-0">
           <Icon icon={LinkIcon} size={18} className="text-primary shrink-0" />
-          <span className="text-xs text-primary flex-1 truncate">
+          <span className="text-body-small text-primary flex-1 truncate">
             {linking.length === 1
               ? 'Выберите вторую позицию, чтобы связать их как одну'
               : findings.filter(f => linking.includes(f.id)).map(f => f.label).join('  →  ')}
@@ -344,9 +344,9 @@ export function ReconciliationsPage() {
       )}
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {findingsLoading && <p className="px-4 py-3 text-sm text-on-surface-variant">Загрузка…</p>}
+        {findingsLoading && <p className="px-4 py-3 text-body-medium text-on-surface-variant">Загрузка…</p>}
         {!findingsLoading && shown.length === 0 && (
-          <p className="px-4 py-3 text-sm text-on-surface-variant">
+          <p className="px-4 py-3 text-body-medium text-on-surface-variant">
             {runs.length === 0
               ? 'Нажмите «Прогнать», чтобы сверить источники.'
               : onlyAttention ? 'Всё разобрано.' : 'Находок нет.'}

@@ -27,7 +27,7 @@ import {
 function RoleBadge({ role }: { role: AppRole }) {
   if (!role.system) return null;
   return (
-    <span className="shrink-0 inline-flex items-center h-5 px-2 rounded-full text-caption font-medium bg-primary-container text-on-primary-container">
+    <span className="shrink-0 inline-flex items-center h-5 px-2 rounded-full text-label-small font-medium bg-primary-container text-on-primary-container">
       системная
     </span>
   );
@@ -101,10 +101,10 @@ export function RolesPage() {
       className={`state-layer w-full text-left px-3 py-2 rounded-md ${
         r.name === selected?.name ? 'bg-primary-container' : ''}`}>
       <div className="flex items-center gap-2">
-        <span className="text-sm text-on-surface truncate">{r.title}</span>
+        <span className="text-body-medium text-on-surface truncate">{r.title}</span>
         <RoleBadge role={r} />
       </div>
-      <div className="text-caption text-on-surface-variant mt-0.5 flex items-center gap-2">
+      <div className="text-label-small text-on-surface-variant mt-0.5 flex items-center gap-2">
         <span className="inline-flex items-center gap-1"><Icon icon={Group} size={18} />{r.users}</span>
         <span>прав: {r.permissions.length}</span>
       </div>
@@ -128,7 +128,7 @@ export function RolesPage() {
               прокручивает. Без неё растут обе колонки сразу, и панель «Сохранить», приклеенная к
               низу detail, уезжает за край экрана вместе со списком ролей. */}
           <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-3 space-y-0.5">
-            {isLoading ? <div className="px-3 py-2 text-sm text-on-surface-variant">Загрузка…</div> : roles.map(row)}
+            {isLoading ? <div className="px-3 py-2 text-body-medium text-on-surface-variant">Загрузка…</div> : roles.map(row)}
           </div>
         </>
       }
@@ -141,7 +141,7 @@ export function RolesPage() {
                 <Icon icon={VerifiedUser} size={18} className="text-on-surface-variant" />
                 {selected.title}
               </h2>
-              {selected.summary && <p className="text-sm text-on-surface-variant mt-1">{selected.summary}</p>}
+              {selected.summary && <p className="text-body-medium text-on-surface-variant mt-1">{selected.summary}</p>}
             </div>
             <div className="flex items-center gap-1 shrink-0">
               {!selected.system && (
@@ -176,7 +176,7 @@ export function RolesPage() {
 
           {groups.map(group => (
             <section key={group.module} className="mb-5">
-              <h2 className="text-caption font-medium uppercase tracking-wide text-on-surface-variant mb-2">{group.title}</h2>
+              <h2 className="text-label-small font-medium uppercase tracking-wide text-on-surface-variant mb-2">{group.title}</h2>
               <div className="border border-outline-variant rounded-md divide-y divide-surface-container bg-surface">
                 {group.permissions.map((p: PermissionInfo) => (
                   <label key={p.code} className={`flex gap-3 px-4 py-2.5 state-layer ${
@@ -184,16 +184,16 @@ export function RolesPage() {
                     <input type="checkbox" className="mt-1 shrink-0" checked={checked.has(p.code)}
                       disabled={locked} onChange={() => toggle(p.code)} />
                     <span className="min-w-0">
-                      <span className="block text-sm text-on-surface">{p.gives}</span>
-                      <span className="block text-xs text-on-surface-variant">Открывает доступ: {p.opens}</span>
-                      <span className="block text-caption text-on-surface-variant font-mono mt-0.5">{p.code}</span>
+                      <span className="block text-body-medium text-on-surface">{p.gives}</span>
+                      <span className="block text-body-small text-on-surface-variant">Открывает доступ: {p.opens}</span>
+                      <span className="block text-label-small text-on-surface-variant font-mono mt-0.5">{p.code}</span>
                       {p.usuallyWith.length > 0 && (
-                        <span className="block text-caption text-on-surface-variant">
+                        <span className="block text-label-small text-on-surface-variant">
                           обычно вместе с: {p.usuallyWith.join(', ')}
                         </span>
                       )}
                       {p.readAll && (
-                        <span className="block text-caption text-on-surface-variant">входит в право «читать всё»</span>
+                        <span className="block text-label-small text-on-surface-variant">входит в право «читать всё»</span>
                       )}
                     </span>
                   </label>
@@ -202,7 +202,7 @@ export function RolesPage() {
             </section>
           ))}
 
-          {error && <p className="text-sm text-error mb-2">{error}</p>}
+          {error && <p className="text-body-medium text-error mb-2">{error}</p>}
 
           {/* У роли «все права» сохранять нечего — кнопки нет вовсе, а не выключенная: выключенная
               кнопка обещает, что когда-нибудь включится. */}
@@ -270,7 +270,7 @@ function CreateRoleModal(
         <TextField label="Название" value={title} onChange={e => setTitle(e.target.value)} required autoFocus />
         <TextField label="Для чего роль" value={summary} onChange={e => setSummary(e.target.value)}
           hint="Показывается рядом с названием — чтобы через полгода было понятно, кому её выдавать." />
-        {error && <p className="text-sm text-error">{error}</p>}
+        {error && <p className="text-body-medium text-error">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <ModalExit />
           <Button type="submit" variant="filled" loading={create.isPending}>Создать</Button>
@@ -300,7 +300,7 @@ function RenameRoleModal({ role, onClose }: { role: AppRole; onClose: () => void
       <form onSubmit={submit} className="space-y-3">
         <TextField label="Название" value={title} onChange={e => setTitle(e.target.value)} required autoFocus />
         <TextField label="Для чего роль" value={summary} onChange={e => setSummary(e.target.value)} />
-        {error && <p className="text-sm text-error">{error}</p>}
+        {error && <p className="text-body-medium text-error">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
           <Button type="submit" variant="filled" loading={rename.isPending}>Сохранить</Button>

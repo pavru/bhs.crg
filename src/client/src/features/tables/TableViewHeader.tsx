@@ -130,10 +130,10 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
     <li key={key} className="flex items-center gap-1 rounded-sm state-layer">
       {/* Открытое ведёт туда же, где человек стоит: щелчок по отмеченному не сбрасывает несохранённое. */}
       <Link to={chosen ? { hash } : to} onClick={() => setOpen(false)} aria-current={chosen ? 'page' : undefined}
-        className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 text-sm text-on-surface">
+        className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 text-body-medium text-on-surface">
         <Icon icon={Check} size={18} aria-hidden className={chosen ? 'text-primary shrink-0' : 'invisible shrink-0'} />
         <span className="truncate">{label}</span>
-        {note && <span className="shrink-0 text-xs text-on-surface-variant">{note}</span>}
+        {note && <span className="shrink-0 text-body-small text-on-surface-variant">{note}</span>}
       </Link>
       {actions.length > 0 && <RowActionsMenu actions={actions} ariaLabel={`Действия с представлением «${label}»`} />}
     </li>
@@ -167,8 +167,8 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
                   {groups.ready.map(p => row(p.code, `${path}/${encodeURIComponent(p.code)}`, p.title,
                     lookup.state === 'found' && lookup.preset.code === p.code))}
                 </Group>
-                {!off && savedProblem && <p role="alert" className="mt-2 px-2 text-xs text-error">{savedProblem}</p>}
-                {!off && !savedProblem && !saved && <p className="mt-2 px-2 text-xs text-on-surface-variant">Сохранённые представления загружаются…</p>}
+                {!off && savedProblem && <p role="alert" className="mt-2 px-2 text-body-small text-error">{savedProblem}</p>}
+                {!off && !savedProblem && !saved && <p className="mt-2 px-2 text-body-small text-on-surface-variant">Сохранённые представления загружаются…</p>}
                 {!off && saved && (
                   <>
                     <Group title="Мои" empty="Настройте таблицу и сохраните её — представление появится здесь.">
@@ -183,7 +183,7 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
         }
         badge={modified && (
           <>
-            <span className="text-sm text-warning" role="status">· изменено</span>
+            <span className="text-body-medium text-warning" role="status">· изменено</span>
             {can.save && <Button size="sm" variant="tonal" loading={save.isPending} onClick={() => void saveOver()}>Сохранить</Button>}
             {can.saveAs && <Button size="sm" variant="text" onClick={() => setAsked({ kind: 'create' })}>Сохранить как своё</Button>}
             <Button size="sm" variant="text" onClick={() => onChange(v => withViewReset(v, base))}>Сбросить</Button>
@@ -219,8 +219,8 @@ function Group({ title, empty, children }: { title: string; empty: string | null
   if (children.length === 0 && !empty) return null;
   return (
     <section className="mt-2">
-      <h2 className="px-2 text-caption uppercase tracking-wide text-on-surface-variant">{title}</h2>
-      {children.length > 0 ? <ul>{children}</ul> : <p className="px-2 py-1 text-xs text-on-surface-variant">{empty}</p>}
+      <h2 className="px-2 text-label-small uppercase tracking-wide text-on-surface-variant">{title}</h2>
+      {children.length > 0 ? <ul>{children}</ul> : <p className="px-2 py-1 text-body-small text-on-surface-variant">{empty}</p>}
     </section>
   );
 }

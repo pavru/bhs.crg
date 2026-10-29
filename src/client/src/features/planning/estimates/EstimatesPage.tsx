@@ -76,9 +76,9 @@ function AllEstimates() {
       <ImportDialog open={importing} onClose={() => setImporting(false)}
         onCreated={created => navigate(`/estimates/${created.estimateId}`, { state: openingOf(created) })} />
       {pages.isError ? (
-        <p role="alert" className="text-sm text-error">{apiError(pages.error, 'Сметы не прочитались')}</p>
+        <p role="alert" className="text-body-medium text-error">{apiError(pages.error, 'Сметы не прочитались')}</p>
       ) : !pages.data || filter.status === 'loading' ? (
-        <p className="text-sm text-on-surface-variant">Читаем сметы…</p>
+        <p className="text-body-medium text-on-surface-variant">Читаем сметы…</p>
       ) : loaded.length === 0 ? (
         <EmptyState icon={<Icon icon={TableChart} size={40} aria-hidden />} title="Смет пока нет"
           description="Смета появляется загрузкой файла ЛСР из ГРАНД-Сметы в стройку." />
@@ -92,7 +92,7 @@ function AllEstimates() {
           </div>
           <DataGrid columns={COLUMNS} rows={lines} rowKey={l => l.key}
             state={query.trim() || shown.length < loaded.length ? 'filtered-out' : undefined}
-            section={l => (l.kind === 'site' ? <span className="text-sm font-medium text-on-surface">{l.name}</span> : null)}
+            section={l => (l.kind === 'site' ? <span className="text-body-medium font-medium text-on-surface">{l.name}</span> : null)}
             onRowOpen={l => { if (l.kind === 'estimate') navigate(`/estimates/${l.estimate.id}`); }}
             rowLink={l => (l.kind === 'estimate' ? { to: `/estimates/${l.estimate.id}`, label: `Открыть смету «${l.estimate.name}»` } : null)} />
           {pages.hasNextPage && (

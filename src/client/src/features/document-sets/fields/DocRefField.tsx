@@ -64,7 +64,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
         <div>
           <div className={`flex items-center gap-2 rounded-md px-3 py-2 ${BROKEN_PLATE}`}>
             <Icon icon={Description} size={18} className="text-error shrink-0" />
-            <span className={`flex-1 min-w-0 text-sm font-medium truncate ${BROKEN_LABEL}`}>{iRef.displayName}</span>
+            <span className={`flex-1 min-w-0 text-body-medium font-medium truncate ${BROKEN_LABEL}`}>{iRef.displayName}</span>
             {replaceButton('text-error hover:text-on-surface')}
             <Tooltip content="Снять ссылку" name>
               <button type="button" onClick={() => onChange(null)}
@@ -80,11 +80,11 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
       <div className="flex items-center gap-2 border border-primary/30 rounded-md px-3 py-2 bg-primary-container">
         <Icon icon={Description} size={18} className="text-primary shrink-0" />
         <span className="flex-1 min-w-0">
-          <span className="block text-sm text-on-primary-container font-medium truncate">{label}</span>
-          {inst?.name && dt && <span className="block text-xs text-on-primary-container/70 truncate">{dt.name}</span>}
+          <span className="block text-body-medium text-on-primary-container font-medium truncate">{label}</span>
+          {inst?.name && dt && <span className="block text-body-small text-on-primary-container/70 truncate">{dt.name}</span>}
         </span>
         {inst && (
-          <span className={`text-xs px-1.5 py-0.5 rounded-xs font-medium shrink-0 ${STATUS_COLORS[inst.status]}`}>
+          <span className={`text-body-small px-1.5 py-0.5 rounded-xs font-medium shrink-0 ${STATUS_COLORS[inst.status]}`}>
             {STATUS_LABELS[inst.status]}
           </span>
         )}
@@ -106,7 +106,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
         <div>
           <div className={`flex items-center gap-2 rounded-md px-3 py-2 ${BROKEN_PLATE}`}>
             <Icon icon={Description} size={18} className="text-error shrink-0" />
-            <span className={`flex-1 min-w-0 text-sm font-medium truncate ${BROKEN_LABEL}`}>{cRef.displayName}</span>
+            <span className={`flex-1 min-w-0 text-body-medium font-medium truncate ${BROKEN_LABEL}`}>{cRef.displayName}</span>
             {replaceButton('text-error hover:text-on-surface')}
             <Tooltip content="Снять ссылку" name>
               <button type="button" onClick={() => onChange(null)}
@@ -122,8 +122,8 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
       <div className="flex items-center gap-2 border border-outline-variant rounded-md px-3 py-2 bg-warning-container">
         <Icon icon={Description} size={18} className="text-warning shrink-0" />
         <span className="flex-1 min-w-0">
-          <span className="block text-sm text-warning font-medium truncate">{cRef.displayName}</span>
-          <span className="block text-xs text-warning truncate">Общие данные</span>
+          <span className="block text-body-medium text-warning font-medium truncate">{cRef.displayName}</span>
+          <span className="block text-body-small text-warning truncate">Общие данные</span>
         </span>
         {replaceButton('text-warning hover:text-primary')}
         <Tooltip content="Снять ссылку" name>
@@ -140,7 +140,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
   return (
     <>
       <button type="button" onClick={() => setPickerOpen(true)}
-        className="flex items-center gap-2 px-3 py-2 text-sm text-primary border border-dashed border-primary/40 rounded-md hover:bg-primary-container transition-colors w-full">
+        className="flex items-center gap-2 px-3 py-2 text-body-medium text-primary border border-dashed border-primary/40 rounded-md hover:bg-primary-container transition-colors w-full">
         <Icon icon={Description} size={18} /> Выбрать документ...
       </button>
       {picker}
@@ -189,16 +189,16 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
   return (
     <div className="border border-outline-variant rounded-md overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 bg-surface-container-low border-b border-outline-variant">
-        <span className="text-xs font-medium text-on-surface-variant">
+        <span className="text-body-small font-medium text-on-surface-variant">
           Документы <span className="text-on-surface-variant">{items.length} ссылок</span>
         </span>
         <button type="button" onClick={() => setPickerOpen(true)}
-          className="flex items-center gap-1 text-xs text-primary px-2 py-0.5 rounded-xs hover:bg-primary-container transition-colors">
+          className="flex items-center gap-1 text-body-small text-primary px-2 py-0.5 rounded-xs hover:bg-primary-container transition-colors">
           <Icon icon={Add} size={18} /> Добавить
         </button>
       </div>
       {items.length === 0 ? (
-        <p className="text-xs text-on-surface-variant text-center py-3">Нет ссылок — нажмите «Добавить»</p>
+        <p className="text-body-small text-on-surface-variant text-center py-3">Нет ссылок — нажмите «Добавить»</p>
       ) : (
         <div className="divide-y divide-surface-container">
           {items.map((ref, i) => {
@@ -215,7 +215,7 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
                 <div key={i}>
                   <div className={`flex items-center gap-2 px-3 py-2 ${BROKEN_PLATE}`}>
                     <Icon icon={Description} size={18} className="text-error shrink-0" />
-                    <span className={`flex-1 min-w-0 text-sm truncate ${BROKEN_LABEL}`}>{ref.displayName}</span>
+                    <span className={`flex-1 min-w-0 text-body-medium truncate ${BROKEN_LABEL}`}>{ref.displayName}</span>
                     <button type="button" onClick={() => removeRef(i)}
                       className="p-1 text-error hover:text-on-surface shrink-0"><Icon icon={Delete} size={18} /></button>
                   </div>
@@ -227,15 +227,15 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
               <div key={i} className="flex items-center gap-2 px-3 py-2">
                 <Icon icon={Description} size={18} className={isCatalog ? 'text-warning shrink-0' : 'text-primary shrink-0'} />
                 <span className="flex-1 min-w-0">
-                  <span className="block text-sm text-on-surface-variant truncate">{label}</span>
+                  <span className="block text-body-medium text-on-surface-variant truncate">{label}</span>
                   {isCatalog ? (
-                    <span className="block text-xs text-warning truncate">Общие данные</span>
+                    <span className="block text-body-small text-warning truncate">Общие данные</span>
                   ) : inst?.name && dt ? (
-                    <span className="block text-xs text-on-surface-variant truncate">{dt.name}</span>
+                    <span className="block text-body-small text-on-surface-variant truncate">{dt.name}</span>
                   ) : null}
                 </span>
                 {inst && (
-                  <span className={`text-xs px-1.5 py-0.5 rounded-xs font-medium shrink-0 ${STATUS_COLORS[inst.status]}`}>
+                  <span className={`text-body-small px-1.5 py-0.5 rounded-xs font-medium shrink-0 ${STATUS_COLORS[inst.status]}`}>
                     {STATUS_LABELS[inst.status]}
                   </span>
                 )}

@@ -235,21 +235,21 @@ export function InvoiceForm({
           {closed && <StateChip text="Заперт" />}
           <RecognitionChip recognition={watch.recognition} />
           {view.unconfirmed.length > 0 && (
-            <span className="inline-flex items-center gap-1 text-xs text-warning">
+            <span className="inline-flex items-center gap-1 text-body-small text-warning">
               <Icon icon={StarShine} size={18} /> распознано, не подтверждено: {view.unconfirmed.length}
             </span>
           )}
           <div className="flex-1" />
           {/* К запертому счёту скан приложить можно, заменить — нельзя: замена удалила бы документ
               закрытого периода. Кнопки замены нет вовсе, а не «есть и откажет». */}
-          {!mayEdit && <span className="text-xs text-on-surface-variant">Только чтение: права вводить счета нет</span>}
+          {!mayEdit && <span className="text-body-small text-on-surface-variant">Только чтение: права вводить счета нет</span>}
           {canEdit && closed && scan !== null && (
-            <span className="text-xs text-on-surface-variant">Файл заменить нельзя: документ закрытого периода</span>
+            <span className="text-body-small text-on-surface-variant">Файл заменить нельзя: документ закрытого периода</span>
           )}
           {/* Пока скан читается, заменить его нельзя (сервер откажет): прочитанное легло бы в счёт с
               другой бумагой. Кнопки нет, причина названа. */}
           {canEdit && watch.running && (
-            <span className="text-xs text-on-surface-variant">Файл распознаётся — заменить можно после исхода</span>
+            <span className="text-body-small text-on-surface-variant">Файл распознаётся — заменить можно после исхода</span>
           )}
           {!quiet && <RecognitionStart invoiceId={view.id} recognition={watch.recognition} explain={view.lines.length === 0} />}
           {canEdit && !correcting && !watch.running && !(closed && scan !== null) && (
@@ -278,7 +278,7 @@ export function InvoiceForm({
 
         {organizationsError != null && (
           <div className="flex items-start gap-2 rounded-md border border-error/30 bg-error-container
-            px-3 py-2 text-xs text-on-error-container">
+            px-3 py-2 text-body-small text-on-error-container">
             <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <span>
               Справочник организаций не прочитан: {apiError(organizationsError, 'сервер отказал')}.
@@ -325,7 +325,7 @@ export function InvoiceForm({
             типе): править их здесь нечем — снимает только «Всё верно» этой строки. */}
         {orphanMarks.length > 0 && (
           <div className="flex items-center gap-3">
-            <p className="flex-1 text-xs text-warning">
+            <p className="flex-1 text-body-small text-warning">
               Распознано, не подтверждено — у полей, которых форма не показывает:{' '}
               {orphanMarks.map(key => `«${extras.unshown.find(u => u.field.key === key)?.field.title || key}»`).join(', ')}.
               Сверьте их по скану.
@@ -343,7 +343,7 @@ export function InvoiceForm({
           supplierName={savedSupplierName(view, organizations)}
           headerDirty={dirty} onParsed={onExit && (send => onExit('parsed', send, () => {}))} />
 
-        <p className="text-xs text-on-surface-variant">
+        <p className="text-body-small text-on-surface-variant">
           Весь счёт на один объект — поле «Объект» в шапке; на несколько — матрица оттуда же, а строку
           по отдельности — колонка «Разноска». Сохранение их не ждёт: черновик уже в реестре.
         </p>
@@ -378,7 +378,7 @@ function BlockFields({
     <>
       {(titled || marks.length > 0) && (
         <div className="flex items-center gap-3">
-          {titled && <h2 className="text-sm font-medium text-on-surface-variant">{block.title}</h2>}
+          {titled && <h2 className="text-body-medium font-medium text-on-surface-variant">{block.title}</h2>}
           <div className="flex-1" />
           {/* Кнопки нет, когда снимать нечего: пустой перечень сервер отвергает, и предлагать
               действие, которое заведомо откажет, — обман. */}

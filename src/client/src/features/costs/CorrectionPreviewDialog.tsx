@@ -48,11 +48,11 @@ export function CorrectionPreviewDialog({ preview, pending, error, reason, note,
           )}
         </>
       )}>
-      <div className="space-y-3 text-sm">
+      <div className="space-y-3 text-body-medium">
         {pending && <p className="text-on-surface-variant">Считаем, что запишет исправление…</p>}
         {!pending && error != null && (
           <div role="alert" className="flex items-start gap-2 rounded-md border border-error/30 bg-error-container
-            px-3 py-2 text-xs text-on-error-container">
+            px-3 py-2 text-body-small text-on-error-container">
             <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <span>{apiError(error, 'Исправление не посчитано')}</span>
           </div>
@@ -70,14 +70,14 @@ function Shown({ preview, reason, note, places }: {
   return (
     <>
       {note && (
-        <p role="status" className="flex items-start gap-2 text-xs text-warning">
+        <p role="status" className="flex items-start gap-2 text-body-small text-warning">
           <Icon icon={Refresh} size={18} className="shrink-0 mt-0.5" /> {note}
         </p>
       )}
       <p className="text-on-surface">
         Исправление ляжет днём <b>{formatDate(preview.day)}</b>. Версия {preview.version} уйдёт в историю.
       </p>
-      <blockquote className="border-l-2 border-outline-variant pl-3 text-xs text-on-surface-variant">
+      <blockquote className="border-l-2 border-outline-variant pl-3 text-body-small text-on-surface-variant">
         Причина: {reason.trim()}
       </blockquote>
       {preview.vatMode && <p className="text-on-surface">{vatShiftText(preview.vatMode)}</p>}
@@ -89,7 +89,7 @@ function Shown({ preview, reason, note, places }: {
         )
         : (
           <>
-            <p className="text-xs text-on-surface-variant">Закрытый месяц не изменится: его поправки лягут днём исправления.</p>
+            <p className="text-body-small text-on-surface-variant">Закрытый месяц не изменится: его поправки лягут днём исправления.</p>
             <BookLines rows={rows} places={places} />
           </>
         )}
@@ -110,7 +110,7 @@ function ServiceRecord({ record, places }: { record: CorrectionRecordView; place
     : record.kind === 'alignment' ? 'Выравнивание допуском: сдвиг, не записанный раньше'
     : record.kind;
   return (
-    <div className="text-xs">
+    <div className="text-body-small">
       <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
         className="inline-flex items-center gap-1 text-on-surface-variant hover:text-on-surface">
         {open ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}

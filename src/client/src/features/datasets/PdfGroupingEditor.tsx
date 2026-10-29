@@ -95,7 +95,7 @@ function PageThumbnail({ fileId, pageIndex }: { fileId: string; pageIndex: numbe
       {url ? (
         <img src={url} alt={`Страница ${pageIndex + 1}`} className="w-full h-full object-contain" />
       ) : failed ? (
-        <span className="text-caption text-on-surface-variant px-1 text-center">нет превью</span>
+        <span className="text-label-small text-on-surface-variant px-1 text-center">нет превью</span>
       ) : (
         <CircularProgress size={18} className="text-on-surface-variant" />
       )}
@@ -135,7 +135,7 @@ function PageTile({
           </button>
       </Tooltip>
         <div className="flex items-center justify-between mt-1 px-0.5">
-          <span className="text-caption text-on-surface-variant">{pageIndex + 1}</span>
+          <span className="text-label-small text-on-surface-variant">{pageIndex + 1}</span>
           {/* Лист без ответа виден отдельно от «подозрительной» группы: у первого поля пусты потому,
               что их неоткуда взять, у второй — потому что распозналось не то. Лечится это по-разному. */}
           {noAnswer
@@ -169,7 +169,7 @@ function PageViewer({ fileId, pageIndex, onClose }: { fileId: string; pageIndex:
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Лист ${pageIndex + 1}`} wide nothingToLose>
       {failed ? (
-        <p className="text-sm text-error py-10 text-center">Не удалось загрузить изображение листа.</p>
+        <p className="text-body-medium text-error py-10 text-center">Не удалось загрузить изображение листа.</p>
       ) : !url ? (
         <div className="flex items-center justify-center py-16 text-on-surface-variant"><CircularProgress size={20} /></div>
       ) : (
@@ -182,7 +182,7 @@ function PageViewer({ fileId, pageIndex, onClose }: { fileId: string; pageIndex:
               onClick={() => setZoomed(z => !z)}
               className={`block mx-auto ${zoomed ? 'max-w-none cursor-zoom-out' : 'max-w-full max-h-[78vh] object-contain cursor-zoom-in'}`} />
           </div>
-          <p className="text-xs text-on-surface-variant mt-2 text-center">Клик по изображению — переключить масштаб (вписать ↔ 100%).</p>
+          <p className="text-body-small text-on-surface-variant mt-2 text-center">Клик по изображению — переключить масштаб (вписать ↔ 100%).</p>
         </>
       )}
     </Modal>
@@ -202,29 +202,29 @@ function SelectionActionBar({
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div className="flex items-center gap-2 mt-2 pt-2 border-t border-outline-variant">
-      <span className="text-xs text-on-surface-variant">Выделено страниц: {count}</span>
+      <span className="text-body-small text-on-surface-variant">Выделено страниц: {count}</span>
       <button onClick={onSplitSelected}
-        className="px-2 py-1 text-xs rounded-sm border border-outline-variant text-on-surface-variant state-layer">
+        className="px-2 py-1 text-body-small rounded-sm border border-outline-variant text-on-surface-variant state-layer">
         Отделить в новый документ
       </button>
       <div className="relative">
         <button onClick={() => setMenuOpen(o => !o)}
-          className="flex items-center gap-1 px-2 py-1 text-xs rounded-sm border border-outline-variant text-on-surface-variant state-layer">
+          className="flex items-center gap-1 px-2 py-1 text-body-small rounded-sm border border-outline-variant text-on-surface-variant state-layer">
           Перенести в группу <Icon icon={KeyboardArrowDown} size={18} />
         </button>
         {menuOpen && (
           <div className="absolute z-10 mt-1 w-52 rounded-sm border border-outline-variant bg-surface shadow-elevation-2 py-1">
             {candidateGroups.length === 0 && (
-              <p className="px-3 py-1.5 text-xs text-on-surface-variant">Нет других групп</p>
+              <p className="px-3 py-1.5 text-body-small text-on-surface-variant">Нет других групп</p>
             )}
             {candidateGroups.map(g => (
               <button key={g.id} onClick={() => { onMoveSelected(g.id); setMenuOpen(false); }}
-                className="block w-full text-left px-3 py-1.5 text-xs state-layer truncate">
+                className="block w-full text-left px-3 py-1.5 text-body-small state-layer truncate">
                 {groupLabel(g)}
               </button>
             ))}
             <button onClick={() => { onMoveSelected('new'); setMenuOpen(false); }}
-              className="block w-full text-left px-3 py-1.5 text-xs state-layer text-primary">
+              className="block w-full text-left px-3 py-1.5 text-body-small state-layer text-primary">
               + Новый документ
             </button>
           </div>
@@ -286,7 +286,7 @@ function GroupSection({
     <div className={`rounded-md border p-3 ${isSpecial ? 'border-outline-variant bg-surface-container-low' : 'border-outline-variant bg-surface'}`}>
       <div className="flex items-center justify-between gap-2 mb-2">
         {isSpecial ? (
-          <span className="text-sm font-medium text-on-surface-variant">{groupLabel(group)}</span>
+          <span className="text-body-medium font-medium text-on-surface-variant">{groupLabel(group)}</span>
         ) : editing ? (
           // onBlur вешаем на контейнер и коммитим только когда фокус уходит ИЗ обоих полей
           // (relatedTarget вне контейнера). Иначе переход фокуса Шифр→Наименование закрывал бы
@@ -295,22 +295,22 @@ function GroupSection({
             onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) commit(); }}>
             <input value={codeVal} onChange={e => setCodeVal(e.target.value)} placeholder="Шифр"
               autoFocus onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); } }}
-              className="text-sm font-medium border-b border-primary bg-transparent outline-none w-32" />
+              className="text-body-medium font-medium border-b border-primary bg-transparent outline-none w-32" />
             <input value={nameVal} onChange={e => setNameVal(e.target.value)} placeholder="Наименование документа"
               onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); } }}
-              className="text-sm border-b border-primary bg-transparent outline-none flex-1" />
+              className="text-body-medium border-b border-primary bg-transparent outline-none flex-1" />
           </div>
         ) : (
           <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 text-left group/title min-w-0">
             {suspicious && <Icon icon={Warning} size={18} className="text-warning shrink-0" />}
-            <span className="text-sm font-medium text-on-surface truncate">
+            <span className="text-body-medium font-medium text-on-surface truncate">
               {group.name ?? <em className="text-on-surface-variant">без названия</em>}
             </span>
-            <span className="text-xs text-on-surface-variant shrink-0">· {group.code}</span>
+            <span className="text-body-small text-on-surface-variant shrink-0">· {group.code}</span>
             <Icon icon={Edit} size={18} className="text-on-surface-variant opacity-0 group-hover/title:opacity-100 shrink-0" />
           </button>
         )}
-        <span className="text-xs text-on-surface-variant shrink-0">{group.pageIndices.length} л.</span>
+        <span className="text-body-small text-on-surface-variant shrink-0">{group.pageIndices.length} л.</span>
         {!isSpecial && (
           <Tooltip content="Расформировать (страницы станут без группы)" name>
             <button onClick={() => onDisband(group.id)}
@@ -341,7 +341,7 @@ function GroupSection({
           {(currentTag || group.profileId) && (
             <Tooltip content={dirty ? 'Сначала сохраните разбиение' : isHiddenBound(group.profileId, hiddenProfiles) ? 'Профиль группы принадлежит выключенному модулю — выберите другой' : 'Распознать таблицу этого документа как отдельный источник данных'}>
               <button onClick={() => onRecognizeTable(firstPage)} disabled={dirty || tableBusyPage === firstPage || isHiddenBound(group.profileId, hiddenProfiles)}
-                className="flex items-center gap-1 px-2 py-1 text-xs rounded-sm border border-outline-variant text-on-surface-variant state-layer disabled-outlined">
+                className="flex items-center gap-1 px-2 py-1 text-body-small rounded-sm border border-outline-variant text-on-surface-variant state-layer disabled-outlined">
                 {tableBusyPage === firstPage ? <CircularProgress size={18} /> : <Icon icon={Table} size={18} />}
                 Таблица
               </button>
@@ -349,7 +349,7 @@ function GroupSection({
           )}
           <Tooltip content={dirty ? 'Сначала сохраните разбиение' : 'Перераспознать только этот документ (не весь набор)'}>
             <button onClick={() => onRecognizeDoc(firstPage)} disabled={dirty || docBusyPage === firstPage}
-              className="flex items-center gap-1 px-2 py-1 text-xs rounded-sm border border-outline-variant text-on-surface-variant state-layer disabled-outlined">
+              className="flex items-center gap-1 px-2 py-1 text-body-small rounded-sm border border-outline-variant text-on-surface-variant state-layer disabled-outlined">
               {docBusyPage === firstPage ? <CircularProgress size={18} /> : <Icon icon={Refresh} size={18} />}
               Перераспознать
             </button>
@@ -358,7 +358,7 @@ function GroupSection({
       )}
 
       {group.pageIndices.length === 0 ? (
-        <p className="text-xs text-on-surface-variant italic">Нет страниц — перенесите сюда выделенные из других групп.</p>
+        <p className="text-body-small text-on-surface-variant italic">Нет страниц — перенесите сюда выделенные из других групп.</p>
       ) : (
         <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))' }}>
           {group.pageIndices.map(p => (
@@ -527,10 +527,10 @@ export function PdfGroupingEditor() {
 
   if (!fileId) return null;
   if (isLoading || !groups) {
-    return <div className="p-6 flex items-center gap-2 text-sm text-on-surface-variant"><CircularProgress size={18} /> Загрузка...</div>;
+    return <div className="p-6 flex items-center gap-2 text-body-medium text-on-surface-variant"><CircularProgress size={18} /> Загрузка...</div>;
   }
   if (error || !data) {
-    return <div className="p-6 text-sm text-error">Не удалось загрузить страницы источника.</div>;
+    return <div className="p-6 text-body-medium text-error">Не удалось загрузить страницы источника.</div>;
   }
 
   return (
@@ -563,7 +563,7 @@ export function PdfGroupingEditor() {
         actions={<>
           {suspiciousPageCount > 0 && (
             <button onClick={() => setSuspiciousOnly(v => !v)}
-              className={`state-layer flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-sm border ${
+              className={`state-layer flex items-center gap-1.5 px-2.5 py-1.5 text-body-small rounded-sm border ${
                 suspiciousOnly ? 'border-warning bg-warning/10 text-warning' : 'border-outline-variant text-on-surface-variant'
               }`}>
               <Icon icon={Warning} size={18} /> {suspiciousOnly ? 'Показать все' : `⚠ ${suspiciousPageCount} подозрительных`}
@@ -607,8 +607,8 @@ export function PdfGroupingEditor() {
         {(!suspiciousOnly || unassignedPages.length > 0) && unassignedPages.length > 0 && (
           <div className="rounded-md border border-dashed border-outline-variant p-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-on-surface-variant">Без группы</span>
-              <span className="text-xs text-on-surface-variant">{unassignedPages.length} л.</span>
+              <span className="text-body-medium font-medium text-on-surface-variant">Без группы</span>
+              <span className="text-body-small text-on-surface-variant">{unassignedPages.length} л.</span>
             </div>
             <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))' }}>
               {unassignedPages.map(p => (

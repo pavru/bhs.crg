@@ -34,12 +34,12 @@ export function DocumentTemplateParams({ setId, instance, template, participatin
   return (
     <div className="space-y-2">
       <div className="flex items-baseline gap-2 flex-wrap">
-        <label className="block text-xs font-medium text-on-surface-variant">
+        <label className="block text-body-small font-medium text-on-surface-variant">
           Параметры · <span className="text-on-surface">«{template.name}»</span>
         </label>
         {!participating && (
           <Tooltip content="Шаблон не отмечен для генерации">
-            <span className="flex items-center gap-1 text-caption text-warning">
+            <span className="flex items-center gap-1 text-label-small text-warning">
               <Icon icon={Warning} size={18} className="shrink-0" />
               не участвует — значения сохранятся, но PDF по нему не создастся
             </span>
@@ -47,7 +47,7 @@ export function DocumentTemplateParams({ setId, instance, template, participatin
         )}
       </div>
       {declared.length === 0 ? (
-        <p className="text-caption text-on-surface-variant">У этого шаблона нет объявленных параметров.</p>
+        <p className="text-label-small text-on-surface-variant">У этого шаблона нет объявленных параметров.</p>
       ) : (
         <div className="rounded-sm border border-outline-variant p-2.5 space-y-1.5">
           {declared.map(p => {
@@ -55,17 +55,17 @@ export function DocumentTemplateParams({ setId, instance, template, participatin
             const value = overridden ? overrides[p.name] : p.default;
             return (
               <div key={p.name} className="flex items-center gap-2">
-                <Tooltip content={p.name}><span className="text-xs text-on-surface-variant flex-1 min-w-0 truncate">{p.label || p.name}</span></Tooltip>
+                <Tooltip content={p.name}><span className="text-body-small text-on-surface-variant flex-1 min-w-0 truncate">{p.label || p.name}</span></Tooltip>
                 <ParamValueInput type={p.type} value={value}
                   onChange={v => commit({ ...overrides, [p.name]: v })} />
                 {overridden ? (
                   <Tooltip content="Сбросить к значению по умолчанию">
-                    <button onClick={() => { const n = { ...overrides }; delete n[p.name]; commit(n); }} className="text-caption text-on-surface-variant hover:text-primary shrink-0">
+                    <button onClick={() => { const n = { ...overrides }; delete n[p.name]; commit(n); }} className="text-label-small text-on-surface-variant hover:text-primary shrink-0">
                       сброс
                     </button>
                   </Tooltip>
                 ) : (
-                  <Tooltip content="Используется значение по умолчанию шаблона"><span className="text-caption text-on-surface-variant shrink-0">по умолч.</span></Tooltip>
+                  <Tooltip content="Используется значение по умолчанию шаблона"><span className="text-label-small text-on-surface-variant shrink-0">по умолч.</span></Tooltip>
                 )}
               </div>
             );
@@ -84,6 +84,6 @@ function ParamValueInput({ type, value, onChange }: {
   return (
     <input type={type === 'number' ? 'number' : 'text'} value={value == null ? '' : String(value)}
       onChange={e => onChange(type === 'number' ? Number(e.target.value) : e.target.value)}
-      className="w-40 shrink-0 text-xs border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
+      className="w-40 shrink-0 text-body-small border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
   );
 }

@@ -27,7 +27,7 @@ export function BottomNav({ sections, active }: { sections: RailSection[]; activ
         return (
           <Link key={section.def.id} to={section.home} onClick={guardedClick(section.home)}
             aria-current={on ? 'true' : undefined}
-            className="group flex-1 min-w-0 h-20 flex flex-col items-center justify-center gap-1 text-xs select-none focus-visible:outline-none">
+            className="group flex-1 min-w-0 h-20 flex flex-col items-center justify-center gap-1 text-body-small select-none focus-visible:outline-none">
             <SectionPill icon={section.def.icon} on={on} wide />
             <span className={`max-w-full px-1 truncate ${on ? 'font-semibold text-on-surface' : 'font-medium text-on-surface-variant'}`}>
               {section.def.label}

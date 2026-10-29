@@ -37,7 +37,7 @@ export function FunctionalTagChip({ tag, entry, onToggle, onOrderChange }: {
 
   return (
     <span
-      className={`group inline-flex items-stretch overflow-hidden rounded-full border text-xs transition-colors ${
+      className={`group inline-flex items-stretch overflow-hidden rounded-full border text-body-small transition-colors ${
         on
           ? 'bg-tertiary-container border-tertiary/50 text-on-tertiary-container focus-within:ring-1 focus-within:ring-tertiary/50'
           : 'border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface-variant'
@@ -93,7 +93,7 @@ export function FunctionalTagBadge({ registry, entry }: {
   const order = tagOrder(entry);
   return (
     <span className="hidden md:inline-flex items-center shrink-0 overflow-hidden rounded-xs
-                     bg-primary-container text-caption text-on-primary-container">
+                     bg-primary-container text-label-small text-on-primary-container">
       <span className="px-1.5 py-0.5">{tagLabelOf(registry, entry)}</span>
       {order !== null && (
         <span className="border-l border-primary/40 px-1.5 py-0.5 tabular-nums">{order}</span>

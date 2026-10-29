@@ -31,20 +31,20 @@ export function NoAccessPage({ what, missing }: {
         </h1>
 
         {missing?.kind === 'module' && (
-          <p className="text-sm text-on-surface-variant">
+          <p className="text-body-medium text-on-surface-variant">
             Он относится к модулю «{missing.title}», а доступа к этому модулю у вас нет.
             Доступ к модулю даёт любое его право.
           </p>
         )}
 
         {missing?.kind === 'permission' && missing.codes.length === 1 && (
-          <p className="text-sm text-on-surface-variant">
+          <p className="text-body-medium text-on-surface-variant">
             Для него нужно право <Code>{missing.codes[0]}</Code>, и его у вас нет.
           </p>
         )}
 
         {missing?.kind === 'permission' && missing.codes.length > 1 && (
-          <p className="text-sm text-on-surface-variant">
+          <p className="text-body-medium text-on-surface-variant">
             Для него нужно одно из прав:{' '}
             {missing.codes.map((code, i) => (
               <span key={code}>{i > 0 && ', '}<Code>{code}</Code></span>
@@ -56,18 +56,18 @@ export function NoAccessPage({ what, missing }: {
         {/* Причина неизвестна — говорим и это. Придумать правдоподобную причину хуже, чем
             признаться: администратор пойдёт проверять не то. */}
         {what === undefined && (
-          <p className="text-sm text-on-surface-variant">
+          <p className="text-body-medium text-on-surface-variant">
             Вашей учётной записи не выдано прав ни на один раздел системы.
           </p>
         )}
 
         {!missing && what !== undefined && (
-          <p className="text-sm text-on-surface-variant">
+          <p className="text-body-medium text-on-surface-variant">
             Права на него у вас нет. Если доступ нужен — назовите администратору адрес страницы.
           </p>
         )}
 
-        <p className="text-sm text-on-surface-variant">
+        <p className="text-body-medium text-on-surface-variant">
           Права выдаёт администратор системы — обратитесь к нему.
         </p>
       </div>
@@ -77,6 +77,6 @@ export function NoAccessPage({ what, missing }: {
 
 function Code({ children }: { children: string }) {
   return (
-    <code className="rounded-xs bg-surface-container px-1.5 py-0.5 font-mono text-xs text-on-surface-variant">{children}</code>
+    <code className="rounded-xs bg-surface-container px-1.5 py-0.5 font-mono text-body-small text-on-surface-variant">{children}</code>
   );
 }

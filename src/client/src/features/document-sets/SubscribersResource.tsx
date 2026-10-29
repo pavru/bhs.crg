@@ -47,9 +47,9 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
   // на деле сервер отказал: отказ, переодетый в результат (issue #990).
   if (!canManage) {
     return (
-      <p className="text-sm text-on-surface-variant">
+      <p className="text-body-medium text-on-surface-variant">
         Подписчики закрыты правом «управлять аудиторией уведомлений»
-        (<span className="font-mono text-xs">core.notify.manage</span>). Кто получает письма по
+        (<span className="font-mono text-body-small">core.notify.manage</span>). Кто получает письма по
         этому уровню — видно тому, у кого это право есть.
       </p>
     );
@@ -60,20 +60,20 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
       {canManage && (
         <div className="flex justify-end">
           <button onClick={() => setSendOpen(true)}
-            className="flex items-center gap-1 text-xs px-2 py-1 rounded-xs text-primary hover:bg-primary-container transition-colors">
+            className="flex items-center gap-1 text-body-small px-2 py-1 rounded-xs text-primary hover:bg-primary-container transition-colors">
             <Icon icon={Mail} size={18} /> Сообщение
           </button>
         </div>
       )}
 
       {subscribers.length === 0 ? (
-        <p className="text-xs text-on-surface-variant">Нет подписчиков этого уровня. Получатели наследуются с вышестоящих.</p>
+        <p className="text-body-small text-on-surface-variant">Нет подписчиков этого уровня. Получатели наследуются с вышестоящих.</p>
       ) : (
         <div className="rounded-sm border border-outline-variant divide-y divide-surface-container">
           {subscribers.map(s => (
-            <div key={s.id} className="flex items-center gap-2 px-2.5 py-1.5 text-sm group">
+            <div key={s.id} className="flex items-center gap-2 px-2.5 py-1.5 text-body-medium group">
               <span className="text-on-surface flex-1 min-w-0 truncate">{s.displayName}</span>
-              <span className="text-xs text-on-surface-variant min-w-0 truncate">{s.email || '—'}</span>
+              <span className="text-body-small text-on-surface-variant min-w-0 truncate">{s.email || '—'}</span>
               {!s.validEmail && (
                 <Tooltip content="Нет валидного email — писем не получит">
                   <span className="shrink-0">
@@ -101,7 +101,7 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
             {available.map(u => <SelectItem key={u.id} value={u.id}>{u.displayName || u.email}</SelectItem>)}
           </Select>
           <button onClick={handleAdd} disabled={!addUserId || add.isPending}
-            className="flex items-center gap-1 text-sm px-3 py-1.5 border border-outline rounded-sm state-layer disabled-outlined">
+            className="flex items-center gap-1 text-body-medium px-3 py-1.5 border border-outline rounded-sm state-layer disabled-outlined">
             <Icon icon={Add} size={18} /> Добавить
           </button>
         </div>

@@ -5,7 +5,7 @@ import { Tooltip } from './Tooltip';
 
 /**
  * Пометка состояния записи (issue #1351): черновик, разобран, оплачен, отклонён, в архиве.
- * Пилюля `text-caption`; тон — роль из токенов, а не цвет: смысл тона одинаков на всех экранах.
+ * Пилюля `text-label-small`; тон — роль из токенов, а не цвет: смысл тона одинаков на всех экранах.
  *
  * - `neutral` — обычное рабочее состояние без оценки (черновик, заперт);
  * - `brand`   — в работе, передано дальше;
@@ -42,7 +42,7 @@ export function StatusBadge({ tone = 'neutral', icon, bordered = false, title, c
   return (
     <Tooltip content={title}>
       <span
-        className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-medium whitespace-nowrap ` +
+        className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-small font-medium whitespace-nowrap ` +
           `${t.fill} ${outlined ? `border ${t.border}` : ''} ${className}`}>
         {icon && <Icon icon={icon} size={18} aria-hidden className="shrink-0" />}
         {children}

@@ -120,7 +120,7 @@ export function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentTy
         confirmDanger={false}
         onConfirm={() => codeWarning?.onConfirm()}
       />
-      <p className="text-xs font-medium text-on-surface-variant uppercase tracking-wide">Параметры типа</p>
+      <p className="text-body-small font-medium text-on-surface-variant uppercase tracking-wide">Параметры типа</p>
       <div className="grid grid-cols-2 gap-3">
         <TextField label="Наименование" value={name} onChange={e => handleNameChange(e.target.value)} required />
         <TextField label="Код" value={code} onChange={e => setCode(e.target.value)}
@@ -142,12 +142,12 @@ export function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentTy
           }}>
           {ownerOptions(access ?? NO_ACCESS).map(o => <SelectItem key={o.code} value={o.code}>{o.title}</SelectItem>)}
         </Select>
-        <p className="mt-1 text-xs text-on-surface-variant">
+        <p className="mt-1 text-body-small text-on-surface-variant">
           {docType.module === CORE_OWNER
             ? 'Тип ядра: остаётся в редакторе при любом наборе модулей.'
             : `Тип модуля «${ownerTitle(docType.module, access ?? NO_ACCESS)}»: при выключенном модуле не предлагается.`}
         </p>
-        {ownerError && <p className="mt-1 text-xs text-error">{ownerError}</p>}
+        {ownerError && <p className="mt-1 text-body-small text-error">{ownerError}</p>}
       </div>
       {/* Прокси/абстрактность — отдельные мгновенные переключатели (не часть формы «Сохранить
           параметры»): каждый — своя мутация, применяется сразу по щелчку (issue #197 Фаза C). */}
@@ -156,20 +156,20 @@ export function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentTy
           <Switch checked={docType.allowsProxy} size="sm" label="Роль/прокси"
             disabled={proxyMutation.isPending}
             onChange={v => proxyMutation.mutate({ id: docType.id, allowsProxy: v })} />
-          <span className="text-sm text-on-surface-variant">Роль/прокси</span>
-          <span className="text-xs text-on-surface-variant">— тип может подменять другой при генерации</span>
+          <span className="text-body-medium text-on-surface-variant">Роль/прокси</span>
+          <span className="text-body-small text-on-surface-variant">— тип может подменять другой при генерации</span>
         </label>
         {docType.kind === 'Document' && (
           <label className="flex items-center gap-2.5 select-none">
             <Switch checked={docType.isAbstract} size="sm" label="Абстрактный"
               disabled={abstractMutation.isPending}
               onChange={v => abstractMutation.mutate({ id: docType.id, isAbstract: v })} />
-            <span className="text-sm text-on-surface-variant">Абстрактный</span>
-            <span className="text-xs text-on-surface-variant">— нельзя добавить в комплект напрямую</span>
+            <span className="text-body-medium text-on-surface-variant">Абстрактный</span>
+            <span className="text-body-small text-on-surface-variant">— нельзя добавить в комплект напрямую</span>
           </label>
         )}
       </div>
-      {error && <p className="text-xs text-error">{error}</p>}
+      {error && <p className="text-body-small text-error">{error}</p>}
     </form>
   );
 }

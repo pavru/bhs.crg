@@ -215,7 +215,7 @@ function ArrayTableModalBody({
               <Icon icon={DragIndicator} size={18} />
             </button>
           </Tooltip>
-          <span className="text-xs text-on-surface-variant font-mono">{i + 1}</span>
+          <span className="text-body-small text-on-surface-variant font-mono">{i + 1}</span>
         </div>
       ),
     },
@@ -259,7 +259,7 @@ function ArrayTableModalBody({
           <div className="flex items-center gap-1">
             {selected.size > 0 ? (
               <>
-                <span className="text-sm font-medium text-on-surface-variant px-2">Выбрано: {selected.size}</span>
+                <span className="text-body-medium font-medium text-on-surface-variant px-2">Выбрано: {selected.size}</span>
                 <Button variant="text" size="sm" danger icon={<Icon icon={Delete} size={18} />} onClick={deleteSelected}>Удалить выбранные</Button>
                 <Button variant="text" size="sm" onClick={() => setSelected(new Set())}>Сбросить</Button>
               </>
@@ -283,7 +283,7 @@ function ArrayTableModalBody({
           add={{ label: 'Добавить строку', onAdd: addRow }} onRemove={(_, i) => removeRow(i)} />
       </SuggestOwner>
       {hiddenFields.length > 0 && (
-        <p className="text-xs text-on-surface-variant mt-3">
+        <p className="text-body-small text-on-surface-variant mt-3">
           {hiddenFields.length === 1
             ? `Поле «${hiddenFields[0].title}» скрыто`
             : `${hiddenFields.length} полей скрыто`} — редактируйте в режиме аккордеона

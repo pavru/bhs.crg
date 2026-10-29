@@ -170,7 +170,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
       isDirty={dirty || preview !== null} busy={replace.isPending}
       footer={(
         <>
-          <span className="text-xs text-on-surface-variant mr-auto">
+          <span className="text-body-small text-on-surface-variant mr-auto">
             {drafting
               ? 'Разноска войдёт в исправление: запишется вместе с ним, после проверки. «Не разнесено» — оценка.'
               : preview
@@ -227,7 +227,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
         )}
 
         {canEdit && splitOff && (
-          <p className="text-xs text-on-surface-variant">
+          <p className="text-body-small text-on-surface-variant">
             «Поровну» и «по %» считает сервер по записанным строкам, а строки в исправлении изменены — клетки
             набирайте руками.
           </p>
@@ -345,7 +345,7 @@ function TargetHeader({ target, number, places, onChange, onRemove }: {
 function PendingNote({ view, places }: { view: InvoiceView; places: Places }) {
   const parts = view.allocation.document.parts;
   return (
-    <p className="text-xs text-warning">
+    <p className="text-body-small text-warning">
       Счёт разнесён суммой, пока строк не было:{' '}
       {parts.map(p => `${targetName(placeOfPart(p), places)} —${formatMoney(p.amount ?? 0)}`).join('; ')}.
       Строки появились — пересчитайте разноску по ним: до пересчёта счёт не разнесён.

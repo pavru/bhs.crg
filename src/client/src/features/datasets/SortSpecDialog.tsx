@@ -34,10 +34,10 @@ function SortRow({
           value={level.column}
           onChange={e => onChange({ ...level, column: e.target.value })}
           placeholder="Колонка"
-          className="border border-outline-variant rounded-xs px-2 py-1 text-xs bg-surface text-on-surface flex-1 min-w-0"
+          className="border border-outline-variant rounded-xs px-2 py-1 text-body-small bg-surface text-on-surface flex-1 min-w-0"
         />
       )}
-      <div className="flex rounded-xs text-xs font-medium overflow-hidden shrink-0 border border-outline-variant">
+      <div className="flex rounded-xs text-body-small font-medium overflow-hidden shrink-0 border border-outline-variant">
         {(['asc', 'desc'] as const).map(d => (
           <button
             key={d}
@@ -111,7 +111,7 @@ export function SortSpecDialog({
       footer={
         <div className="flex gap-2">
           <button onClick={handleSave} disabled={saving}
-            className="px-4 py-2 rounded-sm text-sm font-medium text-on-primary bg-primary disabled-container">
+            className="px-4 py-2 rounded-sm text-body-medium font-medium text-on-primary bg-primary disabled-container">
             {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
           <ModalExit variant="tonal" />
@@ -119,7 +119,7 @@ export function SortSpecDialog({
             <button
               onClick={() => void commit(() => onSave(null))}
               disabled={saving}
-              className="ml-auto px-4 py-2 rounded-sm text-sm font-medium text-error bg-surface-container disabled-container"
+              className="ml-auto px-4 py-2 rounded-sm text-body-medium font-medium text-error bg-surface-container disabled-container"
             >
               Сбросить
             </button>
@@ -127,14 +127,14 @@ export function SortSpecDialog({
         </div>
       }
     >
-      <p className="text-xs mb-4 text-on-surface-variant">
+      <p className="text-body-small mb-4 text-on-surface-variant">
         Сортировка выполняется после вычисляемых колонок — можно сортировать и по ним.
         Пустые значения всегда в конце, независимо от направления. Несколько уровней — по приоритету сверху вниз.
       </p>
 
       <div className="space-y-2 mb-4">
         {levels.length === 0 && (
-          <p className="text-xs py-2 text-center text-on-surface-variant">Сортировка не задана.</p>
+          <p className="text-body-small py-2 text-center text-on-surface-variant">Сортировка не задана.</p>
         )}
         {levels.map((l, i) => (
           <SortRow
@@ -153,12 +153,12 @@ export function SortSpecDialog({
 
       <button
         onClick={addLevel}
-        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-sm text-on-primary-container bg-primary-container"
+        className="flex items-center gap-1.5 text-body-small font-medium px-3 py-1.5 rounded-sm text-on-primary-container bg-primary-container"
       >
         <Icon icon={Add} size={18} /> Добавить уровень сортировки
       </button>
 
-      {refusal && <p role="alert" className="mt-3 text-xs text-error">{refusal}</p>}
+      {refusal && <p role="alert" className="mt-3 text-body-small text-error">{refusal}</p>}
     </Modal>
   );
 }

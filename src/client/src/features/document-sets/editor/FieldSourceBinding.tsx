@@ -165,12 +165,12 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
           </div>
         }>
         {locked ? (
-          <p className="text-xs text-on-surface-variant py-2">
+          <p className="text-body-small text-on-surface-variant py-2">
             {LOCKED_HINT}. Источник такому полю не назначается — значение вытеснило бы то, что кладёт
             модуль. Привязку, доставшуюся от прежней версии типа, можно только снять.
           </p>
         ) : sources.length === 0 ? (
-          <p className="text-xs text-on-surface-variant py-2">
+          <p className="text-body-small text-on-surface-variant py-2">
             Нет подходящих источников. Загрузите набор данных на странице «Наборы данных» или в панели уровня.
           </p>
         ) : (
@@ -198,7 +198,7 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
             )}
 
             {selectedSource && coverTitles.length > 0 && (
-              <label className="flex items-start gap-2 text-xs text-on-surface-variant cursor-pointer select-none">
+              <label className="flex items-start gap-2 text-body-small text-on-surface-variant cursor-pointer select-none">
                 <input type="checkbox" checked={coverOn} onChange={e => setCoverOn(e.target.checked)} className="mt-0.5" />
                 <span>Этот источник заполнит также: <span className="text-on-surface-variant">{coverTitles.join(', ')}</span></span>
               </label>

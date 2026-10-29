@@ -39,7 +39,7 @@ export function BulkLinkMismatchDialog({ pendingLink, setPendingLink, setSingleT
             </p>
           )}
           {pendingLink.chosen.length > 1 && (
-            <ul className="text-xs text-on-surface-variant space-y-0.5 max-h-40 overflow-y-auto">
+            <ul className="text-body-small text-on-surface-variant space-y-0.5 max-h-40 overflow-y-auto">
               {pendingLink.assessment.mismatched.slice(0, 8).map(m => (
                 <li key={m.key} className="truncate">• {m.label}</li>
               ))}
@@ -48,7 +48,7 @@ export function BulkLinkMismatchDialog({ pendingLink, setPendingLink, setSingleT
               )}
             </ul>
           )}
-          <p className="text-xs text-on-surface-variant">
+          <p className="text-body-small text-on-surface-variant">
             Проверка приблизительная — она сравнивает слова материала с текстом документа. Если
             документ действительно тот, привязывайте.
           </p>

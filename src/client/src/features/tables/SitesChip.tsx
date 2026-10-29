@@ -44,7 +44,7 @@ export function SitesChip({ columns, filter, onToggle }: {
   ].filter(Boolean).join(' ');
 
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs" data-testid="sites-chip">
+    <div className="mb-2 flex flex-wrap items-center gap-1.5 text-body-small" data-testid="sites-chip">
       <Chip selected={on} icon={Star} dashed disabled={state === 'complex' || state === 'broken'} title={title}
         onClick={() => onToggle(column.key, names)}>
         {column.label}: избранные стройки

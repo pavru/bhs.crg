@@ -55,7 +55,7 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
     <Popover.Root open={open} onOpenChange={toggle}>
       <Popover.Trigger asChild>
         <button type="button"
-          className="inline-flex items-center gap-1.5 rounded-sm border border-outline-variant px-2.5 py-1 text-xs text-on-surface-variant hover:text-on-surface state-layer">
+          className="inline-flex items-center gap-1.5 rounded-sm border border-outline-variant px-2.5 py-1 text-body-small text-on-surface-variant hover:text-on-surface state-layer">
           <Icon icon={ViewColumn} size={18} aria-hidden />
           {view.columns ? `Колонки: ${shown.length} из ${all.length}` : 'Колонки'}
         </button>
@@ -86,7 +86,7 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
             })}
           </ul>
 
-          <div className="mt-3 pt-2.5 border-t border-outline-variant flex items-center gap-2 text-xs text-on-surface-variant">
+          <div className="mt-3 pt-2.5 border-t border-outline-variant flex items-center gap-2 text-body-small text-on-surface-variant">
             <span aria-hidden>Закрепить слева</span>
             <Select size="sm" className="w-auto" aria-label="Закрепить слева"
               value={String(Math.min(view.pinned, gridColumns))}
@@ -125,16 +125,16 @@ function ColumnRow({ column, label, checked, total, onShown, onTotal, move }: {
 
   return (
     <li className="flex items-center gap-2 rounded-sm px-1.5 py-1 state-layer">
-      <label className="flex-1 min-w-0 flex items-center gap-2 text-sm text-on-surface cursor-pointer">
+      <label className="flex-1 min-w-0 flex items-center gap-2 text-body-medium text-on-surface cursor-pointer">
         <input type="checkbox" checked={checked} onChange={onShown} />
         <span className={`truncate ${column ? '' : 'line-through text-on-surface-variant'}`}>{label}</span>
         {closed && (
-          <span className="shrink-0 inline-flex items-center gap-1 text-xs text-on-surface-variant">
+          <span className="shrink-0 inline-flex items-center gap-1 text-body-small text-on-surface-variant">
             <Icon icon={VisibilityOff} size={18} aria-hidden /> {column?.reason ?? 'нет права'}
           </span>
         )}
         {!column && (
-          <span className="shrink-0 inline-flex items-center gap-1 text-xs text-on-surface-variant">
+          <span className="shrink-0 inline-flex items-center gap-1 text-body-small text-on-surface-variant">
             <Icon icon={LinkOff} size={18} aria-hidden /> поля нет в типе
           </span>
         )}

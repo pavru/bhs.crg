@@ -59,13 +59,13 @@ function Body({ estimateId, revisionId, make, onDone }: {
     });
   };
 
-  if (preview.isError) return <p role="alert" className="text-sm text-error">{apiError(preview.error, 'Расхождения не посчитались')}</p>;
-  if (!preview.data) return <p className="text-sm text-on-surface-variant">Считаем, что изменится в плане…</p>;
+  if (preview.isError) return <p role="alert" className="text-body-medium text-error">{apiError(preview.error, 'Расхождения не посчитались')}</p>;
+  if (!preview.data) return <p className="text-body-medium text-on-surface-variant">Считаем, что изменится в плане…</p>;
   const data = preview.data;
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-on-surface-variant">
+      <p className="text-body-medium text-on-surface-variant">
         {data.currentRevisionNumber === null
           ? `План стройки будет считаться по ред. ${data.revisionNumber}.`
           : `План стройки будет считаться по ред. ${data.revisionNumber} вместо ред. ${data.currentRevisionNumber}.`}
@@ -74,7 +74,7 @@ function Body({ estimateId, revisionId, make, onDone }: {
       <Changes preview={data} />
 
       {data.cost && (
-        <p className="text-sm text-on-surface-variant">
+        <p className="text-body-medium text-on-surface-variant">
           Себестоимость: {formatMoney(data.cost.was)} → <span className="font-medium text-on-surface">{formatMoney(data.cost.becomes)}</span>
         </p>
       )}
@@ -111,7 +111,7 @@ function Changes({ preview }: { preview: CurrentRevisionPreview }) {
   const workTypes = useWorkTypeNames();
   const units = useUnitNames(preview.changes.flatMap(c => (c.unitId ? [c.unitId] : [])));
   if (preview.changes.length === 0)
-    return <p className="text-sm text-on-surface-variant">Объёмы плана по видам работ не изменятся.</p>;
+    return <p className="text-body-medium text-on-surface-variant">Объёмы плана по видам работ не изменятся.</p>;
 
   const lines: ChangeLine[] = preview.changes.map(c => ({
     key: `${c.workTypeId}:${c.unitId ?? ''}`,
@@ -138,5 +138,5 @@ function Delta({ was, becomes }: { was: number; becomes: number }) {
   if (was === 0) return <StatusBadge tone="brand">новый вид</StatusBadge>;
   if (becomes === 0) return <StatusBadge tone="quiet">уходит</StatusBadge>;
   const d = becomes - was;
-  return <span className="text-xs text-on-surface-variant tabular-nums">{d > 0 ? '+' : '−'}{formatQuantity(Math.abs(d))}</span>;
+  return <span className="text-body-small text-on-surface-variant tabular-nums">{d > 0 ? '+' : '−'}{formatQuantity(Math.abs(d))}</span>;
 }

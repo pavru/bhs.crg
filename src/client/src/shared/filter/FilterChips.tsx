@@ -89,21 +89,21 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
 
         {onAdvanced && view.mode === 'chips' && (
           <button type="button" onClick={onAdvanced}
-            className="inline-flex items-center gap-1 rounded-sm text-xs text-on-surface-variant state-layer focus-ring px-1.5 py-1">
+            className="inline-flex items-center gap-1 rounded-sm text-body-small text-on-surface-variant state-layer focus-ring px-1.5 py-1">
             <Icon icon={Tune} size={18} aria-hidden /> Расширенный
           </button>
         )}
 
         {hasAny && (
           <button type="button" onClick={() => onChange(() => null)}
-            className="rounded-sm text-xs text-on-surface-variant state-layer [--_state-color:var(--color-error)] focus-ring px-1.5 py-1">
+            className="rounded-sm text-body-small text-on-surface-variant state-layer [--_state-color:var(--color-error)] focus-ring px-1.5 py-1">
             Снять отбор
           </button>
         )}
       </div>
 
       {problems.length > 0 && (
-        <ul role="alert" className="mt-1 text-xs text-error">
+        <ul role="alert" className="mt-1 text-body-small text-error">
           {problems.map((p, i) => <li key={i}>«{p.text}» не выполнится: {p.problem}.</li>)}
         </ul>
       )}
@@ -111,7 +111,7 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
   );
 }
 
-const CHIP_CLS = 'inline-flex items-center rounded-full border text-xs bg-surface';
+const CHIP_CLS = 'inline-flex items-center rounded-full border text-body-small bg-surface';
 
 const NEW_CONDITION: FilterCondition = { type: 'condition', column: '', op: 'eq', value: '' };
 
@@ -202,12 +202,12 @@ function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, ch
             {/* Подсказка, а не запрет — как в диалоге (issue #1137): годно ли условие, решает сервер, а его
                 отказ экран покажет на чипе. Пометка «нет в справочнике» тоже не запирает «Применить». */}
             {waiting
-              ? <p className="mt-1.5 text-xs text-on-surface-variant">Введите значение — без него отбор не ставится.</p>
+              ? <p className="mt-1.5 text-body-small text-on-surface-variant">Введите значение — без него отбор не ставится.</p>
               : <ConditionHint id={hintId} cond={draft} columns={columns} onChange={setDraft} className="mt-1.5"
                   problemOf={chipProblem} fieldRef={valueRef} />}
             <div className="mt-2.5 flex justify-end">
               <button type="submit" disabled={!draft.column.trim() || waiting}
-                className="px-3 py-1 rounded-sm text-xs font-medium text-on-primary bg-primary state-layer focus-ring disabled-container">
+                className="px-3 py-1 rounded-sm text-body-small font-medium text-on-primary bg-primary state-layer focus-ring disabled-container">
                 {submit}
               </button>
             </div>

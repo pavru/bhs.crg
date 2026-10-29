@@ -65,7 +65,7 @@ export function PdfViewerOverlay({ open, onOpenChange, note, ...inline }: Omit<P
     <Modal open={open} onOpenChange={onOpenChange} title={inline.title} fullScreen headerless flushBody nothingToLose>
       <div className="h-full flex flex-col min-h-0">
         <ViewerTitleBar title={inline.title} source={inline.source} onClose={() => onOpenChange(false)} />
-        {note && <div className="shrink-0 px-4 py-1.5 border-b border-outline-variant bg-surface text-xs text-on-surface-variant">{note}</div>}
+        {note && <div className="shrink-0 px-4 py-1.5 border-b border-outline-variant bg-surface text-body-small text-on-surface-variant">{note}</div>}
         <div className="flex-1 min-h-0">
           <ViewerGate {...inline} />
         </div>
@@ -89,7 +89,7 @@ export function ViewerTitleBar({ title, source, onClose }: {
   return (
     <div className="shrink-0 h-12 flex items-center gap-2 pl-4 pr-2 border-b border-outline-variant bg-surface">
       <Icon icon={Description} size={18} className="text-on-surface-variant shrink-0" aria-hidden />
-      <span className="flex-1 min-w-0 truncate text-sm font-medium text-on-surface">{title}</span>
+      <span className="flex-1 min-w-0 truncate text-body-medium font-medium text-on-surface">{title}</span>
       {source && (
         <Button size="sm" variant="outlined" icon={<Icon icon={OpenInNew} size={18} />} onClick={() => openInNewTab(source)}>
           Открыть во вкладке

@@ -179,7 +179,7 @@ export function BugReportDialog({ open, prefill, onClose }: {
               {/* Честность не предупреждением, а показом: человек видит ровно то, что уйдёт. */}
               <img src={shot.url} alt="Снимок экрана" className="max-h-56 w-auto rounded-md border border-outline-variant" />
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs text-on-surface-variant">
+                <p className="text-body-small text-on-surface-variant">
                   Уйдёт администратору вместе с сообщением. Проверьте, нет ли лишнего.
                   {' '}В GitHub снимок не передаётся.
                 </p>
@@ -196,7 +196,7 @@ export function BugReportDialog({ open, prefill, onClose }: {
           <button
             type="button"
             onClick={() => setContextOpen(o => !o)}
-            className="w-full flex items-center gap-1.5 px-3 py-2 rounded-lg text-left text-xs text-on-surface-variant state-layer focus-ring"
+            className="w-full flex items-center gap-1.5 px-3 py-2 rounded-lg text-left text-body-small text-on-surface-variant state-layer focus-ring"
           >
             {contextOpen ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
             Вместе с сообщением уйдёт: версия · экран · браузер · последние ошибки API
@@ -205,7 +205,7 @@ export function BugReportDialog({ open, prefill, onClose }: {
         </div>
 
         {error && (
-          <p className="flex items-start gap-1.5 text-sm text-error">
+          <p className="flex items-start gap-1.5 text-body-medium text-error">
             <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" /> {error}
           </p>
         )}
@@ -221,7 +221,7 @@ function ContextFacts({ prefill, version, commit }: {
 }) {
   const tech = collectBugReportTech({ stack: prefill.stack, origin: prefill.origin });
   return (
-    <ul className="px-3 pb-3 space-y-1 text-xs text-on-surface-variant">
+    <ul className="px-3 pb-3 space-y-1 text-body-small text-on-surface-variant">
       <li>Версия: {version ?? '—'}{commit ? ` · сборка ${commit}` : ''}</li>
       <li>Экран: {tech.route}</li>
       <li>Окно: {tech.viewport}</li>
@@ -229,7 +229,7 @@ function ContextFacts({ prefill, version, commit }: {
       <li>
         Ошибки API: {tech.apiErrors?.length ?? 0}
         {(tech.apiErrors?.length ?? 0) > 0 && (
-          <ul className="mt-1 ml-3 space-y-0.5 font-mono text-caption">
+          <ul className="mt-1 ml-3 space-y-0.5 font-mono text-label-small">
             {tech.apiErrors!.map((e, i) => (
               <li key={i} className="break-all">
                 {e.at} {e.method} {e.url} → {e.status || 'нет ответа'}

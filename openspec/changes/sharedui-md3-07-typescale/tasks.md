@@ -23,27 +23,27 @@
 
 ## 1. PR 1 — роли и механический перевод
 
-- [ ] 1.1 Роли `--md-sys-typescale-*` (15 × размер, строка, интервал, начертание) по базовой шкале MD3.
+- [x] 1.1 Роли `--md-sys-typescale-*` (15 × размер, строка, интервал, начертание) по базовой шкале MD3.
   `--text-<роль>` с подсвойствами в `@theme`. Интервал — значение роли, без множителя (В10, «в»)
   [UI-67]. Проверка — `md3-theme.test.mjs`:
   - значения `body-medium`, `label-small`, `title-large` совпадают со шкалой;
   - у `--text-<роль>` четыре подсвойства, интервал — переменная роли.
-- [ ] 1.2 Шаг текста в `md3-migrate.mjs`: `xs/sm/base/caption` → `body-small/body-medium/body-large/label-small`,
+- [x] 1.2 Шаг текста в `md3-migrate.mjs`: `xs/sm/base/caption` → `body-small/body-medium/body-large/label-small`,
   с вариантами. Остальное — в отчёт [UI-67]. Проверка — тест кодмода на фикстурах:
   - `md:text-sm` → `md:text-body-medium`;
   - повторный запуск ничего не меняет;
   - `text-fg1` (цвет) не тронут.
-- [ ] 1.3 Прогон по всему `src/`; `--text-caption` удалён из темы. Тесты, проверяющие классы
+- [x] 1.3 Прогон по всему `src/`; `--text-caption` удалён из темы. Тесты, проверяющие классы
   (`toHaveClass('text-xs')` и отрицательные), переписаны руками, и каждый снова может упасть [UI-67].
   Проверка: `rg "\btext-(xs|sm|base|caption)\b" src/client/src` — пусто; `npm test` — зелёный.
-- [ ] 1.4 `DataGrid` и `EditGrid` своего интервала не ставят (В10, «в») [UI-67]. Проверка —
+- [x] 1.4 `DataGrid` и `EditGrid` своего интервала не ставят (В10, «в») [UI-67]. Проверка —
   `rg "tracking|letter-spacing" src/client/src/shared/ui/{DataGrid,EditGrid,dataTable}*` пусто; снимок
   строки таблицы — в 3.5.
-- [ ] 1.5 Правило `legacy-type` (`everywhere: true`, по файлам), уровень — после 1.3. Подсказка правила
+- [x] 1.5 Правило `legacy-type` (`everywhere: true`, по файлам), уровень — после 1.3. Подсказка правила
   `text-size` называет роли [UI-67]. Проверка — `ui-ratchet.test.mjs`:
   - фикстура с `text-sm`, `font-semibold`, `uppercase` красная;
   - с `text-body-medium font-medium` и `text-fg1` — зелёная.
-- [ ] 1.6 `docs/UI.md`: «Текст» — таблица 15 ролей с назначением; «Заголовки» — роли вместо ступеней;
+- [x] 1.6 `docs/UI.md`: «Текст» — таблица 15 ролей с назначением; «Заголовки» — роли вместо ступеней;
   «Плотность» не трогается — это 11. Перечень правил в `CLAUDE.md` и `AGENTS.md` — одним коммитом
   [UI-67]. Проверка:
   - `dotnet test … --filter AgentRulesCopy` зелёный;

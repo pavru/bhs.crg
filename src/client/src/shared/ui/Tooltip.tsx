@@ -193,7 +193,7 @@ function Layer({ anchor, side, onClose, children }: {
         <DismissableLayer asChild onEscapeKeyDown={onClose} onDismiss={onClose}
           onPointerDownOutside={e => e.preventDefault()} onFocusOutside={e => e.preventDefault()}>
           <Popper.Content role="tooltip" side={side} sideOffset={6} collisionPadding={8}
-            className="z-[60] max-w-60 rounded-xs bg-surface border border-outline-variant px-2 py-1 text-caption text-on-surface whitespace-pre-line pointer-events-none select-none shadow-elevation-2">
+            className="z-[60] max-w-60 rounded-xs bg-surface border border-outline-variant px-2 py-1 text-label-small text-on-surface whitespace-pre-line pointer-events-none select-none shadow-elevation-2">
             {children}
           </Popper.Content>
         </DismissableLayer>

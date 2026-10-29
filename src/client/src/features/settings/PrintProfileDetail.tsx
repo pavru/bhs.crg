@@ -121,7 +121,7 @@ export function PrintProfileDetail({ profile, otherNames, onDeleted, onEditState
         } />
 
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5" data-testid="print-profile-detail">
-        <p className="text-xs text-on-surface-variant">
+        <p className="text-body-small text-on-surface-variant">
           {profile.isSystem
             ? 'Профиль по умолчанию: по нему строится вид каждой книги без своей раскладки. Удалить его нельзя, править — можно.'
             : 'Применяется, когда его выбрали при «Перестроить» у файла счёта.'}
@@ -188,7 +188,7 @@ export function PrintProfileDetail({ profile, otherNames, onDeleted, onEditState
  */
 function WhereApplied() {
   return (
-    <div className="flex gap-2 rounded-md bg-surface-container p-3 text-xs text-on-surface-variant">
+    <div className="flex gap-2 rounded-md bg-surface-container p-3 text-body-small text-on-surface-variant">
       <Icon icon={Info} size={18} className="shrink-0 mt-0.5 text-on-surface-variant" />
       <div className="space-y-1">
         <p>
@@ -224,7 +224,7 @@ function ChoiceRow<T extends string>({ label, hint, error, value, options, onCha
   };
   return (
     <div>
-      <div id={labelId} className="text-xs text-on-surface-variant mb-1.5">{label}</div>
+      <div id={labelId} className="text-body-small text-on-surface-variant mb-1.5">{label}</div>
       <div role="radiogroup" aria-labelledby={labelId} onKeyDown={onKeyDown} className="flex flex-wrap gap-2">
         {options.map((o, i) => (
           <Chip key={o.value} ref={el => { refs.current[i] = el; }} role="radio" selected={o.value === value}
@@ -235,8 +235,8 @@ function ChoiceRow<T extends string>({ label, hint, error, value, options, onCha
         ))}
       </div>
       {error
-        ? <p className="mt-1 text-xs text-error">{error}</p>
-        : hint && <p className="mt-1 text-xs text-on-surface-variant">{hint}</p>}
+        ? <p className="mt-1 text-body-small text-error">{error}</p>
+        : hint && <p className="mt-1 text-body-small text-on-surface-variant">{hint}</p>}
     </div>
   );
 }
@@ -261,7 +261,7 @@ function MarginsAround({ draft, issues, onChange }: {
     const ofPair = pairOf(side).text;
     return (
       <TextField label={meta.label} value={draft.margins[side]} inputMode="numeric" containerClassName="w-32"
-        trailing={<span className="text-xs text-on-surface-variant pr-3">мм</span>}
+        trailing={<span className="text-body-small text-on-surface-variant pr-3">мм</span>}
         error={own} invalid={!!ofPair} aria-invalid={!!(own || ofPair) || undefined}
         aria-describedby={ofPair ? `${pairsId}-${side}` : undefined}
         onChange={e => onChange(side, e.target.value)} />
@@ -270,7 +270,7 @@ function MarginsAround({ draft, issues, onChange }: {
 
   return (
     <div role="group" aria-label="Поля, мм">
-      <div className="text-xs text-on-surface-variant mb-2">Поля, мм</div>
+      <div className="text-body-small text-on-surface-variant mb-2">Поля, мм</div>
       <div className="grid grid-cols-3 items-center justify-items-center gap-3 w-fit">
         <span />{field('top')}<span />
         {field('left')}
@@ -284,7 +284,7 @@ function MarginsAround({ draft, issues, onChange }: {
         <span />{field('bottom')}<span />
       </div>
       {pairs.some(p => p.text) && (
-        <ul role="alert" className="mt-2 space-y-0.5 text-xs text-error">
+        <ul role="alert" className="mt-2 space-y-0.5 text-body-small text-error">
           {pairs.filter(p => p.text).map(p => (
             // У каждой стороны пары — свой id на ту же строку: aria-describedby ссылается по одному.
             <li key={p.pair.join()} id={`${pairsId}-${p.pair[0]}`}>

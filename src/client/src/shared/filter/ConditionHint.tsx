@@ -35,7 +35,7 @@ export function ConditionHint({ cond, columns, onChange, id, fieldRef, className
   const rest = strays.length > 0 ? { ...cond, values: (cond.values ?? []).filter(v => !strays.includes(v)) } : cond;
   // Остались одни значения вне перечня — сказать сверх списка отметок нечего.
   const problem = strays.length > 0 && rest.values?.length === 0 ? null : problemOf(rest, columns);
-  if (problem) return <p className={`${className} text-xs text-error`}>Похоже, условие не выполнится: {problem}.</p>;
+  if (problem) return <p className={`${className} text-body-small text-error`}>Похоже, условие не выполнится: {problem}.</p>;
 
   const notice = conditionNotice(cond, column);
   if (!notice) return null;
@@ -49,7 +49,7 @@ export function ConditionHint({ cond, columns, onChange, id, fieldRef, className
   }
 
   return (
-    <div id={id} className={`${className} space-y-0.5 text-xs text-warning group-has-[[aria-expanded=true]]/condition:hidden`}>
+    <div id={id} className={`${className} space-y-0.5 text-body-small text-warning group-has-[[aria-expanded=true]]/condition:hidden`}>
       {lines.map(line => (
         <p key={line.key} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           {/* Значок — с текстом, а не отдельным переносом: окошко чипа узкое. */}

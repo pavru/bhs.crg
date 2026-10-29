@@ -93,12 +93,12 @@ export function TablePage() {
   useDocumentTitle(declaration.data && lookupTitle(lookup, declaration.data.title));
 
   // Описание ещё не пришло и отказа нет — сказать пока нечего: ни «строк нет», ни причину.
-  if (declaration.isPending) return <div className="px-6 py-10 text-sm text-on-surface-variant">Загрузка…</div>;
+  if (declaration.isPending) return <div className="px-6 py-10 text-body-medium text-on-surface-variant">Загрузка…</div>;
 
   // Таблицы нет или она не открыта этому человеку — показываем причину сервера вместо экрана.
   if (declaration.isError)
     return (
-      <div className="px-6 py-10 text-sm text-error" role="alert">
+      <div className="px-6 py-10 text-body-medium text-error" role="alert">
         {apiError(declaration.error, 'Таблица не открылась')}
       </div>
     );
@@ -108,7 +108,7 @@ export function TablePage() {
   // него рабочий экран нельзя (ревью PR #1324).
   if (saved.isError && !saved.data && isSavedId(presetCode))
     return (
-      <div className="px-6 py-10 text-sm text-error" role="alert">
+      <div className="px-6 py-10 text-body-medium text-error" role="alert">
         {apiError(saved.error, 'Представления таблицы не открылись')}
       </div>
     );
@@ -120,7 +120,7 @@ export function TablePage() {
   // пропало, а адрес ещё прежний. «Представление удалено» тут было бы ложным объявлением о том, что
   // человек сделал сам. Устаревшая закладка сюда не попадает: её идентификатор никто не удалял.
   if (lookup.state === 'pending' || (lookup.state === 'gone' && leaving === presetCode))
-    return <div className="px-6 py-10 text-sm text-on-surface-variant">Загрузка…</div>;
+    return <div className="px-6 py-10 text-body-medium text-on-surface-variant">Загрузка…</div>;
 
   const decl = declaration.data;
   const off = decl.state === 'module-off';
@@ -133,7 +133,7 @@ export function TablePage() {
   // различает, и экран тоже. Отбор из адреса едет к таблице целиком: с закладкой пришли за строками.
   if (lookup.state === 'gone')
     return (
-      <div className="px-6 py-10 text-sm" role="alert">
+      <div className="px-6 py-10 text-body-medium" role="alert">
         <p className="text-error">Представление удалено или больше не общее.</p>
         <p className="mt-2 text-on-surface-variant">
           <Link className="underline" to={`/tables/${encodeURIComponent(address)}${wholeTableHash(view)}`}>Открыть таблицу целиком</Link>
@@ -146,7 +146,7 @@ export function TablePage() {
   // У выключенного модуля представлений нет вовсе, и там говорит сама таблица: «модуль выключен».
   if (missing)
     return (
-      <div className="px-6 py-10 text-sm" role="alert">
+      <div className="px-6 py-10 text-body-medium" role="alert">
         <p className="text-error">У таблицы «{decl.title}» нет представления «{presetCode}».</p>
         <p className="mt-2 text-on-surface-variant">
           <Link className="underline" to={`/tables/${encodeURIComponent(address)}`}>Открыть таблицу целиком</Link>
@@ -183,7 +183,7 @@ export function TablePage() {
         {/* Отбор автора читателю не отдан: он стоит на колонке, которая ему закрыта. Сказать это
             обязательно — иначе представление с чужим именем молча показало бы другие строки. */}
         {stored?.withheld && (
-          <p role="status" className="mb-2 text-xs text-warning">{stored.withheld} Представление открыто без него.</p>
+          <p role="status" className="mb-2 text-body-small text-warning">{stored.withheld} Представление открыто без него.</p>
         )}
 
         {/* Готовые отборы модуля — над рядом условий: нажатие кладёт условие в этот ряд, обычным чипом. */}
@@ -221,7 +221,7 @@ export function TablePage() {
             ищет право по коду. У кого прав хватает, строки нет вовсе. */}
         {!off && hiddenByRight(decl.columns, view.columns).map(group => (
           <Tooltip key={`${group.requires}|${group.reason}`} content={group.labels.join(', ')}>
-            <p className="mt-2 text-xs text-on-surface-variant">
+            <p className="mt-2 text-body-small text-on-surface-variant">
               {hiddenCountText(group.count)}: {group.reason}
               {group.requires && <> (<code className="text-on-surface-variant">{group.requires}</code>)</>}
             </p>
@@ -232,9 +232,9 @@ export function TablePage() {
             отбором, и молча оставить их значило бы выдать за ответ на этот. И это НЕ «отбор ничего не
             нашёл»: строк не ноль — их не отдали. Чипы остаются — отказ говорит про них. */}
         {table.isError ? (
-          <div role="alert" className="mt-3 rounded-md border border-error px-3 py-2 text-sm text-error">
+          <div role="alert" className="mt-3 rounded-md border border-error px-3 py-2 text-body-medium text-error">
             <p>{apiError(table.error, 'Таблица не применила отбор или сортировку')}</p>
-            <div className="mt-1.5 flex gap-3 text-xs">
+            <div className="mt-1.5 flex gap-3 text-body-small">
               {filter !== null && (
                 <button type="button" className="underline" onClick={() => setView(v => withFilter(v, null))}>
                   Снять отбор
@@ -248,13 +248,13 @@ export function TablePage() {
             </div>
           </div>
         ) : !data ? (
-          <p className="mt-3 text-sm text-on-surface-variant">Строки загружаются…</p>
+          <p className="mt-3 text-body-medium text-on-surface-variant">Строки загружаются…</p>
         ) : (
           <>
             {/* Ответ неполон — говорим это НАД строками, а не подписью колонки: колонки может не быть
                 на экране, а отбор по ней стоит, и пустая таблица читалась бы как «таких строк нет». */}
             {data.doubts?.map(doubt => (
-              <p key={doubt.column} role="status" className="mt-2 text-xs text-warning">
+              <p key={doubt.column} role="status" className="mt-2 text-body-small text-warning">
                 «{doubt.label}» — {doubt.reason}. Строк под отбором по этой колонке может быть больше, чем показано.
               </p>
             ))}
@@ -327,7 +327,7 @@ function Pager({ view, data, onChange }: {
   const pages = pageCount(data.count, view.size);
   const button = 'p-1 rounded-sm text-on-surface-variant hover:text-on-surface state-layer disabled-content';
   return (
-    <div className="mt-2 flex items-center gap-3 text-xs text-on-surface-variant">
+    <div className="mt-2 flex items-center gap-3 text-body-small text-on-surface-variant">
       <span>{shownOf(data)}</span>
       <div className="flex-1" />
       <span className="flex items-center gap-1.5">

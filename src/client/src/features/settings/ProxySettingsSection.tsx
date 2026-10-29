@@ -96,7 +96,7 @@ export function ProxySettingsSection() {
 
   return (
     <CollapsibleSection title="Прокси" storageKey="proxy" defaultOpen={false}>
-      <p className="text-xs text-on-surface-variant">
+      <p className="text-body-small text-on-surface-variant">
         Прокси для внешних сервисов: распознавания, веб-поиска, почты, проверки обновлений и GitHub.
         Через него ходят только сервисы с галкой «Через прокси» в своих настройках — остальные, в том
         числе хранилище и плагины, подключаются напрямую.
@@ -115,21 +115,21 @@ export function ProxySettingsSection() {
       </div>
 
       {passwordWillDrop && (
-        <p className="text-xs text-warning">
+        <p className="text-body-small text-warning">
           Адрес прокси или пользователь меняется, а поле пароля пусто — сохранённый пароль будет удалён:
           на другой прокси он не отправляется. Введите пароль для нового.
         </p>
       )}
 
       {data && saved?.url && (
-        <p className="text-xs text-on-surface-variant">
+        <p className="text-body-small text-on-surface-variant">
           {via.length > 0
             ? <>Через прокси: {via.join(', ')}.</>
             : <span className="text-warning">Прокси задан, но ни у одного сервиса не отмечена галка «Через прокси» — все ходят напрямую.</span>}
         </p>
       )}
 
-      <p className="text-xs text-on-surface-variant">
+      <p className="text-body-small text-on-surface-variant">
         Загрузка по внешним ссылкам через прокси: адрес по-прежнему проверяется системой, но прокси
         разрешает имя сам и видит свою сеть, поэтому запрет на внутренние адреса должен быть настроен
         и на самом прокси.
@@ -154,7 +154,7 @@ export function ProxySettingsSection() {
       </div>
 
       {result && (
-        <p className={`text-xs ${result.ok ? 'text-success' : 'text-error'}`}>
+        <p className={`text-body-small ${result.ok ? 'text-success' : 'text-error'}`}>
           {result.message}
           {result.target && <span className="block text-on-surface-variant">Проверяли на {result.target}, {result.ms} мс.</span>}
         </p>

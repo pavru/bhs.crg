@@ -34,7 +34,7 @@ import { Tooltip } from '@/shared/ui/Tooltip';
 export function BackupSection() {
   return (
     <CollapsibleSection title="Резервное копирование" storageKey="backup" defaultOpen={false}>
-      <p className="text-xs text-on-surface-variant">
+      <p className="text-body-small text-on-surface-variant">
         <b>Настройка системы</b> — типы документов, шаблоны и их ассеты, справочники, общие данные,
         библиотека Typst, профили распознавания, шаблоны маппинга и рецепты обработки, алиасы
         сверки — входит в копию всегда, вместе с библиотекой документов качества и сканами.
@@ -153,11 +153,11 @@ function BackupFilesPanel() {
     <div className="space-y-3">
       {data && <ScheduleForm status={data.schedule} />}
 
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        <span className="text-on-surface-variant text-xs">Что включать:</span>
+      <div className="flex flex-wrap items-center gap-3 text-body-medium">
+        <span className="text-on-surface-variant text-body-small">Что включать:</span>
         {([['Full', 'настройку и проектные данные'], ['Configuration', 'только настройку']] as const)
           .map(([value, label]) => (
-            <label key={value} className="flex items-center gap-1.5 text-xs text-on-surface-variant">
+            <label key={value} className="flex items-center gap-1.5 text-body-small text-on-surface-variant">
               <input type="radio" name="backup-scope" checked={scope === value}
                 onChange={() => setScope(value)} disabled={busy} />
               {label}
@@ -180,14 +180,14 @@ function BackupFilesPanel() {
         </Button>
         <input ref={fileInputRef} type="file" accept=".zip" className="hidden" onChange={handleUpload} />
         {data && (
-          <span className="text-xs text-on-surface-variant">
+          <span className="text-body-small text-on-surface-variant">
             {files.length} из {data.keepCount}
           </span>
         )}
       </div>
 
       {full && (
-        <p className="text-xs text-warning flex items-start gap-1">
+        <p className="text-body-small text-warning flex items-start gap-1">
           <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
           <span>
             Каталог заполнен: новая копия не создастся, пока не удалить старые. Старые не убираются
@@ -197,16 +197,16 @@ function BackupFilesPanel() {
       )}
 
       {error && (
-        <p className="text-xs text-error flex items-start gap-1">
+        <p className="text-body-small text-error flex items-start gap-1">
           <Icon icon={Cancel} size={18} className="shrink-0 mt-px" /> <span>{error}</span>
         </p>
       )}
 
-      {isPending && <p className="text-xs text-on-surface-variant">Список копий загружается…</p>}
-      {isError && <p className="text-xs text-error">Не удалось прочитать каталог копий.</p>}
+      {isPending && <p className="text-body-small text-on-surface-variant">Список копий загружается…</p>}
+      {isError && <p className="text-body-small text-error">Не удалось прочитать каталог копий.</p>}
 
       {!isPending && !isError && files.length === 0 && (
-        <p className="text-xs text-on-surface-variant">Копий пока нет.</p>
+        <p className="text-body-small text-on-surface-variant">Копий пока нет.</p>
       )}
 
       {files.length > 0 && (
@@ -223,34 +223,34 @@ function BackupFilesPanel() {
                   {expanded === f.fileName ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
                 </button>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-on-surface truncate">
+                  <p className="text-body-medium text-on-surface truncate">
                     {f.fileName}
-                    <span className="ml-2 text-caption text-on-surface-variant font-normal">
+                    <span className="ml-2 text-label-small text-on-surface-variant font-normal">
                       {f.includesProjectData ? 'полная' : 'настройка'}
                     </span>
                     {scheduled.has(f.fileName) && (
                       <Tooltip content="Снята расписанием — попадает под уборку старых">
-                        <span className="ml-2 text-caption text-on-surface-variant font-normal">
+                        <span className="ml-2 text-label-small text-on-surface-variant font-normal">
                           плановая
                         </span>
                       </Tooltip>
                     )}
                   </p>
-                  <p className="text-xs text-on-surface-variant">
+                  <p className="text-body-small text-on-surface-variant">
                     {formatDateTime(f.createdAt)}
                     {' · '}{formatBytes(f.sizeBytes)}
                     {f.appVersion && <> · v{f.appVersion}</>}
                     {f.blobCount !== null && <> · файлов: {f.blobCount}</>}
                   </p>
                   {f.problem && (
-                    <p className="text-xs text-warning flex items-start gap-1 mt-0.5">
+                    <p className="text-body-small text-warning flex items-start gap-1 mt-0.5">
                       <Icon icon={Warning} size={18} className="shrink-0 mt-px" /> <span>{f.problem}</span>
                     </p>
                   )}
                   {/* Пропущенное при СНЯТИИ копии — здесь, а не только в журнале: узнать об этом
                       при восстановлении значит узнать после аварии. */}
                   {f.warnings?.map((w, i) => (
-                    <p key={i} className="text-xs text-warning flex items-start gap-1 mt-0.5">
+                    <p key={i} className="text-body-small text-warning flex items-start gap-1 mt-0.5">
                       <Icon icon={Warning} size={18} className="shrink-0 mt-px" /> <span>{w}</span>
                     </p>
                   ))}
@@ -274,7 +274,7 @@ function BackupFilesPanel() {
               {expanded === f.fileName && (
                 <div className="pl-7 pr-2 pb-1 pt-1">
                   {f.sections && f.sections.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-0.5 text-xs sm:grid-cols-3">
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-0.5 text-body-small sm:grid-cols-3">
                       {f.sections.map(s => (
                         <div key={s.label} className="flex justify-between gap-2">
                           <span className="text-on-surface-variant truncate">{s.label}</span>
@@ -283,7 +283,7 @@ function BackupFilesPanel() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-on-surface-variant">Состав неизвестен: в архиве нет паспорта копии.</p>
+                    <p className="text-body-small text-on-surface-variant">Состав неизвестен: в архиве нет паспорта копии.</p>
                   )}
                 </div>
               )}
@@ -293,7 +293,7 @@ function BackupFilesPanel() {
       )}
 
       {data && (
-        <p className="text-xs text-on-surface-variant">
+        <p className="text-body-small text-on-surface-variant">
           Каталог на сервере: <span className="font-mono">{data.directory}</span>. Копию в несколько
           гигабайт забирают и приносят файлами прямо туда — браузер такую не потянет ни на
           скачивании, ни на загрузке.
@@ -410,7 +410,7 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
           {report.success
             ? <Icon icon={CheckCircle} size={20} className="text-success shrink-0" />
             : <Icon icon={Cancel} size={20} className="text-error shrink-0" />}
-          <span className="text-sm font-medium">
+          <span className="text-body-medium font-medium">
             {report.success
               ? `Восстановление выполнено успешно (${total} записей)`
               : 'Восстановление завершилось с ошибкой'}
@@ -418,7 +418,7 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
         </div>
 
         {report.conversionNotice && (
-          <div className="flex gap-2 rounded-md border border-primary-container bg-primary-container p-3 text-sm text-on-primary-container">
+          <div className="flex gap-2 rounded-md border border-primary-container bg-primary-container p-3 text-body-medium text-on-primary-container">
             <Icon icon={Info} size={18} className="shrink-0 mt-0.5" />
             <span>{report.conversionNotice}</span>
           </div>
@@ -444,7 +444,7 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
               ...(report.projectSections ?? []),
             ]} />
             {report.typstUserLibRestored && (
-              <p className="px-4 py-2 text-xs text-on-surface-variant">Библиотека Typst (userlib) восстановлена.</p>
+              <p className="px-4 py-2 text-body-small text-on-surface-variant">Библиотека Typst (userlib) восстановлена.</p>
             )}
             {/*
               Семантика восстановления нигде не была объявлена, а она не очевидна: копия ДОБАВЛЯЕТ и
@@ -452,7 +452,7 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
               состоянию не вернётся — он останется. Поведение выбрано намеренно (безопаснее не
               удалять), но оператор вправе знать о нём до того, как удивится.
             */}
-            <p className={`px-4 py-2 text-xs text-on-surface-variant ${report.typstUserLibRestored ? 'border-t border-outline-variant' : ''}`}>
+            <p className={`px-4 py-2 text-body-small text-on-surface-variant ${report.typstUserLibRestored ? 'border-t border-outline-variant' : ''}`}>
               Восстановление добавляет и обновляет записи, но <b>не удаляет</b> то, чего в копии нет:
               созданное после снятия копии останется на месте. Кроме библиотеки Typst — её дерево
               файлов замещается целиком.
@@ -462,11 +462,11 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
 
         {report.warnings.length > 0 && (
           <div className="rounded-md border border-outline-variant bg-warning-container p-3 space-y-1">
-            <p className="text-xs font-semibold text-warning uppercase tracking-wide mb-2">
+            <p className="text-body-small font-semibold text-warning uppercase tracking-wide mb-2">
               Предупреждения ({report.warnings.length})
             </p>
             {report.warnings.map((w, i) => (
-              <div key={i} className="flex gap-2 text-sm text-warning">
+              <div key={i} className="flex gap-2 text-body-medium text-warning">
                 <span className="shrink-0">·</span>
                 <span>{w}</span>
               </div>

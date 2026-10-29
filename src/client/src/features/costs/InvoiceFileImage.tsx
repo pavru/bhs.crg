@@ -95,7 +95,7 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant shrink-0">
         <Icon icon={TableChart} size={18} className="text-on-surface-variant shrink-0" />
-        <span className="text-xs text-on-surface-variant truncate flex-1">{fileName ?? 'Файл счёта'}</span>
+        <span className="text-body-small text-on-surface-variant truncate flex-1">{fileName ?? 'Файл счёта'}</span>
         {/* Во вкладке — полный просмотрщик браузера: поиск, печать с настройками (issue #1490). */}
         <Button size="sm" icon={<Icon icon={OpenInNew} size={18} />} disabled={!bytes}
           onClick={() => { if (bytes) void openInNewTab(bytes); }}>
@@ -106,7 +106,7 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
       {/* Одна строка (issue #1495, вариант Б): короткая фраза, чип и «Перестроить»; в узкой колонке чип с
           кнопкой уходят на вторую строку вместе. Фраза не обрезается — многоточие срезало бы как раз
           «документ — оригинал»; остальное, что о виде сказать, — в её подсказке и окне. */}
-      <div className="px-3 py-1.5 border-b border-outline-variant bg-surface-container text-xs text-on-surface-variant shrink-0" data-testid="image-caveat">
+      <div className="px-3 py-1.5 border-b border-outline-variant bg-surface-container text-body-small text-on-surface-variant shrink-0" data-testid="image-caveat">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <CaveatPhrase about={`Вид для чтения${image.pages ? `, ${image.pages} стр.` : ''}: ${IMAGE_CAVEAT}. `
             + `Построен ${image.builtAt ? formatDateTime(image.builtAt) : ''} из файла${fileName ? ` «${fileName}»` : ''}. `
@@ -175,7 +175,7 @@ function CaveatPhrase({ about }: { about: string }) {
       </Tooltip>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6} aria-label="Вид для чтения" data-testid="image-caveat-about"
-          className="z-50 w-72 max-w-(--radix-popover-content-available-width) rounded-md border border-outline-variant bg-surface p-3 text-xs text-on-surface shadow-elevation-2">
+          className="z-50 w-72 max-w-(--radix-popover-content-available-width) rounded-md border border-outline-variant bg-surface p-3 text-body-small text-on-surface shadow-elevation-2">
           {about}
         </Popover.Content>
       </Popover.Portal>
@@ -202,7 +202,7 @@ export function RefusedImage({ invoiceId, blobPath, fileName, image, canEdit, re
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant shrink-0">
         <Icon icon={TableChart} size={18} className="text-on-surface-variant shrink-0" />
-        <span className="text-xs text-on-surface-variant truncate flex-1">{fileName ?? 'Файл счёта'}</span>
+        <span className="text-body-small text-on-surface-variant truncate flex-1">{fileName ?? 'Файл счёта'}</span>
         <OriginalButton invoiceId={invoiceId} fileName={fileName} label="Оригинал" />
       </div>
       <div className="flex-1 min-h-0 bg-surface-container-low">
@@ -211,7 +211,7 @@ export function RefusedImage({ invoiceId, blobPath, fileName, image, canEdit, re
             {image.aboutFile
               ? <Icon icon={ScanDelete} size={20} className="text-warning" />
               : <Icon icon={CloudOff} size={20} className="text-on-surface-variant" />}
-            <span className="text-sm font-medium text-on-surface">
+            <span className="text-body-medium font-medium text-on-surface">
               {image.aboutFile ? 'Вид для чтения не построен' : 'Вид для чтения пока не построен'}
             </span>
             <span>{image.reason}</span>
@@ -248,7 +248,7 @@ const NO_PROFILES: PrintProfile[] = [];
 
 /** Сообщение посреди панели. Одно на панель файла и на вид для чтения. */
 export function Centered({ children }: { children: React.ReactNode }) {
-  return <div className="h-full grid place-items-center p-4 text-xs text-on-surface-variant text-center">{children}</div>;
+  return <div className="h-full grid place-items-center p-4 text-body-small text-on-surface-variant text-center">{children}</div>;
 }
 
 /** Вид одним чтением — байтами для просмотрщика; перечитывается, когда вид перестроен. */

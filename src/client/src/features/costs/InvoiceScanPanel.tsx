@@ -118,7 +118,7 @@ function OriginalFile({ invoiceId, blobPath, fileName }: {
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant shrink-0">
         <Icon icon={Description} size={18} className="text-on-surface-variant shrink-0" />
-        <span className="text-xs text-on-surface-variant truncate flex-1">{fileName ?? 'Файл счёта'}</span>
+        <span className="text-body-small text-on-surface-variant truncate flex-1">{fileName ?? 'Файл счёта'}</span>
         {canOpen
           ? (
             // Выход в полный просмотрщик браузера (поиск, печать с настройками), а не «крупнее»: крупнее
@@ -242,18 +242,18 @@ export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
       <div className="min-w-0 flex-1">
         {refused
           ? (
-            <p className="text-xs text-on-surface-variant">
+            <p className="text-body-small text-on-surface-variant">
               Файл приложен, но вид для чтения не построен. {refused.reason}
               {refused.aboutFile ? ' Показать и распознать его нельзя.' : ' Дело не в файле — откройте счёт позже.'}
             </p>
           )
           : (
-            <p className="text-xs text-on-surface-variant">
+            <p className="text-body-small text-on-surface-variant">
               Файл приложен, но рядом с формой он не показывается: для двух панелей нужна ширина
               не меньше 1280 пикселей, а здесь {width}.
             </p>
           )}
-        {built && <p className="text-xs text-on-surface-variant">Откроется вид для чтения — {IMAGE_CAVEAT}.</p>}
+        {built && <p className="text-body-small text-on-surface-variant">Откроется вид для чтения — {IMAGE_CAVEAT}.</p>}
         {(built || refused) && (
           <div className="flex gap-2 mt-1">
             {built && (

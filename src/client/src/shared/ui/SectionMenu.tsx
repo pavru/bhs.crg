@@ -7,7 +7,7 @@ import { MICRO_HEADING } from './panelLink';
 import { ownerItem, type PanelGroup } from './railSections';
 import type { SectionMenuValue } from './sectionMenuContext';
 
-const item = 'flex items-center h-11 px-3 rounded-full text-sm select-none outline-none cursor-pointer state-layer';
+const item = 'flex items-center h-11 px-3 rounded-full text-body-medium select-none outline-none cursor-pointer state-layer';
 
 /**
  * Меню страниц раздела — на телефоне вместо подпанели (issue #1434). Открывается заголовком страницы

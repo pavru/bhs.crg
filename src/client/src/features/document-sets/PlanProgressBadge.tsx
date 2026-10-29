@@ -22,7 +22,7 @@ export function PlanProgressBadge({ progress, className = '' }: {
 
   return (
     <Tooltip content={planTitle(progress)}>
-      <span className={`inline-flex items-center gap-1.5 text-caption ${className}`}>
+      <span className={`inline-flex items-center gap-1.5 text-label-small ${className}`}>
         <span className={`px-2 py-0.5 rounded-full tabular-nums ${
           done ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-on-surface-variant'}`}>
           {progress.ready} / {progress.planned} · {progress.percent}%

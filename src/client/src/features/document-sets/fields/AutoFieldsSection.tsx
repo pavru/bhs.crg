@@ -27,13 +27,13 @@ export function AutoFieldsSection(
             поэтому он приглушён: brand в этой строке должен быть ровно один, и указывать он должен
             на факт, ради которого сюда смотрят. */}
         <Icon icon={Database} size={18} className="text-on-surface-variant shrink-0" />
-        <span className="text-xs text-on-surface-variant flex-1">Заполняются автоматически</span>
+        <span className="text-body-small text-on-surface-variant flex-1">Заполняются автоматически</span>
         {/* Факт в подписи самой раскрывашки — здесь он НЕСУЩИЙ, а не дублирующий: секция свёрнута
             по умолчанию, и значок у поля внутри неё человек по умолчанию не видит вовсе. Отдельной
             интерактивности факту не даём — заголовок и так кнопка с очевидным действием.
             Общее число оставлено намеренно: «со сканов: 4» — подмножество, и без основания оно не
             читается. 4 из 4 и 4 из 40 — разные решения, а решает именно отношение. */}
-        <span className="text-xs text-on-surface-variant">
+        <span className="text-body-small text-on-surface-variant">
           {count} п.
           {recognizedCount > 0 && (
             <Tooltip content="Часть значений распознана с отсканированных документов — возможны ошибки чтения. Править их можно в источнике данных.">

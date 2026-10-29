@@ -20,8 +20,8 @@ export function EmptyState({
         {icon}
       </div>
       <div className="space-y-1">
-        <h3 className="text-base font-medium text-on-surface">{title}</h3>
-        {description && <p className="mx-auto max-w-sm text-sm text-on-surface-variant">{description}</p>}
+        <h3 className="text-body-large font-medium text-on-surface">{title}</h3>
+        {description && <p className="mx-auto max-w-sm text-body-medium text-on-surface-variant">{description}</p>}
       </div>
       {action && <div className="pt-1">{action}</div>}
     </div>

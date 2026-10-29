@@ -55,10 +55,10 @@ export function CompanySection() {
 
   return (
     <CollapsibleSection title="Компания" storageKey="company" defaultOpen={false}
-      right={dirty || zoneDirty ? <span className="text-xs text-warning normal-case">не сохранено</span> : undefined}>
+      right={dirty || zoneDirty ? <span className="text-body-small text-warning normal-case">не сохранено</span> : undefined}>
       {isError && (
         <div className="flex items-center gap-3">
-          <span className="text-sm text-error">Настройки компании не загрузились.</span>
+          <span className="text-body-medium text-error">Настройки компании не загрузились.</span>
           <Button variant="outlined" size="sm" onClick={() => void refetch()}>Повторить</Button>
         </div>
       )}
@@ -67,9 +67,9 @@ export function CompanySection() {
           показать выбранным то, чего не выбирали. */}
       {data && (data.locked ? (
         <div data-testid="currency-locked">
-          <p className="text-xs text-on-surface-variant">Валюта учёта</p>
-          <p className="text-sm text-on-surface mt-0.5">{currencyTitle(data, data.currency)}</p>
-          <p className="text-xs text-on-surface-variant mt-1.5 max-w-xl">{data.reason}</p>
+          <p className="text-body-small text-on-surface-variant">Валюта учёта</p>
+          <p className="text-body-medium text-on-surface mt-0.5">{currencyTitle(data, data.currency)}</p>
+          <p className="text-body-small text-on-surface-variant mt-1.5 max-w-xl">{data.reason}</p>
         </div>
       ) : (
         <>
@@ -80,7 +80,7 @@ export function CompanySection() {
                 <SelectItem key={c.code} value={c.code}>{c.title} ({c.code})</SelectItem>
               ))}
             </Select>
-            <p className="text-xs text-on-surface-variant mt-1.5 max-w-xl">
+            <p className="text-body-small text-on-surface-variant mt-1.5 max-w-xl">
               В этой валюте ведутся все суммы: счета, накладные, затраты по стройкам. Сменить её
               можно, пока в системе нет ни одного счёта и накладной: суммы при смене не
               пересчитываются.
@@ -99,7 +99,7 @@ export function CompanySection() {
 
       {data?.stale && (
         <div data-testid="currency-stale">
-          <p className="text-xs text-warning max-w-xl">
+          <p className="text-body-small text-warning max-w-xl">
             В базе сохранено «{data.stale}» — такой валюты в списке нет, действует{' '}
             {currencyTitle(data, data.currency)}.
           </p>

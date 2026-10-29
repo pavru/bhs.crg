@@ -87,26 +87,26 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
     <>
       <Modal open={open} onOpenChange={o => { if (!o) onClose(); }} title={`Аудит типа «${typeName}»`} wide>
         {isLoading ? (
-          <div className="flex items-center gap-2 py-8 justify-center text-on-surface-variant text-sm">
+          <div className="flex items-center gap-2 py-8 justify-center text-on-surface-variant text-body-medium">
             <CircularProgress size={18} /> Проверка инстансов…
           </div>
         ) : isError ? (
-          <p className="text-sm text-error py-6 text-center">Не удалось выполнить аудит.</p>
+          <p className="text-body-medium text-error py-6 text-center">Не удалось выполнить аудит.</p>
         ) : (
           <div className="space-y-4">
-            <p className="text-xs text-on-surface-variant">
+            <p className="text-body-small text-on-surface-variant">
               Проверено инстансов (с подтипами): <b className="text-on-surface-variant">{data?.instanceCount ?? 0}</b>.
               {total > 0 && <> Найдено расхождений: <b className="text-on-surface-variant">{total}</b>.</>}
             </p>
 
             {total === 0 ? (
-              <div className="flex items-center gap-2 p-3 rounded-sm text-sm bg-success-container text-on-success-container">
+              <div className="flex items-center gap-2 p-3 rounded-sm text-body-medium bg-success-container text-on-success-container">
                 <Icon icon={CheckCircle} size={18} className="shrink-0" /> Данные инстансов соответствуют текущей схеме.
               </div>
             ) : (
               groups.map(([code, rows]) => (
                 <div key={code} className="rounded-sm border border-outline-variant overflow-hidden">
-                  <div className="flex items-center gap-2 px-3 py-2 bg-surface-container-low text-xs font-medium text-on-surface-variant">
+                  <div className="flex items-center gap-2 px-3 py-2 bg-surface-container-low text-body-small font-medium text-on-surface-variant">
                     <Icon icon={Warning} size={18} className="text-warning shrink-0" />
                     {CATEGORY_LABEL[code] ?? code}
                     <span className="text-on-surface-variant font-normal">· {rows.length}</span>
@@ -126,18 +126,18 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
                             className="w-full flex items-start gap-2 px-3 py-2 text-left state-layer">
                             {isOpen ? <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0 mt-0.5" /> : <Icon icon={ChevronRight} size={18} className="text-on-surface-variant shrink-0 mt-0.5" />}
                             <span className="min-w-0 flex-1">
-                              <code className="text-xs text-on-surface-variant break-all">{row.path}</code>
-                              <span className="block text-xs text-on-surface-variant">{row.message}</span>
+                              <code className="text-body-small text-on-surface-variant break-all">{row.path}</code>
+                              <span className="block text-body-small text-on-surface-variant">{row.message}</span>
                             </span>
-                            <span className="text-xs text-on-surface-variant tabular-nums shrink-0 mt-0.5">{row.instances.length} инст.</span>
+                            <span className="text-body-small text-on-surface-variant tabular-nums shrink-0 mt-0.5">{row.instances.length} инст.</span>
                           </button>
                           {isOpen && (
                             <div className="px-3 pb-3 pl-9 space-y-2">
                               <ul className="space-y-0.5">
-                                {row.instances.map(i => <li key={i.id} className="text-xs text-on-surface-variant truncate">{i.name}</li>)}
+                                {row.instances.map(i => <li key={i.id} className="text-body-small text-on-surface-variant truncate">{i.name}</li>)}
                               </ul>
                               {FIXED_ELSEWHERE.has(row.code) ? (
-                                <p className="pt-1 text-xs text-on-surface-variant">
+                                <p className="pt-1 text-body-small text-on-surface-variant">
                                   Правится в настройке привязок: переключите на поле текущей схемы
                                   или удалите привязку.
                                 </p>
@@ -159,7 +159,7 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
                                 </Button>
                                 {canRename && (
                                   <>
-                                    <span className="text-on-surface-variant text-xs">или переименовать в</span>
+                                    <span className="text-on-surface-variant text-body-small">или переименовать в</span>
                                     <Select size="sm" className="w-auto min-w-36" aria-label={`Переименовать «${k}» в поле схемы`}
                                       value={renameTarget[k] ?? ''} disabled={applyFixes.isPending} placeholder="поле схемы…"
                                       onValueChange={v => setRenameTarget(t => ({ ...t, [k]: v }))}>

@@ -281,7 +281,7 @@ export function EditGrid<Row>({
 }
 
 /** Итоговая строка: липнет к низу, как у `DataGrid`, — итог виден при любой длине черновика. */
-const FOOT = 'sticky bottom-0 z-10 bg-surface-container border-t border-outline-variant px-2 py-1.5 text-xs text-on-surface-variant align-top';
+const FOOT = 'sticky bottom-0 z-10 bg-surface-container border-t border-outline-variant px-2 py-1.5 text-body-small text-on-surface-variant align-top';
 
 function RemoveButton({ index, label, onClick }: { index: number; label: string; onClick: () => void }) {
   return (

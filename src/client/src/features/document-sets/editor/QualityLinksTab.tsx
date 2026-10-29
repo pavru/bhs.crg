@@ -385,7 +385,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
         sectionId={sectionId} constructionId={constructionId} />
 
       {materials.length === 0 ? (
-        <p className="text-sm text-on-surface-variant text-center py-6">
+        <p className="text-body-medium text-on-surface-variant text-center py-6">
           Нет материалов. Настройте набор данных (кнопка «Источники» в шапке документа) и нажмите «Обновить материалы».
         </p>
       ) : (
@@ -404,20 +404,20 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
       <div className="flex items-center gap-3">
         <Tooltip content="Посмотреть подсказки из библиотеки и привязать выбранные">
           <button onClick={reviewLibrarySuggestions} disabled={suggestCount === 0}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-primary-container text-on-primary-container rounded-sm hover:bg-primary/15 disabled-container">
+            className="flex items-center gap-2 px-4 py-2 text-body-medium bg-primary-container text-on-primary-container rounded-sm hover:bg-primary/15 disabled-container">
             <Icon icon={Check} size={18} /> Предложения из библиотеки ({suggestCount})
           </button>
         </Tooltip>
         <Tooltip content="Предложить связи по истории привязок (для строк, где нет подсказки из библиотеки)">
           <button onClick={handleSuggest} disabled={suggesting || materials.length === 0}
-            className="flex items-center gap-2 px-4 py-2 text-sm border border-outline-variant rounded-sm state-layer disabled-outlined">
+            className="flex items-center gap-2 px-4 py-2 text-body-medium border border-outline-variant rounded-sm state-layer disabled-outlined">
             {suggesting ? <CircularProgress size={18} /> : <Icon icon={VerifiedUser} size={18} className="text-on-surface-variant" />}
             Предложить по истории
           </button>
         </Tooltip>
       </div>
 
-      <p className="text-xs text-on-surface-variant">
+      <p className="text-body-small text-on-surface-variant">
         Связь хранится по идентичности материала и подмешивается в поле документа качества при
         генерации — переживает переимпорт набора данных. Подсказки из библиотеки — по релевантности
         (без просроченных); их можно принять по одной в строке или разобрать списком.

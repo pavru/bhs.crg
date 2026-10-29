@@ -74,7 +74,10 @@
     "disabled": "^(?:disabled|data-\\[disabled\\]):opacity-\\d+$"
   },
   "classes": {
-    "text-base": { "skip": "размер текста, а не цвет", "notColor": true },
+    "text-xs": { "to": "text-body-small" },
+    "text-sm": { "to": "text-body-medium" },
+    "text-base": { "to": "text-body-large" },
+    "text-caption": { "to": "text-label-small" },
     "text-stroke-strong": { "to": "text-on-surface-variant" }
   },
   "radius": {

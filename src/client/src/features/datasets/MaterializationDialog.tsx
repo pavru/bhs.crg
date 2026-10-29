@@ -259,7 +259,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
         </div>
       }>
       <div className="space-y-4">
-        <p className="text-xs text-on-surface-variant">
+        <p className="text-body-small text-on-surface-variant">
           Источник разворачивает каждую строку (после всех обработок) в сущность выбранного типа.
           Маппинг задаётся здесь один раз — поля документов совместимого типа ссылаются на источник без маппинга.
         </p>
@@ -267,7 +267,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
             несохранённая настройка выглядела бы как мёртвое нажатие (issue #1141 — отказ «источник
             тем временем изменили»; тем же путём доходит и отказ проверки настройки). */}
         {save.error && (
-          <p role="alert" className="text-xs text-error">
+          <p role="alert" className="text-body-small text-error">
             {apiError(save.error, 'Не удалось сохранить материализацию')}
           </p>
         )}
@@ -306,7 +306,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
             {/* Тип-документ можно не собирать, а назвать: строка ссылается на уже существующий
                 документ комплекта (issue #725). Составным типам выбирать не из чего. */}
             {isDocumentType && (
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-body-small">
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input type="radio" name="materialize-source-mode" checked={!byIdMode}
                     onChange={() => switchByIdMode(false)} />
@@ -326,16 +326,16 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                   emptyItem="— не выбрана —">
                   {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </Select>
-                <span className="text-caption text-on-surface-variant flex items-center gap-1">
+                <span className="text-label-small text-on-surface-variant flex items-center gap-1">
                   <Icon icon={Info} size={18} /> строка целиком становится ссылкой на документ — поля берутся из него самого
                 </span>
               </div>
             ) : effectiveFields.length === 0 ? (
-              <p className="text-xs text-warning">У типа «{selectedType.name}» нет полей — задайте поля типу, чтобы было куда маппить.</p>
+              <p className="text-body-small text-warning">У типа «{selectedType.name}» нет полей — задайте поля типу, чтобы было куда маппить.</p>
             ) : (
             <>
               {isUnion && (
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-body-small">
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input type="radio" name="materialize-mode" checked={!byRowType} onChange={() => switchMode(false)} />
                     <span className={byRowType ? 'text-on-surface-variant' : 'text-on-surface'}>один вариант на все строки</span>
@@ -350,7 +350,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
               {isUnion && !byRowType && (
                 <div className="space-y-1.5">
                   <Tooltip content="Заполняется ровно один из вариантов">
-                    <span className="text-caption text-on-surface-variant flex items-center gap-1">
+                    <span className="text-label-small text-on-surface-variant flex items-center gap-1">
                       <Icon icon={Info} size={18} /> выберите вариант — заполняется ровно один
                     </span>
                   </Tooltip>
@@ -388,7 +388,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
             )}
 
             {problem && (
-              <p className="text-xs text-error flex items-start gap-1">
+              <p className="text-body-small text-error flex items-start gap-1">
                 <Icon icon={Warning} size={18} className="shrink-0 mt-px" /> {problem}
               </p>
             )}
@@ -398,7 +398,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
         {typeId && (
           <div>
             <button type="button" onClick={() => setShowPreview(v => !v)}
-              className="text-xs text-primary state-layer">
+              className="text-body-small text-primary state-layer">
               {showPreview ? 'Скрыть предпросмотр' : 'Предпросмотр материализации'}
             </button>
             {showPreview && (
@@ -406,42 +406,42 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
               // пропущенные строки и их число — под ней, видны при любой прокрутке.
               <div className={`mt-2 ${dtCard} max-h-72 flex flex-col`}>
                 {preview.isLoading ? (
-                  <p className="text-xs text-on-surface-variant p-3">Загрузка…</p>
+                  <p className="text-body-small text-on-surface-variant p-3">Загрузка…</p>
                 ) : preview.data?.error ? (
-                  <p className="text-xs text-error p-3">{preview.data.error}</p>
+                  <p className="text-body-small text-error p-3">{preview.data.error}</p>
                 ) : preview.data && preview.data.rows.length > 0 ? (
                   previewModel.leaves.length === 0 ? (
-                    <p className="text-xs text-on-surface-variant p-3">Нет заполненных полей — задайте маппинг.</p>
+                    <p className="text-body-small text-on-surface-variant p-3">Нет заполненных полей — задайте маппинг.</p>
                   ) : (
                     <>
                       {previewModel.unwrappedLabel && (
-                        <p className="text-caption text-on-surface-variant px-2 pt-2">Вариант: <span className="text-on-surface-variant">{previewModel.unwrappedLabel}</span></p>
+                        <p className="text-label-small text-on-surface-variant px-2 pt-2">Вариант: <span className="text-on-surface-variant">{previewModel.unwrappedLabel}</span></p>
                       )}
                       <DataGrid framed={false} density="compact" className="min-h-0" columns={previewColumns} rows={previewModel.rows} />
                     </>
                   )
                 ) : (
-                  <p className="text-xs text-on-surface-variant p-3">Нет строк.</p>
+                  <p className="text-body-small text-on-surface-variant p-3">Нет строк.</p>
                 )}
                 {/* Пропущенные видны ВСЕГДА, а не по раскрытию: строка, не доехавшая до реестра, —
                     это и есть то, ради чего предпросмотр открывают. */}
                 {!!preview.data?.skipped?.length && (
                   <div className="px-2 py-1.5 border-t border-outline-variant space-y-0.5">
-                    <p className="text-caption text-warning flex items-center gap-1">
+                    <p className="text-label-small text-warning flex items-center gap-1">
                       <Icon icon={Warning} size={18} /> Пропущено строк: {preview.data.skipped.length}
                     </p>
                     {preview.data.skipped.slice(0, 8).map(sk => (
-                      <p key={sk.rowNumber} className="text-caption text-on-surface-variant">
+                      <p key={sk.rowNumber} className="text-label-small text-on-surface-variant">
                         строка {sk.rowNumber}
                         {sk.value ? <> · <span className="text-on-surface-variant">{sk.value}</span></> : null} — {sk.reason}
                       </p>
                     ))}
                     {preview.data.skipped.length > 8 && (
-                      <p className="text-caption text-on-surface-variant">…и ещё {preview.data.skipped.length - 8}</p>
+                      <p className="text-label-small text-on-surface-variant">…и ещё {preview.data.skipped.length - 8}</p>
                     )}
                   </div>
                 )}
-                {preview.data && <p className="text-caption text-on-surface-variant px-2 py-1">Всего строк: {preview.data.totalRows}</p>}
+                {preview.data && <p className="text-label-small text-on-surface-variant px-2 py-1">Всего строк: {preview.data.totalRows}</p>}
               </div>
             )}
           </div>

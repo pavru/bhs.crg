@@ -94,9 +94,9 @@ export function OutlinedField({
       : focused ? 'text-primary' : 'text-on-surface-variant';
   // В `auto` метка стоит по центру и уезжает наверх; в `always` она уже наверху.
   const labelPosition = auto
-    ? 'top-1/2 -translate-y-1/2 text-sm peer-focus:top-0 peer-focus:text-xs '
-      + 'peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:text-xs'
-    : 'top-0 -translate-y-1/2 text-xs';
+    ? 'top-1/2 -translate-y-1/2 text-body-medium peer-focus:top-0 peer-focus:text-body-small '
+      + 'peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:text-body-small'
+    : 'top-0 -translate-y-1/2 text-body-small';
 
   // Звёздочка — знак для глаз, а не часть имени поля (issue #1291): обязательность читалке называет сам
   // контрол (`required` / `aria-required`), а текст подписи «Номер*» ломал бы поиск поля по его имени.
@@ -121,7 +121,7 @@ export function OutlinedField({
             и есть вырез — она же анимируется, когда метка всплывает. */}
         <fieldset aria-hidden
           className={`pointer-events-none absolute inset-x-0 bottom-0 top-[-5px] m-0 rounded-sm border px-3 transition-colors ease-standard ${borderColor} ${borderWidth} ${legendOpener}`}>
-          <legend className={`h-2.5 w-auto whitespace-nowrap p-0 text-xs invisible transition-[max-width] duration-100 ease-standard ${legendWidth}`}>
+          <legend className={`h-2.5 w-auto whitespace-nowrap p-0 text-body-small invisible transition-[max-width] duration-100 ease-standard ${legendWidth}`}>
             <span className="inline-block px-1 opacity-0">{label}{required ? ' *' : ''}</span>
           </legend>
         </fieldset>
@@ -131,8 +131,8 @@ export function OutlinedField({
         {trailing && <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10">{trailing}</div>}
       </div>
       {error
-        ? <p id={hintId} className="mt-1 px-1 text-xs text-error">{error}</p>
-        : hint ? <p id={hintId} className="mt-1 px-1 text-xs text-on-surface-variant">{hint}</p> : null}
+        ? <p id={hintId} className="mt-1 px-1 text-body-small text-error">{error}</p>
+        : hint ? <p id={hintId} className="mt-1 px-1 text-body-small text-on-surface-variant">{hint}</p> : null}
     </div>
   );
 }

@@ -75,14 +75,14 @@ function NotificationRow({ n }: { n: NotificationDto }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-on-surface truncate">{n.title}</p>
+          <p className="text-body-medium font-medium text-on-surface truncate">{n.title}</p>
           {!n.isRead && <span className="shrink-0 w-2 h-2 rounded-full bg-primary" />}
         </div>
         <p className="text-note leading-[1.45] text-on-surface-variant mt-1 break-words whitespace-pre-wrap">{n.message}</p>
         {n.linkUrl && (isExternalLink(n.linkUrl) ? (
           <a
             href={n.linkUrl} target="_blank" rel="noreferrer"
-            className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-secondary-container text-on-secondary-container state-layer"
+            className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-body-small font-medium bg-secondary-container text-on-secondary-container state-layer"
           >
             <Icon icon={OpenInNew} size={18} /> {n.linkLabel ?? 'Открыть'}
           </a>
@@ -90,7 +90,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
           <button
             type="button"
             onClick={() => { void openResult(n.linkUrl!); }}
-            className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-secondary-container text-on-secondary-container state-layer"
+            className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-body-small font-medium bg-secondary-container text-on-secondary-container state-layer"
           >
             <Icon icon={Download} size={18} /> {n.linkLabel ?? 'Открыть результат'}
           </button>
@@ -100,13 +100,13 @@ function NotificationRow({ n }: { n: NotificationDto }) {
             <button
               type="button"
               onClick={() => navigate(n.linkUrl!)}
-              className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-secondary-container text-on-secondary-container state-layer"
+              className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-body-small font-medium bg-secondary-container text-on-secondary-container state-layer"
             >
               <Icon icon={ArrowForward} size={18} /> {n.linkLabel ?? 'Открыть'}
             </button>
           </Popover.Close>
         ))}
-        <div className="flex items-center gap-2 mt-2 text-xs text-on-surface-variant">
+        <div className="flex items-center gap-2 mt-2 text-body-small text-on-surface-variant">
           {n.source && (
             <span className="inline-flex items-center h-6 px-3 rounded-md border border-outline-variant font-medium">{n.source}</span>
           )}
@@ -159,7 +159,7 @@ function HealthNote() {
   return (
     <div className="shrink-0 border-b border-outline-variant">
       <button type="button" aria-expanded={open} onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-2.5 pl-5 pr-4 py-2.5 text-left text-sm state-layer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
+        className="w-full flex items-center gap-2.5 pl-5 pr-4 py-2.5 text-left text-body-medium state-layer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
         <Icon icon={MonitorHeart} size={18} className={`shrink-0 ${down ? 'text-error' : 'text-warning'}`} />
         {/* Переносом, а не обрезкой: обрезанным оказывалось как раз имя сервиса — то, ради чего строка. */}
         <span className="flex-1 min-w-0">
@@ -174,13 +174,13 @@ function HealthNote() {
             const { dot, tone, label } = healthLook(c);
             return (
               <Tooltip key={c.code} content={c.detail ?? undefined}>
-                <div className="flex items-center gap-2.5 h-9 text-sm">
+                <div className="flex items-center gap-2.5 h-9 text-body-medium">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
                   <span className="text-on-surface flex-1 truncate">
                     {c.name}
-                    {c.viaProxy && <span className="ml-1.5 text-xs text-on-surface-variant">через прокси</span>}
+                    {c.viaProxy && <span className="ml-1.5 text-body-small text-on-surface-variant">через прокси</span>}
                   </span>
-                  <span className={`text-xs font-medium shrink-0 ${tone}`}>{label}</span>
+                  <span className={`text-body-small font-medium shrink-0 ${tone}`}>{label}</span>
                 </div>
               </Tooltip>
             );
@@ -208,7 +208,7 @@ export function NotificationList({ items, unread, className = '' }: {
   return (
     <section aria-labelledby={heading} className={`flex flex-col ${className}`}>
       <div className="shrink-0 flex items-center gap-2 pl-5 pr-2 py-2">
-        <h2 id={heading} className="flex-1 text-base font-medium text-on-surface">Уведомления</h2>
+        <h2 id={heading} className="flex-1 text-body-large font-medium text-on-surface">Уведомления</h2>
         <IconButton label="Отметить все прочитанными" onClick={() => markAll.mutate()} disabled={unread === 0}>
           <Icon icon={DoneAll} size={18} />
         </IconButton>
@@ -218,7 +218,7 @@ export function NotificationList({ items, unread, className = '' }: {
       </div>
       <HealthNote />
       {items.length === 0 ? (
-        <div className="px-6 py-9 text-center text-sm text-on-surface-variant">
+        <div className="px-6 py-9 text-center text-body-medium text-on-surface-variant">
           <Icon icon={NotificationsOff} size={40} className="mx-auto mb-2 opacity-50" />
           Нет новых уведомлений
         </div>

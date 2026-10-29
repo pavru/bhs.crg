@@ -113,31 +113,31 @@ export function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
         <TextField label="Хранить плановых" type="number" inputMode="numeric" min={1} max={1000}
           value={form.keepCount} disabled={!form.enabled}
           onChange={e => edit({ keepCount: Number(e.target.value) })}
-          trailing={<span className="text-sm text-on-surface-variant">копий</span>}
+          trailing={<span className="text-body-medium text-on-surface-variant">копий</span>}
           containerClassName="w-full sm:w-44" className="tabular-nums" />
         <div className="flex items-center gap-2 sm:h-14">
           <Button variant="outlined" onClick={submit} disabled={!(dirty || blocked) || save.isPending}>
             {save.isPending ? 'Сохранение…' : 'Сохранить'}
           </Button>
           {/* Живая область стоит всегда: появившись вместе с текстом, она осталась бы немой. */}
-          <span role="status" className="text-xs text-success">{saved ? 'Сохранено' : ''}</span>
+          <span role="status" className="text-body-small text-success">{saved ? 'Сохранено' : ''}</span>
         </div>
       </div>
 
-      {nextRun && <p className="text-xs text-on-surface-variant">Ближайшая копия: <b>{nextRun}</b></p>}
-      <p className="text-xs text-on-surface-variant">
+      {nextRun && <p className="text-body-small text-on-surface-variant">Ближайшая копия: <b>{nextRun}</b></p>}
+      <p className="text-body-small text-on-surface-variant">
         Пояс меняется в разделе «Компания». Уборка старых копий касается <b>только плановых</b>: снятые
         вручную и принесённые с другого сервера остаются, пока их не удалят руками.
       </p>
 
       {error && (
-        <p className="text-xs text-error flex items-start gap-1">
+        <p className="text-body-small text-error flex items-start gap-1">
           <Icon icon={Cancel} size={18} className="shrink-0 mt-px" /> <span>{error}</span>
         </p>
       )}
 
       {status.lastError ? (
-        <p className="text-xs text-error flex items-start gap-1">
+        <p className="text-body-small text-error flex items-start gap-1">
           <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
           <span>
             Последняя плановая копия не удалась
@@ -145,12 +145,12 @@ export function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
           </span>
         </p>
       ) : status.lastSuccessAt ? (
-        <p className="text-xs text-on-surface-variant">
+        <p className="text-body-small text-on-surface-variant">
           Последняя плановая копия: {formatDateTime(status.lastSuccessAt)}
           {status.lastFileName && <> · {status.lastFileName}</>}
         </p>
       ) : (
-        <p className="text-xs text-on-surface-variant">Плановых копий ещё не было.</p>
+        <p className="text-body-small text-on-surface-variant">Плановых копий ещё не было.</p>
       )}
     </div>
   );

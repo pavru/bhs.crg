@@ -66,7 +66,7 @@ export function MatchDialog({ revision, rows, sections, target, onClose }: {
       ) : row ? (
         <RowMatch key={row.id} row={row} match={matchRow} {...common} />
       ) : (
-        <p role="alert" className="text-sm text-error">Строки больше нет в редакции — перечитайте смету.</p>
+        <p role="alert" className="text-body-medium text-error">Строки больше нет в редакции — перечитайте смету.</p>
       )}
     </Modal>
   );
@@ -128,7 +128,7 @@ function SectionMatch({ code, rows, sections, match, onNext, revision, seen, set
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-on-surface-variant">
+      <p className="text-body-medium text-on-surface-variant">
         {section?.name ?? (code === null ? 'Строки вне разделов ЛСР' : '')} · ред. {revision.number} ·{' '}
         {formatCount(works)} {ruPlural(works, 'строка-работа', 'строки-работы', 'строк-работ')}, сопоставлено {formatCount(matched)} ·{' '}
         <b className="font-medium">ждут {formatCount(inSection.filter(waiting).length)}</b>
@@ -136,7 +136,7 @@ function SectionMatch({ code, rows, sections, match, onNext, revision, seen, set
 
       {units.length > 1 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-on-surface-variant">В разделе:</span>
+          <span className="text-body-small text-on-surface-variant">В разделе:</span>
           {units.map(u => (
             <Chip key={u.unit ?? ''} selected={u.unit === chosenUnit} count={formatCount(u.rows)}
               // Набранный коэффициент — для прежней единицы: перенесённый на другую, он дал бы план во сто раз больше.
@@ -144,7 +144,7 @@ function SectionMatch({ code, rows, sections, match, onNext, revision, seen, set
               {u.unit ?? 'без единицы'}
             </Chip>
           ))}
-          <span className="text-xs text-on-surface-variant">— раздел берёт одну единицу; строки других единиц останутся ждать</span>
+          <span className="text-body-small text-on-surface-variant">— раздел берёт одну единицу; строки других единиц останутся ждать</span>
         </div>
       )}
 
@@ -156,7 +156,7 @@ function SectionMatch({ code, rows, sections, match, onNext, revision, seen, set
 
       <Checkbox checked={remember} onChange={setRemember}
         label="Запомнить для шифров раздела — следующий импорт подставит сам" />
-      {refusal && <p role="alert" className="text-sm text-error">{refusal.text}</p>}
+      {refusal && <p role="alert" className="text-body-medium text-error">{refusal.text}</p>}
 
       {creating && (
         <NewWorkTypeStep sourceUnit={chosenUnit} onBack={() => setCreating(false)}
@@ -194,7 +194,7 @@ function SectionRows({ rows, unit, off, state, onToggle }: {
         : null),
     },
     { key: 'number', label: '№', width: 'w-14', cell: r => <span className="tabular-nums text-on-surface-variant">{rowNumber(r)}</span> },
-    { key: 'name', label: 'Строка', wrap: true, rowHeader: true, cell: r => <span className="text-sm">{r.name}</span> },
+    { key: 'name', label: 'Строка', wrap: true, rowHeader: true, cell: r => <span className="text-body-medium">{r.name}</span> },
     {
       key: 'volume', label: 'Объём', align: 'right', width: 'w-24',
       cell: r => <span className="tabular-nums">{r.sourceVolume === null ? '' : formatQuantity(r.sourceVolume)} {r.sourceUnit}</span>,
@@ -203,16 +203,16 @@ function SectionRows({ rows, unit, off, state, onToggle }: {
       key: 'becomes', label: 'В плане станет', width: 'w-56', wrap: true,
       cell: r => {
         if (r.workTypeId) return (
-          <span className="text-xs text-on-surface-variant">
+          <span className="text-body-small text-on-surface-variant">
             {names.data?.get(r.workTypeId) ?? '…'}{r.volume !== null ? ` · ${formatQuantity(r.volume)}` : ''}
             {r.marks.some(m => m.code === 'remembered') && <> <StatusBadge tone="quiet">запомнено</StatusBadge></>}
           </span>
         );
         if (!waiting(r)) return null;
-        if (r.sourceUnit !== unit) return <span className="text-xs text-warning">другая единица — останется ждать</span>;
-        if (off.has(r.id)) return <span className="text-xs text-on-surface-variant">не отмечена — останется ждать</span>;
+        if (r.sourceUnit !== unit) return <span className="text-body-small text-warning">другая единица — останется ждать</span>;
+        if (off.has(r.id)) return <span className="text-body-small text-on-surface-variant">не отмечена — останется ждать</span>;
         const v = state.factor === null ? null : planVolume(r, state.factor);
-        return v === null ? null : <span className="tabular-nums text-sm">{formatQuantity(v)} {state.chosen?.unitName ?? ''}</span>;
+        return v === null ? null : <span className="tabular-nums text-body-medium">{formatQuantity(v)} {state.chosen?.unitName ?? ''}</span>;
       },
     },
   ];
@@ -258,15 +258,15 @@ function RowMatch({ row, match, revision, seen, setVersion, busy, onClose }: Com
   return (
     <div className="space-y-4">
       <div className="rounded-md bg-surface-container px-3 py-2 space-y-0.5">
-        <p className="font-mono text-xs text-on-surface-variant">{row.rateCode}</p>
-        <p className="text-sm text-on-surface">{row.name}</p>
-        <p className="text-xs text-on-surface-variant tabular-nums">
+        <p className="font-mono text-body-small text-on-surface-variant">{row.rateCode}</p>
+        <p className="text-body-medium text-on-surface">{row.name}</p>
+        <p className="text-body-small text-on-surface-variant tabular-nums">
           {row.sourceVolume !== null ? formatQuantity(row.sourceVolume) : '—'} {row.sourceUnit} · ред. {revision.number}
         </p>
       </div>
 
       {current && (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2 text-body-medium">
           <span className="text-on-surface-variant">Сейчас: <b className="font-medium text-on-surface">{current}</b>
             {row.volume !== null && <span className="text-on-surface-variant tabular-nums"> · {formatQuantity(row.volume)}</span>}</span>
           {remembered && <StatusBadge tone="quiet" title={remembered.text}>запомнено</StatusBadge>}
@@ -279,7 +279,7 @@ function RowMatch({ row, match, revision, seen, setVersion, busy, onClose }: Com
       <RateChoiceFields state={state} sample={{ label: rowNumber(row), volume: row.sourceVolume }} />
       <Checkbox checked={remember} onChange={setRemember}
         label={row.rateCode ? `Запомнить для шифра «${row.rateCode}» — следующий импорт подставит сам` : 'Запомнить для шифра'} />
-      {refusal && <p role="alert" className="text-sm text-error">{refusal.text}</p>}
+      {refusal && <p role="alert" className="text-body-medium text-error">{refusal.text}</p>}
 
       {creating && (
         <NewWorkTypeStep sourceUnit={row.sourceUnit} onBack={() => setCreating(false)}
@@ -302,7 +302,7 @@ function Footer({ canCreate, onNew, hint, children }: {
       {canCreate && (
         <Button size="sm" variant="text" icon={<Icon icon={Add} size={18} />} className="mr-auto" onClick={onNew}>Новый вид работы</Button>
       )}
-      {hint && <span className={`text-xs text-on-surface-variant ${canCreate ? '' : 'mr-auto'}`}>{hint}</span>}
+      {hint && <span className={`text-body-small text-on-surface-variant ${canCreate ? '' : 'mr-auto'}`}>{hint}</span>}
       <ModalExit />
       {children}
     </div>

@@ -134,16 +134,16 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Статьи вне строек" isDirty={!!name.trim() || !!editing}>
-      <p className="text-xs text-on-surface-variant mb-3">
+      <p className="text-body-small text-on-surface-variant mb-3">
         Цели разноски, которые не стройка: склад, общие расходы. В выборе «куда» они идут группой «Вне строек».
       </p>
 
-      {articles.isError && <p className="text-xs text-error mb-2">Справочник не загрузился — {String(articles.error)}</p>}
+      {articles.isError && <p className="text-body-small text-error mb-2">Справочник не загрузился — {String(articles.error)}</p>}
 
-      <div className="border-y border-outline-variant text-sm mb-3">
+      <div className="border-y border-outline-variant text-body-medium mb-3">
         <ul className="divide-y divide-outline-variant">
           {articles.data && live.length === 0 && (
-            <li className="py-2 text-on-surface-variant text-xs">{gone.length ? 'Действующих статей нет.' : 'Статей пока нет.'}</li>
+            <li className="py-2 text-on-surface-variant text-body-small">{gone.length ? 'Действующих статей нет.' : 'Статей пока нет.'}</li>
           )}
           {live.map(row)}
         </ul>
@@ -172,4 +172,4 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-const FIELD = `flex-1 rounded-xs border border-outline-variant bg-surface px-2 py-1 text-sm text-on-surface outline-none focus:border-primary`;
+const FIELD = `flex-1 rounded-xs border border-outline-variant bg-surface px-2 py-1 text-body-medium text-on-surface outline-none focus:border-primary`;

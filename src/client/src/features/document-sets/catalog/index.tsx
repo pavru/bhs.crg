@@ -390,7 +390,7 @@ export function CatalogEntryForm({
 
           if (locked) {
             const lockedLabel = (
-              <label className="flex items-center gap-1.5 text-sm font-medium text-on-surface-variant mb-1">
+              <label className="flex items-center gap-1.5 text-body-medium font-medium text-on-surface-variant mb-1">
                 {field.title}
                 <LockedFieldIcon />
               </label>
@@ -407,7 +407,7 @@ export function CatalogEntryForm({
                 <PrimitiveInput field={field} value={val} label={field.title}
                   hint={getPrimitiveDef(field)?.name} onChange={() => {}} invalid={false}
                   primitiveTypeDef={getPrimitiveDef(field)} enumTypeDef={getEnumDef(field)} readOnly />
-                <p className="text-caption text-on-surface-variant mt-0.5 flex items-center gap-1">
+                <p className="text-label-small text-on-surface-variant mt-0.5 flex items-center gap-1">
                   <LockedFieldIcon />{LOCKED_HINT}
                 </p>
               </div>
@@ -422,7 +422,7 @@ export function CatalogEntryForm({
             const columns = gridColumnsOf(rows, itemType ? resolveEffectiveFields(itemType, allDocTypes) : null);
             return (
               <div key={field.key}>
-                <label className="flex items-center gap-1.5 text-sm font-medium text-on-surface-variant mb-1">
+                <label className="flex items-center gap-1.5 text-body-medium font-medium text-on-surface-variant mb-1">
                   {field.title}
                   <SourceOriginIcon origin={recognizedBoundKeys.has(field.key) ? 'Recognized' : undefined} plural
                     stale={staleBoundKeys.has(field.key)} staleReason={staleReasonOfKey(field.key)} />
@@ -445,12 +445,12 @@ export function CatalogEntryForm({
                 : (typeof val === 'string' ? val : JSON.stringify(val));
             return (
               <div key={field.key}>
-                <label className="flex items-center gap-1.5 text-sm font-medium text-on-surface-variant mb-1">
+                <label className="flex items-center gap-1.5 text-body-medium font-medium text-on-surface-variant mb-1">
                   {field.title}
                   <SourceOriginIcon origin={recognizedBoundKeys.has(field.key) ? 'Recognized' : undefined}
                     stale={staleBoundKeys.has(field.key)} staleReason={staleReasonOfKey(field.key)} />
                 </label>
-                <div className="w-full border border-outline-variant rounded-sm px-3 py-2 text-sm bg-surface-container text-on-surface-variant">
+                <div className="w-full border border-outline-variant rounded-sm px-3 py-2 text-body-medium bg-surface-container text-on-surface-variant">
                   {refId ? <BoundRefValue entryId={refId} /> : (display ?? <em className="text-on-surface-variant">нет данных</em>)}
                 </div>
               </div>
@@ -465,7 +465,7 @@ export function CatalogEntryForm({
             <div key={field.key}>
               {isProxy && (
                 <div className="flex items-center justify-between gap-2 mb-0.5 min-h-[16px]">
-                  <span className="text-caption text-on-surface-variant truncate">
+                  <span className="text-label-small text-on-surface-variant truncate">
                     {proxyOverridden ? 'переопределено'
                       : proxyRealHint ? `наследует: ${proxyRealHint}`
                       : 'наследуется от реального'}
@@ -473,7 +473,7 @@ export function CatalogEntryForm({
                   {proxyOverridden && (
                     <Tooltip content="Вернуть к наследованию от реального объекта">
                       <button type="button" onClick={() => setValue(field.key, undefined)}
-                        className="text-caption text-primary state-layer flex items-center gap-0.5 shrink-0">
+                        className="text-label-small text-primary state-layer flex items-center gap-0.5 shrink-0">
                         <Icon icon={RestartAlt} size={18} /> наследовать
                       </button>
                     </Tooltip>
@@ -482,7 +482,7 @@ export function CatalogEntryForm({
               )}
               {field.type === 'complex' || field.type === 'array' ? (
                 <div>
-                  <label className="block text-sm font-medium text-on-surface-variant mb-1">
+                  <label className="block text-body-medium font-medium text-on-surface-variant mb-1">
                     {field.title}
                     {field.required && <span className="ml-0.5 text-error">*</span>}
                     <ValueIssueBadge count={deepIssueCount(valueIssues, field.key)} className="ml-1.5 align-middle" />
@@ -503,7 +503,7 @@ export function CatalogEntryForm({
                 </div>
               ) : field.type === 'doc-ref' ? (
                 <div>
-                  <label className="block text-sm font-medium text-on-surface-variant mb-1">
+                  <label className="block text-body-medium font-medium text-on-surface-variant mb-1">
                     {field.title}
                     {field.required && <span className="ml-0.5 text-error">*</span>}
                   </label>
@@ -513,14 +513,14 @@ export function CatalogEntryForm({
                 </div>
               ) : field.type === 'image' ? (
                 <div>
-                  <label className="block text-sm font-medium text-on-surface-variant mb-1">
+                  <label className="block text-body-medium font-medium text-on-surface-variant mb-1">
                     {field.title}{field.required && <span className="ml-0.5 text-error">*</span>}
                   </label>
                   <ImageField value={val} onChange={v => setValue(field.key, v)} />
                 </div>
               ) : field.type === 'file' ? (
                 <div>
-                  <label className="block text-sm font-medium text-on-surface-variant mb-1">
+                  <label className="block text-body-medium font-medium text-on-surface-variant mb-1">
                     {field.title}{field.required && <span className="ml-0.5 text-error">*</span>}
                   </label>
                   <FileField value={val} onChange={v => setValue(field.key, v)} />
@@ -532,7 +532,7 @@ export function CatalogEntryForm({
                     invalid={!!constraintErrors[field.key]}
                     primitiveTypeDef={getPrimitiveDef(field)} enumTypeDef={getEnumDef(field)} />
                   {constraintErrors[field.key] && (
-                    <p className="text-xs text-error mt-0.5">{constraintErrors[field.key]}</p>
+                    <p className="text-body-small text-error mt-0.5">{constraintErrors[field.key]}</p>
                   )}
                   {/* Расхождение сохранённого значения с типом — после ошибки ввода: та про то, что
                       набирают сейчас, это про то, что уже лежит в записи (issue #644). */}
@@ -596,10 +596,10 @@ export function CatalogEntryForm({
       )}
       <div className="flex-1 min-w-0 space-y-4">
       <div className="flex items-center gap-2">
-        <span className={`text-xs px-1.5 py-0.5 rounded-xs font-medium ${SCOPE_COLORS[scope]}`}>
+        <span className={`text-body-small px-1.5 py-0.5 rounded-xs font-medium ${SCOPE_COLORS[scope]}`}>
           {SCOPE_LABELS[scope]}
         </span>
-        <span className="text-xs text-on-surface-variant">приоритет {SCOPE_PRIORITY[scope]}</span>
+        <span className="text-body-small text-on-surface-variant">приоритет {SCOPE_PRIORITY[scope]}</span>
         {/* Основа (базовый экземпляр) — в одной строке с чипом уровня, выровнена вправо. */}
         {canHaveBase && (
           <div className="ml-auto">
@@ -618,13 +618,13 @@ export function CatalogEntryForm({
 
       {/* Алиасы (issue #74) — доп. имена для поиска записи при связывании с источниками */}
       <div>
-        <label className="block text-sm font-medium text-on-surface-variant mb-1">
-          Псевдонимы <span className="text-xs text-on-surface-variant font-normal">(для поиска при связывании с источниками)</span>
+        <label className="block text-body-medium font-medium text-on-surface-variant mb-1">
+          Псевдонимы <span className="text-body-small text-on-surface-variant font-normal">(для поиска при связывании с источниками)</span>
         </label>
         {aliases.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-1.5">
             {aliases.map(a => (
-              <span key={a} className="inline-flex items-center gap-1 text-xs bg-surface-container text-on-surface-variant rounded-2xl pl-2.5 pr-1 py-0.5 max-w-full">
+              <span key={a} className="inline-flex items-center gap-1 text-body-small bg-surface-container text-on-surface-variant rounded-2xl pl-2.5 pr-1 py-0.5 max-w-full">
                 <span className="min-w-0 break-words">{a}</span>
                 <Tooltip content="Удалить" name>
                   <button type="button" onClick={() => setAliases(prev => prev.filter(x => x !== a))}
@@ -640,14 +640,14 @@ export function CatalogEntryForm({
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addAlias(); } }}
           onBlur={addAlias}
           placeholder="Добавить псевдоним и Enter..."
-          className="w-full border border-outline rounded-sm px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
+          className="w-full border border-outline rounded-sm px-3 py-2 text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
       </div>
 
       {!entry ? (
         <div>
-          <label className="block text-sm font-medium text-on-surface-variant mb-1">Тип</label>
+          <label className="block text-body-medium font-medium text-on-surface-variant mb-1">Тип</label>
           <button type="button" onClick={() => setPickerOpen(true)} aria-label="Тип"
-            className="w-full h-10 flex items-center justify-between gap-2 rounded-sm border border-outline bg-surface px-3 text-sm text-left transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
+            className="w-full h-10 flex items-center justify-between gap-2 rounded-sm border border-outline bg-surface px-3 text-body-medium text-left transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
             <span className={typeId ? 'text-on-surface truncate' : 'text-on-surface-variant'}>
               {typeId ? (allSelectableTypes.find(c => c.id === typeId)?.name ?? typeId) : 'Выберите тип…'}
             </span>
@@ -668,7 +668,7 @@ export function CatalogEntryForm({
           />
         </div>
       ) : (
-        <p className="text-sm text-on-surface-variant">
+        <p className="text-body-medium text-on-surface-variant">
           Тип: <span className="font-medium text-on-surface-variant">
             {allSelectableTypes.find(ct => ct.id === entry.compositeTypeId)?.name ?? entry.compositeTypeId}
           </span>
@@ -684,7 +684,7 @@ export function CatalogEntryForm({
             Распознать «{attachment.fileName}»
           </Button>
           {recognizing && (
-            <span className="flex items-center gap-1.5 text-xs text-on-surface-variant">
+            <span className="flex items-center gap-1.5 text-body-small text-on-surface-variant">
               <CircularProgress size={18} /> Идёт распознавание — дождитесь завершения перед сохранением…
             </span>
           )}
@@ -721,11 +721,11 @@ export function CatalogEntryForm({
           {bindingCheck && <BindingCheckReport items={bindingCheck.items} />}
         </div>
       ) : (
-        <p className="text-xs text-on-surface-variant">Сохраните запись, чтобы привязать источники данных.</p>
+        <p className="text-body-small text-on-surface-variant">Сохраните запись, чтобы привязать источники данных.</p>
       )}
 
       {isProxy && (
-        <div className="rounded-sm bg-primary-container/40 px-3 py-2 text-xs text-on-surface-variant flex items-center justify-between gap-2">
+        <div className="rounded-sm bg-primary-container/40 px-3 py-2 text-body-small text-on-surface-variant flex items-center justify-between gap-2">
           <span>Роль наследует все поля реального объекта — заполните только переопределяемые, пустые берутся у реального.</span>
           {!showAllProxyFields && (
             <button type="button" onClick={() => setShowAllProxyFields(true)}
@@ -749,12 +749,12 @@ export function CatalogEntryForm({
                   {isExpanded
                     ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" />
                     : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
-                  <span className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant flex-1">{section.title}</span>
+                  <span className="text-body-small font-semibold uppercase tracking-wide text-on-surface-variant flex-1">{section.title}</span>
                   {/* Метка на заголовке: свёрнутая группа иначе прячет причину отказа. */}
                   {section.fields.some(f => Object.keys(constraintErrors).some(k => violationRootKey(k) === f.key)) && (
                     <Tooltip content="Есть ошибка формата"><span className="w-1.5 h-1.5 rounded-full bg-error shrink-0" /></Tooltip>
                   )}
-                  <span className="text-xs text-on-surface-variant">{section.fields.length} п.</span>
+                  <span className="text-body-small text-on-surface-variant">{section.fields.length} п.</span>
                 </button>
                 {isExpanded && <div className="px-3 py-3">{renderFields(section.fields)}</div>}
               </div>
@@ -764,7 +764,7 @@ export function CatalogEntryForm({
       )}
 
       {twin && <ArchivedTwinNote twin={twin} busy={isPending} onReturned={onClose} onCreateAnyway={() => void save(true)} />}
-      {error && <p className="text-sm text-error">{error}</p>}
+      {error && <p className="text-body-medium text-error">{error}</p>}
       </div>
       </div>
       </div>

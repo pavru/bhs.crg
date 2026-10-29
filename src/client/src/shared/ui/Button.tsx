@@ -19,27 +19,27 @@ const BASE =
   'state-layer focus-ring disabled:pointer-events-none';
 
 const SIZE: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-xs',
-  md: 'h-9 px-4 text-sm',
-  lg: 'h-10 px-6 text-sm',
+  sm: 'h-8 px-3 text-body-small',
+  md: 'h-9 px-4 text-body-medium',
+  lg: 'h-10 px-6 text-body-medium',
 };
 // text-вариант живёт без заливки → чуть плотнее по горизонтали.
 const TEXT_SIZE: Record<ButtonSize, string> = {
-  sm: 'h-8 px-2 text-xs',
-  md: 'h-9 px-3 text-sm',
-  lg: 'h-10 px-4 text-sm',
+  sm: 'h-8 px-2 text-body-small',
+  md: 'h-9 px-3 text-body-medium',
+  lg: 'h-10 px-4 text-body-medium',
 };
 // multiline: фикс. высота → min-h (растёт при переносе). Литеральные строки — иначе Tailwind
 // не сгенерирует классы (динамический .replace() не сканируется при сборке).
 const MULTILINE_SIZE: Record<ButtonSize, string> = {
-  sm: 'min-h-8 px-3 text-xs',
-  md: 'min-h-9 px-4 text-sm',
-  lg: 'min-h-10 px-6 text-sm',
+  sm: 'min-h-8 px-3 text-body-small',
+  md: 'min-h-9 px-4 text-body-medium',
+  lg: 'min-h-10 px-6 text-body-medium',
 };
 const MULTILINE_TEXT_SIZE: Record<ButtonSize, string> = {
-  sm: 'min-h-8 px-2 text-xs',
-  md: 'min-h-9 px-3 text-sm',
-  lg: 'min-h-10 px-4 text-sm',
+  sm: 'min-h-8 px-2 text-body-small',
+  md: 'min-h-9 px-3 text-body-medium',
+  lg: 'min-h-10 px-4 text-body-medium',
 };
 
 function variantClass(variant: ButtonVariant, danger: boolean): string {

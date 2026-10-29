@@ -292,7 +292,7 @@ export function ExtractToCommonDataModal({
             <ul className="list-disc pl-4 space-y-0.5">
               {blocking.map(b => (
                 <li key={b.path}>
-                  <span className="font-mono text-xs">{b.path || '(объект целиком)'}</span> — {b.displayName}
+                  <span className="font-mono text-body-small">{b.path || '(объект целиком)'}</span> — {b.displayName}
                 </li>
               ))}
             </ul>
@@ -311,17 +311,17 @@ export function ExtractToCommonDataModal({
         )}
 
         <div>
-          <label className="block text-sm font-medium text-on-surface-variant mb-1">Тип</label>
-          <div className="h-10 flex items-center rounded-sm border border-outline-variant bg-surface-container-low px-3 text-sm text-on-surface-variant">
+          <label className="block text-body-medium font-medium text-on-surface-variant mb-1">Тип</label>
+          <div className="h-10 flex items-center rounded-sm border border-outline-variant bg-surface-container-low px-3 text-body-medium text-on-surface-variant">
             {compositeType.name}
           </div>
-          <p className="text-xs text-on-surface-variant mt-1">Задан полем — выбирать нечего.</p>
+          <p className="text-body-small text-on-surface-variant mt-1">Задан полем — выбирать нечего.</p>
         </div>
 
         <TextField label="Наименование" value={name} onChange={e => setName(e.target.value)} required autoFocus />
 
         <div>
-          <label className="block text-sm font-medium text-on-surface-variant mb-1">Уровень</label>
+          <label className="block text-body-medium font-medium text-on-surface-variant mb-1">Уровень</label>
           {noPlace ? (
             /* Пустой Select был бы тупиком: список без пунктов, баннер про ограничение и работающая
                кнопка, кладущая запись шире разрешённого. Говорим прямо. */
@@ -337,7 +337,7 @@ export function ExtractToCommonDataModal({
                 {offered.map(s => <SelectItem key={s} value={s}>{SCOPE_LABELS[s]}</SelectItem>)}
               </Select>
               {allowedMax !== 'System' && (
-                <p className="text-xs text-on-surface-variant mt-1">
+                <p className="text-body-small text-on-surface-variant mt-1">
                   Шире «{SCOPE_LABELS[allowedMax]}» нельзя: внутри есть ссылка на запись этого уровня —
                   из более широкой записи она развернулась бы в чужом комплекте.
                 </p>
@@ -347,13 +347,13 @@ export function ExtractToCommonDataModal({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-on-surface-variant mb-1">
-            Псевдонимы <span className="text-xs text-on-surface-variant font-normal">(для поиска при связывании с источниками)</span>
+          <label className="block text-body-medium font-medium text-on-surface-variant mb-1">
+            Псевдонимы <span className="text-body-small text-on-surface-variant font-normal">(для поиска при связывании с источниками)</span>
           </label>
           {aliases.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-1.5">
               {aliases.map(a => (
-                <span key={a} className="inline-flex items-center gap-1 text-xs bg-surface-container text-on-surface-variant rounded-2xl pl-2.5 pr-1 py-0.5 max-w-full">
+                <span key={a} className="inline-flex items-center gap-1 text-body-small bg-surface-container text-on-surface-variant rounded-2xl pl-2.5 pr-1 py-0.5 max-w-full">
                   <span className="min-w-0 break-words">{a}</span>
                   <Tooltip content="Удалить" name>
                     <button type="button" onClick={() => setAliases(prev => prev.filter(x => x !== a))}
@@ -369,7 +369,7 @@ export function ExtractToCommonDataModal({
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addAlias(); } }}
             onBlur={addAlias}
             placeholder="Добавить псевдоним и Enter..."
-            className="w-full border border-outline rounded-sm px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
+            className="w-full border border-outline rounded-sm px-3 py-2 text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
         </div>
 
         {duplicate && (
@@ -388,7 +388,7 @@ export function ExtractToCommonDataModal({
                 ? ' Скорее всего это тот же объект.'
                 : ' Возможно, это просто тёзка — одноимённые организации встречаются.'}
             </p>
-            <p className="text-xs text-on-surface-variant mb-2">
+            <p className="text-body-small text-on-surface-variant mb-2">
               Поиск идёт в выбранном уровне и выше: записи более узкого уровня отсюда не видны.
             </p>
             {!duplicate.match.archived ? (
@@ -401,7 +401,7 @@ export function ExtractToCommonDataModal({
                 Вернуть из архива и связать
               </Button>
             ) : (
-              <p className="text-xs text-on-surface-variant">
+              <p className="text-body-small text-on-surface-variant">
                 Вернуть запись из архива может тот, кто ведёт общие данные. Связать поле с записью,
                 пока она в архиве, нельзя.
               </p>
@@ -410,17 +410,17 @@ export function ExtractToCommonDataModal({
         )}
 
         <div className="rounded-md border border-outline-variant bg-surface-container-low/40 px-3 py-2">
-          <div className="text-xs text-on-surface-variant mb-1">
+          <div className="text-body-small text-on-surface-variant mb-1">
             Переносится{checking ? ' · проверяем дубликаты…' : ''}
           </div>
-          <div className="text-sm text-on-surface-variant break-words">{objectSummary(values, subFields, typeDefs)}</div>
-          <div className="text-xs text-on-surface-variant mt-1">
+          <div className="text-body-medium text-on-surface-variant break-words">{objectSummary(values, subFields, typeDefs)}</div>
+          <div className="text-body-small text-on-surface-variant mt-1">
             Полей: {Object.keys(values ?? {}).length}
             {nestedRefCount(values) > 0 && `, из них ссылок на каталог: ${nestedRefCount(values)}`}
           </div>
         </div>
 
-        {error && <p className="text-sm text-error">{error}</p>}
+        {error && <p className="text-body-medium text-error">{error}</p>}
       </div>
     </WindowStep>
   );
@@ -439,7 +439,7 @@ function Note({ tone, icon, title, children }: {
     ? 'border-error/40 bg-error-container text-on-error-container'
     : 'border-warning/40 bg-warning-container text-on-warning-container';
   return (
-    <div className={`rounded-md border px-3 py-2 text-sm ${cls}`}>
+    <div className={`rounded-md border px-3 py-2 text-body-medium ${cls}`}>
       <div className="flex items-center gap-1.5 font-medium mb-1">{icon}{title}</div>
       <div className="text-on-surface-variant">{children}</div>
     </div>

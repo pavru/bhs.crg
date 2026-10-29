@@ -57,7 +57,7 @@ export function RolePicker({ value, known = [], onChange, disabled, ariaLabel = 
       <DropdownMenu.Trigger asChild disabled={disabled}>
         <button type="button" aria-label={ariaLabel}
           className={`inline-flex items-center justify-between gap-2 w-full h-9 px-3 rounded-sm border
-            border-outline bg-surface text-sm text-left transition-colors
+            border-outline bg-surface text-body-medium text-left transition-colors
             focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
             data-[state=open]:ring-2 data-[state=open]:ring-primary
             disabled-outlined disabled:pointer-events-none
@@ -71,7 +71,7 @@ export function RolePicker({ value, known = [], onChange, disabled, ariaLabel = 
           className="z-50 min-w-[16rem] max-h-80 overflow-auto rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
           {/* Пустое меню — это отказ, переодетый в результат: выбрать нечего и непонятно почему. */}
           {roles.length === 0 && (
-            <div className="px-3 py-2 text-xs text-on-surface-variant">
+            <div className="px-3 py-2 text-body-small text-on-surface-variant">
               {isLoading ? 'Роли загружаются…' : 'Список ролей не загрузился — обновите страницу.'}
             </div>
           )}
@@ -80,14 +80,14 @@ export function RolePicker({ value, known = [], onChange, disabled, ariaLabel = 
             // закрытие после первой галки заставляло бы открывать его заново на каждую роль.
             <DropdownMenu.CheckboxItem key={r.name} checked={chosen.includes(r.name)}
               onSelect={e => e.preventDefault()} onCheckedChange={() => setDraft(toggleRole(chosen, r.name))}
-              className="flex items-start gap-2 px-3 py-1.5 text-sm cursor-pointer select-none outline-none
+              className="flex items-start gap-2 px-3 py-1.5 text-body-medium cursor-pointer select-none outline-none
                 state-layer">
               <span className="w-4 shrink-0 pt-0.5 text-primary">
                 {chosen.includes(r.name) && <Icon icon={Check} size={18} />}
               </span>
               <span className="min-w-0">
                 <span className="block text-on-surface">{r.title}</span>
-                {r.summary && <span className="block text-xs text-on-surface-variant">{r.summary}</span>}
+                {r.summary && <span className="block text-body-small text-on-surface-variant">{r.summary}</span>}
               </span>
             </DropdownMenu.CheckboxItem>
           ))}

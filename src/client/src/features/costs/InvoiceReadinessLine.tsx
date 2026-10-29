@@ -25,14 +25,14 @@ export function InvoiceReadinessLine({ items, unsaved }: {
 
   if (items.length === 0)
     return (
-      <p className="flex items-start gap-1.5 text-xs text-success" data-testid="invoice-readiness">
+      <p className="flex items-start gap-1.5 text-body-small text-success" data-testid="invoice-readiness">
         <Icon icon={CheckCircle} size={18} className="shrink-0 mt-0.5" />
         <span>Всё готово к «Разобран».{stale}</span>
       </p>
     );
 
   return (
-    <p className="flex items-start gap-1.5 text-xs text-on-surface-variant" data-testid="invoice-readiness">
+    <p className="flex items-start gap-1.5 text-body-small text-on-surface-variant" data-testid="invoice-readiness">
       <Icon icon={Checklist} size={18} className="shrink-0 mt-0.5 text-on-surface-variant" />
       <span>
         До «Разобран» осталось:{' '}

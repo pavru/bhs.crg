@@ -45,13 +45,13 @@ function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
           </Button>
         </div>
       }>
-      <p className="text-xs mb-3 text-on-surface-variant">
+      <p className="text-body-small mb-3 text-on-surface-variant">
         Row-selector/колонки (Extraction) и текущие Filter/Transformation/Sort источника
         станут переиспользуемым шаблоном — копия, не живая ссылка.
       </p>
       <TextField label="Название шаблона" value={name} onChange={e => setName(e.target.value)} autoFocus
         onKeyDown={e => { if (e.key === 'Enter') submit(); }} />
-      {error && <p role="alert" className="mt-2 text-xs text-error">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-body-small text-error">{error}</p>}
     </Modal>
   );
 }

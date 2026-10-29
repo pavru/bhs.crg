@@ -67,8 +67,8 @@ export function Markdown({ children, className = '' }: { children: string; class
     if (h) {
       flushPara(); flushList();
       const lvl = h[1].length;
-      const cls = lvl === 1 ? 'text-base font-semibold text-on-surface'
-        : lvl === 2 ? 'text-sm font-semibold text-on-surface' : 'text-sm font-medium text-on-surface';
+      const cls = lvl === 1 ? 'text-body-large font-semibold text-on-surface'
+        : lvl === 2 ? 'text-body-medium font-semibold text-on-surface' : 'text-body-medium font-medium text-on-surface';
       out.push(<p key={`h${k++}`} className={cls}>{inline(h[2], `h${k}`)}</p>);
     } else if (ul) {
       flushPara();
@@ -84,5 +84,5 @@ export function Markdown({ children, className = '' }: { children: string; class
   }
   flushPara(); flushList();
 
-  return <div className={`text-sm text-on-surface-variant space-y-2 leading-relaxed ${className}`}>{out}</div>;
+  return <div className={`text-body-medium text-on-surface-variant space-y-2 leading-relaxed ${className}`}>{out}</div>;
 }

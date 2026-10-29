@@ -43,7 +43,7 @@ describe('цветовые классы: что Tailwind не порождает
   });
 
   it('токены, прозрачность и не-цветовые значения тех же утилит — проходят', () => {
-    expect(unknown(['bg-surface-container', 'text-on-surface', 'border-error/30', 'bg-black/40', 'text-xs', 'text-caption',
+    expect(unknown(['bg-surface-container', 'text-on-surface', 'border-error/30', 'bg-black/40', 'text-xs', 'text-label-small',
       'text-left', 'border-2', 'border-t', 'ring-2', 'outline-none', 'bg-transparent', 'shadow-sm'])).toEqual([]);
   });
 });

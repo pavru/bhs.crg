@@ -71,7 +71,7 @@ export function SitesFilter({ hidden, partial = false }: { hidden?: number; part
         <Popover.Content align="start" sideOffset={6} data-testid="sites-filter-popover" aria-labelledby={heading}
           className="z-50 w-80 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-md border border-outline-variant bg-surface p-4 shadow-elevation-2">
           <div className="flex items-center justify-between mb-2">
-            <h2 id={heading} className="text-sm font-semibold text-on-surface">Стройки в списках</h2>
+            <h2 id={heading} className="text-body-medium font-semibold text-on-surface">Стройки в списках</h2>
             <Popover.Close asChild>
               <IconButton label="Закрыть" size="sm"><Icon icon={Close} size={18} /></IconButton>
             </Popover.Close>
@@ -119,10 +119,10 @@ function Choices({ on, onPick, onDone, favorites, all }: {
           <button key={item.label} ref={el => { refs.current[i] = el; }} type="button" role="radio"
             aria-checked={checked} tabIndex={checked ? 0 : -1}
             onClick={() => { if (!checked) onPick(item.value); onDone(); }}
-            className="w-full flex items-center gap-2 h-9 px-2 rounded-sm text-left text-sm text-on-surface state-layer focus-ring">
+            className="w-full flex items-center gap-2 h-9 px-2 rounded-sm text-left text-body-medium text-on-surface state-layer focus-ring">
             <Icon icon={Check} size={18} aria-hidden className={`shrink-0 ${checked ? 'text-primary' : 'invisible'}`} />
             <span className={`flex-1 ${checked ? 'font-medium text-on-surface' : 'text-on-surface-variant'}`}>{item.label}</span>
-            <span className="text-xs tabular-nums text-on-surface-variant">{item.note}</span>
+            <span className="text-body-small tabular-nums text-on-surface-variant">{item.note}</span>
           </button>
         );
       })}

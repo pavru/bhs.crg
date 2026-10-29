@@ -77,7 +77,7 @@ export function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, 
     return TYPE_LABELS[f.type] ?? f.type;
   }
 
-  const badge = 'text-xs px-2 py-0.5 rounded-full font-medium';
+  const badge = 'text-body-small px-2 py-0.5 rounded-full font-medium';
   // Переход по иерархии в обе стороны (issue #784): бейдж родителя и чипы прямых наследников —
   // кнопки, а не подписи. Дойти до родителя иначе можно было только поиском в списке слева, хотя
   // на него ссылается вся работа с наследованием («Как у родителя», «Ключ уже есть в родительском
@@ -115,7 +115,7 @@ export function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, 
           <>
             <div className="flex items-center gap-2 flex-wrap">
               <DetailTitle>{docType.name}</DetailTitle>
-              <span className="text-xs text-on-surface-variant font-mono">{docType.code}</span>
+              <span className="text-body-small text-on-surface-variant font-mono">{docType.code}</span>
               {parentType && (
                 <Tooltip content="Перейти к родительскому типу">
                   <button type="button" onClick={() => onSelectType(parentType.id)}
@@ -165,7 +165,7 @@ export function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, 
             </div>
             {children.length > 0 && (
               <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                <span className="text-xs text-on-surface-variant shrink-0">наследники:</span>
+                <span className="text-body-small text-on-surface-variant shrink-0">наследники:</span>
                 {children.map(c => (
                   <Tooltip key={c.id} content={`Перейти к типу «${c.name}»`}>
                     <button type="button" onClick={() => onSelectType(c.id)}

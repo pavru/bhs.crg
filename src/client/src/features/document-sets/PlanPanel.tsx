@@ -34,7 +34,7 @@ const EMPTY: PlanRow[] = [];
 export function PlanPanel({ setId }: { setId: string }) {
   const { data: saved = EMPTY, isLoading, isError, error, refetch } = useDocumentSetPlan(setId);
 
-  if (isLoading) return <div className="text-sm text-on-surface-variant">Загрузка…</div>;
+  if (isLoading) return <div className="text-body-medium text-on-surface-variant">Загрузка…</div>;
 
   // Отказ загрузки НЕЛЬЗЯ показывать как «плана нет»: сохранение заменяет план целиком, и человек,
   // приняв пустой экран за правду, добавил бы одну строку и стёр ею всё остальное. Пустое
@@ -118,8 +118,8 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
     <div className="mx-auto max-w-3xl space-y-4">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-sm font-medium text-on-surface">План по документам</h2>
-          <p className="text-xs text-on-surface-variant mt-0.5">
+          <h2 className="text-body-medium font-medium text-on-surface">План по документам</h2>
+          <p className="text-body-small text-on-surface-variant mt-0.5">
             Каких документов и сколько должно быть в комплекте. Готовность считается по выпущенным:
             черновик не закрывает позицию. Плана нет — проценты нигде не показываются.
           </p>
@@ -140,7 +140,7 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
       ) : (
         <>
           <div className="border border-outline-variant rounded-lg overflow-hidden">
-            <div className="grid grid-cols-[1fr_7rem_7rem_2.5rem] gap-2 px-3 py-2 bg-surface-container text-caption uppercase tracking-wide text-on-surface-variant">
+            <div className="grid grid-cols-[1fr_7rem_7rem_2.5rem] gap-2 px-3 py-2 bg-surface-container text-label-small uppercase tracking-wide text-on-surface-variant">
               <span>Тип документа</span>
               <span className="text-right">План</span>
               <span className="text-right">Выпущено</span>
@@ -148,7 +148,7 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
             </div>
             {rows.map((r, i) => (
               <div key={r.documentTypeId}
-                className="grid grid-cols-[1fr_7rem_7rem_2.5rem] gap-2 items-center px-3 py-1.5 border-t border-outline-variant text-sm">
+                className="grid grid-cols-[1fr_7rem_7rem_2.5rem] gap-2 items-center px-3 py-1.5 border-t border-outline-variant text-body-medium">
                 <span className="truncate text-on-surface" title={r.typeName}>{r.typeName}</span>
                 <input type="number" min={1} value={r.plannedCount}
                   aria-label={`План по типу «${r.typeName}»`}
@@ -174,7 +174,7 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
             ))}
           </div>
 
-          <p className="text-xs text-on-surface-variant">
+          <p className="text-body-small text-on-surface-variant">
             Закрыто позиций: <span className="tabular-nums text-on-surface-variant">{closed} из {planned}</span>.
             {' '}Документы сверх плана в счёт не идут, типы вне плана — тоже.
             {unknownFacts && ' По добавленным строкам выпущенное посчитается после сохранения.'}

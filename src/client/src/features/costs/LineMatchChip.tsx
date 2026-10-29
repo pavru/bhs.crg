@@ -79,7 +79,7 @@ export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRest
   if (draft.nomenclatureId === null) {
     if (draft.declined && usable(offer))
       return (
-        <span className="shrink-0 text-caption text-on-surface-variant">
+        <span className="shrink-0 text-label-small text-on-surface-variant">
           отменено ·{' '}
           <button type="button" className="text-primary hover:underline" onClick={() => onRestore(offer)}>вернуть</button>
         </span>
@@ -145,13 +145,13 @@ function Explained({ label, warning = false, children }: { label: string; warnin
     <Popover.Root>
       <Popover.Trigger asChild>
         <button type="button"
-          className={`shrink-0 text-caption hover:underline ${warning ? 'text-warning' : 'text-on-surface-variant'}`}>
+          className={`shrink-0 text-label-small hover:underline ${warning ? 'text-warning' : 'text-on-surface-variant'}`}>
           {label}
         </button>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6}
-          className="z-50 w-[340px] max-w-[90vw] rounded-md bg-surface border border-outline-variant p-3 text-xs text-on-surface-variant space-y-2 focus:outline-none shadow-elevation-2">
+          className="z-50 w-[340px] max-w-[90vw] rounded-md bg-surface border border-outline-variant p-3 text-body-small text-on-surface-variant space-y-2 focus:outline-none shadow-elevation-2">
           {children}
         </Popover.Content>
       </Popover.Portal>

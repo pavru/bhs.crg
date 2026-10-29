@@ -10,12 +10,9 @@
 @theme inline {
   --font-mono: 'Roboto Mono', ui-monospace, 'Cascadia Code', Consolas, monospace; /* код, версия */
 
-  /* Шкала текста (issue #1350). Основа — Tailwind: text-xs 12/16, text-sm 14/20, text-base 16/24.
-     Две ступени, которых в ней нет, названы ролями (назначение — docs/UI.md, «Текст»):
-     caption — бейдж, счётчик, подпись раздела, мелкая пометка (бывшие 10 и 11 px);
-     note    — сообщение формы, пояснение, строка расклада (бывшие 13 px). */
-  --text-caption: 11px;
-  --text-caption--line-height: 16px;
+  /* Текст — 15 ролей MD3 ([UI-67]): text-body-medium, text-label-small… приносит слой темы md3-tailwind.css,
+     назначение — docs/UI.md, «Текст». Ступень note (13 px, сообщение формы и строка расклада) — вне шкалы
+     MD3 и доживает до перевода по месту (sharedui-md3-07, PR 2): body-small у поля, body-medium в теле. */
   --text-note: 13px;
   --text-note--line-height: 20px;
 
