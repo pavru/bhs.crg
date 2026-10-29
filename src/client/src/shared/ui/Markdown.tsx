@@ -22,12 +22,12 @@ function inline(text: string, kp: string): ReactNode[] {
     const k = `${kp}-${i++}`;
     if (tok.startsWith('**') || tok.startsWith('__')) out.push(<strong key={k}>{tok.slice(2, -2)}</strong>);
     else if (tok.startsWith('`')) out.push(
-      <code key={k} className="font-mono bg-surface-container text-on-surface px-1 rounded text-[0.9em]">{tok.slice(1, -1)}</code>);
+      <code key={k} className="font-mono bg-surface-container text-on-surface px-1 rounded-xs text-[0.9em]">{tok.slice(1, -1)}</code>);
     else if (tok.startsWith('[')) {
       const mm = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(tok)!;
       const href = safeHref(mm[2]);
       out.push(href
-        ? <a key={k} href={href} target="_blank" rel="noreferrer" className="text-primary underline hover:no-underline focus-ring rounded-sm">{mm[1]}</a>
+        ? <a key={k} href={href} target="_blank" rel="noreferrer" className="text-primary underline hover:no-underline focus-ring rounded-xs">{mm[1]}</a>
         : mm[1]);
     } else out.push(<em key={k}>{tok.slice(1, -1)}</em>);
     last = m.index + tok.length;

@@ -257,7 +257,7 @@ function RowMatch({ row, match, revision, seen, setVersion, busy, onClose }: Com
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg bg-surface-container px-3 py-2 space-y-0.5">
+      <div className="rounded-md bg-surface-container px-3 py-2 space-y-0.5">
         <p className="font-mono text-xs text-on-surface-variant">{row.rateCode}</p>
         <p className="text-sm text-on-surface">{row.name}</p>
         <p className="text-xs text-on-surface-variant tabular-nums">

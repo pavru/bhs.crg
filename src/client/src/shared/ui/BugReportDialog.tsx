@@ -175,9 +175,9 @@ export function BugReportDialog({ open, prefill, onClose }: {
           </div>
 
           {shot && (
-            <div className="rounded-xl border border-outline-variant p-2 space-y-2">
+            <div className="rounded-lg border border-outline-variant p-2 space-y-2">
               {/* Честность не предупреждением, а показом: человек видит ровно то, что уйдёт. */}
-              <img src={shot.url} alt="Снимок экрана" className="max-h-56 w-auto rounded-lg border border-outline-variant" />
+              <img src={shot.url} alt="Снимок экрана" className="max-h-56 w-auto rounded-md border border-outline-variant" />
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs text-on-surface-variant">
                   Уйдёт администратору вместе с сообщением. Проверьте, нет ли лишнего.
@@ -192,11 +192,11 @@ export function BugReportDialog({ open, prefill, onClose }: {
         </div>
 
         {/* ── Что уйдёт вместе с сообщением ─────────────────────────────── */}
-        <div className="rounded-xl border border-outline-variant">
+        <div className="rounded-lg border border-outline-variant">
           <button
             type="button"
             onClick={() => setContextOpen(o => !o)}
-            className="w-full flex items-center gap-1.5 px-3 py-2 rounded-xl text-left text-xs text-on-surface-variant state-layer focus-ring"
+            className="w-full flex items-center gap-1.5 px-3 py-2 rounded-lg text-left text-xs text-on-surface-variant state-layer focus-ring"
           >
             {contextOpen ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
             Вместе с сообщением уйдёт: версия · экран · браузер · последние ошибки API

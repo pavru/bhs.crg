@@ -169,7 +169,7 @@ export function OfferLine({ offer, onTake }: { offer: FieldOffer; onTake: (value
 function Strip({ quiet, children }: { quiet: boolean; children: React.ReactNode }) {
   return (
     <div role={quiet ? 'status' : 'alert'}
-      className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${quiet
+      className={`flex items-start gap-2 rounded-md border px-3 py-2 text-xs ${quiet
         ? 'border-outline-variant bg-surface-container text-on-surface-variant'
         : 'border-error/30 bg-error-container text-on-error-container'}`}>
       {quiet ? <Icon icon={DocumentScanner} size={18} className="shrink-0 mt-0.5 text-on-surface-variant" /> : <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />}

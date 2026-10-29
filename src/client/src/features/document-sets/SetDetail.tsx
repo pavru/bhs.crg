@@ -269,7 +269,7 @@ export function SetDetail() {
       ) },
     { key: 'status', label: 'Статус', width: 'w-32',
       cell: inst => (
-        <span className={`text-xs px-2 py-0.5 rounded font-medium ${STATUS_COLORS[inst.status] ?? 'bg-surface-container text-on-surface-variant'}`}>
+        <span className={`text-xs px-2 py-0.5 rounded-xs font-medium ${STATUS_COLORS[inst.status] ?? 'bg-surface-container text-on-surface-variant'}`}>
           {STATUS_LABELS[inst.status] ?? inst.status}
         </span>
       ) },
@@ -283,7 +283,7 @@ export function SetDetail() {
                 {/* Отказ из открытия доходит один — вкладку не дали открыть: об отказе загрузки говорит сама вкладка. */}
                 <Tooltip content="Открыть PDF">
                   <button onClick={() => previewGeneratedFile(inst.id, pdfFiles[0].templateId).catch((e: Error) => toast.error(e.message))}
-                    className="flex items-center gap-1 px-2 py-1 text-xs border border-outline-variant rounded hover:bg-primary-container hover:border-primary-container text-on-surface-variant transition-colors">
+                    className="flex items-center gap-1 px-2 py-1 text-xs border border-outline-variant rounded-xs hover:bg-primary-container hover:border-primary-container text-on-surface-variant transition-colors">
                     <Icon icon={Visibility} size={18} /> PDF
                   </button>
                 </Tooltip>
@@ -296,7 +296,7 @@ export function SetDetail() {
             {pdfFiles.length > 1 && (
               <Tooltip content="Несколько PDF — открыть документ для выбора">
                 <button onClick={() => openDocument(inst)}
-                  className="flex items-center gap-1 px-2 py-1 text-xs border border-outline-variant rounded hover:bg-primary-container hover:border-primary-container text-on-surface-variant transition-colors">
+                  className="flex items-center gap-1 px-2 py-1 text-xs border border-outline-variant rounded-xs hover:bg-primary-container hover:border-primary-container text-on-surface-variant transition-colors">
                   <Icon icon={Visibility} size={18} /> {pdfFiles.length} PDF
                 </button>
               </Tooltip>
@@ -327,7 +327,7 @@ export function SetDetail() {
       {!addError && assembleMsg && <p className="text-xs text-on-surface-variant mb-3">{assembleMsg}</p>}
 
       {set.instances.length === 0 ? (
-        <div className="bg-surface border border-outline-variant rounded-xl overflow-hidden">
+        <div className="bg-surface border border-outline-variant rounded-lg overflow-hidden">
           <EmptyState className="m-4 border-0" icon={<Icon icon={Description} size={40} />} title="В комплекте пока нет документов"
             description="Добавьте документ нужного типа — заполните реквизиты и сгенерируйте PDF."
             action={<Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setAddDocOpen(true)}>Добавить документ</Button>} />

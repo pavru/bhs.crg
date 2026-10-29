@@ -133,8 +133,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
         <Dialog.Content
           data-modal-state="transient"
           aria-describedby={undefined}
-          className="fixed left-1/2 top-16 z-50 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 overflow-hidden rounded-[28px] border border-outline-variant bg-surface focus:outline-none"
-          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}
+          className="fixed left-1/2 top-16 z-50 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 overflow-hidden rounded-xl border border-outline-variant bg-surface focus:outline-none shadow-elevation-2"
         >
           <Dialog.Title className="sr-only">Поиск и действия</Dialog.Title>
           <div className="flex items-center gap-3 border-b border-outline-variant pl-5 pr-4">
@@ -145,7 +144,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
               placeholder="Найти раздел или действие…"
               className="h-14 flex-1 bg-transparent text-base text-on-surface outline-none placeholder:text-on-surface-variant"
             />
-            <kbd className="rounded-md bg-surface-container px-2 py-0.5 font-mono text-caption text-on-surface-variant">Esc</kbd>
+            <kbd className="rounded-sm bg-surface-container px-2 py-0.5 font-mono text-caption text-on-surface-variant">Esc</kbd>
           </div>
 
           <div role="group" aria-label="Где искать" className="flex flex-wrap gap-2 px-5 pt-3 pb-1">
@@ -169,16 +168,16 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
                 <li>
                   <button
                     type="button" onMouseEnter={() => setActive(i)} onClick={() => exec(it)} data-active={i === current}
-                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm ${
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm ${
                       i === current ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'}`}
                   >
-                    <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${
+                    <span className={`flex size-8 shrink-0 items-center justify-center rounded-md ${
                       it.kind === 'action' ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-on-surface-variant'}`}>
                       <Icon icon={it.icon} size={18} aria-hidden />
                     </span>
                     <span className="flex-1">
                       {highlight(it.label, words).map((p, k) => p.hit
-                        ? <mark key={k} className="rounded-sm bg-warning-container text-inherit">{p.text}</mark>
+                        ? <mark key={k} className="rounded-xs bg-warning-container text-inherit">{p.text}</mark>
                         : <Fragment key={k}>{p.text}</Fragment>)}
                       {/* Заголовок группы диктору не читается — группа звучит у самого пункта: «Вне
                           пространства» иначе слышно не было бы (ревью PR #1478). */}

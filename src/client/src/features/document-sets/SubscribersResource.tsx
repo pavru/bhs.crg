@@ -60,7 +60,7 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
       {canManage && (
         <div className="flex justify-end">
           <button onClick={() => setSendOpen(true)}
-            className="flex items-center gap-1 text-xs px-2 py-1 rounded text-primary hover:bg-primary-container transition-colors">
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded-xs text-primary hover:bg-primary-container transition-colors">
             <Icon icon={Mail} size={18} /> Сообщение
           </button>
         </div>
@@ -69,7 +69,7 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
       {subscribers.length === 0 ? (
         <p className="text-xs text-on-surface-variant">Нет подписчиков этого уровня. Получатели наследуются с вышестоящих.</p>
       ) : (
-        <div className="rounded-md border border-outline-variant divide-y divide-surface-container">
+        <div className="rounded-sm border border-outline-variant divide-y divide-surface-container">
           {subscribers.map(s => (
             <div key={s.id} className="flex items-center gap-2 px-2.5 py-1.5 text-sm group">
               <span className="text-on-surface flex-1 min-w-0 truncate">{s.displayName}</span>
@@ -101,7 +101,7 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
             {available.map(u => <SelectItem key={u.id} value={u.id}>{u.displayName || u.email}</SelectItem>)}
           </Select>
           <button onClick={handleAdd} disabled={!addUserId || add.isPending}
-            className="flex items-center gap-1 text-sm px-3 py-1.5 border border-outline rounded-md state-layer disabled-outlined">
+            className="flex items-center gap-1 text-sm px-3 py-1.5 border border-outline rounded-sm state-layer disabled-outlined">
             <Icon icon={Add} size={18} /> Добавить
           </button>
         </div>

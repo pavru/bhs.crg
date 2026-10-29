@@ -83,14 +83,14 @@ export interface SelectProps {
 }
 
 const TRIGGER =
-  'inline-flex items-center justify-between gap-2 rounded-md border ' +
+  'inline-flex items-center justify-between gap-2 rounded-sm border ' +
   'data-[placeholder]:text-on-surface-variant disabled-content disabled:pointer-events-none';
 
 // В слое формы рамку рисует оболочка — триггер внутри неё прозрачный и без своей границы, иначе
 // вышла бы рамка в рамке, а непрозрачный фон затёр бы вырез на не-surface подложке (та же ловушка,
 // что у пикера типа). Кольцо фокуса там тоже лишнее: фокус показывает сама оболочка.
 const FRAMED_TRIGGER =
-  'inline-flex items-center justify-between gap-2 w-full h-14 px-4 rounded-md bg-transparent ' +
+  'inline-flex items-center justify-between gap-2 w-full h-14 px-4 rounded-sm bg-transparent ' +
   'text-sm text-on-surface data-[placeholder]:text-on-surface-variant outline-none ' +
   'disabled-content disabled:pointer-events-none';
 
@@ -152,7 +152,7 @@ export function Select({
       </RS.Trigger>
       <RS.Portal>
         <RS.Content position="popper" sideOffset={4}
-          className="z-50 min-w-[var(--radix-select-trigger-width)] max-h-[var(--radix-select-content-available-height)] overflow-hidden rounded-md border border-outline-variant bg-surface shadow-[var(--md-sys-elevation-level2)]">
+          className="z-50 min-w-[var(--radix-select-trigger-width)] max-h-[var(--radix-select-content-available-height)] overflow-hidden rounded-sm border border-outline-variant bg-surface shadow-elevation-2">
           <RS.Viewport className="p-1">
             {emptyItem !== undefined && <SelectItem value={EMPTY}>{emptyItem}</SelectItem>}
             {children}
@@ -175,7 +175,7 @@ export function Select({
 }
 
 const ITEM =
-  'relative flex items-center gap-2 pl-3 pr-8 py-1.5 rounded text-sm text-on-surface select-none cursor-pointer ' +
+  'relative flex items-center gap-2 pl-3 pr-8 py-1.5 rounded-xs text-sm text-on-surface select-none cursor-pointer ' +
   'outline-none state-layer data-[state=checked]:font-medium disabled-content data-[disabled]:pointer-events-none';
 
 export const SelectItem = forwardRef<HTMLDivElement, { value: string; disabled?: boolean; children: ReactNode; className?: string }>(

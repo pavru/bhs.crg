@@ -89,14 +89,14 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
 
         {onAdvanced && view.mode === 'chips' && (
           <button type="button" onClick={onAdvanced}
-            className="inline-flex items-center gap-1 rounded-md text-xs text-on-surface-variant state-layer focus-ring px-1.5 py-1">
+            className="inline-flex items-center gap-1 rounded-sm text-xs text-on-surface-variant state-layer focus-ring px-1.5 py-1">
             <Icon icon={Tune} size={18} aria-hidden /> Расширенный
           </button>
         )}
 
         {hasAny && (
           <button type="button" onClick={() => onChange(() => null)}
-            className="rounded-md text-xs text-on-surface-variant state-layer [--_state-color:var(--color-error)] focus-ring px-1.5 py-1">
+            className="rounded-sm text-xs text-on-surface-variant state-layer [--_state-color:var(--color-error)] focus-ring px-1.5 py-1">
             Снять отбор
           </button>
         )}
@@ -196,8 +196,7 @@ function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, ch
       <Popover.Trigger asChild {...trigger}>{children}</Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6}
-          className="z-50 w-72 rounded-lg bg-surface border border-outline-variant p-3 focus:outline-none"
-          style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
+          className="z-50 w-72 rounded-md bg-surface border border-outline-variant p-3 focus:outline-none shadow-elevation-2">
           <form className="group/condition" onSubmit={e => { e.preventDefault(); apply(); }}>
             <ConditionEditor stacked cond={draft} columns={columns} onChange={setDraft} hintId={hintId} valueRef={valueRef} />
             {/* Подсказка, а не запрет — как в диалоге (issue #1137): годно ли условие, решает сервер, а его
@@ -208,7 +207,7 @@ function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, ch
                   problemOf={chipProblem} fieldRef={valueRef} />}
             <div className="mt-2.5 flex justify-end">
               <button type="submit" disabled={!draft.column.trim() || waiting}
-                className="px-3 py-1 rounded-md text-xs font-medium text-on-primary bg-primary state-layer focus-ring disabled-container">
+                className="px-3 py-1 rounded-sm text-xs font-medium text-on-primary bg-primary state-layer focus-ring disabled-container">
                 {submit}
               </button>
             </div>

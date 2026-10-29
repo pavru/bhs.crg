@@ -40,7 +40,7 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
         <span />
       </div>
       {values.map((v, i) => (
-        <div key={rowKey(v, i)} className={`${cols} rounded ${dragIdx === i ? 'ring-1 ring-primary' : ''}`}
+        <div key={rowKey(v, i)} className={`${cols} rounded-xs ${dragIdx === i ? 'ring-1 ring-primary' : ''}`}
           onDragOver={dragIdx !== null ? e => e.preventDefault() : undefined}
           onDrop={dragIdx !== null ? e => { e.preventDefault(); move(dragIdx, i); setDragIdx(null); } : undefined}>
           <Tooltip content="Перетащить">
@@ -56,9 +56,9 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
             </span>
           </Tooltip>
           <input value={v.code} onChange={e => update(i, { code: e.target.value })} placeholder="APPROVED"
-            className="border border-outline rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
+            className="border border-outline rounded-xs px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
           <input value={v.label} onChange={e => update(i, { label: e.target.value })} placeholder="Согласован"
-            className="border border-outline rounded px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
+            className="border border-outline rounded-xs px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
           <span className="flex items-center gap-0.5">
             <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
               isFirst={i === 0} isLast={i === values.length - 1} />

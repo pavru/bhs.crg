@@ -84,7 +84,7 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
               <Tooltip content={locked ? 'Обязательное поле — на нём завязано разбиение документов' : undefined}>
                 <input value={f.name} onChange={e => update(i, { name: e.target.value })}
                   readOnly={locked} placeholder="Позиция"
-                  className={`w-full border border-outline rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface ${
+                  className={`w-full border border-outline rounded-xs px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface ${
                     locked ? 'pr-7 text-on-surface-variant cursor-not-allowed' : ''}`} />
               </Tooltip>
               {locked && (
@@ -94,7 +94,7 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
             </div>
             <input value={f.description ?? ''} onChange={e => update(i, { description: e.target.value })}
               placeholder="Что это за колонка — своими словами"
-              className="border border-outline rounded px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
+              className="border border-outline rounded-xs px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
             <Select value={f.type || 'string'} onValueChange={type => update(i, { type })}
               aria-label={`Тип: ${f.name.trim() || `строка ${i + 1}`}`}>
               {FIELD_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
@@ -198,10 +198,10 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
             <DetailTitle>{profile.name}</DetailTitle>
             <span className="text-xs font-normal text-on-surface-variant">{info.label}</span>
             {profile.isBuiltIn && (
-              <span className="text-caption px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">встроенный</span>
+              <span className="text-caption px-1.5 py-0.5 rounded-xs bg-surface-container text-on-surface-variant">встроенный</span>
             )}
             {profile.isModified && (
-              <span className="text-caption px-1.5 py-0.5 rounded bg-primary-container text-on-primary-container">изменён</span>
+              <span className="text-caption px-1.5 py-0.5 rounded-xs bg-primary-container text-on-primary-container">изменён</span>
             )}
           </span>
         }
@@ -225,7 +225,7 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
 
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5">
         {profile.builtInOutdated && (
-          <div className="flex gap-2 rounded-lg border border-outline-variant bg-warning-container p-3 text-sm text-on-warning-container">
+          <div className="flex gap-2 rounded-md border border-outline-variant bg-warning-container p-3 text-sm text-on-warning-container">
             <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <span>
               Заводская версия этого профиля обновилась в новой версии системы, но ваши правки сохранены —
@@ -392,7 +392,7 @@ export function RecognitionProfilesPage() {
 
   const row = (p: RecognitionProfile) => (
     <button key={p.id} type="button" onClick={() => { ld.showDetail(); setSelectedId(p.id); }}
-      className={`state-layer w-full text-left px-3 py-2 rounded-lg ${
+      className={`state-layer w-full text-left px-3 py-2 rounded-md ${
         selected?.id === p.id ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}>
       <span className="flex items-center gap-1.5">
         <span className="text-sm truncate flex-1 min-w-0">{p.name}</span>

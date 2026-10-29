@@ -246,7 +246,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
           в раскладке рисуются поля, а не имена, — поэтому «ДатаДокумнета» и пережил все правки
           схемы. Чистим по кнопке и обычным «Сохранить»: молча править чужую схему нельзя. */}
       {danglingRefs.length > 0 && (
-        <div className="flex items-start gap-2 rounded-md border border-warning/50 bg-warning/10 px-3 py-2">
+        <div className="flex items-start gap-2 rounded-sm border border-warning/50 bg-warning/10 px-3 py-2">
           <Icon icon={Warning} size={18} className="text-warning shrink-0 mt-0.5" />
           <div className="text-xs text-on-surface-variant space-y-1 flex-1 min-w-0">
             <p>В схеме есть ссылки на поля, которых нет ни среди своих, ни среди унаследованных —
@@ -261,7 +261,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
             </ul>
           </div>
           <button type="button" onClick={dropDanglingRefs}
-            className="text-xs px-2 py-1 rounded border border-warning/60 text-on-surface-variant hover:bg-warning/20 shrink-0">
+            className="text-xs px-2 py-1 rounded-xs border border-warning/60 text-on-surface-variant hover:bg-warning/20 shrink-0">
             Убрать ссылки
           </button>
         </div>
@@ -274,7 +274,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
           </p>
           {(fields.length > 0 || parentEffectiveFields.length > 0) && (
             <button type="button" onClick={() => setShowJson(v => !v)}
-              className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded ${
+              className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-xs ${
                 showJson ? 'bg-on-surface text-surface-container' : 'text-on-surface-variant hover:text-on-surface state-layer'
               }`}>
               <Icon icon={DataObject} size={18} /> JSON
@@ -364,7 +364,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
               <p className="mt-2 text-xs text-on-surface-variant">
                 Используется как <span className="text-primary font-medium">профиль уровня «{p.level}»</span>:
                 его объект редактируется в «Общие данные» уровня, поля доступны в шаблоне как{' '}
-                <code className="font-mono bg-surface-container text-on-surface px-1 rounded">data.уровень.{p.key}.*</code>.
+                <code className="font-mono bg-surface-container text-on-surface px-1 rounded-xs">data.уровень.{p.key}.*</code>.
               </p>
             ) : null;
           })()}
@@ -388,12 +388,12 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
             </div>
             {helpPreview ? (
               help.trim()
-                ? <div className="rounded-md border border-outline-variant bg-surface p-3"><Markdown>{help}</Markdown></div>
+                ? <div className="rounded-sm border border-outline-variant bg-surface p-3"><Markdown>{help}</Markdown></div>
                 : <p className="text-xs text-on-surface-variant italic px-1">Пусто — введите текст на вкладке «Текст».</p>
             ) : (
               <textarea value={help} onChange={e => { setHelp(e.target.value); setDirty(true); }} rows={5}
                 placeholder="Напр.: Проект, адрес и заказчик подтягиваются из профиля стройки — заполнять здесь не нужно."
-                className="w-full border border-outline rounded-md px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
+                className="w-full border border-outline rounded-sm px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
             )}
           </div>
         </SectionCard>

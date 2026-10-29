@@ -56,7 +56,7 @@ export function FavoritesPicker({ maxHeight = 'max-h-72' }: { maxHeight?: string
           <Icon icon={Search} size={18} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
           <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Название стройки…"
             aria-label="Название стройки"
-            className="w-full h-8 pl-8 pr-2 text-sm border border-outline rounded-md bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
+            className="w-full h-8 pl-8 pr-2 text-sm border border-outline rounded-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
         </div>
       )}
       {filter.sites.length === 0 ? (
@@ -67,7 +67,7 @@ export function FavoritesPicker({ maxHeight = 'max-h-72' }: { maxHeight?: string
             const checked = filter.favorites.has(s.id);
             return (
               <li key={s.id}>
-                <label className="flex items-center gap-2 px-1 py-1 rounded state-layer cursor-pointer text-sm text-on-surface">
+                <label className="flex items-center gap-2 px-1 py-1 rounded-xs state-layer cursor-pointer text-sm text-on-surface">
                   <Checkbox size="sm" checked={checked} disabled={busy}
                     onChange={() => run(() => filter.setFavorite(s.id, !checked))} />
                   <Icon icon={Star} size={18} className={checked ? 'text-primary fill-current' : 'text-on-surface-variant'} aria-hidden />

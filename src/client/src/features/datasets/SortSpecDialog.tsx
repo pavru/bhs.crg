@@ -34,10 +34,10 @@ function SortRow({
           value={level.column}
           onChange={e => onChange({ ...level, column: e.target.value })}
           placeholder="Колонка"
-          className="border border-outline-variant rounded px-2 py-1 text-xs bg-surface text-on-surface flex-1 min-w-0"
+          className="border border-outline-variant rounded-xs px-2 py-1 text-xs bg-surface text-on-surface flex-1 min-w-0"
         />
       )}
-      <div className="flex rounded text-xs font-medium overflow-hidden shrink-0 border border-outline-variant">
+      <div className="flex rounded-xs text-xs font-medium overflow-hidden shrink-0 border border-outline-variant">
         {(['asc', 'desc'] as const).map(d => (
           <button
             key={d}
@@ -50,9 +50,9 @@ function SortRow({
         ))}
       </div>
       <MoveButtons onUp={onMoveUp} onDown={onMoveDown} isFirst={isFirst} isLast={isLast}
-        className="rounded shrink-0" upTitle="Выше приоритетом" downTitle="Ниже приоритетом" />
+        className="rounded-xs shrink-0" upTitle="Выше приоритетом" downTitle="Ниже приоритетом" />
       <Tooltip content="Удалить" name>
-        <button type="button" onClick={onRemove} className="p-1 rounded text-on-surface-variant hover:text-error shrink-0">
+        <button type="button" onClick={onRemove} className="p-1 rounded-xs text-on-surface-variant hover:text-error shrink-0">
           <Icon icon={Delete} size={18} />
         </button>
       </Tooltip>
@@ -111,7 +111,7 @@ export function SortSpecDialog({
       footer={
         <div className="flex gap-2">
           <button onClick={handleSave} disabled={saving}
-            className="px-4 py-2 rounded-md text-sm font-medium text-on-primary bg-primary disabled-container">
+            className="px-4 py-2 rounded-sm text-sm font-medium text-on-primary bg-primary disabled-container">
             {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
           <ModalExit variant="tonal" />
@@ -119,7 +119,7 @@ export function SortSpecDialog({
             <button
               onClick={() => void commit(() => onSave(null))}
               disabled={saving}
-              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-error bg-surface-container disabled-container"
+              className="ml-auto px-4 py-2 rounded-sm text-sm font-medium text-error bg-surface-container disabled-container"
             >
               Сбросить
             </button>
@@ -153,7 +153,7 @@ export function SortSpecDialog({
 
       <button
         onClick={addLevel}
-        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md text-on-primary-container bg-primary-container"
+        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-sm text-on-primary-container bg-primary-container"
       >
         <Icon icon={Add} size={18} /> Добавить уровень сортировки
       </button>

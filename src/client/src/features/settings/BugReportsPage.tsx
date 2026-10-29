@@ -63,7 +63,7 @@ export function BugReportsPage() {
   const row = (r: BugReportListItem) => (
     <button key={r.id} type="button" onClick={() => { ld.showDetail(); setPicked(r.id); }}
       aria-current={r.id === selectedId ? 'true' : undefined}
-      className={`state-layer w-full text-left px-3 py-2 rounded-xl ${
+      className={`state-layer w-full text-left px-3 py-2 rounded-lg ${
         r.id === selectedId ? 'bg-primary-container' : ''}`}>
       <div className="flex items-start gap-2">
         <span className={`flex-1 min-w-0 text-sm truncate ${r.id === selectedId ? 'text-primary font-medium' : 'text-on-surface'}`}>
@@ -253,7 +253,7 @@ function ReportBody({ report, githubConfigured }: {
             onChange={e => setDraft(e.target.value)}
             rows={16}
             spellCheck={false}
-            className="w-full rounded-xl border border-outline bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-on-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+            className="w-full rounded-lg border border-outline bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-on-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
           />
           <p className="text-xs text-on-surface-variant">
             Markdown. Уберите внутреннее — названия строек, организаций и объектов: репозиторий
@@ -420,7 +420,7 @@ function TechBlock({ tech }: { tech: BugReportTech | null }) {
       )}
 
       {tech.stack && (
-        <pre className="max-h-60 overflow-auto rounded-lg bg-surface-container p-3 text-caption leading-relaxed whitespace-pre-wrap break-words">
+        <pre className="max-h-60 overflow-auto rounded-md bg-surface-container p-3 text-caption leading-relaxed whitespace-pre-wrap break-words">
           {tech.stack}
         </pre>
       )}

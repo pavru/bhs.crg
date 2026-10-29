@@ -77,6 +77,6 @@ export function NoAccessPage({ what, missing }: {
 
 function Code({ children }: { children: string }) {
   return (
-    <code className="rounded bg-surface-container px-1.5 py-0.5 font-mono text-xs text-on-surface-variant">{children}</code>
+    <code className="rounded-xs bg-surface-container px-1.5 py-0.5 font-mono text-xs text-on-surface-variant">{children}</code>
   );
 }

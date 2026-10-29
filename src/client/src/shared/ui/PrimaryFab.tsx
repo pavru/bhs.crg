@@ -21,8 +21,7 @@ export function PrimaryFab({ action, busy = false }: { action: PaletteAction; bu
   return (
     <button type="button" data-testid="primary-fab" onClick={() => toScreen(intentHref(action))}
       disabled={busy} aria-busy={busy || undefined}
-      className="absolute right-4 bottom-4 z-30 flex items-center gap-3 h-14 max-w-[calc(100%-2rem)] pl-4 pr-5 rounded-2xl bg-secondary-container text-on-secondary-container text-sm font-medium state-layer focus-ring"
-      style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
+      className="absolute right-4 bottom-4 z-30 flex items-center gap-3 h-14 max-w-[calc(100%-2rem)] pl-4 pr-5 rounded-lg bg-secondary-container text-on-secondary-container text-sm font-medium state-layer focus-ring shadow-elevation-3">
       {busy
         ? <CircularProgress size={24} className="shrink-0" />
         : <Icon icon={icon} size={24} className="shrink-0" aria-hidden />}

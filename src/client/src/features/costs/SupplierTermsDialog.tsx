@@ -110,7 +110,7 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
               onChange={e => setTyped(t => ({ ...t, [item.supplierId]: e.target.value }))}
               onBlur={() => void change(item)}
               onKeyDown={e => { if (e.key === 'Enter') void change(item); }}
-              className={`w-24 rounded border bg-surface px-2 py-0.5 text-sm text-on-surface
+              className={`w-24 rounded-xs border bg-surface px-2 py-0.5 text-sm text-on-surface
                 ${typeof days !== 'number' ? 'border-error' : 'border-outline-variant'}`} />
           </Tooltip>
         );
@@ -155,7 +155,7 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
       </div>
 
       {terms.isError ? (
-        <div className="rounded-lg border border-error/30 px-3 py-2 text-sm text-error">
+        <div className="rounded-md border border-error/30 px-3 py-2 text-sm text-error">
           Условия не прочитаны: {apiError(terms.error)} Это не «условий нет».{' '}
           <button type="button" className="underline" onClick={() => void terms.refetch()}>Повторить</button>
         </div>

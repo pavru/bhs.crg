@@ -169,14 +169,14 @@ export function ApplyTemplateDialog({
           <button
             onClick={handleApply}
             disabled={!selectedTemplate || !selectedSource || create.isPending}
-            className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium text-on-primary disabled-container bg-primary"
+            className="flex items-center gap-2 px-4 py-2 rounded-sm text-sm font-medium text-on-primary disabled-container bg-primary"
           >
             {create.isPending && <CircularProgress size={18} />}
             Создать привязку
           </button>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-md text-sm font-medium text-on-surface-variant bg-surface-container"
+            className="px-4 py-2 rounded-sm text-sm font-medium text-on-surface-variant bg-surface-container"
           >
             Отмена
           </button>
@@ -204,7 +204,7 @@ export function ApplyTemplateDialog({
                   <button
                     key={t.id}
                     onClick={() => { setSelectedTemplateId(t.id); setSelectedSource(null); }}
-                    className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all ${
+                    className={`w-full text-left px-3 py-2.5 rounded-md border transition-all ${
                       selected ? 'border-primary bg-primary-container' : 'border-outline-variant bg-surface'
                     }`}
                   >
@@ -236,7 +236,7 @@ export function ApplyTemplateDialog({
 
         {/* Превью совпадения колонок */}
         {selectedTemplate && selectedSource && (
-          <div className="rounded-lg p-3 border border-outline-variant bg-surface-container-low">
+          <div className="rounded-md p-3 border border-outline-variant bg-surface-container-low">
             <p className="text-xs font-semibold mb-2 text-on-surface-variant">
               Проверка колонок
             </p>

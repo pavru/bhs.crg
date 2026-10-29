@@ -51,7 +51,7 @@ export function CorrectionPreviewDialog({ preview, pending, error, reason, note,
       <div className="space-y-3 text-sm">
         {pending && <p className="text-on-surface-variant">Считаем, что запишет исправление…</p>}
         {!pending && error != null && (
-          <div role="alert" className="flex items-start gap-2 rounded-lg border border-error/30 bg-error-container
+          <div role="alert" className="flex items-start gap-2 rounded-md border border-error/30 bg-error-container
             px-3 py-2 text-xs text-on-error-container">
             <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <span>{apiError(error, 'Исправление не посчитано')}</span>

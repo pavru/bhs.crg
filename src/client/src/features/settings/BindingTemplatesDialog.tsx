@@ -12,7 +12,7 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
 // Shared input styling.
-const FIELD_CLS = 'border border-outline-variant rounded-md px-3 py-1.5 text-sm bg-surface text-on-surface';
+const FIELD_CLS = 'border border-outline-variant rounded-sm px-3 py-1.5 text-sm bg-surface text-on-surface';
 
 // ─── Template form ────────────────────────────────────────────────────────────
 
@@ -123,7 +123,7 @@ function TemplateForm({
                   value={columnMappings[f.key] ?? ''}
                   onChange={e => setMapping(f.key, e.target.value)}
                   placeholder="Название колонки в файле"
-                  className="flex-1 border border-outline-variant rounded px-2 py-1 text-xs bg-surface text-on-surface"
+                  className="flex-1 border border-outline-variant rounded-xs px-2 py-1 text-xs bg-surface text-on-surface"
                 />
               </div>
             ))}
@@ -136,14 +136,14 @@ function TemplateForm({
         <button
           onClick={() => onSave({ name, targetFieldKey, columnMappings })}
           disabled={saving || !name.trim()}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-on-primary disabled-container bg-primary"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-sm font-medium text-on-primary disabled-container bg-primary"
         >
           <Icon icon={Check} size={18} />
           {saving ? 'Сохранение...' : 'Сохранить'}
         </button>
         <button
           onClick={onCancel}
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-on-surface-variant bg-surface-container"
+          className="px-3 py-1.5 rounded-sm text-sm font-medium text-on-surface-variant bg-surface-container"
         >
           Отмена
         </button>
@@ -205,7 +205,7 @@ function TemplateRow({
         <Tooltip content="Редактировать" name>
           <button
             onClick={() => setEditing(e => !e)}
-            className="p-1.5 rounded text-on-surface-variant"
+            className="p-1.5 rounded-xs text-on-surface-variant"
           >
             <Icon icon={Edit} size={18} />
           </button>
@@ -214,7 +214,7 @@ function TemplateRow({
           <Tooltip content="Удалить" name>
             <button
               onClick={() => setConfirming(true)}
-              className="p-1.5 rounded text-on-surface-variant hover:text-error transition-colors"
+              className="p-1.5 rounded-xs text-on-surface-variant hover:text-error transition-colors"
             >
               <Icon icon={Delete} size={18} />
             </button>
@@ -225,14 +225,14 @@ function TemplateRow({
             <button
               onClick={() => del.mutateAsync({ documentTypeId: docType.id, id: template.id }).then(() => setConfirming(false))}
               disabled={del.isPending}
-              className="px-2 py-0.5 rounded text-on-error bg-error"
+              className="px-2 py-0.5 rounded-xs text-on-error bg-error"
               style={{ fontSize: '11px' }}
             >
               Да
             </button>
             <button
               onClick={() => setConfirming(false)}
-              className="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant"
+              className="px-2 py-0.5 rounded-xs bg-surface-container text-on-surface-variant"
               style={{ fontSize: '11px' }}
             >
               Нет
@@ -297,7 +297,7 @@ export function BindingTemplatesDialog({
       </p>
 
       {/* Список */}
-      <div className="rounded-xl overflow-hidden mb-4 border border-outline-variant bg-surface">
+      <div className="rounded-lg overflow-hidden mb-4 border border-outline-variant bg-surface">
         {isLoading ? (
           <div className="p-6 text-center text-sm text-on-surface-variant">Загрузка...</div>
         ) : templates.length === 0 && !adding ? (
@@ -313,7 +313,7 @@ export function BindingTemplatesDialog({
 
       {/* Форма добавления */}
       {adding ? (
-        <div className="rounded-xl p-4 border border-outline-variant bg-surface-container-low">
+        <div className="rounded-lg p-4 border border-outline-variant bg-surface-container-low">
           <p className="text-xs font-semibold mb-3 text-on-surface-variant">Новый шаблон</p>
           <TemplateForm
             docType={docType}
@@ -326,7 +326,7 @@ export function BindingTemplatesDialog({
       ) : (
         <button
           onClick={() => setAdding(true)}
-          className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md text-on-primary-container bg-primary-container"
+          className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-sm text-on-primary-container bg-primary-container"
         >
           <Icon icon={Add} size={18} /> Добавить шаблон
         </button>

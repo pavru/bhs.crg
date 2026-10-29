@@ -115,12 +115,12 @@ export function OutlinedField({
             ⚠️ «Под» даёт отрицательный слой в своём контексте наложения, а не место в разметке:
             позиционированная подложка рисуется ПОВЕРХ обычного поля, где бы она ни стояла, — и поле
             для чтения выглядело пустым при заполненном значении (нашлось на issue #1282). */}
-        {readOnly && <div aria-hidden className="absolute inset-0 -z-10 rounded-md bg-surface-container" />}
+        {readOnly && <div aria-hidden className="absolute inset-0 -z-10 rounded-sm bg-surface-container" />}
         {children}
         {/* Рамка с вырезом: fieldset даёт границу, legend прорезает верх под меткой. Ширина legend
             и есть вырез — она же анимируется, когда метка всплывает. */}
         <fieldset aria-hidden
-          className={`pointer-events-none absolute inset-x-0 bottom-0 top-[-5px] m-0 rounded-md border px-3 transition-colors ease-standard ${borderColor} ${borderWidth} ${legendOpener}`}>
+          className={`pointer-events-none absolute inset-x-0 bottom-0 top-[-5px] m-0 rounded-sm border px-3 transition-colors ease-standard ${borderColor} ${borderWidth} ${legendOpener}`}>
           <legend className={`h-2.5 w-auto whitespace-nowrap p-0 text-xs invisible transition-[max-width] duration-100 ease-standard ${legendWidth}`}>
             <span className="inline-block px-1 opacity-0">{label}{required ? ' *' : ''}</span>
           </legend>

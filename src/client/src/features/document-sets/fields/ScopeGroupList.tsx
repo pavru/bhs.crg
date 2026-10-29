@@ -39,9 +39,9 @@ export function ScopeGroupList({
           <div key={g.scope}>
             {/* Заголовок группы = scope-бейдж + счётчик; сворачиваемая секция (a11y-кнопка). */}
             <button type="button" onClick={() => toggle(g.scope)} aria-expanded={expanded}
-              className="w-full flex items-center gap-2 px-1 py-1.5 text-left rounded-md state-layer">
+              className="w-full flex items-center gap-2 px-1 py-1.5 text-left rounded-sm state-layer">
               {expanded ? <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={ChevronRight} size={18} className="text-on-surface-variant shrink-0" />}
-              <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${SCOPE_COLORS[g.scope]}`}>
+              <span className={`text-xs px-1.5 py-0.5 rounded-xs font-medium shrink-0 ${SCOPE_COLORS[g.scope]}`}>
                 {SCOPE_LABELS[g.scope]}
               </span>
               <span className="text-xs text-on-surface-variant">{g.entries.length}</span>
@@ -57,7 +57,7 @@ export function ScopeGroupList({
                       aria-selected={asOptions ? on : undefined}
                       id={optionIdOf?.(entry)}
                       onMouseEnter={() => onHover?.(entry)} onClick={() => onSelect(entry)}
-                      className={`w-full flex items-center px-3 py-2 text-sm text-left rounded-md transition-colors ${
+                      className={`w-full flex items-center px-3 py-2 text-sm text-left rounded-sm transition-colors ${
                         on ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-primary-container'}`}>
                       <span className={`flex-1 font-medium truncate ${on ? 'text-on-secondary-container' : 'text-on-surface'}`}>
                         {entry.displayName}

@@ -30,7 +30,7 @@ export function SearchInput({
         aria-label={ariaLabel ?? 'Поиск'}
         autoFocus={autoFocus}
         data-search=""
-        className={`w-full h-10 pl-9 pr-9 text-sm bg-surface border border-outline text-on-surface outline-none focus-visible:ring-2 focus-visible:ring-primary placeholder:text-on-surface-variant ${rounded === 'full' ? 'rounded-full' : 'rounded-md'} ${className}`}
+        className={`w-full h-10 pl-9 pr-9 text-sm bg-surface border border-outline text-on-surface outline-none focus-visible:ring-2 focus-visible:ring-primary placeholder:text-on-surface-variant ${rounded === 'full' ? 'rounded-full' : 'rounded-sm'} ${className}`}
       />
       {value && (
         <button

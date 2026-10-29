@@ -42,7 +42,7 @@ export function Cell({ value, label, numeric, placeholder, onChange, onBlur }: {
   return (
     <input value={value} aria-label={label} placeholder={placeholder}
       onChange={e => onChange(e.target.value)} onBlur={onBlur}
-      className="w-full rounded border border-outline-variant bg-surface px-1.5 py-1 text-xs text-on-surface
+      className="w-full rounded-xs border border-outline-variant bg-surface px-1.5 py-1 text-xs text-on-surface
         outline-none focus:border-primary placeholder:text-on-surface-variant" />
   );
 }

@@ -73,14 +73,24 @@
     "features/costs/InvoiceQueueChips.tsx": 1,
     "features/costs/SiteCostsPage.tsx": 1,
     "features/costs/SupplierMatchesDialog.tsx": 1,
+    "features/datasets/PdfGroupingEditor.tsx": 5,
+    "features/datasets/SourcePreviewDialog.tsx": 1,
     "features/document-sets/SetProblemsPanel.tsx": 1,
+    "features/document-sets/SubscribersResource.tsx": 1,
+    "features/document-sets/editor/GenerationTab.tsx": 3,
     "features/document-sets/editor/MaterialsTable.tsx": 1,
+    "features/document-sets/editor/QualityLinksTab.tsx": 1,
+    "features/quality-docs/QualityDocsPage.tsx": 1,
     "features/reconciliations/ObservationsPanel.tsx": 1,
     "features/reconciliations/ReconciliationEditor.tsx": 1,
     "features/reconciliations/ReconciliationsPage.tsx": 1,
+    "features/settings/EmailSettingsSection.tsx": 1,
+    "features/settings/FieldBuilder.tsx": 1,
     "features/settings/InheritedFieldsPanel.tsx": 1,
     "features/settings/PrimitiveTypesPage.tsx": 1,
-    "features/settings/SchemaEditor.tsx": 1
+    "features/settings/SchemaEditor.tsx": 1,
+    "features/tables/ColumnsPanel.tsx": 1,
+    "features/tables/ExportMenu.tsx": 1
   },
   "badge": {
     "features/costs/WaybillForm.tsx": 1,
@@ -162,6 +172,16 @@
   "container-text": {},
   "raw-state": {},
   "dark-variant": {},
+  "legacy-radius": {
+    "features/activity/ActivityCenter.tsx": 1,
+    "features/catalog/LoginPage.tsx": 1,
+    "features/document-sets/catalog/index.tsx": 1,
+    "features/document-sets/fields/ExtractToCommonDataModal.tsx": 1,
+    "features/settings/BrandingSection.tsx": 1
+  },
+  "legacy-shadow": {
+    "features/settings/GroupedFieldsEditor.tsx": 1
+  },
   "lucide-import": {},
   "spinner-icon": {},
   "icon-size": {}

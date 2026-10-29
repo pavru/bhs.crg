@@ -178,7 +178,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
   ];
 
   return (
-    <div className="text-xs rounded-md p-2 bg-surface-container">
+    <div className="text-xs rounded-sm p-2 bg-surface-container">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="font-medium text-on-surface">
@@ -188,7 +188,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
               // замену файла, хотя сменить могли и профиль распознавания, и границы документа.
               <Tooltip content={`${staleReasonText(src.staleReason)}. Распознайте заново.`}>
                 <span
-                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-container text-on-warning-container align-middle">
+                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-caption font-medium bg-warning-container text-on-warning-container align-middle">
                   <Icon icon={Warning} size={18} /> устарело
                 </span>
               </Tooltip>
@@ -200,7 +200,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
                 ? `Строки источника — ссылки на существующие документы по колонке «${src.materializeByIdColumn}».`
                 : 'Источник материализуется в тип — маппинг задан на источнике (issue #19).'}>
                 <span
-                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-primary/10 text-primary align-middle">
+                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-caption font-medium bg-primary/10 text-primary align-middle">
                   <Icon icon={Widgets} size={18} /> материализация{src.materializeByIdColumn ? ' · по Ид' : ''}
                 </span>
               </Tooltip>
@@ -210,7 +210,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
             {!!src.bindingCount && (
               <Tooltip content={`На источник ссылаются привязки документов (${src.bindingCount}). При удалении они перестанут работать.`}>
                 <span
-                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-surface-container text-on-surface-variant align-middle">
+                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-caption font-medium bg-surface-container text-on-surface-variant align-middle">
                   <Icon icon={LinkIcon} size={18} /> {ruCount(src.bindingCount, 'привязка', 'привязки', 'привязок')}
                 </span>
               </Tooltip>
@@ -432,7 +432,7 @@ export function SourcesPanel({
             onEdit={setEditing} />
         ))}
         {availableCandidates.length > 0 && (
-          <div className="rounded-md border border-dashed border-outline bg-surface-container-low px-3 py-2 space-y-1 mt-1">
+          <div className="rounded-sm border border-dashed border-outline bg-surface-container-low px-3 py-2 space-y-1 mt-1">
             <p className="text-caption text-on-surface-variant">
               {isSystem ? 'Доступно из данных системы:' : isPdf ? 'Доступно из распознанного набора:' : 'Доступно из набора:'}
             </p>

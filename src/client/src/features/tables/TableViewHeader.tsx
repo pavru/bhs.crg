@@ -127,7 +127,7 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
   }
 
   const row = (key: string, to: string, label: string, chosen: boolean, note?: string | null, actions: RowAction[] = []) => (
-    <li key={key} className="flex items-center gap-1 rounded-md state-layer">
+    <li key={key} className="flex items-center gap-1 rounded-sm state-layer">
       {/* Открытое ведёт туда же, где человек стоит: щелчок по отмеченному не сбрасывает несохранённое. */}
       <Link to={chosen ? { hash } : to} onClick={() => setOpen(false)} aria-current={chosen ? 'page' : undefined}
         className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 text-sm text-on-surface">
@@ -149,7 +149,7 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
             <Tooltip content="Выбрать представление">
               <Popover.Trigger asChild>
                 <button type="button"
-                  className="flex items-center gap-2 rounded-md -mx-1.5 px-1.5 py-0.5 state-layer max-w-[calc(100%+0.75rem)]">
+                  className="flex items-center gap-2 rounded-sm -mx-1.5 px-1.5 py-0.5 state-layer max-w-[calc(100%+0.75rem)]">
                   <Icon icon={Table} size={18} className="text-on-surface-variant shrink-0" aria-hidden />
                   <span className="truncate">{title}</span>
                   <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" aria-hidden />
@@ -158,8 +158,7 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
             </Tooltip>
             <Popover.Portal>
               <Popover.Content align="start" sideOffset={6} aria-label="Представления таблицы"
-                className="z-40 w-80 max-h-[70vh] overflow-auto rounded-lg bg-surface border border-outline-variant p-2 focus:outline-none"
-                style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
+                className="z-40 w-80 max-h-[70vh] overflow-auto rounded-md bg-surface border border-outline-variant p-2 focus:outline-none shadow-elevation-2">
                 <ul>
                   {/* К таблице целиком — с тем же отбором: из представления к ней уходят посмотреть те же строки всеми колонками. */}
                   {row('table', `${path}${wholeTableHash(view)}`, 'Таблица целиком', lookup.state === 'table')}

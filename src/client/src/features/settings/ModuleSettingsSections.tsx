@@ -30,7 +30,7 @@ export function ModuleSettingsSections() {
   // значило бы показать «1,00 ₽» там, где сохранено другое.
   if (isError)
     return (
-      <div className="border border-outline-variant rounded-xl p-4 flex items-center gap-3">
+      <div className="border border-outline-variant rounded-lg p-4 flex items-center gap-3">
         <span className="text-sm text-error">Настройки модулей не загрузились.</span>
         <Button variant="outlined" size="sm" onClick={() => void refetch()}>Повторить</Button>
       </div>

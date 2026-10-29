@@ -374,7 +374,7 @@ function IconAction({ title, onClick, danger, disabled, children }: {
         aria-label={title}
         onClick={onClick}
         disabled={disabled}
-        className={`p-1.5 rounded-md disabled-content ${
+        className={`p-1.5 rounded-sm disabled-content ${
           danger ? 'text-on-surface-variant hover:text-on-error-container hover:bg-error-container' : 'text-on-surface-variant hover:text-on-surface state-layer'
         }`}
       >
@@ -404,7 +404,7 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
   return (
     <div className="flex flex-col min-h-0 flex-1">
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
-        <div className={`flex items-center gap-3 rounded-lg p-3 ${
+        <div className={`flex items-center gap-3 rounded-md p-3 ${
           report.success ? 'bg-success-container text-on-success-container' : 'bg-error-container text-on-error-container'
         }`}>
           {report.success
@@ -418,14 +418,14 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
         </div>
 
         {report.conversionNotice && (
-          <div className="flex gap-2 rounded-lg border border-primary-container bg-primary-container p-3 text-sm text-on-primary-container">
+          <div className="flex gap-2 rounded-md border border-primary-container bg-primary-container p-3 text-sm text-on-primary-container">
             <Icon icon={Info} size={18} className="shrink-0 mt-0.5" />
             <span>{report.conversionNotice}</span>
           </div>
         )}
 
         {report.success && (
-          <div className="rounded-lg border border-outline-variant overflow-hidden">
+          <div className="rounded-md border border-outline-variant overflow-hidden">
             <DataGrid framed={false} columns={STAT_COLUMNS} rowKey={r => r.label} rows={[
               { label: 'Типы полей', created: report.primitiveTypesCreated ?? 0, updated: report.primitiveTypesUpdated ?? 0 },
               { label: 'Перечисления', created: report.enumTypesCreated ?? 0, updated: report.enumTypesUpdated ?? 0 },
@@ -461,7 +461,7 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
         )}
 
         {report.warnings.length > 0 && (
-          <div className="rounded-lg border border-outline-variant bg-warning-container p-3 space-y-1">
+          <div className="rounded-md border border-outline-variant bg-warning-container p-3 space-y-1">
             <p className="text-xs font-semibold text-warning uppercase tracking-wide mb-2">
               Предупреждения ({report.warnings.length})
             </p>

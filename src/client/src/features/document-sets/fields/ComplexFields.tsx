@@ -333,7 +333,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   }
 
   return (
-    <div className="border border-outline-variant rounded-lg overflow-hidden">
+    <div className="border border-outline-variant rounded-md overflow-hidden">
       <div className={`flex items-center justify-between px-3 py-2 bg-surface-container-low ${collapsed ? '' : 'border-b border-outline-variant'}`}>
         <button type="button" onClick={toggleCollapsed}
           className="flex items-center gap-1.5 min-w-0 text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors">
@@ -354,11 +354,11 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
           <div className="flex items-center gap-1">
             <span className="text-xs text-on-surface-variant px-1">Выбрано: {chosen.length}</span>
             <button type="button" onClick={() => setConfirmBulk(true)}
-              className="flex items-center gap-1 text-xs text-error hover:text-on-error-container px-2 py-0.5 rounded hover:bg-error-container transition-colors">
+              className="flex items-center gap-1 text-xs text-error hover:text-on-error-container px-2 py-0.5 rounded-xs hover:bg-error-container transition-colors">
               <Icon icon={Delete} size={18} /> Удалить выбранные
             </button>
             <button type="button" onClick={() => setSelected(new Set())}
-              className="text-xs text-on-surface-variant hover:text-on-surface-variant px-2 py-0.5 rounded hover:bg-outline-variant transition-colors">
+              className="text-xs text-on-surface-variant hover:text-on-surface-variant px-2 py-0.5 rounded-xs hover:bg-outline-variant transition-colors">
               Снять выбор
             </button>
           </div>
@@ -366,18 +366,18 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         <div className="flex items-center gap-1">
           {hasTableFields && (
             <button type="button" onClick={() => setTableOpen(true)}
-              className="flex items-center gap-1 text-xs text-on-surface-variant hover:text-on-surface-variant px-2 py-0.5 rounded hover:bg-outline-variant transition-colors">
+              className="flex items-center gap-1 text-xs text-on-surface-variant hover:text-on-surface-variant px-2 py-0.5 rounded-xs hover:bg-outline-variant transition-colors">
               <Icon icon={TableChart} size={18} /> Таблица
             </button>
           )}
           {compositeType && (
             <button type="button" onClick={() => setCatalogPickerOpen(true)}
-              className="flex items-center gap-1 text-xs text-warning hover:text-on-warning-container px-2 py-0.5 rounded hover:bg-warning-container transition-colors">
+              className="flex items-center gap-1 text-xs text-warning hover:text-on-warning-container px-2 py-0.5 rounded-xs hover:bg-warning-container transition-colors">
               <Icon icon={LinkIcon} size={18} /> Из каталога
             </button>
           )}
           <button type="button" onClick={addRow}
-            className="flex items-center gap-1 text-xs text-primary px-2 py-0.5 rounded hover:bg-primary-container transition-colors">
+            className="flex items-center gap-1 text-xs text-primary px-2 py-0.5 rounded-xs hover:bg-primary-container transition-colors">
             <Icon icon={Add} size={18} /> Добавить строку
           </button>
         </div>
@@ -698,7 +698,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
     if (broken) {
       return (
         <div>
-          <div className={`flex items-center gap-1.5 rounded-lg pl-3 pr-1.5 py-1.5 ${BROKEN_PLATE}`}>
+          <div className={`flex items-center gap-1.5 rounded-md pl-3 pr-1.5 py-1.5 ${BROKEN_PLATE}`}>
             <Icon icon={LinkIcon} size={18} className="text-error shrink-0" />
             <span className={`flex-1 text-sm font-medium truncate ${BROKEN_LABEL}`}>{value.displayName}</span>
             <Tooltip content="Заменить ссылку" name>
@@ -774,13 +774,13 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   if (asWindow) {
     return (
       <>
-        <div className="flex items-center gap-2 border border-outline-variant rounded-lg px-3 py-2 bg-surface-container-low">
+        <div className="flex items-center gap-2 border border-outline-variant rounded-md px-3 py-2 bg-surface-container-low">
           <button type="button" onClick={() => setModalOpen(true)}
             className="flex-1 min-w-0 text-left text-sm text-on-surface-variant hover:text-on-surface truncate">
             {isEmpty ? <span className="text-on-surface-variant">Заполнить…</span> : objectSummary(subValues, subFields, typeDefs)}
           </button>
           <button type="button" onClick={() => setPickerOpen(true)}
-            className="flex items-center gap-1 text-xs text-primary px-2 py-0.5 rounded hover:bg-primary-container transition-colors shrink-0">
+            className="flex items-center gap-1 text-xs text-primary px-2 py-0.5 rounded-xs hover:bg-primary-container transition-colors shrink-0">
             <Icon icon={LinkIcon} size={18} /> Из каталога
           </button>
           <Tooltip content="Редактировать" name>
@@ -818,7 +818,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   // заполнением как равноправные действия, а не прячем «из каталога» в мелкую ссылку (issue #102, P2).
   if (isEmpty && collapsed) {
     return (
-      <div className="border border-dashed border-outline-variant rounded-lg px-3 py-3 bg-surface-container-low/40">
+      <div className="border border-dashed border-outline-variant rounded-md px-3 py-3 bg-surface-container-low/40">
         <div className="text-sm text-on-surface-variant mb-2">{compositeType ? compositeType.name : 'Составной тип'}</div>
         <div className="flex flex-wrap gap-2">
           <Button variant="tonal" size="sm" icon={<Icon icon={LinkIcon} size={18} />} onClick={() => setPickerOpen(true)}>
@@ -835,7 +835,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
 
   // Верхний уровень (инлайн, глубина 0): свёрнуто по умолчанию, заголовок — сводка значений (не «Тип (код)»).
   return (
-    <div className="border border-outline-variant rounded-lg overflow-hidden">
+    <div className="border border-outline-variant rounded-md overflow-hidden">
       <div className={`flex items-center justify-between px-3 py-2 bg-surface-container-low ${collapsed ? '' : 'border-b border-outline-variant'}`}>
         <button type="button" onClick={() => setCollapsed(v => !v)}
           className="flex items-center gap-1.5 min-w-0 text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors">
@@ -848,7 +848,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
         </button>
         <div className="flex items-center gap-1 shrink-0">
           <button type="button" onClick={() => setPickerOpen(true)}
-            className="flex items-center gap-1.5 text-xs text-primary px-2 py-0.5 rounded hover:bg-primary-container transition-colors">
+            className="flex items-center gap-1.5 text-xs text-primary px-2 py-0.5 rounded-xs hover:bg-primary-container transition-colors">
             <Icon icon={LinkIcon} size={18} /> Выбрать из каталога
           </button>
           {/* Обратное движение (issue #663) — в kebab, а не четвёртой кнопкой: конвенция «>3 действий
@@ -1003,7 +1003,7 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
   if (asWindow) {
     return (
       <>
-        <div className="flex items-center gap-2 border border-outline-variant rounded-lg px-3 py-2 bg-surface-container-low">
+        <div className="flex items-center gap-2 border border-outline-variant rounded-md px-3 py-2 bg-surface-container-low">
           <button type="button" onClick={() => setModalOpen(true)}
             className="flex-1 min-w-0 text-left text-sm text-on-surface-variant hover:text-on-surface truncate">
             {unionSummary(activeSf, subValues[activeKey], { primitiveTypes, enumTypes })}
@@ -1032,7 +1032,7 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
   }
 
   return (
-    <div className="border border-outline-variant rounded-lg p-3 space-y-3">
+    <div className="border border-outline-variant rounded-md p-3 space-y-3">
       {bar}
       {activeEditor}
     </div>

@@ -27,7 +27,7 @@ export function PickerOption({ row, id, active, enter, narrow, kinds, onChoose, 
   return (
     <div id={id} role="option" aria-selected={active}
       onClick={() => onChoose(row)} onMouseMove={() => { if (!active) onHover(row.id); }}
-      className={`cursor-pointer px-2 py-1.5 rounded-md flex items-baseline gap-2 ${tone}`}>
+      className={`cursor-pointer px-2 py-1.5 rounded-sm flex items-baseline gap-2 ${tone}`}>
       <span className="min-w-0 flex-1">
         {row.best && <span className="block text-caption font-medium text-primary">Лучшее совпадение</span>}
         <span className="block text-sm text-on-surface">{row.name ?? 'без названия'}</span>
@@ -38,7 +38,7 @@ export function PickerOption({ row, id, active, enter, narrow, kinds, onChoose, 
       <span className="text-xs text-primary shrink-0 whitespace-nowrap" aria-hidden>
         {narrow && !row.best ? '›' : 'Выбрать'}
         {enter && (
-          <kbd className="ml-1 rounded border border-outline-variant bg-surface px-1 font-mono text-caption text-on-surface-variant">Enter</kbd>
+          <kbd className="ml-1 rounded-xs border border-outline-variant bg-surface px-1 font-mono text-caption text-on-surface-variant">Enter</kbd>
         )}
       </span>
     </div>
@@ -108,8 +108,8 @@ export function CandidatesBlock({ asked, answer, rows, more, current, headingId,
           <h4 id={headingId} className="text-xs font-medium text-on-surface-variant">Подходящие для этой строки</h4>
           {answer.isPending && (
             <div aria-busy="true" className="space-y-1">
-              <div className="h-9 rounded-md bg-surface-container animate-pulse" />
-              <div className="h-9 rounded-md bg-surface-container animate-pulse" />
+              <div className="h-9 rounded-sm bg-surface-container animate-pulse" />
+              <div className="h-9 rounded-sm bg-surface-container animate-pulse" />
               <p className="text-xs text-on-surface-variant">Подбираем по словам строки…</p>
             </div>
           )}

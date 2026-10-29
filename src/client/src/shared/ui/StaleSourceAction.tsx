@@ -48,14 +48,14 @@ export function StaleSourceAction({ source }: { source: DataSetBindingSource | u
     <>
       <Tooltip content={staleReasonText(source.staleReason)}>
         <span
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-container text-on-warning-container shrink-0">
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-caption font-medium bg-warning-container text-on-warning-container shrink-0">
           <Icon icon={Warning} size={18} /> устарело
         </span>
       </Tooltip>
       {scope !== 'None' && (
       <Tooltip content="Перераспознать источник">
         <button type="button" onClick={() => setConfirm(true)} disabled={recognize.isPending}
-          className="p-1.5 rounded text-warning state-layer focus-ring disabled-content shrink-0" aria-label="Перераспознать источник">
+          className="p-1.5 rounded-xs text-warning state-layer focus-ring disabled-content shrink-0" aria-label="Перераспознать источник">
           {recognize.isPending ? <CircularProgress size={18} /> : <Icon icon={Refresh} size={18} />}
         </button>
       </Tooltip>

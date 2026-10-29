@@ -109,7 +109,7 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
       </p>
 
       {ws.own.length > 0 && (
-        <ul className="mb-3 divide-y divide-outline-variant rounded-lg border border-outline-variant" data-testid="own-workspaces">
+        <ul className="mb-3 divide-y divide-outline-variant rounded-md border border-outline-variant" data-testid="own-workspaces">
           {ws.own.map(own => (
             <li key={own.id} className="flex items-center gap-2 px-3 py-2">
               <span className="min-w-0 flex-1">
@@ -141,7 +141,7 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
       {!draft ? (
         <Button variant="outlined" icon={<Icon icon={Add} size={18} />} onClick={() => setDraft(blank())}>Новое пространство</Button>
       ) : (
-        <div className="space-y-3 rounded-lg border border-outline-variant p-3" data-testid="workspace-form">
+        <div className="space-y-3 rounded-md border border-outline-variant p-3" data-testid="workspace-form">
           <TextField label="Имя" value={draft.name} maxLength={NAME_MAX} autoFocus
             error={draft.name.trim() && problem?.startsWith('Пространство с таким') ? problem : undefined}
             onChange={e => setDraft({ ...draft, name: e.target.value })} />

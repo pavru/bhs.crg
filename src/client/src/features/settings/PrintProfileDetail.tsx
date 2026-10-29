@@ -188,7 +188,7 @@ export function PrintProfileDetail({ profile, otherNames, onDeleted, onEditState
  */
 function WhereApplied() {
   return (
-    <div className="flex gap-2 rounded-lg bg-surface-container p-3 text-xs text-on-surface-variant">
+    <div className="flex gap-2 rounded-md bg-surface-container p-3 text-xs text-on-surface-variant">
       <Icon icon={Info} size={18} className="shrink-0 mt-0.5 text-on-surface-variant" />
       <div className="space-y-1">
         <p>

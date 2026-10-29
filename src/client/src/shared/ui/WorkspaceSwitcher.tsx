@@ -62,8 +62,7 @@ export function WorkspaceSwitcher() {
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content align="start" sideOffset={4}
-            className="z-50 min-w-64 max-w-96 max-h-[70vh] overflow-auto rounded-md border border-outline-variant bg-surface py-1"
-            style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
+            className="z-50 min-w-64 max-w-96 max-h-[70vh] overflow-auto rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
             <DropdownMenu.Label className="px-3 pt-1 pb-0.5 text-caption font-semibold uppercase tracking-widest text-on-surface-variant">
               Системные
             </DropdownMenu.Label>

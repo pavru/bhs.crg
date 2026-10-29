@@ -29,7 +29,7 @@ function parseIdArray(json: string | null): string[] {
 function DiagnosticsPanel({ diagnostics, objectName }: { diagnostics: ResolutionDiagnostic[]; objectName: string }) {
   if (diagnostics.length === 0) {
     return (
-      <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-success-container text-on-success-container">
+      <div className="flex items-center gap-2 p-3 rounded-sm text-sm bg-success-container text-on-success-container">
         <Icon icon={CheckCircle} size={18} className="shrink-0" /> Проблем разрешения ссылок не найдено
       </div>
     );
@@ -37,7 +37,7 @@ function DiagnosticsPanel({ diagnostics, objectName }: { diagnostics: Resolution
   const errors = diagnostics.filter(d => d.severity === 'error');
   const warnings = diagnostics.filter(d => d.severity === 'warning');
   return (
-    <div className="rounded-md border border-outline-variant overflow-hidden">
+    <div className="rounded-sm border border-outline-variant overflow-hidden">
       <div className="px-3 py-2 text-xs font-medium bg-surface-container-low text-on-surface-variant">
         Диагностика ссылок — объект «{objectName}»: {errors.length} ошиб., {warnings.length} предупр.
       </div>
@@ -161,7 +161,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
 
   return (
     <div className="space-y-5">
-      <div className={`p-3 rounded-md text-sm ${STATUS_COLORS[instance.status] ?? 'bg-surface-container-low text-on-surface-variant'}`}>
+      <div className={`p-3 rounded-sm text-sm ${STATUS_COLORS[instance.status] ?? 'bg-surface-container-low text-on-surface-variant'}`}>
         Статус: <strong>{STATUS_LABELS[instance.status] ?? instance.status}</strong>
         {instance.status === 'Generating' && <CircularProgress size={18} className="inline-block ml-2" />}
       </div>
@@ -177,7 +177,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
             {/* Клик по ВСЕЙ строке (обёртка-label) переключает участие в генерации (issue #316);
                 фокус (показ параметров ниже) следует за кликом через onChange. Галочка отражает участие,
                 подсветка строки — фокус. */}
-            <div className="rounded-md border border-outline divide-y divide-outline-variant overflow-hidden">
+            <div className="rounded-sm border border-outline divide-y divide-outline-variant overflow-hidden">
               {activeTemplates.map((t: Template) => {
                 const selected = selectedTemplateIds.includes(t.id);
                 const focused = focusedTemplate?.id === t.id;
@@ -251,7 +251,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
             {canSend && (
               <Tooltip content="Отправить сгенерированные PDF документа по почте (подписчикам и/или на внешние адреса)">
                 <button onClick={() => setEmailOpen(true)}
-                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-outline-variant rounded-md state-layer">
+                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-outline-variant rounded-sm state-layer">
                   <Icon icon={Mail} size={18} className="text-primary" /> Отправить по почте
                 </button>
               </Tooltip>
@@ -268,11 +268,11 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
                       Отказ из открытия доходит один — вкладку не дали открыть: об отказе загрузки
                       говорит сама вкладка. */}
                   <button onClick={() => { setError(''); previewGeneratedFile(instance.id, f.templateId).catch((e: Error) => setError(e.message)); }} disabled={busy}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-outline-variant rounded-md state-layer disabled-outlined disabled:pointer-events-none">
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-outline-variant rounded-sm state-layer disabled-outlined disabled:pointer-events-none">
                     <Icon icon={Visibility} size={18} className="text-primary" /> Открыть
                   </button>
                   <button onClick={() => downloadGeneratedFile(instance.id, f.templateId)} disabled={busy}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-outline-variant rounded-md state-layer disabled-outlined disabled:pointer-events-none">
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-outline-variant rounded-sm state-layer disabled-outlined disabled:pointer-events-none">
                     <Icon icon={Download} size={18} className="text-primary" /> Скачать
                   </button>
                 </div>

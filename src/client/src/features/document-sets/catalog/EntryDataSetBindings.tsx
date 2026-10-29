@@ -77,7 +77,7 @@ function AddEntryBindingPanel({
   }
 
   return (
-    <div className="rounded-xl p-4 space-y-4 border border-outline-variant bg-surface-container-low">
+    <div className="rounded-lg p-4 space-y-4 border border-outline-variant bg-surface-container-low">
       <div>
         <label className="block text-xs font-medium mb-1 text-on-surface-variant">Источник данных</label>
         {files.length === 0 ? (
@@ -129,11 +129,11 @@ function AddEntryBindingPanel({
           type="button"
           onClick={handleSave}
           disabled={!sourceId || create.isPending}
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-on-primary disabled-container bg-primary"
+          className="px-3 py-1.5 rounded-sm text-sm font-medium text-on-primary disabled-container bg-primary"
         >
           {create.isPending ? 'Сохранение...' : 'Сохранить привязку'}
         </button>
-        <button type="button" onClick={onDone} className="px-3 py-1.5 rounded-md text-sm font-medium text-on-surface-variant bg-surface-container">
+        <button type="button" onClick={onDone} className="px-3 py-1.5 rounded-sm text-sm font-medium text-on-surface-variant bg-surface-container">
           Отмена
         </button>
       </div>
@@ -192,8 +192,8 @@ function EntryBindingRow({
           </IconButton>
         ) : (
           <div className="flex items-center gap-1.5 text-xs">
-            <button type="button" onClick={handleDelete} disabled={del.isPending} className="px-2 py-0.5 rounded text-on-error text-xs bg-error">Да</button>
-            <button type="button" onClick={() => setConfirming(false)} className="px-2 py-0.5 rounded text-xs bg-surface-container text-on-surface-variant">Нет</button>
+            <button type="button" onClick={handleDelete} disabled={del.isPending} className="px-2 py-0.5 rounded-xs text-on-error text-xs bg-error">Да</button>
+            <button type="button" onClick={() => setConfirming(false)} className="px-2 py-0.5 rounded-xs text-xs bg-surface-container text-on-surface-variant">Нет</button>
           </div>
         )}
       </div>
@@ -210,10 +210,10 @@ function EntryBindingRow({
             onChange={(m, t) => { setMappingState(m); setTargetFieldKey(t); }}
           />
           <div className="flex gap-2">
-            <button type="button" onClick={handleSave} disabled={update.isPending} className="px-3 py-1.5 rounded-md text-sm font-medium text-on-primary bg-primary">
+            <button type="button" onClick={handleSave} disabled={update.isPending} className="px-3 py-1.5 rounded-sm text-sm font-medium text-on-primary bg-primary">
               {update.isPending ? 'Сохранение...' : 'Сохранить'}
             </button>
-            <button type="button" onClick={() => setEditing(false)} className="px-3 py-1.5 rounded-md text-sm font-medium text-on-surface-variant">
+            <button type="button" onClick={() => setEditing(false)} className="px-3 py-1.5 rounded-sm text-sm font-medium text-on-surface-variant">
               Отмена
             </button>
           </div>
@@ -233,11 +233,11 @@ export function EntryDataSetBindings({
   const { data: files } = useEntryAvailableFiles(setId, scope, scopeId);
 
   return (
-    <div className="rounded-lg border border-outline-variant p-3 space-y-2">
+    <div className="rounded-md border border-outline-variant p-3 space-y-2">
       <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Наборы данных</p>
 
       {bindings.length > 0 && (
-        <div className="rounded-xl overflow-hidden border border-outline-variant bg-surface">
+        <div className="rounded-lg overflow-hidden border border-outline-variant bg-surface">
           {bindings.map(b => (
             <EntryBindingRow key={b.id} binding={b} entryId={entryId} schemaFields={schemaFields} allDocTypes={allDocTypes} />
           ))}

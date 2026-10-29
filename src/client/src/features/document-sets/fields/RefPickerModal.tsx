@@ -394,7 +394,7 @@ function RefPickerModalBody({
           value={search} onChange={e => { setSearch(e.target.value); setActive(0); }} onKeyDown={onKey}
           placeholder="Поиск…" autoFocus role="combobox" aria-expanded
           aria-activedescendant={options.length ? `rp-opt-${active}` : undefined}
-          className="w-full border border-outline rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
+          className="w-full border border-outline rounded-sm px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
         />
 
         {currentArchived && (
@@ -434,7 +434,7 @@ function RefPickerModalBody({
                   <button key={inst.id} type="button" role="option" aria-selected={on} id={optionId(key)}
                     onMouseEnter={() => { const i = indexByKey.get(key); if (i != null) setActive(i); }}
                     onClick={() => { const i = indexByKey.get(key); if (i != null) choose(options[i]); }}
-                    className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md transition-colors ${
+                    className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-sm transition-colors ${
                       on ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-primary-container'}`}>
                     <Icon icon={FileCopy} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-on-surface-variant'}`} />
                     <span className={`flex-1 font-medium truncate ${on ? 'text-on-secondary-container' : 'text-on-surface'}`}>
@@ -445,7 +445,7 @@ function RefPickerModalBody({
                         {hint}
                       </span>
                     )}
-                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${STATUS_COLORS[inst.status]}`}>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-xs font-medium shrink-0 ${STATUS_COLORS[inst.status]}`}>
                       {STATUS_LABELS[inst.status]}
                     </span>
                   </button>
@@ -469,7 +469,7 @@ function RefPickerModalBody({
                   <button key={key} type="button" role="option" aria-selected={on} id={optionId(key)}
                     onMouseEnter={() => { const i = indexByKey.get(key); if (i != null) setActive(i); }}
                     onClick={() => { const i = indexByKey.get(key); if (i != null) choose(options[i]); }}
-                    className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md transition-colors ${
+                    className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-sm transition-colors ${
                       on ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-primary-container'}`}>
                     <Icon icon={Description} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-on-surface-variant'}`} />
                     <span className={`flex-1 font-medium truncate ${on ? 'text-on-secondary-container' : 'text-on-surface'}`}>

@@ -52,7 +52,7 @@ export function DocumentObservationsChip({ setId, documentId }: {
           {mine.length === 0 && <EmptyState icon={<Icon icon={SmartToy} size={40} />} title="Замечаний нет" />}
 
           {mine.map(o => (
-            <div key={o.id} className={`px-3 py-2 border border-outline-variant rounded-lg ${
+            <div key={o.id} className={`px-3 py-2 border border-outline-variant rounded-md ${
               isUnreviewed(o) ? '' : 'opacity-60'}`}>
               <div className="flex items-start gap-2">
                 <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${

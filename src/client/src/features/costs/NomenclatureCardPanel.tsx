@@ -77,9 +77,9 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
 
   if (!card.data) return (
     <div className="space-y-3" aria-busy="true">
-      {head ? <Title name={head.name} why={head.why} /> : <div className="h-5 w-3/4 rounded bg-surface-container animate-pulse" />}
+      {head ? <Title name={head.name} why={head.why} /> : <div className="h-5 w-3/4 rounded-xs bg-surface-container animate-pulse" />}
       <div className="space-y-2">
-        {[0, 1, 2, 3].map(i => <div key={i} className="h-4 rounded bg-surface-container animate-pulse" />)}
+        {[0, 1, 2, 3].map(i => <div key={i} className="h-4 rounded-xs bg-surface-container animate-pulse" />)}
       </div>
     </div>
   );
@@ -106,7 +106,7 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
                   {row.marks && (
                     <span className="mt-0.5 block text-xs leading-relaxed text-on-surface-variant break-words">
                       {row.marks.map((mark, i) => (mark.hit
-                        ? <mark key={i} className="rounded-sm bg-primary-container px-0.5 text-on-primary-container">{mark.text}</mark>
+                        ? <mark key={i} className="rounded-xs bg-primary-container px-0.5 text-on-primary-container">{mark.text}</mark>
                         : <span key={i}>{mark.text}</span>))}
                     </span>
                   )}
@@ -153,7 +153,7 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
       )}
 
       {meta && <p className="text-caption text-on-surface-variant">{meta}</p>}
-      <p className="text-xs text-on-surface-variant rounded-md bg-surface-container px-2.5 py-1.5">{chosenText(data.chosen)}</p>
+      <p className="text-xs text-on-surface-variant rounded-sm bg-surface-container px-2.5 py-1.5">{chosenText(data.chosen)}</p>
 
       {/* Архивную в новую строку сервер не примет — кнопки нет, причина названа. */}
       {data.archived ? (

@@ -88,7 +88,7 @@ export function SiteCostsPage() {
               та же — legend `DateRange` размера md. */}
           <div>
             <span className="block mb-1 text-sm font-medium text-on-surface">Стройка</span>
-            <Select aria-label="Стройка" className="w-64 h-8 rounded-md border border-outline-variant bg-surface px-2 text-sm"
+            <Select aria-label="Стройка" className="w-64 h-8 rounded-sm border border-outline-variant bg-surface px-2 text-sm"
               value={site ?? ALL} stayOpenOn={REVEAL_CHOICE} onValueChange={value => value === REVEAL_CHOICE ? choices.reveal()
                 : set({ site: value === ALL ? null : value })}>
               <SelectItem value={ALL}>Все стройки</SelectItem>
@@ -300,7 +300,7 @@ function Segmented<T>({ label, value, options, onChange }: {
   label: string; value: T; options: [string, T][]; onChange: (value: T) => void;
 }) {
   return (
-    <div role="group" aria-label={label} className="inline-flex rounded-md border border-outline-variant overflow-hidden">
+    <div role="group" aria-label={label} className="inline-flex rounded-sm border border-outline-variant overflow-hidden">
       {options.map(([text, option]) => (
         <button key={text} type="button" aria-pressed={value === option} onClick={() => onChange(option)}
           className={`state-layer h-8 px-3 text-sm ${value === option ? 'bg-primary-container text-on-surface font-medium' : 'text-on-surface-variant'}`}>
@@ -411,7 +411,7 @@ function RegistryLink({ to, label, note }: { to: string; label: string; note?: s
   return (
     <Tooltip content={title}>
       <Link to={to} aria-label={title}
-        className="ml-1.5 inline-flex align-middle rounded-sm text-on-surface-variant hover:text-primary focus-visible:outline-2">
+        className="ml-1.5 inline-flex align-middle rounded-xs text-on-surface-variant hover:text-primary focus-visible:outline-2">
         <Icon icon={ArrowOutward} size={18} aria-hidden />
       </Link>
     </Tooltip>

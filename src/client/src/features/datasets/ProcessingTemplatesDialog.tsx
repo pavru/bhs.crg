@@ -15,7 +15,7 @@ import { SortSpecDialog } from './SortSpecDialog';
 import type { ColumnExprDef, ComputedColumn, DataSetProcessingTemplate, RowFilterDef, SortSpec } from '@/shared/api/types';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
-const FIELD_CLS = 'border border-outline-variant rounded-md px-3 py-1.5 text-sm bg-surface text-on-surface';
+const FIELD_CLS = 'border border-outline-variant rounded-sm px-3 py-1.5 text-sm bg-surface text-on-surface';
 
 interface TemplateFormState {
   name: string;
@@ -47,7 +47,7 @@ function ExtractionFields({
   function removeColumn(i: number) { onColumnsChange(columns.filter((_, idx) => idx !== i)); }
 
   return (
-    <div className="space-y-2 rounded-lg p-3 border border-outline-variant bg-surface-container-low">
+    <div className="space-y-2 rounded-md p-3 border border-outline-variant bg-surface-container-low">
       <div>
         <label className="block text-xs font-medium mb-1 text-on-surface-variant">
           Extraction — row-selector <span className="font-normal">(XPath/JSONPath/имя листа — по формату файла; необязательно)</span>
@@ -109,7 +109,7 @@ function TemplateForm({
   const sortCount = sortSpec?.length ?? 0;
 
   const toggleCls = (active: boolean) =>
-    `flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+    `flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-medium border transition-colors ${
       active ? 'border-primary text-on-primary-container bg-primary-container' : 'border-outline-variant text-on-surface-variant bg-surface-container-low'
     }`;
 
@@ -158,12 +158,12 @@ function TemplateForm({
         <button
           onClick={handleSave}
           disabled={saving || !name.trim()}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-on-primary disabled-container bg-primary"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-sm font-medium text-on-primary disabled-container bg-primary"
         >
           <Icon icon={Check} size={18} />
           {saving ? 'Сохранение...' : 'Сохранить'}
         </button>
-        <button onClick={onCancel} className="px-3 py-1.5 rounded-md text-sm font-medium text-on-surface-variant bg-surface-container">
+        <button onClick={onCancel} className="px-3 py-1.5 rounded-sm text-sm font-medium text-on-surface-variant bg-surface-container">
           Отмена
         </button>
       </div>
@@ -243,10 +243,10 @@ function TemplateRow({ template }: { template: DataSetProcessingTemplate }) {
           <div className="flex items-center gap-1.5 text-xs">
             <span className="text-on-surface-variant">Удалить?</span>
             <button onClick={() => del.mutateAsync({ id: template.id }).then(() => setConfirming(false))}
-              disabled={del.isPending} className="px-2 py-0.5 rounded text-on-error bg-error" style={{ fontSize: '11px' }}>
+              disabled={del.isPending} className="px-2 py-0.5 rounded-xs text-on-error bg-error" style={{ fontSize: '11px' }}>
               Да
             </button>
-            <button onClick={() => setConfirming(false)} className="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant" style={{ fontSize: '11px' }}>
+            <button onClick={() => setConfirming(false)} className="px-2 py-0.5 rounded-xs bg-surface-container text-on-surface-variant" style={{ fontSize: '11px' }}>
               Нет
             </button>
           </div>
@@ -282,7 +282,7 @@ export function ProcessingTemplatesDialog({ onClose }: { onClose: () => void }) 
         можно свободно скорректировать (см. «применить шаблон» у каждого источника).
       </p>
 
-      <div className="rounded-xl overflow-hidden mb-4 border border-outline-variant bg-surface">
+      <div className="rounded-lg overflow-hidden mb-4 border border-outline-variant bg-surface">
         {isLoading ? (
           <div className="p-6 text-center text-sm text-on-surface-variant">Загрузка...</div>
         ) : templates.length === 0 && !adding ? (
@@ -293,12 +293,12 @@ export function ProcessingTemplatesDialog({ onClose }: { onClose: () => void }) 
       </div>
 
       {adding ? (
-        <div className="rounded-xl p-4 border border-outline-variant bg-surface-container-low">
+        <div className="rounded-lg p-4 border border-outline-variant bg-surface-container-low">
           <p className="text-xs font-semibold mb-3 text-on-surface-variant">Новый шаблон</p>
           <TemplateForm onSave={handleCreate} onCancel={() => setAdding(false)} saving={create.isPending} />
         </div>
       ) : (
-        <button onClick={() => setAdding(true)} className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md text-on-primary-container bg-primary-container">
+        <button onClick={() => setAdding(true)} className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-sm text-on-primary-container bg-primary-container">
           <Icon icon={Add} size={18} /> Добавить шаблон
         </button>
       )}

@@ -77,6 +77,17 @@
     "text-base": { "skip": "размер текста, а не цвет", "notColor": true },
     "text-stroke-strong": { "to": "text-on-surface-variant" }
   },
+  "radius": {
+    "//": [
+      "Шаг радиусов (sharedui-md3-06, [UI-66]): прежняя ступень → ступень шкалы MD3 по значению — 4 → 4, 6 → 8,",
+      "10 → 12, 16 → 16, 28 → 28. Цепь, поэтому только в строках, написанных до перехода (git blame и метка",
+      "шкалы — md3-shape-migrate.mjs). Ключ \"\" — rounded без ступени. То же с префиксами сторон и углов",
+      "(rounded-t-md) и с вариантами (md:rounded-md). keep — уже на шкале; прочее — в отчёт с причиной report."
+    ],
+    "chain": { "": "xs", "sm": "xs", "md": "sm", "lg": "md", "xl": "lg", "[28px]": "xl" },
+    "keep": ["none", "full", "xs"],
+    "report": "вне шкалы формы MD3 [UI-66]: ступень по роли — docs/UI.md, «Форма и возвышение», руками по месту"
+  },
   "vars": {
     "--f-shadow4": "--md-sys-elevation-level1",
     "--f-shadow16": "--md-sys-elevation-level2",

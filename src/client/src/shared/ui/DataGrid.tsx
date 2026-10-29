@@ -240,7 +240,7 @@ export function DataGrid<Row extends object>({
           {canSort ? (
             <Tooltip content="Сортировать. С Shift — добавить колонку к сортировке">
             <button type="button" onClick={e => onSort(c, e.shiftKey)}
-                className="rounded-sm state-layer focus-ring">
+                className="rounded-xs state-layer focus-ring">
                 {label}
               </button>
           </Tooltip>
@@ -249,7 +249,7 @@ export function DataGrid<Row extends object>({
             <Tooltip content="Убрать колонку">
             <button type="button" onClick={() => onRemoveColumn(c)}
                 aria-label={`Убрать колонку «${c.label}»`}
-                className="ml-1 align-middle rounded-sm text-on-surface-variant state-layer [--_state-color:var(--color-error)] focus-ring">
+                className="ml-1 align-middle rounded-xs text-on-surface-variant state-layer [--_state-color:var(--color-error)] focus-ring">
                 <Icon icon={Close} size={18} aria-hidden />
               </button>
           </Tooltip>
@@ -312,19 +312,19 @@ export function DataGrid<Row extends object>({
             const link = rowLink?.(row, i) ?? null;
             const strong = emphasized?.(row, i) ?? false;
             const marked = !open && tone?.(row, i) === 'warning';
-            // Черта там, куда ляжет тащимая строка: над строкой либо под последней. Тенью, а не
-            // рамкой — рамка сдвинула бы строки на её толщину, и строка уехала бы из-под курсора.
-            const dropMark = !drag || drag.dragging === null ? null
-              : drag.target === i ? 'inset 0 2px 0 0 var(--color-primary)'
-              : drag.target === shown.length && i === shown.length - 1 ? 'inset 0 -2px 0 0 var(--color-primary)'
-              : null;
+            // Черта там, куда ляжет тащимая строка: над строкой либо под последней. Тенью (утилита
+            // drop-mark-*, index.css), а не рамкой — рамка сдвинула бы строки на её толщину, и строка
+            // уехала бы из-под курсора.
+            const dropMark = !drag || drag.dragging === null ? ''
+              : drag.target === i ? 'drop-mark-before'
+              : drag.target === shown.length && i === shown.length - 1 ? 'drop-mark-after'
+              : '';
             // Строка — именованная группа `group/row`: действия строки, видимые по наведению,
             // проявляются классом `group-hover/row:` и не путаются с группами внутри клетки.
             return (
               <tr key={key}
-                className={`group/row ${dtRow} ${onRowOpen ? 'cursor-pointer focus-ring-inset' : ''} ${open ? 'bg-primary-container' : marked ? 'bg-warning-container' : ''} ${strong ? 'font-medium' : ''}`}
+                className={`group/row ${dtRow} ${onRowOpen ? 'cursor-pointer focus-ring-inset' : ''} ${open ? 'bg-primary-container' : marked ? 'bg-warning-container' : ''} ${strong ? 'font-medium' : ''} ${dropMark}`}
                 data-dragging={drag?.dragging === i || undefined}
-                style={dropMark ? { boxShadow: dropMark } : undefined}
                 {...(drag ? {
                   onDragOver: (e: DragEvent) => drag.onOver(e, i),
                   onDrop: drag.onDrop,
@@ -355,7 +355,7 @@ export function DataGrid<Row extends object>({
                         <Tooltip content={link.label}>
                           <Link to={link.to} aria-label={link.label}
                             onClick={e => e.stopPropagation()}
-                            className="mr-1.5 inline-flex align-middle rounded-sm text-on-surface-variant state-layer focus-ring">
+                            className="mr-1.5 inline-flex align-middle rounded-xs text-on-surface-variant state-layer focus-ring">
                             <Icon icon={ArrowOutward} size={18} aria-hidden />
                           </Link>
                         </Tooltip>

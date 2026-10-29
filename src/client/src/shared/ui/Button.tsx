@@ -46,7 +46,7 @@ function variantClass(variant: ButtonVariant, danger: boolean): string {
   switch (variant) {
     case 'filled':
       return (danger ? 'bg-error text-on-error' : 'bg-primary text-on-primary')
-        + ' shadow-[var(--md-sys-elevation-level1)] disabled-container';
+        + ' shadow-elevation-1 disabled-container';
     case 'tonal':
       return 'bg-secondary-container text-on-secondary-container disabled-container';
     case 'outlined':

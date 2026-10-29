@@ -51,8 +51,7 @@ export function LayoutChooser({ image, notice, profiles, rebuilding, onRebuild }
       </Tooltip>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6} data-testid="layout-popover" aria-labelledby={heading}
-          className="z-50 w-80 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-lg border border-outline-variant bg-surface p-4"
-          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
+          className="z-50 w-80 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-md border border-outline-variant bg-surface p-4 shadow-elevation-2">
           <div className="flex items-center justify-between mb-1">
             <h2 id={heading} className="text-sm font-semibold text-on-surface">Раскладка вида</h2>
             <Popover.Close asChild>
@@ -106,7 +105,7 @@ function Choices({ profiles, shown, value, onPick }: {
         return (
           <button key={p.id} ref={el => { refs.current[i] = el; }} type="button" role="radio"
             aria-checked={checked} tabIndex={checked || (!value && i === 0) ? 0 : -1} onClick={() => onPick(p.id)}
-            className="w-full flex items-start gap-2 px-2 py-1.5 rounded-md text-left state-layer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            className="w-full flex items-start gap-2 px-2 py-1.5 rounded-sm text-left state-layer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <Icon icon={Check} size={18} aria-hidden className={`shrink-0 mt-0.5 ${checked ? 'text-primary' : 'invisible'}`} />
             <span className="min-w-0 flex-1">
               <span className="flex items-baseline gap-2">

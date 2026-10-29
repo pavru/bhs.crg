@@ -168,15 +168,14 @@ function CaveatPhrase({ about }: { about: string }) {
       <Tooltip content={about}>
         <Popover.Trigger asChild>
           <button type="button" data-testid="image-caveat-phrase"
-            className="flex-auto text-left rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            className="flex-auto text-left rounded-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <span className="font-medium text-on-surface">Вид для чтения</span> · документ — оригинал
           </button>
         </Popover.Trigger>
       </Tooltip>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6} aria-label="Вид для чтения" data-testid="image-caveat-about"
-          className="z-50 w-72 max-w-(--radix-popover-content-available-width) rounded-lg border border-outline-variant bg-surface p-3 text-xs text-on-surface"
-          style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
+          className="z-50 w-72 max-w-(--radix-popover-content-available-width) rounded-md border border-outline-variant bg-surface p-3 text-xs text-on-surface shadow-elevation-2">
           {about}
         </Popover.Content>
       </Popover.Portal>

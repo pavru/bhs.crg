@@ -351,7 +351,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
                   <div key={i} className="flex items-start gap-2">
                     <input value={col.name} onChange={e => updateColumn(i, { name: e.target.value })}
                       placeholder="Название колонки"
-                      className="w-40 shrink-0 px-2 py-1.5 rounded-md border border-outline bg-surface text-sm" />
+                      className="w-40 shrink-0 px-2 py-1.5 rounded-sm border border-outline bg-surface text-sm" />
                     <div className="flex-1 min-w-0">
                       <PathBuilder value={col.expr} onChange={expr => updateColumn(i, { expr })}
                         placeholder={pathFormat === 'Json' ? 'id или name или info.code' : '@id или Name или Info/Code'}

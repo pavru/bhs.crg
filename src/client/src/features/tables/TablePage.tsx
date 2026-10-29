@@ -232,7 +232,7 @@ export function TablePage() {
             отбором, и молча оставить их значило бы выдать за ответ на этот. И это НЕ «отбор ничего не
             нашёл»: строк не ноль — их не отдали. Чипы остаются — отказ говорит про них. */}
         {table.isError ? (
-          <div role="alert" className="mt-3 rounded-lg border border-error px-3 py-2 text-sm text-error">
+          <div role="alert" className="mt-3 rounded-md border border-error px-3 py-2 text-sm text-error">
             <p>{apiError(table.error, 'Таблица не применила отбор или сортировку')}</p>
             <div className="mt-1.5 flex gap-3 text-xs">
               {filter !== null && (
@@ -325,7 +325,7 @@ function Pager({ view, data, onChange }: {
   view: TableView; data: TableData; onChange: (change: ViewChange) => void;
 }) {
   const pages = pageCount(data.count, view.size);
-  const button = 'p-1 rounded-md text-on-surface-variant hover:text-on-surface state-layer disabled-content';
+  const button = 'p-1 rounded-sm text-on-surface-variant hover:text-on-surface state-layer disabled-content';
   return (
     <div className="mt-2 flex items-center gap-3 text-xs text-on-surface-variant">
       <span>{shownOf(data)}</span>

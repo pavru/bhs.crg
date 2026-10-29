@@ -161,7 +161,7 @@ function WorkTypeCell({ row, names, onMatch }: { row: EstimateRow; names: Names;
     <div className="flex flex-col items-start gap-0.5">
       {row.workTypeId && (onMatch ? (
         <button type="button" onClick={() => onMatch({ kind: 'row', rowId: row.id })}
-          className="rounded-sm text-left text-sm text-on-surface hover:text-primary hover:underline focus-visible:outline-2">
+          className="rounded-xs text-left text-sm text-on-surface hover:text-primary hover:underline focus-visible:outline-2">
           {names.workTypes?.get(row.workTypeId) ?? '…'}
         </button>
       ) : (
@@ -169,7 +169,7 @@ function WorkTypeCell({ row, names, onMatch }: { row: EstimateRow; names: Names;
       ))}
       {!row.workTypeId && onMatch && (
         <button type="button" onClick={() => onMatch({ kind: 'row', rowId: row.id })}
-          className="inline-flex items-center gap-1 rounded-sm text-sm text-primary hover:underline focus-visible:outline-2">
+          className="inline-flex items-center gap-1 rounded-xs text-sm text-primary hover:underline focus-visible:outline-2">
           <Icon icon={Add} size={18} aria-hidden />выбрать вид работы
         </button>
       )}
@@ -231,7 +231,7 @@ function SectionHeading({ section, open, shown, filtering, onToggle, onMatch }: 
         <span className="text-sm font-medium text-on-surface">{title}</span>
       ) : (
         <button type="button" aria-expanded={open} onClick={onToggle}
-          className="inline-flex items-center gap-1 rounded-sm text-left text-sm font-medium text-on-surface hover:text-primary focus-visible:outline-2">
+          className="inline-flex items-center gap-1 rounded-xs text-left text-sm font-medium text-on-surface hover:text-primary focus-visible:outline-2">
           <Icon icon={icon} size={18} aria-hidden className="shrink-0" />
           {title}
         </button>

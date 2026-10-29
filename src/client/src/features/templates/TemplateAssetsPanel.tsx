@@ -80,7 +80,7 @@ function AssetRow({ asset }: { asset: TemplateAssetDto }) {
   }
 
   return (
-    <div className="flex items-center gap-2 px-2 py-1.5 rounded state-layer group">
+    <div className="flex items-center gap-2 px-2 py-1.5 rounded-xs state-layer group">
       {asset.kind === 'Image'
         ? <Icon icon={ImageIcon} size={18} className="text-primary shrink-0" />
         : <Icon icon={Title} size={18} className="text-tertiary shrink-0" />}

@@ -94,7 +94,7 @@ export function FileProfilesDialog({ file, onClose }: { file: DataSetFile; onClo
             <p className="text-sm font-medium text-on-surface-variant mb-1">{h.kindLabel}</p>
             {/* Текстом, а не выключенным селектом: длинная подпись в селекте обрезается, и
                 обрезается как раз причина — «модуль … выключен». */}
-            <p className="border border-outline-variant rounded-md px-2 py-1.5 text-sm bg-surface-container text-on-surface-variant">{hiddenLabel(h)}</p>
+            <p className="border border-outline-variant rounded-sm px-2 py-1.5 text-sm bg-surface-container text-on-surface-variant">{hiddenLabel(h)}</p>
             <p className="text-caption text-on-surface-variant mt-1">
               Привязка сохранена и начнёт действовать, когда модуль включат.
             </p>

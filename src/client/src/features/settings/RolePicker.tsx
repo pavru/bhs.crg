@@ -56,7 +56,7 @@ export function RolePicker({ value, known = [], onChange, disabled, ariaLabel = 
     <DropdownMenu.Root onOpenChange={open => { if (!open) close(); }}>
       <DropdownMenu.Trigger asChild disabled={disabled}>
         <button type="button" aria-label={ariaLabel}
-          className={`inline-flex items-center justify-between gap-2 w-full h-9 px-3 rounded-md border
+          className={`inline-flex items-center justify-between gap-2 w-full h-9 px-3 rounded-sm border
             border-outline bg-surface text-sm text-left transition-colors
             focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
             data-[state=open]:ring-2 data-[state=open]:ring-primary
@@ -68,8 +68,7 @@ export function RolePicker({ value, known = [], onChange, disabled, ariaLabel = 
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="start" sideOffset={4}
-          className="z-50 min-w-[16rem] max-h-80 overflow-auto rounded-md border border-outline-variant bg-surface py-1"
-          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
+          className="z-50 min-w-[16rem] max-h-80 overflow-auto rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
           {/* Пустое меню — это отказ, переодетый в результат: выбрать нечего и непонятно почему. */}
           {roles.length === 0 && (
             <div className="px-3 py-2 text-xs text-on-surface-variant">

@@ -28,7 +28,7 @@ export function TimeField({ label, value, onChange, onIncomplete, required, hint
   return (
     <OutlinedField label={label} required={required} invalid={invalid} hint={hint} error={error} hintId={hintId}
       raise="always" focused={focused} containerClassName={className}>
-      <div className={`h-14 rounded-md px-4 flex items-center text-sm text-on-surface ${disabled ? 'opacity-50' : ''}`}
+      <div className={`h-14 rounded-sm px-4 flex items-center text-sm text-on-surface ${disabled ? 'opacity-50' : ''}`}
         onFocus={() => setFocused(true)}
         onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>
         <TimeInput label={label} value={value} onChange={onChange} onProblem={setProblem} onIncomplete={onIncomplete}

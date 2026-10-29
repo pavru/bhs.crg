@@ -24,7 +24,7 @@ export function TypstBlocksPanel({ problems, currentTypeId, onSelectType }: {
 }) {
   if (problems.length === 0)
     return (
-      <div className="flex items-center gap-2 p-2.5 rounded-md text-sm bg-success-container text-on-success-container">
+      <div className="flex items-center gap-2 p-2.5 rounded-sm text-sm bg-success-container text-on-success-container">
         <Icon icon={CheckCircle} size={18} className="shrink-0" /> Все Typst-блоки собираются
       </div>
     );
@@ -35,7 +35,7 @@ export function TypstBlocksPanel({ problems, currentTypeId, onSelectType }: {
   const warns = problems.length - errors;
 
   return (
-    <div className="rounded-md border border-outline-variant overflow-hidden text-xs">
+    <div className="rounded-sm border border-outline-variant overflow-hidden text-xs">
       <div className="px-3 py-2 font-medium bg-surface-container-low text-on-surface-variant">
         Проблемы сборки блоков: {errors} ошиб.{warns ? `, ${warns} предупр.` : ''}
       </div>

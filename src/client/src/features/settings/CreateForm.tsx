@@ -93,7 +93,7 @@ export function CreateForm({
       {kind === 'Document' && (
         <label className="flex items-center gap-2.5 cursor-pointer select-none">
           <input type="checkbox" checked={isAbstract} onChange={e => setIsAbstract(e.target.checked)}
-            className="w-4 h-4 rounded border-outline text-primary" />
+            className="w-4 h-4 rounded-xs border-outline text-primary" />
           <span className="text-sm font-medium text-on-surface-variant">Абстрактный тип</span>
           <span className="text-xs text-on-surface-variant">(нельзя добавить в комплект напрямую)</span>
         </label>
@@ -119,7 +119,7 @@ export function CreateForm({
           <p className="text-xs font-medium text-on-surface-variant mb-2 uppercase tracking-wide">
             Наследуемые поля от «{parentType?.name}» ({parentEffectiveFields.length})
           </p>
-          <div className="border border-outline-variant rounded-lg bg-surface-container-low px-3 py-2 space-y-1">
+          <div className="border border-outline-variant rounded-md bg-surface-container-low px-3 py-2 space-y-1">
             {parentEffectiveFields.map(f => (
               <div key={f.key} className="flex items-center gap-3 text-xs text-on-surface-variant">
                 <span className="font-mono text-on-surface-variant w-36 truncate">{f.key}</span>
@@ -148,7 +148,7 @@ export function CreateForm({
           </label>
           {fields.length > 0 && (
             <button type="button" onClick={() => setShowJson(v => !v)}
-              className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded ${
+              className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-xs ${
                 showJson ? 'bg-on-surface text-surface-container' : 'text-on-surface-variant hover:text-on-surface state-layer'
               }`}>
               <Icon icon={DataObject} size={18} /> JSON

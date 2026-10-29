@@ -95,7 +95,7 @@ function ReconciliationBlock({ id, name, unresolved }: {
   const lastRun = runs[0] ?? null;
 
   return (
-    <div className="border border-outline-variant rounded-lg overflow-hidden">
+    <div className="border border-outline-variant rounded-md overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 bg-surface-container/40">
         <Icon icon={Balance} size={18} className="text-on-surface-variant shrink-0" />
         <div className="flex-1 min-w-0">
@@ -172,7 +172,7 @@ function ObservationCard({ o, documentNames, onReview }: {
   onReview: (o: Observation) => void;
 }) {
   return (
-    <div className={`px-3 py-2 border border-outline-variant rounded-lg ${isUnreviewed(o) ? '' : 'opacity-60'}`}>
+    <div className={`px-3 py-2 border border-outline-variant rounded-md ${isUnreviewed(o) ? '' : 'opacity-60'}`}>
       <div className="flex items-start gap-2">
         <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${
           o.severity === 'Error' ? 'bg-warning-container text-on-warning-container' : 'bg-surface-container text-on-surface-variant'}`}>

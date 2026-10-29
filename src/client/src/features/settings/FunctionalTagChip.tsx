@@ -92,7 +92,7 @@ export function FunctionalTagBadge({ registry, entry }: {
 }) {
   const order = tagOrder(entry);
   return (
-    <span className="hidden md:inline-flex items-center shrink-0 overflow-hidden rounded
+    <span className="hidden md:inline-flex items-center shrink-0 overflow-hidden rounded-xs
                      bg-primary-container text-caption text-on-primary-container">
       <span className="px-1.5 py-0.5">{tagLabelOf(registry, entry)}</span>
       {order !== null && (

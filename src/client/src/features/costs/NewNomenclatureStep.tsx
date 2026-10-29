@@ -17,7 +17,7 @@ import { usePickerSelection } from './pickerSelection';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { SuggestField } from '@/shared/ui/SuggestField';
 
-const field = 'w-full rounded border border-outline-variant bg-surface px-2 py-1 text-sm text-on-surface outline-none';
+const field = 'w-full rounded-xs border border-outline-variant bg-surface px-2 py-1 text-sm text-on-surface outline-none';
 
 /**
  * Шаг «Новая позиция номенклатуры» в окне выбора позиции (задача C3, issue #1079, ТЗ COST-7.1).
@@ -311,14 +311,14 @@ function Row({ position, why, action, onPick, active = false, onHover }: {
   // заведут заново.
   if (position.archived) return (
     <div onMouseMove={active ? undefined : onHover}
-      className={`px-3 py-1.5 rounded flex items-baseline gap-2 ${active ? 'bg-surface-container' : ''}`}>
+      className={`px-3 py-1.5 rounded-xs flex items-baseline gap-2 ${active ? 'bg-surface-container' : ''}`}>
       {label}<span className="ml-auto text-caption text-on-surface-variant shrink-0">в архиве</span>
     </div>
   );
   return (
     <button type="button" onClick={() => onPick(position.id, position.name)}
       onMouseMove={active ? undefined : onHover}
-      className={`state-layer w-full text-left px-3 py-1.5 rounded flex items-baseline gap-2 ${active ? 'bg-surface-container' : ''}`}>
+      className={`state-layer w-full text-left px-3 py-1.5 rounded-xs flex items-baseline gap-2 ${active ? 'bg-surface-container' : ''}`}>
       {label}<span className="ml-auto text-xs text-primary shrink-0">{action}</span>
     </button>
   );

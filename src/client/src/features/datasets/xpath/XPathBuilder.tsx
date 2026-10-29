@@ -45,7 +45,7 @@ export function XPathBuilder({ value, onChange, placeholder, preview }: XPathBui
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder ?? '/Root/Item'}
         spellCheck={false}
-        className="w-full border border-outline rounded-md px-2 py-1.5 text-xs font-mono bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="w-full border border-outline rounded-sm px-2 py-1.5 text-xs font-mono bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       />
       {unparseable ? (
         <p className="text-xs text-warning flex items-start gap-1.5 py-1">
@@ -70,7 +70,7 @@ function XPathPreviewPanel({ spec }: { spec: ExpressionPreviewSpec | null }) {
   if (!spec) return null;
 
   return (
-    <div className="text-xs rounded-md border border-outline-variant bg-surface-container-low px-2 py-1.5">
+    <div className="text-xs rounded-sm border border-outline-variant bg-surface-container-low px-2 py-1.5">
       {isFetching ? (
         <span className="flex items-center gap-1.5 text-on-surface-variant">
           <CircularProgress size={18} /> Проверка...
@@ -138,13 +138,13 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
   }
 
   return (
-    <div className="border border-outline-variant rounded-md px-1.5 py-1 bg-surface-container-low flex flex-col gap-1 min-w-0">
+    <div className="border border-outline-variant rounded-sm px-1.5 py-1 bg-surface-container-low flex flex-col gap-1 min-w-0">
       <div className="flex items-center gap-1">
         {isLast && (
           <Tooltip content="Атрибут / элемент">
             <button type="button"
               onClick={() => onChange({ axis: step.axis === 'attribute' ? 'child' : 'attribute' })}
-              className={`text-xs px-1 rounded shrink-0 ${step.axis === 'attribute' ? 'bg-primary text-on-primary' : 'text-on-surface-variant border border-outline-variant hover:border-outline'}`}>
+              className={`text-xs px-1 rounded-xs shrink-0 ${step.axis === 'attribute' ? 'bg-primary text-on-primary' : 'text-on-surface-variant border border-outline-variant hover:border-outline'}`}>
               @
             </button>
           </Tooltip>
@@ -194,7 +194,7 @@ function PredicateEditor({ predicate, onChange, onRemove }: {
   const inputCls = 'bg-transparent border-b border-primary-container outline-none focus:border-primary';
 
   return (
-    <span className="inline-flex items-center gap-1 bg-primary-container border border-primary-container rounded px-1.5 py-0.5 text-caption text-on-primary-container">
+    <span className="inline-flex items-center gap-1 bg-primary-container border border-primary-container rounded-xs px-1.5 py-0.5 text-caption text-on-primary-container">
       <Select size="inline" aria-label="Вид условия" value={predicateKind(predicate)} onValueChange={kind => setKind(kind as PredicateKind)}>
         <SelectItem value="exists">путь есть</SelectItem>
         <SelectItem value="equals">путь =</SelectItem>

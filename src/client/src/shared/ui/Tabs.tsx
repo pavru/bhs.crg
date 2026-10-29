@@ -41,9 +41,9 @@ const STYLE = {
     off: 'border-transparent text-on-surface-variant',
   },
   segmented: {
-    list: 'inline-flex bg-surface-container rounded-lg p-0.5',
-    tab: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md state-layer focus-ring',
-    on: 'bg-surface text-on-surface font-medium shadow-sm',
+    list: 'inline-flex bg-surface-container rounded-md p-0.5',
+    tab: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-sm state-layer focus-ring',
+    on: 'bg-surface text-on-surface font-medium shadow-elevation-1',
     off: 'text-on-surface-variant',
   },
 } as const;

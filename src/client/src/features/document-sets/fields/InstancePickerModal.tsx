@@ -64,7 +64,7 @@ export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, ot
         <input
           value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Поиск..."
-          className="w-full border border-outline rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
+          className="w-full border border-outline rounded-sm px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
           autoFocus
         />
         {filteredCatalog.length > 0 && (
@@ -85,7 +85,7 @@ export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, ot
                 const dt = allDocTypes.find(t => t.id === inst.documentTypeId);
                 return (
                   <button key={inst.id} onClick={() => selectInstance(inst)}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md hover:bg-primary-container transition-colors">
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-sm hover:bg-primary-container transition-colors">
                     <Icon icon={Description} size={18} className="text-on-surface-variant shrink-0" />
                     <span className="flex-1 min-w-0">
                       <span className="block font-medium text-on-surface truncate">
@@ -95,7 +95,7 @@ export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, ot
                         <span className="block text-xs text-on-surface-variant truncate">{dt?.name}</span>
                       )}
                     </span>
-                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${STATUS_COLORS[inst.status]}`}>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-xs font-medium shrink-0 ${STATUS_COLORS[inst.status]}`}>
                       {STATUS_LABELS[inst.status]}
                     </span>
                   </button>

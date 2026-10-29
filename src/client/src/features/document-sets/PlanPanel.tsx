@@ -139,7 +139,7 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
           description="Добавьте типы документов и укажите количество — тогда на комплекте, разделе и стройке появится процент готовности." />
       ) : (
         <>
-          <div className="border border-outline-variant rounded-xl overflow-hidden">
+          <div className="border border-outline-variant rounded-lg overflow-hidden">
             <div className="grid grid-cols-[1fr_7rem_7rem_2.5rem] gap-2 px-3 py-2 bg-surface-container text-caption uppercase tracking-wide text-on-surface-variant">
               <span>Тип документа</span>
               <span className="text-right">План</span>
@@ -157,7 +157,7 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
                     const n = Math.max(1, Math.floor(Number(e.target.value) || 1));
                     setRows(prev => prev.map((x, j) => (j === i ? { ...x, plannedCount: n } : x)));
                   }}
-                  className="h-8 px-2 rounded-lg border border-outline-variant bg-surface text-right tabular-nums
+                  className="h-8 px-2 rounded-md border border-outline-variant bg-surface text-right tabular-nums
                              focus:outline-none focus:border-primary" />
                 <Tooltip content={actualOf(r.documentTypeId) === null ? 'Станет известно после сохранения' : undefined}>
                   <span className={`text-right tabular-nums ${
@@ -167,7 +167,7 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
                 </Tooltip>
                 <button type="button" aria-label={`Убрать «${r.typeName}» из плана`}
                   onClick={() => setRows(prev => prev.filter((_, j) => j !== i))}
-                  className="h-7 w-7 grid place-items-center rounded-lg text-on-surface-variant hover:text-on-error-container hover:bg-error-container transition-colors">
+                  className="h-7 w-7 grid place-items-center rounded-md text-on-surface-variant hover:text-on-error-container hover:bg-error-container transition-colors">
                   <Icon icon={Delete} size={18} />
                 </button>
               </div>

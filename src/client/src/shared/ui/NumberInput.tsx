@@ -40,7 +40,7 @@ export function NumberInput({ value, onChange, label, unit, placeholder, disable
   );
 }
 
-const BOX = 'rounded border border-outline-variant bg-surface px-1.5 py-1';
+const BOX = 'rounded-xs border border-outline-variant bg-surface px-1.5 py-1';
 const TEXT = 'text-right text-xs tabular-nums text-on-surface outline-none placeholder:text-on-surface-variant disabled:text-on-surface-variant';
 
 /** Поле без единицы: рамка на самом поле. */

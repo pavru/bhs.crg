@@ -68,7 +68,7 @@ export class ErrorBoundary extends Component<
       <div className={isPage
         ? 'min-h-screen flex items-center justify-center p-6 bg-surface-container-low'
         : 'flex-1 min-h-0 flex items-center justify-center p-6'}>
-        <div className="max-w-lg w-full rounded-xl border border-error/30 bg-error-container/40 p-5">
+        <div className="max-w-lg w-full rounded-lg border border-error/30 bg-error-container/40 p-5">
           <div className="flex items-start gap-3">
             <Icon icon={Warning} size={20} className="text-error shrink-0 mt-0.5" />
             <div className="min-w-0 flex-1">
@@ -93,17 +93,17 @@ export class ErrorBoundary extends Component<
                       received: error.message,
                       stack: error.stack ?? undefined,
                     })}
-                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border border-outline-variant text-on-surface-variant state-layer focus-ring">
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-sm font-medium border border-outline-variant text-on-surface-variant state-layer focus-ring">
                     <Icon icon={BugReport} size={18} /> Сообщить об ошибке
                   </button>
                 )}
                 <button type="button" onClick={this.reset}
-                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium bg-primary text-on-primary state-layer focus-ring">
+                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-sm font-medium bg-primary text-on-primary state-layer focus-ring">
                   <Icon icon={RestartAlt} size={18} /> Попробовать снова
                 </button>
                 {allowReload && (
                   <button type="button" onClick={() => window.location.reload()}
-                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border border-outline-variant text-on-surface-variant state-layer focus-ring">
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-sm font-medium border border-outline-variant text-on-surface-variant state-layer focus-ring">
                     <Icon icon={Refresh} size={18} /> Перезагрузить страницу
                   </button>
                 )}
@@ -111,19 +111,19 @@ export class ErrorBoundary extends Component<
                   // `data-modal-exit` — договор окна без шапки: по этой метке Esc и клик мимо
                   // находят выход, когда закрыть сразу нельзя (в редакторе остались правки).
                   <button type="button" onClick={onClose} data-modal-exit=""
-                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border border-outline-variant text-on-surface-variant state-layer focus-ring">
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-sm font-medium border border-outline-variant text-on-surface-variant state-layer focus-ring">
                     <Icon icon={Close} size={18} /> Закрыть
                   </button>
                 )}
               </div>
 
               <button type="button" onClick={() => this.setState({ expanded: !expanded })}
-                className="inline-flex items-center gap-1 mt-3 rounded-sm text-xs text-on-surface-variant state-layer focus-ring">
+                className="inline-flex items-center gap-1 mt-3 rounded-xs text-xs text-on-surface-variant state-layer focus-ring">
                 {expanded ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
                 Подробности ошибки
               </button>
               {expanded && (
-                <pre className="mt-2 max-h-60 overflow-auto rounded-lg bg-surface-container p-3 text-caption leading-relaxed text-on-surface-variant whitespace-pre-wrap break-words">
+                <pre className="mt-2 max-h-60 overflow-auto rounded-md bg-surface-container p-3 text-caption leading-relaxed text-on-surface-variant whitespace-pre-wrap break-words">
                   {error.message}{error.stack ? `\n\n${error.stack}` : ''}
                 </pre>
               )}

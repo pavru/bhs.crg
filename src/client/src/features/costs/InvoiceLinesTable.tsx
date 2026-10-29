@@ -316,7 +316,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
         {still
           ? mode === 'OnTop' && <StatusBadge tone="quiet">цены без НДС, НДС сверху</StatusBadge>
           : (
-            <span className={modeMarked ? 'rounded-md ring-1 ring-warning px-1.5 py-0.5' : undefined}>
+            <span className={modeMarked ? 'rounded-sm ring-1 ring-warning px-1.5 py-0.5' : undefined}>
               <Checkbox ref={modeBox} size="sm" label="Цены без НДС, НДС сверху" checked={mode === 'OnTop'}
                 onChange={on => switchMode(on ? 'OnTop' : 'Included')} />
             </span>
@@ -445,7 +445,7 @@ function ReconciliationStrip({ sums, strip, unsaved, matched, hint, onHint }: {
   // а флажок, поставленный зря, — ровно этот случай (ревью PR #1508).
   const offer = hint ? modeHint(hint) : null;
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border border-outline-variant
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-md border border-outline-variant
       bg-surface-container px-3 py-2 text-xs">
       <span className="text-on-surface-variant">Строк: <b>{sums.count}</b></span>
 

@@ -57,7 +57,7 @@ export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
         {site && data && (
           <>
             {data.unmatchedLines > 0 && (
-              <p role="status" className="flex items-start gap-2 rounded-lg border border-outline-variant
+              <p role="status" className="flex items-start gap-2 rounded-md border border-outline-variant
                 bg-warning-container px-3 py-2 text-xs text-on-warning-container">
                 <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
                 Не сопоставлено: {data.unmatchedLines} {linesWord(data.unmatchedLines)} в накладных

@@ -95,8 +95,7 @@ function Details({ party, pick, canCreate, onChoose, onRetry }: {
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6}
-          className="z-50 w-[360px] max-w-[90vw] rounded-lg bg-surface border border-outline-variant p-3 text-xs text-on-surface-variant space-y-2 focus:outline-none"
-          style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
+          className="z-50 w-[360px] max-w-[90vw] rounded-md bg-surface border border-outline-variant p-3 text-xs text-on-surface-variant space-y-2 focus:outline-none shadow-elevation-2">
           <p>{partyWhy(party, canCreate)}</p>
           {candidates.length > 0 && (
             <ul className="space-y-1">
@@ -118,7 +117,7 @@ function Details({ party, pick, canCreate, onChoose, onRetry }: {
                   <li key={c.id}>
                     {pick && !c.archived
                       ? (
-                        <button type="button" className="w-full text-left rounded px-2 py-1 state-layer"
+                        <button type="button" className="w-full text-left rounded-xs px-2 py-1 state-layer"
                           onClick={() => { onChoose(c.id); setOpen(false); }}>{body}</button>
                       )
                       : <div className="px-2 py-1">{body}</div>}
@@ -192,7 +191,7 @@ function CreateDialog({ invoiceId, side, party, onClose, onDone }: {
           В справочник попадут только название и ИНН. Остальные реквизиты дополните в каталоге.
         </p>
         {refusal && (
-          <div role="alert" className="rounded-lg border border-error/30 bg-error-container px-3 py-2 text-xs text-on-error-container">
+          <div role="alert" className="rounded-md border border-error/30 bg-error-container px-3 py-2 text-xs text-on-error-container">
             <p>Организация не заведена: {refusal}</p>
             <Link to="/common-data" target="_blank" className="underline hover:no-underline">
               Открыть справочник организаций ↗

@@ -172,4 +172,4 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-const FIELD = `flex-1 rounded border border-outline-variant bg-surface px-2 py-1 text-sm text-on-surface outline-none focus:border-primary`;
+const FIELD = `flex-1 rounded-xs border border-outline-variant bg-surface px-2 py-1 text-sm text-on-surface outline-none focus:border-primary`;

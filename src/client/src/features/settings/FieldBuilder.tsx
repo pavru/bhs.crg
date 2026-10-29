@@ -44,7 +44,7 @@ export function JsonPreview({
     // Подложка и текст — теми же классами, что у остальных блоков кода в клиенте
     // (`BugReportsPage`, `ErrorBoundary`): тема здесь такая же, как везде, а не прибитая
     // тёмная литералами (issue #1065).
-    <pre className="rounded-lg px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre leading-relaxed select-all bg-surface-container text-on-surface-variant">
+    <pre className="rounded-md px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre leading-relaxed select-all bg-surface-container text-on-surface-variant">
       {json}
     </pre>
   );
@@ -140,24 +140,24 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
   }, [testOpen, sample, expr, testRefs]);
 
   return (
-    <div className="rounded-md border border-primary/30 bg-primary-container/40 p-2 space-y-1.5">
+    <div className="rounded-sm border border-primary/30 bg-primary-container/40 p-2 space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <span className="text-caption text-on-surface-variant font-medium">Формула (JavaScript)</span>
         <div className="flex items-center gap-1.5">
           <button type="button" onClick={() => setTestOpen(o => !o)}
-            className="text-caption px-2 py-0.5 rounded border border-outline text-on-surface-variant state-layer">
+            className="text-caption px-2 py-0.5 rounded-xs border border-outline text-on-surface-variant state-layer">
             Проверить на образце
           </button>
           <div className="relative">
             <button type="button" onClick={() => { setPickOpen(o => !o); setPickFilter(''); }}
-              className="text-caption px-2 py-0.5 rounded border border-outline text-primary hover:bg-primary/10">
+              className="text-caption px-2 py-0.5 rounded-xs border border-outline text-primary hover:bg-primary/10">
               + Вставить поле
             </button>
             {pickOpen && (
-              <div className="absolute right-0 top-full mt-1 z-50 w-64 bg-surface border border-outline-variant rounded-lg shadow-lg py-1">
+              <div className="absolute right-0 top-full mt-1 z-50 w-64 bg-surface border border-outline-variant rounded-md shadow-elevation-2 py-1">
                 <input autoFocus value={pickFilter} onChange={e => setPickFilter(e.target.value)}
                   placeholder="Фильтр…" spellCheck={false}
-                  className="mx-2 mb-1 w-[calc(100%-1rem)] border border-outline-variant rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary" />
+                  className="mx-2 mb-1 w-[calc(100%-1rem)] border border-outline-variant rounded-xs px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary" />
                 <div className="max-h-52 overflow-auto">
                   {filtered.length === 0
                     ? <p className="px-3 py-2 text-xs text-on-surface-variant">Нет полей</p>
@@ -178,7 +178,7 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
       <textarea ref={taRef} value={expr} spellCheck={false} rows={2}
         onChange={e => onChange({ expression: e.target.value })}
         placeholder={'get("Количество") * get("Цена")'}
-        className="w-full font-mono text-xs border border-outline rounded px-2 py-1.5 bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary resize-y" />
+        className="w-full font-mono text-xs border border-outline rounded-xs px-2 py-1.5 bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary resize-y" />
 
       {/* Инлайн-статус валидации (#309/#311) */}
       {inCycle ? (
@@ -192,7 +192,7 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
       ) : null}
 
       {testOpen && (
-        <div className="rounded border border-outline-variant bg-surface p-2 space-y-1.5">
+        <div className="rounded-xs border border-outline-variant bg-surface p-2 space-y-1.5">
           {testRefs.length === 0
             ? <p className="text-caption text-on-surface-variant">Формула не ссылается на поля.</p>
             : testRefs.map(k => (
@@ -200,7 +200,7 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
                 <code className="font-mono text-on-surface-variant w-28 truncate shrink-0">{k}</code>
                 <input value={sample[k] ?? ''} onChange={e => setSample(s => ({ ...s, [k]: e.target.value }))}
                   placeholder="образцовое значение"
-                  className="flex-1 border border-outline-variant rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary" />
+                  className="flex-1 border border-outline-variant rounded-xs px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary" />
               </label>
             ))}
           <div className="text-caption pt-0.5">
@@ -319,7 +319,7 @@ export function FieldCard({
 
   return (
     <div
-      className={`border rounded-lg overflow-hidden bg-surface transition-colors ${dragging ? 'border-primary' : 'border-outline-variant'}`}
+      className={`border rounded-md overflow-hidden bg-surface transition-colors ${dragging ? 'border-primary' : 'border-outline-variant'}`}
       onDragOver={onDragOver}
       onDrop={onDrop}>
       {/* Свёрнутая шапка карточки: drag handle + сводка + chip типа + chevron */}
@@ -352,7 +352,7 @@ export function FieldCard({
           value={field.title}
           onChange={e => updateTitle(e.target.value)}
           placeholder="Название"
-          className="border border-outline rounded-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
+          className="border border-outline rounded-sm px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
         />
         {/* Key — стабильный идентификатор хранения (issue #355) */}
         <div className="relative">
@@ -363,7 +363,7 @@ export function FieldCard({
               readOnly={keyLocked}
               placeholder="КлючПоля"
               spellCheck={false}
-              className={`w-full border rounded-md pl-3 pr-7 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 ${
+              className={`w-full border rounded-sm pl-3 pr-7 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 ${
                 keyConflict ? 'border-error focus-visible:ring-error' : 'border-outline focus-visible:ring-primary'
               } ${keyLocked ? 'bg-surface-container/60 text-on-surface-variant cursor-default' : 'bg-surface'}`}
             />
@@ -388,7 +388,7 @@ export function FieldCard({
         {/* Type — открывает searchable TypePicker (issue #197) */}
         <Tooltip content="Выбрать тип поля">
           <button type="button" onClick={() => setPickerOpen(true)}
-            className="flex items-center justify-between gap-1 border border-outline rounded-md px-2 py-1.5 text-sm bg-surface state-layer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            className="flex items-center justify-between gap-1 border border-outline rounded-sm px-2 py-1.5 text-sm bg-surface state-layer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <span className="truncate text-left">{fieldTypeSummary(field, reg)}</span>
             <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />
           </button>
@@ -406,7 +406,7 @@ export function FieldCard({
               type="checkbox"
               checked={field.required}
               onChange={e => onChange({ required: e.target.checked })}
-              className="w-4 h-4 rounded border-outline text-primary"
+              className="w-4 h-4 rounded-xs border-outline text-primary"
             />
             <span className="text-xs text-on-surface-variant">да</span>
           </label>
@@ -460,7 +460,7 @@ export function FieldCard({
               onChange={e => onChange(e.target.checked
                 ? { computed: true, required: false, defaultValue: undefined }
                 : { computed: undefined, expression: undefined })}
-              className="w-4 h-4 rounded border-outline text-primary"
+              className="w-4 h-4 rounded-xs border-outline text-primary"
             />
             <span className="text-xs text-on-surface-variant flex items-center gap-1">
               <Icon icon={FunctionIcon} size={18} className="text-primary" /> Вычисляемое (формула)
@@ -484,7 +484,7 @@ export function FieldCard({
                 type="checkbox"
                 checked={!!field.defaultValue}
                 onChange={e => onChange({ defaultValue: e.target.checked ? true : undefined })}
-                className="w-3.5 h-3.5 rounded border-outline text-primary"
+                className="w-3.5 h-3.5 rounded-xs border-outline text-primary"
               />
               <span className="text-xs text-on-surface-variant">{field.defaultValue ? 'true' : 'не задано'}</span>
             </label>
@@ -517,7 +517,7 @@ export function FieldCard({
                     : field.type === 'number' ? Number(v) : v,
                 });
               }}
-              className="flex-1 border border-outline-variant rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              className="flex-1 border border-outline-variant rounded-xs px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
             />
           )}
         </div>
@@ -535,7 +535,7 @@ export function FieldCard({
                   onChange({ options: opts });
                 }}
                 placeholder={`Вариант ${oi + 1}`}
-                className="flex-1 border border-outline rounded px-2 py-1 text-xs focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface"
+                className="flex-1 border border-outline rounded-xs px-2 py-1 text-xs focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface"
               />
               <button type="button"
                 onClick={() => {
@@ -710,7 +710,7 @@ export function DefaultValueCell({ field, override, enumTypes, onOverrideDefault
   const cur = override?.defaultValue;
   const hasDv = cur !== undefined;
   const parentDv = field.defaultValue;
-  const inputCls = 'w-full border rounded px-1.5 py-0.5 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary ' + (hasDv ? 'border-primary-container' : 'border-outline-variant');
+  const inputCls = 'w-full border rounded-xs px-1.5 py-0.5 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary ' + (hasDv ? 'border-primary-container' : 'border-outline-variant');
   // Своя рамка у переопределённого значения сильнее рамки Select: иначе победил бы порядок правил в CSS.
   const selectCls = hasDv ? 'border-primary-container!' : '';
 

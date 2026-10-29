@@ -108,7 +108,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
         ))}
         <div className="flex items-center gap-2 mt-2 text-xs text-on-surface-variant">
           {n.source && (
-            <span className="inline-flex items-center h-6 px-3 rounded-lg border border-outline-variant font-medium">{n.source}</span>
+            <span className="inline-flex items-center h-6 px-3 rounded-md border border-outline-variant font-medium">{n.source}</span>
           )}
           <span>{relTime(n.createdAt)}</span>
         </div>

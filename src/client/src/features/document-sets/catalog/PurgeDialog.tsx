@@ -114,15 +114,14 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
           // Идёт удаление, показан его исход или набрано подтверждение — окно держит человека: поверх
           // него обвязка не открывает палитру и не уводит со страницы (см. `DialogHold`).
           data-modal-state={pending ? 'busy' : refused ?? failed ?? changed ? 'result' : input ? 'touched' : 'free'}
-          className="fixed left-1/2 top-4 sm:top-1/2 -translate-x-1/2 sm:-translate-y-1/2 z-50 rounded-[28px] p-6 w-[calc(100%-2rem)] max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto bg-surface border border-outline-variant focus:outline-none"
-          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
+          className="fixed left-1/2 top-4 sm:top-1/2 -translate-x-1/2 sm:-translate-y-1/2 z-50 rounded-xl p-6 w-[calc(100%-2rem)] max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto bg-surface border border-outline-variant focus:outline-none shadow-elevation-3">
           <Dialog.Title className="text-sm font-semibold mb-2 text-on-surface">
             {refused ? 'Удаление невозможно' : subject.title}
           </Dialog.Title>
 
           {refused ? (
             <>
-              <div className="mt-2 flex items-start gap-2.5 rounded-md bg-error-container px-3 py-2.5 text-xs text-on-surface" role="alert">
+              <div className="mt-2 flex items-start gap-2.5 rounded-sm bg-error-container px-3 py-2.5 text-xs text-on-surface" role="alert">
                 <Icon icon={Warning} size={18} className="shrink-0 mt-0.5 text-error" aria-hidden />
                 <div className="max-h-40 overflow-y-auto whitespace-pre-line min-w-0">{refused}</div>
               </div>
@@ -143,10 +142,10 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
               </ul>
 
               {changed && (
-                <div className="mt-3 rounded-md bg-warning-container px-3 py-2 text-xs text-on-surface" role="alert">{changed}</div>
+                <div className="mt-3 rounded-sm bg-warning-container px-3 py-2 text-xs text-on-surface" role="alert">{changed}</div>
               )}
               {failed && (
-                <div className="mt-3 rounded-md bg-error-container px-3 py-2 text-xs text-on-surface" role="alert">{failed}</div>
+                <div className="mt-3 rounded-sm bg-error-container px-3 py-2 text-xs text-on-surface" role="alert">{failed}</div>
               )}
 
               <div className="mt-4">
@@ -161,7 +160,7 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
                   // не делало бы ничего и не объясняло почему (ревью PR #1246).
                   onKeyDown={e => { if (e.key === 'Enter') setSettled(true); }}
                   aria-invalid={mismatch || undefined} aria-describedby={mismatch ? errorId : hintId}
-                  className={`w-full h-10 px-3 rounded-md bg-surface border text-base sm:text-sm text-on-surface tabular-nums outline-none focus-visible:ring-2 ${
+                  className={`w-full h-10 px-3 rounded-sm bg-surface border text-base sm:text-sm text-on-surface tabular-nums outline-none focus-visible:ring-2 ${
                     mismatch ? 'border-error focus-visible:ring-error' : 'border-outline focus-visible:ring-primary'}`} />
                 {mismatch
                   ? <p id={errorId} role="alert" className="mt-1 text-xs text-error">Не совпадает с числом в строке «Всего ссылок».</p>

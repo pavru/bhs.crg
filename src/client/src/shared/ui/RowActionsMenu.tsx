@@ -47,8 +47,7 @@ function renderAction(action: RowAction) {
         </DropdownMenu.SubTrigger>
         <DropdownMenu.Portal>
           <DropdownMenu.SubContent
-            className="z-50 min-w-[10rem] max-h-72 overflow-auto rounded-md border border-outline-variant bg-surface py-1"
-            style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
+            className="z-50 min-w-[10rem] max-h-72 overflow-auto rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
             {action.submenu.length === 0
               ? <div className="px-3 py-1.5 text-xs text-on-surface-variant">Нет вариантов</div>
               : action.submenu.map(sub => (
@@ -87,15 +86,14 @@ export function RowActionsMenu({ actions, ariaLabel = 'Действия', hasAct
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button type="button" aria-label={ariaLabel} onClick={e => e.stopPropagation()}
-          className="relative p-1 rounded text-on-surface-variant state-layer focus-ring">
+          className="relative p-1 rounded-xs text-on-surface-variant state-layer focus-ring">
           <Icon icon={MoreVert} size={18} />
           {hasActive && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-primary" />}
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="end" sideOffset={4} onClick={e => e.stopPropagation()}
-          className="z-50 min-w-[11rem] rounded-md border border-outline-variant bg-surface py-1"
-          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
+          className="z-50 min-w-[11rem] rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
           {normal.map(renderAction)}
           {danger.length > 0 && normal.length > 0 && (
             <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />

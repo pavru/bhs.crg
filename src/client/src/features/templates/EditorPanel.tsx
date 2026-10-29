@@ -29,7 +29,7 @@ function ToolbarButton({
   return (
     <Tooltip content={title}>
       <button type="button" onClick={onClick}
-        className={`state-layer px-2 py-1 text-sm rounded ${active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}>
+        className={`state-layer px-2 py-1 text-sm rounded-xs ${active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}>
         {children}
       </button>
     </Tooltip>
@@ -69,7 +69,7 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
         </span>
       </ToolbarButton>
       {open && (
-        <div className="absolute top-full left-0 mt-1 z-50 bg-surface border border-outline-variant rounded-lg shadow-lg w-80 max-h-80 overflow-y-auto">
+        <div className="absolute top-full left-0 mt-1 z-50 bg-surface border border-outline-variant rounded-md shadow-elevation-2 w-80 max-h-80 overflow-y-auto">
           <div className="px-3 py-2 border-b border-surface-container text-xs font-semibold text-on-surface-variant uppercase tracking-wide sticky top-0 bg-surface">
             Реквизиты · {docType.name}
           </div>
@@ -81,7 +81,7 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
                 <button key={f.path} onClick={() => insertField(f.path)}
                   className={`w-full flex items-center gap-2 py-1.5 hover:bg-primary-container transition-colors text-left group ${f.type === 'complex' ? 'opacity-60 cursor-default pointer-events-none' : ''}`}
                   style={{ paddingLeft: `${0.75 + f.depth * 1}rem` }}>
-                  <code className="text-xs font-mono text-on-primary-container bg-primary-container group-hover:bg-primary-container px-1.5 py-0.5 rounded shrink-0 max-w-[160px] truncate">
+                  <code className="text-xs font-mono text-on-primary-container bg-primary-container group-hover:bg-primary-container px-1.5 py-0.5 rounded-xs shrink-0 max-w-[160px] truncate">
                     {f.path}
                   </code>
                   <span className="text-xs text-on-surface-variant truncate flex-1">{f.title}</span>
@@ -312,7 +312,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
             href="https://typst.app/docs"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-2 py-1 text-xs text-on-surface-variant hover:text-primary state-layer rounded"
+            className="px-2 py-1 text-xs text-on-surface-variant hover:text-primary state-layer rounded-xs"
           >
             Typst docs ↗
           </a>
@@ -344,7 +344,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
             </span>
           ) : (
             <button onClick={handleSetDefault} disabled={defaultMutation.isPending}
-              className="flex items-center gap-1 px-2 py-1 text-xs border border-outline-variant text-warning hover:bg-warning-container rounded disabled-outlined transition-colors">
+              className="flex items-center gap-1 px-2 py-1 text-xs border border-outline-variant text-warning hover:bg-warning-container rounded-xs disabled-outlined transition-colors">
               <Icon icon={Star} size={18} /> Сделать по умолчанию
             </button>
           )}
@@ -356,7 +356,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
             {template.isActive ? (
               <Tooltip content="Сохранить в текущую версию (Ctrl+S)">
                 <button type="button" onClick={handleSave} disabled={saving}
-                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-primary text-on-primary shadow-[var(--md-sys-elevation-level1)] state-layer disabled-container">
+                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-primary text-on-primary shadow-elevation-1 state-layer disabled-container">
                   <Icon icon={Save} size={18} /> {saving ? 'Сохранение…' : 'Сохранить'}
                 </button>
               </Tooltip>
@@ -364,19 +364,19 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
               // Историческую версию in-place не сохранить — левая кнопка ведёт на форк.
               <Tooltip content="Историческая версия — сохранить как новую">
                 <button type="button" onClick={() => setNewVersionOpen(true)} disabled={saving}
-                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-primary text-on-primary shadow-[var(--md-sys-elevation-level1)] state-layer disabled-container">
+                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-primary text-on-primary shadow-elevation-1 state-layer disabled-container">
                   <Icon icon={CallSplit} size={18} /> Сохранить как новую
                 </button>
               </Tooltip>
             )}
             <Tooltip content="Ещё варианты сохранения" name>
               <button type="button" onClick={() => setSaveMenuOpen(v => !v)} disabled={saving}
-                className="inline-flex items-center h-8 px-1.5 rounded-r-full border-l border-on-primary/25 bg-primary text-on-primary shadow-[var(--md-sys-elevation-level1)] state-layer disabled-container">
+                className="inline-flex items-center h-8 px-1.5 rounded-r-full border-l border-on-primary/25 bg-primary text-on-primary shadow-elevation-1 state-layer disabled-container">
                 <Icon icon={KeyboardArrowDown} size={18} />
               </button>
             </Tooltip>
             {saveMenuOpen && (
-              <div className="absolute top-full right-0 mt-1 z-50 w-72 bg-surface border border-outline-variant rounded-lg shadow-lg py-1">
+              <div className="absolute top-full right-0 mt-1 z-50 w-72 bg-surface border border-outline-variant rounded-md shadow-elevation-2 py-1">
                 <button type="button"
                   onClick={() => { setSaveMenuOpen(false); setNewVersionOpen(true); }}
                   className="w-full flex items-start gap-2 px-3 py-2 text-left state-layer">

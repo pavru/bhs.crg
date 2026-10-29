@@ -256,7 +256,7 @@ export function ResetPasswordModal({ user, onClose }: { user: AppUser | null; on
             {/* Поле только для чтения, а не `<output>`: тот — живая область, и секрет при появлении
                 зачитывался бы вслух программой чтения с экрана. */}
             <input readOnly aria-label="Новый пароль" value={issued} onFocus={e => e.target.select()}
-              className="flex-1 min-w-0 rounded-md border border-outline-variant bg-surface-container-low px-3 py-2 font-mono text-sm text-on-surface" />
+              className="flex-1 min-w-0 rounded-sm border border-outline-variant bg-surface-container-low px-3 py-2 font-mono text-sm text-on-surface" />
             {/* Фокус — сюда, а не на «Готово»: форму отправляют клавишей Enter, и задержанная
                 клавиша закрыла бы окно с паролем раньше, чем его прочли. */}
             <Button type="button" variant="tonal" autoFocus onClick={copy}>

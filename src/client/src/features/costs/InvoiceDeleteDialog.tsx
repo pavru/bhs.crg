@@ -107,7 +107,7 @@ export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizat
  */
 export function InvoiceGoneNotice({ onClose }: { onClose: () => void }) {
   return (
-    <div role="alert" data-testid="invoice-gone" className="flex items-start gap-2 rounded-lg border
+    <div role="alert" data-testid="invoice-gone" className="flex items-start gap-2 rounded-md border
       border-error/30 bg-error-container px-3 py-2 text-xs text-on-error-container">
       <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
       <p className="flex-1">

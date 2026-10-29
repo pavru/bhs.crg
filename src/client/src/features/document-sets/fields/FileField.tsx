@@ -121,14 +121,14 @@ function FilePreviewBody({ attachment }: { attachment: FileAttachment }) {
       {error && <p className="text-sm text-error py-4 text-center">{error}</p>}
       {objectUrl && category === 'image' && (
         <img src={objectUrl} alt={attachment.fileName}
-          className="max-w-full max-h-[70vh] object-contain mx-auto block rounded" />
+          className="max-w-full max-h-[70vh] object-contain mx-auto block rounded-xs" />
       )}
       {objectUrl && category === 'office' && (
         <div className="flex flex-col items-center gap-4 py-10">
           <Icon icon={TableChart} size={48} className="text-success" />
           <p className="text-sm text-on-surface-variant">Предпросмотр недоступен для этого формата.</p>
           <a href={objectUrl} download={attachment.fileName}
-            className="inline-flex items-center gap-2 h-9 px-4 bg-primary state-layer text-on-primary text-sm font-medium rounded-full shadow-[var(--md-sys-elevation-level1)]">
+            className="inline-flex items-center gap-2 h-9 px-4 bg-primary state-layer text-on-primary text-sm font-medium rounded-full shadow-elevation-1">
             <Icon icon={Download} size={18} /> Скачать
           </a>
         </div>
@@ -179,7 +179,7 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
 
   if (uploading) {
     return (
-      <div className="flex items-center gap-2 border border-outline-variant rounded-lg px-3 py-2.5">
+      <div className="flex items-center gap-2 border border-outline-variant rounded-md px-3 py-2.5">
         <CircularProgress size={18} className="text-primary shrink-0" />
         <span className="text-sm text-on-surface-variant">Загрузка файла...</span>
       </div>
@@ -189,7 +189,7 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
   if (attachment) {
     return (
       <>
-        <div className="flex items-center gap-2 border border-outline-variant rounded-lg px-3 py-2 bg-surface-container-low">
+        <div className="flex items-center gap-2 border border-outline-variant rounded-md px-3 py-2 bg-surface-container-low">
           <FileTypeIcon mimeType={attachment.mimeType} />
           <span className="flex-1 text-sm text-on-surface font-medium truncate">{attachment.fileName}</span>
           <span className="text-xs text-on-surface-variant shrink-0">{formatBytes(attachment.size)}</span>
@@ -216,14 +216,14 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
 
   if (readOnly)
     return (
-      <div className="flex items-center justify-center border border-dashed border-outline-variant rounded-lg py-5">
+      <div className="flex items-center justify-center border border-dashed border-outline-variant rounded-md py-5">
         <span className="text-xs text-on-surface-variant">Файла нет</span>
       </div>
     );
 
   return (
     <>
-      <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-outline rounded-lg py-5 cursor-pointer hover:border-primary hover:bg-primary-container transition-colors">
+      <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-outline rounded-md py-5 cursor-pointer hover:border-primary hover:bg-primary-container transition-colors">
         <Icon icon={Upload} size={18} className="text-on-surface-variant" />
         <span className="text-sm text-on-surface-variant">Нажмите для выбора файла</span>
         <span className="text-xs text-on-surface-variant">PDF, DOCX, XLSX, PNG, JPG (до 50 МБ)</span>

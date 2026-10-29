@@ -40,7 +40,7 @@ export function DateField({
   return (
     <OutlinedField label={label} required={required} invalid={invalid} hint={hint} error={error} hintId={hintId}
       raise="always" focused={focused} readOnly={readOnly}>
-      <div className={`h-14 rounded-md px-4 flex items-center text-sm text-on-surface ${disabled ? 'opacity-50' : ''}`}
+      <div className={`h-14 rounded-sm px-4 flex items-center text-sm text-on-surface ${disabled ? 'opacity-50' : ''}`}
         onFocus={() => setFocused(true)}
         onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>
         {/* Во всю ширину: хвост поля — крестик и календарь — стоит у правого края рамки (#1463). */}

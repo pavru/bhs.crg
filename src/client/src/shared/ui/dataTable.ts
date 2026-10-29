@@ -8,7 +8,7 @@
  */
 
 /** Обёртка-карточка со скроллом. */
-export const dtCard = 'overflow-auto rounded-xl border border-outline-variant bg-surface';
+export const dtCard = 'overflow-auto rounded-lg border border-outline-variant bg-surface';
 
 /**
  * Сама таблица (border-separate — для корректной sticky-шапки). Высоту шапки она держит переменной

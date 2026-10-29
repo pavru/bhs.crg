@@ -125,10 +125,10 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
   );
 
   return (
-    <div className="space-y-1 rounded-md border border-outline-variant/60 p-1.5">
+    <div className="space-y-1 rounded-sm border border-outline-variant/60 p-1.5">
       <div className="flex items-center gap-2">
         <Tooltip content={`${field.title} (${field.key}) — составное поле`}><span className={`flex-1 min-w-0 text-xs text-on-surface-variant ${MAP_LABEL}`}>{field.title}</span></Tooltip>
-        <div className="flex rounded-md border border-outline-variant overflow-hidden text-caption shrink-0">
+        <div className="flex rounded-sm border border-outline-variant overflow-hidden text-caption shrink-0">
           {segBtn('ref', '🔗 По ссылке')}{segBtn('inline', '{} Встроенный')}
         </div>
       </div>
@@ -466,7 +466,7 @@ function AddBindingPanel({
   }
 
   return (
-    <div className="rounded-xl p-4 space-y-4 border border-outline-variant bg-surface-container-low">
+    <div className="rounded-lg p-4 space-y-4 border border-outline-variant bg-surface-container-low">
       <div>
         <label className="block text-xs font-medium mb-1 text-on-surface-variant">
           Источник данных
@@ -493,7 +493,7 @@ function AddBindingPanel({
 
       {selectedSource && (
         materializeTypeId ? (
-          <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 space-y-2">
+          <div className="rounded-md border border-primary/40 bg-primary/5 p-3 space-y-2">
             <p className="text-xs text-on-surface-variant">
               Источник материализуется в тип <b>{allDocTypes.find(t => t.id === materializeTypeId)?.name ?? '—'}</b>.
               Маппинг задан на источнике — выберите только поле-цель совместимого типа.
@@ -527,13 +527,13 @@ function AddBindingPanel({
         <button
           onClick={handleSave}
           disabled={!sourceId || create.isPending}
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-on-primary disabled-container bg-primary"
+          className="px-3 py-1.5 rounded-sm text-sm font-medium text-on-primary disabled-container bg-primary"
         >
           {create.isPending ? 'Сохранение...' : 'Сохранить привязку'}
         </button>
         <button
           onClick={onDone}
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-on-surface-variant bg-surface-container"
+          className="px-3 py-1.5 rounded-sm text-sm font-medium text-on-surface-variant bg-surface-container"
         >
           Отмена
         </button>
@@ -616,7 +616,7 @@ function BindingRow({
         <Tooltip content="Редактировать маппинг" name>
           <button
             onClick={() => setEditing(e => !e)}
-            className="p-1.5 rounded text-xs text-on-surface-variant"
+            className="p-1.5 rounded-xs text-xs text-on-surface-variant"
           >
             <Icon icon={Edit} size={18} />
           </button>
@@ -625,7 +625,7 @@ function BindingRow({
           <Tooltip content="Удалить" name>
             <button
               onClick={() => setConfirming(true)}
-              className="p-1.5 rounded text-on-surface-variant hover:text-error transition-colors"
+              className="p-1.5 rounded-xs text-on-surface-variant hover:text-error transition-colors"
             >
               <Icon icon={Delete} size={18} />
             </button>
@@ -633,11 +633,11 @@ function BindingRow({
         ) : (
           <div className="flex items-center gap-1.5 text-xs">
             <button onClick={handleDelete} disabled={del.isPending}
-              className="px-2 py-0.5 rounded text-on-error text-xs bg-error">
+              className="px-2 py-0.5 rounded-xs text-on-error text-xs bg-error">
               Да
             </button>
             <button onClick={() => setConfirming(false)}
-              className="px-2 py-0.5 rounded text-xs bg-surface-container text-on-surface-variant">
+              className="px-2 py-0.5 rounded-xs text-xs bg-surface-container text-on-surface-variant">
               Нет
             </button>
           </div>
@@ -657,15 +657,15 @@ function BindingRow({
           />
           <div className="flex gap-2">
             <button onClick={handleSave} disabled={update.isPending}
-              className="px-3 py-1.5 rounded-md text-sm font-medium text-on-primary bg-primary">
+              className="px-3 py-1.5 rounded-sm text-sm font-medium text-on-primary bg-primary">
               {update.isPending ? 'Сохранение...' : 'Сохранить'}
             </button>
             <button onClick={handleAutoRemap} disabled={autoMap.isPending}
-              className="px-3 py-1.5 rounded-md text-sm font-medium text-on-surface-variant bg-surface-container">
+              className="px-3 py-1.5 rounded-sm text-sm font-medium text-on-surface-variant bg-surface-container">
               Авто-маппинг
             </button>
             <button onClick={() => setEditing(false)}
-              className="px-3 py-1.5 rounded-md text-sm font-medium text-on-surface-variant">
+              className="px-3 py-1.5 rounded-sm text-sm font-medium text-on-surface-variant">
               Отмена
             </button>
           </div>
@@ -694,7 +694,7 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl overflow-hidden border border-outline-variant bg-surface">
+      <div className="rounded-lg overflow-hidden border border-outline-variant bg-surface">
         {bindings.length === 0 && !adding ? (
           <div className="p-6 text-center text-sm text-on-surface-variant">
             Нет привязок к наборам данных
@@ -726,13 +726,13 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
         <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={() => setAdding(true)}
-            className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md transition-colors text-on-primary-container bg-primary-container"
+            className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-sm transition-colors text-on-primary-container bg-primary-container"
           >
             <Icon icon={Add} size={18} /> Добавить источник данных
           </button>
           <button
             onClick={() => setApplyingTemplate(true)}
-            className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md transition-colors text-on-surface-variant bg-surface-container"
+            className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-sm transition-colors text-on-surface-variant bg-surface-container"
           >
             <Icon icon={SpaceDashboard} size={18} /> Из шаблона
           </button>
@@ -740,7 +740,7 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
             <button
               onClick={handlePreview}
               disabled={previewing}
-              className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md transition-colors disabled-container text-on-surface-variant bg-surface-container"
+              className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-sm transition-colors disabled-container text-on-surface-variant bg-surface-container"
             >
               {previewing
                 ? <CircularProgress size={18} />

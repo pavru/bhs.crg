@@ -72,9 +72,9 @@ export function TypePickerField({
   // иначе получилась бы рамка в рамке. Кольцо фокуса там тоже не нужно: фокус показывает сама
   // оболочка (border-2 + подпись цветом бренда), как у `DateField`.
   const triggerClass = framed
-    ? `w-full h-14 px-4 rounded-md bg-transparent text-sm text-left outline-none ` +
+    ? `w-full h-14 px-4 rounded-sm bg-transparent text-sm text-left outline-none ` +
       `disabled-content disabled:pointer-events-none`
-    : `w-full ${size === 'sm' ? 'h-8' : 'h-9'} px-3 rounded-md border border-outline bg-surface ` +
+    : `w-full ${size === 'sm' ? 'h-8' : 'h-9'} px-3 rounded-sm border border-outline bg-surface ` +
       `text-sm text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ` +
       `data-[state=open]:ring-2 disabled-outlined disabled:pointer-events-none`;
 
@@ -127,7 +127,7 @@ export function TypePickerField({
           `group-hover:opacity-100 group-hover:pointer-events-auto ` +
           `group-focus-within:opacity-100 group-focus-within:pointer-events-auto ` +
           `[@media(pointer:coarse)]:opacity-100 [@media(pointer:coarse)]:pointer-events-auto ` +
-          `focus-visible:opacity-100 focus-ring rounded-sm`}>
+          `focus-visible:opacity-100 focus-ring rounded-xs`}>
         <Icon icon={Close} size={18} />
       </button>
     </Tooltip>

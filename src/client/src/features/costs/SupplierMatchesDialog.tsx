@@ -149,7 +149,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
             <SelectItem key={s.id} value={s.id}>{supplierLabel(s)} ({s.count})</SelectItem>
           ))}
         </Select>
-        <label className="flex flex-1 min-w-[14rem] items-center gap-1 rounded border border-outline-variant bg-surface px-2 py-1">
+        <label className="flex flex-1 min-w-[14rem] items-center gap-1 rounded-xs border border-outline-variant bg-surface px-2 py-1">
           <Icon icon={Search} size={18} className="text-on-surface-variant" />
           <input value={typed} placeholder="Артикул или наименование у поставщика"
             aria-label="Поиск по артикулу или наименованию у поставщика" data-search=""
@@ -172,7 +172,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
       </div>
 
       {list.isError ? (
-        <div className="rounded-lg border border-error/30 px-3 py-2 text-sm text-error">
+        <div className="rounded-md border border-error/30 px-3 py-2 text-sm text-error">
           Список соответствий не прочитан: {apiError(list.error)} Это не «соответствий нет».{' '}
           <button type="button" className="underline" onClick={() => void list.refetch()}>Повторить</button>
         </div>

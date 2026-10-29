@@ -61,7 +61,7 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
         <input type="checkbox" checked={!!value} aria-readonly={readOnly || undefined}
           onChange={e => { if (!readOnly) onChange(e.target.checked); }}
           onClick={e => { if (readOnly) e.preventDefault(); }}
-          className={`w-4 h-4 rounded border-outline text-primary ${readOnly ? 'opacity-70' : ''}`} />
+          className={`w-4 h-4 rounded-xs border-outline text-primary ${readOnly ? 'opacity-70' : ''}`} />
         <span className="text-sm text-on-surface-variant">{label ?? field.title}</span>
       </label>
     );

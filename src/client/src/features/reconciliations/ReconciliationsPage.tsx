@@ -300,7 +300,7 @@ export function ReconciliationsPage() {
       {/* Неудачный прогон обязан быть виден: пустой список читается как «расхождений нет», и это
           самое опасное недоразумение в подсистеме. */}
       {currentRun?.status === 'Failed' && (
-        <div className="mx-4 mt-3 px-3 py-2 rounded-lg bg-error-container text-on-error-container text-sm">
+        <div className="mx-4 mt-3 px-3 py-2 rounded-md bg-error-container text-on-error-container text-sm">
           <strong>Прогон не выполнен.</strong> {currentRun.error}
         </div>
       )}

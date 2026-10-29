@@ -54,7 +54,7 @@ export function WaybillCorrectionBar({
 }) {
   if (unneeded)
     return (
-      <div role="alert" className="flex items-start gap-2 rounded-lg border border-outline-variant bg-warning-container
+      <div role="alert" className="flex items-start gap-2 rounded-md border border-outline-variant bg-warning-container
         px-3 py-2 text-xs text-on-warning-container">
         <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
         <p className="flex-1">
@@ -69,7 +69,7 @@ export function WaybillCorrectionBar({
 
   return (
     <div className="space-y-2" data-testid="waybill-correction-bar">
-      <div role="status" className="flex items-start gap-2 rounded-lg border border-outline-variant bg-warning-container
+      <div role="status" className="flex items-start gap-2 rounded-md border border-outline-variant bg-warning-container
         px-3 py-2 text-xs text-on-warning-container">
         <Icon icon={EditNote} size={18} className="shrink-0 mt-0.5" />
         <p className="flex-1">
