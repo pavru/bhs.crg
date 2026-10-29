@@ -231,6 +231,11 @@ cd src/client && npm run md3:migrate && npm run ui:ratchet && git commit -am "md
 Порядок обязателен: до коммита слияния строки, на которых решён конфликт, для `git blame` ещё не
 закоммичены, и перевод их не сдвинет — бывшие 6 и 10 молча стали бы 12 и 16 вместо 8 и 12.
 
+Забытый перевод ловит CI до слияния — шаг «Шкала формы (кодмод)» работы Frontend: `md3:migrate --check`
+на всей истории. После squash-слияния его не поймал бы никто: строки ветки получают автора — коммит
+после перехода, — и для `git blame` они уже не старые. Ветке, начатой после перехода, шаг ничего не
+стоит: коммитов до перехода в её истории нет, и blame не запускается.
+
 **Значки lucide** переводит та же команда вторым проходом (sharedui-md3-03): по таблице
 `scripts/md3-icon-map.json` — импорт, JSX, значения, тип `LucideIcon`, размер на ступень шкалы, `Loader2`
 → `CircularProgress`; значок в переменной узнаётся по типу. Пакет `lucide-react` для этого не нужен (его
@@ -255,11 +260,13 @@ cd src/client && npm run md3:migrate && npm run ui:ratchet && git commit -am "md
 | full, none | `rounded-full`, `rounded-none` | пилюля, без скругления |
 
 Стороны и углы — те же ступени (`rounded-t-xl`). Других ступеней нет: `rounded` без ступени,
-`rounded-2xl`, `rounded-[…]` и `borderRadius` в коде не пропустит храповик (`legacy-radius`).
+`rounded-2xl`, `rounded-[…]`, `borderRadius` в коде и `border-radius` числом в стилях не пропустит
+храповик (`legacy-radius`).
 
 Тень — только уровнем, классом `shadow-elevation-1…5`; без тени — `shadow-none`. Встроенные `shadow-sm…`,
-`shadow-[…]` и `boxShadow` в коде не пропустит храповик (`legacy-shadow`). Черта места вставки
-перетаскиваемой строки — не уровень, у неё утилита `drop-mark-before` / `drop-mark-after`.
+`shadow-[…]`, `drop-shadow-*`, `boxShadow` в коде и `box-shadow` не уровнем в стилях не пропустит
+храповик (`legacy-shadow`). Черта места вставки перетаскиваемой строки — не уровень, у неё утилита
+`drop-mark-before` / `drop-mark-after`: внутренняя тень (`inset`) возвышением не бывает и не считается.
 
 **Кому что положено** — по MD3. В скобках — ребёнок эпика `sharedui-md3`, который приводит компонент к
 строке. До него компонент рисует то, что дал перевод по значению: например, поле пока скруглено на 8 px.
@@ -853,8 +860,10 @@ import { Delete } from '@/shared/ui/icons';
   (`sharedui-md3-05`), варианта `dark` в теме больше нет. Утилиты состояния, кольца и отключённого —
   тест `src/client/scripts/md3-states.test.mjs` (едет в `npm test`): CSS, который получит браузер.
 - Радиус вне шкалы формы — правило `legacy-radius`: `rounded` без ступени, `rounded-2xl/3xl`,
-  `rounded-[…]`, `borderRadius` в коде. Тень вне уровней — `legacy-shadow`: `shadow`, `shadow-sm…2xl`,
-  `shadow-[…]`, `boxShadow` в коде. Оба — весь `src/`, классы в строках кода ([UI-66]); накопленное в
+  `rounded-[…]`, `borderRadius` в коде, `border-radius` числом в стилях. Тень вне уровней —
+  `legacy-shadow`: `shadow`, `shadow-sm…2xl`, `shadow-[…]`, `drop-shadow-*`, `boxShadow` в коде,
+  `box-shadow` не уровнем и не `inset` в стилях. Оба — весь `src/` со стилями, классы в строках кода
+  ([UI-66]); накопленное в
   `features/` стоит в уровне до ребёнка 17. Ступени и уровни сверяет тест темы
   `src/client/scripts/md3-theme.test.mjs`: число в нём — договор, а не копия описания.
 - Всё остальное здесь — договорённость, проверяет её ревью.

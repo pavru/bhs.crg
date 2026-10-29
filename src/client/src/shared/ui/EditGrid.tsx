@@ -224,7 +224,7 @@ export function EditGrid<Row>({
                 <tr key={rowKey(row, i)} data-row={i} {...rowData?.(row, i)}
                   className={`${dtRow} ${chosen ? 'bg-primary-container' : ''} ${dropMark}`}
                   data-dragging={drag?.dragging === i || undefined}
-                    {...(drag ? {
+                  {...(drag ? {
                     onDragOver: (e: DragEvent) => drag.onOver(e, i),
                     onDrop: drag.onDrop,
                   } : {})}>

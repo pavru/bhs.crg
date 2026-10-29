@@ -26,7 +26,7 @@ import theme from '../src/theme/md3-theme.json' with { type: 'json' };
 import classMap from './md3-class-map.json' with { type: 'json' };
 import { formatIconReport, migrateIcons } from './md3-icons-migrate.mjs';
 import { compileStates, migrateStates } from './md3-states-migrate.mjs';
-import { commitsAfterTransition, compileShape, gitOldLines, migrateRadii, migrateShadows } from './md3-shape-migrate.mjs';
+import { commitsAfterTransition, compileShape, gitOldLines, hasCommitsBeforeTransition, migrateRadii, migrateShadows } from './md3-shape-migrate.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const clientRoot = join(here, '..');
@@ -218,12 +218,17 @@ export function sourceFiles(root) {
 
 /**
  * Перевод файлов: `write` — записать изменённые. `oldLines(path)` — строки, написанные до перехода на
- * шкалу формы (по умолчанию — git blame; зовётся только у файла, где есть радиус цепи). Возвращает отчёт
- * по файлам.
+ * шкалу формы (по умолчанию — git blame в репозитории `base`; зовётся только у файла, где есть радиус
+ * цепи, и только если в истории есть коммиты чужой ветки до перехода). Возвращает отчёт по файлам.
  */
 export function migrateFiles(files, { write = false, rules = compile(), base = clientRoot, oldLines } = {}) {
   let after;
-  oldLines ??= path => gitOldLines(path, clientRoot, after ??= commitsAfterTransition(clientRoot));
+  let blame;
+  oldLines ??= path => {
+    after ??= commitsAfterTransition(base);
+    blame ??= hasCommitsBeforeTransition(base, after);
+    return blame ? gitOldLines(path, base, after) : () => false;
+  };
   const report = [];
   for (const path of files) {
     const text = readFileSync(path, 'utf8');

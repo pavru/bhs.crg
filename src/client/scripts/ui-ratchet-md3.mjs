@@ -48,12 +48,19 @@ export const countDarkVariants = text => classTokens(text).filter(t => t.variant
 const RADIUS = /^rounded(?:-(?:t|r|b|l|s|e|tl|tr|br|bl|ss|se|es|ee))?(?:-(.+))?$/;
 const RADIUS_STEPS = new Set(['none', 'xs', 'sm', 'md', 'lg', 'xl', 'full']);
 const isLegacyRadius = ({ cls }) => { const m = RADIUS.exec(cls); return !!m && !RADIUS_STEPS.has(m[1] ?? ''); };
-const LEGACY_SHADOW = /^shadow(?:-(?:2xs|xs|sm|md|lg|xl|2xl|inner|\[.+\]|\(.+\)))?$/;
+// Тень фильтром (drop-shadow) выглядит тем же возвышением и так же идёт мимо уровней. Внутренняя тень
+// (inset-shadow-*, box-shadow: inset — черта места вставки) возвышением не бывает и не считается.
+const LEGACY_SHADOW = /^(?:drop-)?shadow(?:-(?:2xs|xs|sm|md|lg|xl|2xl|inner|\[.+\]|\(.+\)))?$/;
+// В файле стилей — значение свойства: своё число вместо переменной ступени или уровня. Пробелы — внутри
+// просмотра: снаружи `\s*` отступил бы на ноль, и « none» уже не начиналось бы с none.
+const CSS_RADIUS = /\bborder(?:-[a-z]+)*-radius\s*:(?!\s*(?:0\s*[;}]|inherit\b|var\(--md-sys-shape-corner-[a-z-]+\)\s*[;}!]))/g;
+const CSS_SHADOW = /\bbox-shadow\s*:(?!\s*(?:none\b|inset\b|var\(--md-sys-elevation-level[0-5]\)\s*[;}!]))/g;
 const count = (text, re) => stripComments(text).match(re)?.length ?? 0;
 
-/** Радиус вне шкалы формы классом в строках кода и `borderRadius` в коде — см. правило `legacy-radius`. */
-export const countLegacyRadii = text => classTokens(text).filter(isLegacyRadius).length + count(text, /\bborderRadius\b/g);
+/** Радиус вне шкалы формы: класс в строках кода, `borderRadius` в коде, `border-radius` числом в стилях — см. `legacy-radius`. */
+export const countLegacyRadii = text =>
+  classTokens(text).filter(isLegacyRadius).length + count(text, /\bborderRadius\b/g) + count(text, CSS_RADIUS);
 
-/** Тень вне уровней возвышения классом в строках кода и `boxShadow` в коде — см. правило `legacy-shadow`. */
+/** Тень вне уровней возвышения: класс в строках кода, `boxShadow` в коде, `box-shadow` не уровнем в стилях — см. `legacy-shadow`. */
 export const countLegacyShadows = text =>
-  classTokens(text).filter(({ cls }) => LEGACY_SHADOW.test(cls)).length + count(text, /\bboxShadow\b/g);
+  classTokens(text).filter(({ cls }) => LEGACY_SHADOW.test(cls)).length + count(text, /\bboxShadow\b/g) + count(text, CSS_SHADOW);

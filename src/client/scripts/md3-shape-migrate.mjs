@@ -13,7 +13,7 @@
 // className элемента. Тень, которую команда не переводит, называется отчётом.
 
 import { execFileSync } from 'node:child_process';
-import { CLASS_AFTER, CLASS_BEFORE, stripComments } from './class-scan.mjs';
+import { CLASS_AFTER, CLASS_BEFORE, scanCode, stripComments } from './class-scan.mjs';
 import classMap from './md3-class-map.json' with { type: 'json' };
 
 const SIDE = '(?:t|r|b|l|s|e|tl|tr|br|bl|ss|se|es|ee)';
@@ -36,15 +36,19 @@ export function migrateRadii(text, { isOld, skip = () => false, rules = compileS
   const replaced = [];
   const untouched = [];
   const stripped = stripComments(text);
+  let spans;
+  const inString = index => (spans ??= scanCode(text).strings.flat()).some(([from, to]) => from <= index && index < to);
   let line = 1;
   let at = 0;
   const out = text.replace(RADIUS, (whole, lead, side, step = '', tail, index) => {
     for (; at < index; at++) if (text[at] === '\n') line++;
     if (rules.keep.has(step)) return whole;
-    // `rounded` без ступени бывает и именем в коде: проп `{ rounded = 'md' }`, `rounded === 'full'`,
-    // `{rounded}`, ссылка `rounded` в комментарии. Класс за ним не стоит перед `=`, `?`, `,`, `)`, `}`.
-    if (!side && !step && (/^\s*[=?,)}]/.test(text.slice(index + whole.length))
-      || (text[index - 1] === '`' && text[index + whole.length] === '`'))) return whole;
+    // `rounded` без ступени бывает и именем в коде: проп `{ rounded = 'md' }`, `return rounded;`,
+    // `opts.rounded.trim()`, ссылка `rounded` в комментарии, селектор `.rounded`. Поэтому он класс только
+    // там, где пишутся классы: в строке или шаблоне кода и после `@apply` — белым списком, а не
+    // перечнем знаков после имени (тот пропустил бы `;`, `&&`, `.`).
+    if (!side && !step && !inString(index) && !/@apply\b[^;\n{}]*$/.test(text.slice(text.lastIndexOf('\n', index) + 1, index)))
+      return whole;
     const token = `rounded${side ? `-${side}` : ''}${step ? `-${step}` : ''}`;
     const to = rules.chain[step];
     if (to === undefined) {
@@ -91,14 +95,18 @@ function closing(text, open) {
 export function migrateShadows(text, { skip = () => false } = {}) {
   const replaced = [];
   const untouched = [];
-  const lineAt = index => text.slice(0, index).split('\n').length;
+  // Номера строк — исходного текста. Замена класса переводов строк не трогает, и до переноса стилей номер
+  // места в `out` тот же; перенос стиля убирает его строку — всё, что нужно отчёту, снято до переноса.
+  const lineIn = (source, index) => source.slice(0, index).split('\n').length;
   let out = text.replace(LEVEL_CLASS, (whole, lead, n, tail, index) => {
     if (skip(index)) return whole;
-    replaced.push({ line: lineAt(index), from: `shadow-[var(--md-sys-elevation-level${n})]`, to: `shadow-elevation-${n}`,
+    replaced.push({ line: lineIn(text, index), from: `shadow-[var(--md-sys-elevation-level${n})]`, to: `shadow-elevation-${n}`,
       pair: `shadow-[var(--md-sys-elevation-levelN)] → shadow-elevation-N`, comment: false });
     return `${lead}shadow-elevation-${n}${tail}`;
   });
 
+  const unmoved = out;
+  const moved = [];
   // Стили — с конца, чтобы правка не сдвигала ещё не обработанные места.
   const styles = [...out.matchAll(LEVEL_STYLE)].reverse();
   for (const m of styles) {
@@ -110,14 +118,16 @@ export function migrateShadows(text, { skip = () => false } = {}) {
     if (close < 0 || close > m.index) continue;
     const cls = `shadow-elevation-${m[1]}`;
     out = out.slice(0, close) + ` ${cls}` + out.slice(close, m.index) + out.slice(m.index + m[0].length);
-    replaced.push({ line: lineAt(m.index), from: `style boxShadow level${m[1]}`, to: cls,
+    moved.push([m.index, m.index + m[0].length]);
+    // Совпадение начинается с пробелов перед `style` — номер строки берётся у самого `style`.
+    replaced.push({ line: lineIn(unmoved, m.index + m[0].indexOf('style')), from: `style boxShadow level${m[1]}`, to: cls,
       pair: 'style={{ boxShadow: var(--md-sys-elevation-levelN) }} → shadow-elevation-N', comment: false });
   }
 
-  const stripped = stripComments(out);
-  for (const m of out.matchAll(SHADOW_REPORT))
-    if (stripped[m.index] === out[m.index])
-      untouched.push({ line: out.slice(0, m.index).split('\n').length, token: m[0],
+  const stripped = stripComments(unmoved);
+  for (const m of unmoved.matchAll(SHADOW_REPORT))
+    if (stripped[m.index] === unmoved[m.index] && !moved.some(([from, to]) => from <= m.index && m.index < to))
+      untouched.push({ line: lineIn(unmoved, m.index), token: m[0],
         reason: 'тень в стиле — перевести по месту в shadow-elevation-N по роли слоя (docs/UI.md, «Форма и возвышение»)' });
   return { text: out, replaced, untouched };
 }
@@ -139,6 +149,24 @@ export function commitsAfterTransition(cwd) {
     }
   } catch { /* не репозиторий: меток нет */ }
   return after;
+}
+
+/**
+ * Есть ли в истории HEAD коммиты до перехода, кроме истории master до него: коммиты чужой ветки, начатой
+ * раньше. Без них старых строк с радиусом цепи нет — переход перевёл их все, — и `git blame` по каждому
+ * файлу (десятки секунд) не нужен. Перехода нет в истории (или нет git) — старые все закоммиченные, да.
+ */
+export function hasCommitsBeforeTransition(cwd, after) {
+  if (!after.size) return true;
+  try {
+    const transitions = execFileSync('git', ['log', '--format=%H', '-S--md-sys-shape-corner-small', 'HEAD', '--', 'src/theme/'],
+      { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(Boolean);
+    const outside = execFileSync('git', ['rev-list', 'HEAD', '--not', ...transitions],
+      { cwd, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(Boolean);
+    return outside.some(c => !after.has(c));
+  } catch {
+    return true;
+  }
 }
 
 /**

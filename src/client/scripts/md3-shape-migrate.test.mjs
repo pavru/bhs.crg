@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { migrateFiles, migrateText } from './md3-migrate.mjs';
-import { commitsAfterTransition, gitOldLines, migrateShadows } from './md3-shape-migrate.mjs';
+import { commitsAfterTransition, hasCommitsBeforeTransition, migrateShadows } from './md3-shape-migrate.mjs';
 
 // Шаги формы и возвышения команды md3:migrate (sharedui-md3-06, [UI-66]): почему цепь радиусов
 // смотрит в git blame — в md3-shape-migrate.mjs.
@@ -52,6 +52,9 @@ describe('md3:migrate: радиусы — цепью по значению', () 
     const prop = "// через `rounded`\nfunction S({ rounded = 'md', a }) { return `${rounded === 'full' ? 'x' : 'y'}` + f(rounded) + {rounded}; }";
     expect(old(prop).text).toBe(prop);
     expect(old("@apply rounded; cls('p-2 rounded', `rounded border`)").text).toBe("@apply rounded-xs; cls('p-2 rounded-xs', `rounded-xs border`)");
+    // Класс — только в строке, шаблоне и после @apply: имя в коде не трогается, какой бы знак за ним ни шёл.
+    const code = 'return rounded;\nconst x = rounded && y || rounded;\nopts.rounded.trim();\n.rounded { color: red }';
+    expect(old(code).text).toBe(code);
   });
 
   it('отрицательное ожидание теста — не трогается, называется', () => {
@@ -87,6 +90,17 @@ describe('md3:migrate: тени — классом уровня', () => {
     expect(untouched[0].reason).toContain('shadow-elevation-N по роли слоя');
   });
 
+  it('номера строк отчёта — исходного файла: после замены класса и переноса стиля со своей строки', () => {
+    const { replaced, untouched } = migrateShadows([
+      '<a className="shadow-[var(--md-sys-elevation-level1)]" />',
+      '<div className="x"',
+      "  style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>",
+      "<span style={{ boxShadow: '0 0 2px red' }} />",
+    ].join('\n'));
+    expect(replaced.map(r => r.line).sort()).toEqual([1, 3]);
+    expect(untouched.map(u => u.line)).toEqual([4]);
+  });
+
   it('второй прогон ничего не меняет', () => {
     const once = migrateShadows("<i className=\"a\" style={{ boxShadow: 'var(--md-sys-elevation-level1)' }} />").text;
     expect(migrateShadows(once).text).toBe(once);
@@ -99,10 +113,9 @@ describe('md3:migrate: радиусы по git blame — живой репози
   const file = () => join(dir, 'src', 'x.tsx');
   const write = lines => writeFileSync(file(), `${lines.join('\n')}\n`);
   const read = () => readFileSync(file(), 'utf8').trimEnd().split('\n');
-  const migrate = () => {
-    const after = commitsAfterTransition(dir);
-    return migrateFiles([file()], { write: true, base: dir, oldLines: p => gitOldLines(p, dir, after) });
-  };
+  // Путь по умолчанию: git — в репозитории `base`, blame — только если есть коммиты до перехода.
+  const migrate = () => migrateFiles([file()], { write: true, base: dir });
+  const blames = () => hasCommitsBeforeTransition(dir, commitsAfterTransition(dir));
   const commit = message => { git('add', '-A'); git('commit', '-qm', message); };
 
   beforeAll(() => {
@@ -131,6 +144,8 @@ describe('md3:migrate: радиусы по git blame — живой репози
     // Строка после перехода: rounded-md уже 12 px.
     write([...read(), 'const c = "rounded-md";']);
     commit('после перехода');
+    // На master после перехода старых коммитов вне его истории нет — blame не нужен вовсе.
+    expect(blames()).toBe(false);
     expect(migrate().flatMap(r => r.replaced)).toEqual([]);
     expect(read()[2]).toBe('const c = "rounded-md";');
   });
@@ -147,6 +162,7 @@ describe('md3:migrate: радиусы по git blame — живой репози
       writeFileSync(file(), `${merged.join('\n')}\n`);
       commit('слияние master');
     }
+    expect(blames(), 'у ветки есть свои коммиты до перехода').toBe(true);
     const before = read();
     expect(before).toEqual(['const a = "rounded-sm";', 'const b = "p-2 rounded-lg";', 'const c = "rounded-md";']);
     migrate();

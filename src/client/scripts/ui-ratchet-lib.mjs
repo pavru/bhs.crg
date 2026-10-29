@@ -247,19 +247,23 @@ export const RULES = [
   {
     id: 'legacy-radius',
     // Скругление вне шкалы формы MD3 ([UI-66], sharedui-md3-06): `rounded` без ступени, rounded-2xl/3xl,
-    // произвольный rounded-[…] и borderRadius в коде. Ступени 6 и 10 px исчезли вместе с прежней шкалой —
-    // кодмод md3:migrate перевёл их по значению; остаток ждёт роли компонента (ребёнок 17).
+    // произвольный rounded-[…], borderRadius в коде и border-radius числом в стилях. Ступени 6 и 10 px
+    // исчезли вместе с прежней шкалой — кодмод md3:migrate перевёл их по значению; остаток ждёт роли
+    // компонента (ребёнок 17).
     count: countLegacyRadii,
     everywhere: true,
+    styles: true,
     instead: 'скругление — ступенью шкалы формы MD3: rounded-xs 4, rounded-sm 8, rounded-md 12, rounded-lg 16, rounded-xl 28, rounded-full, rounded-none; сторона и угол — так же (rounded-t-xl); какая ступень какому компоненту — docs/UI.md, «Форма и возвышение»',
   },
   {
     id: 'legacy-shadow',
     // Тень вне уровней возвышения MD3 ([UI-66], sharedui-md3-06): встроенные shadow, shadow-sm…2xl,
-    // произвольный shadow-[…] и boxShadow в коде. Значение уровня одно на обе темы и цветом роли shadow —
-    // своя тень расходится с ним в тёмной теме первой.
+    // произвольный shadow-[…], drop-shadow-*, boxShadow в коде и box-shadow не уровнем в стилях (внутренняя
+    // тень — не возвышение). Значение уровня одно на обе темы и цветом роли shadow — своя тень расходится
+    // с ним в тёмной теме первой.
     count: countLegacyShadows,
     everywhere: true,
+    styles: true,
     instead: 'тень — уровнем возвышения MD3 по роли слоя: shadow-elevation-1 (кнопка, карточка), shadow-elevation-2 (меню, список, поповер, палитра), shadow-elevation-3 (окно, плавающая кнопка), 4 и 5 — по таблице; без тени — shadow-none; черта места вставки строки — drop-mark-before / drop-mark-after (docs/UI.md, «Форма и возвышение»)',
   },
   {

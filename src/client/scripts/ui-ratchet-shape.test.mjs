@@ -43,6 +43,19 @@ describe('храповик интерфейса: форма и возвышен�
       .toEqual({ 'legacy-radius': 1 });
   });
 
+  it('тень фильтром и свои значения в файле стилей — тоже нарушение; уровень, none и внутренняя тень — нет', () => {
+    expect(countAll('<div className="drop-shadow-lg hover:drop-shadow inset-shadow-sm" />', screen))
+      .toEqual({ 'legacy-shadow': 2 });
+    const css = { dir: 'shared', file: 'shared/ui/x.css' };
+    expect(countAll('.a { box-shadow: 0 8px 24px rgba(0,0,0,.3); border-radius: 6px; }\n.b { border-top-left-radius: 10px }', css))
+      .toEqual({ 'legacy-radius': 2, 'legacy-shadow': 1 });
+    expect(countAll([
+      '.a { box-shadow: var(--md-sys-elevation-level2); border-radius: var(--md-sys-shape-corner-medium); }',
+      '.b { box-shadow: none; border-radius: 0; }',
+      '@utility drop-mark-before { box-shadow: inset 0 2px 0 0 var(--color-primary); }',
+    ].join('\n'), css)).toEqual({});
+  });
+
   it('ступени шкалы и уровни — не нарушение', () => {
     expect(countAll([
       '<div className="rounded-xs rounded-sm rounded-md rounded-lg rounded-xl rounded-full rounded-none rounded-t-xl md:rounded-b-sm" />',
