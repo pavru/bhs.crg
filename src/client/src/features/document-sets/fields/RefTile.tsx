@@ -4,7 +4,7 @@ import { LinkIcon, LinkOff, Refresh } from '@/shared/ui/icons';
 import { SCOPE_LABELS, type FieldRef } from '@/shared/api/types';
 import { SCOPE_COLORS } from './constants';
 import { ArchivedRefMark } from './ArchivedRefs';
-import { Tooltip } from '@/shared/ui/Tooltip';
+import { IconButton } from '@/shared/ui/Button';
 
 /**
  * Плитка составного поля, заполненного ССЫЛКОЙ (issue #189): нейтральный контейнер, имя — ссылка
@@ -29,18 +29,12 @@ export function RefTile({ value, onReplace, onClear, children }: {
           {SCOPE_LABELS[value.scope]}
         </span>
       )}
-      <Tooltip content="Заменить ссылку" name>
-        <button type="button" onClick={onReplace}
-          className="p-1.5 rounded-full text-on-surface-variant hover:text-primary state-layer shrink-0">
-          <Icon icon={Refresh} size={18} />
-        </button>
-      </Tooltip>
-      <Tooltip content="Снять ссылку" name>
-        <button type="button" onClick={onClear}
-          className="p-1.5 rounded-full text-on-surface-variant hover:text-error state-layer shrink-0">
-          <Icon icon={LinkOff} size={18} />
-        </button>
-      </Tooltip>
+      <IconButton label="Заменить ссылку" size="sm" onClick={onReplace}>
+        <Icon icon={Refresh} size={18} />
+      </IconButton>
+      <IconButton label="Снять ссылку" size="sm" danger onClick={onClear}>
+        <Icon icon={LinkOff} size={18} />
+      </IconButton>
       {children}
     </div>
   );

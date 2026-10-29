@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Delete, Target, Warning } from '@/shared/ui/icons';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useToast } from '@/shared/ui/Toast';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
@@ -165,11 +165,12 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
                     {actualOf(r.documentTypeId) ?? '—'}
                   </span>
                 </Tooltip>
-                <button type="button" aria-label={`Убрать «${r.typeName}» из плана`}
-                  onClick={() => setRows(prev => prev.filter((_, j) => j !== i))}
-                  className="h-7 w-7 grid place-items-center rounded-md text-on-surface-variant hover:text-on-error-container hover:bg-error-container transition-colors">
+                <IconButton label={`Убрать «${r.typeName}» из плана`}
+                  size="sm"
+                  danger
+                  onClick={() => setRows(prev => prev.filter((_, j) => j !== i))}>
                   <Icon icon={Delete} size={18} />
-                </button>
+                </IconButton>
               </div>
             ))}
           </div>

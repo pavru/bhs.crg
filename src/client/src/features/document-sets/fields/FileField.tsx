@@ -6,9 +6,8 @@ import {
   type FileAttachment, isFileAttachment, getFileCategory,
   uploadAttachment, uploadPrintForm, loadAttachmentBlob, loadAttachmentObjectUrl, formatBytes, saveBlob,
 } from '@/shared/api/attachments';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
-import { Tooltip } from '@/shared/ui/Tooltip';
 import { PdfViewer, ViewerTitleBar } from '@/shared/ui/viewer/PdfViewer';
 import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
 
@@ -193,19 +192,13 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
           <FileTypeIcon mimeType={attachment.mimeType} />
           <span className="flex-1 text-body-medium text-on-surface font-medium truncate">{attachment.fileName}</span>
           <span className="text-body-small text-on-surface-variant shrink-0">{formatBytes(attachment.size)}</span>
-          <Tooltip content="Предпросмотр" name>
-            <button type="button" onClick={() => setPreviewOpen(true)}
-              className="p-1 text-on-surface-variant hover:text-primary transition-colors shrink-0">
-              <Icon icon={Visibility} size={18} />
-            </button>
-          </Tooltip>
+          <IconButton label="Предпросмотр" size="sm" onClick={() => setPreviewOpen(true)}>
+            <Icon icon={Visibility} size={18} />
+          </IconButton>
           {!readOnly && (
-            <Tooltip content="Удалить" name>
-              <button type="button" onClick={() => onChange(null)}
-                className="p-1 text-on-surface-variant hover:text-error transition-colors shrink-0">
-                <Icon icon={Delete} size={18} />
-              </button>
-            </Tooltip>
+            <IconButton label="Удалить" size="sm" danger onClick={() => onChange(null)}>
+              <Icon icon={Delete} size={18} />
+            </IconButton>
           )}
         </div>
         {uploadError && <p className="text-body-small text-error mt-1">{uploadError}</p>}

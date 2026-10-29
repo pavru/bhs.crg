@@ -3,7 +3,7 @@ import { ARCHIVED_HINT, withArchiveWord } from '@/shared/ui/archive';
 import { useCallback, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Close, Search, Warning } from '@/shared/ui/icons';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
 import { apiError } from '@/shared/utils/apiError';
@@ -101,12 +101,9 @@ export function NomenclaturePicker({
             вообще никакого выхода (ревью PR #1117). */}
         {mark}
         {chosen && clearable && (
-          <Tooltip content="Снять позицию" name>
-            <button type="button" onClick={onClear}
-              className="shrink-0 text-on-surface-variant hover:text-on-surface p-0.5">
-              <Icon icon={Close} size={18} />
-            </button>
-          </Tooltip>
+          <IconButton label="Снять позицию" size="sm" onClick={onClear}>
+            <Icon icon={Close} size={18} />
+          </IconButton>
         )}
       </div>
 

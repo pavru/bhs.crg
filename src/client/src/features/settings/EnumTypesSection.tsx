@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Delete, DragIndicator } from '@/shared/ui/icons';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { useCreateEnumType, buildEnumTypeDto } from '@/shared/api/enumTypes';
 import { moveItem } from '@/shared/utils/moveItem';
@@ -62,7 +62,9 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
           <span className="flex items-center gap-0.5">
             <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
               isFirst={i === 0} isLast={i === values.length - 1} />
-            <Tooltip content="Удалить" name><button type="button" onClick={() => remove(i)} className="p-0.5 text-on-surface-variant hover:text-error"><Icon icon={Delete} size={18} /></button></Tooltip>
+            <IconButton label="Удалить" size="sm" danger onClick={() => remove(i)}>
+              <Icon icon={Delete} size={18} />
+            </IconButton>
           </span>
         </div>
       ))}

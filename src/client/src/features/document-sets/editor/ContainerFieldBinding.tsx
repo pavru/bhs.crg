@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Database, LinkOff } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { MappingEditor } from './DataSetsTab';
 import {
   useAvailableDataSetFiles, useCreateDataSetBinding, useUpdateDataSetBinding, useDeleteDataSetBinding,
@@ -12,7 +12,6 @@ import { SCOPE_LABELS } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
 import { isLockedField } from '../fields';
 import { Select, SelectItem } from '@/shared/ui/Select';
-import { Tooltip } from '@/shared/ui/Tooltip';
 
 type FlatSource = DataSetSource & { fileName: string; fileScope: CatalogScope };
 
@@ -139,16 +138,15 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
 
   return (
     <>
-      <Tooltip content={locked ? 'Поле заперто модулем — привязку можно только снять'
-          : isBound ? 'Заполняется из источника — изменить/отвязать' : 'Привязать к источнику данных'}>
-        <button type="button" onClick={() => onOpenChange(true)}
-          aria-label={locked ? 'Снять привязку к источнику'
+      <IconButton label={locked ? 'Снять привязку к источнику'
             : isBound ? 'Привязка к источнику' : 'Привязать к источнику'}
-          className={`inline-flex items-center justify-center rounded-xs ${
-            isBound ? 'text-primary state-layer' : 'text-on-surface-variant opacity-0 group-hover:opacity-100 hover:text-on-surface-variant'}`}>
-          <Icon icon={Database} size={18} />
-        </button>
-      </Tooltip>
+        title={locked ? 'Поле заперто модулем — привязку можно только снять'
+          : isBound ? 'Заполняется из источника — изменить/отвязать' : 'Привязать к источнику данных'}
+        size="sm"
+        className={`-my-1.5 ${isBound ? '' : 'opacity-0 group-hover:opacity-100'}`}
+        onClick={() => onOpenChange(true)}>
+        <Icon icon={Database} size={18} className={isBound ? 'text-primary' : undefined} />
+      </IconButton>
 
       <Modal open={open} onOpenChange={onOpenChange} title={`Привязка «${field.title}» к источнику`} wide
         footer={

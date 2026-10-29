@@ -2,6 +2,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Add, Remove } from '@/shared/ui/icons';
 import { tagLabelOf, tagOrder, type TagDefinition } from '@/shared/api/tags';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { IconButton } from '@/shared/ui/Button';
 
 /**
  * Функциональный тэг поля как ОДИН объект (issue #630).
@@ -32,8 +33,8 @@ export function FunctionalTagChip({ tag, entry, onToggle, onOrderChange }: {
   // (см. tagOrder), а два знака — предел поля ввода.
   const step = (delta: number) => onOrderChange(String(Math.min(99, Math.max(1, (order ?? 0) + delta))));
 
-  const arrowClass = 'invisible group-hover:visible group-focus-within:visible '
-    + 'text-tertiary hover:text-on-tertiary-container disabled-content shrink-0';
+  // Кнопка 32 px, а пилюля ниже: поля по вертикали отрицательные, чтобы пилюля не росла.
+  const arrowClass = 'invisible group-hover:visible group-focus-within:visible -my-1.5';
 
   return (
     <span
@@ -55,10 +56,13 @@ export function FunctionalTagChip({ tag, entry, onToggle, onOrderChange }: {
           <span
             className="flex items-center gap-0.5 border-l border-tertiary/50 pl-1 pr-1"
           >
-            <button type="button" className={arrowClass} onClick={() => step(-1)}
-              disabled={(order ?? 0) <= 1} aria-label={`Уменьшить порядок: ${tag.label}`}>
-              <Icon icon={Remove} size={18} />
-            </button>
+            <IconButton label={`Уменьшить порядок: ${tag.label}`}
+              size="sm"
+              className={arrowClass}
+              onClick={() => step(-1)}
+              disabled={(order ?? 0) <= 1}>
+              <Icon icon={Remove} size={18} className="text-tertiary" />
+            </IconButton>
             <input
               type="text"
               inputMode="numeric"
@@ -70,10 +74,13 @@ export function FunctionalTagChip({ tag, entry, onToggle, onOrderChange }: {
               className="w-5 bg-transparent text-center tabular-nums text-on-tertiary-container outline-none
                          placeholder:text-tertiary/60"
             />
-            <button type="button" className={arrowClass} onClick={() => step(1)}
-              disabled={(order ?? 0) >= 99} aria-label={`Увеличить порядок: ${tag.label}`}>
-              <Icon icon={Add} size={18} />
-            </button>
+            <IconButton label={`Увеличить порядок: ${tag.label}`}
+              size="sm"
+              className={arrowClass}
+              onClick={() => step(1)}
+              disabled={(order ?? 0) >= 99}>
+              <Icon icon={Add} size={18} className="text-tertiary" />
+            </IconButton>
           </span>
         </Tooltip>
       )}

@@ -243,13 +243,15 @@ export function SetDetail() {
     { key: 'order', label: '', hint: 'Порядок в собранном комплекте', width: 'w-16', interactive: true,
       cell: (_, index) => (
         <div className="flex items-center gap-1">
-          <Tooltip content="Перетащить для изменения порядка">
-            <button type="button" draggable
-              onDragStart={() => setDragIndex(index)} onDragEnd={endDrag}
-              className="cursor-grab active:cursor-grabbing text-on-surface-variant hover:text-on-surface-variant shrink-0 focus-visible:outline-none focus-visible:text-primary" aria-label={`Переместить документ ${index + 1} перетаскиванием`}>
-              <Icon icon={DragIndicator} size={18} />
-            </button>
-          </Tooltip>
+          <IconButton label={`Переместить документ ${index + 1} перетаскиванием`}
+            title="Перетащить для изменения порядка"
+            size="sm"
+            className="cursor-grab active:cursor-grabbing"
+            draggable
+            onDragStart={() => setDragIndex(index)}
+            onDragEnd={endDrag}>
+            <Icon icon={DragIndicator} size={18} />
+          </IconButton>
           <div className="flex flex-col items-center -my-1">
             <MoveButtons onUp={() => moveDoc(index, -1)} onDown={() => moveDoc(index, 1)}
               isFirst={index === 0} isLast={index === lastIndex}

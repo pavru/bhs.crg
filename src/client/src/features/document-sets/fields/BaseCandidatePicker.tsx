@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Database, Description, LinkIcon, LinkOff, Warning } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { type BaseCandidate } from './baseCandidates';
-import { Tooltip } from '@/shared/ui/Tooltip';
+import { IconButton } from '@/shared/ui/Button';
 
 // Базовый экземпляр (issue #71/#73): объект дочернего типа наследуется от базы — документа комплекта
 // ЛИБО записи общих данных (по цепочке типов-предков и скоп-близости). Единый пикер + общие хелперы
@@ -132,11 +132,9 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
             {selected.proxy && <span className="text-on-surface-variant font-normal">→ </span>}{selected.name}
           </span>
           <span className="text-label-small text-on-surface-variant shrink-0">{selected.scopeLabel}</span>
-          <Tooltip content="Снять ссылку" name>
-            <button type="button" onClick={onClear} className="text-primary hover:text-error transition-colors">
-              <Icon icon={LinkOff} size={18} />
-            </button>
-          </Tooltip>
+          <IconButton label="Снять ссылку" size="sm" danger onClick={onClear}>
+            <Icon icon={LinkOff} size={18} className="text-primary" />
+          </IconButton>
         </div>
         {selected.targetIsProxy && (
           <p className="text-label-small text-warning flex items-center gap-1">
@@ -148,11 +146,9 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
       ) : missing ? (
         <div className="flex items-center gap-2 rounded-sm border border-warning/40 bg-warning/5 px-3 py-2">
           <span className="flex-1 text-body-medium text-warning truncate">Базовый экземпляр недоступен (удалён или вне области видимости)</span>
-          <Tooltip content="Снять ссылку" name>
-            <button type="button" onClick={onClear} className="text-primary hover:text-error transition-colors">
-              <Icon icon={LinkOff} size={18} />
-            </button>
-          </Tooltip>
+          <IconButton label="Снять ссылку" size="sm" danger onClick={onClear}>
+            <Icon icon={LinkOff} size={18} className="text-primary" />
+          </IconButton>
         </div>
       ) : (
         <button type="button" onClick={() => setPickerOpen(true)}

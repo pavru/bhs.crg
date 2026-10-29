@@ -8,7 +8,7 @@ import { STATUS_COLORS, STATUS_LABELS } from './constants';
 import { applyOrder, dropOrder, appendOrigins, identityOrigins, type PathOrigins } from './arrayRows';
 import { InstancePickerModal } from './InstancePickerModal';
 import { BROKEN_PLATE, BROKEN_LABEL, BrokenRefNote } from './BrokenRef';
-import { Tooltip } from '@/shared/ui/Tooltip';
+import { IconButton } from '@/shared/ui/Button';
 
 export function DocRefField({ field, allDocTypes, value, onChange, otherInstances, setId, broken = false }: {
   field: SchemaField; allDocTypes: DocumentType[]; value: unknown;
@@ -44,12 +44,11 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
    */
   function replaceButton(tone: string) {
     return (
-      <Tooltip content="Заменить ссылку" name>
-        <button type="button" onClick={() => setPickerOpen(true)}
-          className={`p-1 transition-colors shrink-0 ${tone}`}>
-          <Icon icon={Refresh} size={18} />
-        </button>
-      </Tooltip>
+      <IconButton label="Заменить ссылку"
+        size="sm"
+        onClick={() => setPickerOpen(true)}>
+        <Icon icon={Refresh} size={18} className={tone} />
+      </IconButton>
     );
   }
 
@@ -65,11 +64,10 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
           <div className={`flex items-center gap-2 rounded-md px-3 py-2 ${BROKEN_PLATE}`}>
             <Icon icon={Description} size={18} className="text-error shrink-0" />
             <span className={`flex-1 min-w-0 text-body-medium font-medium truncate ${BROKEN_LABEL}`}>{iRef.displayName}</span>
-            {replaceButton('text-error hover:text-on-surface')}
-            <Tooltip content="Снять ссылку" name>
-              <button type="button" onClick={() => onChange(null)}
-                className="p-1 text-error hover:text-on-surface transition-colors"><Icon icon={LinkOff} size={18} /></button>
-            </Tooltip>
+            {replaceButton('text-error')}
+            <IconButton label="Снять ссылку" size="sm" danger onClick={() => onChange(null)}>
+              <Icon icon={LinkOff} size={18} className="text-error" />
+            </IconButton>
           </div>
           <BrokenRefNote />
           {picker}
@@ -88,13 +86,10 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
             {STATUS_LABELS[inst.status]}
           </span>
         )}
-        {replaceButton('text-on-primary-container/70 hover:text-on-primary-container')}
-        <Tooltip content="Снять ссылку" name>
-          <button type="button" onClick={() => onChange(null)}
-            className="p-1 text-on-primary-container/70 hover:text-error transition-colors">
-            <Icon icon={LinkOff} size={18} />
-          </button>
-        </Tooltip>
+        {replaceButton('text-on-primary-container/70')}
+        <IconButton label="Снять ссылку" size="sm" danger onClick={() => onChange(null)}>
+          <Icon icon={LinkOff} size={18} className="text-on-primary-container/70" />
+        </IconButton>
         {picker}
       </div>
     );
@@ -107,11 +102,10 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
           <div className={`flex items-center gap-2 rounded-md px-3 py-2 ${BROKEN_PLATE}`}>
             <Icon icon={Description} size={18} className="text-error shrink-0" />
             <span className={`flex-1 min-w-0 text-body-medium font-medium truncate ${BROKEN_LABEL}`}>{cRef.displayName}</span>
-            {replaceButton('text-error hover:text-on-surface')}
-            <Tooltip content="Снять ссылку" name>
-              <button type="button" onClick={() => onChange(null)}
-                className="p-1 text-error hover:text-on-surface transition-colors"><Icon icon={LinkOff} size={18} /></button>
-            </Tooltip>
+            {replaceButton('text-error')}
+            <IconButton label="Снять ссылку" size="sm" danger onClick={() => onChange(null)}>
+              <Icon icon={LinkOff} size={18} className="text-error" />
+            </IconButton>
           </div>
           <BrokenRefNote />
           {picker}
@@ -125,13 +119,10 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
           <span className="block text-body-medium text-warning font-medium truncate">{cRef.displayName}</span>
           <span className="block text-body-small text-warning truncate">Общие данные</span>
         </span>
-        {replaceButton('text-warning hover:text-primary')}
-        <Tooltip content="Снять ссылку" name>
-          <button type="button" onClick={() => onChange(null)}
-            className="p-1 text-warning hover:text-error transition-colors">
-            <Icon icon={LinkOff} size={18} />
-          </button>
-        </Tooltip>
+        {replaceButton('text-warning')}
+        <IconButton label="Снять ссылку" size="sm" danger onClick={() => onChange(null)}>
+          <Icon icon={LinkOff} size={18} className="text-warning" />
+        </IconButton>
         {picker}
       </div>
     );
@@ -216,8 +207,9 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
                   <div className={`flex items-center gap-2 px-3 py-2 ${BROKEN_PLATE}`}>
                     <Icon icon={Description} size={18} className="text-error shrink-0" />
                     <span className={`flex-1 min-w-0 text-body-medium truncate ${BROKEN_LABEL}`}>{ref.displayName}</span>
-                    <button type="button" onClick={() => removeRef(i)}
-                      className="p-1 text-error hover:text-on-surface shrink-0"><Icon icon={Delete} size={18} /></button>
+                    <IconButton label="Удалить ссылку" size="sm" danger onClick={() => removeRef(i)}>
+                      <Icon icon={Delete} size={18} className="text-error" />
+                    </IconButton>
                   </div>
                   <BrokenRefNote compact />
                 </div>
@@ -239,10 +231,9 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
                     {STATUS_LABELS[inst.status]}
                   </span>
                 )}
-                <button type="button" onClick={() => removeRef(i)}
-                  className="p-1 text-on-surface-variant hover:text-error shrink-0">
+                <IconButton label="Удалить ссылку" size="sm" danger onClick={() => removeRef(i)}>
                   <Icon icon={Delete} size={18} />
-                </button>
+                </IconButton>
               </div>
             );
           })}

@@ -13,6 +13,7 @@ import { ConditionEditor } from '@/shared/filter/ConditionEditor';
 import { ConditionHint } from '@/shared/filter/ConditionHint';
 import { useDialogSave } from './useDialogSave';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { IconButton } from '@/shared/ui/Button';
 
 // ─── Logic toggle ─────────────────────────────────────────────────────────────
 
@@ -67,15 +68,13 @@ function FilterConditionRow({
         <ConditionEditor cond={cond} columns={columns} onChange={onChange} hintId={hintId} valueRef={valueRef} />
 
         {/* Remove */}
-        <Tooltip content="Удалить условие" name>
-          <button
-            type="button"
-            onClick={onRemove}
-            className="p-1 rounded-xs opacity-0 group-hover/cond:opacity-100 transition-all text-on-surface-variant hover:text-error"
-          >
-            <Icon icon={Delete} size={18} />
-          </button>
-        </Tooltip>
+        <IconButton label="Удалить условие"
+          size="sm"
+          danger
+          className="opacity-0 group-hover/cond:opacity-100"
+          onClick={onRemove}>
+          <Icon icon={Delete} size={18} />
+        </IconButton>
       </div>
       {/* Подсказка, а не запрет (issue #1137): годен ли отбор, решает сервер при сохранении. Здесь —
           то, что видно сразу и без запроса; ошибись эта копия правил, она не запрёт годный отбор. */}

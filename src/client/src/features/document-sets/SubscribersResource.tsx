@@ -9,6 +9,7 @@ import {
 } from '@/shared/api/subscriptions';
 import { SendMessageDialog } from '@/shared/ui/SendMessageDialog';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { IconButton } from '@/shared/ui/Button';
 
 /**
  * Содержимое «Подписчики» для ЛЮБОГО scope (issue #210, ось видимости): тулбар «Сообщение» +
@@ -82,12 +83,13 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
                 </Tooltip>
               )}
               {canManage && (
-                <Tooltip content="Убрать из подписчиков" name>
-                  <button onClick={() => remove.mutate({ id: s.id, scope, scopeId })}
-                    className="p-0.5 text-on-surface-variant hover:text-error opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all">
-                    <Icon icon={Delete} size={18} />
-                  </button>
-                </Tooltip>
+                <IconButton label="Убрать из подписчиков"
+                  size="sm"
+                  danger
+                  className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+                  onClick={() => remove.mutate({ id: s.id, scope, scopeId })}>
+                  <Icon icon={Delete} size={18} />
+                </IconButton>
               )}
             </div>
           ))}

@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Download, Language, OpenInNew, Search, VerifiedUser, Visibility } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { apiError } from '@/shared/utils/apiError';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
 import type { PickType } from '@/shared/ui/TypePicker';
@@ -24,7 +24,6 @@ import { recognizeAndUpdate } from '@/features/quality-docs/recognizeImported';
 import { useOpenAttachment } from '@/shared/hooks/useOpenAttachment';
 import { getValidUntil, isExpired } from './qualityValidity';
 import type { MaterialRow } from './materialRow';
-import { Tooltip } from '@/shared/ui/Tooltip';
 
 interface LinkPickerModalProps {
   open: boolean; onClose: () => void; allDocTypes: DocumentType[];
@@ -207,10 +206,11 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                         {expired ? 'просрочен ' : 'до '}{formatDatePrecise(validUntil)}</span>}
                     </button>
                     {d.scanBlobPath && (
-                      <Tooltip content="Просмотр скана (в новой вкладке)" name>
-                        <button onClick={() => void openAttachment(d.scanBlobPath!)}
-                          className="p-1 text-on-surface-variant hover:text-primary shrink-0"><Icon icon={Visibility} size={18} /></button>
-                      </Tooltip>
+                      <IconButton label="Просмотр скана (в новой вкладке)"
+                        size="sm"
+                        onClick={() => void openAttachment(d.scanBlobPath!)}>
+                        <Icon icon={Visibility} size={18} />
+                      </IconButton>
                     )}
                   </div>
                 ))}

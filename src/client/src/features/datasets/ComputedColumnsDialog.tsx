@@ -7,6 +7,7 @@ import type { ComputedColumn } from '@/shared/api/types';
 import { columnAccessor } from './computedColumnAccess';
 import { useDialogSave } from './useDialogSave';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { IconButton } from '@/shared/ui/Button';
 
 function ColumnRow({
   col,
@@ -35,12 +36,9 @@ function ColumnRow({
             className="w-full border border-outline-variant rounded-xs px-2 py-1.5 text-body-small font-mono bg-surface text-on-surface"
           />
         </div>
-        <button
-          onClick={onRemove}
-          className="p-1.5 rounded-xs mt-4 text-on-surface-variant hover:text-error transition-colors"
-        >
+        <IconButton label="Удалить колонку" size="sm" danger className="mt-4" onClick={onRemove}>
           <Icon icon={Delete} size={18} />
-        </button>
+        </IconButton>
       </div>
       <div className="space-y-1">
         <label className="block text-label-medium text-on-surface-variant">

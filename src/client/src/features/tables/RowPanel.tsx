@@ -9,6 +9,7 @@ import type { FilterNode } from '@/shared/api/types';
 import { apiError } from '@/shared/utils/apiError';
 import { cellText } from './tableCells';
 import { RowBreakdown } from './RowBreakdown';
+import { IconButton } from '@/shared/ui/Button';
 
 /**
  * Строка таблицы в боковой панели (ТЗ CORE-33: «строка открывается в боковой панели»; задача G1e,
@@ -49,10 +50,9 @@ export function RowPanel({ address, rowKey, filter, grain, link, onClose }: {
       <header className="h-11 shrink-0 flex items-center gap-2 px-4 border-b border-outline-variant">
         <h2 className="flex-1 text-body-medium font-medium text-on-surface">Строка: {grain}</h2>
         {link && values && <Link to={link.to} className="text-body-small text-primary underline hover:text-on-surface">{link.label}</Link>}
-        <button ref={close} type="button" onClick={onClose} aria-label="Закрыть строку"
-          className="p-1 rounded-sm text-on-surface-variant hover:text-on-surface state-layer">
+        <IconButton label="Закрыть строку" size="md" ref={close} onClick={onClose}>
           <Icon icon={Close} size={18} aria-hidden />
-        </button>
+        </IconButton>
       </header>
 
       <div className="flex-1 min-h-0 overflow-auto px-4 py-3">

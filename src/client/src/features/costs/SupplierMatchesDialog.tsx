@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Delete, Search } from '@/shared/ui/icons';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
@@ -123,10 +123,13 @@ export function SupplierMatchesDialog({ initial, onClose }: {
       cell: item => <span className="text-on-surface-variant">{formatDate(item.updatedAt)}{item.updatedBy ? ` · ${item.updatedBy}` : ''}</span> },
     { key: 'forget', label: '', width: 'w-8',
       cell: item => (
-        <Tooltip content="Забыть соответствие" name>
-          <button type="button" disabled={point.isPending} onClick={() => setForgettingId(item.id)}
-            className="text-on-surface-variant hover:text-error p-1"><Icon icon={Delete} size={18} /></button>
-        </Tooltip>
+        <IconButton label="Забыть соответствие"
+          size="sm"
+          danger
+          disabled={point.isPending}
+          onClick={() => setForgettingId(item.id)}>
+          <Icon icon={Delete} size={18} />
+        </IconButton>
       ) },
   ];
 

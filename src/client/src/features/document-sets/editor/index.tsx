@@ -12,7 +12,7 @@ import { ruCount } from '@/shared/utils/pluralize';
 import { DataSetsTab } from './DataSetsTab';
 import { QualityLinksTab } from './QualityLinksTab';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { TabPanel, Tabs } from '@/shared/ui/Tabs';
 import { containsRef } from './brokenRefs';
 import { BrokenCountBadge } from './BrokenCountBadge';
@@ -189,12 +189,12 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
       {/* MD3 top app bar: «к комплекту» слева, имя+подзаголовок, статус, действия справа */}
       <div className="shrink-0 bg-surface">
         <div className="flex items-center gap-3 h-16 px-3 sm:px-4">
-          <Tooltip content="К комплекту">
-            <button type="button" onClick={() => guardedLeave(onClose)} aria-label="К комплекту"
-              className="flex items-center justify-center w-11 h-11 shrink-0 rounded-full text-on-surface-variant hover:text-on-surface state-layer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-              <Icon icon={ArrowBack} size={20} />
-            </button>
-          </Tooltip>
+          <IconButton label="К комплекту"
+            size="lg"
+            className="min-h-11 min-w-11"
+            onClick={() => guardedLeave(onClose)}>
+            <Icon icon={ArrowBack} size={20} />
+          </IconButton>
           <div className="flex-1 min-w-0">
             <InstanceNameEditor instance={instance} setId={setId} docType={docType} />
             <p className="text-body-small text-on-surface-variant mt-0.5 truncate">

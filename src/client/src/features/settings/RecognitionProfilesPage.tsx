@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Delete, DocumentScanner, LockIcon, RestartAlt, VisibilityOff, Warning } from '@/shared/ui/icons';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -102,10 +102,14 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
             <span className="flex items-center gap-0.5">
               <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
                 isFirst={i === 0} isLast={i === fields.length - 1} />
-              <Tooltip content={locked ? 'Обязательное поле — удалить нельзя' : 'Удалить'} name>
-                <button type="button" onClick={() => remove(i)} disabled={locked}
-                  className="p-0.5 text-on-surface-variant hover:text-error disabled-content"><Icon icon={Delete} size={18} /></button>
-              </Tooltip>
+              <IconButton label="Удалить"
+                title={locked ? 'Обязательное поле — удалить нельзя' : undefined}
+                size="sm"
+                danger
+                onClick={() => remove(i)}
+                disabled={locked}>
+                <Icon icon={Delete} size={18} />
+              </IconButton>
             </span>
           </div>
         );

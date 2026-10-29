@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Delete, Edit } from '@/shared/ui/icons';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
@@ -14,7 +14,6 @@ import {
   DEFAULT_KEY, NAME_MAX, availableModules, compositionLabel, coreSectionsWith, membership, newWorkspaceId,
   ownProblem, ownToWorkspace, type OwnWorkspace,
 } from '@/shared/ui/workspaces';
-import { Tooltip } from '@/shared/ui/Tooltip';
 
 interface Draft {
   /** null — новое пространство. */
@@ -122,17 +121,13 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
               {/* Пока черновик изменён, правку другого не начать — карандаш скрыт (ревью PR #1330):
                   иначе набранное заменилось бы молча, хотя закрытие окна те же правки бережёт. */}
               {!dirty && (
-                <Tooltip content="Изменить" name>
-                  <button type="button" onClick={() => edit(own)} className="p-1 text-on-surface-variant hover:text-on-surface">
-                    <Icon icon={Edit} size={18} />
-                  </button>
-                </Tooltip>
+                <IconButton label="Изменить" size="sm" onClick={() => edit(own)}>
+                  <Icon icon={Edit} size={18} />
+                </IconButton>
               )}
-              <Tooltip content="Удалить" name>
-                <button type="button" onClick={() => setRemoving(own)} className="p-1 text-on-surface-variant hover:text-error">
-                  <Icon icon={Delete} size={18} />
-                </button>
-              </Tooltip>
+              <IconButton label="Удалить" size="sm" danger onClick={() => setRemoving(own)}>
+                <Icon icon={Delete} size={18} />
+              </IconButton>
             </li>
           ))}
         </ul>

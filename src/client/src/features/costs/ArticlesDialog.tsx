@@ -2,14 +2,13 @@ import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Archive, Check, Close, Delete, Edit, Unarchive } from '@/shared/ui/icons';
 import { ArchivedRows } from '@/shared/ui/ArchivedRows';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { ConfirmDialog, type RefusalExit } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
 import { useToast } from '@/shared/ui/Toast';
 import {
   useCostsArticles, useDeleteArticle, useSaveArticle, useSetArticleArchive, type CostsArticle,
 } from '@/shared/api/articles';
-import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Справочник статей вне строек — «Склад», «Общие расходы» (задача F3, issue #1087, ТЗ COST-10.1).
@@ -93,40 +92,42 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
             onChange={e => setEditing({ ...editing, name: e.target.value })}
             onKeyDown={e => { if (e.key === 'Enter') void rename(); if (e.key === 'Escape') { e.stopPropagation(); setEditing(null); } }}
             className={FIELD} />
-          <Tooltip content="Сохранить название" name>
-            <button type="button" onClick={() => void rename()}
-              className="text-on-surface-variant hover:text-primary p-1"><Icon icon={Check} size={18} /></button>
-          </Tooltip>
-          <Tooltip content="Отменить" name>
-            <button type="button" onClick={() => setEditing(null)}
-              className="text-on-surface-variant hover:text-on-surface p-1"><Icon icon={Close} size={18} /></button>
-          </Tooltip>
+          <IconButton label="Сохранить название" size="sm" onClick={() => void rename()}>
+            <Icon icon={Check} size={18} />
+          </IconButton>
+          <IconButton label="Отменить" size="sm" onClick={() => setEditing(null)}>
+            <Icon icon={Close} size={18} />
+          </IconButton>
         </>
       ) : (
         <>
           <span className={`flex-1 ${article.archived ? 'text-on-surface-variant' : ''}`}>{article.name}</span>
-          <Tooltip content={`Переименовать «${article.name}»`} name>
-            <button type="button"
-              onClick={() => setEditing({ id: article.id, name: article.name })}
-              className="text-on-surface-variant hover:text-primary p-1"><Icon icon={Edit} size={18} /></button>
-          </Tooltip>
+          <IconButton label={`Переименовать «${article.name}»`}
+            size="sm"
+            onClick={() => setEditing({ id: article.id, name: article.name })}>
+            <Icon icon={Edit} size={18} />
+          </IconButton>
           {article.archived ? (
-            <Tooltip content={`Вернуть «${article.name}» из архива`} name>
-              <button type="button" disabled={archive.isPending}
-                onClick={() => void setArchived(article, false)}
-                className="text-on-surface-variant hover:text-primary p-1"><Icon icon={Unarchive} size={18} /></button>
-            </Tooltip>
+            <IconButton label={`Вернуть «${article.name}» из архива`}
+              size="sm"
+              disabled={archive.isPending}
+              onClick={() => void setArchived(article, false)}>
+              <Icon icon={Unarchive} size={18} />
+            </IconButton>
           ) : (
-            <Tooltip content={`В архив «${article.name}»`} name>
-              <button type="button" disabled={archive.isPending}
-                onClick={() => void setArchived(article, true)}
-                className="text-on-surface-variant hover:text-primary p-1"><Icon icon={Archive} size={18} /></button>
-            </Tooltip>
+            <IconButton label={`В архив «${article.name}»`}
+              size="sm"
+              disabled={archive.isPending}
+              onClick={() => void setArchived(article, true)}>
+              <Icon icon={Archive} size={18} />
+            </IconButton>
           )}
-          <Tooltip content={`Удалить «${article.name}»`} name>
-            <button type="button" onClick={() => setDeleting(article)}
-              className="text-on-surface-variant hover:text-error p-1"><Icon icon={Delete} size={18} /></button>
-          </Tooltip>
+          <IconButton label={`Удалить «${article.name}»`}
+            size="sm"
+            danger
+            onClick={() => setDeleting(article)}>
+            <Icon icon={Delete} size={18} />
+          </IconButton>
         </>
       )}
     </li>

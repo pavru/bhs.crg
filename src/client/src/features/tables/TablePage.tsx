@@ -33,6 +33,7 @@ import {
 import { useTableView } from './useTableView';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { IconButton } from '@/shared/ui/Button';
 
 /**
  * Экран таблицы модуля (ТЗ CORE-33; задачи G1d и G1e, issue #1091, #1092): отбор чипами, сортировка
@@ -325,7 +326,6 @@ function Pager({ view, data, onChange }: {
   view: TableView; data: TableData; onChange: (change: ViewChange) => void;
 }) {
   const pages = pageCount(data.count, view.size);
-  const button = 'p-1 rounded-sm text-on-surface-variant hover:text-on-surface state-layer disabled-content';
   return (
     <div className="mt-2 flex items-center gap-3 text-body-small text-on-surface-variant">
       <span>{shownOf(data)}</span>
@@ -339,15 +339,19 @@ function Pager({ view, data, onChange }: {
       </span>
       {(pages > 1 || view.page > 1) && (
         <div className="flex items-center gap-1">
-          <button type="button" className={button} disabled={view.page <= 1} aria-label="Предыдущая страница"
+          <IconButton label="Предыдущая страница"
+            size="sm"
+            disabled={view.page <= 1}
             onClick={() => onChange(v => withPageStep(v, view, -1))}>
             <Icon icon={ChevronLeft} size={18} aria-hidden />
-          </button>
+          </IconButton>
           <span>Страница {view.page} из {pages}</span>
-          <button type="button" className={button} disabled={view.page >= pages} aria-label="Следующая страница"
+          <IconButton label="Следующая страница"
+            size="sm"
+            disabled={view.page >= pages}
             onClick={() => onChange(v => withPageStep(v, view, 1))}>
             <Icon icon={ChevronRight} size={18} aria-hidden />
-          </button>
+          </IconButton>
         </div>
       )}
     </div>

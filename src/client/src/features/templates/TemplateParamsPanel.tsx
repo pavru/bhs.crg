@@ -9,6 +9,7 @@ import { newLocalId } from '@/shared/utils/localId';
 import { parseTemplateParams } from './templateParams';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { IconButton } from '@/shared/ui/Button';
 
 /** Строка редактора: параметр плюс устойчивый идентификатор — он нужен ключом списка при перестановке. */
 type Row = { id: string; p: TemplateParam };
@@ -103,10 +104,12 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
               <span className="flex items-center gap-0.5 shrink-0">
                 <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
                   isFirst={i === 0} isLast={i === rows.length - 1} />
-                <Tooltip content="Удалить параметр" name>
-                  <button onClick={() => save(rows.filter((_, idx) => idx !== i))}
-                    className="p-1 text-on-surface-variant hover:text-error"><Icon icon={Delete} size={18} /></button>
-                </Tooltip>
+                <IconButton label="Удалить параметр"
+                  size="sm"
+                  danger
+                  onClick={() => save(rows.filter((_, idx) => idx !== i))}>
+                  <Icon icon={Delete} size={18} />
+                </IconButton>
               </span>
             </div>
           ))}

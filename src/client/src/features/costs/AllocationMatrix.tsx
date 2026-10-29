@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Calculate, Check, Close, Delete, Equal, Percent, Save } from '@/shared/ui/icons';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { useToast } from '@/shared/ui/Toast';
 import type { InvoiceView } from '@/shared/api/invoices';
@@ -318,12 +318,9 @@ function TargetHeader({ target, number, places, onChange, onRemove }: {
       <div className="flex items-center gap-1">
         <PlaceSelect value={target} places={places} label={`Объект ${number}`} placeholder="— объект —"
           onChange={onChange} />
-        <Tooltip content={`Убрать объект ${number}`} name>
-          <button type="button" onClick={onRemove}
-            className="text-on-surface-variant hover:text-error p-0.5">
-            <Icon icon={Delete} size={18} />
-          </button>
-        </Tooltip>
+        <IconButton label={`Убрать объект ${number}`} size="sm" danger onClick={onRemove}>
+          <Icon icon={Delete} size={18} />
+        </IconButton>
       </div>
       <div className="flex items-center gap-1">
         <Select size="sm" value={target.section ?? ''} aria-label={`Раздел, объект ${number}`}
