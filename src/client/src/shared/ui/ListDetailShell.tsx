@@ -66,7 +66,7 @@ export function ListDetailShell({ overlay, nav, navWidth = 'w-80', detail, view,
             </nav>
             <div data-testid="ld-detail" className={`flex-1 min-w-0 min-h-0 flex flex-col ${onDetail ? '' : '@max-2xl/ld:hidden'}`}>
               <button type="button" onClick={current.showList}
-                className="@2xl/ld:hidden shrink-0 flex items-center gap-2 h-11 px-4 border-b border-outline-variant text-sm font-medium text-primary hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
+                className="@2xl/ld:hidden shrink-0 flex items-center gap-2 h-11 px-4 border-b border-outline-variant text-sm font-medium text-primary state-layer focus-ring-inset">
                 <Icon icon={ArrowBack} size={18} className="shrink-0" />
                 {backLabel ?? 'К списку'}
               </button>
@@ -131,9 +131,9 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
   const view = useContext(ViewContext);
   return (
     <button type="button" onClick={() => { if (!chevron && !filter) view?.showDetail(); onClick(); }} aria-current={active ? 'true' : undefined}
-      className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left transition-colors ${
-        highlight ? 'bg-primary-container text-brand-hover font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
-      <span className={`shrink-0 ${highlight ? 'text-brand-hover' : 'text-on-surface-variant'}`}>{icon}</span>
+      className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left state-layer focus-ring ${
+        highlight ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant'}`}>
+      <span className={`shrink-0 ${highlight ? 'text-on-primary-container' : 'text-on-surface-variant'}`}>{icon}</span>
       <span className="flex-1 truncate text-sm">{label}</span>
       {progress != null && (
         <Tooltip content={progressTitle ?? `Готовность по плану: ${progress}%`}>
@@ -162,7 +162,7 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
         <span className="text-caption px-1.5 py-0.5 rounded-full shrink-0 bg-surface-container text-on-surface-variant">{note}</span>
       ) : (
         count != null && count > 0 && (
-          <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${highlight ? 'bg-white/50 text-brand-hover' : 'bg-primary-container text-on-primary-container'}`}>{count}</span>
+          <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${highlight ? 'bg-surface text-primary' : 'bg-primary-container text-on-primary-container'}`}>{count}</span>
         )
       )}
     </button>

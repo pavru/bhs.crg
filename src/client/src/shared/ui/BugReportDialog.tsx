@@ -196,7 +196,7 @@ export function BugReportDialog({ open, prefill, onClose }: {
           <button
             type="button"
             onClick={() => setContextOpen(o => !o)}
-            className="w-full flex items-center gap-1.5 px-3 py-2 text-left text-xs text-on-surface-variant hover:text-on-surface-variant transition-colors"
+            className="w-full flex items-center gap-1.5 px-3 py-2 rounded-xl text-left text-xs text-on-surface-variant state-layer focus-ring"
           >
             {contextOpen ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
             Вместе с сообщением уйдёт: версия · экран · браузер · последние ошибки API

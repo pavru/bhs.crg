@@ -19,17 +19,20 @@ export interface RowAction {
   submenu?: RowAction[];
 }
 
+// Подсветка пункта — слоем on-surface ([UI-64]), мышью и стрелкой одинаково (data-highlighted Radix).
 const itemCls =
-  'flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer select-none outline-none ' +
-  'data-[highlighted]:bg-surface-container-low data-[disabled]:opacity-40 data-[disabled]:pointer-events-none';
+  'flex items-center gap-2 px-3 py-1.5 text-sm text-on-surface cursor-pointer select-none outline-none ' +
+  'state-layer data-[disabled]:pointer-events-none';
 
 function Row({ action }: { action: RowAction }) {
-  const color = action.danger ? 'text-error' : action.active ? 'text-primary' : 'text-on-surface-variant';
+  // Отключённое — содержимое on-surface 38 % ([UI-64]): у частей пункта свои цвета, поэтому — здесь.
+  const off = action.disabled ? 'text-on-surface/38' : '';
+  const color = off || (action.danger ? 'text-error' : action.active ? 'text-primary' : 'text-on-surface-variant');
   return (
     <>
-      {action.icon && <span className={action.active ? 'text-primary' : action.danger ? 'text-error' : 'text-on-surface-variant'}>{action.icon}</span>}
+      {action.icon && <span className={off || (action.active ? 'text-primary' : action.danger ? 'text-error' : 'text-on-surface-variant')}>{action.icon}</span>}
       <span className={`truncate ${color}`}>{action.label}</span>
-      {action.badge && <span className="ml-auto text-caption text-on-surface-variant tabular-nums">{action.badge}</span>}
+      {action.badge && <span className={`ml-auto text-caption tabular-nums ${off || 'text-on-surface-variant'}`}>{action.badge}</span>}
     </>
   );
 }
@@ -84,7 +87,7 @@ export function RowActionsMenu({ actions, ariaLabel = 'Действия', hasAct
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button type="button" aria-label={ariaLabel} onClick={e => e.stopPropagation()}
-          className="relative p-1 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+          className="relative p-1 rounded text-on-surface-variant state-layer focus-ring">
           <Icon icon={MoreVert} size={18} />
           {hasActive && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-primary" />}
         </button>

@@ -3,9 +3,12 @@ import { compare, countViolations as countAll, dirsToScan, scopeNote, defaultSco
 
 // Фикстуры правил — на ролях MD3 (sharedui-md3-02). Старые имена остались там, где проверяются они сами:
 // одна фикстура white-on-fill (bg-brand text-white), имена без роли (bg-brand-hover, text-fg3) и блок
-// legacy-class ниже. Здесь счёт прочих правил — без legacy-class, а его самого проверяет свой блок.
+// legacy-class ниже. Здесь счёт прочих правил — без legacy-class, raw-state и dark-variant: фикстуры
+// white-on-fill и пометок держат самодельное наведение нарочно (оно не их нарушение), а эти правила
+// проверяют свои блоки.
+const OWN_BLOCK = new Set(['legacy-class', 'raw-state', 'dark-variant']);
 const countViolations = (text, opts) =>
-  Object.fromEntries(Object.entries(countAll(text, opts)).filter(([rule]) => rule !== 'legacy-class'));
+  Object.fromEntries(Object.entries(countAll(text, opts)).filter(([rule]) => !OWN_BLOCK.has(rule)));
 
 // Храповик интерфейса (issue #1349): что считается нарушением и как сравнивается с уровнем.
 describe('храповик интерфейса: счёт', () => {
@@ -404,6 +407,42 @@ describe('храповик интерфейса: текст на контейн�
       "const box = 'bg-error-container'; const label = 'text-error';",
       '// "bg-error-container text-error"',
     ].join('\n'), file)).toEqual({});
+  });
+});
+
+describe('храповик интерфейса: состояния (sharedui-md3-05)', () => {
+  const file = { dir: 'features', file: 'features/x/New.tsx' };
+  const only = (text, rule) => countAll(text, file)[rule] ?? 0;
+
+  it('самодельное наведение, подложка, яркость и наведение заливкой поверхности — raw-state', () => {
+    expect(only('<button className="hover:bg-black/5" />', 'raw-state')).toBe(1);
+    expect(only("const cls = 'bg-white/10';", 'raw-state')).toBe(1);
+    expect(only('<button className="hover:brightness-95 active:brightness-90" />', 'raw-state')).toBe(2);
+    expect(only('<li className="hover:bg-surface-container" />', 'raw-state')).toBe(1);
+    expect(only('<li className="group-hover/row:bg-surface-container-low data-[highlighted]:bg-muted" />', 'raw-state')).toBe(2);
+    expect(only("<span className={`p-1 ${on ? '' : 'dark:hover:bg-white/10'}`} />", 'raw-state')).toBe(1);
+  });
+
+  it('dark: в классе — dark-variant, вместе с raw-state у пары наведения', () => {
+    expect(countAll('<button className="hover:bg-black/5 dark:hover:bg-white/10" />', file))
+      .toEqual({ 'raw-state': 2, 'dark-variant': 1 });
+    expect(only('<div className="shadow dark:shadow-none dark:outline" />', 'dark-variant')).toBe(2);
+  });
+
+  it('затемнение ролью scrim, заливка поверхностью без наведения, слой MD3 и регулярка — не нарушение', () => {
+    expect(countAll([
+      '<div className="fixed inset-0 bg-scrim/32" />',
+      '<div className="bg-surface-container hover:underline" />',
+      '<button className="state-layer focus-ring disabled-container [--_state-color:var(--color-error)]" />',
+      "const looks = cls => cls.filter(c => !/^(dark:)?(hover|active):/.test(c));",
+      '// hover:bg-black/5 dark:hover:bg-white/10 — так было до перехода',
+    ].join('\n'), file)).toEqual({});
+  });
+
+  it('совет называет выход', () => {
+    expect(RULES.find(r => r.id === 'raw-state').instead).toContain('state-layer');
+    expect(RULES.find(r => r.id === 'raw-state').instead).toContain('bg-scrim/32');
+    expect(RULES.find(r => r.id === 'dark-variant').instead).toContain(':root[data-theme="dark"]');
   });
 });
 

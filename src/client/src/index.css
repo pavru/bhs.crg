@@ -43,14 +43,88 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Smooth transitions for theme switch */
-*, *::before, *::after {
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease,
-              box-shadow 0.15s ease;
+/* ── Состояния MD3 ([UI-64], docs/UI.md «Состояния») ───────────────────────────
+   Слой состояния — цвет содержимого поверх заливки элемента: картинкой фона, без ::before и
+   position: relative (они ломали бы абсолютно позиционированное и чужие before:). Прозрачность —
+   частная --_s, цвет — --_state-color (по умолчанию currentColor, т. е. роль on-* элемента). Пункт
+   меню Radix подсвечивается data-highlighted и с клавиатуры, и мышью — слой у него тот же, что при
+   наведении. Отключённое слоя не несёт. */
+@property --_s {
+  syntax: '<number>';
+  inherits: false; /* слой родителя под курсором не зажигает слой вложенного элемента */
+  initial-value: 0;
 }
-/* Disable transitions on elements that shouldn't animate */
-.no-transition, .no-transition * {
-  transition: none !important;
+@utility state-layer {
+  background-image: linear-gradient(color-mix(in srgb, var(--_state-color, currentColor) calc(var(--_s) * 100%), transparent) 0 0);
+  transition-property: --_s;
+  transition-duration: var(--md-sys-motion-duration-short3);
+  transition-timing-function: var(--md-sys-motion-easing-standard);
+  &:hover, &[data-highlighted] { --_s: var(--md-sys-state-hover); }
+  &:focus-visible, &:active, &[data-state=open] { --_s: var(--md-sys-state-pressed); }
+  &[data-dragging] { --_s: var(--md-sys-state-dragged); }
+  &:disabled, &[aria-disabled=true], &[data-disabled] { --_s: 0; }
+}
+/* Тот же слой у части элемента, состояние — у ближайшей .group: плашка значка рейла и нижней навигации
+   загорается, когда курсор над всей ссылкой, а не только над плашкой. */
+@utility state-layer-group {
+  background-image: linear-gradient(color-mix(in srgb, var(--_state-color, currentColor) calc(var(--_s) * 100%), transparent) 0 0);
+  transition-property: --_s;
+  transition-duration: var(--md-sys-motion-duration-short3);
+  transition-timing-function: var(--md-sys-motion-easing-standard);
+  &:is(:where(.group):hover *) { --_s: var(--md-sys-state-hover); }
+  &:is(:where(.group):focus-visible *, :where(.group):active *) { --_s: var(--md-sys-state-pressed); }
+}
+
+/* Кольцо фокуса с клавиатуры — одно на весь клиент: 3 px secondary, отступ 2 px (выбор владельца
+   29.10.2026, вариант А листа sharedui-md3-05). Щелчок мышью его не рисует. focus-ring-inset — для
+   строки и клетки таблицы: снаружи кольцо там срезает прокрутка и закрывают соседи. focus-ring-mark —
+   то же кольцо без условия, для варианта группы (group-focus-visible:focus-ring-mark): фокус у ссылки,
+   кольцо — у её плашки. У поля ввода фокус показывает обводка самого поля, кольца нет. */
+@utility focus-ring {
+  &:focus-visible { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 2px; }
+}
+@utility focus-ring-inset {
+  &:focus-visible { outline: 3px solid var(--md-sys-color-secondary); outline-offset: -3px; }
+}
+@utility focus-ring-mark {
+  outline: 3px solid var(--md-sys-color-secondary);
+  outline-offset: 2px;
+}
+
+/* Отключённое по MD3: содержимое on-surface 38 %, контейнер on-surface 12 %, обводка on-surface 12 %.
+   Одним видом при disabled, aria-disabled (кнопка с подсказкой «почему нельзя») и data-disabled
+   (пункт меню Radix). Утилитой, а не парой disabled:-классов: Tooltip переписывает disabled: в
+   безусловный класс, и bg-on-surface/12 спорил бы с bg-primary порядком в CSS. Здесь же вес
+   селектора выше заливки элемента. */
+@utility disabled-content {
+  &:disabled, &[aria-disabled=true], &[data-disabled] {
+    color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
+    border-color: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
+    cursor: default;
+  }
+}
+@utility disabled-container {
+  &:disabled, &[aria-disabled=true], &[data-disabled] {
+    color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
+    background-color: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
+    border-color: transparent;
+    box-shadow: none;
+    cursor: default;
+  }
+}
+
+/* ── Движение ([UI-65], docs/UI.md «Движение») ─────────────────────────────────
+   Глобального перехода на всех узлах нет: он анимировал тысячи клеток таблиц при смене темы и спорил
+   со слоем состояния. Переход ставит себе компонент — кривой ease-standard и короткой длительностью.
+   Тема переключается мгновенно. Уменьшенное движение — смена без движения у всех, кроме индикатора
+   хода: у него своё правило ниже, медленнее, но видимо. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Tell the browser to render native widgets (select dropdowns, scrollbars, etc.)
@@ -92,7 +166,9 @@ body {
 .md-progress { animation: md-progress-rotate 1.6s linear infinite; }
 .md-progress-arc { animation: md-progress-arc 1.33s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .md-progress { animation-duration: 4.8s; }
+  /* Исключение из общего правила выше: индикатор хода обязан остаться видимым ([UI-65]). Важность —
+     чтобы перебить `!important` общего правила. */
+  .md-progress { animation-duration: 4.8s !important; animation-iteration-count: infinite !important; }
   .md-progress-arc { animation: none; stroke-dasharray: calc(var(--md-progress-c) * 0.3) var(--md-progress-c); }
 }
 

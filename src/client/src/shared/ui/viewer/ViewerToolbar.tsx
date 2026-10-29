@@ -100,7 +100,7 @@ function PageField({ page, numPages, onPage }: { page: number; numPages: number;
 
 const itemCls =
   'flex items-center justify-between gap-3 px-3 py-1.5 text-sm text-on-surface-variant cursor-pointer select-none outline-none ' +
-  'data-[highlighted]:bg-surface-container-low data-[disabled]:opacity-40 data-[disabled]:pointer-events-none';
+  'state-layer disabled-content data-[disabled]:pointer-events-none';
 
 /** Меню масштаба по образцу `LayoutChooser`: чип с меню, открывается вверх — панель внизу. */
 function ZoomMenu(p: ToolbarProps) {

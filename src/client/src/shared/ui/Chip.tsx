@@ -41,13 +41,15 @@ export interface ChipProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>,
   removeOnly?: boolean;
 }
 
-const BASE = 'inline-flex items-center gap-1 rounded-full border text-xs bg-surface transition-colors ' +
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50 disabled:pointer-events-none';
+const BASE = 'inline-flex items-center gap-1 rounded-full border text-xs bg-surface';
+/** Состояния — у кнопки, а не у пилюли: у чипа с крестиком их две, и подсвечивается та, что под курсором. */
+const PRESS = 'state-layer focus-ring disabled-content disabled:pointer-events-none';
 
+// Наведение — слоем цвета подписи ([UI-64]): своей заливки и смены цвета у тона нет.
 const TONE: Record<NonNullable<ChipProps['tone']>, string> = {
-  neutral: 'border-outline-variant text-on-surface-variant hover:text-on-surface hover:border-outline',
-  warning: 'border-outline-variant text-warning hover:bg-warning-container',
-  danger: 'border-error text-error hover:bg-error-container',
+  neutral: 'border-outline-variant text-on-surface-variant',
+  warning: 'border-outline-variant text-warning',
+  danger: 'border-error text-error',
 };
 
 const SELECTED = 'border-primary text-on-primary-container bg-primary-container';
@@ -74,7 +76,7 @@ export function Chip({ children, selected, icon, count, tone, dashed, onRemove, 
   if (!onRemove)
     return (
       <button {...rest} type={type} {...state}
-        className={`${chipClass({ selected, tone, dashed })} px-2.5 py-1 ${className}`}>
+        className={`${chipClass({ selected, tone, dashed })} ${PRESS} px-2.5 py-1 ${className}`}>
         {body}
       </button>
     );
@@ -84,7 +86,7 @@ export function Chip({ children, selected, icon, count, tone, dashed, onRemove, 
     ? <span {...Object.fromEntries(Object.entries(rest).filter(([k]) => k.startsWith('data-')))}
         className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 min-w-0">{body}</span>
     : <button {...rest} type={type} {...state}
-        className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-l-full min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+        className={`inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-l-full min-w-0 ${PRESS}`}>
         {body}
       </button>;
 
@@ -94,7 +96,7 @@ export function Chip({ children, selected, icon, count, tone, dashed, onRemove, 
       <Tooltip content={removeLabel ?? 'Снять'}>
         <button type="button" onClick={onRemove} aria-label={removeLabel ?? 'Снять'}
           disabled={rest.disabled}
-          className="pl-0.5 pr-2 py-1 rounded-r-full hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          className={`pl-0.5 pr-2 py-1 rounded-r-full ${PRESS} [--_state-color:var(--color-error)]`}>
           <Icon icon={Close} size={18} aria-hidden />
         </button>
       </Tooltip>

@@ -105,7 +105,7 @@ export function OutlinedField({
   // и `TypePickerField` он не доходил, и обязательность для чтения с экрана пропадала (ревью PR #1301).
   const labelContent = label;
   const star = required ? " after:ml-0.5 after:text-error after:content-['*']" : '';
-  const labelClass = `absolute left-3 px-1 pointer-events-none transition-all block max-w-[calc(100%-1.5rem)] truncate ${labelColor} ${labelPosition}${star}`;
+  const labelClass = `absolute left-3 px-1 pointer-events-none transition-all ease-standard block max-w-[calc(100%-1.5rem)] truncate ${labelColor} ${labelPosition}${star}`;
 
   return (
     <div className={containerClassName}>
@@ -120,8 +120,8 @@ export function OutlinedField({
         {/* Рамка с вырезом: fieldset даёт границу, legend прорезает верх под меткой. Ширина legend
             и есть вырез — она же анимируется, когда метка всплывает. */}
         <fieldset aria-hidden
-          className={`pointer-events-none absolute inset-x-0 bottom-0 top-[-5px] m-0 rounded-md border px-3 transition-colors ${borderColor} ${borderWidth} ${legendOpener}`}>
-          <legend className={`h-2.5 w-auto whitespace-nowrap p-0 text-xs invisible transition-[max-width] duration-100 ${legendWidth}`}>
+          className={`pointer-events-none absolute inset-x-0 bottom-0 top-[-5px] m-0 rounded-md border px-3 transition-colors ease-standard ${borderColor} ${borderWidth} ${legendOpener}`}>
+          <legend className={`h-2.5 w-auto whitespace-nowrap p-0 text-xs invisible transition-[max-width] duration-100 ease-standard ${legendWidth}`}>
             <span className="inline-block px-1 opacity-0">{label}{required ? ' *' : ''}</span>
           </legend>
         </fieldset>

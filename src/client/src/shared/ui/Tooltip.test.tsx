@@ -59,13 +59,14 @@ describe('Tooltip', () => {
     render(
       <Tooltip content="Нечего сохранять">
         <button type="button" disabled onClick={onClick}
-          className="px-2 hover:bg-surface-container disabled:opacity-40 disabled:pointer-events-none">Сохранить</button>
+          className="px-2 state-layer disabled-content hover:underline disabled:font-normal disabled:pointer-events-none">Сохранить</button>
       </Tooltip>,
     );
     const button = screen.getByRole('button', { name: 'Сохранить' }) as HTMLButtonElement;
     expect(button.disabled).toBe(false);
     expect(button.getAttribute('aria-disabled')).toBe('true');
-    expect(button.className.split(' ').sort()).toEqual(['opacity-40', 'px-2']);
+    // Утилиты MD3 ловят aria-disabled сами и остаются как есть; disabled: становится безусловным.
+    expect(button.className.split(' ').sort()).toEqual(['disabled-content', 'font-normal', 'px-2', 'state-layer']);
     fireEvent.click(button);
     expect(onClick).not.toHaveBeenCalled();
     await focus(button);

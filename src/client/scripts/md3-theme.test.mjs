@@ -133,6 +133,36 @@ describe('тема MD3: классы ролей', () => {
   });
 });
 
+describe('тема MD3: состояния и движение', () => {
+  const variant = change => { const t = structuredClone(palette); change(t); return t; };
+
+  it('кривые MD3 — классами ease-*, значением токена', () => {
+    // Класс нужен сторожу словаря и экранам: без него ease-standard молча не порождал бы ничего.
+    expect(declarations('ease-standard', 'light'))
+      .toContain('transition-timing-function: cubic-bezier(0.2, 0, 0, 1);');
+    expect(declarations('ease-emphasized-decelerate', 'dark')).toContain('cubic-bezier(0.05, 0.7, 0.1, 1)');
+  });
+
+  it('прозрачности слоя и длительности — переменными без темы', () => {
+    const tokens = generate(theme)['md3-tokens.css'];
+    const root = tokens.slice(0, tokens.indexOf(':root[data-theme="dark"]'));
+    for (const line of ['--md-sys-state-hover: 0.08;', '--md-sys-state-focus: 0.1;', '--md-sys-state-pressed: 0.1;',
+      '--md-sys-state-dragged: 0.16;', '--md-sys-motion-duration-short3: 150ms;'])
+      expect(root).toContain(line);
+    expect(tokens.slice(tokens.indexOf(':root[data-theme="dark"]'))).not.toContain('--md-sys-state-');
+  });
+
+  it('отказ: прозрачность не долей, кривая не cubic-bezier, длительность не в мс', () => {
+    expect(() => generate(variant(t => { t.state.hover = '.08'; }))).toThrow('state.hover — «.08», а не доля');
+    expect(() => generate(variant(t => { t.state.hover = 8; }))).toThrow('state.hover — «8», а не доля');
+    expect(() => generate(variant(t => { t.motion.easing.standard = 'ease'; })))
+      .toThrow('motion.easing.standard — «ease», а не cubic-bezier');
+    expect(() => generate(variant(t => { t.motion.duration.short1 = '.05s'; })))
+      .toThrow('motion.duration.short1 — «.05s», а не миллисекунды');
+    expect(() => generate(variant(t => { delete t.state; }))).toThrow('раздел state пуст');
+  });
+});
+
 describe('тема MD3: палитра из seed', () => {
   const seeded = change => { const t = structuredClone(theme); change(t); return resolve(t); };
 

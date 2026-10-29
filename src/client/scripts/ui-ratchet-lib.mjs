@@ -3,7 +3,7 @@
 
 import { posix } from 'node:path';
 import ts from 'typescript';
-import { COLOR_UTILITIES, containerTextHits, scanCandidates, stripComments } from './class-scan.mjs';
+import { COLOR_UTILITIES, classTokens, containerTextHits, scanCandidates, stripComments } from './class-scan.mjs';
 import theme from '../src/theme/md3-theme.json' with { type: 'json' };
 import classMap from './md3-class-map.json' with { type: 'json' };
 
@@ -31,6 +31,17 @@ export const ICON_SCALE = [18, 20, 24, 40, 48];
 
 /** Импорт прежнего набора или пакета Material Symbols — см. правило `lucide-import`. */
 const ICON_PACKAGE_IMPORT = /\bfrom\s+['"](?:lucide-react|@material-symbols\/)[^'"]*['"]|\bimport\(\s*['"](?:lucide-react|@material-symbols\/)/g;
+
+/**
+ * Сырое состояние вместо слоя MD3 — см. правило `raw-state`: подложка чёрным или белым с прозрачностью
+ * (`bg-black/5`, `bg-white/10`), фильтр яркости и наведение (подсветка пункта) заливкой другой поверхности.
+ * Затемнение под окном — роль `scrim` (`bg-scrim/32`) — не считается.
+ */
+const RAW_FILL = /^bg-(?:black|white)\/\S+$/;
+const SURFACE_FILL = /^bg-(?:surface(?:-[\w-]+)?|base|muted(?:-hover)?)(?:\/\S+)?$/;
+const HOVER_VARIANT = /hover|highlighted/;
+const isRawState = ({ cls, variants }) => RAW_FILL.test(cls) || /^brightness-/.test(cls)
+  || (SURFACE_FILL.test(cls) && variants.some(v => HOVER_VARIANT.test(v)));
 
 /** Старые имена цвета классом и `var(--color-…)` вне комментариев — см. правило `legacy-class`. */
 function countLegacyClasses(source) {
@@ -239,6 +250,24 @@ export const RULES = [
     count: text => containerTextHits(text).length,
     everywhere: true,
     instead: 'текст и значок на контейнере роли — парной ролью: bg-warning-container text-on-warning-container, bg-error-container text-on-error-container; цвет роли (text-warning) — для текста на поверхности (docs/UI.md, «Цвет»)',
+  },
+  {
+    id: 'raw-state',
+    // Самодельное состояние ([UI-64], sharedui-md3-05): подложка чёрным или белым с прозрачностью,
+    // brightness-* и наведение заливкой поверхности (hover:bg-surface-container) — около 22 способов до
+    // перехода. По строкам кода (classTokens), не по тексту файла: класс в комментарии не рисуется.
+    count: text => classTokens(text).filter(isRawState).length,
+    everywhere: true,
+    instead: 'состояние — слоем MD3: state-layer (наведение 8 %, фокус и нажатие 10 %, пункт меню Radix — сам по data-highlighted; часть элемента — state-layer-group у .group), другой цвет слоя — [--_state-color:…]; отключённое — disabled-container / disabled-content; затемнение под окном — bg-scrim/32 (docs/UI.md, «Состояния»)',
+  },
+  {
+    id: 'dark-variant',
+    // Вариант тёмной темы в классах ([UI-64]): роль MD3 знает обе темы сама, а dark: держал пару
+    // самодельного наведения (hover:bg-black/5 dark:hover:bg-white/10). По строкам кода, как raw-state:
+    // регулярное выражение со строкой dark: (фильтр классов в Tooltip) — не класс.
+    count: text => classTokens(text).filter(t => t.variants.includes('dark')).length,
+    everywhere: true,
+    instead: 'цвет обеих тем даёт роль MD3 — второй класс для тёмной не нужен; наведение — state-layer; то, чего ролью не сказать (белый лист просмотрщика), — правилом в CSS компонента селектором :root[data-theme="dark"] (docs/UI.md, «Цвет»)',
   },
   {
     id: 'lucide-import',

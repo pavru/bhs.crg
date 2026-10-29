@@ -9,8 +9,8 @@ import { compositionLabel, type Workspace } from './workspaces';
 import { Tooltip } from './Tooltip';
 
 const itemCls =
-  'flex items-start gap-2 px-3 py-1.5 text-sm cursor-pointer select-none outline-none ' +
-  'data-[highlighted]:bg-surface-container-low data-[disabled]:opacity-40 data-[disabled]:pointer-events-none';
+  'flex items-start gap-2 px-3 py-1.5 text-sm text-on-surface cursor-pointer select-none outline-none ' +
+  'state-layer disabled-content data-[disabled]:pointer-events-none';
 
 /**
  * Переключатель рабочего пространства — в шапке слева (ТЗ AUTH-16.1; issue #1001): это контекст
@@ -52,7 +52,7 @@ export function WorkspaceSwitcher() {
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
           <button type="button" data-testid="workspace-switcher" aria-label={`Рабочее пространство: ${ws.current.name}`}
-            className="flex items-center gap-1.5 min-w-0 max-w-60 h-9 max-md:h-11 pl-3 pr-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            className="flex items-center gap-1.5 min-w-0 max-w-60 h-9 max-md:h-11 pl-3 pr-2 rounded-full text-on-surface state-layer focus-ring">
             <Icon icon={GridView} size={18} className="shrink-0 text-on-surface-variant" />
             <Tooltip content={composition(ws.current) ?? ws.current.name}>
               <span className="min-w-0 truncate text-sm font-medium text-on-surface">{ws.current.name}</span>

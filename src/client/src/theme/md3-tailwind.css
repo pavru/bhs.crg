@@ -60,4 +60,10 @@
   --color-on-warning-container: var(--md-ext-color-on-warning-container);
   --color-tab-light: var(--md-ext-color-tab-light);
   --color-tab-dark: var(--md-ext-color-tab-dark);
+  --ease-standard: var(--md-sys-motion-easing-standard);
+  --ease-standard-decelerate: var(--md-sys-motion-easing-standard-decelerate);
+  --ease-standard-accelerate: var(--md-sys-motion-easing-standard-accelerate);
+  --ease-emphasized: var(--md-sys-motion-easing-emphasized);
+  --ease-emphasized-decelerate: var(--md-sys-motion-easing-emphasized-decelerate);
+  --ease-emphasized-accelerate: var(--md-sys-motion-easing-emphasized-accelerate);
 }

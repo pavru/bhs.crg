@@ -30,7 +30,7 @@ export function MoveButtons({
   upTitle?: string;
   downTitle?: string;
 }) {
-  const cls = `p-0.5 text-on-surface-variant hover:text-on-surface-variant aria-disabled:opacity-25 aria-disabled:hover:text-on-surface-variant ${className}`;
+  const cls = `p-0.5 rounded-sm text-on-surface-variant state-layer focus-ring disabled-content ${className}`;
   const upBlocked = isFirst || busy;
   const downBlocked = isLast || busy;
   return (

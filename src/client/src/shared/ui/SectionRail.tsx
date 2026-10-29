@@ -61,7 +61,7 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel }: {
           логотипом; длинное обрезается, целиком — в подсказке. */}
       <Tooltip content={productName} side="right">
         <Link to="/" onClick={guardedClick('/')} aria-label={`${productName} — на главную`}
-          className="mt-3 mb-4 flex flex-col items-center gap-0.5 w-20 shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          className="mt-3 mb-4 flex flex-col items-center gap-0.5 w-20 shrink-0 rounded-xl focus-ring">
           <BrandLogo className="w-8 h-8 text-primary" iconSize={24} />
           <span className="w-full px-1 text-caption font-semibold text-primary text-center truncate">{productName}</span>
         </Link>
@@ -86,9 +86,10 @@ export function SectionRail({ sections, active, panelHidden, onShowPanel }: {
  */
 export function SectionPill({ icon, on, wide = false }: { icon: RailSectionDef['icon']; on: boolean; wide?: boolean }) {
   return (
-    <span className={`flex items-center justify-center ${wide ? 'w-16' : 'w-14'} h-8 rounded-full transition-colors ` +
-      'group-focus-visible:ring-2 group-focus-visible:ring-primary ' +
-      (on ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant group-hover:bg-black/5 dark:group-hover:bg-white/10')}>
+    // Слой и кольцо — у плашки, состояние — у ссылки вокруг (`group`): курсор над подписью тоже зажигает её.
+    <span className={`flex items-center justify-center ${wide ? 'w-16' : 'w-14'} h-8 rounded-full ` +
+      'state-layer-group group-focus-visible:focus-ring-mark ' +
+      (on ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant')}>
       <Icon icon={icon} size={wide ? 24 : 20} filled={on} />
     </span>
   );

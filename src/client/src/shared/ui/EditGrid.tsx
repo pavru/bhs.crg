@@ -221,7 +221,8 @@ export function EditGrid<Row>({
                 : null;
               return (
                 <tr key={rowKey(row, i)} data-row={i} {...rowData?.(row, i)}
-                  className={`${dtRow} ${chosen ? 'bg-primary-container' : ''} ${drag?.dragging === i ? 'opacity-40' : ''}`}
+                  className={`${dtRow} ${chosen ? 'bg-primary-container' : ''}`}
+                  data-dragging={drag?.dragging === i || undefined}
                   style={dropMark ? { boxShadow: dropMark } : undefined}
                   {...(drag ? {
                     onDragOver: (e: DragEvent) => drag.onOver(e, i),
@@ -286,7 +287,7 @@ function RemoveButton({ index, label, onClick }: { index: number; label: string;
   return (
     <Tooltip content={label}>
       <button type="button" data-remove={index} onClick={onClick} aria-label={label}
-        className="rounded-sm p-0.5 text-on-surface-variant hover:text-error focus-visible:outline-2">
+        className="rounded-sm p-0.5 text-on-surface-variant state-layer [--_state-color:var(--color-error)] focus-ring">
         <Icon icon={Delete} size={18} aria-hidden />
       </button>
     </Tooltip>

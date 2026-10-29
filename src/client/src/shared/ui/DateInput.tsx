@@ -132,10 +132,13 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
 
   // Рамка обвязки (issue #1464) — как у `Select`: кольцо, пока фокус внутри или открыт календарь.
   const frame = !size ? '' : [
-    FRAME[size], 'rounded-md border transition-colors',
-    readOnly ? 'bg-surface-container text-on-surface-variant border-outline-variant' : `bg-surface text-on-surface ${markInvalid ? 'border-error' : 'border-outline'}`,
+    FRAME[size], 'rounded-md border transition-colors ease-standard',
+    // Отключённое — по MD3 ([UI-64]): текст on-surface 38 %, рамка on-surface 12 %, а не прозрачность.
+    readOnly ? 'bg-surface-container text-on-surface-variant border-outline-variant'
+      : disabled ? 'bg-surface text-on-surface/38 border-on-surface/12'
+      : `bg-surface text-on-surface ${markInvalid ? 'border-error' : 'border-outline'}`,
     readOnly || disabled ? '' : `focus-within:ring-2 ${markInvalid ? 'focus-within:ring-error' : 'focus-within:ring-primary'}`,
-    pickerOpen ? `ring-2 ${markInvalid ? 'ring-error' : 'ring-primary'}` : '', disabled ? 'opacity-50' : '',
+    pickerOpen ? `ring-2 ${markInvalid ? 'ring-error' : 'ring-primary'}` : '',
   ].join(' ');
 
   // Крестик поля формы — один на обе ветки: у «не даты» и у сегментов (макет #1463, вариант В).
@@ -172,7 +175,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
         {showCalendar && (
           <Popover.Trigger asChild>
             <button ref={triggerRef} type="button" disabled={disabled} aria-label="Открыть календарь"
-              className={`shrink-0 flex items-center justify-center rounded-full text-on-surface-variant hover:text-primary hover:bg-black/5 dark:hover:bg-white/10 transition disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+              className={`shrink-0 flex items-center justify-center rounded-full text-on-surface-variant state-layer focus-ring disabled-content ${
                 size === 'sm' ? SM_TRIGGER : '-my-1.5 h-8 w-8'} ${
                 compact ? `${COMPACT_TRIGGER} opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100` : ''}`}>
               <Icon icon={CalendarMonth} size={18} />
@@ -277,7 +280,7 @@ const STOP = 'button, input, select, textarea, a[href], [tabindex]';
  * касание у края поля стирало бы дату вместо открытия календаря (тот же урок у `TypePickerField`).
  * Фокус Tab'ом его показывает: остановка полноценная, зрячий с клавиатурой видит, куда пришёл.
  */
-const CLEAR_REVEAL = 'opacity-0 pointer-events-none transition-opacity '
+const CLEAR_REVEAL = 'opacity-0 pointer-events-none transition-opacity ease-standard '
   + 'group-hover:opacity-100 group-hover:pointer-events-auto '
   + 'group-focus-within:opacity-100 group-focus-within:pointer-events-auto '
   + '[@media(pointer:coarse)]:opacity-100 [@media(pointer:coarse)]:pointer-events-auto';

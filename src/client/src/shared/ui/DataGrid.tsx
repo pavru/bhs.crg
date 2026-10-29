@@ -240,7 +240,7 @@ export function DataGrid<Row extends object>({
           {canSort ? (
             <Tooltip content="Сортировать. С Shift — добавить колонку к сортировке">
             <button type="button" onClick={e => onSort(c, e.shiftKey)}
-                className="hover:text-on-surface focus-visible:outline-2 rounded-sm">
+                className="rounded-sm state-layer focus-ring">
                 {label}
               </button>
           </Tooltip>
@@ -249,7 +249,7 @@ export function DataGrid<Row extends object>({
             <Tooltip content="Убрать колонку">
             <button type="button" onClick={() => onRemoveColumn(c)}
                 aria-label={`Убрать колонку «${c.label}»`}
-                className="ml-1 align-middle text-on-surface-variant hover:text-error">
+                className="ml-1 align-middle rounded-sm text-on-surface-variant state-layer [--_state-color:var(--color-error)] focus-ring">
                 <Icon icon={Close} size={18} aria-hidden />
               </button>
           </Tooltip>
@@ -322,8 +322,8 @@ export function DataGrid<Row extends object>({
             // проявляются классом `group-hover/row:` и не путаются с группами внутри клетки.
             return (
               <tr key={key}
-                className={`group/row ${dtRow} ${onRowOpen ? 'cursor-pointer' : ''} ${open ? 'bg-primary-container' : marked ? 'bg-warning-container' : ''} ${strong ? 'font-medium' : ''} `
-                  + `${drag?.dragging === i ? 'opacity-40' : ''}`}
+                className={`group/row ${dtRow} ${onRowOpen ? 'cursor-pointer focus-ring-inset' : ''} ${open ? 'bg-primary-container' : marked ? 'bg-warning-container' : ''} ${strong ? 'font-medium' : ''}`}
+                data-dragging={drag?.dragging === i || undefined}
                 style={dropMark ? { boxShadow: dropMark } : undefined}
                 {...(drag ? {
                   onDragOver: (e: DragEvent) => drag.onOver(e, i),
@@ -355,7 +355,7 @@ export function DataGrid<Row extends object>({
                         <Tooltip content={link.label}>
                           <Link to={link.to} aria-label={link.label}
                             onClick={e => e.stopPropagation()}
-                            className="mr-1.5 inline-flex align-middle rounded-sm text-on-surface-variant hover:text-primary focus-visible:outline-2">
+                            className="mr-1.5 inline-flex align-middle rounded-sm text-on-surface-variant state-layer focus-ring">
                             <Icon icon={ArrowOutward} size={18} aria-hidden />
                           </Link>
                         </Tooltip>

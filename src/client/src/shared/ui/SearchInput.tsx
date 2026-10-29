@@ -37,7 +37,7 @@ export function SearchInput({
           type="button"
           onClick={() => onChange('')}
           aria-label="Очистить поиск"
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface-variant transition-colors"
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full text-on-surface-variant state-layer focus-ring"
         >
           <Icon icon={Close} size={18} />
         </button>

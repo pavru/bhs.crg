@@ -62,9 +62,10 @@ function focusVisible(el: Element): boolean {
  * в Tab, скринридер называет её недоступной, нажатие ничего не делает — и форму не отправляет: щелчок
  * отменён.
  *
- * <p>Вид — тот, что кнопке задан для неактивной: `disabled:opacity-40` становится `opacity-40`, а
- * `disabled:pointer-events-none` и подсветка наведения и нажатия уходят — они звали бы нажать то, что
- * не нажимается, или прятали бы от мыши саму подсказку.</p>
+ * <p>Вид — тот, что кнопке задан для неактивной. Отключённое MD3 (`disabled-container`,
+ * `disabled-content`) и слой состояния ловят `aria-disabled` сами ([UI-64]). Классы с `disabled:`
+ * становятся безусловными, а `disabled:pointer-events-none` и подсветка наведения и нажатия уходят:
+ * они звали бы нажать то, что не нажимается, или прятали бы от мыши саму подсказку.</p>
  */
 const looksDisabled = (cls: string) => cls.split(/\s+/)
   .filter(c => c && c !== 'disabled:pointer-events-none' && !/^(dark:)?(hover|active):/.test(c))

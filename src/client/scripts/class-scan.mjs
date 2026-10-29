@@ -142,6 +142,33 @@ export function containerTextHits(text) {
   return hits.sort((a, b) => a.at - b.at);
 }
 
+/**
+ * Классы в строках кода — не в комментариях и не в регулярных выражениях (`scanCode`): `{ cls,
+ * variants, at }`, где `cls` — утилита без вариантов и без `!`, `variants` — варианты по порядку
+ * (`dark:hover:bg-white/10` → `['dark', 'hover']`). Двоеточие внутри скобок варианта
+ * (`[@media(pointer:coarse)]:`, `data-[state=open]:`) вариант не делит. Регулярка со строкой `dark:`
+ * (фильтр классов в Tooltip) — не строка, её классы не видны нарочно.
+ */
+export function classTokens(text) {
+  const out = [];
+  for (const span of scanCode(text).strings)
+    for (const [from, to] of span)
+      for (const m of text.slice(from, to).matchAll(/\S+/g)) {
+        const parts = [];
+        let depth = 0;
+        let start = 0;
+        const raw = m[0];
+        for (let k = 0; k < raw.length; k++) {
+          if (raw[k] === '[' || raw[k] === '(') depth++;
+          else if (raw[k] === ']' || raw[k] === ')') depth--;
+          else if (raw[k] === ':' && depth === 0) { parts.push(raw.slice(start, k)); start = k + 1; }
+        }
+        const cls = raw.slice(start).replace(/^!|!$/g, '');
+        if (cls) out.push({ cls, variants: parts, at: from + m.index });
+      }
+  return out;
+}
+
 /** Цветовые утилиты в тексте, где комментарии уже вырезаны (`stripComments`). */
 export function scanCandidates(text) {
   const found = [];

@@ -18,13 +18,13 @@
 
 ## 1. Основа и `shared/ui` (PR 1)
 
-- [ ] 1.1 Токены `--md-sys-state-*` и `--md-sys-motion-*` в описании темы и генераторе; `--ease-*` в
+- [x] 1.1 Токены `--md-sys-state-*` и `--md-sys-motion-*` в описании темы и генераторе; `--ease-*` в
   `@theme` [UI-64] [UI-65]. Проверка — тест дрейфа зелёный; класс `ease-standard` существует для сторожа
   словаря
-- [ ] 1.2 `@utility state-layer` (D6 + `data-[highlighted]`, `[data-dragging]`, `--_state-color`) и
+- [x] 1.2 `@utility state-layer` (D6 + `data-[highlighted]`, `[data-dragging]`, `--_state-color`) и
   `@utility focus-ring` по выбору 0.2 [UI-64]. Проверка — vitest/jsdom: класс даёт `background-image` с
   `color-mix`; наведение, фокус и `aria-disabled` меняют `--_s`
-- [ ] 1.3 `shared/ui` на `state-layer`, `focus-ring` и паре отключённого: `Button`, `IconButton`, `Chip`,
+- [x] 1.3 `shared/ui` на `state-layer`, `focus-ring` и паре отключённого: `Button`, `IconButton`, `Chip`,
   `Tabs`, `Select` и пункты меню, `DataGrid`, `EditGrid`, `SectionRail`, `BottomNav`, `RowActionsMenu`,
   `Calendar`, `Switch`, `Checkbox`; `brightness-*`, `brand-hover/pressed`, `opacity-*` у отключённого в
   `shared/ui` — ноль [UI-64]. Проверка — vitest компонентов, проверяющих классы, переписаны на новую
@@ -33,7 +33,7 @@
   `ease-standard`; правило `prefers-reduced-motion` в базе, индикатор хода — исключение [UI-65]. Проверка —
   живой прогон или vitest: вычисленный `transition` произвольного `div` — `none`; у кнопки — с кривой
   `standard`
-- [ ] 1.5 Правила `raw-state` и `dark-variant` (по синтаксическому дереву строк классов, весь `src/`) с
+- [x] 1.5 Правила `raw-state` и `dark-variant` (по синтаксическому дереву строк классов, весь `src/`) с
   уровнями по файлам [UI-64]. Проверка — `ui-ratchet.test.mjs`: `hover:bg-black/5`, `bg-white/10`,
   `hover:brightness-95`, `hover:bg-surface-container`, `dark:hover:bg-white/10` считаются; `bg-scrim/32` и
   регулярка со строкой `dark:` — нет

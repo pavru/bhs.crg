@@ -37,7 +37,7 @@ export function OutsideNav({ items }: { items: NavItem[] }) {
   return (
     <div data-testid="outside-nav" className="mt-3">
       <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 px-3 py-2 rounded-full text-left text-xs text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+        className="w-full flex items-center gap-2 px-3 py-2 rounded-full text-left text-xs text-on-surface-variant state-layer focus-ring">
         {open ? <Icon icon={KeyboardArrowDown} size={18} className="shrink-0" /> : <Icon icon={ChevronRight} size={18} className="shrink-0" />}
         <span>{caption}</span>
       </button>

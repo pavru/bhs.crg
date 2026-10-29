@@ -73,10 +73,10 @@ export function TypePickerField({
   // оболочка (border-2 + подпись цветом бренда), как у `DateField`.
   const triggerClass = framed
     ? `w-full h-14 px-4 rounded-md bg-transparent text-sm text-left outline-none ` +
-      `disabled:opacity-50 disabled:pointer-events-none`
+      `disabled-content disabled:pointer-events-none`
     : `w-full ${size === 'sm' ? 'h-8' : 'h-9'} px-3 rounded-md border border-outline bg-surface ` +
-      `text-sm text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ` +
-      `data-[state=open]:ring-2 disabled:opacity-50 disabled:pointer-events-none`;
+      `text-sm text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ` +
+      `data-[state=open]:ring-2 disabled-content disabled:pointer-events-none`;
 
   // `overflow-hidden` на триггере — страховка впредь (issue #668): её не было, и несжимаемый
   // элемент (код типа) не обрезался, а выходил за рамку поля и наезжал на замыкающую лупу.
@@ -123,11 +123,11 @@ export function TypePickerField({
           // pointer-events-none нажатие у правого края на тач-устройстве молча очищало бы значение
           // вместо открытия пикера (в диалоге материализации — вместе со всем маппингом).
           // Где hover'а нет, показываем его сразу, иначе до него было бы не добраться.
-          `opacity-0 pointer-events-none transition-opacity hover:text-on-surface-variant ` +
+          `opacity-0 pointer-events-none transition-opacity ease-standard ` +
           `group-hover:opacity-100 group-hover:pointer-events-auto ` +
           `group-focus-within:opacity-100 group-focus-within:pointer-events-auto ` +
           `[@media(pointer:coarse)]:opacity-100 [@media(pointer:coarse)]:pointer-events-auto ` +
-          `focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm`}>
+          `focus-visible:opacity-100 focus-ring rounded-sm`}>
         <Icon icon={Close} size={18} />
       </button>
     </Tooltip>

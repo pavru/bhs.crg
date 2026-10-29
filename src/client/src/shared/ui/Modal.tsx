@@ -118,9 +118,10 @@ export function ModalExit({ children = 'Отмена', variant = 'text', disable
 /**
  * Выход при идущем запросе: виден, но не нажимается. `aria-disabled`, а не `disabled` (ревью PR
  * #1310): настоящий `disabled` под фокусом — туда его ставит Esc — фокус теряет, браузер перестаёт
- * слать элементу клавиши, и ловушка Tab диалога выпускает курсор на страницу под окном.
+ * слать элементу клавиши, и ловушка Tab диалога выпускает курсор на страницу под окном. Вид — у самой
+ * кнопки: отключённое MD3 ловит и `aria-disabled` ([UI-64]).
  */
-const BUSY_EXIT = 'opacity-40 pointer-events-none';
+const BUSY_EXIT = 'pointer-events-none';
 
 function ModalBody({
   onOpenChange, title, children, wide, fullScreen, headerless, isDirty, flushBody, footer,
@@ -211,7 +212,7 @@ function ModalBody({
   return (
     <Dialog.Portal>
         <Dialog.Overlay
-          className="fixed inset-0 z-40 bg-black/40"
+          className="fixed inset-0 z-40 bg-scrim/32"
           style={{ backdropFilter: 'blur(2px)' }}
           // Нажатие на затемнение фокус не забирает: иначе щелчок мимо выносил бы курсор из поля,
           // где человек набирал, — и окно, которое не закрылось, всё равно сбивало бы его с места.
@@ -285,7 +286,7 @@ function ModalBody({
                   aria-disabled={busy || undefined}
                   data-modal-cross=""
                   aria-label="Закрыть"
-                  className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors text-on-surface-variant hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${busy ? BUSY_EXIT : ''}`}
+                  className={`flex items-center justify-center w-9 h-9 rounded-full text-on-surface-variant state-layer focus-ring disabled-content ${busy ? BUSY_EXIT : ''}`}
                 >
                   <Icon icon={Close} size={18} />
                 </button>
@@ -325,7 +326,7 @@ function ModalBody({
           )}
 
           {asking && (
-            <div className={`absolute inset-0 z-10 flex items-center justify-center bg-black/40 ${fullScreen ? '' : 'rounded-[28px]'}`}>
+            <div className={`absolute inset-0 z-10 flex items-center justify-center bg-scrim/32 ${fullScreen ? '' : 'rounded-[28px]'}`}>
               <div className="rounded-3xl p-5 w-80 bg-surface border border-outline-variant" style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
                 <p className="text-sm font-semibold mb-1 text-on-surface">
                   Закрыть без сохранения?

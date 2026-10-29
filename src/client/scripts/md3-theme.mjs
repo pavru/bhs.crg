@@ -118,9 +118,37 @@ export function resolve(theme) {
   return { ...theme, mode: 'values', roles, ext };
 }
 
+/**
+ * Слой состояния и движение ([UI-64] [UI-65]) — с темой не переключаются. Проверяются здесь, а не
+ * при чтении стилей: кривая «ease» вместо cubic-bezier или «.08» строкой молча дали бы элемент без
+ * перехода или без слоя, и заметили бы это только глазом.
+ */
+function stateMotion(theme) {
+  const state = entries(theme.state);
+  const easing = entries(theme.motion?.easing);
+  const duration = entries(theme.motion?.duration);
+  for (const [k, v] of state)
+    if (typeof v !== 'number' || v <= 0 || v >= 1) throw new Error(`md3-theme.json: state.${k} — «${v}», а не доля между 0 и 1`);
+  for (const [k, v] of easing)
+    if (!/^cubic-bezier\((-?[\d.]+, ){3}-?[\d.]+\)$/.test(v)) throw new Error(`md3-theme.json: motion.easing.${k} — «${v}», а не cubic-bezier(…)`);
+  for (const [k, v] of duration)
+    if (!/^\d+ms$/.test(v)) throw new Error(`md3-theme.json: motion.duration.${k} — «${v}», а не миллисекунды`);
+  for (const [part, list] of [['state', state], ['motion.easing', easing]])
+    if (!list.length) throw new Error(`md3-theme.json: раздел ${part} пуст — слою состояния и переходам нечего брать`);
+  return {
+    tokens: [
+      ...state.map(([k, v]) => `--md-sys-state-${k}: ${v};`),
+      ...easing.map(([k, v]) => `--md-sys-motion-easing-${k}: ${v};`),
+      ...duration.map(([k, v]) => `--md-sys-motion-duration-${k}: ${v};`),
+    ],
+    tailwind: easing.map(([k]) => `--ease-${k}: var(--md-sys-motion-easing-${k});`),
+  };
+}
+
 /** Три файла темы текстом: { 'md3-tokens.css': '…', … }. Чистая функция — её же зовёт тест дрейфа. */
 export function generate(source) {
   const theme = resolve(source);
+  const motion = stateMotion(theme);
   // Темы — одним набором имён в обе стороны: роль только тёмной темы ушла бы в переменные без
   // класса (слой Tailwind строится по светлой) и без значения светлой темы.
   for (const part of ['roles', 'ext', 'elevation']) {
@@ -147,6 +175,7 @@ export function generate(source) {
       ...scheme('light'),
       // Половины превью значка вкладки: с темой не переключаются, в тёмной не переопределяются.
       ...statics.map(([k, v]) => `--md-ext-color-${k}: ${v};`),
+      ...motion.tokens,
     ]),
     block(':root[data-theme="dark"]', scheme('dark')),
   ].join('\n');
@@ -157,6 +186,7 @@ export function generate(source) {
       ...entries(theme.roles.light).filter(([k]) => !NO_CLASS.includes(k))
         .map(([k]) => `--color-${k}: var(--md-sys-color-${k});`),
       ...[...entries(theme.ext.light), ...statics].map(([k]) => `--color-${k}: var(--md-ext-color-${k});`),
+      ...motion.tailwind,
     ]),
   ].join('\n');
 

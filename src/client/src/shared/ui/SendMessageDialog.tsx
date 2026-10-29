@@ -65,10 +65,11 @@ export function SendMessageDialog({ open, onClose, candidates, title = 'Отпр
               {candidates.map(c => {
                 const ok = validEmail(c.email);
                 return (
-                  <label key={c.id} className={`flex items-center gap-2 px-2.5 py-1.5 text-sm ${ok ? 'cursor-pointer hover:bg-surface-container-low' : 'opacity-60'}`}>
+                  // Адрес без почты выбрать нельзя: строка — отключённым видом MD3 ([UI-64]), знак — своим цветом.
+                  <label key={c.id} className={`flex items-center gap-2 px-2.5 py-1.5 text-sm ${ok ? 'cursor-pointer state-layer' : ''}`}>
                     <Checkbox size="sm" checked={selected.has(c.id)} disabled={!ok} onChange={() => toggle(c.id)} />
-                    <span className="text-on-surface flex-1 min-w-0 truncate">{c.displayName || c.email}</span>
-                    <span className="text-xs text-on-surface-variant min-w-0 truncate">{c.email || '—'}</span>
+                    <span className={`${ok ? 'text-on-surface' : 'text-on-surface/38'} flex-1 min-w-0 truncate`}>{c.displayName || c.email}</span>
+                    <span className={`text-xs ${ok ? 'text-on-surface-variant' : 'text-on-surface/38'} min-w-0 truncate`}>{c.email || '—'}</span>
                     {!ok && <Icon icon={Warning} size={18} className="text-warning shrink-0" />}
                   </label>
                 );

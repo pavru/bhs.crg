@@ -34,17 +34,17 @@ const STYLE = {
   // под вкладкой без `-mb-px`: прокручиваемый ряд обрезал бы её, наезжающую на линию ряда.
   underline: {
     list: 'flex overflow-x-auto [scrollbar-width:none] border-b border-outline-variant',
-    tab: 'inline-flex shrink-0 items-center gap-1.5 h-12 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ' +
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
+    // Кольцо — внутрь: прокручиваемый ряд срезал бы наружное.
+    tab: 'inline-flex shrink-0 items-center gap-1.5 h-12 px-4 text-sm font-medium whitespace-nowrap border-b-2 ' +
+      'state-layer focus-ring-inset',
     on: 'border-primary text-primary',
-    off: 'border-transparent text-on-surface-variant hover:text-on-surface',
+    off: 'border-transparent text-on-surface-variant',
   },
   segmented: {
     list: 'inline-flex bg-surface-container rounded-lg p-0.5',
-    tab: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ' +
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+    tab: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md state-layer focus-ring',
     on: 'bg-surface text-on-surface font-medium shadow-sm',
-    off: 'text-on-surface-variant hover:text-on-surface',
+    off: 'text-on-surface-variant',
   },
 } as const;
 
@@ -88,7 +88,7 @@ export function Tabs<T extends string>({ id, items, value, onChange, variant = '
               ref={el => { refs.current[i] = el; }}
               onClick={() => { if (!on) onChange(it.value); }}
               onKeyDown={e => onKey(e, i)}
-              className={`${s.tab} ${on ? s.on : s.off} disabled:opacity-40 disabled:pointer-events-none`}>
+              className={`${s.tab} ${on ? s.on : s.off} disabled-content disabled:pointer-events-none`}>
               {icon && <Icon icon={icon} size={18} aria-hidden className="shrink-0" />}
               {it.label}
               {it.badge}

@@ -72,7 +72,7 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
           <ConditionPopover key={`offer:${name}`} columns={columns} submit="Добавить" requireValue
             initial={offeredCondition(name, columns)}
             onSubmit={cond => onChange(chipAdded(cond))}>
-            <button type="button" className={`${CHIP_CLS} border-dashed border-outline-variant text-on-surface-variant hover:text-on-surface px-2.5 py-1 gap-1`}>
+            <button type="button" className={`${CHIP_CLS} border-dashed border-outline-variant text-on-surface-variant state-layer focus-ring px-2.5 py-1 gap-1`}>
               <Icon icon={Add} size={18} aria-hidden /> {columnLabel(columns.find(c => c.name === name), name)}
             </button>
           </ConditionPopover>
@@ -81,7 +81,7 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
         {view.mode === 'chips' && (
           <ConditionPopover columns={columns} initial={NEW_CONDITION} submit="Добавить"
             onSubmit={cond => onChange(chipAdded(cond))}>
-            <button type="button" className={`${CHIP_CLS} border-dashed border-outline-variant text-on-surface-variant hover:text-on-surface px-2.5 py-1 gap-1`}>
+            <button type="button" className={`${CHIP_CLS} border-dashed border-outline-variant text-on-surface-variant state-layer focus-ring px-2.5 py-1 gap-1`}>
               <Icon icon={Add} size={18} aria-hidden /> условие
             </button>
           </ConditionPopover>
@@ -89,14 +89,14 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
 
         {onAdvanced && view.mode === 'chips' && (
           <button type="button" onClick={onAdvanced}
-            className="inline-flex items-center gap-1 text-xs text-on-surface-variant hover:text-on-surface px-1.5 py-1">
+            className="inline-flex items-center gap-1 rounded-md text-xs text-on-surface-variant state-layer focus-ring px-1.5 py-1">
             <Icon icon={Tune} size={18} aria-hidden /> Расширенный
           </button>
         )}
 
         {hasAny && (
           <button type="button" onClick={() => onChange(() => null)}
-            className="text-xs text-on-surface-variant hover:text-error px-1.5 py-1">
+            className="rounded-md text-xs text-on-surface-variant state-layer [--_state-color:var(--color-error)] focus-ring px-1.5 py-1">
             Снять отбор
           </button>
         )}
@@ -208,7 +208,7 @@ function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, ch
                   problemOf={chipProblem} fieldRef={valueRef} />}
             <div className="mt-2.5 flex justify-end">
               <button type="submit" disabled={!draft.column.trim() || waiting}
-                className="px-3 py-1 rounded-md text-xs font-medium text-on-primary bg-primary disabled:opacity-50">
+                className="px-3 py-1 rounded-md text-xs font-medium text-on-primary bg-primary state-layer focus-ring disabled-container">
                 {submit}
               </button>
             </div>
