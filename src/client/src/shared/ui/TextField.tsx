@@ -41,7 +41,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
       <input
         ref={ref} id={inputId} placeholder=" " required={required}
         className={`peer w-full h-14 rounded-md bg-transparent text-sm text-on-surface px-4 ` +
-          `outline-none disabled:opacity-50 ${trailing ? 'pr-11' : ''} ${className}`}
+          `outline-none disabled-content ${trailing ? 'pr-11' : ''} ${className}`}
         {...rest}
       />
       {children}

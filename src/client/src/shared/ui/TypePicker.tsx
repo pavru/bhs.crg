@@ -133,7 +133,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'Ð’Ñ
   return (
     <Dialog.Root open onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" style={{ backdropFilter: 'blur(2px)' }} />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-scrim/32" style={{ backdropFilter: 'blur(2px)' }} />
         <Dialog.Content
           data-modal-state="free"
           className="fixed left-1/2 top-16 z-50 w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 flex flex-col max-h-[calc(100vh-8rem)] overflow-hidden rounded-2xl border border-outline-variant bg-surface focus:outline-none"
@@ -152,8 +152,8 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'Ð’Ñ
             {noneVisible && (
               <li role="option" aria-selected={active === 0}>
                 <button type="button" onMouseEnter={() => setActive(0)} onClick={chooseNone}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                    active === 0 ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface hover:bg-black/5 dark:hover:bg-white/10'}`}>
+                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm ${
+                    active === 0 ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'}`}>
                   <Icon icon={Block} size={18} className={active === 0 ? 'text-on-secondary-container' : 'text-on-surface-variant'} />
                   <span className="flex-1 truncate" title={noneOption!.label}>{noneOption!.label}</span>
                 </button>
@@ -177,8 +177,8 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'Ð’Ñ
                     return (
                       <li key={`${g.key}:${t.id}`} role="option" aria-selected={i === active}>
                         <button type="button" onMouseEnter={() => setActive(i)} onClick={() => choose(t)}
-                          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                            i === active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface hover:bg-black/5 dark:hover:bg-white/10'}`}>
+                          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm ${
+                            i === active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'}`}>
                           <Icon icon={icon} size={18} className={i === active ? 'text-on-secondary-container' : 'text-on-surface-variant'} />
                           <Tooltip content={showCode ? `${t.name} (${code})` : t.name}><span className="flex-1 truncate">{t.name}</span></Tooltip>
                           {showCode && <span className={`text-caption font-mono shrink-0 ${i === active ? 'text-on-secondary-container/80' : 'text-on-surface-variant'}`}>{code}</span>}
@@ -193,7 +193,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'Ð’Ñ
           {asideHidden && aside && (
             <div className="shrink-0 border-t border-outline-variant p-2">
               <button type="button" onClick={reveal}
-                className="w-full rounded-lg px-3 py-2 text-left text-sm text-primary hover:bg-black/5 dark:hover:bg-white/10">
+                className="w-full rounded-lg px-3 py-2 text-left text-sm text-primary state-layer focus-ring">
                 {aside.reveal}
               </button>
             </div>

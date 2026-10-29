@@ -5,7 +5,7 @@ import { useSiteFilterState } from './siteFilterContext';
 import { useToggleFavorite } from './useToggleFavorite';
 import { IconButton } from '@/shared/ui/Button';
 
-const link = 'text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded';
+const link = 'text-primary hover:underline focus-ring rounded';
 
 /**
  * Звезда стройки (§62.2). Стоит вне hover-группы действий: она ещё и признак, а невидимый признак
@@ -50,7 +50,7 @@ export function NotFavoriteNote({ constructionId }: { constructionId: string }) 
   );
 }
 
-const quiet = 'underline hover:text-on-surface';
+const quiet = 'underline hover:no-underline focus-ring rounded';
 
 /**
  * Пустой список, когда объекты есть, но скрыты фильтром (рейл счетов #1221, накладные #1222): «…пока нет»

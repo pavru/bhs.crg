@@ -55,7 +55,7 @@ export function StaleSourceAction({ source }: { source: DataSetBindingSource | u
       {scope !== 'None' && (
       <Tooltip content="Перераспознать источник">
         <button type="button" onClick={() => setConfirm(true)} disabled={recognize.isPending}
-          className="p-1.5 rounded text-warning disabled:opacity-50 shrink-0" aria-label="Перераспознать источник">
+          className="p-1.5 rounded text-warning state-layer focus-ring disabled-content shrink-0" aria-label="Перераспознать источник">
           {recognize.isPending ? <CircularProgress size={18} /> : <Icon icon={Refresh} size={18} />}
         </button>
       </Tooltip>

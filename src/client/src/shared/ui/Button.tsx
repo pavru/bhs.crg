@@ -4,18 +4,19 @@ import { Tooltip } from './Tooltip';
 
 /**
  * MD3-кнопки (issue #110, фаза 1). Форма — пилюля (rounded-full), label-large (500),
- * state-layer на hover/active, видимое кольцо фокуса. Иерархия: **максимум одна filled
+ * слой состояния MD3 на наведение, фокус и нажатие, общее кольцо фокуса. Иерархия: **максимум одна filled
  * на экран/модалку**; заметное вторичное — tonal; обрамлённое — outlined; третичное — text.
  * Плотность компактная (по умолчанию md=36px), spec-высота 40px доступна как lg.
  */
 export type ButtonVariant = 'filled' | 'tonal' | 'outlined' | 'text';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
+// Состояния — слоем MD3 ([UI-64]): наведение, фокус и нажатие — цвет подписи поверх заливки
+// (`state-layer`), кольцо — общее (`focus-ring`), отключённое — `disabled-container` / `disabled-content`.
+// Своих цветов наведения у вариантов нет.
 const BASE =
   'inline-flex items-center justify-center gap-2 rounded-full font-medium select-none ' +
-  'transition-[background-color,box-shadow,filter,color,border-color] duration-150 ' +
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ' +
-  'focus-visible:ring-offset-surface-container-low disabled:opacity-40 disabled:pointer-events-none';
+  'state-layer focus-ring disabled:pointer-events-none';
 
 const SIZE: Record<ButtonSize, string> = {
   sm: 'h-8 px-3 text-xs',
@@ -44,19 +45,14 @@ const MULTILINE_TEXT_SIZE: Record<ButtonSize, string> = {
 function variantClass(variant: ButtonVariant, danger: boolean): string {
   switch (variant) {
     case 'filled':
-      return danger
-        ? 'bg-error text-on-error shadow-[var(--md-sys-elevation-level1)] hover:brightness-95 active:brightness-90'
-        : 'bg-primary text-on-primary shadow-[var(--md-sys-elevation-level1)] hover:bg-brand-hover active:bg-brand-pressed';
+      return (danger ? 'bg-error text-on-error' : 'bg-primary text-on-primary')
+        + ' shadow-[var(--md-sys-elevation-level1)] disabled-container';
     case 'tonal':
-      return 'bg-secondary-container text-on-secondary-container hover:brightness-[.97] active:brightness-95';
+      return 'bg-secondary-container text-on-secondary-container disabled-container';
     case 'outlined':
-      return danger
-        ? 'border border-outline text-error hover:bg-error/10 active:bg-error/15'
-        : 'border border-outline text-primary hover:bg-primary/10 active:bg-primary/15';
+      return `border border-outline ${danger ? 'text-error' : 'text-primary'} disabled-outlined`;
     case 'text':
-      return danger
-        ? 'text-error hover:bg-error/10 active:bg-error/15'
-        : 'text-primary hover:bg-primary/10 active:bg-primary/15';
+      return `${danger ? 'text-error' : 'text-primary'} disabled-content`;
   }
 }
 
@@ -126,14 +122,14 @@ export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>
   danger?: boolean;
 }
 
-/** Круглая icon-кнопка MD3: state-layer на hover, кольцо фокуса, обязательный aria-label. */
+/** Круглая icon-кнопка MD3: слой состояния, общее кольцо фокуса, обязательный aria-label. */
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
   { label, size = 'md', danger = false, className = '', type, title, children, ...rest },
   ref,
 ) {
-  const look = danger
-    ? 'text-on-surface-variant hover:text-error hover:bg-error/10'
-    : 'text-on-surface-variant hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10';
+  // Цвет значка под курсором не меняется ([UI-64]). У опасной кнопки слой — цветом ошибки
+  // (`--_state-color`): она предупреждает, что нажатие удалит, но в покое не кричит.
+  const look = danger ? 'text-on-surface-variant [--_state-color:var(--color-error)]' : 'text-on-surface-variant';
   // Без своей `title` подсказка лишь повторяет имя — неактивной кнопке её показывать незачем.
   return (
     <Tooltip content={title ?? (rest.disabled ? undefined : label)}>
@@ -142,9 +138,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
         type={type ?? 'button'}
         aria-label={label}
         className={`inline-flex items-center justify-center rounded-full shrink-0 ${ICON_SIZE[size]} ` +
-          'transition-[background-color,color] duration-150 focus-visible:outline-none focus-visible:ring-2 ' +
-          'focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-container-low ' +
-          'disabled:opacity-40 disabled:pointer-events-none ' +
+          'state-layer focus-ring disabled-content disabled:pointer-events-none ' +
           look +
           ` ${className}`}
         {...rest}

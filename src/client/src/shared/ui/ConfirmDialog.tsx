@@ -144,7 +144,7 @@ function ConfirmDialogBody({
     <Dialog.Root open onOpenChange={o => { if (!busy) onOpenChange(o); }}>
       <Dialog.Portal>
         <Dialog.Overlay
-          className="fixed inset-0 z-40 bg-black/40"
+          className="fixed inset-0 z-40 bg-scrim/32"
           style={{ backdropFilter: 'blur(2px)' }}
         />
         <Dialog.Content

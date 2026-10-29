@@ -25,6 +25,29 @@
     "tab-light": "light.surface-container-low",
     "tab-dark": "dark.surface-container-low"
   },
+  "state": {
+    "//": "Прозрачность слоя состояния MD3 ([UI-64]): цвет содержимого поверх заливки. Тема их не меняет — слой берёт цвет содержимого своей темы. Утилита state-layer — в index.css.",
+    "hover": 0.08,
+    "focus": 0.10,
+    "pressed": 0.10,
+    "dragged": 0.16
+  },
+  "motion": {
+    "//": "Движение MD3 ([UI-65]). Кривые — классами ease-* Tailwind; длительность — числом (duration-150): своего пространства имён у Tailwind для неё нет, а синонимов MD3 эпик не заводит (D1).",
+    "easing": {
+      "standard": "cubic-bezier(0.2, 0, 0, 1)",
+      "standard-decelerate": "cubic-bezier(0, 0, 0, 1)",
+      "standard-accelerate": "cubic-bezier(0.3, 0, 1, 1)",
+      "emphasized": "cubic-bezier(0.2, 0, 0, 1)",
+      "emphasized-decelerate": "cubic-bezier(0.05, 0.7, 0.1, 1)",
+      "emphasized-accelerate": "cubic-bezier(0.3, 0, 0.8, 0.15)"
+    },
+    "duration": {
+      "short1": "50ms", "short2": "100ms", "short3": "150ms", "short4": "200ms",
+      "medium1": "250ms", "medium2": "300ms", "medium3": "350ms", "medium4": "400ms",
+      "long1": "450ms", "long2": "500ms", "long3": "550ms", "long4": "600ms"
+    }
+  },
   "elevation": {
     "light": {
       "level1": "0 1px 2px rgba(16,35,63,.30), 0 1px 3px 1px rgba(16,35,63,.12)",

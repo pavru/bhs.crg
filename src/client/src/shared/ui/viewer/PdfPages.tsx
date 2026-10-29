@@ -6,6 +6,7 @@ import type { PdfDocument, PageTask } from './pdfEngine';
 import { CANVAS_PADDING, type Layout } from './viewerState';
 import { adopt, canvasRatio, freeCanvas, type Prepared } from './swapDocument';
 import './textLayer.css';
+import './sheet.css';
 
 /**
  * Лента листов (issue #1490, [UI-12], [UI-16], [UI-18]). Контуры всех листов стоят сразу, нужного
@@ -35,7 +36,7 @@ export function PdfPages({ doc, layout, scale, rotation, range, prepared }: {
         const n = i + 1;
         return (
           <div key={n} role="group" aria-label={`Страница ${n} из ${layout.tops.length}`} data-page={n}
-            className="absolute bg-white overflow-hidden shadow-[var(--md-sys-elevation-level1)] dark:shadow-none dark:outline dark:outline-1 dark:outline-outline-variant"
+            className="absolute bhs-sheet overflow-hidden"
             style={{
               top, width: layout.widths[i], height: layout.heights[i],
               left: `max(${CANVAS_PADDING}px, calc(50% - ${layout.widths[i] / 2}px))`,

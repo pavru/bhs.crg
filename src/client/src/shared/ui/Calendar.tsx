@@ -161,14 +161,15 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
     e.preventDefault();
   }
 
-  const cellBase = 'flex items-center justify-center rounded-full text-sm transition-colors focus:outline-none disabled:opacity-38 disabled:pointer-events-none';
+  // Наведение — слоем цвета текста клетки ([UI-64]): на выбранной — on-primary поверх primary.
+  const cellBase = 'flex items-center justify-center rounded-full text-sm state-layer focus:outline-none disabled-content disabled:pointer-events-none';
   // Индикатор роллинг-фокуса (issue #338): виден ВСЕГДА (не только при :focus-visible), т.к. при
   // открытии мышью фокус на активной ячейке есть, но :focus-visible не срабатывает → «нет курсора».
   // На выбранной ячейке (bg-primary) — инсет-кольцо цветом текста на заливке, иначе — brand. Не белое:
   // в тёмной теме заливка светлая, и белое кольцо на ней не видно (issue #1462).
   const focusRing = (isFocus: boolean, isSel: boolean) =>
     !isFocus ? '' : isSel ? 'ring-2 ring-on-primary/70 ring-inset' : 'ring-2 ring-primary ring-inset';
-  const HEADER_BTN = 'flex items-center justify-center h-8 w-8 rounded-full text-on-surface-variant hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors disabled:opacity-38 disabled:pointer-events-none';
+  const HEADER_BTN = 'flex items-center justify-center h-8 w-8 rounded-full text-on-surface-variant state-layer focus-ring disabled-content disabled:pointer-events-none';
   // Стрелка шапки неактивна, если соседняя страница целиком за границей.
   const lastShown = view === 'years' ? pageStart + YEARS_PER_PAGE - 1 : fy;
   const prevOff = view === 'days' ? !!min && toISO(fy, fm, 1) <= min : (view === 'years' ? pageStart : fy) <= minY;
@@ -200,7 +201,7 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
       ) : (
         <Tooltip content="Выбрать год">
           <button type="button" onClick={() => setView('years')}
-            className="flex items-center gap-1 px-2 h-8 rounded-full text-sm font-medium text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
+            className="flex items-center gap-1 px-2 h-8 rounded-full text-sm font-medium text-on-surface state-layer focus-ring">
             {view === 'days' ? `${months[fm - 1]} ${fy}` : fy}
             <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant" />
           </button>
@@ -240,8 +241,8 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
                     onClick={() => selectDay(fy, fm, d)}
                     className={`${cellBase} relative h-9 w-9 ${focusRing(isFocus, filled)} ${
                       filled ? 'bg-primary text-on-primary font-medium'
-                      : isToday ? `text-primary hover:bg-primary-container ${isFocus ? '' : 'ring-1 ring-primary'}`
-                      : 'text-on-surface hover:bg-black/5 dark:hover:bg-white/10'}`}>
+                      : isToday ? `text-primary ${isFocus ? '' : 'ring-1 ring-primary'}`
+                      : 'text-on-surface'}`}>
                     {d}
                   </button>
                 </div>
@@ -268,8 +269,8 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
               disabled={outOfRange(toISO(fy, m, 1), min, max, 'month')}
               className={`${cellBase} flex-1 h-11 ${focusRing(isFocus, filled)} ${
                 filled ? 'bg-primary text-on-primary font-medium' : place === 'mid' ? 'bg-primary-container text-on-surface'
-                : isCur ? `text-primary hover:bg-primary-container ${isFocus ? '' : 'ring-1 ring-primary'}`
-                : 'text-on-surface hover:bg-black/5 dark:hover:bg-white/10'}`}>
+                : isCur ? `text-primary ${isFocus ? '' : 'ring-1 ring-primary'}`
+                : 'text-on-surface'}`}>
               {mn}
             </button>
             </div>
@@ -293,8 +294,8 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
               disabled={outOfRange(toISO(y, 1, 1), min, max, 'year')}
               className={`${cellBase} flex-1 h-11 tabular-nums ${focusRing(isFocus, filled)} ${
                 filled ? 'bg-primary text-on-primary font-medium' : place === 'mid' ? 'bg-primary-container text-on-surface'
-                : isCur ? `text-primary hover:bg-primary-container ${isFocus ? '' : 'ring-1 ring-primary'}`
-                : 'text-on-surface hover:bg-black/5 dark:hover:bg-white/10'}`}>
+                : isCur ? `text-primary ${isFocus ? '' : 'ring-1 ring-primary'}`
+                : 'text-on-surface'}`}>
               {y}
             </button>
             </div>

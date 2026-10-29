@@ -54,8 +54,11 @@ export const dtTdSheet = 'p-0 h-7 border-b border-r border-outline-variant align
  */
 export const dtTableSized = 'table-fixed w-max! min-w-full';
 
-/** Класс строки: hover-подсветка. */
-export const dtRow = 'transition-colors hover:bg-black/[.03] dark:hover:bg-white/[.05]';
+/**
+ * Класс строки: слой состояния MD3 ([UI-64]) — под курсором 8 % цвета текста, перетаскиваемая
+ * (`data-dragging`) — 16 %. Своей прозрачности у таблиц нет (выбор владельца 29.10.2026).
+ */
+export const dtRow = 'state-layer';
 
 /** Числовая колонка: выравнивание вправо + tabular-nums. */
 export const dtNum = 'text-right tabular-nums';

@@ -67,7 +67,7 @@ export function FavoritesPicker({ maxHeight = 'max-h-72' }: { maxHeight?: string
             const checked = filter.favorites.has(s.id);
             return (
               <li key={s.id}>
-                <label className="flex items-center gap-2 px-1 py-1 rounded hover:bg-surface-container-low cursor-pointer text-sm text-on-surface">
+                <label className="flex items-center gap-2 px-1 py-1 rounded state-layer cursor-pointer text-sm text-on-surface">
                   <Checkbox size="sm" checked={checked} disabled={busy}
                     onChange={() => run(() => filter.setFavorite(s.id, !checked))} />
                   <Icon icon={Star} size={18} className={checked ? 'text-primary fill-current' : 'text-on-surface-variant'} aria-hidden />

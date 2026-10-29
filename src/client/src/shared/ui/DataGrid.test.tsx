@@ -132,11 +132,15 @@ describe('DataGrid: особые строки и шапка (#1354, 3/3)', () =>
     expect(open).toHaveBeenCalledTimes(1);
   });
 
-  it('перетаскивание: тащимая строка приглушена, место под последней отмечено чертой', () => {
+  it('перетаскивание: тащимая строка — слоем перетаскивания, место под последней отмечено чертой', () => {
     const drop = vi.fn();
     grid([{ key: 'name', label: 'Имя' }], { drag: { dragging: 0, target: 2, onOver: () => {}, onDrop: drop } });
     const [, anna, boris] = screen.getAllByRole('row');
-    expect(anna.className).toContain('opacity-40');
+    // Слой 16 % ставит state-layer по data-dragging ([UI-64]), а не прозрачность строки.
+    expect(anna.dataset.dragging).toBe('true');
+    expect(anna.className).toContain('state-layer');
+    expect(anna.className).not.toContain('opacity-');
+    expect(boris.dataset.dragging).toBeUndefined();
     expect(anna.style.boxShadow).toBe('');
     expect(boris.style.boxShadow).toContain('inset 0 -2px');
     fireEvent.drop(boris);

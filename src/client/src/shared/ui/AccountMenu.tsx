@@ -17,8 +17,7 @@ import { THEME_OPTIONS } from '@/shared/ui/themeOptions';
 import { Tooltip } from './Tooltip';
 import { useHistoryLayer } from './historyLayers';
 
-const item = 'flex items-center gap-3.5 h-11 px-3 rounded-xl text-sm text-on-surface cursor-pointer select-none outline-none ' +
-  'data-[highlighted]:bg-black/5 dark:data-[highlighted]:bg-white/10';
+const item = 'flex items-center gap-3.5 h-11 px-3 rounded-xl text-sm text-on-surface cursor-pointer select-none outline-none state-layer';
 
 /**
  * Меню профиля в шапке (issue #1430) — только то, что касается самого человека: кто он, профиль и
@@ -72,8 +71,7 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
         {/* На телефоне — поле вокруг аватара: цель касания 44 px, а не 36 (#1434). */}
         <button type="button" data-testid="account-menu"
           aria-label={`${name} — профиль и оформление${newer ? `; доступна версия ${newer}` : ''}`}
-          className={'relative shrink-0 rounded-full max-md:p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ' +
-            'focus-visible:ring-offset-2 focus-visible:ring-offset-surface data-[state=open]:ring-2 data-[state=open]:ring-primary ' +
+          className={'relative shrink-0 rounded-full max-md:p-1 focus-ring data-[state=open]:ring-2 data-[state=open]:ring-primary ' +
             (here || inAdmin ? 'ring-2 ring-primary' : '')}>
           <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-9 h-9 text-sm" />
           {newer && <span data-testid="update-dot" aria-hidden="true"
@@ -113,10 +111,9 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
                 className="flex rounded-full border border-outline overflow-hidden">
                 {THEME_OPTIONS.map(({ value, icon, label }, i) => (
                   <DropdownMenu.RadioItem key={value} value={value} onSelect={e => e.preventDefault()}
-                    className={'flex-1 flex items-center justify-center gap-1.5 h-9 text-xs cursor-pointer select-none outline-none ' +
-                      'data-[highlighted]:ring-2 data-[highlighted]:ring-inset data-[highlighted]:ring-primary ' +
+                    className={'flex-1 flex items-center justify-center gap-1.5 h-9 text-xs cursor-pointer select-none outline-none state-layer ' +
                       (i > 0 ? 'border-l border-outline ' : '') +
-                      (theme === value ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/10')}>
+                      (theme === value ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant')}>
                     <Icon icon={icon} size={18} className="shrink-0" />{label}
                   </DropdownMenu.RadioItem>
                 ))}

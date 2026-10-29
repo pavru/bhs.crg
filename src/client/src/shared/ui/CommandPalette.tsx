@@ -129,7 +129,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
   return (
     <Dialog.Root open onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" style={{ backdropFilter: 'blur(2px)' }} />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-scrim/32" style={{ backdropFilter: 'blur(2px)' }} />
         <Dialog.Content
           data-modal-state="transient"
           aria-describedby={undefined}
@@ -169,7 +169,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
                 <li>
                   <button
                     type="button" onMouseEnter={() => setActive(i)} onClick={() => exec(it)} data-active={i === current}
-                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
+                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm ${
                       i === current ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'}`}
                   >
                     <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${

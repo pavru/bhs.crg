@@ -8,6 +8,7 @@ import {
 } from './viewerState';
 import { handleViewerKey, useBoxSize, useZoomInput, useZoomMode, zoomTarget, type ZoomDir } from './viewerInput';
 import type { PdfViewerProps } from './PdfViewer';
+import './sheet.css';
 
 /**
  * Режим картинки просмотрщика (issue #1491, [UI-24]): фото счёта той же панелью, что PDF, — масштаб и
@@ -89,7 +90,7 @@ export function ImageView({ source, documentKey, title, actions, rememberZoomAs 
         {/* Картинка в DOM всегда: адрес ей ставит эффект, а размеры она сообщает, загрузившись. */}
         <div className={ready ? 'relative' : 'absolute invisible w-0 h-0 overflow-hidden'} style={l ? { height: l.total, minWidth: l.width } : undefined}>
           <div data-page={1} data-testid="viewer-image-sheet"
-            className="absolute bg-white overflow-hidden shadow-[var(--md-sys-elevation-level1)] dark:shadow-none dark:outline dark:outline-1 dark:outline-outline-variant"
+            className="absolute bhs-sheet overflow-hidden"
             style={sheet
               ? { top: CANVAS_PADDING, width: sheet.width, height: sheet.height, left: `max(${CANVAS_PADDING}px, calc(50% - ${sheet.width / 2}px))` }
               : undefined}>

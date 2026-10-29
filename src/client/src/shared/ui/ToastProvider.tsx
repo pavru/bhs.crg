@@ -64,9 +64,9 @@ function ToastCard({ item, onRemove }: { item: ToastItem; onRemove: () => void }
       type={variant === 'error' ? 'foreground' : 'background'}
       onOpenChange={open => { if (!open) onRemove(); }}
       className={`flex items-start gap-2.5 rounded-lg border border-outline-variant ${bg} px-3.5 py-3 shadow-[var(--md-sys-elevation-level2)]
-        data-[state=open]:[animation:toast-in_150ms_ease-out]
+        data-[state=open]:[animation:toast-in_var(--md-sys-motion-duration-short3)_var(--md-sys-motion-easing-standard-decelerate)]
         data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)]
-        data-[swipe=cancel]:translate-x-0 data-[swipe=cancel]:transition-transform
+        data-[swipe=cancel]:translate-x-0 data-[swipe=cancel]:transition-transform data-[swipe=cancel]:ease-standard
         data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)]`}
     >
       <Icon icon={icon} size={18} className={`mt-0.5 shrink-0 ${VARIANT_ICON_COLOR[variant]}`} />
@@ -74,19 +74,19 @@ function ToastCard({ item, onRemove }: { item: ToastItem; onRemove: () => void }
       {!item.action && item.traceId && (
         <RT.Action altText="Сообщить об ошибке" asChild
           onClick={() => openBugReport({ origin: 'toast', received: item.message })}>
-          <button type="button" className="shrink-0 text-sm font-medium text-primary hover:text-brand-hover transition-colors">
+          <button type="button" className="shrink-0 -my-1 px-2 py-1 rounded-full text-sm font-medium text-primary state-layer focus-ring">
             Сообщить
           </button>
         </RT.Action>
       )}
       {item.action && (
         <RT.Action altText={item.action.label} asChild onClick={() => item.action!.onClick()}>
-          <button type="button" className="shrink-0 text-sm font-medium text-primary hover:text-brand-hover transition-colors">
+          <button type="button" className="shrink-0 -my-1 px-2 py-1 rounded-full text-sm font-medium text-primary state-layer focus-ring">
             {item.action.label}
           </button>
         </RT.Action>
       )}
-      <RT.Close aria-label="Закрыть" className="shrink-0 text-on-surface-variant hover:text-on-surface-variant transition-colors">
+      <RT.Close aria-label="Закрыть" className="shrink-0 rounded-full text-on-surface-variant state-layer focus-ring">
         <Icon icon={Close} size={18} />
       </RT.Close>
     </RT.Root>

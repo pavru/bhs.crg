@@ -51,18 +51,19 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
       disabled={disabled}
       onChange={e => onChange(e.target.checked)}
       className={`${BOX[size]} shrink-0 accent-primary ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'} ` +
-        `focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${label ? (size === 'md' ? 'mt-px' : 'mt-0.5') : className}`}
+        `focus-ring ${label ? (size === 'md' ? 'mt-px' : 'mt-0.5') : className}`}
     />
   );
   if (!label) return input;
 
   return (
-    <label className={`inline-flex items-start gap-2 text-sm text-on-surface select-none ` +
-      `${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${className}`}>
+    // Отключённое — подпись on-surface 38 % ([UI-64]), а не прозрачность всей строки.
+    <label className={`inline-flex items-start gap-2 text-sm select-none ` +
+      `${disabled ? 'text-on-surface/38 cursor-not-allowed' : 'text-on-surface cursor-pointer'} ${className}`}>
       {input}
       <span className="min-w-0">
         {label}
-        {description && <span className="block text-xs text-on-surface-variant">{description}</span>}
+        {description && <span className={`block text-xs ${disabled ? '' : 'text-on-surface-variant'}`}>{description}</span>}
       </span>
     </label>
   );

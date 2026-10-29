@@ -20,14 +20,16 @@ export function Switch({ checked, onChange, disabled, label, title, size = 'md' 
       <button
         type="button" role="switch" aria-checked={checked} aria-label={label} disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40 disabled:cursor-not-allowed ${track} ${
+        // Слой — цветом on-surface поверх дорожки любого положения; отключённое — по MD3: дорожка
+        // on-surface 12 %, ползунок on-surface 38 % (у включённого — surface).
+        className={`group relative inline-flex shrink-0 items-center rounded-full state-layer [--_state-color:var(--color-on-surface)] focus-ring disabled-container disabled:cursor-not-allowed ${track} ${
           checked ? 'bg-primary' : 'bg-surface border-2 border-outline'
         }`}
       >
         <span
           aria-hidden="true"
-          className={`absolute rounded-full transition-all ${
-            checked ? `bg-on-primary ${knobOn}` : `bg-outline ${knobOff}`
+          className={`absolute rounded-full transition-[width,height] duration-150 ease-standard ${
+            checked ? `bg-on-primary group-disabled:bg-surface ${knobOn}` : `bg-outline group-disabled:bg-on-surface/38 ${knobOff}`
           }`}
         />
       </button>

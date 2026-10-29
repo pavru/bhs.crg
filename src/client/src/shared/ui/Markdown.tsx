@@ -27,7 +27,7 @@ function inline(text: string, kp: string): ReactNode[] {
       const mm = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(tok)!;
       const href = safeHref(mm[2]);
       out.push(href
-        ? <a key={k} href={href} target="_blank" rel="noreferrer" className="text-primary hover:text-brand-hover underline">{mm[1]}</a>
+        ? <a key={k} href={href} target="_blank" rel="noreferrer" className="text-primary underline hover:no-underline focus-ring rounded-sm">{mm[1]}</a>
         : mm[1]);
     } else out.push(<em key={k}>{tok.slice(1, -1)}</em>);
     last = m.index + tok.length;

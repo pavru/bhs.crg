@@ -190,7 +190,7 @@ function PhoneBrand() {
   const guardedClick = useGuardedNavClick();
   return (
     <Link to="/" onClick={guardedClick('/')} aria-label={`${productName} — на главную`} data-testid="phone-brand"
-      className="md:hidden shrink-0 flex items-center justify-center w-11 h-11 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+      className="md:hidden shrink-0 flex items-center justify-center w-11 h-11 rounded-full focus-ring">
       <BrandLogo className="w-7 h-7 text-primary" iconSize={22} />
     </Link>
   );
@@ -211,7 +211,7 @@ function SearchButton({ onOpen }: { onOpen: () => void }) {
           обрезается подпись, потом уходит метка клавиш, потом подпись становится невидимой, и
           остаётся значок поиска. Метка держится дольше подписи: учить клавише — смысл кнопки. */}
       <button type="button" onClick={onOpen} aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'}
-        className="@container flex-1 min-w-10 max-md:min-w-11 max-w-160 flex items-center gap-2.5 h-10 max-md:h-11 px-2.5 mx-1 md:mx-3 overflow-hidden rounded-full bg-surface-container-low text-sm text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+        className="@container flex-1 min-w-10 max-md:min-w-11 max-w-160 flex items-center gap-2.5 h-10 max-md:h-11 px-2.5 mx-1 md:mx-3 overflow-hidden rounded-full bg-surface-container-low text-sm text-on-surface-variant state-layer focus-ring">
         <Icon icon={Search} size={18} className="shrink-0" />
         <span className="flex-1 min-w-0 truncate text-left @max-[8rem]:sr-only">Найти счёт, стройку или действие</span>
         <kbd className="hidden @[14rem]:inline shrink-0 rounded border border-outline-variant px-1.5 text-caption text-on-surface-variant">{mac ? '⌘ K' : 'Ctrl K'}</kbd>
@@ -239,7 +239,7 @@ function EmailConfirmBanner() {
           ? <span className="text-on-surface-variant">Письмо отправлено — проверьте почту.</span>
           : <button type="button" onClick={() => resend.mutate(undefined, { onSuccess: () => setSent(true) })}
               disabled={resend.isPending}
-              className="font-medium underline hover:no-underline disabled:opacity-50">
+              className="font-medium underline hover:no-underline focus-ring disabled-content">
               Отправить письмо
             </button>}
         {' · '}

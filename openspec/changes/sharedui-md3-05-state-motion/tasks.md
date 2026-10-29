@@ -5,38 +5,41 @@
 
 ## 0. До кода
 
-- [ ] 0.1 Лист в Claude Design — доска состояний (зонтик, D10): слой 8/10/10 на всех заливках (filled,
+- [x] 0.1 Лист в Claude Design — доска состояний (зонтик, D10): слой 8/10/10 на всех заливках (filled,
   tonal, outlined, text, пункт меню, строка таблицы, рейл) в обеих темах, отключённое 38/12, три варианта
   кольца фокуса А/Б/В из `design.md` на реальных местах (форма, тулбар таблицы, клетка `EditGrid`).
   Проверка — ссылка на лист в зонтике и в этом change
-- [ ] 0.2 Выбор владельца (кольцо фокуса; наведение в плотной таблице — по MD3 или с оговоркой) записан в
+  Лист (29.10.2026): https://claude.ai/design/p/b65108ed-2d54-40b7-819a-e1720684e7c4. Замечено при подготовке: сейчас строка таблицы под курсором — 3 % чёрного
+  (`dtRow`, `hover:bg-black/[.03]`), то есть MD3 8 % заметнее нынешнего, а не бледнее (риск в `design.md`)
+- [x] 0.2 Выбор владельца (кольцо фокуса; наведение в плотной таблице — по MD3 или с оговоркой) записан в
   зонтике (`tasks.md`, 0.1, с датой) и перенесён сюда `/opsx:update` в `design.md` и требование [UI-64] о
   фокусе. Проверка — `openspec validate sharedui-md3-05-state-motion --strict`; в `design.md` один вариант
   кольца
 
 ## 1. Основа и `shared/ui` (PR 1)
 
-- [ ] 1.1 Токены `--md-sys-state-*` и `--md-sys-motion-*` в описании темы и генераторе; `--ease-*` в
+- [x] 1.1 Токены `--md-sys-state-*` и `--md-sys-motion-*` в описании темы и генераторе; `--ease-*` в
   `@theme` [UI-64] [UI-65]. Проверка — тест дрейфа зелёный; класс `ease-standard` существует для сторожа
   словаря
-- [ ] 1.2 `@utility state-layer` (D6 + `data-[highlighted]`, `[data-dragging]`, `--_state-color`) и
+- [x] 1.2 `@utility state-layer` (D6 + `data-[highlighted]`, `[data-dragging]`, `--_state-color`) и
   `@utility focus-ring` по выбору 0.2 [UI-64]. Проверка — vitest/jsdom: класс даёт `background-image` с
   `color-mix`; наведение, фокус и `aria-disabled` меняют `--_s`
-- [ ] 1.3 `shared/ui` на `state-layer`, `focus-ring` и паре отключённого: `Button`, `IconButton`, `Chip`,
+- [x] 1.3 `shared/ui` на `state-layer`, `focus-ring` и паре отключённого: `Button`, `IconButton`, `Chip`,
   `Tabs`, `Select` и пункты меню, `DataGrid`, `EditGrid`, `SectionRail`, `BottomNav`, `RowActionsMenu`,
   `Calendar`, `Switch`, `Checkbox`; `brightness-*`, `brand-hover/pressed`, `opacity-*` у отключённого в
   `shared/ui` — ноль [UI-64]. Проверка — vitest компонентов, проверяющих классы, переписаны на новую
   модель; `rg "brightness-|brand-hover|brand-pressed|disabled:opacity" src/client/src/shared` пусто
-- [ ] 1.4 Глобальный `transition` на `*` и `.no-transition` удалены; переходы компонентов —
+- [x] 1.4 Глобальный `transition` на `*` и `.no-transition` удалены; переходы компонентов —
   `ease-standard`; правило `prefers-reduced-motion` в базе, индикатор хода — исключение [UI-65]. Проверка —
   живой прогон или vitest: вычисленный `transition` произвольного `div` — `none`; у кнопки — с кривой
   `standard`
-- [ ] 1.5 Правила `raw-state` и `dark-variant` (по синтаксическому дереву строк классов, весь `src/`) с
+- [x] 1.5 Правила `raw-state` и `dark-variant` (по синтаксическому дереву строк классов, весь `src/`) с
   уровнями по файлам [UI-64]. Проверка — `ui-ratchet.test.mjs`: `hover:bg-black/5`, `bg-white/10`,
   `hover:brightness-95`, `hover:bg-surface-container`, `dark:hover:bg-white/10` считаются; `bg-scrim/32` и
   регулярка со строкой `dark:` — нет
-- [ ] 1.6 Снимки 5–7 ключевых экранов до и после в обеих темах на 1366×768 и 375 px (зонтик, 5.2);
+- [x] 1.6 Снимки 5–7 ключевых экранов до и после в обеих темах на 1366×768 и 375 px (зонтик, 5.2);
   отдельно — наведение, фокус и отключённое на кнопках и в таблице. Проверка — снимки в описании PR
+  Снимки PR 1 (29.10.2026): https://claude.ai/artifact/HNHkivhRLvhKKtCoBzWYke — экраны в покое совпадают
 
 ## 2. Экраны (PR 2)
 

@@ -192,8 +192,11 @@ function SuggestOptions({ items, q, listId, active, onPick }: {
       <div id={`${listId}-${i}`} role="option" aria-selected={i === active} title={item.label ?? item.value}
         // Щелчок не уводит фокус из поля: иначе blur закрыл бы список раньше щелчка.
         onMouseDown={e => e.preventDefault()} onClick={() => onPick(item)}
-        className={'flex min-h-8 cursor-pointer select-none items-center gap-3 rounded px-3 py-1.5 text-sm text-on-surface ' +
-          'pointer-coarse:min-h-11 ' + (i === active ? 'bg-primary-container text-brand-hover' : 'hover:bg-surface-container')}>
+        // Выбранный стрелкой — контейнером secondary, а не слоем: фокус остаётся в поле, и курсор над
+        // другим пунктом давал бы второй такой же слой — какой примет Enter, было бы не видно.
+        className={'flex min-h-8 cursor-pointer select-none items-center gap-3 rounded px-3 py-1.5 text-sm ' +
+          'pointer-coarse:min-h-11 state-layer ' +
+          (i === active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface')}>
         <span className="line-clamp-2">{highlight(item.label ?? item.value, q)}</span>
         {item.note && <span className="ml-auto shrink-0 text-caption text-on-surface-variant">{item.note}</span>}
       </div>

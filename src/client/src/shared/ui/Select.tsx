@@ -84,9 +84,7 @@ export interface SelectProps {
 
 const TRIGGER =
   'inline-flex items-center justify-between gap-2 rounded-md border ' +
-  'transition-colors data-[placeholder]:text-on-surface-variant ' +
-  'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary data-[state=open]:ring-2 ' +
-  'data-[state=open]:ring-primary disabled:opacity-50 disabled:pointer-events-none';
+  'data-[placeholder]:text-on-surface-variant disabled-content disabled:pointer-events-none';
 
 // В слое формы рамку рисует оболочка — триггер внутри неё прозрачный и без своей границы, иначе
 // вышла бы рамка в рамке, а непрозрачный фон затёр бы вырез на не-surface подложке (та же ловушка,
@@ -94,15 +92,19 @@ const TRIGGER =
 const FRAMED_TRIGGER =
   'inline-flex items-center justify-between gap-2 w-full h-14 px-4 rounded-md bg-transparent ' +
   'text-sm text-on-surface data-[placeholder]:text-on-surface-variant outline-none ' +
-  'disabled:opacity-50 disabled:pointer-events-none';
+  'disabled-content disabled:pointer-events-none';
 
 // Рамка, фон и цвет текста — в виде, а не в общей основе: у `inline` их нет вовсе, и класс,
 // переопределяющий основу, снова спорил бы с ней порядком правил в CSS.
-const BOXED = 'border-outline bg-surface text-on-surface';
+// Рамочный — поле: фокус и открытый список показывает его обводка 2 px primary, а не кольцо ([UI-64]).
+// Строчный — без рамки, в тексте или клетке: у него слой состояния и общее кольцо. Рамку отключённого
+// гасит только рамочный: у прозрачной рамки строчного серой рамки появиться не должно.
+const BOXED = 'border-outline bg-surface text-on-surface focus:outline-none focus-visible:ring-2 ' +
+  'focus-visible:ring-primary data-[state=open]:ring-2 data-[state=open]:ring-primary disabled-outlined';
 const SIZE = {
   md: `h-9 px-3 text-sm ${BOXED}`,
   sm: `h-7 px-2 gap-1 text-xs ${BOXED}`,
-  inline: 'gap-0.5 border-transparent bg-transparent text-inherit',
+  inline: 'gap-0.5 border-transparent bg-transparent text-inherit state-layer focus-ring',
 } as const;
 
 /** Пустая строка — «значения нет» и для Radix (placeholder), и для вызывающего кода; пункту
@@ -174,8 +176,7 @@ export function Select({
 
 const ITEM =
   'relative flex items-center gap-2 pl-3 pr-8 py-1.5 rounded text-sm text-on-surface select-none cursor-pointer ' +
-  'outline-none data-[highlighted]:bg-primary-container data-[highlighted]:text-brand-hover ' +
-  'data-[state=checked]:font-medium data-[disabled]:opacity-40 data-[disabled]:pointer-events-none';
+  'outline-none state-layer data-[state=checked]:font-medium disabled-content data-[disabled]:pointer-events-none';
 
 export const SelectItem = forwardRef<HTMLDivElement, { value: string; disabled?: boolean; children: ReactNode; className?: string }>(
   function SelectItem({ value, disabled, children, className = '' }, ref) {
