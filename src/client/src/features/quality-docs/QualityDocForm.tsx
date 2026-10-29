@@ -234,7 +234,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
     const cls = (isWideField(f) ? 'col-span-2' : 'col-span-1 min-w-0') + mark;
     const hint = recognizedKeys.has(f.key) ? RECOGNIZED_HINT : undefined;
     const label = (
-      <label className="block text-xs font-medium text-on-surface-variant mb-1">{f.title}
+      <label className="block text-body-small font-medium text-on-surface-variant mb-1">{f.title}
         {f.required && !locked && <span className="ml-0.5 text-error">*</span>}
         {locked && <LockedFieldIcon className="ml-1 align-text-bottom" />}</label>
     );
@@ -261,9 +261,9 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
           <PrimitiveInput field={f} value={v} label={f.title}
             onChange={x => setValue(f.key, x)} invalid={!!constraintErrors[f.key]}
             primitiveTypeDef={primitiveDef(f)} enumTypeDef={enumDef(f)} readOnly={locked} />
-          {locked && <p className="text-caption text-on-surface-variant mt-0.5 flex items-center gap-1"><LockedFieldIcon />{LOCKED_HINT}</p>}
+          {locked && <p className="text-label-small text-on-surface-variant mt-0.5 flex items-center gap-1"><LockedFieldIcon />{LOCKED_HINT}</p>}
           {constraintErrors[f.key] && (
-            <p className="text-xs text-error mt-0.5">{constraintErrors[f.key]}</p>
+            <p className="text-body-small text-error mt-0.5">{constraintErrors[f.key]}</p>
           )}
         </div>
       </Tooltip>
@@ -323,7 +323,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
           onClick={() => scanInputRef.current?.click()}>
           Скан-копия
         </Button>
-        {scan && <span className="text-xs text-on-surface-variant truncate max-w-[180px]" title={scan.fileName}>{scan.fileName}</span>}
+        {scan && <span className="text-body-small text-on-surface-variant truncate max-w-[180px]" title={scan.fileName}>{scan.fileName}</span>}
         {scan && (
           <Button variant="text" size="sm" icon={<Icon icon={Visibility} size={18} />}
             onClick={() => void openAttachment(scan.blobPath)}>
@@ -342,7 +342,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
           Ключ схемы в подписи не показываем — он нужен настройщику типа, а не тому, кто заполняет. */}
       <div className="border-t border-surface-container pt-3">{renderFields(fields)}</div>
 
-      {error && <p className="text-sm text-error">{error}</p>}
+      {error && <p className="text-body-medium text-error">{error}</p>}
       <div className="flex items-center gap-2 pt-1">
         <Button variant="filled" onClick={handleSave} loading={busy}
           disabled={busy || recognizing || uploading || imageUploading || !typeId} title={imageUploading ? "Дождитесь загрузки изображения" : undefined}>
@@ -350,7 +350,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
         </Button>
         <Button variant="text" onClick={onCancel}>Отмена</Button>
         {recognizing && (
-          <span className="flex items-center gap-1.5 text-xs text-on-surface-variant">
+          <span className="flex items-center gap-1.5 text-body-small text-on-surface-variant">
             <CircularProgress size={18} /> Идёт распознавание — дождитесь завершения перед сохранением…
           </span>
         )}

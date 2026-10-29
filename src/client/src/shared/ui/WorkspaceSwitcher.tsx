@@ -9,7 +9,7 @@ import { compositionLabel, type Workspace } from './workspaces';
 import { Tooltip } from './Tooltip';
 
 const itemCls =
-  'flex items-start gap-2 px-3 py-1.5 text-sm text-on-surface cursor-pointer select-none outline-none ' +
+  'flex items-start gap-2 px-3 py-1.5 text-body-medium text-on-surface cursor-pointer select-none outline-none ' +
   'state-layer disabled-content data-[disabled]:pointer-events-none';
 
 /**
@@ -41,7 +41,7 @@ export function WorkspaceSwitcher() {
       <span className="min-w-0">
         <span className="block truncate text-on-surface">{w.name}</span>
         {composition(w) && (
-          <span className="block text-xs text-on-surface-variant" data-testid="workspace-composition">{composition(w)}</span>
+          <span className="block text-body-small text-on-surface-variant" data-testid="workspace-composition">{composition(w)}</span>
         )}
       </span>
     </DropdownMenu.Item>
@@ -55,7 +55,7 @@ export function WorkspaceSwitcher() {
             className="flex items-center gap-1.5 min-w-0 max-w-60 h-9 max-md:h-11 pl-3 pr-2 rounded-full text-on-surface state-layer focus-ring">
             <Icon icon={GridView} size={18} className="shrink-0 text-on-surface-variant" />
             <Tooltip content={composition(ws.current) ?? ws.current.name}>
-              <span className="min-w-0 truncate text-sm font-medium text-on-surface">{ws.current.name}</span>
+              <span className="min-w-0 truncate text-body-medium font-medium text-on-surface">{ws.current.name}</span>
             </Tooltip>
             <Icon icon={KeyboardArrowDown} size={18} className="shrink-0 text-on-surface-variant" />
           </button>
@@ -63,13 +63,13 @@ export function WorkspaceSwitcher() {
         <DropdownMenu.Portal>
           <DropdownMenu.Content align="start" sideOffset={4}
             className="z-50 min-w-64 max-w-96 max-h-[70vh] overflow-auto rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
-            <DropdownMenu.Label className="px-3 pt-1 pb-0.5 text-caption font-semibold uppercase tracking-widest text-on-surface-variant">
+            <DropdownMenu.Label className="px-3 pt-1 pb-0.5 text-label-small font-semibold uppercase tracking-widest text-on-surface-variant">
               Системные
             </DropdownMenu.Label>
             {system.map(item)}
             {own.length > 0 && <>
               <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
-              <DropdownMenu.Label className="px-3 pt-1 pb-0.5 text-caption font-semibold uppercase tracking-widest text-on-surface-variant">
+              <DropdownMenu.Label className="px-3 pt-1 pb-0.5 text-label-small font-semibold uppercase tracking-widest text-on-surface-variant">
                 Мои
               </DropdownMenu.Label>
               {own.map(item)}

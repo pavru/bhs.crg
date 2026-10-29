@@ -75,7 +75,7 @@ export function PageHeader({ title, subtitle, icon, badge, breadcrumb, actions, 
       <div className="flex flex-col gap-2 @2xl:flex-row @2xl:items-center @2xl:justify-between @2xl:gap-4">
         <div className="min-w-0 @2xl:flex-1 @2xl:min-w-48">
           {breadcrumb && <div className="mb-0.5">{breadcrumb}</div>}
-          {section && !breadcrumb && <div data-testid="section-caption" className="text-xs text-on-surface-variant">{section.def.title}</div>}
+          {section && !breadcrumb && <div data-testid="section-caption" className="text-body-small text-on-surface-variant">{section.def.title}</div>}
           <div className="flex items-center gap-2 min-w-0">
             {icon && <span className="flex text-on-surface-variant shrink-0">{icon}</span>}
             {heading}
@@ -90,7 +90,7 @@ export function PageHeader({ title, subtitle, icon, badge, breadcrumb, actions, 
             )}
             {badge && <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">{badge}</div>}
           </div>
-          {subtitle && <div className="text-xs text-on-surface-variant mt-0.5">{subtitle}</div>}
+          {subtitle && <div className="text-body-small text-on-surface-variant mt-0.5">{subtitle}</div>}
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2 min-w-0 @2xl:justify-end">{actions}</div>}
       </div>

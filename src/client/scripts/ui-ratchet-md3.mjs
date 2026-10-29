@@ -64,3 +64,19 @@ export const countLegacyRadii = text =>
 /** Тень вне уровней возвышения: класс в строках кода, `boxShadow` в коде, `box-shadow` не уровнем в стилях — см. `legacy-shadow`. */
 export const countLegacyShadows = text =>
   classTokens(text).filter(({ cls }) => LEGACY_SHADOW.test(cls)).length + count(text, /\bboxShadow\b/g) + count(text, CSS_SHADOW);
+
+// Роли текста ([UI-67], sharedui-md3-07): ступени Tailwind (text-xs…9xl) и свои caption и note — вне
+// ролей MD3; font-semibold и крупнее — начертания вне шкалы (600 не загружен и рисуется 700); uppercase
+// и свой tracking-* — overline Material 2. Цвет `text-<роль цвета>` не путается с размером: правило
+// ловит только имена ступеней. Высота строки через дробь (`text-sm/6`) — та же ступень. Те же свойства
+// обходом — тоже: вес числом (`font-[600]`), свойство в скобках (`[letter-spacing:.08em]`; `inherit` —
+// не своё значение, им клетка-заголовок снимает жирность браузера) и стиль объектом (`fontWeight: 600`;
+// размер — только строкой с единицами: число `fontSize: 13` — настройка Monaco, а не CSS).
+const LEGACY_TYPE = new RegExp('^(?:text-(?:xs|sm|base|lg|[2-9]?xl|caption|note)(?:/.+)?'
+  + '|font-(?:semibold|bold|extrabold|black|\\[(?:number:)?\\d+\\])|uppercase|tracking-(?!normal$).+'
+  + '|\\[(?:font-size|font-weight|letter-spacing|text-transform):(?!inherit\\]).+\\])$');
+const STYLE_TYPE = /\b(?:fontWeight|letterSpacing|textTransform)\s*:|\bfontSize\s*:\s*['"`]/g;
+
+/** Текст вне ролей MD3 в строках кода и в стилях объектом — см. правило `legacy-type`. */
+export const countLegacyType = text =>
+  classTokens(text).filter(({ cls }) => LEGACY_TYPE.test(cls)).length + count(text, STYLE_TYPE);

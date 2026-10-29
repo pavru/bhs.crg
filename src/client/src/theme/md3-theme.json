@@ -48,6 +48,24 @@
       "long1": "450ms", "long2": "500ms", "long3": "550ms", "long4": "600ms"
     }
   },
+  "typescale": {
+    "//": "Роли текста MD3 ([UI-67]) — базовая шкала Material Web: размер, высота строки, межбуквенный интервал, начертание. Интервал — везде один, и в клетках таблиц (решение владельца В10 от 29.10.2026). Класс — text-<роль>: несёт все четыре свойства; явное font-* рядом берёт верх над начертанием роли. Назначение ролей — docs/UI.md, «Текст».",
+    "display-large": { "size": "57px", "line-height": "64px", "tracking": "-0.25px", "weight": 400 },
+    "display-medium": { "size": "45px", "line-height": "52px", "tracking": "0px", "weight": 400 },
+    "display-small": { "size": "36px", "line-height": "44px", "tracking": "0px", "weight": 400 },
+    "headline-large": { "size": "32px", "line-height": "40px", "tracking": "0px", "weight": 400 },
+    "headline-medium": { "size": "28px", "line-height": "36px", "tracking": "0px", "weight": 400 },
+    "headline-small": { "size": "24px", "line-height": "32px", "tracking": "0px", "weight": 400 },
+    "title-large": { "size": "22px", "line-height": "28px", "tracking": "0px", "weight": 400 },
+    "title-medium": { "size": "16px", "line-height": "24px", "tracking": "0.15px", "weight": 500 },
+    "title-small": { "size": "14px", "line-height": "20px", "tracking": "0.1px", "weight": 500 },
+    "body-large": { "size": "16px", "line-height": "24px", "tracking": "0.5px", "weight": 400 },
+    "body-medium": { "size": "14px", "line-height": "20px", "tracking": "0.25px", "weight": 400 },
+    "body-small": { "size": "12px", "line-height": "16px", "tracking": "0.4px", "weight": 400 },
+    "label-large": { "size": "14px", "line-height": "20px", "tracking": "0.1px", "weight": 500 },
+    "label-medium": { "size": "12px", "line-height": "16px", "tracking": "0.5px", "weight": 500 },
+    "label-small": { "size": "11px", "line-height": "16px", "tracking": "0.5px", "weight": 500 }
+  },
   "shape": {
     "//": "Шкала формы MD3 ([UI-66], решение владельца В11 от 29.10.2026). Классы — rounded-xs…xl по ступеням extra-small…extra-large; full и none — свои у Tailwind. Ступеней вне шкалы нет: назначение по компонентам — docs/UI.md, «Форма и возвышение».",
     "none": "0px",

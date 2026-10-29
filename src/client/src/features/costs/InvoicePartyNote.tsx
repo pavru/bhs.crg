@@ -45,7 +45,7 @@ export function InvoicePartyNote({ invoiceId, side, party, chosen, offered, onCh
   const shown = line && !(line.action === 'take' && offered) ? line : null;
 
   return (
-    <div className="mt-0.5 text-xs min-w-0">
+    <div className="mt-0.5 text-body-small min-w-0">
       {created && created === chosen && (
         <p className="text-on-surface-variant">
           Заведена и поставлена в поле — сохраните счёт.{' '}
@@ -95,7 +95,7 @@ function Details({ party, pick, canCreate, onChoose, onRetry }: {
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6}
-          className="z-50 w-[360px] max-w-[90vw] rounded-md bg-surface border border-outline-variant p-3 text-xs text-on-surface-variant space-y-2 focus:outline-none shadow-elevation-2">
+          className="z-50 w-[360px] max-w-[90vw] rounded-md bg-surface border border-outline-variant p-3 text-body-small text-on-surface-variant space-y-2 focus:outline-none shadow-elevation-2">
           <p>{partyWhy(party, canCreate)}</p>
           {candidates.length > 0 && (
             <ul className="space-y-1">
@@ -186,12 +186,12 @@ function CreateDialog({ invoiceId, side, party, onClose, onDone }: {
         <TextField label="Название" value={name} onChange={e => setName(e.target.value)} autoFocus
           invalid={tooLong}
           error={tooLong ? `Длиннее ${NAME_LIMIT} знаков (${name.trim().length}) — сократите до названия организации` : undefined} />
-        <p className="text-xs text-on-surface-variant">ИНН: <span className="text-on-surface">{party.taxId}</span> — из файла, не правится.</p>
-        <p className="text-xs text-on-surface-variant">
+        <p className="text-body-small text-on-surface-variant">ИНН: <span className="text-on-surface">{party.taxId}</span> — из файла, не правится.</p>
+        <p className="text-body-small text-on-surface-variant">
           В справочник попадут только название и ИНН. Остальные реквизиты дополните в каталоге.
         </p>
         {refusal && (
-          <div role="alert" className="rounded-md border border-error/30 bg-error-container px-3 py-2 text-xs text-on-error-container">
+          <div role="alert" className="rounded-md border border-error/30 bg-error-container px-3 py-2 text-body-small text-on-error-container">
             <p>Организация не заведена: {refusal}</p>
             <Link to="/common-data" target="_blank" className="underline hover:no-underline">
               Открыть справочник организаций ↗

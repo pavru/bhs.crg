@@ -87,8 +87,8 @@ export function SiteCostsPage() {
           {/* Подпись над полем — своя, а не рамочная у Select: рядом период той же высоты, и подпись у него
               та же — legend `DateRange` размера md. */}
           <div>
-            <span className="block mb-1 text-sm font-medium text-on-surface">Стройка</span>
-            <Select aria-label="Стройка" className="w-64 h-8 rounded-sm border border-outline-variant bg-surface px-2 text-sm"
+            <span className="block mb-1 text-body-medium font-medium text-on-surface">Стройка</span>
+            <Select aria-label="Стройка" className="w-64 h-8 rounded-sm border border-outline-variant bg-surface px-2 text-body-medium"
               value={site ?? ALL} stayOpenOn={REVEAL_CHOICE} onValueChange={value => value === REVEAL_CHOICE ? choices.reveal()
                 : set({ site: value === ALL ? null : value })}>
               <SelectItem value={ALL}>Все стройки</SelectItem>
@@ -115,9 +115,9 @@ export function SiteCostsPage() {
         </div>
 
         {report.isError ? (
-          <p role="alert" className="text-sm text-error">{apiError(report.error, 'Отчёт не построился')}</p>
+          <p role="alert" className="text-body-medium text-error">{apiError(report.error, 'Отчёт не построился')}</p>
         ) : !data ? (
-          <p className="text-sm text-on-surface-variant">Отчёт строится…</p>
+          <p className="text-body-medium text-on-surface-variant">Отчёт строится…</p>
         ) : (
           <Report data={data} bySections={bySections} onSite={id => set({ site: id })} stale={report.isPlaceholderData}
             asked={closing} onView={view => set({ view: view === 'closing' ? 'closing' : null })} />
@@ -206,7 +206,7 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
       <CostViewsBand data={data} closing={asked} onChange={onView} />
       <ViewPanel shown={!!data.differs} view={asked ? 'closing' : 'corrected'}>
         <section aria-label="Затраты за период">
-          <h2 className="text-xs font-medium uppercase tracking-wide text-on-surface-variant">
+          <h2 className="text-body-small font-medium uppercase tracking-wide text-on-surface-variant">
             Затраты за {period}
             <span className="ml-2 normal-case tracking-normal font-normal text-on-surface-variant">
               оплаченные счета, по учётному периоду долей{data.withVat ? '' : ' · без НДС'}{closing ? ' · на момент закрытия' : ''}
@@ -225,14 +225,14 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
             <DataGrid className="mt-1.5" columns={columns} rows={lines} rowKey={l => l.key} section={sectionOf}
               // Итог — главное число отчёта: им сверяют реестр. Поэтому он не мельче строк над ним и
               // выделен целиком, а не одним названием.
-              footer={c => <span className="text-sm font-medium text-on-surface">{c.cell?.(total, -1)}</span>} />
+              footer={c => <span className="text-body-medium font-medium text-on-surface">{c.cell?.(total, -1)}</span>} />
           )}
 
           {/* Месяц, где лежит разница (разбор Дизайнера, п. 7): исправление закрытого периода лежит днём
               исправления, и итог открытого месяца его уже включает. Не «из них», а «включая»: корректировка
               бывает и с минусом, и больше итога. */}
           {adjusted && (
-            <p className="mt-1 pl-4 text-sm text-on-surface-variant">
+            <p className="mt-1 pl-4 text-body-medium text-on-surface-variant">
               {correctionsText(adjusted)}
             </p>
           )}
@@ -240,7 +240,7 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
               — признак сегодняшний, и сумма под итогом закрытия смешивала бы два времени. Слова про взгляд —
               кнопка переключения. */}
           {closing && data.unmatchedNow && (
-            <p className="mt-1 pl-4 text-sm text-on-surface-variant">
+            <p className="mt-1 pl-4 text-body-medium text-on-surface-variant">
               Без позиции номенклатуры сейчас: {invoicesText(data.unmatchedNow.invoices)} —{' '}
               <button type="button" onClick={() => onView('corrected')} className="text-primary hover:underline">
                 сумма и список во взгляде «с исправлениями»
@@ -249,7 +249,7 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
           )}
           {/* Не слагаемые итога, а его расшифровка: «из них», с отступом и приглушённо. */}
           {!closing && data.unmatched && (
-            <p className="mt-1 pl-4 text-sm text-on-surface-variant">
+            <p className="mt-1 pl-4 text-body-medium text-on-surface-variant">
               из них без позиции номенклатуры: {invoicesText(data.unmatched.invoices)} на {formatMoney(data.unmatched.amount)} —
               в затраты вошли, в материалы нет{' '}
               {data.unmatchedLinked !== false && (
@@ -258,7 +258,7 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
             </p>
           )}
           {data.vatUnknown && (
-            <p className="mt-1 pl-4 text-sm text-on-surface-variant">
+            <p className="mt-1 pl-4 text-body-medium text-on-surface-variant">
               НДС не указан: {invoicesText(data.vatUnknown.invoices)} на {formatMoney(data.vatUnknown.amount)} — учтены полной суммой
             </p>
           )}
@@ -266,14 +266,14 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
       </ViewPanel>
 
       <section aria-label="Не входит в затраты" className="border-t border-outline-variant pt-3">
-        <h2 className="text-xs font-medium uppercase tracking-wide text-on-surface-variant">Не входит в затраты</h2>
+        <h2 className="text-body-small font-medium uppercase tracking-wide text-on-surface-variant">Не входит в затраты</h2>
         <DataGrid className="mt-1.5" columns={costColumns('Показатель', undefined, linkNote)} rowKey={l => l.key} rows={[{
           kind: 'figure', key: 'payable', figure: data.payable, label: 'К оплате',
           link: data.payable.invoices > 0 ? siteCostsLinks.payable(data) : undefined,
           name: <>К оплате <span className="text-on-surface-variant">· не оплачено, на сегодня, от периода не зависит</span></>,
         }]} />
         {data.payableVatUnknown && (
-          <p className="mt-1 pl-4 text-sm text-on-surface-variant">
+          <p className="mt-1 pl-4 text-body-medium text-on-surface-variant">
             НДС не указан: {invoicesText(data.payableVatUnknown.invoices)} на {formatMoney(data.payableVatUnknown.amount)} — учтены полной суммой
           </p>
         )}
@@ -303,7 +303,7 @@ function Segmented<T>({ label, value, options, onChange }: {
     <div role="group" aria-label={label} className="inline-flex rounded-sm border border-outline-variant overflow-hidden">
       {options.map(([text, option]) => (
         <button key={text} type="button" aria-pressed={value === option} onClick={() => onChange(option)}
-          className={`state-layer h-8 px-3 text-sm ${value === option ? 'bg-primary-container text-on-surface font-medium' : 'text-on-surface-variant'}`}>
+          className={`state-layer h-8 px-3 text-body-medium ${value === option ? 'bg-primary-container text-on-surface font-medium' : 'text-on-surface-variant'}`}>
           {text}
         </button>
       ))}
@@ -379,7 +379,7 @@ function costColumns(
         <span data-testid="site-costs-folded" className="pl-4 text-on-surface-variant">
           {foldedText(line.folded.count)}
           {corrections && line.folded.corrections !== null && <CorrectionIcon text={correctionsText({ amount: line.folded.corrections })} />}
-          <button type="button" onClick={line.onUnfold} className="ml-2 text-xs underline hover:text-on-surface">Показать построчно</button>
+          <button type="button" onClick={line.onUnfold} className="ml-2 text-body-small underline hover:text-on-surface">Показать построчно</button>
         </span>
       ) : line.kind === 'figure' ? (
         <span className={`${line.indent ? 'pl-4' : ''} ${line.muted ? 'text-on-surface-variant' : ''}`}>

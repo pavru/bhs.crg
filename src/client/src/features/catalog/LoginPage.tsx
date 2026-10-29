@@ -70,12 +70,12 @@ export function LoginPage() {
           </div>
           <div>
             <div className="text-3xl font-normal leading-tight">Исполнительная документация</div>
-            <p className="mt-4 text-base leading-relaxed text-on-primary/70 max-w-[300px]">
+            <p className="mt-4 text-body-large leading-relaxed text-on-primary/70 max-w-[300px]">
               Единая система ведения и согласования исполнительной документации по объекту строительства.
             </p>
           </div>
           <Tooltip content={version?.buildDate ? formatDateTime(version.buildDate) : undefined}>
-            <div className="text-xs tracking-wide text-on-primary/55">
+            <div className="text-body-small tracking-wide text-on-primary/55">
               {versionLabel || ' '}
             </div>
           </Tooltip>
@@ -97,7 +97,7 @@ export function LoginPage() {
 
           {version && (
             <Tooltip content={version.buildDate ? formatDateTime(version.buildDate) : undefined}>
-              <p className="md:hidden mt-6 text-center text-caption text-on-surface-variant">
+              <p className="md:hidden mt-6 text-center text-label-small text-on-surface-variant">
                 {versionLabel}
               </p>
             </Tooltip>
@@ -125,7 +125,7 @@ function Waiting() {
   }, []);
   return (
     <div className="min-h-[320px] flex items-center" aria-busy="true">
-      {slow && <p className="text-sm text-on-surface-variant">Проверяем состояние системы…</p>}
+      {slow && <p className="text-body-medium text-on-surface-variant">Проверяем состояние системы…</p>}
     </div>
   );
 }
@@ -135,7 +135,7 @@ function Head({ title, subtitle }: { title: string; subtitle: ReactNode }) {
   return (
     <>
       <h1 className="text-2xl font-normal text-on-surface">{title}</h1>
-      <p className="mt-1.5 mb-8 text-sm text-on-surface-variant">{subtitle}</p>
+      <p className="mt-1.5 mb-8 text-body-medium text-on-surface-variant">{subtitle}</p>
     </>
   );
 }
@@ -190,14 +190,14 @@ function SignInForm() {
 
         <div className="flex justify-end -mt-2">
           <Link to="/forgot-password"
-            className="text-sm font-medium text-primary px-3 py-2 rounded-full hover:bg-primary/10 transition-colors">
+            className="text-body-medium font-medium text-primary px-3 py-2 rounded-full hover:bg-primary/10 transition-colors">
             Забыли пароль?
           </Link>
         </div>
 
         <Checkbox checked={remember} onChange={setRemember} label="Запомнить меня" />
 
-        {error && <p className="text-sm text-error">{error}</p>}
+        {error && <p className="text-body-medium text-error">{error}</p>}
         <Button type="submit" variant="filled" size="lg" fullWidth loading={loading} className="mt-1">
           {loading ? 'Вход…' : 'Войти'}
         </Button>
@@ -258,7 +258,7 @@ function FirstAdminForm() {
       <Head title="Первый вход"
         subtitle="Система установлена, пользователей ещё нет. Заведите администратора — он получит полные права." />
 
-      <p className="flex gap-2 mb-6 text-xs leading-relaxed text-on-surface-variant bg-warning/10 border border-warning/30 rounded-lg p-3">
+      <p className="flex gap-2 mb-6 text-body-small leading-relaxed text-on-surface-variant bg-warning/10 border border-warning/30 rounded-lg p-3">
         <Icon icon={GppMaybe} size={18} className="shrink-0 mt-0.5 text-warning" />
         <span>
           Пока администратора нет, эта форма открыта любому, кто дотянется до адреса системы.
@@ -284,7 +284,7 @@ function FirstAdminForm() {
           autoComplete="new-password" required minLength={PASSWORD_MIN_LENGTH}
           value={confirm} onChange={e => setConfirm(e.target.value)} />
 
-        {error && <p className="text-sm text-error">{error}</p>}
+        {error && <p className="text-body-medium text-error">{error}</p>}
         <Button type="submit" variant="filled" size="lg" fullWidth loading={busy} className="mt-1">
           {busy ? 'Создаём…' : 'Создать администратора и войти'}
         </Button>

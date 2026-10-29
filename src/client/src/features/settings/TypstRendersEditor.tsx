@@ -132,27 +132,27 @@ function TypstBlockDialog({ render, typeCode, onSave, onClose }: {
       <div className="flex-1 min-h-0 flex flex-col gap-3 px-6 pt-2 pb-4">
         <div className="grid grid-cols-2 gap-3 shrink-0">
           <div>
-            <label className="block text-xs font-medium text-on-surface-variant mb-1">Название варианта</label>
+            <label className="block text-body-small font-medium text-on-surface-variant mb-1">Название варианта</label>
             <input
               value={draft.name}
               onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
               placeholder="Название варианта"
-              className="w-full border border-outline rounded-sm px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
+              className="w-full border border-outline rounded-sm px-2 py-1.5 text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-on-surface-variant mb-1">Имя функции Typst</label>
+            <label className="block text-body-small font-medium text-on-surface-variant mb-1">Имя функции Typst</label>
             <input
               value={draft.fnName}
               onChange={e => setDraft(d => ({ ...d, fnName: e.target.value }))}
               placeholder="typst_fn_name"
               spellCheck={false}
-              className="w-full border border-outline rounded-sm px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
+              className="w-full border border-outline rounded-sm px-2 py-1.5 text-body-medium font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
             />
           </div>
         </div>
 
-        <label className="block text-xs font-medium text-on-surface-variant shrink-0">
+        <label className="block text-body-small font-medium text-on-surface-variant shrink-0">
           Тело функции — выражение Typst (<code className="font-mono">it</code> — данные объекта):
         </label>
         <div className="flex-1 min-h-0 border border-outline rounded-sm overflow-hidden">
@@ -186,7 +186,7 @@ function TypstBlockDialog({ render, typeCode, onSave, onClose }: {
         </div>
 
         {draft.fnName && (
-          <p className="text-xs text-on-surface-variant shrink-0">
+          <p className="text-body-small text-on-surface-variant shrink-0">
             Импорт: <code className="font-mono text-tertiary">#import "typeblocks.typ": *</code>
             {' · '}
             Вызов из шаблона:{' '}
@@ -233,7 +233,7 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
   return (
     <div className="space-y-3">
       {renders.length === 0 && (
-        <p className="text-xs text-on-surface-variant py-1">
+        <p className="text-body-small text-on-surface-variant py-1">
           Нет вариантов отображения. Добавьте функцию для использования в Typst-шаблонах.
         </p>
       )}
@@ -247,14 +247,14 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
                   value={r.name}
                   onChange={e => update(i, { name: e.target.value })}
                   placeholder="Название варианта"
-                  className="border border-outline rounded-sm px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
+                  className="border border-outline rounded-sm px-2 py-1.5 text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
                 />
                 <input
                   value={r.fnName}
                   onChange={e => update(i, { fnName: e.target.value })}
                   placeholder="typst_fn_name"
                   spellCheck={false}
-                  className="border border-outline rounded-sm px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
+                  className="border border-outline rounded-sm px-2 py-1.5 text-body-medium font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
                 />
               </div>
               <button type="button" onClick={() => remove(i)}
@@ -266,10 +266,10 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
             <button type="button" onClick={() => setEditingIndex(i)}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-sm border border-outline-variant bg-surface state-layer text-left">
               <Icon icon={Code} size={18} className="text-on-surface-variant shrink-0" />
-              <span className="text-sm text-on-surface-variant flex-1">Редактировать Typst-код</span>
+              <span className="text-body-medium text-on-surface-variant flex-1">Редактировать Typst-код</span>
               {problemsByFn?.[r.fnName.trim()] === 'error' && (
                 <Tooltip content="Ошибка сборки блока">
-                  <span className="inline-flex items-center gap-1 text-xs text-error shrink-0">
+                  <span className="inline-flex items-center gap-1 text-body-small text-error shrink-0">
                     <Icon icon={ErrorIcon} size={18} /> не собирается
                   </span>
                 </Tooltip>
@@ -277,11 +277,11 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
               {problemsByFn?.[r.fnName.trim()] === 'warning' && (
                 <Icon icon={Warning} size={18} className="text-warning shrink-0" />
               )}
-              <span className="text-xs text-on-surface-variant shrink-0">{lines > 0 ? `${lines} стр.` : 'пусто'}</span>
+              <span className="text-body-small text-on-surface-variant shrink-0">{lines > 0 ? `${lines} стр.` : 'пусто'}</span>
               <Icon icon={OpenInFull} size={18} className="text-on-surface-variant shrink-0" />
             </button>
             {r.fnName && (
-              <p className="text-xs text-on-surface-variant">
+              <p className="text-body-small text-on-surface-variant">
                 Импорт: <code className="font-mono text-tertiary">#import "typeblocks.typ": *</code>
                 {' · '}
                 Вызов: <code className="font-mono text-primary">#{typeCode || 'КодТипа'}.{r.fnName}(data.КлючПоля)</code>
@@ -291,7 +291,7 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
         );
       })}
       <button type="button" onClick={add}
-        className="flex items-center gap-1.5 text-sm text-primary state-layer mt-1">
+        className="flex items-center gap-1.5 text-body-medium text-primary state-layer mt-1">
         <Icon icon={Add} size={18} /> Добавить вариант
       </button>
 

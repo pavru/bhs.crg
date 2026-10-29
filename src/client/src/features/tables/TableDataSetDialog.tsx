@@ -78,7 +78,7 @@ export function TableDataSetDialog({ address, initialName, body, columns, all, o
       <form onSubmit={submit} className="space-y-3">
         <TextField label="Название источника" value={name} maxLength={200} autoFocus required error={error ?? undefined}
           onChange={e => { setName(e.target.value); setError(null); }} />
-        <div className="space-y-1.5 text-sm text-on-surface-variant">
+        <div className="space-y-1.5 text-body-medium text-on-surface-variant">
           <p>
             Колонки: {kept.map(c => c.label).join(', ')}.
             {added.length > 0 && ` Для отбора и сортировки добавятся: ${added.join(', ')}.`}
@@ -87,7 +87,7 @@ export function TableDataSetDialog({ address, initialName, body, columns, all, o
           {/* Порядок источник считает сам, а не запросом к базе, как экран: обещать «как на экране»
               было бы неправдой у текста с цифрами и у пустых значений (ревью PR #1327). */}
           {!!body.sort?.length && (
-            <p className="text-xs text-on-surface-variant">
+            <p className="text-body-small text-on-surface-variant">
               Сортировка — по тем же колонкам, но строки упорядочивает источник: значения, похожие на
               числа, сравниваются как числа, пустые — всегда в конце.
             </p>
@@ -98,7 +98,7 @@ export function TableDataSetDialog({ address, initialName, body, columns, all, o
               отбирает строки сам и посчитал бы его без отбора.
             </p>
           )}
-          <p className="text-xs text-on-surface-variant">
+          <p className="text-body-small text-on-surface-variant">
             Это копия: источник не следит за представлением, и правка представления его не изменит. Строки он
             читает правами того, кто его открывает. Источник появится в системном наборе уровня
             системы.

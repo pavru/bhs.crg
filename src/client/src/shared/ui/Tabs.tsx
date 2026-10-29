@@ -35,14 +35,14 @@ const STYLE = {
   underline: {
     list: 'flex overflow-x-auto [scrollbar-width:none] border-b border-outline-variant',
     // Кольцо — внутрь: прокручиваемый ряд срезал бы наружное.
-    tab: 'inline-flex shrink-0 items-center gap-1.5 h-12 px-4 text-sm font-medium whitespace-nowrap border-b-2 ' +
+    tab: 'inline-flex shrink-0 items-center gap-1.5 h-12 px-4 text-body-medium font-medium whitespace-nowrap border-b-2 ' +
       'state-layer focus-ring-inset',
     on: 'border-primary text-primary',
     off: 'border-transparent text-on-surface-variant',
   },
   segmented: {
     list: 'inline-flex bg-surface-container rounded-md p-0.5',
-    tab: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-sm state-layer focus-ring',
+    tab: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-body-medium rounded-sm state-layer focus-ring',
     on: 'bg-surface text-on-surface font-medium shadow-elevation-1',
     off: 'text-on-surface-variant',
   },

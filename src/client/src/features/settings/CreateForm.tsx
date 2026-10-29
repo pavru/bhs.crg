@@ -94,15 +94,15 @@ export function CreateForm({
         <label className="flex items-center gap-2.5 cursor-pointer select-none">
           <input type="checkbox" checked={isAbstract} onChange={e => setIsAbstract(e.target.checked)}
             className="w-4 h-4 rounded-xs border-outline text-primary" />
-          <span className="text-sm font-medium text-on-surface-variant">Абстрактный тип</span>
-          <span className="text-xs text-on-surface-variant">(нельзя добавить в комплект напрямую)</span>
+          <span className="text-body-medium font-medium text-on-surface-variant">Абстрактный тип</span>
+          <span className="text-body-small text-on-surface-variant">(нельзя добавить в комплект напрямую)</span>
         </label>
       )}
 
       <Select label="Владелец" value={module} onValueChange={setModule}>
         {owners.map(o => <SelectItem key={o.code} value={o.code}>{o.title}</SelectItem>)}
       </Select>
-      <p className="-mt-3 text-xs text-on-surface-variant">
+      <p className="-mt-3 text-body-small text-on-surface-variant">
         Типы выключенного модуля не предлагаются в редакторе. Тип, заведённый здесь, принадлежит
         ядру: его не объявлял ни один модуль.
       </p>
@@ -116,12 +116,12 @@ export function CreateForm({
 
       {parentEffectiveFields.length > 0 && (
         <div>
-          <p className="text-xs font-medium text-on-surface-variant mb-2 uppercase tracking-wide">
+          <p className="text-body-small font-medium text-on-surface-variant mb-2 uppercase tracking-wide">
             Наследуемые поля от «{parentType?.name}» ({parentEffectiveFields.length})
           </p>
           <div className="border border-outline-variant rounded-md bg-surface-container-low px-3 py-2 space-y-1">
             {parentEffectiveFields.map(f => (
-              <div key={f.key} className="flex items-center gap-3 text-xs text-on-surface-variant">
+              <div key={f.key} className="flex items-center gap-3 text-body-small text-on-surface-variant">
                 <span className="font-mono text-on-surface-variant w-36 truncate">{f.key}</span>
                 <span className="flex-1 truncate">{f.title}</span>
                 <span className="text-on-surface-variant">
@@ -135,7 +135,7 @@ export function CreateForm({
               </div>
             ))}
           </div>
-          <p className="text-xs text-on-surface-variant mt-1">
+          <p className="text-body-small text-on-surface-variant mt-1">
             Управление унаследованными полями — после создания типа.
           </p>
         </div>
@@ -143,12 +143,12 @@ export function CreateForm({
 
       <div>
         <div className="flex items-center justify-between mb-3">
-          <label className="text-sm font-medium text-on-surface-variant">
+          <label className="text-body-medium font-medium text-on-surface-variant">
             {parentEffectiveFields.length > 0 ? 'Собственные поля' : 'Поля'}
           </label>
           {fields.length > 0 && (
             <button type="button" onClick={() => setShowJson(v => !v)}
-              className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-xs ${
+              className={`flex items-center gap-1.5 text-body-small px-2 py-1 rounded-xs ${
                 showJson ? 'bg-on-surface text-surface-container' : 'text-on-surface-variant hover:text-on-surface state-layer'
               }`}>
               <Icon icon={DataObject} size={18} /> JSON
@@ -160,7 +160,7 @@ export function CreateForm({
           : <FieldBuilder fields={fields} onChange={setFields} disabledKeys={inheritedKeys} compositeTypes={compositeTypes} primitiveTypes={primitiveTypes} enumTypes={enumTypes} allDocTypes={allDocTypes} />}
       </div>
 
-      {error && <p className="text-sm text-error">{error}</p>}
+      {error && <p className="text-body-medium text-error">{error}</p>}
       </div>
       <div className="shrink-0 px-6 py-3 border-t border-outline-variant flex justify-end gap-3">
         <Button type="button" variant="text" onClick={onClose}>Отмена</Button>

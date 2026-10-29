@@ -125,9 +125,9 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   });
 
   const overlay = isLoading
-    ? <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">Загрузка...</div>
+    ? <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-medium">Загрузка...</div>
     : filtered.length === 0
-      ? <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">
+      ? <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-medium">
           {kind === 'Document' ? 'Типов документов не создано' : 'Составных типов не создано'}
         </div>
       : null;
@@ -150,7 +150,7 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
               dirty={anyDirty} saving={saving} onSaveAll={saveAll} onRevert={resetAll}
               onDuplicate={() => duplicateType(selected)} onSelectType={jumpToType} />
           ) : (
-            <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">Ничего не найдено</div>
+            <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-medium">Ничего не найдено</div>
           )} />
       </TypeEditorProvider>
 
@@ -223,8 +223,8 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
         className={`state-layer w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left ${
           active ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant'}`}>
         <Icon icon={icon} size={18} className="shrink-0" />
-        <span className="flex-1 truncate text-sm">{t.name}</span>
-        <span className="text-xs text-on-surface-variant shrink-0">{fieldCount(t, allDocTypes)}</span>
+        <span className="flex-1 truncate text-body-medium">{t.name}</span>
+        <span className="text-body-small text-on-surface-variant shrink-0">{fieldCount(t, allDocTypes)}</span>
       </button>
     );
   };
@@ -242,12 +242,12 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
       <div className="flex-1 overflow-y-auto px-2 pb-3">
         {outside && (
           <>
-            <div className="px-3 pt-3 pb-1 text-caption font-semibold uppercase tracking-wide text-on-surface-variant">Открыт, вне поиска</div>
+            <div className="px-3 pt-3 pb-1 text-label-small font-semibold uppercase tracking-wide text-on-surface-variant">Открыт, вне поиска</div>
             {typeRow(outside)}
           </>
         )}
         {groupOrder.length === 0 && (
-          <p className="px-3 py-6 text-center text-sm text-on-surface-variant">
+          <p className="px-3 py-6 text-center text-body-medium text-on-surface-variant">
             {outside ? 'Больше ничего не найдено' : 'Ничего не найдено'}
           </p>
         )}
@@ -258,7 +258,7 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
             <div key={g || '__ungrouped__'}>
               <button type="button" onClick={() => toggleGroup(g)}
                 aria-expanded={open}
-                className="w-full flex items-center gap-1.5 px-3 pt-3 pb-1 text-caption font-semibold uppercase tracking-wide text-on-surface-variant hover:text-on-surface-variant transition-colors">
+                className="w-full flex items-center gap-1.5 px-3 pt-3 pb-1 text-label-small font-semibold uppercase tracking-wide text-on-surface-variant hover:text-on-surface-variant transition-colors">
                 <Icon icon={ChevronRight} size={18} className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
                 <Icon icon={Folder} size={18} className="shrink-0" />
                 <span className="truncate flex-1 text-left">{g || 'Без группы'}</span>

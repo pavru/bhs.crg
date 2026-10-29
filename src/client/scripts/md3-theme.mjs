@@ -2,7 +2,7 @@
 // Генератор темы MD3 (эпик sharedui-md3, [UI-57]): из описания src/theme/md3-theme.json — три файла
 // рядом с ним, все в git и все руками не правятся:
 //   md3-tokens.css   — переменные --md-sys-* / --md-ext-* обеих тем (тёмная — атрибутом data-theme;
-//                      форма и возвышение — одни на обе);
+//                      форма, возвышение и роли текста — одни на обе);
 //   md3-tailwind.css — слой Tailwind: класс — роль без префикса (bg-primary, text-on-surface-variant);
 //   md3-legacy.css   — старые имена классов (text-fg1, bg-brand…) псевдонимами ролей. Финал эпика
 //                      удаляет файл целиком, а не правит строки.
@@ -184,11 +184,40 @@ function shapeElevation(theme) {
   };
 }
 
+/** 15 ролей текста MD3: группа × размер. Пропущенная роль отказывает — словарь MD3, а не наш выбор. */
+export const TYPESCALE_ROLES = ['display', 'headline', 'title', 'body', 'label']
+  .flatMap(group => ['large', 'medium', 'small'].map(size => `${group}-${size}`));
+const TYPESCALE_PROPS = [['size', 'size', /^\d+px$/], ['line-height', 'line-height', /^\d+px$/],
+  ['tracking', 'letter-spacing', /^-?\d*\.?\d+px$/], ['weight', 'font-weight', /^[1-9]00$/]];
+
+/**
+ * Роли текста ([UI-67]) — с темой не переключаются. Класс `text-<роль>` несёт все четыре свойства
+ * подсвойствами Tailwind (`--text-<роль>--line-height` и т. д.): явное `font-*`, `leading-*` рядом с ним
+ * берёт верх, потому что Tailwind пишет значение роли запасным у своей переменной. Свойство без единиц
+ * отказывает здесь: в CSS оно молча дало бы текст по умолчанию браузера.
+ */
+function typescale(theme) {
+  const roles = entries(theme.typescale);
+  for (const role of TYPESCALE_ROLES)
+    if (!roles.some(([k]) => k === role)) throw new Error(`md3-theme.json: в typescale нет роли ${role}`);
+  for (const [role, value] of roles) {
+    if (!TYPESCALE_ROLES.includes(role)) throw new Error(`md3-theme.json: typescale.${role} — не роль MD3`);
+    for (const [prop, , re] of TYPESCALE_PROPS)
+      if (!re.test(String(value?.[prop]))) throw new Error(`md3-theme.json: typescale.${role}.${prop} — «${value?.[prop]}»`);
+  }
+  return {
+    tokens: roles.flatMap(([role, value]) => TYPESCALE_PROPS.map(([prop]) => `--md-sys-typescale-${role}-${prop}: ${value[prop]};`)),
+    tailwind: roles.flatMap(([role]) => TYPESCALE_PROPS.map(([prop, sub]) =>
+      `--text-${role}${prop === 'size' ? '' : `--${sub}`}: var(--md-sys-typescale-${role}-${prop});`)),
+  };
+}
+
 /** Три файла темы текстом: { 'md3-tokens.css': '…', … }. Чистая функция — её же зовёт тест дрейфа. */
 export function generate(source) {
   const theme = resolve(source);
   const motion = stateMotion(theme);
   const form = shapeElevation(theme);
+  const type = typescale(theme);
   // Темы — одним набором имён в обе стороны: роль только тёмной темы ушла бы в переменные без
   // класса (слой Tailwind строится по светлой) и без значения светлой темы.
   for (const part of ['roles', 'ext']) {
@@ -216,6 +245,7 @@ export function generate(source) {
       ...statics.map(([k, v]) => `--md-ext-color-${k}: ${v};`),
       ...motion.tokens,
       ...form.tokens,
+      ...type.tokens,
     ]),
     block(':root[data-theme="dark"]', scheme('dark')),
   ].join('\n');
@@ -228,6 +258,7 @@ export function generate(source) {
       ...[...entries(theme.ext.light), ...statics].map(([k]) => `--color-${k}: var(--md-ext-color-${k});`),
       ...motion.tailwind,
       ...form.tailwind,
+      ...type.tailwind,
     ]),
   ].join('\n');
 

@@ -25,12 +25,12 @@ export function MyPermissionsSection() {
   const { data: groups, isLoading, isError } = useMyPermissions();
   const [open, setOpen] = useState<string | null>(null);
 
-  if (isLoading) return <p className="text-xs text-on-surface-variant">Загрузка прав…</p>;
-  if (isError) return <p className="text-xs text-on-surface-variant">Права сейчас не показать — повторите позже.</p>;
+  if (isLoading) return <p className="text-body-small text-on-surface-variant">Загрузка прав…</p>;
+  if (isError) return <p className="text-body-small text-on-surface-variant">Права сейчас не показать — повторите позже.</p>;
 
   // Ноль прав — это ответ, а не пустота: именно он объясняет, почему не открывается ничего.
   if (!groups || groups.length === 0) {
-    return <p className="text-sm text-on-surface-variant">Прав нет — разделы не открываются. Права выдаёт администратор.</p>;
+    return <p className="text-body-medium text-on-surface-variant">Прав нет — разделы не открываются. Права выдаёт администратор.</p>;
   }
 
   // Подпись «входит в „читать всё"» — свойство ПРАВА, одинаковое для всех. Показанная бухгалтеру,
@@ -46,27 +46,27 @@ export function MyPermissionsSection() {
           <div key={group.module} className="rounded-sm border border-outline-variant">
             <button type="button" onClick={() => setOpen(expanded ? null : group.module)}
               aria-expanded={expanded}
-              className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-on-surface rounded-sm
+              className="w-full flex items-center gap-2 px-3 py-2 text-left text-body-medium text-on-surface rounded-sm
                          state-layer focus-visible:outline-none
                          focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
               <Icon icon={ChevronRight} size={18}
                 className={`text-on-surface-variant shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />
               <span className="flex-1">{group.title}</span>
-              <span className="text-xs text-on-surface-variant tabular-nums">{group.permissions.length}</span>
+              <span className="text-body-small text-on-surface-variant tabular-nums">{group.permissions.length}</span>
             </button>
 
             {expanded && (
               <ul className="px-3 pb-3 pt-1 space-y-2 border-t border-outline-variant">
                 {group.permissions.map(p => (
                   <li key={p.code}>
-                    <div className="text-sm text-on-surface">{p.gives}</div>
-                    <div className="text-xs text-on-surface-variant">{p.opens}</div>
-                    <code className="text-caption text-on-surface-variant">{p.code}</code>
+                    <div className="text-body-medium text-on-surface">{p.gives}</div>
+                    <div className="text-body-small text-on-surface-variant">{p.opens}</div>
+                    <code className="text-label-small text-on-surface-variant">{p.code}</code>
                     {/* У человека с одной ролью «Руководитель» этого права в составе роли нет:
                         оно приходит раскрытием составного. Без подписи список расходился бы с
                         тем, что видит администратор в редакторе ролей. */}
                     {holdsReadAll && p.readAll && (
-                      <div className="text-caption text-on-surface-variant">входит в право «читать всё»</div>
+                      <div className="text-label-small text-on-surface-variant">входит в право «читать всё»</div>
                     )}
                   </li>
                 ))}

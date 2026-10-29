@@ -127,8 +127,8 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
   return (
     <div className="space-y-1 rounded-sm border border-outline-variant/60 p-1.5">
       <div className="flex items-center gap-2">
-        <Tooltip content={`${field.title} (${field.key}) — составное поле`}><span className={`flex-1 min-w-0 text-xs text-on-surface-variant ${MAP_LABEL}`}>{field.title}</span></Tooltip>
-        <div className="flex rounded-sm border border-outline-variant overflow-hidden text-caption shrink-0">
+        <Tooltip content={`${field.title} (${field.key}) — составное поле`}><span className={`flex-1 min-w-0 text-body-small text-on-surface-variant ${MAP_LABEL}`}>{field.title}</span></Tooltip>
+        <div className="flex rounded-sm border border-outline-variant overflow-hidden text-label-small shrink-0">
           {segBtn('ref', '🔗 По ссылке')}{segBtn('inline', '{} Встроенный')}
         </div>
       </div>
@@ -146,13 +146,13 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
                 value={refModeVal} onValueChange={m => { setRefModeOverride(m as 'name' | 'identity'); onChange(undefined); }}>
                 <SelectItem value="name">по имени</SelectItem><SelectItem value="identity">по идентификатору</SelectItem>
               </Select>
-            ) : <Tooltip content="У типа нет полей-идентификаторов — только по имени"><span className="w-36 shrink-0 text-xs text-on-surface-variant px-2 text-right">по имени</span></Tooltip>}
+            ) : <Tooltip content="У типа нет полей-идентификаторов — только по имени"><span className="w-36 shrink-0 text-body-small text-on-surface-variant px-2 text-right">по имени</span></Tooltip>}
           </div>
           {refModeVal === 'identity' && (
             <div className="pl-2 space-y-1 border-l border-outline-variant">
               {identityFields.map(idf => (
                 <div key={idf.key} className="flex items-center gap-2">
-                  <Tooltip content={idf.key}><span className={`w-40 shrink-0 text-caption text-on-surface-variant ${MAP_LABEL}`}>{idf.title}</span></Tooltip>
+                  <Tooltip content={idf.key}><span className={`w-40 shrink-0 text-label-small text-on-surface-variant ${MAP_LABEL}`}>{idf.title}</span></Tooltip>
                   <Select size="sm" className="flex-1" aria-label={`Колонка для identity-поля «${idf.title}»`}
                     value={idCols[idf.key] ?? ''} onValueChange={c => setRefIdentity(idf.key, c)} emptyItem="— колонка —">
                     {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -161,14 +161,14 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
               ))}
             </div>
           )}
-          <p className="text-caption text-on-surface-variant">Ищет существующий объект в каталоге — общие/переиспользуемые данные.</p>
+          <p className="text-label-small text-on-surface-variant">Ищет существующий объект в каталоге — общие/переиспользуемые данные.</p>
         </>
       ) : (
         <>
           <div className="pl-2 space-y-1 border-l border-primary/40">
             {scalarSubs.map(sf => (
               <div key={sf.key} className="flex items-center gap-2">
-                <Tooltip content={`${sf.title} (${sf.key})`}><span className={`w-40 shrink-0 text-caption text-on-surface-variant ${MAP_LABEL}`}>{sf.title}</span></Tooltip>
+                <Tooltip content={`${sf.title} (${sf.key})`}><span className={`w-40 shrink-0 text-label-small text-on-surface-variant ${MAP_LABEL}`}>{sf.title}</span></Tooltip>
                 <Select size="sm" className="flex-1" aria-label={`Колонка для под-поля «${sf.title}»`}
                   value={inlineFields[sf.key] ?? ''} onValueChange={c => setSub(sf.key, c || undefined)} emptyItem="— не привязано —">
                   {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -181,7 +181,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
                 <div key={sf.key}>
                   <button type="button"
                     onClick={() => setExpanded(p => toggleInSet(p, sf.key))}
-                    className="flex items-center gap-1 py-0.5 text-caption text-on-surface-variant hover:text-on-surface">
+                    className="flex items-center gap-1 py-0.5 text-label-small text-on-surface-variant hover:text-on-surface">
                     {open ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
                     <Tooltip content={`${sf.title} (${sf.key}) — составное поле`}><span className={`text-left ${MAP_LABEL}`}>{sf.title}</span></Tooltip>
                     {inlineFields[sf.key] && <span className="text-primary">•</span>}
@@ -197,10 +197,10 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
               );
             })}
             {scalarSubs.length === 0 && compositeSubs.length === 0 && (
-              <p className="text-caption text-on-surface-variant">У типа нет под-полей для маппинга.</p>
+              <p className="text-label-small text-on-surface-variant">У типа нет под-полей для маппинга.</p>
             )}
           </div>
-          <p className="text-caption text-on-surface-variant">Собирает объект из колонок — разовые данные этого документа.</p>
+          <p className="text-label-small text-on-surface-variant">Собирает объект из колонок — разовые данные этого документа.</p>
         </>
       )}
     </div>
@@ -296,7 +296,7 @@ export function MappingEditor({
   }
 
   return (
-    <div className="space-y-3 text-sm">
+    <div className="space-y-3 text-body-medium">
       {!hideModeSelector && (
         <div>
           <Select label="Режим использования" value={targetFieldKey ?? ''} onValueChange={setTarget}
@@ -314,7 +314,7 @@ export function MappingEditor({
       )}
 
       <div>
-        <label className="block text-xs font-medium mb-1 text-on-surface-variant">
+        <label className="block text-body-small font-medium mb-1 text-on-surface-variant">
           Маппинг колонок файла → поля
           {targetFieldKey && <span className="ml-1 font-normal text-on-surface-variant">(поля «{tabularFields.find(f => f.key === targetFieldKey)?.title ?? targetFieldKey}»)</span>}
         </label>
@@ -322,7 +322,7 @@ export function MappingEditor({
           {scalarMappable.map(f => (
             <div key={f.key} className="flex items-center gap-2">
               <Tooltip content={`${f.title} (${f.key})`}>
-                <span className={`w-56 shrink-0 text-xs text-on-surface-variant ${MAP_LABEL}`}>
+                <span className={`w-56 shrink-0 text-body-small text-on-surface-variant ${MAP_LABEL}`}>
                   {f.title}
                 </span>
               </Tooltip>
@@ -342,7 +342,7 @@ export function MappingEditor({
             return (
               <div key={f.key} className="flex items-center gap-2">
                 <Tooltip content={`${f.title} (${f.key}) — файл-вложение`}>
-                  <span className={`w-56 shrink-0 text-xs text-on-surface-variant ${MAP_LABEL}`}>
+                  <span className={`w-56 shrink-0 text-body-small text-on-surface-variant ${MAP_LABEL}`}>
                     {f.title} <span className="text-on-surface-variant">📎</span>
                   </span>
                 </Tooltip>
@@ -363,7 +363,7 @@ export function MappingEditor({
             return (
               <div key={f.key} className="flex items-center gap-2">
                 <Tooltip content={`${f.title} (${f.key}) — ссылка на документ${targetType ? ` типа «${targetType.name}»` : ''}`}>
-                  <span className={`w-56 shrink-0 text-xs text-on-surface-variant flex items-center gap-1 ${MAP_LABEL}`}>
+                  <span className={`w-56 shrink-0 text-body-small text-on-surface-variant flex items-center gap-1 ${MAP_LABEL}`}>
                     <Icon icon={LinkIcon} size={18} className="shrink-0 text-on-surface-variant" />
                     {f.title}
                   </span>
@@ -372,14 +372,14 @@ export function MappingEditor({
                   value={mapping[f.key] ?? ''} onValueChange={c => setCol(f.key, c)} emptyItem="— не привязано —">
                   {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </Select>
-                <span className="w-40 shrink-0 text-caption text-on-surface-variant">колонка с Ид документа</span>
+                <span className="w-40 shrink-0 text-label-small text-on-surface-variant">колонка с Ид документа</span>
               </div>
             );
           })}
         </div>
         {scalarMappable.length === 0 && complexMappable.length === 0 && fileMappable.length === 0
           && docRefMappable.length === 0 && (
-          <p className="text-xs text-on-surface-variant">Нет доступных полей для маппинга</p>
+          <p className="text-body-small text-on-surface-variant">Нет доступных полей для маппинга</p>
         )}
       </div>
     </div>
@@ -468,13 +468,13 @@ function AddBindingPanel({
   return (
     <div className="rounded-lg p-4 space-y-4 border border-outline-variant bg-surface-container-low">
       <div>
-        <label className="block text-xs font-medium mb-1 text-on-surface-variant">
+        <label className="block text-body-small font-medium mb-1 text-on-surface-variant">
           Источник данных
         </label>
         {filesLoading ? (
-          <p className="text-xs py-1 text-on-surface-variant">Загрузка...</p>
+          <p className="text-body-small py-1 text-on-surface-variant">Загрузка...</p>
         ) : availableFiles.length === 0 ? (
-          <p className="text-xs py-1 text-on-surface-variant">
+          <p className="text-body-small py-1 text-on-surface-variant">
             Нет загруженных наборов данных. Загрузите файлы на странице «Наборы данных» или в панели комплекта/раздела/стройки.
           </p>
         ) : (
@@ -494,7 +494,7 @@ function AddBindingPanel({
       {selectedSource && (
         materializeTypeId ? (
           <div className="rounded-md border border-primary/40 bg-primary/5 p-3 space-y-2">
-            <p className="text-xs text-on-surface-variant">
+            <p className="text-body-small text-on-surface-variant">
               Источник материализуется в тип <b>{allDocTypes.find(t => t.id === materializeTypeId)?.name ?? '—'}</b>.
               Маппинг задан на источнике — выберите только поле-цель совместимого типа.
             </p>
@@ -505,7 +505,7 @@ function AddBindingPanel({
               ))}
             </Select>
             {compatibleFields.length === 0 && (
-              <p className="text-xs text-warning">Нет полей документа, совместимых с типом источника.</p>
+              <p className="text-body-small text-warning">Нет полей документа, совместимых с типом источника.</p>
             )}
           </div>
         ) : (
@@ -521,19 +521,19 @@ function AddBindingPanel({
         )
       )}
 
-      {error && <p className="text-xs text-error">{error}</p>}
+      {error && <p className="text-body-small text-error">{error}</p>}
 
       <div className="flex gap-2">
         <button
           onClick={handleSave}
           disabled={!sourceId || create.isPending}
-          className="px-3 py-1.5 rounded-sm text-sm font-medium text-on-primary disabled-container bg-primary"
+          className="px-3 py-1.5 rounded-sm text-body-medium font-medium text-on-primary disabled-container bg-primary"
         >
           {create.isPending ? 'Сохранение...' : 'Сохранить привязку'}
         </button>
         <button
           onClick={onDone}
-          className="px-3 py-1.5 rounded-sm text-sm font-medium text-on-surface-variant bg-surface-container"
+          className="px-3 py-1.5 rounded-sm text-body-medium font-medium text-on-surface-variant bg-surface-container"
         >
           Отмена
         </button>
@@ -600,11 +600,11 @@ function BindingRow({
       <div className="flex items-center gap-2 px-4 py-3">
         <Icon icon={Database} size={18} className="text-primary shrink-0" />
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium truncate text-on-surface">
+          <div className="text-body-medium font-medium truncate text-on-surface">
             {source?.name ?? '—'}
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className="text-xs text-on-surface-variant">
+            <span className="text-body-small text-on-surface-variant">
               {file?.name} · {source?.materializeTypeId
                 ? `материализация → ${allDocTypes.find(t => t.id === source.materializeTypeId)?.name ?? 'тип'}`
                 : `${ruCount(mappedCount, 'поле привязано', 'поля привязано', 'полей привязано')}`}
@@ -616,7 +616,7 @@ function BindingRow({
         <Tooltip content="Редактировать маппинг" name>
           <button
             onClick={() => setEditing(e => !e)}
-            className="p-1.5 rounded-xs text-xs text-on-surface-variant"
+            className="p-1.5 rounded-xs text-body-small text-on-surface-variant"
           >
             <Icon icon={Edit} size={18} />
           </button>
@@ -631,13 +631,13 @@ function BindingRow({
             </button>
           </Tooltip>
         ) : (
-          <div className="flex items-center gap-1.5 text-xs">
+          <div className="flex items-center gap-1.5 text-body-small">
             <button onClick={handleDelete} disabled={del.isPending}
-              className="px-2 py-0.5 rounded-xs text-on-error text-xs bg-error">
+              className="px-2 py-0.5 rounded-xs text-on-error text-body-small bg-error">
               Да
             </button>
             <button onClick={() => setConfirming(false)}
-              className="px-2 py-0.5 rounded-xs text-xs bg-surface-container text-on-surface-variant">
+              className="px-2 py-0.5 rounded-xs text-body-small bg-surface-container text-on-surface-variant">
               Нет
             </button>
           </div>
@@ -657,15 +657,15 @@ function BindingRow({
           />
           <div className="flex gap-2">
             <button onClick={handleSave} disabled={update.isPending}
-              className="px-3 py-1.5 rounded-sm text-sm font-medium text-on-primary bg-primary">
+              className="px-3 py-1.5 rounded-sm text-body-medium font-medium text-on-primary bg-primary">
               {update.isPending ? 'Сохранение...' : 'Сохранить'}
             </button>
             <button onClick={handleAutoRemap} disabled={autoMap.isPending}
-              className="px-3 py-1.5 rounded-sm text-sm font-medium text-on-surface-variant bg-surface-container">
+              className="px-3 py-1.5 rounded-sm text-body-medium font-medium text-on-surface-variant bg-surface-container">
               Авто-маппинг
             </button>
             <button onClick={() => setEditing(false)}
-              className="px-3 py-1.5 rounded-sm text-sm font-medium text-on-surface-variant">
+              className="px-3 py-1.5 rounded-sm text-body-medium font-medium text-on-surface-variant">
               Отмена
             </button>
           </div>
@@ -690,13 +690,13 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
     await runPreview();
   }
 
-  if (isLoading) return <div className="py-6 text-center text-sm text-on-surface-variant">Загрузка...</div>;
+  if (isLoading) return <div className="py-6 text-center text-body-medium text-on-surface-variant">Загрузка...</div>;
 
   return (
     <div className="space-y-4">
       <div className="rounded-lg overflow-hidden border border-outline-variant bg-surface">
         {bindings.length === 0 && !adding ? (
-          <div className="p-6 text-center text-sm text-on-surface-variant">
+          <div className="p-6 text-center text-body-medium text-on-surface-variant">
             Нет привязок к наборам данных
           </div>
         ) : (
@@ -726,13 +726,13 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
         <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={() => setAdding(true)}
-            className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-sm transition-colors text-on-primary-container bg-primary-container"
+            className="flex items-center gap-2 text-body-medium font-medium px-3 py-2 rounded-sm transition-colors text-on-primary-container bg-primary-container"
           >
             <Icon icon={Add} size={18} /> Добавить источник данных
           </button>
           <button
             onClick={() => setApplyingTemplate(true)}
-            className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-sm transition-colors text-on-surface-variant bg-surface-container"
+            className="flex items-center gap-2 text-body-medium font-medium px-3 py-2 rounded-sm transition-colors text-on-surface-variant bg-surface-container"
           >
             <Icon icon={SpaceDashboard} size={18} /> Из шаблона
           </button>
@@ -740,7 +740,7 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
             <button
               onClick={handlePreview}
               disabled={previewing}
-              className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-sm transition-colors disabled-container text-on-surface-variant bg-surface-container"
+              className="flex items-center gap-2 text-body-medium font-medium px-3 py-2 rounded-sm transition-colors disabled-container text-on-surface-variant bg-surface-container"
             >
               {previewing
                 ? <CircularProgress size={18} />
@@ -755,23 +755,23 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
       {showPreview && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+            <span className="text-body-small font-semibold uppercase tracking-wide text-on-surface-variant">
               Результат проверки
             </span>
             <button
               onClick={() => setShowPreview(false)}
-              className="text-xs text-on-surface-variant"
+              className="text-body-small text-on-surface-variant"
             >
               Скрыть
             </button>
           </div>
           {previewing ? (
-            <div className="py-4 text-center text-sm text-on-surface-variant">
+            <div className="py-4 text-center text-body-medium text-on-surface-variant">
               <CircularProgress size={18} className="inline-block mr-2" />
               Загрузка и разбор файлов...
             </div>
           ) : previewError ? (
-            <p className="text-xs text-error">
+            <p className="text-body-small text-error">
               {previewError instanceof Error ? previewError.message : 'Ошибка проверки'}
             </p>
           ) : previewResults ? (
@@ -780,7 +780,7 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
         </div>
       )}
 
-      <p className="text-xs text-on-surface-variant">
+      <p className="text-body-small text-on-surface-variant">
         Данные загружаются из файлов (System или Комплект) и подставляются при каждой генерации.
         Управление файлами — в разделе «Наборы данных».
       </p>

@@ -58,7 +58,7 @@ export function WaybillDeleteMenu({ view, canEdit, dirty, onDeleted }: {
         errorTitle="Накладная не удалена"
         confirmLabel={waybillConfirmLabel(view)} cancelLabel="Не удалять"
         description={(
-          <div className="space-y-2 text-sm text-on-surface-variant" data-testid="waybill-delete-body">
+          <div className="space-y-2 text-body-medium text-on-surface-variant" data-testid="waybill-delete-body">
             {view.lines.length > 0 && <p>Уйдут насовсем: строки накладной — {view.lines.length}.</p>}
             <p>В «Материалы на объекте» черновик не входил — там ничего не изменится.</p>
             {dirty && <p>Несохранённые правки на экране тоже пропадут.</p>}

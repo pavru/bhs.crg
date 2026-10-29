@@ -24,12 +24,12 @@ export function ForgotPasswordPage() {
     return (
       <AuthCard title="Проверьте почту">
         <div className="space-y-4">
-          <p className="flex items-start gap-2 text-sm text-on-surface-variant">
+          <p className="flex items-start gap-2 text-body-medium text-on-surface-variant">
             <Icon icon={MarkEmailRead} size={18} className="shrink-0 mt-0.5 text-success" />
             Если аккаунт с адресом <span className="font-medium">{email.trim()}</span> существует,
             мы отправили письмо со ссылкой для сброса пароля. Ссылка действует 1 час.
           </p>
-          <Link to="/login" className="inline-block text-sm font-medium text-primary hover:underline">
+          <Link to="/login" className="inline-block text-body-medium font-medium text-primary hover:underline">
             Вернуться ко входу
           </Link>
         </div>
@@ -45,7 +45,7 @@ export function ForgotPasswordPage() {
         <Button type="submit" variant="filled" size="lg" fullWidth loading={forgot.isPending}>
           Отправить ссылку
         </Button>
-        <Link to="/login" className="block text-center text-sm font-medium text-primary hover:underline">
+        <Link to="/login" className="block text-center text-body-medium font-medium text-primary hover:underline">
           Вернуться ко входу
         </Link>
       </form>

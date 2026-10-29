@@ -62,7 +62,7 @@ export function ActivityCenter() {
             <>
               <CircularProgress size={20} className="text-primary" />
               {/* На телефоне — кольцо и число: подпись выдавливала аватар из первой строки шапки (#1430). */}
-              <span className="max-sm:hidden max-w-45 truncate text-sm font-medium">{doing}</span>
+              <span className="max-sm:hidden max-w-45 truncate text-body-medium font-medium">{doing}</span>
               {unread > 0 && <Count n={unread} error={hasUnreadError} />}
             </>
           ) : (
@@ -80,7 +80,7 @@ export function ActivityCenter() {
           className="z-50 w-100 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) flex flex-col overflow-hidden rounded-2xl border border-outline-variant bg-surface focus:outline-none shadow-elevation-2">
           {busy && (
             <section aria-labelledby={jobsHeading} className="shrink-0 border-b border-outline-variant pt-1">
-              <h2 id={jobsHeading} className="px-5 pt-2 text-base font-medium text-on-surface">Выполняется</h2>
+              <h2 id={jobsHeading} className="px-5 pt-2 text-body-large font-medium text-on-surface">Выполняется</h2>
               {/* Ход задач озвучивается, пока поповер открыт (так было у прежнего поповера задач).
                   Таймер в строке из озвучки убран — иначе диктор читал бы его каждую секунду. */}
               <div role="status" className="max-h-60 overflow-y-auto">
@@ -102,7 +102,7 @@ export function ActivityCenter() {
 function Count({ n, error }: { n: number; error: boolean }) {
   return (
     <span aria-hidden="true"
-      className={'min-w-4 h-4 px-1 rounded-full text-caption font-medium flex items-center justify-center ' +
+      className={'min-w-4 h-4 px-1 rounded-full text-label-small font-medium flex items-center justify-center ' +
         (error ? 'bg-error text-surface' : 'bg-primary text-on-primary')}>
       {n > 99 ? '99+' : n}
     </span>

@@ -29,7 +29,7 @@ function ToolbarButton({
   return (
     <Tooltip content={title}>
       <button type="button" onClick={onClick}
-        className={`state-layer px-2 py-1 text-sm rounded-xs ${active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}>
+        className={`state-layer px-2 py-1 text-body-medium rounded-xs ${active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}>
         {children}
       </button>
     </Tooltip>
@@ -64,28 +64,28 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
   return (
     <div className="relative" ref={ref}>
       <ToolbarButton active={open} onClick={() => setOpen(v => !v)} title="Вставить реквизит">
-        <span className="flex items-center gap-1 text-xs font-mono">
+        <span className="flex items-center gap-1 text-body-small font-mono">
           <Icon icon={MenuBook} size={18} /> Реквизит
         </span>
       </ToolbarButton>
       {open && (
         <div className="absolute top-full left-0 mt-1 z-50 bg-surface border border-outline-variant rounded-md shadow-elevation-2 w-80 max-h-80 overflow-y-auto">
-          <div className="px-3 py-2 border-b border-surface-container text-xs font-semibold text-on-surface-variant uppercase tracking-wide sticky top-0 bg-surface">
+          <div className="px-3 py-2 border-b border-surface-container text-body-small font-semibold text-on-surface-variant uppercase tracking-wide sticky top-0 bg-surface">
             Реквизиты · {docType.name}
           </div>
           {fields.length === 0 ? (
-            <p className="px-3 py-4 text-xs text-on-surface-variant text-center">Нет реквизитов</p>
+            <p className="px-3 py-4 text-body-small text-on-surface-variant text-center">Нет реквизитов</p>
           ) : (
             <div className="py-1">
               {fields.map(f => (
                 <button key={f.path} onClick={() => insertField(f.path)}
                   className={`w-full flex items-center gap-2 py-1.5 hover:bg-primary-container transition-colors text-left group ${f.type === 'complex' ? 'opacity-60 cursor-default pointer-events-none' : ''}`}
                   style={{ paddingLeft: `${0.75 + f.depth * 1}rem` }}>
-                  <code className="text-xs font-mono text-on-primary-container bg-primary-container group-hover:bg-primary-container px-1.5 py-0.5 rounded-xs shrink-0 max-w-[160px] truncate">
+                  <code className="text-body-small font-mono text-on-primary-container bg-primary-container group-hover:bg-primary-container px-1.5 py-0.5 rounded-xs shrink-0 max-w-[160px] truncate">
                     {f.path}
                   </code>
-                  <span className="text-xs text-on-surface-variant truncate flex-1">{f.title}</span>
-                  <span className="text-xs text-on-surface-variant shrink-0 pr-2">{f.type}</span>
+                  <span className="text-body-small text-on-surface-variant truncate flex-1">{f.title}</span>
+                  <span className="text-body-small text-on-surface-variant shrink-0 pr-2">{f.type}</span>
                 </button>
               ))}
             </div>
@@ -117,7 +117,7 @@ function NewVersionDialog({ nextVersion, saving, onCancel, onConfirm }: {
         </div>
       }>
       <div className="space-y-4 px-1">
-        <p className="text-sm text-on-surface-variant">
+        <p className="text-body-medium text-on-surface-variant">
           Будет создана <strong>версия v{nextVersion}</strong>. Текущая версия сохранится в истории.
         </p>
         <TextField label="Примечание к версии (необязательно)" value={comment}
@@ -312,7 +312,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
             href="https://typst.app/docs"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-2 py-1 text-xs text-on-surface-variant hover:text-primary state-layer rounded-xs"
+            className="px-2 py-1 text-body-small text-on-surface-variant hover:text-primary state-layer rounded-xs"
           >
             Typst docs ↗
           </a>
@@ -322,7 +322,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
           <Tooltip content={
             dirty ? 'Есть несохранённые правки' : 'Сохранено'
           }>
-            <span className="text-xs text-on-surface-variant flex items-center gap-1">
+            <span className="text-body-small text-on-surface-variant flex items-center gap-1">
               v{template.version}
               {dirty
                 ? <span className="w-1.5 h-1.5 rounded-full bg-warning" aria-label="есть правки" />
@@ -330,33 +330,33 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
             </span>
           </Tooltip>
           {template.isActive ? (
-            <span className="text-xs text-success flex items-center gap-1"><Icon icon={CheckCircle} size={18} /> активный</span>
+            <span className="text-body-small text-success flex items-center gap-1"><Icon icon={CheckCircle} size={18} /> активный</span>
           ) : (
             <Tooltip content="Не активная версия — правится только форком в новую">
-              <span className="text-xs text-on-surface-variant flex items-center gap-1">
+              <span className="text-body-small text-on-surface-variant flex items-center gap-1">
                 <Icon icon={HistoryIcon} size={18} /> историческая
               </span>
             </Tooltip>
           )}
           {template.isDefault ? (
-            <span className="text-xs text-warning flex items-center gap-1">
+            <span className="text-body-small text-warning flex items-center gap-1">
               <Icon icon={Star} size={18} className="fill-warning text-warning" /> по умолчанию
             </span>
           ) : (
             <button onClick={handleSetDefault} disabled={defaultMutation.isPending}
-              className="flex items-center gap-1 px-2 py-1 text-xs border border-outline-variant text-warning hover:bg-warning-container rounded-xs disabled-outlined transition-colors">
+              className="flex items-center gap-1 px-2 py-1 text-body-small border border-outline-variant text-warning hover:bg-warning-container rounded-xs disabled-outlined transition-colors">
               <Icon icon={Star} size={18} /> Сделать по умолчанию
             </button>
           )}
-          {savedMsg && <span className="text-xs text-success">Сохранено ✓</span>}
-          {error && <span className="text-xs text-error max-w-xs truncate" title={error}>{error}</span>}
+          {savedMsg && <span className="text-body-small text-success">Сохранено ✓</span>}
+          {error && <span className="text-body-small text-error max-w-xs truncate" title={error}>{error}</span>}
 
           {/* Сплит-кнопка: слева in-place (Ctrl+S), справа каретка → меню «новая версия» */}
           <div className="relative flex items-center" ref={saveMenuRef}>
             {template.isActive ? (
               <Tooltip content="Сохранить в текущую версию (Ctrl+S)">
                 <button type="button" onClick={handleSave} disabled={saving}
-                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-primary text-on-primary shadow-elevation-1 state-layer disabled-container">
+                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-body-small font-medium rounded-l-full bg-primary text-on-primary shadow-elevation-1 state-layer disabled-container">
                   <Icon icon={Save} size={18} /> {saving ? 'Сохранение…' : 'Сохранить'}
                 </button>
               </Tooltip>
@@ -364,7 +364,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
               // Историческую версию in-place не сохранить — левая кнопка ведёт на форк.
               <Tooltip content="Историческая версия — сохранить как новую">
                 <button type="button" onClick={() => setNewVersionOpen(true)} disabled={saving}
-                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-primary text-on-primary shadow-elevation-1 state-layer disabled-container">
+                  className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-body-small font-medium rounded-l-full bg-primary text-on-primary shadow-elevation-1 state-layer disabled-container">
                   <Icon icon={CallSplit} size={18} /> Сохранить как новую
                 </button>
               </Tooltip>
@@ -382,8 +382,8 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
                   className="w-full flex items-start gap-2 px-3 py-2 text-left state-layer">
                   <Icon icon={CallSplit} size={18} className="text-primary shrink-0 mt-0.5" />
                   <span>
-                    <span className="block text-sm text-on-surface">Сохранить как новую версию…</span>
-                    <span className="block text-xs text-on-surface-variant">Создаст v{template.version + 1}, сохранит историю текущей</span>
+                    <span className="block text-body-medium text-on-surface">Сохранить как новую версию…</span>
+                    <span className="block text-body-small text-on-surface-variant">Создаст v{template.version + 1}, сохранит историю текущей</span>
                   </span>
                 </button>
               </div>

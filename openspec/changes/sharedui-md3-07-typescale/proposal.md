@@ -29,13 +29,13 @@
   - `text-caption` → `text-label-small`.
 
   Остальное перечисляется отчётом.
-- **Межбуквенный интервал** — по ролям MD3, в таблицах — 0 (рекомендация В10).
+- **Межбуквенный интервал** — по ролям MD3 везде, в таблицах тоже (В10, вариант «в»).
 - **По месту, вторым PR:**
   - `text-note` → `body-medium` или `body-small`;
   - микрозаголовки `uppercase tracking-wide` → `title-small` без капса;
   - `text-lg/xl/2xl/3xl` → роль.
 
-  Ступень `note` удаляется из темы (рекомендация В10).
+  Ступень `note` удаляется из темы (В10).
 - **Правило храповика `legacy-type`:** ступени Tailwind, `caption`, `note`, `font-semibold/bold`,
   `uppercase`, `tracking-*`. Подсказка правила `text-size` называет роли. Перечень правил в `CLAUDE.md` и
   `AGENTS.md` — одним коммитом.
@@ -55,8 +55,7 @@
   - `src/client/src/index.css` / `src/theme/` — роли `--md-sys-typescale-*` и `--text-*`;
   - `scripts/md3-migrate.mjs` и карта — шаг текста;
   - `scripts/ui-ratchet-lib.mjs` и `ui-baseline.json`;
-  - около 2200 мест в ~300 файлах;
-  - `DataGrid` и `EditGrid` — интервал 0.
+  - около 2200 мест в ~300 файлах.
 - **Документы:** `docs/UI.md`, `CLAUDE.md` и `AGENTS.md` (одним коммитом), `/design-sync` (D12).
 - **Сервер:** не меняется.
 - **PR:**

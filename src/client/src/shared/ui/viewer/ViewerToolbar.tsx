@@ -86,20 +86,20 @@ function PageField({ page, numPages, onPage }: { page: number; numPages: number;
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditing(false); setText(String(page)); }
   };
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-on-surface-variant whitespace-nowrap">
+    <span className="inline-flex items-center gap-1 text-body-small text-on-surface-variant whitespace-nowrap">
       <input aria-label="Номер страницы" aria-describedby={total} inputMode="numeric" value={editing ? text : String(page)}
         onFocus={e => { setText(String(page)); setEditing(true); e.currentTarget.select(); }} onBlur={commit} onKeyDown={onKeyDown}
         // Набор после Enter или Esc — фокус в поле остался, а onFocus второй раз не придёт: правка
         // начинается с первой клавиши, иначе поле показывало бы текущий номер, а копило невидимое.
         onChange={e => { setText(e.target.value); setEditing(true); }}
-        className="w-[4ch] h-6 rounded-xs border border-outline-variant bg-surface text-center text-xs text-on-surface tabular-nums focus:outline-none focus:border-primary" />
+        className="w-[4ch] h-6 rounded-xs border border-outline-variant bg-surface text-center text-body-small text-on-surface tabular-nums focus:outline-none focus:border-primary" />
       <span id={total}>из {numPages}</span>
     </span>
   );
 }
 
 const itemCls =
-  'flex items-center justify-between gap-3 px-3 py-1.5 text-sm text-on-surface-variant cursor-pointer select-none outline-none ' +
+  'flex items-center justify-between gap-3 px-3 py-1.5 text-body-medium text-on-surface-variant cursor-pointer select-none outline-none ' +
   'state-layer disabled-content data-[disabled]:pointer-events-none';
 
 /** Меню масштаба по образцу `LayoutChooser`: чип с меню, открывается вверх — панель внизу. */
@@ -108,7 +108,7 @@ function ZoomMenu(p: ToolbarProps) {
     <DropdownMenu.Item key={key} className={itemCls} onSelect={onSelect} disabled={opts.disabled}>
       <span className={opts.checked ? 'text-on-surface font-medium' : undefined}>{label}</span>
       {opts.checked ? <Icon icon={Check} size={18} className="text-primary" aria-hidden />
-        : opts.hint && <span className="text-xs text-on-surface-variant">{opts.hint}</span>}
+        : opts.hint && <span className="text-body-small text-on-surface-variant">{opts.hint}</span>}
     </DropdownMenu.Item>
   );
   return (

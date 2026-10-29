@@ -24,7 +24,7 @@ export function ParseReport({ report, sectionName }: { report: EstimateImport; s
   const notes = report.marks.filter(m => m.code !== 'partial' && m.code !== 'interrupted');
 
   return (
-    <div className="space-y-3 text-sm">
+    <div className="space-y-3 text-body-medium">
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
         <dt className="text-on-surface-variant">Файл</dt>
         <dd className="text-on-surface break-all">
@@ -53,7 +53,7 @@ export function ParseReport({ report, sectionName }: { report: EstimateImport; s
             <div className="h-full bg-primary" style={{ width: `${report.inFile > 0 ? (report.parsed / report.inFile) * 100 : 0}%` }} />
           </div>
           {summary && (
-            <p className="text-xs text-on-surface-variant">
+            <p className="text-body-small text-on-surface-variant">
               {countOf(summary.chapters.length, 'раздел', 'раздела', 'разделов')} · в редакцию войдёт {countOf(summary.rows, 'строка', 'строки', 'строк')}
               {closed
                 ? ` · итог скрыт: нужно право «${closed.name}»`
@@ -97,7 +97,7 @@ function Disclosure({ tone, title, hint, children }: { tone: Tone; title: string
         {open ? <Icon icon={KeyboardArrowDown} size={18} className="mt-0.5 shrink-0" aria-hidden /> : <Icon icon={ChevronRight} size={18} className="mt-0.5 shrink-0" aria-hidden />}
         <span className="min-w-0">
           <span className="font-medium">{title}</span>
-          {hint && <span className="block text-xs text-on-surface-variant">{hint}</span>}
+          {hint && <span className="block text-body-small text-on-surface-variant">{hint}</span>}
         </span>
       </button>
       {open && <div className="px-3 pb-3">{children}</div>}

@@ -31,7 +31,7 @@ export function JsonPathBuilder({ value, onChange, placeholder, preview }: JsonP
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder ?? '$.items[*]'}
         spellCheck={false}
-        className="w-full border border-outline rounded-sm px-2 py-1.5 text-xs font-mono bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="w-full border border-outline rounded-sm px-2 py-1.5 text-body-small font-mono bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       />
       {preview && <JsonPathPreviewPanel spec={previewSpec} />}
     </div>
@@ -44,7 +44,7 @@ function JsonPathPreviewPanel({ spec }: { spec: ExpressionPreviewSpec | null }) 
   if (!spec) return null;
 
   return (
-    <div className="text-xs rounded-sm border border-outline-variant bg-surface-container-low px-2 py-1.5">
+    <div className="text-body-small rounded-sm border border-outline-variant bg-surface-container-low px-2 py-1.5">
       {isFetching ? (
         <span className="flex items-center gap-1.5 text-on-surface-variant">
           <CircularProgress size={18} /> Проверка...

@@ -49,7 +49,7 @@ export function useScopePurge(level: PurgeLevel, closeConfirm: () => void, onDon
         above: offer => {
           const lines = leavingLines(offer.leaving);
           return lines.length > 0 && (
-            <div className="mb-3 text-xs text-on-surface-variant">
+            <div className="mb-3 text-body-small text-on-surface-variant">
               <p>{words.together}</p>
               <CascadeList items={lines} />
             </div>

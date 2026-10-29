@@ -33,7 +33,7 @@ export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, on
   const archived = queueChip('archived', queues, queue === 'archived');
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 px-3 py-1.5 text-xs" role="group" aria-label="Отбор списка счетов">
+    <div className="flex flex-wrap items-center gap-1.5 px-3 py-1.5 text-body-small" role="group" aria-label="Отбор списка счетов">
       {/* «Разобрать» (ТЗ COST-6.2, issue #1292) — рабочая очередь: все недоведённые счета, то есть
           черновики. Отбирает и считает СЕРВЕР. Чип стоит всегда; числа нет, пока оно не пришло либо
           равно нулю, — «не посчитано» нулём не рисуем. */}

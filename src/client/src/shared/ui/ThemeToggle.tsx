@@ -25,7 +25,7 @@ export function ThemeToggle({ label }: {
         return (
           <Tooltip key={value} content={hint ? `${optionLabel} — ${hint}` : optionLabel}>
             <button type="button" onClick={() => setTheme(value)} aria-label={optionLabel} aria-pressed={active}
-              className={'flex-1 flex items-center justify-center gap-1 text-xs state-layer focus-ring-inset ' +
+              className={'flex-1 flex items-center justify-center gap-1 text-body-small state-layer focus-ring-inset ' +
                 `${i > 0 ? 'border-l border-outline' : ''} ` +
                 (active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant')}>
               {active && <Icon icon={Check} size={18} className="shrink-0" />}

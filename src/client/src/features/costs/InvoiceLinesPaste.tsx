@@ -92,12 +92,12 @@ function PasteDialog({ mode, onClose, onAdd }: {
           <textarea value={text} onChange={e => setText(e.target.value)} rows={5}
             aria-label="Таблица из буфера"
             placeholder="Вставьте сюда таблицу товаров — из Excel, из PDF или из письма"
-            className="w-full rounded-md border border-outline-variant bg-surface-container px-3 py-2 text-xs font-mono
+            className="w-full rounded-md border border-outline-variant bg-surface-container px-3 py-2 text-body-small font-mono
               text-on-surface outline-none focus:border-primary" />
 
           {table.length > 0 && (
             <>
-              <p className="text-xs text-on-surface-variant">
+              <p className="text-body-small text-on-surface-variant">
                 Разобрано строк: <b className="text-on-surface-variant">{rows.length}</b>
                 {hasHeader(table) && ' (первая строка принята за шапку и в счёт не пойдёт)'}. Роли
                 колонок ниже — <b>догадка</b>: проверьте их, прежде чем добавлять.
@@ -126,7 +126,7 @@ function PasteDialog({ mode, onClose, onAdd }: {
                 }))} />
 
               {rows.length > 8 && (
-                <p className="text-xs text-on-surface-variant">Показаны первые 8 строк из {rows.length} — добавятся все.</p>
+                <p className="text-body-small text-on-surface-variant">Показаны первые 8 строк из {rows.length} — добавятся все.</p>
               )}
 
               {offered ? (
@@ -135,7 +135,7 @@ function PasteDialog({ mode, onClose, onAdd }: {
                   description={chosen === 'Included' ? undefined
                     : `${byHeader && onTop === null ? 'В шапке таблицы цены без НДС. ' : ''}Отметка встанет и над строками счёта — для всех его строк.`} />
               ) : mode === 'OnTop' && (
-                <p className="text-xs text-on-surface-variant">Цены без НДС, НДС сверху — как отмечено над строками счёта.</p>
+                <p className="text-body-small text-on-surface-variant">Цены без НДС, НДС сверху — как отмечено над строками счёта.</p>
               )}
             </>
           )}

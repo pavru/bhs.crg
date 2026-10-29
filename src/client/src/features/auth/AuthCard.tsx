@@ -17,7 +17,7 @@ export function AuthCard({ title, subtitle, children }: {
           <span className="text-2xl font-semibold text-primary leading-none">{productName}</span>
         </div>
         <h1 className="text-xl font-normal text-on-surface">{title}</h1>
-        {subtitle && <p className="mt-1.5 mb-6 text-sm text-on-surface-variant">{subtitle}</p>}
+        {subtitle && <p className="mt-1.5 mb-6 text-body-medium text-on-surface-variant">{subtitle}</p>}
         <div className={subtitle ? '' : 'mt-6'}>{children}</div>
       </div>
     </div>

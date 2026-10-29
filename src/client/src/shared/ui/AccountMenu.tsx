@@ -17,7 +17,7 @@ import { THEME_OPTIONS } from '@/shared/ui/themeOptions';
 import { Tooltip } from './Tooltip';
 import { useHistoryLayer } from './historyLayers';
 
-const item = 'flex items-center gap-3.5 h-11 px-3 rounded-lg text-sm text-on-surface cursor-pointer select-none outline-none state-layer';
+const item = 'flex items-center gap-3.5 h-11 px-3 rounded-lg text-body-medium text-on-surface cursor-pointer select-none outline-none state-layer';
 
 /**
  * Меню профиля в шапке (issue #1430) — только то, что касается самого человека: кто он, профиль и
@@ -73,7 +73,7 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
           aria-label={`${name} — профиль и оформление${newer ? `; доступна версия ${newer}` : ''}`}
           className={'relative shrink-0 rounded-full max-md:p-1 focus-ring data-[state=open]:ring-2 data-[state=open]:ring-primary ' +
             (here || inAdmin ? 'ring-2 ring-primary' : '')}>
-          <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-9 h-9 text-sm" />
+          <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-9 h-9 text-body-medium" />
           {newer && <span data-testid="update-dot" aria-hidden="true"
             className="absolute -top-0.5 -right-0.5 max-md:top-0.5 max-md:right-0.5 w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-surface" />}
         </button>
@@ -82,11 +82,11 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
         <DropdownMenu.Content align="end" sideOffset={8}
           className="z-50 w-80 max-w-[calc(100vw-1rem)] rounded-lg border border-outline-variant bg-surface overflow-hidden focus:outline-none shadow-elevation-2">
           <div className="flex items-center gap-3.5 px-5 pt-5 pb-3">
-            <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-12 h-12 text-base" />
+            <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-12 h-12 text-body-large" />
             <div className="min-w-0">
-              <div className="text-base font-medium text-on-surface truncate">{name}</div>
-              {roles && <div className="text-xs text-on-surface-variant truncate">{roles}</div>}
-              {user?.displayName && <div className="text-xs text-on-surface-variant truncate">{user.email}</div>}
+              <div className="text-body-large font-medium text-on-surface truncate">{name}</div>
+              {roles && <div className="text-body-small text-on-surface-variant truncate">{roles}</div>}
+              {user?.displayName && <div className="text-body-small text-on-surface-variant truncate">{user.email}</div>}
             </div>
           </div>
 
@@ -102,7 +102,7 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
                 забрала бы себе первый Esc, и меню не закрылось бы.
                 Выбор меню не закрывает — новая тема видна сразу, и её можно сменить ещё раз. */}
             <DropdownMenu.Group className="px-3 pt-2 pb-2.5">
-              <div className="flex items-baseline gap-2 pb-1.5 text-xs">
+              <div className="flex items-baseline gap-2 pb-1.5 text-body-small">
                 <DropdownMenu.Label className="flex-1 font-medium text-on-surface-variant">Оформление</DropdownMenu.Label>
                 <span className="text-on-surface-variant">{autoHint}</span>
               </div>
@@ -110,7 +110,7 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
                 className="flex rounded-full border border-outline overflow-hidden">
                 {THEME_OPTIONS.map(({ value, icon, label }, i) => (
                   <DropdownMenu.RadioItem key={value} value={value} onSelect={e => e.preventDefault()}
-                    className={'flex-1 flex items-center justify-center gap-1.5 h-9 text-xs cursor-pointer select-none outline-none state-layer ' +
+                    className={'flex-1 flex items-center justify-center gap-1.5 h-9 text-body-small cursor-pointer select-none outline-none state-layer ' +
                       (i > 0 ? 'border-l border-outline ' : '') +
                       (theme === value ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant')}>
                     <Icon icon={icon} size={18} className="shrink-0" />{label}
@@ -176,7 +176,7 @@ function VersionLine({ version: data, newer }: {
   ].filter(Boolean).join(' · ');
   return (
     <Tooltip content={title}>
-      <div data-testid="app-version" className="px-5 py-2.5 bg-surface-container-low text-caption text-on-surface-variant truncate">
+      <div data-testid="app-version" className="px-5 py-2.5 bg-surface-container-low text-label-small text-on-surface-variant truncate">
         Версия {data.version}{data.commit ? ` · ${data.commit}` : ''}
         {newer && <span className="text-primary"> · доступна {newer}</span>}
       </div>

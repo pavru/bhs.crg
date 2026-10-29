@@ -50,16 +50,16 @@ function EstimateList({ constructionId, sectionId, base }: { constructionId: str
   const editable = useEstimateEdit();
   const [importing, setImporting] = useState<{ importId?: string } | null>(null);
 
-  if (estimates.isError) return <p role="alert" className="text-sm text-error">{apiError(estimates.error, 'Сметы не прочитались')}</p>;
-  if (!estimates.data) return <p className="text-sm text-on-surface-variant">Читаем сметы…</p>;
+  if (estimates.isError) return <p role="alert" className="text-body-medium text-error">{apiError(estimates.error, 'Сметы не прочитались')}</p>;
+  if (!estimates.data) return <p className="text-body-medium text-on-surface-variant">Читаем сметы…</p>;
 
   const items = sectionId ? estimates.data.items.filter(e => e.sectionId === sectionId) : estimates.data.items;
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-start gap-2">
         <div className="min-w-0 flex-1">
-          <h2 className="text-base font-semibold text-on-surface">Сметы</h2>
-          <p className="text-xs text-on-surface-variant">План {sectionId ? 'раздела' : 'стройки'} считается по действующим редакциям смет</p>
+          <h2 className="text-body-large font-semibold text-on-surface">Сметы</h2>
+          <p className="text-body-small text-on-surface-variant">План {sectionId ? 'раздела' : 'стройки'} считается по действующим редакциям смет</p>
         </div>
         {editable && (
           <Button variant="filled" size="sm" icon={<Icon icon={Upload} size={18} aria-hidden />} onClick={() => setImporting({})}>Загрузить смету</Button>
@@ -98,7 +98,7 @@ function listColumns(hidden: Estimate['hidden'], sections: ReadonlyMap<string, s
         <span>
           <span className="font-medium text-on-surface">{e.name}</span>
           <span className="text-on-surface-variant"> · {KIND_LABEL[e.kind]}</span>
-          {sections && e.sectionId && sections.get(e.sectionId) && <span className="block text-xs text-on-surface-variant">раздел «{sections.get(e.sectionId)}»</span>}
+          {sections && e.sectionId && sections.get(e.sectionId) && <span className="block text-body-small text-on-surface-variant">раздел «{sections.get(e.sectionId)}»</span>}
         </span>
       ),
     },

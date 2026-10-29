@@ -48,18 +48,18 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
       <div className="flex items-center gap-2">
         {/* Номера нет, скан есть — имя файла: три черновика из скана подряд иначе неразличимы. */}
         {item.number || !item.scanFileName
-          ? <span className="text-sm text-on-surface font-medium truncate">{item.number ?? 'без номера'}</span>
+          ? <span className="text-body-medium text-on-surface font-medium truncate">{item.number ?? 'без номера'}</span>
           : (
             <Tooltip content="Номера ещё нет — это имя файла счёта">
-              <span className="inline-flex items-center gap-1 min-w-0 text-sm text-on-surface-variant">
+              <span className="inline-flex items-center gap-1 min-w-0 text-body-medium text-on-surface-variant">
                 <Icon icon={DocumentScanner} size={18} className="shrink-0 text-on-surface-variant" aria-hidden />
                 <span className="truncate">{item.scanFileName}</span>
               </span>
             </Tooltip>
           )}
-        {item.issuedOn && <span className="text-xs text-on-surface-variant shrink-0">{formatDate(item.issuedOn)}</span>}
+        {item.issuedOn && <span className="text-body-small text-on-surface-variant shrink-0">{formatDate(item.issuedOn)}</span>}
         <div className="flex-1" />
-        {item.total != null && <span className="text-xs text-on-surface-variant shrink-0">{formatMoney(item.total)}</span>}
+        {item.total != null && <span className="text-body-small text-on-surface-variant shrink-0">{formatMoney(item.total)}</span>}
       </div>
       <div className="flex items-center gap-2 mt-0.5">
         <SupplierName item={item} />
@@ -67,14 +67,14 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
         {/* Значки-счётчики. Нулей не рисуем: число «0» у каждой строки читается как шум. */}
         {lost > 0 && (
           <Tooltip content={lostTitle(item)}>
-            <span className="inline-flex items-center gap-0.5 text-xs text-error shrink-0" aria-label={`Удалённых записей: ${lost}`}>
+            <span className="inline-flex items-center gap-0.5 text-body-small text-error shrink-0" aria-label={`Удалённых записей: ${lost}`}>
               <Icon icon={Warning} size={18} aria-hidden />{lost}
             </span>
           </Tooltip>
         )}
         {archived > 0 && (
           <Tooltip content={`Записи в архиве — ${placesText(item.references?.archived)}. Счёт верен: запись цела, её лишь убрали из выбора.`}>
-            <span className="inline-flex items-center gap-0.5 text-xs text-on-surface-variant shrink-0"
+            <span className="inline-flex items-center gap-0.5 text-body-small text-on-surface-variant shrink-0"
               aria-label={`Записей в архиве: ${archived}`}>
               <Icon icon={Archive} size={18} aria-hidden />{archived}
             </span>
@@ -82,14 +82,14 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
         )}
         {item.unconfirmedCount > 0 && (
           <Tooltip content="Распознано, не подтверждено">
-            <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0">
+            <span className="inline-flex items-center gap-0.5 text-body-small text-warning shrink-0">
               <Icon icon={StarShine} size={18} />{item.unconfirmedCount}
             </span>
           </Tooltip>
         )}
         {due && (
           <Tooltip content={due.title}>
-            <span className={`inline-flex items-center gap-0.5 text-xs shrink-0 ${DUE_TONE[due.tone]}`} data-testid="row-due">
+            <span className={`inline-flex items-center gap-0.5 text-body-small shrink-0 ${DUE_TONE[due.tone]}`} data-testid="row-due">
               {due.tone === 'danger' ? <Icon icon={Alarm} size={18} aria-hidden /> : <Icon icon={Schedule} size={18} aria-hidden />}{due.text}
             </span>
           </Tooltip>
@@ -97,7 +97,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
         {/* Отклонённый назван словом: в реестре он остаётся, и без пометки выглядел бы счётом в работе. */}
         {rejected && (
           <Tooltip content="По счёту не платим">
-            <span className="inline-flex items-center gap-0.5 text-xs text-on-surface-variant shrink-0">
+            <span className="inline-flex items-center gap-0.5 text-body-small text-on-surface-variant shrink-0">
               <Icon icon={Block} size={18} aria-hidden />отклонён
             </span>
           </Tooltip>
@@ -106,7 +106,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
             пометки счёт закрытого месяца выглядел бы таким, каким его закрыли. */}
         {item.corrected && (
           <Tooltip content="Менялся после закрытия периода — история в карточке счёта, секция «Исправления»">
-            <span className="inline-flex items-center gap-0.5 text-xs text-on-surface-variant shrink-0">
+            <span className="inline-flex items-center gap-0.5 text-body-small text-on-surface-variant shrink-0">
               <Icon icon={HistoryIcon} size={18} aria-hidden />исправлен
             </span>
           </Tooltip>
@@ -116,24 +116,24 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
             относится — она с issue #1292 отбирает по состоянию, а не по строкам без позиции. */}
         {!rejected && item.linesWithoutNomenclature > 0 && (
           <Tooltip content={`Строк ждёт позиции номенклатуры: ${item.linesWithoutNomenclature} из ${item.linesCount}`}>
-            <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0">
+            <span className="inline-flex items-center gap-0.5 text-body-small text-warning shrink-0">
               <Icon icon={Checklist} size={18} />{item.linesWithoutNomenclature}
             </span>
           </Tooltip>
         )}
       </div>
       {where && (
-        <div className={`mt-0.5 text-xs truncate ${queue === 'lost' ? 'text-error' : 'text-on-surface-variant'}`}>{where}</div>
+        <div className={`mt-0.5 text-body-small truncate ${queue === 'lost' ? 'text-error' : 'text-on-surface-variant'}`}>{where}</div>
       )}
       {readiness && (
         <Tooltip content={readiness.title}>
-          <div className={`mt-0.5 text-xs truncate ${readiness.ready ? 'text-success' : 'text-on-surface-variant'}`} data-testid="row-readiness">
+          <div className={`mt-0.5 text-body-small truncate ${readiness.ready ? 'text-success' : 'text-on-surface-variant'}`} data-testid="row-readiness">
             {readiness.text}
           </div>
         </Tooltip>
       )}
       {scan && (
-        <div className={`mt-0.5 flex items-center gap-1 text-xs ${SCAN_TONE[scan.tone]}`}>
+        <div className={`mt-0.5 flex items-center gap-1 text-body-small ${SCAN_TONE[scan.tone]}`}>
           {scan.running && <CircularProgress size={18} className="shrink-0" />}
           <span className="truncate">{scan.text}</span>
         </div>
@@ -168,8 +168,8 @@ export function InvoiceLeftRow({ number, onClick, exit, active = true }: {
         : 'Счёт под этот отбор больше не попадает. Строка остаётся, пока он открыт'}>
       <button type="button" onClick={onClick} data-testid={exit ? 'row-exit' : undefined}
         className={`state-layer w-full text-left px-3 py-2 border-b border-outline-variant/60 ${active ? 'bg-primary-container' : ''}`}>
-        <div className="text-sm text-on-surface font-medium truncate">{number || 'без номера'}</div>
-        <div className="mt-0.5 inline-flex items-center gap-1 text-xs text-on-surface-variant">
+        <div className="text-body-medium text-on-surface font-medium truncate">{number || 'без номера'}</div>
+        <div className="mt-0.5 inline-flex items-center gap-1 text-body-small text-on-surface-variant">
           <Icon icon={Check} size={18} aria-hidden /> {exit ? EXIT_WORD[exit] : 'больше не в отборе'}
         </div>
       </button>
@@ -191,20 +191,20 @@ export function InvoiceLeftRow({ number, onClick, exit, active = true }: {
 function SupplierName({ item }: { item: InvoiceListItem }) {
   if (item.supplierName) {
     return (
-      <span className="inline-flex items-center gap-1 min-w-0 text-xs text-on-surface-variant">
+      <span className="inline-flex items-center gap-1 min-w-0 text-body-small text-on-surface-variant">
         <span className="truncate">{item.supplierName}</span>
         {item.supplierArchived && <ArchivedMark words={false} />}
       </span>
     );
   }
-  if (!item.supplierId) return <span className="text-xs text-on-surface-variant truncate">поставщик не выбран</span>;
+  if (!item.supplierId) return <span className="text-body-small text-on-surface-variant truncate">поставщик не выбран</span>;
 
   const lost = item.references?.supplierLost === true;
   return (
     <Tooltip content={lost
         ? 'Запись справочника удалена. Откройте счёт и выберите другую организацию'
         : 'Ссылка на организацию есть, а в справочнике организаций её нет: запись удалили либо перевели в другой вид. Что именно — скажет открытый счёт'}>
-      <span className="inline-flex items-center gap-1 text-xs text-error truncate">
+      <span className="inline-flex items-center gap-1 text-body-small text-error truncate">
         <Icon icon={Warning} size={18} /> {lost ? LOST.organization : MISSING.organization}
       </span>
     </Tooltip>

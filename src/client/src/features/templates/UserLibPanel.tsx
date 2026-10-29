@@ -223,7 +223,7 @@ export function UserLibPanel() {
   }
 
   if (isLoading) {
-    return <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">Загрузка...</div>;
+    return <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-medium">Загрузка...</div>;
   }
 
   // Чтение не удалось — показываем это, а не пустую панель (issue #504). Без ветки библиотека
@@ -233,10 +233,10 @@ export function UserLibPanel() {
   // входа. Одна неудачная загрузка при перезапуске API — и библиотеки нет.
   if (!data) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-sm">
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-body-medium">
         <Icon icon={ErrorIcon} size={20} className="text-error" />
         <p className="text-on-surface-variant">Не удалось загрузить библиотеку.</p>
-        <p className="text-on-surface-variant text-xs max-w-sm text-center">
+        <p className="text-on-surface-variant text-body-small max-w-sm text-center">
           Правка недоступна, пока библиотека не прочитана: сохранение заменяет дерево целиком и
           стёрло бы его.
         </p>
@@ -283,7 +283,7 @@ export function UserLibPanel() {
 
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex items-center justify-between px-4 py-2 border-b border-outline-variant bg-surface gap-3">
-          <p className="text-xs text-on-surface-variant truncate">
+          <p className="text-body-small text-on-surface-variant truncate">
             {active === ENTRYPOINT ? (
               <>Доступен в каждом шаблоне через{' '}
                 <code className="font-mono bg-surface-container px-1.5 py-0.5 rounded-xs text-on-surface-variant">#import "userlib.typ": *</code>
@@ -293,11 +293,11 @@ export function UserLibPanel() {
             )}
           </p>
           <div className="flex items-center gap-2 shrink-0">
-            {savedMsg && !isDirty && <span className="text-xs text-success">Сохранено</span>}
+            {savedMsg && !isDirty && <span className="text-body-small text-success">Сохранено</span>}
             {/* Полный текст под курсором: строка в шапке узкая, а объяснение отказа сервера
                 («какой путь и чем не годится») в неё не помещается (issue #511). */}
-            {error && <span className="text-xs text-error max-w-xs truncate" title={error}>{error}</span>}
-            {isDirty && <span className="text-xs text-on-surface-variant">Изменено: {dirty.size}</span>}
+            {error && <span className="text-body-small text-error max-w-xs truncate" title={error}>{error}</span>}
+            {isDirty && <span className="text-body-small text-on-surface-variant">Изменено: {dirty.size}</span>}
             <Button variant="filled" size="sm" onClick={handleSave} loading={saveMutation.isPending}
               icon={<Icon icon={Save} size={18} />}>
               {saveMutation.isPending ? 'Сохранение…' : 'Сохранить всё'}
@@ -331,7 +331,7 @@ export function UserLibPanel() {
             перезагрузки мы про собираемость НЕ ЗНАЕМ — и говорим это прямо, а не показываем пустоту,
             которая читалась бы как «всё в порядке» (issue #500). */}
         {!checkApplies && (
-          <div className="px-4 py-1.5 border-b border-outline-variant text-xs text-on-surface-variant flex items-center gap-2">
+          <div className="px-4 py-1.5 border-b border-outline-variant text-body-small text-on-surface-variant flex items-center gap-2">
             <Icon icon={ErrorIcon} size={18} className="shrink-0 text-on-surface-variant" />
             {check === null
               ? 'Собираемость библиотеки не проверялась в этом сеансе — сохраните, чтобы проверить.'
@@ -426,7 +426,7 @@ function DiagnosticBlock({ tone, title, items, alive, onGo }: {
     <div className={`px-4 py-2 border-b border-outline-variant flex items-start gap-2 ${
       tone === 'danger' ? 'bg-error-container' : 'bg-warning-container'}`}>
       <Icon icon={icon} size={18} className={`shrink-0 mt-0.5 ${tone === 'danger' ? 'text-on-error-container' : 'text-on-warning-container'}`} />
-      <div className="min-w-0 text-xs">
+      <div className="min-w-0 text-body-small">
         {title && (
           <p className={`font-medium ${tone === 'danger' ? 'text-on-error-container' : 'text-on-warning-container'}`}>{title}</p>
         )}

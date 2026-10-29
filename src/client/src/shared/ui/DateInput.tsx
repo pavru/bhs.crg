@@ -271,7 +271,7 @@ const COMPACT_TRIGGER = '-mr-1.5';
  */
 const SM_TRIGGER = "relative h-6 w-6 before:absolute before:-inset-1 before:content-['']";
 /** Высота и отступы рамки обвязки — те же, что у `Select` md / sm; справа место держит кнопка календаря. */
-const FRAME = { md: 'h-9 pl-3 pr-0.5 text-sm', sm: 'h-7 pl-2 pr-0.5 text-xs' } as const;
+const FRAME = { md: 'h-9 pl-3 pr-0.5 text-body-medium', sm: 'h-7 pl-2 pr-0.5 text-body-small' } as const;
 const STOP = 'button, input, select, textarea, a[href], [tabindex]';
 /**
  * Крестик поля формы — ускоритель (issue #1463, вариант В): виден при наведении на поле и при фокусе в

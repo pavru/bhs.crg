@@ -42,18 +42,18 @@ function FileNavItem({ icon, label, secondary, count, active, recognizing, stale
         {recognizing ? <CircularProgress size={18} className="text-primary" /> : icon}
       </span>
       <span className="flex-1 min-w-0">
-        <span className={`block truncate text-sm ${active ? 'font-medium' : ''}`} title={label}>{label}</span>
+        <span className={`block truncate text-body-medium ${active ? 'font-medium' : ''}`} title={label}>{label}</span>
         {/* Чип уровня — в начале подписи, а не в хвосте строки (issue #721): в хвосте он отнимал
             ширину у имени, а трёх «Данные системы» подряд без уровня не различить вовсе. */}
         {(secondary || level) && (
-          <span className="flex items-center gap-1.5 text-caption text-on-surface-variant">
+          <span className="flex items-center gap-1.5 text-label-small text-on-surface-variant">
             {level}
             {secondary && <span className="truncate">{secondary}</span>}
           </span>
         )}
       </span>
       {stale && <Tooltip content="Есть устаревшие источники — распознайте набор заново"><span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" /></Tooltip>}
-      {count != null && <span className="text-xs text-on-surface-variant tabular-nums shrink-0">{count}</span>}
+      {count != null && <span className="text-body-small text-on-surface-variant tabular-nums shrink-0">{count}</span>}
     </button>
   );
 }
@@ -66,7 +66,7 @@ function LevelChip({ file }: { file: DataSetFile }) {
   return (
     <Tooltip content={`Набор принадлежит уровню «${SCOPE_LABELS[file.scope]}» — здесь он доступен, потому что этот уровень выше`}>
       <span
-        className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded-xs bg-surface-container text-on-surface-variant leading-tight">
+        className="shrink-0 text-label-small font-medium px-1.5 py-0.5 rounded-xs bg-surface-container text-on-surface-variant leading-tight">
         {SCOPE_LABELS[file.scope]}
       </span>
     </Tooltip>
@@ -92,11 +92,11 @@ function FileDetail({ file, inherited, job }: {
       <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-outline-variant bg-surface-container-low">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-on-surface truncate" title={file.name}>{file.name}</span>
-            <span className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded-xs bg-surface-container text-on-surface-variant">{DATA_SET_FORMAT_LABELS[file.format]}</span>
+            <span className="text-body-medium font-semibold text-on-surface truncate" title={file.name}>{file.name}</span>
+            <span className="shrink-0 text-label-small font-medium px-1.5 py-0.5 rounded-xs bg-surface-container text-on-surface-variant">{DATA_SET_FORMAT_LABELS[file.format]}</span>
             {inherited && <LevelChip file={file} />}
           </div>
-          <div className="text-xs text-on-surface-variant mt-0.5">
+          <div className="text-body-small text-on-surface-variant mt-0.5">
             {sourcesLabel(file.sources.length)} · {isSystem
               ? 'данные собираются системой при каждом обращении'
               : `загружен ${formatDate(file.createdAt)}`}
@@ -123,7 +123,7 @@ function FileDetail({ file, inherited, job }: {
         </div>
       </div>
       {job && (
-        <div className="flex items-center gap-2 px-4 py-2 text-xs bg-primary-container/50 border-b border-outline-variant text-on-surface-variant">
+        <div className="flex items-center gap-2 px-4 py-2 text-body-small bg-primary-container/50 border-b border-outline-variant text-on-surface-variant">
           <CircularProgress size={18} className="text-primary shrink-0" />
           <span className="flex-1 min-w-0 truncate">{job.progress ?? job.title ?? 'Распознаётся…'}</span>
           {job.status === 'Queued' && (
@@ -164,7 +164,7 @@ function AllFilesOverview({ files, inheritedCount, onOpen }: {
   // обзор считает только свои, и без пояснения ноль читался бы как «данных нет вообще».
   if (files.length === 0) {
     return (
-      <p className="text-sm text-on-surface-variant py-6 text-center">
+      <p className="text-body-medium text-on-surface-variant py-6 text-center">
         На этом уровне своих наборов нет.
         {inheritedCount > 0 && ' Доступные с верхних уровней перечислены в списке слева.'}
       </p>
@@ -179,10 +179,10 @@ function AllFilesOverview({ files, inheritedCount, onOpen }: {
             <Icon icon={Description} size={18} className="text-primary shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-on-surface truncate" title={f.name}>{f.name}</span>
-                <span className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded-xs bg-surface-container text-on-surface-variant">{DATA_SET_FORMAT_LABELS[f.format]}</span>
+                <span className="text-body-medium font-medium text-on-surface truncate" title={f.name}>{f.name}</span>
+                <span className="shrink-0 text-label-small font-medium px-1.5 py-0.5 rounded-xs bg-surface-container text-on-surface-variant">{DATA_SET_FORMAT_LABELS[f.format]}</span>
               </div>
-              <div className="text-xs text-on-surface-variant mt-0.5 truncate">
+              <div className="text-body-small text-on-surface-variant mt-0.5 truncate">
                 {sourcesLabel(f.sources.length)}{names && `: ${names}`}{f.sources.length > 4 ? ' …' : ''}
               </div>
             </div>
@@ -340,7 +340,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
 
   const overlay = dragOver && (
     <div className="absolute inset-0 z-10 rounded-md border-2 border-dashed border-primary bg-primary-container/60 flex items-center justify-center pointer-events-none">
-      <span className="text-sm font-medium text-primary">Отпустите файл — загрузим в набор</span>
+      <span className="text-body-medium font-medium text-primary">Отпустите файл — загрузим в набор</span>
     </div>
   );
 
@@ -348,7 +348,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
     <div className="relative" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       {overlay}
       {isLoading ? (
-        <div className="p-8 text-center text-sm text-on-surface-variant">Загрузка...</div>
+        <div className="p-8 text-center text-body-medium text-on-surface-variant">Загрузка...</div>
       ) : allFiles.length === 0 ? (
         // Пусто — когда нет ни своих, ни унаследованных (issue #721): при одних унаследованных
         // экран обязан остаться рейлом, иначе к ним нет входа вовсе.
@@ -367,7 +367,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
                 )}
               </div>
             } />
-          {uploadError && <p className="text-xs text-error text-center mt-2">{uploadError}</p>}
+          {uploadError && <p className="text-body-small text-error text-center mt-2">{uploadError}</p>}
         </>
       ) : (
         <div className="flex gap-5 items-start">
@@ -389,7 +389,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
               <>
                 <button type="button" onClick={() => setInheritedOpen(!inheritedOpen, selectedInherited)}
                   aria-expanded={inheritedOpen}
-                  className="w-full flex items-center gap-1.5 mt-2 pt-2 px-1.5 border-t border-outline-variant text-left text-xs text-on-surface-variant hover:text-primary">
+                  className="w-full flex items-center gap-1.5 mt-2 pt-2 px-1.5 border-t border-outline-variant text-left text-body-small text-on-surface-variant hover:text-primary">
                   <Icon icon={ChevronRight} size={18} className={`shrink-0 transition-transform ${inheritedOpen ? 'rotate-90' : ''}`} />
                   <span className="flex-1 min-w-0">
                     Доступны здесь: {inheritedOpen ? '' : 'ещё '}
@@ -408,7 +408,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
             )}
 
             <div className="pt-2">{uploadBtn}</div>
-            {uploadError && <p className="text-caption text-error px-1 pt-1">{uploadError}</p>}
+            {uploadError && <p className="text-label-small text-error px-1 pt-1">{uploadError}</p>}
           </aside>
 
           {/* Detail */}
@@ -418,7 +418,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
             ) : selectedFile ? (
               <FileDetail file={selectedFile} inherited={selectedInherited} job={jobForFile(selectedFile)} />
             ) : (
-              <div className="text-center py-10 text-on-surface-variant text-sm">
+              <div className="text-center py-10 text-on-surface-variant text-body-medium">
                 Набор не найден. <button className="text-primary state-layer" onClick={() => setSelected(ALL)}>Ко всем наборам</button>
               </div>
             )}

@@ -40,11 +40,11 @@ export function ArchivedTwinNote({ twin, busy, onReturned, onCreateAnyway }: {
   const pending = busy || unarchive.isPending;
   return (
     <div className="rounded-md border border-outline-variant bg-surface-container-low px-3 py-2 space-y-2">
-      <p className="text-sm text-on-surface flex items-center gap-1.5">
+      <p className="text-body-medium text-on-surface flex items-center gap-1.5">
         <Icon icon={Archive} size={18} className="text-on-surface-variant shrink-0" />
         Такая запись есть в архиве: «{twin.archivedName}».
       </p>
-      <p className="text-xs text-on-surface-variant">
+      <p className="text-body-small text-on-surface-variant">
         Совпали поля идентичности. Вернуть ту запись — и ссылки на неё останутся целы, а в справочнике
         не появится вторая такая же.
         {!canReturn && ' Вернуть из архива может тот, кто ведёт общие данные.'}

@@ -9,7 +9,7 @@ import { ruPlural } from '@/shared/utils/pluralize';
 import { TableDataSetDialog } from './TableDataSetDialog';
 
 const itemCls =
-  'flex items-center gap-2 px-3 py-1.5 text-sm text-on-surface-variant cursor-pointer select-none outline-none ' +
+  'flex items-center gap-2 px-3 py-1.5 text-body-medium text-on-surface-variant cursor-pointer select-none outline-none ' +
   'state-layer disabled-content data-[disabled]:pointer-events-none';
 
 /**
@@ -50,7 +50,7 @@ export function ExportMenu({ address, count, body, xlsx: canXlsx, dataset }: {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button type="button" disabled={busy}
-          className="inline-flex items-center gap-1.5 rounded-sm border border-outline-variant px-2.5 py-1 text-xs text-on-surface-variant hover:text-on-surface state-layer disabled-outlined">
+          className="inline-flex items-center gap-1.5 rounded-sm border border-outline-variant px-2.5 py-1 text-body-small text-on-surface-variant hover:text-on-surface state-layer disabled-outlined">
           <Icon icon={Download} size={18} aria-hidden />
           {busy ? 'Выгружается…' : 'Выгрузить'}
         </button>

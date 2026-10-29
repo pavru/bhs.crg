@@ -33,7 +33,7 @@ export function InheritedFieldsPanel({
   const excludedSet = new Set(excludedFields);
 
   if (parentEffectiveFields.length === 0) {
-    return <p className="text-xs text-on-surface-variant py-1">Родительский тип не содержит полей.</p>;
+    return <p className="text-body-small text-on-surface-variant py-1">Родительский тип не содержит полей.</p>;
   }
 
   function fieldTypeLabel(f: SchemaField) {
@@ -48,12 +48,12 @@ export function InheritedFieldsPanel({
   return (
     <div className="space-y-0.5">
       <div className={`${cols} px-2 pb-1`}>
-        <span className="text-xs font-medium text-on-surface-variant">Ключ</span>
-        <span className="text-xs font-medium text-on-surface-variant">Название</span>
-        <span className="text-xs font-medium text-on-surface-variant">Тип</span>
-        <span className="text-xs font-medium text-on-surface-variant">Обязательность</span>
-        <span className="text-xs font-medium text-on-surface-variant">Дефолт</span>
-        <span className="text-xs font-medium text-on-surface-variant text-center">Вкл.</span>
+        <span className="text-body-small font-medium text-on-surface-variant">Ключ</span>
+        <span className="text-body-small font-medium text-on-surface-variant">Название</span>
+        <span className="text-body-small font-medium text-on-surface-variant">Тип</span>
+        <span className="text-body-small font-medium text-on-surface-variant">Обязательность</span>
+        <span className="text-body-small font-medium text-on-surface-variant">Дефолт</span>
+        <span className="text-body-small font-medium text-on-surface-variant text-center">Вкл.</span>
       </div>
       {parentEffectiveFields.map(field => {
         const isExcluded = excludedSet.has(field.key);
@@ -62,12 +62,12 @@ export function InheritedFieldsPanel({
           <div key={field.key} className={`${cols} rounded-sm px-2 py-2 state-layer ${isExcluded ? 'opacity-55' : ''}`}>
             <span className="flex items-center gap-1.5 min-w-0">
               {isExcluded && <Icon icon={VisibilityOff} size={18} className="text-on-surface-variant shrink-0" />}
-              <span className={`text-sm font-mono truncate ${isExcluded ? 'line-through text-on-surface-variant' : 'text-on-surface-variant'}`}>{field.key}</span>
+              <span className={`text-body-medium font-mono truncate ${isExcluded ? 'line-through text-on-surface-variant' : 'text-on-surface-variant'}`}>{field.key}</span>
             </span>
-            <span className="text-sm text-on-surface-variant truncate">{field.title}</span>
-            <span className="text-xs text-on-surface-variant truncate">{fieldTypeLabel(field)}</span>
+            <span className="text-body-medium text-on-surface-variant truncate">{field.title}</span>
+            <span className="text-body-small text-on-surface-variant truncate">{fieldTypeLabel(field)}</span>
             {isExcluded
-              ? <span className="text-xs text-on-surface-variant">—</span>
+              ? <span className="text-body-small text-on-surface-variant">—</span>
               : <RequiredChip field={field} override={override}
                   onOverride={r => onOverrideRequired(field.key, r)} onReset={() => onResetOverride(field.key)} />}
             {isExcluded
@@ -99,7 +99,7 @@ function RequiredChip({ field, override, onOverride, onReset }: {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button type="button"
-          className={`state-layer inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ${
+          className={`state-layer inline-flex items-center gap-1.5 text-body-small px-2 py-1 rounded-full ${
             overridden ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant'}`}>
           {overridden && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
           {overridden ? `${parentLabel} → ${effective ? 'обяз.' : 'опц.'}` : (effective ? 'обяз.' : 'опц.')}
@@ -107,7 +107,7 @@ function RequiredChip({ field, override, onOverride, onReset }: {
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="start" sideOffset={4}
-          className="z-50 min-w-[210px] rounded-lg border border-outline-variant bg-surface p-1 text-sm text-on-surface shadow-elevation-2">
+          className="z-50 min-w-[210px] rounded-lg border border-outline-variant bg-surface p-1 text-body-medium text-on-surface shadow-elevation-2">
           <ReqItem onSelect={onReset} active={!overridden}>Как у родителя ({parentLabel})</ReqItem>
           <ReqItem onSelect={() => onOverride(true)} active={overridden && effective}>Обязательное</ReqItem>
           <ReqItem onSelect={() => onOverride(false)} active={overridden && !effective}>Опциональное</ReqItem>

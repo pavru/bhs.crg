@@ -23,7 +23,7 @@ export function VariantPicker({ options, active, onSelect, layout = 'auto' }: {
 
   if (useList) {
     return (
-      <div role="radiogroup" className="flex flex-col gap-1 text-sm">
+      <div role="radiogroup" className="flex flex-col gap-1 text-body-medium">
         {options.map(o => {
           const on = o.key === active;
           return (
@@ -36,7 +36,7 @@ export function VariantPicker({ options, active, onSelect, layout = 'auto' }: {
               <span className="flex-1 min-w-0 truncate">{o.label}</span>
               {o.filled && (
                 <Tooltip content="Значение задано">
-                  <span className="text-caption text-primary flex items-center gap-1 shrink-0">
+                  <span className="text-label-small text-primary flex items-center gap-1 shrink-0">
                     <span className="w-1.5 h-1.5 rounded-full bg-primary" /> задан
                   </span>
                 </Tooltip>
@@ -49,7 +49,7 @@ export function VariantPicker({ options, active, onSelect, layout = 'auto' }: {
   }
 
   return (
-    <div role="radiogroup" className="inline-flex rounded-md border border-outline-variant overflow-hidden text-sm">
+    <div role="radiogroup" className="inline-flex rounded-md border border-outline-variant overflow-hidden text-body-medium">
       {options.map((o, i) => {
         const on = o.key === active;
         return (

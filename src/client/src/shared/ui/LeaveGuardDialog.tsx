@@ -29,7 +29,7 @@ export function LeaveGuardDialog({ open, saving, saveBlocked, onSave, onDiscard,
           </Button>
         </div>
       }>
-      <p className="text-sm text-on-surface-variant">
+      <p className="text-body-medium text-on-surface-variant">
         Есть несохранённые изменения. Сохранить их перед переходом к другому элементу?
       </p>
     </Modal>

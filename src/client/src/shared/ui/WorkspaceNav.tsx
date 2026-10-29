@@ -37,7 +37,7 @@ export function OutsideNav({ items }: { items: NavItem[] }) {
   return (
     <div data-testid="outside-nav" className="mt-3">
       <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 px-3 py-2 rounded-full text-left text-xs text-on-surface-variant state-layer focus-ring">
+        className="w-full flex items-center gap-2 px-3 py-2 rounded-full text-left text-body-small text-on-surface-variant state-layer focus-ring">
         {open ? <Icon icon={KeyboardArrowDown} size={18} className="shrink-0" /> : <Icon icon={ChevronRight} size={18} className="shrink-0" />}
         <span>{caption}</span>
       </button>
@@ -70,7 +70,7 @@ export function OutsideBanner({ items, inside }: { items: NavItem[]; inside: Nav
 
   const home = inside[0];
   return (
-    <div className="shrink-0 flex items-center gap-2 px-4 py-1.5 text-sm bg-surface-container-low text-on-surface-variant border-b border-outline-variant"
+    <div className="shrink-0 flex items-center gap-2 px-4 py-1.5 text-body-medium bg-surface-container-low text-on-surface-variant border-b border-outline-variant"
       data-testid="outside-banner">
       <Icon icon={GridView} size={18} className="shrink-0 text-on-surface-variant" />
       <span className="flex-1 min-w-0 truncate">
@@ -98,7 +98,7 @@ export function HiddenByWorkspace({ module, what }: { module: string; what: stri
   const title = access.modules.find(m => m.code === module && m.available)?.title;
   if (!title || ws.shows(module)) return null;
   return (
-    <p className="px-3 py-1.5 text-xs text-on-surface-variant" data-testid="hidden-by-workspace">
+    <p className="px-3 py-1.5 text-body-small text-on-surface-variant" data-testid="hidden-by-workspace">
       {what} — модуль «{title}», он вне пространства «{ws.current.name}».{' '}
       <button type="button" className="underline hover:no-underline text-primary" onClick={() => ws.choose('all')}>
         Открыть все модули

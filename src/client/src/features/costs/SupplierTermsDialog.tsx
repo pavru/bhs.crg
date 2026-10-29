@@ -110,7 +110,7 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
               onChange={e => setTyped(t => ({ ...t, [item.supplierId]: e.target.value }))}
               onBlur={() => void change(item)}
               onKeyDown={e => { if (e.key === 'Enter') void change(item); }}
-              className={`w-24 rounded-xs border bg-surface px-2 py-0.5 text-sm text-on-surface
+              className={`w-24 rounded-xs border bg-surface px-2 py-0.5 text-body-medium text-on-surface
                 ${typeof days !== 'number' ? 'border-error' : 'border-outline-variant'}`} />
           </Tooltip>
         );
@@ -129,7 +129,7 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Условия поставщиков" wide isDirty={dirty}>
-      <p className="text-xs text-on-surface-variant mb-3">
+      <p className="text-body-small text-on-surface-variant mb-3">
         Отсрочка платежа у поставщика. Её получает счёт, когда в нём выбирают поставщика, и от неё
         считается срок «оплатить до». В уже заведённых счетах правка условий ничего не меняет.
       </p>
@@ -155,14 +155,14 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
       </div>
 
       {terms.isError ? (
-        <div className="rounded-md border border-error/30 px-3 py-2 text-sm text-error">
+        <div className="rounded-md border border-error/30 px-3 py-2 text-body-medium text-error">
           Условия не прочитаны: {apiError(terms.error)} Это не «условий нет».{' '}
           <button type="button" className="underline" onClick={() => void terms.refetch()}>Повторить</button>
         </div>
       ) : !terms.data ? (
-        <p className="py-6 text-center text-sm text-on-surface-variant">Читаем условия…</p>
+        <p className="py-6 text-center text-body-medium text-on-surface-variant">Читаем условия…</p>
       ) : items.length === 0 ? (
-        <p className="py-6 text-center text-sm text-on-surface-variant">
+        <p className="py-6 text-center text-body-medium text-on-surface-variant">
           Условий пока нет. Выберите поставщика и укажите отсрочку — новые счета получат её сами.
         </p>
       ) : (

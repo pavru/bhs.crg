@@ -20,7 +20,7 @@ import { UnplacedReads } from './UnplacedReads';
 export function RecognitionChip({ recognition }: { recognition: InvoiceRecognition | undefined }) {
   if (recognition?.state !== 'running') return null;
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-on-surface-variant" role="status">
+    <span className="inline-flex items-center gap-1 text-body-small text-on-surface-variant" role="status">
       <CircularProgress size={18} /> Распознаётся…
       {recognition.progress && <span className="text-on-surface-variant">{recognition.progress}</span>}
     </span>
@@ -113,7 +113,7 @@ export function RecognitionStart({ invoiceId, recognition, explain }: {
   const toast = useToast();
   if (recognition?.state !== 'none') return null;
   if (!recognition.canStart)
-    return explain && recognition.whyNot ? <span className="text-xs text-on-surface-variant">Не распознаётся: {recognition.whyNot}</span> : null;
+    return explain && recognition.whyNot ? <span className="text-body-small text-on-surface-variant">Не распознаётся: {recognition.whyNot}</span> : null;
   return (
     <Button size="sm" variant="outlined" icon={<Icon icon={DocumentScanner} size={18} />} loading={start.isPending}
       onClick={() => start.mutateAsync(invoiceId).catch(e => toast.apiError(e, 'Распознавание не запущено'))}>
@@ -134,8 +134,8 @@ export function RecognitionNotes({ recognition }: { recognition: InvoiceRecognit
   const unplaced = done ? recognition.unplaced : null;
   if (notes.length === 0 && !lines && !unplaced?.length) return null;
   return (
-    <section className="space-y-1 text-xs">
-      <h2 className="text-sm font-medium text-on-surface-variant">Замечания распознавания</h2>
+    <section className="space-y-1 text-body-small">
+      <h2 className="text-body-medium font-medium text-on-surface-variant">Замечания распознавания</h2>
       {(notes.length > 0 || lines) && (
         <ul className="list-disc pl-4 space-y-0.5 text-warning">
           {notes.map(note => <li key={note}>{note}</li>)}
@@ -151,7 +151,7 @@ export function RecognitionNotes({ recognition }: { recognition: InvoiceRecognit
 export function OfferLine({ offer, onTake }: { offer: FieldOffer; onTake: (value: unknown) => void }) {
   return (
     <Tooltip content={offer.title ?? `В файле: ${offer.text}`}>
-      <p className="mt-0.5 flex items-baseline gap-1 text-xs text-on-surface-variant min-w-0">
+      <p className="mt-0.5 flex items-baseline gap-1 text-body-small text-on-surface-variant min-w-0">
         <span className="truncate">В файле: {offer.text}</span>
         {offer.take !== undefined
           ? (
@@ -169,7 +169,7 @@ export function OfferLine({ offer, onTake }: { offer: FieldOffer; onTake: (value
 function Strip({ quiet, children }: { quiet: boolean; children: React.ReactNode }) {
   return (
     <div role={quiet ? 'status' : 'alert'}
-      className={`flex items-start gap-2 rounded-md border px-3 py-2 text-xs ${quiet
+      className={`flex items-start gap-2 rounded-md border px-3 py-2 text-body-small ${quiet
         ? 'border-outline-variant bg-surface-container text-on-surface-variant'
         : 'border-error/30 bg-error-container text-on-error-container'}`}>
       {quiet ? <Icon icon={DocumentScanner} size={18} className="shrink-0 mt-0.5 text-on-surface-variant" /> : <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />}

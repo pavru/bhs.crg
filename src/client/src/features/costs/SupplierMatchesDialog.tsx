@@ -132,7 +132,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Соответствия наименований" wide>
-      <p className="text-xs text-on-surface-variant mb-3">
+      <p className="text-body-small text-on-surface-variant mb-3">
         Что система запомнила: какую позицию номенклатуры вы выбирали строке поставщика. Следующий счёт
         того же поставщика получает эту позицию сам. Появляются соответствия сами — при сохранении строк счёта.
       </p>
@@ -154,7 +154,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
           <input value={typed} placeholder="Артикул или наименование у поставщика"
             aria-label="Поиск по артикулу или наименованию у поставщика" data-search=""
             onChange={e => setTyped(e.target.value)}
-            className="flex-1 bg-transparent text-sm text-on-surface outline-none" />
+            className="flex-1 bg-transparent text-body-medium text-on-surface outline-none" />
         </label>
         {/* Нули не рисуются: чип без записей — дверь в пустой список. Нажатый остаётся, чтобы его снять. */}
         {((data?.counts.lost ?? 0) > 0 || filter.issue === 'lost') && (
@@ -172,22 +172,22 @@ export function SupplierMatchesDialog({ initial, onClose }: {
       </div>
 
       {list.isError ? (
-        <div className="rounded-md border border-error/30 px-3 py-2 text-sm text-error">
+        <div className="rounded-md border border-error/30 px-3 py-2 text-body-medium text-error">
           Список соответствий не прочитан: {apiError(list.error)} Это не «соответствий нет».{' '}
           <button type="button" className="underline" onClick={() => void list.refetch()}>Повторить</button>
         </div>
       ) : !data ? (
-        <p className="py-6 text-center text-sm text-on-surface-variant">Читаем соответствия…</p>
+        <p className="py-6 text-center text-body-medium text-on-surface-variant">Читаем соответствия…</p>
       ) : data.total === 0 ? (
         filtered ? (
-          <p className="py-6 text-center text-sm text-on-surface-variant">
+          <p className="py-6 text-center text-body-medium text-on-surface-variant">
             По этому отбору соответствий нет.{' '}
             <button type="button" className="text-primary hover:underline" onClick={reset}>
               Сбросить отбор
             </button>
           </p>
         ) : (
-          <p className="py-6 text-center text-sm text-on-surface-variant">
+          <p className="py-6 text-center text-body-medium text-on-surface-variant">
             Соответствий пока нет. Они появляются сами: выберите позицию строке счёта и сохраните строки —
             выбор запомнится за поставщиком.
           </p>
@@ -195,7 +195,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
       ) : (
         <>
           <DataGrid density="compact" className="max-h-[55vh]" columns={columns} rows={data.items} rowKey={item => item.id} />
-          <div className="mt-2 flex items-center gap-3 text-xs text-on-surface-variant">
+          <div className="mt-2 flex items-center gap-3 text-body-small text-on-surface-variant">
             <span>{shownOf(data.items.length, data.total)}</span>
             {list.hasNextPage && (
               <Button size="sm" variant="text" loading={list.isFetchingNextPage}
@@ -238,7 +238,7 @@ function IssueChip({ active, danger = false, onClick, children }: {
 }) {
   return (
     <button type="button" onClick={onClick} aria-pressed={active}
-      className={`rounded-full border px-2 py-0.5 text-xs
+      className={`rounded-full border px-2 py-0.5 text-body-small
         ${active ? 'border-primary bg-surface-container text-on-surface' : danger ? 'border-error/30 text-error' : 'border-outline-variant text-on-surface-variant'}`}>
       {children}
     </button>

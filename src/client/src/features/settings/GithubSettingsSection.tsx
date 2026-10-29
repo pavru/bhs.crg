@@ -57,7 +57,7 @@ export function GithubSettingsSection() {
 
   return (
     <CollapsibleSection title="Передача в GitHub" storageKey="github" defaultOpen={false}>
-      <p className="text-xs text-on-surface-variant">
+      <p className="text-body-small text-on-surface-variant">
         Токен нужен только для кнопки «Отправить в GitHub» на экране сообщений об ошибках. Сама
         система в GitHub ничего не отправляет: issue заводит администратор, из текста, который он
         отредактировал.
@@ -85,7 +85,7 @@ export function GithubSettingsSection() {
       <ProxyToggle checked={useProxyValue} disabled={isLoading || save.isPending} onChange={setUseProxy} />
 
       {saved?.hasToken && (
-        <p className="flex items-center gap-1.5 text-xs text-success">
+        <p className="flex items-center gap-1.5 text-body-small text-success">
           <Icon icon={Check} size={18} /> Токен задан
         </p>
       )}
@@ -96,7 +96,7 @@ export function GithubSettingsSection() {
         нашим правом записи), и человек должен узнать об этом заранее, а не по неработающей кнопке.
       */}
       {repositoryChanged && saved?.hasToken && !token.trim() && (
-        <p className="text-xs text-warning">
+        <p className="text-body-small text-warning">
           Репозиторий меняется, а поле токена пусто — сохранённый токен будет удалён: он выдан для
           прежнего репозитория. Введите токен для нового.
         </p>
@@ -111,7 +111,7 @@ export function GithubSettingsSection() {
         <a
           href="https://github.com/settings/personal-access-tokens"
           target="_blank" rel="noreferrer"
-          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+          className="inline-flex items-center gap-1 text-body-small text-primary hover:underline"
         >
           Где выпустить токен <Icon icon={OpenInNew} size={18} />
         </a>

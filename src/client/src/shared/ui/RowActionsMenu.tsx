@@ -21,7 +21,7 @@ export interface RowAction {
 
 // Подсветка пункта — слоем on-surface ([UI-64]), мышью и стрелкой одинаково (data-highlighted Radix).
 const itemCls =
-  'flex items-center gap-2 px-3 py-1.5 text-sm text-on-surface cursor-pointer select-none outline-none ' +
+  'flex items-center gap-2 px-3 py-1.5 text-body-medium text-on-surface cursor-pointer select-none outline-none ' +
   'state-layer data-[disabled]:pointer-events-none';
 
 function Row({ action }: { action: RowAction }) {
@@ -32,7 +32,7 @@ function Row({ action }: { action: RowAction }) {
     <>
       {action.icon && <span className={off || (action.active ? 'text-primary' : action.danger ? 'text-error' : 'text-on-surface-variant')}>{action.icon}</span>}
       <span className={`truncate ${color}`}>{action.label}</span>
-      {action.badge && <span className={`ml-auto text-caption tabular-nums ${off || 'text-on-surface-variant'}`}>{action.badge}</span>}
+      {action.badge && <span className={`ml-auto text-label-small tabular-nums ${off || 'text-on-surface-variant'}`}>{action.badge}</span>}
     </>
   );
 }
@@ -49,7 +49,7 @@ function renderAction(action: RowAction) {
           <DropdownMenu.SubContent
             className="z-50 min-w-[10rem] max-h-72 overflow-auto rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
             {action.submenu.length === 0
-              ? <div className="px-3 py-1.5 text-xs text-on-surface-variant">Нет вариантов</div>
+              ? <div className="px-3 py-1.5 text-body-small text-on-surface-variant">Нет вариантов</div>
               : action.submenu.map(sub => (
                 <DropdownMenu.Item key={sub.key} className={itemCls} disabled={sub.disabled}
                   onSelect={() => sub.onSelect?.()}>

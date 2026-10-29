@@ -275,7 +275,7 @@ function ModalBody({
             <div className="flex items-center justify-between shrink-0 px-6 pt-6 pb-5" inert={asking}>
               {/* truncate: заголовком бывает имя объекта (материал в пикере документа качества
                   доходит до сотни знаков) — без обрезки оно выдавливает крестик за край. */}
-              <span className="text-base font-semibold text-on-surface truncate" title={top?.title ?? title}>{top?.title ?? title}</span>
+              <span className="text-body-large font-semibold text-on-surface truncate" title={top?.title ?? title}>{top?.title ?? title}</span>
               {/* У результата выход один, и называет его диалог — крестика нет. При запросе крестик
                   виден, но недоступен: исчезнувший читался бы как поломка вёрстки. */}
               {!acknowledge && (
@@ -327,10 +327,10 @@ function ModalBody({
           {asking && (
             <div className={`absolute inset-0 z-10 flex items-center justify-center bg-scrim/32 ${fullScreen ? '' : 'rounded-xl'}`}>
               <div className="rounded-xl p-5 w-80 bg-surface border border-outline-variant shadow-elevation-3">
-                <p className="text-sm font-semibold mb-1 text-on-surface">
+                <p className="text-body-medium font-semibold mb-1 text-on-surface">
                   Закрыть без сохранения?
                 </p>
-                <p className="text-xs mb-4 text-on-surface-variant">
+                <p className="text-body-small mb-4 text-on-surface-variant">
                   Несохранённые изменения будут потеряны.
                 </p>
                 <div className="flex gap-2 justify-end">

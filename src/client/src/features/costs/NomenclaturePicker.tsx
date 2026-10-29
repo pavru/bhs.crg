@@ -87,7 +87,7 @@ export function NomenclaturePicker({
       <div className="flex items-center gap-1">
         <Tooltip content={archived && !lost ? ARCHIVED_HINT : undefined}>
           <button type="button" onClick={() => setOpen(true)}
-            className={`min-w-0 flex-1 text-left text-xs px-2 py-1 rounded-xs border truncate
+            className={`min-w-0 flex-1 text-left text-body-small px-2 py-1 rounded-xs border truncate
               ${lost ? 'border-error/30 text-error'
                 : chosen ? 'border-outline-variant text-on-surface' : 'border-outline-variant text-warning'}`}>
             {/* Три состояния, и путать их нельзя: потерю чинит справочник, пустое имя — тоже справочник,
@@ -297,7 +297,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
               Завести новую позицию…
             </Button>
           ) : (
-            <p className="text-caption text-on-surface-variant">
+            <p className="text-label-small text-on-surface-variant">
               Новую позицию заводит тот, кто ведёт справочник номенклатуры. Строку можно сохранить без позиции.
             </p>
           )}
@@ -315,11 +315,11 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
               placeholder="наименование или часть наименования" aria-label="Поиск позиции" data-search=""
               role="combobox" aria-expanded={lists !== ''} aria-controls={lists || undefined} aria-autocomplete="list"
               aria-activedescendant={activeOption}
-              className="flex-1 bg-transparent text-sm outline-none text-on-surface placeholder:text-on-surface-variant" />
+              className="flex-1 bg-transparent text-body-medium outline-none text-on-surface placeholder:text-on-surface-variant" />
           </div>
 
           {found.isError && (
-            <p className="flex items-start gap-2 text-xs text-error">
+            <p className="flex items-start gap-2 text-body-small text-error">
               <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
               <span>Справочник не прочитан: {apiError(found.error, 'сервер отказал')}. ⚠️ Это НЕ
                 «позиций нет»: их список сюда не доехал.</span>
@@ -346,7 +346,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
                 {directory.length > 0 && (
                   <div className="space-y-1.5">
                     {/* Число — строк под заголовком: кандидаты и выбранная стоят выше и здесь не повторяются. */}
-                    <h4 id={allHeadingId} className="text-xs font-medium text-on-surface-variant">
+                    <h4 id={allHeadingId} className="text-body-small font-medium text-on-surface-variant">
                       Остальные позиции справочника ({directory.length})
                     </h4>
                     <div id={allId} role="listbox" aria-labelledby={allHeadingId} className="-mx-2 space-y-0.5">
@@ -359,14 +359,14 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
           </div>
 
           {head?.more && (
-            <p className="text-xs text-on-surface-variant">Ищите по наименованию — справочник большой, весь список здесь не показывается.</p>
+            <p className="text-body-small text-on-surface-variant">Ищите по наименованию — справочник большой, весь список здесь не показывается.</p>
           )}
           {whole && head!.items.length === 0 && (
-            <p className="text-xs text-on-surface-variant">Справочник номенклатуры пуст.</p>
+            <p className="text-body-small text-on-surface-variant">Справочник номенклатуры пуст.</p>
           )}
 
           {searching && fresh && found.isSuccess && !found.isFetching && results.length === 0 && (
-            <p className="text-xs text-on-surface-variant">
+            <p className="text-body-small text-on-surface-variant">
               {looksLikeArticle(query) && question
                 ? 'Поиск идёт по наименованию; по артикулу подбирает блок «Подходящие» — очистите поле.'
                 : canCreate
@@ -380,7 +380,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
               человек заведёт её заново, а она есть. Действия здесь нет нарочно: вернуть из архива
               отсюда пока нечем. */}
           {!!answered?.inArchive && (
-            <p className="text-xs text-on-surface-variant">
+            <p className="text-body-small text-on-surface-variant">
               В архиве под этот запрос: {answered.inArchive}. В выборе архивных позиций нет — заводить
               такую же заново не нужно.
             </p>
@@ -388,13 +388,13 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
 
           {/* ⚠️ Оговорка о неполноте — обязательна: см. описание пикера. Только на запросе человека. */}
           {answered?.more && (
-            <p className="text-xs text-warning">
+            <p className="text-body-small text-warning">
               Показаны первые {results.length} — подходящих больше. Уточните запрос: по неполному списку
               нельзя решить, что позиции в справочнике нет.
             </p>
           )}
           {narrow && rows.length > 0 && (
-            <p className="text-caption text-on-surface-variant">Нажмите на позицию, чтобы открыть её карточку.</p>
+            <p className="text-label-small text-on-surface-variant">Нажмите на позицию, чтобы открыть её карточку.</p>
           )}
         </div>
 
@@ -440,9 +440,9 @@ function LinePlate({ from, line }: { from: LineWords; line?: PickerLine }) {
   if (!line && !name && !meta) return null;
   return (
     <div className="rounded-md bg-surface-container px-3 py-2 space-y-0.5">
-      {line && <p className="text-caption text-on-surface-variant">{line.where}</p>}
-      {name && <p className="text-sm leading-snug text-on-surface line-clamp-2" title={name}>{name}</p>}
-      {meta && <p className="text-xs text-on-surface-variant tabular-nums">{meta}</p>}
+      {line && <p className="text-label-small text-on-surface-variant">{line.where}</p>}
+      {name && <p className="text-body-medium leading-snug text-on-surface line-clamp-2" title={name}>{name}</p>}
+      {meta && <p className="text-body-small text-on-surface-variant tabular-nums">{meta}</p>}
     </div>
   );
 }

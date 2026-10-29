@@ -66,7 +66,7 @@ export function PeriodsPage() {
   };
 
   if (isLoading || !data) {
-    return <div className="px-6 py-10 text-center text-on-surface-variant text-sm">Загрузка...</div>;
+    return <div className="px-6 py-10 text-center text-on-surface-variant text-body-medium">Загрузка...</div>;
   }
 
   const rows = [data.company, ...data.constructions];
@@ -358,7 +358,7 @@ function History({ records, nameOf }: {
 
   return (
     <>
-      <h2 className="text-sm font-semibold text-on-surface-variant mt-6 mb-2">История</h2>
+      <h2 className="text-body-medium font-semibold text-on-surface-variant mt-6 mb-2">История</h2>
       <DataGrid rows={records} rowKey={r => r.id} columns={[
         { key: 'at', label: 'Когда', width: 'w-36',
           cell: r => <span className="text-on-surface-variant tabular-nums">{formatDateTime(r.at)}</span> },
@@ -370,11 +370,11 @@ function History({ records, nameOf }: {
                 {r.kind === 'Close' ? 'Закрыт период' : 'Отменено закрытие'}
                 {' '}с {ruDate(r.from)} по {ruDate(r.through)} — {nameOf(r.constructionId)}
               </div>
-              {r.reason && <div className="text-on-surface-variant text-xs">{r.reason}</div>}
+              {r.reason && <div className="text-on-surface-variant text-body-small">{r.reason}</div>}
               {r.kind === 'Close' && (r.report ? (
                 <>
                   <button type="button" aria-expanded={open.has(r.id)} onClick={() => toggle(r.id)}
-                    className="mt-0.5 inline-flex items-center gap-0.5 text-xs text-primary hover:underline">
+                    className="mt-0.5 inline-flex items-center gap-0.5 text-body-small text-primary hover:underline">
                     {open.has(r.id) ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
                     Что показал диалог при закрытии
                   </button>
@@ -383,7 +383,7 @@ function History({ records, nameOf }: {
                       {/* Записанное — цитата, его не трогаем; меняется подпись над ним (E2, разбор Дизайнера, п. 8).
                           Она верна для любой записи: старые отличать не нужно. Модулей экран ядра не знает —
                           поэтому «документы», а не «счета». */}
-                      <p className="text-xs text-on-surface-variant mb-2">
+                      <p className="text-body-small text-on-surface-variant mb-2">
                         Так диалог выглядел в день закрытия — и числа, и пояснения. С тех пор могли измениться и
                         данные, и правила: документ закрытого периода бывает исправлен после закрытия.
                       </p>
@@ -393,7 +393,7 @@ function History({ records, nameOf }: {
                 </>
               ) : (
                 // Закрытие сделано до появления перечня: молчание выглядело бы как «незавершённого не было».
-                <div className="text-on-surface-variant text-xs">Перечень не записывался.</div>
+                <div className="text-on-surface-variant text-body-small">Перечень не записывался.</div>
               ))}
             </>
           ) },

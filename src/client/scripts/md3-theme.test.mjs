@@ -191,6 +191,45 @@ describe('тема MD3: форма и возвышение ([UI-66])', () => {
   });
 });
 
+describe('тема MD3: роли текста ([UI-67])', () => {
+  const variant = change => { const t = structuredClone(palette); change(t); return t; };
+
+  it.each([
+    // Числа — договор базовой шкалы MD3, а не копия описания: перепутанная в md3-theme.json роль краснит здесь.
+    ['body-medium', 14, 20, 0.25, 400], ['body-small', 12, 16, 0.4, 400], ['label-small', 11, 16, 0.5, 500],
+    ['title-large', 22, 28, 0, 400], ['title-small', 14, 20, 0.1, 500],
+  ])('text-%s — %i/%i, интервал %f px, начертание %i — в обеих темах', (role, size, line, tracking, weight) => {
+    for (const mode of ['light', 'dark']) {
+      const css = declarations(`text-${role}`, mode);
+      expect(css).toContain(`font-size: ${size}px;`);
+      expect(css).toContain(`line-height: var(--tw-leading, ${line}px);`);
+      expect(css).toContain(`letter-spacing: var(--tw-tracking, ${tracking}px);`);
+      expect(css).toContain(`font-weight: var(--tw-font-weight, ${weight});`);
+    }
+  });
+
+  it('явное начертание рядом с ролью берёт верх: роль — запасное значение', () => {
+    expect(declarations('font-medium', 'light')).toContain('--tw-font-weight: var(--font-weight-medium);');
+    expect(declarations('text-body-small', 'light')).toContain('font-weight: var(--tw-font-weight, 400);');
+  });
+
+  it('пятнадцать ролей, у каждой четыре свойства; без темы и без множителя интервала (В10, «в»)', () => {
+    const tokens = generate(theme)['md3-tokens.css'];
+    expect(tokens.match(/--md-sys-typescale-[\w-]+:/g)).toHaveLength(60);
+    expect(tokens.slice(tokens.indexOf(':root[data-theme="dark"]'))).not.toContain('--md-sys-typescale-');
+    expect(generate(theme)['md3-tailwind.css']).not.toContain('calc(');
+  });
+
+  it('отказ: роль пропущена, лишняя или свойство без единиц', () => {
+    expect(() => generate(variant(t => { delete t.typescale['label-medium']; }))).toThrow('в typescale нет роли label-medium');
+    expect(() => generate(variant(t => { t.typescale.caption = t.typescale['label-small']; }))).toThrow('typescale.caption — не роль MD3');
+    expect(() => generate(variant(t => { t.typescale['body-small'].size = '0.75rem'; })))
+      .toThrow('typescale.body-small.size — «0.75rem»');
+    expect(() => generate(variant(t => { t.typescale['body-small'].tracking = '.4'; })))
+      .toThrow('typescale.body-small.tracking — «.4»');
+  });
+});
+
 describe('тема MD3: палитра из seed', () => {
   const seeded = change => { const t = structuredClone(theme); change(t); return resolve(t); };
 

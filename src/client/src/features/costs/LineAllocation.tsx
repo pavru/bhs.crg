@@ -170,7 +170,7 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
       busy={replace.isPending}
       footer={(
         <>
-          <span className="text-xs text-on-surface-variant mr-auto">
+          <span className="text-body-small text-on-surface-variant mr-auto">
             {byQuantity
               ? `В строке ${line.quantity === null ? '' : formatQuantity(line.quantity)} ${unit}`.trim()
                 + (line.amount === null ? '' : ` на ${formatMoney(line.amount)}${gross}`)
@@ -281,7 +281,7 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
 export function AllocationSummary({ allocation }: { allocation: AllocationSummaryView }) {
   if (allocation.allocated)
     return (
-      <span className="text-xs text-success">
+      <span className="text-body-small text-success">
         Разноска сходится
         {allocation.discrepancy ? ` (расхождение ${formatMoney(allocation.discrepancy)} ушло в последнюю часть)` : ''}
       </span>
@@ -298,7 +298,7 @@ export function AllocationSummary({ allocation }: { allocation: AllocationSummar
   if (!allocation.withinTolerance && allocation.discrepancy !== null)
     problems.push(`расхождение с суммой к оплате ${formatMoney(allocation.discrepancy)} больше допуска ${formatMoney(allocation.tolerance)}`);
 
-  return <span className="text-xs text-warning">Разноска: {problems.join('; ')}</span>;
+  return <span className="text-body-small text-warning">Разноска: {problems.join('; ')}</span>;
 }
 
 function remains(rest: { quantity: number | null; amount: number | null }, byQuantity: boolean): boolean {

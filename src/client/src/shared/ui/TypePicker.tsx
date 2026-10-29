@@ -144,14 +144,14 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
             {/* Выделение возвращает на первую строку сам ввод, а не эффект (issue #858). */}
             <input ref={input} autoFocus value={query} onChange={e => { setQuery(e.target.value); setActive(0); }} onKeyDown={onKey}
               placeholder="Поиск типа по имени или коду…" aria-label="Поиск типа"
-              className="h-12 flex-1 bg-transparent text-sm text-on-surface outline-none placeholder:text-on-surface-variant" />
-            <kbd className="rounded-xs border border-outline-variant px-1 text-caption text-on-surface-variant">Esc</kbd>
+              className="h-12 flex-1 bg-transparent text-body-medium text-on-surface outline-none placeholder:text-on-surface-variant" />
+            <kbd className="rounded-xs border border-outline-variant px-1 text-label-small text-on-surface-variant">Esc</kbd>
           </div>
           <ul className="overflow-y-auto p-2" role="listbox" aria-label={title}>
             {noneVisible && (
               <li role="option" aria-selected={active === 0}>
                 <button type="button" onMouseEnter={() => setActive(0)} onClick={chooseNone}
-                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm ${
+                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-body-medium ${
                     active === 0 ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'}`}>
                   <Icon icon={Block} size={18} className={active === 0 ? 'text-on-secondary-container' : 'text-on-surface-variant'} />
                   <span className="flex-1 truncate" title={noneOption!.label}>{noneOption!.label}</span>
@@ -160,13 +160,13 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
             )}
             {/* Пусто, но выход есть — «Ничего не найдено» было бы неправдой: найдено, но в стороне. */}
             {flat.length === 0 ? (
-              !noneVisible && !asideHidden && <li className="px-3 py-6 text-center text-sm text-on-surface-variant">Ничего не найдено</li>
+              !noneVisible && !asideHidden && <li className="px-3 py-6 text-center text-body-medium text-on-surface-variant">Ничего не найдено</li>
             ) : sections.map(g => (
               <li key={g.key}>
                 {g.heading && (
-                  <div className="mt-2 border-t border-outline-variant px-3 pt-3 pb-1 text-xs font-medium text-on-surface-variant">{g.heading}</div>
+                  <div className="mt-2 border-t border-outline-variant px-3 pt-3 pb-1 text-body-small font-medium text-on-surface-variant">{g.heading}</div>
                 )}
-                <div className="px-3 pt-2 pb-1 text-caption font-semibold uppercase tracking-wide text-on-surface-variant">{g.label}</div>
+                <div className="px-3 pt-2 pb-1 text-label-small font-semibold uppercase tracking-wide text-on-surface-variant">{g.label}</div>
                 <ul>
                   {g.items.map(t => {
                     const i = ++idx;
@@ -176,11 +176,11 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
                     return (
                       <li key={`${g.key}:${t.id}`} role="option" aria-selected={i === active}>
                         <button type="button" onMouseEnter={() => setActive(i)} onClick={() => choose(t)}
-                          className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm ${
+                          className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-body-medium ${
                             i === active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'}`}>
                           <Icon icon={icon} size={18} className={i === active ? 'text-on-secondary-container' : 'text-on-surface-variant'} />
                           <Tooltip content={showCode ? `${t.name} (${code})` : t.name}><span className="flex-1 truncate">{t.name}</span></Tooltip>
-                          {showCode && <span className={`text-caption font-mono shrink-0 ${i === active ? 'text-on-secondary-container/80' : 'text-on-surface-variant'}`}>{code}</span>}
+                          {showCode && <span className={`text-label-small font-mono shrink-0 ${i === active ? 'text-on-secondary-container/80' : 'text-on-surface-variant'}`}>{code}</span>}
                         </button>
                       </li>
                     );
@@ -192,7 +192,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
           {asideHidden && aside && (
             <div className="shrink-0 border-t border-outline-variant p-2">
               <button type="button" onClick={reveal}
-                className="w-full rounded-md px-3 py-2 text-left text-sm text-primary state-layer focus-ring">
+                className="w-full rounded-md px-3 py-2 text-left text-body-medium text-primary state-layer focus-ring">
                 {aside.reveal}
               </button>
             </div>

@@ -35,11 +35,11 @@ export function RecognitionBlockedDialog(
         </div>
       }>
       <div className="space-y-3">
-        <p className="text-sm text-on-surface">{message}</p>
+        <p className="text-body-medium text-on-surface">{message}</p>
         {/* Совет даём только там, где он лечит: отказ движка на середине или сбой сети в настройках
             не чинится, и отправлять туда человека значит тратить его время. */}
         {configurable && (
-        <p className="text-sm text-on-surface-variant">
+        <p className="text-body-medium text-on-surface-variant">
           {canConfigure
             ? 'Что сделать: в «Система → Параметры системы → Поиск и распознавание» выберите модель, которая принимает изображения, или поставьте выше другой движок распознавания.'
             : 'Что сделать: обратитесь к администратору — нужно сменить модель распознавания в настройках системы.'}

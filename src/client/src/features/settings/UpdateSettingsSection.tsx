@@ -70,13 +70,13 @@ export function UpdateSettingsSection() {
 
   return (
     <CollapsibleSection title="Обновления" storageKey="updates" defaultOpen={false}>
-      <label className="flex items-start gap-2 text-sm text-on-surface-variant">
+      <label className="flex items-start gap-2 text-body-medium text-on-surface-variant">
         <input type="checkbox" className="mt-0.5" checked={enabled}
           disabled={isLoading || save.isPending}
           onChange={e => void toggle(e.target.checked)} />
         <span>
           Проверять новые версии на GitHub
-          <span className="block text-xs text-on-surface-variant">
+          <span className="block text-body-small text-on-surface-variant">
             Раз в шесть часов. Выключено — система не обращается к сети вовсе: для установок без
             интернета это единственный способ не копить в журнале неудачные попытки.
           </span>
@@ -93,7 +93,7 @@ export function UpdateSettingsSection() {
           Проверить сейчас
         </Button>
         {data && (
-          <span className="text-xs text-on-surface-variant">
+          <span className="text-body-small text-on-surface-variant">
             Установлена <b>{data.installed}</b>
             {data.updateAvailable && data.latest
               ? <> · доступна <b className="text-primary">{data.latest}</b></>
@@ -103,13 +103,13 @@ export function UpdateSettingsSection() {
       </div>
 
       {save.isError && (
-        <p className="text-xs text-error">Настройку сохранить не удалось — значение осталось прежним.</p>
+        <p className="text-body-small text-error">Настройку сохранить не удалось — значение осталось прежним.</p>
       )}
 
       {data && (
         // Молчать о неудачной проверке нельзя: «обновлений нет» и «мы не знаем» — разные вещи, а
         // выглядят одинаково.
-        <p className={`text-xs ${data.lastCheckedAt ? 'text-on-surface-variant' : 'text-warning'}`}>
+        <p className={`text-body-small ${data.lastCheckedAt ? 'text-on-surface-variant' : 'text-warning'}`}>
           Последняя удачная проверка: {whenText(data.lastCheckedAt)}
         </p>
       )}
@@ -119,13 +119,13 @@ export function UpdateSettingsSection() {
           сработавшим: на экране не меняется ничего — ровно тот отказ, переодетый в результат,
           ради которого кнопка и заведена. */}
       {failed && (
-        <p className="text-xs text-warning">
+        <p className="text-body-small text-warning">
           Проверить не удалось{lastError ? `: ${lastError}` : '.'}
         </p>
       )}
 
       {data?.updateAvailable && data.releaseUrl && (
-        <p className="text-xs text-on-surface-variant">
+        <p className="text-body-small text-on-surface-variant">
           Что изменилось — на{' '}
           <a href={data.releaseUrl} target="_blank" rel="noopener noreferrer"
             className="text-primary hover:underline">странице выпуска</a>.

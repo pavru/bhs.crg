@@ -74,7 +74,7 @@ export function InvoiceObject({ view, locked }: {
   const { status, calm } = statusOf(current);
 
   return (
-    <div className="flex items-center gap-2 flex-wrap text-xs" data-readiness="allocation">
+    <div className="flex items-center gap-2 flex-wrap text-body-small" data-readiness="allocation">
       <span className="text-on-surface-variant">Объект</span>
       {canEdit && !correcting ? (
         <InvoicePlaceField label="Объект счёта" places={places} current={current}

@@ -33,7 +33,7 @@ function AssetReference({ asset }: { asset: TemplateAssetDto }) {
     // Семейство не распозналось при загрузке — сослаться на шрифт нечем, и молчать об этом нельзя:
     // «имя ассета» тут не работает, а выглядело бы рабочим.
     return (
-      <span className="text-xs truncate flex-1 min-w-0">
+      <span className="text-body-small truncate flex-1 min-w-0">
         <span className="text-on-surface">{asset.name}</span>
         <span className="text-error"> — семейство не распознано, шрифт не подключится</span>
       </span>
@@ -52,7 +52,7 @@ function AssetReference({ asset }: { asset: TemplateAssetDto }) {
         {/* Переносим, а не обрезаем: панель живёт в узкой колонке, и «/assets/Г…» не отвечает на
             вопрос, ради которого строку и переделали, — что писать в шаблоне. Имя файла ушло в
             подсказку: теперь оно не конкурирует за ширину с тем, на что реально ссылаются. */}
-        <code className="text-xs font-mono text-on-surface break-all leading-snug">{reference}</code>
+        <code className="text-body-small font-mono text-on-surface break-all leading-snug">{reference}</code>
         {copied
           ? <Icon icon={Check} size={18} className="text-success shrink-0 mt-0.5" />
           : <Icon icon={ContentCopy} size={18} className="text-on-surface-variant opacity-0 group-hover/ref:opacity-100 shrink-0 mt-0.5" />}
@@ -85,7 +85,7 @@ function AssetRow({ asset }: { asset: TemplateAssetDto }) {
         ? <Icon icon={ImageIcon} size={18} className="text-primary shrink-0" />
         : <Icon icon={Title} size={18} className="text-tertiary shrink-0" />}
       <AssetReference asset={asset} />
-      {error && <span className="text-xs text-error shrink-0">{error}</span>}
+      {error && <span className="text-body-small text-error shrink-0">{error}</span>}
       <IconButton label="Заменить файл" size="sm" onClick={() => replaceInputRef.current?.click()}
         disabled={replaceMutation.isPending}
         className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0">
@@ -135,11 +135,11 @@ function UploadButton({ scope, scopeId }: { scope: TemplateAssetScope; scopeId: 
     <div className="flex items-center gap-2">
       <button type="button" onClick={() => inputRef.current?.click()}
         disabled={uploadMutation.isPending}
-        className="flex items-center gap-1 text-xs text-primary state-layer disabled-content">
+        className="flex items-center gap-1 text-body-small text-primary state-layer disabled-content">
         <Icon icon={Upload} size={18} /> Добавить ассет
       </button>
       <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleFile} />
-      {error && <span className="text-xs text-error">{error}</span>}
+      {error && <span className="text-body-small text-error">{error}</span>}
     </div>
   );
 }
@@ -163,7 +163,7 @@ export function TemplateAssetsPanel({ scope, scopeId, title, hintScopes }: {
       <button onClick={() => setOpen(v => !v)}
         className="w-full flex items-center gap-2 px-4 py-2.5 state-layer text-left">
         <Icon icon={ImageIcon} size={18} className="text-on-surface-variant" />
-        <span className="text-xs font-medium text-on-surface-variant flex-1">
+        <span className="text-body-small font-medium text-on-surface-variant flex-1">
           {title}{assets.length > 0 ? ` (${assets.length})` : ''}
         </span>
         {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant" />}
@@ -171,7 +171,7 @@ export function TemplateAssetsPanel({ scope, scopeId, title, hintScopes }: {
       {open && (
         <div className="px-4 pb-4 pt-2 border-t border-surface-container space-y-2">
           {assets.length === 0 ? (
-            <p className="text-xs text-on-surface-variant italic">Ассетов нет.</p>
+            <p className="text-body-small text-on-surface-variant italic">Ассетов нет.</p>
           ) : (
             <div className="space-y-0.5">
               {assets.map(a => <AssetRow key={a.id} asset={a} />)}
@@ -197,6 +197,6 @@ function HintCount({ hint }: { hint: TemplateAssetsHint }) {
   const { data: assets = [] } = useListTemplateAssets(hint.scope, hint.scopeId);
   if (assets.length === 0) return null;
   return (
-    <p className="text-caption text-on-surface-variant">Также доступно: {assets.length} {hint.label}</p>
+    <p className="text-label-small text-on-surface-variant">Также доступно: {assets.length} {hint.label}</p>
   );
 }

@@ -70,7 +70,7 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
   const cols = 'grid grid-cols-[1fr_1.6fr_110px_auto] gap-1.5 items-center';
   return (
     <div className="space-y-1.5">
-      <div className={`${cols} text-xs text-on-surface-variant px-0.5`}>
+      <div className={`${cols} text-body-small text-on-surface-variant px-0.5`}>
         <span>Имя (ключ)</span>
         <span>Описание — подсказка модели</span>
         <span>Тип</span>
@@ -84,7 +84,7 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
               <Tooltip content={locked ? 'Обязательное поле — на нём завязано разбиение документов' : undefined}>
                 <input value={f.name} onChange={e => update(i, { name: e.target.value })}
                   readOnly={locked} placeholder="Позиция"
-                  className={`w-full border border-outline rounded-xs px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface ${
+                  className={`w-full border border-outline rounded-xs px-2 py-1.5 text-body-medium font-mono focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface ${
                     locked ? 'pr-7 text-on-surface-variant cursor-not-allowed' : ''}`} />
               </Tooltip>
               {locked && (
@@ -94,7 +94,7 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
             </div>
             <input value={f.description ?? ''} onChange={e => update(i, { description: e.target.value })}
               placeholder="Что это за колонка — своими словами"
-              className="border border-outline rounded-xs px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
+              className="border border-outline rounded-xs px-2 py-1.5 text-body-medium focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
             <Select value={f.type || 'string'} onValueChange={type => update(i, { type })}
               aria-label={`Тип: ${f.name.trim() || `строка ${i + 1}`}`}>
               {FIELD_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
@@ -111,7 +111,7 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
         );
       })}
       <button type="button" onClick={() => onChange([...fields, withRowUid({ name: '', description: '', type: 'string' })])}
-        className="flex items-center gap-1 text-sm text-primary state-layer pt-0.5">
+        className="flex items-center gap-1 text-body-medium text-primary state-layer pt-0.5">
         <Icon icon={Add} size={18} /> {addLabel}
       </button>
     </div>
@@ -129,12 +129,12 @@ function ShapeEditor({ shape, onChange }: { shape: RecognitionTableShape; onChan
   return (
     <div className="space-y-1.5">
       {flags.map(f => (
-        <label key={f.key} className="flex items-start gap-2 text-sm text-on-surface-variant cursor-pointer">
+        <label key={f.key} className="flex items-start gap-2 text-body-medium text-on-surface-variant cursor-pointer">
           <input type="checkbox" checked={shape[f.key]} onChange={e => onChange({ ...shape, [f.key]: e.target.checked })}
             className="mt-0.5 accent-[var(--md-sys-color-primary)]" />
           <span>
             {f.label}
-            <span className="block text-xs text-on-surface-variant">{f.hint}</span>
+            <span className="block text-body-small text-on-surface-variant">{f.hint}</span>
           </span>
         </label>
       ))}
@@ -196,12 +196,12 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
         heading={
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
             <DetailTitle>{profile.name}</DetailTitle>
-            <span className="text-xs font-normal text-on-surface-variant">{info.label}</span>
+            <span className="text-body-small font-normal text-on-surface-variant">{info.label}</span>
             {profile.isBuiltIn && (
-              <span className="text-caption px-1.5 py-0.5 rounded-xs bg-surface-container text-on-surface-variant">встроенный</span>
+              <span className="text-label-small px-1.5 py-0.5 rounded-xs bg-surface-container text-on-surface-variant">встроенный</span>
             )}
             {profile.isModified && (
-              <span className="text-caption px-1.5 py-0.5 rounded-xs bg-primary-container text-on-primary-container">изменён</span>
+              <span className="text-label-small px-1.5 py-0.5 rounded-xs bg-primary-container text-on-primary-container">изменён</span>
             )}
           </span>
         }
@@ -225,7 +225,7 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
 
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5">
         {profile.builtInOutdated && (
-          <div className="flex gap-2 rounded-md border border-outline-variant bg-warning-container p-3 text-sm text-on-warning-container">
+          <div className="flex gap-2 rounded-md border border-outline-variant bg-warning-container p-3 text-body-medium text-on-warning-container">
             <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <span>
               Заводская версия этого профиля обновилась в новой версии системы, но ваши правки сохранены —
@@ -238,8 +238,8 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
 
         {info.hasScalarFields && (
           <section>
-            <p className="text-sm font-medium text-on-surface mb-1">Поля документа</p>
-            <p className="text-xs text-on-surface-variant mb-2">
+            <p className="text-body-medium font-medium text-on-surface mb-1">Поля документа</p>
+            <p className="text-body-small text-on-surface-variant mb-2">
               Отдельные значения, которые модель извлекает из документа. Описание — главная подсказка:
               по нему модель понимает, что искать.
             </p>
@@ -250,8 +250,8 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
 
         {info.isTabular && (
           <section>
-            <p className="text-sm font-medium text-on-surface mb-1">Колонки таблицы</p>
-            <p className="text-xs text-on-surface-variant mb-2">
+            <p className="text-body-medium font-medium text-on-surface mb-1">Колонки таблицы</p>
+            <p className="text-body-small text-on-surface-variant mb-2">
               Модель вернёт по одной строке на каждую строку таблицы с этими колонками.
             </p>
             <FieldsEditor fields={rowColumns} onChange={setRowColumns}
@@ -261,15 +261,15 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
 
         {info.supportsShape && (
           <section>
-            <p className="text-sm font-medium text-on-surface mb-1">Форма таблицы</p>
-            <p className="text-xs text-on-surface-variant mb-2">
+            <p className="text-body-medium font-medium text-on-surface mb-1">Форма таблицы</p>
+            <p className="text-body-small text-on-surface-variant mb-2">
               То, что набором колонок не выразить. Текст подсказки формируем мы — вы выбираете признаки.
             </p>
             <ShapeEditor shape={shape} onChange={setShape} />
           </section>
         )}
 
-        {error && <p className="text-sm text-error">{error}</p>}
+        {error && <p className="text-body-medium text-error">{error}</p>}
       </div>
 
       <ConfirmDialog
@@ -331,11 +331,11 @@ function CreateProfileForm({ kinds, onSaved, onCancel }: {
             </SelectGroup>
           ))}
         </Select>
-        <p className="text-xs text-on-surface-variant mt-1">
+        <p className="text-body-small text-on-surface-variant mt-1">
           Вид определяет, какой промпт применяется, и после создания не меняется.
         </p>
       </div>
-      {error && <p className="text-sm text-error">{error}</p>}
+      {error && <p className="text-body-medium text-error">{error}</p>}
       <div className="flex justify-end gap-2 border-t border-outline-variant pt-3">
         <Button type="button" variant="text" onClick={onCancel}>Отмена</Button>
         <Button type="button" variant="filled" onClick={save} loading={create.isPending}>
@@ -395,11 +395,11 @@ export function RecognitionProfilesPage() {
       className={`state-layer w-full text-left px-3 py-2 rounded-md ${
         selected?.id === p.id ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}>
       <span className="flex items-center gap-1.5">
-        <span className="text-sm truncate flex-1 min-w-0">{p.name}</span>
+        <span className="text-body-medium truncate flex-1 min-w-0">{p.name}</span>
         {p.builtInOutdated && <Icon icon={Warning} size={18} className="text-warning shrink-0" aria-label="Заводской профиль обновился" />}
         {p.isModified && <Tooltip content="Изменён"><span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" /></Tooltip>}
       </span>
-      <span className="block text-xs text-on-surface-variant truncate">
+      <span className="block text-body-small text-on-surface-variant truncate">
         {p.kindInfo.label} · {profileSummary(p)}{p.isBuiltIn ? '' : ' · свой'}
       </span>
     </button>
@@ -416,7 +416,7 @@ export function RecognitionProfilesPage() {
             {/* Причина — текстом рядом, а не подсказкой на кнопке: выключенная кнопка событий
                 мыши не получает, и подсказка на ней не показалась бы никогда. */}
             {noKinds && (
-              <span className="text-xs text-on-surface-variant">Ни один включённый модуль не объявляет видов профилей</span>
+              <span className="text-body-small text-on-surface-variant">Ни один включённый модуль не объявляет видов профилей</span>
             )}
             <Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setCreateOpen(true)}
               disabled={!kinds || noKinds}>
@@ -424,7 +424,7 @@ export function RecognitionProfilesPage() {
             </Button>
           </span>
         }
-        overlay={isLoading ? <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">Загрузка…</div> : undefined}
+        overlay={isLoading ? <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-medium">Загрузка…</div> : undefined}
         nav={
           <div className="flex flex-col min-h-0">
             <div className="p-2"><NavSearchInput value={query} onChange={setQuery} placeholder="Профиль, вид или модуль…" /></div>
@@ -442,7 +442,7 @@ export function RecognitionProfilesPage() {
                 </Fragment>
               ))}
               {filtered.length === 0 && (
-                <p className="text-sm text-on-surface-variant px-3 py-2">
+                <p className="text-body-medium text-on-surface-variant px-3 py-2">
                   {profilesFailed
                     ? 'Не удалось получить список профилей'
                     : emptyText(loaded?.length === 0, !!outsideFilter)}
@@ -453,7 +453,7 @@ export function RecognitionProfilesPage() {
                 они есть и почему их не видно, — иначе «у меня был профиль» выглядит потерей. */}
             {hiddenLine && (
               <Tooltip content={hidden.map(h => h.name).join('\n')}>
-                <p className="flex items-start gap-1.5 border-t border-outline-variant px-3 py-2 text-xs text-on-surface-variant">
+                <p className="flex items-start gap-1.5 border-t border-outline-variant px-3 py-2 text-body-small text-on-surface-variant">
                   <Icon icon={VisibilityOff} size={18} className="shrink-0 mt-0.5" />
                   <span>{hiddenLine}</span>
                 </p>
@@ -463,7 +463,7 @@ export function RecognitionProfilesPage() {
         }
         detail={selected
           ? <ProfileDetail key={selected.id} profile={selected} />
-          : <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">Выберите профиль</div>} />
+          : <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-medium">Выберите профиль</div>} />
 
       <Modal open={createOpen} onOpenChange={setCreateOpen} title="Новый профиль распознавания">
         <CreateProfileForm kinds={kinds ?? []}

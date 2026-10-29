@@ -17,11 +17,11 @@ export function RefPickerCurrentArchived({ name, onKeep }: { name: string; onKee
   return (
     <Tooltip content="Оставить как есть. После замены выбрать эту запись заново будет нельзя.">
       <button type="button" onClick={onKeep}
-        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded-sm border border-outline-variant bg-surface-container-low hover:bg-primary-container transition-colors">
+        className="w-full flex items-center gap-2 px-3 py-2 text-body-medium text-left rounded-sm border border-outline-variant bg-surface-container-low hover:bg-primary-container transition-colors">
         <Icon icon={Archive} size={18} className="text-on-surface-variant shrink-0" />
         <span className="text-on-surface-variant shrink-0">Сейчас:</span>
         <span className="flex-1 font-medium text-on-surface truncate">{name}</span>
-        <span className="text-caption text-on-surface-variant shrink-0">{ARCHIVED_WORD}</span>
+        <span className="text-label-small text-on-surface-variant shrink-0">{ARCHIVED_WORD}</span>
       </button>
     </Tooltip>
   );
@@ -68,12 +68,12 @@ export function RefPickerArchive({ entries, onReturned, selectsAtOnce }: {
   if (entries.length === 0) return null;
   return (
     <div>
-      <p className="text-xs font-medium text-on-surface-variant uppercase tracking-wide mb-2 flex items-center gap-1.5">
+      <p className="text-body-small font-medium text-on-surface-variant uppercase tracking-wide mb-2 flex items-center gap-1.5">
         <Icon icon={Archive} size={18} className="shrink-0" /> В архиве
       </p>
       <ul className="space-y-1 max-h-40 overflow-y-auto">
         {entries.map(entry => (
-          <li key={entry.id} className="flex items-center gap-3 px-3 py-1.5 text-sm rounded-sm">
+          <li key={entry.id} className="flex items-center gap-3 px-3 py-1.5 text-body-medium rounded-sm">
             <Icon icon={Archive} size={18} className="text-on-surface-variant shrink-0" />
             <span className="flex-1 text-on-surface-variant truncate">{entry.displayName}</span>
             {canReturn && (
@@ -87,7 +87,7 @@ export function RefPickerArchive({ entries, onReturned, selectsAtOnce }: {
         ))}
       </ul>
       {!canReturn && (
-        <p className="text-xs text-on-surface-variant mt-1.5">Вернуть из архива может тот, кто ведёт общие данные.</p>
+        <p className="text-body-small text-on-surface-variant mt-1.5">Вернуть из архива может тот, кто ведёт общие данные.</p>
       )}
     </div>
   );

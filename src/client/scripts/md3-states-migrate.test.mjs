@@ -79,7 +79,7 @@ describe('md3:migrate: состояния → слой MD3', () => {
   });
 
   it('смена цвета текста под курсором — слой, если своего наведения у элемента нет', () => {
-    expect(migrated('"text-xs text-primary hover:text-brand-hover transition-colors"')).toBe('"text-xs text-primary state-layer"');
+    expect(migrated('"text-body-small text-primary hover:text-brand-hover transition-colors"')).toBe('"text-body-small text-primary state-layer"');
     expect(migrated('"rounded hover:bg-primary-container hover:text-brand-hover"')).toBe('"rounded hover:bg-primary-container"');
     expect(migrated('"text-primary hover:text-brand-hover hover:underline"')).toBe('"text-primary hover:underline"');
   });

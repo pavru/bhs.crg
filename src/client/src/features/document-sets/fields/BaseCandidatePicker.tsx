@@ -51,7 +51,7 @@ function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCan
     return (
       <button key={`${c.kind}:${c.id}`} type="button" role="option" aria-selected={on} id={`bcp-opt-${gi}`}
         onMouseEnter={() => setActive(gi)} onClick={() => pick(c)}
-        className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-sm transition-colors ${
+        className={`w-full flex items-center gap-3 px-3 py-2 text-body-medium text-left rounded-sm transition-colors ${
           on ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-primary-container'}`}>
         {c.proxy
           ? <Icon icon={LinkIcon} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-primary'}`} />
@@ -59,8 +59,8 @@ function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCan
             ? <Icon icon={Description} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-primary'}`} />
             : <Icon icon={Database} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-primary'}`} />}
         <span className={`flex-1 font-medium truncate ${on ? 'text-on-secondary-container' : 'text-on-surface'}`}>{c.name}</span>
-        {c.targetIsProxy && <span className="text-caption text-warning shrink-0">роль</span>}
-        <span className={`text-caption shrink-0 ${on ? 'text-on-secondary-container/80' : 'text-on-surface-variant'}`}>{c.scopeLabel}</span>
+        {c.targetIsProxy && <span className="text-label-small text-warning shrink-0">роль</span>}
+        <span className={`text-label-small shrink-0 ${on ? 'text-on-secondary-container/80' : 'text-on-surface-variant'}`}>{c.scopeLabel}</span>
       </button>
     );
   };
@@ -74,20 +74,20 @@ function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCan
         <input value={search} onChange={e => { setSearch(e.target.value); setActive(0); }} onKeyDown={onKey}
           placeholder="Поиск…" autoFocus role="combobox" aria-expanded aria-controls="bcp-listbox"
           aria-activedescendant={ordered.length ? `bcp-opt-${active}` : undefined}
-          className="w-full border border-outline rounded-sm px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
+          className="w-full border border-outline rounded-sm px-3 py-2 text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
         {filtered.length === 0 ? (
-          <p className="text-sm text-on-surface-variant text-center py-4">Нет подходящих кандидатов.</p>
+          <p className="text-body-medium text-on-surface-variant text-center py-4">Нет подходящих кандидатов.</p>
         ) : (
           <div id="bcp-listbox" role="listbox" aria-label="Кандидаты" className="space-y-3 max-h-72 overflow-y-auto">
             {proxyCands.length > 0 && (
               <div className="space-y-1">
-                <p className="text-caption font-semibold text-on-surface-variant uppercase tracking-wide px-1">Роль на реальный объект (тот же тип)</p>
+                <p className="text-label-small font-semibold text-on-surface-variant uppercase tracking-wide px-1">Роль на реальный объект (тот же тип)</p>
                 {proxyCands.map((c, i) => row(c, i))}
               </div>
             )}
             {baseCands.length > 0 && (
               <div className="space-y-1">
-                {proxyCands.length > 0 && <p className="text-caption font-semibold text-on-surface-variant uppercase tracking-wide px-1">Базовый тип</p>}
+                {proxyCands.length > 0 && <p className="text-label-small font-semibold text-on-surface-variant uppercase tracking-wide px-1">Базовый тип</p>}
                 {baseCands.map((c, j) => row(c, proxyCands.length + j))}
               </div>
             )}
@@ -116,7 +116,7 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
   const [pickerOpen, setPickerOpen] = useState(false);
   return (
     <div className="rounded-lg border border-outline-variant bg-surface p-4 space-y-2">
-      <p className="text-sm font-medium text-on-surface">
+      <p className="text-body-medium font-medium text-on-surface">
         {selected?.proxy ? 'Роль — ссылка на реальный объект' : 'Базовый экземпляр'}
         {title && !selected?.proxy && <span className="font-normal ml-1 text-on-surface-variant">({title})</span>}
       </p>
@@ -128,10 +128,10 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
             : selected.kind === 'instance'
               ? <Icon icon={Description} size={18} className="text-primary shrink-0" />
               : <Icon icon={Database} size={18} className="text-primary shrink-0" />}
-          <span className="flex-1 text-sm font-medium text-primary truncate">
+          <span className="flex-1 text-body-medium font-medium text-primary truncate">
             {selected.proxy && <span className="text-on-surface-variant font-normal">→ </span>}{selected.name}
           </span>
-          <span className="text-caption text-on-surface-variant shrink-0">{selected.scopeLabel}</span>
+          <span className="text-label-small text-on-surface-variant shrink-0">{selected.scopeLabel}</span>
           <Tooltip content="Снять ссылку" name>
             <button type="button" onClick={onClear} className="text-primary hover:text-error transition-colors">
               <Icon icon={LinkOff} size={18} />
@@ -139,7 +139,7 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
           </Tooltip>
         </div>
         {selected.targetIsProxy && (
-          <p className="text-caption text-warning flex items-center gap-1">
+          <p className="text-label-small text-warning flex items-center gap-1">
             <Icon icon={Warning} size={18} className="shrink-0" />
             «{selected.name}» — тоже роль. Цепочка ссылок усложняет прослеживание данных.
           </p>
@@ -147,7 +147,7 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
         </>
       ) : missing ? (
         <div className="flex items-center gap-2 rounded-sm border border-warning/40 bg-warning/5 px-3 py-2">
-          <span className="flex-1 text-sm text-warning truncate">Базовый экземпляр недоступен (удалён или вне области видимости)</span>
+          <span className="flex-1 text-body-medium text-warning truncate">Базовый экземпляр недоступен (удалён или вне области видимости)</span>
           <Tooltip content="Снять ссылку" name>
             <button type="button" onClick={onClear} className="text-primary hover:text-error transition-colors">
               <Icon icon={LinkOff} size={18} />
@@ -156,12 +156,12 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
         </div>
       ) : (
         <button type="button" onClick={() => setPickerOpen(true)}
-          className="flex items-center gap-2 text-sm text-primary border border-dashed border-primary-container rounded-sm px-3 py-2 w-full hover:bg-primary-container transition-colors">
+          className="flex items-center gap-2 text-body-medium text-primary border border-dashed border-primary-container rounded-sm px-3 py-2 w-full hover:bg-primary-container transition-colors">
           <Icon icon={LinkIcon} size={18} />
           Выбрать базовый экземпляр или роль...
         </button>
       )}
-      {!selected && !missing && manualHint && <p className="text-xs text-on-surface-variant">{manualHint}</p>}
+      {!selected && !missing && manualHint && <p className="text-body-small text-on-surface-variant">{manualHint}</p>}
       <BaseCandidatePicker open={pickerOpen} onOpenChange={setPickerOpen} candidates={candidates} onSelect={onSelect} />
     </div>
   );

@@ -23,13 +23,13 @@ export function ShortcutChips({ address, filter, enabled, onToggle }: {
   const shortcuts = useTableShortcuts(address, enabled);
 
   if (shortcuts.isError)
-    return <p className="mb-2 text-xs text-warning" role="status">Готовые отборы не посчитаны — число строк под ними неизвестно.</p>;
+    return <p className="mb-2 text-body-small text-warning" role="status">Готовые отборы не посчитаны — число строк под ними неизвестно.</p>;
 
   const shown = (shortcuts.data ?? []).filter(s => shortcutShown(filter, s));
   if (shown.length === 0) return null;
 
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs" role="group" aria-label="Готовые отборы">
+    <div className="mb-2 flex flex-wrap items-center gap-1.5 text-body-small" role="group" aria-label="Готовые отборы">
       <span className="text-on-surface-variant">Навести порядок:</span>
       {shown.map(s => {
         const state = shortcutState(filter, s);

@@ -310,7 +310,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
   return (
     <section className="space-y-3" data-readiness="lines">
       <div className="flex items-center gap-2 flex-wrap">
-        <h2 className="text-sm font-medium text-on-surface-variant">Строки счёта</h2>
+        <h2 className="text-body-medium font-medium text-on-surface-variant">Строки счёта</h2>
         {/* Где менять нельзя (заперт без исправления, нет права), флажка нет: «сверху» говорит пометка, «в том
             числе» — обычный случай, о нём молчат заголовки колонок. Исправление режим меняет (#1498). */}
         {still
@@ -337,7 +337,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
 
       {/* Метка — текстом, а не одной рамкой: цвет не может быть единственным носителем смысла. */}
       {modeMarked && (
-        <div className="flex items-center gap-2 flex-wrap text-xs text-warning" data-testid="vat-mode-recognized">
+        <div className="flex items-center gap-2 flex-wrap text-body-small text-warning" data-testid="vat-mode-recognized">
           <span>
             {UNCONFIRMED_HINT} ·{' '}
             {/* Итоги сохранённого — серверные: метка о сохранённом, и пересчитывать их здесь незачем. */}
@@ -349,7 +349,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
       )}
 
       {mode !== savedMode && view.lines.length > 0 && (
-        <p className="text-xs text-warning">{modeConsequences(view, drafts, parsed)}</p>
+        <p className="text-body-small text-warning">{modeConsequences(view, drafts, parsed)}</p>
       )}
 
       {base.stale && dirty && !correcting && <StaleInvoiceNotice what="строки" onReread={reread} />}
@@ -399,7 +399,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
             не имеет, и фраза «разноска сходится» ниже была бы про него неправдой. */}
         {(!parsed || !view.allocation.allocated) && view.lines.length > 0 && !rejected
           && <AllocationSummary allocation={view.allocation} />}
-        <span className="text-xs text-on-surface-variant">
+        <span className="text-body-small text-on-surface-variant">
           {rejected
             ? 'Счёт отклонён: по нему не платим, в затраты и «К оплате» он не входит. Строки и разноска сохранены.'
             : parsed
@@ -446,7 +446,7 @@ function ReconciliationStrip({ sums, strip, unsaved, matched, hint, onHint }: {
   const offer = hint ? modeHint(hint) : null;
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-md border border-outline-variant
-      bg-surface-container px-3 py-2 text-xs">
+      bg-surface-container px-3 py-2 text-body-small">
       <span className="text-on-surface-variant">Строк: <b>{sums.count}</b></span>
 
       {sums.withoutNomenclature > 0 && (

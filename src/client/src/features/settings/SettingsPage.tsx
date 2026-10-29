@@ -43,7 +43,7 @@ export function SettingsPage() {
       <form onSubmit={handleSave}>
         <CollapsibleSection title="Шаблоны" storageKey="templates">
           <div>
-            <p className="text-xs text-on-surface-variant mb-2">
+            <p className="text-body-small text-on-surface-variant mb-2">
               При превышении система предложит удалить старые версии. Минимум — 2.
             </p>
             <TextField containerClassName="w-40" label="Максимум версий шаблона"
@@ -52,7 +52,7 @@ export function SettingsPage() {
           </div>
           <div className="flex items-center gap-3">
             <Button type="submit" variant="filled">Сохранить</Button>
-            {saved && <span className="text-sm text-success">Сохранено</span>}
+            {saved && <span className="text-body-medium text-success">Сохранено</span>}
           </div>
         </CollapsibleSection>
       </form>

@@ -21,7 +21,7 @@ export function SuggestFlag({ field, onChange }: {
   const reason = suggestReason(field);
   if (reason === 'type' || reason === 'computed') return null;
   if (reason !== 'suggested' && reason !== 'manual')
-    return <p className="text-caption text-on-surface-variant">{SUGGEST_REFUSAL_TEXT[reason]}</p>;
+    return <p className="text-label-small text-on-surface-variant">{SUGGEST_REFUSAL_TEXT[reason]}</p>;
 
   const tags = field.tags ?? [];
   function toggle(on: boolean) {
@@ -30,7 +30,7 @@ export function SuggestFlag({ field, onChange }: {
   }
   return (
     <Checkbox size="sm" checked={reason === 'suggested'} onChange={toggle}
-      label={<span className="text-xs text-on-surface-variant">Подсказывать введённое ранее</span>}
+      label={<span className="text-body-small text-on-surface-variant">Подсказывать введённое ранее</span>}
       description="Поле предлагает значения, введённые в нём в других записях. Снимите, если значения уникальны" />
   );
 }

@@ -28,7 +28,7 @@ export function ProxyRoleMarker({ entry, siblings, resolvePool, onOpen }: {
   return (
     <Tooltip content="Открыть реальный объект">
       <button type="button" onClick={e => { e.stopPropagation(); onOpen(target); }}
-        className="flex items-center gap-1 text-caption text-on-surface-variant hover:text-primary shrink-0 max-w-[180px] truncate transition-colors">
+        className="flex items-center gap-1 text-label-small text-on-surface-variant hover:text-primary shrink-0 max-w-[180px] truncate transition-colors">
         <Icon icon={LinkIcon} size={18} className="shrink-0" />→ {target.displayName}{target.archived && ` · ${ARCHIVED_WORD}`}
       </button>
     </Tooltip>
@@ -79,16 +79,16 @@ export function ObjectRow({
       className={`state-layer group flex items-center cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset ${dense ? 'gap-3 px-3 py-2' : 'gap-4 px-4 py-3'} ${className}`}>
       {docKind && dense && <Icon icon={Description} size={18} className="text-warning shrink-0" />}
       {/* Архивная: имя приглушено, но не зачёркнуто — запись цела, её только нет в выборе. */}
-      <span className={`flex-1 min-w-[8rem] flex items-center gap-2 text-sm ${entry.archived ? 'text-on-surface-variant' : 'text-on-surface'} ${dense ? '' : 'font-medium'}`}>
+      <span className={`flex-1 min-w-[8rem] flex items-center gap-2 text-body-medium ${entry.archived ? 'text-on-surface-variant' : 'text-on-surface'} ${dense ? '' : 'font-medium'}`}>
         <span className="truncate">{entry.displayName}</span>
         {entry.archived && <ArchivedMark className="font-normal" />}
       </span>
       <ProxyRoleMarker entry={entry} siblings={siblings} resolvePool={resolvePool} onOpen={onEdit} />
       {docKind && dense && (
-        <span className="text-xs px-1.5 py-0.5 rounded-xs bg-warning-container text-on-warning-container font-medium shrink-0">внеш. документ</span>
+        <span className="text-body-small px-1.5 py-0.5 rounded-xs bg-warning-container text-on-warning-container font-medium shrink-0">внеш. документ</span>
       )}
       {showPreview && preview && (
-        <span className="text-xs text-on-surface-variant truncate max-w-xs hidden sm:block">{preview}</span>
+        <span className="text-body-small text-on-surface-variant truncate max-w-xs hidden sm:block">{preview}</span>
       )}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
         {onArchive && (

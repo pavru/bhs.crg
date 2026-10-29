@@ -23,7 +23,7 @@ import { Tooltip } from '@/shared/ui/Tooltip';
 function SourceBoundary({ boundary }: { boundary?: string | null }) {
   if (!boundary) return null;
   return (
-    <div className="px-1 pt-2 text-xs text-on-surface-variant flex items-start gap-1.5">
+    <div className="px-1 pt-2 text-body-small text-on-surface-variant flex items-start gap-1.5">
       <Icon icon={VerifiedUser} size={18} className="mt-0.5 shrink-0 text-on-surface-variant" />
       <span>{boundary}</span>
     </div>
@@ -65,10 +65,10 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
           <div key={i} className="flex items-center gap-3 rounded-sm px-3 py-2 bg-surface-container">
             <Icon icon={Description} size={18} className="text-on-surface-variant shrink-0" />
             <div className="min-w-0 flex-1">
-              <div className="text-xs font-medium truncate text-on-surface">
+              <div className="text-body-small font-medium truncate text-on-surface">
                 {name ?? <em className="text-on-surface-variant">без названия</em>}
               </div>
-              <div className="text-caption text-on-surface-variant">
+              <div className="text-label-small text-on-surface-variant">
                 {pages ? `${pages} л.` : '—'}{size ? ` · ${size}` : ''}
               </div>
             </div>
@@ -76,7 +76,7 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
               <button
                 onClick={() => path && handleOpen(i, path)}
                 disabled={!path || opening === i}
-                className="flex items-center gap-1 shrink-0 px-2 py-1 text-xs rounded-sm border border-outline-variant text-on-surface-variant state-layer disabled-outlined">
+                className="flex items-center gap-1 shrink-0 px-2 py-1 text-body-small rounded-sm border border-outline-variant text-on-surface-variant state-layer disabled-outlined">
                 {opening === i ? <CircularProgress size={18} /> : <Icon icon={OpenInNew} size={18} />}
                 Просмотреть
               </button>
@@ -85,7 +85,7 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
         );
       })}
       <SourceBoundary boundary={data.boundary} />
-      <div className="px-1 pt-1 text-xs text-on-surface-variant">
+      <div className="px-1 pt-1 text-body-small text-on-surface-variant">
         {data.totalRows} строк{data.totalRows > data.rows.length ? ` (показано первых ${data.rows.length})` : ''}
       </div>
     </div>
@@ -116,20 +116,20 @@ export function SourcePreviewDialog({ source, onClose }: { source: DataSetSource
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Результат обработки — ${source.name}`} wide nothingToLose>
-      <p className="text-xs mb-3 text-on-surface-variant">
+      <p className="text-body-small mb-3 text-on-surface-variant">
         Результат после Filter/Transformation/Sort — то, что получит маппинг документа.
       </p>
 
       {isFetching ? (
-        <div className="flex items-center gap-2 py-8 justify-center text-sm text-on-surface-variant">
+        <div className="flex items-center gap-2 py-8 justify-center text-body-medium text-on-surface-variant">
           <CircularProgress size={18} /> Загрузка...
         </div>
       ) : error ? (
-        <p className="text-sm text-error py-4">
+        <p className="text-body-medium text-error py-4">
           {(error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Не удалось получить результат'}
         </p>
       ) : !data || data.columns.length === 0 ? (
-        <p className="text-sm text-on-surface-variant py-4 text-center">Нет данных — либо строки не найдены, либо все отфильтрованы.</p>
+        <p className="text-body-medium text-on-surface-variant py-4 text-center">Нет данных — либо строки не найдены, либо все отфильтрованы.</p>
       ) : isGostDocuments ? (
         <GostDocumentsPreview data={data} />
       ) : (
@@ -139,7 +139,7 @@ export function SourcePreviewDialog({ source, onClose }: { source: DataSetSource
               «уезжал» к дну длинной таблицы, а на стыке со скроллом модалки был глюк (issue #240). */}
           <DataGrid className="max-h-[65vh]" {...previewGrid(data)} />
           <SourceBoundary boundary={data.boundary} />
-          <div className="px-1 pt-2 text-xs text-on-surface-variant">
+          <div className="px-1 pt-2 text-body-small text-on-surface-variant">
             {data.totalRows} строк{data.totalRows > data.rows.length ? ` (показано первых ${data.rows.length})` : ''}
           </div>
         </>

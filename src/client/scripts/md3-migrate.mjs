@@ -81,13 +81,12 @@ export function compile(map = classMap, aliases = entries(theme.aliases).map(([k
 
   // Имя, которое для какой-то утилиты не переводится по смыслу (`text-fg4`: текст цветом обводки), —
   // в `var(--color-…)` неоднозначно: утилиты у переменной нет, и чем она станет, по ней не видно.
-  // `notColor` — пропуск не о цвете (`text-base` — размер текста), имя переменной он не задевает.
   // Так же и имя с запретом по утилите: переменная бывает и цветом обводки (`border-l-[var(--color-fg4)]`),
   // и цветом текста (`[color:var(--color-stroke-strong)]`).
   const ambiguousVar = new Map([
     ...entries(map.names).filter(([, v]) => v.lines).map(([k, v]) => [k, `обводка с ${k} — ${v.lines}`]),
     ...entries(map.names).filter(([, v]) => v.text).map(([k, v]) => [k, `текст с ${k} — ${v.text}`]),
-    ...entries(map.classes).filter(([k, v]) => v.skip && !v.notColor && colorName(k))
+    ...entries(map.classes).filter(([k, v]) => v.skip && colorName(k))
       .map(([k, v]) => [colorName(k).name, `${k} — ${v.skip}`]),
   ]);
 

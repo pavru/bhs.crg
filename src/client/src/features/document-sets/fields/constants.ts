@@ -22,9 +22,9 @@ export function fieldInputClass(invalid = false, readOnly = false) {
     // Курсор обычный, а не `not-allowed`: поле ДОСТУПНО — в него можно встать, выделить значение и
     // скопировать. `not-allowed` — знак отключённого контрола, и на read-only он просто врёт
     // (issue #958). Отличие от обычного поля несёт фон и приглушённый текст.
-    return 'w-full border rounded-sm px-3 py-2 text-sm text-on-surface-variant bg-surface-container border-outline-variant';
+    return 'w-full border rounded-sm px-3 py-2 text-body-medium text-on-surface-variant bg-surface-container border-outline-variant';
   }
-  return `w-full border rounded-sm px-3 py-2 text-sm text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface ${
+  return `w-full border rounded-sm px-3 py-2 text-body-medium text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface ${
     invalid ? 'border-error focus-visible:ring-error' : 'border-outline'
   }`;
 }
@@ -96,7 +96,7 @@ export function defaultColWidth(f: SchemaField) {
 export const ROW_DRAG_MIME = 'application/x-crg-array-row';
 
 export const CELL_INPUT =
-  'w-full h-full px-1.5 bg-transparent border-none outline-none text-xs text-on-surface tabular-nums focus:bg-primary-container';
+  'w-full h-full px-1.5 bg-transparent border-none outline-none text-body-small text-on-surface tabular-nums focus:bg-primary-container';
 
 export function tryPrettyJson(val: unknown): string {
   try { return JSON.stringify(val, null, 2); } catch { return '{}'; }

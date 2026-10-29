@@ -64,11 +64,11 @@ function SourceNameDialog({ title, hint, defaultName, takenNames, isPending, err
           </Button>
         </div>
       }>
-      {hint && <p className="text-xs mb-3 text-on-surface-variant">{hint}</p>}
+      {hint && <p className="text-body-small mb-3 text-on-surface-variant">{hint}</p>}
       <TextField label="Название" value={name} onChange={e => setName(e.target.value)} autoFocus
         onKeyDown={e => { if (e.key === 'Enter' && canSave) onSubmit(trimmed); }} />
-      {isTaken && <p className="mt-1 text-xs text-error">Источник с таким названием в наборе уже есть.</p>}
-      {error && <p className="mt-1 text-xs text-error">{error}</p>}
+      {isTaken && <p className="mt-1 text-body-small text-error">Источник с таким названием в наборе уже есть.</p>}
+      {error && <p className="mt-1 text-body-small text-error">{error}</p>}
     </Modal>
   );
 }
@@ -178,7 +178,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
   ];
 
   return (
-    <div className="text-xs rounded-sm p-2 bg-surface-container">
+    <div className="text-body-small rounded-sm p-2 bg-surface-container">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="font-medium text-on-surface">
@@ -188,7 +188,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
               // замену файла, хотя сменить могли и профиль распознавания, и границы документа.
               <Tooltip content={`${staleReasonText(src.staleReason)}. Распознайте заново.`}>
                 <span
-                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-caption font-medium bg-warning-container text-on-warning-container align-middle">
+                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-label-small font-medium bg-warning-container text-on-warning-container align-middle">
                   <Icon icon={Warning} size={18} /> устарело
                 </span>
               </Tooltip>
@@ -200,7 +200,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
                 ? `Строки источника — ссылки на существующие документы по колонке «${src.materializeByIdColumn}».`
                 : 'Источник материализуется в тип — маппинг задан на источнике (issue #19).'}>
                 <span
-                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-caption font-medium bg-primary/10 text-primary align-middle">
+                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-label-small font-medium bg-primary/10 text-primary align-middle">
                   <Icon icon={Widgets} size={18} /> материализация{src.materializeByIdColumn ? ' · по Ид' : ''}
                 </span>
               </Tooltip>
@@ -210,7 +210,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
             {!!src.bindingCount && (
               <Tooltip content={`На источник ссылаются привязки документов (${src.bindingCount}). При удалении они перестанут работать.`}>
                 <span
-                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-caption font-medium bg-surface-container text-on-surface-variant align-middle">
+                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-label-small font-medium bg-surface-container text-on-surface-variant align-middle">
                   <Icon icon={LinkIcon} size={18} /> {ruCount(src.bindingCount, 'привязка', 'привязки', 'привязок')}
                 </span>
               </Tooltip>
@@ -405,7 +405,7 @@ export function SourcesPanel({
   return (
     <div>
       <div className="flex items-center justify-between gap-2 mb-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+        <span className="text-body-small font-semibold uppercase tracking-wide text-on-surface-variant">
           Источники{sources.length > 0 ? ` · ${sources.length}` : ''}
         </span>
         {canManageExtraction && !systemDeadEnd && (
@@ -416,7 +416,7 @@ export function SourcesPanel({
       </div>
       <div className="space-y-2">
         {sources.length === 0 && (
-          <p className="text-xs text-on-surface-variant py-1">
+          <p className="text-body-small text-on-surface-variant py-1">
             {systemDeadEnd
               ? 'Консолидаций из данных системы на этом уровне нет — набор можно удалить.'
               : isSystem
@@ -433,7 +433,7 @@ export function SourcesPanel({
         ))}
         {availableCandidates.length > 0 && (
           <div className="rounded-sm border border-dashed border-outline bg-surface-container-low px-3 py-2 space-y-1 mt-1">
-            <p className="text-caption text-on-surface-variant">
+            <p className="text-label-small text-on-surface-variant">
               {isSystem ? 'Доступно из данных системы:' : isPdf ? 'Доступно из распознанного набора:' : 'Доступно из набора:'}
             </p>
             {availableCandidates.map(c => {
@@ -442,7 +442,7 @@ export function SourcesPanel({
               const pending = c.firstPageIndex != null;
               const existing = c.existingCount ?? 0;
               return (
-                <div key={c.sheetOrPath} className="flex items-center gap-2 text-xs">
+                <div key={c.sheetOrPath} className="flex items-center gap-2 text-body-small">
                   <span className="text-on-surface-variant">
                     {c.name} <span className="text-on-surface-variant">· {pending ? 'таблица не распознана' : `${c.rowCount} строк`}</span>
                     {existing > 0 && (
@@ -496,7 +496,7 @@ export function SourcesPanel({
             {/* Кнопка «Создать» отправляет запрос без диалога — её отказ иначе выглядел бы как
                 мёртвое нажатие (диалог, где показывается ошибка, на этом пути закрыт). */}
             {createSource.error && !addingMore && (
-              <p className="text-xs text-error">{createSource.error.message}</p>
+              <p className="text-body-small text-error">{createSource.error.message}</p>
             )}
           </div>
         )}

@@ -55,8 +55,8 @@ export function RevisionLines({ revision, initialQueue = 'all' }: {
   const units = useUnitNames(useMemo(() => items.flatMap(r => (r.unitId ? [r.unitId] : [])), [items]));
 
   if (rows.isError || sections.isError)
-    return <p role="alert" className="text-sm text-error">{apiError(rows.error ?? sections.error, 'Строки редакции не прочитались')}</p>;
-  if (!rows.data || !sections.data) return <p className="text-sm text-on-surface-variant">Читаем строки редакции…</p>;
+    return <p role="alert" className="text-body-medium text-error">{apiError(rows.error ?? sections.error, 'Строки редакции не прочитались')}</p>;
+  if (!rows.data || !sections.data) return <p className="text-body-medium text-on-surface-variant">Читаем строки редакции…</p>;
 
   const toggle = (key: string) => setOpened(prev => {
     const next = new Set(prev);
@@ -114,9 +114,9 @@ function lineColumns(hidden: HiddenPart[] | undefined, names: Names, onMatch: On
     {
       key: 'rateCode', label: 'Шифр', width: 'w-36',
       // Шифр — в одну строку с обрезкой (макет П1): ширина нужна наименованию.
-      cell: l => <Tooltip content={row(l)!.rateCode ?? undefined}><span className="block truncate font-mono text-xs">{row(l)!.rateCode}</span></Tooltip>,
+      cell: l => <Tooltip content={row(l)!.rateCode ?? undefined}><span className="block truncate font-mono text-body-small">{row(l)!.rateCode}</span></Tooltip>,
     },
-    { key: 'name', label: 'Наименование', wrap: true, rowHeader: true, cell: l => <span className="text-sm">{row(l)!.name}</span> },
+    { key: 'name', label: 'Наименование', wrap: true, rowHeader: true, cell: l => <span className="text-body-medium">{row(l)!.name}</span> },
     {
       key: 'sourceVolume', label: 'Объём', align: 'right', width: 'w-20',
       cell: l => { const v = row(l)!.sourceVolume; return v === null ? null : <span className="tabular-nums">{formatQuantity(v)}</span>; },
@@ -161,20 +161,20 @@ function WorkTypeCell({ row, names, onMatch }: { row: EstimateRow; names: Names;
     <div className="flex flex-col items-start gap-0.5">
       {row.workTypeId && (onMatch ? (
         <button type="button" onClick={() => onMatch({ kind: 'row', rowId: row.id })}
-          className="rounded-xs text-left text-sm text-on-surface hover:text-primary hover:underline focus-visible:outline-2">
+          className="rounded-xs text-left text-body-medium text-on-surface hover:text-primary hover:underline focus-visible:outline-2">
           {names.workTypes?.get(row.workTypeId) ?? '…'}
         </button>
       ) : (
-        <span className="text-sm text-on-surface">{names.workTypes?.get(row.workTypeId) ?? '…'}</span>
+        <span className="text-body-medium text-on-surface">{names.workTypes?.get(row.workTypeId) ?? '…'}</span>
       ))}
       {!row.workTypeId && onMatch && (
         <button type="button" onClick={() => onMatch({ kind: 'row', rowId: row.id })}
-          className="inline-flex items-center gap-1 rounded-xs text-sm text-primary hover:underline focus-visible:outline-2">
+          className="inline-flex items-center gap-1 rounded-xs text-body-medium text-primary hover:underline focus-visible:outline-2">
           <Icon icon={Add} size={18} aria-hidden />выбрать вид работы
         </button>
       )}
       {row.workTypeId && row.volume !== null && (
-        <span className="text-xs text-on-surface-variant tabular-nums">
+        <span className="text-body-small text-on-surface-variant tabular-nums">
           {formatQuantity(row.volume)}{row.unitId && names.units.get(row.unitId) ? ` ${names.units.get(row.unitId)}` : ''}
           {row.factor !== null && row.factor !== 1 ? ` · × ${formatQuantity(row.factor)}` : ''}
         </span>
@@ -228,15 +228,15 @@ function SectionHeading({ section, open, shown, filtering, onToggle, onMatch }: 
     <div className="flex flex-wrap items-center gap-2">
       {/* С отбором разделы раскрыты сами — сворачивать нечего: под отбором видны только подходящие строки. */}
       {filtering ? (
-        <span className="text-sm font-medium text-on-surface">{title}</span>
+        <span className="text-body-medium font-medium text-on-surface">{title}</span>
       ) : (
         <button type="button" aria-expanded={open} onClick={onToggle}
-          className="inline-flex items-center gap-1 rounded-xs text-left text-sm font-medium text-on-surface hover:text-primary focus-visible:outline-2">
+          className="inline-flex items-center gap-1 rounded-xs text-left text-body-medium font-medium text-on-surface hover:text-primary focus-visible:outline-2">
           <Icon icon={icon} size={18} aria-hidden className="shrink-0" />
           {title}
         </button>
       )}
-      <span className="text-xs text-on-surface-variant">
+      <span className="text-body-small text-on-surface-variant">
         {filtering ? `${formatCount(shown)} из ${formatCount(section.rows)} строк` : `${formatCount(section.rows)} строк`}
       </span>
       {section.unmatched > 0

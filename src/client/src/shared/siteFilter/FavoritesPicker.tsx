@@ -40,14 +40,14 @@ export function FavoritesPicker({ maxHeight = 'max-h-72' }: { maxHeight?: string
     finally { setBusy(false); }
   }
 
-  if (filter.status === 'loading') return <p className="text-sm text-on-surface-variant">Загрузка…</p>;
+  if (filter.status === 'loading') return <p className="text-body-medium text-on-surface-variant">Загрузка…</p>;
   if (filter.status === 'error') {
-    return <p role="alert" className="text-sm text-error">Избранные стройки не загрузились. Обновите страницу.</p>;
+    return <p role="alert" className="text-body-medium text-error">Избранные стройки не загрузились. Обновите страницу.</p>;
   }
 
   return (
     <div className="space-y-3" data-testid="favorites-picker">
-      <p className="text-xs text-on-surface-variant">
+      <p className="text-body-small text-on-surface-variant">
         Отмеченные стройки показываются во всех списках, остальные скрываются. Это удобство, а не права:
         отбор «Стройки» над списком показывает и все.
       </p>
@@ -56,18 +56,18 @@ export function FavoritesPicker({ maxHeight = 'max-h-72' }: { maxHeight?: string
           <Icon icon={Search} size={18} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
           <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Название стройки…"
             aria-label="Название стройки"
-            className="w-full h-8 pl-8 pr-2 text-sm border border-outline rounded-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
+            className="w-full h-8 pl-8 pr-2 text-body-medium border border-outline rounded-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
         </div>
       )}
       {filter.sites.length === 0 ? (
-        <p className="text-sm text-on-surface-variant">Строек пока нет.</p>
+        <p className="text-body-medium text-on-surface-variant">Строек пока нет.</p>
       ) : (
         <ul className={`${maxHeight} overflow-y-auto -mx-1`}>
           {shown.map(s => {
             const checked = filter.favorites.has(s.id);
             return (
               <li key={s.id}>
-                <label className="flex items-center gap-2 px-1 py-1 rounded-xs state-layer cursor-pointer text-sm text-on-surface">
+                <label className="flex items-center gap-2 px-1 py-1 rounded-xs state-layer cursor-pointer text-body-medium text-on-surface">
                   <Checkbox size="sm" checked={checked} disabled={busy}
                     onChange={() => run(() => filter.setFavorite(s.id, !checked))} />
                   <Icon icon={Star} size={18} className={checked ? 'text-primary fill-current' : 'text-on-surface-variant'} aria-hidden />
@@ -76,12 +76,12 @@ export function FavoritesPicker({ maxHeight = 'max-h-72' }: { maxHeight?: string
               </li>
             );
           })}
-          {shown.length === 0 && <li className="px-1 py-1 text-sm text-on-surface-variant">Не найдено по «{query.trim()}»</li>}
+          {shown.length === 0 && <li className="px-1 py-1 text-body-medium text-on-surface-variant">Не найдено по «{query.trim()}»</li>}
         </ul>
       )}
-      {error && <p role="alert" className="text-xs text-error">{error}</p>}
+      {error && <p role="alert" className="text-body-small text-error">{error}</p>}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-on-surface-variant">
+        <span className="text-body-small text-on-surface-variant">
           {filter.favorites.size === 0 ? 'Избранного нет — показываются все стройки.'
             : `Отмечено: ${filter.favorites.size} из ${filter.sites.length}`}
         </span>

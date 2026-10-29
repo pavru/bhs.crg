@@ -34,7 +34,7 @@ export function SchemaLevelBanner({ level, module }: { level: DocumentType['edit
       <Icon icon={LockIcon} size={18} className="text-on-secondary-container shrink-0 mt-0.5" />
       {/* Текст берёт цвет из того же набора, что и подложка: fg2 рассчитан на фон страницы, и на
           тональной подложке его контраст никто не проверял — ни в светлой теме, ни в тёмной. */}
-      <p className="text-xs text-on-secondary-container">
+      <p className="text-body-small text-on-secondary-container">
         <span className="font-medium">Тип модуля «{owner}»{level === 'Closed' ? ' — закрытый' : ' — расширяемый'}.</span>{' '}
         {what}
       </p>

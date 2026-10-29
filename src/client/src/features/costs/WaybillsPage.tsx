@@ -141,7 +141,7 @@ export function WaybillsPage() {
         <>
           <NavSearchInput value={query} onChange={setQuery} placeholder="Номер, стройка, склад…" />
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-1.5">
-            <label className="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer">
+            <label className="flex items-center gap-2 text-body-small text-on-surface-variant cursor-pointer">
               <input type="checkbox" checked={unmatched} onChange={e => setUnmatched(e.target.checked)} />
               <Icon icon={Checklist} size={18} />
               Только «Сопоставить»
@@ -151,19 +151,19 @@ export function WaybillsPage() {
             {!unmatched && <SitesFilter hidden={hidden ?? undefined} partial={searching} />}
           </div>
           <div className="flex-1 overflow-y-auto">
-            {waybills.isPending && <p className="px-3 py-2 text-xs text-on-surface-variant">Загрузка…</p>}
+            {waybills.isPending && <p className="px-3 py-2 text-body-small text-on-surface-variant">Загрузка…</p>}
             {waybills.isError && (
-              <p className="px-3 py-2 text-xs text-error">
+              <p className="px-3 py-2 text-body-small text-error">
                 Список не пришёл. Это отказ чтения, а не пустой список: накладные могут быть.
               </p>
             )}
-            {stale && <p className="px-3 py-2 text-xs text-on-surface-variant">Обновляется…</p>}
+            {stale && <p className="px-3 py-2 text-body-small text-on-surface-variant">Обновляется…</p>}
             {settled && items.length === 0 && !!hidden && (
               <FilterHidesAll testId="waybill-list-sites-empty" onShowAll={filter.showAll}
                 text={searching ? SEARCH_HIDDEN : hiddenEmpty(hidden)} action={searching ? SEARCH_ALL_SITES : SHOW_ALL_SITES} />
             )}
             {settled && items.length === 0 && !hidden && (
-              <p className="px-3 py-2 text-xs text-on-surface-variant">
+              <p className="px-3 py-2 text-body-small text-on-surface-variant">
                 {searching ? 'Ничего не найдено.'
                   : unmatched ? 'Сопоставлять нечего: строк без позиции номенклатуры нет ни у одной накладной.'
                     : 'Накладных пока нет.'}
@@ -178,7 +178,7 @@ export function WaybillsPage() {
             </div>
             {/* Обрезанный молча список читался бы как «такой накладной нет». */}
             {settled && waybills.data?.more && (
-              <p className="px-3 py-2 text-xs text-warning">
+              <p className="px-3 py-2 text-body-small text-warning">
                 Показаны самые свежие накладные, это не все. Поиск идёт по показанным: не нашли нужную —
                 включите отбор «Сопоставить» или откройте её по ссылке.
               </p>
@@ -194,12 +194,12 @@ export function WaybillsPage() {
               description={canEdit ? 'Или заведите новую — черновик сохранится пустым.' : undefined} />
           </div>
         ) : opened.kind === 'loading' ? (
-          <div className="flex-1 grid place-items-center text-xs text-on-surface-variant">Накладная загружается…</div>
+          <div className="flex-1 grid place-items-center text-body-small text-on-surface-variant">Накладная загружается…</div>
         ) : opened.kind === 'missing' ? (
           // «Повторить» здесь нет: накладной нет, и повтор ответит тем же.
           <div className="flex-1 grid place-items-center p-6" data-testid="waybill-gone">
             <div className="max-w-md text-center space-y-2">
-              <p className="text-sm text-on-surface-variant">Накладной нет: её удалили или ссылка неверна.</p>
+              <p className="text-body-medium text-on-surface-variant">Накладной нет: её удалили или ссылка неверна.</p>
               <Button size="sm" variant="outlined" onClick={() => closeGone(opened.id)}>Закрыть</Button>
             </div>
           </div>
@@ -207,8 +207,8 @@ export function WaybillsPage() {
           // Только для накладной, не прочитанной НИ РАЗУ: неудачное перечитывание открытой форму не снимает.
           <div className="flex-1 grid place-items-center p-6">
             <div className="max-w-md text-center space-y-2">
-              <p className="text-sm text-error">Накладная не открылась: {apiError(opened.error, 'сервер отказал')}</p>
-              <p className="text-xs text-on-surface-variant">Это отказ чтения, а не пустая накладная.</p>
+              <p className="text-body-medium text-error">Накладная не открылась: {apiError(opened.error, 'сервер отказал')}</p>
+              <p className="text-body-small text-on-surface-variant">Это отказ чтения, а не пустая накладная.</p>
               <Button size="sm" variant="outlined" onClick={() => void view.refetch()}>Повторить</Button>
             </div>
           </div>
@@ -235,22 +235,22 @@ function ListRow({ item, active, onClick }: { item: WaybillListItem; active: boo
       className={`w-full text-left px-3 py-2 border-b border-outline-variant/60 ` +
         `state-layer ${active ? 'bg-primary-container' : ''}`}>
       <div className="flex items-center gap-2">
-        <span className="text-sm text-on-surface font-medium truncate">{item.number ?? 'без номера'}</span>
-        {item.issuedOn && <span className="text-xs text-on-surface-variant shrink-0">{formatDate(item.issuedOn)}</span>}
+        <span className="text-body-medium text-on-surface font-medium truncate">{item.number ?? 'без номера'}</span>
+        {item.issuedOn && <span className="text-body-small text-on-surface-variant shrink-0">{formatDate(item.issuedOn)}</span>}
         <div className="flex-1" />
-        <span className={`text-xs shrink-0 ${item.state === 'Posted' ? 'text-success' : 'text-on-surface-variant'}`}>
+        <span className={`text-body-small shrink-0 ${item.state === 'Posted' ? 'text-success' : 'text-on-surface-variant'}`}>
           {item.state === 'Posted' ? 'проведена' : 'черновик'}
         </span>
       </div>
       <div className="flex items-center gap-2 mt-0.5">
-        <span className={`text-xs truncate ${item.constructionName ? 'text-on-surface-variant' : item.constructionId ? 'text-error' : 'text-on-surface-variant'}`}>
+        <span className={`text-body-small truncate ${item.constructionName ? 'text-on-surface-variant' : item.constructionId ? 'text-error' : 'text-on-surface-variant'}`}>
           {item.constructionName ?? (item.constructionId ? MISSING.construction : 'стройка не выбрана')}
         </span>
         <div className="flex-1" />
         {/* Ноль не показываем: число «0» у каждой строки читается как шум. */}
         {item.unmatched > 0 && (
           <Tooltip content={`Не сопоставлено строк: ${item.unmatched} из ${item.lines}`}>
-            <span className="inline-flex items-center gap-0.5 text-xs text-warning shrink-0">
+            <span className="inline-flex items-center gap-0.5 text-body-small text-warning shrink-0">
               <Icon icon={Checklist} size={18} />{item.unmatched}
             </span>
           </Tooltip>
@@ -259,7 +259,7 @@ function ListRow({ item, active, onClick }: { item: WaybillListItem; active: boo
       {/* Исправленная после закрытия — видимой строкой с днём и причиной (D6, D10): на телефоне подсказка не
           открывается, а без пометки накладная закрытого месяца выглядела бы такой, какой её закрыли. */}
       {item.correctedAfterClosing && (
-        <div className="flex items-center gap-1 mt-0.5 text-xs text-on-surface-variant" data-testid="waybill-corrected">
+        <div className="flex items-center gap-1 mt-0.5 text-body-small text-on-surface-variant" data-testid="waybill-corrected">
           <Icon icon={HistoryIcon} size={18} className="shrink-0" aria-hidden />
           <span className="truncate">{correctionMarkText(item.correctedAfterClosing)}</span>
         </div>

@@ -42,7 +42,7 @@ export function SendMessageDialog({ open, onClose, candidates, title = 'Отпр
   }
 
   const canSend = selected.size > 0 && subject.trim() && body.trim() && !sendEmail.isPending;
-  const field = "w-full border border-outline rounded-sm px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface";
+  const field = "w-full border border-outline rounded-sm px-3 py-2 text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface";
 
   return (
     <Modal open={open} onOpenChange={o => { if (!o) { onClose(); setResult(null); } }} title={title}
@@ -57,19 +57,19 @@ export function SendMessageDialog({ open, onClose, candidates, title = 'Отпр
       <div className="space-y-4">
         {/* Получатели */}
         <div>
-          <label className="block text-xs font-medium text-on-surface-variant mb-1">Получатели</label>
+          <label className="block text-body-small font-medium text-on-surface-variant mb-1">Получатели</label>
           {candidates.length === 0 ? (
-            <p className="text-xs text-on-surface-variant">Нет кандидатов.</p>
+            <p className="text-body-small text-on-surface-variant">Нет кандидатов.</p>
           ) : (
             <div className="rounded-sm border border-outline-variant divide-y divide-surface-container max-h-48 overflow-y-auto">
               {candidates.map(c => {
                 const ok = validEmail(c.email);
                 return (
                   // Адрес без почты выбрать нельзя: строка — отключённым видом MD3 ([UI-64]), знак — своим цветом.
-                  <label key={c.id} className={`flex items-center gap-2 px-2.5 py-1.5 text-sm ${ok ? 'cursor-pointer state-layer' : ''}`}>
+                  <label key={c.id} className={`flex items-center gap-2 px-2.5 py-1.5 text-body-medium ${ok ? 'cursor-pointer state-layer' : ''}`}>
                     <Checkbox size="sm" checked={selected.has(c.id)} disabled={!ok} onChange={() => toggle(c.id)} />
                     <span className={`${ok ? 'text-on-surface' : 'text-on-surface/38'} flex-1 min-w-0 truncate`}>{c.displayName || c.email}</span>
-                    <span className={`text-xs ${ok ? 'text-on-surface-variant' : 'text-on-surface/38'} min-w-0 truncate`}>{c.email || '—'}</span>
+                    <span className={`text-body-small ${ok ? 'text-on-surface-variant' : 'text-on-surface/38'} min-w-0 truncate`}>{c.email || '—'}</span>
                     {!ok && <Icon icon={Warning} size={18} className="text-warning shrink-0" />}
                   </label>
                 );
@@ -79,20 +79,20 @@ export function SendMessageDialog({ open, onClose, candidates, title = 'Отпр
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-on-surface-variant mb-1">Тема</label>
+          <label className="block text-body-small font-medium text-on-surface-variant mb-1">Тема</label>
           <input className={field} value={subject} onChange={e => { setSubject(e.target.value); setResult(null); }} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-on-surface-variant mb-1">Текст</label>
+          <label className="block text-body-small font-medium text-on-surface-variant mb-1">Текст</label>
           <textarea className={field + ' min-h-32 resize-y'} value={body} onChange={e => { setBody(e.target.value); setResult(null); }} />
         </div>
 
         {result && (result.ok
-          ? <p className="text-sm text-success flex items-center gap-1.5">
+          ? <p className="text-body-medium text-success flex items-center gap-1.5">
               <Icon icon={CheckCircle} size={18} /> Отправлено получателям: {result.sent}
               {result.skipped && result.skipped.length > 0 && <span className="text-warning ml-1">(пропущены без email: {result.skipped.join(', ')})</span>}
             </p>
-          : <p className="text-sm text-error flex items-start gap-1.5"><Icon icon={Cancel} size={18} className="shrink-0 mt-0.5" /> {result.error}</p>
+          : <p className="text-body-medium text-error flex items-start gap-1.5"><Icon icon={Cancel} size={18} className="shrink-0 mt-0.5" /> {result.error}</p>
         )}
       </div>
     </Modal>

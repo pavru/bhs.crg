@@ -44,7 +44,7 @@ export function InvoiceLockNote({ lockedBy }: { lockedBy: string }) {
 
   return (
     <div role="note" className="flex items-start gap-2 rounded-md border border-outline-variant bg-surface-container px-3 py-2
-      text-xs text-on-surface-variant">
+      text-body-small text-on-surface-variant">
       <Icon icon={LockIcon} size={18} className="shrink-0 mt-0.5 text-on-surface-variant" />
       <span>
         Счёт заперт: {lockedBy}. Поля, строки и разноску обычной правкой не изменить.
@@ -86,7 +86,7 @@ export function InvoicePayment({ view, dirty }: {
     if (!canPay || view.requisites[K.state] === REJECTED) return null;
 
     return (
-      <div className="flex items-center gap-2 flex-wrap text-xs">
+      <div className="flex items-center gap-2 flex-wrap text-body-small">
         <Button size="sm" variant="tonal" icon={<Icon icon={Payments} size={18} />} disabled={dirty}
           onClick={() => setDialog('pay')}>
           Отметить оплату
@@ -100,7 +100,7 @@ export function InvoicePayment({ view, dirty }: {
   }
 
   return (
-    <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs text-on-surface-variant">
+    <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-body-small text-on-surface-variant">
       {/* Текст платёжного документа денег не двигает — открыт и запертому (spec v3.3 п. 1.5). */}
       <PaidDocument view={view} editable={canPay} />
       <span>
@@ -280,7 +280,7 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
         )}
 
         <div>
-          <h3 className="text-xs font-medium text-on-surface-variant mb-1.5">Когда войдёт в затраты</h3>
+          <h3 className="text-body-small font-medium text-on-surface-variant mb-1.5">Когда войдёт в затраты</h3>
           {failed
             ? (
               <p role="alert" className="text-note text-error">

@@ -29,7 +29,7 @@ function parseIdArray(json: string | null): string[] {
 function DiagnosticsPanel({ diagnostics, objectName }: { diagnostics: ResolutionDiagnostic[]; objectName: string }) {
   if (diagnostics.length === 0) {
     return (
-      <div className="flex items-center gap-2 p-3 rounded-sm text-sm bg-success-container text-on-success-container">
+      <div className="flex items-center gap-2 p-3 rounded-sm text-body-medium bg-success-container text-on-success-container">
         <Icon icon={CheckCircle} size={18} className="shrink-0" /> Проблем разрешения ссылок не найдено
       </div>
     );
@@ -38,12 +38,12 @@ function DiagnosticsPanel({ diagnostics, objectName }: { diagnostics: Resolution
   const warnings = diagnostics.filter(d => d.severity === 'warning');
   return (
     <div className="rounded-sm border border-outline-variant overflow-hidden">
-      <div className="px-3 py-2 text-xs font-medium bg-surface-container-low text-on-surface-variant">
+      <div className="px-3 py-2 text-body-small font-medium bg-surface-container-low text-on-surface-variant">
         Диагностика ссылок — объект «{objectName}»: {errors.length} ошиб., {warnings.length} предупр.
       </div>
       <div className="divide-y divide-surface-container max-h-72 overflow-y-auto">
         {[...errors, ...warnings].map((d, i) => (
-          <div key={i} className="flex items-start gap-2 px-3 py-2 text-xs">
+          <div key={i} className="flex items-start gap-2 px-3 py-2 text-body-small">
             {d.severity === 'error'
               ? <Icon icon={ErrorIcon} size={18} className="text-error shrink-0 mt-0.5" />
               : <Icon icon={Warning} size={18} className="text-warning shrink-0 mt-0.5" />}
@@ -161,15 +161,15 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
 
   return (
     <div className="space-y-5">
-      <div className={`p-3 rounded-sm text-sm ${STATUS_COLORS[instance.status] ?? 'bg-surface-container-low text-on-surface-variant'}`}>
+      <div className={`p-3 rounded-sm text-body-medium ${STATUS_COLORS[instance.status] ?? 'bg-surface-container-low text-on-surface-variant'}`}>
         Статус: <strong>{STATUS_LABELS[instance.status] ?? instance.status}</strong>
         {instance.status === 'Generating' && <CircularProgress size={18} className="inline-block ml-2" />}
       </div>
 
       <div className="space-y-1">
-        <label className="block text-xs font-medium text-on-surface-variant">Шаблоны <span className="text-on-surface-variant font-normal">(можно несколько — по PDF на каждый)</span></label>
+        <label className="block text-body-small font-medium text-on-surface-variant">Шаблоны <span className="text-on-surface-variant font-normal">(можно несколько — по PDF на каждый)</span></label>
         {noTemplates ? (
-          <p className="text-xs text-warning">
+          <p className="text-body-small text-warning">
             Для этого типа документа нет шаблонов. Создайте шаблон в разделе «Шаблоны».
           </p>
         ) : (
@@ -183,7 +183,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
                 const focused = focusedTemplate?.id === t.id;
                 return (
                   <label key={t.id}
-                    className={`state-layer flex items-center gap-2 pr-2.5 text-sm border-l-2 cursor-pointer ${focused ? 'bg-primary-container border-primary' : 'border-transparent'}`}>
+                    className={`state-layer flex items-center gap-2 pr-2.5 text-body-medium border-l-2 cursor-pointer ${focused ? 'bg-primary-container border-primary' : 'border-transparent'}`}>
                     <input type="checkbox" checked={selected} disabled={setTemplatesMutation.isPending}
                       onChange={e => { toggleTemplate(t.id, e.target.checked); setChosenFocus(t.id); }}
                       aria-label={`Использовать шаблон «${t.name}» для генерации`}
@@ -198,7 +198,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
               })}
             </div>
             {selectedTemplateIds.length === 0 && (
-              <p className="text-caption text-on-surface-variant">Ничего не выбрано — будет один PDF по шаблону по умолчанию.</p>
+              <p className="text-label-small text-on-surface-variant">Ничего не выбрано — будет один PDF по шаблону по умолчанию.</p>
             )}
           </>
         )}
@@ -234,24 +234,24 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
         </Button>
       </div>
       {(mutation.isPending || instance.status === 'Generating') && (
-        <p className="flex items-center gap-2 text-xs text-on-surface-variant">
+        <p className="flex items-center gap-2 text-body-small text-on-surface-variant">
           <CircularProgress size={18} className="shrink-0" />
           Генерация PDF может занять несколько секунд — идёт сбор данных и компиляция Typst.
         </p>
       )}
       {/* whitespace-pre-line: отказ компилятора шаблона приходит несколькими строками — место
           ошибки отдельной строкой (issue #1047). Без этого они слипаются в один абзац. */}
-      {error && <p className="text-sm text-error whitespace-pre-line">{error}</p>}
+      {error && <p className="text-body-medium text-error whitespace-pre-line">{error}</p>}
 
       {shownDiagnostics && <DiagnosticsPanel diagnostics={shownDiagnostics} objectName={instance.name || 'без названия'} />}
       {pdfFiles.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-on-surface-variant">Сгенерированные файлы</p>
+            <p className="text-body-small font-medium text-on-surface-variant">Сгенерированные файлы</p>
             {canSend && (
               <Tooltip content="Отправить сгенерированные PDF документа по почте (подписчикам и/или на внешние адреса)">
                 <button onClick={() => setEmailOpen(true)}
-                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-outline-variant rounded-sm state-layer">
+                  className="flex items-center gap-1.5 text-body-small px-2.5 py-1.5 border border-outline-variant rounded-sm state-layer">
                   <Icon icon={Mail} size={18} className="text-primary" /> Отправить по почте
                 </button>
               </Tooltip>
@@ -262,17 +262,17 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
               const tpl = templates.find((t: Template) => t.id === f.templateId);
               return (
                 <div key={f.id} className="flex items-center gap-2">
-                  <Tooltip content={tpl?.name}><span className="text-xs text-on-surface-variant flex-1 min-w-0 truncate">{tpl ? tpl.name : 'PDF'}</span></Tooltip>
+                  <Tooltip content={tpl?.name}><span className="text-body-small text-on-surface-variant flex-1 min-w-0 truncate">{tpl ? tpl.name : 'PDF'}</span></Tooltip>
                   {/* Во время генерации файл перезаписывается — блокируем открытие/скачивание, чтобы
                       не открыть неактуальную/заменяемую версию (ссылка ведёт на старое состояние).
                       Отказ из открытия доходит один — вкладку не дали открыть: об отказе загрузки
                       говорит сама вкладка. */}
                   <button onClick={() => { setError(''); previewGeneratedFile(instance.id, f.templateId).catch((e: Error) => setError(e.message)); }} disabled={busy}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-outline-variant rounded-sm state-layer disabled-outlined disabled:pointer-events-none">
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-body-small border border-outline-variant rounded-sm state-layer disabled-outlined disabled:pointer-events-none">
                     <Icon icon={Visibility} size={18} className="text-primary" /> Открыть
                   </button>
                   <button onClick={() => downloadGeneratedFile(instance.id, f.templateId)} disabled={busy}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-outline-variant rounded-sm state-layer disabled-outlined disabled:pointer-events-none">
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-body-small border border-outline-variant rounded-sm state-layer disabled-outlined disabled:pointer-events-none">
                     <Icon icon={Download} size={18} className="text-primary" /> Скачать
                   </button>
                 </div>

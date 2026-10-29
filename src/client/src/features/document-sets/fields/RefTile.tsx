@@ -22,10 +22,10 @@ export function RefTile({ value, onReplace, onClear, children }: {
   return (
     <div className="flex items-center gap-1.5 border border-outline-variant rounded-md pl-3 pr-1.5 py-1.5 bg-surface-container-low">
       <Icon icon={LinkIcon} size={18} className="text-on-surface-variant shrink-0" />
-      <span className="flex-1 text-sm text-primary font-medium truncate">{value.displayName}</span>
+      <span className="flex-1 text-body-medium text-primary font-medium truncate">{value.displayName}</span>
       <ArchivedRefMark value={value} />
       {value.scope && (
-        <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${SCOPE_COLORS[value.scope]}`}>
+        <span className={`text-body-small px-2 py-0.5 rounded-full font-medium shrink-0 ${SCOPE_COLORS[value.scope]}`}>
           {SCOPE_LABELS[value.scope]}
         </span>
       )}

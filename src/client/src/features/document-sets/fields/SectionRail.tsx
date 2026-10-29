@@ -19,18 +19,18 @@ export function SectionRail({ sections, isActive, onSelect }: {
 }) {
   return (
     <nav aria-label="Разделы" className="hidden lg:block w-56 shrink-0 self-start sticky top-0 space-y-0.5">
-      <div className="text-xs font-medium text-on-surface-variant px-2.5 pb-1">Разделы</div>
+      <div className="text-body-small font-medium text-on-surface-variant px-2.5 pb-1">Разделы</div>
       {sections.map(section => (
         <button key={section.key} type="button" onClick={() => onSelect(section.key)}
           aria-current={isActive(section.key) ? 'true' : undefined}
-          className={`w-full flex items-center gap-2 text-left text-sm px-2.5 py-1.5 rounded-md
+          className={`w-full flex items-center gap-2 text-left text-body-medium px-2.5 py-1.5 rounded-md
             ${isActive(section.key) ? 'bg-surface text-on-surface font-medium' : 'text-on-surface-variant state-layer hover:text-on-surface'}`}>
           <span className="flex-1 truncate">{section.title}</span>
           {section.missing && <>
             <span className="w-1.5 h-1.5 rounded-full bg-error shrink-0" aria-hidden="true" />
             <span className="sr-only">не заполнено</span>
           </>}
-          <span className="text-xs text-on-surface-variant shrink-0">{section.count}</span>
+          <span className="text-body-small text-on-surface-variant shrink-0">{section.count}</span>
         </button>
       ))}
     </nav>

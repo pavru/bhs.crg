@@ -72,10 +72,10 @@ export function TypePickerField({
   // иначе получилась бы рамка в рамке. Кольцо фокуса там тоже не нужно: фокус показывает сама
   // оболочка (border-2 + подпись цветом бренда), как у `DateField`.
   const triggerClass = framed
-    ? `w-full h-14 px-4 rounded-sm bg-transparent text-sm text-left outline-none ` +
+    ? `w-full h-14 px-4 rounded-sm bg-transparent text-body-medium text-left outline-none ` +
       `disabled-content disabled:pointer-events-none`
     : `w-full ${size === 'sm' ? 'h-8' : 'h-9'} px-3 rounded-sm border border-outline bg-surface ` +
-      `text-sm text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ` +
+      `text-body-medium text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ` +
       `data-[state=open]:ring-2 disabled-outlined disabled:pointer-events-none`;
 
   // `overflow-hidden` на триггере — страховка впредь (issue #668): её не было, и несжимаемый
@@ -98,7 +98,7 @@ export function TypePickerField({
           {selected ? selected.name : placeholder}
         </span>
       </Tooltip>
-      {showCode && <span className="text-caption font-mono text-on-surface-variant shrink-0">{code}</span>}
+      {showCode && <span className="text-label-small font-mono text-on-surface-variant shrink-0">{code}</span>}
       {/* Место под крестик резервируем В ПОТОКЕ, а не правым паддингом: паддинг сдвинул бы влево и
           саму лупу (она такой же элемент потока), и у края поля осталась бы дыра. */}
       {showClear && <span aria-hidden className="w-[22px] shrink-0" />}

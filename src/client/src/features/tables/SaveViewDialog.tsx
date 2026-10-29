@@ -48,11 +48,11 @@ export function SaveViewDialog({ heading, action, initial, share, onSave, onClos
         <TextField label="Название" value={title} maxLength={120} autoFocus required error={error ?? undefined}
           onChange={e => { setTitle(e.target.value); setError(null); }} />
         {share && (
-          <label className="flex items-start gap-2 text-sm text-on-surface cursor-pointer">
+          <label className="flex items-start gap-2 text-body-medium text-on-surface cursor-pointer">
             <input type="checkbox" className="mt-0.5" checked={shared} onChange={e => setShared(e.target.checked)} />
             <span>
               Общее
-              <span className="block text-xs text-on-surface-variant">Его увидят все, кому открыта таблица.</span>
+              <span className="block text-body-small text-on-surface-variant">Его увидят все, кому открыта таблица.</span>
             </span>
           </label>
         )}

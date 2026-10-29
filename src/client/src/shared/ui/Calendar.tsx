@@ -162,7 +162,7 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
   }
 
   // Наведение — слоем цвета текста клетки ([UI-64]): на выбранной — on-primary поверх primary.
-  const cellBase = 'flex items-center justify-center rounded-full text-sm state-layer focus:outline-none disabled-content disabled:pointer-events-none';
+  const cellBase = 'flex items-center justify-center rounded-full text-body-medium state-layer focus:outline-none disabled-content disabled:pointer-events-none';
   // Индикатор роллинг-фокуса (issue #338): виден ВСЕГДА (не только при :focus-visible), т.к. при
   // открытии мышью фокус на активной ячейке есть, но :focus-visible не срабатывает → «нет курсора».
   // На выбранной ячейке (bg-primary) — инсет-кольцо цветом текста на заливке, иначе — brand. Не белое:
@@ -195,13 +195,13 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
         <Icon icon={ChevronLeft} size={18} />
       </button>
       {view === 'years' ? (
-        <span className="text-sm font-medium text-on-surface tabular-nums">
+        <span className="text-body-medium font-medium text-on-surface tabular-nums">
           {clampYear(pageStart)}–{clampYear(pageStart + YEARS_PER_PAGE - 1)}
         </span>
       ) : (
         <Tooltip content="Выбрать год">
           <button type="button" onClick={() => setView('years')}
-            className="flex items-center gap-1 px-2 h-8 rounded-full text-sm font-medium text-on-surface state-layer focus-ring">
+            className="flex items-center gap-1 px-2 h-8 rounded-full text-body-medium font-medium text-on-surface state-layer focus-ring">
             {view === 'days' ? `${months[fm - 1]} ${fy}` : fy}
             <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant" />
           </button>
@@ -221,7 +221,7 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
     body = (
       <div ref={gridRef} role="grid" aria-label="Календарь" onKeyDown={onDaysKey}>
         <div role="row" className="grid grid-cols-7 mb-1">
-          {weekdays.map(w => <div key={w} role="columnheader" className="h-7 flex items-center justify-center text-xs text-on-surface-variant">{w}</div>)}
+          {weekdays.map(w => <div key={w} role="columnheader" className="h-7 flex items-center justify-center text-body-small text-on-surface-variant">{w}</div>)}
         </div>
         {weeks.map((week, wi) => (
           <div key={wi} role="row" className="grid grid-cols-7">

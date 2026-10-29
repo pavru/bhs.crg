@@ -48,7 +48,7 @@ export function ObservationReferences({ o, setPath, nameOf }: {
   const label = (id: string) => nameOf?.(id) ?? `документ ${id.slice(0, 8)}`;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-caption">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-label-small">
       {docs.map(id => setPath ? (
         <Link key={id} to={documentUnder(setPath, id)}
           className="inline-flex items-center gap-1 text-primary hover:underline">
@@ -120,9 +120,9 @@ export function ObservationReviewDialog({ observation, setPath, nameOf, onClose 
       }>
       <div className="space-y-4">
         <div>
-          <div className="text-sm font-medium text-on-surface">{observation.title}</div>
+          <div className="text-body-medium font-medium text-on-surface">{observation.title}</div>
           {observation.detail && (
-            <p className="text-sm text-on-surface-variant mt-1 whitespace-pre-wrap">{observation.detail}</p>
+            <p className="text-body-medium text-on-surface-variant mt-1 whitespace-pre-wrap">{observation.detail}</p>
           )}
           <ObservationReferences o={observation} setPath={setPath} nameOf={nameOf} />
         </div>

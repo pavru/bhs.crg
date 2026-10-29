@@ -51,7 +51,7 @@ function DocumentSearchPanel() {
         <Icon icon={Search} size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
         <input value={text} onChange={e => setText(e.target.value)}
           placeholder="Найти документ по всем комплектам (имя, тип, реквизиты)…"
-          className="w-full pl-9 pr-8 py-2 text-sm border border-outline rounded-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
+          className="w-full pl-9 pr-8 py-2 text-body-medium border border-outline rounded-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
         {text && (
           <IconButton label="Очистить" size="sm" onClick={() => setText('')}
             className="absolute right-1.5 top-1/2 -translate-y-1/2">
@@ -62,9 +62,9 @@ function DocumentSearchPanel() {
       {active && (
         <div className="mt-2 border border-outline-variant rounded-md overflow-hidden bg-surface">
           {isFetching && results.length === 0 ? (
-            <div className="px-3 py-3 text-xs text-on-surface-variant">Поиск…</div>
+            <div className="px-3 py-3 text-body-small text-on-surface-variant">Поиск…</div>
           ) : results.length === 0 ? (
-            <div className="px-3 py-3 text-xs text-on-surface-variant">Ничего не найдено по «{q.trim()}»</div>
+            <div className="px-3 py-3 text-body-small text-on-surface-variant">Ничего не найдено по «{q.trim()}»</div>
           ) : (
             <ul className="divide-y divide-surface-container max-h-96 overflow-y-auto">
               {results.map(r => (
@@ -72,14 +72,14 @@ function DocumentSearchPanel() {
                   <button onClick={() => navigate(documentPath(r.constructionId, r.setId, r.instanceId))}
                     className="w-full text-left px-3 py-2 state-layer flex items-center gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm text-on-surface truncate">{r.name || r.typeName}</div>
-                      <div className="text-xs text-on-surface-variant truncate">
+                      <div className="text-body-medium text-on-surface truncate">{r.name || r.typeName}</div>
+                      <div className="text-body-small text-on-surface-variant truncate">
                         {r.constructionName} › {r.sectionName} › {r.setName}
                         {r.name && <span> · {r.typeName}</span>}
                         {filter.active && !filter.favorites.has(r.constructionId) && <span> · ☆ не в избранном</span>}
                       </div>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-xs font-medium shrink-0 ${STATUS_COLORS[r.status] ?? 'bg-surface-container text-on-surface-variant'}`}>
+                    <span className={`text-body-small px-2 py-0.5 rounded-xs font-medium shrink-0 ${STATUS_COLORS[r.status] ?? 'bg-surface-container text-on-surface-variant'}`}>
                       {STATUS_LABELS[r.status] ?? r.status}
                     </span>
                   </button>
@@ -171,7 +171,7 @@ export function ConstructionsList() {
       <div className="mb-3 flex"><SitesFilter hidden={constructions.length - shown.length} /></div>
 
       {isLoading || filter.status === 'loading' ? (
-        <div className="text-center py-10 text-on-surface-variant text-sm">Загрузка...</div>
+        <div className="text-center py-10 text-on-surface-variant text-body-medium">Загрузка...</div>
       ) : constructions.length === 0 ? (
         <EmptyState icon={<Icon icon={Apartment} size={40} />} title="Пока нет строек"
           description="Создайте первую стройку, чтобы начать вести исполнительную документацию по её разделам и комплектам."
@@ -191,9 +191,9 @@ export function ConstructionsList() {
                       onBlur={() => commitRename(c)}
                       onKeyDown={e => { if (e.key === 'Enter') commitRename(c); if (e.key === 'Escape') { e.stopPropagation(); setEditId(null); } }}
                       autoFocus onClick={e => e.stopPropagation()}
-                      className="flex-1 text-base font-semibold border-b border-primary bg-transparent outline-none" />
+                      className="flex-1 text-body-large font-semibold border-b border-primary bg-transparent outline-none" />
                   ) : (
-                    <h3 className="text-base font-semibold text-on-surface flex-1">{c.name}</h3>
+                    <h3 className="text-body-large font-semibold text-on-surface flex-1">{c.name}</h3>
                   )}
                   {canEdit && <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
                     <IconButton label="Переименовать" size="sm"
@@ -206,7 +206,7 @@ export function ConstructionsList() {
                     </IconButton>
                   </div>}
                 </div>
-                <div className="flex items-center gap-4 text-xs text-on-surface-variant">
+                <div className="flex items-center gap-4 text-body-small text-on-surface-variant">
                   <span>{ruCount(c.sections.length, 'раздел', 'раздела', 'разделов')}</span>
                   {/* Комплекты — модуль ИД (issue #1128): без него счётчика нет, а не «0 комплектов». */}
                   {idOn && <span>{ruCount(setsCount, 'комплект', 'комплекта', 'комплектов')}</span>}
@@ -234,10 +234,10 @@ export function ConstructionsList() {
                 {c.sections.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {c.sections.slice(0, 4).map(s => (
-                      <span key={s.id} className="text-xs bg-primary-container text-on-primary-container px-2 py-0.5 rounded-full">{s.name}</span>
+                      <span key={s.id} className="text-body-small bg-primary-container text-on-primary-container px-2 py-0.5 rounded-full">{s.name}</span>
                     ))}
                     {c.sections.length > 4 && (
-                      <span className="text-xs text-on-surface-variant">+{c.sections.length - 4} ещё</span>
+                      <span className="text-body-small text-on-surface-variant">+{c.sections.length - 4} ещё</span>
                     )}
                   </div>
                 )}
@@ -260,7 +260,7 @@ export function ConstructionsList() {
           <form id="create-construction-form" onSubmit={handleCreate} className="space-y-4">
             <TextField label="Название стройки" value={newName} onChange={e => setNewName(e.target.value)}
               required autoFocus hint="например: ЖК Северный, корпус 1" />
-            {createError && <p className="text-sm text-error">{createError}</p>}
+            {createError && <p className="text-body-medium text-error">{createError}</p>}
           </form>
         )}
       </Modal>

@@ -51,14 +51,14 @@ function InstanceNameEditor({ instance, setId, docType }: {
         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); } }}
         autoFocus
         placeholder={docType?.name ?? 'Название документа'}
-        className="text-sm font-medium text-on-surface bg-transparent border-b border-primary outline-none w-full min-w-0"
+        className="text-body-medium font-medium text-on-surface bg-transparent border-b border-primary outline-none w-full min-w-0"
       />
     );
   }
 
   return (
     <button type="button" onClick={start} className="flex items-center gap-1.5 group/name text-left min-w-0 max-w-full">
-      <span className={`text-sm font-medium truncate ${instance.name ? 'text-on-surface' : 'text-on-surface-variant'}`}>
+      <span className={`text-body-medium font-medium truncate ${instance.name ? 'text-on-surface' : 'text-on-surface-variant'}`}>
         {instance.name || docType?.name || 'Документ'}
       </span>
       <Icon icon={Edit} size={18} className="text-on-surface-variant shrink-0 opacity-0 group-hover/name:opacity-100 transition-opacity" />
@@ -197,7 +197,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           </Tooltip>
           <div className="flex-1 min-w-0">
             <InstanceNameEditor instance={instance} setId={setId} docType={docType} />
-            <p className="text-xs text-on-surface-variant mt-0.5 truncate">
+            <p className="text-body-small text-on-surface-variant mt-0.5 truncate">
               {docType?.name ? `${docType.name} · Редактирование` : 'Редактирование'}
               {baseState?.selected && baseState.coveredCount > 0 &&
                 ` · ${ruCount(baseState.coveredCount, 'поле', 'поля', 'полей')} из основы`}
@@ -210,7 +210,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
               onSelect={c => baseControlRef.current?.select(c)}
               onClear={() => baseControlRef.current?.clear()} />
           )}
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_COLORS[instance.status] ?? 'bg-primary-container text-on-primary-container'}`}>
+          <span className={`text-body-small px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_COLORS[instance.status] ?? 'bg-primary-container text-on-primary-container'}`}>
             {STATUS_LABELS[instance.status] ?? instance.status}
           </span>
           {/* Замечания внешнего анализа, упоминающие ЭТОТ документ (issue #456). Находок сверки
@@ -218,7 +218,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           <DocumentObservationsChip setId={instance.documentSetId} documentId={instance.id} />
           {editable && (
             <div className="flex items-center gap-2 shrink-0">
-              {savedFlash && <span className="text-sm text-success hidden sm:inline">Сохранено</span>}
+              {savedFlash && <span className="text-body-medium text-success hidden sm:inline">Сохранено</span>}
               <Button variant="text" onClick={() => void doSave()} disabled={saving || uploading}
                 title={uploading ? "Дождитесь загрузки изображения" : undefined}>
                 {saving ? 'Сохранение…' : 'Сохранить'}
@@ -243,7 +243,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
               {/* Счётчик — в доступном имени вкладки, а не только в title: тот виден лишь мышью. */}
               {key === 'sources' && staleSourceCount > 0 && (
                 <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full
-                  bg-warning-container text-on-warning-container text-caption font-medium tabular-nums">
+                  bg-warning-container text-on-warning-container text-label-small font-medium tabular-nums">
                   <span className="sr-only">устарели: </span>{staleSourceCount}
                 </span>
               )}
@@ -277,7 +277,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           (issue #1384): окно стояло бы над страницей, а его «Из шаблона» и распознавание — над ним. */}
       {tab === 'sources' && (
         <TabPanel id={TABS_ID} value="sources" className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-3">
-          <p className="text-xs text-on-surface-variant">
+          <p className="text-body-small text-on-surface-variant">
             Точечная привязка полей — по иконке источника у каждого поля в реквизитах.
             Здесь — обзор привязок, проверка данных и применение шаблонов на весь документ.
           </p>
@@ -303,7 +303,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
               </Button>
             </div>
           }>
-          <p className="text-xs text-on-surface-variant">
+          <p className="text-body-small text-on-surface-variant">
             На текущей вкладке есть несохранённые изменения. Сохранить перед переходом?
             Иначе они будут потеряны.
           </p>

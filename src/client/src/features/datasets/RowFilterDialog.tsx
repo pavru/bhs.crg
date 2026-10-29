@@ -24,7 +24,7 @@ function LogicToggle({
   onChange: (l: 'and' | 'or') => void;
 }) {
   return (
-    <div className="flex rounded-xs text-xs font-bold overflow-hidden shrink-0 border border-outline-variant">
+    <div className="flex rounded-xs text-body-small font-bold overflow-hidden shrink-0 border border-outline-variant">
       {(['and', 'or'] as const).map(l => (
         <button
           key={l}
@@ -63,7 +63,7 @@ function FilterConditionRow({
   return (
     <div className="group/condition">
       <div className="flex items-start gap-1.5 group/cond">
-        <Tooltip content={`Условие ${path}`}><span className="w-6 shrink-0 pt-1.5 text-caption tabular-nums text-on-surface-variant">{path}</span></Tooltip>
+        <Tooltip content={`Условие ${path}`}><span className="w-6 shrink-0 pt-1.5 text-label-small tabular-nums text-on-surface-variant">{path}</span></Tooltip>
         <ConditionEditor cond={cond} columns={columns} onChange={onChange} hintId={hintId} valueRef={valueRef} />
 
         {/* Remove */}
@@ -139,7 +139,7 @@ function FilterGroupEditor({
         <button
           type="button"
           onClick={addCondition}
-          className="flex items-center gap-1 text-xs px-2 py-1 rounded-xs transition-colors text-on-surface-variant bg-surface-container hover:bg-primary-container"
+          className="flex items-center gap-1 text-body-small px-2 py-1 rounded-xs transition-colors text-on-surface-variant bg-surface-container hover:bg-primary-container"
         >
           <Icon icon={Add} size={18} /> Условие
         </button>
@@ -147,7 +147,7 @@ function FilterGroupEditor({
           <button
             type="button"
             onClick={addSubGroup}
-            className="flex items-center gap-1 text-xs px-2 py-1 rounded-xs transition-colors text-on-surface-variant bg-surface-container hover:bg-primary-container"
+            className="flex items-center gap-1 text-body-small px-2 py-1 rounded-xs transition-colors text-on-surface-variant bg-surface-container hover:bg-primary-container"
           >
             <Icon icon={AccountTree} size={18} /> Группа
           </button>
@@ -157,7 +157,7 @@ function FilterGroupEditor({
             <button
               type="button"
               onClick={onRemove}
-              className="flex items-center gap-1 text-xs px-2 py-1 rounded-xs ml-auto transition-colors text-on-surface-variant hover:text-error"
+              className="flex items-center gap-1 text-body-small px-2 py-1 rounded-xs ml-auto transition-colors text-on-surface-variant hover:text-error"
             >
               <Icon icon={Delete} size={18} /> Удалить группу
             </button>
@@ -199,7 +199,7 @@ function FilterGroupEditor({
           })}
         </div>
       ) : (
-        <p className="mt-2 text-xs text-on-surface-variant">
+        <p className="mt-2 text-body-small text-on-surface-variant">
           Нет условий в этой группе.
         </p>
       )}
@@ -287,7 +287,7 @@ export function RowFilterDialog({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 rounded-sm text-sm font-medium text-on-primary bg-primary disabled-container"
+            className="px-4 py-2 rounded-sm text-body-medium font-medium text-on-primary bg-primary disabled-container"
           >
             {saving ? words.saving : words.save}
           </button>
@@ -296,7 +296,7 @@ export function RowFilterDialog({
             <button
               onClick={handleReset}
               disabled={saving}
-              className="ml-auto px-4 py-2 rounded-sm text-sm font-medium text-error bg-surface-container disabled-container"
+              className="ml-auto px-4 py-2 rounded-sm text-body-medium font-medium text-error bg-surface-container disabled-container"
             >
               {words.reset}
             </button>
@@ -305,13 +305,13 @@ export function RowFilterDialog({
       }
     >
       {unreadable && (
-        <p className="text-xs mb-3 text-error">
+        <p className="text-body-small mb-3 text-error">
           Сохранённый отбор не прочитан — он записан не деревом условий. Источник такой отбор не
           выполняет; заданное здесь заменит его целиком.
         </p>
       )}
 
-      <p className="text-xs mb-4 text-on-surface-variant">{words.note}</p>
+      <p className="text-body-small mb-4 text-on-surface-variant">{words.note}</p>
 
       <div className="rounded-md p-3 border border-outline-variant bg-surface" style={{ minHeight: '60px' }}>
         <FilterGroupEditor
@@ -326,7 +326,7 @@ export function RowFilterDialog({
         />
       </div>
 
-      {refusal && <p role="alert" className="mt-3 text-xs text-error">{refusal}</p>}
+      {refusal && <p role="alert" className="mt-3 text-body-small text-error">{refusal}</p>}
     </Modal>
   );
 }

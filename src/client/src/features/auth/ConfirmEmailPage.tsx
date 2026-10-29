@@ -36,22 +36,22 @@ export function ConfirmEmailPage() {
   return (
     <AuthCard title="Подтверждение адреса">
       {status === 'pending' && (
-        <p className="flex items-center gap-2 text-sm text-on-surface-variant"><CircularProgress size={18} /> Подтверждаем…</p>
+        <p className="flex items-center gap-2 text-body-medium text-on-surface-variant"><CircularProgress size={18} /> Подтверждаем…</p>
       )}
       {status === 'ok' && (
         <div className="space-y-4">
-          <p className="flex items-start gap-2 text-sm text-on-surface-variant">
+          <p className="flex items-start gap-2 text-body-medium text-on-surface-variant">
             <Icon icon={CheckCircle} size={18} className="shrink-0 mt-0.5 text-success" /> Адрес подтверждён. Спасибо!
           </p>
-          <Link to="/login" className="inline-block text-sm font-medium text-primary hover:underline">Перейти ко входу</Link>
+          <Link to="/login" className="inline-block text-body-medium font-medium text-primary hover:underline">Перейти ко входу</Link>
         </div>
       )}
       {status === 'error' && (
         <div className="space-y-4">
-          <p className="flex items-start gap-2 text-sm text-error">
+          <p className="flex items-start gap-2 text-body-medium text-error">
             <Icon icon={ErrorIcon} size={18} className="shrink-0 mt-0.5" /> {error}
           </p>
-          <Link to="/login" className="inline-block text-sm font-medium text-primary hover:underline">Вернуться ко входу</Link>
+          <Link to="/login" className="inline-block text-body-medium font-medium text-primary hover:underline">Вернуться ко входу</Link>
         </div>
       )}
     </AuthCard>

@@ -66,7 +66,7 @@ export function ImageMaintenanceSection() {
   return (
     <CollapsibleSection title="Обслуживание изображений" storageKey="image-maintenance" defaultOpen={false}>
       <div className="space-y-3">
-        <p className="text-xs text-on-surface-variant">
+        <p className="text-body-small text-on-surface-variant">
           Картинки, загруженные раньше, лежат внутри записей и попадают в каждую резервную копию.
           Их можно перенести в хранилище файлов и уменьшить — оригиналы при этом сохраняются.
         </p>
@@ -84,10 +84,10 @@ export function ImageMaintenanceSection() {
           {busy && <CircularProgress size={18} className="text-primary" />}
         </div>
 
-        {error && <p className="text-xs text-error">{error}</p>}
+        {error && <p className="text-body-small text-error">{error}</p>}
 
         {done && (
-          <p className="text-xs text-success">
+          <p className="text-body-small text-success">
             Готово: перенесено {done.images}, уменьшено {done.downscaled}
             {done.savedBytes > 0 && `, освобождено ${formatBytes(done.savedBytes)}`}
             {done.failed > 0 && `, не удалось ${done.failed}`}
@@ -96,9 +96,9 @@ export function ImageMaintenanceSection() {
 
         {report && (
           nothingToDo
-            ? <p className="text-xs text-on-surface-variant">Обслуживать нечего — все изображения уже в хранилище и укладываются в размер.</p>
+            ? <p className="text-body-small text-on-surface-variant">Обслуживать нечего — все изображения уже в хранилище и укладываются в размер.</p>
             : (
-              <ul className="text-xs text-on-surface-variant space-y-1">
+              <ul className="text-body-small text-on-surface-variant space-y-1">
                 {report.images > 0 && (
                   <li>
                     Перенести из записей: <b>{report.images}</b> изображений

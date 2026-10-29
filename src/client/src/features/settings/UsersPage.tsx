@@ -56,10 +56,10 @@ export function UsersPage() {
                 ? <Icon icon={VerifiedUser} size={18} className="text-primary shrink-0" />
                 : <Icon icon={Person} size={18} className="text-on-surface-variant shrink-0" />}
               {u.displayName || u.email}
-              {isSelf && <span className="text-caption text-on-surface-variant font-normal">(вы)</span>}
+              {isSelf && <span className="text-label-small text-on-surface-variant font-normal">(вы)</span>}
             </div>
-            {u.displayName && <div className="text-xs text-on-surface-variant mt-0.5">{u.email}</div>}
-            {rowError?.id === u.id && <div className="text-xs text-error mt-1">{rowError.msg}</div>}
+            {u.displayName && <div className="text-body-small text-on-surface-variant mt-0.5">{u.email}</div>}
+            {rowError?.id === u.id && <div className="text-body-small text-error mt-1">{rowError.msg}</div>}
           </>
         );
       } },
@@ -103,12 +103,12 @@ export function UsersPage() {
         candidates={users.map(u => ({ id: u.id, displayName: u.displayName, email: u.email }))} />
 
       {isLoading ? (
-        <div className="text-center text-on-surface-variant text-sm py-10">Загрузка...</div>
+        <div className="text-center text-on-surface-variant text-body-medium py-10">Загрузка...</div>
       ) : (
         <DataGrid columns={columns} rows={users} rowKey={u => u.id} />
       )}
 
-      <p className="text-xs text-on-surface-variant mt-3">
+      <p className="text-body-small text-on-surface-variant mt-3">
         Ролей у человека может быть несколько: действующие права — объединение прав всех его ролей.
         Что именно даёт каждая и кому её выдавать — на экране «Роли и права»: там же состав
         правится, и правка действует немедленно у всех носителей. Снятые все роли означают
@@ -172,13 +172,13 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
           required minLength={PASSWORD_MIN_LENGTH} className="font-mono"
           hint={`${PASSWORD_HINT} Пользователь сможет сменить его сам.`} />
         <div>
-          <div className="text-xs text-on-surface-variant mb-1">Роли</div>
+          <div className="text-body-small text-on-surface-variant mb-1">Роли</div>
           <RolePicker value={chosen} onChange={setChosen} ariaLabel="Роли нового пользователя" />
-          <p className="text-xs text-on-surface-variant mt-1">
+          <p className="text-body-small text-on-surface-variant mt-1">
             Можно выбрать несколько: права складываются. Что даёт каждая — на экране «Роли и права».
           </p>
         </div>
-        {error && <p className="text-sm text-error">{error}</p>}
+        {error && <p className="text-body-medium text-error">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <ModalExit />
           <Button type="submit" variant="filled" loading={create.isPending} disabled={chosen.length === 0}>
@@ -242,7 +242,7 @@ export function ResetPasswordModal({ user, onClose }: { user: AppUser | null; on
           <TextField label="Новый пароль" type="text" value={password} onChange={e => setPassword(e.target.value)}
             required minLength={PASSWORD_MIN_LENGTH} autoFocus className="font-mono"
             hint={`${PASSWORD_HINT} После сброса пароль останется на экране — его можно будет скопировать.`} />
-          {error && <p role="alert" className="text-sm text-error">{error}</p>}
+          {error && <p role="alert" className="text-body-medium text-error">{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
             <ModalExit />
             <Button type="submit" variant="filled" loading={reset.isPending}>
@@ -256,7 +256,7 @@ export function ResetPasswordModal({ user, onClose }: { user: AppUser | null; on
             {/* Поле только для чтения, а не `<output>`: тот — живая область, и секрет при появлении
                 зачитывался бы вслух программой чтения с экрана. */}
             <input readOnly aria-label="Новый пароль" value={issued} onFocus={e => e.target.select()}
-              className="flex-1 min-w-0 rounded-sm border border-outline-variant bg-surface-container-low px-3 py-2 font-mono text-sm text-on-surface" />
+              className="flex-1 min-w-0 rounded-sm border border-outline-variant bg-surface-container-low px-3 py-2 font-mono text-body-medium text-on-surface" />
             {/* Фокус — сюда, а не на «Готово»: форму отправляют клавишей Enter, и задержанная
                 клавиша закрыла бы окно с паролем раньше, чем его прочли. */}
             <Button type="button" variant="tonal" autoFocus onClick={copy}>
@@ -264,9 +264,9 @@ export function ResetPasswordModal({ user, onClose }: { user: AppUser | null; on
             </Button>
           </div>
           {copied === 'failed' && (
-            <p role="alert" className="text-sm text-error">Скопировать не удалось — выделите пароль и скопируйте вручную.</p>
+            <p role="alert" className="text-body-medium text-error">Скопировать не удалось — выделите пароль и скопируйте вручную.</p>
           )}
-          <p className="text-sm text-on-surface-variant">
+          <p className="text-body-medium text-on-surface-variant">
             Сообщите пароль пользователю. После закрытия окна он больше нигде не показывается.
           </p>
         </div>

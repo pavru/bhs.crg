@@ -5,11 +5,11 @@
  * `muted` — страница вне пространства: тише своих.
  */
 export function panelLink(isActive: boolean, muted = false): string {
-  return 'flex items-center h-10 px-3 rounded-full text-sm select-none state-layer focus-ring ' +
+  return 'flex items-center h-10 px-3 rounded-full text-body-medium select-none state-layer focus-ring ' +
     (isActive
       ? `bg-secondary-container text-on-secondary-container${muted ? '' : ' font-medium'}`
       : 'text-on-surface-variant');
 }
 
 /** Микрозаголовок навигации и групп — по docs/UI.md, «Заголовки». Один на подпанель и меню раздела. */
-export const MICRO_HEADING = 'px-3 mb-1 text-caption font-semibold uppercase tracking-widest select-none text-on-surface-variant';
+export const MICRO_HEADING = 'px-3 mb-1 text-label-small font-semibold uppercase tracking-widest select-none text-on-surface-variant';

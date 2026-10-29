@@ -33,7 +33,7 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
   const cols = 'grid grid-cols-[20px_1fr_1.4fr_auto] gap-1.5 items-center';
   return (
     <div className="space-y-1.5">
-      <div className={`${cols} text-xs text-on-surface-variant px-0.5`}>
+      <div className={`${cols} text-body-small text-on-surface-variant px-0.5`}>
         <span />
         <span>Код</span>
         <span>Отображаемое имя</span>
@@ -56,9 +56,9 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
             </span>
           </Tooltip>
           <input value={v.code} onChange={e => update(i, { code: e.target.value })} placeholder="APPROVED"
-            className="border border-outline rounded-xs px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
+            className="border border-outline rounded-xs px-2 py-1.5 text-body-medium font-mono focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
           <input value={v.label} onChange={e => update(i, { label: e.target.value })} placeholder="Согласован"
-            className="border border-outline rounded-xs px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
+            className="border border-outline rounded-xs px-2 py-1.5 text-body-medium focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
           <span className="flex items-center gap-0.5">
             <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
               isFirst={i === 0} isLast={i === values.length - 1} />
@@ -68,7 +68,7 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
       ))}
       <button type="button"
         onClick={() => onChange([...values, withRowUid({ code: '', label: '' })])}
-        className="flex items-center gap-1 text-sm text-primary state-layer pt-0.5">
+        className="flex items-center gap-1 text-body-medium text-primary state-layer pt-0.5">
         <Icon icon={Add} size={18} /> Добавить вариант
       </button>
     </div>
@@ -117,10 +117,10 @@ export function EnumForm({ onSaved, onCancel }: { onSaved: () => void; onCancel:
       </div>
       <TextField label="Описание" value={description} onChange={e => setDescription(e.target.value)} />
       <div className="border-t border-outline-variant pt-3">
-        <p className="text-sm font-medium text-on-surface mb-3">Варианты</p>
+        <p className="text-body-medium font-medium text-on-surface mb-3">Варианты</p>
         <ValuesEditor values={values} onChange={setValues} />
       </div>
-      {error && <p className="text-sm text-error">{error}</p>}
+      {error && <p className="text-body-medium text-error">{error}</p>}
       <div className="flex justify-end gap-2 border-t border-outline-variant pt-3">
         <Button type="button" variant="text" onClick={onCancel}>Отмена</Button>
         <Button type="button" variant="filled" onClick={handleSave} loading={create.isPending}>

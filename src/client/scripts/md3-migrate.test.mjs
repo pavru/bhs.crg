@@ -82,14 +82,34 @@ describe('md3:migrate: что переводит', () => {
   });
 });
 
+describe('md3:migrate: шаг текста — ступень размера → роль MD3 ([UI-67])', () => {
+  it.each([
+    ['text-xs', 'text-body-small'], ['text-sm', 'text-body-medium'], ['text-base', 'text-body-large'],
+    ['text-caption', 'text-label-small'],
+  ])('%s → %s', (from, to) => expect(migrated(`"${from}"`)).toBe(`"${to}"`));
+
+  it('с вариантом, важностью и высотой строки: md:text-sm → md:text-body-medium', () => {
+    expect(migrated('"md:text-sm hover:text-xs! text-sm/6"')).toBe('"md:text-body-medium hover:text-body-small! text-body-medium/6"');
+  });
+
+  it('text-base — размер, а не цвет base: роль текста, а не text-surface-container-low', () => {
+    expect(migrated('"text-base text-fg1"')).toBe('"text-body-large text-on-surface"');
+  });
+
+  it('вес и цвет рядом не трогаются; повторный запуск ничего не меняет', () => {
+    const once = migrated('"text-sm font-medium text-on-surface text-fg1"');
+    expect(once).toBe('"text-body-medium font-medium text-on-surface text-on-surface"');
+    expect(run(once)).toEqual({ text: once, replaced: [], untouched: [] });
+  });
+
+  it('крупные ступени и note — не механически: они по месту, вторым PR', () => {
+    const source = '"text-note text-lg text-2xl"';
+    expect(migrated(source)).toBe(source);
+  });
+});
+
 describe('md3:migrate: неоднозначное не трогает, а называет', () => {
   const untouched = (text, file) => run(text, file).untouched.map(u => u.token);
-
-  it('text-base — размер, не цвет', () => {
-    const { text, untouched: u } = run('"text-base text-fg1"');
-    expect(text).toBe('"text-base text-on-surface"');
-    expect(u).toEqual([{ line: 1, token: 'text-base', reason: expect.stringContaining('размер текста') }]);
-  });
 
   it('brand-hover и brand-pressed (sharedui-md3-05): текст → text-primary, наведение и нажатие — слоем', () => {
     expect(migrated('"text-brand-hover bg-primary hover:bg-brand-hover active:bg-brand-pressed"'))

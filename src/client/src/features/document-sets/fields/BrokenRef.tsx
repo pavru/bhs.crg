@@ -19,7 +19,7 @@ export const BROKEN_LABEL = 'text-error line-through opacity-70';
 /** Нота под битой плиткой. compact — для элементов массива/вложенных строк. */
 export function BrokenRefNote({ compact = false }: { compact?: boolean }) {
   return (
-    <div className={`flex items-center gap-1.5 text-error ${compact ? 'text-caption px-3 pb-1.5' : 'text-xs mt-1'}`}>
+    <div className={`flex items-center gap-1.5 text-error ${compact ? 'text-label-small px-3 pb-1.5' : 'text-body-small mt-1'}`}>
       <Icon icon={ErrorIcon} size={18} className="shrink-0" />
       <span>{BROKEN_REF_MESSAGE}</span>
     </div>

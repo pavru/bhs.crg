@@ -90,7 +90,7 @@ export function ProfilePage() {
   }
 
   if (isLoading || !account) {
-    return <div className="px-6 py-4 text-sm text-on-surface-variant">Загрузка…</div>;
+    return <div className="px-6 py-4 text-body-medium text-on-surface-variant">Загрузка…</div>;
   }
 
   const dirty = displayName.trim() !== account.displayName;
@@ -116,35 +116,35 @@ export function ProfilePage() {
               </Button>
             )}
           </div>
-          <p className="text-xs text-on-surface-variant">PNG, JPG. Изображение уменьшится автоматически.</p>
-          {avatarError && <p className="text-xs text-error">{avatarError}</p>}
+          <p className="text-body-small text-on-surface-variant">PNG, JPG. Изображение уменьшится автоматически.</p>
+          {avatarError && <p className="text-body-small text-error">{avatarError}</p>}
         </div>
         <input ref={avatarInput} type="file" accept="image/*" className="hidden" onChange={pickAvatar} />
       </div>
 
       <form onSubmit={save} className="space-y-5">
         <div>
-          <div className="text-xs text-on-surface-variant mb-1">Email</div>
-          <div className="flex flex-wrap items-center gap-2 text-sm text-on-surface">
+          <div className="text-body-small text-on-surface-variant mb-1">Email</div>
+          <div className="flex flex-wrap items-center gap-2 text-body-medium text-on-surface">
             {account.email}
             {account.emailConfirmed
-              ? <span className="inline-flex items-center gap-1 text-xs text-success"><Icon icon={CheckCircle} size={18} /> подтверждён</span>
+              ? <span className="inline-flex items-center gap-1 text-body-small text-success"><Icon icon={CheckCircle} size={18} /> подтверждён</span>
               : <>
-                  <span className="inline-flex items-center gap-1 text-xs text-warning"><Icon icon={ErrorIcon} size={18} /> не подтверждён</span>
+                  <span className="inline-flex items-center gap-1 text-body-small text-warning"><Icon icon={ErrorIcon} size={18} /> не подтверждён</span>
                   <Button type="button" variant="text" size="sm" loading={resend.isPending} onClick={resendConfirmation}>
                     Отправить письмо
                   </Button>
                 </>}
           </div>
-          {resendMsg && <p className="mt-1 text-xs text-on-surface-variant">{resendMsg}</p>}
+          {resendMsg && <p className="mt-1 text-body-small text-on-surface-variant">{resendMsg}</p>}
         </div>
 
         <div>
-          <div className="text-xs text-on-surface-variant mb-1">{account.roles.length === 1 ? 'Роль' : 'Роли'}</div>
+          <div className="text-body-small text-on-surface-variant mb-1">{account.roles.length === 1 ? 'Роль' : 'Роли'}</div>
           {/* Все роли, а не первая (issue #984): действующие права — объединение прав всех.
               Пусто — так и сказано словами: прежде здесь подставлялся «Инженер ИД», и профиль
               называл роль, которой нет, ровно тому, у кого нет никакого доступа. */}
-          <div className="text-sm text-on-surface">
+          <div className="text-body-medium text-on-surface">
             {account.roles.length > 0
               ? account.roles.map(r => r.title).join(', ')
               : <span className="text-on-surface-variant">Ролей нет — доступ не выдан</span>}
@@ -154,8 +154,8 @@ export function ProfilePage() {
         <TextField label="Отображаемое имя" value={displayName}
           onChange={e => { setDisplayName(e.target.value); setSaved(false); }} />
 
-        {error && <p className="text-sm text-error">{error}</p>}
-        {saved && <p className="text-sm text-success">Сохранено</p>}
+        {error && <p className="text-body-medium text-error">{error}</p>}
+        {saved && <p className="text-body-medium text-success">Сохранено</p>}
 
         <div className="flex items-center gap-2">
           <Button type="submit" variant="filled" loading={update.isPending} disabled={!dirty}>
@@ -170,7 +170,7 @@ export function ProfilePage() {
       {/* Оформление и язык (issue #954, ТЗ AUTH-16.6): личные настройки — в профиле, а не в
           «Настройке системы», где язык лежал за административным правом. */}
       <div className="mt-8 pt-6 border-t border-outline-variant">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface mb-4">
+        <h2 className="flex items-center gap-2 text-body-medium font-semibold text-on-surface mb-4">
           <Icon icon={Palette} size={18} className="text-on-surface-variant" /> Оформление и язык
         </h2>
         <AppearanceSection />
@@ -185,20 +185,20 @@ export function ProfilePage() {
       {/* Мои роли и права — только для чтения (ТЗ AUTH-16.6): ответ на вопрос «почему у меня нет
           этого раздела», который иначе задают администратору. */}
       <div className="mt-8 pt-6 border-t border-outline-variant">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface mb-1">
+        <h2 className="flex items-center gap-2 text-body-medium font-semibold text-on-surface mb-1">
           <Icon icon={VerifiedUser} size={18} className="text-on-surface-variant" /> Мои права
         </h2>
-        <p className="text-xs text-on-surface-variant mb-4">
+        <p className="text-body-small text-on-surface-variant mb-4">
           Что открывают выданные вам роли. Изменить их может только администратор.
         </p>
         <MyPermissionsSection />
       </div>
 
       <div className="mt-8 pt-6 border-t border-outline-variant">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface mb-1">
+        <h2 className="flex items-center gap-2 text-body-medium font-semibold text-on-surface mb-1">
           <Icon icon={Mail} size={18} className="text-on-surface-variant" /> Сменить email
         </h2>
-        <p className="text-xs text-on-surface-variant mb-4">
+        <p className="text-body-small text-on-surface-variant mb-4">
           Отправим письмо на новый адрес — он станет адресом входа после перехода по ссылке.
         </p>
         <form onSubmit={submitEmail} className="space-y-4">
@@ -206,8 +206,8 @@ export function ProfilePage() {
             value={newEmail} onChange={e => { setNewEmail(e.target.value); setEmailMsg(''); }} />
           <TextField label="Текущий пароль" type="password" autoComplete="current-password" required
             value={emailPassword} onChange={e => setEmailPassword(e.target.value)} />
-          {emailError && <p className="text-sm text-error">{emailError}</p>}
-          {emailMsg && <p className="text-sm text-success">{emailMsg}</p>}
+          {emailError && <p className="text-body-medium text-error">{emailError}</p>}
+          {emailMsg && <p className="text-body-medium text-success">{emailMsg}</p>}
           <Button type="submit" variant="outlined" loading={changeEmail.isPending}
             disabled={!newEmail.trim() || !emailPassword}>
             Отправить подтверждение

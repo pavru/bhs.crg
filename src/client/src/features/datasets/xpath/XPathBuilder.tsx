@@ -45,10 +45,10 @@ export function XPathBuilder({ value, onChange, placeholder, preview }: XPathBui
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder ?? '/Root/Item'}
         spellCheck={false}
-        className="w-full border border-outline rounded-sm px-2 py-1.5 text-xs font-mono bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="w-full border border-outline rounded-sm px-2 py-1.5 text-body-small font-mono bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       />
       {unparseable ? (
-        <p className="text-xs text-warning flex items-start gap-1.5 py-1">
+        <p className="text-body-small text-warning flex items-start gap-1.5 py-1">
           <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
           Выражение вне поддерживаемого конструктором набора (необычные оси, функции,
           объединения) — конструктор недоступен, редактируйте текст выше напрямую.
@@ -70,7 +70,7 @@ function XPathPreviewPanel({ spec }: { spec: ExpressionPreviewSpec | null }) {
   if (!spec) return null;
 
   return (
-    <div className="text-xs rounded-sm border border-outline-variant bg-surface-container-low px-2 py-1.5">
+    <div className="text-body-small rounded-sm border border-outline-variant bg-surface-container-low px-2 py-1.5">
       {isFetching ? (
         <span className="flex items-center gap-1.5 text-on-surface-variant">
           <CircularProgress size={18} /> Проверка...
@@ -110,13 +110,13 @@ function StepsEditor({ model, onChange }: { model: XPathModel; onChange: (m: XPa
 
   return (
     <div className="flex flex-wrap items-start gap-1">
-      {model.absolute && <span className="text-on-surface-variant text-xs pt-1.5 shrink-0">/</span>}
+      {model.absolute && <span className="text-on-surface-variant text-body-small pt-1.5 shrink-0">/</span>}
       {model.steps.map((step, i) => (
         <StepEditor key={i} step={step} isLast={i === model.steps.length - 1}
           onChange={patch => updateStep(i, patch)} onRemove={() => removeStep(i)} />
       ))}
       <button type="button" onClick={addStep}
-        className="text-xs text-primary state-layer flex items-center gap-1 px-1.5 py-1 shrink-0">
+        className="text-body-small text-primary state-layer flex items-center gap-1 px-1.5 py-1 shrink-0">
         <Icon icon={Add} size={18} /> Шаг
       </button>
     </div>
@@ -144,14 +144,14 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
           <Tooltip content="Атрибут / элемент">
             <button type="button"
               onClick={() => onChange({ axis: step.axis === 'attribute' ? 'child' : 'attribute' })}
-              className={`text-xs px-1 rounded-xs shrink-0 ${step.axis === 'attribute' ? 'bg-primary text-on-primary' : 'text-on-surface-variant border border-outline-variant hover:border-outline'}`}>
+              className={`text-body-small px-1 rounded-xs shrink-0 ${step.axis === 'attribute' ? 'bg-primary text-on-primary' : 'text-on-surface-variant border border-outline-variant hover:border-outline'}`}>
               @
             </button>
           </Tooltip>
         )}
         <input value={step.name} onChange={e => onChange({ name: e.target.value })}
           placeholder={step.axis === 'attribute' ? 'атрибут' : 'элемент / *'}
-          className="w-24 text-xs font-mono border-b border-transparent hover:border-outline-variant focus:border-primary bg-transparent outline-none" />
+          className="w-24 text-body-small font-mono border-b border-transparent hover:border-outline-variant focus:border-primary bg-transparent outline-none" />
         <button type="button" onClick={onRemove} className="text-on-surface-variant hover:text-error shrink-0">
           <Icon icon={Delete} size={18} />
         </button>
@@ -161,7 +161,7 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
           <PredicateEditor key={i} predicate={p}
             onChange={next => updatePredicate(i, next)} onRemove={() => removePredicate(i)} />
         ))}
-        <button type="button" onClick={addPredicate} className="text-caption text-primary state-layer shrink-0">
+        <button type="button" onClick={addPredicate} className="text-label-small text-primary state-layer shrink-0">
           + условие
         </button>
       </div>
@@ -194,7 +194,7 @@ function PredicateEditor({ predicate, onChange, onRemove }: {
   const inputCls = 'bg-transparent border-b border-primary-container outline-none focus:border-primary';
 
   return (
-    <span className="inline-flex items-center gap-1 bg-primary-container border border-primary-container rounded-xs px-1.5 py-0.5 text-caption text-on-primary-container">
+    <span className="inline-flex items-center gap-1 bg-primary-container border border-primary-container rounded-xs px-1.5 py-0.5 text-label-small text-on-primary-container">
       <Select size="inline" aria-label="Вид условия" value={predicateKind(predicate)} onValueChange={kind => setKind(kind as PredicateKind)}>
         <SelectItem value="exists">путь есть</SelectItem>
         <SelectItem value="equals">путь =</SelectItem>

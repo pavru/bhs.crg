@@ -49,9 +49,9 @@ export function ResourceMatchDialog({ revision, rows, onClose }: {
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Позиция номенклатуры" wide busy={match.isPending}>
       {materials.isError ? (
-        <p role="alert" className="text-sm text-error">{apiError(materials.error, 'Материалы редакции не прочитались')}</p>
+        <p role="alert" className="text-body-medium text-error">{apiError(materials.error, 'Материалы редакции не прочитались')}</p>
       ) : !materials.data ? (
-        <p className="text-sm text-on-surface-variant">Читаем материалы редакции…</p>
+        <p className="text-body-medium text-on-surface-variant">Читаем материалы редакции…</p>
       ) : current ? (
         <MaterialPick key={current.key} group={current} rows={rows} revision={revision} match={match}
           seen={version ?? revision.version} setVersion={setVersion}
@@ -61,7 +61,7 @@ export function ResourceMatchDialog({ revision, rows, onClose }: {
           onDone={() => pass(current.key)} />
       ) : (
         <div className="space-y-3">
-          <p className="text-sm text-on-surface-variant">
+          <p className="text-body-medium text-on-surface-variant">
             {queue.length === 0 ? 'Материалов без номенклатуры в редакции нет.' : 'Пройдены все материалы без номенклатуры.'}
           </p>
           <div className="flex justify-end"><ModalExit variant="filled">Готово</ModalExit></div>
@@ -143,9 +143,9 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
   return (
     <div className="space-y-3">
       <div className="rounded-md bg-surface-container px-3 py-2 space-y-0.5">
-        <p className="text-caption text-on-surface-variant">{place} · ред. {revision.number}</p>
-        <p className="text-sm text-on-surface">{group.sourceName}</p>
-        <p className="text-xs text-on-surface-variant tabular-nums">
+        <p className="text-label-small text-on-surface-variant">{place} · ред. {revision.number}</p>
+        <p className="text-body-medium text-on-surface">{group.sourceName}</p>
+        <p className="text-body-small text-on-surface-variant tabular-nums">
           {[group.sourceCode, `${formatQuantity(group.quantity)} ${group.sourceUnit ?? ''}`.trim(),
             `в ${formatCount(group.rows)} ${ruPlural(group.rows, 'строке', 'строках', 'строках')}`].filter(Boolean).join(' · ')}
         </p>
@@ -154,11 +154,11 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
       <div className="flex items-center gap-2 rounded-sm border border-outline px-2.5 h-10">
         <Icon icon={Search} size={18} className="text-on-surface-variant shrink-0" />
         <input value={typed} onChange={e => type(e.target.value)} placeholder="наименование или часть наименования"
-          aria-label="Поиск позиции" className="flex-1 bg-transparent text-sm outline-none text-on-surface placeholder:text-on-surface-variant" />
+          aria-label="Поиск позиции" className="flex-1 bg-transparent text-body-medium outline-none text-on-surface placeholder:text-on-surface-variant" />
       </div>
 
       {unusable && (
-        <p className="text-xs text-on-surface-variant">
+        <p className="text-body-small text-on-surface-variant">
           {unusable.issue === 'archived'
             ? `Для этого материала запомнена позиция «${unusable.name ?? 'без названия'}» — она в архиве. Выберите действующую.`
             : 'Для этого материала запомнена позиция, которой в справочнике больше нет. Выберите другую.'}
@@ -168,12 +168,12 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
       <div onMouseLeave={selection.leave}>
         {searching ? (
           <div className="space-y-2">
-            {found.isError && <p role="alert" className="text-xs text-error">Справочник не прочитан: {apiError(found.error, 'сервер отказал')}. Это не «позиций нет».</p>}
+            {found.isError && <p role="alert" className="text-body-small text-error">Справочник не прочитан: {apiError(found.error, 'сервер отказал')}. Это не «позиций нет».</p>}
             <div id={listId} role="listbox" aria-label="Найденные позиции" className="-mx-2 space-y-0.5">{list.map(option)}</div>
-            {answered && list.length === 0 && <p className="text-xs text-on-surface-variant">По этому запросу позиций нет. Проверьте другое написание.</p>}
-            {!!answered?.inArchive && <p className="text-xs text-on-surface-variant">В архиве под этот запрос: {answered.inArchive} — заводить заново не нужно.</p>}
+            {answered && list.length === 0 && <p className="text-body-small text-on-surface-variant">По этому запросу позиций нет. Проверьте другое написание.</p>}
+            {!!answered?.inArchive && <p className="text-body-small text-on-surface-variant">В архиве под этот запрос: {answered.inArchive} — заводить заново не нужно.</p>}
             {answered?.more && (
-              <p className="text-xs text-warning">Показаны первые {list.length} — подходящих больше. Уточните запрос.</p>
+              <p className="text-body-small text-warning">Показаны первые {list.length} — подходящих больше. Уточните запрос.</p>
             )}
           </div>
         ) : (
@@ -187,11 +187,11 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
 
       <Checkbox checked={remember} onChange={setRemember}
         label={group.sourceCode ? 'Запомнить по коду ресурса — следующий импорт подставит сам' : 'Запомнить по наименованию — следующий импорт подставит сам'} />
-      {refusal && <p role="alert" className="text-sm text-error">{refusal.text}</p>}
+      {refusal && <p role="alert" className="text-body-medium text-error">{refusal.text}</p>}
 
       {creating && (
         <NewNomenclatureStep from={{ name: group.sourceName, code: group.sourceCode, unit: group.sourceUnit }}
-          plate={<p className="text-sm text-on-surface">{group.sourceName}</p>} narrow
+          plate={<p className="text-body-medium text-on-surface">{group.sourceName}</p>} narrow
           onBack={() => setCreating(false)} onPick={(id, name) => { setCreating(false); choose(id, name); }} />
       )}
 

@@ -31,13 +31,13 @@ function ColumnMatchPreview({
 
   const entries = Object.entries(template.columnMappings).filter(([, col]) => col);
   if (entries.length === 0)
-    return <p className="text-xs text-on-surface-variant">Маппинг не задан</p>;
+    return <p className="text-body-small text-on-surface-variant">Маппинг не задан</p>;
 
   const matched = entries.filter(([, col]) => availableColumns.has(col)).length;
 
   return (
     <div className="space-y-1">
-      <p className="text-xs mb-2 text-on-surface-variant">
+      <p className="text-body-small mb-2 text-on-surface-variant">
         Совпадение колонок: {matched}/{entries.length}
         {matched < entries.length && (
           <span className="ml-1 text-error">
@@ -49,7 +49,7 @@ function ColumnMatchPreview({
         {entries.map(([fieldKey, colName]) => {
           const found = availableColumns.has(colName);
           return (
-            <div key={fieldKey} className="flex items-center gap-2 text-xs">
+            <div key={fieldKey} className="flex items-center gap-2 text-body-small">
               {found
                 ? <Icon icon={CheckCircle} size={18} className="text-success shrink-0" />
                 : <Icon icon={ErrorIcon} size={18} className="text-error shrink-0" />
@@ -61,7 +61,7 @@ function ColumnMatchPreview({
                 {colName}
               </span>
               {!found && (
-                <span className="text-caption text-error">не найдено</span>
+                <span className="text-label-small text-error">не найдено</span>
               )}
             </div>
           );
@@ -89,11 +89,11 @@ function SourceSelector({
   );
 
   if (isLoading)
-    return <p className="text-xs py-1 text-on-surface-variant">Загрузка источников...</p>;
+    return <p className="text-body-small py-1 text-on-surface-variant">Загрузка источников...</p>;
 
   if (files.length === 0)
     return (
-      <p className="text-xs py-1 text-on-surface-variant">
+      <p className="text-body-small py-1 text-on-surface-variant">
         Нет загруженных наборов данных
       </p>
     );
@@ -169,14 +169,14 @@ export function ApplyTemplateDialog({
           <button
             onClick={handleApply}
             disabled={!selectedTemplate || !selectedSource || create.isPending}
-            className="flex items-center gap-2 px-4 py-2 rounded-sm text-sm font-medium text-on-primary disabled-container bg-primary"
+            className="flex items-center gap-2 px-4 py-2 rounded-sm text-body-medium font-medium text-on-primary disabled-container bg-primary"
           >
             {create.isPending && <CircularProgress size={18} />}
             Создать привязку
           </button>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-sm text-sm font-medium text-on-surface-variant bg-surface-container"
+            className="px-4 py-2 rounded-sm text-body-medium font-medium text-on-surface-variant bg-surface-container"
           >
             Отмена
           </button>
@@ -186,13 +186,13 @@ export function ApplyTemplateDialog({
       <div className="space-y-5">
         {/* Выбор шаблона */}
         <div>
-          <label className="block text-xs font-medium mb-2 text-on-surface-variant">
+          <label className="block text-body-small font-medium mb-2 text-on-surface-variant">
             Шаблон
           </label>
           {templatesLoading ? (
-            <p className="text-xs text-on-surface-variant">Загрузка шаблонов...</p>
+            <p className="text-body-small text-on-surface-variant">Загрузка шаблонов...</p>
           ) : templates.length === 0 ? (
-            <p className="text-xs text-on-surface-variant">
+            <p className="text-body-small text-on-surface-variant">
               Нет шаблонов для этого типа документа. Создайте шаблон в настройках типа документа.
             </p>
           ) : (
@@ -208,8 +208,8 @@ export function ApplyTemplateDialog({
                       selected ? 'border-primary bg-primary-container' : 'border-outline-variant bg-surface'
                     }`}
                   >
-                    <div className="text-sm font-medium text-on-surface">{t.name}</div>
-                    <div className="text-xs mt-0.5 text-on-surface-variant">
+                    <div className="text-body-medium font-medium text-on-surface">{t.name}</div>
+                    <div className="text-body-small mt-0.5 text-on-surface-variant">
                       {t.targetFieldKey ? `Табличный → ${t.targetFieldKey}` : 'Скалярный'}
                       {' · '}{mappedCount} {mappedCount === 1 ? 'поле' : 'полей'}
                     </div>
@@ -223,7 +223,7 @@ export function ApplyTemplateDialog({
         {/* Выбор источника */}
         {selectedTemplate && (
           <div>
-            <label className="block text-xs font-medium mb-2 text-on-surface-variant">
+            <label className="block text-body-small font-medium mb-2 text-on-surface-variant">
               Источник данных
             </label>
             <SourceSelector
@@ -237,7 +237,7 @@ export function ApplyTemplateDialog({
         {/* Превью совпадения колонок */}
         {selectedTemplate && selectedSource && (
           <div className="rounded-md p-3 border border-outline-variant bg-surface-container-low">
-            <p className="text-xs font-semibold mb-2 text-on-surface-variant">
+            <p className="text-body-small font-semibold mb-2 text-on-surface-variant">
               Проверка колонок
             </p>
             <ColumnMatchPreview template={selectedTemplate} source={selectedSource} />
@@ -245,7 +245,7 @@ export function ApplyTemplateDialog({
         )}
 
         {error && (
-          <p className="text-xs text-error">{error}</p>
+          <p className="text-body-small text-error">{error}</p>
         )}
       </div>
     </Modal>

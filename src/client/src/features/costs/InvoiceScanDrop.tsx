@@ -55,7 +55,7 @@ export function InvoiceScanDrop({ enabled, onFiles, children }: {
       {enabled && over !== null && (
         <div className="absolute inset-1 z-10 rounded-md border-2 border-dashed border-primary bg-primary-container/80
           flex items-center justify-center p-4 text-center pointer-events-none">
-          <span className="text-sm font-medium text-primary">
+          <span className="text-body-medium font-medium text-primary">
             {over > 1
               ? `Отпустите — заведём ${ruCount(over, 'черновик', 'черновика', 'черновиков')}, по одному на файл`
               : 'Отпустите — заведём черновик из файла'}
@@ -99,7 +99,7 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
   const bad = batch.refused !== null || batch.halted !== null;
 
   return (
-    <div className="px-3 py-2 border-y border-outline-variant bg-surface text-xs space-y-1.5" role="status">
+    <div className="px-3 py-2 border-y border-outline-variant bg-surface text-body-small space-y-1.5" role="status">
       <div className="flex items-start gap-2">
         <p className={`flex-1 ${bad ? 'text-error' : 'text-on-surface-variant'}`}>{batchTitle(batch)}</p>
         {batch.phase === 'running' && <Button size="sm" onClick={stopBatch}>Остановить</Button>}

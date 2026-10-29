@@ -51,9 +51,9 @@ export function JobRow({ job }: { job: ActiveJob }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-on-surface truncate flex-1">{job.title}</p>
+          <p className="text-body-medium font-medium text-on-surface truncate flex-1">{job.title}</p>
           {/* Вне озвучки: раздел задач — живая область, и тикающий таймер диктор читал бы каждую секунду. */}
-          <span aria-hidden="true" className="text-xs tabular-nums text-on-surface-variant shrink-0">{elapsed(job, now)}</span>
+          <span aria-hidden="true" className="text-body-small tabular-nums text-on-surface-variant shrink-0">{elapsed(job, now)}</span>
         </div>
         <p className="text-note text-on-surface-variant truncate">
           {queued ? 'В очереди' : (job.progress ?? 'Выполняется…')}

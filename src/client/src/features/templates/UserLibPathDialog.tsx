@@ -44,7 +44,7 @@ export function UserLibPathDialog({
     <Modal open onOpenChange={o => { if (!o) onCancel(); }} title={mode === 'create' ? 'Новый файл библиотеки' : 'Изменить путь'}>
       <div className="space-y-3">
         <div>
-          <label htmlFor="userlib-path" className="block text-xs text-on-surface-variant mb-1">
+          <label htmlFor="userlib-path" className="block text-body-small text-on-surface-variant mb-1">
             Путь внутри <code className="font-mono">userlib/</code>
           </label>
           <input
@@ -52,21 +52,21 @@ export function UserLibPathDialog({
             onChange={e => { setPath(e.target.value); setTouched(true); }}
             onKeyDown={e => { if (e.key === 'Enter' && !error) onSubmit(path.trim().replace(/\\/g, '/')); }}
             placeholder="gost/forms/f3.typ"
-            className="w-full h-8 px-2.5 text-sm font-mono rounded-sm border border-outline-variant bg-surface text-on-surface
+            className="w-full h-8 px-2.5 text-body-medium font-mono rounded-sm border border-outline-variant bg-surface text-on-surface
                        outline-none focus:ring-2 focus:ring-primary/40"
           />
-          <p className="mt-1 text-xs text-on-surface-variant">
+          <p className="mt-1 text-body-small text-on-surface-variant">
             {mode === 'create'
               ? 'Папки создаются сами из «/» в пути. Подключить файл в «userlib.typ» нужно самостоятельно.'
               : 'Папки создаются сами из «/» в пути. Импорты приложение не правит — поправьте их сами.'}
           </p>
-          {touched && error && <p className="mt-1 text-xs text-error">{error}</p>}
+          {touched && error && <p className="mt-1 text-body-small text-error">{error}</p>}
         </div>
 
         {/* Автоматически переписывать чужие импорты не беремся: это текстовая трансформация
             пользовательского кода, ошибиться в ней тоньше, чем не делать. Говорим поимённо. */}
         {mode === 'rename' && referencing.length > 0 && (
-          <p className="text-xs text-warning">
+          <p className="text-body-small text-warning">
             На этот файл ссылаются: {referencing.join(', ')}. Импорты в них придётся поправить вручную.
           </p>
         )}

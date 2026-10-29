@@ -65,7 +65,7 @@ export function MaterialLabelSection() {
   return (
     <CollapsibleSection title="Имена материалов в связках" storageKey="material-labels" defaultOpen={false}>
       <div className="space-y-3">
-        <p className="text-xs text-on-surface-variant">
+        <p className="text-body-small text-on-surface-variant">
           Связки, заведённые до появления имени материала, показываются машинным ключом
           (например <span className="font-mono">mb15-07-01m-54</span>). Имя можно восстановить из
           наборов данных, подключённых к документам.
@@ -84,21 +84,21 @@ export function MaterialLabelSection() {
           {busy && <CircularProgress size={18} className="text-primary" />}
         </div>
 
-        {error && <p className="text-xs text-error">{error}</p>}
+        {error && <p className="text-body-small text-error">{error}</p>}
 
         {done && (
-          <p className="text-xs text-success">Готово: имён восстановлено {done.named}.</p>
+          <p className="text-body-small text-success">Готово: имён восстановлено {done.named}.</p>
         )}
 
         {report && (
           nothingToDo
-            ? <p className="text-xs text-on-surface-variant">
+            ? <p className="text-body-small text-on-surface-variant">
                 Восстанавливать нечего: {report.linksWithoutLabel === 0
                   ? 'у всех связок имена уже есть.'
                   : 'ни один из материалов не встречается в подключённых наборах данных.'}
               </p>
             : (
-              <ul className="text-xs text-on-surface-variant space-y-1">
+              <ul className="text-body-small text-on-surface-variant space-y-1">
                 <li>Связок без имени: <b>{report.linksWithoutLabel}</b></li>
                 <li>Имя найдётся: <b>{report.named}</b> (прочитано документов: {report.documentsScanned})</li>
                 {report.documentsFailed > 0 && (

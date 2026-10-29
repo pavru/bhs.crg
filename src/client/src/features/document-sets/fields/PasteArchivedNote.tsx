@@ -30,17 +30,17 @@ export function PasteArchivedNote({ cells, canReturn, checked, onChange }: {
         <Icon icon={Archive} size={18} className="text-on-surface-variant shrink-0" />
         В архиве: <span className="font-medium text-on-surface">{cells.length}</span>
       </p>
-      <p className="text-xs text-on-surface-variant">
+      <p className="text-body-small text-on-surface-variant">
         {names.slice(0, NAMES_SHOWN).join(', ')}
         {names.length > NAMES_SHOWN && ` и ещё ${names.length - NAMES_SHOWN}`}
       </p>
       {canReturn && (
-        <label className="flex items-center gap-2 text-sm text-on-surface cursor-pointer">
+        <label className="flex items-center gap-2 text-body-medium text-on-surface cursor-pointer">
           <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
           Вернуть из архива и связать ({names.length})
         </label>
       )}
-      <p className="text-xs text-on-surface-variant">
+      <p className="text-body-small text-on-surface-variant">
         {checked
           ? 'Записи вернутся в справочник для всех — в списках выбора они появятся снова.'
           : `Значения совпали с записями в архиве — вставятся встроенно. ${canReturn

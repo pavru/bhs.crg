@@ -20,7 +20,7 @@ export function RateChoiceFields({ state, sample }: { state: RateChoiceState; sa
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {types.isError ? (
-        <p role="alert" className="text-sm text-error">{apiError(types.error, 'Классификатор видов работ не прочитался')}</p>
+        <p role="alert" className="text-body-medium text-error">{apiError(types.error, 'Классификатор видов работ не прочитался')}</p>
       ) : (
         <Select label="Вид работы" value={state.workTypeId} onValueChange={state.pick} disabled={!types.data}
           placeholder={types.data ? (types.data.length ? 'Выберите вид работы' : 'Классификатор пуст') : 'Читаем классификатор…'}>
@@ -28,8 +28,8 @@ export function RateChoiceFields({ state, sample }: { state: RateChoiceState; sa
         </Select>
       )}
       <div className="space-y-1">
-        <span className="text-xs text-on-surface-variant">Пересчёт единицы</span>
-        <div className="flex items-center gap-2 text-sm text-on-surface">
+        <span className="text-body-small text-on-surface-variant">Пересчёт единицы</span>
+        <div className="flex items-center gap-2 text-body-medium text-on-surface">
           <span className="tabular-nums">{sourceUnit ?? 'без единицы'}</span>
           <Icon icon={ArrowForward} size={18} aria-hidden className="text-on-surface-variant" />
           <span>{unit}</span>
@@ -38,7 +38,7 @@ export function RateChoiceFields({ state, sample }: { state: RateChoiceState; sa
             placeholder={suggested !== null ? formatInput(suggested) : '?'} disabled={!chosen} />
         </div>
         {chosen && (
-          <p className="text-xs text-on-surface-variant">
+          <p className="text-body-small text-on-surface-variant">
             {result !== null && sample
               ? <>например, {sample.label}: {formatQuantity(sample.volume!)} × {formatQuantity(factor!)} = <b className="font-medium text-on-surface">{formatQuantity(result)} {unit}</b></>
               : factor !== null ? `сколько «${unit}» в одной «${sourceUnit ?? 'единице расценки'}»` : null}

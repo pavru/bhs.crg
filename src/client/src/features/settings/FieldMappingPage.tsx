@@ -48,16 +48,16 @@ export function FieldMappingPage() {
     return isError ? (
       <Frame title="Сопоставление полей">
         <div className="flex items-center gap-3">
-          <span className="text-sm text-error">Сопоставление полей не загрузилось.</span>
+          <span className="text-body-medium text-error">Сопоставление полей не загрузилось.</span>
           <Button variant="outlined" size="sm" onClick={() => void refetch()}>Повторить</Button>
         </div>
       </Frame>
-    ) : <div className="px-6 py-10 text-center text-on-surface-variant text-sm">Загрузка...</div>;
+    ) : <div className="px-6 py-10 text-center text-on-surface-variant text-body-medium">Загрузка...</div>;
 
   if (data.length === 0)
     return (
       <Frame title="Сопоставление полей">
-        <p className="text-sm text-on-surface-variant">Включённые модули из справочников ничего не читают — назначать нечего.</p>
+        <p className="text-body-medium text-on-surface-variant">Включённые модули из справочников ничего не читают — назначать нечего.</p>
       </Frame>
     );
 
@@ -182,15 +182,15 @@ function Mapping({ data, reread: failed }: { data: ModuleCoverage[]; reread: Fai
         <RereadFailedNotice what="Сопоставление полей не перечиталось"
           error={failed.error} retrying={failed.retrying} onRetry={failed.retry} />
       )}
-      <p className="text-xs text-on-surface-variant max-w-2xl">
+      <p className="text-body-small text-on-surface-variant max-w-2xl">
         Модуль берёт эти сведения из справочников. Здесь назначается, какой тип служит справочником и какое
         его поле за что отвечает. То же самое видно в редакторе типа — тэгом типа и тэгом поля.
       </p>
       {data.map(module => (
         <section key={module.code} className="space-y-5" data-module={module.code}>
-          {!single && <h2 className="text-base font-semibold text-on-surface">{module.title}</h2>}
+          {!single && <h2 className="text-body-large font-semibold text-on-surface">{module.title}</h2>}
           {module.unmet > 0 && (
-            <p className="text-sm text-warning">
+            <p className="text-body-medium text-warning">
               Не назначено {module.unmet} из {module.total} — считая справочники и их обязательные поля.
             </p>
           )}
@@ -247,24 +247,24 @@ function GroupSection({ group, edit, saving, onEdit, onSave, onAssigned }: {
   return (
     <div className="space-y-2" data-role={group.role}>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h3 className="text-sm font-semibold text-on-surface">{group.label}</h3>
+        <h3 className="text-body-medium font-semibold text-on-surface">{group.label}</h3>
         {group.type && (
           <>
-            <span className="text-sm text-on-surface-variant">тип «{group.type.name}»</span>
+            <span className="text-body-medium text-on-surface-variant">тип «{group.type.name}»</span>
             <Button variant="text" size="sm" onClick={() => go(`/composite-types?type=${group.type!.id}`)}>
               Открыть тип
             </Button>
           </>
         )}
-        {dirty && <span className="text-xs text-warning">не сохранено</span>}
+        {dirty && <span className="text-body-small text-warning">не сохранено</span>}
       </div>
-      <p className="text-xs text-on-surface-variant">{group.purpose}.</p>
+      <p className="text-body-small text-on-surface-variant">{group.purpose}.</p>
 
       {group.state === 'absent' && <AssignRole group={group} onDone={onAssigned} />}
 
       {group.state === 'violated' && (
         <div className="space-y-2">
-          <p className="text-sm text-error max-w-3xl">
+          <p className="text-body-medium text-error max-w-3xl">
             <b>Нарушено.</b> {fullSentence(group.reason ?? '')} {group.withoutIt}{' '}
             Исправляется в редакторе типов: тэг типа «{group.label}» должен остаться у одного составного типа.
           </p>
@@ -274,7 +274,7 @@ function GroupSection({ group, edit, saving, onEdit, onSave, onAssigned }: {
 
       {group.state === 'mapped' && group.rows.length > 0 && (
         <div className="border-t border-outline-variant">
-          <div className="grid grid-cols-[minmax(0,35fr)_minmax(0,30fr)_minmax(0,35fr)] gap-x-4 py-1.5 text-xs text-on-surface-variant">
+          <div className="grid grid-cols-[minmax(0,35fr)_minmax(0,30fr)_minmax(0,35fr)] gap-x-4 py-1.5 text-body-small text-on-surface-variant">
             <span>Что нужно модулю</span><span>Поле</span><span>Состояние</span>
           </div>
           {group.rows.map(row => (
@@ -287,7 +287,7 @@ function GroupSection({ group, edit, saving, onEdit, onSave, onAssigned }: {
 
       {refusal && (
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 max-w-3xl">
-          <p className="text-sm text-error" role="alert">{refusal}</p>
+          <p className="text-body-medium text-error" role="alert">{refusal}</p>
           {/* Правок нет — «Отменить» скрыта, и убрать прочитанное сообщение было бы нечем. */}
           {!dirty && <Button variant="text" size="sm" onClick={() => onEdit(UNTOUCHED)}>Понятно</Button>}
         </div>
@@ -319,16 +319,16 @@ function Row({ row, typeName, draft, changed, disabled, onPick }: {
       <div>
         {/* Код тэга — подсказкой: он нужен разработчику, а не администратору. */}
         <Tooltip content={row.tag}>
-          <p className="text-sm text-on-surface">
+          <p className="text-body-medium text-on-surface">
             {row.label}{!row.required && <span className="text-on-surface-variant"> · необязательно</span>}
           </p>
         </Tooltip>
-        <p className="text-xs text-on-surface-variant mt-0.5">{row.description}</p>
+        <p className="text-body-small text-on-surface-variant mt-0.5">{row.description}</p>
       </div>
 
       <div>
         {row.fault === 'DiffersInSubtype' ? (
-          <p className="text-sm text-on-surface-variant">{listed.find(f => f.tagged)?.title ?? '—'}</p>
+          <p className="text-body-medium text-on-surface-variant">{listed.find(f => f.tagged)?.title ?? '—'}</p>
         ) : selectable ? (
           <Select
             aria-label={`Поле для «${row.label}»`}
@@ -350,11 +350,11 @@ function Row({ row, typeName, draft, changed, disabled, onPick }: {
           </Select>
         ) : (
           // Пустой список был бы правдоподобным пустым ответом — говорим, чего в типе нет.
-          <p className="text-sm text-on-surface-variant">
+          <p className="text-body-medium text-on-surface-variant">
             В типе «{typeName}» нет поля {row.kinds.length > 0 ? `вида ${kindsText(row)}` : 'подходящего вида'}.
           </p>
         )}
-        {changed && <p className="text-xs text-warning mt-1">не сохранено</p>}
+        {changed && <p className="text-body-small text-warning mt-1">не сохранено</p>}
       </div>
 
       <RowState row={row} selectable={selectable} />
@@ -368,7 +368,7 @@ function RowState({ row, selectable }: { row: CoverageRow; selectable: boolean }
 
   if (row.state === 'absent')
     return (
-      <p className={`text-sm ${row.required ? 'text-warning' : 'text-on-surface-variant'}`}>
+      <p className={`text-body-medium ${row.required ? 'text-warning' : 'text-on-surface-variant'}`}>
         {row.required ? <b>Не назначено.</b> : 'Не назначено.'} {row.withoutIt}
         {!selectable && ' Добавьте в тип поле подходящего вида — оно появится в этом списке.'}
       </p>
@@ -380,7 +380,7 @@ function RowState({ row, selectable }: { row: CoverageRow; selectable: boolean }
       ? 'Выберите другое поле или верните полю прежний вид в редакторе типа.'
       : 'Исправляется в редакторе типа: у подтипа тэг должен стоять на том же поле либо не стоять вовсе.';
   return (
-    <p className="text-sm text-error">
+    <p className="text-body-medium text-error">
       <b>Нарушено.</b> {fullSentence(row.reason ?? '')} {row.withoutIt} {way}
     </p>
   );
@@ -423,10 +423,10 @@ function AssignRole({ group, onDone }: { group: CoverageGroup; onDone: () => Pro
 
   return (
     <div className="space-y-2">
-      <p className="text-sm text-error max-w-3xl"><b>{group.label} не назначен.</b> {group.withoutIt}</p>
+      <p className="text-body-medium text-error max-w-3xl"><b>{group.label} не назначен.</b> {group.withoutIt}</p>
       {group.candidates.length === 0 ? (
         <>
-          <p className="text-sm text-on-surface-variant">Заведите составной тип в разделе «Составные типы» — он появится здесь.</p>
+          <p className="text-body-medium text-on-surface-variant">Заведите составной тип в разделе «Составные типы» — он появится здесь.</p>
           <Button variant="outlined" size="sm" onClick={() => go('/composite-types')}>Открыть составные типы</Button>
         </>
       ) : (
@@ -445,14 +445,14 @@ function AssignRole({ group, onDone }: { group: CoverageGroup; onDone: () => Pro
               </Button>
             )}
           </div>
-          <p className="text-xs text-on-surface-variant max-w-2xl">
+          <p className="text-body-small text-on-surface-variant max-w-2xl">
             Подтипы выбранного типа войдут в справочник. Перенести справочник на другой тип потом нельзя,
             пока на его записи ссылаются документы модуля. Типы модуля, которые ждали этот справочник,
             появятся после перезапуска приложения.
           </p>
         </>
       )}
-      {refusal && <p className="text-sm text-error max-w-3xl" role="alert">{refusal}</p>}
+      {refusal && <p className="text-body-medium text-error max-w-3xl" role="alert">{refusal}</p>}
     </div>
   );
 }

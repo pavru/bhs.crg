@@ -58,12 +58,12 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
       <button onClick={() => setOpen(v => !v)} aria-expanded={open}
         className="w-full flex items-center gap-2 px-4 py-2.5 state-layer text-left">
         <Icon icon={Tune} size={18} className="text-on-surface-variant" />
-        <span className="text-xs font-medium text-on-surface-variant flex-1">Параметры шаблона{rows.length > 0 ? ` (${rows.length})` : ''}</span>
+        <span className="text-body-small font-medium text-on-surface-variant flex-1">Параметры шаблона{rows.length > 0 ? ` (${rows.length})` : ''}</span>
         {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant" />}
       </button>
       {open && (
         <div className="px-4 pb-4 pt-3 border-t border-surface-container space-y-2">
-          <p className="text-caption text-on-surface-variant">
+          <p className="text-label-small text-on-surface-variant">
             Доступны в Typst как <code className="text-on-surface-variant">data.params.имя</code>. Значение по умолчанию можно
             переопределить на конкретном документе.
           </p>
@@ -90,9 +90,9 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
                 </span>
               </Tooltip>
               <input value={p.name} onChange={e => patch(i, { name: e.target.value })} placeholder="имя"
-                className="w-24 text-xs border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
+                className="w-24 text-body-small border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
               <input value={p.label} onChange={e => patch(i, { label: e.target.value })} placeholder="подпись"
-                className="flex-1 min-w-0 text-xs border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
+                className="flex-1 min-w-0 text-body-small border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
               <Select size="sm" className="w-auto" aria-label={`Тип параметра ${p.name || i + 1}`} value={p.type}
                 onValueChange={type => patch(i, { type: type as TemplateParam['type'], default: type === 'boolean' ? false : type === 'number' ? 0 : '' })}>
                 <SelectItem value="string">текст</SelectItem>
@@ -111,7 +111,7 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
             </div>
           ))}
           <button onClick={() => save([...rows, { id: newLocalId(), p: { name: '', label: '', type: 'string', default: '' } }])}
-            className="flex items-center gap-1 text-xs text-primary state-layer">
+            className="flex items-center gap-1 text-body-small text-primary state-layer">
             <Icon icon={Add} size={18} /> Добавить параметр
           </button>
         </div>
@@ -133,6 +133,6 @@ function ParamDefault({ type, value, onChange }: {
   return (
     <input type={type === 'number' ? 'number' : 'text'} value={value == null ? '' : String(value)}
       onChange={e => onChange(type === 'number' ? Number(e.target.value) : e.target.value)} placeholder="по умолч."
-      className="w-20 shrink-0 text-xs border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
+      className="w-20 shrink-0 text-body-small border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
   );
 }

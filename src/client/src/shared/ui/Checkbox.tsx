@@ -58,12 +58,12 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
 
   return (
     // Отключённое — подпись on-surface 38 % ([UI-64]), а не прозрачность всей строки.
-    <label className={`inline-flex items-start gap-2 text-sm select-none ` +
+    <label className={`inline-flex items-start gap-2 text-body-medium select-none ` +
       `${disabled ? 'text-on-surface/38 cursor-not-allowed' : 'text-on-surface cursor-pointer'} ${className}`}>
       {input}
       <span className="min-w-0">
         {label}
-        {description && <span className={`block text-xs ${disabled ? '' : 'text-on-surface-variant'}`}>{description}</span>}
+        {description && <span className={`block text-body-small ${disabled ? '' : 'text-on-surface-variant'}`}>{description}</span>}
       </span>
     </label>
   );

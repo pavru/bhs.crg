@@ -66,7 +66,7 @@ export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizat
         errorTitle="Счёт не удалён"
         confirmLabel={confirmLabel(view)} cancelLabel="Не удалять"
         description={(
-          <div className="space-y-2 text-sm text-on-surface-variant" data-testid="invoice-delete-body">
+          <div className="space-y-2 text-body-medium text-on-surface-variant" data-testid="invoice-delete-body">
             {asked?.reason === 'duplicate' && view.duplicates.length > 0 && (
               <p>Останется счёт <b>{duplicateLabel(view.duplicates[0])}</b>.</p>
             )}
@@ -88,7 +88,7 @@ export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizat
               <b>Корзины нет: вернуть счёт будет нельзя.</b> В журнале действий останется запись об
               удалении.
             </p>
-            <p className="text-xs text-on-surface-variant">
+            <p className="text-body-small text-on-surface-variant">
               Настоящий счёт, по которому не платим, не удаляют, а отклоняют — он остаётся в реестре.
             </p>
           </div>
@@ -108,7 +108,7 @@ export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizat
 export function InvoiceGoneNotice({ onClose }: { onClose: () => void }) {
   return (
     <div role="alert" data-testid="invoice-gone" className="flex items-start gap-2 rounded-md border
-      border-error/30 bg-error-container px-3 py-2 text-xs text-on-error-container">
+      border-error/30 bg-error-container px-3 py-2 text-body-small text-on-error-container">
       <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
       <p className="flex-1">
         Этого счёта больше нет — его удалили, пока он был открыт у вас. Набранное осталось на экране:

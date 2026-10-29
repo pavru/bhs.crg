@@ -81,15 +81,15 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Очистка старых версий"
       footer={
         <div className="flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-on-surface-variant state-layer rounded-sm">Отмена</button>
+          <button onClick={onClose} className="px-4 py-2 text-body-medium text-on-surface-variant state-layer rounded-sm">Отмена</button>
           <button onClick={handleDelete} disabled={deleting || toDelete.length === 0}
-            className="px-4 py-2 text-sm bg-error hover:bg-error text-on-error rounded-sm disabled-container transition-colors">
+            className="px-4 py-2 text-body-medium bg-error hover:bg-error text-on-error rounded-sm disabled-container transition-colors">
             {deleting ? 'Удаление...' : `Удалить ${toDelete.length} вер.`}
           </button>
         </div>
       }>
       <div className="space-y-4">
-        <p className="text-sm text-on-surface-variant">
+        <p className="text-body-medium text-on-surface-variant">
           Шаблон <strong>«{group.name}»</strong> — {group.versions.length} версий.
           Отметьте версии для удаления. Рабочая, по умолчанию и запиннутые документами версии защищены —
           запиннутые удаляются по одной, с предупреждением.
@@ -100,7 +100,7 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
             const checked = toDeleteIds.has(t.id);
             return (
               <label key={t.id}
-                className={`flex items-center gap-3 px-3 py-2.5 text-sm cursor-pointer
+                className={`flex items-center gap-3 px-3 py-2.5 text-body-medium cursor-pointer
                   ${i > 0 ? 'border-t border-surface-container' : ''}
                   ${protected_ ? 'opacity-60 cursor-not-allowed bg-surface-container-low' : checked ? 'bg-error-container hover:bg-error-container' : 'state-layer'}`}>
                 <input
@@ -112,27 +112,27 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
                 />
                 <span className="font-mono text-on-surface-variant shrink-0">v{t.version}</span>
                 <span className="flex items-center gap-1.5 flex-1 min-w-0">
-                  {t.isActive && <span className="text-xs text-on-success-container bg-success-container px-1.5 py-0.5 rounded-xs shrink-0">активный</span>}
-                  {t.isDefault && <span className="text-xs text-on-warning-container bg-warning-container px-1.5 py-0.5 rounded-xs shrink-0">по умолч.</span>}
-                  {i === 0 && !t.isActive && <span className="text-xs text-on-surface-variant shrink-0">последняя</span>}
-                  {t.comment && <span className="text-xs text-on-surface-variant truncate" title={t.comment}>{t.comment}</span>}
+                  {t.isActive && <span className="text-body-small text-on-success-container bg-success-container px-1.5 py-0.5 rounded-xs shrink-0">активный</span>}
+                  {t.isDefault && <span className="text-body-small text-on-warning-container bg-warning-container px-1.5 py-0.5 rounded-xs shrink-0">по умолч.</span>}
+                  {i === 0 && !t.isActive && <span className="text-body-small text-on-surface-variant shrink-0">последняя</span>}
+                  {t.comment && <span className="text-body-small text-on-surface-variant truncate" title={t.comment}>{t.comment}</span>}
                 </span>
                 {protected_ && (
-                  <span className="flex items-center gap-1 text-xs text-on-surface-variant shrink-0">
+                  <span className="flex items-center gap-1 text-body-small text-on-surface-variant shrink-0">
                     {usage[t.id]?.count ? <Icon icon={LockIcon} size={18} className="text-on-surface-variant" /> : null}
                     {protectReason(t, i === 0) ?? 'защищена'}
                   </span>
                 )}
-                {!protected_ && checked && <span className="text-xs text-error shrink-0">удалить</span>}
+                {!protected_ && checked && <span className="text-body-small text-error shrink-0">удалить</span>}
               </label>
             );
           })}
         </div>
         {toDelete.length === 0
-          ? <p className="text-sm text-on-surface-variant">Ничего не выбрано для удаления.</p>
-          : <p className="text-sm text-on-surface-variant">Будет удалено: <strong>{toDelete.length}</strong> вер.</p>
+          ? <p className="text-body-medium text-on-surface-variant">Ничего не выбрано для удаления.</p>
+          : <p className="text-body-medium text-on-surface-variant">Будет удалено: <strong>{toDelete.length}</strong> вер.</p>
         }
-        {error && <p className="text-sm text-error">{error}</p>}
+        {error && <p className="text-body-medium text-error">{error}</p>}
       </div>
     </Modal>
   );
@@ -211,7 +211,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
   return (
     <aside className="w-64 border-r border-outline-variant bg-surface flex flex-col">
       <div className="px-4 py-3 border-b border-surface-container flex items-center justify-between">
-        <span className="text-sm font-medium text-on-surface-variant">Шаблоны</span>
+        <span className="text-body-medium font-medium text-on-surface-variant">Шаблоны</span>
         <Tooltip content="Новый шаблон" name>
           <button onClick={onNew} className="text-primary state-layer">
             <Icon icon={Add} size={18} />
@@ -225,7 +225,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
       />
       <div className="flex-1 overflow-auto py-1">
         {groups.length === 0 && (
-          <div className="px-4 py-3 text-sm text-on-surface-variant">Шаблонов нет</div>
+          <div className="px-4 py-3 text-body-medium text-on-surface-variant">Шаблонов нет</div>
         )}
         {groups.map(group => {
           const isExpanded = expandedNames.has(group.name);
@@ -245,10 +245,10 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                     ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" />
                     : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
                   {hasDefault && <Icon icon={Star} size={18} className="fill-warning text-warning shrink-0" />}
-                  <span className={`text-sm truncate flex-1 ${isGroupSelected ? 'text-primary font-medium' : 'text-on-surface'}`}>
+                  <span className={`text-body-medium truncate flex-1 ${isGroupSelected ? 'text-primary font-medium' : 'text-on-surface'}`}>
                     {group.name}
                   </span>
-                  <span className="text-xs text-on-surface-variant shrink-0">v{latestVersion}</span>
+                  <span className="text-body-small text-on-surface-variant shrink-0">v{latestVersion}</span>
                   {tooMany && (
                     <Icon icon={Warning} size={18} className="text-warning shrink-0" />
                   )}
@@ -286,19 +286,19 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                         className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 text-left min-w-0
                           ${selectedTemplate?.id === t.id ? 'text-primary' : 'text-on-surface-variant'}`}
                       >
-                        <span className="text-xs font-mono shrink-0 w-6">v{t.version}</span>
+                        <span className="text-body-small font-mono shrink-0 w-6">v{t.version}</span>
                         <span className="flex items-center gap-1 flex-1 min-w-0">
-                          {t.isActive && <span className="text-xs text-success shrink-0">активный</span>}
-                          {t.isDefault && <span className="text-xs text-warning shrink-0">по умолч.</span>}
+                          {t.isActive && <span className="text-body-small text-success shrink-0">активный</span>}
+                          {t.isDefault && <span className="text-body-small text-warning shrink-0">по умолч.</span>}
                           {used > 0 && (
                             <Tooltip content={`Используется в ${used} докум.`}>
-                              <span className="flex items-center gap-0.5 text-xs text-on-surface-variant shrink-0">
+                              <span className="flex items-center gap-0.5 text-body-small text-on-surface-variant shrink-0">
                                 <Icon icon={Description} size={18} /> {used}
                               </span>
                             </Tooltip>
                           )}
                           {t.comment && (
-                            <span className="text-xs text-on-surface-variant truncate" title={t.comment}>{t.comment}</span>
+                            <span className="text-body-small text-on-surface-variant truncate" title={t.comment}>{t.comment}</span>
                           )}
                         </span>
                       </button>
@@ -319,10 +319,10 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                   {tooMany && (
                     <div className="mx-3 mb-2 mt-1 px-2 py-1.5 bg-warning-container border border-outline-variant rounded-sm flex items-center gap-2">
                       <Icon icon={Warning} size={18} className="text-warning shrink-0" />
-                      <span className="text-xs text-warning flex-1">Много версий</span>
+                      <span className="text-body-small text-warning flex-1">Много версий</span>
                       <button
                         onClick={() => onCleanup(group)}
-                        className="text-xs text-warning underline hover:text-warning shrink-0"
+                        className="text-body-small text-warning underline hover:text-warning shrink-0"
                       >
                         Очистить
                       </button>

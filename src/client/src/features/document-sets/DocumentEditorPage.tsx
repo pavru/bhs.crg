@@ -29,8 +29,8 @@ export function DocumentEditorPage() {
   const { data: docTypes, isLoading: typesLoading } = useListDocumentTypes();
   const setPath = `/document-sets/${constructionId}/sets/${setId}`;
 
-  if (isLoading || typesLoading) return <div className="p-6 text-sm text-on-surface-variant">Загрузка...</div>;
-  if (!set) return <div className="p-6 text-sm text-error">Комплект не найден</div>;
+  if (isLoading || typesLoading) return <div className="p-6 text-body-medium text-on-surface-variant">Загрузка...</div>;
+  if (!set) return <div className="p-6 text-body-medium text-error">Комплект не найден</div>;
   return <EditorFrame key={instanceId} set={set} setPath={setPath} instanceId={instanceId!} docTypes={docTypes ?? []} />;
 }
 
@@ -82,7 +82,7 @@ function EditorFrame({ set, setPath, instanceId, docTypes }: {
     return (
       <EmptyState className="m-6" icon={<Icon icon={Description} size={40} />} title="Документа в комплекте нет"
         description="Его удалили или перенесли в другой комплект."
-        action={<Link to={setPath} className="text-sm text-primary">К комплекту «{set.name}»</Link>} />
+        action={<Link to={setPath} className="text-body-medium text-primary">К комплекту «{set.name}»</Link>} />
     );
   }
 

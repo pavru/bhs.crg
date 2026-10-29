@@ -253,8 +253,8 @@ export function GroupedFieldsEditor({
         return (
           <div className={`border rounded-md overflow-hidden transition-colors ${zone.highlighted ? 'border-primary bg-primary-container/30' : 'border-outline-variant border-dashed bg-surface-container-low'}`}>
             <div className="flex items-center gap-2 px-3 py-2 bg-surface border-b border-outline-variant">
-              <span className="text-sm font-medium text-on-surface-variant">Без группы</span>
-              <span className="text-xs text-on-surface-variant">{ownUngrouped.length + inhUngrouped.length}</span>
+              <span className="text-body-medium font-medium text-on-surface-variant">Без группы</span>
+              <span className="text-body-small text-on-surface-variant">{ownUngrouped.length + inhUngrouped.length}</span>
             </div>
             <div className="p-2 space-y-2 min-h-[3rem]" onDragOver={zone.onDragOver} onDrop={zone.onDrop}>
               {ungroupedMembers.map((m, i) =>
@@ -297,9 +297,9 @@ export function GroupedFieldsEditor({
                 value={group.title}
                 onChange={e => renameGroup(group.key, e.target.value)}
                 placeholder="Название группы"
-                className="flex-1 min-w-0 text-sm font-medium border-b border-transparent hover:border-outline focus:border-primary bg-transparent outline-none"
+                className="flex-1 min-w-0 text-body-medium font-medium border-b border-transparent hover:border-outline focus:border-primary bg-transparent outline-none"
               />
-              <span className="text-xs text-on-surface-variant shrink-0">{members.length}</span>
+              <span className="text-body-small text-on-surface-variant shrink-0">{members.length}</span>
               <div className="flex items-center gap-0.5 shrink-0">
                 <MoveButtons onUp={() => moveGroup(group.key, -1)} onDown={() => moveGroup(group.key, 1)}
                   isFirst={gi === 0} isLast={gi === groups.length - 1} />
@@ -312,7 +312,7 @@ export function GroupedFieldsEditor({
             {/* Тело группы (drop-зона) */}
             <div className="p-2 space-y-2 min-h-[3rem]" onDragOver={zone.onDragOver} onDrop={zone.onDrop}>
               {members.length === 0 && (
-                <p className="text-xs text-on-surface-variant text-center py-3 select-none">
+                <p className="text-body-small text-on-surface-variant text-center py-3 select-none">
                   {dragKey ? 'Отпустите поле здесь' : 'Пусто — перетащите поле сюда'}
                 </p>
               )}
@@ -334,7 +334,7 @@ export function GroupedFieldsEditor({
           onChange={e => setNewGroupTitle(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addGroup(); } }}
           placeholder="Название новой группы"
-          className="flex-1 border border-dashed border-outline rounded-sm px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus:border-primary"
+          className="flex-1 border border-dashed border-outline rounded-sm px-3 py-2 text-body-medium bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus:border-primary"
         />
         <Button type="button" variant="outlined" size="sm" onClick={addGroup} disabled={!newGroupTitle.trim()} icon={<Icon icon={Add} size={18} />}>
           Группа
@@ -367,14 +367,14 @@ function InheritedRow({ field, typeLabel, dragging, onDragStart, onDragEnd, onDr
       <Icon icon={LockIcon} size={18} className="text-on-surface-variant shrink-0" />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
-          <span className="text-sm text-on-surface-variant truncate">{field.title || field.key}</span>
-          {field.required && <span className="text-caption text-error shrink-0">обяз.</span>}
+          <span className="text-body-medium text-on-surface-variant truncate">{field.title || field.key}</span>
+          {field.required && <span className="text-label-small text-error shrink-0">обяз.</span>}
         </span>
-        <span className="block text-xs text-on-surface-variant font-mono truncate">{field.key}</span>
+        <span className="block text-body-small text-on-surface-variant font-mono truncate">{field.key}</span>
       </span>
       <ModuleFieldBadge field={field} />
-      <span className="text-caption px-1.5 py-0.5 rounded-xs bg-warning-container text-on-warning-container shrink-0">унаслед.</span>
-      <span className="text-xs px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant shrink-0">{typeLabel}</span>
+      <span className="text-label-small px-1.5 py-0.5 rounded-xs bg-warning-container text-on-warning-container shrink-0">унаслед.</span>
+      <span className="text-body-small px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant shrink-0">{typeLabel}</span>
     </div>
   );
 }

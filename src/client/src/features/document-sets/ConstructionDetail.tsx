@@ -66,8 +66,8 @@ export function ConstructionDetail() {
 
   useDocumentTitle(construction ? `Стройка «${construction.name}»` : null);
 
-  if (isLoading) return <div className="p-6 text-sm text-on-surface-variant">Загрузка...</div>;
-  if (!construction) return <div className="p-6 text-sm text-error">Стройка не найдена</div>;
+  if (isLoading) return <div className="p-6 text-body-medium text-on-surface-variant">Загрузка...</div>;
+  if (!construction) return <div className="p-6 text-body-medium text-error">Стройка не найдена</div>;
 
   const sectionsN = construction.sections.length;
   const setsN = construction.sections.reduce((a, s) => a + s.documentSets.length, 0);
@@ -75,7 +75,7 @@ export function ConstructionDetail() {
 
   const contextCrumbs = (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <Link to="/document-sets" className="text-xs text-on-surface-variant hover:text-on-surface-variant transition-colors">Стройки</Link>
+      <Link to="/document-sets" className="text-body-small text-on-surface-variant hover:text-on-surface-variant transition-colors">Стройки</Link>
       {/* Прямая ссылка на неизбранную стройку (#1218): открыта полностью, а крошка ведёт в список,
           где её нет, — строка говорит почему. */}
       <NotFavoriteNote constructionId={constructionId!} />
@@ -86,7 +86,7 @@ export function ConstructionDetail() {
     <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2 space-y-0.5">
       {panels.workNav}
       <NavSection label="Разделы" />
-      {construction.sections.length === 0 && <p className="px-3 py-1.5 text-xs text-on-surface-variant">Нет разделов</p>}
+      {construction.sections.length === 0 && <p className="px-3 py-1.5 text-body-small text-on-surface-variant">Нет разделов</p>}
       {construction.sections.map(s => {
         const p = problemOf(problems, s.id);
         const done = planOf(plan, s.id);
@@ -99,7 +99,7 @@ export function ConstructionDetail() {
       })}
       {canEdit && (
         <button type="button" onClick={() => setAddSectionOpen(true)}
-          className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-sm text-primary hover:bg-primary-container transition-colors">
+          className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-body-medium text-primary hover:bg-primary-container transition-colors">
           <Icon icon={Add} size={18} className="shrink-0" /> Добавить раздел
         </button>
       )}
@@ -145,7 +145,7 @@ export function ConstructionDetail() {
             <TextField label="Название раздела (дисциплина)" value={newSectionName}
               onChange={e => setNewSectionName(e.target.value)} required autoFocus
               hint="например: Электроснабжение, Слаботочные системы" />
-            {sectionError && <p className="text-sm text-error">{sectionError}</p>}
+            {sectionError && <p className="text-body-medium text-error">{sectionError}</p>}
           </form>
         )}
       </Modal>

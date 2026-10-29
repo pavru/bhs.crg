@@ -392,23 +392,23 @@ export function InvoicesPage() {
             onShowAll={() => setFilter(null)} onRetry={() => retryRejected(port)} onOpen={setSelected} />
           <div className="flex-1 overflow-y-auto">
             {doubt && (
-              <p className="px-3 py-1.5 text-xs text-warning" role="status">
+              <p className="px-3 py-1.5 text-body-small text-warning" role="status">
                 {doubt[0].toUpperCase() + doubt.slice(1)}. Список может быть неполным.
               </p>
             )}
-            {invoices.isPending && <p className="px-3 py-2 text-xs text-on-surface-variant">Загрузка…</p>}
+            {invoices.isPending && <p className="px-3 py-2 text-body-small text-on-surface-variant">Загрузка…</p>}
             {invoices.isError && (
-              <p className="px-3 py-2 text-xs text-error">
+              <p className="px-3 py-2 text-body-small text-error">
                 Список не пришёл. Это отказ чтения, а не пустой список: счета могут быть.
               </p>
             )}
             {/* Под отбором загрузки «пусто» говорится только по свежему списку: прежний, из кэша,
                 её счетов ещё не знает, и «не осталось» было бы неправдой до ответа сервера. */}
             {onlyUpload && rows.length === 0 && catchingUp && !invoices.isPending && (
-              <p className="px-3 py-2 text-xs text-on-surface-variant">Загрузка…</p>
+              <p className="px-3 py-2 text-body-small text-on-surface-variant">Загрузка…</p>
             )}
             {/* Фильтр ещё не известен — строк нет: ни полных, ни урезанных (см. SiteFilterValue). */}
-            {sites.pending && <p className="px-3 py-2 text-xs text-on-surface-variant">Загрузка…</p>}
+            {sites.pending && <p className="px-3 py-2 text-body-small text-on-surface-variant">Загрузка…</p>}
             {/* Счета есть, но скрыты фильтром — сказать это ПЕРЕД «Счетов пока нет», которое было бы неправдой. */}
             {!invoices.isPending && !invoices.isError && !sites.pending && rows.length === 0 && filter === null && (
               <RailSitesEmpty searching={!!query.trim()} hidden={sites.hidden} foundHidden={sites.foundHidden}
@@ -416,7 +416,7 @@ export function InvoicesPage() {
             )}
             {!invoices.isPending && !invoices.isError && !sites.pending && rows.length === 0 && !(onlyUpload && catchingUp)
               && !(filter === null && (query.trim() ? sites.foundHidden : sites.hidden) > 0) && (
-              <div className="px-3 py-2 text-xs text-on-surface-variant space-y-1">
+              <div className="px-3 py-2 text-body-small text-on-surface-variant space-y-1">
                 <p>{onlyUpload ? uploadEmpty(query) : emptyText(queue, query, queues)}</p>
                 {(onlyUpload || (queue && !query.trim())) && (
                   <button type="button" className="underline hover:text-on-surface" onClick={() => setFilter(null)}>
@@ -438,9 +438,9 @@ export function InvoicesPage() {
                 о них уже сказано словами пустого состояния. Числа не пришли — так и говорим: молчание
                 читалось бы как «запертых нет». */}
             {queue === 'lost' && rows.length > 0 && (queues
-              ? queues.locked > 0 && <p className="px-3 py-2 text-xs text-on-surface-variant">{lockedNote(queues.locked)}</p>
+              ? queues.locked > 0 && <p className="px-3 py-2 text-body-small text-on-surface-variant">{lockedNote(queues.locked)}</p>
               : !counts.isPending && (
-                <p className="px-3 py-2 text-xs text-warning">
+                <p className="px-3 py-2 text-body-small text-warning">
                   Есть ли счета закрытого периода с удалёнными записями — не посчитано.
                 </p>
               ))}
@@ -458,18 +458,18 @@ export function InvoicesPage() {
               description="Или заведите новый — черновик сохранится пустым." />
           </div>
         ) : opened.kind === 'loading' ? (
-          <div className="flex-1 grid place-items-center text-xs text-on-surface-variant">Счёт загружается…</div>
+          <div className="flex-1 grid place-items-center text-body-small text-on-surface-variant">Счёт загружается…</div>
         ) : opened.kind === 'missing' ? (
           // Мёртвая ссылка. «Повторить» здесь нет: повтор ответит тем же.
           <div className="flex-1 grid place-items-center p-6">
-            <p className="text-sm text-on-surface-variant" data-testid="invoice-missing">Счёта нет: его удалили или ссылка неверна.</p>
+            <p className="text-body-medium text-on-surface-variant" data-testid="invoice-missing">Счёта нет: его удалили или ссылка неверна.</p>
           </div>
         ) : opened.kind === 'unread' ? (
           // Только для счёта, не прочитанного НИ РАЗУ: неудачное перечитывание открытого форму не снимает.
           <div className="flex-1 grid place-items-center p-6">
             <div className="max-w-md text-center space-y-2">
-              <p className="text-sm text-error">Счёт не открылся: {apiError(opened.error, 'сервер отказал')}</p>
-              <p className="text-xs text-on-surface-variant">
+              <p className="text-body-medium text-error">Счёт не открылся: {apiError(opened.error, 'сервер отказал')}</p>
+              <p className="text-body-small text-on-surface-variant">
                 Это отказ чтения, а не пустой счёт — сам счёт в списке остался.
               </p>
               <Button size="sm" variant="outlined" onClick={() => void view.refetch()}>Повторить</Button>

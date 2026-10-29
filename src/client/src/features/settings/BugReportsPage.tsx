@@ -66,12 +66,12 @@ export function BugReportsPage() {
       className={`state-layer w-full text-left px-3 py-2 rounded-lg ${
         r.id === selectedId ? 'bg-primary-container' : ''}`}>
       <div className="flex items-start gap-2">
-        <span className={`flex-1 min-w-0 text-sm truncate ${r.id === selectedId ? 'text-primary font-medium' : 'text-on-surface'}`}>
+        <span className={`flex-1 min-w-0 text-body-medium truncate ${r.id === selectedId ? 'text-primary font-medium' : 'text-on-surface'}`}>
           {r.summary}
         </span>
         <ReportStatus status={r.status} />
       </div>
-      <div className="flex items-center gap-1.5 mt-0.5 text-caption text-on-surface-variant">
+      <div className="flex items-center gap-1.5 mt-0.5 text-label-small text-on-surface-variant">
         <span className="truncate">{r.author}</span>
         <span>·</span>
         <span className="shrink-0">{formatDayTime(r.createdAt)}</span>
@@ -89,9 +89,9 @@ export function BugReportsPage() {
         : 'Что пользователи сообщают из приложения. Наружу уходит только то, что вы отредактируете'}
       icon={<Icon icon={BugReport} size={20} className="text-on-surface-variant" />}
       overlay={isLoading
-        ? <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">Загрузка…</div>
+        ? <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-medium">Загрузка…</div>
         : (reports?.length ?? 0) === 0
-          ? <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">
+          ? <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-medium">
               Сообщений нет. Пользователи отправляют их пунктом «Сообщить о проблеме» в меню профиля.
             </div>
           : undefined}
@@ -103,13 +103,13 @@ export function BugReportsPage() {
             {open.map(row)}
             {closed.length > 0 && <NavSection label="Закрытые" />}
             {closed.map(row)}
-            {filtered.length === 0 && <p className="text-sm text-on-surface-variant px-3 py-2">Ничего не найдено</p>}
+            {filtered.length === 0 && <p className="text-body-medium text-on-surface-variant px-3 py-2">Ничего не найдено</p>}
           </div>
         </div>
       }
       detail={selectedId
         ? <ReportDetail key={selectedId} id={selectedId} githubConfigured={data?.githubConfigured ?? false} />
-        : <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">Выберите сообщение</div>}
+        : <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-medium">Выберите сообщение</div>}
     />
   );
 }
@@ -117,7 +117,7 @@ export function BugReportsPage() {
 function ReportDetail({ id, githubConfigured }: { id: string; githubConfigured: boolean }) {
   const { data: report, isLoading } = useBugReport(id);
   if (isLoading || !report) {
-    return <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">Загрузка…</div>;
+    return <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-medium">Загрузка…</div>;
   }
   // Ключ по времени правки: пришёл новый текст с сервера (сохранили, сменили статус) — форма
   // пересобирается на нём. Эффект-синхронизация тут делала бы то же самое, но с лишним рендером.
@@ -162,10 +162,10 @@ function ReportBody({ report, githubConfigured }: {
       <div className="shrink-0 px-6 py-4 border-b border-outline-variant bg-surface flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-medium text-on-surface truncate">{report.author}</h2>
+            <h2 className="text-body-large font-medium text-on-surface truncate">{report.author}</h2>
             <ReportStatus status={report.status} />
           </div>
-          <p className="text-xs text-on-surface-variant mt-0.5">
+          <p className="text-body-small text-on-surface-variant mt-0.5">
             {report.authorEmail && <>{report.authorEmail} · </>}{formatDayTime(report.createdAt)}
             {report.fixedInVersion && <> · исправлено в {report.fixedInVersion}</>}
           </p>
@@ -205,25 +205,25 @@ function ReportBody({ report, githubConfigured }: {
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5">
         {/* ── Слова автора ─────────────────────────────────────────────── */}
         <section className="space-y-1.5">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Что произошло</h3>
-          <p className="text-sm text-on-surface whitespace-pre-wrap break-words">{report.message}</p>
+          <h3 className="text-body-small font-semibold uppercase tracking-wide text-on-surface-variant">Что произошло</h3>
+          <p className="text-body-medium text-on-surface whitespace-pre-wrap break-words">{report.message}</p>
         </section>
 
         {report.screenshotBlobPath && (
           <section className="space-y-1.5">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Снимок экрана</h3>
+            <h3 className="text-body-small font-semibold uppercase tracking-wide text-on-surface-variant">Снимок экрана</h3>
             <Button variant="outlined" size="sm"
               onClick={() => { void openAttachment(report.screenshotBlobPath!); }}>
               <Icon icon={OpenInNew} size={18} /> Открыть снимок
             </Button>
-            <p className="text-xs text-on-surface-variant">В GitHub снимок не передаётся — он остаётся здесь.</p>
+            <p className="text-body-small text-on-surface-variant">В GitHub снимок не передаётся — он остаётся здесь.</p>
           </section>
         )}
 
         {/* ── Техблок ──────────────────────────────────────────────────── */}
         <section>
           <button type="button" onClick={() => setTechOpen(o => !o)}
-            className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-on-surface-variant hover:text-on-surface-variant transition-colors">
+            className="flex items-center gap-1.5 text-body-small font-semibold uppercase tracking-wide text-on-surface-variant hover:text-on-surface-variant transition-colors">
             {techOpen ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />} Технический контекст
           </button>
           {techOpen && <TechBlock tech={report.tech} />}
@@ -232,7 +232,7 @@ function ReportBody({ report, githubConfigured }: {
         {/* ── Текст issue ──────────────────────────────────────────────── */}
         <section className="space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+            <h3 className="text-body-small font-semibold uppercase tracking-wide text-on-surface-variant">
               Текст issue {report.draftEdited ? '· отредактирован' : '· заготовка'}
             </h3>
             <div className="flex items-center gap-1.5">
@@ -253,9 +253,9 @@ function ReportBody({ report, githubConfigured }: {
             onChange={e => setDraft(e.target.value)}
             rows={16}
             spellCheck={false}
-            className="w-full rounded-lg border border-outline bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-on-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+            className="w-full rounded-lg border border-outline bg-surface px-3 py-2 font-mono text-body-small leading-relaxed text-on-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
           />
-          <p className="text-xs text-on-surface-variant">
+          <p className="text-body-small text-on-surface-variant">
             Markdown. Уберите внутреннее — названия строек, организаций и объектов: репозиторий
             публичный. Заголовок issue вы напишете сами при создании.
             {report.githubIssueUrl && (
@@ -303,26 +303,26 @@ function ReportBody({ report, githubConfigured }: {
       >
         {githubConfigured ? (
           <div className="space-y-3">
-            <p className="text-sm text-error">
+            <p className="text-body-medium text-error">
               После отправки текст станет публичным: репозиторий открыт для всех. Проверьте, что в
               нём не осталось названий строек, организаций и объектов.
             </p>
             <TextField label="Заголовок issue" value={issueTitle} autoFocus
               onChange={e => setIssueTitle(e.target.value)}
               hint="По нему issue будут искать в трекере" />
-            <p className="text-xs text-on-surface-variant">
+            <p className="text-body-small text-on-surface-variant">
               Телом уйдёт текст из поля «Текст issue» — ровно в том виде, в каком он сейчас на
               экране{dirty ? ', вместе с несохранёнными правками (они и сохранятся)' : ''}. Снимок
               экрана не передаётся.
             </p>
             {forwardError && (
-              <p className="flex items-start gap-1.5 text-sm text-error">
+              <p className="flex items-start gap-1.5 text-body-medium text-error">
                 <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" /> {forwardError}
               </p>
             )}
           </div>
         ) : (
-          <div className="space-y-2 text-sm text-on-surface-variant">
+          <div className="space-y-2 text-body-medium text-on-surface-variant">
             <p>
               Чтобы заводить issue из системы, нужен токен GitHub с правом <b>issues: write</b> на
               репозиторий продукта.
@@ -376,13 +376,13 @@ function ReportBody({ report, githubConfigured }: {
         }
       >
         <div className="space-y-3">
-          <p className="text-sm text-on-surface-variant">
+          <p className="text-body-medium text-on-surface-variant">
             Автор получит уведомление с этим номером — по нему он поймёт, ждать ли обновления.
           </p>
           <TextField label="Версия" value={version} autoFocus
             onChange={e => setVersion(e.target.value)} hint="Например, 0.145.0" />
           {fixError && (
-            <p className="flex items-start gap-1.5 text-sm text-error">
+            <p className="flex items-start gap-1.5 text-body-medium text-error">
               <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" /> {fixError}
             </p>
           )}
@@ -400,9 +400,9 @@ const API_ERROR_COLUMNS: DataGridColumn<NonNullable<BugReportTech['apiErrors']>[
 ];
 
 function TechBlock({ tech }: { tech: BugReportTech | null }) {
-  if (!tech) return <p className="mt-2 text-sm text-on-surface-variant">Клиент не прислал технический контекст.</p>;
+  if (!tech) return <p className="mt-2 text-body-medium text-on-surface-variant">Клиент не прислал технический контекст.</p>;
   return (
-    <div className="mt-2 space-y-2 text-xs text-on-surface-variant">
+    <div className="mt-2 space-y-2 text-body-small text-on-surface-variant">
       {tech.dropped && <p className="text-warning">{tech.dropped}</p>}
       <ul className="space-y-0.5">
         {tech.version && <li>Версия при загрузке страницы: {tech.version}{tech.commit ? ` · ${tech.commit}` : ''}</li>}
@@ -420,7 +420,7 @@ function TechBlock({ tech }: { tech: BugReportTech | null }) {
       )}
 
       {tech.stack && (
-        <pre className="max-h-60 overflow-auto rounded-md bg-surface-container p-3 text-caption leading-relaxed whitespace-pre-wrap break-words">
+        <pre className="max-h-60 overflow-auto rounded-md bg-surface-container p-3 text-label-small leading-relaxed whitespace-pre-wrap break-words">
           {tech.stack}
         </pre>
       )}

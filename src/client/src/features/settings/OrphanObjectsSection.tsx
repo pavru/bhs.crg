@@ -70,7 +70,7 @@ export function OrphanObjectsSection() {
   return (
     <CollapsibleSection title="Потерянные объекты" storageKey="orphan-objects" defaultOpen={false}>
       <div className="space-y-3">
-        <p className="text-xs text-on-surface-variant">
+        <p className="text-body-small text-on-surface-variant">
           Документы и записи общих данных, чей комплект, раздел или стройка удалены. В интерфейсе они
           не видны, но остаются в базе — попадают в поиск, в резервную копию и в проверки ссылок.
         </p>
@@ -88,15 +88,15 @@ export function OrphanObjectsSection() {
           {busy && <CircularProgress size={18} className="text-primary" />}
         </div>
 
-        {error && <p className="text-xs text-error">{error}</p>}
+        {error && <p className="text-body-small text-error">{error}</p>}
 
-        {done !== null && <p className="text-xs text-success">Готово: удалено объектов {done}.</p>}
+        {done !== null && <p className="text-body-small text-success">Готово: удалено объектов {done}.</p>}
 
         {report && (
           nothingToDo
-            ? <p className="text-xs text-on-surface-variant">Потерянных объектов нет.</p>
+            ? <p className="text-body-small text-on-surface-variant">Потерянных объектов нет.</p>
             : (
-              <ul className="text-xs text-on-surface-variant space-y-1">
+              <ul className="text-body-small text-on-surface-variant space-y-1">
                 <li>Будет удалено: <b>{report.total}</b></li>
                 {report.objects > 0 && <li>Документов и записей общих данных: {report.objects}</li>}
                 {report.qualityDocuments > 0 && <li>Документов качества: {report.qualityDocuments}</li>}

@@ -71,19 +71,19 @@ function RateList() {
   const pointed = items.find(i => i.id === pointing) ?? null;
 
   const columns: DataGridColumn<RateMatch>[] = [
-    { key: 'rateCode', label: 'Шифр', width: 'w-44', rowHeader: true, cell: m => <span className="font-mono text-xs">{m.rateCode}</span> },
+    { key: 'rateCode', label: 'Шифр', width: 'w-44', rowHeader: true, cell: m => <span className="font-mono text-body-small">{m.rateCode}</span> },
     {
       key: 'workType', label: 'Вид работы', wrap: true,
       cell: m => (
         <div className="flex flex-col items-start gap-0.5">
-          <span className="text-sm">{m.workTypeName ?? 'вид работы удалён'}</span>
+          <span className="text-body-medium">{m.workTypeName ?? 'вид работы удалён'}</span>
           <Issue issue={m.issue} />
         </div>
       ),
     },
     {
       key: 'factor', label: 'Пересчёт', width: 'w-40',
-      cell: m => <span className="text-xs text-on-surface-variant tabular-nums">{m.sourceUnit ?? 'без единицы'} → {m.unitName ?? '?'} × {formatQuantity(m.factor)}</span>,
+      cell: m => <span className="text-body-small text-on-surface-variant tabular-nums">{m.sourceUnit ?? 'без единицы'} → {m.unitName ?? '?'} × {formatQuantity(m.factor)}</span>,
     },
     { key: 'updated', label: 'Изменено', width: 'w-36', cell: m => <Updated at={m.updatedAt} by={m.updatedBy} /> },
     ...(editable ? [actionsColumn<RateMatch>(m => setPointing(m.id), m => setForgetting(m.id))] : []),
@@ -113,8 +113,8 @@ function ResourceList() {
       key: 'source', label: 'Материал в смете', wrap: true, rowHeader: true,
       cell: m => (
         <div className="flex flex-col">
-          <span className="text-sm">{m.sourceText}</span>
-          <span className="text-caption text-on-surface-variant">{m.kind === 'code' ? 'по коду ресурса' : 'по наименованию'}</span>
+          <span className="text-body-medium">{m.sourceText}</span>
+          <span className="text-label-small text-on-surface-variant">{m.kind === 'code' ? 'по коду ресурса' : 'по наименованию'}</span>
         </div>
       ),
     },
@@ -122,7 +122,7 @@ function ResourceList() {
       key: 'position', label: 'Позиция номенклатуры', wrap: true,
       cell: m => (
         <div className="flex flex-col items-start gap-0.5">
-          <span className="text-sm">{m.nomenclatureName ?? (m.issue === 'lost' ? 'позиция удалена' : 'позиция без названия')}</span>
+          <span className="text-body-medium">{m.nomenclatureName ?? (m.issue === 'lost' ? 'позиция удалена' : 'позиция без названия')}</span>
           <Issue issue={m.issue} />
         </div>
       ),
@@ -154,7 +154,7 @@ function actionsColumn<T>(onPoint: (m: T) => void, onForget: (m: T) => void): Da
 }
 
 function Updated({ at, by }: { at: string; by: string | null }) {
-  return <span className="text-xs text-on-surface-variant">{formatDate(at)}{by ? `, ${by}` : ''}</span>;
+  return <span className="text-body-small text-on-surface-variant">{formatDate(at)}{by ? `, ${by}` : ''}</span>;
 }
 
 function MatchListBody({ list, query, onQuery, placeholder, empty, grid, children }: {
@@ -173,16 +173,16 @@ function MatchListBody({ list, query, onQuery, placeholder, empty, grid, childre
     <div className="space-y-3 pt-3">
       <SearchInput value={query} onChange={onQuery} placeholder={placeholder} ariaLabel={placeholder} className="w-80 max-w-full" />
       {list.isError ? (
-        <p role="alert" className="text-sm text-error">{apiError(list.error, 'Список не прочитался')}</p>
+        <p role="alert" className="text-body-medium text-error">{apiError(list.error, 'Список не прочитался')}</p>
       ) : !list.data ? (
-        <p className="text-sm text-on-surface-variant">Читаем запомненное…</p>
+        <p className="text-body-medium text-on-surface-variant">Читаем запомненное…</p>
       ) : total === 0 ? (
-        <p className="text-sm text-on-surface-variant">{query.trim() ? 'Под этот отбор ничего не запомнено.' : empty}</p>
+        <p className="text-body-medium text-on-surface-variant">{query.trim() ? 'Под этот отбор ничего не запомнено.' : empty}</p>
       ) : (
         <>
           {grid}
           {/* Порция — не весь список: без числа она читалась бы как всё запомненное. */}
-          <div className="flex items-center gap-3 text-xs text-on-surface-variant">
+          <div className="flex items-center gap-3 text-body-small text-on-surface-variant">
             <span>Показано {formatCount(read)} из {formatCount(total)}</span>
             {list.hasNextPage && (
               <Button size="sm" variant="text" loading={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>Показать ещё</Button>

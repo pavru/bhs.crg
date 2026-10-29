@@ -23,7 +23,7 @@ export function ModuleFieldBadge({ field }: { field: SchemaField }) {
         // здесь нет, конфига нет тоже, и класс с невыдуманным именем не падает, а просто не рисуется.
         // Плашка осталась бы без фона — то есть ровно тот сигнал, ради которого она заведена, не
         // появился бы, а tsc и линт промолчали бы (найдено ревью PR #1010).
-        className="text-caption px-1.5 py-0.5 rounded-xs bg-secondary-container text-on-secondary-container shrink-0">
+        className="text-label-small px-1.5 py-0.5 rounded-xs bg-secondary-container text-on-secondary-container shrink-0">
         {field.locked ? 'модуль · заперто' : 'модуль'}
       </span>
     </Tooltip>

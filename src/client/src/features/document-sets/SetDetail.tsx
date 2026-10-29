@@ -111,8 +111,8 @@ export function SetDetail() {
   useDocumentTitle(set ? `Комплект «${set.name}»` : null);
 
   if (docParam) return <Navigate replace to={documentPath(constructionId!, setId!, docParam)} />;
-  if (isLoading) return <div className="p-6 text-sm text-on-surface-variant">Загрузка...</div>;
-  if (!set) return <div className="p-6 text-sm text-error">Комплект не найден</div>;
+  if (isLoading) return <div className="p-6 text-body-medium text-on-surface-variant">Загрузка...</div>;
+  if (!set) return <div className="p-6 text-body-medium text-error">Комплект не найден</div>;
 
   async function handleAssemble() {
     setAssembleMsg('');
@@ -174,16 +174,16 @@ export function SetDetail() {
 
   const contextCrumbs = (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <Link to="/document-sets" className="text-xs text-on-surface-variant hover:text-on-surface-variant transition-colors">Стройки</Link>
+      <Link to="/document-sets" className="text-body-small text-on-surface-variant hover:text-on-surface-variant transition-colors">Стройки</Link>
       {construction && (
         <Link to={`/document-sets/${constructionId}`}
-          className="text-caption px-2 py-0.5 rounded-full border border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface transition-colors">
+          className="text-label-small px-2 py-0.5 rounded-full border border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface transition-colors">
           Стройка: {construction.name}
         </Link>
       )}
       {sectionName && (
         <Link to={`/document-sets/${constructionId}/sections/${set.sectionId}`}
-          className="text-caption px-2 py-0.5 rounded-full border border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface transition-colors">
+          className="text-label-small px-2 py-0.5 rounded-full border border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface transition-colors">
           Раздел: {sectionName}
         </Link>
       )}
@@ -264,12 +264,12 @@ export function SetDetail() {
           <div className="font-medium text-on-surface">
             {inst.name || docTypeMap[inst.documentTypeId]?.name || inst.documentTypeId}
           </div>
-          {inst.name && <div className="text-xs text-on-surface-variant mt-0.5">{docTypeMap[inst.documentTypeId]?.name}</div>}
+          {inst.name && <div className="text-body-small text-on-surface-variant mt-0.5">{docTypeMap[inst.documentTypeId]?.name}</div>}
         </>
       ) },
     { key: 'status', label: 'Статус', width: 'w-32',
       cell: inst => (
-        <span className={`text-xs px-2 py-0.5 rounded-xs font-medium ${STATUS_COLORS[inst.status] ?? 'bg-surface-container text-on-surface-variant'}`}>
+        <span className={`text-body-small px-2 py-0.5 rounded-xs font-medium ${STATUS_COLORS[inst.status] ?? 'bg-surface-container text-on-surface-variant'}`}>
           {STATUS_LABELS[inst.status] ?? inst.status}
         </span>
       ) },
@@ -283,7 +283,7 @@ export function SetDetail() {
                 {/* Отказ из открытия доходит один — вкладку не дали открыть: об отказе загрузки говорит сама вкладка. */}
                 <Tooltip content="Открыть PDF">
                   <button onClick={() => previewGeneratedFile(inst.id, pdfFiles[0].templateId).catch((e: Error) => toast.error(e.message))}
-                    className="flex items-center gap-1 px-2 py-1 text-xs border border-outline-variant rounded-xs hover:bg-primary-container hover:border-primary-container text-on-surface-variant transition-colors">
+                    className="flex items-center gap-1 px-2 py-1 text-body-small border border-outline-variant rounded-xs hover:bg-primary-container hover:border-primary-container text-on-surface-variant transition-colors">
                     <Icon icon={Visibility} size={18} /> PDF
                   </button>
                 </Tooltip>
@@ -296,7 +296,7 @@ export function SetDetail() {
             {pdfFiles.length > 1 && (
               <Tooltip content="Несколько PDF — открыть документ для выбора">
                 <button onClick={() => openDocument(inst)}
-                  className="flex items-center gap-1 px-2 py-1 text-xs border border-outline-variant rounded-xs hover:bg-primary-container hover:border-primary-container text-on-surface-variant transition-colors">
+                  className="flex items-center gap-1 px-2 py-1 text-body-small border border-outline-variant rounded-xs hover:bg-primary-container hover:border-primary-container text-on-surface-variant transition-colors">
                   <Icon icon={Visibility} size={18} /> {pdfFiles.length} PDF
                 </button>
               </Tooltip>
@@ -323,8 +323,8 @@ export function SetDetail() {
 
   const documentsContent = (
     <>
-      {addError && <p className="text-xs text-error mb-3">{addError}</p>}
-      {!addError && assembleMsg && <p className="text-xs text-on-surface-variant mb-3">{assembleMsg}</p>}
+      {addError && <p className="text-body-small text-error mb-3">{addError}</p>}
+      {!addError && assembleMsg && <p className="text-body-small text-on-surface-variant mb-3">{assembleMsg}</p>}
 
       {set.instances.length === 0 ? (
         <div className="bg-surface border border-outline-variant rounded-lg overflow-hidden">

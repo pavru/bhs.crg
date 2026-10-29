@@ -35,7 +35,7 @@ export function BaseInstanceChip({
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild disabled={!editable}>
         <button type="button"
-          className={`flex items-center gap-1.5 h-7 pl-2.5 pr-2 rounded-md text-xs font-medium bg-primary-container text-on-primary-container max-w-[16rem] transition-colors ${
+          className={`flex items-center gap-1.5 h-7 pl-2.5 pr-2 rounded-md text-body-small font-medium bg-primary-container text-on-primary-container max-w-[16rem] transition-colors ${
             editable ? 'hover:bg-primary-container/70 cursor-pointer' : 'cursor-default'}`}>
           <Icon icon={icon} size={18} className="shrink-0" />
           {/* Полный текст обрезанной подписи — нативным title: подсказка на самой кнопке не видна,
@@ -48,12 +48,12 @@ export function BaseInstanceChip({
         <DropdownMenu.Content align="end" sideOffset={4}
           className="z-50 min-w-[12rem] rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
           <DropdownMenu.Item onSelect={() => setPickerOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer select-none outline-none text-on-surface-variant state-layer">
+            className="flex items-center gap-2 px-3 py-1.5 text-body-medium cursor-pointer select-none outline-none text-on-surface-variant state-layer">
             <Icon icon={ChangeCircle} size={18} className="text-on-surface-variant" /> Заменить основу…
           </DropdownMenu.Item>
           <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
           <DropdownMenu.Item onSelect={onClear}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer select-none outline-none text-error state-layer">
+            className="flex items-center gap-2 px-3 py-1.5 text-body-medium cursor-pointer select-none outline-none text-error state-layer">
             <Icon icon={LinkOff} size={18} /> Отвязать
           </DropdownMenu.Item>
         </DropdownMenu.Content>
@@ -65,7 +65,7 @@ export function BaseInstanceChip({
   const missingChip = !selected && missing && (
     <Tooltip content="Базовый экземпляр недоступен (удалён или вне области видимости) — нажмите, чтобы отвязать">
       <button type="button" onClick={editable ? onClear : undefined} disabled={!editable}
-        className="flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium bg-warning-container text-on-warning-container max-w-[16rem]">
+        className="flex items-center gap-1.5 h-7 px-2.5 rounded-md text-body-small font-medium bg-warning-container text-on-warning-container max-w-[16rem]">
         <Icon icon={Warning} size={18} className="shrink-0" />
         <span className="truncate">Основа недоступна</span>
       </button>
@@ -76,7 +76,7 @@ export function BaseInstanceChip({
   const emptyChip = !selected && !missing && editable && (
     <Tooltip content="Предзаполнить поля из базового экземпляра или роли">
       <button type="button" onClick={() => setPickerOpen(true)}
-        className="flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium border border-dashed border-primary-container text-primary hover:bg-primary-container transition-colors">
+        className="flex items-center gap-1.5 h-7 px-2.5 rounded-md text-body-small font-medium border border-dashed border-primary-container text-primary hover:bg-primary-container transition-colors">
         <Icon icon={LinkIcon} size={18} className="shrink-0" />
         <span>Выбрать основу</span>
       </button>

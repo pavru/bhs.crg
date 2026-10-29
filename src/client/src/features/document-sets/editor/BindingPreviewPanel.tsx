@@ -25,7 +25,7 @@ function columnsOf(r: DataSetBindingPreviewResult): DataGridColumn[] {
 
 export function BindingPreviewPanel({ results }: { results: DataSetBindingPreviewResult[] }) {
   if (results.length === 0)
-    return <p className="text-xs py-2 text-on-surface-variant">Нет привязок для проверки</p>;
+    return <p className="text-body-small py-2 text-on-surface-variant">Нет привязок для проверки</p>;
 
   return (
     <div className="space-y-3">
@@ -39,23 +39,23 @@ export function BindingPreviewPanel({ results }: { results: DataSetBindingPrevie
               ? <Icon icon={Warning} size={18} className="text-warning shrink-0" />
               : <Icon icon={CheckCircle} size={18} className="text-success shrink-0" />
             }
-            <span className="text-xs font-medium flex-1 text-on-surface">
+            <span className="text-body-small font-medium flex-1 text-on-surface">
               {r.sourceName}
               <span className="font-normal ml-1.5 text-on-surface-variant">
                 {r.fileName} · {r.mode === 'scalar' ? 'скалярный' : r.mode === 'tabular' ? `табличный → ${r.targetFieldKey}` : 'ошибка'}
               </span>
             </span>
             {r.mode !== 'error' && (
-              <span className="text-xs text-on-surface-variant">{r.totalRows} строк</span>
+              <span className="text-body-small text-on-surface-variant">{r.totalRows} строк</span>
             )}
           </div>
 
           {r.mode === 'error' ? (
-            <div className="px-3 py-2 text-xs text-error bg-surface">{r.error}</div>
+            <div className="px-3 py-2 text-body-small text-error bg-surface">{r.error}</div>
           ) : (
             <>
               {/* Предупреждение у рабочей привязки (пропущенные строки) — над данными, а не вместо них. */}
-              {r.error && <div className="px-3 py-2 text-xs text-warning bg-surface border-b border-outline-variant">{r.error}</div>}
+              {r.error && <div className="px-3 py-2 text-body-small text-warning bg-surface border-b border-outline-variant">{r.error}</div>}
               {r.mode === 'scalar'
                 ? <ScalarPreview data={r.data as Record<string, unknown>} columns={columnsOf(r)} />
                 : <TabularPreview rows={r.data as Record<string, unknown>[]} columns={columnsOf(r)} />}
@@ -72,7 +72,7 @@ function ScalarPreview({ data, columns }: { data: Record<string, unknown>; colum
   return (
     <div className="px-3 py-2 overflow-x-auto bg-surface">
       {/* Одна запись — «поле — значение», а не таблица: колонок у неё нет, есть пары (#1354). */}
-      <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] text-xs">
+      <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] text-body-small">
         {columns.map(c => (
           <div key={c.key} className="contents [&:not(:last-child)>*]:border-b [&>*]:border-outline-variant">
             <dt className="py-1 pr-4 font-medium text-on-surface-variant">{c.label}</dt>
@@ -88,7 +88,7 @@ function TabularPreview({ rows, columns }: { rows: Record<string, unknown>[]; co
   // Ни одно поле не размечено — сетка без колонок нарисовала бы невидимые строки под зелёной галкой.
   if (columns.length === 0)
     return (
-      <p className="px-3 py-2 text-xs text-warning bg-surface">
+      <p className="px-3 py-2 text-body-small text-warning bg-surface">
         Ни одному полю строки не назначена колонка источника — из источника в строки не придёт ничего.
       </p>
     );
@@ -96,7 +96,7 @@ function TabularPreview({ rows, columns }: { rows: Record<string, unknown>[]; co
     <div className="bg-surface">
       <DataGrid framed={false} columns={columns} rows={rows.slice(0, PREVIEW_ROWS)} renderValue={renderPreviewValue} />
       {rows.length > PREVIEW_ROWS && (
-        <p className="px-3 py-1.5 text-xs border-t border-outline-variant text-on-surface-variant">
+        <p className="px-3 py-1.5 text-body-small border-t border-outline-variant text-on-surface-variant">
           +{rows.length - PREVIEW_ROWS} строк не показано
         </p>
       )}

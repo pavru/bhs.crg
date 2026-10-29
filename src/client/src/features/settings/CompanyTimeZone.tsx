@@ -43,7 +43,7 @@ export function CompanyTimeZone({ onDirty }: {
 
   if (isError) return (
     <div className="flex items-center gap-3">
-      <span className="text-sm text-error">Часовой пояс компании не загрузился.</span>
+      <span className="text-body-medium text-error">Часовой пояс компании не загрузился.</span>
       <Button variant="outlined" size="sm" onClick={() => void refetch()}>Повторить</Button>
     </div>
   );
@@ -57,8 +57,8 @@ export function CompanyTimeZone({ onDirty }: {
         onValueChange={setPicked} disabled={save.isPending}>
         {zoneChoices(data).map(z => <SelectItem key={z.value} value={z.value}>{z.label}</SelectItem>)}
       </Select>
-      {notice && <p role="status" className="text-xs text-warning max-w-xl">{notice}</p>}
-      <p className="text-xs text-on-surface-variant max-w-xl">
+      {notice && <p role="status" className="text-body-small text-warning max-w-xl">{notice}</p>}
+      <p className="text-body-small text-on-surface-variant max-w-xl">
         Сейчас у компании: <span data-testid="company-now" className="text-on-surface">{companyNow(data.effectiveNow)}</span>. По этому
         поясу система считает сутки: от него зависят «Осталось дней» и «Просрочен» у счетов, то,
         какое число считается сегодняшним в учёте, и время резервной копии.

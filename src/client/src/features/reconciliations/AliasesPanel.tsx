@@ -33,16 +33,16 @@ export function AliasesPanel() {
   return (
     <div className="flex-1 min-w-0 flex flex-col">
       <div className="px-4 py-3 border-b border-outline-variant shrink-0">
-        <h2 className="text-base font-semibold text-on-surface flex items-center gap-2">
+        <h2 className="text-body-large font-semibold text-on-surface flex items-center gap-2">
           <Icon icon={LinkIcon} size={18} className="text-on-surface-variant" /> Алиасы позиций
         </h2>
-        <p className="text-xs text-on-surface-variant mt-0.5">
+        <p className="text-body-small text-on-surface-variant mt-0.5">
           Наименования, признанные одним и тем же. В сверке участвуют только применяемые.
         </p>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {isLoading && <p className="px-4 py-3 text-sm text-on-surface-variant">Загрузка…</p>}
+        {isLoading && <p className="px-4 py-3 text-body-medium text-on-surface-variant">Загрузка…</p>}
         {!isLoading && items.length === 0 && (
           <div className="p-6">
             <EmptyState icon={<Icon icon={LinkIcon} size={40} />} title="Алиасов нет"
@@ -52,10 +52,10 @@ export function AliasesPanel() {
         {items.map(a => (
           <div key={a.id} className="px-4 py-3 border-b border-outline-variant group">
             <div className="flex items-center gap-2">
-              <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${STATUS_STYLE[a.status]}`}>
+              <span className={`text-label-small px-1.5 py-0.5 rounded-full shrink-0 ${STATUS_STYLE[a.status]}`}>
                 {ALIAS_STATUS_LABELS[a.status]}
               </span>
-              <span className="min-w-0 flex-1 text-sm text-on-surface truncate">
+              <span className="min-w-0 flex-1 text-body-medium text-on-surface truncate">
                 {a.aliasLabel} <span className="text-on-surface-variant">→</span> {a.canonicalLabel}
               </span>
               {a.status !== 'Confirmed' && (
@@ -82,7 +82,7 @@ export function AliasesPanel() {
               </Button>
             </div>
             {(a.note || a.confirmedBy || a.proposedBy) && (
-              <p className="text-caption text-on-surface-variant mt-0.5">
+              <p className="text-label-small text-on-surface-variant mt-0.5">
                 {a.note}
                 {a.note && (a.confirmedBy || a.proposedBy) ? ' · ' : ''}
                 {a.confirmedBy ? `подтвердил ${a.confirmedBy}` : a.proposedBy ? `предложил ${a.proposedBy}` : ''}

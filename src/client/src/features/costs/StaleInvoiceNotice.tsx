@@ -19,7 +19,7 @@ export function StaleInvoiceNotice({ what, onReread }: {
 }) {
   return (
     <div role="alert" className="flex items-start gap-2 rounded-md border border-outline-variant
-      bg-warning-container px-3 py-2 text-xs text-on-warning-container">
+      bg-warning-container px-3 py-2 text-body-small text-on-warning-container">
       <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
       <p className="flex-1">
         Счёт тем временем изменили — {what} на экране собраны по прежнему виду и поверх чужой правки

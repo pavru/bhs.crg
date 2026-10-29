@@ -38,8 +38,8 @@ export function ComplexCellPicker({ value, onChange, compositeType, setId, allDo
       <button type="button" onClick={() => setPickerOpen(true)}
         className="flex-1 min-w-0 h-full flex items-center gap-1 px-1.5 focus:outline-none focus:bg-primary-container">
         {ref
-          ? <><Icon icon={LinkIcon} size={18} className="text-primary shrink-0" /><span className="text-xs truncate text-primary">{ref.displayName}</span><ArchivedRefMark value={ref} words={false} /></>
-          : <span className="text-xs text-on-surface-variant">—</span>
+          ? <><Icon icon={LinkIcon} size={18} className="text-primary shrink-0" /><span className="text-body-small truncate text-primary">{ref.displayName}</span><ArchivedRefMark value={ref} words={false} /></>
+          : <span className="text-body-small text-on-surface-variant">—</span>
         }
       </button>
       {ref && (
@@ -96,7 +96,7 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
       ? enumTypeDef.values.map(v => ({ code: v.code, label: v.label }))
       : (field.options ?? []).filter(o => o !== '').map(o => ({ code: o, label: o }));
     return (
-      <Select size="inline" className="w-full h-full px-1.5 text-xs rounded-none focus:bg-primary-container"
+      <Select size="inline" className="w-full h-full px-1.5 text-body-small rounded-none focus:bg-primary-container"
         aria-label={field.title} value={strVal} onValueChange={onChange} emptyItem="—">
         {opts.map(o => <SelectItem key={o.code} value={o.code}>{o.label}</SelectItem>)}
       </Select>

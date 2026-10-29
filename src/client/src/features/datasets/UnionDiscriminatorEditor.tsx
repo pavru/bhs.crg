@@ -98,11 +98,11 @@ export function UnionDiscriminatorEditor({
                 className="w-full flex items-center gap-2 px-2 py-1.5 text-left state-layer"
               >
                 {isOpen ? <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={ChevronRight} size={18} className="text-on-surface-variant shrink-0" />}
-                <span className={`text-xs font-medium ${disabled ? 'text-on-surface-variant' : 'text-on-surface-variant'}`}>{v.title}</span>
+                <span className={`text-body-small font-medium ${disabled ? 'text-on-surface-variant' : 'text-on-surface-variant'}`}>{v.title}</span>
                 <span className="flex-1 flex flex-wrap gap-1">
                   {ids.map(id => (
                     <span key={id}
-                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-caption border ${
+                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-label-small border ${
                         conflicting.has(id)
                           ? 'bg-error-container text-on-error-container border-error/30'
                           : 'bg-surface-container-low text-on-surface-variant border-outline-variant'}`}>
@@ -112,9 +112,9 @@ export function UnionDiscriminatorEditor({
                     </span>
                   ))}
                 </span>
-                {disabled && <span className="text-caption text-on-surface-variant shrink-0">выключен, строки пропускаются</span>}
+                {disabled && <span className="text-label-small text-on-surface-variant shrink-0">выключен, строки пропускаются</span>}
                 {needsMapping && (
-                  <span className="text-caption text-error shrink-0 flex items-center gap-1">
+                  <span className="text-label-small text-error shrink-0 flex items-center gap-1">
                     <Icon icon={Warning} size={18} /> нет маппинга
                   </span>
                 )}
