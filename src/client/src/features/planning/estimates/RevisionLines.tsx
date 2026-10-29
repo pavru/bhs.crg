@@ -56,7 +56,7 @@ export function RevisionLines({ revision, initialQueue = 'all' }: {
 
   if (rows.isError || sections.isError)
     return <p role="alert" className="text-sm text-error">{apiError(rows.error ?? sections.error, 'Строки редакции не прочитались')}</p>;
-  if (!rows.data || !sections.data) return <p className="text-sm text-fg4">Читаем строки редакции…</p>;
+  if (!rows.data || !sections.data) return <p className="text-sm text-on-surface-variant">Читаем строки редакции…</p>;
 
   const toggle = (key: string) => setOpened(prev => {
     const next = new Set(prev);
@@ -110,7 +110,7 @@ function lineColumns(hidden: HiddenPart[] | undefined, names: Names, onMatch: On
   const closed = costHidden(hidden);
   const row = (line: GridLine) => (line.kind === 'row' ? line.row : null);
   return [
-    { key: 'number', label: '№', width: 'w-12', cell: l => <span className="tabular-nums text-fg3">{rowNumber(row(l)!)}</span> },
+    { key: 'number', label: '№', width: 'w-12', cell: l => <span className="tabular-nums text-on-surface-variant">{rowNumber(row(l)!)}</span> },
     {
       key: 'rateCode', label: 'Шифр', width: 'w-36',
       // Шифр — в одну строку с обрезкой (макет П1): ширина нужна наименованию.
@@ -174,7 +174,7 @@ function WorkTypeCell({ row, names, onMatch }: { row: EstimateRow; names: Names;
         </button>
       )}
       {row.workTypeId && row.volume !== null && (
-        <span className="text-xs text-fg3 tabular-nums">
+        <span className="text-xs text-on-surface-variant tabular-nums">
           {formatQuantity(row.volume)}{row.unitId && names.units.get(row.unitId) ? ` ${names.units.get(row.unitId)}` : ''}
           {row.factor !== null && row.factor !== 1 ? ` · × ${formatQuantity(row.factor)}` : ''}
         </span>
@@ -236,7 +236,7 @@ function SectionHeading({ section, open, shown, filtering, onToggle, onMatch }: 
           {title}
         </button>
       )}
-      <span className="text-xs text-fg3">
+      <span className="text-xs text-on-surface-variant">
         {filtering ? `${formatCount(shown)} из ${formatCount(section.rows)} строк` : `${formatCount(section.rows)} строк`}
       </span>
       {section.unmatched > 0

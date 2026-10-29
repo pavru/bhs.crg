@@ -91,13 +91,13 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
       }>
       <div className="space-y-4">
         {!ready && (
-          <p className="flex items-start gap-2 text-sm text-warning bg-warning-container rounded-md p-3">
+          <p className="flex items-start gap-2 text-sm text-on-warning-container bg-warning-container rounded-md p-3">
             <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" /> {notReadyHint}
           </p>
         )}
 
         {recipientsError && (
-          <p className="flex items-start gap-2 text-sm text-warning bg-warning-container rounded-md p-3">
+          <p className="flex items-start gap-2 text-sm text-on-warning-container bg-warning-container rounded-md p-3">
             <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             Список подписчиков не загрузился — отправляйте по адресам, введённым вручную.
             Пустой список здесь означал бы «подписчиков нет», а это не так.
@@ -112,7 +112,7 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
                 <label key={r.userId} className={`flex items-center gap-2 px-2.5 py-1.5 text-sm ${r.validEmail ? 'cursor-pointer hover:bg-surface-container-low' : 'opacity-60'}`}>
                   <input type="checkbox" disabled={!r.validEmail} checked={r.validEmail && !unchecked.has(r.userId)} onChange={() => toggleSub(r.userId)} />
                   <span className="text-on-surface flex-1 min-w-0 truncate">{r.displayName}</span>
-                  <span className="text-xs text-fg4 min-w-0 truncate">{r.email || '—'}</span>
+                  <span className="text-xs text-on-surface-variant min-w-0 truncate">{r.email || '—'}</span>
                   {!r.validEmail && <Icon icon={Warning} size={18} className="text-warning shrink-0" />}
                 </label>
               ))}

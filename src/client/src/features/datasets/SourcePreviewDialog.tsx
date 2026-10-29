@@ -23,8 +23,8 @@ import { Tooltip } from '@/shared/ui/Tooltip';
 function SourceBoundary({ boundary }: { boundary?: string | null }) {
   if (!boundary) return null;
   return (
-    <div className="px-1 pt-2 text-xs text-fg3 flex items-start gap-1.5">
-      <Icon icon={VerifiedUser} size={18} className="mt-0.5 shrink-0 text-fg4" />
+    <div className="px-1 pt-2 text-xs text-on-surface-variant flex items-start gap-1.5">
+      <Icon icon={VerifiedUser} size={18} className="mt-0.5 shrink-0 text-on-surface-variant" />
       <span>{boundary}</span>
     </div>
   );
@@ -63,12 +63,12 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
         const size = sizeRaw != null && sizeRaw !== '' && !Number.isNaN(Number(sizeRaw)) ? formatBytes(Number(sizeRaw)) : null;
         return (
           <div key={i} className="flex items-center gap-3 rounded-md px-3 py-2 bg-surface-container">
-            <Icon icon={Description} size={18} className="text-fg4 shrink-0" />
+            <Icon icon={Description} size={18} className="text-on-surface-variant shrink-0" />
             <div className="min-w-0 flex-1">
               <div className="text-xs font-medium truncate text-on-surface">
-                {name ?? <em className="text-fg4">без названия</em>}
+                {name ?? <em className="text-on-surface-variant">без названия</em>}
               </div>
-              <div className="text-caption text-fg4">
+              <div className="text-caption text-on-surface-variant">
                 {pages ? `${pages} л.` : '—'}{size ? ` · ${size}` : ''}
               </div>
             </div>
@@ -85,7 +85,7 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
         );
       })}
       <SourceBoundary boundary={data.boundary} />
-      <div className="px-1 pt-1 text-xs text-fg4">
+      <div className="px-1 pt-1 text-xs text-on-surface-variant">
         {data.totalRows} строк{data.totalRows > data.rows.length ? ` (показано первых ${data.rows.length})` : ''}
       </div>
     </div>
@@ -116,12 +116,12 @@ export function SourcePreviewDialog({ source, onClose }: { source: DataSetSource
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Результат обработки — ${source.name}`} wide nothingToLose>
-      <p className="text-xs mb-3 text-fg4">
+      <p className="text-xs mb-3 text-on-surface-variant">
         Результат после Filter/Transformation/Sort — то, что получит маппинг документа.
       </p>
 
       {isFetching ? (
-        <div className="flex items-center gap-2 py-8 justify-center text-sm text-fg4">
+        <div className="flex items-center gap-2 py-8 justify-center text-sm text-on-surface-variant">
           <CircularProgress size={18} /> Загрузка...
         </div>
       ) : error ? (
@@ -129,7 +129,7 @@ export function SourcePreviewDialog({ source, onClose }: { source: DataSetSource
           {(error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Не удалось получить результат'}
         </p>
       ) : !data || data.columns.length === 0 ? (
-        <p className="text-sm text-fg4 py-4 text-center">Нет данных — либо строки не найдены, либо все отфильтрованы.</p>
+        <p className="text-sm text-on-surface-variant py-4 text-center">Нет данных — либо строки не найдены, либо все отфильтрованы.</p>
       ) : isGostDocuments ? (
         <GostDocumentsPreview data={data} />
       ) : (
@@ -139,7 +139,7 @@ export function SourcePreviewDialog({ source, onClose }: { source: DataSetSource
               «уезжал» к дну длинной таблицы, а на стыке со скроллом модалки был глюк (issue #240). */}
           <DataGrid className="max-h-[65vh]" {...previewGrid(data)} />
           <SourceBoundary boundary={data.boundary} />
-          <div className="px-1 pt-2 text-xs text-fg4">
+          <div className="px-1 pt-2 text-xs text-on-surface-variant">
             {data.totalRows} строк{data.totalRows > data.rows.length ? ` (показано первых ${data.rows.length})` : ''}
           </div>
         </>

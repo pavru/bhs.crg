@@ -9,7 +9,7 @@ export function BoundRefValue({ entryId }: { entryId: string }) {
   return (
     <span className="inline-flex items-center gap-1 text-primary">
       <Icon icon={LinkIcon} size={18} className="shrink-0" />
-      {entry ? entry.displayName : <span className="text-fg4">запись каталога…</span>}
+      {entry ? entry.displayName : <span className="text-on-surface-variant">запись каталога…</span>}
       {/* Запись по идентификатору несёт признак сама (issue #1185): связка цела, пометка — о выборе. */}
       {entry?.archived && <ArchivedMark />}
     </span>

@@ -24,7 +24,7 @@ export function TypstBlocksPanel({ problems, currentTypeId, onSelectType }: {
 }) {
   if (problems.length === 0)
     return (
-      <div className="flex items-center gap-2 p-2.5 rounded-md text-sm bg-success-container text-success">
+      <div className="flex items-center gap-2 p-2.5 rounded-md text-sm bg-success-container text-on-success-container">
         <Icon icon={CheckCircle} size={18} className="shrink-0" /> Все Typst-блоки собираются
       </div>
     );
@@ -50,7 +50,7 @@ function Group({ title, items, onSelectType }: {
 }) {
   return (
     <div>
-      <div className="px-3 pt-2 pb-1 text-caption font-semibold uppercase tracking-wide text-fg4">{title}</div>
+      <div className="px-3 pt-2 pb-1 text-caption font-semibold uppercase tracking-wide text-on-surface-variant">{title}</div>
       <div className="divide-y divide-surface-container">
         {items.map((p, i) => (
           <div key={i} className="flex items-start gap-2 px-3 py-2">
@@ -59,7 +59,7 @@ function Group({ title, items, onSelectType }: {
               : <Icon icon={Warning} size={18} className="text-warning shrink-0 mt-0.5" />}
             <div className="min-w-0 flex-1">
               {p.fnName && (
-                <div className="text-fg3">
+                <div className="text-on-surface-variant">
                   <code className="text-on-surface-variant">{p.fnName}</code>
                   {p.line != null ? ` · строка ${p.line}` : ''} · {CODE_LABEL[p.code] ?? p.code}
                 </div>

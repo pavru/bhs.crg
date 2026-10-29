@@ -117,7 +117,7 @@ function OriginalFile({ invoiceId, blobPath, fileName }: {
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant shrink-0">
-        <Icon icon={Description} size={18} className="text-fg3 shrink-0" />
+        <Icon icon={Description} size={18} className="text-on-surface-variant shrink-0" />
         <span className="text-xs text-on-surface-variant truncate flex-1">{fileName ?? 'Файл счёта'}</span>
         {canOpen
           ? (
@@ -238,7 +238,7 @@ export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
 
   return (
     <div className="flex items-start gap-2 rounded-lg border border-outline-variant bg-surface-container px-3 py-2">
-      <Icon icon={Description} size={18} className="text-fg3 shrink-0 mt-0.5" />
+      <Icon icon={Description} size={18} className="text-on-surface-variant shrink-0 mt-0.5" />
       <div className="min-w-0 flex-1">
         {refused
           ? (
@@ -253,7 +253,7 @@ export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
               не меньше 1280 пикселей, а здесь {width}.
             </p>
           )}
-        {built && <p className="text-xs text-fg3">Откроется вид для чтения — {IMAGE_CAVEAT}.</p>}
+        {built && <p className="text-xs text-on-surface-variant">Откроется вид для чтения — {IMAGE_CAVEAT}.</p>}
         {(built || refused) && (
           <div className="flex gap-2 mt-1">
             {built && (

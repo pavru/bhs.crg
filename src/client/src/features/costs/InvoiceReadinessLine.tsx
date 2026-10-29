@@ -20,7 +20,7 @@ export function InvoiceReadinessLine({ items, unsaved }: {
   unsaved: boolean;
 }) {
   const stale = unsaved
-    ? <span className="text-fg3"> Строка — о сохранённом счёте: сохраните правки, и она обновится.</span>
+    ? <span className="text-on-surface-variant"> Строка — о сохранённом счёте: сохраните правки, и она обновится.</span>
     : null;
 
   if (items.length === 0)
@@ -33,12 +33,12 @@ export function InvoiceReadinessLine({ items, unsaved }: {
 
   return (
     <p className="flex items-start gap-1.5 text-xs text-on-surface-variant" data-testid="invoice-readiness">
-      <Icon icon={Checklist} size={18} className="shrink-0 mt-0.5 text-fg3" />
+      <Icon icon={Checklist} size={18} className="shrink-0 mt-0.5 text-on-surface-variant" />
       <span>
         До «Разобран» осталось:{' '}
         {items.map((item, index) => (
           <span key={item.id}>
-            {index > 0 && <span className="text-fg4"> · </span>}
+            {index > 0 && <span className="text-on-surface-variant"> · </span>}
             {item.target
               ? (
                 <button type="button" className="text-primary hover:underline"

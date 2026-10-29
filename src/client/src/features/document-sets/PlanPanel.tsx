@@ -34,7 +34,7 @@ const EMPTY: PlanRow[] = [];
 export function PlanPanel({ setId }: { setId: string }) {
   const { data: saved = EMPTY, isLoading, isError, error, refetch } = useDocumentSetPlan(setId);
 
-  if (isLoading) return <div className="text-sm text-fg4">Загрузка…</div>;
+  if (isLoading) return <div className="text-sm text-on-surface-variant">Загрузка…</div>;
 
   // Отказ загрузки НЕЛЬЗЯ показывать как «плана нет»: сохранение заменяет план целиком, и человек,
   // приняв пустой экран за правду, добавил бы одну строку и стёр ею всё остальное. Пустое
@@ -119,7 +119,7 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
       <header className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-sm font-medium text-on-surface">План по документам</h2>
-          <p className="text-xs text-fg4 mt-0.5">
+          <p className="text-xs text-on-surface-variant mt-0.5">
             Каких документов и сколько должно быть в комплекте. Готовность считается по выпущенным:
             черновик не закрывает позицию. Плана нет — проценты нигде не показываются.
           </p>
@@ -140,7 +140,7 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
       ) : (
         <>
           <div className="border border-outline-variant rounded-xl overflow-hidden">
-            <div className="grid grid-cols-[1fr_7rem_7rem_2.5rem] gap-2 px-3 py-2 bg-surface-container text-caption uppercase tracking-wide text-fg4">
+            <div className="grid grid-cols-[1fr_7rem_7rem_2.5rem] gap-2 px-3 py-2 bg-surface-container text-caption uppercase tracking-wide text-on-surface-variant">
               <span>Тип документа</span>
               <span className="text-right">План</span>
               <span className="text-right">Выпущено</span>
@@ -161,20 +161,20 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
                              focus:outline-none focus:border-primary" />
                 <Tooltip content={actualOf(r.documentTypeId) === null ? 'Станет известно после сохранения' : undefined}>
                   <span className={`text-right tabular-nums ${
-                    (actualOf(r.documentTypeId) ?? -1) >= r.plannedCount ? 'text-primary' : 'text-fg3'}`}>
+                    (actualOf(r.documentTypeId) ?? -1) >= r.plannedCount ? 'text-primary' : 'text-on-surface-variant'}`}>
                     {actualOf(r.documentTypeId) ?? '—'}
                   </span>
                 </Tooltip>
                 <button type="button" aria-label={`Убрать «${r.typeName}» из плана`}
                   onClick={() => setRows(prev => prev.filter((_, j) => j !== i))}
-                  className="h-7 w-7 grid place-items-center rounded-lg text-fg4 hover:text-error hover:bg-error-container transition-colors">
+                  className="h-7 w-7 grid place-items-center rounded-lg text-on-surface-variant hover:text-on-error-container hover:bg-error-container transition-colors">
                   <Icon icon={Delete} size={18} />
                 </button>
               </div>
             ))}
           </div>
 
-          <p className="text-xs text-fg4">
+          <p className="text-xs text-on-surface-variant">
             Закрыто позиций: <span className="tabular-nums text-on-surface-variant">{closed} из {planned}</span>.
             {' '}Документы сверх плана в счёт не идут, типы вне плана — тоже.
             {unknownFacts && ' По добавленным строкам выпущенное посчитается после сохранения.'}

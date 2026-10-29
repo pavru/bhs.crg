@@ -96,7 +96,7 @@ describe('RowFilterValue: значение вне закрытого переч�
     const stray = container.querySelector('[data-stray]')!;
     expect(stray.textContent).toContain('Частично');
     // Тон — у пилюли Chip, обёртки кнопки с текстом (#1469).
-    expect(stray.parentElement!.className).toContain('border-warning-border');
+    expect(stray.parentElement!.className).toContain('border-outline-variant');
     expect(stray.parentElement!.className).toContain('bg-warning-container');
     // Жетон — подпись, а не кнопка: нажать в нём нечего, кроме крестика.
     expect(stray.tagName).toBe('SPAN');

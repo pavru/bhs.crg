@@ -52,12 +52,12 @@ function FindingLine({ f, onDecide }: { f: Finding; onDecide: (f: Finding) => vo
     <div className={`px-3 py-2 border-b border-outline-variant text-sm ${open ? '' : 'opacity-60'}`}>
       <div className="flex items-center gap-2">
         <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${
-          f.status === 'Match' ? 'text-fg4' : open ? 'bg-error-container text-error' : 'bg-surface-container text-fg3'}`}>
+          f.status === 'Match' ? 'text-on-surface-variant' : open ? 'bg-error-container text-error' : 'bg-surface-container text-on-surface-variant'}`}>
           {f.resolved ? 'Устранено' : STATUS_LABELS[f.status]}
         </span>
         <span className="flex-1 truncate text-on-surface" title={f.label}>{f.label}</span>
         <span className="tabular-nums text-on-surface-variant shrink-0">
-          {num(f.leftValue)} <span className="text-fg4">/</span> {num(f.rightValue)}
+          {num(f.leftValue)} <span className="text-on-surface-variant">/</span> {num(f.rightValue)}
         </span>
         {/* Кнопка видна всегда, а не на hover (#680): скрытое действие на непривычном экране
             просто не находят. */}
@@ -65,11 +65,11 @@ function FindingLine({ f, onDecide }: { f: Finding; onDecide: (f: Finding) => vo
           {f.decision ? 'Изменить' : 'Разобрать'}
         </Button>
       </div>
-      <div className="flex items-center gap-3 mt-0.5 text-caption text-fg4">
+      <div className="flex items-center gap-3 mt-0.5 text-caption text-on-surface-variant">
         {provenanceSummary(f.provenance.left) && <span>слева: {provenanceSummary(f.provenance.left)}</span>}
         {provenanceSummary(f.provenance.right) && <span>справа: {provenanceSummary(f.provenance.right)}</span>}
         {f.decision && (
-          <span className="text-fg3">
+          <span className="text-on-surface-variant">
             {DECISION_LABELS[f.decision.kind]}
             {f.decision.note ? ` — ${f.decision.note}` : ''}
           </span>
@@ -97,14 +97,14 @@ function ReconciliationBlock({ id, name, unresolved }: {
   return (
     <div className="border border-outline-variant rounded-lg overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 bg-surface-container/40">
-        <Icon icon={Balance} size={18} className="text-fg4 shrink-0" />
+        <Icon icon={Balance} size={18} className="text-on-surface-variant shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="truncate text-sm font-medium text-on-surface">{name}</div>
           {/* Когда прогон был и чем кончился — обязательная часть блока, а не украшение: список
               находок строится по последнему УДАЧНОМУ прогону, поэтому без этой строки «Всё
               разобрано» читалось бы одинаково и когда расхождений нет, и когда сверку ни разу не
               считали, и когда последний прогон упал. Это самое опасное недоразумение подсистемы. */}
-          <div className="text-caption text-fg4">
+          <div className="text-caption text-on-surface-variant">
             {lastRun
               ? `${runSummary(lastRun)} · ${formatDateTime(lastRun.startedAt)}`
               : 'Прогонов ещё не было'}
@@ -118,7 +118,7 @@ function ReconciliationBlock({ id, name, unresolved }: {
         </Link>
         <button type="button" onClick={() => setOnlyOpen(v => !v)}
           className={`text-caption px-2 py-0.5 rounded-full transition-colors ${
-            onlyOpen ? 'bg-primary-container text-primary font-medium' : 'text-fg3 hover:bg-surface-container-low'}`}>
+            onlyOpen ? 'bg-primary-container text-primary font-medium' : 'text-on-surface-variant hover:bg-surface-container-low'}`}>
           не разобрано: {unresolved}
         </button>
         <Button variant="text" size="sm" loading={run.isPending}
@@ -133,15 +133,15 @@ function ReconciliationBlock({ id, name, unresolved }: {
       {/* Неудачный прогон обязан быть виден: ниже показаны находки предыдущего удачного, и без
           этой плашки они выдавали бы себя за сегодняшний результат. */}
       {lastRun?.status === 'Failed' && (
-        <div className="px-3 py-2 bg-error-container text-error text-xs">
+        <div className="px-3 py-2 bg-error-container text-on-error-container text-xs">
           <strong>Последний прогон не выполнен.</strong> {lastRun.error}
         </div>
       )}
 
       {runs.length === 0
-        ? <p className="px-3 py-2 text-xs text-fg4">Сверка ещё не считалась — нажмите «Прогнать».</p>
+        ? <p className="px-3 py-2 text-xs text-on-surface-variant">Сверка ещё не считалась — нажмите «Прогнать».</p>
         : shown.length === 0
-        ? <p className="px-3 py-2 text-xs text-fg4">{onlyOpen ? 'Всё разобрано.' : 'Находок нет.'}</p>
+        ? <p className="px-3 py-2 text-xs text-on-surface-variant">{onlyOpen ? 'Всё разобрано.' : 'Находок нет.'}</p>
         : shown.map(f => <FindingLine key={f.id} f={f} onDecide={setDeciding} />)}
 
       {deciding && (
@@ -175,15 +175,15 @@ function ObservationCard({ o, documentNames, onReview }: {
     <div className={`px-3 py-2 border border-outline-variant rounded-lg ${isUnreviewed(o) ? '' : 'opacity-60'}`}>
       <div className="flex items-start gap-2">
         <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${
-          o.severity === 'Error' ? 'bg-warning-container text-warning' : 'bg-surface-container text-fg3'}`}>
+          o.severity === 'Error' ? 'bg-warning-container text-warning' : 'bg-surface-container text-on-surface-variant'}`}>
           {SEVERITY_LABELS[o.severity]}
         </span>
         <div className="min-w-0 flex-1">
           <div className="text-sm text-on-surface">{o.title}</div>
-          {o.detail && <p className="text-xs text-fg3 mt-0.5 line-clamp-2">{o.detail}</p>}
+          {o.detail && <p className="text-xs text-on-surface-variant mt-0.5 line-clamp-2">{o.detail}</p>}
           {/* Имена документов, а не идентификаторы: «документ 77de9193» человеку ничего не говорит. */}
           {(o.references.documentIds ?? []).length > 0 && (
-            <p className="text-caption text-fg4 mt-1">
+            <p className="text-caption text-on-surface-variant mt-1">
               {(o.references.documentIds ?? [])
                 .map(id => documentNames.get(id) ?? `документ ${id.slice(0, 8)}`)
                 .join(' · ')}
@@ -191,13 +191,13 @@ function ObservationCard({ o, documentNames, onReview }: {
           )}
           {/* Чем кончился разбор — на карточке: иначе видно только «Отклонено» без причины. */}
           {o.reviewNote && (
-            <p className="text-caption text-fg3 mt-1">
+            <p className="text-caption text-on-surface-variant mt-1">
               {OBSERVATION_STATUS_LABELS[o.status]}: {o.reviewNote}
               {o.reviewedBy ? ` (${o.reviewedBy})` : ''}
             </p>
           )}
         </div>
-        <span className="text-caption text-fg4 shrink-0">{OBSERVATION_STATUS_LABELS[o.status]}</span>
+        <span className="text-caption text-on-surface-variant shrink-0">{OBSERVATION_STATUS_LABELS[o.status]}</span>
         <Button variant="text" size="sm" className="shrink-0 -mt-1" onClick={() => onReview(o)}>
           {isUnreviewed(o) ? 'Разобрать' : 'Изменить'}
         </Button>
@@ -230,7 +230,7 @@ export function SetProblemsPanel({ setId, setName, documentNames }: {
           <p className="text-sm text-on-surface-variant">
             {problems && problems.needsAttention > 0
               ? <>Требует разбора: <b className="text-on-surface">{problems.needsAttention}</b>
-                  <span className="text-fg4"> — {problems.unresolvedFindings} по сверке,
+                  <span className="text-on-surface-variant"> — {problems.unresolvedFindings} по сверке,
                   {' '}{problems.unreviewedObservations} замечаний анализа</span></>
               : 'Всё разобрано.'}
           </p>
@@ -250,13 +250,13 @@ export function SetProblemsPanel({ setId, setName, documentNames }: {
 
       {/* ── Арифметика системы ──────────────────────────────────────────────── */}
       <section className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-fg4">Находки сверки</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Находки сверки</h3>
         {problems?.reconciliations.length
           ? problems.reconciliations.map(r => (
               <ReconciliationBlock key={r.id} id={r.id} name={r.name} unresolved={r.unresolvedFindings} />
             ))
           : (
-            <p className="text-sm text-fg4">
+            <p className="text-sm text-on-surface-variant">
               К этому комплекту сверки не относятся. Сверка привязывается к уровню через области
               своих источников данных.
             </p>
@@ -265,7 +265,7 @@ export function SetProblemsPanel({ setId, setName, documentNames }: {
 
       {/* ── Утверждения агента ──────────────────────────────────────────────── */}
       <section className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-fg4 flex items-center gap-1.5">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant flex items-center gap-1.5">
           <Icon icon={SmartToy} size={18} /> Замечания анализа
           <span className="flex-1" />
           {/* Журнал агента целиком (и его чистка) — в разделе «Сверка»: удалять записи с вкладки
@@ -276,7 +276,7 @@ export function SetProblemsPanel({ setId, setName, documentNames }: {
           </Link>
         </h3>
         {/* Происхождение обязано быть видно рядом с данными: это утверждения, а не результат системы. */}
-        <p className="text-caption text-fg4 -mt-1">
+        <p className="text-caption text-on-surface-variant -mt-1">
           Утверждения внешнего ИИ-агента. Система их не проверяла — подтвердите или отклоните.
         </p>
 

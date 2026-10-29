@@ -170,7 +170,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
       isDirty={dirty || preview !== null} busy={replace.isPending}
       footer={(
         <>
-          <span className="text-xs text-fg4 mr-auto">
+          <span className="text-xs text-on-surface-variant mr-auto">
             {drafting
               ? 'Разноска войдёт в исправление: запишется вместе с ним, после проверки. «Не разнесено» — оценка.'
               : preview
@@ -227,7 +227,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
         )}
 
         {canEdit && splitOff && (
-          <p className="text-xs text-fg4">
+          <p className="text-xs text-on-surface-variant">
             «Поровну» и «по %» считает сервер по записанным строкам, а строки в исправлении изменены — клетки
             набирайте руками.
           </p>
@@ -243,7 +243,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
               cell: row => (
                 <>
                   <div className="text-on-surface max-w-64 truncate" title={row.title}>{row.title}</div>
-                  <div className="text-fg4">
+                  <div className="text-on-surface-variant">
                     {row.mode === 'quantity'
                       ? `${row.whole === null ? '' : formatQuantity(row.whole)} ${row.unit ?? ''}`.trim()
                         // Сверху сумма строки в бумаге без НДС — делится же сумма с НДС, и это названо.
@@ -294,7 +294,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
               cell: row => {
                 const rest = dirty && !preview ? estimateRest(row, targets, cells) : null;
                 return rest !== null
-                  ? <span className="text-fg4">≈ {row.mode === 'quantity' ? `${formatQuantity(rest)} ${row.unit ?? ''}`.trim() : formatMoney(rest)}</span>
+                  ? <span className="text-on-surface-variant">≈ {row.mode === 'quantity' ? `${formatQuantity(rest)} ${row.unit ?? ''}`.trim() : formatMoney(rest)}</span>
                   : restText(row, allocations[row.key]);
               },
             },
@@ -320,7 +320,7 @@ function TargetHeader({ target, number, places, onChange, onRemove }: {
           onChange={onChange} />
         <Tooltip content={`Убрать объект ${number}`} name>
           <button type="button" onClick={onRemove}
-            className="text-fg4 hover:text-error p-0.5">
+            className="text-on-surface-variant hover:text-error p-0.5">
             <Icon icon={Delete} size={18} />
           </button>
         </Tooltip>

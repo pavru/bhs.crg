@@ -25,7 +25,7 @@ export function DataSetsPage() {
 
       <DataSetsResource scope="System" />
 
-      <p className="mt-3 text-xs text-fg4">Поддерживаемые форматы: CSV, TXT, XLSX, XLS, XML, JSON, ZIP, PDF.</p>
+      <p className="mt-3 text-xs text-on-surface-variant">Поддерживаемые форматы: CSV, TXT, XLSX, XLS, XML, JSON, ZIP, PDF.</p>
 
       {templatesOpen && <ProcessingTemplatesDialog onClose={() => setTemplatesOpen(false)} />}
     </div>

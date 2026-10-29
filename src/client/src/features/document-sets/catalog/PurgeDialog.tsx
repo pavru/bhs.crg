@@ -14,7 +14,7 @@ const HOLDER_COLUMNS: DataGridColumn<PurgeHolder>[] = [
     cell: h => (
       <>
         {holderLabel(h)}
-        {h.documents && <div className="text-fg3">{h.documents}</div>}
+        {h.documents && <div className="text-on-surface-variant">{h.documents}</div>}
         {!h.traceable && <div className="text-warning">после удаления эти ссылки не покажет никто</div>}
       </>
     ) },
@@ -165,7 +165,7 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
                     mismatch ? 'border-error focus-visible:ring-error' : 'border-outline focus-visible:ring-primary'}`} />
                 {mismatch
                   ? <p id={errorId} role="alert" className="mt-1 text-xs text-error">Не совпадает с числом в строке «Всего ссылок».</p>
-                  : <p id={hintId} className="mt-1 text-xs text-fg3">Введите число из строки «Всего ссылок».</p>}
+                  : <p id={hintId} className="mt-1 text-xs text-on-surface-variant">Введите число из строки «Всего ссылок».</p>}
               </div>
 
               <div className="flex gap-2 justify-end items-start mt-4">

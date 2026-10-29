@@ -37,14 +37,14 @@ const STYLE = {
     tab: 'inline-flex shrink-0 items-center gap-1.5 h-12 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ' +
       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
     on: 'border-primary text-primary',
-    off: 'border-transparent text-fg3 hover:text-on-surface',
+    off: 'border-transparent text-on-surface-variant hover:text-on-surface',
   },
   segmented: {
     list: 'inline-flex bg-surface-container rounded-lg p-0.5',
     tab: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ' +
       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
     on: 'bg-surface text-on-surface font-medium shadow-sm',
-    off: 'text-fg3 hover:text-on-surface',
+    off: 'text-on-surface-variant hover:text-on-surface',
   },
 } as const;
 

@@ -379,7 +379,7 @@ function RefPickerModalBody({
           <VariantPicker layout="list" options={keys.map(k => ({ key: k, label: variantTitle(k), filled: false }))}
             active="" onSelect={k => { onSelect(askVariantFor.ref, k); setAskVariantFor(null); onOpenChange(false); }} />
           <button type="button" onClick={() => setAskVariantFor(null)}
-            className="text-xs text-fg3 hover:text-on-surface transition-colors">← Назад к списку</button>
+            className="text-xs text-on-surface-variant hover:text-on-surface transition-colors">← Назад к списку</button>
         </div>
       </Modal>
     );
@@ -403,7 +403,7 @@ function RefPickerModalBody({
 
         {groups.length > 0 && (
           <div>
-            <p className="text-xs font-medium text-fg3 uppercase tracking-wide mb-2">
+            <p className="text-xs font-medium text-on-surface-variant uppercase tracking-wide mb-2">
               Каталог общих данных
             </p>
             <ScopeGroupList
@@ -422,7 +422,7 @@ function RefPickerModalBody({
 
         {instanceCandidates.length > 0 && (
           <div>
-            <p className="text-xs font-medium text-fg3 uppercase tracking-wide mb-2">
+            <p className="text-xs font-medium text-on-surface-variant uppercase tracking-wide mb-2">
               Документы комплекта
             </p>
             <div className="space-y-1 max-h-48 overflow-y-auto">
@@ -436,12 +436,12 @@ function RefPickerModalBody({
                     onClick={() => { const i = indexByKey.get(key); if (i != null) choose(options[i]); }}
                     className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md transition-colors ${
                       on ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-primary-container'}`}>
-                    <Icon icon={FileCopy} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-fg4'}`} />
+                    <Icon icon={FileCopy} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-on-surface-variant'}`} />
                     <span className={`flex-1 font-medium truncate ${on ? 'text-on-secondary-container' : 'text-on-surface'}`}>
                       {label}
                     </span>
                     {hint && (
-                      <span className={`text-caption shrink-0 truncate max-w-[35%] ${on ? 'text-on-secondary-container' : 'text-fg4'}`}>
+                      <span className={`text-caption shrink-0 truncate max-w-[35%] ${on ? 'text-on-secondary-container' : 'text-on-surface-variant'}`}>
                         {hint}
                       </span>
                     )}
@@ -457,7 +457,7 @@ function RefPickerModalBody({
 
         {fieldCandidates.length > 0 && (
           <div>
-            <p className="text-xs font-medium text-fg3 uppercase tracking-wide mb-2">
+            <p className="text-xs font-medium text-on-surface-variant uppercase tracking-wide mb-2">
               Поля других документов
             </p>
             <div className="space-y-1 max-h-48 overflow-y-auto">
@@ -471,12 +471,12 @@ function RefPickerModalBody({
                     onClick={() => { const i = indexByKey.get(key); if (i != null) choose(options[i]); }}
                     className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md transition-colors ${
                       on ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-primary-container'}`}>
-                    <Icon icon={Description} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-fg4'}`} />
+                    <Icon icon={Description} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-on-surface-variant'}`} />
                     <span className={`flex-1 font-medium truncate ${on ? 'text-on-secondary-container' : 'text-on-surface'}`}>
                       {label}
                     </span>
                     {hint && (
-                      <span className={`text-caption shrink-0 truncate max-w-[35%] ${on ? 'text-on-secondary-container' : 'text-fg4'}`}>
+                      <span className={`text-caption shrink-0 truncate max-w-[35%] ${on ? 'text-on-secondary-container' : 'text-on-surface-variant'}`}>
                         {hint}
                       </span>
                     )}
@@ -498,7 +498,7 @@ function RefPickerModalBody({
             и стоило свернуть единственную группу, как под её же заголовком «Комплект 3» появлялось
             «Подходящих записей нет». Свёрнутая группа — это спрятано, а не пусто. */}
         {filtered.length === 0 && instanceCandidates.length === 0 && fieldCandidates.length === 0 && (
-          <p className="text-sm text-fg4 text-center py-4">
+          <p className="text-sm text-on-surface-variant text-center py-4">
             {emptyState.title}
             <br />
             <span className="text-xs">{emptyState.hint}</span>

@@ -37,7 +37,7 @@ export function TypeBlocksPanel() {
   const [selected, setSelected] = useState(ENTRYPOINT);
 
   if (isLoading) {
-    return <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка...</div>;
+    return <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">Загрузка...</div>;
   }
   if (isError) {
     return (
@@ -62,8 +62,8 @@ export function TypeBlocksPanel() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant bg-surface">
-        <Icon icon={LockIcon} size={18} className="text-fg4 shrink-0" />
-        <p className="text-xs text-fg3">
+        <Icon icon={LockIcon} size={18} className="text-on-surface-variant shrink-0" />
+        <p className="text-xs text-on-surface-variant">
           Собранные блоки типов — только чтение. Шаблон подключает импортом{' '}
           <code className="font-mono">#import "typeblocks.typ": *</code> (в новых шаблонах строка уже
           стоит) одну точку входа, а она реэкспортирует модули, поэтому имена блоков доступны как
@@ -75,7 +75,7 @@ export function TypeBlocksPanel() {
       {problems.length > 0 && <ProblemsBanner problems={problems} />}
 
       {empty ? (
-        <div className="flex-1 flex items-center justify-center text-fg4 text-sm text-center px-6">
+        <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm text-center px-6">
           Ни у одного типа нет Typst-блоков.
           <br />
           Блоки добавляются в схеме типа, раздел «Typst-блоки»; здесь появятся собранные файлы.
@@ -180,7 +180,7 @@ function FileRow({ label, icon, title, active, onClick }: {
         className={`w-full flex items-center gap-1.5 px-3 py-1.5 text-left text-sm
                     ${active ? 'bg-primary-container' : 'hover:bg-surface-container'}`}
       >
-        <span className={`shrink-0 ${active ? 'text-primary' : 'text-fg3'}`}>{icon}</span>
+        <span className={`shrink-0 ${active ? 'text-primary' : 'text-on-surface-variant'}`}>{icon}</span>
         <span className={`truncate ${active ? 'text-on-surface font-medium' : 'text-on-surface-variant'}`}>{label}</span>
       </button>
     </Tooltip>

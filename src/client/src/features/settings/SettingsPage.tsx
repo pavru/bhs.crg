@@ -43,7 +43,7 @@ export function SettingsPage() {
       <form onSubmit={handleSave}>
         <CollapsibleSection title="Шаблоны" storageKey="templates">
           <div>
-            <p className="text-xs text-fg3 mb-2">
+            <p className="text-xs text-on-surface-variant mb-2">
               При превышении система предложит удалить старые версии. Минимум — 2.
             </p>
             <TextField containerClassName="w-40" label="Максимум версий шаблона"

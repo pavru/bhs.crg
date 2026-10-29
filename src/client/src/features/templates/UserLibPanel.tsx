@@ -223,7 +223,7 @@ export function UserLibPanel() {
   }
 
   if (isLoading) {
-    return <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка...</div>;
+    return <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">Загрузка...</div>;
   }
 
   // Чтение не удалось — показываем это, а не пустую панель (issue #504). Без ветки библиотека
@@ -236,7 +236,7 @@ export function UserLibPanel() {
       <div className="flex-1 flex flex-col items-center justify-center gap-3 text-sm">
         <Icon icon={ErrorIcon} size={20} className="text-error" />
         <p className="text-on-surface-variant">Не удалось загрузить библиотеку.</p>
-        <p className="text-fg4 text-xs max-w-sm text-center">
+        <p className="text-on-surface-variant text-xs max-w-sm text-center">
           Правка недоступна, пока библиотека не прочитана: сохранение заменяет дерево целиком и
           стёрло бы его.
         </p>
@@ -283,7 +283,7 @@ export function UserLibPanel() {
 
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex items-center justify-between px-4 py-2 border-b border-outline-variant bg-surface gap-3">
-          <p className="text-xs text-fg3 truncate">
+          <p className="text-xs text-on-surface-variant truncate">
             {active === ENTRYPOINT ? (
               <>Доступен в каждом шаблоне через{' '}
                 <code className="font-mono bg-surface-container px-1.5 py-0.5 rounded text-on-surface-variant">#import "userlib.typ": *</code>
@@ -297,7 +297,7 @@ export function UserLibPanel() {
             {/* Полный текст под курсором: строка в шапке узкая, а объяснение отказа сервера
                 («какой путь и чем не годится») в неё не помещается (issue #511). */}
             {error && <span className="text-xs text-error max-w-xs truncate" title={error}>{error}</span>}
-            {isDirty && <span className="text-xs text-fg3">Изменено: {dirty.size}</span>}
+            {isDirty && <span className="text-xs text-on-surface-variant">Изменено: {dirty.size}</span>}
             <Button variant="filled" size="sm" onClick={handleSave} loading={saveMutation.isPending}
               icon={<Icon icon={Save} size={18} />}>
               {saveMutation.isPending ? 'Сохранение…' : 'Сохранить всё'}
@@ -331,8 +331,8 @@ export function UserLibPanel() {
             перезагрузки мы про собираемость НЕ ЗНАЕМ — и говорим это прямо, а не показываем пустоту,
             которая читалась бы как «всё в порядке» (issue #500). */}
         {!checkApplies && (
-          <div className="px-4 py-1.5 border-b border-outline-variant text-xs text-fg3 flex items-center gap-2">
-            <Icon icon={ErrorIcon} size={18} className="shrink-0 text-fg4" />
+          <div className="px-4 py-1.5 border-b border-outline-variant text-xs text-on-surface-variant flex items-center gap-2">
+            <Icon icon={ErrorIcon} size={18} className="shrink-0 text-on-surface-variant" />
             {check === null
               ? 'Собираемость библиотеки не проверялась в этом сеансе — сохраните, чтобы проверить.'
               : 'Библиотека изменилась после последней проверки — сохраните, чтобы проверить собираемость.'}
@@ -425,15 +425,15 @@ function DiagnosticBlock({ tone, title, items, alive, onGo }: {
   return (
     <div className={`px-4 py-2 border-b border-outline-variant flex items-start gap-2 ${
       tone === 'danger' ? 'bg-error-container' : 'bg-warning-container'}`}>
-      <Icon icon={icon} size={18} className={`shrink-0 mt-0.5 ${tone === 'danger' ? 'text-error' : 'text-warning'}`} />
+      <Icon icon={icon} size={18} className={`shrink-0 mt-0.5 ${tone === 'danger' ? 'text-on-error-container' : 'text-on-warning-container'}`} />
       <div className="min-w-0 text-xs">
         {title && (
-          <p className={`font-medium ${tone === 'danger' ? 'text-error' : 'text-warning'}`}>{title}</p>
+          <p className={`font-medium ${tone === 'danger' ? 'text-on-error-container' : 'text-on-warning-container'}`}>{title}</p>
         )}
         {items.slice(0, 3).map((it, i) => (
           <DiagnosticLine key={i} path={it.path} alive={alive(it.path)} text={it.text} onGo={onGo} />
         ))}
-        {items.length > 3 && <p className="text-fg3">…и ещё {items.length - 3}</p>}
+        {items.length > 3 && <p className="text-on-surface-variant">…и ещё {items.length - 3}</p>}
       </div>
     </div>
   );
@@ -447,7 +447,7 @@ function DiagnosticBlock({ tone, title, items, alive, onGo }: {
 function DiagnosticLine({ path, text, alive, onGo }: {
   path: string; text: string; alive: boolean; onGo: (path: string) => void;
 }) {
-  if (!alive) return <Tooltip content="Файла нет в текущем дереве — сохраните изменения"><p className="text-fg3">{text}</p></Tooltip>;
+  if (!alive) return <Tooltip content="Файла нет в текущем дереве — сохраните изменения"><p className="text-on-surface-variant">{text}</p></Tooltip>;
   return (
     <button type="button" onClick={() => onGo(path)}
       className="block text-left text-on-surface-variant hover:text-on-surface hover:underline">

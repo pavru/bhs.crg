@@ -18,9 +18,9 @@ import {
  */
 
 const STATUS_STYLE: Record<ReconciliationAlias['status'], string> = {
-  Confirmed: 'bg-primary-container text-primary',
-  Proposed: 'bg-warning-container text-warning',
-  Rejected: 'bg-surface-container text-fg4',
+  Confirmed: 'bg-primary-container text-on-primary-container',
+  Proposed: 'bg-warning-container text-on-warning-container',
+  Rejected: 'bg-surface-container text-on-surface-variant',
 };
 
 export function AliasesPanel() {
@@ -34,15 +34,15 @@ export function AliasesPanel() {
     <div className="flex-1 min-w-0 flex flex-col">
       <div className="px-4 py-3 border-b border-outline-variant shrink-0">
         <h2 className="text-base font-semibold text-on-surface flex items-center gap-2">
-          <Icon icon={LinkIcon} size={18} className="text-fg3" /> Алиасы позиций
+          <Icon icon={LinkIcon} size={18} className="text-on-surface-variant" /> Алиасы позиций
         </h2>
-        <p className="text-xs text-fg3 mt-0.5">
+        <p className="text-xs text-on-surface-variant mt-0.5">
           Наименования, признанные одним и тем же. В сверке участвуют только применяемые.
         </p>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {isLoading && <p className="px-4 py-3 text-sm text-fg4">Загрузка…</p>}
+        {isLoading && <p className="px-4 py-3 text-sm text-on-surface-variant">Загрузка…</p>}
         {!isLoading && items.length === 0 && (
           <div className="p-6">
             <EmptyState icon={<Icon icon={LinkIcon} size={40} />} title="Алиасов нет"
@@ -56,7 +56,7 @@ export function AliasesPanel() {
                 {ALIAS_STATUS_LABELS[a.status]}
               </span>
               <span className="min-w-0 flex-1 text-sm text-on-surface truncate">
-                {a.aliasLabel} <span className="text-fg4">→</span> {a.canonicalLabel}
+                {a.aliasLabel} <span className="text-on-surface-variant">→</span> {a.canonicalLabel}
               </span>
               {a.status !== 'Confirmed' && (
                 <Button variant="text" size="sm" className="shrink-0"
@@ -82,7 +82,7 @@ export function AliasesPanel() {
               </Button>
             </div>
             {(a.note || a.confirmedBy || a.proposedBy) && (
-              <p className="text-caption text-fg4 mt-0.5">
+              <p className="text-caption text-on-surface-variant mt-0.5">
                 {a.note}
                 {a.note && (a.confirmedBy || a.proposedBy) ? ' · ' : ''}
                 {a.confirmedBy ? `подтвердил ${a.confirmedBy}` : a.proposedBy ? `предложил ${a.proposedBy}` : ''}

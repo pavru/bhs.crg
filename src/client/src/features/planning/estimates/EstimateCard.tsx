@@ -49,7 +49,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
       <p role="alert" className="text-sm text-error">{apiError(estimate.error, 'Смета не прочиталась')}</p>
     </div>
   );
-  if (!estimate.data) return <p className="text-sm text-fg4">Читаем смету…</p>;
+  if (!estimate.data) return <p className="text-sm text-on-surface-variant">Читаем смету…</p>;
 
   const data = estimate.data;
   const shown = data.revisions.find(r => r.id === chosen) ?? latestRevision(data);
@@ -70,7 +70,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
         onCreated={created => { const next = openingOf(created); setOpening(next); setChosen(next.revisionId); }} />
 
       {shown === null ? (
-        <p className="text-sm text-fg3">Редакций у сметы нет — их создаёт загрузка файла ЛСР.</p>
+        <p className="text-sm text-on-surface-variant">Редакций у сметы нет — их создаёт загрузка файла ЛСР.</p>
       ) : (
         <>
           <RevisionTabs estimate={data} selected={shown.id} onSelect={setChosen} />
@@ -114,7 +114,7 @@ function RevisionTabs({ estimate, selected, onSelect }: {
                 <DropdownMenu.Item key={r.id} onSelect={() => onSelect(r.id)}
                   className="flex items-center gap-2 px-3 py-1.5 text-sm text-on-surface-variant cursor-pointer select-none outline-none data-[highlighted]:bg-surface-container-low">
                   {revisionLabel(r)}
-                  <span className="ml-auto text-xs text-fg4">{formatDate(r.importedAt)}</span>
+                  <span className="ml-auto text-xs text-on-surface-variant">{formatDate(r.importedAt)}</span>
                 </DropdownMenu.Item>
               ))}
             </DropdownMenu.Content>

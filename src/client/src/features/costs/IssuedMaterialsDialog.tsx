@@ -13,15 +13,15 @@ import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 const COLUMNS: DataGridColumn<IssuedMaterial>[] = [
   { key: 'name', label: 'Позиция', wrap: true, cell: item => item.name ?? 'позиция без названия' },
   { key: 'quantity', label: 'Количество', align: 'right', width: 'w-28', cell: item => formatQuantity(item.quantity) },
-  { key: 'unit', label: 'Ед.', width: 'w-16', cell: item => <span className="text-fg3">{item.unit ?? ''}</span> },
+  { key: 'unit', label: 'Ед.', width: 'w-16', cell: item => <span className="text-on-surface-variant">{item.unit ?? ''}</span> },
   { key: 'first', label: 'Отпуск', width: 'w-44',
     cell: item => (
-      <span className="text-fg3">
+      <span className="text-on-surface-variant">
         {item.first === item.last ? formatDate(item.first) : `${formatDate(item.first)} — ${formatDate(item.last)}`}
       </span>
     ) },
   { key: 'waybills', label: 'Накладных', align: 'right', width: 'w-20',
-    cell: item => <span className="text-fg3">{formatCount(item.waybills)}</span> },
+    cell: item => <span className="text-on-surface-variant">{formatCount(item.waybills)}</span> },
 ];
 
 /**
@@ -48,8 +48,8 @@ export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
           {sites.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
         </Select>
 
-        {!site && <p className="text-xs text-fg4">Перечень считается по стройке — из проведённых накладных.</p>}
-        {site && materials.isPending && <p className="text-xs text-fg3">Загрузка…</p>}
+        {!site && <p className="text-xs text-on-surface-variant">Перечень считается по стройке — из проведённых накладных.</p>}
+        {site && materials.isPending && <p className="text-xs text-on-surface-variant">Загрузка…</p>}
         {site && materials.isError && (
           <p className="text-xs text-error">Перечень не пришёл: {apiError(materials.error, 'сервер отказал')}</p>
         )}
@@ -57,8 +57,8 @@ export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
         {site && data && (
           <>
             {data.unmatchedLines > 0 && (
-              <p role="status" className="flex items-start gap-2 rounded-lg border border-warning-border
-                bg-warning-container px-3 py-2 text-xs text-warning">
+              <p role="status" className="flex items-start gap-2 rounded-lg border border-outline-variant
+                bg-warning-container px-3 py-2 text-xs text-on-warning-container">
                 <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
                 Не сопоставлено: {data.unmatchedLines} {linesWord(data.unmatchedLines)} в накладных
                 ({data.unmatchedWaybills}). В перечне ниже их нет — выдано больше, чем показано. Найти их:
@@ -67,7 +67,7 @@ export function IssuedMaterialsDialog({ sites, sitesFailed, onClose }: {
             )}
             {data.items.length === 0
               ? (
-                <p className="text-xs text-fg3">
+                <p className="text-xs text-on-surface-variant">
                   {data.unmatchedLines > 0
                     ? 'Сопоставленных строк нет: всё выданное на эту стройку ждёт позиции номенклатуры.'
                     : 'На эту стройку ничего не выдано: проведённых накладных нет.'}

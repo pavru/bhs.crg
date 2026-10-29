@@ -44,7 +44,7 @@ export function JobRow({ job }: { job: ActiveJob }) {
     <div className="group flex items-center gap-3.5 pl-5 pr-3 py-3">
       {/* Аватар-статус: иконка типа в круге + вращающийся спиннер-кольцо (indeterminate). */}
       <div className="relative w-10 h-10 shrink-0">
-        <div className="absolute inset-0 rounded-full bg-surface-container flex items-center justify-center text-fg3">
+        <div className="absolute inset-0 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant">
           <Icon icon={kindIcon(job.kind)} size={18} />
         </div>
         <CircularProgress size={40} className="absolute inset-0 text-primary" />
@@ -53,9 +53,9 @@ export function JobRow({ job }: { job: ActiveJob }) {
         <div className="flex items-center gap-2">
           <p className="text-sm font-medium text-on-surface truncate flex-1">{job.title}</p>
           {/* Вне озвучки: раздел задач — живая область, и тикающий таймер диктор читал бы каждую секунду. */}
-          <span aria-hidden="true" className="text-xs tabular-nums text-fg4 shrink-0">{elapsed(job, now)}</span>
+          <span aria-hidden="true" className="text-xs tabular-nums text-on-surface-variant shrink-0">{elapsed(job, now)}</span>
         </div>
-        <p className="text-note text-fg4 truncate">
+        <p className="text-note text-on-surface-variant truncate">
           {queued ? 'В очереди' : (job.progress ?? 'Выполняется…')}
         </p>
       </div>

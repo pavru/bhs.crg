@@ -96,7 +96,7 @@ export function ProxySettingsSection() {
 
   return (
     <CollapsibleSection title="Прокси" storageKey="proxy" defaultOpen={false}>
-      <p className="text-xs text-fg3">
+      <p className="text-xs text-on-surface-variant">
         Прокси для внешних сервисов: распознавания, веб-поиска, почты, проверки обновлений и GitHub.
         Через него ходят только сервисы с галкой «Через прокси» в своих настройках — остальные, в том
         числе хранилище и плагины, подключаются напрямую.
@@ -122,14 +122,14 @@ export function ProxySettingsSection() {
       )}
 
       {data && saved?.url && (
-        <p className="text-xs text-fg3">
+        <p className="text-xs text-on-surface-variant">
           {via.length > 0
             ? <>Через прокси: {via.join(', ')}.</>
             : <span className="text-warning">Прокси задан, но ни у одного сервиса не отмечена галка «Через прокси» — все ходят напрямую.</span>}
         </p>
       )}
 
-      <p className="text-xs text-fg4">
+      <p className="text-xs text-on-surface-variant">
         Загрузка по внешним ссылкам через прокси: адрес по-прежнему проверяется системой, но прокси
         разрешает имя сам и видит свою сеть, поэтому запрет на внутренние адреса должен быть настроен
         и на самом прокси.
@@ -156,7 +156,7 @@ export function ProxySettingsSection() {
       {result && (
         <p className={`text-xs ${result.ok ? 'text-success' : 'text-error'}`}>
           {result.message}
-          {result.target && <span className="block text-fg4">Проверяли на {result.target}, {result.ms} мс.</span>}
+          {result.target && <span className="block text-on-surface-variant">Проверяли на {result.target}, {result.ms} мс.</span>}
         </p>
       )}
     </CollapsibleSection>

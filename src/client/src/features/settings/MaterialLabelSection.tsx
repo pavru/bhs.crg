@@ -65,7 +65,7 @@ export function MaterialLabelSection() {
   return (
     <CollapsibleSection title="Имена материалов в связках" storageKey="material-labels" defaultOpen={false}>
       <div className="space-y-3">
-        <p className="text-xs text-fg3">
+        <p className="text-xs text-on-surface-variant">
           Связки, заведённые до появления имени материала, показываются машинным ключом
           (например <span className="font-mono">mb15-07-01m-54</span>). Имя можно восстановить из
           наборов данных, подключённых к документам.
@@ -92,7 +92,7 @@ export function MaterialLabelSection() {
 
         {report && (
           nothingToDo
-            ? <p className="text-xs text-fg3">
+            ? <p className="text-xs text-on-surface-variant">
                 Восстанавливать нечего: {report.linksWithoutLabel === 0
                   ? 'у всех связок имена уже есть.'
                   : 'ни один из материалов не встречается в подключённых наборах данных.'}
@@ -108,7 +108,7 @@ export function MaterialLabelSection() {
                   </li>
                 )}
                 {report.notFound > 0 && (
-                  <li className="text-fg3">
+                  <li className="text-on-surface-variant">
                     Останутся с ключом: {report.notFound} — этих материалов больше нет ни в одном
                     подключённом наборе, и придумывать им имя неоткуда.
                   </li>

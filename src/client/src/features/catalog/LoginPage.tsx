@@ -99,7 +99,7 @@ export function LoginPage() {
 
           {version && (
             <Tooltip content={version.buildDate ? formatDateTime(version.buildDate) : undefined}>
-              <p className="md:hidden mt-6 text-center text-caption text-fg4">
+              <p className="md:hidden mt-6 text-center text-caption text-on-surface-variant">
                 {versionLabel}
               </p>
             </Tooltip>
@@ -127,7 +127,7 @@ function Waiting() {
   }, []);
   return (
     <div className="min-h-[320px] flex items-center" aria-busy="true">
-      {slow && <p className="text-sm text-fg3">Проверяем состояние системы…</p>}
+      {slow && <p className="text-sm text-on-surface-variant">Проверяем состояние системы…</p>}
     </div>
   );
 }
@@ -137,7 +137,7 @@ function Head({ title, subtitle }: { title: string; subtitle: ReactNode }) {
   return (
     <>
       <h1 className="text-2xl font-normal text-on-surface">{title}</h1>
-      <p className="mt-1.5 mb-8 text-sm text-fg3">{subtitle}</p>
+      <p className="mt-1.5 mb-8 text-sm text-on-surface-variant">{subtitle}</p>
     </>
   );
 }
@@ -260,7 +260,7 @@ function FirstAdminForm() {
       <Head title="Первый вход"
         subtitle="Система установлена, пользователей ещё нет. Заведите администратора — он получит полные права." />
 
-      <p className="flex gap-2 mb-6 text-xs leading-relaxed text-fg3 bg-warning/10 border border-warning/30 rounded-xl p-3">
+      <p className="flex gap-2 mb-6 text-xs leading-relaxed text-on-surface-variant bg-warning/10 border border-warning/30 rounded-xl p-3">
         <Icon icon={GppMaybe} size={18} className="shrink-0 mt-0.5 text-warning" />
         <span>
           Пока администратора нет, эта форма открыта любому, кто дотянется до адреса системы.

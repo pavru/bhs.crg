@@ -45,7 +45,7 @@ export function InvoiceLockNote({ lockedBy }: { lockedBy: string }) {
   return (
     <div role="note" className="flex items-start gap-2 rounded-lg border border-outline-variant bg-surface-container px-3 py-2
       text-xs text-on-surface-variant">
-      <Icon icon={LockIcon} size={18} className="shrink-0 mt-0.5 text-fg3" />
+      <Icon icon={LockIcon} size={18} className="shrink-0 mt-0.5 text-on-surface-variant" />
       <span>
         Счёт заперт: {lockedBy}. Поля, строки и разноску обычной правкой не изменить.
         {/* Путь исправления (E2, PR 6b-1) называем тому, у кого есть кнопка «Исправить», — остальным он закрыт. */}
@@ -92,7 +92,7 @@ export function InvoicePayment({ view, dirty }: {
           Отметить оплату
         </Button>
         {/* Причина — рядом и видимая: приглушённая кнопка сама о ней молчит. */}
-        {dirty && <span className="text-fg3">сохраните правки счёта: оплата считается по сохранённому</span>}
+        {dirty && <span className="text-on-surface-variant">сохраните правки счёта: оплата считается по сохранённому</span>}
         {!dirty && payment.refusal && <span className="text-warning">оплатить нельзя: {payment.refusal}</span>}
         {dialog === 'pay' && <PayDialog view={view} onDone={() => setDialog(null)} />}
       </div>
@@ -105,7 +105,7 @@ export function InvoicePayment({ view, dirty }: {
       <PaidDocument view={view} editable={canPay} />
       <span>
         Учётный период: <b className="tabular-nums">{payment.periods.join(' + ') || '—'}</b>{' '}
-        <button type="button" className="underline decoration-dotted underline-offset-2 text-fg3"
+        <button type="button" className="underline decoration-dotted underline-offset-2 text-on-surface-variant"
           onClick={() => setDialog('posting')}>
           расклад
         </button>
@@ -153,7 +153,7 @@ function PaidDocument({ view, editable }: { view: InvoiceView; editable: boolean
         Оплачен <b className="tabular-nums">{payment.paidOn ? formatDate(payment.paidOn) : '—'}</b>
         {' · '}платёжный документ: {payment.document ?? 'не указан'}{' '}
         {editable && (
-          <button type="button" className="underline decoration-dotted underline-offset-2 text-fg3"
+          <button type="button" className="underline decoration-dotted underline-offset-2 text-on-surface-variant"
             onClick={() => setDraft(payment.document ?? '')}>
             изменить
           </button>
@@ -280,7 +280,7 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
         )}
 
         <div>
-          <h3 className="text-xs font-medium text-fg3 mb-1.5">Когда войдёт в затраты</h3>
+          <h3 className="text-xs font-medium text-on-surface-variant mb-1.5">Когда войдёт в затраты</h3>
           {failed
             ? (
               <p role="alert" className="text-note text-error">
@@ -288,11 +288,11 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
                 <button type="button" className="underline" onClick={() => void ask(paidOn || null)}>Повторить</button>
               </p>
             )
-            : posting === null ? <p className="text-note text-fg3">Считаем расклад…</p>
+            : posting === null ? <p className="text-note text-on-surface-variant">Считаем расклад…</p>
               : posting.dateRefusal ? <p className="text-note text-warning">Оплатить этой датой нельзя: {posting.dateRefusal}.</p>
                 : (
                   <div className={fresh ? '' : 'opacity-50'} aria-busy={!fresh}>
-                    {!fresh && <p className="text-note text-fg3 mb-1">пересчитываем…</p>}
+                    {!fresh && <p className="text-note text-on-surface-variant mb-1">пересчитываем…</p>}
                     <PaymentPostingTable key={posting.stamp} posting={posting} changed={changed} />
                   </div>
                 )}
@@ -357,7 +357,7 @@ function PostedDialog({ view, onDone }: { view: InvoiceView; onDone: () => void 
   return (
     <Modal open wide nothingToLose onOpenChange={o => { if (!o) onDone(); }} title={`Расклад оплаты: ${invoiceTitle(view)}`}
       footer={<div className="flex justify-end"><ModalExit>Закрыть</ModalExit></div>}>
-      {isLoading ? <p className="text-note text-fg3">Читаем расклад…</p>
+      {isLoading ? <p className="text-note text-on-surface-variant">Читаем расклад…</p>
         : error || !data ? <p role="alert" className="text-note text-error">Расклад не получен: {apiError(error, 'сервер не ответил')}</p>
           : <PaymentPostingTable posting={data} expanded />}
     </Modal>

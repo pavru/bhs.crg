@@ -47,7 +47,7 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
   // на деле сервер отказал: отказ, переодетый в результат (issue #990).
   if (!canManage) {
     return (
-      <p className="text-sm text-fg3">
+      <p className="text-sm text-on-surface-variant">
         Подписчики закрыты правом «управлять аудиторией уведомлений»
         (<span className="font-mono text-xs">core.notify.manage</span>). Кто получает письма по
         этому уровню — видно тому, у кого это право есть.
@@ -67,13 +67,13 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
       )}
 
       {subscribers.length === 0 ? (
-        <p className="text-xs text-fg4">Нет подписчиков этого уровня. Получатели наследуются с вышестоящих.</p>
+        <p className="text-xs text-on-surface-variant">Нет подписчиков этого уровня. Получатели наследуются с вышестоящих.</p>
       ) : (
         <div className="rounded-md border border-outline-variant divide-y divide-surface-container">
           {subscribers.map(s => (
             <div key={s.id} className="flex items-center gap-2 px-2.5 py-1.5 text-sm group">
               <span className="text-on-surface flex-1 min-w-0 truncate">{s.displayName}</span>
-              <span className="text-xs text-fg4 min-w-0 truncate">{s.email || '—'}</span>
+              <span className="text-xs text-on-surface-variant min-w-0 truncate">{s.email || '—'}</span>
               {!s.validEmail && (
                 <Tooltip content="Нет валидного email — писем не получит">
                   <span className="shrink-0">
@@ -84,7 +84,7 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
               {canManage && (
                 <Tooltip content="Убрать из подписчиков" name>
                   <button onClick={() => remove.mutate({ id: s.id, scope, scopeId })}
-                    className="p-0.5 text-stroke-strong hover:text-error opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all">
+                    className="p-0.5 text-on-surface-variant hover:text-error opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all">
                     <Icon icon={Delete} size={18} />
                   </button>
                 </Tooltip>

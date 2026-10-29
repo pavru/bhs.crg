@@ -45,7 +45,7 @@ export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRest
             {draft.match?.source ? ` «${draft.match.source}»` : ''} → «{draft.nomenclatureName ?? 'позиция без названия'}».
           </p>
           {draft.match?.rememberedAt && (
-            <p className="text-fg4">
+            <p className="text-on-surface-variant">
               Запомнено {formatDate(draft.match.rememberedAt)}{draft.match.rememberedBy ? `, ${draft.match.rememberedBy}` : ''}.
             </p>
           )}
@@ -54,7 +54,7 @@ export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRest
               Внимание: {trouble}. В этой строке позиция осталась прежней — проверьте, та ли она.
             </p>
           )}
-          <p className="text-fg4">Крестик отменяет подстановку в этой строке. Само соответствие остаётся.</p>
+          <p className="text-on-surface-variant">Крестик отменяет подстановку в этой строке. Само соответствие остаётся.</p>
           {/* Правило меняют и забывают в списке: там видно, что именно забывается и что из этого следует.
               У соответствия другого поставщика отбор по поставщику счёта его бы спрятал. */}
           {listed && <Action onClick={() => setListOpen(true)}>Сменить или забыть соответствие…</Action>}
@@ -68,7 +68,7 @@ export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRest
         )}
         <Tooltip content="Отменить подстановку" name>
           <button type="button" onClick={onCancel}
-            className="text-fg4 hover:text-on-surface p-0.5">
+            className="text-on-surface-variant hover:text-on-surface p-0.5">
             <Icon icon={Close} size={18} />
           </button>
         </Tooltip>
@@ -79,7 +79,7 @@ export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRest
   if (draft.nomenclatureId === null) {
     if (draft.declined && usable(offer))
       return (
-        <span className="shrink-0 text-caption text-fg4">
+        <span className="shrink-0 text-caption text-on-surface-variant">
           отменено ·{' '}
           <button type="button" className="text-primary hover:underline" onClick={() => onRestore(offer)}>вернуть</button>
         </span>
@@ -96,7 +96,7 @@ export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRest
               ? 'она в архиве — в новые строки архивные позиции не подставляются.'
               : 'её в справочнике больше нет.'}
           </p>
-          <p className="text-fg4">Выберите действующую позицию — выбор заменит запомненное.</p>
+          <p className="text-on-surface-variant">Выберите действующую позицию — выбор заменит запомненное.</p>
         </Explained>
       );
 
@@ -111,7 +111,7 @@ export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRest
     return (
       <Explained label="запомнится">
         <p>При сохранении строк запомнится: {what} → «{name}».</p>
-        <p className="text-fg4">Следующий счёт этого поставщика получит эту позицию сам.</p>
+        <p className="text-on-surface-variant">Следующий счёт этого поставщика получит эту позицию сам.</p>
         <Action onClick={() => onRemember(false)}>Не запоминать</Action>
       </Explained>
     );
@@ -123,7 +123,7 @@ export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRest
           Для этой строки у поставщика запомнено «{offer?.nomenclatureName ?? 'позиция без названия'}». При
           сохранении строк оно будет заменено: {what} → «{name}».
         </p>
-        <p className="text-fg4">Строки других счетов замена не переписывает.</p>
+        <p className="text-on-surface-variant">Строки других счетов замена не переписывает.</p>
         <Action onClick={() => onRemember(false)}>Только в этой строке</Action>
       </Explained>
     );
@@ -145,7 +145,7 @@ function Explained({ label, warning = false, children }: { label: string; warnin
     <Popover.Root>
       <Popover.Trigger asChild>
         <button type="button"
-          className={`shrink-0 text-caption hover:underline ${warning ? 'text-warning' : 'text-fg3'}`}>
+          className={`shrink-0 text-caption hover:underline ${warning ? 'text-warning' : 'text-on-surface-variant'}`}>
           {label}
         </button>
       </Popover.Trigger>

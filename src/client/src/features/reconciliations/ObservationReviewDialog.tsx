@@ -55,17 +55,17 @@ export function ObservationReferences({ o, setPath, nameOf }: {
           <Icon icon={Description} size={18} /> {label(id)}
         </Link>
       ) : (
-        <span key={id} className="inline-flex items-center gap-1 text-fg4">
+        <span key={id} className="inline-flex items-center gap-1 text-on-surface-variant">
           <Icon icon={Description} size={18} /> {label(id)}
         </span>
       ))}
       {sourceId && (
         <Link to="/datasets" className="inline-flex items-center gap-1 text-primary hover:underline">
           <Icon icon={Layers} size={18} /> источник {sourceId.slice(0, 8)}
-          {rows.length > 0 && <span className="text-fg4">· строк {rows.length}</span>}
+          {rows.length > 0 && <span className="text-on-surface-variant">· строк {rows.length}</span>}
         </Link>
       )}
-      {o.references.note && <span className="text-fg4">{o.references.note}</span>}
+      {o.references.note && <span className="text-on-surface-variant">{o.references.note}</span>}
     </div>
   );
 }

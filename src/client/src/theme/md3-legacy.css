@@ -6,18 +6,14 @@
 
 :root {
   --legacy-fg-disabled: #a3a5ab;
-  --legacy-stroke-subtle: #e3e1e6;
   --legacy-brand-hover: #17518f;
   --legacy-brand-pressed: #124074;
-  --legacy-warning-border: #c49500;
 }
 
 :root[data-theme="dark"] {
   --legacy-fg-disabled: #5c5f66;
-  --legacy-stroke-subtle: #282a2f;
   --legacy-brand-hover: #bcd4ff;
   --legacy-brand-pressed: #8bb3f0;
-  --legacy-warning-border: #5a3c00;
 }
 
 @theme inline {
@@ -31,7 +27,6 @@
   --color-muted-hover: var(--md-sys-color-surface-container-high);
   --color-stroke: var(--md-sys-color-outline-variant);
   --color-stroke-strong: var(--md-sys-color-outline);
-  --color-stroke-subtle: var(--legacy-stroke-subtle);
   --color-brand: var(--md-sys-color-primary);
   --color-brand-hover: var(--legacy-brand-hover);
   --color-brand-pressed: var(--legacy-brand-pressed);
@@ -44,7 +39,6 @@
   --color-on-tertiary-subtle: var(--md-sys-color-on-tertiary-container);
   --color-success-subtle: var(--md-ext-color-success-container);
   --color-warning-subtle: var(--md-ext-color-warning-container);
-  --color-warning-border: var(--legacy-warning-border);
   --color-danger: var(--md-sys-color-error);
   --color-danger-subtle: var(--md-sys-color-error-container);
   --color-on-danger: var(--md-sys-color-on-error);

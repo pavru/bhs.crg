@@ -186,7 +186,7 @@ function TypstBlockDialog({ render, typeCode, onSave, onClose }: {
         </div>
 
         {draft.fnName && (
-          <p className="text-xs text-fg4 shrink-0">
+          <p className="text-xs text-on-surface-variant shrink-0">
             Импорт: <code className="font-mono text-tertiary">#import "typeblocks.typ": *</code>
             {' · '}
             Вызов из шаблона:{' '}
@@ -233,7 +233,7 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
   return (
     <div className="space-y-3">
       {renders.length === 0 && (
-        <p className="text-xs text-fg4 py-1">
+        <p className="text-xs text-on-surface-variant py-1">
           Нет вариантов отображения. Добавьте функцию для использования в Typst-шаблонах.
         </p>
       )}
@@ -258,14 +258,14 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
                 />
               </div>
               <button type="button" onClick={() => remove(i)}
-                className="p-1 text-fg4 hover:text-error shrink-0">
+                className="p-1 text-on-surface-variant hover:text-error shrink-0">
                 <Icon icon={Delete} size={18} />
               </button>
             </div>
             {/* Код правится только в полноэкранном редакторе (не inline, issue #197 Фаза C) */}
             <button type="button" onClick={() => setEditingIndex(i)}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-md border border-outline-variant bg-surface hover:bg-surface-container/50 transition-colors text-left">
-              <Icon icon={Code} size={18} className="text-fg4 shrink-0" />
+              <Icon icon={Code} size={18} className="text-on-surface-variant shrink-0" />
               <span className="text-sm text-on-surface-variant flex-1">Редактировать Typst-код</span>
               {problemsByFn?.[r.fnName.trim()] === 'error' && (
                 <Tooltip content="Ошибка сборки блока">
@@ -277,11 +277,11 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
               {problemsByFn?.[r.fnName.trim()] === 'warning' && (
                 <Icon icon={Warning} size={18} className="text-warning shrink-0" />
               )}
-              <span className="text-xs text-fg4 shrink-0">{lines > 0 ? `${lines} стр.` : 'пусто'}</span>
-              <Icon icon={OpenInFull} size={18} className="text-fg4 shrink-0" />
+              <span className="text-xs text-on-surface-variant shrink-0">{lines > 0 ? `${lines} стр.` : 'пусто'}</span>
+              <Icon icon={OpenInFull} size={18} className="text-on-surface-variant shrink-0" />
             </button>
             {r.fnName && (
-              <p className="text-xs text-fg4">
+              <p className="text-xs text-on-surface-variant">
                 Импорт: <code className="font-mono text-tertiary">#import "typeblocks.typ": *</code>
                 {' · '}
                 Вызов: <code className="font-mono text-primary">#{typeCode || 'КодТипа'}.{r.fnName}(data.КлючПоля)</code>

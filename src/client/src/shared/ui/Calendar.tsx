@@ -168,7 +168,7 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
   // в тёмной теме заливка светлая, и белое кольцо на ней не видно (issue #1462).
   const focusRing = (isFocus: boolean, isSel: boolean) =>
     !isFocus ? '' : isSel ? 'ring-2 ring-on-primary/70 ring-inset' : 'ring-2 ring-primary ring-inset';
-  const HEADER_BTN = 'flex items-center justify-center h-8 w-8 rounded-full text-fg3 hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors disabled:opacity-38 disabled:pointer-events-none';
+  const HEADER_BTN = 'flex items-center justify-center h-8 w-8 rounded-full text-on-surface-variant hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors disabled:opacity-38 disabled:pointer-events-none';
   // Стрелка шапки неактивна, если соседняя страница целиком за границей.
   const lastShown = view === 'years' ? pageStart + YEARS_PER_PAGE - 1 : fy;
   const prevOff = view === 'days' ? !!min && toISO(fy, fm, 1) <= min : (view === 'years' ? pageStart : fy) <= minY;
@@ -202,7 +202,7 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
           <button type="button" onClick={() => setView('years')}
             className="flex items-center gap-1 px-2 h-8 rounded-full text-sm font-medium text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
             {view === 'days' ? `${months[fm - 1]} ${fy}` : fy}
-            <Icon icon={KeyboardArrowDown} size={18} className="text-fg4" />
+            <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant" />
           </button>
         </Tooltip>
       )}
@@ -220,7 +220,7 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
     body = (
       <div ref={gridRef} role="grid" aria-label="Календарь" onKeyDown={onDaysKey}>
         <div role="row" className="grid grid-cols-7 mb-1">
-          {weekdays.map(w => <div key={w} role="columnheader" className="h-7 flex items-center justify-center text-xs text-fg4">{w}</div>)}
+          {weekdays.map(w => <div key={w} role="columnheader" className="h-7 flex items-center justify-center text-xs text-on-surface-variant">{w}</div>)}
         </div>
         {weeks.map((week, wi) => (
           <div key={wi} role="row" className="grid grid-cols-7">

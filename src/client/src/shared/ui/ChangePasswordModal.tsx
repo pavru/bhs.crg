@@ -48,7 +48,7 @@ export function ChangePasswordModal({ open, onClose }: { open: boolean; onClose:
           <label className="block text-sm font-medium text-on-surface-variant mb-1">Новый пароль</label>
           <input type="password" value={next} onChange={e => setNext(e.target.value)} required minLength={PASSWORD_MIN_LENGTH}
             className="w-full border border-outline rounded-md px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
-          <p className="mt-1 text-xs text-fg4">{PASSWORD_HINT}</p>
+          <p className="mt-1 text-xs text-on-surface-variant">{PASSWORD_HINT}</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-on-surface-variant mb-1">Подтверждение</label>

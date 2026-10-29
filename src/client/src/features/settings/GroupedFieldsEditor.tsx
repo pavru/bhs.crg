@@ -253,8 +253,8 @@ export function GroupedFieldsEditor({
         return (
           <div className={`border rounded-lg overflow-hidden transition-colors ${zone.highlighted ? 'border-primary bg-primary-container/30' : 'border-outline-variant border-dashed bg-surface-container-low'}`}>
             <div className="flex items-center gap-2 px-3 py-2 bg-surface border-b border-outline-variant">
-              <span className="text-sm font-medium text-fg3">Без группы</span>
-              <span className="text-xs text-fg4">{ownUngrouped.length + inhUngrouped.length}</span>
+              <span className="text-sm font-medium text-on-surface-variant">Без группы</span>
+              <span className="text-xs text-on-surface-variant">{ownUngrouped.length + inhUngrouped.length}</span>
             </div>
             <div className="p-2 space-y-2 min-h-[3rem]" onDragOver={zone.onDragOver} onDrop={zone.onDrop}>
               {ungroupedMembers.map((m, i) =>
@@ -288,31 +288,31 @@ export function GroupedFieldsEditor({
               <Tooltip content="Перетащить для изменения порядка групп">
                 <button type="button" draggable
                   onDragStart={() => setDragGroupKey(group.key)} onDragEnd={endGroupDrag}
-                  className="cursor-grab active:cursor-grabbing text-fg4 hover:text-on-surface-variant shrink-0 focus-visible:outline-none focus-visible:text-primary" aria-label={`Переместить группу «${group.title || group.key}» перетаскиванием`}>
+                  className="cursor-grab active:cursor-grabbing text-on-surface-variant hover:text-on-surface-variant shrink-0 focus-visible:outline-none focus-visible:text-primary" aria-label={`Переместить группу «${group.title || group.key}» перетаскиванием`}>
                   <Icon icon={DragIndicator} size={18} />
                 </button>
               </Tooltip>
-              <Icon icon={Layers} size={18} className="text-fg4 shrink-0" />
+              <Icon icon={Layers} size={18} className="text-on-surface-variant shrink-0" />
               <input
                 value={group.title}
                 onChange={e => renameGroup(group.key, e.target.value)}
                 placeholder="Название группы"
                 className="flex-1 min-w-0 text-sm font-medium border-b border-transparent hover:border-outline focus:border-primary bg-transparent outline-none"
               />
-              <span className="text-xs text-fg4 shrink-0">{members.length}</span>
+              <span className="text-xs text-on-surface-variant shrink-0">{members.length}</span>
               <div className="flex items-center gap-0.5 shrink-0">
                 <MoveButtons onUp={() => moveGroup(group.key, -1)} onDown={() => moveGroup(group.key, 1)}
                   isFirst={gi === 0} isLast={gi === groups.length - 1} />
                 <Tooltip content="Удалить группу (поля → «Без группы»)" name>
                   <button type="button" onClick={() => deleteGroup(group.key)}
-                    className="p-1 text-fg4 hover:text-error"><Icon icon={Delete} size={18} /></button>
+                    className="p-1 text-on-surface-variant hover:text-error"><Icon icon={Delete} size={18} /></button>
                 </Tooltip>
               </div>
             </div>
             {/* Тело группы (drop-зона) */}
             <div className="p-2 space-y-2 min-h-[3rem]" onDragOver={zone.onDragOver} onDrop={zone.onDrop}>
               {members.length === 0 && (
-                <p className="text-xs text-fg4 text-center py-3 select-none">
+                <p className="text-xs text-on-surface-variant text-center py-3 select-none">
                   {dragKey ? 'Отпустите поле здесь' : 'Пусто — перетащите поле сюда'}
                 </p>
               )}
@@ -363,18 +363,18 @@ function InheritedRow({ field, typeLabel, dragging, onDragStart, onDragEnd, onDr
     <div
       className={`flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg border transition-colors ${dragging ? 'border-primary' : 'border-outline-variant bg-surface-container/40'}`}
       draggable onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDrop={onDrop}>
-      <Icon icon={DragIndicator} size={18} className="text-fg4 shrink-0 cursor-grab" />
-      <Icon icon={LockIcon} size={18} className="text-fg4 shrink-0" />
+      <Icon icon={DragIndicator} size={18} className="text-on-surface-variant shrink-0 cursor-grab" />
+      <Icon icon={LockIcon} size={18} className="text-on-surface-variant shrink-0" />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
           <span className="text-sm text-on-surface-variant truncate">{field.title || field.key}</span>
           {field.required && <span className="text-caption text-error shrink-0">обяз.</span>}
         </span>
-        <span className="block text-xs text-fg4 font-mono truncate">{field.key}</span>
+        <span className="block text-xs text-on-surface-variant font-mono truncate">{field.key}</span>
       </span>
       <ModuleFieldBadge field={field} />
-      <span className="text-caption px-1.5 py-0.5 rounded bg-warning-container text-warning shrink-0">унаслед.</span>
-      <span className="text-xs px-2 py-0.5 rounded-full bg-surface-container text-fg3 shrink-0">{typeLabel}</span>
+      <span className="text-caption px-1.5 py-0.5 rounded bg-warning-container text-on-warning-container shrink-0">унаслед.</span>
+      <span className="text-xs px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant shrink-0">{typeLabel}</span>
     </div>
   );
 }

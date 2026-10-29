@@ -78,7 +78,7 @@ function AllEstimates() {
       {pages.isError ? (
         <p role="alert" className="text-sm text-error">{apiError(pages.error, 'Сметы не прочитались')}</p>
       ) : !pages.data || filter.status === 'loading' ? (
-        <p className="text-sm text-fg4">Читаем сметы…</p>
+        <p className="text-sm text-on-surface-variant">Читаем сметы…</p>
       ) : loaded.length === 0 ? (
         <EmptyState icon={<Icon icon={TableChart} size={40} aria-hidden />} title="Смет пока нет"
           description="Смета появляется загрузкой файла ЛСР из ГРАНД-Сметы в стройку." />
@@ -132,19 +132,19 @@ const est = (l: Line) => (l as Extract<Line, { kind: 'estimate' }>).estimate;
 const COLUMNS: DataGridColumn<Line>[] = [
   {
     key: 'name', label: 'Смета', wrap: true, rowHeader: true,
-    cell: l => <span><span className="font-medium">{est(l).name}</span><span className="text-fg3"> · {KIND_LABEL[est(l).kind]}</span></span>,
+    cell: l => <span><span className="font-medium">{est(l).name}</span><span className="text-on-surface-variant"> · {KIND_LABEL[est(l).kind]}</span></span>,
   },
   {
     key: 'current', label: 'Действующая', width: 'w-36',
     cell: l => {
       const e = est(l);
-      if (e.currentRevisionNumber === null) return <span className="text-fg3">{e.revisions.length === 0 ? 'редакций нет' : 'не выбрана'}</span>;
+      if (e.currentRevisionNumber === null) return <span className="text-on-surface-variant">{e.revisions.length === 0 ? 'редакций нет' : 'не выбрана'}</span>;
       return `ред. ${e.currentRevisionNumber} из ${e.revisions.length}`;
     },
   },
   {
     key: 'rows', label: 'Строк', align: 'right', width: 'w-20',
-    cell: l => { const r = latestRevision(est(l)); return r ? <span className="tabular-nums">{formatCount(r.rows)}</span> : <span className="text-fg4">—</span>; },
+    cell: l => { const r = latestRevision(est(l)); return r ? <span className="tabular-nums">{formatCount(r.rows)}</span> : <span className="text-on-surface-variant">—</span>; },
   },
   {
     key: 'waiting', label: 'Ждут', align: 'right', width: 'w-20',
@@ -152,11 +152,11 @@ const COLUMNS: DataGridColumn<Line>[] = [
       const r = latestRevision(est(l));
       return r && r.unmatched > 0
         ? <StatusBadge tone="warning" title="Строк последней редакции не сопоставлено — в план они не входят">{formatCount(r.unmatched)}</StatusBadge>
-        : <span className="text-fg4">—</span>;
+        : <span className="text-on-surface-variant">—</span>;
     },
   },
   {
     key: 'changed', label: 'Изменена', width: 'w-28',
-    cell: l => { const r = latestRevision(est(l)); return r ? formatDate(r.importedAt) : <span className="text-fg4">—</span>; },
+    cell: l => { const r = latestRevision(est(l)); return r ? formatDate(r.importedAt) : <span className="text-on-surface-variant">—</span>; },
   },
 ];

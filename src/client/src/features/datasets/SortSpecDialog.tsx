@@ -43,7 +43,7 @@ function SortRow({
             key={d}
             type="button"
             onClick={() => onChange({ ...level, direction: d })}
-            className={`px-2 py-1 transition-colors ${level.direction === d ? 'bg-primary text-on-primary' : 'bg-surface text-fg3'}`}
+            className={`px-2 py-1 transition-colors ${level.direction === d ? 'bg-primary text-on-primary' : 'bg-surface text-on-surface-variant'}`}
           >
             {d === 'asc' ? '↑ возр.' : '↓ убыв.'}
           </button>
@@ -52,7 +52,7 @@ function SortRow({
       <MoveButtons onUp={onMoveUp} onDown={onMoveDown} isFirst={isFirst} isLast={isLast}
         className="rounded shrink-0" upTitle="Выше приоритетом" downTitle="Ниже приоритетом" />
       <Tooltip content="Удалить" name>
-        <button type="button" onClick={onRemove} className="p-1 rounded text-fg4 hover:text-error shrink-0">
+        <button type="button" onClick={onRemove} className="p-1 rounded text-on-surface-variant hover:text-error shrink-0">
           <Icon icon={Delete} size={18} />
         </button>
       </Tooltip>
@@ -127,14 +127,14 @@ export function SortSpecDialog({
         </div>
       }
     >
-      <p className="text-xs mb-4 text-fg4">
+      <p className="text-xs mb-4 text-on-surface-variant">
         Сортировка выполняется после вычисляемых колонок — можно сортировать и по ним.
         Пустые значения всегда в конце, независимо от направления. Несколько уровней — по приоритету сверху вниз.
       </p>
 
       <div className="space-y-2 mb-4">
         {levels.length === 0 && (
-          <p className="text-xs py-2 text-center text-fg4">Сортировка не задана.</p>
+          <p className="text-xs py-2 text-center text-on-surface-variant">Сортировка не задана.</p>
         )}
         {levels.map((l, i) => (
           <SortRow
@@ -153,7 +153,7 @@ export function SortSpecDialog({
 
       <button
         onClick={addLevel}
-        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md text-primary bg-primary-container"
+        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md text-on-primary-container bg-primary-container"
       >
         <Icon icon={Add} size={18} /> Добавить уровень сортировки
       </button>

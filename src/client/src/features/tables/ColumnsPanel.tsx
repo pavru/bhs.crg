@@ -99,7 +99,7 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
             </Select>
             <div className="flex-1" />
             <button type="button" disabled={!customised} onClick={() => onChange(v => withColumnsReset(v, base))}
-              className="text-fg3 hover:text-on-surface disabled:opacity-40 disabled:hover:text-fg3">
+              className="text-on-surface-variant hover:text-on-surface disabled:opacity-40 disabled:hover:text-on-surface-variant">
               {baseTitle ? `Как в «${baseTitle}»` : 'Как у таблицы'}
             </button>
           </div>
@@ -128,14 +128,14 @@ function ColumnRow({ column, label, checked, total, onShown, onTotal, move }: {
     <li className="flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-surface-container">
       <label className="flex-1 min-w-0 flex items-center gap-2 text-sm text-on-surface cursor-pointer">
         <input type="checkbox" checked={checked} onChange={onShown} />
-        <span className={`truncate ${column ? '' : 'line-through text-fg4'}`}>{label}</span>
+        <span className={`truncate ${column ? '' : 'line-through text-on-surface-variant'}`}>{label}</span>
         {closed && (
-          <span className="shrink-0 inline-flex items-center gap-1 text-xs text-fg4">
+          <span className="shrink-0 inline-flex items-center gap-1 text-xs text-on-surface-variant">
             <Icon icon={VisibilityOff} size={18} aria-hidden /> {column?.reason ?? 'нет права'}
           </span>
         )}
         {!column && (
-          <span className="shrink-0 inline-flex items-center gap-1 text-xs text-fg4">
+          <span className="shrink-0 inline-flex items-center gap-1 text-xs text-on-surface-variant">
             <Icon icon={LinkOff} size={18} aria-hidden /> поля нет в типе
           </span>
         )}

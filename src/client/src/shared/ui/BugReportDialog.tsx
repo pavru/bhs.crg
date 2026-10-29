@@ -179,7 +179,7 @@ export function BugReportDialog({ open, prefill, onClose }: {
               {/* Честность не предупреждением, а показом: человек видит ровно то, что уйдёт. */}
               <img src={shot.url} alt="Снимок экрана" className="max-h-56 w-auto rounded-lg border border-outline-variant" />
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs text-fg3">
+                <p className="text-xs text-on-surface-variant">
                   Уйдёт администратору вместе с сообщением. Проверьте, нет ли лишнего.
                   {' '}В GitHub снимок не передаётся.
                 </p>
@@ -196,7 +196,7 @@ export function BugReportDialog({ open, prefill, onClose }: {
           <button
             type="button"
             onClick={() => setContextOpen(o => !o)}
-            className="w-full flex items-center gap-1.5 px-3 py-2 text-left text-xs text-fg3 hover:text-on-surface-variant transition-colors"
+            className="w-full flex items-center gap-1.5 px-3 py-2 text-left text-xs text-on-surface-variant hover:text-on-surface-variant transition-colors"
           >
             {contextOpen ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
             Вместе с сообщением уйдёт: версия · экран · браузер · последние ошибки API
@@ -221,7 +221,7 @@ function ContextFacts({ prefill, version, commit }: {
 }) {
   const tech = collectBugReportTech({ stack: prefill.stack, origin: prefill.origin });
   return (
-    <ul className="px-3 pb-3 space-y-1 text-xs text-fg3">
+    <ul className="px-3 pb-3 space-y-1 text-xs text-on-surface-variant">
       <li>Версия: {version ?? '—'}{commit ? ` · сборка ${commit}` : ''}</li>
       <li>Экран: {tech.route}</li>
       <li>Окно: {tech.viewport}</li>
@@ -240,7 +240,7 @@ function ContextFacts({ prefill, version, commit }: {
         )}
       </li>
       {prefill.stack && <li>Стек сбоя интерфейса — приложен</li>}
-      <li className="text-fg4">Тел ответов и содержимого форм здесь нет.</li>
+      <li className="text-on-surface-variant">Тел ответов и содержимого форм здесь нет.</li>
     </ul>
   );
 }

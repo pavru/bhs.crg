@@ -44,7 +44,7 @@ export function UserLibPathDialog({
     <Modal open onOpenChange={o => { if (!o) onCancel(); }} title={mode === 'create' ? 'Новый файл библиотеки' : 'Изменить путь'}>
       <div className="space-y-3">
         <div>
-          <label htmlFor="userlib-path" className="block text-xs text-fg3 mb-1">
+          <label htmlFor="userlib-path" className="block text-xs text-on-surface-variant mb-1">
             Путь внутри <code className="font-mono">userlib/</code>
           </label>
           <input
@@ -55,7 +55,7 @@ export function UserLibPathDialog({
             className="w-full h-8 px-2.5 text-sm font-mono rounded-md border border-outline-variant bg-surface text-on-surface
                        outline-none focus:ring-2 focus:ring-primary/40"
           />
-          <p className="mt-1 text-xs text-fg4">
+          <p className="mt-1 text-xs text-on-surface-variant">
             {mode === 'create'
               ? 'Папки создаются сами из «/» в пути. Подключить файл в «userlib.typ» нужно самостоятельно.'
               : 'Папки создаются сами из «/» в пути. Импорты приложение не правит — поправьте их сами.'}

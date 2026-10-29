@@ -133,7 +133,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   // Рамка обвязки (issue #1464) — как у `Select`: кольцо, пока фокус внутри или открыт календарь.
   const frame = !size ? '' : [
     FRAME[size], 'rounded-md border transition-colors',
-    readOnly ? 'bg-surface-container text-fg3 border-outline-variant' : `bg-surface text-on-surface ${markInvalid ? 'border-error' : 'border-outline'}`,
+    readOnly ? 'bg-surface-container text-on-surface-variant border-outline-variant' : `bg-surface text-on-surface ${markInvalid ? 'border-error' : 'border-outline'}`,
     readOnly || disabled ? '' : `focus-within:ring-2 ${markInvalid ? 'focus-within:ring-error' : 'focus-within:ring-primary'}`,
     pickerOpen ? `ring-2 ${markInvalid ? 'ring-error' : 'ring-primary'}` : '', disabled ? 'opacity-50' : '',
   ].join(' ');
@@ -172,7 +172,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
         {showCalendar && (
           <Popover.Trigger asChild>
             <button ref={triggerRef} type="button" disabled={disabled} aria-label="Открыть календарь"
-              className={`shrink-0 flex items-center justify-center rounded-full text-fg4 hover:text-primary hover:bg-black/5 dark:hover:bg-white/10 transition disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+              className={`shrink-0 flex items-center justify-center rounded-full text-on-surface-variant hover:text-primary hover:bg-black/5 dark:hover:bg-white/10 transition disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                 size === 'sm' ? SM_TRIGGER : '-my-1.5 h-8 w-8'} ${
                 compact ? `${COMPACT_TRIGGER} opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100` : ''}`}>
               <Icon icon={CalendarMonth} size={18} />

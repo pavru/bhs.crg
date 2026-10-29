@@ -56,8 +56,8 @@ export function InvoicePlaceField({ current, places, label, disabled, onPick }: 
     <button type="button" role="combobox" aria-label={label} aria-expanded={open} aria-haspopup="listbox"
       disabled={disabled} data-state={open ? 'open' : 'closed'}
       className="inline-flex items-center justify-between gap-1 min-w-56 max-w-full h-7 px-2 rounded-md border border-outline bg-surface text-xs text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary data-[state=open]:ring-2 data-[state=open]:ring-primary disabled:opacity-50 disabled:pointer-events-none">
-      <span ref={textRef} className={`min-w-0 flex-1 truncate text-left ${shown.muted ? 'text-fg4' : ''}`}>{shown.text}</span>
-      <Icon icon={KeyboardArrowDown} size={18} aria-hidden className="text-fg4 shrink-0" />
+      <span ref={textRef} className={`min-w-0 flex-1 truncate text-left ${shown.muted ? 'text-on-surface-variant' : ''}`}>{shown.text}</span>
+      <Icon icon={KeyboardArrowDown} size={18} aria-hidden className="text-on-surface-variant shrink-0" />
     </button>
   );
   // Полная подпись — подсказкой, когда в поле она усечена («Комарова 36 / 4 эт.» шире поля на узкой шапке).
@@ -172,7 +172,7 @@ function Choices({ places, value, label, onPick }: {
       </div>
       {row && row.sections > 0 && (
         <button type="button" tabIndex={-1} aria-hidden onMouseDown={keepFocus} onClick={() => step(row.place.construction)}
-          className="shrink-0 inline-flex items-center gap-0.5 h-7 px-1.5 rounded text-xs text-fg3 hover:text-on-surface hover:bg-primary-container">
+          className="shrink-0 inline-flex items-center gap-0.5 h-7 px-1.5 rounded text-xs text-on-surface-variant hover:text-on-surface hover:bg-primary-container">
           {row.sections}<Icon icon={ChevronRight} size={18} />
         </button>
       )}
@@ -186,7 +186,7 @@ function Choices({ places, value, label, onPick }: {
         role="combobox" aria-expanded aria-controls={`${ids}-list`} aria-activedescendant={active?.id}
         placeholder={site ? 'Найти раздел' : 'Найти стройку или раздел'}
         onChange={e => { setQuery(e.target.value); setActiveKey(null); }} onKeyDown={onKeyDown}
-        className="mx-1 mb-1 h-8 px-2 rounded border border-outline bg-surface text-sm text-on-surface placeholder:text-fg4 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
+        className="mx-1 mb-1 h-8 px-2 rounded border border-outline bg-surface text-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
       {site && !query.trim() && (
         <button type="button" onMouseDown={keepFocus} onClick={() => step(null)}
           className="mx-1 inline-flex items-center gap-1 h-7 px-2 rounded text-xs text-on-surface-variant hover:bg-primary-container"
@@ -199,14 +199,14 @@ function Choices({ places, value, label, onPick }: {
         {list.lost && row(options[0], list.lost.label)}
         {list.groups.map((g, gi) => (
           <div key={g.label} role="group" aria-labelledby={`${ids}-g${gi}`}>
-            <div id={`${ids}-g${gi}`} className="px-3 pt-2 pb-1 text-caption font-semibold uppercase tracking-wide text-fg4">{g.label}</div>
+            <div id={`${ids}-g${gi}`} className="px-3 pt-2 pb-1 text-caption font-semibold uppercase tracking-wide text-on-surface-variant">{g.label}</div>
             {g.rows.map(r => { const option = options[index++]; return row(option, r.label, r); })}
           </div>
         ))}
         {list.reveal && row(options[options.length - 1], list.reveal)}
         {options.length === 0 && (
           // Справочник не пришёл — «ещё не знаем», а не «пусто»: «Ничего не найдено» соврало бы, что строек нет.
-          <div className="px-3 py-2 text-sm text-fg4">
+          <div className="px-3 py-2 text-sm text-on-surface-variant">
             {places.sites !== undefined ? 'Ничего не найдено' : places.unread ? UNREAD_PLACE : LOADING_PLACE}
           </div>
         )}

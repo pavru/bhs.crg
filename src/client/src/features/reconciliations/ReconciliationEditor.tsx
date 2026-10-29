@@ -88,9 +88,9 @@ function PartEditor({ part, onChange, onRemove, sources, index }: {
       {columns.length > 0 && (
         <>
           <div>
-            <div className="text-xs text-fg3 mb-1">
+            <div className="text-xs text-on-surface-variant mb-1">
               Ключевые колонки {part.keyColumns.length > 0 && (
-                <span className="text-fg4">— порядок: {part.keyColumns.join(' + ')}</span>
+                <span className="text-on-surface-variant">— порядок: {part.keyColumns.join(' + ')}</span>
               )}
             </div>
             <div className="flex flex-wrap gap-1">
@@ -99,7 +99,7 @@ function PartEditor({ part, onChange, onRemove, sources, index }: {
                 return (
                   <button key={c} type="button" onClick={() => toggleKey(c)}
                     className={`text-xs px-2 py-1 rounded-full transition-colors ${
-                      on ? 'bg-primary-container text-primary font-medium' : 'bg-surface-container-low text-fg3 hover:text-on-surface'}`}>
+                      on ? 'bg-primary-container text-primary font-medium' : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface'}`}>
                     {c}
                   </button>
                 );
@@ -126,7 +126,7 @@ function SideEditor({ title, parts, onChange, sources }: {
   return (
     <div className="space-y-2 rounded-lg border border-outline-variant p-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-fg4">{title}</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">{title}</span>
         <Button variant="text" size="sm" onClick={() => onChange([...parts, EMPTY_PART])}>
           <Icon icon={Add} size={18} /> Источник
         </Button>
@@ -139,7 +139,7 @@ function SideEditor({ title, parts, onChange, sources }: {
       ))}
 
       {parts.length > 1 && (
-        <p className="text-caption text-fg4">
+        <p className="text-caption text-on-surface-variant">
           Количества по одной позиции складываются по всем источникам стороны.
         </p>
       )}
@@ -215,7 +215,7 @@ export function ReconciliationEditor({ existing, onClose }: {
         </div>
 
         <div className="rounded-lg border border-outline-variant p-3 space-y-3">
-          <div className="text-xs font-semibold uppercase tracking-wide text-fg4">Правило</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Правило</div>
           <div className="flex items-center gap-2 text-sm text-on-surface-variant">
             <span>Слева должно быть</span>
             <Select value={operator} onValueChange={v => setOperator(v as ComparisonOperator)}
@@ -236,7 +236,7 @@ export function ReconciliationEditor({ existing, onClose }: {
               <SelectItem value="Percent">в процентах</SelectItem>
             </Select>
           </div>
-          <p className="text-caption text-fg4">
+          <p className="text-caption text-on-surface-variant">
             Допуск гасит расхождения округления — без него отчёт забьётся находками на сотые доли.
           </p>
         </div>

@@ -35,17 +35,17 @@
 
 ## 2. Две роли текста (PR 2)
 
-- [ ] 2.1 Строки карты `md3-class-map.json` (`same: false`): `text-fg3`, `text-fg4`, `text-stroke-strong`
+- [x] 2.1 Строки карты `md3-class-map.json` (`same: false`): `text-fg3`, `text-fg4`, `text-stroke-strong`
   → `text-on-surface-variant`; правило «текст на контейнере в одном списке классов» → `on-*-container`
   [UI-62] [UI-63]. Проверка — vitest кодмода на фикстурах; тест пар не требует равенства у `same: false`
-- [ ] 2.2 `npm run md3:migrate` по `src/`; места из отчёта (разнесённые по элементам контейнеры, прочие
+- [x] 2.2 `npm run md3:migrate` по `src/`; места из отчёта (разнесённые по элементам контейнеры, прочие
   утилиты с `fg3`/`fg4`) — руками; `border-warning-border`, `border-stroke-subtle` — по решению 0.2;
   `--legacy-warning-border`, `--legacy-stroke-subtle` удалены [UI-62] [UI-63]. Проверка —
   `rg "fg3|fg4|stroke-strong|warning-border|stroke-subtle" src/client/src` — только `md3-legacy.css`
   (псевдонимы до финала эпика) и отчётные исключения в описании PR
-- [ ] 2.3 Уровень `legacy-class` опущен; по снятым здесь именам — 0 [UI-63]. Проверка — `npm run ui:ratchet`;
+- [x] 2.3 Уровень `legacy-class` опущен; по снятым здесь именам — 0 [UI-63]. Проверка — `npm run ui:ratchet`;
   тест правила: `text-fg4` в новом файле красный с советом `text-on-surface-variant`
-- [ ] 2.4 `docs/UI.md` «Цвет»: палитра из seed (`md3-theme.json`, `npm run md3:theme`), тест контраста,
+- [x] 2.4 `docs/UI.md` «Цвет»: палитра из seed (`md3-theme.json`, `npm run md3:theme`), тест контраста,
   две роли текста, текст на контейнере — `on-*-container`, обводки по статусу нет (или как решено)
   [UI-62] [UI-63]. Проверка — в «Цвет» нет `fg3`, `fg4`, `warning-border` вне колонки псевдонимов
 - [ ] 2.5 После слияния — `/design-sync` из основной копии. Проверка — токены бандла дизайн-системы равны

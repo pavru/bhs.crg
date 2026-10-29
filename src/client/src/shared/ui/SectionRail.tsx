@@ -88,7 +88,7 @@ export function SectionPill({ icon, on, wide = false }: { icon: RailSectionDef['
   return (
     <span className={`flex items-center justify-center ${wide ? 'w-16' : 'w-14'} h-8 rounded-full transition-colors ` +
       'group-focus-visible:ring-2 group-focus-visible:ring-primary ' +
-      (on ? 'bg-secondary-container text-on-secondary-container' : 'text-fg3 group-hover:bg-black/5 dark:group-hover:bg-white/10')}>
+      (on ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant group-hover:bg-black/5 dark:group-hover:bg-white/10')}>
       <Icon icon={icon} size={wide ? 24 : 20} filled={on} />
     </span>
   );
@@ -113,7 +113,7 @@ export function SectionPanel({ def, groups, outside, onHide }: {
       <div className="flex items-start gap-1 pl-3 pb-3">
         <div className="flex-1 min-w-0 pt-1">
           <h2 className="text-base font-semibold text-on-surface break-words">{def.title}</h2>
-          <p className="text-xs text-fg3">{def.hint}</p>
+          <p className="text-xs text-on-surface-variant">{def.hint}</p>
         </div>
         <IconButton label="Скрыть панель раздела" size="lg" onClick={onHide}
           aria-expanded aria-controls={PANEL_ID}>

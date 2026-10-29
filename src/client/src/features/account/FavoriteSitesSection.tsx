@@ -17,7 +17,7 @@ export function FavoriteSitesSection() {
   return (
     <div className="mt-8 pt-6 border-t border-outline-variant" data-testid="favorite-sites-section">
       <h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface mb-3">
-        <Icon icon={Star} size={18} className="text-fg3" /> Избранные стройки
+        <Icon icon={Star} size={18} className="text-on-surface-variant" /> Избранные стройки
       </h2>
       <FavoritesPicker maxHeight="max-h-96" />
     </div>

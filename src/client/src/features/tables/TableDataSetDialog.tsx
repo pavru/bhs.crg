@@ -87,7 +87,7 @@ export function TableDataSetDialog({ address, initialName, body, columns, all, o
           {/* Порядок источник считает сам, а не запросом к базе, как экран: обещать «как на экране»
               было бы неправдой у текста с цифрами и у пустых значений (ревью PR #1327). */}
           {!!body.sort?.length && (
-            <p className="text-xs text-fg3">
+            <p className="text-xs text-on-surface-variant">
               Сортировка — по тем же колонкам, но строки упорядочивает источник: значения, похожие на
               числа, сравниваются как числа, пустые — всегда в конце.
             </p>
@@ -98,7 +98,7 @@ export function TableDataSetDialog({ address, initialName, body, columns, all, o
               отбирает строки сам и посчитал бы его без отбора.
             </p>
           )}
-          <p className="text-xs text-fg4">
+          <p className="text-xs text-on-surface-variant">
             Это копия: источник не следит за представлением, и правка представления его не изменит. Строки он
             читает правами того, кто его открывает. Источник появится в системном наборе уровня
             системы.

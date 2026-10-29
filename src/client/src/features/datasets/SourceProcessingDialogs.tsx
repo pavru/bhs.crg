@@ -45,7 +45,7 @@ function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
           </Button>
         </div>
       }>
-      <p className="text-xs mb-3 text-fg3">
+      <p className="text-xs mb-3 text-on-surface-variant">
         Row-selector/колонки (Extraction) и текущие Filter/Transformation/Sort источника
         станут переиспользуемым шаблоном — копия, не живая ссылка.
       </p>

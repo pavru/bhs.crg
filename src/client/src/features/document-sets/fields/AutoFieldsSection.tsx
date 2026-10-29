@@ -22,18 +22,18 @@ export function AutoFieldsSection(
     <div className="border border-dashed border-outline-variant rounded-lg overflow-hidden">
       <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open}
         className="w-full flex items-center gap-2 px-3 py-2 bg-surface-container-low/40 hover:bg-surface-container-low transition-colors text-left">
-        {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-fg4 shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" />}
+        {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
         {/* Глиф называет НАЗНАЧЕНИЕ секции, а не её содержимое, и продублирован подписью рядом —
             поэтому он приглушён: brand в этой строке должен быть ровно один, и указывать он должен
             на факт, ради которого сюда смотрят. */}
-        <Icon icon={Database} size={18} className="text-fg4 shrink-0" />
-        <span className="text-xs text-fg3 flex-1">Заполняются автоматически</span>
+        <Icon icon={Database} size={18} className="text-on-surface-variant shrink-0" />
+        <span className="text-xs text-on-surface-variant flex-1">Заполняются автоматически</span>
         {/* Факт в подписи самой раскрывашки — здесь он НЕСУЩИЙ, а не дублирующий: секция свёрнута
             по умолчанию, и значок у поля внутри неё человек по умолчанию не видит вовсе. Отдельной
             интерактивности факту не даём — заголовок и так кнопка с очевидным действием.
             Общее число оставлено намеренно: «со сканов: 4» — подмножество, и без основания оно не
             читается. 4 из 4 и 4 из 40 — разные решения, а решает именно отношение. */}
-        <span className="text-xs text-fg4">
+        <span className="text-xs text-on-surface-variant">
           {count} п.
           {recognizedCount > 0 && (
             <Tooltip content="Часть значений распознана с отсканированных документов — возможны ошибки чтения. Править их можно в источнике данных.">
@@ -61,7 +61,7 @@ export function AutoFieldsSection(
               стало нередактируемым, не узнал бы причину, не раскрыв её. */}
           {lockedCount > 0 && (
             <Tooltip content={LOCKED_HINT}>
-              <span className="text-fg4">
+              <span className="text-on-surface-variant">
                 {' · '}
                 {lockedCount === count ? 'все от модуля' : `от модуля: ${lockedCount}`}
               </span>

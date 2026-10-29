@@ -39,17 +39,17 @@ export function CostViewsBand({ data, closing, onChange }: {
           : 'итоги равны, различаются разделы, поставщики или дни.'}
       </p>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <span className="text-xs text-fg3">Закрытые периоды</span>
+        <span className="text-xs text-on-surface-variant">Закрытые периоды</span>
         <Tabs id={COST_VIEWS_ID} variant="segmented" aria-label="Закрытые периоды" value={view} onChange={onChange}
           items={[{ value: 'corrected', label: 'С исправлениями' }, { value: 'closing', label: 'На момент закрытия' }]} />
         {/* При равных итогах число соседа совпало бы с итогом на экране — сказано словами выше. */}
         {data.differs === 'totals' && data.other && (
-          <span className="text-xs text-fg3">
+          <span className="text-xs text-on-surface-variant">
             в другом взгляде итог {formatMoney(data.other.amount)}
           </span>
         )}
       </div>
-      <p className="text-xs text-fg3">
+      <p className="text-xs text-on-surface-variant">
         {view === 'closing'
           ? 'Закрытые месяцы — как при закрытии; исправления — корректировкой в месяце, когда сделаны. Стрелка в реестр — '
             + 'только у чисел, равных ему: реестр показывает счета как они есть сейчас.'

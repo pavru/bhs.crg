@@ -90,11 +90,20 @@ describe('md3:migrate: неоднозначное не трогает, а наз
     expect(u).toEqual([{ line: 1, token: 'text-base', reason: expect.stringContaining('размер текста') }]);
   });
 
-  it('text-brand-hover без наведения и с ним, fg3, text-fg4, text-stroke-strong, warning-border', () => {
-    const source = '"text-brand-hover hover:bg-brand-hover text-fg3 text-fg4 text-stroke-strong border-warning-border"';
+  it('text-brand-hover без наведения и с ним — нет пары, не трогается', () => {
+    const source = '"text-brand-hover hover:bg-brand-hover"';
     expect(migrated(source)).toBe(source);
-    expect(untouched(source)).toEqual(['text-brand-hover', 'bg-brand-hover', 'text-fg3', 'text-fg4',
-      'text-stroke-strong', 'border-warning-border']);
+    expect(untouched(source)).toEqual(['text-brand-hover', 'bg-brand-hover']);
+  });
+
+  it('у текста две роли (sharedui-md3-04): fg3, fg4 и text-stroke-strong → on-surface-variant', () => {
+    expect(migrated('"text-fg3 text-fg4 placeholder:text-fg4 text-stroke-strong"'))
+      .toBe('"text-on-surface-variant text-on-surface-variant placeholder:text-on-surface-variant text-on-surface-variant"');
+  });
+
+  it('обводки по статусу нет (sharedui-md3-04): warning-border и stroke-subtle → outline-variant', () => {
+    expect(migrated('"border border-warning-border ring-1 ring-warning-border border-t border-stroke-subtle"'))
+      .toBe('"border border-outline-variant ring-1 ring-outline-variant border-t border-outline-variant"');
   });
 
   it('та же пара в другой утилите переводится: border-stroke-strong, bg-fg4', () => {
@@ -115,21 +124,20 @@ describe('md3:migrate: неоднозначное не трогает, а наз
     expect(compile(map, ['fg9']).cls('fill-fg9')).toEqual({ to: 'fill-on-surface-variant', pair: 'fg9 → on-surface-variant' });
   });
 
-  it('var(--color-fg4) и var(--color-stroke-strong) — неоднозначны: text-fg4 не переводится, а у переменной утилиты нет', () => {
-    const source = 'border-l-[var(--color-fg4)] [color:var(--color-stroke-strong)]';
-    expect(migrated(source)).toBe(source);
-    expect(run(source).untouched).toEqual([
-      { line: 1, token: '--color-fg4', reason: expect.stringContaining('text-fg4') },
-      { line: 1, token: '--color-stroke-strong', reason: expect.stringContaining('text-stroke-strong') },
-    ]);
+  it('переменная имени, чей класс пропущен, — неоднозначна: утилиты у неё нет', () => {
+    const rules = compile({ names: { fg4: { to: 'outline' } }, classes: { 'text-fg4': { skip: 'текст цветом обводки' } }, vars: {} }, ['fg4']);
+    const source = 'border-l-[var(--color-fg4)]';
+    const result = migrateText(source, { file: 'src/x.tsx', rules });
+    expect(result.text).toBe(source);
+    expect(result.untouched).toEqual([{ line: 1, token: '--color-fg4', reason: expect.stringContaining('text-fg4') }]);
     // Пропуск не о цвете (text-base) переменную не задевает.
     expect(migrated('[color:var(--color-base)]')).toBe('[color:var(--color-surface-container-low)]');
   });
 
-  it('переменные без пары: var(--color-fg3), --f-fg3', () => {
+  it('переменные: var(--color-fg3) — по паре имени, --f-fg3 без строки в vars — не трогается', () => {
     const source = 'border-l-[var(--color-fg3)] [color:var(--f-fg3)]';
-    expect(migrated(source)).toBe(source);
-    expect(untouched(source)).toEqual(['--color-fg3', '--f-fg3']);
+    expect(migrated(source)).toBe('border-l-[var(--color-on-surface-variant)] [color:var(--f-fg3)]');
+    expect(untouched(source)).toEqual(['--f-fg3']);
   });
 
   it('отрицательное ожидание теста — не трогается, называется', () => {
@@ -231,5 +239,41 @@ describe('md3:migrate: пары карты рисуют то же', () => {
     expect(bad.length).toBeGreaterThan(0);
     expect(bad[0]).toMatch(/^bg-brand-hover → bg-primary \(светлая тема\)/);
     expect(bad.some(m => m.includes('(тёмная тема)'))).toBe(true);
+  });
+});
+
+describe('md3:migrate: текст на контейнере — парной ролью (sharedui-md3-04)', () => {
+  it('в одном списке классов: text-<роль> на bg-<роль>-container → text-on-<роль>-container', () => {
+    expect(migrated('"rounded bg-warning-container text-warning px-2"')).toBe('"rounded bg-warning-container text-on-warning-container px-2"');
+    expect(migrated("cls: 'bg-error-container text-error/80'")).toBe("cls: 'bg-error-container text-on-error-container/80'");
+    expect(migrated('"bg-danger-subtle text-danger"')).toBe('"bg-error-container text-on-error-container"');
+  });
+
+  it('многострочный список JSX — тоже', () => {
+    expect(migrated('className="flex\n  bg-success-container text-success"')).toBe('className="flex\n  bg-success-container text-on-success-container"');
+  });
+
+  it('вариант обязан совпасть: контейнер под наведением — текст не трогается', () => {
+    const source = '"text-warning hover:bg-warning-container"';
+    expect(migrated(source)).toBe(source);
+    expect(migrated('"hover:bg-warning-container hover:text-warning"')).toBe('"hover:bg-warning-container hover:text-on-warning-container"');
+  });
+
+  it('условный контейнер в шаблоне и разнесённое по строкам — не трогается', () => {
+    const conditional = "`${on ? 'bg-warning-container' : ''} text-warning`";
+    expect(migrated(conditional)).toBe(conditional);
+    const split = "const box = 'bg-warning-container'; const label = 'text-warning';";
+    expect(migrated(split)).toBe(split);
+  });
+
+  it('постоянные части шаблона — один список', () => {
+    expect(migrated('`bg-success-container ${x} text-success`')).toBe('`bg-success-container ${x} text-on-success-container`');
+  });
+
+  it('в комментарии — не трогается, повторный запуск ничего не меняет', () => {
+    const comment = '// "bg-warning-container text-warning"';
+    expect(migrated(comment)).toBe(comment);
+    const once = migrated('"bg-warning-container text-warning"');
+    expect(migrated(once)).toBe(once);
   });
 });

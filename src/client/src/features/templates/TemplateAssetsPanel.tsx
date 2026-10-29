@@ -55,7 +55,7 @@ function AssetReference({ asset }: { asset: TemplateAssetDto }) {
         <code className="text-xs font-mono text-on-surface break-all leading-snug">{reference}</code>
         {copied
           ? <Icon icon={Check} size={18} className="text-success shrink-0 mt-0.5" />
-          : <Icon icon={ContentCopy} size={18} className="text-fg4 opacity-0 group-hover/ref:opacity-100 shrink-0 mt-0.5" />}
+          : <Icon icon={ContentCopy} size={18} className="text-on-surface-variant opacity-0 group-hover/ref:opacity-100 shrink-0 mt-0.5" />}
       </button>
     </Tooltip>
   );
@@ -162,16 +162,16 @@ export function TemplateAssetsPanel({ scope, scopeId, title, hintScopes }: {
     <div className="border-t border-outline-variant bg-surface">
       <button onClick={() => setOpen(v => !v)}
         className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-surface-container-low transition-colors text-left">
-        <Icon icon={ImageIcon} size={18} className="text-fg4" />
+        <Icon icon={ImageIcon} size={18} className="text-on-surface-variant" />
         <span className="text-xs font-medium text-on-surface-variant flex-1">
           {title}{assets.length > 0 ? ` (${assets.length})` : ''}
         </span>
-        {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-fg4" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-fg4" />}
+        {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant" />}
       </button>
       {open && (
         <div className="px-4 pb-4 pt-2 border-t border-surface-container space-y-2">
           {assets.length === 0 ? (
-            <p className="text-xs text-fg4 italic">Ассетов нет.</p>
+            <p className="text-xs text-on-surface-variant italic">Ассетов нет.</p>
           ) : (
             <div className="space-y-0.5">
               {assets.map(a => <AssetRow key={a.id} asset={a} />)}
@@ -197,6 +197,6 @@ function HintCount({ hint }: { hint: TemplateAssetsHint }) {
   const { data: assets = [] } = useListTemplateAssets(hint.scope, hint.scopeId);
   if (assets.length === 0) return null;
   return (
-    <p className="text-caption text-fg4">Также доступно: {assets.length} {hint.label}</p>
+    <p className="text-caption text-on-surface-variant">Также доступно: {assets.length} {hint.label}</p>
   );
 }

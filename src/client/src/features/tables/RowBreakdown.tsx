@@ -39,15 +39,15 @@ export function RowBreakdown({ breakdown, grain }: { breakdown: TableBreakdown; 
   if (breakdown.refusal)
     return (
       <section aria-label={breakdown.title} className="mb-3 pb-3 border-b border-outline-variant">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-fg3">{breakdown.title}</h3>
+        <h3 className="text-xs font-medium uppercase tracking-wide text-on-surface-variant">{breakdown.title}</h3>
         <p role="alert" className="mt-0.5 text-sm text-error">{breakdown.refusal}</p>
       </section>
     );
 
   return (
     <section aria-label={breakdown.title} className="mb-3 pb-3 border-b border-outline-variant">
-      <h3 className="text-xs font-medium uppercase tracking-wide text-fg3">{breakdown.title}</h3>
-      {breakdown.note && <p className="mt-0.5 text-xs text-fg3">{breakdown.note}</p>}
+      <h3 className="text-xs font-medium uppercase tracking-wide text-on-surface-variant">{breakdown.title}</h3>
+      {breakdown.note && <p className="mt-0.5 text-xs text-on-surface-variant">{breakdown.note}</p>}
 
       <DataGrid density="compact" framed={false} className="mt-1.5" columns={breakdownColumns(breakdown)}
         rows={breakdown.rows} emphasized={row => row.named} />
@@ -56,7 +56,7 @@ export function RowBreakdown({ breakdown, grain }: { breakdown: TableBreakdown; 
         <dl className="mt-1.5 pt-1.5 border-t border-outline-variant/60 text-sm">
           {totals.map(total => (
             <div key={total.key} className="flex justify-between gap-3">
-              <dt className="text-fg3">{total.label}</dt>
+              <dt className="text-on-surface-variant">{total.label}</dt>
               <dd className="tabular-nums text-on-surface">{total.value}</dd>
             </div>
           ))}

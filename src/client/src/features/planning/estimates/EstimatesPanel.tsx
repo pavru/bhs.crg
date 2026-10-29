@@ -51,7 +51,7 @@ function EstimateList({ constructionId, sectionId, base }: { constructionId: str
   const [importing, setImporting] = useState<{ importId?: string } | null>(null);
 
   if (estimates.isError) return <p role="alert" className="text-sm text-error">{apiError(estimates.error, 'Сметы не прочитались')}</p>;
-  if (!estimates.data) return <p className="text-sm text-fg4">Читаем сметы…</p>;
+  if (!estimates.data) return <p className="text-sm text-on-surface-variant">Читаем сметы…</p>;
 
   const items = sectionId ? estimates.data.items.filter(e => e.sectionId === sectionId) : estimates.data.items;
   return (
@@ -59,7 +59,7 @@ function EstimateList({ constructionId, sectionId, base }: { constructionId: str
       <div className="flex flex-wrap items-start gap-2">
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-semibold text-on-surface">Сметы</h2>
-          <p className="text-xs text-fg3">План {sectionId ? 'раздела' : 'стройки'} считается по действующим редакциям смет</p>
+          <p className="text-xs text-on-surface-variant">План {sectionId ? 'раздела' : 'стройки'} считается по действующим редакциям смет</p>
         </div>
         {editable && (
           <Button variant="filled" size="sm" icon={<Icon icon={Upload} size={18} aria-hidden />} onClick={() => setImporting({})}>Загрузить смету</Button>
@@ -97,8 +97,8 @@ function listColumns(hidden: Estimate['hidden'], sections: ReadonlyMap<string, s
       cell: e => (
         <span>
           <span className="font-medium text-on-surface">{e.name}</span>
-          <span className="text-fg3"> · {KIND_LABEL[e.kind]}</span>
-          {sections && e.sectionId && sections.get(e.sectionId) && <span className="block text-xs text-fg3">раздел «{sections.get(e.sectionId)}»</span>}
+          <span className="text-on-surface-variant"> · {KIND_LABEL[e.kind]}</span>
+          {sections && e.sectionId && sections.get(e.sectionId) && <span className="block text-xs text-on-surface-variant">раздел «{sections.get(e.sectionId)}»</span>}
         </span>
       ),
     },
@@ -106,7 +106,7 @@ function listColumns(hidden: Estimate['hidden'], sections: ReadonlyMap<string, s
       key: 'current', label: 'Действующая', width: 'w-44',
       cell: e => {
         const current = e.revisions.find(r => r.current);
-        if (!current) return <span className="text-fg3">{e.revisions.length === 0 ? 'редакций нет' : 'не выбрана'}</span>;
+        if (!current) return <span className="text-on-surface-variant">{e.revisions.length === 0 ? 'редакций нет' : 'не выбрана'}</span>;
         return (
           <span className="inline-flex flex-wrap items-center gap-1">
             ред. {current.number}
@@ -119,7 +119,7 @@ function listColumns(hidden: Estimate['hidden'], sections: ReadonlyMap<string, s
       key: 'latest', label: 'Последняя', width: 'w-40',
       cell: e => {
         const latest = latestRevision(e);
-        if (!latest) return <span className="text-fg4">—</span>;
+        if (!latest) return <span className="text-on-surface-variant">—</span>;
         return (
           <span className="inline-flex flex-wrap items-center gap-1">
             ред. {latest.number}
@@ -130,7 +130,7 @@ function listColumns(hidden: Estimate['hidden'], sections: ReadonlyMap<string, s
     },
     {
       key: 'rows', label: 'Строк', align: 'right', width: 'w-20',
-      cell: e => { const latest = latestRevision(e); return latest ? <span className="tabular-nums">{formatCount(latest.rows)}</span> : <span className="text-fg4">—</span>; },
+      cell: e => { const latest = latestRevision(e); return latest ? <span className="tabular-nums">{formatCount(latest.rows)}</span> : <span className="text-on-surface-variant">—</span>; },
     },
     {
       key: 'waiting', label: 'Ждут', align: 'right', width: 'w-20',
@@ -138,7 +138,7 @@ function listColumns(hidden: Estimate['hidden'], sections: ReadonlyMap<string, s
         const latest = latestRevision(e);
         return latest && latest.unmatched > 0
           ? <StatusBadge tone="warning" title="Строк последней редакции не сопоставлено — в план они не входят">{formatCount(latest.unmatched)}</StatusBadge>
-          : <span className="text-fg4">—</span>;
+          : <span className="text-on-surface-variant">—</span>;
       },
     },
     {
@@ -147,7 +147,7 @@ function listColumns(hidden: Estimate['hidden'], sections: ReadonlyMap<string, s
       unavailableHint: closed ? `Себестоимость видна с правом «${closed.name}» — его выдаёт администратор.` : undefined,
       cell: e => {
         const total = e.revisions.find(r => r.current)?.cost?.total;
-        return total == null ? <span className="text-fg4">—</span> : <span className="tabular-nums">{formatAmount(total)}</span>;
+        return total == null ? <span className="text-on-surface-variant">—</span> : <span className="tabular-nums">{formatAmount(total)}</span>;
       },
     },
   ];

@@ -61,7 +61,7 @@ export function LayoutChooser({ image, notice, profiles, rebuilding, onRebuild }
           </div>
           {state && <p className="text-xs text-on-surface-variant mb-2" data-testid="layout-notice">{state}</p>}
           {image.layoutNote && <p className="text-xs text-on-surface-variant mb-2" data-testid="layout-note">{image.layoutNote}</p>}
-          <p className="text-xs text-fg3 mb-3">
+          <p className="text-xs text-on-surface-variant mb-3">
             {/* Состояние уже сказано абзацем выше — общая фраза повторила бы его. */}
             {state || image.layoutNote ? '' : 'Автор книги не задал раскладку — вид раскладывается по профилю печати. '}
             Выбор запоминается за этим файлом.
@@ -111,9 +111,9 @@ function Choices({ profiles, shown, value, onPick }: {
             <span className="min-w-0 flex-1">
               <span className="flex items-baseline gap-2">
                 <span className={`text-sm truncate ${checked ? 'font-medium text-on-surface' : 'text-on-surface-variant'}`}>{p.name}</span>
-                {marks && <span className="text-xs text-fg3 shrink-0">{marks}</span>}
+                {marks && <span className="text-xs text-on-surface-variant shrink-0">{marks}</span>}
               </span>
-              <span className="block text-xs text-fg4 truncate">{profileSummary(p)}</span>
+              <span className="block text-xs text-on-surface-variant truncate">{profileSummary(p)}</span>
             </span>
           </button>
         );

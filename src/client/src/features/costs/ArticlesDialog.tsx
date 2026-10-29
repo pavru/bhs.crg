@@ -95,37 +95,37 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
             className={FIELD} />
           <Tooltip content="Сохранить название" name>
             <button type="button" onClick={() => void rename()}
-              className="text-fg3 hover:text-primary p-1"><Icon icon={Check} size={18} /></button>
+              className="text-on-surface-variant hover:text-primary p-1"><Icon icon={Check} size={18} /></button>
           </Tooltip>
           <Tooltip content="Отменить" name>
             <button type="button" onClick={() => setEditing(null)}
-              className="text-fg3 hover:text-on-surface p-1"><Icon icon={Close} size={18} /></button>
+              className="text-on-surface-variant hover:text-on-surface p-1"><Icon icon={Close} size={18} /></button>
           </Tooltip>
         </>
       ) : (
         <>
-          <span className={`flex-1 ${article.archived ? 'text-fg3' : ''}`}>{article.name}</span>
+          <span className={`flex-1 ${article.archived ? 'text-on-surface-variant' : ''}`}>{article.name}</span>
           <Tooltip content={`Переименовать «${article.name}»`} name>
             <button type="button"
               onClick={() => setEditing({ id: article.id, name: article.name })}
-              className="text-fg3 hover:text-primary p-1"><Icon icon={Edit} size={18} /></button>
+              className="text-on-surface-variant hover:text-primary p-1"><Icon icon={Edit} size={18} /></button>
           </Tooltip>
           {article.archived ? (
             <Tooltip content={`Вернуть «${article.name}» из архива`} name>
               <button type="button" disabled={archive.isPending}
                 onClick={() => void setArchived(article, false)}
-                className="text-fg3 hover:text-primary p-1"><Icon icon={Unarchive} size={18} /></button>
+                className="text-on-surface-variant hover:text-primary p-1"><Icon icon={Unarchive} size={18} /></button>
             </Tooltip>
           ) : (
             <Tooltip content={`В архив «${article.name}»`} name>
               <button type="button" disabled={archive.isPending}
                 onClick={() => void setArchived(article, true)}
-                className="text-fg3 hover:text-primary p-1"><Icon icon={Archive} size={18} /></button>
+                className="text-on-surface-variant hover:text-primary p-1"><Icon icon={Archive} size={18} /></button>
             </Tooltip>
           )}
           <Tooltip content={`Удалить «${article.name}»`} name>
             <button type="button" onClick={() => setDeleting(article)}
-              className="text-fg3 hover:text-error p-1"><Icon icon={Delete} size={18} /></button>
+              className="text-on-surface-variant hover:text-error p-1"><Icon icon={Delete} size={18} /></button>
           </Tooltip>
         </>
       )}
@@ -134,7 +134,7 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Статьи вне строек" isDirty={!!name.trim() || !!editing}>
-      <p className="text-xs text-fg3 mb-3">
+      <p className="text-xs text-on-surface-variant mb-3">
         Цели разноски, которые не стройка: склад, общие расходы. В выборе «куда» они идут группой «Вне строек».
       </p>
 
@@ -143,7 +143,7 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
       <div className="border-y border-outline-variant text-sm mb-3">
         <ul className="divide-y divide-outline-variant">
           {articles.data && live.length === 0 && (
-            <li className="py-2 text-fg4 text-xs">{gone.length ? 'Действующих статей нет.' : 'Статей пока нет.'}</li>
+            <li className="py-2 text-on-surface-variant text-xs">{gone.length ? 'Действующих статей нет.' : 'Статей пока нет.'}</li>
           )}
           {live.map(row)}
         </ul>

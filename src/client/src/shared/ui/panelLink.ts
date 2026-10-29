@@ -9,8 +9,8 @@ export function panelLink(isActive: boolean, muted = false): string {
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ' +
     (isActive
       ? `bg-secondary-container text-on-tonal${muted ? '' : ' font-medium'}`
-      : `${muted ? 'text-fg3' : 'text-on-surface-variant'} hover:bg-black/5 dark:hover:bg-white/10`);
+      : `${muted ? 'text-on-surface-variant' : 'text-on-surface-variant'} hover:bg-black/5 dark:hover:bg-white/10`);
 }
 
 /** Микрозаголовок навигации и групп — по docs/UI.md, «Заголовки». Один на подпанель и меню раздела. */
-export const MICRO_HEADING = 'px-3 mb-1 text-caption font-semibold uppercase tracking-widest select-none text-fg4';
+export const MICRO_HEADING = 'px-3 mb-1 text-caption font-semibold uppercase tracking-widest select-none text-on-surface-variant';

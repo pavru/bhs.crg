@@ -90,8 +90,8 @@ export function OutlinedField({
     : '';
   const labelColor = bad
     ? 'text-error'
-    : auto ? 'text-fg4 peer-focus:text-primary'
-      : focused ? 'text-primary' : 'text-fg4';
+    : auto ? 'text-on-surface-variant peer-focus:text-primary'
+      : focused ? 'text-primary' : 'text-on-surface-variant';
   // В `auto` метка стоит по центру и уезжает наверх; в `always` она уже наверху.
   const labelPosition = auto
     ? 'top-1/2 -translate-y-1/2 text-sm peer-focus:top-0 peer-focus:text-xs '
@@ -132,7 +132,7 @@ export function OutlinedField({
       </div>
       {error
         ? <p id={hintId} className="mt-1 px-1 text-xs text-error">{error}</p>
-        : hint ? <p id={hintId} className="mt-1 px-1 text-xs text-fg4">{hint}</p> : null}
+        : hint ? <p id={hintId} className="mt-1 px-1 text-xs text-on-surface-variant">{hint}</p> : null}
     </div>
   );
 }

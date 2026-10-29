@@ -30,10 +30,10 @@ export function PlanProgressBadge({ progress, className = '' }: {
         {/* Неразобранное сверкой держит процент на 99 % — без этой оговорки цифра выглядит
             необъяснимо застрявшей. Само число проблем рисует свой бейдж, здесь только причина. */}
         {progress.needsAttention > 0 && progress.ready >= progress.planned && (
-          <span className="text-fg4">не разобрано: {progress.needsAttention}</span>
+          <span className="text-on-surface-variant">не разобрано: {progress.needsAttention}</span>
         )}
         {progress.setsWithoutPlan > 0 && (
-          <span className="text-fg4">
+          <span className="text-on-surface-variant">
             без плана: {ruCount(progress.setsWithoutPlan, 'комплект', 'комплекта', 'комплектов')}
           </span>
         )}

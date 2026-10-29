@@ -48,9 +48,9 @@ export function DefaultWorkspaceSection() {
   return (
     <div className="mt-8 pt-6 border-t border-outline-variant">
       <h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface mb-1">
-        <Icon icon={GridView} size={18} className="text-fg3" /> Рабочее пространство
+        <Icon icon={GridView} size={18} className="text-on-surface-variant" /> Рабочее пространство
       </h2>
-      <p className="text-xs text-fg4 mb-4">
+      <p className="text-xs text-on-surface-variant mb-4">
         С какого пространства начинать работу. Свои пространства заводятся в переключателе в шапке.
       </p>
       <div className="max-w-md" data-testid="default-workspace">

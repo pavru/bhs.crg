@@ -138,7 +138,70 @@ export function migrateText(text, { file = '', rules = compile() } = {}) {
     replaced.push({ line, from: token, to: hit.to, pair: hit.pair, comment: stripped[index] !== text[index] });
     return variable ? hit.to : `${lead}${hit.to}${tail}`;
   });
-  return { text: out, replaced, untouched };
+  const onContainer = containerText(out);
+  return { text: onContainer.text, replaced: [...replaced, ...onContainer.replaced], untouched };
+}
+
+/** Роли с контейнером: текст на `bg-X-container` — парной ролью `on-X-container` ([UI-62]). */
+const CONTAINER_ROLES = ['error', 'success', 'warning', 'primary', 'secondary', 'tertiary'];
+const LIST_TOKEN = /(?<=^|\s)([\w:[\]&=>*-]*:)?(bg|text)-([a-z]+(?:-container)?)((?:\/[\w.]+)?!?)(?=\s|$)/g;
+
+/**
+ * Текст на контейнере состояния в ОДНОМ списке классов (`bg-warning-container text-warning`) →
+ * `text-on-warning-container`: цвет самой роли — для текста на поверхности, на своём контейнере у него
+ * парная роль. Список — строка в кавычках; у шаблона `…${…}…` смотрятся только постоянные части, иначе
+ * условный контейнер (`${on ? 'bg-warning-container' : ''}`) перекрасил бы текст и там, где его нет.
+ * Вариант обязан совпасть: `hover:bg-warning-container text-warning` — контейнер только под наведением.
+ * Разнесённое по элементам (плашка снаружи, текст внутри) команда не видит — это правится руками.
+ */
+function containerText(text) {
+  const replaced = [];
+  const parts = [];
+  let last = 0;
+  const lineAt = i => text.slice(0, i).split('\n').length;
+  for (const span of stringSpans(text)) {
+    const tokens = span.flatMap(([from, to]) => [...text.slice(from, to).matchAll(LIST_TOKEN)].map(m => ({ m, at: from + m.index })));
+    const containers = new Set(tokens.filter(({ m }) => m[2] === 'bg' && m[3].endsWith('-container'))
+      .map(({ m }) => `${m[1] ?? ''}|${m[3].slice(0, -'-container'.length)}`));
+    for (const { m, at } of tokens) {
+      if (m[2] !== 'text' || !CONTAINER_ROLES.includes(m[3]) || !containers.has(`${m[1] ?? ''}|${m[3]}`)) continue;
+      const cls = `${m[1] ?? ''}text-on-${m[3]}-container${m[4]}`;
+      parts.push(text.slice(last, at), cls);
+      last = at + m[0].length;
+      replaced.push({ line: lineAt(at), from: m[0], to: cls, pair: `text-${m[3]} на bg-${m[3]}-container → text-on-${m[3]}-container`, comment: false });
+    }
+  }
+  parts.push(text.slice(last));
+  return { text: parts.join(''), replaced };
+}
+
+/**
+ * Строки кода (не комментарии) — каждая как список отрезков [начало, конец) без кавычек; у шаблона
+ * отрезки — его постоянные части, между `${…}`. Однострочные `'…'`, многострочные `"…"` (JSX) и `` `…` ``.
+ */
+function stringSpans(text) {
+  const spans = [];
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '/' && text[i + 1] === '/') { const end = text.indexOf('\n', i); i = end < 0 ? text.length : end; continue; }
+    if (c === '/' && text[i + 1] === '*') { const end = text.indexOf('*/', i + 2); i = end < 0 ? text.length : end + 1; continue; }
+    if (c !== '"' && c !== "'" && c !== '`') continue;
+    const span = [];
+    let from = i + 1;
+    for (i++; i < text.length && text[i] !== c; i++) {
+      if (text[i] === '\\') { i++; continue; }
+      if (c === "'" && text[i] === '\n') break;
+      if (c === '`' && text[i] === '$' && text[i + 1] === '{') {
+        span.push([from, i]);
+        let depth = 0;
+        for (i += 2; i < text.length && (text[i] !== '}' || depth > 0); i++) depth += text[i] === '{' ? 1 : text[i] === '}' ? -1 : 0;
+        from = i + 1;
+      }
+    }
+    span.push([from, i]);
+    spans.push(span);
+  }
+  return spans;
 }
 
 const SOURCE = /\.(?:[cm]?[tj]sx?|css)$/;

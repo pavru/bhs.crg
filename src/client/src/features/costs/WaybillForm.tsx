@@ -34,7 +34,7 @@ import { TextField } from '@/shared/ui/TextField';
 import { DateField } from '@/shared/ui/DateField';
 
 const cell = 'w-full rounded border border-outline-variant bg-surface px-1.5 py-1 text-xs text-on-surface outline-none '
-  + 'focus:border-primary placeholder:text-fg4 disabled:bg-surface-container disabled:text-fg3';
+  + 'focus:border-primary placeholder:text-on-surface-variant disabled:bg-surface-container disabled:text-on-surface-variant';
 
 /**
  * Форма расходной накладной (задача D1 этапа 2, issue #1083; ТЗ COST-5, COST-17).
@@ -263,7 +263,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
             {posted ? 'Проведена' : 'Черновик'}
           </span>
           <div className="flex-1" />
-          {!mayEdit && <span className="text-xs text-fg3">Только чтение: права вводить накладные нет</span>}
+          {!mayEdit && <span className="text-xs text-on-surface-variant">Только чтение: права вводить накладные нет</span>}
           {canEdit && !posted && (
             <>
               <Button size="sm" variant="outlined" icon={<Icon icon={Save} size={18} />} disabled={!dirty || busy}
@@ -293,7 +293,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
         </div>
         {gone && (
           <div role="alert" data-testid="waybill-gone-open" className="flex items-start gap-2 rounded-lg border
-            border-error/30 bg-error-container px-3 py-2 text-xs text-error">
+            border-error/30 bg-error-container px-3 py-2 text-xs text-on-error-container">
             <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <p className="flex-1">
               Этой накладной больше нет — её удалили, пока она была открыта у вас. Набранное осталось на
@@ -304,7 +304,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
         )}
         {outdated && !gone && (
           <div role="alert" className="flex items-start gap-2 rounded-lg border border-error/30
-            bg-error-container px-3 py-2 text-xs text-error">
+            bg-error-container px-3 py-2 text-xs text-on-error-container">
             <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <span className="flex-1">
               Накладную тем временем изменили. Ваши правки на экране целы, но сохранить их поверх нельзя —
@@ -324,18 +324,18 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
         {/* На телефоне полоса исправления уходит в прокрутку (кадр A4): в закреплённой шапке она заняла бы полэкрана. */}
         {wide && correctionBar()}
         {moved && (
-          <p className="text-xs text-fg3" data-testid="waybill-moved">
+          <p className="text-xs text-on-surface-variant" data-testid="waybill-moved">
             Введена после закрытия периода: учтена {formatDate(moved)}, а не датой отпуска.
           </p>
         )}
         {undated && (
-          <p className="text-xs text-fg3" data-testid="waybill-undated">
+          <p className="text-xs text-on-surface-variant" data-testid="waybill-undated">
             Учётная дата не записана — накладная восстановлена из прежней резервной копии. Период для неё
             считается по дате отпуска.
           </p>
         )}
         {posted && canEdit && !closed && (
-          <p className="text-xs text-fg4">
+          <p className="text-xs text-on-surface-variant">
             Проведённую накладную не правят: её строки уже в перечне материалов, отпущенных на стройку.
             Чтобы исправить — верните в черновик. Позицию номенклатуры можно выбрать и так.
           </p>
@@ -378,7 +378,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
         <section className="space-y-2">
           <div className="flex items-center gap-3">
             <h3 className="text-sm font-medium text-on-surface-variant">Строки накладной</h3>
-            <span className="text-xs text-fg4">Денег здесь нет: сколько материал стоил, знает счёт.</span>
+            <span className="text-xs text-on-surface-variant">Денег здесь нет: сколько материал стоил, знает счёт.</span>
           </div>
 
           <EditGrid label="Строки накладной" numbered rows={draft.lines} rowKey={line => line.key}

@@ -41,7 +41,7 @@ export function WorkspaceSwitcher() {
       <span className="min-w-0">
         <span className="block truncate text-on-surface">{w.name}</span>
         {composition(w) && (
-          <span className="block text-xs text-fg3" data-testid="workspace-composition">{composition(w)}</span>
+          <span className="block text-xs text-on-surface-variant" data-testid="workspace-composition">{composition(w)}</span>
         )}
       </span>
     </DropdownMenu.Item>
@@ -53,24 +53,24 @@ export function WorkspaceSwitcher() {
         <DropdownMenu.Trigger asChild>
           <button type="button" data-testid="workspace-switcher" aria-label={`Рабочее пространство: ${ws.current.name}`}
             className="flex items-center gap-1.5 min-w-0 max-w-60 h-9 max-md:h-11 pl-3 pr-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-            <Icon icon={GridView} size={18} className="shrink-0 text-fg3" />
+            <Icon icon={GridView} size={18} className="shrink-0 text-on-surface-variant" />
             <Tooltip content={composition(ws.current) ?? ws.current.name}>
               <span className="min-w-0 truncate text-sm font-medium text-on-surface">{ws.current.name}</span>
             </Tooltip>
-            <Icon icon={KeyboardArrowDown} size={18} className="shrink-0 text-fg3" />
+            <Icon icon={KeyboardArrowDown} size={18} className="shrink-0 text-on-surface-variant" />
           </button>
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content align="start" sideOffset={4}
             className="z-50 min-w-64 max-w-96 max-h-[70vh] overflow-auto rounded-md border border-outline-variant bg-surface py-1"
             style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
-            <DropdownMenu.Label className="px-3 pt-1 pb-0.5 text-caption font-semibold uppercase tracking-widest text-fg4">
+            <DropdownMenu.Label className="px-3 pt-1 pb-0.5 text-caption font-semibold uppercase tracking-widest text-on-surface-variant">
               Системные
             </DropdownMenu.Label>
             {system.map(item)}
             {own.length > 0 && <>
               <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
-              <DropdownMenu.Label className="px-3 pt-1 pb-0.5 text-caption font-semibold uppercase tracking-widest text-fg4">
+              <DropdownMenu.Label className="px-3 pt-1 pb-0.5 text-caption font-semibold uppercase tracking-widest text-on-surface-variant">
                 Мои
               </DropdownMenu.Label>
               {own.map(item)}
@@ -78,7 +78,7 @@ export function WorkspaceSwitcher() {
             <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
             {/* Создание — отсюда, последним пунктом (AUTH-16.5): нужда осознаётся при переключении. */}
             <DropdownMenu.Item className={itemCls} onSelect={() => setSetupOpen(true)}>
-              <Icon icon={Settings} size={18} className="mt-0.5 shrink-0 text-fg3" />
+              <Icon icon={Settings} size={18} className="mt-0.5 shrink-0 text-on-surface-variant" />
               <span className="text-on-surface">Настроить пространства…</span>
             </DropdownMenu.Item>
           </DropdownMenu.Content>

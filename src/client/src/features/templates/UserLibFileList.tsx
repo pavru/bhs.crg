@@ -55,27 +55,27 @@ export function UserLibFileList({
         <NavSection label="Файлы библиотеки" />
         <Tooltip content="Создать файл" name>
           <button type="button" onClick={() => onCreate()}
-            className="h-6 w-6 inline-flex items-center justify-center rounded text-fg3 hover:text-on-surface hover:bg-surface-container transition-colors">
+            className="h-6 w-6 inline-flex items-center justify-center rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
             <Icon icon={Add} size={18} />
           </button>
         </Tooltip>
       </div>
 
       {files.length === 0 ? (
-        <p className="px-3 py-2 text-xs text-fg4">
+        <p className="px-3 py-2 text-xs text-on-surface-variant">
           Пока всё в одном файле. Создайте файл, чтобы вынести часть функций.
         </p>
       ) : rows.map(row => row.kind === 'folder' ? (
         /* «+» на папке — то же правило, что у заголовка секции, уровнем ниже: «создать в этом
            контейнере». Кебаб был бы хуже — единственный пункт под безликим глифом и лишний клик.
            Это ускоритель, а не единственный путь: создание через шапку секции остаётся. */
-        <div key={`d:${row.path}`} className="group/dir flex items-center gap-1.5 py-1 pr-2 text-xs text-fg4"
+        <div key={`d:${row.path}`} className="group/dir flex items-center gap-1.5 py-1 pr-2 text-xs text-on-surface-variant"
           style={{ paddingLeft: `${0.75 + row.depth}rem` }}>
           <Icon icon={Folder} size={18} className="shrink-0" />
           <span className="truncate flex-1">{row.label}</span>
           <Tooltip content={`Создать файл в «${row.path}»`} name>
             <button type="button" onClick={() => onCreate(row.path)}
-              className="h-5 w-5 shrink-0 inline-flex items-center justify-center rounded text-fg4
+              className="h-5 w-5 shrink-0 inline-flex items-center justify-center rounded text-on-surface-variant
                          hover:text-on-surface hover:bg-surface-container opacity-0 group-hover/dir:opacity-100
                          focus-visible:opacity-100 transition-colors">
               <Icon icon={Add} size={18} />
@@ -111,7 +111,7 @@ function FileRow({ label, depth, icon, active, dirty, errors, warnings, title, o
         <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
           className="flex-1 min-w-0 flex items-center gap-1.5 py-1.5 text-left text-sm"
           style={{ paddingLeft: `${0.75 + depth}rem` }}>
-          <span className={`shrink-0 ${active ? 'text-primary' : 'text-fg3'}`}>{icon}</span>
+          <span className={`shrink-0 ${active ? 'text-primary' : 'text-on-surface-variant'}`}>{icon}</span>
           <span className={`truncate ${active ? 'text-on-surface font-medium' : 'text-on-surface-variant'}`}>{label}</span>
           {/* Ошибка может прилететь из файла, который сейчас закрыт — бейдж на его строке
               единственное место, где её видно. */}
@@ -121,7 +121,7 @@ function FileRow({ label, depth, icon, active, dirty, errors, warnings, title, o
           {errors === 0 && warnings > 0 && (
             <Tooltip content={`Замечаний: ${warnings}`}><span className="shrink-0 text-warning"><Icon icon={Warning} size={18} /></span></Tooltip>
           )}
-          {dirty && <Tooltip content="Не сохранено"><span className="shrink-0 h-1.5 w-1.5 rounded-full bg-fg3" /></Tooltip>}
+          {dirty && <Tooltip content="Не сохранено"><span className="shrink-0 h-1.5 w-1.5 rounded-full bg-on-surface-variant" /></Tooltip>}
         </button>
       </Tooltip>
       {actions && <span className="shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100">{actions}</span>}

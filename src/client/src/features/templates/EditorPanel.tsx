@@ -70,11 +70,11 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
       </ToolbarButton>
       {open && (
         <div className="absolute top-full left-0 mt-1 z-50 bg-surface border border-outline-variant rounded-lg shadow-lg w-80 max-h-80 overflow-y-auto">
-          <div className="px-3 py-2 border-b border-surface-container text-xs font-semibold text-fg3 uppercase tracking-wide sticky top-0 bg-surface">
+          <div className="px-3 py-2 border-b border-surface-container text-xs font-semibold text-on-surface-variant uppercase tracking-wide sticky top-0 bg-surface">
             Реквизиты · {docType.name}
           </div>
           {fields.length === 0 ? (
-            <p className="px-3 py-4 text-xs text-fg4 text-center">Нет реквизитов</p>
+            <p className="px-3 py-4 text-xs text-on-surface-variant text-center">Нет реквизитов</p>
           ) : (
             <div className="py-1">
               {fields.map(f => (
@@ -84,8 +84,8 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
                   <code className="text-xs font-mono text-brand-hover bg-primary-container group-hover:bg-primary-container px-1.5 py-0.5 rounded shrink-0 max-w-[160px] truncate">
                     {f.path}
                   </code>
-                  <span className="text-xs text-fg3 truncate flex-1">{f.title}</span>
-                  <span className="text-xs text-stroke-strong shrink-0 pr-2">{f.type}</span>
+                  <span className="text-xs text-on-surface-variant truncate flex-1">{f.title}</span>
+                  <span className="text-xs text-on-surface-variant shrink-0 pr-2">{f.type}</span>
                 </button>
               ))}
             </div>
@@ -312,7 +312,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
             href="https://typst.app/docs"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-2 py-1 text-xs text-fg3 hover:text-primary hover:bg-surface-container rounded transition-colors"
+            className="px-2 py-1 text-xs text-on-surface-variant hover:text-primary hover:bg-surface-container rounded transition-colors"
           >
             Typst docs ↗
           </a>
@@ -322,7 +322,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
           <Tooltip content={
             dirty ? 'Есть несохранённые правки' : 'Сохранено'
           }>
-            <span className="text-xs text-fg4 flex items-center gap-1">
+            <span className="text-xs text-on-surface-variant flex items-center gap-1">
               v{template.version}
               {dirty
                 ? <span className="w-1.5 h-1.5 rounded-full bg-warning" aria-label="есть правки" />
@@ -333,7 +333,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
             <span className="text-xs text-success flex items-center gap-1"><Icon icon={CheckCircle} size={18} /> активный</span>
           ) : (
             <Tooltip content="Не активная версия — правится только форком в новую">
-              <span className="text-xs text-fg4 flex items-center gap-1">
+              <span className="text-xs text-on-surface-variant flex items-center gap-1">
                 <Icon icon={HistoryIcon} size={18} /> историческая
               </span>
             </Tooltip>
@@ -344,7 +344,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
             </span>
           ) : (
             <button onClick={handleSetDefault} disabled={defaultMutation.isPending}
-              className="flex items-center gap-1 px-2 py-1 text-xs border border-warning-border text-warning hover:bg-warning-container rounded disabled:opacity-50 transition-colors">
+              className="flex items-center gap-1 px-2 py-1 text-xs border border-outline-variant text-warning hover:bg-warning-container rounded disabled:opacity-50 transition-colors">
               <Icon icon={Star} size={18} /> Сделать по умолчанию
             </button>
           )}
@@ -383,7 +383,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
                   <Icon icon={CallSplit} size={18} className="text-primary shrink-0 mt-0.5" />
                   <span>
                     <span className="block text-sm text-on-surface">Сохранить как новую версию…</span>
-                    <span className="block text-xs text-fg4">Создаст v{template.version + 1}, сохранит историю текущей</span>
+                    <span className="block text-xs text-on-surface-variant">Создаст v{template.version + 1}, сохранит историю текущей</span>
                   </span>
                 </button>
               </div>

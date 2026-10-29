@@ -47,7 +47,7 @@ export function DocumentTemplateParams({ setId, instance, template, participatin
         )}
       </div>
       {declared.length === 0 ? (
-        <p className="text-caption text-fg4">У этого шаблона нет объявленных параметров.</p>
+        <p className="text-caption text-on-surface-variant">У этого шаблона нет объявленных параметров.</p>
       ) : (
         <div className="rounded-md border border-outline-variant p-2.5 space-y-1.5">
           {declared.map(p => {
@@ -60,12 +60,12 @@ export function DocumentTemplateParams({ setId, instance, template, participatin
                   onChange={v => commit({ ...overrides, [p.name]: v })} />
                 {overridden ? (
                   <Tooltip content="Сбросить к значению по умолчанию">
-                    <button onClick={() => { const n = { ...overrides }; delete n[p.name]; commit(n); }} className="text-caption text-fg4 hover:text-primary shrink-0">
+                    <button onClick={() => { const n = { ...overrides }; delete n[p.name]; commit(n); }} className="text-caption text-on-surface-variant hover:text-primary shrink-0">
                       сброс
                     </button>
                   </Tooltip>
                 ) : (
-                  <Tooltip content="Используется значение по умолчанию шаблона"><span className="text-caption text-fg4 shrink-0">по умолч.</span></Tooltip>
+                  <Tooltip content="Используется значение по умолчанию шаблона"><span className="text-caption text-on-surface-variant shrink-0">по умолч.</span></Tooltip>
                 )}
               </div>
             );

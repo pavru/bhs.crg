@@ -194,7 +194,7 @@ function ArrayTableModalBody({
     },
     {
       key: '@index', label: '#', size: 44, rowHeader: true,
-      header: <span className="flex justify-center font-normal text-fg4">#</span>,
+      header: <span className="flex justify-center font-normal text-on-surface-variant">#</span>,
       cell: (_, i) => (
         <div className="flex items-center justify-center gap-0.5">
           <Tooltip content="Перетащить для изменения порядка (или стрелки ↑↓)">
@@ -211,11 +211,11 @@ function ArrayTableModalBody({
                 else if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); moveRow(i, i + 1); }
               }}
               aria-label={`Переместить строку ${i + 1}: стрелки вверх/вниз`}
-              className="cursor-grab active:cursor-grabbing text-fg4 hover:text-on-surface-variant focus-visible:outline-none focus-visible:text-primary">
+              className="cursor-grab active:cursor-grabbing text-on-surface-variant hover:text-on-surface-variant focus-visible:outline-none focus-visible:text-primary">
               <Icon icon={DragIndicator} size={18} />
             </button>
           </Tooltip>
-          <span className="text-xs text-fg4 font-mono">{i + 1}</span>
+          <span className="text-xs text-on-surface-variant font-mono">{i + 1}</span>
         </div>
       ),
     },
@@ -283,7 +283,7 @@ function ArrayTableModalBody({
           add={{ label: 'Добавить строку', onAdd: addRow }} onRemove={(_, i) => removeRow(i)} />
       </SuggestOwner>
       {hiddenFields.length > 0 && (
-        <p className="text-xs text-fg4 mt-3">
+        <p className="text-xs text-on-surface-variant mt-3">
           {hiddenFields.length === 1
             ? `Поле «${hiddenFields[0].title}» скрыто`
             : `${hiddenFields.length} полей скрыто`} — редактируйте в режиме аккордеона

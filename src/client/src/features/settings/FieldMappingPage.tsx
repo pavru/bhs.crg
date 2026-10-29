@@ -52,12 +52,12 @@ export function FieldMappingPage() {
           <Button variant="outlined" size="sm" onClick={() => void refetch()}>Повторить</Button>
         </div>
       </Frame>
-    ) : <div className="px-6 py-10 text-center text-fg4 text-sm">Загрузка...</div>;
+    ) : <div className="px-6 py-10 text-center text-on-surface-variant text-sm">Загрузка...</div>;
 
   if (data.length === 0)
     return (
       <Frame title="Сопоставление полей">
-        <p className="text-sm text-fg3">Включённые модули из справочников ничего не читают — назначать нечего.</p>
+        <p className="text-sm text-on-surface-variant">Включённые модули из справочников ничего не читают — назначать нечего.</p>
       </Frame>
     );
 
@@ -182,7 +182,7 @@ function Mapping({ data, reread: failed }: { data: ModuleCoverage[]; reread: Fai
         <RereadFailedNotice what="Сопоставление полей не перечиталось"
           error={failed.error} retrying={failed.retrying} onRetry={failed.retry} />
       )}
-      <p className="text-xs text-fg3 max-w-2xl">
+      <p className="text-xs text-on-surface-variant max-w-2xl">
         Модуль берёт эти сведения из справочников. Здесь назначается, какой тип служит справочником и какое
         его поле за что отвечает. То же самое видно в редакторе типа — тэгом типа и тэгом поля.
       </p>
@@ -258,7 +258,7 @@ function GroupSection({ group, edit, saving, onEdit, onSave, onAssigned }: {
         )}
         {dirty && <span className="text-xs text-warning">не сохранено</span>}
       </div>
-      <p className="text-xs text-fg3">{group.purpose}.</p>
+      <p className="text-xs text-on-surface-variant">{group.purpose}.</p>
 
       {group.state === 'absent' && <AssignRole group={group} onDone={onAssigned} />}
 
@@ -274,7 +274,7 @@ function GroupSection({ group, edit, saving, onEdit, onSave, onAssigned }: {
 
       {group.state === 'mapped' && group.rows.length > 0 && (
         <div className="border-t border-outline-variant">
-          <div className="grid grid-cols-[minmax(0,35fr)_minmax(0,30fr)_minmax(0,35fr)] gap-x-4 py-1.5 text-xs text-fg3">
+          <div className="grid grid-cols-[minmax(0,35fr)_minmax(0,30fr)_minmax(0,35fr)] gap-x-4 py-1.5 text-xs text-on-surface-variant">
             <span>Что нужно модулю</span><span>Поле</span><span>Состояние</span>
           </div>
           {group.rows.map(row => (
@@ -320,10 +320,10 @@ function Row({ row, typeName, draft, changed, disabled, onPick }: {
         {/* Код тэга — подсказкой: он нужен разработчику, а не администратору. */}
         <Tooltip content={row.tag}>
           <p className="text-sm text-on-surface">
-            {row.label}{!row.required && <span className="text-fg3"> · необязательно</span>}
+            {row.label}{!row.required && <span className="text-on-surface-variant"> · необязательно</span>}
           </p>
         </Tooltip>
-        <p className="text-xs text-fg3 mt-0.5">{row.description}</p>
+        <p className="text-xs text-on-surface-variant mt-0.5">{row.description}</p>
       </div>
 
       <div>
@@ -368,7 +368,7 @@ function RowState({ row, selectable }: { row: CoverageRow; selectable: boolean }
 
   if (row.state === 'absent')
     return (
-      <p className={`text-sm ${row.required ? 'text-warning' : 'text-fg3'}`}>
+      <p className={`text-sm ${row.required ? 'text-warning' : 'text-on-surface-variant'}`}>
         {row.required ? <b>Не назначено.</b> : 'Не назначено.'} {row.withoutIt}
         {!selectable && ' Добавьте в тип поле подходящего вида — оно появится в этом списке.'}
       </p>
@@ -445,7 +445,7 @@ function AssignRole({ group, onDone }: { group: CoverageGroup; onDone: () => Pro
               </Button>
             )}
           </div>
-          <p className="text-xs text-fg3 max-w-2xl">
+          <p className="text-xs text-on-surface-variant max-w-2xl">
             Подтипы выбранного типа войдут в справочник. Перенести справочник на другой тип потом нельзя,
             пока на его записи ссылаются документы модуля. Типы модуля, которые ждали этот справочник,
             появятся после перезапуска приложения.

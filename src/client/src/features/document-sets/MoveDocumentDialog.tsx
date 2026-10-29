@@ -78,7 +78,7 @@ function MoveDocumentDialogBody({ onClose, setId, currentSetName, instance, cons
         blocked={isBlocked ? <BlockedByRefs names={blockedBy} /> : undefined}
         description={
           isFetching
-            ? <p className="text-fg4">Проверка ссылок…</p>
+            ? <p className="text-on-surface-variant">Проверка ссылок…</p>
             : <MoveInfo currentSetName={currentSetName} warnings={warnings} />
         }
         requireCheckbox={!isBlocked && warnings.length > 0

@@ -64,7 +64,7 @@ function SourceNameDialog({ title, hint, defaultName, takenNames, isPending, err
           </Button>
         </div>
       }>
-      {hint && <p className="text-xs mb-3 text-fg3">{hint}</p>}
+      {hint && <p className="text-xs mb-3 text-on-surface-variant">{hint}</p>}
       <TextField label="Название" value={name} onChange={e => setName(e.target.value)} autoFocus
         onKeyDown={e => { if (e.key === 'Enter' && canSave) onSubmit(trimmed); }} />
       {isTaken && <p className="mt-1 text-xs text-error">Источник с таким названием в наборе уже есть.</p>}
@@ -80,7 +80,7 @@ function SourceNameDialog({ title, hint, defaultName, takenNames, isPending, err
  */
 function SourceRowCountBadge({ sourceId }: { sourceId: string }) {
   const { data, isFetching, error } = usePreviewDataSetSource(sourceId, 1);
-  if (isFetching && data === undefined) return <CircularProgress size={18} className="inline-block ml-2 text-fg4" />;
+  if (isFetching && data === undefined) return <CircularProgress size={18} className="inline-block ml-2 text-on-surface-variant" />;
 
   // Отказ НЕ превращаем в «0 строк» (issue #966): ноль читается как «источник пуст», то есть отказ
   // приходит сюда переодетым в результат — и переодетым в самом неудачном месте, потому что именно
@@ -94,7 +94,7 @@ function SourceRowCountBadge({ sourceId }: { sourceId: string }) {
     </Tooltip>
   );
 
-  return <span className="ml-2 font-normal text-fg4">{data?.totalRows ?? 0} строк</span>;
+  return <span className="ml-2 font-normal text-on-surface-variant">{data?.totalRows ?? 0} строк</span>;
 }
 
 /**
@@ -188,7 +188,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
               // замену файла, хотя сменить могли и профиль распознавания, и границы документа.
               <Tooltip content={`${staleReasonText(src.staleReason)}. Распознайте заново.`}>
                 <span
-                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-container text-warning align-middle">
+                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-container text-on-warning-container align-middle">
                   <Icon icon={Warning} size={18} /> устарело
                 </span>
               </Tooltip>
@@ -210,7 +210,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
             {!!src.bindingCount && (
               <Tooltip content={`На источник ссылаются привязки документов (${src.bindingCount}). При удалении они перестанут работать.`}>
                 <span
-                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-surface-container text-fg3 align-middle">
+                  className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-surface-container text-on-surface-variant align-middle">
                   <Icon icon={LinkIcon} size={18} /> {ruCount(src.bindingCount, 'привязка', 'привязки', 'привязок')}
                 </span>
               </Tooltip>
@@ -228,17 +228,17 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
           )}
           {/* В одну строку: маркер источника из таблицы несёт список колонок и вылез бы за карточку.
               Колонки и так названы строкой ниже; маркер целиком — в подсказке. */}
-          <div className="font-mono text-fg4 mt-0.5 truncate" title={src.sheetOrPath}>{src.sheetOrPath}</div>
+          <div className="font-mono text-on-surface-variant mt-0.5 truncate" title={src.sheetOrPath}>{src.sheetOrPath}</div>
           {cols.length > 0 && (
-            <div className="text-fg3 mt-0.5">
+            <div className="text-on-surface-variant mt-0.5">
               {cols.slice(0, maxColumns).join(', ')}{cols.length > maxColumns ? ` +${cols.length - maxColumns}` : ''}
             </div>
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-          {passiveLabel && <Tooltip content="Заполняется вместе с главным источником той же тройки/пары"><span className="text-fg4 italic">{passiveLabel}</span></Tooltip>}
+          {passiveLabel && <Tooltip content="Заполняется вместе с главным источником той же тройки/пары"><span className="text-on-surface-variant italic">{passiveLabel}</span></Tooltip>}
           <Tooltip content="Просмотреть результат обработки" name>
-            <button onClick={() => setPreviewing(true)} className="p-1 text-fg4 hover:text-primary">
+            <button onClick={() => setPreviewing(true)} className="p-1 text-on-surface-variant hover:text-primary">
               <Icon icon={Visibility} size={18} />
             </button>
           </Tooltip>
@@ -405,7 +405,7 @@ export function SourcesPanel({
   return (
     <div>
       <div className="flex items-center justify-between gap-2 mb-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-fg4">
+        <span className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
           Источники{sources.length > 0 ? ` · ${sources.length}` : ''}
         </span>
         {canManageExtraction && !systemDeadEnd && (
@@ -416,7 +416,7 @@ export function SourcesPanel({
       </div>
       <div className="space-y-2">
         {sources.length === 0 && (
-          <p className="text-xs text-fg4 py-1">
+          <p className="text-xs text-on-surface-variant py-1">
             {systemDeadEnd
               ? 'Консолидаций из данных системы на этом уровне нет — набор можно удалить.'
               : isSystem
@@ -433,7 +433,7 @@ export function SourcesPanel({
         ))}
         {availableCandidates.length > 0 && (
           <div className="rounded-md border border-dashed border-outline bg-surface-container-low px-3 py-2 space-y-1 mt-1">
-            <p className="text-caption text-fg4">
+            <p className="text-caption text-on-surface-variant">
               {isSystem ? 'Доступно из данных системы:' : isPdf ? 'Доступно из распознанного набора:' : 'Доступно из набора:'}
             </p>
             {availableCandidates.map(c => {
@@ -444,10 +444,10 @@ export function SourcesPanel({
               return (
                 <div key={c.sheetOrPath} className="flex items-center gap-2 text-xs">
                   <span className="text-on-surface-variant">
-                    {c.name} <span className="text-fg4">· {pending ? 'таблица не распознана' : `${c.rowCount} строк`}</span>
+                    {c.name} <span className="text-on-surface-variant">· {pending ? 'таблица не распознана' : `${c.rowCount} строк`}</span>
                     {existing > 0 && (
                       <Tooltip content="Источники на эту консолидацию уже созданы — можно добавить ещё один, с другим фильтром">
-                        <span className="text-fg4">
+                        <span className="text-on-surface-variant">
                           {' '}· уже добавлен{existing > 1 ? ` (${existing})` : ''}
                         </span>
                       </Tooltip>

@@ -205,7 +205,7 @@ export function QualityDocsPage() {
             номер ВСЕМ незачем: тогда он примелькается и перестанет читаться там, где нужен. */}
         {visibleDocs.map(docRow)}
         {visibleDocs.length === 0 && (
-          <p className="text-xs text-fg4 px-3 py-4 text-center">
+          <p className="text-xs text-on-surface-variant px-3 py-4 text-center">
             {outsideList ? 'Больше ничего не найдено.' : 'Ничего не найдено.'}
           </p>
         )}
@@ -246,7 +246,7 @@ export function QualityDocsPage() {
         <div className="min-w-0">
           {/* Имени мало: в библиотеке два документа с одинаковым названием и разным содержимым. */}
           <h2 className="text-lg font-semibold text-on-surface break-words">{current.displayName}</h2>
-          <p className="text-xs text-fg3 mt-0.5">
+          <p className="text-xs text-on-surface-variant mt-0.5">
             {[typeNameOf(current, docTypes),
               byTag(current, docTypes, FUNCTIONAL_TAG.docNumber) && `№ ${byTag(current, docTypes, FUNCTIONAL_TAG.docNumber)}`,
               byTag(current, docTypes, FUNCTIONAL_TAG.qualityValidUntil) && `до ${formatDate(byTag(current, docTypes, FUNCTIONAL_TAG.qualityValidUntil))}`,
@@ -262,7 +262,7 @@ export function QualityDocsPage() {
 
       <div>
         <h3 className="text-sm font-medium text-on-surface-variant mb-2 flex items-center gap-2">
-          <Icon icon={LinkIcon} size={18} className="text-fg4" />
+          <Icon icon={LinkIcon} size={18} className="text-on-surface-variant" />
           Связки материалов · {linksByDoc.get(current.id)?.length ?? 0}
         </h3>
         {/* Фильтруем строки ТОЛЬКО если запрос попал в связки. Иначе человек, нашедший документ по
@@ -291,7 +291,7 @@ export function QualityDocsPage() {
           </Button>
         </>
       }
-      nav={isLoading ? <p className="text-sm text-fg4 p-4">Загрузка…</p> : nav}
+      nav={isLoading ? <p className="text-sm text-on-surface-variant p-4">Загрузка…</p> : nav}
       detail={detail}
     />
     {/* Модалки — СНАРУЖИ shell: его проп overlay заменяет собой весь сплит, а не накладывается. */}
@@ -375,7 +375,7 @@ function DocRequisites({ doc, docTypes }: { doc: QualityDocument; docTypes: Docu
     <dl className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-xs space-y-1">
       {rows.map(r => (
         <div key={r.key} className="flex gap-2">
-          <dt className="text-fg4 shrink-0 w-40">{r.title}</dt>
+          <dt className="text-on-surface-variant shrink-0 w-40">{r.title}</dt>
           <dd className="text-on-surface-variant min-w-0 break-words">{r.value}</dd>
         </div>
       ))}
@@ -455,17 +455,17 @@ function WebSearchModal({ open, onClose, docTypes }: {
       {error && <p className="text-sm text-error mt-2">{error}</p>}
       {candidates && (
         candidates.length === 0
-          ? <p className="text-sm text-fg4 mt-3">Ничего не найдено.</p>
+          ? <p className="text-sm text-on-surface-variant mt-3">Ничего не найдено.</p>
           : (
             <div className="mt-3 divide-y divide-surface-container border border-outline-variant rounded-md max-h-96 overflow-y-auto">
               {candidates.map(c => (
                 <div key={c.url} className="flex items-start gap-3 px-3 py-2">
-                  <span className="text-caption px-1.5 py-0.5 rounded bg-primary-container text-primary shrink-0 mt-0.5">
+                  <span className="text-caption px-1.5 py-0.5 rounded bg-primary-container text-on-primary-container shrink-0 mt-0.5">
                     {SOURCE_LABEL[c.source] ?? c.source}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-on-surface truncate">{c.title || c.url}</p>
-                    {c.snippet && <p className="text-xs text-fg4 line-clamp-2">{c.snippet}</p>}
+                    {c.snippet && <p className="text-xs text-on-surface-variant line-clamp-2">{c.snippet}</p>}
                     <a href={c.url} target="_blank" rel="noopener noreferrer"
                       className="text-xs text-brand-hover inline-flex items-center gap-1 mt-0.5">
                       <Icon icon={OpenInNew} size={18} /> Открыть

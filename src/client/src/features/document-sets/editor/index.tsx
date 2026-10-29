@@ -58,10 +58,10 @@ function InstanceNameEditor({ instance, setId, docType }: {
 
   return (
     <button type="button" onClick={start} className="flex items-center gap-1.5 group/name text-left min-w-0 max-w-full">
-      <span className={`text-sm font-medium truncate ${instance.name ? 'text-on-surface' : 'text-fg3'}`}>
+      <span className={`text-sm font-medium truncate ${instance.name ? 'text-on-surface' : 'text-on-surface-variant'}`}>
         {instance.name || docType?.name || 'Документ'}
       </span>
-      <Icon icon={Edit} size={18} className="text-fg4 shrink-0 opacity-0 group-hover/name:opacity-100 transition-opacity" />
+      <Icon icon={Edit} size={18} className="text-on-surface-variant shrink-0 opacity-0 group-hover/name:opacity-100 transition-opacity" />
     </button>
   );
 }
@@ -191,13 +191,13 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
         <div className="flex items-center gap-3 h-16 px-3 sm:px-4">
           <Tooltip content="К комплекту">
             <button type="button" onClick={() => guardedLeave(onClose)} aria-label="К комплекту"
-              className="flex items-center justify-center w-11 h-11 shrink-0 rounded-full text-fg3 hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+              className="flex items-center justify-center w-11 h-11 shrink-0 rounded-full text-on-surface-variant hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
               <Icon icon={ArrowBack} size={20} />
             </button>
           </Tooltip>
           <div className="flex-1 min-w-0">
             <InstanceNameEditor instance={instance} setId={setId} docType={docType} />
-            <p className="text-xs text-fg4 mt-0.5 truncate">
+            <p className="text-xs text-on-surface-variant mt-0.5 truncate">
               {docType?.name ? `${docType.name} · Редактирование` : 'Редактирование'}
               {baseState?.selected && baseState.coveredCount > 0 &&
                 ` · ${ruCount(baseState.coveredCount, 'поле', 'поля', 'полей')} из основы`}
@@ -243,7 +243,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
               {/* Счётчик — в доступном имени вкладки, а не только в title: тот виден лишь мышью. */}
               {key === 'sources' && staleSourceCount > 0 && (
                 <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full
-                  bg-warning-container text-warning text-caption font-medium tabular-nums">
+                  bg-warning-container text-on-warning-container text-caption font-medium tabular-nums">
                   <span className="sr-only">устарели: </span>{staleSourceCount}
                 </span>
               )}
@@ -277,7 +277,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           (issue #1384): окно стояло бы над страницей, а его «Из шаблона» и распознавание — над ним. */}
       {tab === 'sources' && (
         <TabPanel id={TABS_ID} value="sources" className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-3">
-          <p className="text-xs text-fg4">
+          <p className="text-xs text-on-surface-variant">
             Точечная привязка полей — по иконке источника у каждого поля в реквизитах.
             Здесь — обзор привязок, проверка данных и применение шаблонов на весь документ.
           </p>
@@ -303,7 +303,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
               </Button>
             </div>
           }>
-          <p className="text-xs text-fg3">
+          <p className="text-xs text-on-surface-variant">
             На текущей вкладке есть несохранённые изменения. Сохранить перед переходом?
             Иначе они будут потеряны.
           </p>

@@ -49,10 +49,10 @@ export function CorrectionPreviewDialog({ preview, pending, error, reason, note,
         </>
       )}>
       <div className="space-y-3 text-sm">
-        {pending && <p className="text-fg3">Считаем, что запишет исправление…</p>}
+        {pending && <p className="text-on-surface-variant">Считаем, что запишет исправление…</p>}
         {!pending && error != null && (
           <div role="alert" className="flex items-start gap-2 rounded-lg border border-error/30 bg-error-container
-            px-3 py-2 text-xs text-error">
+            px-3 py-2 text-xs text-on-error-container">
             <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <span>{apiError(error, 'Исправление не посчитано')}</span>
           </div>
@@ -83,13 +83,13 @@ function Shown({ preview, reason, note, places }: {
       {preview.vatMode && <p className="text-on-surface">{vatShiftText(preview.vatMode)}</p>}
       {rows.length === 0
         ? (
-          <p className="text-fg3">
+          <p className="text-on-surface-variant">
             Деньги не меняются — запишутся только версия{preview.vatMode ? ', причина и режим НДС' : ' и причина'}.
           </p>
         )
         : (
           <>
-            <p className="text-xs text-fg3">Закрытый месяц не изменится: его поправки лягут днём исправления.</p>
+            <p className="text-xs text-on-surface-variant">Закрытый месяц не изменится: его поправки лягут днём исправления.</p>
             <BookLines rows={rows} places={places} />
           </>
         )}

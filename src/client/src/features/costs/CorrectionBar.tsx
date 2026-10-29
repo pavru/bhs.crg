@@ -119,8 +119,8 @@ export function CorrectionBar({ view, draft, edits, onResetHeader }: {
   // Закрытие отменили — исправлять больше нечего: набранное становится обычной правкой.
   if (view.payment.lockedBy === null)
     return (
-      <div role="alert" className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-container
-        px-3 py-2 text-xs text-warning">
+      <div role="alert" className="flex items-start gap-2 rounded-lg border border-outline-variant bg-warning-container
+        px-3 py-2 text-xs text-on-warning-container">
         <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
         <p className="flex-1">
           Исправление больше не нужно — правьте как обычно: счёт больше не заперт. Набранное в шапке и строках
@@ -134,8 +134,8 @@ export function CorrectionBar({ view, draft, edits, onResetHeader }: {
 
   return (
     <div className="space-y-2" data-testid="correction-bar">
-      <div role="status" className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-container
-        px-3 py-2 text-xs text-warning">
+      <div role="status" className="flex items-start gap-2 rounded-lg border border-outline-variant bg-warning-container
+        px-3 py-2 text-xs text-on-warning-container">
         <Icon icon={EditNote} size={18} className="shrink-0 mt-0.5" />
         <p className="flex-1">
           Исправление закрытого периода: изменения лягут в книгу, закрытый месяц не изменится. Правьте шапку,

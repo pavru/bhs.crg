@@ -41,7 +41,7 @@ const ALIAS_ROLE = {
   'danger': 'error', 'danger-subtle': 'error-container', 'on-danger': 'on-error',
 };
 /** Имена без роли того же значения — держат своё до ребёнка эпика, который их снимает (04, 05). */
-const OWN_VALUE = ['fg-disabled', 'brand-hover', 'brand-pressed', 'warning-border', 'stroke-subtle'];
+const OWN_VALUE = ['fg-disabled', 'brand-hover', 'brand-pressed'];
 const UTILITIES = ['bg', 'text', 'border', 'border-t', 'ring', 'outline', 'divide', 'fill', 'stroke', 'from',
   'accent', 'caret', 'decoration'];
 

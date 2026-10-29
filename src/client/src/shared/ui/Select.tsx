@@ -15,8 +15,8 @@ import { OutlinedField } from './OutlinedField';
  *
  * - **слой формы** (`label` задан) — общая MD3-оболочка `OutlinedField` высотой `h-14`, подпись
  *   всегда в вырезе рамки. Свой `<label>` в вызывающем коде НЕ пишем: пока подпись жила снаружи,
- *   у семи площадок набралось четыре разные типографики (`text-xs/fg2`, `text-sm/fg1`,
- *   `text-sm/fg2`, `text-xs/fg3`) — при том, что соседние `TextField` в тех же формах уже носили
+ *   у семи площадок набралось четыре разные типографики (`text-xs/on-surface-variant`, `text-sm/on-surface`,
+ *   `text-sm/on-surface-variant`, `text-xs` другим серым) — при том, что соседние `TextField` в тех же формах уже носили
  *   подпись в вырезе. Связываем через `aria-labelledby`, а не `<label for>`: у кнопки-триггера
  *   щелчок по подписи открывал бы список;
  * - **слой обвязки** (`label` нет) — компактный триггер `h-9` со своей рамкой для шапок, фильтров
@@ -84,7 +84,7 @@ export interface SelectProps {
 
 const TRIGGER =
   'inline-flex items-center justify-between gap-2 rounded-md border ' +
-  'transition-colors data-[placeholder]:text-fg4 ' +
+  'transition-colors data-[placeholder]:text-on-surface-variant ' +
   'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary data-[state=open]:ring-2 ' +
   'data-[state=open]:ring-primary disabled:opacity-50 disabled:pointer-events-none';
 
@@ -93,7 +93,7 @@ const TRIGGER =
 // что у пикера типа). Кольцо фокуса там тоже лишнее: фокус показывает сама оболочка.
 const FRAMED_TRIGGER =
   'inline-flex items-center justify-between gap-2 w-full h-14 px-4 rounded-md bg-transparent ' +
-  'text-sm text-on-surface data-[placeholder]:text-fg4 outline-none ' +
+  'text-sm text-on-surface data-[placeholder]:text-on-surface-variant outline-none ' +
   'disabled:opacity-50 disabled:pointer-events-none';
 
 // Рамка, фон и цвет текста — в виде, а не в общей основе: у `inline` их нет вовсе, и класс,
@@ -146,7 +146,7 @@ export function Select({
         {/* min-w-0 + truncate: длинное выбранное значение обрезается многоточием, а не переносится
             на вторую строку, распирая триггер фиксированной высоты. */}
         <span className="min-w-0 flex-1 truncate text-left"><RS.Value placeholder={placeholder} /></span>
-        <RS.Icon className="text-fg4 shrink-0"><Icon icon={KeyboardArrowDown} size={18} /></RS.Icon>
+        <RS.Icon className="text-on-surface-variant shrink-0"><Icon icon={KeyboardArrowDown} size={18} /></RS.Icon>
       </RS.Trigger>
       <RS.Portal>
         <RS.Content position="popper" sideOffset={4}
@@ -194,7 +194,7 @@ export const SelectItem = forwardRef<HTMLDivElement, { value: string; disabled?:
 export function SelectGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
     <RS.Group>
-      <RS.Label className="px-3 pt-2 pb-1 text-caption font-semibold uppercase tracking-wide text-fg4">{label}</RS.Label>
+      <RS.Label className="px-3 pt-2 pb-1 text-caption font-semibold uppercase tracking-wide text-on-surface-variant">{label}</RS.Label>
       {children}
     </RS.Group>
   );

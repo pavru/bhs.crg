@@ -36,7 +36,7 @@ export function DocumentObservationsChip({ setId, documentId }: {
         className="shrink-0" title="Замечания внешнего анализа, упоминающие этот документ">
         <span className="hidden sm:inline">Замечания</span>
         {unreviewed > 0 && (
-          <span className="text-caption px-1.5 py-0.5 rounded-full bg-warning-container text-warning">
+          <span className="text-caption px-1.5 py-0.5 rounded-full bg-warning-container text-on-warning-container">
             {unreviewed}
           </span>
         )}
@@ -45,7 +45,7 @@ export function DocumentObservationsChip({ setId, documentId }: {
       <Modal open={open} onOpenChange={setOpen} nothingToLose title="Замечания, упоминающие этот документ">
         <div className="space-y-3">
           {/* Происхождение рядом с данными: это утверждения, а не результат проверки системы. */}
-          <p className="text-caption text-fg4">
+          <p className="text-caption text-on-surface-variant">
             Утверждения внешнего ИИ-агента. Система их не проверяла; разбирать — на странице комплекта.
           </p>
 
@@ -56,19 +56,19 @@ export function DocumentObservationsChip({ setId, documentId }: {
               isUnreviewed(o) ? '' : 'opacity-60'}`}>
               <div className="flex items-start gap-2">
                 <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${
-                  o.severity === 'Error' ? 'bg-warning-container text-warning' : 'bg-surface-container text-fg3'}`}>
+                  o.severity === 'Error' ? 'bg-warning-container text-warning' : 'bg-surface-container text-on-surface-variant'}`}>
                   {SEVERITY_LABELS[o.severity]}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm text-on-surface">{o.title}</div>
-                  {o.detail && <p className="text-xs text-fg3 mt-0.5 whitespace-pre-wrap">{o.detail}</p>}
+                  {o.detail && <p className="text-xs text-on-surface-variant mt-0.5 whitespace-pre-wrap">{o.detail}</p>}
                   {o.reviewNote && (
-                    <p className="text-caption text-fg3 mt-1">
+                    <p className="text-caption text-on-surface-variant mt-1">
                       {OBSERVATION_STATUS_LABELS[o.status]}: {o.reviewNote}
                     </p>
                   )}
                 </div>
-                <span className="text-caption text-fg4 shrink-0">{OBSERVATION_STATUS_LABELS[o.status]}</span>
+                <span className="text-caption text-on-surface-variant shrink-0">{OBSERVATION_STATUS_LABELS[o.status]}</span>
               </div>
             </div>
           ))}

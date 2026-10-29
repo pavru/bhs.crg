@@ -61,9 +61,9 @@ export function RolePicker({ value, known = [], onChange, disabled, ariaLabel = 
             focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
             data-[state=open]:ring-2 data-[state=open]:ring-primary
             disabled:opacity-50 disabled:pointer-events-none
-            ${chosen.length > 0 ? 'text-on-surface' : 'text-fg4'} ${className}`}>
+            ${chosen.length > 0 ? 'text-on-surface' : 'text-on-surface-variant'} ${className}`}>
           <span className="min-w-0 flex-1 truncate">{label}</span>
-          <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" aria-hidden="true" />
+          <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" aria-hidden="true" />
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
@@ -72,7 +72,7 @@ export function RolePicker({ value, known = [], onChange, disabled, ariaLabel = 
           style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
           {/* Пустое меню — это отказ, переодетый в результат: выбрать нечего и непонятно почему. */}
           {roles.length === 0 && (
-            <div className="px-3 py-2 text-xs text-fg4">
+            <div className="px-3 py-2 text-xs text-on-surface-variant">
               {isLoading ? 'Роли загружаются…' : 'Список ролей не загрузился — обновите страницу.'}
             </div>
           )}
@@ -88,7 +88,7 @@ export function RolePicker({ value, known = [], onChange, disabled, ariaLabel = 
               </span>
               <span className="min-w-0">
                 <span className="block text-on-surface">{r.title}</span>
-                {r.summary && <span className="block text-xs text-fg4">{r.summary}</span>}
+                {r.summary && <span className="block text-xs text-on-surface-variant">{r.summary}</span>}
               </span>
             </DropdownMenu.CheckboxItem>
           ))}

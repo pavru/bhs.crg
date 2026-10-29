@@ -27,9 +27,9 @@ function Row({ action }: { action: RowAction }) {
   const color = action.danger ? 'text-error' : action.active ? 'text-primary' : 'text-on-surface-variant';
   return (
     <>
-      {action.icon && <span className={action.active ? 'text-primary' : action.danger ? 'text-error' : 'text-fg4'}>{action.icon}</span>}
+      {action.icon && <span className={action.active ? 'text-primary' : action.danger ? 'text-error' : 'text-on-surface-variant'}>{action.icon}</span>}
       <span className={`truncate ${color}`}>{action.label}</span>
-      {action.badge && <span className="ml-auto text-caption text-fg4 tabular-nums">{action.badge}</span>}
+      {action.badge && <span className="ml-auto text-caption text-on-surface-variant tabular-nums">{action.badge}</span>}
     </>
   );
 }
@@ -40,14 +40,14 @@ function renderAction(action: RowAction) {
       <DropdownMenu.Sub key={action.key}>
         <DropdownMenu.SubTrigger className={itemCls} disabled={action.disabled}>
           <Row action={action} />
-          <Icon icon={ChevronRight} size={18} className="ml-auto text-fg4" />
+          <Icon icon={ChevronRight} size={18} className="ml-auto text-on-surface-variant" />
         </DropdownMenu.SubTrigger>
         <DropdownMenu.Portal>
           <DropdownMenu.SubContent
             className="z-50 min-w-[10rem] max-h-72 overflow-auto rounded-md border border-outline-variant bg-surface py-1"
             style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
             {action.submenu.length === 0
-              ? <div className="px-3 py-1.5 text-xs text-fg4">Нет вариантов</div>
+              ? <div className="px-3 py-1.5 text-xs text-on-surface-variant">Нет вариантов</div>
               : action.submenu.map(sub => (
                 <DropdownMenu.Item key={sub.key} className={itemCls} disabled={sub.disabled}
                   onSelect={() => sub.onSelect?.()}>
@@ -84,7 +84,7 @@ export function RowActionsMenu({ actions, ariaLabel = 'Действия', hasAct
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button type="button" aria-label={ariaLabel} onClick={e => e.stopPropagation()}
-          className="relative p-1 rounded text-fg4 hover:text-on-surface hover:bg-surface-container-low outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+          className="relative p-1 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
           <Icon icon={MoreVert} size={18} />
           {hasActive && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-primary" />}
         </button>

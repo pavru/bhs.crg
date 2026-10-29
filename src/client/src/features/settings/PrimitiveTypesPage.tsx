@@ -196,7 +196,7 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
             </button>
           ))}
         </div>
-        <p className="text-xs text-fg3 mt-1">Управляет форматом ввода/отображения. Значение хранится как полная дата.</p>
+        <p className="text-xs text-on-surface-variant mt-1">Управляет форматом ввода/отображения. Значение хранится как полная дата.</p>
       </div>
       {/* Границы — одним периодом (#1464): «по» не раньше «с», и поправку делает поле, а не сохранение. */}
       <DateRange label="Допустимые даты" from={constraints.minDate ?? ''} to={constraints.maxDate ?? ''}
@@ -218,14 +218,14 @@ function ConstraintTester({ def }: { def: PrimitiveTypeDef }) {
   const ok = has && !err;
   const placeholder = def.baseType === 'date' ? dateMaskText(def.constraints.datePrecision) : def.baseType === 'number' ? 'например: 42' : 'введите образец';
   const statusIcon = ok ? CheckCircle : ErrorIcon;
-  const tone = !has ? 'text-fg4' : ok ? 'text-success' : 'text-error';
+  const tone = !has ? 'text-on-surface-variant' : ok ? 'text-success' : 'text-error';
   return (
     <div>
       <label className="block text-sm font-medium text-on-surface mb-1">Проверка образца</label>
       <div className="flex items-center gap-2 rounded-lg bg-surface-container-low border border-outline-variant px-3 py-2">
         <Icon icon={statusIcon} size={18} className={`shrink-0 ${tone}`} />
         <input value={sample} onChange={e => setSample(e.target.value)} placeholder={placeholder} spellCheck={false}
-          className="flex-1 min-w-0 bg-transparent text-sm font-mono outline-none text-on-surface placeholder:text-fg4" />
+          className="flex-1 min-w-0 bg-transparent text-sm font-mono outline-none text-on-surface placeholder:text-on-surface-variant" />
         <Tooltip content={has && !ok ? (err ?? '') : undefined}>
           <span className={`text-xs shrink-0 max-w-[45%] truncate ${tone}`}>
             {!has ? 'по ограничениям' : ok ? 'соответствует' : err}
@@ -263,7 +263,7 @@ function BaseTypeSegmented({ value, onChange, disabled }: {
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="border border-outline-variant rounded-xl bg-surface p-4 space-y-3">
-      <p className="text-xs font-medium text-fg3 uppercase tracking-wide">{title}</p>
+      <p className="text-xs font-medium text-on-surface-variant uppercase tracking-wide">{title}</p>
       {children}
     </div>
   );
@@ -334,10 +334,10 @@ function TypeDetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, 
         <>
           <div className="flex items-center gap-2 flex-wrap">
             <DetailTitle>{name || '(без названия)'}</DetailTitle>
-            <span className={`${badge} bg-surface-container text-fg3`}>{chip}</span>
-            {usedBy > 0 && <span className={`${badge} bg-primary-container text-primary`}>используется: {usedBy}</span>}
+            <span className={`${badge} bg-surface-container text-on-surface-variant`}>{chip}</span>
+            {usedBy > 0 && <span className={`${badge} bg-primary-container text-on-primary-container`}>используется: {usedBy}</span>}
           </div>
-          <span className="text-xs text-fg4 font-mono">{code}</span>
+          <span className="text-xs text-on-surface-variant font-mono">{code}</span>
         </>
       }
       actions={
@@ -408,7 +408,7 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
             <div>
               <label className="block text-sm font-medium text-on-surface mb-1">Базовый тип</label>
               <BaseTypeSegmented value={type.baseType} onChange={() => {}} disabled />
-              <p className="text-xs text-fg3 mt-1">Базовый тип нельзя изменить после создания.</p>
+              <p className="text-xs text-on-surface-variant mt-1">Базовый тип нельзя изменить после создания.</p>
             </div>
             <TextField label="Описание" value={description} onChange={e => setDescription(e.target.value)} />
           </Card>
@@ -419,9 +419,9 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
           </Card>
 
           <Card title="Применимые функциональные тэги">
-            <p className="text-xs text-fg3 -mt-1">Какие тэги можно назначать полям этого типа — показываются в редакторе схемы.</p>
+            <p className="text-xs text-on-surface-variant -mt-1">Какие тэги можно назначать полям этого типа — показываются в редакторе схемы.</p>
             {applicableTags.length === 0 ? (
-              <p className="text-xs text-fg4">Для базового типа «{BASE_TYPE_LABEL[type.baseType]}» подходящих тэгов нет.</p>
+              <p className="text-xs text-on-surface-variant">Для базового типа «{BASE_TYPE_LABEL[type.baseType]}» подходящих тэгов нет.</p>
             ) : (
               <div className="flex flex-wrap gap-1.5">
                 {applicableTags.map(t => {
@@ -431,7 +431,7 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
                       <button type="button"
                         onClick={() => setAllowedTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code])}
                         className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                          on ? 'bg-tertiary-container border-tertiary/50 text-on-tertiary-container' : 'border-outline-variant text-fg3 hover:border-outline hover:text-on-surface'}`}>
+                          on ? 'bg-tertiary-container border-tertiary/50 text-on-tertiary-container' : 'border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface'}`}>
                         {t.label}
                       </button>
                     </Tooltip>
@@ -441,11 +441,11 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
             )}
             {unknownAllowed.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                <span className="text-xs text-fg4">Тэги модуля:</span>
+                <span className="text-xs text-on-surface-variant">Тэги модуля:</span>
                 {unknownAllowed.map(code => (
                   <Tooltip key={code} content="Тэг модуля, выключенного на этом экземпляре. Разрешение остаётся и заработает, когда модуль включат.">
                     <span
-                      className="rounded-full border border-dashed border-outline-variant px-2 py-0.5 text-caption text-fg4">
+                      className="rounded-full border border-dashed border-outline-variant px-2 py-0.5 text-caption text-on-surface-variant">
                       {code}
                     </span>
                   </Tooltip>
@@ -570,24 +570,24 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
       <button key={t.id} type="button" onClick={() => onSelect(t.id)} aria-current={active ? 'true' : undefined}
         className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors ${
           active ? 'bg-primary-container text-brand-hover' : 'hover:bg-surface-container'}`}>
-        <Icon icon={t.icon} size={18} className={`shrink-0 ${active ? 'text-brand-hover' : 'text-fg4'}`} />
+        <Icon icon={t.icon} size={18} className={`shrink-0 ${active ? 'text-brand-hover' : 'text-on-surface-variant'}`} />
         <span className="min-w-0 flex-1">
           {/* Строка 1 — только имя, полный приоритет ширины. */}
           <span className={`block text-sm font-medium truncate ${active ? 'text-brand-hover' : 'text-on-surface'}`}>{t.name}</span>
           {/* Строка 2 — код (mono, capped) · превью; оба truncate, длинный код не ломает строку 1. */}
-          <span className="flex items-baseline gap-1 min-w-0 text-fg4">
+          <span className="flex items-baseline gap-1 min-w-0 text-on-surface-variant">
             <span className="font-mono text-caption truncate max-w-[45%] shrink-0" title={t.code}>{t.code}</span>
             {t.preview && <span className="text-xs truncate min-w-0">{`· ${t.preview}`}</span>}
           </span>
         </span>
-        <span className="text-caption px-1.5 py-0.5 rounded-full bg-surface-container text-fg3 shrink-0">{t.chip}</span>
+        <span className="text-caption px-1.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant shrink-0">{t.chip}</span>
       </button>
     );
   };
 
   const tab = (m: Mode, label: string) => (
     <button type="button" onClick={() => onMode(m)}
-      className={`relative flex-1 h-12 text-sm transition-colors ${mode === m ? 'text-primary font-medium' : 'text-fg3 hover:text-on-surface-variant'}`}>
+      className={`relative flex-1 h-12 text-sm transition-colors ${mode === m ? 'text-primary font-medium' : 'text-on-surface-variant hover:text-on-surface-variant'}`}>
       {label}
       {mode === m && <span className="absolute left-0 right-0 bottom-0 h-0.5 bg-primary rounded-t" />}
     </button>
@@ -608,7 +608,7 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
           </>
         )}
         {items.length === 0 && (
-          <p className="px-3 py-6 text-center text-sm text-fg4">
+          <p className="px-3 py-6 text-center text-sm text-on-surface-variant">
             {outside ? 'Больше ничего не найдено' : 'Ничего не найдено'}
           </p>
         )}
@@ -681,7 +681,7 @@ export function PrimitiveTypesPage() {
       dirty={anyDirty} saving={saving} onSaveAll={saveAll} onRevert={resetAll}
       onDuplicate={() => duplicateEnum(selectedEnum)} onDeleted={() => setSelection('enum', null)} />
   ) : (
-    <div className="flex-1 flex items-center justify-center text-fg4 text-sm">
+    <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">
       {mode === 'primitive' ? 'Типов полей ещё нет' : 'Перечислений ещё нет'} — создайте первый.
     </div>
   );

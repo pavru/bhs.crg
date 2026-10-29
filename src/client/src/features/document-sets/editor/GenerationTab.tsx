@@ -29,7 +29,7 @@ function parseIdArray(json: string | null): string[] {
 function DiagnosticsPanel({ diagnostics, objectName }: { diagnostics: ResolutionDiagnostic[]; objectName: string }) {
   if (diagnostics.length === 0) {
     return (
-      <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-success-container text-success">
+      <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-success-container text-on-success-container">
         <Icon icon={CheckCircle} size={18} className="shrink-0" /> Проблем разрешения ссылок не найдено
       </div>
     );
@@ -48,7 +48,7 @@ function DiagnosticsPanel({ diagnostics, objectName }: { diagnostics: Resolution
               ? <Icon icon={ErrorIcon} size={18} className="text-error shrink-0 mt-0.5" />
               : <Icon icon={Warning} size={18} className="text-warning shrink-0 mt-0.5" />}
             <div className="min-w-0">
-              <div className="text-fg3">Реквизит: <code className="text-on-surface-variant">{d.path}</code></div>
+              <div className="text-on-surface-variant">Реквизит: <code className="text-on-surface-variant">{d.path}</code></div>
               <p className={d.severity === 'error' ? 'text-error' : 'text-on-surface-variant'}>{d.message}</p>
             </div>
           </div>
@@ -167,7 +167,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
       </div>
 
       <div className="space-y-1">
-        <label className="block text-xs font-medium text-on-surface-variant">Шаблоны <span className="text-fg4 font-normal">(можно несколько — по PDF на каждый)</span></label>
+        <label className="block text-xs font-medium text-on-surface-variant">Шаблоны <span className="text-on-surface-variant font-normal">(можно несколько — по PDF на каждый)</span></label>
         {noTemplates ? (
           <p className="text-xs text-warning">
             Для этого типа документа нет шаблонов. Создайте шаблон в разделе «Шаблоны».
@@ -190,7 +190,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
                       className="ml-2.5 shrink-0" />
                     <span className="flex-1 min-w-0 py-1.5">
                       <span className={`truncate ${focused ? 'text-brand-hover font-medium' : 'text-on-surface'}`}>
-                        {t.isDefault ? '★ ' : ''}{t.name} <span className="text-fg4 font-normal">(v{t.version})</span>
+                        {t.isDefault ? '★ ' : ''}{t.name} <span className="text-on-surface-variant font-normal">(v{t.version})</span>
                       </span>
                     </span>
                   </label>
@@ -198,7 +198,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
               })}
             </div>
             {selectedTemplateIds.length === 0 && (
-              <p className="text-caption text-fg4">Ничего не выбрано — будет один PDF по шаблону по умолчанию.</p>
+              <p className="text-caption text-on-surface-variant">Ничего не выбрано — будет один PDF по шаблону по умолчанию.</p>
             )}
           </>
         )}
@@ -234,7 +234,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
         </Button>
       </div>
       {(mutation.isPending || instance.status === 'Generating') && (
-        <p className="flex items-center gap-2 text-xs text-fg4">
+        <p className="flex items-center gap-2 text-xs text-on-surface-variant">
           <CircularProgress size={18} className="shrink-0" />
           Генерация PDF может занять несколько секунд — идёт сбор данных и компиляция Typst.
         </p>

@@ -57,14 +57,14 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
     <div className="border-t border-outline-variant bg-surface">
       <button onClick={() => setOpen(v => !v)} aria-expanded={open}
         className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-surface-container-low transition-colors text-left">
-        <Icon icon={Tune} size={18} className="text-fg4" />
+        <Icon icon={Tune} size={18} className="text-on-surface-variant" />
         <span className="text-xs font-medium text-on-surface-variant flex-1">Параметры шаблона{rows.length > 0 ? ` (${rows.length})` : ''}</span>
-        {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-fg4" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-fg4" />}
+        {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant" />}
       </button>
       {open && (
         <div className="px-4 pb-4 pt-3 border-t border-surface-container space-y-2">
-          <p className="text-caption text-fg4">
-            Доступны в Typst как <code className="text-fg3">data.params.имя</code>. Значение по умолчанию можно
+          <p className="text-caption text-on-surface-variant">
+            Доступны в Typst как <code className="text-on-surface-variant">data.params.имя</code>. Значение по умолчанию можно
             переопределить на конкретном документе.
           </p>
           {rows.map(({ id, p }, i) => (
@@ -83,7 +83,7 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
                   setData Firefox отменит перетаскивание» (шло из #517) проверено вручную
                   2026-08-17 и не подтвердилось, см. ROW_DRAG_MIME в document-sets/fields. */}
               <Tooltip content="Перетащить">
-                <span className="text-fg4 cursor-grab shrink-0" draggable
+                <span className="text-on-surface-variant cursor-grab shrink-0" draggable
                   onDragStart={e => { e.dataTransfer.setData(DRAG_MIME, String(i)); setDragIdx(i); }}
                   onDragEnd={() => setDragIdx(null)}>
                   <Icon icon={DragIndicator} size={18} />
@@ -105,7 +105,7 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
                   isFirst={i === 0} isLast={i === rows.length - 1} />
                 <Tooltip content="Удалить параметр" name>
                   <button onClick={() => save(rows.filter((_, idx) => idx !== i))}
-                    className="p-1 text-stroke-strong hover:text-error"><Icon icon={Delete} size={18} /></button>
+                    className="p-1 text-on-surface-variant hover:text-error"><Icon icon={Delete} size={18} /></button>
                 </Tooltip>
               </span>
             </div>

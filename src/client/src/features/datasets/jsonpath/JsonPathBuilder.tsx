@@ -46,7 +46,7 @@ function JsonPathPreviewPanel({ spec }: { spec: ExpressionPreviewSpec | null }) 
   return (
     <div className="text-xs rounded-md border border-outline-variant bg-surface-container-low px-2 py-1.5">
       {isFetching ? (
-        <span className="flex items-center gap-1.5 text-fg4">
+        <span className="flex items-center gap-1.5 text-on-surface-variant">
           <CircularProgress size={18} /> Проверка...
         </span>
       ) : error ? (
@@ -59,7 +59,7 @@ function JsonPathPreviewPanel({ spec }: { spec: ExpressionPreviewSpec | null }) 
             {spec.expr ? `Значений найдено: ${data.matchCount}` : `Узлов найдено: ${data.matchCount}`}
           </span>
           {data.samples.length > 0 && (
-            <ul className="text-fg4">
+            <ul className="text-on-surface-variant">
               {data.samples.map((s, i) => <li key={i} className="truncate">{s}</li>)}
             </ul>
           )}

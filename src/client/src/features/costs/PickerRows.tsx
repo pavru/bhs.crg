@@ -31,14 +31,14 @@ export function PickerOption({ row, id, active, enter, narrow, kinds, onChoose, 
       <span className="min-w-0 flex-1">
         {row.best && <span className="block text-caption font-medium text-primary">Лучшее совпадение</span>}
         <span className="block text-sm text-on-surface">{row.name ?? 'без названия'}</span>
-        {row.why && <span className="block text-caption text-fg3">{row.why}</span>}
+        {row.why && <span className="block text-caption text-on-surface-variant">{row.why}</span>}
       </span>
-      {kinds && row.type && <span className="text-caption text-fg4 shrink-0">{row.type}</span>}
+      {kinds && row.type && <span className="text-caption text-on-surface-variant shrink-0">{row.type}</span>}
       {/* На узком окне без карточки выбирается только лучшее: остальные открывают карточку (issue #1518). */}
       <span className="text-xs text-primary shrink-0 whitespace-nowrap" aria-hidden>
         {narrow && !row.best ? '›' : 'Выбрать'}
         {enter && (
-          <kbd className="ml-1 rounded border border-outline-variant bg-surface px-1 font-mono text-caption text-fg3">Enter</kbd>
+          <kbd className="ml-1 rounded border border-outline-variant bg-surface px-1 font-mono text-caption text-on-surface-variant">Enter</kbd>
         )}
       </span>
     </div>
@@ -85,7 +85,7 @@ export function CandidatesBlock({ asked, answer, rows, more, current, headingId,
   return (
     <div className="space-y-1.5">
       {current && (
-        <p className="text-xs text-fg3">
+        <p className="text-xs text-on-surface-variant">
           Сейчас: <span className="text-on-surface">
             {current.lost ? current.lostText ?? LOST.position
               : withArchiveWord(current.name ?? 'позиция без названия', !!current.archived)}
@@ -93,7 +93,7 @@ export function CandidatesBlock({ asked, answer, rows, more, current, headingId,
         </p>
       )}
       {unusable && (
-        <p className="text-xs text-fg3">
+        <p className="text-xs text-on-surface-variant">
           {unusable.issue === 'archived'
             ? `Для этой строки поставщика запомнена позиция «${unusable.name ?? 'без названия'}» — она в архиве. `
               + 'Вернуть её может тот, кто ведёт справочник.'
@@ -102,7 +102,7 @@ export function CandidatesBlock({ asked, answer, rows, more, current, headingId,
       )}
 
       {!asked ? (
-        <p className="text-xs text-fg4">В строке нет наименования — подобрать нечего. Найдите позицию поиском.</p>
+        <p className="text-xs text-on-surface-variant">В строке нет наименования — подобрать нечего. Найдите позицию поиском.</p>
       ) : (
         <>
           <h4 id={headingId} className="text-xs font-medium text-on-surface-variant">Подходящие для этой строки</h4>
@@ -110,7 +110,7 @@ export function CandidatesBlock({ asked, answer, rows, more, current, headingId,
             <div aria-busy="true" className="space-y-1">
               <div className="h-9 rounded-md bg-surface-container animate-pulse" />
               <div className="h-9 rounded-md bg-surface-container animate-pulse" />
-              <p className="text-xs text-fg4">Подбираем по словам строки…</p>
+              <p className="text-xs text-on-surface-variant">Подбираем по словам строки…</p>
             </div>
           )}
           {answer.isError && (
@@ -125,16 +125,16 @@ export function CandidatesBlock({ asked, answer, rows, more, current, headingId,
           {children}
           {answer.isSuccess && rows === 0 && (
             <>
-              <p className="text-xs text-fg3">По словам строки подходящих не нашлось.</p>
-              <p className="text-xs text-fg4">
+              <p className="text-xs text-on-surface-variant">По словам строки подходящих не нашлось.</p>
+              <p className="text-xs text-on-surface-variant">
                 Это не значит, что позиции в справочнике нет: подбор сравнивает слова и артикул, а написанное
                 иначе («3х2,5» и «3*2.5») не сводит. Найдите поиском — или заведите новую позицию.
               </p>
             </>
           )}
-          {more && <p className="text-xs text-fg4">Есть ещё подходящие — уточните поиском.</p>}
+          {more && <p className="text-xs text-on-surface-variant">Есть ещё подходящие — уточните поиском.</p>}
           {!!data?.inArchive && (
-            <p className="text-xs text-fg3">Похожих в архиве: {data.inArchive} — заводить заново не нужно.</p>
+            <p className="text-xs text-on-surface-variant">Похожих в архиве: {data.inArchive} — заводить заново не нужно.</p>
           )}
           {!!data?.unreadable && (
             <p className="text-xs text-warning">

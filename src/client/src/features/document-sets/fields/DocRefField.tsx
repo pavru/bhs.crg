@@ -119,7 +119,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
       );
     }
     return (
-      <div className="flex items-center gap-2 border border-warning-border rounded-lg px-3 py-2 bg-warning-container">
+      <div className="flex items-center gap-2 border border-outline-variant rounded-lg px-3 py-2 bg-warning-container">
         <Icon icon={Description} size={18} className="text-warning shrink-0" />
         <span className="flex-1 min-w-0">
           <span className="block text-sm text-warning font-medium truncate">{cRef.displayName}</span>
@@ -189,8 +189,8 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
   return (
     <div className="border border-outline-variant rounded-lg overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 bg-surface-container-low border-b border-outline-variant">
-        <span className="text-xs font-medium text-fg3">
-          Документы <span className="text-fg4">{items.length} ссылок</span>
+        <span className="text-xs font-medium text-on-surface-variant">
+          Документы <span className="text-on-surface-variant">{items.length} ссылок</span>
         </span>
         <button type="button" onClick={() => setPickerOpen(true)}
           className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover px-2 py-0.5 rounded hover:bg-primary-container transition-colors">
@@ -198,7 +198,7 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
         </button>
       </div>
       {items.length === 0 ? (
-        <p className="text-xs text-fg4 text-center py-3">Нет ссылок — нажмите «Добавить»</p>
+        <p className="text-xs text-on-surface-variant text-center py-3">Нет ссылок — нажмите «Добавить»</p>
       ) : (
         <div className="divide-y divide-surface-container">
           {items.map((ref, i) => {
@@ -231,7 +231,7 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
                   {isCatalog ? (
                     <span className="block text-xs text-warning truncate">Общие данные</span>
                   ) : inst?.name && dt ? (
-                    <span className="block text-xs text-fg4 truncate">{dt.name}</span>
+                    <span className="block text-xs text-on-surface-variant truncate">{dt.name}</span>
                   ) : null}
                 </span>
                 {inst && (
@@ -240,7 +240,7 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
                   </span>
                 )}
                 <button type="button" onClick={() => removeRef(i)}
-                  className="p-1 text-fg4 hover:text-error shrink-0">
+                  className="p-1 text-on-surface-variant hover:text-error shrink-0">
                   <Icon icon={Delete} size={18} />
                 </button>
               </div>

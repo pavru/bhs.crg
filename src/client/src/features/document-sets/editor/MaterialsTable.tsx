@@ -126,19 +126,19 @@ export function MaterialsTable({
                     единственный путь починки шёл через destructive-действие. */}
                 <Tooltip content="Перепривязать к другому документу" name>
                   <button onClick={() => openPickerFor(m)}
-                    className="p-0.5 text-fg4 hover:text-primary"><Icon icon={ChangeCircle} size={18} /></button>
+                    className="p-0.5 text-on-surface-variant hover:text-primary"><Icon icon={ChangeCircle} size={18} /></button>
                 </Tooltip>
                 <Tooltip content="Снять связь" name>
                   <button onClick={() => setBreaking({ link, label: m.label })}
-                    className="p-0.5 text-fg4 hover:text-error"><Icon icon={LinkOff} size={18} /></button>
+                    className="p-0.5 text-on-surface-variant hover:text-error"><Icon icon={LinkOff} size={18} /></button>
                 </Tooltip>
               </span>
             ) : suggestion ? (
               <span className="flex items-center gap-1.5">
-                <span className="text-caption px-1 py-0.5 rounded bg-primary-container text-primary shrink-0">{Math.round(suggestion.score * 100)}%</span>
+                <span className="text-caption px-1 py-0.5 rounded bg-primary-container text-on-primary-container shrink-0">{Math.round(suggestion.score * 100)}%</span>
                 <Tooltip content="Просмотреть предложенный документ">
                   <button onClick={() => setViewDoc(suggestion.doc)}
-                    className="flex-1 min-w-0 text-left text-fg3 italic hover:underline truncate">
+                    className="flex-1 min-w-0 text-left text-on-surface-variant italic hover:underline truncate">
                     {suggestion.doc.displayName}
                   </button>
                 </Tooltip>
@@ -155,7 +155,7 @@ export function MaterialsTable({
               </span>
             ) : (
               <span className="flex items-center gap-1.5">
-                <span className="flex-1 min-w-0 text-fg4">—</span>
+                <span className="flex-1 min-w-0 text-on-surface-variant">—</span>
                 {/* Кнопка ВИДИМАЯ, не по hover: необнаруживаемость одиночного пути и есть
                     предмет жалобы, а мерцающая колонка на 130 строках недоступна ни с
                     клавиатуры, ни с тача. */}

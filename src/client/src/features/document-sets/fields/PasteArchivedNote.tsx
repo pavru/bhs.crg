@@ -27,10 +27,10 @@ export function PasteArchivedNote({ cells, canReturn, checked, onChange }: {
   return (
     <div className="space-y-1.5 border-t border-surface-container pt-3">
       <p className="text-on-surface-variant flex items-center gap-1.5">
-        <Icon icon={Archive} size={18} className="text-fg3 shrink-0" />
+        <Icon icon={Archive} size={18} className="text-on-surface-variant shrink-0" />
         В архиве: <span className="font-medium text-on-surface">{cells.length}</span>
       </p>
-      <p className="text-xs text-fg3">
+      <p className="text-xs text-on-surface-variant">
         {names.slice(0, NAMES_SHOWN).join(', ')}
         {names.length > NAMES_SHOWN && ` и ещё ${names.length - NAMES_SHOWN}`}
       </p>
@@ -40,7 +40,7 @@ export function PasteArchivedNote({ cells, canReturn, checked, onChange }: {
           Вернуть из архива и связать ({names.length})
         </label>
       )}
-      <p className="text-xs text-fg4">
+      <p className="text-xs text-on-surface-variant">
         {checked
           ? 'Записи вернутся в справочник для всех — в списках выбора они появятся снова.'
           : `Значения совпали с записями в архиве — вставятся встроенно. ${canReturn

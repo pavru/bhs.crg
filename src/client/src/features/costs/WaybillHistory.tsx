@@ -31,7 +31,7 @@ export function WaybillHistory({ view, gone }: { view: WaybillView; gone: boolea
         <>
           {e.changes.length > 0 ? e.changes.join('; ') : '—'}
           {e.mixed && (
-            <span className="block text-fg3">
+            <span className="block text-on-surface-variant">
               Сверено с нынешним содержимым: после исправления накладную можно было править обычным путём, и
               такие правки тоже здесь.
             </span>
@@ -56,7 +56,7 @@ export function WaybillHistory({ view, gone }: { view: WaybillView; gone: boolea
   return (
     <section className="space-y-3" aria-label="Исправления" data-testid="waybill-history">
       <h3 className="text-sm font-medium text-on-surface-variant">Исправления</h3>
-      {versions.isPending && <p className="text-xs text-fg3">Загружаем историю накладной…</p>}
+      {versions.isPending && <p className="text-xs text-on-surface-variant">Загружаем историю накладной…</p>}
       {versions.error != null && <p className="text-xs text-error">История накладной не загрузилась: {apiError(versions.error)}</p>}
       {versions.data && (
         <>

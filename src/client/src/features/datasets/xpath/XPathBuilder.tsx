@@ -72,7 +72,7 @@ function XPathPreviewPanel({ spec }: { spec: ExpressionPreviewSpec | null }) {
   return (
     <div className="text-xs rounded-md border border-outline-variant bg-surface-container-low px-2 py-1.5">
       {isFetching ? (
-        <span className="flex items-center gap-1.5 text-fg4">
+        <span className="flex items-center gap-1.5 text-on-surface-variant">
           <CircularProgress size={18} /> Проверка...
         </span>
       ) : error ? (
@@ -85,7 +85,7 @@ function XPathPreviewPanel({ spec }: { spec: ExpressionPreviewSpec | null }) {
             {spec.expr ? `Значений найдено: ${data.matchCount}` : `Узлов найдено: ${data.matchCount}`}
           </span>
           {data.samples.length > 0 && (
-            <ul className="text-fg4">
+            <ul className="text-on-surface-variant">
               {data.samples.map((s, i) => <li key={i} className="truncate">{s}</li>)}
             </ul>
           )}
@@ -110,7 +110,7 @@ function StepsEditor({ model, onChange }: { model: XPathModel; onChange: (m: XPa
 
   return (
     <div className="flex flex-wrap items-start gap-1">
-      {model.absolute && <span className="text-fg4 text-xs pt-1.5 shrink-0">/</span>}
+      {model.absolute && <span className="text-on-surface-variant text-xs pt-1.5 shrink-0">/</span>}
       {model.steps.map((step, i) => (
         <StepEditor key={i} step={step} isLast={i === model.steps.length - 1}
           onChange={patch => updateStep(i, patch)} onRemove={() => removeStep(i)} />
@@ -144,7 +144,7 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
           <Tooltip content="Атрибут / элемент">
             <button type="button"
               onClick={() => onChange({ axis: step.axis === 'attribute' ? 'child' : 'attribute' })}
-              className={`text-xs px-1 rounded shrink-0 ${step.axis === 'attribute' ? 'bg-primary text-on-primary' : 'text-fg4 border border-outline-variant hover:border-outline'}`}>
+              className={`text-xs px-1 rounded shrink-0 ${step.axis === 'attribute' ? 'bg-primary text-on-primary' : 'text-on-surface-variant border border-outline-variant hover:border-outline'}`}>
               @
             </button>
           </Tooltip>
@@ -152,7 +152,7 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
         <input value={step.name} onChange={e => onChange({ name: e.target.value })}
           placeholder={step.axis === 'attribute' ? 'атрибут' : 'элемент / *'}
           className="w-24 text-xs font-mono border-b border-transparent hover:border-outline-variant focus:border-primary bg-transparent outline-none" />
-        <button type="button" onClick={onRemove} className="text-fg4 hover:text-error shrink-0">
+        <button type="button" onClick={onRemove} className="text-on-surface-variant hover:text-error shrink-0">
           <Icon icon={Delete} size={18} />
         </button>
       </div>

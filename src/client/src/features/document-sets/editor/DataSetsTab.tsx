@@ -68,7 +68,7 @@ function suggestComplexTokens(columnNames: string[], complexFields: SchemaField[
  *
  * Только ПЕРЕНОС: ширина, размер и цвет задаются на месте. Смешивать их здесь нельзя — в Tailwind
  * побеждает не порядок классов в атрибуте, а порядок правил в стилях: `text-on-surface-variant` из общей строки
- * перебил бы локальный `text-fg4`, а `shrink-0` — локальный `flex-1` (у shorthand `flex` проигрывает
+ * перебил бы локальный `text-on-surface-variant`, а `shrink-0` — локальный `flex-1` (у shorthand `flex` проигрывает
  * именно flex-shrink).
  *
  * Гибкой подписи нужен ещё и `min-w-0`: его прежде давал сам `truncate` (overflow: hidden опускает
@@ -121,7 +121,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
   };
   const segBtn = (m: 'ref' | 'inline', label: string) => (
     <button type="button" onClick={() => { setModeOverride(m); onChange(undefined); }}
-      className={`px-2 py-0.5 transition-colors ${mode === m ? 'bg-primary text-on-primary' : 'text-fg3 hover:bg-surface-container'}`}>{label}</button>
+      className={`px-2 py-0.5 transition-colors ${mode === m ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container'}`}>{label}</button>
   );
 
   return (
@@ -146,13 +146,13 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
                 value={refModeVal} onValueChange={m => { setRefModeOverride(m as 'name' | 'identity'); onChange(undefined); }}>
                 <SelectItem value="name">по имени</SelectItem><SelectItem value="identity">по идентификатору</SelectItem>
               </Select>
-            ) : <Tooltip content="У типа нет полей-идентификаторов — только по имени"><span className="w-36 shrink-0 text-xs text-fg4 px-2 text-right">по имени</span></Tooltip>}
+            ) : <Tooltip content="У типа нет полей-идентификаторов — только по имени"><span className="w-36 shrink-0 text-xs text-on-surface-variant px-2 text-right">по имени</span></Tooltip>}
           </div>
           {refModeVal === 'identity' && (
             <div className="pl-2 space-y-1 border-l border-outline-variant">
               {identityFields.map(idf => (
                 <div key={idf.key} className="flex items-center gap-2">
-                  <Tooltip content={idf.key}><span className={`w-40 shrink-0 text-caption text-fg4 ${MAP_LABEL}`}>{idf.title}</span></Tooltip>
+                  <Tooltip content={idf.key}><span className={`w-40 shrink-0 text-caption text-on-surface-variant ${MAP_LABEL}`}>{idf.title}</span></Tooltip>
                   <Select size="sm" className="flex-1" aria-label={`Колонка для identity-поля «${idf.title}»`}
                     value={idCols[idf.key] ?? ''} onValueChange={c => setRefIdentity(idf.key, c)} emptyItem="— колонка —">
                     {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -161,14 +161,14 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
               ))}
             </div>
           )}
-          <p className="text-caption text-fg4">Ищет существующий объект в каталоге — общие/переиспользуемые данные.</p>
+          <p className="text-caption text-on-surface-variant">Ищет существующий объект в каталоге — общие/переиспользуемые данные.</p>
         </>
       ) : (
         <>
           <div className="pl-2 space-y-1 border-l border-primary/40">
             {scalarSubs.map(sf => (
               <div key={sf.key} className="flex items-center gap-2">
-                <Tooltip content={`${sf.title} (${sf.key})`}><span className={`w-40 shrink-0 text-caption text-fg3 ${MAP_LABEL}`}>{sf.title}</span></Tooltip>
+                <Tooltip content={`${sf.title} (${sf.key})`}><span className={`w-40 shrink-0 text-caption text-on-surface-variant ${MAP_LABEL}`}>{sf.title}</span></Tooltip>
                 <Select size="sm" className="flex-1" aria-label={`Колонка для под-поля «${sf.title}»`}
                   value={inlineFields[sf.key] ?? ''} onValueChange={c => setSub(sf.key, c || undefined)} emptyItem="— не привязано —">
                   {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -181,11 +181,11 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
                 <div key={sf.key}>
                   <button type="button"
                     onClick={() => setExpanded(p => toggleInSet(p, sf.key))}
-                    className="flex items-center gap-1 py-0.5 text-caption text-fg3 hover:text-on-surface">
+                    className="flex items-center gap-1 py-0.5 text-caption text-on-surface-variant hover:text-on-surface">
                     {open ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
                     <Tooltip content={`${sf.title} (${sf.key}) — составное поле`}><span className={`text-left ${MAP_LABEL}`}>{sf.title}</span></Tooltip>
                     {inlineFields[sf.key] && <span className="text-primary">•</span>}
-                    <span className="text-fg4">(составное)</span>
+                    <span className="text-on-surface-variant">(составное)</span>
                   </button>
                   {open && (
                     <div className="pl-3">
@@ -197,10 +197,10 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
               );
             })}
             {scalarSubs.length === 0 && compositeSubs.length === 0 && (
-              <p className="text-caption text-fg4">У типа нет под-полей для маппинга.</p>
+              <p className="text-caption text-on-surface-variant">У типа нет под-полей для маппинга.</p>
             )}
           </div>
-          <p className="text-caption text-fg4">Собирает объект из колонок — разовые данные этого документа.</p>
+          <p className="text-caption text-on-surface-variant">Собирает объект из колонок — разовые данные этого документа.</p>
         </>
       )}
     </div>
@@ -314,9 +314,9 @@ export function MappingEditor({
       )}
 
       <div>
-        <label className="block text-xs font-medium mb-1 text-fg3">
+        <label className="block text-xs font-medium mb-1 text-on-surface-variant">
           Маппинг колонок файла → поля
-          {targetFieldKey && <span className="ml-1 font-normal text-fg4">(поля «{tabularFields.find(f => f.key === targetFieldKey)?.title ?? targetFieldKey}»)</span>}
+          {targetFieldKey && <span className="ml-1 font-normal text-on-surface-variant">(поля «{tabularFields.find(f => f.key === targetFieldKey)?.title ?? targetFieldKey}»)</span>}
         </label>
         <div className="space-y-1.5">
           {scalarMappable.map(f => (
@@ -343,7 +343,7 @@ export function MappingEditor({
               <div key={f.key} className="flex items-center gap-2">
                 <Tooltip content={`${f.title} (${f.key}) — файл-вложение`}>
                   <span className={`w-56 shrink-0 text-xs text-on-surface-variant ${MAP_LABEL}`}>
-                    {f.title} <span className="text-fg4">📎</span>
+                    {f.title} <span className="text-on-surface-variant">📎</span>
                   </span>
                 </Tooltip>
                 <Select size="sm" className="flex-1" aria-label={`Колонка с путём к файлу для «${f.title}»`}
@@ -364,7 +364,7 @@ export function MappingEditor({
               <div key={f.key} className="flex items-center gap-2">
                 <Tooltip content={`${f.title} (${f.key}) — ссылка на документ${targetType ? ` типа «${targetType.name}»` : ''}`}>
                   <span className={`w-56 shrink-0 text-xs text-on-surface-variant flex items-center gap-1 ${MAP_LABEL}`}>
-                    <Icon icon={LinkIcon} size={18} className="shrink-0 text-fg4" />
+                    <Icon icon={LinkIcon} size={18} className="shrink-0 text-on-surface-variant" />
                     {f.title}
                   </span>
                 </Tooltip>
@@ -372,14 +372,14 @@ export function MappingEditor({
                   value={mapping[f.key] ?? ''} onValueChange={c => setCol(f.key, c)} emptyItem="— не привязано —">
                   {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </Select>
-                <span className="w-40 shrink-0 text-caption text-fg4">колонка с Ид документа</span>
+                <span className="w-40 shrink-0 text-caption text-on-surface-variant">колонка с Ид документа</span>
               </div>
             );
           })}
         </div>
         {scalarMappable.length === 0 && complexMappable.length === 0 && fileMappable.length === 0
           && docRefMappable.length === 0 && (
-          <p className="text-xs text-fg4">Нет доступных полей для маппинга</p>
+          <p className="text-xs text-on-surface-variant">Нет доступных полей для маппинга</p>
         )}
       </div>
     </div>
@@ -468,13 +468,13 @@ function AddBindingPanel({
   return (
     <div className="rounded-xl p-4 space-y-4 border border-outline-variant bg-surface-container-low">
       <div>
-        <label className="block text-xs font-medium mb-1 text-fg3">
+        <label className="block text-xs font-medium mb-1 text-on-surface-variant">
           Источник данных
         </label>
         {filesLoading ? (
-          <p className="text-xs py-1 text-fg4">Загрузка...</p>
+          <p className="text-xs py-1 text-on-surface-variant">Загрузка...</p>
         ) : availableFiles.length === 0 ? (
-          <p className="text-xs py-1 text-fg4">
+          <p className="text-xs py-1 text-on-surface-variant">
             Нет загруженных наборов данных. Загрузите файлы на странице «Наборы данных» или в панели комплекта/раздела/стройки.
           </p>
         ) : (
@@ -494,7 +494,7 @@ function AddBindingPanel({
       {selectedSource && (
         materializeTypeId ? (
           <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 space-y-2">
-            <p className="text-xs text-fg3">
+            <p className="text-xs text-on-surface-variant">
               Источник материализуется в тип <b>{allDocTypes.find(t => t.id === materializeTypeId)?.name ?? '—'}</b>.
               Маппинг задан на источнике — выберите только поле-цель совместимого типа.
             </p>
@@ -604,7 +604,7 @@ function BindingRow({
             {source?.name ?? '—'}
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className="text-xs text-fg4">
+            <span className="text-xs text-on-surface-variant">
               {file?.name} · {source?.materializeTypeId
                 ? `материализация → ${allDocTypes.find(t => t.id === source.materializeTypeId)?.name ?? 'тип'}`
                 : `${ruCount(mappedCount, 'поле привязано', 'поля привязано', 'полей привязано')}`}
@@ -616,7 +616,7 @@ function BindingRow({
         <Tooltip content="Редактировать маппинг" name>
           <button
             onClick={() => setEditing(e => !e)}
-            className="p-1.5 rounded text-xs text-fg3"
+            className="p-1.5 rounded text-xs text-on-surface-variant"
           >
             <Icon icon={Edit} size={18} />
           </button>
@@ -625,7 +625,7 @@ function BindingRow({
           <Tooltip content="Удалить" name>
             <button
               onClick={() => setConfirming(true)}
-              className="p-1.5 rounded text-fg4 hover:text-error transition-colors"
+              className="p-1.5 rounded text-on-surface-variant hover:text-error transition-colors"
             >
               <Icon icon={Delete} size={18} />
             </button>
@@ -665,7 +665,7 @@ function BindingRow({
               Авто-маппинг
             </button>
             <button onClick={() => setEditing(false)}
-              className="px-3 py-1.5 rounded-md text-sm font-medium text-fg3">
+              className="px-3 py-1.5 rounded-md text-sm font-medium text-on-surface-variant">
               Отмена
             </button>
           </div>
@@ -690,13 +690,13 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
     await runPreview();
   }
 
-  if (isLoading) return <div className="py-6 text-center text-sm text-fg4">Загрузка...</div>;
+  if (isLoading) return <div className="py-6 text-center text-sm text-on-surface-variant">Загрузка...</div>;
 
   return (
     <div className="space-y-4">
       <div className="rounded-xl overflow-hidden border border-outline-variant bg-surface">
         {bindings.length === 0 && !adding ? (
-          <div className="p-6 text-center text-sm text-fg4">
+          <div className="p-6 text-center text-sm text-on-surface-variant">
             Нет привязок к наборам данных
           </div>
         ) : (
@@ -726,7 +726,7 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
         <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={() => setAdding(true)}
-            className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md transition-colors text-primary bg-primary-container"
+            className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md transition-colors text-on-primary-container bg-primary-container"
           >
             <Icon icon={Add} size={18} /> Добавить источник данных
           </button>
@@ -755,18 +755,18 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
       {showPreview && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wide text-fg3">
+            <span className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
               Результат проверки
             </span>
             <button
               onClick={() => setShowPreview(false)}
-              className="text-xs text-fg4"
+              className="text-xs text-on-surface-variant"
             >
               Скрыть
             </button>
           </div>
           {previewing ? (
-            <div className="py-4 text-center text-sm text-fg4">
+            <div className="py-4 text-center text-sm text-on-surface-variant">
               <CircularProgress size={18} className="inline-block mr-2" />
               Загрузка и разбор файлов...
             </div>
@@ -780,7 +780,7 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
         </div>
       )}
 
-      <p className="text-xs text-fg4">
+      <p className="text-xs text-on-surface-variant">
         Данные загружаются из файлов (System или Комплект) и подставляются при каждой генерации.
         Управление файлами — в разделе «Наборы данных».
       </p>

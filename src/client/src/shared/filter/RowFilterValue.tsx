@@ -281,7 +281,7 @@ function Bounds({ column, from, to, onChange }: {
   return (
     <div className="flex-1 min-w-0 flex items-center gap-1">
       <ValueInput column={column} value={from} placeholder="от" onChange={v => onChange(v, to)} />
-      <span className="text-xs text-fg4">—</span>
+      <span className="text-xs text-on-surface-variant">—</span>
       <ValueInput column={column} value={to} placeholder="до" onChange={v => onChange(from, v)} />
     </div>
   );

@@ -49,7 +49,7 @@ export function UnplacedReads({ list }: { list: readonly UnplacedRead[] | null }
       } },
     // «Где» не переносится: «строки 1–12», разорванное на дефисе, читается как две строки.
     { key: 'where', label: 'Где',
-      cell: ({ group, read }) => <span className="text-fg3">{read ? `строка ${read.row}` : unplacedWhere(group)}</span> },
+      cell: ({ group, read }) => <span className="text-on-surface-variant">{read ? `строка ${read.row}` : unplacedWhere(group)}</span> },
     { key: 'value', label: 'Прочитано', wrap: true,
       cell: ({ group, read }) => read ? read.value : unplacedValues(group) },
     { key: 'reason', label: 'Причина', wrap: true,
@@ -57,7 +57,7 @@ export function UnplacedReads({ list }: { list: readonly UnplacedRead[] | null }
   ];
 
   return (
-    <div className="space-y-1 text-fg3" data-testid="unplaced">
+    <div className="space-y-1 text-on-surface-variant" data-testid="unplaced">
       <p>
         Ещё прочитано, в счёт не положено:{' '}
         {named.map((line, i) => (

@@ -90,19 +90,19 @@ export function TypePickerField({
       className={`inline-flex items-center gap-2 overflow-hidden ${triggerClass}`}
       data-state={open ? 'open' : 'closed'}
     >
-      <Icon icon={icon} size={18} className={`shrink-0 ${selected ? 'text-fg3' : 'text-fg4'}`} />
+      <Icon icon={icon} size={18} className={`shrink-0 ${selected ? 'text-on-surface-variant' : 'text-on-surface-variant'}`} />
       {/* Подсказка — на самом обрезаемом тексте, а не на кнопке (issue #548): подсказку кнопки
           наследуют и лупа, и код типа, и всплывало бы имя типа поверх них. */}
       <Tooltip content={selected ? (showCode ? `${selected.name} (${code})` : selected.name) : undefined}>
-        <span className={`flex-1 truncate ${selected ? 'text-on-surface' : 'text-fg4'}`}>
+        <span className={`flex-1 truncate ${selected ? 'text-on-surface' : 'text-on-surface-variant'}`}>
           {selected ? selected.name : placeholder}
         </span>
       </Tooltip>
-      {showCode && <span className="text-caption font-mono text-fg4 shrink-0">{code}</span>}
+      {showCode && <span className="text-caption font-mono text-on-surface-variant shrink-0">{code}</span>}
       {/* Место под крестик резервируем В ПОТОКЕ, а не правым паддингом: паддинг сдвинул бы влево и
           саму лупу (она такой же элемент потока), и у края поля осталась бы дыра. */}
       {showClear && <span aria-hidden className="w-[22px] shrink-0" />}
-      <Icon icon={Search} size={18} className="shrink-0 text-fg4" />
+      <Icon icon={Search} size={18} className="shrink-0 text-on-surface-variant" />
     </button>
   );
 
@@ -118,7 +118,7 @@ export function TypePickerField({
     <Tooltip content="Очистить">
       <button type="button" aria-label="Очистить"
         onClick={() => { onChange(null); triggerRef.current?.focus(); }}
-        className={`absolute ${framed ? 'right-10' : 'right-9'} top-1/2 -translate-y-1/2 z-10 text-fg4 ` +
+        className={`absolute ${framed ? 'right-10' : 'right-9'} top-1/2 -translate-y-1/2 z-10 text-on-surface-variant ` +
           // Прозрачность НЕ отменяет попадания, а крестик лежит поверх триггера: без
           // pointer-events-none нажатие у правого края на тач-устройстве молча очищало бы значение
           // вместо открытия пикера (в диалоге материализации — вместе со всем маппингом).

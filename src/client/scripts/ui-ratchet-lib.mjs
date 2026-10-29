@@ -224,7 +224,7 @@ export const RULES = [
     everywhere: true,
     styles: true,
     skip: ['theme/'],
-    instead: `класс роли MD3 вместо старого имени: ${LEGACY_HINT}; у fg-disabled, brand-hover, brand-pressed, warning-border, stroke-subtle роли того же цвета нет — их снимают sharedui-md3-04 и -05 (docs/UI.md, «Цвет»)`,
+    instead: `класс роли MD3 вместо старого имени: ${LEGACY_HINT}; у fg-disabled, brand-hover, brand-pressed роли того же цвета нет — их снимает sharedui-md3-05; обводки по статусу нет — рамка формы outline-variant (docs/UI.md, «Цвет»)`,
   },
   {
     id: 'lucide-import',

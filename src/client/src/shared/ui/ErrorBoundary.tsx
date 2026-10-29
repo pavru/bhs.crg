@@ -73,7 +73,7 @@ export class ErrorBoundary extends Component<
             <Icon icon={Warning} size={20} className="text-error shrink-0 mt-0.5" />
             <div className="min-w-0 flex-1">
               <h2 className="text-base font-medium text-on-surface">{title}</h2>
-              <p className="text-sm text-fg3 mt-1">
+              <p className="text-sm text-on-surface-variant mt-1">
                 Произошла ошибка при отображении. Сохранённые данные целы — можно попробовать снова
                 или перезагрузить страницу.
               </p>
@@ -118,12 +118,12 @@ export class ErrorBoundary extends Component<
               </div>
 
               <button type="button" onClick={() => this.setState({ expanded: !expanded })}
-                className="inline-flex items-center gap-1 mt-3 text-xs text-fg4 hover:text-on-surface-variant transition-colors">
+                className="inline-flex items-center gap-1 mt-3 text-xs text-on-surface-variant hover:text-on-surface-variant transition-colors">
                 {expanded ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
                 Подробности ошибки
               </button>
               {expanded && (
-                <pre className="mt-2 max-h-60 overflow-auto rounded-lg bg-black/5 dark:bg-white/5 p-3 text-caption leading-relaxed text-fg3 whitespace-pre-wrap break-words">
+                <pre className="mt-2 max-h-60 overflow-auto rounded-lg bg-black/5 dark:bg-white/5 p-3 text-caption leading-relaxed text-on-surface-variant whitespace-pre-wrap break-words">
                   {error.message}{error.stack ? `\n\n${error.stack}` : ''}
                 </pre>
               )}

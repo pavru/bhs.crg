@@ -144,7 +144,7 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
   return (
     <div className="space-y-1">
       {shown.length === 0 && (
-        <p className="text-sm text-fg4 py-4 text-center">Ни одна связка не подходит под поиск.</p>
+        <p className="text-sm text-on-surface-variant py-4 text-center">Ни одна связка не подходит под поиск.</p>
       )}
       {shown.map(link => (
         <div key={link.id} className="group flex items-start gap-3 rounded-md px-3 py-2 hover:bg-surface-container-low">
@@ -159,7 +159,7 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
                 моноширинным: это машинная строка, и вид должен об этом говорить. */}
             <p className="text-sm text-on-surface leading-snug break-words">{nameOf(link)}</p>
             {link.materialLabel && (
-              <p className="text-xs text-fg4 font-mono break-all">{link.materialKey}</p>
+              <p className="text-xs text-on-surface-variant font-mono break-all">{link.materialKey}</p>
             )}
           </div>
           {/* Знак аномалии — рядом со значком уровня, но цветом: он говорит не «какой уровень»,
@@ -189,7 +189,7 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
           <Button variant="outlined" size="sm" icon={<Icon icon={LinkOff} size={18} />}
             onClick={() => setBulkBreak(true)}>Разорвать ({chosen.length})</Button>
           <button type="button" onClick={() => setSelected(new Set())}
-            className="ml-auto text-xs text-fg4 hover:text-on-surface-variant">Снять выбор</button>
+            className="ml-auto text-xs text-on-surface-variant hover:text-on-surface-variant">Снять выбор</button>
         </div>
       )}
 

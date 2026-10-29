@@ -195,7 +195,7 @@ function SuggestOptions({ items, q, listId, active, onPick }: {
         className={'flex min-h-8 cursor-pointer select-none items-center gap-3 rounded px-3 py-1.5 text-sm text-on-surface ' +
           'pointer-coarse:min-h-11 ' + (i === active ? 'bg-primary-container text-brand-hover' : 'hover:bg-surface-container')}>
         <span className="line-clamp-2">{highlight(item.label ?? item.value, q)}</span>
-        {item.note && <span className="ml-auto shrink-0 text-caption text-fg4">{item.note}</span>}
+        {item.note && <span className="ml-auto shrink-0 text-caption text-on-surface-variant">{item.note}</span>}
       </div>
     </Item>
   ));
@@ -207,7 +207,7 @@ function Item({ group, first, children }: { group: string | undefined; first: bo
   return (
     <>
       <div role="presentation"
-        className={`px-3 pb-1 pt-2 text-caption text-fg4 ${first ? '' : 'mt-1 border-t border-stroke-subtle'}`}>
+        className={`px-3 pb-1 pt-2 text-caption text-on-surface-variant ${first ? '' : 'mt-1 border-t border-outline-variant'}`}>
         {group}
       </div>
       {children}

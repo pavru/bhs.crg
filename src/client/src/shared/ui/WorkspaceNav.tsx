@@ -37,7 +37,7 @@ export function OutsideNav({ items }: { items: NavItem[] }) {
   return (
     <div data-testid="outside-nav" className="mt-3">
       <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 px-3 py-2 rounded-full text-left text-xs text-fg3 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+        className="w-full flex items-center gap-2 px-3 py-2 rounded-full text-left text-xs text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
         {open ? <Icon icon={KeyboardArrowDown} size={18} className="shrink-0" /> : <Icon icon={ChevronRight} size={18} className="shrink-0" />}
         <span>{caption}</span>
       </button>
@@ -72,7 +72,7 @@ export function OutsideBanner({ items, inside }: { items: NavItem[]; inside: Nav
   return (
     <div className="shrink-0 flex items-center gap-2 px-4 py-1.5 text-sm bg-surface-container-low text-on-surface-variant border-b border-outline-variant"
       data-testid="outside-banner">
-      <Icon icon={GridView} size={18} className="shrink-0 text-fg3" />
+      <Icon icon={GridView} size={18} className="shrink-0 text-on-surface-variant" />
       <span className="flex-1 min-w-0 truncate">
         «{owner.label}» открыт вне пространства «{ws.current.name}»
       </span>
@@ -98,7 +98,7 @@ export function HiddenByWorkspace({ module, what }: { module: string; what: stri
   const title = access.modules.find(m => m.code === module && m.available)?.title;
   if (!title || ws.shows(module)) return null;
   return (
-    <p className="px-3 py-1.5 text-xs text-fg3" data-testid="hidden-by-workspace">
+    <p className="px-3 py-1.5 text-xs text-on-surface-variant" data-testid="hidden-by-workspace">
       {what} — модуль «{title}», он вне пространства «{ws.current.name}».{' '}
       <button type="button" className="underline hover:no-underline text-primary" onClick={() => ws.choose('all')}>
         Открыть все модули

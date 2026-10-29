@@ -31,7 +31,7 @@ function LogicToggle({
           type="button"
           onClick={() => onChange(l)}
           className={`px-2.5 py-1 transition-colors ${
-            logic === l ? 'bg-primary text-on-primary' : 'bg-surface text-fg3'
+            logic === l ? 'bg-primary text-on-primary' : 'bg-surface text-on-surface-variant'
           }`}
         >
           {l.toUpperCase()}
@@ -63,7 +63,7 @@ function FilterConditionRow({
   return (
     <div className="group/condition">
       <div className="flex items-start gap-1.5 group/cond">
-        <Tooltip content={`Условие ${path}`}><span className="w-6 shrink-0 pt-1.5 text-caption tabular-nums text-fg4">{path}</span></Tooltip>
+        <Tooltip content={`Условие ${path}`}><span className="w-6 shrink-0 pt-1.5 text-caption tabular-nums text-on-surface-variant">{path}</span></Tooltip>
         <ConditionEditor cond={cond} columns={columns} onChange={onChange} hintId={hintId} valueRef={valueRef} />
 
         {/* Remove */}
@@ -71,7 +71,7 @@ function FilterConditionRow({
           <button
             type="button"
             onClick={onRemove}
-            className="p-1 rounded opacity-0 group-hover/cond:opacity-100 transition-all text-fg4 hover:text-error"
+            className="p-1 rounded opacity-0 group-hover/cond:opacity-100 transition-all text-on-surface-variant hover:text-error"
           >
             <Icon icon={Delete} size={18} />
           </button>
@@ -87,7 +87,7 @@ function FilterConditionRow({
 // ─── Group editor (recursive) ─────────────────────────────────────────────────
 
 // Полоска слева — классом, а не стилем: переменную темы из класса Tailwind выводит в сборку сам.
-const DEPTH_ACCENTS = ['border-l-primary', 'border-l-[color-mix(in_srgb,var(--color-primary)_50%,var(--color-fg3))]', 'border-l-fg3'];
+const DEPTH_ACCENTS = ['border-l-primary', 'border-l-[color-mix(in_srgb,var(--color-primary)_50%,var(--color-outline))]', 'border-l-outline'];
 
 function FilterGroupEditor({
   group,
@@ -157,7 +157,7 @@ function FilterGroupEditor({
             <button
               type="button"
               onClick={onRemove}
-              className="flex items-center gap-1 text-xs px-2 py-1 rounded ml-auto transition-colors text-fg4 hover:text-error"
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded ml-auto transition-colors text-on-surface-variant hover:text-error"
             >
               <Icon icon={Delete} size={18} /> Удалить группу
             </button>
@@ -199,7 +199,7 @@ function FilterGroupEditor({
           })}
         </div>
       ) : (
-        <p className="mt-2 text-xs text-fg4">
+        <p className="mt-2 text-xs text-on-surface-variant">
           Нет условий в этой группе.
         </p>
       )}
@@ -311,7 +311,7 @@ export function RowFilterDialog({
         </p>
       )}
 
-      <p className="text-xs mb-4 text-fg4">{words.note}</p>
+      <p className="text-xs mb-4 text-on-surface-variant">{words.note}</p>
 
       <div className="rounded-lg p-3 border border-outline-variant bg-surface" style={{ minHeight: '60px' }}>
         <FilterGroupEditor

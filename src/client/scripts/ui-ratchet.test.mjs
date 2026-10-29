@@ -369,6 +369,14 @@ describe('храповик интерфейса: словарь MD3 (sharedui-md
     ].join('\n'), { dir: 'shared', file: 'shared/ui/x.tsx' })).toEqual({ 'legacy-class': 5 });
   });
 
+  it('третий серый в новом файле — legacy-class с советом on-surface-variant (sharedui-md3-04, [UI-63])', () => {
+    expect(countAll('<p className="text-caption text-fg4" />', { dir: 'features', file: 'features/x/New.tsx' }))
+      .toEqual({ 'legacy-class': 1 });
+    const advice = RULES.find(r => r.id === 'legacy-class').instead;
+    expect(advice).toContain('fg3 → on-surface-variant');
+    expect(advice).toContain('fg4 → on-surface-variant');
+  });
+
   it('имена ролей, общие у обоих словарей, и размер text-base — не старые имена', () => {
     expect(countAll('text-success bg-surface text-tertiary text-base text-base/6 bg-primary text-on-surface-variant on-warning'))
       .toEqual({});

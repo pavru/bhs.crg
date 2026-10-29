@@ -66,7 +66,7 @@ export function ImageMaintenanceSection() {
   return (
     <CollapsibleSection title="Обслуживание изображений" storageKey="image-maintenance" defaultOpen={false}>
       <div className="space-y-3">
-        <p className="text-xs text-fg3">
+        <p className="text-xs text-on-surface-variant">
           Картинки, загруженные раньше, лежат внутри записей и попадают в каждую резервную копию.
           Их можно перенести в хранилище файлов и уменьшить — оригиналы при этом сохраняются.
         </p>
@@ -96,7 +96,7 @@ export function ImageMaintenanceSection() {
 
         {report && (
           nothingToDo
-            ? <p className="text-xs text-fg3">Обслуживать нечего — все изображения уже в хранилище и укладываются в размер.</p>
+            ? <p className="text-xs text-on-surface-variant">Обслуживать нечего — все изображения уже в хранилище и укладываются в размер.</p>
             : (
               <ul className="text-xs text-on-surface-variant space-y-1">
                 {report.images > 0 && (

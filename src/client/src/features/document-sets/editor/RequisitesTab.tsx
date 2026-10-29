@@ -50,7 +50,7 @@ function SourceBoundDocField(
       {recognized
         ? <Icon icon={DocumentScanner} size={18} className={`${tone} shrink-0`} />
         : <Icon icon={Database} size={18} className={`${tone} shrink-0`} />}
-      <span className="text-xs text-fg3">
+      <span className="text-xs text-on-surface-variant">
         {recognized
           // Плашка вместо самих ссылок — единственное, что человек тут видит; промолчав о
           // происхождении здесь, мы оставили бы doc-ref немым, закрыв дверь у соседних полей.
@@ -75,7 +75,7 @@ function SourceBoundDocField(
  */
 function LockedFieldNote() {
   return (
-    <p className="text-caption text-fg4 mt-0.5 flex items-center gap-1">
+    <p className="text-caption text-on-surface-variant mt-0.5 flex items-center gap-1">
       <LockedFieldIcon />{LOCKED_HINT}
     </p>
   );
@@ -85,7 +85,7 @@ function BoundStateHint({ loading, error }: { loading: boolean; error: boolean }
   const text = loading ? 'Загрузка значения из источника…'
     : error ? 'Источник недоступен — проверьте в «Источниках»'
     : 'Источник не дал значения';
-  return <p className="text-caption text-fg4 mt-0.5 italic">{text}</p>;
+  return <p className="text-caption text-on-surface-variant mt-0.5 italic">{text}</p>;
 }
 
 // Стабильный пустой дефолт для загружающихся списочных запросов. КРИТИЧНО (issue #305): `= []` в
@@ -392,7 +392,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
   useLayoutEffect(() => { saveRef.current = handleSaveCore; return () => { saveRef.current = null; }; });
 
   if (schemaFields.length === 0)
-    return <div className="text-sm text-fg4 py-4 text-center">Схема полей не задана.</div>;
+    return <div className="text-sm text-on-surface-variant py-4 text-center">Схема полей не задана.</div>;
 
   const sections = groupEffectiveFields(displayFields, docType?.schema ?? {});
   // Rail разделов — только для крупных форм с несколькими именованными группами (issue #102, P3):
@@ -417,7 +417,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
   if (!activeItem) {
     return (
       <div className="flex-1 min-h-0 flex items-center justify-center px-6 text-center">
-        <p className="text-sm text-fg4 max-w-md">
+        <p className="text-sm text-on-surface-variant max-w-md">
           Все поля этого документа заполняются автоматически — из основы
           {hasBase && baseRef ? ' (базового экземпляра)' : ''} или привязок к источникам данных.
           Заполнять здесь нечего; проверить итог можно в предпросмотре или при генерации.
@@ -451,7 +451,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     {preview.error
                       ? <span className="text-error">Ошибка формулы</span>
                       : empty && missingInputs.length > 0
-                        ? <span className="text-fg4">— · заполните {missingInputs.join(', ')}</span>
+                        ? <span className="text-on-surface-variant">— · заполните {missingInputs.join(', ')}</span>
                         : <span className="text-on-surface">{String(preview.value ?? '—')}</span>}
                   </div>
                 </Tooltip>
@@ -498,7 +498,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                         заполняет, а заполняет здесь не человек. Вместо них — замок. */}
                     {locked ? <LockedFieldIcon className="ml-1 align-text-bottom" /> : <>
                       {field.required && <span className="ml-0.5 text-error">*</span>}
-                      {!field.required && <span className="ml-1 text-caption text-fg4 font-normal">опц.</span>}
+                      {!field.required && <span className="ml-1 text-caption text-on-surface-variant font-normal">опц.</span>}
                     </>}
                     <BrokenCountBadge count={deepBrokenCount(field.key)} className="ml-1.5 align-middle" />
                     <ValueIssueBadge count={deepIssueCount(valueIssues, field.key)} className="ml-1.5 align-middle" />
@@ -609,7 +609,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     {field.title}
                     {locked ? <LockedFieldIcon className="ml-1 align-text-bottom" />
                       : field.required && <span className="ml-0.5 text-error">*</span>}
-                    {primitiveDef && <span className="ml-1 text-caption text-fg4 font-normal">· {primitiveDef.name}</span>}
+                    {primitiveDef && <span className="ml-1 text-caption text-on-surface-variant font-normal">· {primitiveDef.name}</span>}
                     {(recognizedBoundFields.has(field.key) || staleBoundFields.has(field.key)) && (
                       <span className="ml-1 inline-block align-text-bottom">
                         <SourceOriginIcon
@@ -688,7 +688,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
     return (
       <>
         {isFirst && hasBase && !baseRef && (
-          <p className="text-xs text-fg4 mb-4">
+          <p className="text-xs text-on-surface-variant mb-4">
             Основа не выбрана — все поля заполняются вручную.{' '}
             <button type="button" onClick={() => setHintPicker(true)} className="text-primary hover:text-brand-hover underline underline-offset-2">
               Выбрать основу
@@ -697,7 +697,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
         )}
         <div className="mb-4">
           <h2 className="text-xl font-normal text-on-surface">{item.title}</h2>
-          <p className="text-xs text-fg4 mt-0.5">
+          <p className="text-xs text-on-surface-variant mt-0.5">
             Заполнено {stats.filled} из {stats.total}
             {sectionIdx >= 0 && ` · раздел ${sectionIdx + 1} из ${fieldsItems.length}`}
           </p>
@@ -728,7 +728,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
               <div className="px-3 pb-3 space-y-2">
                 {helpText && <Markdown>{helpText}</Markdown>}
                 {hasLevelProfile && (
-                  <p className="text-xs text-fg3">
+                  <p className="text-xs text-on-surface-variant">
                     ℹ Часть данных подтягивается из <span className="text-brand-hover font-medium">профиля уровня</span>{' '}
                     (стройка/раздел/комплект) — они доступны в шаблоне как <code className="font-mono bg-surface-container text-on-surface px-1 rounded">data.уровень.*</code> и заполняются на странице «Общие данные» уровня, а не здесь.
                   </p>
@@ -742,7 +742,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
           но неполнота не «тихая», показываем всегда; жёсткий гейт — на генерации. */}
       {missingRequired.length > 0 && (
         <div className="shrink-0 px-6 pt-3">
-          <div className="flex items-start gap-2.5 rounded-lg border border-warning-border bg-warning-container px-3 py-2 text-xs text-warning">
+          <div className="flex items-start gap-2.5 rounded-lg border border-outline-variant bg-warning-container px-3 py-2 text-xs text-on-warning-container">
             <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <span>
               Черновик — не заполнено обязательных: <b>{missingRequired.length}</b>. Их можно заполнить позже или
@@ -755,28 +755,28 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
         {/* Drawer разделов (list-detail, issue #191) */}
         {useDrawer && (
           <nav aria-label="Разделы формы" className="hidden lg:flex flex-col w-72 shrink-0 border-r border-outline-variant overflow-y-auto p-3 gap-0.5">
-            <div className="text-xs font-medium text-fg4 px-3 pb-1.5">Разделы</div>
+            <div className="text-xs font-medium text-on-surface-variant px-3 pb-1.5">Разделы</div>
             {items.map(item => {
               const isActive = item.key === activeItem.key;
               const stats = sectionStats(item.fields);
               const broken = brokenInFields(item.fields);
-              let icon = Circle, iconCls = 'text-fg4';
+              let icon = Circle, iconCls = 'text-on-surface-variant';
               // Битые ссылки — наивысший приоритет индикатора раздела (issue #334): всегда danger.
               if (broken > 0) { icon = ErrorIcon; iconCls = 'text-error'; }
               else if (showValidation && stats.missing > 0) { icon = ErrorIcon; iconCls = 'text-error'; }
               else if (stats.total > 0 && stats.filled === stats.total) { icon = CheckCircle; iconCls = 'text-primary'; }
               else if (isActive) { icon = RadioButtonChecked; iconCls = 'text-primary'; }
-              else if (stats.filled > 0) { icon = RadioButtonChecked; iconCls = 'text-fg3'; }
+              else if (stats.filled > 0) { icon = RadioButtonChecked; iconCls = 'text-on-surface-variant'; }
               return (
                 <button key={item.key} type="button" onClick={() => setActiveKey(item.key)}
                   aria-current={isActive ? 'true' : undefined}
                   className={`w-full flex items-center gap-3 text-left px-3 h-11 rounded-full transition-colors ${
-                    isActive ? 'bg-primary-container text-brand-hover font-medium' : 'text-fg3 hover:bg-surface-container hover:text-on-surface'}`}>
+                    isActive ? 'bg-primary-container text-brand-hover font-medium' : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'}`}>
                   <Icon icon={icon} size={18} className={`shrink-0 ${iconCls}`} />
                   <span className="flex-1 truncate text-sm">{item.title}</span>
                   <BrokenCountBadge count={broken} className="shrink-0" />
                   <ValueIssueBadge count={issueCountInFields(valueIssues, item.fields.map(f => f.key))} className="shrink-0" />
-                  {stats && <span className="text-xs text-fg4 tabular-nums shrink-0">{stats.filled}/{stats.total}</span>}
+                  {stats && <span className="text-xs text-on-surface-variant tabular-nums shrink-0">{stats.filled}/{stats.total}</span>}
                 </button>
               );
             })}

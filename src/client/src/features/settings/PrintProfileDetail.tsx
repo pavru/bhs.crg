@@ -121,7 +121,7 @@ export function PrintProfileDetail({ profile, otherNames, onDeleted, onEditState
         } />
 
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5" data-testid="print-profile-detail">
-        <p className="text-xs text-fg3">
+        <p className="text-xs text-on-surface-variant">
           {profile.isSystem
             ? 'Профиль по умолчанию: по нему строится вид каждой книги без своей раскладки. Удалить его нельзя, править — можно.'
             : 'Применяется, когда его выбрали при «Перестроить» у файла счёта.'}
@@ -135,7 +135,7 @@ export function PrintProfileDetail({ profile, otherNames, onDeleted, onEditState
 
           <ChoiceRow label="Бумага" error={issues.paper} value={draft.paper}
             options={PAPERS.map(p => ({
-              value: p.value, label: <>{p.value} <span className="text-fg4">{p.shortMm} × {p.longMm}</span></>,
+              value: p.value, label: <>{p.value} <span className="text-on-surface-variant">{p.shortMm} × {p.longMm}</span></>,
             }))}
             onChange={paper => edit({ paper }, ['paper', ...MARGIN_PATHS])} />
 
@@ -188,7 +188,7 @@ export function PrintProfileDetail({ profile, otherNames, onDeleted, onEditState
  */
 function WhereApplied() {
   return (
-    <div className="flex gap-2 rounded-lg bg-surface-container p-3 text-xs text-fg3">
+    <div className="flex gap-2 rounded-lg bg-surface-container p-3 text-xs text-on-surface-variant">
       <Icon icon={Info} size={18} className="shrink-0 mt-0.5 text-on-surface-variant" />
       <div className="space-y-1">
         <p>
@@ -236,7 +236,7 @@ function ChoiceRow<T extends string>({ label, hint, error, value, options, onCha
       </div>
       {error
         ? <p className="mt-1 text-xs text-error">{error}</p>
-        : hint && <p className="mt-1 text-xs text-fg3">{hint}</p>}
+        : hint && <p className="mt-1 text-xs text-on-surface-variant">{hint}</p>}
     </div>
   );
 }
@@ -261,7 +261,7 @@ function MarginsAround({ draft, issues, onChange }: {
     const ofPair = pairOf(side).text;
     return (
       <TextField label={meta.label} value={draft.margins[side]} inputMode="numeric" containerClassName="w-32"
-        trailing={<span className="text-xs text-fg4 pr-3">мм</span>}
+        trailing={<span className="text-xs text-on-surface-variant pr-3">мм</span>}
         error={own} invalid={!!ofPair} aria-invalid={!!(own || ofPair) || undefined}
         aria-describedby={ofPair ? `${pairsId}-${side}` : undefined}
         onChange={e => onChange(side, e.target.value)} />

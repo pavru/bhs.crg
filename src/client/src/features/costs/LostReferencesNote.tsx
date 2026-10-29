@@ -55,7 +55,7 @@ export function LostReferencesNote({ view, locked }: {
         {summary.unchecked.length > 0 && (
           <p>Не проверено: {summary.unchecked.join('; ')}. Есть ли эти записи, сказать нельзя — справочник не прочитан.</p>
         )}
-        <p className="text-fg3">Дополнительные поля типа счёта на удалённые записи не проверяются.</p>
+        <p className="text-on-surface-variant">Дополнительные поля типа счёта на удалённые записи не проверяются.</p>
       </div>
     </div>
   );

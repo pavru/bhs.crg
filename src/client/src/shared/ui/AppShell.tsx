@@ -211,10 +211,10 @@ function SearchButton({ onOpen }: { onOpen: () => void }) {
           обрезается подпись, потом уходит метка клавиш, потом подпись становится невидимой, и
           остаётся значок поиска. Метка держится дольше подписи: учить клавише — смысл кнопки. */}
       <button type="button" onClick={onOpen} aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'}
-        className="@container flex-1 min-w-10 max-md:min-w-11 max-w-160 flex items-center gap-2.5 h-10 max-md:h-11 px-2.5 mx-1 md:mx-3 overflow-hidden rounded-full bg-surface-container-low text-sm text-fg3 hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+        className="@container flex-1 min-w-10 max-md:min-w-11 max-w-160 flex items-center gap-2.5 h-10 max-md:h-11 px-2.5 mx-1 md:mx-3 overflow-hidden rounded-full bg-surface-container-low text-sm text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
         <Icon icon={Search} size={18} className="shrink-0" />
         <span className="flex-1 min-w-0 truncate text-left @max-[8rem]:sr-only">Найти счёт, стройку или действие</span>
-        <kbd className="hidden @[14rem]:inline shrink-0 rounded border border-outline-variant px-1.5 text-caption text-fg4">{mac ? '⌘ K' : 'Ctrl K'}</kbd>
+        <kbd className="hidden @[14rem]:inline shrink-0 rounded border border-outline-variant px-1.5 text-caption text-on-surface-variant">{mac ? '⌘ K' : 'Ctrl K'}</kbd>
       </button>
     </div>
   );
@@ -231,7 +231,7 @@ function EmailConfirmBanner() {
   if (dismissed || !account || account.emailConfirmed) return null;
 
   return (
-    <div className="shrink-0 flex items-center gap-2 px-4 py-2 text-sm bg-warning-container text-warning border-b border-warning/30">
+    <div className="shrink-0 flex items-center gap-2 px-4 py-2 text-sm bg-warning-container text-on-warning-container border-b border-warning/30">
       <Icon icon={MarkEmailUnread} size={18} className="shrink-0" />
       <span className="flex-1">
         Email <span className="font-medium">{account.email}</span> не подтверждён.{' '}

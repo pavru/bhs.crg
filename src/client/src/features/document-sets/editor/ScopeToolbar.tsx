@@ -25,9 +25,9 @@ export function ScopeToolbar({ isFetching, refetch, materialsCount, linkedCount,
         className="flex items-center gap-2 text-sm px-3 py-2 rounded-md bg-surface-container text-on-surface-variant disabled:opacity-50">
         {isFetching ? <CircularProgress size={18} /> : <Icon icon={Search} size={18} />} Обновить материалы
       </button>
-      <span className="text-xs text-fg4">{materialsCount} материалов · привязано {linkedCount}</span>
+      <span className="text-xs text-on-surface-variant">{materialsCount} материалов · привязано {linkedCount}</span>
       <div className="ml-auto flex items-center gap-2">
-        <label className="text-xs text-fg3">Область связи:</label>
+        <label className="text-xs text-on-surface-variant">Область связи:</label>
         {/* Четыре уровня (issue #587) — ровно те, что разрешает резолвер. Раньше их было два, и
             «общая» стояла по умолчанию: узкая ошибка обратима (связка не нашлась), широкая тиха
             (чужой сертификат подставился в чужой документ). Уровень без известного id не

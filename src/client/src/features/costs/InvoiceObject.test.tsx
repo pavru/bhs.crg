@@ -122,18 +122,18 @@ describe('шапка называет разноску по разделам', (
   it('весь счёт на раздел — стройка и раздел, «весь счёт на этот объект»', () => {
     show(invoice([[part('k', 's4')], [part('k', 's4')]]));
     expect(screen.getByRole('combobox', { name: 'Объект счёта' }).textContent).toBe('Комарова 36 / 4 эт.');
-    expect(screen.getByText('весь счёт на этот объект').className).toContain('text-fg4');
+    expect(screen.getByText('весь счёт на этот объект').className).toContain('text-on-surface-variant');
   });
 
   it('несколько разделов — «разнесён на 2 раздела» без тона предупреждения', () => {
     show(invoice([[part('k', 's4')], [part('k', 's5')]]));
     expect(screen.getByRole('combobox', { name: 'Объект счёта' }).textContent).toBe('Комарова 36 · несколько разделов');
-    expect(screen.getByText('разнесён на 2 раздела').className).toContain('text-fg4');
+    expect(screen.getByText('разнесён на 2 раздела').className).toContain('text-on-surface-variant');
   });
 
   it('раздел и часть без раздела — «1 раздел и без раздела», а не «2 раздела»', () => {
     show(invoice([[part('k', 's4')], [part('k')]]));
-    expect(screen.getByText('разнесён на 1 раздел и без раздела').className).toContain('text-fg4');
+    expect(screen.getByText('разнесён на 1 раздел и без раздела').className).toContain('text-on-surface-variant');
   });
 
   it('запертый счёт — стройка и раздел текстом, без выбора', () => {

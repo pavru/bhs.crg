@@ -3,4 +3,4 @@
  * h-7, радиус, рамка и кольцо фокуса. Своя рамка у поля в строке из трёх давала разную высоту и цвет.
  */
 export const FIELD_CLS = 'h-7 px-2 rounded-md border border-outline bg-surface text-xs text-on-surface '
-  + 'placeholder:text-fg4 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary';
+  + 'placeholder:text-on-surface-variant focus:outline-none focus-visible:ring-2 focus-visible:ring-primary';

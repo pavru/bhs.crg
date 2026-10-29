@@ -95,7 +95,7 @@ export function NavSearchInput({ value, onChange, placeholder = 'Поиск…' 
 
 /** Микрозаголовок секции левой навигации scope-страницы («КОМПЛЕКТЫ», «ЭТОТ РАЗДЕЛ», …). */
 export function NavSection({ label }: { label: string }) {
-  return <div className="px-3 pt-3 pb-1 text-caption font-semibold uppercase tracking-wide text-fg4">{label}</div>;
+  return <div className="px-3 pt-3 pb-1 text-caption font-semibold uppercase tracking-wide text-on-surface-variant">{label}</div>;
 }
 
 /**
@@ -133,13 +133,13 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
     <button type="button" onClick={() => { if (!chevron && !filter) view?.showDetail(); onClick(); }} aria-current={active ? 'true' : undefined}
       className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left transition-colors ${
         highlight ? 'bg-primary-container text-brand-hover font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
-      <span className={`shrink-0 ${highlight ? 'text-brand-hover' : 'text-fg4'}`}>{icon}</span>
+      <span className={`shrink-0 ${highlight ? 'text-brand-hover' : 'text-on-surface-variant'}`}>{icon}</span>
       <span className="flex-1 truncate text-sm">{label}</span>
       {progress != null && (
         <Tooltip content={progressTitle ?? `Готовность по плану: ${progress}%`}>
           <span
             className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 tabular-nums ${
-              progress === 100 ? 'bg-primary-container text-primary' : 'bg-surface-container text-fg3'}`}>
+              progress === 100 ? 'bg-primary-container text-primary' : 'bg-surface-container text-on-surface-variant'}`}>
             {progress}%
           </span>
         </Tooltip>
@@ -155,11 +155,11 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
       )}
       {chevron ? (
         <>
-          {count != null && <span className="text-xs text-fg4 shrink-0">{count}</span>}
-          <Icon icon={ChevronRight} size={18} className="shrink-0 text-fg4" />
+          {count != null && <span className="text-xs text-on-surface-variant shrink-0">{count}</span>}
+          <Icon icon={ChevronRight} size={18} className="shrink-0 text-on-surface-variant" />
         </>
       ) : note ? (
-        <span className="text-caption px-1.5 py-0.5 rounded-full shrink-0 bg-surface-container text-fg3">{note}</span>
+        <span className="text-caption px-1.5 py-0.5 rounded-full shrink-0 bg-surface-container text-on-surface-variant">{note}</span>
       ) : (
         count != null && count > 0 && (
           <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${highlight ? 'bg-white/50 text-brand-hover' : 'bg-primary-container text-primary'}`}>{count}</span>
@@ -190,7 +190,7 @@ export function DetailHeader({ heading, dirty, saving, onSaveAll, onRevert, acti
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">{heading}</div>
         <div className="flex items-center gap-1.5 shrink-0">
-          {dirty && <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-warning-container text-warning">есть изменения</span>}
+          {dirty && <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-warning-container text-on-warning-container">есть изменения</span>}
           {onRevert && (
             <Button variant="text" size="sm" disabled={!dirty || saving} onClick={onRevert}>Отмена</Button>
           )}

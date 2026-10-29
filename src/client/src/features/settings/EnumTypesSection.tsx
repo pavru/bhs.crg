@@ -33,7 +33,7 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
   const cols = 'grid grid-cols-[20px_1fr_1.4fr_auto] gap-1.5 items-center';
   return (
     <div className="space-y-1.5">
-      <div className={`${cols} text-xs text-fg4 px-0.5`}>
+      <div className={`${cols} text-xs text-on-surface-variant px-0.5`}>
         <span />
         <span>Код</span>
         <span>Отображаемое имя</span>
@@ -44,7 +44,7 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
           onDragOver={dragIdx !== null ? e => e.preventDefault() : undefined}
           onDrop={dragIdx !== null ? e => { e.preventDefault(); move(dragIdx, i); setDragIdx(null); } : undefined}>
           <Tooltip content="Перетащить">
-            <span className="flex justify-center text-fg4 cursor-grab" draggable
+            <span className="flex justify-center text-on-surface-variant cursor-grab" draggable
               /* Заглушка в dataTransfer — страховка по спецификации, а не требование Firefox:
                  утверждение «пустой payload отменяет перетаскивание» проверено вручную 2026-08-17 и
                  не подтвердилось (см. ROW_DRAG_MIME в document-sets/fields).
@@ -62,7 +62,7 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
           <span className="flex items-center gap-0.5">
             <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
               isFirst={i === 0} isLast={i === values.length - 1} />
-            <Tooltip content="Удалить" name><button type="button" onClick={() => remove(i)} className="p-0.5 text-fg4 hover:text-error"><Icon icon={Delete} size={18} /></button></Tooltip>
+            <Tooltip content="Удалить" name><button type="button" onClick={() => remove(i)} className="p-0.5 text-on-surface-variant hover:text-error"><Icon icon={Delete} size={18} /></button></Tooltip>
           </span>
         </div>
       ))}

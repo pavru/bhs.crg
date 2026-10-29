@@ -74,7 +74,7 @@ function TemplateForm({
     <div className="space-y-4">
       {/* Название */}
       <div>
-        <label className="block text-xs font-medium mb-1 text-fg3">
+        <label className="block text-xs font-medium mb-1 text-on-surface-variant">
           Название шаблона
         </label>
         <input
@@ -97,14 +97,14 @@ function TemplateForm({
 
       {/* Маппинг */}
       <div>
-        <label className="block text-xs font-medium mb-2 text-fg3">
+        <label className="block text-xs font-medium mb-2 text-on-surface-variant">
           Ожидаемые колонки в файле
-          <span className="ml-1 font-normal text-fg4">
+          <span className="ml-1 font-normal text-on-surface-variant">
             (оставьте пустым, чтобы пропустить поле)
           </span>
         </label>
         {mappableFields.length === 0 ? (
-          <p className="text-xs text-fg4">
+          <p className="text-xs text-on-surface-variant">
             {targetFieldKey
               ? 'Нет полей для маппинга (возможно, тип не задан или не найден)'
               : 'Нет простых полей в схеме документа'}
@@ -117,7 +117,7 @@ function TemplateForm({
                   <span className="text-xs font-medium truncate block text-on-surface-variant" title={f.title}>
                     {f.title}
                   </span>
-                  <span className="text-caption font-mono text-fg4">{f.key}</span>
+                  <span className="text-caption font-mono text-on-surface-variant">{f.key}</span>
                 </div>
                 <input
                   value={columnMappings[f.key] ?? ''}
@@ -194,7 +194,7 @@ function TemplateRow({
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-on-surface">{template.name}</div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className="text-xs text-fg4">
+            <span className="text-xs text-on-surface-variant">
               {template.targetFieldKey
                 ? `Табличный → ${arrayField?.title ?? template.targetFieldKey}`
                 : 'Скалярный'}
@@ -205,7 +205,7 @@ function TemplateRow({
         <Tooltip content="Редактировать" name>
           <button
             onClick={() => setEditing(e => !e)}
-            className="p-1.5 rounded text-fg3"
+            className="p-1.5 rounded text-on-surface-variant"
           >
             <Icon icon={Edit} size={18} />
           </button>
@@ -214,14 +214,14 @@ function TemplateRow({
           <Tooltip content="Удалить" name>
             <button
               onClick={() => setConfirming(true)}
-              className="p-1.5 rounded text-fg4 hover:text-error transition-colors"
+              className="p-1.5 rounded text-on-surface-variant hover:text-error transition-colors"
             >
               <Icon icon={Delete} size={18} />
             </button>
           </Tooltip>
         ) : (
           <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-fg3">Удалить?</span>
+            <span className="text-on-surface-variant">Удалить?</span>
             <button
               onClick={() => del.mutateAsync({ documentTypeId: docType.id, id: template.id }).then(() => setConfirming(false))}
               disabled={del.isPending}
@@ -290,7 +290,7 @@ export function BindingTemplatesDialog({
       title={`Шаблоны данных — ${docType.name}`}
       wide
     >
-      <p className="text-xs mb-4 text-fg4">
+      <p className="text-xs mb-4 text-on-surface-variant">
         Шаблоны задают стандартный маппинг для этого типа документа (фильтрация/преобразование/
         сортировка — на уровне источника данных, см. «Наборы данных»).
         При добавлении источника можно применить шаблон — маппинг заполнится автоматически.
@@ -299,9 +299,9 @@ export function BindingTemplatesDialog({
       {/* Список */}
       <div className="rounded-xl overflow-hidden mb-4 border border-outline-variant bg-surface">
         {isLoading ? (
-          <div className="p-6 text-center text-sm text-fg4">Загрузка...</div>
+          <div className="p-6 text-center text-sm text-on-surface-variant">Загрузка...</div>
         ) : templates.length === 0 && !adding ? (
-          <div className="p-6 text-center text-sm text-fg4">
+          <div className="p-6 text-center text-sm text-on-surface-variant">
             Нет шаблонов. Создайте первый шаблон для ускорения настройки маппинга.
           </div>
         ) : (
@@ -314,7 +314,7 @@ export function BindingTemplatesDialog({
       {/* Форма добавления */}
       {adding ? (
         <div className="rounded-xl p-4 border border-outline-variant bg-surface-container-low">
-          <p className="text-xs font-semibold mb-3 text-fg3">Новый шаблон</p>
+          <p className="text-xs font-semibold mb-3 text-on-surface-variant">Новый шаблон</p>
           <TemplateForm
             docType={docType}
             allDocTypes={allDocTypes}
@@ -326,7 +326,7 @@ export function BindingTemplatesDialog({
       ) : (
         <button
           onClick={() => setAdding(true)}
-          className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md text-primary bg-primary-container"
+          className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md text-on-primary-container bg-primary-container"
         >
           <Icon icon={Add} size={18} /> Добавить шаблон
         </button>

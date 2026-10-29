@@ -20,7 +20,7 @@ export function ProxyToggle({ checked, onChange, disabled }: {
         onChange={e => onChange(e.target.checked)} />
       <span>
         Через прокси
-        <span className={`block text-xs ${checked && !proxyUrl ? 'text-warning' : 'text-fg4'}`}>
+        <span className={`block text-xs ${checked && !proxyUrl ? 'text-warning' : 'text-on-surface-variant'}`}>
           {proxyUrl
             ? proxyUrl
             : checked

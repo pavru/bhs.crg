@@ -23,10 +23,10 @@ export type StatusTone = 'neutral' | 'brand' | 'success' | 'warning' | 'danger' 
 const TONE: Record<StatusTone, { fill: string; border: string }> = {
   neutral: { fill: 'bg-surface-container text-on-surface-variant', border: 'border-outline-variant' },
   brand: { fill: 'bg-primary-container text-on-primary-container', border: 'border-primary/30' },
-  success: { fill: 'bg-success-container text-success', border: 'border-success/30' },
-  warning: { fill: 'bg-warning-container text-warning', border: 'border-warning-border' },
-  danger: { fill: 'bg-error-container text-error', border: 'border-error/30' },
-  quiet: { fill: 'text-fg3', border: 'border-outline-variant' },
+  success: { fill: 'bg-success-container text-on-success-container', border: 'border-success/30' },
+  warning: { fill: 'bg-warning-container text-on-warning-container', border: 'border-outline-variant' },
+  danger: { fill: 'bg-error-container text-on-error-container', border: 'border-error/30' },
+  quiet: { fill: 'text-on-surface-variant', border: 'border-outline-variant' },
 };
 
 export function StatusBadge({ tone = 'neutral', icon, bordered = false, title, className = '', children }: {

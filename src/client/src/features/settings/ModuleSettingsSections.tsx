@@ -133,7 +133,7 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
                     onChange={on => edit(setting.key, on ? 'true' : 'false')} />
                   {setting.title}
                 </label>
-                <p className={`text-xs mt-1 ${errors[setting.key] ? 'text-error' : 'text-fg3'}`}>
+                <p className={`text-xs mt-1 ${errors[setting.key] ? 'text-error' : 'text-on-surface-variant'}`}>
                   {errors[setting.key] ? sentence(errors[setting.key]) : boundsHint(setting)}
                 </p>
               </div>
@@ -144,12 +144,12 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
                 inputMode="decimal"
                 value={fieldText(setting, draft)}
                 onChange={e => edit(setting.key, e.target.value)}
-                trailing={unitOf(setting) ? <span className="text-sm text-fg3">{unitOf(setting)}</span> : undefined}
+                trailing={unitOf(setting) ? <span className="text-sm text-on-surface-variant">{unitOf(setting)}</span> : undefined}
                 error={errors[setting.key] ? sentence(errors[setting.key]) : undefined}
                 hint={boundsHint(setting)}
               />
             )}
-            <p className="text-xs text-fg3 mt-1.5 max-w-xl">{setting.effect}</p>
+            <p className="text-xs text-on-surface-variant mt-1.5 max-w-xl">{setting.effect}</p>
             {stale && <p className="text-xs text-warning mt-1 max-w-xl">{stale}</p>}
             {/* «Вернуть» — только когда есть что возвращать: у несохранённой настройки умолчание и так действует. */}
             {(setting.stored !== null || setting.stale !== null) && !reset && (
@@ -188,7 +188,7 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
                   <p className="font-medium text-on-surface">{w.title}: {w.from} → {w.to}</p>
                   <p className="mt-1">{w.warning}</p>
                   {line && (
-                    <p className={`mt-2 ${line.tone === 'told' ? 'text-on-surface' : line.tone === 'refused' ? 'text-error' : 'text-fg3'}`}>
+                    <p className={`mt-2 ${line.tone === 'told' ? 'text-on-surface' : line.tone === 'refused' ? 'text-error' : 'text-on-surface-variant'}`}>
                       {line.text}
                     </p>
                   )}

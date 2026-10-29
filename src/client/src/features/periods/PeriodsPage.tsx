@@ -66,7 +66,7 @@ export function PeriodsPage() {
   };
 
   if (isLoading || !data) {
-    return <div className="px-6 py-10 text-center text-fg4 text-sm">Загрузка...</div>;
+    return <div className="px-6 py-10 text-center text-on-surface-variant text-sm">Загрузка...</div>;
   }
 
   const rows = [data.company, ...data.constructions];
@@ -92,7 +92,7 @@ export function PeriodsPage() {
   return (
     <div className="px-6 py-4 max-w-5xl">
       <PageHeader icon={<Icon icon={CalendarCheck} size={18} aria-hidden />} title="Учётный период" className="mb-1" />
-      <p className="text-note text-fg3 mb-4 max-w-3xl">
+      <p className="text-note text-on-surface-variant mb-4 max-w-3xl">
         Граница закрытого учёта компании и строек. Закрытие компании закрывает все стройки; стройку
         можно закрыть и дальше компании. Сегодня по часам компании — {ruDate(data.today)}:
         закрываются только прошедшие дни.
@@ -129,7 +129,7 @@ export function PeriodsPage() {
             </div>
           ) },
       ]} />
-      {!sitesKnown && <p className="mt-2 text-note text-fg4">Загрузка строек...</p>}
+      {!sitesKnown && <p className="mt-2 text-note text-on-surface-variant">Загрузка строек...</p>}
 
       <History records={history} nameOf={nameOf} />
 
@@ -147,7 +147,7 @@ export function PeriodsPage() {
 }
 
 function Closed({ state }: { state: PeriodContourState }) {
-  if (!state.closedThrough) return <span className="text-fg4">не закрыто ничего</span>;
+  if (!state.closedThrough) return <span className="text-on-surface-variant">не закрыто ничего</span>;
 
   // Стройка, закрытая чужим закрытием, обязана это сказать: «Отменить» у неё нет, и без пояснения
   // строка выглядит сломанной — закрыта, а открыть нечем.
@@ -155,7 +155,7 @@ function Closed({ state }: { state: PeriodContourState }) {
   return (
     <span className="text-on-surface tabular-nums">
       по {ruDate(state.closedThrough)}
-      {byCompany && <span className="text-fg3"> — закрытием компании</span>}
+      {byCompany && <span className="text-on-surface-variant"> — закрытием компании</span>}
     </span>
   );
 }
@@ -280,7 +280,7 @@ export function CloseDialog({ state, name, today, sites, onDone }: {
             )}
           </>
         ) : (
-          from && through && <p className="text-note text-fg3">Считаем, что попадёт в период…</p>
+          from && through && <p className="text-note text-on-surface-variant">Считаем, что попадёт в период…</p>
         )}
         {/* Отказ закрытия — о датах, с которыми его отправляли. Сменили дату — он уже не о том. А когда
             период «наоборот», причина названа выше, и точнее: рядом с «период уже закрыт» строка «не
@@ -361,7 +361,7 @@ function History({ records, nameOf }: {
       <h2 className="text-sm font-semibold text-on-surface-variant mt-6 mb-2">История</h2>
       <DataGrid rows={records} rowKey={r => r.id} columns={[
         { key: 'at', label: 'Когда', width: 'w-36',
-          cell: r => <span className="text-fg3 tabular-nums">{formatDateTime(r.at)}</span> },
+          cell: r => <span className="text-on-surface-variant tabular-nums">{formatDateTime(r.at)}</span> },
         { key: 'byName', label: 'Кто', width: 'w-52', wrap: true, cell: r => <span className="text-on-surface-variant break-all">{r.byName}</span> },
         { key: 'what', label: 'Что', wrap: true,
           cell: r => (
@@ -370,7 +370,7 @@ function History({ records, nameOf }: {
                 {r.kind === 'Close' ? 'Закрыт период' : 'Отменено закрытие'}
                 {' '}с {ruDate(r.from)} по {ruDate(r.through)} — {nameOf(r.constructionId)}
               </div>
-              {r.reason && <div className="text-fg3 text-xs">{r.reason}</div>}
+              {r.reason && <div className="text-on-surface-variant text-xs">{r.reason}</div>}
               {r.kind === 'Close' && (r.report ? (
                 <>
                   <button type="button" aria-expanded={open.has(r.id)} onClick={() => toggle(r.id)}
@@ -383,7 +383,7 @@ function History({ records, nameOf }: {
                       {/* Записанное — цитата, его не трогаем; меняется подпись над ним (E2, разбор Дизайнера, п. 8).
                           Она верна для любой записи: старые отличать не нужно. Модулей экран ядра не знает —
                           поэтому «документы», а не «счета». */}
-                      <p className="text-xs text-fg3 mb-2">
+                      <p className="text-xs text-on-surface-variant mb-2">
                         Так диалог выглядел в день закрытия — и числа, и пояснения. С тех пор могли измениться и
                         данные, и правила: документ закрытого периода бывает исправлен после закрытия.
                       </p>
@@ -393,7 +393,7 @@ function History({ records, nameOf }: {
                 </>
               ) : (
                 // Закрытие сделано до появления перечня: молчание выглядело бы как «незавершённого не было».
-                <div className="text-fg4 text-xs">Перечень не записывался.</div>
+                <div className="text-on-surface-variant text-xs">Перечень не записывался.</div>
               ))}
             </>
           ) },

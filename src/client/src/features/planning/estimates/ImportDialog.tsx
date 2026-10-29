@@ -199,7 +199,7 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
             ) : estimates.isError ? (
               <p role="alert" className="text-sm text-error">{planRefusal(estimates.error).text}</p>
             ) : !listed ? (
-              <p className="text-sm text-fg4">Читаем сметы стройки…</p>
+              <p className="text-sm text-on-surface-variant">Читаем сметы стройки…</p>
             ) : (
               <fieldset className="space-y-3">
                 <legend className="text-sm font-medium text-on-surface mb-2">Куда ляжет редакция</legend>
@@ -217,7 +217,7 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
             <CircularProgress size={18} className="mt-0.5 shrink-0 text-primary" />
             <div role="status" className="space-y-1">
               <p className="text-on-surface">Разбираем {data ? <b className="font-medium">{data.fileName}</b> : 'файл'}{data?.progress ? ` — ${data.progress}` : '…'}</p>
-              <p className="text-fg3">Разбор идёт в фоне: окно можно закрыть — импорт останется над сметами стройки, и отчёт откроется оттуда.</p>
+              <p className="text-on-surface-variant">Разбор идёт в фоне: окно можно закрыть — импорт останется над сметами стройки, и отчёт откроется оттуда.</p>
             </div>
           </div>
         )}
@@ -263,10 +263,10 @@ const STEPS = [['pick', 'Файл и цель'], ['parsing', 'Разбор'], ['
 
 function Steps({ step }: { step: (typeof STEPS)[number][0] }) {
   return (
-    <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg3" aria-label="Шаги загрузки">
+    <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-on-surface-variant" aria-label="Шаги загрузки">
       {STEPS.map(([key, label], i) => (
         <li key={key} aria-current={key === step ? 'step' : undefined} className={key === step ? 'font-medium text-primary' : undefined}>
-          {i > 0 && <span aria-hidden className="mr-2 text-fg4">›</span>}{i + 1} {label}
+          {i > 0 && <span aria-hidden className="mr-2 text-on-surface-variant">›</span>}{i + 1} {label}
         </li>
       ))}
     </ol>
@@ -302,10 +302,10 @@ function FilePick({ file, onFile }: { file: File | null; onFile: (file: File) =>
       onDrop={onDrop}
       className={`flex flex-wrap items-center gap-3 rounded-lg border-2 border-dashed px-4 py-3 text-sm
         ${over ? 'border-primary bg-primary-container' : 'border-outline-variant'}`}>
-      <Icon icon={UploadFile} size={20} className="shrink-0 text-fg3" aria-hidden />
+      <Icon icon={UploadFile} size={20} className="shrink-0 text-on-surface-variant" aria-hidden />
       <div className="min-w-0 flex-1">
         {file
-          ? <p className="text-on-surface break-all">{file.name} <span className="text-fg3">· {formatBytes(file.size)}</span></p>
+          ? <p className="text-on-surface break-all">{file.name} <span className="text-on-surface-variant">· {formatBytes(file.size)}</span></p>
           : <p className="text-on-surface-variant">Перетащите сюда файл сметы из ГРАНД-Сметы (.gsfx или .xml)</p>}
         {several && <p className="text-xs text-error">Одна загрузка — один файл: перетащите их по одному.</p>}
       </div>
