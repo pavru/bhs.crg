@@ -97,9 +97,10 @@ const FRAMED_TRIGGER =
 // Рамка, фон и цвет текста — в виде, а не в общей основе: у `inline` их нет вовсе, и класс,
 // переопределяющий основу, снова спорил бы с ней порядком правил в CSS.
 // Рамочный — поле: фокус и открытый список показывает его обводка 2 px primary, а не кольцо ([UI-64]).
-// Строчный — без рамки, в тексте или клетке: у него слой состояния и общее кольцо.
+// Строчный — без рамки, в тексте или клетке: у него слой состояния и общее кольцо. Рамку отключённого
+// гасит только рамочный: у прозрачной рамки строчного серой рамки появиться не должно.
 const BOXED = 'border-outline bg-surface text-on-surface focus:outline-none focus-visible:ring-2 ' +
-  'focus-visible:ring-primary data-[state=open]:ring-2 data-[state=open]:ring-primary';
+  'focus-visible:ring-primary data-[state=open]:ring-2 data-[state=open]:ring-primary disabled-outlined';
 const SIZE = {
   md: `h-9 px-3 text-sm ${BOXED}`,
   sm: `h-7 px-2 gap-1 text-xs ${BOXED}`,

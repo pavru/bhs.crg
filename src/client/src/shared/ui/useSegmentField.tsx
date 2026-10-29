@@ -459,7 +459,7 @@ export function useSegmentField<K extends string>(model: SegmentModel<K>, {
         const len = model.len[part];
         return (
           <Fragment key={part}>
-            {i > 0 && <span className="text-on-surface-variant select-none">{model.sep}</span>}
+            {i > 0 && <span className={`${disabled ? 'text-on-surface/38' : 'text-on-surface-variant'} select-none`}>{model.sep}</span>}
             {/* Ширина — по образцам (см. `SIZER`): обозначение и цифры. */}
             <span className="inline-grid">
               <span data-sizer={model.labels[part]} aria-hidden className={SIZER} />

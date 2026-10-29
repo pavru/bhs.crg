@@ -147,9 +147,12 @@ export function containerTextHits(text) {
  * variants, at }`, где `cls` — утилита без вариантов и без `!`, `variants` — варианты по порядку
  * (`dark:hover:bg-white/10` → `['dark', 'hover']`). Двоеточие внутри скобок варианта
  * (`[@media(pointer:coarse)]:`, `data-[state=open]:`) вариант не делит. Регулярка со строкой `dark:`
- * (фильтр классов в Tooltip) — не строка, её классы не видны нарочно.
+ * (фильтр классов в Tooltip) — не строка, её классы не видны нарочно. Храповик зовёт её подряд для
+ * каждого правила по одному и тому же файлу — последний разбор помнится, результат только читают.
  */
+let lastTokens = { text: null, out: [] };
 export function classTokens(text) {
+  if (lastTokens.text === text) return lastTokens.out;
   const out = [];
   for (const span of scanCode(text).strings)
     for (const [from, to] of span)
@@ -166,6 +169,7 @@ export function classTokens(text) {
         const cls = raw.slice(start).replace(/^!|!$/g, '');
         if (cls) out.push({ cls, variants: parts, at: from + m.index });
       }
+  lastTokens = { text, out };
   return out;
 }
 

@@ -50,7 +50,7 @@ function variantClass(variant: ButtonVariant, danger: boolean): string {
     case 'tonal':
       return 'bg-secondary-container text-on-secondary-container disabled-container';
     case 'outlined':
-      return `border border-outline ${danger ? 'text-error' : 'text-primary'} disabled-content`;
+      return `border border-outline ${danger ? 'text-error' : 'text-primary'} disabled-outlined`;
     case 'text':
       return `${danger ? 'text-error' : 'text-primary'} disabled-content`;
   }

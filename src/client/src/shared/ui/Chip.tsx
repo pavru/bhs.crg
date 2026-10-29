@@ -42,7 +42,10 @@ export interface ChipProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>,
 }
 
 const BASE = 'inline-flex items-center gap-1 rounded-full border text-xs bg-surface';
-/** Состояния — у кнопки, а не у пилюли: у чипа с крестиком их две, и подсвечивается та, что под курсором. */
+/**
+ * Состояния — у кнопки, а не у пилюли: у чипа с крестиком их две, и подсвечивается та, что под курсором.
+ * Рамку отключённого гасит только чип-кнопка: у половинок чипа с крестиком своей рамки нет.
+ */
 const PRESS = 'state-layer focus-ring disabled-content disabled:pointer-events-none';
 
 // Наведение — слоем цвета подписи ([UI-64]): своей заливки и смены цвета у тона нет.
@@ -76,7 +79,7 @@ export function Chip({ children, selected, icon, count, tone, dashed, onRemove, 
   if (!onRemove)
     return (
       <button {...rest} type={type} {...state}
-        className={`${chipClass({ selected, tone, dashed })} ${PRESS} px-2.5 py-1 ${className}`}>
+        className={`${chipClass({ selected, tone, dashed })} ${PRESS} disabled-outlined px-2.5 py-1 ${className}`}>
         {body}
       </button>
     );

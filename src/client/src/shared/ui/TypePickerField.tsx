@@ -76,7 +76,7 @@ export function TypePickerField({
       `disabled-content disabled:pointer-events-none`
     : `w-full ${size === 'sm' ? 'h-8' : 'h-9'} px-3 rounded-md border border-outline bg-surface ` +
       `text-sm text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ` +
-      `data-[state=open]:ring-2 disabled-content disabled:pointer-events-none`;
+      `data-[state=open]:ring-2 disabled-outlined disabled:pointer-events-none`;
 
   // `overflow-hidden` на триггере — страховка впредь (issue #668): её не было, и несжимаемый
   // элемент (код типа) не обрезался, а выходил за рамку поля и наезжал на замыкающую лупу.

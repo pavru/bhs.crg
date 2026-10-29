@@ -48,7 +48,8 @@ body {
    position: relative (они ломали бы абсолютно позиционированное и чужие before:). Прозрачность —
    частная --_s, цвет — --_state-color (по умолчанию currentColor, т. е. роль on-* элемента). Пункт
    меню Radix подсвечивается data-highlighted и с клавиатуры, и мышью — слой у него тот же, что при
-   наведении. Отключённое слоя не несёт. */
+   наведении. Отключённое слоя не несёт. Нажатие — только у самого нажимаемого: :active зажигается и у
+   предков нажатой кнопки, и строка таблицы темнела бы от щелчка по крестику в ней. */
 @property --_s {
   syntax: '<number>';
   inherits: false; /* слой родителя под курсором не зажигает слой вложенного элемента */
@@ -60,43 +61,53 @@ body {
   transition-duration: var(--md-sys-motion-duration-short3);
   transition-timing-function: var(--md-sys-motion-easing-standard);
   &:hover, &[data-highlighted] { --_s: var(--md-sys-state-hover); }
-  &:focus-visible, &:active, &[data-state=open] { --_s: var(--md-sys-state-pressed); }
+  &:focus-visible, &:active:not(tr), &[data-state=open] { --_s: var(--md-sys-state-pressed); }
   &[data-dragging] { --_s: var(--md-sys-state-dragged); }
   &:disabled, &[aria-disabled=true], &[data-disabled] { --_s: 0; }
 }
-/* Тот же слой у части элемента, состояние — у ближайшей .group: плашка значка рейла и нижней навигации
-   загорается, когда курсор над всей ссылкой, а не только над плашкой. */
+/* Добавка к state-layer — состояние берётся у ближайшей .group: плашка значка рейла и нижней навигации
+   загорается, когда курсор над всей ссылкой, а не только над плашкой (`state-layer state-layer-group`). */
 @utility state-layer-group {
-  background-image: linear-gradient(color-mix(in srgb, var(--_state-color, currentColor) calc(var(--_s) * 100%), transparent) 0 0);
-  transition-property: --_s;
-  transition-duration: var(--md-sys-motion-duration-short3);
-  transition-timing-function: var(--md-sys-motion-easing-standard);
   &:is(:where(.group):hover *) { --_s: var(--md-sys-state-hover); }
   &:is(:where(.group):focus-visible *, :where(.group):active *) { --_s: var(--md-sys-state-pressed); }
 }
 
 /* Кольцо фокуса с клавиатуры — одно на весь клиент: 3 px secondary, отступ 2 px (выбор владельца
-   29.10.2026, вариант А листа sharedui-md3-05). Щелчок мышью его не рисует. focus-ring-inset — для
-   строки и клетки таблицы: снаружи кольцо там срезает прокрутка и закрывают соседи. focus-ring-mark —
-   то же кольцо без условия, для варианта группы (group-focus-visible:focus-ring-mark): фокус у ссылки,
-   кольцо — у её плашки. У поля ввода фокус показывает обводка самого поля, кольца нет. */
+   29.10.2026, вариант А листа sharedui-md3-05) — значения один раз, в переменных ниже. Щелчок мышью
+   его не рисует. focus-ring-inset — для строки и клетки таблицы: снаружи кольцо там срезает прокрутка
+   и закрывают соседи. focus-ring-mark — то же кольцо без условия, для варианта группы
+   (group-focus-visible:focus-ring-mark): фокус у ссылки, кольцо — у её плашки. У поля ввода фокус
+   показывает обводка самого поля, кольца нет. */
+:root {
+  --md-focus-ring: 3px solid var(--md-sys-color-secondary);
+  --md-focus-ring-offset: 2px;
+  --md-focus-ring-inset: -3px;
+}
 @utility focus-ring {
-  &:focus-visible { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 2px; }
+  &:focus-visible { outline: var(--md-focus-ring); outline-offset: var(--md-focus-ring-offset); }
 }
 @utility focus-ring-inset {
-  &:focus-visible { outline: 3px solid var(--md-sys-color-secondary); outline-offset: -3px; }
+  &:focus-visible { outline: var(--md-focus-ring); outline-offset: var(--md-focus-ring-inset); }
 }
 @utility focus-ring-mark {
-  outline: 3px solid var(--md-sys-color-secondary);
-  outline-offset: 2px;
+  outline: var(--md-focus-ring);
+  outline-offset: var(--md-focus-ring-offset);
 }
 
 /* Отключённое по MD3: содержимое on-surface 38 %, контейнер on-surface 12 %, обводка on-surface 12 %.
    Одним видом при disabled, aria-disabled (кнопка с подсказкой «почему нельзя») и data-disabled
    (пункт меню Radix). Утилитой, а не парой disabled:-классов: Tooltip переписывает disabled: в
    безусловный класс, и bg-on-surface/12 спорил бы с bg-primary порядком в CSS. Здесь же вес
-   селектора выше заливки элемента. */
+   селектора выше заливки элемента. Обводку красит только disabled-outlined: у прозрачной рамки
+   (вкладка без черты, строчный Select) серой рамки появиться не должно. Часть со своим цветом
+   (разделитель, значок другого цвета) гасит компонент сам. */
 @utility disabled-content {
+  &:disabled, &[aria-disabled=true], &[data-disabled] {
+    color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
+    cursor: default;
+  }
+}
+@utility disabled-outlined {
   &:disabled, &[aria-disabled=true], &[data-disabled] {
     color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
     border-color: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);

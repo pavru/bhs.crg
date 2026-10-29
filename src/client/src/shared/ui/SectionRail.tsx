@@ -88,7 +88,7 @@ export function SectionPill({ icon, on, wide = false }: { icon: RailSectionDef['
   return (
     // Слой и кольцо — у плашки, состояние — у ссылки вокруг (`group`): курсор над подписью тоже зажигает её.
     <span className={`flex items-center justify-center ${wide ? 'w-16' : 'w-14'} h-8 rounded-full ` +
-      'state-layer-group group-focus-visible:focus-ring-mark ' +
+      'state-layer state-layer-group group-focus-visible:focus-ring-mark ' +
       (on ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant')}>
       <Icon icon={icon} size={wide ? 24 : 20} filled={on} />
     </span>

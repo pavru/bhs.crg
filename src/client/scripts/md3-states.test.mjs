@@ -34,7 +34,8 @@ describe('state-layer', () => {
 
   it.each([
     ['&:hover, &[data-highlighted]', '--_s: var(--md-sys-state-hover);'],
-    ['&:focus-visible, &:active, &[data-state=open]', '--_s: var(--md-sys-state-pressed);'],
+    // Нажатие — не у строки: :active зажигается у предков нажатой кнопки, и строка темнела бы от крестика.
+    ['&:focus-visible, &:active:not(tr), &[data-state=open]', '--_s: var(--md-sys-state-pressed);'],
     ['&[data-dragging]', '--_s: var(--md-sys-state-dragged);'],
     ['&:disabled, &[aria-disabled=true], &[data-disabled]', '--_s: 0;'],
   ])('%s → %s', (selectors, body) => {
@@ -61,21 +62,34 @@ describe('state-layer', () => {
     expect(text).toContain('transition-property: --_s;');
     expect(text).toContain('transition-timing-function: var(--md-sys-motion-easing-standard);');
   });
+
+  it('state-layer-group — добавка к слою: только состояния ближайшей .group, своего слоя нет', () => {
+    const text = css('state-layer-group');
+    expect(rule(text, '&:is(:where(.group):hover *)')).toBe('--_s: var(--md-sys-state-hover);');
+    expect(text).not.toContain('background-image');
+  });
 });
 
 describe('кольцо фокуса', () => {
-  it('focus-ring — 3 px secondary с отступом 2 px, только с клавиатуры', () => {
-    expect(rule(css('focus-ring'), '&:focus-visible')).toBe('outline: 3px solid var(--md-sys-color-secondary); outline-offset: 2px;');
+  it('значения — один раз: 3 px secondary, отступ 2 px, внутрь — на всю толщину', () => {
+    const root = indexCss.match(/:root \{([^}]*--md-focus-ring:[^}]*)\}/)?.[1].replace(/\s+/g, ' ');
+    expect(root).toContain('--md-focus-ring: 3px solid var(--md-sys-color-secondary);');
+    expect(root).toContain('--md-focus-ring-offset: 2px;');
+    expect(root).toContain('--md-focus-ring-inset: -3px;');
+  });
+
+  it('focus-ring — только с клавиатуры', () => {
+    expect(rule(css('focus-ring'), '&:focus-visible')).toBe('outline: var(--md-focus-ring); outline-offset: var(--md-focus-ring-offset);');
     expect(css('focus-ring')).not.toMatch(/&:focus[ ,{]/);
   });
 
   it('focus-ring-inset — то же кольцо внутрь границы', () => {
-    expect(rule(css('focus-ring-inset'), '&:focus-visible')).toBe('outline: 3px solid var(--md-sys-color-secondary); outline-offset: -3px;');
+    expect(rule(css('focus-ring-inset'), '&:focus-visible')).toBe('outline: var(--md-focus-ring); outline-offset: var(--md-focus-ring-inset);');
   });
 
   it('focus-ring-mark — то же кольцо для варианта группы', () => {
     expect(css('group-focus-visible:focus-ring-mark')).toContain(':where(.group):focus-visible');
-    expect(css('focus-ring-mark')).toContain('outline: 3px solid var(--md-sys-color-secondary);');
+    expect(css('focus-ring-mark')).toContain('outline: var(--md-focus-ring);');
   });
 });
 
@@ -83,8 +97,15 @@ describe('отключённое', () => {
   const content = 'color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);';
   const container = 'background-color: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);';
 
-  it.each(['disabled-content', 'disabled-container'])('%s — одним видом при disabled, aria-disabled и data-disabled', cls => {
-    expect(rule(css(cls), '&:disabled, &[aria-disabled=true], &[data-disabled]')).toContain(content);
+  const off = cls => rule(css(cls), '&:disabled, &[aria-disabled=true], &[data-disabled]');
+
+  it.each(['disabled-content', 'disabled-outlined', 'disabled-container'])('%s — одним видом при disabled, aria-disabled и data-disabled', cls => {
+    expect(off(cls)).toContain(content);
+  });
+
+  it('рамку красит только disabled-outlined: у прозрачной рамки серой не появится', () => {
+    expect(off('disabled-outlined')).toContain('border-color: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);');
+    expect(off('disabled-content')).not.toContain('border-color');
   });
 
   it('у контейнера — on-surface 12 % и без тени, у содержимого — без заливки', () => {
