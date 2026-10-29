@@ -354,9 +354,9 @@ export function ExtractToCommonDataModal({
               {aliases.map(a => (
                 <span key={a} className="inline-flex items-center gap-1 text-body-small bg-surface-container text-on-surface-variant rounded-2xl pl-2.5 pr-1 py-0.5 max-w-full">
                   <span className="min-w-0 break-words">{a}</span>
-                  <IconButton label="Удалить"
+                  <IconButton label={`Удалить «${a}»`}
                     size="sm"
-                    danger
+                    danger className="-my-1.5"
                     onClick={() => setAliases(prev => prev.filter(x => x !== a))}>
                     <Icon icon={Close} size={18} />
                   </IconButton>

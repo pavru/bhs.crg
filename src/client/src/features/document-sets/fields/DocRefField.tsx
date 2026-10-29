@@ -207,7 +207,7 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
                   <div className={`flex items-center gap-2 px-3 py-2 ${BROKEN_PLATE}`}>
                     <Icon icon={Description} size={18} className="text-error shrink-0" />
                     <span className={`flex-1 min-w-0 text-body-medium truncate ${BROKEN_LABEL}`}>{ref.displayName}</span>
-                    <IconButton label="Удалить ссылку" size="sm" danger onClick={() => removeRef(i)}>
+                    <IconButton label={`Удалить ссылку ${i + 1}`} size="sm" danger onClick={() => removeRef(i)}>
                       <Icon icon={Delete} size={18} className="text-error" />
                     </IconButton>
                   </div>
@@ -231,7 +231,7 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
                     {STATUS_LABELS[inst.status]}
                   </span>
                 )}
-                <IconButton label="Удалить ссылку" size="sm" danger onClick={() => removeRef(i)}>
+                <IconButton label={`Удалить ссылку ${i + 1}`} size="sm" danger onClick={() => removeRef(i)}>
                   <Icon icon={Delete} size={18} />
                 </IconButton>
               </div>

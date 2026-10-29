@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { Database, LinkOff } from '@/shared/ui/icons';
+import { LinkOff } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
-import { Button, IconButton } from '@/shared/ui/Button';
+import { Button } from '@/shared/ui/Button';
+import { SourceBindingTrigger } from './SourceBindingTrigger';
 import {
   useAvailableDataSetFiles, useCreateDataSetBinding, useUpdateDataSetBinding,
   useDeleteDataSetBinding, useAutoMapDataSetSource,
@@ -132,15 +133,7 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
 
   return (
     <>
-      <IconButton label={locked ? 'Снять привязку к источнику'
-            : isBound ? 'Привязка к источнику' : 'Привязать к источнику'}
-        title={locked ? 'Поле заперто модулем — привязку можно только снять'
-          : isBound ? 'Заполняется из источника данных — изменить/отвязать' : 'Привязать к источнику данных'}
-        size="sm"
-        className={`-my-1.5 ${isBound ? '' : 'opacity-0 group-hover:opacity-100'}`}
-        onClick={() => onOpenChange(true)}>
-        <Icon icon={Database} size={18} className={isBound ? 'text-primary' : undefined} />
-      </IconButton>
+      <SourceBindingTrigger locked={locked} isBound={isBound} onOpen={() => onOpenChange(true)} />
 
       <Modal open={open} onOpenChange={onOpenChange} title={`Источник для «${field.title}»`}
         footer={

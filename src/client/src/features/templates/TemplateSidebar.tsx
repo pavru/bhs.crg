@@ -254,14 +254,14 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                 </button>
                 <IconButton label="Дублировать шаблон"
                   size="sm"
-                  className="opacity-0 group-hover/grp:opacity-100"
+                  className="opacity-0 group-hover/grp:opacity-100 focus-visible:opacity-100"
                   onClick={() => onDuplicate(group)}>
                   <Icon icon={ContentCopy} size={18} />
                 </IconButton>
                 <IconButton label="Удалить шаблон со всеми версиями"
                   size="sm"
                   danger
-                  className="opacity-0 group-hover/grp:opacity-100"
+                  className="opacity-0 group-hover/grp:opacity-100 focus-visible:opacity-100"
                   onClick={() => onDeleteGroup(group)}>
                   <Icon icon={Delete} size={18} />
                 </IconButton>

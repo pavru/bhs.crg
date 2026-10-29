@@ -71,7 +71,7 @@ function FilterConditionRow({
         <IconButton label="Удалить условие"
           size="sm"
           danger
-          className="opacity-0 group-hover/cond:opacity-100"
+          className="opacity-0 group-hover/cond:opacity-100 focus-visible:opacity-100"
           onClick={onRemove}>
           <Icon icon={Delete} size={18} />
         </IconButton>

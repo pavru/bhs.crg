@@ -400,7 +400,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                       {rowChrome(i, true)}
                       <Icon icon={LinkIcon} size={18} className="text-error shrink-0" />
                       <span className={`flex-1 text-body-medium truncate ${BROKEN_LABEL}`}>{item.displayName}</span>
-                      <IconButton label="Удалить строку" size="sm" danger onClick={() => removeItem(i)}>
+                      <IconButton label={`Удалить строку ${i + 1}`} size="sm" danger onClick={() => removeItem(i)}>
                         <Icon icon={Delete} size={18} className="text-error" />
                       </IconButton>
                     </div>
@@ -415,7 +415,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   <Icon icon={LinkIcon} size={18} className="text-warning shrink-0" />
                   <span className="flex-1 text-body-medium text-warning truncate">{item.displayName}</span>
                   <ArchivedRefMark value={item} />
-                  <IconButton label="Удалить строку" size="sm" danger onClick={() => removeItem(i)}>
+                  <IconButton label={`Удалить строку ${i + 1}`} size="sm" danger onClick={() => removeItem(i)}>
                     <Icon icon={Delete} size={18} />
                   </IconButton>
                 </div>
@@ -450,7 +450,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   <IconButton label="Редактировать" size="sm" onClick={() => setRowModal(i)}>
                     <Icon icon={Edit} size={18} />
                   </IconButton>
-                  <IconButton label="Удалить строку" size="sm" danger onClick={() => removeItem(i)}>
+                  <IconButton label={`Удалить строку ${i + 1}`} size="sm" danger onClick={() => removeItem(i)}>
                     <Icon icon={Delete} size={18} />
                   </IconButton>
                 </div>
@@ -484,7 +484,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                 <IconButton label="Редактировать" size="sm" onClick={() => setRowModal(i)}>
                   <Icon icon={Edit} size={18} />
                 </IconButton>
-                <IconButton label="Удалить строку" size="sm" danger onClick={() => removeItem(i)}>
+                <IconButton label={`Удалить строку ${i + 1}`} size="sm" danger onClick={() => removeItem(i)}>
                   <Icon icon={Delete} size={18} />
                 </IconButton>
               </div>

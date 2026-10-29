@@ -47,7 +47,7 @@ export function ComplexCellPicker({ value, onChange, compositeType, setId, allDo
         <IconButton label="Очистить"
           size="sm"
           danger
-          className="mr-0.5"
+          className="-my-1 mr-0.5"
           onClick={e => { e.stopPropagation(); onChange(undefined); }}>
           <Icon icon={Close} size={18} />
         </IconButton>

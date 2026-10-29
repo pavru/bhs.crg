@@ -71,7 +71,7 @@ function ExtractionFields({
                 placeholder="Название" className={`w-32 shrink-0 text-body-small ${FIELD_CLS} px-2 py-1`} />
               <input value={col.expr} onChange={e => updateColumn(i, { expr: e.target.value })}
                 placeholder="Выражение" className={`flex-1 min-w-0 font-mono text-body-small ${FIELD_CLS} px-2 py-1`} />
-              <IconButton label="Удалить колонку" size="sm" danger onClick={() => removeColumn(i)}>
+              <IconButton label={`Удалить колонку ${i + 1}`} size="sm" danger onClick={() => removeColumn(i)}>
                 <Icon icon={Delete} size={18} />
               </IconButton>
             </div>

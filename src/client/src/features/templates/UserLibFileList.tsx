@@ -54,7 +54,7 @@ export function UserLibFileList({
 
       <div className="flex items-center justify-between pr-2">
         <NavSection label="Файлы библиотеки" />
-        <IconButton label="Создать файл" size="sm" onClick={() => onCreate()}>
+        <IconButton label="Создать файл" size="sm" className="-my-1" onClick={() => onCreate()}>
           <Icon icon={Add} size={18} />
         </IconButton>
       </div>
@@ -73,7 +73,7 @@ export function UserLibFileList({
           <span className="truncate flex-1">{row.label}</span>
           <IconButton label={`Создать файл в «${row.path}»`}
             size="sm"
-            className="opacity-0 group-hover/dir:opacity-100 focus-visible:opacity-100"
+            className="-my-1.5 opacity-0 group-hover/dir:opacity-100 focus-visible:opacity-100"
             onClick={() => onCreate(row.path)}>
             <Icon icon={Add} size={18} />
           </IconButton>
