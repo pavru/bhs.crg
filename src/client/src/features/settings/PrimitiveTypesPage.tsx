@@ -263,7 +263,7 @@ function BaseTypeSegmented({ value, onChange, disabled }: {
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="border border-outline-variant rounded-lg bg-surface p-4 space-y-3">
-      <p className="text-body-small font-medium text-on-surface-variant uppercase tracking-wide">{title}</p>
+      <p className="text-title-small text-on-surface-variant">{title}</p>
       {children}
     </div>
   );

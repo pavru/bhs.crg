@@ -403,7 +403,7 @@ function RefPickerModalBody({
 
         {groups.length > 0 && (
           <div>
-            <p className="text-body-small font-medium text-on-surface-variant uppercase tracking-wide mb-2">
+            <p className="text-title-small text-on-surface-variant mb-2">
               Каталог общих данных
             </p>
             <ScopeGroupList
@@ -422,7 +422,7 @@ function RefPickerModalBody({
 
         {instanceCandidates.length > 0 && (
           <div>
-            <p className="text-body-small font-medium text-on-surface-variant uppercase tracking-wide mb-2">
+            <p className="text-title-small text-on-surface-variant mb-2">
               Документы комплекта
             </p>
             <div className="space-y-1 max-h-48 overflow-y-auto">
@@ -457,7 +457,7 @@ function RefPickerModalBody({
 
         {fieldCandidates.length > 0 && (
           <div>
-            <p className="text-body-small font-medium text-on-surface-variant uppercase tracking-wide mb-2">
+            <p className="text-title-small text-on-surface-variant mb-2">
               Поля других документов
             </p>
             <div className="space-y-1 max-h-48 overflow-y-auto">

@@ -126,7 +126,7 @@ function SideEditor({ title, parts, onChange, sources }: {
   return (
     <div className="space-y-2 rounded-md border border-outline-variant p-3">
       <div className="flex items-center justify-between">
-        <span className="text-body-small font-semibold uppercase tracking-wide text-on-surface-variant">{title}</span>
+        <span className="text-title-small text-on-surface-variant">{title}</span>
         <Button variant="text" size="sm" onClick={() => onChange([...parts, EMPTY_PART])}>
           <Icon icon={Add} size={18} /> Источник
         </Button>
@@ -215,7 +215,7 @@ export function ReconciliationEditor({ existing, onClose }: {
         </div>
 
         <div className="rounded-md border border-outline-variant p-3 space-y-3">
-          <div className="text-body-small font-semibold uppercase tracking-wide text-on-surface-variant">Правило</div>
+          <div className="text-title-small text-on-surface-variant">Правило</div>
           <div className="flex items-center gap-2 text-body-medium text-on-surface-variant">
             <span>Слева должно быть</span>
             <Select value={operator} onValueChange={v => setOperator(v as ComparisonOperator)}

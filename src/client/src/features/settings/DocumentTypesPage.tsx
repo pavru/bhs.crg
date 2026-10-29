@@ -242,7 +242,7 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
       <div className="flex-1 overflow-y-auto px-2 pb-3">
         {outside && (
           <>
-            <div className="px-3 pt-3 pb-1 text-label-small font-semibold uppercase tracking-wide text-on-surface-variant">Открыт, вне поиска</div>
+            <div className="px-3 pt-3 pb-1 text-title-small text-on-surface-variant">Открыт, вне поиска</div>
             {typeRow(outside)}
           </>
         )}
@@ -258,7 +258,7 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
             <div key={g || '__ungrouped__'}>
               <button type="button" onClick={() => toggleGroup(g)}
                 aria-expanded={open}
-                className="w-full flex items-center gap-1.5 px-3 pt-3 pb-1 text-label-small font-semibold uppercase tracking-wide text-on-surface-variant hover:text-on-surface-variant transition-colors">
+                className="w-full flex items-center gap-1.5 px-3 pt-3 pb-1 text-title-small text-on-surface-variant hover:text-on-surface-variant transition-colors">
                 <Icon icon={ChevronRight} size={18} className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
                 <Icon icon={Folder} size={18} className="shrink-0" />
                 <span className="truncate flex-1 text-left">{g || 'Без группы'}</span>

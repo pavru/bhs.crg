@@ -29,7 +29,7 @@ export function ClosingSections({ sections, stale, before = null }: {
 }) {
   const gone = goneSections(before, sections);
   if (sections.length === 0 && gone.length === 0)
-    return <p className="text-note text-on-surface-variant">Включённых модулей учёта нет. Закрытие запишет только границу периода.</p>;
+    return <p className="text-body-medium text-on-surface-variant">Включённых модулей учёта нет. Закрытие запишет только границу периода.</p>;
 
   return (
     // Пока идёт пересчёт, прежние числа приглушены, а не убраны: «ещё не знаем» — не «пусто».
@@ -51,7 +51,7 @@ export function ClosingSections({ sections, stale, before = null }: {
       ))}
       {/* Раздел, исчезнувший целиком, — тоже изменение: без него его «не завершено» пропало бы молча. */}
       {gone.map(section => (
-        <section key={`gone:${section.module}`} aria-label={section.title} className="text-note text-on-surface-variant">
+        <section key={`gone:${section.module}`} aria-label={section.title} className="text-body-medium text-on-surface-variant">
           <h3 className="text-body-medium font-semibold text-on-surface-variant">{section.title}</h3>
           <p>
             Раздела больше нет: модуль о закрытии уже ничего не сообщает.
@@ -72,13 +72,13 @@ function Group({ title, group, section, before, empty, warn }: {
 
   return (
     <div className="mt-2">
-      <h4 className="text-body-small font-medium uppercase tracking-wide text-on-surface-variant">{title}</h4>
+      <h4 className="text-title-small text-on-surface-variant">{title}</h4>
       {lines.length === 0 && gone.length === 0 ? (
-        <p className="text-note text-on-surface-variant">{empty}</p>
+        <p className="text-body-medium text-on-surface-variant">{empty}</p>
       ) : (
         <ul className="mt-0.5 space-y-1">
           {lines.map(line => (
-            <li key={line.key} className="text-note">
+            <li key={line.key} className="text-body-medium">
               <div className={`flex items-baseline gap-1.5 ${warn ? 'text-on-surface' : 'text-on-surface-variant'}`}>
                 {warn && <Icon icon={Warning} size={18} className="shrink-0 self-center text-warning" aria-hidden />}
                 <span className="min-w-0 break-words">
@@ -91,7 +91,7 @@ function Group({ title, group, section, before, empty, warn }: {
           ))}
           {/* Исчезнувшая строка — тоже изменение: без неё «было 2 счёта» пропало бы молча. */}
           {gone.map(line => (
-            <li key={`gone:${line.key}`} className="text-note text-on-surface-variant">
+            <li key={`gone:${line.key}`} className="text-body-medium text-on-surface-variant">
               <span className={warn ? 'pl-5' : ''}>
                 {line.text}: теперь нет <Was text={`было: ${figure(line)}`} />
               </span>

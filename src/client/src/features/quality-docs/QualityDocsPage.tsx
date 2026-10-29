@@ -245,7 +245,7 @@ export function QualityDocsPage() {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           {/* Имени мало: в библиотеке два документа с одинаковым названием и разным содержимым. */}
-          <h2 className="text-lg font-semibold text-on-surface break-words">{current.displayName}</h2>
+          <h2 className="text-title-large font-semibold text-on-surface break-words">{current.displayName}</h2>
           <p className="text-body-small text-on-surface-variant mt-0.5">
             {[typeNameOf(current, docTypes),
               byTag(current, docTypes, FUNCTIONAL_TAG.docNumber) && `№ ${byTag(current, docTypes, FUNCTIONAL_TAG.docNumber)}`,

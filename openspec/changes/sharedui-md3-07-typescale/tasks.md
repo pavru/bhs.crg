@@ -51,15 +51,15 @@
 
 ## 2. PR 2 — по месту (рекомендация В10)
 
-- [ ] 2.1 `text-note` → `text-body-small` (сообщение у поля) или `text-body-medium` (тело). `--text-note`
+- [x] 2.1 `text-note` → `text-body-small` (сообщение у поля) или `text-body-medium` (тело). `--text-note`
   удалён из темы [UI-67]. Проверка: `rg "text-note" src/client/src` — пусто; перечень решений — в PR.
-- [ ] 2.2 Микрозаголовки `uppercase tracking-*` → `text-title-small` строчными (`PageList`, группы
+- [x] 2.2 Микрозаголовки `uppercase tracking-*` → `text-title-small` строчными (`PageList`, группы
   меню, разделы экранов) [UI-67]. Проверка:
   - `rg "\buppercase\b" src/client/src` — только в уровне с названным исключением или пусто;
   - живой прогон оболочки (`rail-checks`) зелёный.
-- [ ] 2.3 `text-lg/xl/2xl/3xl` вне `PageHeader` и `DetailTitle` → роль `title-*` или `headline-small` по
+- [x] 2.3 `text-lg/xl/2xl/3xl` вне `PageHeader` и `DetailTitle` → роль `title-*` или `headline-small` по
   месту [UI-67]. Проверка — отчёт кодмода пуст по этим ступеням, кроме двух файлов 15.
-- [ ] 2.4 Уровень `legacy-type` опущен тем же PR. Проверка — `npm run ui:ratchet` зелёный, а
+- [x] 2.4 Уровень `legacy-type` опущен тем же PR. Проверка — `npm run ui:ratchet` зелёный, а
   `ui-baseline.json` в диффе только уменьшается.
 - [ ] 2.5 `/design-sync` (D12): README дизайн-системы называет роли текста, а не `text-xs/sm`. Проверка —
   README.

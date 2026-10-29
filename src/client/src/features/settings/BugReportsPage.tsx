@@ -205,13 +205,13 @@ function ReportBody({ report, githubConfigured }: {
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5">
         {/* ── Слова автора ─────────────────────────────────────────────── */}
         <section className="space-y-1.5">
-          <h3 className="text-body-small font-semibold uppercase tracking-wide text-on-surface-variant">Что произошло</h3>
+          <h3 className="text-title-small text-on-surface-variant">Что произошло</h3>
           <p className="text-body-medium text-on-surface whitespace-pre-wrap break-words">{report.message}</p>
         </section>
 
         {report.screenshotBlobPath && (
           <section className="space-y-1.5">
-            <h3 className="text-body-small font-semibold uppercase tracking-wide text-on-surface-variant">Снимок экрана</h3>
+            <h3 className="text-title-small text-on-surface-variant">Снимок экрана</h3>
             <Button variant="outlined" size="sm"
               onClick={() => { void openAttachment(report.screenshotBlobPath!); }}>
               <Icon icon={OpenInNew} size={18} /> Открыть снимок
@@ -223,7 +223,7 @@ function ReportBody({ report, githubConfigured }: {
         {/* ── Техблок ──────────────────────────────────────────────────── */}
         <section>
           <button type="button" onClick={() => setTechOpen(o => !o)}
-            className="flex items-center gap-1.5 text-body-small font-semibold uppercase tracking-wide text-on-surface-variant hover:text-on-surface-variant transition-colors">
+            className="flex items-center gap-1.5 text-title-small text-on-surface-variant hover:text-on-surface-variant transition-colors">
             {techOpen ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />} Технический контекст
           </button>
           {techOpen && <TechBlock tech={report.tech} />}
@@ -232,7 +232,7 @@ function ReportBody({ report, githubConfigured }: {
         {/* ── Текст issue ──────────────────────────────────────────────── */}
         <section className="space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-body-small font-semibold uppercase tracking-wide text-on-surface-variant">
+            <h3 className="text-title-small text-on-surface-variant">
               Текст issue {report.draftEdited ? '· отредактирован' : '· заготовка'}
             </h3>
             <div className="flex items-center gap-1.5">

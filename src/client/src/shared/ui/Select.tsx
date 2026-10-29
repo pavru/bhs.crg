@@ -195,7 +195,7 @@ export const SelectItem = forwardRef<HTMLDivElement, { value: string; disabled?:
 export function SelectGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
     <RS.Group>
-      <RS.Label className="px-3 pt-2 pb-1 text-label-small font-semibold uppercase tracking-wide text-on-surface-variant">{label}</RS.Label>
+      <RS.Label className="px-3 pt-2 pb-1 text-title-small text-on-surface-variant">{label}</RS.Label>
       {children}
     </RS.Group>
   );

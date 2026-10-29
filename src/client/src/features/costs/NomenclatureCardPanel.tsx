@@ -96,7 +96,7 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
 
       {rows.length > 0 && (
         <section className="space-y-1.5">
-          <h4 className="text-label-small font-medium uppercase tracking-wide text-on-surface-variant">{compare!.title}</h4>
+          <h4 className="text-title-small text-on-surface-variant">{compare!.title}</h4>
           <dl className="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-body-medium">
             {rows.map(row => (
               <div key={row.key} className="contents">

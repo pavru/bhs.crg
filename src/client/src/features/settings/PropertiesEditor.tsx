@@ -120,7 +120,7 @@ export function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentTy
         confirmDanger={false}
         onConfirm={() => codeWarning?.onConfirm()}
       />
-      <p className="text-body-small font-medium text-on-surface-variant uppercase tracking-wide">Параметры типа</p>
+      <p className="text-title-small text-on-surface-variant">Параметры типа</p>
       <div className="grid grid-cols-2 gap-3">
         <TextField label="Наименование" value={name} onChange={e => handleNameChange(e.target.value)} required />
         <TextField label="Код" value={code} onChange={e => setCode(e.target.value)}

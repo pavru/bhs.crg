@@ -115,9 +115,9 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
   return (
     <CollapsibleSection title={`Модуль «${module.title}»`} storageKey={`module.${module.code}`}
       defaultOpen={mappingNeedsAttention(module.mapping)}
-      right={dirty ? <span className="text-body-small text-warning normal-case">не сохранено</span>
+      right={dirty ? <span className="text-body-small text-warning">не сохранено</span>
         : mappingNeedsAttention(module.mapping)
-          ? <span className="text-body-small text-warning normal-case">требует внимания</span> : undefined}>
+          ? <span className="text-body-small text-warning">требует внимания</span> : undefined}>
       {module.mapping && <ModuleMappingSignal signal={module.mapping} />}
       {module.settings.map(setting => {
         const stale = staleStored(setting);

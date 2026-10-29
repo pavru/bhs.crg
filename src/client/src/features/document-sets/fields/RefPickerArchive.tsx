@@ -68,7 +68,7 @@ export function RefPickerArchive({ entries, onReturned, selectsAtOnce }: {
   if (entries.length === 0) return null;
   return (
     <div>
-      <p className="text-body-small font-medium text-on-surface-variant uppercase tracking-wide mb-2 flex items-center gap-1.5">
+      <p className="text-title-small text-on-surface-variant mb-2 flex items-center gap-1.5">
         <Icon icon={Archive} size={18} className="shrink-0" /> В архиве
       </p>
       <ul className="space-y-1 max-h-40 overflow-y-auto">

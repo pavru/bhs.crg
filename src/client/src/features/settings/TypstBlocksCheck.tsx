@@ -50,7 +50,7 @@ function Group({ title, items, onSelectType }: {
 }) {
   return (
     <div>
-      <div className="px-3 pt-2 pb-1 text-label-small font-semibold uppercase tracking-wide text-on-surface-variant">{title}</div>
+      <div className="px-3 pt-2 pb-1 text-title-small text-on-surface-variant">{title}</div>
       <div className="divide-y divide-surface-container">
         {items.map((p, i) => (
           <div key={i} className="flex items-start gap-2 px-3 py-2">

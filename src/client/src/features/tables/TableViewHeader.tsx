@@ -219,7 +219,7 @@ function Group({ title, empty, children }: { title: string; empty: string | null
   if (children.length === 0 && !empty) return null;
   return (
     <section className="mt-2">
-      <h2 className="px-2 text-label-small uppercase tracking-wide text-on-surface-variant">{title}</h2>
+      <h2 className="px-2 text-title-small text-on-surface-variant">{title}</h2>
       {children.length > 0 ? <ul>{children}</ul> : <p className="px-2 py-1 text-body-small text-on-surface-variant">{empty}</p>}
     </section>
   );

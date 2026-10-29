@@ -95,7 +95,7 @@ export function NavSearchInput({ value, onChange, placeholder = 'Поиск…' 
 
 /** Микрозаголовок секции левой навигации scope-страницы («КОМПЛЕКТЫ», «ЭТОТ РАЗДЕЛ», …). */
 export function NavSection({ label }: { label: string }) {
-  return <div className="px-3 pt-3 pb-1 text-label-small font-semibold uppercase tracking-wide text-on-surface-variant">{label}</div>;
+  return <div className="px-3 pt-3 pb-1 text-title-small text-on-surface-variant">{label}</div>;
 }
 
 /**

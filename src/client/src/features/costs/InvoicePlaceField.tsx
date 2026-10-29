@@ -197,7 +197,7 @@ function Choices({ places, value, label, onPick }: {
         {list.lost && row(options[0], list.lost.label)}
         {list.groups.map((g, gi) => (
           <div key={g.label} role="group" aria-labelledby={`${ids}-g${gi}`}>
-            <div id={`${ids}-g${gi}`} className="px-3 pt-2 pb-1 text-label-small font-semibold uppercase tracking-wide text-on-surface-variant">{g.label}</div>
+            <div id={`${ids}-g${gi}`} className="px-3 pt-2 pb-1 text-title-small text-on-surface-variant">{g.label}</div>
             {g.rows.map(r => { const option = options[index++]; return row(option, r.label, r); })}
           </div>
         ))}
