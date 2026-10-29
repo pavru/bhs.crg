@@ -283,7 +283,7 @@ export function SetDetail() {
                 {/* Отказ из открытия доходит один — вкладку не дали открыть: об отказе загрузки говорит сама вкладка. */}
                 <Tooltip content="Открыть PDF">
                   <button onClick={() => previewGeneratedFile(inst.id, pdfFiles[0].templateId).catch((e: Error) => toast.error(e.message))}
-                    className="flex items-center gap-1 px-2 py-1 text-xs border border-outline-variant rounded hover:bg-primary-container hover:border-primary-container text-on-surface-variant hover:text-brand-hover transition-colors">
+                    className="flex items-center gap-1 px-2 py-1 text-xs border border-outline-variant rounded hover:bg-primary-container hover:border-primary-container text-on-surface-variant transition-colors">
                     <Icon icon={Visibility} size={18} /> PDF
                   </button>
                 </Tooltip>
@@ -296,7 +296,7 @@ export function SetDetail() {
             {pdfFiles.length > 1 && (
               <Tooltip content="Несколько PDF — открыть документ для выбора">
                 <button onClick={() => openDocument(inst)}
-                  className="flex items-center gap-1 px-2 py-1 text-xs border border-outline-variant rounded hover:bg-primary-container hover:border-primary-container text-on-surface-variant hover:text-brand-hover transition-colors">
+                  className="flex items-center gap-1 px-2 py-1 text-xs border border-outline-variant rounded hover:bg-primary-container hover:border-primary-container text-on-surface-variant transition-colors">
                   <Icon icon={Visibility} size={18} /> {pdfFiles.length} PDF
                 </button>
               </Tooltip>

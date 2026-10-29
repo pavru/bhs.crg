@@ -144,8 +144,8 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
         <button type="button" onClick={() => onOpenChange(true)}
           aria-label={locked ? 'Снять привязку к источнику'
             : isBound ? 'Привязка к источнику' : 'Привязать к источнику'}
-          className={`inline-flex items-center justify-center rounded transition-colors ${
-            isBound ? 'text-primary hover:text-brand-hover' : 'text-on-surface-variant opacity-0 group-hover:opacity-100 hover:text-on-surface-variant'}`}>
+          className={`inline-flex items-center justify-center rounded ${
+            isBound ? 'text-primary state-layer' : 'text-on-surface-variant opacity-0 group-hover:opacity-100 hover:text-on-surface-variant'}`}>
           <Icon icon={Database} size={18} />
         </button>
       </Tooltip>

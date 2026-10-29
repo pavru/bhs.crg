@@ -1,35 +1,19 @@
 /* Сгенерировано scripts/md3-theme.mjs из src/theme/md3-theme.json — руками не править.
    Правка — в md3-theme.json, затем: npm run md3:theme */
 /* Старые имена классов — переходные псевдонимы ролей MD3 ([UI-58]): рисуют ровно то же, что до
-   перехода, и расти им нельзя (храповик legacy-class). Имя без роли того же значения держит своё
-   значение переменной --legacy-*. Файл удаляет финал эпика целиком. */
-
-:root {
-  --legacy-fg-disabled: #a3a5ab;
-  --legacy-brand-hover: #17518f;
-  --legacy-brand-pressed: #124074;
-}
-
-:root[data-theme="dark"] {
-  --legacy-fg-disabled: #5c5f66;
-  --legacy-brand-hover: #bcd4ff;
-  --legacy-brand-pressed: #8bb3f0;
-}
+   перехода, и расти им нельзя (храповик legacy-class). Файл удаляет финал эпика целиком. */
 
 @theme inline {
   --color-fg1: var(--md-sys-color-on-surface);
   --color-fg2: var(--md-sys-color-on-surface-variant);
   --color-fg3: var(--md-sys-color-on-surface-variant);
   --color-fg4: var(--md-sys-color-on-surface-variant);
-  --color-fg-disabled: var(--legacy-fg-disabled);
   --color-base: var(--md-sys-color-surface-container-low);
   --color-muted: var(--md-sys-color-surface-container);
   --color-muted-hover: var(--md-sys-color-surface-container-high);
   --color-stroke: var(--md-sys-color-outline-variant);
   --color-stroke-strong: var(--md-sys-color-outline);
   --color-brand: var(--md-sys-color-primary);
-  --color-brand-hover: var(--legacy-brand-hover);
-  --color-brand-pressed: var(--legacy-brand-pressed);
   --color-brand-subtle: var(--md-sys-color-primary-container);
   --color-on-brand: var(--md-sys-color-on-primary);
   --color-on-brand-subtle: var(--md-sys-color-on-primary-container);

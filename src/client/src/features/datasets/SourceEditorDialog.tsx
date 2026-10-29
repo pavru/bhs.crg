@@ -337,7 +337,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
                   Колонки <span className="text-xs font-normal text-on-surface-variant">— относительно узла строки</span>
                 </p>
                 <button type="button" onClick={addColumn}
-                  className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover">
+                  className="flex items-center gap-1 text-xs text-primary state-layer">
                   <Icon icon={Add} size={18} /> Колонка
                 </button>
               </div>

@@ -204,12 +204,12 @@ function SelectionActionBar({
     <div className="flex items-center gap-2 mt-2 pt-2 border-t border-outline-variant">
       <span className="text-xs text-on-surface-variant">Выделено страниц: {count}</span>
       <button onClick={onSplitSelected}
-        className="px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant hover:bg-surface-container-low">
+        className="px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant state-layer">
         Отделить в новый документ
       </button>
       <div className="relative">
         <button onClick={() => setMenuOpen(o => !o)}
-          className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant hover:bg-surface-container-low">
+          className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant state-layer">
           Перенести в группу <Icon icon={KeyboardArrowDown} size={18} />
         </button>
         {menuOpen && (
@@ -219,12 +219,12 @@ function SelectionActionBar({
             )}
             {candidateGroups.map(g => (
               <button key={g.id} onClick={() => { onMoveSelected(g.id); setMenuOpen(false); }}
-                className="block w-full text-left px-3 py-1.5 text-xs hover:bg-surface-container-low truncate">
+                className="block w-full text-left px-3 py-1.5 text-xs state-layer truncate">
                 {groupLabel(g)}
               </button>
             ))}
             <button onClick={() => { onMoveSelected('new'); setMenuOpen(false); }}
-              className="block w-full text-left px-3 py-1.5 text-xs hover:bg-surface-container-low text-primary">
+              className="block w-full text-left px-3 py-1.5 text-xs state-layer text-primary">
               + Новый документ
             </button>
           </div>
@@ -341,7 +341,7 @@ function GroupSection({
           {(currentTag || group.profileId) && (
             <Tooltip content={dirty ? 'Сначала сохраните разбиение' : isHiddenBound(group.profileId, hiddenProfiles) ? 'Профиль группы принадлежит выключенному модулю — выберите другой' : 'Распознать таблицу этого документа как отдельный источник данных'}>
               <button onClick={() => onRecognizeTable(firstPage)} disabled={dirty || tableBusyPage === firstPage || isHiddenBound(group.profileId, hiddenProfiles)}
-                className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant hover:bg-surface-container-low disabled:opacity-50">
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant state-layer disabled-outlined">
                 {tableBusyPage === firstPage ? <CircularProgress size={18} /> : <Icon icon={Table} size={18} />}
                 Таблица
               </button>
@@ -349,7 +349,7 @@ function GroupSection({
           )}
           <Tooltip content={dirty ? 'Сначала сохраните разбиение' : 'Перераспознать только этот документ (не весь набор)'}>
             <button onClick={() => onRecognizeDoc(firstPage)} disabled={dirty || docBusyPage === firstPage}
-              className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant hover:bg-surface-container-low disabled:opacity-50">
+              className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant state-layer disabled-outlined">
               {docBusyPage === firstPage ? <CircularProgress size={18} /> : <Icon icon={Refresh} size={18} />}
               Перераспознать
             </button>
@@ -563,8 +563,8 @@ export function PdfGroupingEditor() {
         actions={<>
           {suspiciousPageCount > 0 && (
             <button onClick={() => setSuspiciousOnly(v => !v)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors ${
-                suspiciousOnly ? 'border-warning bg-warning/10 text-warning' : 'border-outline-variant text-on-surface-variant hover:bg-surface-container-low'
+              className={`state-layer flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border ${
+                suspiciousOnly ? 'border-warning bg-warning/10 text-warning' : 'border-outline-variant text-on-surface-variant'
               }`}>
               <Icon icon={Warning} size={18} /> {suspiciousOnly ? 'Показать все' : `⚠ ${suspiciousPageCount} подозрительных`}
             </button>

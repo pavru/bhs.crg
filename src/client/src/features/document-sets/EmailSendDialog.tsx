@@ -109,7 +109,7 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
             <p className="text-xs font-medium text-on-surface-variant mb-1">Подписчики (с учётом наследования)</p>
             <div className="rounded-md border border-outline-variant divide-y divide-surface-container max-h-40 overflow-y-auto">
               {recipients.map(r => (
-                <label key={r.userId} className={`flex items-center gap-2 px-2.5 py-1.5 text-sm ${r.validEmail ? 'cursor-pointer hover:bg-surface-container-low' : 'opacity-60'}`}>
+                <label key={r.userId} className={`flex items-center gap-2 px-2.5 py-1.5 text-sm ${r.validEmail ? 'cursor-pointer state-layer' : 'opacity-60'}`}>
                   <input type="checkbox" disabled={!r.validEmail} checked={r.validEmail && !unchecked.has(r.userId)} onChange={() => toggleSub(r.userId)} />
                   <span className="text-on-surface flex-1 min-w-0 truncate">{r.displayName}</span>
                   <span className="text-xs text-on-surface-variant min-w-0 truncate">{r.email || '—'}</span>

@@ -193,11 +193,11 @@ function EngineCard({
           <div className="flex gap-1">
             <Tooltip content="Выше">
               <button type="button" onClick={reorder.onUp} disabled={!reorder.onUp}
-                className="px-1.5 text-on-surface-variant hover:text-on-surface disabled:opacity-30 disabled:hover:text-on-surface-variant">↑</button>
+                className="px-1.5 text-on-surface-variant hover:text-on-surface disabled-content">↑</button>
             </Tooltip>
             <Tooltip content="Ниже">
               <button type="button" onClick={reorder.onDown} disabled={!reorder.onDown}
-                className="px-1.5 text-on-surface-variant hover:text-on-surface disabled:opacity-30 disabled:hover:text-on-surface-variant">↓</button>
+                className="px-1.5 text-on-surface-variant hover:text-on-surface disabled-content">↓</button>
             </Tooltip>
           </div>
         )}

@@ -82,7 +82,7 @@ function EditorFrame({ set, setPath, instanceId, docTypes }: {
     return (
       <EmptyState className="m-6" icon={<Icon icon={Description} size={40} />} title="Документа в комплекте нет"
         description="Его удалили или перенесли в другой комплект."
-        action={<Link to={setPath} className="text-sm text-brand-hover">К комплекту «{set.name}»</Link>} />
+        action={<Link to={setPath} className="text-sm text-primary">К комплекту «{set.name}»</Link>} />
     );
   }
 

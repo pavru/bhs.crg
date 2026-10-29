@@ -55,7 +55,7 @@ export function UserLibFileList({
         <NavSection label="Файлы библиотеки" />
         <Tooltip content="Создать файл" name>
           <button type="button" onClick={() => onCreate()}
-            className="h-6 w-6 inline-flex items-center justify-center rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
+            className="h-6 w-6 inline-flex items-center justify-center rounded text-on-surface-variant hover:text-on-surface state-layer">
             <Icon icon={Add} size={18} />
           </button>
         </Tooltip>
@@ -76,8 +76,8 @@ export function UserLibFileList({
           <Tooltip content={`Создать файл в «${row.path}»`} name>
             <button type="button" onClick={() => onCreate(row.path)}
               className="h-5 w-5 shrink-0 inline-flex items-center justify-center rounded text-on-surface-variant
-                         hover:text-on-surface hover:bg-surface-container opacity-0 group-hover/dir:opacity-100
-                         focus-visible:opacity-100 transition-colors">
+                         hover:text-on-surface state-layer opacity-0 group-hover/dir:opacity-100
+                         focus-visible:opacity-100">
               <Icon icon={Add} size={18} />
             </button>
           </Tooltip>
@@ -106,7 +106,7 @@ function FileRow({ label, depth, icon, active, dirty, errors, warnings, title, o
   errors: number; warnings: number; title?: string; onClick: () => void; actions?: React.ReactNode;
 }) {
   return (
-    <div className={`group flex items-center gap-1 pr-1.5 ${active ? 'bg-primary-container' : 'hover:bg-surface-container'}`}>
+    <div className={`state-layer group flex items-center gap-1 pr-1.5 ${active ? 'bg-primary-container' : ''}`}>
       <Tooltip content={title}>
         <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
           className="flex-1 min-w-0 flex items-center gap-1.5 py-1.5 text-left text-sm"

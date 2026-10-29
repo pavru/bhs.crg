@@ -56,7 +56,7 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
   return (
     <div className="border-t border-outline-variant bg-surface">
       <button onClick={() => setOpen(v => !v)} aria-expanded={open}
-        className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-surface-container-low transition-colors text-left">
+        className="w-full flex items-center gap-2 px-4 py-2.5 state-layer text-left">
         <Icon icon={Tune} size={18} className="text-on-surface-variant" />
         <span className="text-xs font-medium text-on-surface-variant flex-1">Параметры шаблона{rows.length > 0 ? ` (${rows.length})` : ''}</span>
         {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant" />}
@@ -111,7 +111,7 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
             </div>
           ))}
           <button onClick={() => save([...rows, { id: newLocalId(), p: { name: '', label: '', type: 'string', default: '' } }])}
-            className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover">
+            className="flex items-center gap-1 text-xs text-primary state-layer">
             <Icon icon={Add} size={18} /> Добавить параметр
           </button>
         </div>

@@ -108,7 +108,7 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
   return (
     <Dialog.Root open onOpenChange={o => { if (!o && !pending) onClose(); }}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" style={{ backdropFilter: 'blur(2px)' }} />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-scrim/32" style={{ backdropFilter: 'blur(2px)' }} />
         {/* На узком экране — у верха: по центру клавиатура закрыла бы и поле, и кнопки. */}
         <Dialog.Content
           // Идёт удаление, показан его исход или набрано подтверждение — окно держит человека: поверх

@@ -126,7 +126,7 @@ export function EmailSettingsSection() {
           <input className={fieldCls + ' flex-1'} value={testTo} onChange={e => setTestTo(e.target.value)}
             placeholder="Адрес для проверки" />
           <button type="button" onClick={handleTest} disabled={testEmail.isPending || !testTo.trim()}
-            className="px-3 py-2 text-sm border border-outline hover:bg-surface-container-low rounded-md transition-colors shrink-0 disabled:opacity-50">
+            className="px-3 py-2 text-sm border border-outline state-layer rounded-md shrink-0 disabled-outlined">
             {testEmail.isPending ? 'Отправка...' : 'Отправить'}
           </button>
         </div>

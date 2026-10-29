@@ -303,7 +303,7 @@ function Segmented<T>({ label, value, options, onChange }: {
     <div role="group" aria-label={label} className="inline-flex rounded-md border border-outline-variant overflow-hidden">
       {options.map(([text, option]) => (
         <button key={text} type="button" aria-pressed={value === option} onClick={() => onChange(option)}
-          className={`h-8 px-3 text-sm ${value === option ? 'bg-primary-container text-on-surface font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
+          className={`state-layer h-8 px-3 text-sm ${value === option ? 'bg-primary-container text-on-surface font-medium' : 'text-on-surface-variant'}`}>
           {text}
         </button>
       ))}

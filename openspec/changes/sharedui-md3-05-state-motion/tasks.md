@@ -43,16 +43,16 @@
 
 ## 2. Экраны (PR 2)
 
-- [ ] 2.1 Строки карты кодмода (`same: false`): самодельное наведение → `state-layer`,
+- [x] 2.1 Строки карты кодмода (`same: false`): самодельное наведение → `state-layer`,
   `disabled:opacity-*` → пара отключённого, `brand-hover`/`brand-pressed` → снять, `text-brand-hover` без
   наведения → `text-primary`, `bg-black/40` → `bg-scrim/32` [UI-64]. Проверка — vitest кодмода на
   фикстурах; второй прогон — «замен 0»
-- [ ] 2.2 `npm run md3:migrate` по `features/`, остаток отчёта — руками; белый лист просмотрщика — в CSS
+- [x] 2.2 `npm run md3:migrate` по `features/`, остаток отчёта — руками; белый лист просмотрщика — в CSS
   просмотрщика; `fg-disabled` → `text-on-surface/38`; `--legacy-*` удалены целиком [UI-64]. Проверка —
   `rg "dark:" src/client/src --glob '*.tsx'` — только не-классы; `md3-legacy.css` без `--legacy-`
-- [ ] 2.3 Уровни `raw-state`, `dark-variant`, `legacy-class` — 0 [UI-64]. Проверка — `npm run ui:ratchet`
+- [x] 2.3 Уровни `raw-state`, `dark-variant`, `legacy-class` — 0 [UI-64]. Проверка — `npm run ui:ratchet`
   зелёный, в `ui-baseline.json` правила пусты
-- [ ] 2.4 `docs/UI.md`: разделы «Состояния» (слой, фокус, отключённое) и «Движение» (токены, без
+- [x] 2.4 `docs/UI.md`: разделы «Состояния» (слой, фокус, отключённое) и «Движение» (токены, без
   глобального перехода, уменьшенное движение); «Цвет» — без `bg-black/5` и `dark:` как законных; «Кто
   сторожит» — `raw-state`, `dark-variant`; перечень правил в `CLAUDE.md` и `AGENTS.md` одним коммитом
   [UI-64] [UI-65]. Проверка — `dotnet test … --filter AgentRulesCopy` зелёный

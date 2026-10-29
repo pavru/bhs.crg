@@ -128,7 +128,7 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
             : selected.kind === 'instance'
               ? <Icon icon={Description} size={18} className="text-primary shrink-0" />
               : <Icon icon={Database} size={18} className="text-primary shrink-0" />}
-          <span className="flex-1 text-sm font-medium text-brand-hover truncate">
+          <span className="flex-1 text-sm font-medium text-primary truncate">
             {selected.proxy && <span className="text-on-surface-variant font-normal">→ </span>}{selected.name}
           </span>
           <span className="text-caption text-on-surface-variant shrink-0">{selected.scopeLabel}</span>
@@ -156,7 +156,7 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
         </div>
       ) : (
         <button type="button" onClick={() => setPickerOpen(true)}
-          className="flex items-center gap-2 text-sm text-primary hover:text-brand-hover border border-dashed border-primary-container rounded-md px-3 py-2 w-full hover:bg-primary-container transition-colors">
+          className="flex items-center gap-2 text-sm text-primary border border-dashed border-primary-container rounded-md px-3 py-2 w-full hover:bg-primary-container transition-colors">
           <Icon icon={LinkIcon} size={18} />
           Выбрать базовый экземпляр или роль...
         </button>

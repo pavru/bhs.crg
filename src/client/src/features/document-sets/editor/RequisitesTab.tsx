@@ -690,7 +690,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
         {isFirst && hasBase && !baseRef && (
           <p className="text-xs text-on-surface-variant mb-4">
             Основа не выбрана — все поля заполняются вручную.{' '}
-            <button type="button" onClick={() => setHintPicker(true)} className="text-primary hover:text-brand-hover underline underline-offset-2">
+            <button type="button" onClick={() => setHintPicker(true)} className="text-primary state-layer underline underline-offset-2">
               Выбрать основу
             </button>
           </p>
@@ -729,7 +729,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                 {helpText && <Markdown>{helpText}</Markdown>}
                 {hasLevelProfile && (
                   <p className="text-xs text-on-surface-variant">
-                    ℹ Часть данных подтягивается из <span className="text-brand-hover font-medium">профиля уровня</span>{' '}
+                    ℹ Часть данных подтягивается из <span className="text-primary font-medium">профиля уровня</span>{' '}
                     (стройка/раздел/комплект) — они доступны в шаблоне как <code className="font-mono bg-surface-container text-on-surface px-1 rounded">data.уровень.*</code> и заполняются на странице «Общие данные» уровня, а не здесь.
                   </p>
                 )}
@@ -770,8 +770,8 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
               return (
                 <button key={item.key} type="button" onClick={() => setActiveKey(item.key)}
                   aria-current={isActive ? 'true' : undefined}
-                  className={`w-full flex items-center gap-3 text-left px-3 h-11 rounded-full transition-colors ${
-                    isActive ? 'bg-primary-container text-brand-hover font-medium' : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'}`}>
+                  className={`state-layer w-full flex items-center gap-3 text-left px-3 h-11 rounded-full ${
+                    isActive ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant hover:text-on-surface'}`}>
                   <Icon icon={icon} size={18} className={`shrink-0 ${iconCls}`} />
                   <span className="flex-1 truncate text-sm">{item.title}</span>
                   <BrokenCountBadge count={broken} className="shrink-0" />

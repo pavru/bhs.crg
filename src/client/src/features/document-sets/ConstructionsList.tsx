@@ -70,7 +70,7 @@ function DocumentSearchPanel() {
               {results.map(r => (
                 <li key={r.instanceId}>
                   <button onClick={() => navigate(documentPath(r.constructionId, r.setId, r.instanceId))}
-                    className="w-full text-left px-3 py-2 hover:bg-surface-container-low transition-colors flex items-center gap-3">
+                    className="w-full text-left px-3 py-2 state-layer flex items-center gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="text-sm text-on-surface truncate">{r.name || r.typeName}</div>
                       <div className="text-xs text-on-surface-variant truncate">

@@ -119,7 +119,7 @@ export function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, 
               {parentType && (
                 <Tooltip content="Перейти к родительскому типу">
                   <button type="button" onClick={() => onSelectType(parentType.id)}
-                    className={`${jumpBadge} bg-primary-container text-on-primary-container hover:text-brand-hover hover:underline`}>
+                    className={`${jumpBadge} bg-primary-container text-on-primary-container hover:underline`}>
                     ↑ {parentType.name}
                   </button>
                 </Tooltip>
@@ -169,7 +169,7 @@ export function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, 
                 {children.map(c => (
                   <Tooltip key={c.id} content={`Перейти к типу «${c.name}»`}>
                     <button type="button" onClick={() => onSelectType(c.id)}
-                      className={`${jumpBadge} bg-surface-container text-on-surface-variant hover:text-brand-hover hover:underline`}>
+                      className={`${jumpBadge} bg-surface-container text-on-surface-variant hover:underline`}>
                       ↓ {c.name}
                     </button>
                   </Tooltip>

@@ -18,9 +18,9 @@ import { offendingLines } from '@/shared/testing/clientSources';
  * `.tsx`, а литералы цвета уместны ровно там, это и есть их единственное место.
  *
  * ⚠️ Чего сторож НЕ ловит, чтобы обещание не было шире улова: готовые классы Tailwind с зашитым
- * цветом (`text-white`, `bg-black/5`). Они переживают смену темы штатно — `dark:`-вариантом
- * рядом, — и ловить их значило бы спорить с принятым в проекте способом писать полупрозрачные
- * подложки. Цвет, который тему НЕ переживает, — это литерал: hex, `rgb()/hsl()`, произвольное
+ * цветом (`text-white`, `bg-black/5`). Их ловит храповик интерфейса: подложку чёрным или белым с
+ * прозрачностью — правило `raw-state` (наведение рисует слой состояния, sharedui-md3-05), вариант
+ * `dark:` — правило `dark-variant`. Цвет, который тему НЕ переживает, — это литерал: hex, `rgb()/hsl()`, произвольное
  * значение Tailwind и именованный цвет в инлайн-стиле; они и ловятся. Одно исключение тему всё же
  * не переживает — белое на сплошной заливке роли (`bg-primary text-white`): в тёмной теме заливка
  * светлая. Его ловит не этот сторож, а храповик интерфейса, правило `white-on-fill` (#1462) — и то
@@ -87,7 +87,9 @@ describe('цвета в клиентском коде', () => {
       '/src/features/Ok.tsx': '  // Вынесено из ComplexFields (issue #1014), правка #1065, см. #858 и #154.',
       '/src/features/Ok2.tsx': "  const cls = 'border border-outline-variant bg-surface-container';",
       '/src/features/Ok3.tsx': '   * MD3 outlined-поле (issue #574) — рамка solid, как у соседей.',
-      '/src/features/Ok4.tsx': '  <pre className="bg-black/5 dark:bg-white/5 text-on-surface-variant" />',
+      // Готовый класс с зашитым цветом — не литерал (его ловит храповик, правило raw-state). Строка
+      // разрезана, чтобы класса в этом файле не видели ни храповик, ни md3:migrate.
+      '/src/features/Ok4.tsx': '  <pre className="bg-' + 'black/5 text-on-surface-variant" />',
       '/src/features/Ok5.tsx': "  style={{ background: 'transparent', color: 'currentColor' }}",
     };
     expect(offendingLines(isColorLiteral, [], fake)).toEqual([]);

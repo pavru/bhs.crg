@@ -466,7 +466,7 @@ export function SourcesPanel({
                     <Tooltip content="Распознать таблицу этого документа — затем можно создать источник">
                       <button type="button" disabled={recognizeTable.isPending}
                         onClick={() => recognizeTable.mutate(c.firstPageIndex!)}
-                        className="flex items-center gap-0.5 text-primary hover:text-brand-hover disabled:opacity-50">
+                        className="flex items-center gap-0.5 text-primary state-layer disabled-content">
                         <Icon icon={DocumentScanner} size={18} /> Распознать таблицу
                       </button>
                     </Tooltip>
@@ -474,7 +474,7 @@ export function SourcesPanel({
                     // Второй источник на ту же консолидацию (issue #717) — только через диалог имени:
                     // без имени в наборе оказались бы два неразличимых «Документы комплекта».
                     <button type="button" disabled={createSource.isPending} onClick={() => setAddingMore(c)}
-                      className="flex items-center gap-0.5 text-primary hover:text-brand-hover disabled:opacity-50">
+                      className="flex items-center gap-0.5 text-primary state-layer disabled-content">
                       <Icon icon={Add} size={18} /> Добавить ещё
                     </button>
                   ) : (
@@ -486,7 +486,7 @@ export function SourcesPanel({
                       onClick={() => createSource.mutate({
                         fileId: file.id, name: nextSourceName(sourceNames, c.name), sheetOrPath: c.sheetOrPath,
                       })}
-                      className="flex items-center gap-0.5 text-primary hover:text-brand-hover disabled:opacity-50">
+                      className="flex items-center gap-0.5 text-primary state-layer disabled-content">
                       <Icon icon={Add} size={18} /> Создать
                     </button>
                   )}

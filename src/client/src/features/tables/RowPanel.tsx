@@ -50,7 +50,7 @@ export function RowPanel({ address, rowKey, filter, grain, link, onClose }: {
         <h2 className="flex-1 text-sm font-medium text-on-surface">Строка: {grain}</h2>
         {link && values && <Link to={link.to} className="text-xs text-primary underline hover:text-on-surface">{link.label}</Link>}
         <button ref={close} type="button" onClick={onClose} aria-label="Закрыть строку"
-          className="p-1 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container">
+          className="p-1 rounded-md text-on-surface-variant hover:text-on-surface state-layer">
           <Icon icon={Close} size={18} aria-hidden />
         </button>
       </header>

@@ -59,7 +59,7 @@ export function InheritedFieldsPanel({
         const isExcluded = excludedSet.has(field.key);
         const override = fieldOverrides[field.key];
         return (
-          <div key={field.key} className={`${cols} rounded-md px-2 py-2 hover:bg-surface-container/50 transition-colors ${isExcluded ? 'opacity-55' : ''}`}>
+          <div key={field.key} className={`${cols} rounded-md px-2 py-2 state-layer ${isExcluded ? 'opacity-55' : ''}`}>
             <span className="flex items-center gap-1.5 min-w-0">
               {isExcluded && <Icon icon={VisibilityOff} size={18} className="text-on-surface-variant shrink-0" />}
               <span className={`text-sm font-mono truncate ${isExcluded ? 'line-through text-on-surface-variant' : 'text-on-surface-variant'}`}>{field.key}</span>
@@ -99,8 +99,8 @@ function RequiredChip({ field, override, onOverride, onReset }: {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button type="button"
-          className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full transition-colors ${
-            overridden ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
+          className={`state-layer inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ${
+            overridden ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant'}`}>
           {overridden && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
           {overridden ? `${parentLabel} → ${effective ? 'обяз.' : 'опц.'}` : (effective ? 'обяз.' : 'опц.')}
         </button>
@@ -127,7 +127,7 @@ function RequiredChip({ field, override, onOverride, onReset }: {
 function ReqItem({ children, onSelect, active }: { children: React.ReactNode; onSelect: () => void; active?: boolean }) {
   return (
     <DropdownMenu.Item onSelect={onSelect}
-      className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-pointer outline-none data-[highlighted]:bg-surface-container">
+      className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-pointer outline-none state-layer">
       <Icon icon={Check} size={18} className={active ? 'text-primary' : 'invisible'} />
       <span className="flex-1">{children}</span>
     </DropdownMenu.Item>

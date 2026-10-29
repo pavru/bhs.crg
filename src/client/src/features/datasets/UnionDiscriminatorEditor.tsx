@@ -95,7 +95,7 @@ export function UnionDiscriminatorEditor({
               <button
                 type="button"
                 onClick={() => setOpen(isOpen ? '' : v.key)}
-                className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-surface-container-low transition-colors"
+                className="w-full flex items-center gap-2 px-2 py-1.5 text-left state-layer"
               >
                 {isOpen ? <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={ChevronRight} size={18} className="text-on-surface-variant shrink-0" />}
                 <span className={`text-xs font-medium ${disabled ? 'text-on-surface-variant' : 'text-on-surface-variant'}`}>{v.title}</span>

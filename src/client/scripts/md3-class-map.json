@@ -39,7 +39,39 @@
     "warning-subtle": { "to": "warning-container", "same": true },
     "danger": { "to": "error", "same": true },
     "danger-subtle": { "to": "error-container", "same": true },
-    "on-danger": { "to": "on-error", "same": true }
+    "on-danger": { "to": "on-error", "same": true },
+    "brand-hover": { "to": "primary" },
+    "brand-pressed": { "to": "primary" },
+    "fg-disabled": { "to": "on-surface/38" }
+  },
+  "states": {
+    "//": [
+      "Самодельные состояния → модель MD3 (sharedui-md3-05, [UI-64]) — класс целиком, с вариантом; проход",
+      "md3-states-migrate.mjs, до names. layer — наведение заливкой или фильтром → state-layer (один на",
+      "список; слой невыбранной ветки шаблона — в постоянную часть, у выбранного он тоже есть); у группы со",
+      "слоем снимается transition-colors / transition. feedback — смена цвета текста под наведением: слой, если",
+      "своего наведения у элемента нет, иначе снять. drop — снять: пара тёмной темы при слое, наведение",
+      "отключённого (наведение отключённого не действует). to — замена. disabled — прозрачность отключённого →",
+      "disabled-container (заливка контейнера), disabled-outlined (рамка шириной) или disabled-content."
+    ],
+    "layer": [
+      "hover:bg-surface", "hover:bg-surface-container-low", "hover:bg-surface-container",
+      "hover:bg-surface-container/40", "hover:bg-surface-container/50", "hover:bg-black/5",
+      "hover:brightness-95", "hover:brightness-[.97]",
+      "data-[highlighted]:bg-surface-container-low", "data-[highlighted]:bg-surface-container",
+      "hover:bg-brand-hover", "hover:bg-brand-pressed", "active:bg-brand-pressed"
+    ],
+    "feedback": ["hover:text-brand-hover"],
+    "drop": [
+      "dark:hover:bg-white/10", "dark:bg-white/5", "disabled:hover:bg-transparent",
+      "disabled:hover:text-on-surface-variant", "disabled:hover:border-outline-variant"
+    ],
+    "to": {
+      "bg-black/40": "bg-scrim/32",
+      "bg-black/5": "bg-surface-container",
+      "focus:border-brand-hover": "focus:border-primary"
+    },
+    "disabled": "^(?:disabled|data-\\[disabled\\]):opacity-\\d+$"
   },
   "classes": {
     "text-base": { "skip": "размер текста, а не цвет", "notColor": true },

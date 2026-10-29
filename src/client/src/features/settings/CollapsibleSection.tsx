@@ -37,7 +37,7 @@ export function CollapsibleSection({
       <button
         type="button"
         onClick={toggle}
-        className="w-full flex items-center justify-between gap-2 p-4 text-left hover:bg-surface-container-low transition-colors"
+        className="w-full flex items-center justify-between gap-2 p-4 text-left state-layer"
         aria-expanded={open}
       >
         <h2 className="text-sm font-semibold text-on-surface-variant uppercase tracking-wide">{title}</h2>

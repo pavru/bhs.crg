@@ -190,8 +190,8 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
           {DATE_PRECISIONS.map(p => (
             <button key={p.value} type="button"
               onClick={() => p.value === 'day' ? unset('datePrecision') : set('datePrecision', p.value)}
-              className={`px-3 py-1.5 text-sm transition-colors ${
-                precision === p.value ? 'bg-primary-container text-brand-hover font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
+              className={`state-layer px-3 py-1.5 text-sm ${
+                precision === p.value ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant'}`}>
               {p.label} ({dateMaskText(p.value)})
             </button>
           ))}
@@ -248,8 +248,8 @@ function BaseTypeSegmented({ value, onChange, disabled }: {
         const on = value === bt.value;
         return (
           <button key={bt.value} type="button" disabled={disabled} onClick={() => onChange(bt.value)}
-            className={`flex items-center gap-1.5 px-4 py-1.5 text-sm transition-colors disabled:cursor-not-allowed ${
-              on ? 'bg-primary-container text-brand-hover font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
+            className={`state-layer flex items-center gap-1.5 px-4 py-1.5 text-sm disabled:cursor-not-allowed ${
+              on ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant'}`}>
             <Icon icon={icon} size={18} className="shrink-0" /> {bt.label}
           </button>
         );
@@ -568,12 +568,12 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
     const active = t.id === selectedId;
     return (
       <button key={t.id} type="button" onClick={() => onSelect(t.id)} aria-current={active ? 'true' : undefined}
-        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors ${
-          active ? 'bg-primary-container text-brand-hover' : 'hover:bg-surface-container'}`}>
-        <Icon icon={t.icon} size={18} className={`shrink-0 ${active ? 'text-brand-hover' : 'text-on-surface-variant'}`} />
+        className={`state-layer w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left ${
+          active ? 'bg-primary-container text-on-primary-container' : ''}`}>
+        <Icon icon={t.icon} size={18} className={`shrink-0 ${active ? 'text-primary' : 'text-on-surface-variant'}`} />
         <span className="min-w-0 flex-1">
           {/* Строка 1 — только имя, полный приоритет ширины. */}
-          <span className={`block text-sm font-medium truncate ${active ? 'text-brand-hover' : 'text-on-surface'}`}>{t.name}</span>
+          <span className={`block text-sm font-medium truncate ${active ? 'text-primary' : 'text-on-surface'}`}>{t.name}</span>
           {/* Строка 2 — код (mono, capped) · превью; оба truncate, длинный код не ломает строку 1. */}
           <span className="flex items-baseline gap-1 min-w-0 text-on-surface-variant">
             <span className="font-mono text-caption truncate max-w-[45%] shrink-0" title={t.code}>{t.code}</span>

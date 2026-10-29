@@ -130,7 +130,7 @@ export function ComputedColumnsDialog({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 rounded-md text-sm font-medium text-on-primary bg-primary disabled:opacity-50"
+            className="px-4 py-2 rounded-md text-sm font-medium text-on-primary bg-primary disabled-container"
           >
             {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
@@ -139,7 +139,7 @@ export function ComputedColumnsDialog({
             <button
               onClick={() => void commit(() => onSave(null))}
               disabled={saving}
-              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-error bg-surface-container disabled:opacity-50"
+              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-error bg-surface-container disabled-container"
             >
               Сбросить
             </button>
@@ -188,8 +188,8 @@ export function ComputedColumnsDialog({
                   onClick={() => insert(columnAccessor(name))}
                   disabled={columns.length === 0}
                   className="flex items-center gap-1 px-2 py-1 rounded border border-outline-variant bg-surface
-                             hover:border-primary hover:text-primary disabled:opacity-50 disabled:hover:border-outline-variant
-                             disabled:hover:text-on-surface-variant text-on-surface-variant"
+                             hover:border-primary hover:text-primary disabled-outlined
+                             text-on-surface-variant"
                 >
                   <span className="text-on-surface-variant font-mono">{i + 1}</span>
                   <span className="font-mono">{name}</span>

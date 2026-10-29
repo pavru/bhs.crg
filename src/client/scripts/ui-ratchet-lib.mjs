@@ -190,14 +190,14 @@ export const RULES = [
   },
   {
     id: 'legacy-token',
-    // Токены Fluent `--f-*` (эпик sharedui-md3, [UI-57]): удалены целиком, уровень 0 навсегда. И
-    // `--legacy-*` — значения старых имён без роли MD3: живут только в сгенерированной теме (`skip`),
-    // а снаружи — это обход псевдонима. Смотрит и стили (`styles`): тень и цвет пишут и в CSS.
+    // Токены Fluent `--f-*` (эпик sharedui-md3, [UI-57]) и `--legacy-*` — значения старых имён без роли
+    // MD3 (сняты sharedui-md3-05): удалены целиком, уровень 0 навсегда. Смотрит и стили (`styles`): тень
+    // и цвет пишут и в CSS.
     pattern: /--(?:f|legacy)-[\w-]/g,
     everywhere: true,
     styles: true,
     skip: ['theme/'],
-    instead: 'переменная MD3: --f-shadow4/16/28 → --md-sys-elevation-level1/2/3, --f-brand → --md-sys-color-primary, цвет — --md-sys-color-<роль> или класс роли (bg-primary, text-on-surface); --legacy-* — только внутри src/theme/ (docs/UI.md, «Цвет»)',
+    instead: 'переменная MD3: --f-shadow4/16/28 → --md-sys-elevation-level1/2/3, --f-brand → --md-sys-color-primary, цвет — --md-sys-color-<роль> или класс роли (bg-primary, text-on-surface) (docs/UI.md, «Цвет»)',
   },
   {
     id: 'legacy-class',
@@ -205,12 +205,13 @@ export const RULES = [
     // прежнее, но расти им нельзя. Перечень — псевдонимы описания темы, граница класса — та же, что у
     // сторожа словаря (любая цветовая утилита, вариант, прозрачность). Плюс `var(--color-<старое>)` —
     // и в файлах стилей: там старое имя пишут именно так. `theme/` — сами псевдонимы.
-    // `text-base` — размер текста, а не цвет. Снимается финалом эпика вместе с псевдонимами.
+    // `text-base` — размер текста, а не цвет. Уровень 0 (sharedui-md3-05); снимается финалом эпика вместе
+    // с псевдонимами.
     count: countLegacyClasses,
     everywhere: true,
     styles: true,
     skip: ['theme/'],
-    instead: `класс роли MD3 вместо старого имени: ${LEGACY_HINT}; у fg-disabled, brand-hover, brand-pressed роли того же цвета нет — их снимает sharedui-md3-05; обводки по статусу нет — рамка формы outline-variant (docs/UI.md, «Цвет»)`,
+    instead: `класс роли MD3 вместо старого имени: ${LEGACY_HINT}; brand-hover, brand-pressed → наведение и нажатие рисует state-layer, текст — text-primary; fg-disabled → text-on-surface/38; обводки по статусу нет — рамка формы outline-variant (docs/UI.md, «Цвет»)`,
   },
   {
     id: 'container-text',
@@ -226,7 +227,8 @@ export const RULES = [
     id: 'raw-state',
     // Самодельное состояние ([UI-64], sharedui-md3-05): подложка чёрным или белым с прозрачностью,
     // brightness-* и наведение заливкой поверхности (hover:bg-surface-container) — около 22 способов до
-    // перехода. По строкам кода (classTokens), не по тексту файла: класс в комментарии не рисуется.
+    // перехода, уровень 0 после него. По строкам кода (classTokens), не по тексту файла: класс в
+    // комментарии не рисуется.
     count: countRawStates,
     everywhere: true,
     instead: 'состояние — слоем MD3: state-layer (наведение 8 %, фокус и нажатие 10 %, пункт меню Radix — сам по data-highlighted; часть элемента — state-layer-group у .group), другой цвет слоя — [--_state-color:…]; отключённое — disabled-container / disabled-content; затемнение под окном — bg-scrim/32 (docs/UI.md, «Состояния»)',
@@ -235,7 +237,8 @@ export const RULES = [
     id: 'dark-variant',
     // Вариант тёмной темы в классах ([UI-64]): роль MD3 знает обе темы сама, а dark: держал пару
     // самодельного наведения (hover:bg-black/5 dark:hover:bg-white/10). По строкам кода, как raw-state:
-    // регулярное выражение со строкой dark: (фильтр классов в Tooltip) — не класс.
+    // регулярное выражение со строкой dark: — не класс. Уровень 0, и варианта dark в теме больше нет:
+    // класс dark: отвечал бы теме системы, а не выбранной в приложении.
     count: countDarkVariants,
     everywhere: true,
     instead: 'цвет обеих тем даёт роль MD3 — второй класс для тёмной не нужен; наведение — state-layer; то, чего ролью не сказать (белый лист просмотрщика), — правилом в CSS компонента селектором :root[data-theme="dark"] (docs/UI.md, «Цвет»)',

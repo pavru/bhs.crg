@@ -264,7 +264,7 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
             </div>
             {/* Код правится только в полноэкранном редакторе (не inline, issue #197 Фаза C) */}
             <button type="button" onClick={() => setEditingIndex(i)}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-md border border-outline-variant bg-surface hover:bg-surface-container/50 transition-colors text-left">
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-md border border-outline-variant bg-surface state-layer text-left">
               <Icon icon={Code} size={18} className="text-on-surface-variant shrink-0" />
               <span className="text-sm text-on-surface-variant flex-1">Редактировать Typst-код</span>
               {problemsByFn?.[r.fnName.trim()] === 'error' && (
@@ -291,7 +291,7 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
         );
       })}
       <button type="button" onClick={add}
-        className="flex items-center gap-1.5 text-sm text-primary hover:text-brand-hover mt-1">
+        className="flex items-center gap-1.5 text-sm text-primary state-layer mt-1">
         <Icon icon={Add} size={18} /> Добавить вариант
       </button>
 

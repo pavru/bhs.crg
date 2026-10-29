@@ -60,7 +60,7 @@ export function RolePicker({ value, known = [], onChange, disabled, ariaLabel = 
             border-outline bg-surface text-sm text-left transition-colors
             focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
             data-[state=open]:ring-2 data-[state=open]:ring-primary
-            disabled:opacity-50 disabled:pointer-events-none
+            disabled-outlined disabled:pointer-events-none
             ${chosen.length > 0 ? 'text-on-surface' : 'text-on-surface-variant'} ${className}`}>
           <span className="min-w-0 flex-1 truncate">{label}</span>
           <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" aria-hidden="true" />
@@ -82,7 +82,7 @@ export function RolePicker({ value, known = [], onChange, disabled, ariaLabel = 
             <DropdownMenu.CheckboxItem key={r.name} checked={chosen.includes(r.name)}
               onSelect={e => e.preventDefault()} onCheckedChange={() => setDraft(toggleRole(chosen, r.name))}
               className="flex items-start gap-2 px-3 py-1.5 text-sm cursor-pointer select-none outline-none
-                data-[highlighted]:bg-surface-container-low">
+                state-layer">
               <span className="w-4 shrink-0 pt-0.5 text-primary">
                 {chosen.includes(r.name) && <Icon icon={Check} size={18} />}
               </span>

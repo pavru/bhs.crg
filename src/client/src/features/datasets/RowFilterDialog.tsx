@@ -287,7 +287,7 @@ export function RowFilterDialog({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 rounded-md text-sm font-medium text-on-primary bg-primary disabled:opacity-50"
+            className="px-4 py-2 rounded-md text-sm font-medium text-on-primary bg-primary disabled-container"
           >
             {saving ? words.saving : words.save}
           </button>
@@ -296,7 +296,7 @@ export function RowFilterDialog({
             <button
               onClick={handleReset}
               disabled={saving}
-              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-error bg-surface-container disabled:opacity-50"
+              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-error bg-surface-container disabled-container"
             >
               {words.reset}
             </button>

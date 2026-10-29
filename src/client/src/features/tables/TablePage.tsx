@@ -325,7 +325,7 @@ function Pager({ view, data, onChange }: {
   view: TableView; data: TableData; onChange: (change: ViewChange) => void;
 }) {
   const pages = pageCount(data.count, view.size);
-  const button = 'p-1 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container disabled:opacity-30 disabled:hover:bg-transparent';
+  const button = 'p-1 rounded-md text-on-surface-variant hover:text-on-surface state-layer disabled-content';
   return (
     <div className="mt-2 flex items-center gap-3 text-xs text-on-surface-variant">
       <span>{shownOf(data)}</span>

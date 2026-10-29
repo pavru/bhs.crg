@@ -112,7 +112,7 @@ function RevisionTabs({ estimate, selected, onSelect }: {
               style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
               {more.map(r => (
                 <DropdownMenu.Item key={r.id} onSelect={() => onSelect(r.id)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-on-surface-variant cursor-pointer select-none outline-none data-[highlighted]:bg-surface-container-low">
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-on-surface-variant cursor-pointer select-none outline-none state-layer">
                   {revisionLabel(r)}
                   <span className="ml-auto text-xs text-on-surface-variant">{formatDate(r.importedAt)}</span>
                 </DropdownMenu.Item>

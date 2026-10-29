@@ -147,7 +147,7 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
         <p className="text-sm text-on-surface-variant py-4 text-center">Ни одна связка не подходит под поиск.</p>
       )}
       {shown.map(link => (
-        <div key={link.id} className="group flex items-start gap-3 rounded-md px-3 py-2 hover:bg-surface-container-low">
+        <div key={link.id} className="group flex items-start gap-3 rounded-md px-3 py-2 state-layer">
           <input type="checkbox" checked={selected.has(link.id)} onChange={() => toggle(link.id)}
             aria-label={`Выбрать ${nameOf(link)}`} className="mt-1 shrink-0" />
           {/* Уровень связи (issue #649): до этого он не показывался вовсе, хотя управляет и

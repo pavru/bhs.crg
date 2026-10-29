@@ -34,8 +34,8 @@ describe('state-layer', () => {
 
   it.each([
     ['&:hover, &[data-highlighted]', '--_s: var(--md-sys-state-hover);'],
-    // Нажатие — не у строки: :active зажигается у предков нажатой кнопки, и строка темнела бы от крестика.
-    ['&:focus-visible, &:active:not(tr), &[data-state=open]', '--_s: var(--md-sys-state-pressed);'],
+    // Нажатие — только своё: :active зажигается у предков нажатой кнопки, и строка темнела бы от крестика.
+    ['&:focus-visible, &:active:not(:has(:is(button, a, input, select, textarea, label, [role=button], [tabindex]):active)), &[data-state=open]', '--_s: var(--md-sys-state-pressed);'],
     ['&[data-dragging]', '--_s: var(--md-sys-state-dragged);'],
     ['&:disabled, &[aria-disabled=true], &[data-disabled]', '--_s: 0;'],
   ])('%s → %s', (selectors, body) => {
@@ -113,6 +113,14 @@ describe('отключённое', () => {
     expect(filled).toContain(container);
     expect(filled).toContain('box-shadow: none;');
     expect(rule(css('disabled-content'), '&:disabled, &[aria-disabled=true], &[data-disabled]')).not.toContain('background-color');
+  });
+
+  // hover:-класс стоит в CSS позже утилиты отключённого и весит столько же: у отключённого он не действует
+  // вовсе, вес селектора — прежний (:where), только на устройствах с наведением — как у Tailwind.
+  it.each(['hover:text-on-surface', 'group-hover:opacity-100'])('%s у отключённого не действует', cls => {
+    const out = css(cls);
+    expect(out).toContain(':where(:not(:disabled, [aria-disabled=true], [data-disabled]))');
+    expect(out).toContain('@media (hover: hover)');
   });
 });
 

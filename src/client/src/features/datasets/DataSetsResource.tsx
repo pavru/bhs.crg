@@ -36,9 +36,9 @@ function FileNavItem({ icon, label, secondary, count, active, recognizing, stale
 }) {
   return (
     <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
-      className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left transition-colors ${
-        active ? 'bg-primary-container text-brand-hover' : 'text-on-surface-variant hover:bg-surface-container'}`}>
-      <span className={`shrink-0 ${active ? 'text-brand-hover' : 'text-on-surface-variant'}`}>
+      className={`state-layer w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left ${
+        active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}>
+      <span className={`shrink-0 ${active ? 'text-primary' : 'text-on-surface-variant'}`}>
         {recognizing ? <CircularProgress size={18} className="text-primary" /> : icon}
       </span>
       <span className="flex-1 min-w-0">
@@ -128,7 +128,7 @@ function FileDetail({ file, inherited, job }: {
           <span className="flex-1 min-w-0 truncate">{job.progress ?? job.title ?? 'Распознаётся…'}</span>
           {job.status === 'Queued' && (
             <button onClick={() => cancel.mutate(job.id)} disabled={cancel.isPending}
-              className="text-primary hover:text-brand-hover shrink-0 disabled:opacity-50">Отменить</button>
+              className="text-primary state-layer shrink-0 disabled-content">Отменить</button>
           )}
         </div>
       )}
@@ -340,7 +340,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
 
   const overlay = dragOver && (
     <div className="absolute inset-0 z-10 rounded-lg border-2 border-dashed border-primary bg-primary-container/60 flex items-center justify-center pointer-events-none">
-      <span className="text-sm font-medium text-brand-hover">Отпустите файл — загрузим в набор</span>
+      <span className="text-sm font-medium text-primary">Отпустите файл — загрузим в набор</span>
     </div>
   );
 
@@ -419,7 +419,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
               <FileDetail file={selectedFile} inherited={selectedInherited} job={jobForFile(selectedFile)} />
             ) : (
               <div className="text-center py-10 text-on-surface-variant text-sm">
-                Набор не найден. <button className="text-primary hover:text-brand-hover" onClick={() => setSelected(ALL)}>Ко всем наборам</button>
+                Набор не найден. <button className="text-primary state-layer" onClick={() => setSelected(ALL)}>Ко всем наборам</button>
               </div>
             )}
           </div>

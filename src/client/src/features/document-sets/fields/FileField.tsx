@@ -128,7 +128,7 @@ function FilePreviewBody({ attachment }: { attachment: FileAttachment }) {
           <Icon icon={TableChart} size={48} className="text-success" />
           <p className="text-sm text-on-surface-variant">Предпросмотр недоступен для этого формата.</p>
           <a href={objectUrl} download={attachment.fileName}
-            className="inline-flex items-center gap-2 h-9 px-4 bg-primary hover:bg-brand-hover active:bg-brand-pressed text-on-primary text-sm font-medium rounded-full shadow-[var(--md-sys-elevation-level1)] transition-colors">
+            className="inline-flex items-center gap-2 h-9 px-4 bg-primary state-layer text-on-primary text-sm font-medium rounded-full shadow-[var(--md-sys-elevation-level1)]">
             <Icon icon={Download} size={18} /> Скачать
           </a>
         </div>

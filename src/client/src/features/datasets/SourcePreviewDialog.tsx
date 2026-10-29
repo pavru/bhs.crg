@@ -76,7 +76,7 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
               <button
                 onClick={() => path && handleOpen(i, path)}
                 disabled={!path || opening === i}
-                className="flex items-center gap-1 shrink-0 px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant hover:bg-surface disabled:opacity-40 disabled:hover:bg-transparent">
+                className="flex items-center gap-1 shrink-0 px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant state-layer disabled-outlined">
                 {opening === i ? <CircularProgress size={18} /> : <Icon icon={OpenInNew} size={18} />}
                 Просмотреть
               </button>

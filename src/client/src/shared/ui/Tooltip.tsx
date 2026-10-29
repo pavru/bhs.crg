@@ -68,7 +68,7 @@ function focusVisible(el: Element): boolean {
  * они звали бы нажать то, что не нажимается, или прятали бы от мыши саму подсказку.</p>
  */
 const looksDisabled = (cls: string) => cls.split(/\s+/)
-  .filter(c => c && c !== 'disabled:pointer-events-none' && !/^(dark:)?(hover|active):/.test(c))
+  .filter(c => c && c !== 'disabled:pointer-events-none' && !/^(hover|active):/.test(c))
   .map(c => c.replace(/^disabled:/, ''))
   .join(' ');
 

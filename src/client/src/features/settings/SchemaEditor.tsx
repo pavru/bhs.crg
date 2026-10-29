@@ -275,7 +275,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
           {(fields.length > 0 || parentEffectiveFields.length > 0) && (
             <button type="button" onClick={() => setShowJson(v => !v)}
               className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded ${
-                showJson ? 'bg-on-surface text-surface-container' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
+                showJson ? 'bg-on-surface text-surface-container' : 'text-on-surface-variant hover:text-on-surface state-layer'
               }`}>
               <Icon icon={DataObject} size={18} /> JSON
             </button>
@@ -362,7 +362,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
             ].find(x => docTypeTags.includes(x.code));
             return p ? (
               <p className="mt-2 text-xs text-on-surface-variant">
-                Используется как <span className="text-brand-hover font-medium">профиль уровня «{p.level}»</span>:
+                Используется как <span className="text-primary font-medium">профиль уровня «{p.level}»</span>:
                 его объект редактируется в «Общие данные» уровня, поля доступны в шаблоне как{' '}
                 <code className="font-mono bg-surface-container text-on-surface px-1 rounded">data.уровень.{p.key}.*</code>.
               </p>

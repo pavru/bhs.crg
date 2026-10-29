@@ -101,7 +101,7 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
             {available.map(u => <SelectItem key={u.id} value={u.id}>{u.displayName || u.email}</SelectItem>)}
           </Select>
           <button onClick={handleAdd} disabled={!addUserId || add.isPending}
-            className="flex items-center gap-1 text-sm px-3 py-1.5 border border-outline rounded-md hover:bg-surface-container-low transition-colors disabled:opacity-50">
+            className="flex items-center gap-1 text-sm px-3 py-1.5 border border-outline rounded-md state-layer disabled-outlined">
             <Icon icon={Add} size={18} /> Добавить
           </button>
         </div>

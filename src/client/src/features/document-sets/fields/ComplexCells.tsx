@@ -38,7 +38,7 @@ export function ComplexCellPicker({ value, onChange, compositeType, setId, allDo
       <button type="button" onClick={() => setPickerOpen(true)}
         className="flex-1 min-w-0 h-full flex items-center gap-1 px-1.5 focus:outline-none focus:bg-primary-container">
         {ref
-          ? <><Icon icon={LinkIcon} size={18} className="text-primary shrink-0" /><span className="text-xs truncate text-brand-hover">{ref.displayName}</span><ArchivedRefMark value={ref} words={false} /></>
+          ? <><Icon icon={LinkIcon} size={18} className="text-primary shrink-0" /><span className="text-xs truncate text-primary">{ref.displayName}</span><ArchivedRefMark value={ref} words={false} /></>
           : <span className="text-xs text-on-surface-variant">—</span>
         }
       </button>

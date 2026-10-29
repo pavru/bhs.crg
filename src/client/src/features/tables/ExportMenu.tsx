@@ -10,7 +10,7 @@ import { TableDataSetDialog } from './TableDataSetDialog';
 
 const itemCls =
   'flex items-center gap-2 px-3 py-1.5 text-sm text-on-surface-variant cursor-pointer select-none outline-none ' +
-  'data-[highlighted]:bg-surface-container-low data-[disabled]:opacity-40 data-[disabled]:pointer-events-none';
+  'state-layer disabled-content data-[disabled]:pointer-events-none';
 
 /**
  * Кнопка-меню «Выгрузить» (ТЗ CORE-33; задача G3b, issue #1096): «В XLSX» и «Сделать источником
@@ -50,7 +50,7 @@ export function ExportMenu({ address, count, body, xlsx: canXlsx, dataset }: {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button type="button" disabled={busy}
-          className="inline-flex items-center gap-1.5 rounded-md border border-outline-variant px-2.5 py-1 text-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container disabled:opacity-60">
+          className="inline-flex items-center gap-1.5 rounded-md border border-outline-variant px-2.5 py-1 text-xs text-on-surface-variant hover:text-on-surface state-layer disabled-outlined">
           <Icon icon={Download} size={18} aria-hidden />
           {busy ? 'Выгружается…' : 'Выгрузить'}
         </button>

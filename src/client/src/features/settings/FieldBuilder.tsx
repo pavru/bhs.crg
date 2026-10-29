@@ -44,7 +44,7 @@ export function JsonPreview({
     // Подложка и текст — теми же классами, что у остальных блоков кода в клиенте
     // (`BugReportsPage`, `ErrorBoundary`): тема здесь такая же, как везде, а не прибитая
     // тёмная литералами (issue #1065).
-    <pre className="rounded-lg px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre leading-relaxed select-all bg-black/5 dark:bg-white/5 text-on-surface-variant">
+    <pre className="rounded-lg px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre leading-relaxed select-all bg-surface-container text-on-surface-variant">
       {json}
     </pre>
   );
@@ -145,7 +145,7 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
         <span className="text-caption text-on-surface-variant font-medium">Формула (JavaScript)</span>
         <div className="flex items-center gap-1.5">
           <button type="button" onClick={() => setTestOpen(o => !o)}
-            className="text-caption px-2 py-0.5 rounded border border-outline text-on-surface-variant hover:bg-surface-container">
+            className="text-caption px-2 py-0.5 rounded border border-outline text-on-surface-variant state-layer">
             Проверить на образце
           </button>
           <div className="relative">
@@ -163,7 +163,7 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
                     ? <p className="px-3 py-2 text-xs text-on-surface-variant">Нет полей</p>
                     : filtered.map(f => (
                       <button key={f.key} type="button" onClick={() => insertRef(f.key)}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-surface-container-low">
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-left state-layer">
                         <code className="text-caption font-mono text-primary shrink-0 max-w-[45%] truncate">{f.key}</code>
                         <span className="text-xs text-on-surface-variant truncate flex-1">{f.title || '—'}</span>
                         <span className="text-caption text-on-surface-variant shrink-0">{f.type}</span>
@@ -323,7 +323,7 @@ export function FieldCard({
       onDragOver={onDragOver}
       onDrop={onDrop}>
       {/* Свёрнутая шапка карточки: drag handle + сводка + chip типа + chevron */}
-      <div className="flex items-center gap-2 pl-2 pr-3 py-2 hover:bg-surface-container/40 transition-colors"
+      <div className="flex items-center gap-2 pl-2 pr-3 py-2 state-layer"
         draggable onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <Icon icon={DragIndicator} size={18} className="text-on-surface-variant shrink-0 cursor-grab" />
         <button type="button" onClick={onToggleOpen}
@@ -388,7 +388,7 @@ export function FieldCard({
         {/* Type — открывает searchable TypePicker (issue #197) */}
         <Tooltip content="Выбрать тип поля">
           <button type="button" onClick={() => setPickerOpen(true)}
-            className="flex items-center justify-between gap-1 border border-outline rounded-md px-2 py-1.5 text-sm bg-surface hover:bg-surface-container/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            className="flex items-center justify-between gap-1 border border-outline rounded-md px-2 py-1.5 text-sm bg-surface state-layer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <span className="truncate text-left">{fieldTypeSummary(field, reg)}</span>
             <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />
           </button>
@@ -549,7 +549,7 @@ export function FieldCard({
           ))}
           <button type="button"
             onClick={() => onChange({ options: [...(field.options ?? []), ''] })}
-            className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover">
+            className="flex items-center gap-1 text-xs text-primary state-layer">
             <Icon icon={Add} size={18} /> Добавить вариант
           </button>
         </div>

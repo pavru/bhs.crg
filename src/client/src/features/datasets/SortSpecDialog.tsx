@@ -111,7 +111,7 @@ export function SortSpecDialog({
       footer={
         <div className="flex gap-2">
           <button onClick={handleSave} disabled={saving}
-            className="px-4 py-2 rounded-md text-sm font-medium text-on-primary bg-primary disabled:opacity-50">
+            className="px-4 py-2 rounded-md text-sm font-medium text-on-primary bg-primary disabled-container">
             {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
           <ModalExit variant="tonal" />
@@ -119,7 +119,7 @@ export function SortSpecDialog({
             <button
               onClick={() => void commit(() => onSave(null))}
               disabled={saving}
-              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-error bg-surface-container disabled:opacity-50"
+              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-error bg-surface-container disabled-container"
             >
               Сбросить
             </button>

@@ -169,7 +169,7 @@ export function ApplyTemplateDialog({
           <button
             onClick={handleApply}
             disabled={!selectedTemplate || !selectedSource || create.isPending}
-            className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium text-on-primary disabled:opacity-40 bg-primary"
+            className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium text-on-primary disabled-container bg-primary"
           >
             {create.isPending && <CircularProgress size={18} />}
             Создать привязку
