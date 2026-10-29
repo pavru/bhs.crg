@@ -75,7 +75,8 @@ const camel = name => name.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 /**
  * Описание в режиме `seed` → то же описание со значениями ролей (`roles`, `ext`), как в режиме
  * `values`. Схема обеих тем — из seed по варианту и уровню контраста ([UI-62]); `pinPrimary`
- * подменяет светлый primary самим seed (остальные роли primary — из тональной палитры seed); свои роли
+ * подменяет светлый primary самим seed (с ним surface-tint и тёмный inverse-primary; остальные роли
+ * primary — из тональной палитры seed); свои роли
  * — `customColor` MCU: тона 40/100/90/10 и 80/20/30/90 палитры своего цвета, `harmonize` — сдвиг к seed.
  * Режим `values` проходит как есть: им собрано описание до перехода, и откат — его возвращение.
  */
@@ -95,9 +96,18 @@ export function resolve(theme) {
       return [role, mcu.hexFromArgb(color.getArgb(scheme))];
     }));
   }
-  if (theme.pinPrimary) roles.light.primary = theme.seed.toLowerCase();
+  // Закреплённый primary — вместе с ролями, которые по MD3 и есть он: подсветка поверхности светлой
+  // темы и primary светлой темы внутри тёмной. Иначе в теме два «основных» синих.
+  if (theme.pinPrimary)
+    for (const [mode, role] of [['light', 'primary'], ['light', 'surface-tint'], ['dark', 'inverse-primary']])
+      roles[mode][role] = theme.seed.toLowerCase();
   const ext = { light: {}, dark: {} };
+  const names = new Set();
   for (const { name, value, harmonize } of theme.ext ?? []) {
+    if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(name ?? '')) throw new Error(`md3-theme.json: имя своей роли «${name}» — не kebab-case`);
+    if (names.has(name) || SCHEME_ROLES.includes(name)) throw new Error(`md3-theme.json: своя роль «${name}» повторяет ${names.has(name) ? 'другую свою роль' : 'роль схемы'}`);
+    if (!/^#[0-9a-f]{6}$/i.test(value ?? '')) throw new Error(`md3-theme.json: цвет своей роли «${name}» — «${value}», а не #rrggbb`);
+    names.add(name);
     const group = mcu.customColor(seed, { name, value: mcu.argbFromHex(value), blend: !!harmonize });
     for (const mode of ['light', 'dark']) {
       const g = group[mode];

@@ -4,7 +4,7 @@
 :root {
   --md-ref-typeface-plain: 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --md-sys-color-primary: #1d5fb0;
-  --md-sys-color-surface-tint: #405f90;
+  --md-sys-color-surface-tint: #1d5fb0;
   --md-sys-color-on-primary: #ffffff;
   --md-sys-color-primary-container: #d6e3ff;
   --md-sys-color-on-primary-container: #264777;
@@ -97,7 +97,7 @@
   --md-sys-color-scrim: #000000;
   --md-sys-color-inverse-surface: #e2e2e9;
   --md-sys-color-inverse-on-surface: #2e3036;
-  --md-sys-color-inverse-primary: #405f90;
+  --md-sys-color-inverse-primary: #1d5fb0;
   --md-sys-color-primary-fixed: #d6e3ff;
   --md-sys-color-on-primary-fixed: #001b3d;
   --md-sys-color-primary-fixed-dim: #a9c7ff;

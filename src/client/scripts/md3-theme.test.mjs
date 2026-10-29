@@ -141,8 +141,25 @@ describe('тема MD3: палитра из seed', () => {
     expect(theme.roles, 'роли считает генератор: раздел roles в md3-theme.json не пишут').toBeUndefined();
   });
 
-  it('закреплённый primary светлой темы — сам seed', () => {
-    expect(palette.roles.light.primary).toBe(theme.seed.toLowerCase());
+  it('закреплённый primary светлой темы — сам seed, и роли, которые по MD3 и есть он', () => {
+    const seed = theme.seed.toLowerCase();
+    expect(palette.roles.light.primary).toBe(seed);
+    expect(palette.roles.light['surface-tint']).toBe(seed);
+    expect(palette.roles.dark['inverse-primary']).toBe(seed);
+  });
+
+  it('без закрепления primary светлой темы — тон генератора, не seed', () => {
+    const free = seeded(t => { t.pinPrimary = false; });
+    expect(free.roles.light.primary).not.toBe(theme.seed.toLowerCase());
+    expect(free.roles.light['surface-tint']).toBe(free.roles.light.primary);
+    expect(free.roles.dark['inverse-primary']).toBe(free.roles.light.primary);
+  });
+
+  it('гармонизация сдвигает свою роль к seed, без неё — свой цвет', () => {
+    const harmonized = seeded(t => { for (const e of t.ext) e.harmonize = true; });
+    for (const mode of ['light', 'dark'])
+      for (const role of ['success', 'success-container', 'warning', 'warning-container'])
+        expect(harmonized.ext[mode][role], `${mode}.${role}`).not.toBe(palette.ext[mode][role]);
   });
 
   it('смена seed меняет роли обеих тем', () => {
@@ -161,6 +178,15 @@ describe('тема MD3: палитра из seed', () => {
   it('отказ: неизвестный вариант схемы и seed не цветом', () => {
     expect(() => seeded(t => { t.variant = 'pastel'; })).toThrow('вариант схемы «pastel» неизвестен');
     expect(() => seeded(t => { t.seed = 'blue'; })).toThrow('seed «blue» — не цвет');
+  });
+
+  it('отказ: своя роль без имени, с чужим именем или не цветом', () => {
+    const ext = entry => seeded(t => { t.ext = [...t.ext, entry]; });
+    expect(() => ext({ value: '#1b8a5b' })).toThrow('имя своей роли «undefined» — не kebab-case');
+    expect(() => ext({ name: 'Info', value: '#1b8a5b' })).toThrow('имя своей роли «Info» — не kebab-case');
+    expect(() => ext({ name: 'success', value: '#1b8a5b' })).toThrow('своя роль «success» повторяет другую свою роль');
+    expect(() => ext({ name: 'primary', value: '#1b8a5b' })).toThrow('своя роль «primary» повторяет роль схемы');
+    expect(() => ext({ name: 'info', value: 'teal' })).toThrow('цвет своей роли «info» — «teal», а не #rrggbb');
   });
 });
 

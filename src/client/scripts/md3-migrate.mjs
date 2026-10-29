@@ -28,6 +28,8 @@ import { formatIconReport, migrateIcons } from './md3-icons-migrate.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 export const clientRoot = join(here, '..');
 const UTILITY = new RegExp(`^(?:${COLOR_UTILITIES})$`);
+// Утилиты линии — обводка, кольцо, контур, разделитель: им `lines` пары карты запрещает роль текста.
+const LINE = /^(?:border(?:-[xytblrse])?|ring|ring-offset|inset-ring|outline|divide)$/;
 
 // Переменная (`--f-shadow16`, `--color-brand`) или класс с границей сторожей (`CLASS_BEFORE`,
 // `CLASS_AFTER` из class-scan.mjs — одна на обоих: что команда переводит, то храповик legacy-class и
@@ -64,15 +66,20 @@ export function compile(map = classMap, aliases = entries(theme.aliases).map(([k
     if (!color) return null;
     const to = names[color.name]?.to;
     if (!to) return { reason: `${color.name} — нет пары в карте (роли того же смысла нет: sharedui-md3-04, -05)` };
+    const lines = names[color.name].lines;
+    if (lines && LINE.test(color.utility)) return { reason: `${body} — ${lines}` };
     return { to: `${color.utility}-${to}`, pair: `${color.name} → ${to}` };
   };
 
   // Имя, которое для какой-то утилиты не переводится по смыслу (`text-fg4`: текст цветом обводки), —
   // в `var(--color-…)` неоднозначно: утилиты у переменной нет, и чем она станет, по ней не видно.
   // `notColor` — пропуск не о цвете (`text-base` — размер текста), имя переменной он не задевает.
-  const ambiguousVar = new Map(entries(map.classes)
-    .filter(([k, v]) => v.skip && !v.notColor && colorName(k))
-    .map(([k, v]) => [colorName(k).name, `${k} — ${v.skip}`]));
+  // Так же и имя с `lines`: переменная бывает и цветом обводки (`border-l-[var(--color-fg4)]`).
+  const ambiguousVar = new Map([
+    ...entries(map.names).filter(([, v]) => v.lines).map(([k, v]) => [k, `обводка с ${k} — ${v.lines}`]),
+    ...entries(map.classes).filter(([k, v]) => v.skip && !v.notColor && colorName(k))
+      .map(([k, v]) => [colorName(k).name, `${k} — ${v.skip}`]),
+  ]);
 
   /** Переменная → `{ to }`, `{ reason }` или null. */
   const variable = name => {

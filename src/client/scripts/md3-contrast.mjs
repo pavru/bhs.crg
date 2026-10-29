@@ -21,8 +21,8 @@ const ACCENTS = ['primary', 'secondary', 'tertiary', 'error'];
 const SURFACES = ['surface', 'surface-dim', 'surface-bright', 'surface-container-lowest', 'surface-container-low',
   'surface-container', 'surface-container-high', 'surface-container-highest'];
 
-/** Пары «передний план — фон — порог» одной темы: роли схемы и свои роли (`ext`). */
-function pairs(roles, ext) {
+/** Пары «передний план — фон — порог» одной темы: роли схемы и свои роли (`ext` — их значения). */
+function pairs(ext) {
   const accents = [...ACCENTS, ...Object.keys(ext).filter(k => !k.startsWith('on-') && !k.endsWith('-container'))];
   return [
     ...accents.flatMap(x => [[`on-${x}`, x, TEXT], [`on-${x}-container`, `${x}-container`, TEXT]]),
@@ -41,7 +41,7 @@ export function contrastFailures(palette) {
   const failures = [];
   for (const [mode, label] of [['light', 'светлая'], ['dark', 'тёмная']]) {
     const roles = { ...palette.roles[mode], ...palette.ext[mode] };
-    for (const [fg, bg, need] of pairs(palette.roles[mode], palette.ext[mode])) {
+    for (const [fg, bg, need] of pairs(palette.ext[mode])) {
       if (!roles[fg] || !roles[bg]) {
         failures.push(`${label}: нет роли ${roles[fg] ? bg : fg} для пары ${fg} на ${bg}`);
         continue;

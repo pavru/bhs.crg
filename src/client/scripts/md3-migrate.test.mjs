@@ -101,6 +101,20 @@ describe('md3:migrate: неоднозначное не трогает, а наз
     expect(migrated('"border-stroke-strong bg-fg4"')).toBe('"border-outline bg-on-surface-variant"');
   });
 
+  it('роль текста в утилите линии — не переводится: border-fg4, border-l-fg4, ring-fg4, divide-fg4', () => {
+    const source = '"border-fg4 border-l-fg4 hover:ring-fg4/40 divide-fg4 outline-fg4"';
+    expect(migrated(source)).toBe(source);
+    expect(run(source).untouched).toEqual(['border-fg4', 'border-l-fg4', 'ring-fg4', 'divide-fg4', 'outline-fg4']
+      .map(token => ({ line: 1, token, reason: expect.stringContaining('обводка цветом текста запрещена') })));
+  });
+
+  it('lines пары делает неоднозначной и её переменную', () => {
+    const map = { names: { fg9: { to: 'on-surface-variant', lines: 'роль текста' } }, classes: {}, vars: {} };
+    expect(compile(map, ['fg9']).variable('--color-fg9'))
+      .toEqual({ reason: expect.stringContaining('обводка с fg9 — роль текста') });
+    expect(compile(map, ['fg9']).cls('fill-fg9')).toEqual({ to: 'fill-on-surface-variant', pair: 'fg9 → on-surface-variant' });
+  });
+
   it('var(--color-fg4) и var(--color-stroke-strong) — неоднозначны: text-fg4 не переводится, а у переменной утилиты нет', () => {
     const source = 'border-l-[var(--color-fg4)] [color:var(--color-stroke-strong)]';
     expect(migrated(source)).toBe(source);
