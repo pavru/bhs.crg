@@ -251,7 +251,7 @@ export function GroupedFieldsEditor({
       {(() => {
         const zone = dropZoneProps(null);
         return (
-          <div className={`border rounded-lg overflow-hidden transition-colors ${zone.highlighted ? 'border-primary bg-primary-container/30' : 'border-outline-variant border-dashed bg-surface-container-low'}`}>
+          <div className={`border rounded-md overflow-hidden transition-colors ${zone.highlighted ? 'border-primary bg-primary-container/30' : 'border-outline-variant border-dashed bg-surface-container-low'}`}>
             <div className="flex items-center gap-2 px-3 py-2 bg-surface border-b border-outline-variant">
               <span className="text-sm font-medium text-on-surface-variant">Без группы</span>
               <span className="text-xs text-on-surface-variant">{ownUngrouped.length + inhUngrouped.length}</span>
@@ -280,7 +280,7 @@ export function GroupedFieldsEditor({
             {/* Место вставки при перетаскивании группы (перед этой карточкой) */}
             {!!dragGroupKey && !draggingThis && groupDropBefore === group.key && <DropLine />}
             <div
-              className={`border rounded-lg overflow-hidden transition-colors ${draggingThis ? 'opacity-40' : ''} ${zone.highlighted ? 'border-primary bg-primary-container/30' : 'border-outline-variant bg-surface-container-low'}`}
+              className={`border rounded-md overflow-hidden transition-colors ${draggingThis ? 'opacity-40' : ''} ${zone.highlighted ? 'border-primary bg-primary-container/30' : 'border-outline-variant bg-surface-container-low'}`}
               onDragOver={e => { if (dragGroupKey && !draggingThis) { e.preventDefault(); setGroupDropBefore(group.key); } }}
               onDrop={() => { if (dragGroupKey && !draggingThis) { moveGroupTo(dragGroupKey, group.key); endGroupDrag(); } }}>
             {/* Шапка группы */}
@@ -334,7 +334,7 @@ export function GroupedFieldsEditor({
           onChange={e => setNewGroupTitle(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addGroup(); } }}
           placeholder="Название новой группы"
-          className="flex-1 border border-dashed border-outline rounded-md px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus:border-primary"
+          className="flex-1 border border-dashed border-outline rounded-sm px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus:border-primary"
         />
         <Button type="button" variant="outlined" size="sm" onClick={addGroup} disabled={!newGroupTitle.trim()} icon={<Icon icon={Add} size={18} />}>
           Группа
@@ -361,7 +361,7 @@ function InheritedRow({ field, typeLabel, dragging, onDragStart, onDragEnd, onDr
 }) {
   return (
     <div
-      className={`flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg border transition-colors ${dragging ? 'border-primary' : 'border-outline-variant bg-surface-container/40'}`}
+      className={`flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-md border transition-colors ${dragging ? 'border-primary' : 'border-outline-variant bg-surface-container/40'}`}
       draggable onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDrop={onDrop}>
       <Icon icon={DragIndicator} size={18} className="text-on-surface-variant shrink-0 cursor-grab" />
       <Icon icon={LockIcon} size={18} className="text-on-surface-variant shrink-0" />
@@ -373,7 +373,7 @@ function InheritedRow({ field, typeLabel, dragging, onDragStart, onDragEnd, onDr
         <span className="block text-xs text-on-surface-variant font-mono truncate">{field.key}</span>
       </span>
       <ModuleFieldBadge field={field} />
-      <span className="text-caption px-1.5 py-0.5 rounded bg-warning-container text-on-warning-container shrink-0">унаслед.</span>
+      <span className="text-caption px-1.5 py-0.5 rounded-xs bg-warning-container text-on-warning-container shrink-0">унаслед.</span>
       <span className="text-xs px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant shrink-0">{typeLabel}</span>
     </div>
   );

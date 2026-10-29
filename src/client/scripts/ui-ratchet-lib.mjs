@@ -4,7 +4,8 @@
 import { posix } from 'node:path';
 import ts from 'typescript';
 import { containerTextHits, stripComments } from './class-scan.mjs';
-import { countDarkVariants, countLegacyClasses, countRawStates, LEGACY_HINT } from './ui-ratchet-md3.mjs';
+import { isBadge, isChip } from './ui-ratchet-pills.mjs';
+import { countDarkVariants, countLegacyClasses, countLegacyRadii, countLegacyShadows, countRawStates, LEGACY_HINT } from './ui-ratchet-md3.mjs';
 
 const COLORS = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
 const UTILITIES = 'bg|text|border|ring|ring-offset|outline|divide|fill|stroke|from|via|to|shadow|accent|caret|decoration|placeholder';
@@ -96,7 +97,7 @@ export const RULES = [
   },
   {
     id: 'chip',
-    // Свой чип (#1416): нажимаемая пилюля — rounded-full с полями по бокам (px-…) или aria-pressed у
+    // Свой чип (#1416): нажимаемая пилюля — rounded-full или rounded-sm с полями по бокам (px-…) или aria-pressed у
     // нативного элемента. Компоненты (Button, Chip) рисуют пилюлю сами и не считаются: правило
     // смотрит только элементы разметки.
     count: text => countElements(text, isChip),
@@ -244,6 +245,24 @@ export const RULES = [
     instead: 'цвет обеих тем даёт роль MD3 — второй класс для тёмной не нужен; наведение — state-layer; то, чего ролью не сказать (белый лист просмотрщика), — правилом в CSS компонента селектором :root[data-theme="dark"] (docs/UI.md, «Цвет»)',
   },
   {
+    id: 'legacy-radius',
+    // Скругление вне шкалы формы MD3 ([UI-66], sharedui-md3-06): `rounded` без ступени, rounded-2xl/3xl,
+    // произвольный rounded-[…] и borderRadius в коде. Ступени 6 и 10 px исчезли вместе с прежней шкалой —
+    // кодмод md3:migrate перевёл их по значению; остаток ждёт роли компонента (ребёнок 17).
+    count: countLegacyRadii,
+    everywhere: true,
+    instead: 'скругление — ступенью шкалы формы MD3: rounded-xs 4, rounded-sm 8, rounded-md 12, rounded-lg 16, rounded-xl 28, rounded-full, rounded-none; сторона и угол — так же (rounded-t-xl); какая ступень какому компоненту — docs/UI.md, «Форма и возвышение»',
+  },
+  {
+    id: 'legacy-shadow',
+    // Тень вне уровней возвышения MD3 ([UI-66], sharedui-md3-06): встроенные shadow, shadow-sm…2xl,
+    // произвольный shadow-[…] и boxShadow в коде. Значение уровня одно на обе темы и цветом роли shadow —
+    // своя тень расходится с ним в тёмной теме первой.
+    count: countLegacyShadows,
+    everywhere: true,
+    instead: 'тень — уровнем возвышения MD3 по роли слоя: shadow-elevation-1 (кнопка, карточка), shadow-elevation-2 (меню, список, поповер, палитра), shadow-elevation-3 (окно, плавающая кнопка), 4 и 5 — по таблице; без тени — shadow-none; черта места вставки строки — drop-mark-before / drop-mark-after (docs/UI.md, «Форма и возвышение»)',
+  },
+  {
     id: 'lucide-import',
     // Прежний набор значков и пакет Material Symbols в обход набора shared/ui ([UI-60], sharedui-md3-03):
     // `from 'lucide-react'`, `from '@material-symbols/…'` и динамический `import()` их же. В бандл едут
@@ -272,25 +291,6 @@ export const RULES = [
     instead: `размер значка — только пропом size, ступень шкалы ${ICON_SCALE.join(', ')}, не классом h-/w-/size- и не style: 18 — текст, кнопка, чип, строка; 20 и 24 — кнопка-иконка и навигация; 40 и 48 — только пустые состояния (docs/UI.md, «Значки»)`,
   },
 ];
-
-// Классы оформления пишутся строкой, шаблоном или выражением — правило читает текст значения
-// className целиком. Модификаторы (hover:bg-…) — не основной вид: пилюля без своего фона только
-// подсвечивается при наведении и пометкой не выглядит.
-const PILL = /(?<![\w-])rounded-full\b/;
-const SIZED = /(?<![\w-])(?:(?:w|h|size)-(?:\d|\[|px\b)|inset-)/;
-const SIDE_PADDING = /(?<![\w:-])px-/;
-const SURFACE = /(?<![\w:/-])(?:bg-(?!transparent\b)|border(?![\w-]*(?:-0|-none|-transparent)\b))/;
-const INTERACTIVE = new Set(['button', 'a', 'label']);
-const PLAIN = new Set(['span', 'div', 'p', 'small', 'em', 'strong', 'mark', 'li']);
-
-function isChip({ tag, cls, attrs }) {
-  if (!INTERACTIVE.has(tag)) return false;
-  return attrs.has('aria-pressed') || (PILL.test(cls) && SIDE_PADDING.test(cls) && !SIZED.test(cls));
-}
-
-function isBadge({ tag, cls }) {
-  return PLAIN.has(tag) && PILL.test(cls) && SURFACE.test(cls) && !SIZED.test(cls);
-}
 
 function isIconButton({ tag, element, sf }) {
   if (tag !== 'button' || !ts.isJsxElement(element)) return false;

@@ -136,8 +136,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
         <Dialog.Overlay className="fixed inset-0 z-40 bg-scrim/32" style={{ backdropFilter: 'blur(2px)' }} />
         <Dialog.Content
           data-modal-state="free"
-          className="fixed left-1/2 top-16 z-50 w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 flex flex-col max-h-[calc(100vh-8rem)] overflow-hidden rounded-2xl border border-outline-variant bg-surface focus:outline-none"
-          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}
+          className="fixed left-1/2 top-16 z-50 w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 flex flex-col max-h-[calc(100vh-8rem)] overflow-hidden rounded-lg border border-outline-variant bg-surface focus:outline-none shadow-elevation-2"
         >
           <Dialog.Title className="sr-only">{title}</Dialog.Title>
           <div className="flex items-center gap-2 border-b border-outline-variant px-4 shrink-0">
@@ -146,13 +145,13 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
             <input ref={input} autoFocus value={query} onChange={e => { setQuery(e.target.value); setActive(0); }} onKeyDown={onKey}
               placeholder="Поиск типа по имени или коду…" aria-label="Поиск типа"
               className="h-12 flex-1 bg-transparent text-sm text-on-surface outline-none placeholder:text-on-surface-variant" />
-            <kbd className="rounded border border-outline-variant px-1 text-caption text-on-surface-variant">Esc</kbd>
+            <kbd className="rounded-xs border border-outline-variant px-1 text-caption text-on-surface-variant">Esc</kbd>
           </div>
           <ul className="overflow-y-auto p-2" role="listbox" aria-label={title}>
             {noneVisible && (
               <li role="option" aria-selected={active === 0}>
                 <button type="button" onMouseEnter={() => setActive(0)} onClick={chooseNone}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm ${
+                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm ${
                     active === 0 ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'}`}>
                   <Icon icon={Block} size={18} className={active === 0 ? 'text-on-secondary-container' : 'text-on-surface-variant'} />
                   <span className="flex-1 truncate" title={noneOption!.label}>{noneOption!.label}</span>
@@ -177,7 +176,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
                     return (
                       <li key={`${g.key}:${t.id}`} role="option" aria-selected={i === active}>
                         <button type="button" onMouseEnter={() => setActive(i)} onClick={() => choose(t)}
-                          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm ${
+                          className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm ${
                             i === active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'}`}>
                           <Icon icon={icon} size={18} className={i === active ? 'text-on-secondary-container' : 'text-on-surface-variant'} />
                           <Tooltip content={showCode ? `${t.name} (${code})` : t.name}><span className="flex-1 truncate">{t.name}</span></Tooltip>
@@ -193,7 +192,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
           {asideHidden && aside && (
             <div className="shrink-0 border-t border-outline-variant p-2">
               <button type="button" onClick={reveal}
-                className="w-full rounded-lg px-3 py-2 text-left text-sm text-primary state-layer focus-ring">
+                className="w-full rounded-md px-3 py-2 text-left text-sm text-primary state-layer focus-ring">
                 {aside.reveal}
               </button>
             </div>

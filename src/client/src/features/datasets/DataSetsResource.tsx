@@ -36,7 +36,7 @@ function FileNavItem({ icon, label, secondary, count, active, recognizing, stale
 }) {
   return (
     <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
-      className={`state-layer w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left ${
+      className={`state-layer w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left ${
         active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}>
       <span className={`shrink-0 ${active ? 'text-primary' : 'text-on-surface-variant'}`}>
         {recognizing ? <CircularProgress size={18} className="text-primary" /> : icon}
@@ -66,7 +66,7 @@ function LevelChip({ file }: { file: DataSetFile }) {
   return (
     <Tooltip content={`Набор принадлежит уровню «${SCOPE_LABELS[file.scope]}» — здесь он доступен, потому что этот уровень выше`}>
       <span
-        className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant leading-tight">
+        className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded-xs bg-surface-container text-on-surface-variant leading-tight">
         {SCOPE_LABELS[file.scope]}
       </span>
     </Tooltip>
@@ -88,12 +88,12 @@ function FileDetail({ file, inherited, job }: {
   const isSystem = file.format === 'System';
 
   return (
-    <div className="rounded-lg border border-outline-variant bg-surface overflow-hidden">
+    <div className="rounded-md border border-outline-variant bg-surface overflow-hidden">
       <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-outline-variant bg-surface-container-low">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-on-surface truncate" title={file.name}>{file.name}</span>
-            <span className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">{DATA_SET_FORMAT_LABELS[file.format]}</span>
+            <span className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded-xs bg-surface-container text-on-surface-variant">{DATA_SET_FORMAT_LABELS[file.format]}</span>
             {inherited && <LevelChip file={file} />}
           </div>
           <div className="text-xs text-on-surface-variant mt-0.5">
@@ -175,12 +175,12 @@ function AllFilesOverview({ files, inheritedCount, onOpen }: {
       {files.map(f => {
         const names = f.sources.map(s => s.name).slice(0, 4).join(' · ');
         return (
-          <div key={f.id} className="flex items-center gap-3 rounded-lg border border-outline-variant bg-surface px-4 py-3">
+          <div key={f.id} className="flex items-center gap-3 rounded-md border border-outline-variant bg-surface px-4 py-3">
             <Icon icon={Description} size={18} className="text-primary shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-on-surface truncate" title={f.name}>{f.name}</span>
-                <span className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">{DATA_SET_FORMAT_LABELS[f.format]}</span>
+                <span className="shrink-0 text-caption font-medium px-1.5 py-0.5 rounded-xs bg-surface-container text-on-surface-variant">{DATA_SET_FORMAT_LABELS[f.format]}</span>
               </div>
               <div className="text-xs text-on-surface-variant mt-0.5 truncate">
                 {sourcesLabel(f.sources.length)}{names && `: ${names}`}{f.sources.length > 4 ? ' …' : ''}
@@ -339,7 +339,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
   );
 
   const overlay = dragOver && (
-    <div className="absolute inset-0 z-10 rounded-lg border-2 border-dashed border-primary bg-primary-container/60 flex items-center justify-center pointer-events-none">
+    <div className="absolute inset-0 z-10 rounded-md border-2 border-dashed border-primary bg-primary-container/60 flex items-center justify-center pointer-events-none">
       <span className="text-sm font-medium text-primary">Отпустите файл — загрузим в набор</span>
     </div>
   );

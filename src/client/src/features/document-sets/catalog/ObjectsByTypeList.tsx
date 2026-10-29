@@ -85,7 +85,7 @@ export function ObjectRow({
       </span>
       <ProxyRoleMarker entry={entry} siblings={siblings} resolvePool={resolvePool} onOpen={onEdit} />
       {docKind && dense && (
-        <span className="text-xs px-1.5 py-0.5 rounded bg-warning-container text-on-warning-container font-medium shrink-0">внеш. документ</span>
+        <span className="text-xs px-1.5 py-0.5 rounded-xs bg-warning-container text-on-warning-container font-medium shrink-0">внеш. документ</span>
       )}
       {showPreview && preview && (
         <span className="text-xs text-on-surface-variant truncate max-w-xs hidden sm:block">{preview}</span>

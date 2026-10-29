@@ -87,7 +87,7 @@ export function NomenclaturePicker({
       <div className="flex items-center gap-1">
         <Tooltip content={archived && !lost ? ARCHIVED_HINT : undefined}>
           <button type="button" onClick={() => setOpen(true)}
-            className={`min-w-0 flex-1 text-left text-xs px-2 py-1 rounded border truncate
+            className={`min-w-0 flex-1 text-left text-xs px-2 py-1 rounded-xs border truncate
               ${lost ? 'border-error/30 text-error'
                 : chosen ? 'border-outline-variant text-on-surface' : 'border-outline-variant text-warning'}`}>
             {/* Три состояния, и путать их нельзя: потерю чинит справочник, пустое имя — тоже справочник,
@@ -308,7 +308,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
         : 'flex-1 min-h-0 grid grid-cols-[minmax(0,55fr)_minmax(0,45fr)] border-t border-outline-variant'}>
         <div className={`space-y-3 px-6 pt-3 pb-4 ${narrow ? '' : 'overflow-y-auto'}`}>
           {plate}
-          <div className="flex items-center gap-2 rounded-md border border-outline px-2.5 h-10">
+          <div className="flex items-center gap-2 rounded-sm border border-outline px-2.5 h-10">
             <Icon icon={Search} size={18} className="text-on-surface-variant shrink-0" />
             <input ref={focus} value={typed}
               onChange={e => type(e.target.value)} onKeyDown={keys}
@@ -439,7 +439,7 @@ function LinePlate({ from, line }: { from: LineWords; line?: PickerLine }) {
   const name = (from.name ?? '').trim();
   if (!line && !name && !meta) return null;
   return (
-    <div className="rounded-lg bg-surface-container px-3 py-2 space-y-0.5">
+    <div className="rounded-md bg-surface-container px-3 py-2 space-y-0.5">
       {line && <p className="text-caption text-on-surface-variant">{line.where}</p>}
       {name && <p className="text-sm leading-snug text-on-surface line-clamp-2" title={name}>{name}</p>}
       {meta && <p className="text-xs text-on-surface-variant tabular-nums">{meta}</p>}

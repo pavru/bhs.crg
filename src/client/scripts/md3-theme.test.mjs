@@ -158,6 +158,39 @@ describe('тема MD3: состояния и движение', () => {
   });
 });
 
+describe('тема MD3: форма и возвышение ([UI-66])', () => {
+  const variant = change => { const t = structuredClone(palette); change(t); return t; };
+
+  it.each([['xs', 4], ['sm', 8], ['md', 12], ['lg', 16], ['xl', 28]])('rounded-%s — %i px в обеих темах', (step, px) => {
+    // Число — договор шкалы, а не копия описания: перепутанная в md3-theme.json ступень краснит здесь.
+    for (const mode of ['light', 'dark']) expect(declarations(`rounded-${step}`, mode)).toBe(`border-radius: ${px}px;`);
+  });
+
+  it.each([
+    [1, '0 1px 2px 0', '0 1px 3px 1px'], [2, '0 1px 2px 0', '0 2px 6px 2px'], [3, '0 1px 3px 0', '0 4px 8px 3px'],
+    [4, '0 2px 3px 0', '0 6px 10px 4px'], [5, '0 4px 4px 0', '0 8px 12px 6px'],
+  ])('shadow-elevation-%i — слои Material Web цветом роли shadow, одни на обе темы', (n, key, ambient) => {
+    const value = `${key} color-mix(in srgb, #000000 30%, transparent), ${ambient} color-mix(in srgb, #000000 15%, transparent)`;
+    for (const mode of ['light', 'dark']) expect(declarations(`shadow-elevation-${n}`, mode)).toContain(value);
+  });
+
+  it('форма и возвышение — без темы: в тёмной теме не переопределяются', () => {
+    const tokens = generate(theme)['md3-tokens.css'];
+    const dark = tokens.slice(tokens.indexOf(':root[data-theme="dark"]'));
+    expect(dark).not.toContain('--md-sys-shape-');
+    expect(dark).not.toContain('--md-sys-elevation-');
+    expect(tokens).toContain('--md-sys-elevation-level0: none;');
+  });
+
+  it('отказ: ступень не в пикселях или пропущена, слой без доли, нет уровня', () => {
+    expect(() => generate(variant(t => { t.shape.small = '.5rem'; }))).toThrow('shape.small — «.5rem», а не пиксели');
+    expect(() => generate(variant(t => { delete t.shape.medium; }))).toThrow('в shape нет ступени medium (класс rounded-md)');
+    expect(() => generate(variant(t => { t.elevation.level2 = ['0 2px 6px 2px']; })))
+      .toThrow('elevation.level2 — слой «0 2px 6px 2px», а не «x y размытие растяжение доля»');
+    expect(() => generate(variant(t => { delete t.elevation.level4; }))).toThrow('в elevation нет уровня level4');
+  });
+});
+
 describe('тема MD3: палитра из seed', () => {
   const seeded = change => { const t = structuredClone(theme); change(t); return resolve(t); };
 

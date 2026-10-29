@@ -5,8 +5,9 @@ import { compare, countViolations as countAll, dirsToScan, scopeNote, defaultSco
 // одна фикстура white-on-fill (bg-brand text-white), имена без роли (bg-brand-hover, text-fg3) и блок
 // legacy-class ниже. Здесь счёт прочих правил — без legacy-class, raw-state и dark-variant: фикстуры
 // white-on-fill и пометок держат самодельное наведение нарочно (оно не их нарушение), а эти правила
-// проверяют свои блоки.
-const OWN_BLOCK = new Set(['legacy-class', 'raw-state', 'dark-variant']);
+// проверяют свои блоки. legacy-radius и legacy-shadow (sharedui-md3-06) — в ui-ratchet-shape.test.mjs: прежние фикстуры
+// пишут rounded, rounded-lg и тени старыми классами, и это не их нарушение.
+const OWN_BLOCK = new Set(['legacy-class', 'raw-state', 'dark-variant', 'legacy-radius', 'legacy-shadow']);
 const countViolations = (text, opts) =>
   Object.fromEntries(Object.entries(countAll(text, opts)).filter(([rule]) => !OWN_BLOCK.has(rule)));
 
@@ -336,7 +337,7 @@ describe('храповик интерфейса: счёт', () => {
 describe('храповик интерфейса: словарь MD3 (sharedui-md3-01)', () => {
   it('токены Fluent — в коде и в стилях, по всему src/', () => {
     expect(countAll('<div className="shadow-[var(--f-shadow16)]" style={{ boxShadow: "var(--f-shadow28)" }} />',
-      { dir: 'features', file: 'features/x.tsx' })).toEqual({ 'legacy-token': 2 });
+      { dir: 'features', file: 'features/x.tsx' })).toEqual({ 'legacy-token': 2, 'legacy-shadow': 2 });
     expect(countAll('.x { outline: 2px solid var(--f-brand); }', { dir: ROOT, file: 'index.css' }))
       .toEqual({ 'legacy-token': 1 });
     expect(countAll('const c = "var(--legacy-fg3)";', { dir: 'shared', file: 'shared/ui/x.ts' }))
@@ -359,7 +360,7 @@ describe('храповик интерфейса: словарь MD3 (sharedui-md
       '<div className="hover:bg-brand-subtle text-fg1 border-stroke/50" />',
       "const s = { boxShadow: 'inset 0 2px 0 0 var(--color-brand)' }; const d = 'var(--color-fg3)';",
       '/* text-fg2 в комментарии не рисуется */',
-    ].join('\n'), { dir: 'shared', file: 'shared/ui/x.tsx' })).toEqual({ 'legacy-class': 5 });
+    ].join('\n'), { dir: 'shared', file: 'shared/ui/x.tsx' })).toEqual({ 'legacy-class': 5, 'legacy-shadow': 1 });
   });
 
   /** Граница класса — та же, что у кодмода md3:migrate (sharedui-md3-02): что он переводит, то сторож и видит. */

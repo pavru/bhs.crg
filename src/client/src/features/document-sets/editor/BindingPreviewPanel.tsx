@@ -30,7 +30,7 @@ export function BindingPreviewPanel({ results }: { results: DataSetBindingPrevie
   return (
     <div className="space-y-3">
       {results.map(r => (
-        <div key={r.bindingId} className="rounded-lg overflow-hidden border border-outline-variant">
+        <div key={r.bindingId} className="rounded-md overflow-hidden border border-outline-variant">
           <div className="flex items-center gap-2 px-3 py-2 bg-surface-container-low">
             {/* Иконка — по режиму: у рабочей привязки `error` несёт предупреждение, и данные под ним есть. */}
             {r.mode === 'error'

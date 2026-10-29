@@ -20,7 +20,7 @@ export function RefTile({ value, onReplace, onClear, children }: {
   children?: ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-1.5 border border-outline-variant rounded-lg pl-3 pr-1.5 py-1.5 bg-surface-container-low">
+    <div className="flex items-center gap-1.5 border border-outline-variant rounded-md pl-3 pr-1.5 py-1.5 bg-surface-container-low">
       <Icon icon={LinkIcon} size={18} className="text-on-surface-variant shrink-0" />
       <span className="flex-1 text-sm text-primary font-medium truncate">{value.displayName}</span>
       <ArchivedRefMark value={value} />

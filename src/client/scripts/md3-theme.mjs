@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Генератор темы MD3 (эпик sharedui-md3, [UI-57]): из описания src/theme/md3-theme.json — три файла
 // рядом с ним, все в git и все руками не правятся:
-//   md3-tokens.css   — переменные --md-sys-* / --md-ext-* обеих тем (тёмная — атрибутом data-theme);
+//   md3-tokens.css   — переменные --md-sys-* / --md-ext-* обеих тем (тёмная — атрибутом data-theme;
+//                      форма и возвышение — одни на обе);
 //   md3-tailwind.css — слой Tailwind: класс — роль без префикса (bg-primary, text-on-surface-variant);
 //   md3-legacy.css   — старые имена классов (text-fg1, bg-brand…) псевдонимами ролей. Финал эпика
 //                      удаляет файл целиком, а не правит строки.
@@ -145,13 +146,52 @@ function stateMotion(theme) {
   };
 }
 
+/** Ступень шкалы формы → класс Tailwind (`rounded-sm`). `none` и `full` у Tailwind свои. */
+export const SHAPE_CLASSES = { xs: 'extra-small', sm: 'small', md: 'medium', lg: 'large', xl: 'extra-large' };
+/** Уровни возвышения с классом `shadow-elevation-N`. Уровень 0 — отсутствие тени: класс у него `shadow-none`. */
+export const ELEVATION_CLASSES = [1, 2, 3, 4, 5];
+const LAYER = /^(-?\d+(?:px)?) (-?\d+(?:px)?) (\d+(?:px)?) (-?\d+(?:px)?) (0?\.\d+|1)$/;
+
+/**
+ * Форма и возвышение ([UI-66]) — с темой не переключаются. Слой тени — геометрия и доля роли `shadow`:
+ * цвет тени — роль, а не число, как и у любого цвета клиента. Ступень без px или слой без доли
+ * отказывают здесь: в CSS они молча дали бы элемент без скругления или без тени.
+ */
+function shapeElevation(theme) {
+  const shape = entries(theme.shape);
+  const elevation = entries(theme.elevation);
+  for (const [k, v] of shape)
+    if (!/^\d+px$/.test(v)) throw new Error(`md3-theme.json: shape.${k} — «${v}», а не пиксели`);
+  for (const [cls, step] of Object.entries(SHAPE_CLASSES))
+    if (!shape.some(([k]) => k === step)) throw new Error(`md3-theme.json: в shape нет ступени ${step} (класс rounded-${cls})`);
+  for (const n of [0, ...ELEVATION_CLASSES])
+    if (!Array.isArray(theme.elevation?.[`level${n}`])) throw new Error(`md3-theme.json: в elevation нет уровня level${n} — списка слоёв`);
+  const layer = (k, l) => {
+    const m = LAYER.exec(l);
+    if (!m) throw new Error(`md3-theme.json: elevation.${k} — слой «${l}», а не «x y размытие растяжение доля»`);
+    const px = v => (v === '0' || v.endsWith('px') ? v : `${v}px`);
+    return `${m.slice(1, 5).map(px).join(' ')} color-mix(in srgb, var(--md-sys-color-shadow) ${Math.round(Number(m[5]) * 100)}%, transparent)`;
+  };
+  return {
+    tokens: [
+      ...shape.map(([k, v]) => `--md-sys-shape-corner-${k}: ${v};`),
+      ...elevation.map(([k, layers]) => `--md-sys-elevation-${k}: ${layers.length ? layers.map(l => layer(k, l)).join(', ') : 'none'};`),
+    ],
+    tailwind: [
+      ...Object.entries(SHAPE_CLASSES).map(([cls, step]) => `--radius-${cls}: var(--md-sys-shape-corner-${step});`),
+      ...ELEVATION_CLASSES.map(n => `--shadow-elevation-${n}: var(--md-sys-elevation-level${n});`),
+    ],
+  };
+}
+
 /** Три файла темы текстом: { 'md3-tokens.css': '…', … }. Чистая функция — её же зовёт тест дрейфа. */
 export function generate(source) {
   const theme = resolve(source);
   const motion = stateMotion(theme);
+  const form = shapeElevation(theme);
   // Темы — одним набором имён в обе стороны: роль только тёмной темы ушла бы в переменные без
   // класса (слой Tailwind строится по светлой) и без значения светлой темы.
-  for (const part of ['roles', 'ext', 'elevation']) {
+  for (const part of ['roles', 'ext']) {
     const [light, dark] = ['light', 'dark'].map(mode => entries(theme[part][mode]).map(([k]) => k));
     for (const name of light.filter(k => !dark.includes(k))) throw new Error(`md3-theme.json: у ${part}.${name} нет значения тёмной темы`);
     for (const name of dark.filter(k => !light.includes(k))) throw new Error(`md3-theme.json: у ${part}.${name} нет значения светлой темы`);
@@ -166,7 +206,6 @@ export function generate(source) {
   const scheme = mode => [
     ...entries(theme.roles[mode]).map(([k, v]) => `--md-sys-color-${k}: ${v};`),
     ...entries(theme.ext[mode]).map(([k, v]) => `--md-ext-color-${k}: ${v};`),
-    ...entries(theme.elevation[mode]).map(([k, v]) => `--md-sys-elevation-${k}: ${v};`),
   ];
   const tokens = [
     HEADER,
@@ -176,6 +215,7 @@ export function generate(source) {
       // Половины превью значка вкладки: с темой не переключаются, в тёмной не переопределяются.
       ...statics.map(([k, v]) => `--md-ext-color-${k}: ${v};`),
       ...motion.tokens,
+      ...form.tokens,
     ]),
     block(':root[data-theme="dark"]', scheme('dark')),
   ].join('\n');
@@ -187,6 +227,7 @@ export function generate(source) {
         .map(([k]) => `--color-${k}: var(--md-sys-color-${k});`),
       ...[...entries(theme.ext.light), ...statics].map(([k]) => `--color-${k}: var(--md-ext-color-${k});`),
       ...motion.tailwind,
+      ...form.tailwind,
     ]),
   ].join('\n');
 

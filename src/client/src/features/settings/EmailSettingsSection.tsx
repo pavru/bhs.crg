@@ -68,7 +68,7 @@ export function EmailSettingsSection() {
     catch (e) { setTestResult({ ok: false, error: apiError(e, 'Не удалось отправить.') }); }
   }
 
-  const fieldCls = "w-full border border-outline rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface";
+  const fieldCls = "w-full border border-outline rounded-sm px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface";
 
   return (
     <CollapsibleSection title="Почта (SMTP)" storageKey="email" defaultOpen={false}>
@@ -126,7 +126,7 @@ export function EmailSettingsSection() {
           <input className={fieldCls + ' flex-1'} value={testTo} onChange={e => setTestTo(e.target.value)}
             placeholder="Адрес для проверки" />
           <button type="button" onClick={handleTest} disabled={testEmail.isPending || !testTo.trim()}
-            className="px-3 py-2 text-sm border border-outline state-layer rounded-md shrink-0 disabled-outlined">
+            className="px-3 py-2 text-sm border border-outline state-layer rounded-sm shrink-0 disabled-outlined">
             {testEmail.isPending ? 'Отправка...' : 'Отправить'}
           </button>
         </div>
@@ -142,7 +142,7 @@ export function EmailSettingsSection() {
         {userStatus.length === 0 ? (
           <p className="text-xs text-on-surface-variant">Нет пользователей</p>
         ) : (
-          <div className="rounded-md border border-outline-variant divide-y divide-surface-container">
+          <div className="rounded-sm border border-outline-variant divide-y divide-surface-container">
             {userStatus.map((u, i) => (
               <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 text-sm">
                 <span className="text-on-surface flex-1 min-w-0 truncate">{u.displayName}</span>

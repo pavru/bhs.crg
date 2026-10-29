@@ -42,18 +42,18 @@ export function ChangePasswordModal({ open, onClose }: { open: boolean; onClose:
         <div>
           <label className="block text-sm font-medium text-on-surface-variant mb-1">Текущий пароль</label>
           <input type="password" value={current} onChange={e => setCurrent(e.target.value)} required autoFocus
-            className="w-full border border-outline rounded-md px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
+            className="w-full border border-outline rounded-sm px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
         </div>
         <div>
           <label className="block text-sm font-medium text-on-surface-variant mb-1">Новый пароль</label>
           <input type="password" value={next} onChange={e => setNext(e.target.value)} required minLength={PASSWORD_MIN_LENGTH}
-            className="w-full border border-outline rounded-md px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
+            className="w-full border border-outline rounded-sm px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
           <p className="mt-1 text-xs text-on-surface-variant">{PASSWORD_HINT}</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-on-surface-variant mb-1">Подтверждение</label>
           <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required minLength={PASSWORD_MIN_LENGTH}
-            className="w-full border border-outline rounded-md px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
+            className="w-full border border-outline rounded-sm px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
         </div>
         {error && <p className="text-sm text-error">{error}</p>}
         {done && <p className="text-sm text-success">Пароль изменён</p>}

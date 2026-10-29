@@ -17,7 +17,7 @@ export function SectionCard({ icon, title, count, countClass, open, onToggle, ch
   children: React.ReactNode;
 }) {
   return (
-    <div className="border border-outline-variant rounded-lg bg-surface overflow-hidden">
+    <div className="border border-outline-variant rounded-md bg-surface overflow-hidden">
       <button type="button" onClick={onToggle}
         className="w-full flex items-center gap-2 px-3 py-2.5 state-layer">
         <span className="text-on-surface-variant shrink-0">{icon}</span>

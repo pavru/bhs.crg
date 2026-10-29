@@ -55,15 +55,14 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
     <Popover.Root open={open} onOpenChange={toggle}>
       <Popover.Trigger asChild>
         <button type="button"
-          className="inline-flex items-center gap-1.5 rounded-md border border-outline-variant px-2.5 py-1 text-xs text-on-surface-variant hover:text-on-surface state-layer">
+          className="inline-flex items-center gap-1.5 rounded-sm border border-outline-variant px-2.5 py-1 text-xs text-on-surface-variant hover:text-on-surface state-layer">
           <Icon icon={ViewColumn} size={18} aria-hidden />
           {view.columns ? `Колонки: ${shown.length} из ${all.length}` : 'Колонки'}
         </button>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="end" sideOffset={6} aria-label="Колонки и итоги"
-          className="z-50 w-[26rem] max-h-[70vh] overflow-auto rounded-lg bg-surface border border-outline-variant p-3 focus:outline-none"
-          style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
+          className="z-50 w-[26rem] max-h-[70vh] overflow-auto rounded-md bg-surface border border-outline-variant p-3 focus:outline-none shadow-elevation-2">
           <ul className="space-y-0.5">
             {order.map((key, i) => {
               const place = shown.indexOf(key);
@@ -125,7 +124,7 @@ function ColumnRow({ column, label, checked, total, onShown, onTotal, move }: {
   const totals = column && !column.unavailable ? aggregatesFor(column.kind) : [];
 
   return (
-    <li className="flex items-center gap-2 rounded-md px-1.5 py-1 state-layer">
+    <li className="flex items-center gap-2 rounded-sm px-1.5 py-1 state-layer">
       <label className="flex-1 min-w-0 flex items-center gap-2 text-sm text-on-surface cursor-pointer">
         <input type="checkbox" checked={checked} onChange={onShown} />
         <span className={`truncate ${column ? '' : 'line-through text-on-surface-variant'}`}>{label}</span>

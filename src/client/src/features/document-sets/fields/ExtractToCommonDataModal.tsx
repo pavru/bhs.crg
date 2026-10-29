@@ -312,7 +312,7 @@ export function ExtractToCommonDataModal({
 
         <div>
           <label className="block text-sm font-medium text-on-surface-variant mb-1">Тип</label>
-          <div className="h-10 flex items-center rounded-md border border-outline-variant bg-surface-container-low px-3 text-sm text-on-surface-variant">
+          <div className="h-10 flex items-center rounded-sm border border-outline-variant bg-surface-container-low px-3 text-sm text-on-surface-variant">
             {compositeType.name}
           </div>
           <p className="text-xs text-on-surface-variant mt-1">Задан полем — выбирать нечего.</p>
@@ -369,7 +369,7 @@ export function ExtractToCommonDataModal({
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addAlias(); } }}
             onBlur={addAlias}
             placeholder="Добавить псевдоним и Enter..."
-            className="w-full border border-outline rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
+            className="w-full border border-outline rounded-sm px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
         </div>
 
         {duplicate && (
@@ -409,7 +409,7 @@ export function ExtractToCommonDataModal({
           </Note>
         )}
 
-        <div className="rounded-lg border border-outline-variant bg-surface-container-low/40 px-3 py-2">
+        <div className="rounded-md border border-outline-variant bg-surface-container-low/40 px-3 py-2">
           <div className="text-xs text-on-surface-variant mb-1">
             Переносится{checking ? ' · проверяем дубликаты…' : ''}
           </div>
@@ -439,7 +439,7 @@ function Note({ tone, icon, title, children }: {
     ? 'border-error/40 bg-error-container text-on-error-container'
     : 'border-warning/40 bg-warning-container text-on-warning-container';
   return (
-    <div className={`rounded-lg border px-3 py-2 text-sm ${cls}`}>
+    <div className={`rounded-md border px-3 py-2 text-sm ${cls}`}>
       <div className="flex items-center gap-1.5 font-medium mb-1">{icon}{title}</div>
       <div className="text-on-surface-variant">{children}</div>
     </div>

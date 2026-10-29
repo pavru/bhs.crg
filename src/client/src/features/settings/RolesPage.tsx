@@ -98,7 +98,7 @@ export function RolesPage() {
 
   const row = (r: AppRole) => (
     <button key={r.name} onClick={() => pick(r.name)}
-      className={`state-layer w-full text-left px-3 py-2 rounded-lg ${
+      className={`state-layer w-full text-left px-3 py-2 rounded-md ${
         r.name === selected?.name ? 'bg-primary-container' : ''}`}>
       <div className="flex items-center gap-2">
         <span className="text-sm text-on-surface truncate">{r.title}</span>
@@ -165,7 +165,7 @@ export function RolesPage() {
           </p>
 
           {locked && (
-            <p className="text-note text-on-surface-variant border border-outline-variant rounded-lg bg-surface-container px-4 py-3 mb-4">
+            <p className="text-note text-on-surface-variant border border-outline-variant rounded-md bg-surface-container px-4 py-3 mb-4">
               <span className="font-medium">Состав этой роли не правится.</span> Он не перечислен:
               он равен справочнику прав и пополняется вместе с ним — поэтому право следующего
               обновления достанется ей само. Снятое здесь вернулось бы при ближайшем запуске, а
@@ -177,7 +177,7 @@ export function RolesPage() {
           {groups.map(group => (
             <section key={group.module} className="mb-5">
               <h2 className="text-caption font-medium uppercase tracking-wide text-on-surface-variant mb-2">{group.title}</h2>
-              <div className="border border-outline-variant rounded-lg divide-y divide-surface-container bg-surface">
+              <div className="border border-outline-variant rounded-md divide-y divide-surface-container bg-surface">
                 {group.permissions.map((p: PermissionInfo) => (
                   <label key={p.code} className={`flex gap-3 px-4 py-2.5 state-layer ${
                     locked ? 'cursor-default' : 'cursor-pointer'}`}>

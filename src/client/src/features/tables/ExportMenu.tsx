@@ -50,15 +50,14 @@ export function ExportMenu({ address, count, body, xlsx: canXlsx, dataset }: {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button type="button" disabled={busy}
-          className="inline-flex items-center gap-1.5 rounded-md border border-outline-variant px-2.5 py-1 text-xs text-on-surface-variant hover:text-on-surface state-layer disabled-outlined">
+          className="inline-flex items-center gap-1.5 rounded-sm border border-outline-variant px-2.5 py-1 text-xs text-on-surface-variant hover:text-on-surface state-layer disabled-outlined">
           <Icon icon={Download} size={18} aria-hidden />
           {busy ? 'Выгружается…' : 'Выгрузить'}
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="end" sideOffset={6}
-          className="z-50 min-w-[14rem] rounded-lg bg-surface border border-outline-variant py-1 focus:outline-none"
-          style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
+          className="z-50 min-w-[14rem] rounded-md bg-surface border border-outline-variant py-1 focus:outline-none shadow-elevation-2">
           {canXlsx && (
             <DropdownMenu.Item className={itemCls} disabled={busy} onSelect={() => void xlsx()}>
               В XLSX · {formatCount(count)} {ruPlural(count, 'строка', 'строки', 'строк')}

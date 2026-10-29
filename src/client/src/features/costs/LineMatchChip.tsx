@@ -151,8 +151,7 @@ function Explained({ label, warning = false, children }: { label: string; warnin
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6}
-          className="z-50 w-[340px] max-w-[90vw] rounded-lg bg-surface border border-outline-variant p-3 text-xs text-on-surface-variant space-y-2 focus:outline-none"
-          style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
+          className="z-50 w-[340px] max-w-[90vw] rounded-md bg-surface border border-outline-variant p-3 text-xs text-on-surface-variant space-y-2 focus:outline-none shadow-elevation-2">
           {children}
         </Popover.Content>
       </Popover.Portal>

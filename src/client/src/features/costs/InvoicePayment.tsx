@@ -43,7 +43,7 @@ export function InvoiceLockNote({ lockedBy }: { lockedBy: string }) {
   const can = useCan();
 
   return (
-    <div role="note" className="flex items-start gap-2 rounded-lg border border-outline-variant bg-surface-container px-3 py-2
+    <div role="note" className="flex items-start gap-2 rounded-md border border-outline-variant bg-surface-container px-3 py-2
       text-xs text-on-surface-variant">
       <Icon icon={LockIcon} size={18} className="shrink-0 mt-0.5 text-on-surface-variant" />
       <span>

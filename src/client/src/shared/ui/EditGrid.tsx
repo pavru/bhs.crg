@@ -213,18 +213,18 @@ export function EditGrid<Row>({
               </tr>
             ) : rows.map((row, i) => {
               const chosen = selected?.(row, i) ?? false;
-              // Черта там, куда ляжет тащимая строка: над строкой либо под последней. Тенью, а не
-              // рамкой — рамка сдвинула бы строки на её толщину, и строка уехала бы из-под курсора.
-              const dropMark = !drag || drag.dragging === null ? null
-                : drag.target === i ? 'inset 0 2px 0 0 var(--color-primary)'
-                : drag.target === rows.length && i === rows.length - 1 ? 'inset 0 -2px 0 0 var(--color-primary)'
-                : null;
+              // Черта там, куда ляжет тащимая строка: над строкой либо под последней. Тенью (утилита
+              // drop-mark-*, index.css), а не рамкой — рамка сдвинула бы строки на её толщину, и строка
+              // уехала бы из-под курсора.
+              const dropMark = !drag || drag.dragging === null ? ''
+                : drag.target === i ? 'drop-mark-before'
+                : drag.target === rows.length && i === rows.length - 1 ? 'drop-mark-after'
+                : '';
               return (
                 <tr key={rowKey(row, i)} data-row={i} {...rowData?.(row, i)}
-                  className={`${dtRow} ${chosen ? 'bg-primary-container' : ''}`}
+                  className={`${dtRow} ${chosen ? 'bg-primary-container' : ''} ${dropMark}`}
                   data-dragging={drag?.dragging === i || undefined}
-                  style={dropMark ? { boxShadow: dropMark } : undefined}
-                  {...(drag ? {
+                    {...(drag ? {
                     onDragOver: (e: DragEvent) => drag.onOver(e, i),
                     onDrop: drag.onDrop,
                   } : {})}>
@@ -287,7 +287,7 @@ function RemoveButton({ index, label, onClick }: { index: number; label: string;
   return (
     <Tooltip content={label}>
       <button type="button" data-remove={index} onClick={onClick} aria-label={label}
-        className="rounded-sm p-0.5 text-on-surface-variant state-layer [--_state-color:var(--color-error)] focus-ring">
+        className="rounded-xs p-0.5 text-on-surface-variant state-layer [--_state-color:var(--color-error)] focus-ring">
         <Icon icon={Delete} size={18} aria-hidden />
       </button>
     </Tooltip>

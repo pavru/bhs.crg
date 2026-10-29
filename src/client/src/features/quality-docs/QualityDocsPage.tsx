@@ -372,7 +372,7 @@ function DocRequisites({ doc, docTypes }: { doc: QualityDocument; docTypes: Docu
 
   if (rows.length === 0) return null;
   return (
-    <dl className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-xs space-y-1">
+    <dl className="rounded-md border border-outline-variant bg-surface-container-low px-3 py-2 text-xs space-y-1">
       {rows.map(r => (
         <div key={r.key} className="flex gap-2">
           <dt className="text-on-surface-variant shrink-0 w-40">{r.title}</dt>
@@ -446,7 +446,7 @@ function WebSearchModal({ open, onClose, docTypes }: {
         <input value={query} onChange={e => setQuery(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') void run(); }}
           placeholder="Напр.: Выключатель автоматический EKF AV-10"
-          className="flex-1 min-w-[260px] border border-outline rounded-md px-3 py-2 text-sm bg-surface text-on-surface" />
+          className="flex-1 min-w-[260px] border border-outline rounded-sm px-3 py-2 text-sm bg-surface text-on-surface" />
         <Button variant="filled" onClick={run} disabled={searching || !query.trim()}
           loading={searching} icon={<Icon icon={Search} size={18} />}>
           Найти
@@ -457,10 +457,10 @@ function WebSearchModal({ open, onClose, docTypes }: {
         candidates.length === 0
           ? <p className="text-sm text-on-surface-variant mt-3">Ничего не найдено.</p>
           : (
-            <div className="mt-3 divide-y divide-surface-container border border-outline-variant rounded-md max-h-96 overflow-y-auto">
+            <div className="mt-3 divide-y divide-surface-container border border-outline-variant rounded-sm max-h-96 overflow-y-auto">
               {candidates.map(c => (
                 <div key={c.url} className="flex items-start gap-3 px-3 py-2">
-                  <span className="text-caption px-1.5 py-0.5 rounded bg-primary-container text-on-primary-container shrink-0 mt-0.5">
+                  <span className="text-caption px-1.5 py-0.5 rounded-xs bg-primary-container text-on-primary-container shrink-0 mt-0.5">
                     {SOURCE_LABEL[c.source] ?? c.source}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -473,7 +473,7 @@ function WebSearchModal({ open, onClose, docTypes }: {
                   </div>
                   <Tooltip content="Скачать файл по ссылке и добавить в библиотеку (если это прямой PDF/скан)">
                     <button onClick={() => importOne(c)} disabled={importingUrl === c.url}
-                      className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border border-outline-variant state-layer disabled-outlined shrink-0">
+                      className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-sm border border-outline-variant state-layer disabled-outlined shrink-0">
                       {importingUrl === c.url ? <CircularProgress size={18} /> : <Icon icon={Download} size={18} />} В библиотеку
                     </button>
                   </Tooltip>

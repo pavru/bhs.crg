@@ -83,7 +83,7 @@ export function UnionDiscriminatorEditor({
         </Select>
       </div>
 
-      <div className="rounded-lg border border-outline-variant divide-y divide-outline-variant">
+      <div className="rounded-md border border-outline-variant divide-y divide-outline-variant">
         {variants.map(v => {
           const ids = discriminator.rules[v.key] ?? [];
           const isOpen = open === v.key;
@@ -102,7 +102,7 @@ export function UnionDiscriminatorEditor({
                 <span className="flex-1 flex flex-wrap gap-1">
                   {ids.map(id => (
                     <span key={id}
-                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption border ${
+                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-caption border ${
                         conflicting.has(id)
                           ? 'bg-error-container text-on-error-container border-error/30'
                           : 'bg-surface-container-low text-on-surface-variant border-outline-variant'}`}>

@@ -218,7 +218,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
           <div className="relative mb-1">
             <Icon icon={Search} size={18} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
             <input value={typeSearch} onChange={e => setTypeSearch(e.target.value)} placeholder="Тип…" aria-label="Поиск типа"
-              className="w-full h-8 pl-7 pr-6 rounded-md text-xs bg-surface border border-outline-variant text-on-surface outline-none focus-visible:ring-2 focus-visible:ring-primary placeholder:text-on-surface-variant" />
+              className="w-full h-8 pl-7 pr-6 rounded-sm text-xs bg-surface border border-outline-variant text-on-surface outline-none focus-visible:ring-2 focus-visible:ring-primary placeholder:text-on-surface-variant" />
             {typeSearch && (
               <button onClick={() => setTypeSearch('')} aria-label="Очистить" className="absolute right-1.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface-variant">
                 <Icon icon={Close} size={18} />
@@ -283,7 +283,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
           <div className="text-center py-10 text-on-surface-variant text-sm">Ничего не найдено</div>
         ) : filterTypeId ? (
           // Выбран один тип — плоский список без аккордеона (тип уже виден в рейле).
-          <div className="border border-outline-variant rounded-xl overflow-hidden">
+          <div className="border border-outline-variant rounded-lg overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3 bg-surface border-b border-outline-variant">
               <span className="flex-1 text-sm font-medium text-on-surface-variant">{selectedType?.name ?? 'Без типа'}</span>
               {selectedType && isDocType(selectedType.id) && (
@@ -300,7 +300,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
             {groups.map(({ type: t, items }) => {
               const isOpen = searching || expandedTypes.has(t.id);
               return (
-                <div key={t.id} className="border border-outline-variant rounded-xl overflow-hidden">
+                <div key={t.id} className="border border-outline-variant rounded-lg overflow-hidden">
                   <button type="button" onClick={() => toggleType(t.id)} aria-expanded={isOpen}
                     className="w-full flex items-center gap-2 px-4 py-3 bg-surface state-layer text-left">
                     {isOpen ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
@@ -318,7 +318,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
             {noType.length > 0 && (() => {
               const isOpen = searching || expandedTypes.has(NO_TYPE);
               return (
-                <div className="border border-outline-variant rounded-xl overflow-hidden">
+                <div className="border border-outline-variant rounded-lg overflow-hidden">
                   <button type="button" onClick={() => toggleType(NO_TYPE)} aria-expanded={isOpen}
                     className="w-full flex items-center gap-2 px-4 py-3 bg-surface state-layer text-left">
                     {isOpen ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
@@ -372,7 +372,7 @@ function TypeNavItem({ icon, label, count, active, doc, muted, profile, onClick 
 }) {
   return (
     <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
-      className={`w-full flex items-center gap-2 px-2.5 h-9 rounded-lg text-left ${
+      className={`w-full flex items-center gap-2 px-2.5 h-9 rounded-md text-left ${
         active ? 'bg-primary-container text-on-primary-container font-medium'
           : profile ? 'text-primary hover:bg-primary-container' : 'text-on-surface-variant state-layer'}`}>
       {icon && <span className={`shrink-0 ${active || profile ? 'text-primary' : doc ? 'text-warning' : 'text-on-surface-variant'}`}>{icon}</span>}
@@ -440,7 +440,7 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
   return (
     <div className="max-w-2xl">
       <div className="flex items-start gap-3 mb-4">
-        <span className="shrink-0 w-10 h-10 rounded-lg bg-primary-container text-on-primary-container flex items-center justify-center">
+        <span className="shrink-0 w-10 h-10 rounded-md bg-primary-container text-on-primary-container flex items-center justify-center">
           <Icon icon={Apartment} size={18} />
         </span>
         <div className="flex-1 min-w-0">
@@ -455,12 +455,12 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
         </Button>
       </div>
 
-      <div className="rounded-lg border border-outline-variant bg-surface p-3 mb-3">
+      <div className="rounded-md border border-outline-variant bg-surface p-3 mb-3">
         <p className="text-xs text-on-surface-variant">
           Эти данные доступны <span className="font-medium">во всех документах уровня</span> — в шаблоне через ключ:
         </p>
         <div className="flex items-center gap-2 mt-1.5">
-          <code className="text-xs font-mono bg-surface-container text-on-surface px-2 py-1 rounded">data.{key}.*</code>
+          <code className="text-xs font-mono bg-surface-container text-on-surface px-2 py-1 rounded-xs">data.{key}.*</code>
           <Tooltip content="Скопировать ключ" name>
             <button type="button" onClick={copy}
               className="text-on-surface-variant hover:text-primary transition-colors">
@@ -471,7 +471,7 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
       </div>
 
       {preview.length > 0 ? (
-        <div className="rounded-lg border border-outline-variant divide-y divide-surface-container">
+        <div className="rounded-md border border-outline-variant divide-y divide-surface-container">
           {preview.map(([k, v]) => (
             <div key={k} className="flex items-center gap-3 px-3 py-2 text-sm">
               <span className="text-on-surface-variant min-w-[10rem] shrink-0">{k}</span>

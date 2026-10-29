@@ -80,7 +80,7 @@ function Body({ estimateId, revisionId, make, onDone }: {
       )}
 
       {data.unmatched > 0 && (
-        <p className="rounded-md border border-outline-variant bg-warning-container px-3 py-2 text-note text-on-warning-container">
+        <p className="rounded-sm border border-outline-variant bg-warning-container px-3 py-2 text-note text-on-warning-container">
           В ред. {data.revisionNumber} не сопоставлено строк: {formatCount(data.unmatched)} — в план они не войдут. Действующей её
           можно сделать и сейчас; сопоставленное позже войдёт в план само.
         </p>

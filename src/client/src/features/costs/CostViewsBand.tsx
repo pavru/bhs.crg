@@ -32,7 +32,7 @@ export function CostViewsBand({ data, closing, onChange }: {
   const view: View = closing ? 'closing' : 'corrected';
 
   return (
-    <section aria-label="Закрытые периоды" className="rounded-lg border border-outline-variant bg-surface-container px-3 py-2 space-y-1.5 text-sm">
+    <section aria-label="Закрытые периоды" className="rounded-md border border-outline-variant bg-surface-container px-3 py-2 space-y-1.5 text-sm">
       <p className="text-on-surface-variant">
         В периоде есть исправления после закрытия: {data.differs === 'totals'
           ? 'итоги взглядов различаются.'

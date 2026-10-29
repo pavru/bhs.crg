@@ -154,10 +154,10 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title={title} wide>
-      <div className="flex gap-1 mb-3 bg-surface-container rounded-lg p-0.5 w-fit">
+      <div className="flex gap-1 mb-3 bg-surface-container rounded-md p-0.5 w-fit">
         {(['pick', 'search', 'create'] as const).map(t => (
           <button key={t} onClick={() => { if (t === 'search') enterSearch(); else setTab(t); }}
-            className={`px-3 py-1.5 text-sm rounded-md ${tab === t ? 'bg-surface text-on-surface font-medium shadow-sm' : 'text-on-surface-variant'}`}>
+            className={`px-3 py-1.5 text-sm rounded-sm ${tab === t ? 'bg-surface text-on-surface font-medium shadow-elevation-1' : 'text-on-surface-variant'}`}>
             {tabLabel[t]}
           </button>
         ))}
@@ -168,7 +168,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
           <SearchInput value={query} onChange={setQuery} placeholder="Поиск по материалу / названию..." />
           <label className="flex items-center gap-1.5 text-xs text-on-surface-variant cursor-pointer">
             <input type="checkbox" checked={includeExpired} onChange={e => setIncludeExpired(e.target.checked)}
-              className="w-3.5 h-3.5 rounded border-outline text-primary" />
+              className="w-3.5 h-3.5 rounded-xs border-outline text-primary" />
             Показать просроченные{expiredCount > 0 ? ` (${expiredCount})` : ''}
           </label>
           {isLoading ? <p className="text-sm text-on-surface-variant py-3 text-center">Загрузка...</p>
@@ -184,7 +184,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                 </Button>
               </div>
             ) : (
-              <div className="max-h-80 overflow-y-auto divide-y divide-surface-container border border-outline-variant rounded-md">
+              <div className="max-h-80 overflow-y-auto divide-y divide-surface-container border border-outline-variant rounded-sm">
                 {visible.map(({ d, expired, validUntil, score }) => (
                   <div key={d.id} className="flex items-center gap-2 px-3 py-2 hover:bg-primary-container transition-colors">
                     <button onClick={() => onPick(d)} className="flex-1 flex items-center gap-2 min-w-0 text-left">
@@ -201,7 +201,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                         )}
                       </span>
                       {queryTokens.length > 0 && score > 0 && (
-                        <span className="text-caption px-1.5 py-0.5 rounded bg-primary-container text-on-primary-container shrink-0">{Math.round(score * 100)}%</span>
+                        <span className="text-caption px-1.5 py-0.5 rounded-xs bg-primary-container text-on-primary-container shrink-0">{Math.round(score * 100)}%</span>
                       )}
                       {validUntil && <span className={`text-caption shrink-0 ${expired ? 'text-error' : 'text-on-surface-variant'}`}>
                         {expired ? 'просрочен ' : 'до '}{formatDatePrecise(validUntil)}</span>}
@@ -232,7 +232,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
             {/* Ведущей лупы здесь нет (issue #668): рядом стоял селектор типа со своей замыкающей
                 лупой — обещанием модалки поиска (#565), — и два одинаковых значка подряд означали
                 разное. У самой строки намерение уже названо кнопкой «Найти» справа. */}
-            <div className="flex-1 flex items-center gap-2 border border-outline rounded-md px-2 transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
+            <div className="flex-1 flex items-center gap-2 border border-outline rounded-sm px-2 transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
               <input value={query} onChange={e => setQuery(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') void runSearch(); }}
                 placeholder="строка поиска" className="flex-1 py-2 text-sm bg-transparent focus:outline-none" />
@@ -245,10 +245,10 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
           {searchError && <p className="text-sm text-error">{searchError}</p>}
           {results && results.length === 0 && <p className="text-sm text-on-surface-variant py-3 text-center">Ничего не найдено.</p>}
           {results && results.length > 0 && (
-            <div className="max-h-80 overflow-y-auto divide-y divide-surface-container border border-outline-variant rounded-md">
+            <div className="max-h-80 overflow-y-auto divide-y divide-surface-container border border-outline-variant rounded-sm">
               {results.map(c => (
                 <div key={c.url} className="flex items-start gap-2 px-3 py-2">
-                  <span className="text-caption uppercase px-1.5 py-0.5 rounded bg-surface-container-low text-on-surface-variant shrink-0 mt-0.5">{c.source}</span>
+                  <span className="text-caption uppercase px-1.5 py-0.5 rounded-xs bg-surface-container-low text-on-surface-variant shrink-0 mt-0.5">{c.source}</span>
                   <div className="flex-1 min-w-0">
                     <a href={c.url} target="_blank" rel="noreferrer"
                       className="text-sm text-primary hover:underline flex items-center gap-1">

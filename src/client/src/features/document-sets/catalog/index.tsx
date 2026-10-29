@@ -450,7 +450,7 @@ export function CatalogEntryForm({
                   <SourceOriginIcon origin={recognizedBoundKeys.has(field.key) ? 'Recognized' : undefined}
                     stale={staleBoundKeys.has(field.key)} staleReason={staleReasonOfKey(field.key)} />
                 </label>
-                <div className="w-full border border-outline-variant rounded-md px-3 py-2 text-sm bg-surface-container text-on-surface-variant">
+                <div className="w-full border border-outline-variant rounded-sm px-3 py-2 text-sm bg-surface-container text-on-surface-variant">
                   {refId ? <BoundRefValue entryId={refId} /> : (display ?? <em className="text-on-surface-variant">нет данных</em>)}
                 </div>
               </div>
@@ -596,7 +596,7 @@ export function CatalogEntryForm({
       )}
       <div className="flex-1 min-w-0 space-y-4">
       <div className="flex items-center gap-2">
-        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${SCOPE_COLORS[scope]}`}>
+        <span className={`text-xs px-1.5 py-0.5 rounded-xs font-medium ${SCOPE_COLORS[scope]}`}>
           {SCOPE_LABELS[scope]}
         </span>
         <span className="text-xs text-on-surface-variant">приоритет {SCOPE_PRIORITY[scope]}</span>
@@ -640,14 +640,14 @@ export function CatalogEntryForm({
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addAlias(); } }}
           onBlur={addAlias}
           placeholder="Добавить псевдоним и Enter..."
-          className="w-full border border-outline rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
+          className="w-full border border-outline rounded-sm px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
       </div>
 
       {!entry ? (
         <div>
           <label className="block text-sm font-medium text-on-surface-variant mb-1">Тип</label>
           <button type="button" onClick={() => setPickerOpen(true)} aria-label="Тип"
-            className="w-full h-10 flex items-center justify-between gap-2 rounded-md border border-outline bg-surface px-3 text-sm text-left transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
+            className="w-full h-10 flex items-center justify-between gap-2 rounded-sm border border-outline bg-surface px-3 text-sm text-left transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
             <span className={typeId ? 'text-on-surface truncate' : 'text-on-surface-variant'}>
               {typeId ? (allSelectableTypes.find(c => c.id === typeId)?.name ?? typeId) : 'Выберите тип…'}
             </span>
@@ -725,7 +725,7 @@ export function CatalogEntryForm({
       )}
 
       {isProxy && (
-        <div className="rounded-md bg-primary-container/40 px-3 py-2 text-xs text-on-surface-variant flex items-center justify-between gap-2">
+        <div className="rounded-sm bg-primary-container/40 px-3 py-2 text-xs text-on-surface-variant flex items-center justify-between gap-2">
           <span>Роль наследует все поля реального объекта — заполните только переопределяемые, пустые берутся у реального.</span>
           {!showAllProxyFields && (
             <button type="button" onClick={() => setShowAllProxyFields(true)}
@@ -743,7 +743,7 @@ export function CatalogEntryForm({
             const isExpanded = expandedGroups.has(section.key);
             return (
               <div key={section.key} id={`cat-section-${section.key}`}
-                className="border border-outline-variant rounded-lg overflow-hidden scroll-mt-2">
+                className="border border-outline-variant rounded-md overflow-hidden scroll-mt-2">
                 <button type="button" onClick={() => toggleGroup(section.key)}
                   className="w-full flex items-center gap-2 px-3 py-2.5 bg-surface-container-low state-layer text-left">
                   {isExpanded

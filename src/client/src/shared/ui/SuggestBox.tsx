@@ -174,7 +174,7 @@ export function SuggestBox({
           onOpenAutoFocus={e => e.preventDefault()} onCloseAutoFocus={e => e.preventDefault()}
           // Щелчок по самому полю — не «мимо»: список закрыл бы и тут же открылся бы вводом.
           onInteractOutside={e => { if (e.target === input.current) e.preventDefault(); }}
-          className="z-50 overflow-hidden rounded-md border border-outline-variant bg-surface p-1 shadow-[var(--md-sys-elevation-level2)]"
+          className="z-50 overflow-hidden rounded-sm border border-outline-variant bg-surface p-1 shadow-elevation-2"
           // Не уже поля; в узкой клетке сетки — не уже 18rem, чтобы марка кабеля не ложилась в столбик.
           style={{ width: 'max(var(--radix-popover-trigger-width), 18rem)', maxWidth: 'min(32rem, calc(100vw - 32px))' }}>
           <SuggestOptions items={items} q={view?.q ?? ''} listId={listId} active={active} onPick={accept} />
@@ -194,7 +194,7 @@ function SuggestOptions({ items, q, listId, active, onPick }: {
         onMouseDown={e => e.preventDefault()} onClick={() => onPick(item)}
         // Выбранный стрелкой — контейнером secondary, а не слоем: фокус остаётся в поле, и курсор над
         // другим пунктом давал бы второй такой же слой — какой примет Enter, было бы не видно.
-        className={'flex min-h-8 cursor-pointer select-none items-center gap-3 rounded px-3 py-1.5 text-sm ' +
+        className={'flex min-h-8 cursor-pointer select-none items-center gap-3 rounded-xs px-3 py-1.5 text-sm ' +
           'pointer-coarse:min-h-11 state-layer ' +
           (i === active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface')}>
         <span className="line-clamp-2">{highlight(item.label ?? item.value, q)}</span>

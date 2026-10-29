@@ -60,9 +60,6 @@
   --md-ext-color-on-warning: #ffffff;
   --md-ext-color-warning-container: #ffdea2;
   --md-ext-color-on-warning-container: #261900;
-  --md-sys-elevation-level1: 0 1px 2px rgba(16,35,63,.30), 0 1px 3px 1px rgba(16,35,63,.12);
-  --md-sys-elevation-level2: 0 2px 8px rgba(16,35,63,.12), 0 1px 2px rgba(16,35,63,.10);
-  --md-sys-elevation-level3: 0 8px 24px rgba(0,0,0,.28), 0 2px 6px rgba(0,0,0,.14);
   --md-ext-color-tab-light: #f3f3fa;
   --md-ext-color-tab-dark: #191c20;
   --md-sys-state-hover: 0.08;
@@ -87,6 +84,19 @@
   --md-sys-motion-duration-long2: 500ms;
   --md-sys-motion-duration-long3: 550ms;
   --md-sys-motion-duration-long4: 600ms;
+  --md-sys-shape-corner-none: 0px;
+  --md-sys-shape-corner-extra-small: 4px;
+  --md-sys-shape-corner-small: 8px;
+  --md-sys-shape-corner-medium: 12px;
+  --md-sys-shape-corner-large: 16px;
+  --md-sys-shape-corner-extra-large: 28px;
+  --md-sys-shape-corner-full: 9999px;
+  --md-sys-elevation-level0: none;
+  --md-sys-elevation-level1: 0 1px 2px 0 color-mix(in srgb, var(--md-sys-color-shadow) 30%, transparent), 0 1px 3px 1px color-mix(in srgb, var(--md-sys-color-shadow) 15%, transparent);
+  --md-sys-elevation-level2: 0 1px 2px 0 color-mix(in srgb, var(--md-sys-color-shadow) 30%, transparent), 0 2px 6px 2px color-mix(in srgb, var(--md-sys-color-shadow) 15%, transparent);
+  --md-sys-elevation-level3: 0 1px 3px 0 color-mix(in srgb, var(--md-sys-color-shadow) 30%, transparent), 0 4px 8px 3px color-mix(in srgb, var(--md-sys-color-shadow) 15%, transparent);
+  --md-sys-elevation-level4: 0 2px 3px 0 color-mix(in srgb, var(--md-sys-color-shadow) 30%, transparent), 0 6px 10px 4px color-mix(in srgb, var(--md-sys-color-shadow) 15%, transparent);
+  --md-sys-elevation-level5: 0 4px 4px 0 color-mix(in srgb, var(--md-sys-color-shadow) 30%, transparent), 0 8px 12px 6px color-mix(in srgb, var(--md-sys-color-shadow) 15%, transparent);
 }
 
 :root[data-theme="dark"] {
@@ -147,7 +157,4 @@
   --md-ext-color-on-warning: #402d00;
   --md-ext-color-warning-container: #5c4200;
   --md-ext-color-on-warning-container: #ffdea2;
-  --md-sys-elevation-level1: 0 1px 2px rgba(0,0,0,.40), 0 1px 3px 1px rgba(0,0,0,.24);
-  --md-sys-elevation-level2: 0 2px 8px rgba(0,0,0,.36), 0 1px 2px rgba(0,0,0,.24);
-  --md-sys-elevation-level3: 0 8px 24px rgba(0,0,0,.48), 0 2px 6px rgba(0,0,0,.28);
 }

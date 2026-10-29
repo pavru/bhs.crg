@@ -64,7 +64,7 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
         return (
           <>
             <button type="button" aria-expanded={shown} onClick={() => setOpen(was => toggleInSet(was, r.id))}
-              className="flex items-start gap-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
+              className="flex items-start gap-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xs">
               {shown ? <Icon icon={KeyboardArrowDown} size={18} className="mt-0.5 shrink-0 text-on-surface-variant" /> : <Icon icon={ChevronRight} size={18} className="mt-0.5 shrink-0 text-on-surface-variant" />}
               <span>{r.name}{r.archived && <ArchivedMark className="ml-1.5" />}</span>
             </button>
@@ -201,7 +201,7 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
                 onBlur={() => setSettled(true)}
                 onKeyDown={e => { if (e.key === 'Enter') setSettled(true); }}
                 aria-invalid={mismatch || undefined} aria-describedby={mismatch ? errorId : hintId}
-                className={`w-full h-10 px-3 rounded-md bg-surface border text-base sm:text-sm text-on-surface tabular-nums outline-none focus-visible:ring-2 ${
+                className={`w-full h-10 px-3 rounded-sm bg-surface border text-base sm:text-sm text-on-surface tabular-nums outline-none focus-visible:ring-2 ${
                   mismatch ? 'border-error focus-visible:ring-error' : 'border-outline focus-visible:ring-primary'}`} />
               {mismatch
                 ? <p id={errorId} role="alert" className="mt-1 text-xs text-error">Не совпадает с числом в строке «Всего ссылок».</p>
@@ -226,8 +226,7 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
         <Dialog.Content
           // То же, что у `PurgeDialog`: запрос, исход или набранное подтверждение держат человека.
           data-modal-state={busy ? 'busy' : refused ?? unknown ?? fresh ? 'result' : input ? 'touched' : 'free'}
-          className="fixed left-1/2 top-4 sm:top-1/2 -translate-x-1/2 sm:-translate-y-1/2 z-50 rounded-[28px] p-6 w-[calc(100%-2rem)] max-w-xl max-h-[calc(100dvh-2rem)] overflow-y-auto bg-surface border border-outline-variant focus:outline-none"
-          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
+          className="fixed left-1/2 top-4 sm:top-1/2 -translate-x-1/2 sm:-translate-y-1/2 z-50 rounded-xl p-6 w-[calc(100%-2rem)] max-w-xl max-h-[calc(100dvh-2rem)] overflow-y-auto bg-surface border border-outline-variant focus:outline-none shadow-elevation-3">
           <Dialog.Title className="text-sm font-semibold mb-2 text-on-surface">{title}</Dialog.Title>
           {body}
         </Dialog.Content>
@@ -238,7 +237,7 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
 
 function Alert({ tone, children }: { tone: 'danger' | 'warning'; children: ReactNode }) {
   return (
-    <div role="alert" className={`mt-2 flex items-start gap-2.5 rounded-md px-3 py-2.5 text-xs ${tone === 'danger'
+    <div role="alert" className={`mt-2 flex items-start gap-2.5 rounded-sm px-3 py-2.5 text-xs ${tone === 'danger'
       ? 'bg-error-container text-on-error-container' : 'bg-warning-container text-on-warning-container'}`}>
       <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" aria-hidden />
       <div className="min-w-0 whitespace-pre-line">{children}</div>

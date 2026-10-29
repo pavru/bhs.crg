@@ -33,7 +33,7 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
 import { DateField } from '@/shared/ui/DateField';
 
-const cell = 'w-full rounded border border-outline-variant bg-surface px-1.5 py-1 text-xs text-on-surface outline-none '
+const cell = 'w-full rounded-xs border border-outline-variant bg-surface px-1.5 py-1 text-xs text-on-surface outline-none '
   + 'focus:border-primary placeholder:text-on-surface-variant disabled:bg-surface-container disabled:text-on-surface-variant';
 
 /**
@@ -292,7 +292,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
           {!correcting && <WaybillDeleteMenu view={view} canEdit={canEdit} dirty={dirty} onDeleted={onClose} />}
         </div>
         {gone && (
-          <div role="alert" data-testid="waybill-gone-open" className="flex items-start gap-2 rounded-lg border
+          <div role="alert" data-testid="waybill-gone-open" className="flex items-start gap-2 rounded-md border
             border-error/30 bg-error-container px-3 py-2 text-xs text-on-error-container">
             <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <p className="flex-1">
@@ -303,7 +303,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
           </div>
         )}
         {outdated && !gone && (
-          <div role="alert" className="flex items-start gap-2 rounded-lg border border-error/30
+          <div role="alert" className="flex items-start gap-2 rounded-md border border-error/30
             bg-error-container px-3 py-2 text-xs text-on-error-container">
             <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <span className="flex-1">

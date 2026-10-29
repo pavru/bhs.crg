@@ -51,7 +51,7 @@ function DocumentSearchPanel() {
         <Icon icon={Search} size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
         <input value={text} onChange={e => setText(e.target.value)}
           placeholder="Найти документ по всем комплектам (имя, тип, реквизиты)…"
-          className="w-full pl-9 pr-8 py-2 text-sm border border-outline rounded-md bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
+          className="w-full pl-9 pr-8 py-2 text-sm border border-outline rounded-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
         {text && (
           <IconButton label="Очистить" size="sm" onClick={() => setText('')}
             className="absolute right-1.5 top-1/2 -translate-y-1/2">
@@ -60,7 +60,7 @@ function DocumentSearchPanel() {
         )}
       </div>
       {active && (
-        <div className="mt-2 border border-outline-variant rounded-lg overflow-hidden bg-surface">
+        <div className="mt-2 border border-outline-variant rounded-md overflow-hidden bg-surface">
           {isFetching && results.length === 0 ? (
             <div className="px-3 py-3 text-xs text-on-surface-variant">Поиск…</div>
           ) : results.length === 0 ? (
@@ -79,7 +79,7 @@ function DocumentSearchPanel() {
                         {filter.active && !filter.favorites.has(r.constructionId) && <span> · ☆ не в избранном</span>}
                       </div>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded font-medium shrink-0 ${STATUS_COLORS[r.status] ?? 'bg-surface-container text-on-surface-variant'}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-xs font-medium shrink-0 ${STATUS_COLORS[r.status] ?? 'bg-surface-container text-on-surface-variant'}`}>
                       {STATUS_LABELS[r.status] ?? r.status}
                     </span>
                   </button>
@@ -182,7 +182,7 @@ export function ConstructionsList() {
           {shown.map(c => {
             const setsCount = c.sections.reduce((acc, s) => acc + s.documentSets.length, 0);
             return (
-              <div key={c.id} className={`bg-surface border border-outline-variant rounded-xl p-5 flex flex-col gap-3 hover:border-primary hover:shadow-[var(--md-sys-elevation-level2)] transition-all group cursor-pointer ${filter.visible(c.id) ? '' : 'opacity-60'}`}
+              <div key={c.id} className={`bg-surface border border-outline-variant rounded-lg p-5 flex flex-col gap-3 hover:border-primary hover:shadow-elevation-2 transition-all group cursor-pointer ${filter.visible(c.id) ? '' : 'opacity-60'}`}
                 onClick={() => editId !== c.id && navigate(`/document-sets/${c.id}`)}>
                 <div className="flex items-start justify-between gap-2">
                   <FavoriteStar id={c.id} onToggled={() => setKept(new Set(shown.map(x => x.id)))} />

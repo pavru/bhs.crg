@@ -125,7 +125,7 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
     if (!to) delete next.maxDate;
     onChange(next);
   }
-  const inputCls = 'w-full px-3 py-2 rounded-lg border border-outline bg-surface text-sm';
+  const inputCls = 'w-full px-3 py-2 rounded-md border border-outline bg-surface text-sm';
 
   if (baseType === 'string') {
     return (
@@ -173,7 +173,7 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
           </div>
         </div>
         <label className="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" className="w-4 h-4 rounded accent-primary"
+          <input type="checkbox" className="w-4 h-4 rounded-xs accent-primary"
             checked={constraints.integer ?? false}
             onChange={e => e.target.checked ? set('integer', true) : unset('integer')} />
           <span className="text-sm text-on-surface">Только целые числа</span>
@@ -222,7 +222,7 @@ function ConstraintTester({ def }: { def: PrimitiveTypeDef }) {
   return (
     <div>
       <label className="block text-sm font-medium text-on-surface mb-1">Проверка образца</label>
-      <div className="flex items-center gap-2 rounded-lg bg-surface-container-low border border-outline-variant px-3 py-2">
+      <div className="flex items-center gap-2 rounded-md bg-surface-container-low border border-outline-variant px-3 py-2">
         <Icon icon={statusIcon} size={18} className={`shrink-0 ${tone}`} />
         <input value={sample} onChange={e => setSample(e.target.value)} placeholder={placeholder} spellCheck={false}
           className="flex-1 min-w-0 bg-transparent text-sm font-mono outline-none text-on-surface placeholder:text-on-surface-variant" />
@@ -262,7 +262,7 @@ function BaseTypeSegmented({ value, onChange, disabled }: {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="border border-outline-variant rounded-xl bg-surface p-4 space-y-3">
+    <div className="border border-outline-variant rounded-lg bg-surface p-4 space-y-3">
       <p className="text-xs font-medium text-on-surface-variant uppercase tracking-wide">{title}</p>
       {children}
     </div>
@@ -568,7 +568,7 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
     const active = t.id === selectedId;
     return (
       <button key={t.id} type="button" onClick={() => onSelect(t.id)} aria-current={active ? 'true' : undefined}
-        className={`state-layer w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left ${
+        className={`state-layer w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left ${
           active ? 'bg-primary-container text-on-primary-container' : ''}`}>
         <Icon icon={t.icon} size={18} className={`shrink-0 ${active ? 'text-primary' : 'text-on-surface-variant'}`} />
         <span className="min-w-0 flex-1">
@@ -589,7 +589,7 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
     <button type="button" onClick={() => onMode(m)}
       className={`relative flex-1 h-12 text-sm transition-colors ${mode === m ? 'text-primary font-medium' : 'text-on-surface-variant hover:text-on-surface-variant'}`}>
       {label}
-      {mode === m && <span className="absolute left-0 right-0 bottom-0 h-0.5 bg-primary rounded-t" />}
+      {mode === m && <span className="absolute left-0 right-0 bottom-0 h-0.5 bg-primary rounded-t-xs" />}
     </button>
   );
 

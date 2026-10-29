@@ -62,7 +62,7 @@ export function AppearanceSection() {
               type="button"
               onClick={() => setLocale(opt.value)}
               aria-pressed={isSelected}
-              className={`state-layer w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-left ${
+              className={`state-layer w-full flex items-center gap-3 px-3 py-2 rounded-sm text-sm text-left ${
                 isSelected
                   ? 'bg-primary-container border border-primary-container text-on-primary-container'
                   : 'border border-transparent text-on-surface-variant'
@@ -83,7 +83,7 @@ export function AppearanceSection() {
       </div>
 
       {/* Preview */}
-      <div className="rounded-lg bg-surface-container-low border border-outline-variant p-3 space-y-1.5">
+      <div className="rounded-md bg-surface-container-low border border-outline-variant p-3 space-y-1.5">
         <p className="text-xs font-medium text-on-surface-variant mb-2">Предпросмотр ({resolved})</p>
         <div className="flex gap-3 text-sm">
           <span className="text-on-surface-variant w-20 shrink-0">Дата:</span>

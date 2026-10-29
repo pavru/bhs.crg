@@ -19,7 +19,7 @@ export function AutoFieldsSection(
 ) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border border-dashed border-outline-variant rounded-lg overflow-hidden">
+    <div className="border border-dashed border-outline-variant rounded-md overflow-hidden">
       <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open}
         className="w-full flex items-center gap-2 px-3 py-2 bg-surface-container-low/40 state-layer text-left">
         {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}

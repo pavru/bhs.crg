@@ -33,7 +33,7 @@ export function CollapsibleSection({
   }
 
   return (
-    <div className="border border-outline-variant rounded-xl overflow-hidden">
+    <div className="border border-outline-variant rounded-lg overflow-hidden">
       <button
         type="button"
         onClick={toggle}

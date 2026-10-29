@@ -52,7 +52,7 @@ export function UserLibPathDialog({
             onChange={e => { setPath(e.target.value); setTouched(true); }}
             onKeyDown={e => { if (e.key === 'Enter' && !error) onSubmit(path.trim().replace(/\\/g, '/')); }}
             placeholder="gost/forms/f3.typ"
-            className="w-full h-8 px-2.5 text-sm font-mono rounded-md border border-outline-variant bg-surface text-on-surface
+            className="w-full h-8 px-2.5 text-sm font-mono rounded-sm border border-outline-variant bg-surface text-on-surface
                        outline-none focus:ring-2 focus:ring-primary/40"
           />
           <p className="mt-1 text-xs text-on-surface-variant">

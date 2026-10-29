@@ -141,8 +141,8 @@ describe('DataGrid: особые строки и шапка (#1354, 3/3)', () =>
     expect(anna.className).toContain('state-layer');
     expect(anna.className).not.toContain('opacity-');
     expect(boris.dataset.dragging).toBeUndefined();
-    expect(anna.style.boxShadow).toBe('');
-    expect(boris.style.boxShadow).toContain('inset 0 -2px');
+    expect(anna.className).not.toContain('drop-mark-');
+    expect(boris.className).toContain('drop-mark-after');
     fireEvent.drop(boris);
     expect(drop).toHaveBeenCalledTimes(1);
   });

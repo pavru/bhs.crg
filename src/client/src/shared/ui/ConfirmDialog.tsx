@@ -148,8 +148,7 @@ function ConfirmDialogBody({
           style={{ backdropFilter: 'blur(2px)' }}
         />
         <Dialog.Content
-          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-[28px] p-6 w-full max-w-sm bg-surface border border-outline-variant focus:outline-none"
-          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}
+          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-xl p-6 w-full max-w-sm bg-surface border border-outline-variant focus:outline-none shadow-elevation-3"
           ref={content}
           // Идёт запрос или показан отказ — окно держит человека, см. `DialogHold`.
           data-modal-state={busy ? 'busy' : rule ? 'result' : 'free'}
@@ -172,7 +171,7 @@ function ConfirmDialogBody({
 
           {blockedView ? (
             <>
-              <div className="mt-2 flex items-start gap-2.5 rounded-md bg-error-container px-3 py-2.5 text-xs text-on-surface">
+              <div className="mt-2 flex items-start gap-2.5 rounded-sm bg-error-container px-3 py-2.5 text-xs text-on-surface">
                 <Icon icon={Warning} size={18} className="shrink-0 mt-0.5 text-error" />
                 <div className="max-h-40 overflow-y-auto whitespace-pre-line min-w-0">{error ?? blocked}</div>
               </div>

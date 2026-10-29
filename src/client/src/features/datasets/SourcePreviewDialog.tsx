@@ -62,7 +62,7 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
         const path = pathIdx >= 0 ? row[pathIdx] : null;
         const size = sizeRaw != null && sizeRaw !== '' && !Number.isNaN(Number(sizeRaw)) ? formatBytes(Number(sizeRaw)) : null;
         return (
-          <div key={i} className="flex items-center gap-3 rounded-md px-3 py-2 bg-surface-container">
+          <div key={i} className="flex items-center gap-3 rounded-sm px-3 py-2 bg-surface-container">
             <Icon icon={Description} size={18} className="text-on-surface-variant shrink-0" />
             <div className="min-w-0 flex-1">
               <div className="text-xs font-medium truncate text-on-surface">
@@ -76,7 +76,7 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
               <button
                 onClick={() => path && handleOpen(i, path)}
                 disabled={!path || opening === i}
-                className="flex items-center gap-1 shrink-0 px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant state-layer disabled-outlined">
+                className="flex items-center gap-1 shrink-0 px-2 py-1 text-xs rounded-sm border border-outline-variant text-on-surface-variant state-layer disabled-outlined">
                 {opening === i ? <CircularProgress size={18} /> : <Icon icon={OpenInNew} size={18} />}
                 Просмотреть
               </button>

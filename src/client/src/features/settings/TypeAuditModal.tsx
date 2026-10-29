@@ -100,12 +100,12 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
             </p>
 
             {total === 0 ? (
-              <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-success-container text-on-success-container">
+              <div className="flex items-center gap-2 p-3 rounded-sm text-sm bg-success-container text-on-success-container">
                 <Icon icon={CheckCircle} size={18} className="shrink-0" /> Данные инстансов соответствуют текущей схеме.
               </div>
             ) : (
               groups.map(([code, rows]) => (
-                <div key={code} className="rounded-md border border-outline-variant overflow-hidden">
+                <div key={code} className="rounded-sm border border-outline-variant overflow-hidden">
                   <div className="flex items-center gap-2 px-3 py-2 bg-surface-container-low text-xs font-medium text-on-surface-variant">
                     <Icon icon={Warning} size={18} className="text-warning shrink-0" />
                     {CATEGORY_LABEL[code] ?? code}

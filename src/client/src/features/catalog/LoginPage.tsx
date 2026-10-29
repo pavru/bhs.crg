@@ -56,8 +56,7 @@ export function LoginPage() {
           срезало заголовок сверху и кнопку снизу — экран, которым система встречает
           установившего, оказывался нерабочим (issue #826). */}
       <div
-        className="w-full max-w-md md:max-w-[900px] md:min-h-[600px] flex overflow-hidden rounded-[28px] bg-surface border border-outline-variant"
-        style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}
+        className="w-full max-w-md md:max-w-[900px] md:min-h-[600px] flex overflow-hidden rounded-xl bg-surface border border-outline-variant shadow-elevation-2"
       >
         {/* ── Бренд-панель (слева, только на широких экранах) ───────────────── */}
         <div
@@ -86,8 +85,7 @@ export function LoginPage() {
         <div className="flex-1 flex flex-col justify-center p-8 md:px-12 md:py-14">
           {/* Компактный бренд для узких экранов (панель скрыта) */}
           <div className="flex md:hidden items-center gap-3 mb-6">
-            <BrandLogo className="w-11 h-11 rounded-lg bg-primary text-on-primary"
-              style={{ boxShadow: 'var(--md-sys-elevation-level1)' }} iconSize={22} />
+            <BrandLogo className="w-11 h-11 rounded-md bg-primary text-on-primary shadow-elevation-1" iconSize={22} />
             <span className="text-2xl font-semibold text-primary leading-none">{productName}</span>
           </div>
 
@@ -260,7 +258,7 @@ function FirstAdminForm() {
       <Head title="Первый вход"
         subtitle="Система установлена, пользователей ещё нет. Заведите администратора — он получит полные права." />
 
-      <p className="flex gap-2 mb-6 text-xs leading-relaxed text-on-surface-variant bg-warning/10 border border-warning/30 rounded-xl p-3">
+      <p className="flex gap-2 mb-6 text-xs leading-relaxed text-on-surface-variant bg-warning/10 border border-warning/30 rounded-lg p-3">
         <Icon icon={GppMaybe} size={18} className="shrink-0 mt-0.5 text-warning" />
         <span>
           Пока администратора нет, эта форма открыта любому, кто дотянется до адреса системы.

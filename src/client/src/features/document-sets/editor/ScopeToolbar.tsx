@@ -22,7 +22,7 @@ export function ScopeToolbar({ isFetching, refetch, materialsCount, linkedCount,
   return (
     <div className="flex items-center gap-3 flex-wrap">
       <button onClick={() => refetch()} disabled={isFetching}
-        className="flex items-center gap-2 text-sm px-3 py-2 rounded-md bg-surface-container text-on-surface-variant disabled-container">
+        className="flex items-center gap-2 text-sm px-3 py-2 rounded-sm bg-surface-container text-on-surface-variant disabled-container">
         {isFetching ? <CircularProgress size={18} /> : <Icon icon={Search} size={18} />} Обновить материалы
       </button>
       <span className="text-xs text-on-surface-variant">{materialsCount} материалов · привязано {linkedCount}</span>

@@ -26,6 +26,7 @@ import theme from '../src/theme/md3-theme.json' with { type: 'json' };
 import classMap from './md3-class-map.json' with { type: 'json' };
 import { formatIconReport, migrateIcons } from './md3-icons-migrate.mjs';
 import { compileStates, migrateStates } from './md3-states-migrate.mjs';
+import { commitsAfterTransition, compileShape, gitOldLines, migrateRadii, migrateShadows } from './md3-shape-migrate.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const clientRoot = join(here, '..');
@@ -122,10 +123,16 @@ function inNegativeExpect(text, index) {
 
 /**
  * Перевод текста файла. `file` — путь для отчёта (и признак теста: отрицательное ожидание переписывают
- * руками так, чтобы оно снова могло упасть, — см. `inNegativeExpect`).
+ * руками так, чтобы оно снова могло упасть, — см. `inNegativeExpect`). `isOld(line)` — строка написана
+ * до перехода на шкалу формы: только её радиус сдвигается по цепи (md3-shape-migrate.mjs); без него
+ * радиусы не сдвигаются.
  * Возвращает новый текст, замены (`{ line, from, to, pair, comment }`) и нетронутое (`{ line, token, reason }`).
  */
-export function migrateText(source, { file = '', rules = compile(), states = compileStates() } = {}) {
+export function migrateText(original, { file = '', rules = compile(), states = compileStates(), shape = compileShape(),
+  isOld = () => false } = {}) {
+  // Радиусы — первыми: номера строк ещё те же, что у git blame.
+  const radii = migrateRadii(original, { isOld, rules: shape, skip: at => isTest(file) && inNegativeExpect(original, at) });
+  const source = radii.text;
   // Заливку проход состояний узнаёт по имени после перевода: `bg-brand-subtle` — уже заливка контейнера.
   const resolve = c => {
     const slash = c.indexOf('/');
@@ -156,10 +163,12 @@ export function migrateText(source, { file = '', rules = compile(), states = com
     return variable ? hit.to : `${lead}${hit.to}${tail}`;
   });
   const onContainer = containerText(out, file);
+  // Тени — последними: перенос стиля в className убирает строки.
+  const shadows = migrateShadows(onContainer.text, { skip: at => isTest(file) && inNegativeExpect(onContainer.text, at) });
   return {
-    text: onContainer.text,
-    replaced: [...pre.replaced, ...replaced, ...onContainer.replaced],
-    untouched: [...pre.untouched, ...untouched, ...onContainer.untouched],
+    text: shadows.text,
+    replaced: [...radii.replaced, ...pre.replaced, ...replaced, ...onContainer.replaced, ...shadows.replaced],
+    untouched: [...radii.untouched, ...pre.untouched, ...untouched, ...onContainer.untouched, ...shadows.untouched],
   };
 }
 
@@ -207,13 +216,20 @@ export function sourceFiles(root) {
       : SOURCE.test(e.name) ? sourceFiles(join(abs, e.name)) : []);
 }
 
-/** Перевод файлов: `write` — записать изменённые. Возвращает отчёт по файлам. */
-export function migrateFiles(files, { write = false, rules = compile(), base = clientRoot } = {}) {
+/**
+ * Перевод файлов: `write` — записать изменённые. `oldLines(path)` — строки, написанные до перехода на
+ * шкалу формы (по умолчанию — git blame; зовётся только у файла, где есть радиус цепи). Возвращает отчёт
+ * по файлам.
+ */
+export function migrateFiles(files, { write = false, rules = compile(), base = clientRoot, oldLines } = {}) {
+  let after;
+  oldLines ??= path => gitOldLines(path, clientRoot, after ??= commitsAfterTransition(clientRoot));
   const report = [];
   for (const path of files) {
     const text = readFileSync(path, 'utf8');
     const file = relative(base, path).replaceAll('\\', '/');
-    const result = migrateText(text, { file, rules });
+    let old;
+    const result = migrateText(text, { file, rules, isOld: line => (old ??= oldLines(path))(line) });
     if (!result.replaced.length && !result.untouched.length) continue;
     if (write && result.replaced.length) writeFileSync(path, result.text, 'utf8');
     report.push({ file, replaced: result.replaced, untouched: result.untouched });

@@ -142,7 +142,7 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg bg-surface-container px-3 py-2 space-y-0.5">
+      <div className="rounded-md bg-surface-container px-3 py-2 space-y-0.5">
         <p className="text-caption text-on-surface-variant">{place} · ред. {revision.number}</p>
         <p className="text-sm text-on-surface">{group.sourceName}</p>
         <p className="text-xs text-on-surface-variant tabular-nums">
@@ -151,7 +151,7 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
         </p>
       </div>
 
-      <div className="flex items-center gap-2 rounded-md border border-outline px-2.5 h-10">
+      <div className="flex items-center gap-2 rounded-sm border border-outline px-2.5 h-10">
         <Icon icon={Search} size={18} className="text-on-surface-variant shrink-0" />
         <input value={typed} onChange={e => type(e.target.value)} placeholder="наименование или часть наименования"
           aria-label="Поиск позиции" className="flex-1 bg-transparent text-sm outline-none text-on-surface placeholder:text-on-surface-variant" />

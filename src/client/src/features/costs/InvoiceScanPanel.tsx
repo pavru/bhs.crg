@@ -237,7 +237,7 @@ export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
   };
 
   return (
-    <div className="flex items-start gap-2 rounded-lg border border-outline-variant bg-surface-container px-3 py-2">
+    <div className="flex items-start gap-2 rounded-md border border-outline-variant bg-surface-container px-3 py-2">
       <Icon icon={Description} size={18} className="text-on-surface-variant shrink-0 mt-0.5" />
       <div className="min-w-0 flex-1">
         {refused

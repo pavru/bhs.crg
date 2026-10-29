@@ -314,7 +314,7 @@ function PasteMappingModalBody({
               if (text.trim()) { e.preventDefault(); setRawText(text); initMapping(text); setStep('map'); }
             }}
             placeholder="Вставьте данные из Excel..." rows={7}
-            className="w-full border border-outline rounded-md px-3 py-2 text-xs font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface resize-none" />
+            className="w-full border border-outline rounded-sm px-3 py-2 text-xs font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface resize-none" />
         </div>
       </WindowStep>
     );
@@ -429,7 +429,7 @@ function PasteMappingModalBody({
                 setMatchFields({});
                 clearPending();
               }}
-              className="w-4 h-4 rounded border-outline text-primary" />
+              className="w-4 h-4 rounded-xs border-outline text-primary" />
             Первая строка — заголовки
           </label>
           <span className="text-xs text-on-surface-variant">Найдено строк данных: {importCount}</span>
@@ -437,7 +437,7 @@ function PasteMappingModalBody({
         {/* Форма, а не таблица данных (#1354): строка — поле, в клетках — выбор. Поэтому сетка
             раскладки, а не таблица: читать здесь нечего, здесь задают. */}
         <div className="overflow-x-auto">
-          <div className="grid grid-cols-3 min-w-[480px] text-xs border border-outline-variant rounded-md overflow-hidden [&>div:last-child>div]:border-b-0">
+          <div className="grid grid-cols-3 min-w-[480px] text-xs border border-outline-variant rounded-sm overflow-hidden [&>div:last-child>div]:border-b-0">
             <div className={MAP_HEAD}>Поле таблицы</div>
             <div className={MAP_HEAD}>Столбец из Excel</div>
             <div className={MAP_HEAD}>Сопоставить по</div>

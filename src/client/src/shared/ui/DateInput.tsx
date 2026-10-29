@@ -132,7 +132,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
 
   // Рамка обвязки (issue #1464) — как у `Select`: кольцо, пока фокус внутри или открыт календарь.
   const frame = !size ? '' : [
-    FRAME[size], 'rounded-md border transition-colors ease-standard',
+    FRAME[size], 'rounded-sm border transition-colors ease-standard',
     // Отключённое — по MD3 ([UI-64]): текст on-surface 38 %, рамка on-surface 12 %, а не прозрачность.
     readOnly ? 'bg-surface-container text-on-surface-variant border-outline-variant'
       : disabled ? 'bg-surface text-on-surface/38 border-on-surface/12'
@@ -156,7 +156,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
         // стирать показанное и уводить фокус в сегменты (ревью PR #1542).
         : <button type="button" onClick={startOver} aria-describedby={describedBy}
             aria-label={`${value} — не дата, набрать дату заново`}
-            className="truncate text-left text-on-surface-variant rounded-sm focus:outline-none focus-visible:bg-primary-container">
+            className="truncate text-left text-on-surface-variant rounded-xs focus:outline-none focus-visible:bg-primary-container">
             {value}
           </button>}
       {problemMark}
@@ -247,8 +247,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
         <Popover.Content ref={contentRef} align="start" sideOffset={6} collisionPadding={8} hideWhenDetached
           onKeyDown={onCalendarTab} onCloseAutoFocus={onCalendarClosed} {...fieldFocus}
           onOpenAutoFocus={() => { tabbedOut.current = false; }}
-          className="z-50 rounded-2xl bg-surface border border-outline-variant focus:outline-none"
-          style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
+          className="z-50 rounded-lg bg-surface border border-outline-variant focus:outline-none shadow-elevation-2">
           <Calendar value={calendarValue} precision={precision}
             onSelect={pick} onClose={() => setPickerOpen(false)}
             min={min} max={max} range={range}

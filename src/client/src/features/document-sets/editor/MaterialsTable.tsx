@@ -135,7 +135,7 @@ export function MaterialsTable({
               </span>
             ) : suggestion ? (
               <span className="flex items-center gap-1.5">
-                <span className="text-caption px-1 py-0.5 rounded bg-primary-container text-on-primary-container shrink-0">{Math.round(suggestion.score * 100)}%</span>
+                <span className="text-caption px-1 py-0.5 rounded-xs bg-primary-container text-on-primary-container shrink-0">{Math.round(suggestion.score * 100)}%</span>
                 <Tooltip content="Просмотреть предложенный документ">
                   <button onClick={() => setViewDoc(suggestion.doc)}
                     className="flex-1 min-w-0 text-left text-on-surface-variant italic hover:underline truncate">

@@ -17,7 +17,7 @@ import { THEME_OPTIONS } from '@/shared/ui/themeOptions';
 import { Tooltip } from './Tooltip';
 import { useHistoryLayer } from './historyLayers';
 
-const item = 'flex items-center gap-3.5 h-11 px-3 rounded-xl text-sm text-on-surface cursor-pointer select-none outline-none state-layer';
+const item = 'flex items-center gap-3.5 h-11 px-3 rounded-lg text-sm text-on-surface cursor-pointer select-none outline-none state-layer';
 
 /**
  * Меню профиля в шапке (issue #1430) — только то, что касается самого человека: кто он, профиль и
@@ -80,8 +80,7 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="end" sideOffset={8}
-          className="z-50 w-80 max-w-[calc(100vw-1rem)] rounded-2xl border border-outline-variant bg-surface overflow-hidden focus:outline-none"
-          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
+          className="z-50 w-80 max-w-[calc(100vw-1rem)] rounded-lg border border-outline-variant bg-surface overflow-hidden focus:outline-none shadow-elevation-2">
           <div className="flex items-center gap-3.5 px-5 pt-5 pb-3">
             <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-12 h-12 text-base" />
             <div className="min-w-0">

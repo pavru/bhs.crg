@@ -46,7 +46,7 @@ function SourceBoundDocField(
 ) {
   const tone = stale ? 'text-warning' : 'text-primary';
   return (
-    <div className="flex items-center gap-2 border border-primary/40 rounded-lg px-3 py-2 bg-primary/5">
+    <div className="flex items-center gap-2 border border-primary/40 rounded-md px-3 py-2 bg-primary/5">
       {recognized
         ? <Icon icon={DocumentScanner} size={18} className={`${tone} shrink-0`} />
         : <Icon icon={Database} size={18} className={`${tone} shrink-0`} />}
@@ -447,7 +447,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                   </span>
                 </label>
                 <Tooltip content={field.expression}>
-                  <div className="w-full rounded-md border border-dashed border-outline-variant bg-surface-container/30 px-3 py-1.5 text-sm">
+                  <div className="w-full rounded-sm border border-dashed border-outline-variant bg-surface-container/30 px-3 py-1.5 text-sm">
                     {preview.error
                       ? <span className="text-error">Ошибка формулы</span>
                       : empty && missingInputs.length > 0
@@ -717,7 +717,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
     <div className="flex flex-col min-h-0 flex-1">
       {(helpText || hasLevelProfile) && (
         <div className="shrink-0 px-6 pt-3">
-          <div className="rounded-lg border border-outline-variant bg-primary-container/30">
+          <div className="rounded-md border border-outline-variant bg-primary-container/30">
             <button type="button" onClick={() => setHelpOpen(o => !o)}
               className="w-full flex items-center gap-2 px-3 py-2 text-left">
               {helpOpen ? <Icon icon={KeyboardArrowDown} size={18} className="text-primary shrink-0" /> : <Icon icon={ChevronRight} size={18} className="text-primary shrink-0" />}
@@ -730,7 +730,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                 {hasLevelProfile && (
                   <p className="text-xs text-on-surface-variant">
                     ℹ Часть данных подтягивается из <span className="text-primary font-medium">профиля уровня</span>{' '}
-                    (стройка/раздел/комплект) — они доступны в шаблоне как <code className="font-mono bg-surface-container text-on-surface px-1 rounded">data.уровень.*</code> и заполняются на странице «Общие данные» уровня, а не здесь.
+                    (стройка/раздел/комплект) — они доступны в шаблоне как <code className="font-mono bg-surface-container text-on-surface px-1 rounded-xs">data.уровень.*</code> и заполняются на странице «Общие данные» уровня, а не здесь.
                   </p>
                 )}
               </div>
@@ -742,7 +742,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
           но неполнота не «тихая», показываем всегда; жёсткий гейт — на генерации. */}
       {missingRequired.length > 0 && (
         <div className="shrink-0 px-6 pt-3">
-          <div className="flex items-start gap-2.5 rounded-lg border border-outline-variant bg-warning-container px-3 py-2 text-xs text-on-warning-container">
+          <div className="flex items-start gap-2.5 rounded-md border border-outline-variant bg-warning-container px-3 py-2 text-xs text-on-warning-container">
             <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <span>
               Черновик — не заполнено обязательных: <b>{missingRequired.length}</b>. Их можно заполнить позже или

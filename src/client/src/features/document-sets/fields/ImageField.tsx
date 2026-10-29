@@ -127,13 +127,13 @@ export function ImageField({ value, onChange, readOnly = false }: {
   if (!img && !pending) {
     if (readOnly)
       return (
-        <div className="flex items-center justify-center border border-dashed border-outline-variant rounded-lg py-6">
+        <div className="flex items-center justify-center border border-dashed border-outline-variant rounded-md py-6">
           <span className="text-xs text-on-surface-variant">Изображения нет</span>
         </div>
       );
     return (
       <>
-        <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-outline rounded-lg py-6 cursor-pointer hover:border-primary hover:bg-primary-container transition-colors">
+        <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-outline rounded-md py-6 cursor-pointer hover:border-primary hover:bg-primary-container transition-colors">
           <Icon icon={ImageIcon} size={20} className="text-on-surface-variant" />
           <span className="text-sm text-on-surface-variant">Нажмите для выбора изображения</span>
           {/* Предел называем ДО выбора файла, а не после отказа (issue #521): по образцу аватара,
@@ -153,13 +153,13 @@ export function ImageField({ value, onChange, readOnly = false }: {
     <div className="space-y-2">
       {/* Пока байты едут — показываем ЛОКАЛЬНОЕ превью с индикатором в углу, а не пустую рамку:
           файл уже в браузере, и ждать нечего (issue #522). */}
-      <div className="relative border border-outline-variant rounded-lg overflow-hidden bg-surface-container-low flex items-center justify-center p-2 max-h-52">
+      <div className="relative border border-outline-variant rounded-md overflow-hidden bg-surface-container-low flex items-center justify-center p-2 max-h-52">
         {shownSrc
           ? <img src={shownSrc} alt="" className="max-h-48 max-w-full object-contain" />
           : <span className="py-8 text-xs text-on-surface-variant">Загрузка изображения…</span>}
         {pending && (
           <Tooltip content="Загружается в хранилище">
-            <span className="absolute top-1.5 right-1.5 rounded bg-surface/90 p-1">
+            <span className="absolute top-1.5 right-1.5 rounded-xs bg-surface/90 p-1">
               <CircularProgress size={18} className="text-primary" />
             </span>
           </Tooltip>
@@ -186,10 +186,10 @@ export function ImageField({ value, onChange, readOnly = false }: {
         <div className="flex flex-wrap items-center gap-2 pl-1">
           <input value={img.width ?? ''} onChange={e => patch({ width: e.target.value })}
             placeholder="ширина (напр. 4cm)"
-            className="w-36 border border-outline-variant rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary" />
+            className="w-36 border border-outline-variant rounded-xs px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary" />
           <input value={img.height ?? ''} onChange={e => patch({ height: e.target.value })}
             placeholder="высота"
-            className="w-24 border border-outline-variant rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary" />
+            className="w-24 border border-outline-variant rounded-xs px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary" />
           <Select size="sm" className="w-auto" aria-label="Выравнивание" value={img.align ?? ''}
             onValueChange={align => patch({ align: (align || undefined) as ImageValue['align'] })} emptyItem="выравнивание">
             <SelectItem value="left">слева</SelectItem>

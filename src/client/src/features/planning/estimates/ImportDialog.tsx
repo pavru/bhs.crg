@@ -300,7 +300,7 @@ function FilePick({ file, onFile }: { file: File | null; onFile: (file: File) =>
   return (
     <div onDragOver={onDragOver} onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false); }}
       onDrop={onDrop}
-      className={`flex flex-wrap items-center gap-3 rounded-lg border-2 border-dashed px-4 py-3 text-sm
+      className={`flex flex-wrap items-center gap-3 rounded-md border-2 border-dashed px-4 py-3 text-sm
         ${over ? 'border-primary bg-primary-container' : 'border-outline-variant'}`}>
       <Icon icon={UploadFile} size={20} className="shrink-0 text-on-surface-variant" aria-hidden />
       <div className="min-w-0 flex-1">

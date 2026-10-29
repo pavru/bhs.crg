@@ -85,7 +85,7 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
       <div className="flex items-center justify-center w-full h-full">
         <input type="checkbox" checked={!!value}
           onChange={e => onChange(e.target.checked)}
-          className="w-3.5 h-3.5 rounded border-outline text-primary" />
+          className="w-3.5 h-3.5 rounded-xs border-outline text-primary" />
       </div>
     );
   }

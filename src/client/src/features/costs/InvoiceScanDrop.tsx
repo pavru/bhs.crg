@@ -50,10 +50,10 @@ export function InvoiceScanDrop({ enabled, onFiles, children }: {
     <div className="relative flex-1 min-h-0 flex flex-col" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       {children}
       {enabled && dragging && over === null && (
-        <div className="absolute inset-1 z-10 rounded-lg border-2 border-dashed border-outline-variant pointer-events-none" />
+        <div className="absolute inset-1 z-10 rounded-md border-2 border-dashed border-outline-variant pointer-events-none" />
       )}
       {enabled && over !== null && (
-        <div className="absolute inset-1 z-10 rounded-lg border-2 border-dashed border-primary bg-primary-container/80
+        <div className="absolute inset-1 z-10 rounded-md border-2 border-dashed border-primary bg-primary-container/80
           flex items-center justify-center p-4 text-center pointer-events-none">
           <span className="text-sm font-medium text-primary">
             {over > 1
@@ -106,7 +106,7 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
         {done && <IconButton label="Закрыть" size="sm" onClick={dismissBatch}><Icon icon={Close} size={18} /></IconButton>}
       </div>
       {!done && (
-        <div className="h-1 rounded bg-surface-container overflow-hidden" aria-hidden>
+        <div className="h-1 rounded-xs bg-surface-container overflow-hidden" aria-hidden>
           <div className="h-full bg-primary transition-[width]" style={{ width: `${(batch.settled / batch.total) * 100}%` }} />
         </div>
       )}

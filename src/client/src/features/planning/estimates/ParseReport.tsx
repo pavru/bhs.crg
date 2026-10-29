@@ -80,7 +80,7 @@ const BAND: Record<Tone, string> = {
 
 function Band({ tone, icon, children }: { tone: Tone; icon: IconDef; children: React.ReactNode }) {
   return (
-    <div role={tone === 'danger' ? 'alert' : undefined} className={`flex items-start gap-2 rounded-md px-3 py-2 ${BAND[tone]}`}>
+    <div role={tone === 'danger' ? 'alert' : undefined} className={`flex items-start gap-2 rounded-sm px-3 py-2 ${BAND[tone]}`}>
       <Icon icon={icon} size={18} className="mt-0.5 shrink-0" aria-hidden />
       <p className="min-w-0">{children}</p>
     </div>
@@ -91,7 +91,7 @@ function Band({ tone, icon, children }: { tone: Tone; icon: IconDef; children: R
 function Disclosure({ tone, title, hint, children }: { tone: Tone; title: string; hint?: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className={`rounded-md ${BAND[tone]}`}>
+    <div className={`rounded-sm ${BAND[tone]}`}>
       <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
         className="flex w-full items-start gap-2 px-3 py-2 text-left">
         {open ? <Icon icon={KeyboardArrowDown} size={18} className="mt-0.5 shrink-0" aria-hidden /> : <Icon icon={ChevronRight} size={18} className="mt-0.5 shrink-0" aria-hidden />}

@@ -24,7 +24,7 @@ function LogicToggle({
   onChange: (l: 'and' | 'or') => void;
 }) {
   return (
-    <div className="flex rounded text-xs font-bold overflow-hidden shrink-0 border border-outline-variant">
+    <div className="flex rounded-xs text-xs font-bold overflow-hidden shrink-0 border border-outline-variant">
       {(['and', 'or'] as const).map(l => (
         <button
           key={l}
@@ -71,7 +71,7 @@ function FilterConditionRow({
           <button
             type="button"
             onClick={onRemove}
-            className="p-1 rounded opacity-0 group-hover/cond:opacity-100 transition-all text-on-surface-variant hover:text-error"
+            className="p-1 rounded-xs opacity-0 group-hover/cond:opacity-100 transition-all text-on-surface-variant hover:text-error"
           >
             <Icon icon={Delete} size={18} />
           </button>
@@ -139,7 +139,7 @@ function FilterGroupEditor({
         <button
           type="button"
           onClick={addCondition}
-          className="flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors text-on-surface-variant bg-surface-container hover:bg-primary-container"
+          className="flex items-center gap-1 text-xs px-2 py-1 rounded-xs transition-colors text-on-surface-variant bg-surface-container hover:bg-primary-container"
         >
           <Icon icon={Add} size={18} /> Условие
         </button>
@@ -147,7 +147,7 @@ function FilterGroupEditor({
           <button
             type="button"
             onClick={addSubGroup}
-            className="flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors text-on-surface-variant bg-surface-container hover:bg-primary-container"
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded-xs transition-colors text-on-surface-variant bg-surface-container hover:bg-primary-container"
           >
             <Icon icon={AccountTree} size={18} /> Группа
           </button>
@@ -157,7 +157,7 @@ function FilterGroupEditor({
             <button
               type="button"
               onClick={onRemove}
-              className="flex items-center gap-1 text-xs px-2 py-1 rounded ml-auto transition-colors text-on-surface-variant hover:text-error"
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded-xs ml-auto transition-colors text-on-surface-variant hover:text-error"
             >
               <Icon icon={Delete} size={18} /> Удалить группу
             </button>
@@ -211,7 +211,7 @@ function FilterGroupEditor({
 
   // Sub-group: visually wrapped (left accent colour is depth-based)
   return (
-    <div className={`rounded-r-lg p-2.5 bg-surface-container-low border-l-3 ${accent}`}>
+    <div className={`rounded-r-md p-2.5 bg-surface-container-low border-l-3 ${accent}`}>
       {content}
     </div>
   );
@@ -287,7 +287,7 @@ export function RowFilterDialog({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 rounded-md text-sm font-medium text-on-primary bg-primary disabled-container"
+            className="px-4 py-2 rounded-sm text-sm font-medium text-on-primary bg-primary disabled-container"
           >
             {saving ? words.saving : words.save}
           </button>
@@ -296,7 +296,7 @@ export function RowFilterDialog({
             <button
               onClick={handleReset}
               disabled={saving}
-              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-error bg-surface-container disabled-container"
+              className="ml-auto px-4 py-2 rounded-sm text-sm font-medium text-error bg-surface-container disabled-container"
             >
               {words.reset}
             </button>
@@ -313,7 +313,7 @@ export function RowFilterDialog({
 
       <p className="text-xs mb-4 text-on-surface-variant">{words.note}</p>
 
-      <div className="rounded-lg p-3 border border-outline-variant bg-surface" style={{ minHeight: '60px' }}>
+      <div className="rounded-md p-3 border border-outline-variant bg-surface" style={{ minHeight: '60px' }}>
         <FilterGroupEditor
           group={root}
           path=""

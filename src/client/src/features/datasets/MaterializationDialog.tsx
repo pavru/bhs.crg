@@ -302,7 +302,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
           }} />
 
         {selectedType && (
-          <div className="rounded-lg border border-outline-variant p-3 space-y-3">
+          <div className="rounded-md border border-outline-variant p-3 space-y-3">
             {/* Тип-документ можно не собирать, а назвать: строка ссылается на уже существующий
                 документ комплекта (issue #725). Составным типам выбирать не из чего. */}
             {isDocumentType && (

@@ -22,7 +22,7 @@ function ColumnRow({
   onExprFocus: (el: HTMLInputElement, index: number) => void;
 }) {
   return (
-    <div className="rounded-lg p-3 space-y-2 border border-outline-variant bg-surface-container-low">
+    <div className="rounded-md p-3 space-y-2 border border-outline-variant bg-surface-container-low">
       <div className="flex items-center gap-2">
         <div className="flex-1 space-y-1">
           <label className="block text-caption font-medium uppercase tracking-wide text-on-surface-variant">
@@ -32,12 +32,12 @@ function ColumnRow({
             value={col.alias}
             onChange={e => onChange({ ...col, alias: e.target.value })}
             placeholder="Напр.: ФИО"
-            className="w-full border border-outline-variant rounded px-2 py-1.5 text-xs font-mono bg-surface text-on-surface"
+            className="w-full border border-outline-variant rounded-xs px-2 py-1.5 text-xs font-mono bg-surface text-on-surface"
           />
         </div>
         <button
           onClick={onRemove}
-          className="p-1.5 rounded mt-4 text-on-surface-variant hover:text-error transition-colors"
+          className="p-1.5 rounded-xs mt-4 text-on-surface-variant hover:text-error transition-colors"
         >
           <Icon icon={Delete} size={18} />
         </button>
@@ -51,7 +51,7 @@ function ColumnRow({
           onChange={e => onChange({ ...col, expr: e.target.value })}
           onFocus={e => onExprFocus(e.currentTarget, index)}
           placeholder="Напр.: Фамилия + ' ' + Имя"
-          className="w-full border border-outline-variant rounded px-2 py-1.5 text-xs font-mono bg-surface text-on-surface"
+          className="w-full border border-outline-variant rounded-xs px-2 py-1.5 text-xs font-mono bg-surface text-on-surface"
         />
       </div>
     </div>
@@ -130,7 +130,7 @@ export function ComputedColumnsDialog({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 rounded-md text-sm font-medium text-on-primary bg-primary disabled-container"
+            className="px-4 py-2 rounded-sm text-sm font-medium text-on-primary bg-primary disabled-container"
           >
             {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
@@ -139,7 +139,7 @@ export function ComputedColumnsDialog({
             <button
               onClick={() => void commit(() => onSave(null))}
               disabled={saving}
-              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-error bg-surface-container disabled-container"
+              className="ml-auto px-4 py-2 rounded-sm text-sm font-medium text-error bg-surface-container disabled-container"
             >
               Сбросить
             </button>
@@ -147,15 +147,15 @@ export function ComputedColumnsDialog({
         </div>
       }
     >
-      <div className="rounded-lg p-3 mb-4 text-xs space-y-1 bg-surface-container-low border border-outline-variant">
+      <div className="rounded-md p-3 mb-4 text-xs space-y-1 bg-surface-container-low border border-outline-variant">
         <p className="font-semibold text-on-surface-variant">Синтаксис JavaScript</p>
         <p className="text-on-surface-variant">
           К колонке можно обратиться тремя способами:{' '}
-          <code className="font-mono px-1 rounded bg-surface-container">Фамилия</code> — по имени, если оно годится
-          в имя переменной (пробелы и знаки заменяются на <code className="font-mono px-1 rounded bg-surface-container">_</code>);{' '}
-          <code className="font-mono px-1 rounded bg-surface-container">get("Кол-во")</code> — по точному заголовку,
+          <code className="font-mono px-1 rounded-xs bg-surface-container">Фамилия</code> — по имени, если оно годится
+          в имя переменной (пробелы и знаки заменяются на <code className="font-mono px-1 rounded-xs bg-surface-container">_</code>);{' '}
+          <code className="font-mono px-1 rounded-xs bg-surface-container">get("Кол-во")</code> — по точному заголовку,
           подходит всегда;{' '}
-          <code className="font-mono px-1 rounded bg-surface-container">cols[1]</code> — по номеру колонки,{' '}
+          <code className="font-mono px-1 rounded-xs bg-surface-container">cols[1]</code> — по номеру колонки,{' '}
           <b>счёт с единицы</b>.
         </p>
         <p className="text-on-surface-variant">
@@ -172,7 +172,7 @@ export function ComputedColumnsDialog({
       </div>
 
       {sourceColumns.length > 0 && (
-        <div className="rounded-lg p-3 mb-4 text-xs bg-surface-container-low border border-outline-variant">
+        <div className="rounded-md p-3 mb-4 text-xs bg-surface-container-low border border-outline-variant">
           <p className="mb-2 text-on-surface-variant">
             Колонки источника — нажмите, чтобы вставить в выражение
             {columns.length === 0 && <span className="text-on-surface-variant"> (сначала добавьте колонку)</span>}
@@ -187,7 +187,7 @@ export function ComputedColumnsDialog({
                   onMouseDown={e => e.preventDefault()}
                   onClick={() => insert(columnAccessor(name))}
                   disabled={columns.length === 0}
-                  className="flex items-center gap-1 px-2 py-1 rounded border border-outline-variant bg-surface
+                  className="flex items-center gap-1 px-2 py-1 rounded-xs border border-outline-variant bg-surface
                              hover:border-primary hover:text-primary disabled-outlined
                              text-on-surface-variant"
                 >
@@ -220,7 +220,7 @@ export function ComputedColumnsDialog({
 
       <button
         onClick={addColumn}
-        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md text-on-primary-container bg-primary-container"
+        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-sm text-on-primary-container bg-primary-container"
       >
         <Icon icon={Add} size={18} /> Добавить колонку
       </button>

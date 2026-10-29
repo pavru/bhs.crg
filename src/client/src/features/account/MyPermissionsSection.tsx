@@ -43,10 +43,10 @@ export function MyPermissionsSection() {
       {groups.map(group => {
         const expanded = open === group.module;
         return (
-          <div key={group.module} className="rounded-md border border-outline-variant">
+          <div key={group.module} className="rounded-sm border border-outline-variant">
             <button type="button" onClick={() => setOpen(expanded ? null : group.module)}
               aria-expanded={expanded}
-              className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-on-surface rounded-md
+              className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-on-surface rounded-sm
                          state-layer focus-visible:outline-none
                          focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
               <Icon icon={ChevronRight} size={18}

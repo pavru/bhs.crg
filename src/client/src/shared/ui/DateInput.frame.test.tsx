@@ -17,7 +17,7 @@ const classes = () => group().className.split(/\s+/);
 describe('DateInput: обвязка size', () => {
   it('md — h-9 с рамкой и крестиком у заполненного; sm — h-7, без крестика', () => {
     render(<DateInput label="Дата" value="2026-11-03" onChange={() => {}} size="md" />);
-    expect(classes()).toEqual(expect.arrayContaining(['h-9', 'border', 'border-outline', 'rounded-md']));
+    expect(classes()).toEqual(expect.arrayContaining(['h-9', 'border', 'border-outline', 'rounded-sm']));
     expect(screen.queryByRole('button', { name: 'Очистить дату' })).toBeTruthy();
     cleanup();
     render(<DateInput label="Дата" value="2026-11-03" onChange={() => {}} size="sm" />);

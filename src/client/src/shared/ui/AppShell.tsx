@@ -214,7 +214,7 @@ function SearchButton({ onOpen }: { onOpen: () => void }) {
         className="@container flex-1 min-w-10 max-md:min-w-11 max-w-160 flex items-center gap-2.5 h-10 max-md:h-11 px-2.5 mx-1 md:mx-3 overflow-hidden rounded-full bg-surface-container-low text-sm text-on-surface-variant state-layer focus-ring">
         <Icon icon={Search} size={18} className="shrink-0" />
         <span className="flex-1 min-w-0 truncate text-left @max-[8rem]:sr-only">Найти счёт, стройку или действие</span>
-        <kbd className="hidden @[14rem]:inline shrink-0 rounded border border-outline-variant px-1.5 text-caption text-on-surface-variant">{mac ? '⌘ K' : 'Ctrl K'}</kbd>
+        <kbd className="hidden @[14rem]:inline shrink-0 rounded-xs border border-outline-variant px-1.5 text-caption text-on-surface-variant">{mac ? '⌘ K' : 'Ctrl K'}</kbd>
       </button>
     </div>
   );
@@ -246,7 +246,7 @@ function EmailConfirmBanner() {
         <Link to="/profile" onClick={guardedClick('/profile')} className="font-medium underline hover:no-underline">Профиль</Link>
       </span>
       <button type="button" onClick={() => setDismissed(true)} aria-label="Скрыть"
-        className="shrink-0 p-1 rounded hover:bg-warning/10">
+        className="shrink-0 p-1 rounded-xs hover:bg-warning/10">
         <Icon icon={Close} size={18} />
       </button>
     </div>

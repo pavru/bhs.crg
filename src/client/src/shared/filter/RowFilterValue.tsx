@@ -190,7 +190,7 @@ function ValueList({ column, values, marked, describedBy, inputRef, onChange }: 
           type="button"
           onClick={() => add()}
           disabled={!draft.trim()}
-          className="text-xs px-2 py-1 rounded text-on-surface-variant bg-surface-container state-layer focus-ring disabled-container"
+          className="text-xs px-2 py-1 rounded-xs text-on-surface-variant bg-surface-container state-layer focus-ring disabled-container"
         >
           Добавить
         </button>

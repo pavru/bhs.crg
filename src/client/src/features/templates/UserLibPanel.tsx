@@ -286,10 +286,10 @@ export function UserLibPanel() {
           <p className="text-xs text-on-surface-variant truncate">
             {active === ENTRYPOINT ? (
               <>Доступен в каждом шаблоне через{' '}
-                <code className="font-mono bg-surface-container px-1.5 py-0.5 rounded text-on-surface-variant">#import "userlib.typ": *</code>
+                <code className="font-mono bg-surface-container px-1.5 py-0.5 rounded-xs text-on-surface-variant">#import "userlib.typ": *</code>
               </>
             ) : (
-              <>Файл библиотеки — <code className="font-mono bg-surface-container px-1.5 py-0.5 rounded text-on-surface-variant">userlib/{active}</code></>
+              <>Файл библиотеки — <code className="font-mono bg-surface-container px-1.5 py-0.5 rounded-xs text-on-surface-variant">userlib/{active}</code></>
             )}
           </p>
           <div className="flex items-center gap-2 shrink-0">

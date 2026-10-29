@@ -197,7 +197,7 @@ function LogoRow({ data, uploading, removing, onUpload, onRemove }: {
   const busy = uploading || removing;
   return (
     <div className="flex flex-wrap items-center gap-4" data-testid="branding-logo-row">
-      <div className="flex items-center justify-center w-16 h-16 rounded-lg border border-outline-variant bg-surface overflow-hidden">
+      <div className="flex items-center justify-center w-16 h-16 rounded-md border border-outline-variant bg-surface overflow-hidden">
         {!logo && <span className="text-caption text-on-surface-variant">нет</span>}
         {logo && unread && (
           <span className="text-caption leading-tight text-center text-warning" data-testid="branding-logo-unread">
@@ -251,7 +251,7 @@ function IconPreviews({ icons }: { icons: BrandIcons }) {
         {/* 16 точек, а не 32, как в файле: крупнее значок на вкладке не бывает нигде, и для широкого
             логотипа это разница между «видно» и «полоска». Половины закреплены и с темой приложения
             не переключаются: вкладка браузера ей не следует. */}
-        <div className="flex rounded-md border border-outline-variant overflow-hidden">
+        <div className="flex rounded-sm border border-outline-variant overflow-hidden">
           <span className="flex items-center justify-center w-7 h-7 bg-tab-light">
             <img src={tab} alt="Значок вкладки на светлом фоне" width={16} height={16} onError={fail} />
           </span>
@@ -283,7 +283,7 @@ function IconsNote({ icons, named }: { icons: BrandIcons; named: boolean }) {
     // Заметность даёт заливка и то, что плашка стоит на месте ожидаемого результата — превью.
     return (
       <p role="status" data-testid="brand-icons-failed"
-        className="mt-3 flex items-start gap-1.5 rounded px-2 py-1.5 text-xs bg-warning-container text-on-warning-container border border-outline-variant max-w-xl">
+        className="mt-3 flex items-start gap-1.5 rounded-xs px-2 py-1.5 text-xs bg-warning-container text-on-warning-container border border-outline-variant max-w-xl">
         <Icon icon={Warning} size={18} className="shrink-0 mt-px" />
         <span>{failure}</span>
       </p>

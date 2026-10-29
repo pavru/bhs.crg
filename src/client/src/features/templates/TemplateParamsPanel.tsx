@@ -69,7 +69,7 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
           </p>
           {rows.map(({ id, p }, i) => (
             <div key={id}
-              className={`flex items-center gap-1.5 rounded ${dragIdx === i ? 'ring-1 ring-primary' : ''}`}
+              className={`flex items-center gap-1.5 rounded-xs ${dragIdx === i ? 'ring-1 ring-primary' : ''}`}
               onDragOver={dragIdx !== null ? e => e.preventDefault() : undefined}
               onDrop={dragIdx !== null ? e => { e.preventDefault(); move(dragIdx, i); setDragIdx(null); } : undefined}>
               {/* Перетаскивание и стрелки вместе — как в списке вариантов перечисления: мышью
@@ -90,9 +90,9 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
                 </span>
               </Tooltip>
               <input value={p.name} onChange={e => patch(i, { name: e.target.value })} placeholder="имя"
-                className="w-24 text-xs border border-outline rounded px-1.5 py-1 bg-surface text-on-surface" />
+                className="w-24 text-xs border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
               <input value={p.label} onChange={e => patch(i, { label: e.target.value })} placeholder="подпись"
-                className="flex-1 min-w-0 text-xs border border-outline rounded px-1.5 py-1 bg-surface text-on-surface" />
+                className="flex-1 min-w-0 text-xs border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
               <Select size="sm" className="w-auto" aria-label={`Тип параметра ${p.name || i + 1}`} value={p.type}
                 onValueChange={type => patch(i, { type: type as TemplateParam['type'], default: type === 'boolean' ? false : type === 'number' ? 0 : '' })}>
                 <SelectItem value="string">текст</SelectItem>
@@ -133,6 +133,6 @@ function ParamDefault({ type, value, onChange }: {
   return (
     <input type={type === 'number' ? 'number' : 'text'} value={value == null ? '' : String(value)}
       onChange={e => onChange(type === 'number' ? Number(e.target.value) : e.target.value)} placeholder="по умолч."
-      className="w-20 shrink-0 text-xs border border-outline rounded px-1.5 py-1 bg-surface text-on-surface" />
+      className="w-20 shrink-0 text-xs border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
   );
 }

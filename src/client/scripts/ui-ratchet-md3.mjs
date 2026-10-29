@@ -41,3 +41,19 @@ export const countRawStates = text => classTokens(text).filter(isRawState).lengt
 
 /** Классы с вариантом `dark:` в строках кода — см. правило `dark-variant`. */
 export const countDarkVariants = text => classTokens(text).filter(t => t.variants.includes('dark')).length;
+
+// Форма и возвышение ([UI-66], sharedui-md3-06): ступень шкалы — none, xs…xl, full; без ступени
+// (`rounded`, `rounded-t`) — прежние 4 px, вне шкалы. Сторона или угол — не ступень: `rounded-sm` —
+// ступень small, а не сторона s (сторона без ступени — `rounded-s`).
+const RADIUS = /^rounded(?:-(?:t|r|b|l|s|e|tl|tr|br|bl|ss|se|es|ee))?(?:-(.+))?$/;
+const RADIUS_STEPS = new Set(['none', 'xs', 'sm', 'md', 'lg', 'xl', 'full']);
+const isLegacyRadius = ({ cls }) => { const m = RADIUS.exec(cls); return !!m && !RADIUS_STEPS.has(m[1] ?? ''); };
+const LEGACY_SHADOW = /^shadow(?:-(?:2xs|xs|sm|md|lg|xl|2xl|inner|\[.+\]|\(.+\)))?$/;
+const count = (text, re) => stripComments(text).match(re)?.length ?? 0;
+
+/** Радиус вне шкалы формы классом в строках кода и `borderRadius` в коде — см. правило `legacy-radius`. */
+export const countLegacyRadii = text => classTokens(text).filter(isLegacyRadius).length + count(text, /\bborderRadius\b/g);
+
+/** Тень вне уровней возвышения классом в строках кода и `boxShadow` в коде — см. правило `legacy-shadow`. */
+export const countLegacyShadows = text =>
+  classTokens(text).filter(({ cls }) => LEGACY_SHADOW.test(cls)).length + count(text, /\bboxShadow\b/g);

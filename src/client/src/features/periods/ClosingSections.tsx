@@ -127,5 +127,5 @@ function Figure({ line }: { line: ClosingLine }) {
 
 function Was({ text }: { text: string | null }) {
   if (!text) return null;
-  return <span className="ml-1.5 rounded bg-warning/15 px-1 text-xs text-on-surface-variant">{text}</span>;
+  return <span className="ml-1.5 rounded-xs bg-warning/15 px-1 text-xs text-on-surface-variant">{text}</span>;
 }

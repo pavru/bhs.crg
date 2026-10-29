@@ -81,9 +81,9 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Очистка старых версий"
       footer={
         <div className="flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-on-surface-variant state-layer rounded-md">Отмена</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm text-on-surface-variant state-layer rounded-sm">Отмена</button>
           <button onClick={handleDelete} disabled={deleting || toDelete.length === 0}
-            className="px-4 py-2 text-sm bg-error hover:bg-error text-on-error rounded-md disabled-container transition-colors">
+            className="px-4 py-2 text-sm bg-error hover:bg-error text-on-error rounded-sm disabled-container transition-colors">
             {deleting ? 'Удаление...' : `Удалить ${toDelete.length} вер.`}
           </button>
         </div>
@@ -94,7 +94,7 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
           Отметьте версии для удаления. Рабочая, по умолчанию и запиннутые документами версии защищены —
           запиннутые удаляются по одной, с предупреждением.
         </p>
-        <div className="border border-outline-variant rounded-lg overflow-hidden">
+        <div className="border border-outline-variant rounded-md overflow-hidden">
           {group.versions.map((t, i) => {
             const protected_ = protectedIds.has(t.id);
             const checked = toDeleteIds.has(t.id);
@@ -108,12 +108,12 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
                   checked={checked}
                   disabled={protected_}
                   onChange={() => toggleVersion(t.id)}
-                  className="w-4 h-4 rounded border-outline text-error disabled-content"
+                  className="w-4 h-4 rounded-xs border-outline text-error disabled-content"
                 />
                 <span className="font-mono text-on-surface-variant shrink-0">v{t.version}</span>
                 <span className="flex items-center gap-1.5 flex-1 min-w-0">
-                  {t.isActive && <span className="text-xs text-on-success-container bg-success-container px-1.5 py-0.5 rounded shrink-0">активный</span>}
-                  {t.isDefault && <span className="text-xs text-on-warning-container bg-warning-container px-1.5 py-0.5 rounded shrink-0">по умолч.</span>}
+                  {t.isActive && <span className="text-xs text-on-success-container bg-success-container px-1.5 py-0.5 rounded-xs shrink-0">активный</span>}
+                  {t.isDefault && <span className="text-xs text-on-warning-container bg-warning-container px-1.5 py-0.5 rounded-xs shrink-0">по умолч.</span>}
                   {i === 0 && !t.isActive && <span className="text-xs text-on-surface-variant shrink-0">последняя</span>}
                   {t.comment && <span className="text-xs text-on-surface-variant truncate" title={t.comment}>{t.comment}</span>}
                 </span>
@@ -317,7 +317,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                     );
                   })}
                   {tooMany && (
-                    <div className="mx-3 mb-2 mt-1 px-2 py-1.5 bg-warning-container border border-outline-variant rounded-md flex items-center gap-2">
+                    <div className="mx-3 mb-2 mt-1 px-2 py-1.5 bg-warning-container border border-outline-variant rounded-sm flex items-center gap-2">
                       <Icon icon={Warning} size={18} className="text-warning shrink-0" />
                       <span className="text-xs text-warning flex-1">Много версий</span>
                       <button

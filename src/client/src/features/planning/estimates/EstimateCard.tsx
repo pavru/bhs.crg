@@ -108,8 +108,7 @@ function RevisionTabs({ estimate, selected, onSelect }: {
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content align="start" sideOffset={4}
-              className="z-50 min-w-44 rounded-md border border-outline-variant bg-surface py-1"
-              style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
+              className="z-50 min-w-44 rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
               {more.map(r => (
                 <DropdownMenu.Item key={r.id} onSelect={() => onSelect(r.id)}
                   className="flex items-center gap-2 px-3 py-1.5 text-sm text-on-surface-variant cursor-pointer select-none outline-none state-layer">
@@ -136,7 +135,7 @@ function RevisionBand({ estimate, revision }: { estimate: Estimate; revision: Es
   const current = estimate.revisions.find(r => r.current) ?? null;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-surface-container px-3 py-2 text-sm text-on-surface-variant">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-sm bg-surface-container px-3 py-2 text-sm text-on-surface-variant">
       <span>
         {formatDate(revision.importedAt)}
         {revision.importedBy && ` · ${revision.importedBy}`}

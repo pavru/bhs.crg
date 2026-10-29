@@ -224,12 +224,11 @@ function ModalBody({
           data-modal-state={rule.escape === 'close' ? 'free' : state}
           className={fullScreen
             ? 'fixed inset-0 z-50 flex flex-col overflow-hidden focus:outline-none bg-surface-container-low'
-            : `fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-[28px] max-h-[90vh] flex flex-col overflow-hidden focus:outline-none bg-surface border border-outline-variant ${
+            : `fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-xl max-h-[90vh] flex flex-col overflow-hidden focus:outline-none bg-surface border border-outline-variant shadow-elevation-3 ${
               // У широкого — зазор по краям: между телефоном и 896 px (планшет, 768) иначе окно
               // ложилось бы в край экрана, скруглёнными углами вплотную (ревью PR #1386).
               wide ? 'w-[calc(100%-2rem)] max-w-4xl' : 'w-full max-w-lg'
             } ${NARROW_FULL}`}
-          style={fullScreen ? undefined : { boxShadow: 'var(--md-sys-elevation-level3)' }}
           // «Тронуто»: первый же ввод внутри содержимого.
           // ⚠️ НЕ `onInputCapture`. React исполняет перехват `input` отдельным заходом, ДО того как
           // дойдёт до `onChange` поля, и сразу перерисовывает: управляемое поле получает прежнее
@@ -326,8 +325,8 @@ function ModalBody({
           )}
 
           {asking && (
-            <div className={`absolute inset-0 z-10 flex items-center justify-center bg-scrim/32 ${fullScreen ? '' : 'rounded-[28px]'}`}>
-              <div className="rounded-3xl p-5 w-80 bg-surface border border-outline-variant" style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
+            <div className={`absolute inset-0 z-10 flex items-center justify-center bg-scrim/32 ${fullScreen ? '' : 'rounded-xl'}`}>
+              <div className="rounded-xl p-5 w-80 bg-surface border border-outline-variant shadow-elevation-3">
                 <p className="text-sm font-semibold mb-1 text-on-surface">
                   Закрыть без сохранения?
                 </p>

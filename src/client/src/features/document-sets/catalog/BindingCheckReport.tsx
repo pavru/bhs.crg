@@ -22,7 +22,7 @@ export function BindingCheckReport({ items }: { items: BindingCheckItem[] }) {
   if (items.length === 0)
     return <p className="text-xs text-on-surface-variant px-1">Ссылочных связок нет — проверять нечего.</p>;
   return (
-    <div className="rounded-lg border border-outline-variant divide-y divide-surface-container">
+    <div className="rounded-md border border-outline-variant divide-y divide-surface-container">
       {items.map(it => {
         const s = CHECK_STATUS[it.status] ?? { label: it.status, cls: 'bg-surface-container text-on-surface-variant border-outline-variant' };
         return (

@@ -42,7 +42,7 @@ export function SendMessageDialog({ open, onClose, candidates, title = 'Отпр
   }
 
   const canSend = selected.size > 0 && subject.trim() && body.trim() && !sendEmail.isPending;
-  const field = "w-full border border-outline rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface";
+  const field = "w-full border border-outline rounded-sm px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface";
 
   return (
     <Modal open={open} onOpenChange={o => { if (!o) { onClose(); setResult(null); } }} title={title}
@@ -61,7 +61,7 @@ export function SendMessageDialog({ open, onClose, candidates, title = 'Отпр
           {candidates.length === 0 ? (
             <p className="text-xs text-on-surface-variant">Нет кандидатов.</p>
           ) : (
-            <div className="rounded-md border border-outline-variant divide-y divide-surface-container max-h-48 overflow-y-auto">
+            <div className="rounded-sm border border-outline-variant divide-y divide-surface-container max-h-48 overflow-y-auto">
               {candidates.map(c => {
                 const ok = validEmail(c.email);
                 return (

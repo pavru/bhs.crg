@@ -66,14 +66,14 @@ describe('md3:migrate: что переводит', () => {
 
   it('переменные: --f-* по карте, var(--color-<старое>) — по именам', () => {
     expect(migrated('shadow-[var(--f-shadow16)] bg-[var(--color-brand)] [--x:var(--f-brand-text)]'))
-      .toBe('shadow-[var(--md-sys-elevation-level2)] bg-[var(--color-primary)] [--x:var(--md-sys-color-on-primary)]');
+      .toBe('shadow-elevation-2 bg-[var(--color-primary)] [--x:var(--md-sys-color-on-primary)]');
     expect(migrated('.a { color: var(--color-fg2); box-shadow: var(--f-shadow28); }'))
       .toBe('.a { color: var(--color-on-surface-variant); box-shadow: var(--md-sys-elevation-level3); }');
   });
 
   it('ветка со старыми классами в новом файле', () => {
     expect(migrated('<div className="text-fg2 bg-base shadow-[var(--f-shadow16)]" />'))
-      .toBe('<div className="text-on-surface-variant bg-surface-container-low shadow-[var(--md-sys-elevation-level2)]" />');
+      .toBe('<div className="text-on-surface-variant bg-surface-container-low shadow-elevation-2" />');
   });
 
   it('не классы и роли MD3 не трогает', () => {

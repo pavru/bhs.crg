@@ -137,7 +137,7 @@ function TypstBlockDialog({ render, typeCode, onSave, onClose }: {
               value={draft.name}
               onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
               placeholder="Название варианта"
-              className="w-full border border-outline rounded-md px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
+              className="w-full border border-outline rounded-sm px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
             />
           </div>
           <div>
@@ -147,7 +147,7 @@ function TypstBlockDialog({ render, typeCode, onSave, onClose }: {
               onChange={e => setDraft(d => ({ ...d, fnName: e.target.value }))}
               placeholder="typst_fn_name"
               spellCheck={false}
-              className="w-full border border-outline rounded-md px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
+              className="w-full border border-outline rounded-sm px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
             />
           </div>
         </div>
@@ -155,7 +155,7 @@ function TypstBlockDialog({ render, typeCode, onSave, onClose }: {
         <label className="block text-xs font-medium text-on-surface-variant shrink-0">
           Тело функции — выражение Typst (<code className="font-mono">it</code> — данные объекта):
         </label>
-        <div className="flex-1 min-h-0 border border-outline rounded-md overflow-hidden">
+        <div className="flex-1 min-h-0 border border-outline rounded-sm overflow-hidden">
           <Editor
             height="100%"
             defaultLanguage="typst"
@@ -240,21 +240,21 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
       {renders.map((r, i) => {
         const lines = r.block ? r.block.split('\n').length : 0;
         return (
-          <div key={i} className="border border-outline-variant rounded-lg p-3 space-y-2 bg-surface-container-low">
+          <div key={i} className="border border-outline-variant rounded-md p-3 space-y-2 bg-surface-container-low">
             <div className="flex items-center gap-2">
               <div className="flex-1 grid grid-cols-2 gap-2">
                 <input
                   value={r.name}
                   onChange={e => update(i, { name: e.target.value })}
                   placeholder="Название варианта"
-                  className="border border-outline rounded-md px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
+                  className="border border-outline rounded-sm px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
                 />
                 <input
                   value={r.fnName}
                   onChange={e => update(i, { fnName: e.target.value })}
                   placeholder="typst_fn_name"
                   spellCheck={false}
-                  className="border border-outline rounded-md px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
+                  className="border border-outline rounded-sm px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
                 />
               </div>
               <button type="button" onClick={() => remove(i)}
@@ -264,7 +264,7 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
             </div>
             {/* Код правится только в полноэкранном редакторе (не inline, issue #197 Фаза C) */}
             <button type="button" onClick={() => setEditingIndex(i)}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-md border border-outline-variant bg-surface state-layer text-left">
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-sm border border-outline-variant bg-surface state-layer text-left">
               <Icon icon={Code} size={18} className="text-on-surface-variant shrink-0" />
               <span className="text-sm text-on-surface-variant flex-1">Редактировать Typst-код</span>
               {problemsByFn?.[r.fnName.trim()] === 'error' && (

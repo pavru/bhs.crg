@@ -59,7 +59,7 @@ export function InheritedFieldsPanel({
         const isExcluded = excludedSet.has(field.key);
         const override = fieldOverrides[field.key];
         return (
-          <div key={field.key} className={`${cols} rounded-md px-2 py-2 state-layer ${isExcluded ? 'opacity-55' : ''}`}>
+          <div key={field.key} className={`${cols} rounded-sm px-2 py-2 state-layer ${isExcluded ? 'opacity-55' : ''}`}>
             <span className="flex items-center gap-1.5 min-w-0">
               {isExcluded && <Icon icon={VisibilityOff} size={18} className="text-on-surface-variant shrink-0" />}
               <span className={`text-sm font-mono truncate ${isExcluded ? 'line-through text-on-surface-variant' : 'text-on-surface-variant'}`}>{field.key}</span>
@@ -107,8 +107,7 @@ function RequiredChip({ field, override, onOverride, onReset }: {
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="start" sideOffset={4}
-          className="z-50 min-w-[210px] rounded-xl border border-outline-variant bg-surface p-1 text-sm text-on-surface"
-          style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
+          className="z-50 min-w-[210px] rounded-lg border border-outline-variant bg-surface p-1 text-sm text-on-surface shadow-elevation-2">
           <ReqItem onSelect={onReset} active={!overridden}>Как у родителя ({parentLabel})</ReqItem>
           <ReqItem onSelect={() => onOverride(true)} active={overridden && effective}>Обязательное</ReqItem>
           <ReqItem onSelect={() => onOverride(false)} active={overridden && !effective}>Опциональное</ReqItem>
@@ -127,7 +126,7 @@ function RequiredChip({ field, override, onOverride, onReset }: {
 function ReqItem({ children, onSelect, active }: { children: React.ReactNode; onSelect: () => void; active?: boolean }) {
   return (
     <DropdownMenu.Item onSelect={onSelect}
-      className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-pointer outline-none state-layer">
+      className="flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer outline-none state-layer">
       <Icon icon={Check} size={18} className={active ? 'text-primary' : 'invisible'} />
       <span className="flex-1">{children}</span>
     </DropdownMenu.Item>

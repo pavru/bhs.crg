@@ -277,7 +277,7 @@ export function InvoiceForm({
         {!gone && <InvoicePayment view={view} dirty={dirty} />}
 
         {organizationsError != null && (
-          <div className="flex items-start gap-2 rounded-lg border border-error/30 bg-error-container
+          <div className="flex items-start gap-2 rounded-md border border-error/30 bg-error-container
             px-3 py-2 text-xs text-on-error-container">
             <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <span>
@@ -422,7 +422,7 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
 
   // Рамкой предупреждения, а не ошибки: распознанное значение не ошибка, его просто никто пока не
   // подтвердил. Красная рамка звала бы чинить то, что, скорее всего, верно.
-  const frame = marked ? 'rounded-md ring-1 ring-warning' : '';
+  const frame = marked ? 'rounded-sm ring-1 ring-warning' : '';
 
   if (extra) return <ExtraField field={extra} value={current} set={set} locked={locked} hint={hint} frame={frame} />;
 

@@ -91,7 +91,7 @@ function PageThumbnail({ fileId, pageIndex }: { fileId: string; pageIndex: numbe
   }, [fileId, pageIndex]);
 
   return (
-    <div className="w-full aspect-[210/297] rounded bg-surface-container-low border border-outline-variant flex items-center justify-center overflow-hidden">
+    <div className="w-full aspect-[210/297] rounded-xs bg-surface-container-low border border-outline-variant flex items-center justify-center overflow-hidden">
       {url ? (
         <img src={url} alt={`Страница ${pageIndex + 1}`} className="w-full h-full object-contain" />
       ) : failed ? (
@@ -123,14 +123,14 @@ function PageTile({
         : `Страница ${pageIndex + 1}`}>
       <div
         onClick={e => onToggle(pageIndex, e)}
-        className={`group/tile relative rounded-md p-1 border-2 transition-colors text-left cursor-pointer ${
+        className={`group/tile relative rounded-sm p-1 border-2 transition-colors text-left cursor-pointer ${
           selected ? 'border-primary bg-primary-container' : 'border-transparent hover:border-outline-variant'
         }`}>
         <PageThumbnail fileId={fileId} pageIndex={pageIndex} />
         <Tooltip content="Просмотреть лист крупно" name>
         <button
             onClick={e => { e.stopPropagation(); onView(pageIndex); }}
-            className="absolute top-1.5 right-1.5 p-1 rounded bg-surface/90 border border-outline-variant text-on-surface-variant opacity-70 hover:text-primary hover:opacity-100 transition-opacity">
+            className="absolute top-1.5 right-1.5 p-1 rounded-xs bg-surface/90 border border-outline-variant text-on-surface-variant opacity-70 hover:text-primary hover:opacity-100 transition-opacity">
             <Icon icon={ZoomIn} size={18} />
           </button>
       </Tooltip>
@@ -177,7 +177,7 @@ function PageViewer({ fileId, pageIndex, onClose }: { fileId: string; pageIndex:
           {/* Центрируем img через mx-auto (НЕ flex justify-center): при зуме, когда картинка шире/выше
               контейнера, auto-поля схлопываются в 0 → доступен скролл ко ВСЕМ краям (иначе левый/верхний
               край центрированного флекс-элемента недостижим и лист «обрезается»). */}
-          <div className="overflow-auto max-h-[78vh] rounded border border-outline-variant bg-surface-container-low">
+          <div className="overflow-auto max-h-[78vh] rounded-xs border border-outline-variant bg-surface-container-low">
             <img src={url} alt={`Лист ${pageIndex + 1}`}
               onClick={() => setZoomed(z => !z)}
               className={`block mx-auto ${zoomed ? 'max-w-none cursor-zoom-out' : 'max-w-full max-h-[78vh] object-contain cursor-zoom-in'}`} />
@@ -204,16 +204,16 @@ function SelectionActionBar({
     <div className="flex items-center gap-2 mt-2 pt-2 border-t border-outline-variant">
       <span className="text-xs text-on-surface-variant">Выделено страниц: {count}</span>
       <button onClick={onSplitSelected}
-        className="px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant state-layer">
+        className="px-2 py-1 text-xs rounded-sm border border-outline-variant text-on-surface-variant state-layer">
         Отделить в новый документ
       </button>
       <div className="relative">
         <button onClick={() => setMenuOpen(o => !o)}
-          className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant state-layer">
+          className="flex items-center gap-1 px-2 py-1 text-xs rounded-sm border border-outline-variant text-on-surface-variant state-layer">
           Перенести в группу <Icon icon={KeyboardArrowDown} size={18} />
         </button>
         {menuOpen && (
-          <div className="absolute z-10 mt-1 w-52 rounded-md border border-outline-variant bg-surface shadow-lg py-1">
+          <div className="absolute z-10 mt-1 w-52 rounded-sm border border-outline-variant bg-surface shadow-elevation-2 py-1">
             {candidateGroups.length === 0 && (
               <p className="px-3 py-1.5 text-xs text-on-surface-variant">Нет других групп</p>
             )}
@@ -283,7 +283,7 @@ function GroupSection({
   }
 
   return (
-    <div className={`rounded-lg border p-3 ${isSpecial ? 'border-outline-variant bg-surface-container-low' : 'border-outline-variant bg-surface'}`}>
+    <div className={`rounded-md border p-3 ${isSpecial ? 'border-outline-variant bg-surface-container-low' : 'border-outline-variant bg-surface'}`}>
       <div className="flex items-center justify-between gap-2 mb-2">
         {isSpecial ? (
           <span className="text-sm font-medium text-on-surface-variant">{groupLabel(group)}</span>
@@ -341,7 +341,7 @@ function GroupSection({
           {(currentTag || group.profileId) && (
             <Tooltip content={dirty ? 'Сначала сохраните разбиение' : isHiddenBound(group.profileId, hiddenProfiles) ? 'Профиль группы принадлежит выключенному модулю — выберите другой' : 'Распознать таблицу этого документа как отдельный источник данных'}>
               <button onClick={() => onRecognizeTable(firstPage)} disabled={dirty || tableBusyPage === firstPage || isHiddenBound(group.profileId, hiddenProfiles)}
-                className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant state-layer disabled-outlined">
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded-sm border border-outline-variant text-on-surface-variant state-layer disabled-outlined">
                 {tableBusyPage === firstPage ? <CircularProgress size={18} /> : <Icon icon={Table} size={18} />}
                 Таблица
               </button>
@@ -349,7 +349,7 @@ function GroupSection({
           )}
           <Tooltip content={dirty ? 'Сначала сохраните разбиение' : 'Перераспознать только этот документ (не весь набор)'}>
             <button onClick={() => onRecognizeDoc(firstPage)} disabled={dirty || docBusyPage === firstPage}
-              className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-outline-variant text-on-surface-variant state-layer disabled-outlined">
+              className="flex items-center gap-1 px-2 py-1 text-xs rounded-sm border border-outline-variant text-on-surface-variant state-layer disabled-outlined">
               {docBusyPage === firstPage ? <CircularProgress size={18} /> : <Icon icon={Refresh} size={18} />}
               Перераспознать
             </button>
@@ -539,7 +539,7 @@ export function PdfGroupingEditor() {
         icon={
           <Tooltip content="Назад">
             <button onClick={() => navigate(-1)} aria-label="Назад"
-              className="p-1.5 text-on-surface-variant hover:text-on-surface rounded transition-colors">
+              className="p-1.5 text-on-surface-variant hover:text-on-surface rounded-xs transition-colors">
               <Icon icon={ArrowBack} size={18} />
             </button>
           </Tooltip>
@@ -563,7 +563,7 @@ export function PdfGroupingEditor() {
         actions={<>
           {suspiciousPageCount > 0 && (
             <button onClick={() => setSuspiciousOnly(v => !v)}
-              className={`state-layer flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border ${
+              className={`state-layer flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-sm border ${
                 suspiciousOnly ? 'border-warning bg-warning/10 text-warning' : 'border-outline-variant text-on-surface-variant'
               }`}>
               <Icon icon={Warning} size={18} /> {suspiciousOnly ? 'Показать все' : `⚠ ${suspiciousPageCount} подозрительных`}
@@ -605,7 +605,7 @@ export function PdfGroupingEditor() {
         ))}
 
         {(!suspiciousOnly || unassignedPages.length > 0) && unassignedPages.length > 0 && (
-          <div className="rounded-lg border border-dashed border-outline-variant p-3">
+          <div className="rounded-md border border-dashed border-outline-variant p-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-on-surface-variant">Без группы</span>
               <span className="text-xs text-on-surface-variant">{unassignedPages.length} л.</span>

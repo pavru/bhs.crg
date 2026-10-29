@@ -51,7 +51,7 @@ function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCan
     return (
       <button key={`${c.kind}:${c.id}`} type="button" role="option" aria-selected={on} id={`bcp-opt-${gi}`}
         onMouseEnter={() => setActive(gi)} onClick={() => pick(c)}
-        className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md transition-colors ${
+        className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-sm transition-colors ${
           on ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-primary-container'}`}>
         {c.proxy
           ? <Icon icon={LinkIcon} size={18} className={`shrink-0 ${on ? 'text-on-secondary-container' : 'text-primary'}`} />
@@ -74,7 +74,7 @@ function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCan
         <input value={search} onChange={e => { setSearch(e.target.value); setActive(0); }} onKeyDown={onKey}
           placeholder="Поиск…" autoFocus role="combobox" aria-expanded aria-controls="bcp-listbox"
           aria-activedescendant={ordered.length ? `bcp-opt-${active}` : undefined}
-          className="w-full border border-outline rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
+          className="w-full border border-outline rounded-sm px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface" />
         {filtered.length === 0 ? (
           <p className="text-sm text-on-surface-variant text-center py-4">Нет подходящих кандидатов.</p>
         ) : (
@@ -115,14 +115,14 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   return (
-    <div className="rounded-xl border border-outline-variant bg-surface p-4 space-y-2">
+    <div className="rounded-lg border border-outline-variant bg-surface p-4 space-y-2">
       <p className="text-sm font-medium text-on-surface">
         {selected?.proxy ? 'Роль — ссылка на реальный объект' : 'Базовый экземпляр'}
         {title && !selected?.proxy && <span className="font-normal ml-1 text-on-surface-variant">({title})</span>}
       </p>
       {selected ? (
         <>
-        <div className="flex items-center gap-2 rounded-md border border-primary-container bg-primary-container px-3 py-2">
+        <div className="flex items-center gap-2 rounded-sm border border-primary-container bg-primary-container px-3 py-2">
           {selected.proxy
             ? <Icon icon={LinkIcon} size={18} className="text-primary shrink-0" />
             : selected.kind === 'instance'
@@ -146,7 +146,7 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
         )}
         </>
       ) : missing ? (
-        <div className="flex items-center gap-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2">
+        <div className="flex items-center gap-2 rounded-sm border border-warning/40 bg-warning/5 px-3 py-2">
           <span className="flex-1 text-sm text-warning truncate">Базовый экземпляр недоступен (удалён или вне области видимости)</span>
           <Tooltip content="Снять ссылку" name>
             <button type="button" onClick={onClear} className="text-primary hover:text-error transition-colors">
@@ -156,7 +156,7 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
         </div>
       ) : (
         <button type="button" onClick={() => setPickerOpen(true)}
-          className="flex items-center gap-2 text-sm text-primary border border-dashed border-primary-container rounded-md px-3 py-2 w-full hover:bg-primary-container transition-colors">
+          className="flex items-center gap-2 text-sm text-primary border border-dashed border-primary-container rounded-sm px-3 py-2 w-full hover:bg-primary-container transition-colors">
           <Icon icon={LinkIcon} size={18} />
           Выбрать базовый экземпляр или роль...
         </button>

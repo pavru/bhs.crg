@@ -18,7 +18,7 @@ export function StaleInvoiceNotice({ what, onReread }: {
   onReread: () => void;
 }) {
   return (
-    <div role="alert" className="flex items-start gap-2 rounded-lg border border-outline-variant
+    <div role="alert" className="flex items-start gap-2 rounded-md border border-outline-variant
       bg-warning-container px-3 py-2 text-xs text-on-warning-container">
       <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
       <p className="flex-1">

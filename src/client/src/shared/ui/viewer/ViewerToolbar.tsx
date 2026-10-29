@@ -92,7 +92,7 @@ function PageField({ page, numPages, onPage }: { page: number; numPages: number;
         // Набор после Enter или Esc — фокус в поле остался, а onFocus второй раз не придёт: правка
         // начинается с первой клавиши, иначе поле показывало бы текущий номер, а копило невидимое.
         onChange={e => { setText(e.target.value); setEditing(true); }}
-        className="w-[4ch] h-6 rounded border border-outline-variant bg-surface text-center text-xs text-on-surface tabular-nums focus:outline-none focus:border-primary" />
+        className="w-[4ch] h-6 rounded-xs border border-outline-variant bg-surface text-center text-xs text-on-surface tabular-nums focus:outline-none focus:border-primary" />
       <span id={total}>из {numPages}</span>
     </span>
   );
@@ -118,8 +118,7 @@ function ZoomMenu(p: ToolbarProps) {
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content side="top" align="start" sideOffset={6}
-          className="z-50 min-w-48 rounded-md border border-outline-variant bg-surface py-1"
-          style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
+          className="z-50 min-w-48 rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
           {item('width', 'По ширине', () => p.onMode('width'), { checked: p.mode === 'width', hint: 'Ctrl 0' })}
           {item('page', 'Страница целиком', () => p.onMode('page'), { checked: p.mode === 'page' })}
           <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />

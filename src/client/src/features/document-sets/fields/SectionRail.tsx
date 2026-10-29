@@ -23,7 +23,7 @@ export function SectionRail({ sections, isActive, onSelect }: {
       {sections.map(section => (
         <button key={section.key} type="button" onClick={() => onSelect(section.key)}
           aria-current={isActive(section.key) ? 'true' : undefined}
-          className={`w-full flex items-center gap-2 text-left text-sm px-2.5 py-1.5 rounded-lg
+          className={`w-full flex items-center gap-2 text-left text-sm px-2.5 py-1.5 rounded-md
             ${isActive(section.key) ? 'bg-surface text-on-surface font-medium' : 'text-on-surface-variant state-layer hover:text-on-surface'}`}>
           <span className="flex-1 truncate">{section.title}</span>
           {section.missing && <>

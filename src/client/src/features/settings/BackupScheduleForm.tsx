@@ -95,7 +95,7 @@ export function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
   }
 
   return (
-    <div className="rounded-md border border-surface-container p-3 space-y-3">
+    <div className="rounded-sm border border-surface-container p-3 space-y-3">
       <Checkbox checked={form.enabled} onChange={enabled => edit({ enabled })}
         label="Снимать копию автоматически"
         description={'Раз в сутки. Пропущенный запуск (сервер был выключен) выполняется при следующем старте; '

@@ -11,11 +11,9 @@ export function AuthCard({ title, subtitle, children }: {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-container-low p-4">
-      <div className="w-full max-w-sm rounded-[28px] bg-surface border border-outline-variant p-8"
-        style={{ boxShadow: 'var(--md-sys-elevation-level2)' }}>
+      <div className="w-full max-w-sm rounded-xl bg-surface border border-outline-variant p-8 shadow-elevation-2">
         <div className="flex items-center gap-3 mb-6">
-          <BrandLogo className="w-11 h-11 rounded-lg bg-primary text-on-primary"
-            style={{ boxShadow: 'var(--md-sys-elevation-level1)' }} iconSize={22} />
+          <BrandLogo className="w-11 h-11 rounded-md bg-primary text-on-primary shadow-elevation-1" iconSize={22} />
           <span className="text-2xl font-semibold text-primary leading-none">{productName}</span>
         </div>
         <h1 className="text-xl font-normal text-on-surface">{title}</h1>
