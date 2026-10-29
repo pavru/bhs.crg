@@ -139,7 +139,7 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
         <Tooltip content={progressTitle ?? `Готовность по плану: ${progress}%`}>
           <span
             className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 tabular-nums ${
-              progress === 100 ? 'bg-primary-container text-primary' : 'bg-surface-container text-on-surface-variant'}`}>
+              progress === 100 ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-on-surface-variant'}`}>
             {progress}%
           </span>
         </Tooltip>
@@ -148,7 +148,7 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
         <Tooltip content={`Требует разбора: ${alert}`}>
           <span
             className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${
-              alertDanger ? 'bg-error-container text-error' : 'bg-warning-container text-warning'}`}>
+              alertDanger ? 'bg-error-container text-on-error-container' : 'bg-warning-container text-on-warning-container'}`}>
             {alert > 99 ? '99+' : alert}
           </span>
         </Tooltip>
@@ -162,7 +162,7 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
         <span className="text-caption px-1.5 py-0.5 rounded-full shrink-0 bg-surface-container text-on-surface-variant">{note}</span>
       ) : (
         count != null && count > 0 && (
-          <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${highlight ? 'bg-white/50 text-brand-hover' : 'bg-primary-container text-primary'}`}>{count}</span>
+          <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${highlight ? 'bg-white/50 text-brand-hover' : 'bg-primary-container text-on-primary-container'}`}>{count}</span>
         )
       )}
     </button>

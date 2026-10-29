@@ -31,7 +31,7 @@ export function LostReferencesNote({ view, locked }: {
 
   return (
     <div role="note" className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${alarming
-      ? 'border-error/30 bg-error-container text-error' : 'border-outline-variant bg-surface-container text-on-surface-variant'}`}>
+      ? 'border-error/30 bg-error-container text-on-error-container' : 'border-outline-variant bg-surface-container text-on-surface-variant'}`}>
       <Icon icon={LinkOff} size={18} className="shrink-0 mt-0.5" />
       <div className="min-w-0 space-y-0.5">
         {summary.count > 0 && (

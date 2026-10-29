@@ -259,7 +259,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
             {view.issuedOn ? ` от ${formatDate(view.issuedOn)}` : ''}
           </h2>
           <span className={`text-xs px-2 py-0.5 rounded-full ${posted
-            ? 'bg-success-container text-success' : 'bg-surface-container text-on-surface-variant'}`}>
+            ? 'bg-success-container text-on-success-container' : 'bg-surface-container text-on-surface-variant'}`}>
             {posted ? 'Проведена' : 'Черновик'}
           </span>
           <div className="flex-1" />

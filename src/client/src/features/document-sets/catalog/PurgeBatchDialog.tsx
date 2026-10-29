@@ -238,8 +238,9 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
 
 function Alert({ tone, children }: { tone: 'danger' | 'warning'; children: ReactNode }) {
   return (
-    <div role="alert" className={`mt-2 flex items-start gap-2.5 rounded-md px-3 py-2.5 text-xs text-on-surface ${tone === 'danger' ? 'bg-error-container' : 'bg-warning-container'}`}>
-      <Icon icon={Warning} size={18} className={`shrink-0 mt-0.5 ${tone === 'danger' ? 'text-on-error-container' : 'text-on-warning-container'}`} aria-hidden />
+    <div role="alert" className={`mt-2 flex items-start gap-2.5 rounded-md px-3 py-2.5 text-xs ${tone === 'danger'
+      ? 'bg-error-container text-on-error-container' : 'bg-warning-container text-on-warning-container'}`}>
+      <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" aria-hidden />
       <div className="min-w-0 whitespace-pre-line">{children}</div>
     </div>
   );

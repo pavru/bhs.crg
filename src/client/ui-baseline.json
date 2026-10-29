@@ -212,6 +212,7 @@
     "shared/ui/SuggestBox.tsx": 1,
     "shared/ui/ToastProvider.tsx": 2
   },
+  "container-text": {},
   "lucide-import": {},
   "spinner-icon": {},
   "icon-size": {}

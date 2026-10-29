@@ -144,7 +144,7 @@ function ProblemsBanner({ problems }: { problems: TypeBlocksProblem[] }) {
 
   return (
     <div className={`border-b border-outline-variant px-4 py-2 text-xs
-                     ${danger ? 'bg-error-container text-error' : 'bg-warning-container text-warning'}`}>
+                     ${danger ? 'bg-error-container text-on-error-container' : 'bg-warning-container text-on-warning-container'}`}>
       <button type="button" onClick={() => setOpen(o => !o)}
         className="flex items-center gap-2 w-full text-left" aria-expanded={open}>
         {open ? <Icon icon={KeyboardArrowDown} size={18} className="shrink-0" /> : <Icon icon={ChevronRight} size={18} className="shrink-0" />}

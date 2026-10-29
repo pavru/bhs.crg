@@ -106,6 +106,24 @@ describe('md3:migrate: неоднозначное не трогает, а наз
       .toBe('"border border-outline-variant ring-1 ring-outline-variant border-t border-outline-variant"');
   });
 
+  it('роль обводки в тексте — не переводится: text-stroke-subtle, text-warning-border, decoration-stroke', () => {
+    const source = '"text-stroke-subtle hover:text-warning-border decoration-stroke caret-stroke-strong"';
+    expect(migrated(source)).toBe(source);
+    expect(run(source).untouched).toEqual(['text-stroke-subtle', 'text-warning-border', 'decoration-stroke', 'caret-stroke-strong']
+      .map(token => ({ line: 1, token, reason: expect.stringContaining('текст цветом обводки запрещён') })));
+    // text-stroke-strong названа в classes — перекрывает запрет.
+    expect(migrated('"text-stroke-strong"')).toBe('"text-on-surface-variant"');
+  });
+
+  it('переменная роли обводки — неоднозначна: бывает и цветом текста', () => {
+    const source = '[color:var(--color-stroke-strong)] border-[var(--color-warning-border)]';
+    expect(migrated(source)).toBe(source);
+    expect(run(source).untouched).toEqual([
+      { line: 1, token: '--color-stroke-strong', reason: expect.stringContaining('текст с stroke-strong') },
+      { line: 1, token: '--color-warning-border', reason: expect.stringContaining('текст с warning-border') },
+    ]);
+  });
+
   it('та же пара в другой утилите переводится: border-stroke-strong, bg-fg4', () => {
     expect(migrated('"border-stroke-strong bg-fg4"')).toBe('"border-outline bg-on-surface-variant"');
   });
@@ -278,5 +296,27 @@ describe('md3:migrate: текст на контейнере — парной р�
     expect(migrated(comment)).toBe(comment);
     const once = migrated('"bg-warning-container text-warning"');
     expect(migrated(once)).toBe(once);
+  });
+
+  it('строка внутри ${…} — свой список: условная плашка целиком переводится', () => {
+    expect(migrated("`px-2 ${open ? 'bg-error-container text-error' : 'bg-surface-container'}`"))
+      .toBe("`px-2 ${open ? 'bg-error-container text-on-error-container' : 'bg-surface-container'}`");
+    // Скобка в строке выражения не сбивает счёт `${…}`: постоянные части за ним — тот же список.
+    expect(migrated("`bg-success-container ${x ? '}' : '{'} text-success`"))
+      .toBe("`bg-success-container ${x ? '}' : '{'} text-on-success-container`");
+  });
+
+  it('кавычка в регулярном выражении и в тексте JSX не переворачивает разбор', () => {
+    expect(migrated('const re = /["\']/;\nconst c = "bg-warning-container text-warning";'))
+      .toBe('const re = /["\']/;\nconst c = "bg-warning-container text-on-warning-container";');
+    expect(migrated('<p>Нажмите "OK</p>\n<div className="bg-error-container text-error" />'))
+      .toBe('<p>Нажмите "OK</p>\n<div className="bg-error-container text-on-error-container" />');
+  });
+
+  it('отрицательное ожидание теста — не трогается, называется', () => {
+    const source = "expect(cls).not.toContain('bg-error-container text-error');";
+    const { text, untouched: u } = run(source, 'src/x.test.tsx');
+    expect(text).toBe(source);
+    expect(u).toEqual([{ line: 1, token: 'text-error', reason: expect.stringContaining('отрицательное ожидание') }]);
   });
 });

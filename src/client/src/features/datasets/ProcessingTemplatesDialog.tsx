@@ -110,7 +110,7 @@ function TemplateForm({
 
   const toggleCls = (active: boolean) =>
     `flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-      active ? 'border-primary text-primary bg-primary-container' : 'border-outline-variant text-on-surface-variant bg-surface-container-low'
+      active ? 'border-primary text-on-primary-container bg-primary-container' : 'border-outline-variant text-on-surface-variant bg-surface-container-low'
     }`;
 
   function handleSave() {

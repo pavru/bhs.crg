@@ -375,7 +375,7 @@ function IconAction({ title, onClick, danger, disabled, children }: {
         onClick={onClick}
         disabled={disabled}
         className={`p-1.5 rounded-md transition-colors disabled:opacity-50 ${
-          danger ? 'text-on-surface-variant hover:text-error hover:bg-error-container' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low'
+          danger ? 'text-on-surface-variant hover:text-on-error-container hover:bg-error-container' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low'
         }`}
       >
         {children}
@@ -405,7 +405,7 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
     <div className="flex flex-col min-h-0 flex-1">
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
         <div className={`flex items-center gap-3 rounded-lg p-3 ${
-          report.success ? 'bg-success-container text-success' : 'bg-error-container text-error'
+          report.success ? 'bg-success-container text-on-success-container' : 'bg-error-container text-on-error-container'
         }`}>
           {report.success
             ? <Icon icon={CheckCircle} size={20} className="text-success shrink-0" />

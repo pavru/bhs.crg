@@ -102,7 +102,7 @@ export function ObservationsPanel() {
         <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant text-xs shrink-0">
           <button type="button" onClick={() => setOnlyNew(v => !v)}
             className={`px-2 py-1 rounded-full transition-colors ${
-              onlyNew ? 'bg-primary-container text-primary font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
+              onlyNew ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
             Не разобрано: {unreviewed}
           </button>
           <span className="text-on-surface-variant">всего {items.length}</span>

@@ -50,7 +50,7 @@ function StatusBadge({ f }: { f: Finding }) {
   const muted = !!f.decision;
   return (
     <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full shrink-0 ${
-      muted ? 'bg-surface-container text-on-surface-variant' : 'bg-error-container text-error'}`}>
+      muted ? 'bg-surface-container text-on-surface-variant' : 'bg-error-container text-on-error-container'}`}>
       {muted ? <Icon icon={Block} size={18} /> : <Icon icon={Warning} size={18} />} {STATUS_LABELS[f.status]}
     </span>
   );
@@ -309,7 +309,7 @@ export function ReconciliationsPage() {
         <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant text-xs shrink-0">
           <button type="button" onClick={() => setOnlyAttention(v => !v)}
             className={`px-2 py-1 rounded-full transition-colors ${
-              onlyAttention ? 'bg-primary-container text-primary font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
+              onlyAttention ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
             Требует внимания: {attentionCount}
           </button>
           <span className="text-on-surface-variant">

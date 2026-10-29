@@ -99,7 +99,7 @@ function PartEditor({ part, onChange, onRemove, sources, index }: {
                 return (
                   <button key={c} type="button" onClick={() => toggleKey(c)}
                     className={`text-xs px-2 py-1 rounded-full transition-colors ${
-                      on ? 'bg-primary-container text-primary font-medium' : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface'}`}>
+                      on ? 'bg-primary-container text-on-primary-container font-medium' : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface'}`}>
                     {c}
                   </button>
                 );

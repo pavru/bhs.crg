@@ -56,7 +56,7 @@ export function DocumentObservationsChip({ setId, documentId }: {
               isUnreviewed(o) ? '' : 'opacity-60'}`}>
               <div className="flex items-start gap-2">
                 <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${
-                  o.severity === 'Error' ? 'bg-warning-container text-warning' : 'bg-surface-container text-on-surface-variant'}`}>
+                  o.severity === 'Error' ? 'bg-warning-container text-on-warning-container' : 'bg-surface-container text-on-surface-variant'}`}>
                   {SEVERITY_LABELS[o.severity]}
                 </span>
                 <div className="min-w-0 flex-1">

@@ -3,8 +3,9 @@
 
 import { posix } from 'node:path';
 import ts from 'typescript';
-import { COLOR_UTILITIES, scanCandidates, stripComments } from './class-scan.mjs';
+import { COLOR_UTILITIES, containerTextHits, scanCandidates, stripComments } from './class-scan.mjs';
 import theme from '../src/theme/md3-theme.json' with { type: 'json' };
+import classMap from './md3-class-map.json' with { type: 'json' };
 
 const COLORS = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
 const UTILITIES = 'bg|text|border|ring|ring-offset|outline|divide|fill|stroke|from|via|to|shadow|accent|caret|decoration|placeholder';
@@ -12,9 +13,12 @@ const UTILITIES = 'bg|text|border|ring|ring-offset|outline|divide|fill|stroke|fr
 /** Каталог файлов из корня src/ (App.tsx, main.tsx) — для `countViolations({ dir })` и `dirsToScan`. */
 export const ROOT = '.';
 
-// Старые имена цвета — псевдонимы из описания темы (правило `legacy-class`); длинные — первыми.
+// Старые имена цвета (правило `legacy-class`) — псевдонимы из описания темы и имена карты md3:migrate:
+// снятый псевдоним (warning-border, stroke-subtle) класса больше не даёт, и пришедший из старой ветки
+// `border-warning-border` молча рисовал бы рамку цветом текста. Длинные — первыми.
 const LEGACY = Object.entries(theme.aliases).filter(([k]) => !k.startsWith('//'));
-const LEGACY_NAMES = LEGACY.map(([k]) => k).sort((a, b) => b.length - a.length).join('|');
+const LEGACY_NAMES = [...new Set([...LEGACY.map(([k]) => k), ...Object.keys(classMap.names)])]
+  .sort((a, b) => b.length - a.length).join('|');
 const LEGACY_CLASS = new RegExp(`^(?:${COLOR_UTILITIES})-(?:${LEGACY_NAMES})(?:/[\\w.]+)?$`);
 const LEGACY_VAR = new RegExp(`var\\(--color-(?:${LEGACY_NAMES})\\)`, 'g');
 const LEGACY_HINT = LEGACY.filter(([, to]) => typeof to === 'string').map(([k, to]) => `${k} → ${to}`).join(', ');
@@ -225,6 +229,16 @@ export const RULES = [
     styles: true,
     skip: ['theme/'],
     instead: `класс роли MD3 вместо старого имени: ${LEGACY_HINT}; у fg-disabled, brand-hover, brand-pressed роли того же цвета нет — их снимает sharedui-md3-05; обводки по статусу нет — рамка формы outline-variant (docs/UI.md, «Цвет»)`,
+  },
+  {
+    id: 'container-text',
+    // Текст на контейнере роли цветом самой роли ([UI-62], sharedui-md3-04): `bg-warning-container
+    // text-warning` в одном списке классов — то, что кодмод md3:migrate перевёл в on-*-container. Счёт —
+    // `containerTextHits` из class-scan.mjs, тот же, что у кодмода: что он переводит, то правило и видит.
+    // Разнесённое по элементам (плашка снаружи, текст внутри) не видно — как и кодмоду.
+    count: text => containerTextHits(text).length,
+    everywhere: true,
+    instead: 'текст и значок на контейнере роли — парной ролью: bg-warning-container text-on-warning-container, bg-error-container text-on-error-container; цвет роли (text-warning) — для текста на поверхности (docs/UI.md, «Цвет»)',
   },
   {
     id: 'lucide-import',

@@ -52,7 +52,7 @@ function FindingLine({ f, onDecide }: { f: Finding; onDecide: (f: Finding) => vo
     <div className={`px-3 py-2 border-b border-outline-variant text-sm ${open ? '' : 'opacity-60'}`}>
       <div className="flex items-center gap-2">
         <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 ${
-          f.status === 'Match' ? 'text-on-surface-variant' : open ? 'bg-error-container text-error' : 'bg-surface-container text-on-surface-variant'}`}>
+          f.status === 'Match' ? 'text-on-surface-variant' : open ? 'bg-error-container text-on-error-container' : 'bg-surface-container text-on-surface-variant'}`}>
           {f.resolved ? 'Устранено' : STATUS_LABELS[f.status]}
         </span>
         <span className="flex-1 truncate text-on-surface" title={f.label}>{f.label}</span>
@@ -118,7 +118,7 @@ function ReconciliationBlock({ id, name, unresolved }: {
         </Link>
         <button type="button" onClick={() => setOnlyOpen(v => !v)}
           className={`text-caption px-2 py-0.5 rounded-full transition-colors ${
-            onlyOpen ? 'bg-primary-container text-primary font-medium' : 'text-on-surface-variant hover:bg-surface-container-low'}`}>
+            onlyOpen ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container-low'}`}>
           не разобрано: {unresolved}
         </button>
         <Button variant="text" size="sm" loading={run.isPending}
@@ -175,7 +175,7 @@ function ObservationCard({ o, documentNames, onReview }: {
     <div className={`px-3 py-2 border border-outline-variant rounded-lg ${isUnreviewed(o) ? '' : 'opacity-60'}`}>
       <div className="flex items-start gap-2">
         <span className={`text-caption px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${
-          o.severity === 'Error' ? 'bg-warning-container text-warning' : 'bg-surface-container text-on-surface-variant'}`}>
+          o.severity === 'Error' ? 'bg-warning-container text-on-warning-container' : 'bg-surface-container text-on-surface-variant'}`}>
           {SEVERITY_LABELS[o.severity]}
         </span>
         <div className="min-w-0 flex-1">

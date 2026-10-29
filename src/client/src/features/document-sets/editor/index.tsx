@@ -210,7 +210,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
               onSelect={c => baseControlRef.current?.select(c)}
               onClear={() => baseControlRef.current?.clear()} />
           )}
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_COLORS[instance.status] ?? 'bg-primary-container text-primary'}`}>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_COLORS[instance.status] ?? 'bg-primary-container text-on-primary-container'}`}>
             {STATUS_LABELS[instance.status] ?? instance.status}
           </span>
           {/* Замечания внешнего анализа, упоминающие ЭТОТ документ (issue #456). Находок сверки

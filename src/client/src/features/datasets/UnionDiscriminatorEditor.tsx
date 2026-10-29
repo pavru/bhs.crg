@@ -104,7 +104,7 @@ export function UnionDiscriminatorEditor({
                     <span key={id}
                       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption border ${
                         conflicting.has(id)
-                          ? 'bg-error-container text-error border-error/30'
+                          ? 'bg-error-container text-on-error-container border-error/30'
                           : 'bg-surface-container-low text-on-surface-variant border-outline-variant'}`}>
                       {typeName(id)}
                       <Icon icon={Close} size={18} className="cursor-pointer hover:text-error"
