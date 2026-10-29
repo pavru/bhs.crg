@@ -69,7 +69,7 @@ export function LoginPage() {
             <span className="text-headline-small font-medium">{productName}</span>
           </div>
           <div>
-            <div className="text-headline-small leading-tight">Исполнительная документация</div>
+            <div className="text-headline-medium">Исполнительная документация</div>
             <p className="mt-4 text-body-large leading-relaxed text-on-primary/70 max-w-[300px]">
               Единая система ведения и согласования исполнительной документации по объекту строительства.
             </p>

@@ -25,7 +25,7 @@ function ColumnRow({
     <div className="rounded-md p-3 space-y-2 border border-outline-variant bg-surface-container-low">
       <div className="flex items-center gap-2">
         <div className="flex-1 space-y-1">
-          <label className="block text-title-small text-on-surface-variant">
+          <label className="block text-label-medium text-on-surface-variant">
             Имя новой колонки
           </label>
           <input
@@ -43,7 +43,7 @@ function ColumnRow({
         </button>
       </div>
       <div className="space-y-1">
-        <label className="block text-title-small text-on-surface-variant">
+        <label className="block text-label-medium text-on-surface-variant">
           Выражение (JavaScript)
         </label>
         <input

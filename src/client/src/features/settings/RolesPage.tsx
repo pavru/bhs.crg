@@ -137,7 +137,7 @@ export function RolesPage() {
         <div className="px-6 py-4 pb-2 max-w-3xl">
           <div className="flex items-start justify-between gap-4 mb-1">
             <div>
-              <h2 className="text-title-large font-semibold text-on-surface flex items-center gap-2">
+              <h2 className="text-title-medium text-on-surface flex items-center gap-2">
                 <Icon icon={VerifiedUser} size={18} className="text-on-surface-variant" />
                 {selected.title}
               </h2>

@@ -223,7 +223,7 @@ function ReportBody({ report, githubConfigured }: {
         {/* ── Техблок ──────────────────────────────────────────────────── */}
         <section>
           <button type="button" onClick={() => setTechOpen(o => !o)}
-            className="flex items-center gap-1.5 text-title-small text-on-surface-variant hover:text-on-surface-variant transition-colors">
+            className="flex items-center gap-1.5 text-title-small text-on-surface-variant">
             {techOpen ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />} Технический контекст
           </button>
           {techOpen && <TechBlock tech={report.tech} />}

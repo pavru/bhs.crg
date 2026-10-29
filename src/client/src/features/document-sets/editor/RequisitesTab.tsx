@@ -696,7 +696,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
           </p>
         )}
         <div className="mb-4">
-          <h2 className="text-title-large text-on-surface">{item.title}</h2>
+          <h2 className="text-title-medium text-on-surface">{item.title}</h2>
           <p className="text-body-small text-on-surface-variant mt-0.5">
             Заполнено {stats.filled} из {stats.total}
             {sectionIdx >= 0 && ` · раздел ${sectionIdx + 1} из ${fieldsItems.length}`}

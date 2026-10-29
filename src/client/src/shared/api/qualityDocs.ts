@@ -112,6 +112,9 @@ export async function recognizeDocument(
 
 export interface SearchCandidate { title: string; url: string; snippet: string; source: string; }
 
+/** Подпись источника кандидата (`source` — код ступени поиска на сервере, TieredWebSearch). */
+export const SEARCH_SOURCE_LABEL: Record<string, string> = { file: 'Файл', fgis: 'ФГИС', manufacturer: 'Произв.', web: 'Веб' };
+
 export async function searchQualityDocs(query: string): Promise<SearchCandidate[]> {
   const { data } = await apiClient.post<SearchCandidate[]>('/quality-docs/search', { query });
   return data;

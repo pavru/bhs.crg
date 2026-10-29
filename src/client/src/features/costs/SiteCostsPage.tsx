@@ -208,7 +208,7 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
         <section aria-label="Затраты за период">
           <h2 className="text-title-small text-on-surface-variant">
             Затраты за {period}
-            <span className="ml-2 font-normal text-on-surface-variant">
+            <span className="ml-2 text-body-small text-on-surface-variant">
               оплаченные счета, по учётному периоду долей{data.withVat ? '' : ' · без НДС'}{closing ? ' · на момент закрытия' : ''}
             </span>
           </h2>

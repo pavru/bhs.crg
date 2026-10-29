@@ -78,7 +78,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
           <p className="text-body-medium font-medium text-on-surface truncate">{n.title}</p>
           {!n.isRead && <span className="shrink-0 w-2 h-2 rounded-full bg-primary" />}
         </div>
-        <p className="text-body-medium leading-[1.45] text-on-surface-variant mt-1 break-words whitespace-pre-wrap">{n.message}</p>
+        <p className="text-body-medium text-on-surface-variant mt-1 break-words whitespace-pre-wrap">{n.message}</p>
         {n.linkUrl && (isExternalLink(n.linkUrl) ? (
           <a
             href={n.linkUrl} target="_blank" rel="noreferrer"
