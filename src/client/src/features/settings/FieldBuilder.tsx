@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Add, Delete, DragIndicator, FunctionIcon, KeyboardArrowDown, KeyboardArrowUp, LinkIcon, LockIcon, Memory, Warning } from '@/shared/ui/icons';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { DateInput } from '@/shared/ui/DateInput';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { TypePicker } from '@/shared/ui/TypePicker';
 import type { DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
@@ -371,12 +371,12 @@ export function FieldCard({
           {keyConflict ? (
             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-body-small text-error">!</span>
           ) : keyLocked ? (
-            <Tooltip content="Изменить ключ (осторожно: осиротит данные документов)" name>
-              <button type="button" onClick={() => setConfirmUnlock(true)}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-on-surface-variant hover:text-on-surface-variant">
-                <Icon icon={LockIcon} size={18} />
-              </button>
-            </Tooltip>
+            <IconButton label="Изменить ключ (осторожно: осиротит данные документов)"
+              size="sm"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2"
+              onClick={() => setConfirmUnlock(true)}>
+              <Icon icon={LockIcon} size={18} />
+            </IconButton>
           ) : keyAutoNew ? (
             <Tooltip content="Ключ авто-генерируется из названия">
               <span className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">
@@ -415,10 +415,9 @@ export function FieldCard({
         <div className="flex items-center justify-end gap-0.5">
           <MoveButtons onUp={() => onMoveUp?.()} onDown={() => onMoveDown?.()}
             isFirst={!!isFirst} isLast={!!isLast} />
-          <button type="button" onClick={onRemove}
-            className="p-1 text-on-surface-variant hover:text-error">
+          <IconButton label="Удалить поле" size="sm" danger onClick={onRemove}>
             <Icon icon={Delete} size={18} />
-          </button>
+          </IconButton>
         </div>
       </div>
       {/* Предупреждение о дрейфе данных при изменённом ключе существующего поля (issue #355). */}
@@ -537,14 +536,15 @@ export function FieldCard({
                 placeholder={`Вариант ${oi + 1}`}
                 className="flex-1 border border-outline rounded-xs px-2 py-1 text-body-small focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface"
               />
-              <button type="button"
+              <IconButton label="Удалить вариант"
+                size="sm"
+                danger
                 onClick={() => {
                   const opts = (field.options ?? []).filter((_, j) => j !== oi);
                   onChange({ options: opts });
-                }}
-                className="p-0.5 text-on-surface-variant hover:text-error">
+                }}>
                 <Icon icon={Delete} size={18} />
-              </button>
+              </IconButton>
             </div>
           ))}
           <button type="button"

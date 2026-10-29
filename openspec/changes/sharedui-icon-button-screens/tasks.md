@@ -29,18 +29,19 @@
   `EnumTypesSection`, `RecognitionProfilesPage`, `TypstRendersEditor`; `templates/`: `TemplateSidebar`
   (3), `UserLibFileList` (2), `TemplateParamsPanel`; `account/WorkspacesDialog` (2) [UI-46]. Проверка —
   живые прогоны `settings`, `types` зелёные
-- [ ] 3.3 После `sharedui-dropdown-layer-guard` и `sharedui-page-menus-radix` (D4):
+- [x] 3.3 До `sharedui-dropdown-layer-guard` и `sharedui-page-menus-radix` — порядок D4 развёрнут
+  29.10.2026: оба change не начаты, конфликтовать не с чем (D4):
   `settings/FieldBuilder` (3), `datasets/PdfGroupingEditor` (3), `templates/EditorPanel` [UI-46].
   Проверка — уровни размера `FieldBuilder`, `PdfGroupingEditor` — по факту
 
 ## 4. Правила
 
-- [ ] 4.1 Уровень `icon-button` — ноль (`npm run ui:ratchet:update`); `docs/UI.md`, «Язык формы» и
+- [x] 4.1 Уровень `icon-button` — ноль (`npm run ui:ratchet:update`); `docs/UI.md`, «Язык формы» и
   «Кто сторожит»: накопленных кнопок-иконок нет [UI-46]. Проверка — ревью PR
 
 ## 5. Верификация
 
 - [x] 5.1 `cd src/client && npx tsc -b` — без ошибок
 - [x] 5.2 `cd src/client && npm test` — зелёный
-- [ ] 5.3 `cd src/client && npm run ui:ratchet` — без роста, `icon-button` 0
+- [x] 5.3 `cd src/client && npm run ui:ratchet` — без роста, `icon-button` 0
 - [x] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

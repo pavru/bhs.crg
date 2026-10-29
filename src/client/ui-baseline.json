@@ -109,11 +109,7 @@
     "features/settings/PrimitiveTypesPage.tsx": 4,
     "features/settings/SchemaEditor.tsx": 1
   },
-  "icon-button": {
-    "features/datasets/PdfGroupingEditor.tsx": 3,
-    "features/settings/FieldBuilder.tsx": 3,
-    "features/templates/EditorPanel.tsx": 1
-  },
+  "icon-button": {},
   "tabs": {},
   "white-on-fill": {},
   "portal-container": {
