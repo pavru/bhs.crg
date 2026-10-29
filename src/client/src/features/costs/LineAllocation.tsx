@@ -64,7 +64,7 @@ export function LineAllocationCell({ view, line, number, blocked, locked, onOpen
   if (!line || blocked)
     return (
       <Tooltip content={blocked ?? 'Строка не сохранена'}>
-        <span className="text-fg4">
+        <span className="text-on-surface-variant">
           {blocked ? 'сохраните строки' : '—'}
           {dialog}
         </span>
@@ -72,7 +72,7 @@ export function LineAllocationCell({ view, line, number, blocked, locked, onOpen
     );
 
   const status = allocationStatus(line.allocation, line.unit);
-  const tone = status.tone === 'ok' ? 'text-success' : status.tone === 'warning' ? 'text-warning' : 'text-fg4';
+  const tone = status.tone === 'ok' ? 'text-success' : status.tone === 'warning' ? 'text-warning' : 'text-on-surface-variant';
 
   return (
     <>
@@ -170,7 +170,7 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
       busy={replace.isPending}
       footer={(
         <>
-          <span className="text-xs text-fg4 mr-auto">
+          <span className="text-xs text-on-surface-variant mr-auto">
             {byQuantity
               ? `В строке ${line.quantity === null ? '' : formatQuantity(line.quantity)} ${unit}`.trim()
                 + (line.amount === null ? '' : ` на ${formatMoney(line.amount)}${gross}`)
@@ -207,7 +207,7 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
                 })} />
             ),
             total: () => (
-              <>Не разнесено{dirty && <span className="text-fg4"> (оценка до сохранения)</span>}</>
+              <>Не разнесено{dirty && <span className="text-on-surface-variant"> (оценка до сохранения)</span>}</>
             ),
           },
           {
@@ -252,14 +252,14 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
                   {!dirty && saved?.amount != null ? formatMoney(saved.amount) : '—'}
                   {!dirty && saved && saved.rounding !== 0 && (
                     <Tooltip content="Копейки округления уходят в последнюю часть — так сумма частей равна сумме строки">
-                      <div className="text-fg4">
+                      <div className="text-on-surface-variant">
                         копейки округления: {formatMoney(saved.rounding)}
                       </div>
                     </Tooltip>
                   )}
                   {!dirty && saved && saved.discrepancy !== 0 && (
                     <Tooltip content="Расхождение суммы строк с суммой к оплате в пределах допуска уходит в последнюю часть счёта">
-                      <div className="text-fg4">
+                      <div className="text-on-surface-variant">
                         расхождение со счётом: {formatMoney(saved.discrepancy)}
                       </div>
                     </Tooltip>

@@ -25,7 +25,7 @@ function ColumnRow({
     <div className="rounded-lg p-3 space-y-2 border border-outline-variant bg-surface-container-low">
       <div className="flex items-center gap-2">
         <div className="flex-1 space-y-1">
-          <label className="block text-caption font-medium uppercase tracking-wide text-fg4">
+          <label className="block text-caption font-medium uppercase tracking-wide text-on-surface-variant">
             Имя новой колонки
           </label>
           <input
@@ -37,13 +37,13 @@ function ColumnRow({
         </div>
         <button
           onClick={onRemove}
-          className="p-1.5 rounded mt-4 text-fg4 hover:text-error transition-colors"
+          className="p-1.5 rounded mt-4 text-on-surface-variant hover:text-error transition-colors"
         >
           <Icon icon={Delete} size={18} />
         </button>
       </div>
       <div className="space-y-1">
-        <label className="block text-caption font-medium uppercase tracking-wide text-fg4">
+        <label className="block text-caption font-medium uppercase tracking-wide text-on-surface-variant">
           Выражение (JavaScript)
         </label>
         <input
@@ -149,7 +149,7 @@ export function ComputedColumnsDialog({
     >
       <div className="rounded-lg p-3 mb-4 text-xs space-y-1 bg-surface-container-low border border-outline-variant">
         <p className="font-semibold text-on-surface-variant">Синтаксис JavaScript</p>
-        <p className="text-fg3">
+        <p className="text-on-surface-variant">
           К колонке можно обратиться тремя способами:{' '}
           <code className="font-mono px-1 rounded bg-surface-container">Фамилия</code> — по имени, если оно годится
           в имя переменной (пробелы и знаки заменяются на <code className="font-mono px-1 rounded bg-surface-container">_</code>);{' '}
@@ -158,7 +158,7 @@ export function ComputedColumnsDialog({
           <code className="font-mono px-1 rounded bg-surface-container">cols[1]</code> — по номеру колонки,{' '}
           <b>счёт с единицы</b>.
         </p>
-        <p className="text-fg4">
+        <p className="text-on-surface-variant">
           Примеры:{' '}
           <code className="font-mono text-on-surface-variant">{"Фамилия + ' ' + Имя"}</code>
           {' — '}
@@ -166,16 +166,16 @@ export function ComputedColumnsDialog({
           {' — '}
           <code className="font-mono text-on-surface-variant">{"Статус === 'Принят' ? 'Да' : 'Нет'"}</code>
         </p>
-        <p className="text-fg4">
+        <p className="text-on-surface-variant">
           Вычисляемые колонки применяются до фильтрации и маппинга — их можно использовать в условиях фильтра.
         </p>
       </div>
 
       {sourceColumns.length > 0 && (
         <div className="rounded-lg p-3 mb-4 text-xs bg-surface-container-low border border-outline-variant">
-          <p className="mb-2 text-fg3">
+          <p className="mb-2 text-on-surface-variant">
             Колонки источника — нажмите, чтобы вставить в выражение
-            {columns.length === 0 && <span className="text-fg4"> (сначала добавьте колонку)</span>}
+            {columns.length === 0 && <span className="text-on-surface-variant"> (сначала добавьте колонку)</span>}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {sourceColumns.map((name, i) => (
@@ -191,7 +191,7 @@ export function ComputedColumnsDialog({
                              hover:border-primary hover:text-primary disabled:opacity-50 disabled:hover:border-outline-variant
                              disabled:hover:text-on-surface-variant text-on-surface-variant"
                 >
-                  <span className="text-fg4 font-mono">{i + 1}</span>
+                  <span className="text-on-surface-variant font-mono">{i + 1}</span>
                   <span className="font-mono">{name}</span>
                 </button>
               </Tooltip>
@@ -202,7 +202,7 @@ export function ComputedColumnsDialog({
 
       <div className="space-y-3 mb-4">
         {columns.length === 0 && (
-          <p className="text-xs py-2 text-center text-fg4">
+          <p className="text-xs py-2 text-center text-on-surface-variant">
             Нет вычисляемых колонок.
           </p>
         )}
@@ -220,7 +220,7 @@ export function ComputedColumnsDialog({
 
       <button
         onClick={addColumn}
-        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md text-primary bg-primary-container"
+        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md text-on-primary-container bg-primary-container"
       >
         <Icon icon={Add} size={18} /> Добавить колонку
       </button>

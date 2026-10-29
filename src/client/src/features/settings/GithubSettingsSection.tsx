@@ -57,7 +57,7 @@ export function GithubSettingsSection() {
 
   return (
     <CollapsibleSection title="Передача в GitHub" storageKey="github" defaultOpen={false}>
-      <p className="text-xs text-fg3">
+      <p className="text-xs text-on-surface-variant">
         Токен нужен только для кнопки «Отправить в GitHub» на экране сообщений об ошибках. Сама
         система в GitHub ничего не отправляет: issue заводит администратор, из текста, который он
         отредактировал.

@@ -76,7 +76,7 @@ export function UpdateSettingsSection() {
           onChange={e => void toggle(e.target.checked)} />
         <span>
           Проверять новые версии на GitHub
-          <span className="block text-xs text-fg4">
+          <span className="block text-xs text-on-surface-variant">
             Раз в шесть часов. Выключено — система не обращается к сети вовсе: для установок без
             интернета это единственный способ не копить в журнале неудачные попытки.
           </span>
@@ -93,7 +93,7 @@ export function UpdateSettingsSection() {
           Проверить сейчас
         </Button>
         {data && (
-          <span className="text-xs text-fg3">
+          <span className="text-xs text-on-surface-variant">
             Установлена <b>{data.installed}</b>
             {data.updateAvailable && data.latest
               ? <> · доступна <b className="text-primary">{data.latest}</b></>
@@ -109,7 +109,7 @@ export function UpdateSettingsSection() {
       {data && (
         // Молчать о неудачной проверке нельзя: «обновлений нет» и «мы не знаем» — разные вещи, а
         // выглядят одинаково.
-        <p className={`text-xs ${data.lastCheckedAt ? 'text-fg4' : 'text-warning'}`}>
+        <p className={`text-xs ${data.lastCheckedAt ? 'text-on-surface-variant' : 'text-warning'}`}>
           Последняя удачная проверка: {whenText(data.lastCheckedAt)}
         </p>
       )}
@@ -125,7 +125,7 @@ export function UpdateSettingsSection() {
       )}
 
       {data?.updateAvailable && data.releaseUrl && (
-        <p className="text-xs text-fg3">
+        <p className="text-xs text-on-surface-variant">
           Что изменилось — на{' '}
           <a href={data.releaseUrl} target="_blank" rel="noopener noreferrer"
             className="text-primary hover:underline">странице выпуска</a>.

@@ -128,20 +128,20 @@ export function ImageField({ value, onChange, readOnly = false }: {
     if (readOnly)
       return (
         <div className="flex items-center justify-center border border-dashed border-outline-variant rounded-lg py-6">
-          <span className="text-xs text-fg4">Изображения нет</span>
+          <span className="text-xs text-on-surface-variant">Изображения нет</span>
         </div>
       );
     return (
       <>
         <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-outline rounded-lg py-6 cursor-pointer hover:border-primary hover:bg-primary-container transition-colors">
-          <Icon icon={ImageIcon} size={20} className="text-fg4" />
-          <span className="text-sm text-fg3">Нажмите для выбора изображения</span>
+          <Icon icon={ImageIcon} size={20} className="text-on-surface-variant" />
+          <span className="text-sm text-on-surface-variant">Нажмите для выбора изображения</span>
           {/* Предел называем ДО выбора файла, а не после отказа (issue #521): по образцу аватара,
               где о правиле сказано заранее («Изображение уменьшится автоматически»). Узнать об
               ограничении, уже выбрав файл, — значит проделать работу впустую. */}
           {/* О том, что крупная картинка уменьшится, говорим ДО выбора файла — как это делает
               аватар. Узнать об этом постфактум значит гадать, почему вес не тот (issue #534). */}
-          <span className="text-xs text-fg4">PNG, JPG, GIF, WEBP · крупные уменьшаются</span>
+          <span className="text-xs text-on-surface-variant">PNG, JPG, GIF, WEBP · крупные уменьшаются</span>
           <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
         </label>
         {error && <p className="text-xs text-error mt-1">{error}</p>}
@@ -156,7 +156,7 @@ export function ImageField({ value, onChange, readOnly = false }: {
       <div className="relative border border-outline-variant rounded-lg overflow-hidden bg-surface-container-low flex items-center justify-center p-2 max-h-52">
         {shownSrc
           ? <img src={shownSrc} alt="" className="max-h-48 max-w-full object-contain" />
-          : <span className="py-8 text-xs text-fg4">Загрузка изображения…</span>}
+          : <span className="py-8 text-xs text-on-surface-variant">Загрузка изображения…</span>}
         {pending && (
           <Tooltip content="Загружается в хранилище">
             <span className="absolute top-1.5 right-1.5 rounded bg-surface/90 p-1">
@@ -173,14 +173,14 @@ export function ImageField({ value, onChange, readOnly = false }: {
           <Icon icon={Delete} size={18} /> Удалить изображение
         </button>
         <button type="button" onClick={() => setSizeOpen(o => !o)} disabled={!img}
-          className="flex items-center gap-1 text-xs text-fg3 hover:text-on-surface transition-colors">
+          className="flex items-center gap-1 text-xs text-on-surface-variant hover:text-on-surface transition-colors">
           {sizeOpen ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
           Размер и выравнивание{!sizeOpen && hasSize ? ' ·' : ''}
         </button>
       </div>
       )}
 
-      {shrunk && <p className="text-caption text-fg4">{shrunk}</p>}
+      {shrunk && <p className="text-caption text-on-surface-variant">{shrunk}</p>}
 
       {sizeOpen && img && (
         <div className="flex flex-wrap items-center gap-2 pl-1">

@@ -136,7 +136,7 @@ function SectionMatch({ code, rows, sections, match, onNext, revision, seen, set
 
       {units.length > 1 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-fg3">В разделе:</span>
+          <span className="text-xs text-on-surface-variant">В разделе:</span>
           {units.map(u => (
             <Chip key={u.unit ?? ''} selected={u.unit === chosenUnit} count={formatCount(u.rows)}
               // Набранный коэффициент — для прежней единицы: перенесённый на другую, он дал бы план во сто раз больше.
@@ -144,7 +144,7 @@ function SectionMatch({ code, rows, sections, match, onNext, revision, seen, set
               {u.unit ?? 'без единицы'}
             </Chip>
           ))}
-          <span className="text-xs text-fg3">— раздел берёт одну единицу; строки других единиц останутся ждать</span>
+          <span className="text-xs text-on-surface-variant">— раздел берёт одну единицу; строки других единиц останутся ждать</span>
         </div>
       )}
 
@@ -193,7 +193,7 @@ function SectionRows({ rows, unit, off, state, onToggle }: {
         ? <Checkbox size="sm" checked={!off.has(r.id)} onChange={on => onToggle(r.id, on)} aria-label={`Строка ${rowNumber(r)}`} />
         : null),
     },
-    { key: 'number', label: '№', width: 'w-14', cell: r => <span className="tabular-nums text-fg3">{rowNumber(r)}</span> },
+    { key: 'number', label: '№', width: 'w-14', cell: r => <span className="tabular-nums text-on-surface-variant">{rowNumber(r)}</span> },
     { key: 'name', label: 'Строка', wrap: true, rowHeader: true, cell: r => <span className="text-sm">{r.name}</span> },
     {
       key: 'volume', label: 'Объём', align: 'right', width: 'w-24',
@@ -203,14 +203,14 @@ function SectionRows({ rows, unit, off, state, onToggle }: {
       key: 'becomes', label: 'В плане станет', width: 'w-56', wrap: true,
       cell: r => {
         if (r.workTypeId) return (
-          <span className="text-xs text-fg3">
+          <span className="text-xs text-on-surface-variant">
             {names.data?.get(r.workTypeId) ?? '…'}{r.volume !== null ? ` · ${formatQuantity(r.volume)}` : ''}
             {r.marks.some(m => m.code === 'remembered') && <> <StatusBadge tone="quiet">запомнено</StatusBadge></>}
           </span>
         );
         if (!waiting(r)) return null;
         if (r.sourceUnit !== unit) return <span className="text-xs text-warning">другая единица — останется ждать</span>;
-        if (off.has(r.id)) return <span className="text-xs text-fg4">не отмечена — останется ждать</span>;
+        if (off.has(r.id)) return <span className="text-xs text-on-surface-variant">не отмечена — останется ждать</span>;
         const v = state.factor === null ? null : planVolume(r, state.factor);
         return v === null ? null : <span className="tabular-nums text-sm">{formatQuantity(v)} {state.chosen?.unitName ?? ''}</span>;
       },
@@ -258,9 +258,9 @@ function RowMatch({ row, match, revision, seen, setVersion, busy, onClose }: Com
   return (
     <div className="space-y-4">
       <div className="rounded-lg bg-surface-container px-3 py-2 space-y-0.5">
-        <p className="font-mono text-xs text-fg3">{row.rateCode}</p>
+        <p className="font-mono text-xs text-on-surface-variant">{row.rateCode}</p>
         <p className="text-sm text-on-surface">{row.name}</p>
-        <p className="text-xs text-fg3 tabular-nums">
+        <p className="text-xs text-on-surface-variant tabular-nums">
           {row.sourceVolume !== null ? formatQuantity(row.sourceVolume) : '—'} {row.sourceUnit} · ред. {revision.number}
         </p>
       </div>
@@ -268,7 +268,7 @@ function RowMatch({ row, match, revision, seen, setVersion, busy, onClose }: Com
       {current && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-on-surface-variant">Сейчас: <b className="font-medium text-on-surface">{current}</b>
-            {row.volume !== null && <span className="text-fg3 tabular-nums"> · {formatQuantity(row.volume)}</span>}</span>
+            {row.volume !== null && <span className="text-on-surface-variant tabular-nums"> · {formatQuantity(row.volume)}</span>}</span>
           {remembered && <StatusBadge tone="quiet" title={remembered.text}>запомнено</StatusBadge>}
           <Button size="sm" variant="text" disabled={busy} onClick={clear}>
             {remembered ? 'Отменить подстановку' : 'Снять сопоставление'}
@@ -302,7 +302,7 @@ function Footer({ canCreate, onNew, hint, children }: {
       {canCreate && (
         <Button size="sm" variant="text" icon={<Icon icon={Add} size={18} />} className="mr-auto" onClick={onNew}>Новый вид работы</Button>
       )}
-      {hint && <span className={`text-xs text-fg3 ${canCreate ? '' : 'mr-auto'}`}>{hint}</span>}
+      {hint && <span className={`text-xs text-on-surface-variant ${canCreate ? '' : 'mr-auto'}`}>{hint}</span>}
       <ModalExit />
       {children}
     </div>

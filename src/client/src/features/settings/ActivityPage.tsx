@@ -32,7 +32,7 @@ const ALL = 'all';
 
 const COLUMNS: DataGridColumn<ActivityRow>[] = [
   { key: 'occurredAt', label: 'Когда', width: 'w-36',
-    cell: r => <span className="text-fg3 tabular-nums">{formatDateTime(r.occurredAt)}</span> },
+    cell: r => <span className="text-on-surface-variant tabular-nums">{formatDateTime(r.occurredAt)}</span> },
   { key: 'actorName', label: 'Кто', width: 'w-52', wrap: true,
     cell: r => <span className="text-on-surface-variant break-all">{r.actorName}</span> },
   { key: 'actionTitle', label: 'Что', wrap: true, cell: r => <What row={r} /> },
@@ -58,10 +58,10 @@ function What({ row }: { row: ActivityRow }) {
           </Chip>
         )}
       </div>
-      {row.target && <div className="text-fg3 text-xs break-all">{row.target}</div>}
+      {row.target && <div className="text-on-surface-variant text-xs break-all">{row.target}</div>}
       {/* Имя сменилось за серию: «Счёт № 41» был «Счётом № 14» — иначе первые записи ряда
           читались бы как правка другого документа. */}
-      {row.firstTarget && <div className="text-fg4 text-xs break-all">была: {row.firstTarget}</div>}
+      {row.firstTarget && <div className="text-on-surface-variant text-xs break-all">была: {row.firstTarget}</div>}
       {open && isSeries(row) && <SeriesRecords sessionId={row.sessionId} action={row.action} count={row.count} />}
     </>
   );
@@ -69,21 +69,21 @@ function What({ row }: { row: ActivityRow }) {
 
 function SeriesRecords({ sessionId, action, count }: { sessionId: string; action: string; count: number }) {
   const { data, isLoading, isError } = useActivitySeries(sessionId, action, count);
-  if (isLoading) return <div className="text-fg4 text-xs mt-1.5">Загрузка...</div>;
+  if (isLoading) return <div className="text-on-surface-variant text-xs mt-1.5">Загрузка...</div>;
   if (isError || !data)
     return <div className="text-error text-xs mt-1.5">Записи ряда не загрузились — обновите страницу.</div>;
   return (
     <ol className="mt-1.5 border-l border-outline-variant pl-3 space-y-1" aria-label="Записи ряда">
       {data.map(record => (
         <li key={record.id} className="flex items-baseline gap-2 text-xs">
-          <span className="text-fg3 tabular-nums shrink-0">{formatTime(record.occurredAt)}</span>
+          <span className="text-on-surface-variant tabular-nums shrink-0">{formatTime(record.occurredAt)}</span>
           <Change record={record} />
         </li>
       ))}
       {/* Сервер отдаёт не больше потолка записей ряда — молча обрезанный список выглядел бы целым.
           Записи читаются под то же число, что у ряда (ключ запроса), поэтому «меньше» — это обрезка. */}
       {data.length < count && (
-        <li className="text-fg3 text-xs">Показаны первые {data.length} из {count}.</li>
+        <li className="text-on-surface-variant text-xs">Показаны первые {data.length} из {count}.</li>
       )}
     </ol>
   );
@@ -95,15 +95,15 @@ function Change({ record }: { record: ActivityRecord }) {
   if (record.before && record.after) {
     return (
       <span className="inline-flex items-center gap-1.5 flex-wrap">
-        <span className="text-fg3 line-through decoration-outline/50">{record.before}</span>
-        <Icon icon={ArrowForward} size={18} className="text-fg4 shrink-0" />
+        <span className="text-on-surface-variant line-through decoration-outline/50">{record.before}</span>
+        <Icon icon={ArrowForward} size={18} className="text-on-surface-variant shrink-0" />
         <span className="text-on-surface">{record.after}</span>
       </span>
     );
   }
   if (record.after) return <span className="text-on-surface">{record.after}</span>;
-  if (record.before) return <span className="text-fg3 line-through decoration-outline/50">{record.before}</span>;
-  return <span className="text-fg4">—</span>;
+  if (record.before) return <span className="text-on-surface-variant line-through decoration-outline/50">{record.before}</span>;
+  return <span className="text-on-surface-variant">—</span>;
 }
 
 export function ActivityPage() {
@@ -132,9 +132,9 @@ export function ActivityPage() {
       } />
 
       {isLoading ? (
-        <div className="text-center text-fg4 text-sm py-10">Загрузка...</div>
+        <div className="text-center text-on-surface-variant text-sm py-10">Загрузка...</div>
       ) : records.length === 0 ? (
-        <div className="text-center text-fg4 text-sm py-10">
+        <div className="text-center text-on-surface-variant text-sm py-10">
           Записей нет. Журнал заполняется сам: сменой ролей, правкой схем и составом модулей.
         </div>
       ) : (
@@ -144,7 +144,7 @@ export function ActivityPage() {
           {/* Страницами, а не кнопкой «показать ещё»: журнал копится годами, и растущий запрос
               рано или поздно упёрся бы в потолок страницы на сервере — список перестал бы
               удлиняться молча, и выглядело бы это как «записей больше нет». */}
-          <div className="flex items-center justify-between mt-3 text-note text-fg3">
+          <div className="flex items-center justify-between mt-3 text-note text-on-surface-variant">
             <span>
               Строки {page * PAGE + 1}–{page * PAGE + records.length} из {total}
             </span>

@@ -285,7 +285,7 @@ function ModalBody({
                   aria-disabled={busy || undefined}
                   data-modal-cross=""
                   aria-label="Закрыть"
-                  className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors text-fg3 hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${busy ? BUSY_EXIT : ''}`}
+                  className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors text-on-surface-variant hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${busy ? BUSY_EXIT : ''}`}
                 >
                   <Icon icon={Close} size={18} />
                 </button>
@@ -330,7 +330,7 @@ function ModalBody({
                 <p className="text-sm font-semibold mb-1 text-on-surface">
                   Закрыть без сохранения?
                 </p>
-                <p className="text-xs mb-4 text-fg3">
+                <p className="text-xs mb-4 text-on-surface-variant">
                   Несохранённые изменения будут потеряны.
                 </p>
                 <div className="flex gap-2 justify-end">

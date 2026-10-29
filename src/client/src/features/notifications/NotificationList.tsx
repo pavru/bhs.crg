@@ -47,9 +47,9 @@ async function openResult(linkUrl: string) {
 
 // Аватар-иконка уведомления: для ошибок — error-container, иначе — соответствующий контейнер.
 const SEVERITY: Record<NotificationSeverity, { icon: IconDef; color: string; bg: string }> = {
-  Info:    { icon: Info,          color: 'text-primary',   bg: 'bg-primary-container' },
-  Warning: { icon: Warning, color: 'text-warning', bg: 'bg-warning-container' },
-  Error:   { icon: ErrorIcon,   color: 'text-error',  bg: 'bg-error-container' },
+  Info:    { icon: Info,          color: 'text-on-primary-container', bg: 'bg-primary-container' },
+  Warning: { icon: Warning, color: 'text-on-warning-container', bg: 'bg-warning-container' },
+  Error:   { icon: ErrorIcon,   color: 'text-on-error-container', bg: 'bg-error-container' },
 };
 
 function relTime(iso: string): string {
@@ -78,7 +78,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
           <p className="text-sm font-medium text-on-surface truncate">{n.title}</p>
           {!n.isRead && <span className="shrink-0 w-2 h-2 rounded-full bg-primary" />}
         </div>
-        <p className="text-note leading-[1.45] text-fg3 mt-1 break-words whitespace-pre-wrap">{n.message}</p>
+        <p className="text-note leading-[1.45] text-on-surface-variant mt-1 break-words whitespace-pre-wrap">{n.message}</p>
         {n.linkUrl && (isExternalLink(n.linkUrl) ? (
           <a
             href={n.linkUrl} target="_blank" rel="noreferrer"
@@ -106,7 +106,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
             </button>
           </Popover.Close>
         ))}
-        <div className="flex items-center gap-2 mt-2 text-xs text-fg3">
+        <div className="flex items-center gap-2 mt-2 text-xs text-on-surface-variant">
           {n.source && (
             <span className="inline-flex items-center h-6 px-3 rounded-lg border border-outline-variant font-medium">{n.source}</span>
           )}
@@ -131,11 +131,11 @@ function NotificationRow({ n }: { n: NotificationDto }) {
 /** Состояние компонента словами и цветом. Три состояния, а не два: «отвечает через раз» — не норма и
  *  ещё не отказ. Пока их было два, панель перекрашивалась на каждом опросе (issue #917). */
 function healthLook(c: ComponentHealth): { dot: string; tone: string; label: string } {
-  if (c.state === 'Up') return { dot: 'bg-success', tone: 'text-fg3', label: 'в норме' };
+  if (c.state === 'Up') return { dot: 'bg-success', tone: 'text-on-surface-variant', label: 'в норме' };
   if (c.state === 'Flapping') return { dot: 'bg-warning', tone: 'text-warning', label: 'отвечает через раз' };
   // «Не проверяли» — не норма и не отказ: сервис за упавшим прокси, и сказано о нём одной строкой
   // выше. Выдать это за норму значило бы спрятать, за отказ — обвинить невиновного.
-  if (c.state === 'Unknown') return { dot: 'bg-outline', tone: 'text-fg3', label: 'не проверяли' };
+  if (c.state === 'Unknown') return { dot: 'bg-outline', tone: 'text-on-surface-variant', label: 'не проверяли' };
   return { dot: 'bg-error', tone: 'text-error', label: c.detail ? 'сбой' : 'недоступен' };
 }
 
@@ -166,7 +166,7 @@ function HealthNote() {
           <span className="font-medium text-on-surface">Состояние системы:</span>{' '}
           <span className={down ? 'text-error' : 'text-warning'}>{summary}</span>
         </span>
-        <Icon icon={KeyboardArrowDown} size={18} className={`shrink-0 text-fg3 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <Icon icon={KeyboardArrowDown} size={18} className={`shrink-0 text-on-surface-variant transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <div className="pl-5 pr-4 pb-2">
@@ -178,7 +178,7 @@ function HealthNote() {
                   <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
                   <span className="text-on-surface flex-1 truncate">
                     {c.name}
-                    {c.viaProxy && <span className="ml-1.5 text-xs text-fg4">через прокси</span>}
+                    {c.viaProxy && <span className="ml-1.5 text-xs text-on-surface-variant">через прокси</span>}
                   </span>
                   <span className={`text-xs font-medium shrink-0 ${tone}`}>{label}</span>
                 </div>
@@ -218,7 +218,7 @@ export function NotificationList({ items, unread, className = '' }: {
       </div>
       <HealthNote />
       {items.length === 0 ? (
-        <div className="px-6 py-9 text-center text-sm text-fg3">
+        <div className="px-6 py-9 text-center text-sm text-on-surface-variant">
           <Icon icon={NotificationsOff} size={40} className="mx-auto mb-2 opacity-50" />
           Нет новых уведомлений
         </div>

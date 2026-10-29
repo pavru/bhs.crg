@@ -145,7 +145,7 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
           aria-label={locked ? 'Снять привязку к источнику'
             : isBound ? 'Привязка к источнику' : 'Привязать к источнику'}
           className={`inline-flex items-center justify-center rounded transition-colors ${
-            isBound ? 'text-primary hover:text-brand-hover' : 'text-fg4 opacity-0 group-hover:opacity-100 hover:text-on-surface-variant'}`}>
+            isBound ? 'text-primary hover:text-brand-hover' : 'text-on-surface-variant opacity-0 group-hover:opacity-100 hover:text-on-surface-variant'}`}>
           <Icon icon={Database} size={18} />
         </button>
       </Tooltip>
@@ -172,7 +172,7 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
         }>
         <div className="space-y-4">
           {sources.length === 0 ? (
-            <p className="text-xs text-fg4 py-2">
+            <p className="text-xs text-on-surface-variant py-2">
               Нет подходящих источников для этого поля. {isTabular || isComplexRef
                 ? 'Загрузите набор данных на странице «Наборы данных» или в панели уровня.'
                 : `Нужен источник, материализованный в тип «${allDocTypes.find(t => t.id === field.typeId)?.name ?? 'этого поля'}» (настраивается на источнике).`}
@@ -191,7 +191,7 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
               </div>
 
               {selectedSource && (isMaterialized ? (
-                <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 text-xs text-fg3">
+                <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 text-xs text-on-surface-variant">
                   Источник материализуется в тип <b>{allDocTypes.find(t => t.id === selectedSource.materializeTypeId)?.name ?? '—'}</b> —
                   {selectedSource.materializeByIdColumn
                     // Режим «по Ид» (issue #725): маппинга нет вовсе, и обещать его здесь значило бы

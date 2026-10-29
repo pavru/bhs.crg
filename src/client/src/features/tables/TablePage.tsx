@@ -93,7 +93,7 @@ export function TablePage() {
   useDocumentTitle(declaration.data && lookupTitle(lookup, declaration.data.title));
 
   // Описание ещё не пришло и отказа нет — сказать пока нечего: ни «строк нет», ни причину.
-  if (declaration.isPending) return <div className="px-6 py-10 text-sm text-fg4">Загрузка…</div>;
+  if (declaration.isPending) return <div className="px-6 py-10 text-sm text-on-surface-variant">Загрузка…</div>;
 
   // Таблицы нет или она не открыта этому человеку — показываем причину сервера вместо экрана.
   if (declaration.isError)
@@ -120,7 +120,7 @@ export function TablePage() {
   // пропало, а адрес ещё прежний. «Представление удалено» тут было бы ложным объявлением о том, что
   // человек сделал сам. Устаревшая закладка сюда не попадает: её идентификатор никто не удалял.
   if (lookup.state === 'pending' || (lookup.state === 'gone' && leaving === presetCode))
-    return <div className="px-6 py-10 text-sm text-fg4">Загрузка…</div>;
+    return <div className="px-6 py-10 text-sm text-on-surface-variant">Загрузка…</div>;
 
   const decl = declaration.data;
   const off = decl.state === 'module-off';
@@ -135,7 +135,7 @@ export function TablePage() {
     return (
       <div className="px-6 py-10 text-sm" role="alert">
         <p className="text-error">Представление удалено или больше не общее.</p>
-        <p className="mt-2 text-fg3">
+        <p className="mt-2 text-on-surface-variant">
           <Link className="underline" to={`/tables/${encodeURIComponent(address)}${wholeTableHash(view)}`}>Открыть таблицу целиком</Link>
         </p>
       </div>
@@ -148,7 +148,7 @@ export function TablePage() {
     return (
       <div className="px-6 py-10 text-sm" role="alert">
         <p className="text-error">У таблицы «{decl.title}» нет представления «{presetCode}».</p>
-        <p className="mt-2 text-fg3">
+        <p className="mt-2 text-on-surface-variant">
           <Link className="underline" to={`/tables/${encodeURIComponent(address)}`}>Открыть таблицу целиком</Link>
         </p>
       </div>
@@ -221,7 +221,7 @@ export function TablePage() {
             ищет право по коду. У кого прав хватает, строки нет вовсе. */}
         {!off && hiddenByRight(decl.columns, view.columns).map(group => (
           <Tooltip key={`${group.requires}|${group.reason}`} content={group.labels.join(', ')}>
-            <p className="mt-2 text-xs text-fg3">
+            <p className="mt-2 text-xs text-on-surface-variant">
               {hiddenCountText(group.count)}: {group.reason}
               {group.requires && <> (<code className="text-on-surface-variant">{group.requires}</code>)</>}
             </p>
@@ -248,7 +248,7 @@ export function TablePage() {
             </div>
           </div>
         ) : !data ? (
-          <p className="mt-3 text-sm text-fg4">Строки загружаются…</p>
+          <p className="mt-3 text-sm text-on-surface-variant">Строки загружаются…</p>
         ) : (
           <>
             {/* Ответ неполон — говорим это НАД строками, а не подписью колонки: колонки может не быть
@@ -314,7 +314,7 @@ function Total({ view, data, column, kind }: {
       <div>
         <div className="font-medium text-on-surface">{total.text}</div>
         {total.note && <div className="text-warning">{total.note}</div>}
-        {total.meaning && <div className="text-fg4 font-normal whitespace-normal">{total.meaning}</div>}
+        {total.meaning && <div className="text-on-surface-variant font-normal whitespace-normal">{total.meaning}</div>}
       </div>
     </Tooltip>
   );
@@ -325,9 +325,9 @@ function Pager({ view, data, onChange }: {
   view: TableView; data: TableData; onChange: (change: ViewChange) => void;
 }) {
   const pages = pageCount(data.count, view.size);
-  const button = 'p-1 rounded-md text-fg3 hover:text-on-surface hover:bg-surface-container disabled:opacity-30 disabled:hover:bg-transparent';
+  const button = 'p-1 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container disabled:opacity-30 disabled:hover:bg-transparent';
   return (
-    <div className="mt-2 flex items-center gap-3 text-xs text-fg4">
+    <div className="mt-2 flex items-center gap-3 text-xs text-on-surface-variant">
       <span>{shownOf(data)}</span>
       <div className="flex-1" />
       <span className="flex items-center gap-1.5">

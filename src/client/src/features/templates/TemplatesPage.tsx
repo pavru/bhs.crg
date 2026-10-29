@@ -53,7 +53,7 @@ function NewTemplateForm({ documentTypeId, docType, allDocTypes, onClose, onCrea
     <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
         <TextField label="Название шаблона" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
-        <p className="text-xs text-fg4">
+        <p className="text-xs text-on-surface-variant">
           Будет создан Typst-шаблон с колонтитулами, нумерацией страниц и списком всех реквизитов типа документа.
         </p>
         {error && <p className="text-sm text-error">{error}</p>}
@@ -289,9 +289,9 @@ export function TemplatesPage() {
             <UserLibPanel />
           </div>
         ) : !selectedTypeId ? (
-          <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Выберите тип документа</div>
+          <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">Выберите тип документа</div>
         ) : templatesLoading ? (
-          <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка...</div>
+          <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">Загрузка...</div>
         ) : (
           <div className="flex flex-1 overflow-hidden">
             <TemplateSidebar
@@ -317,7 +317,7 @@ export function TemplatesPage() {
                   onSaved={(updated) => selectTemplate(updated)}
                 />
               ) : (
-                <div className="h-full flex items-center justify-center text-fg4 text-sm">
+                <div className="h-full flex items-center justify-center text-on-surface-variant text-sm">
                   Выберите шаблон или создайте новый
                 </div>
               )}

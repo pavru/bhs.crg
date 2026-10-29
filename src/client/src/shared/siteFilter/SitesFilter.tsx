@@ -123,7 +123,7 @@ function Choices({ on, onPick, onDone, favorites, all }: {
             className="w-full flex items-center gap-2 h-9 px-2 rounded-md text-left text-sm hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <Icon icon={Check} size={18} aria-hidden className={`shrink-0 ${checked ? 'text-primary' : 'invisible'}`} />
             <span className={`flex-1 ${checked ? 'font-medium text-on-surface' : 'text-on-surface-variant'}`}>{item.label}</span>
-            <span className="text-xs tabular-nums text-fg3">{item.note}</span>
+            <span className="text-xs tabular-nums text-on-surface-variant">{item.note}</span>
           </button>
         );
       })}

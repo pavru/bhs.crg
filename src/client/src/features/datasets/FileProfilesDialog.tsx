@@ -66,7 +66,7 @@ export function FileProfilesDialog({ file, onClose }: { file: DataSetFile; onClo
         </div>
       }>
       <div className="space-y-4">
-        <p className="text-xs text-fg4">
+        <p className="text-xs text-on-surface-variant">
           Промпты распознавания задаём мы — здесь выбирается, с какими параметрами (набором полей) они
           применяются к этому набору. Не выбрано — используется встроенный профиль.
           Параметры таблиц задаются у групп листов в «Разбиении».
@@ -91,18 +91,18 @@ export function FileProfilesDialog({ file, onClose }: { file: DataSetFile; onClo
 
         {dormant.map(h => (
           <div key={h.id}>
-            <p className="text-sm font-medium text-fg3 mb-1">{h.kindLabel}</p>
+            <p className="text-sm font-medium text-on-surface-variant mb-1">{h.kindLabel}</p>
             {/* Текстом, а не выключенным селектом: длинная подпись в селекте обрезается, и
                 обрезается как раз причина — «модуль … выключен». */}
-            <p className="border border-outline-variant rounded-md px-2 py-1.5 text-sm bg-surface-container text-fg3">{hiddenLabel(h)}</p>
-            <p className="text-caption text-fg4 mt-1">
+            <p className="border border-outline-variant rounded-md px-2 py-1.5 text-sm bg-surface-container text-on-surface-variant">{hiddenLabel(h)}</p>
+            <p className="text-caption text-on-surface-variant mt-1">
               Привязка сохранена и начнёт действовать, когда модуль включат.
             </p>
           </div>
         ))}
 
         {error && <p className="text-sm text-error">{error}</p>}
-        <p className="text-caption text-fg4">
+        <p className="text-caption text-on-surface-variant">
           Смена профиля не перезапускает распознавание — новые параметры применятся при следующем запуске.
         </p>
       </div>

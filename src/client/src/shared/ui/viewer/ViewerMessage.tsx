@@ -69,7 +69,7 @@ export function ViewerMessage({ state, source, actions, loadingText = 'Файл 
     <Centered>
       <div className="flex flex-col items-center gap-2 max-w-xs text-center" role="alert" data-testid="viewer-failure"
         data-state={state}>
-        <span className="text-fg3">{t.icon}</span>
+        <span className="text-on-surface-variant">{t.icon}</span>
         <span className="text-sm font-medium text-on-surface">{t.head}</span>
         {t.text && <span className="text-xs text-on-surface-variant">{t.text}</span>}
         <div className="flex flex-wrap justify-center gap-2 mt-1">

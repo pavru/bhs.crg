@@ -74,7 +74,7 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
       : (field.options ?? []).filter(o => o !== '').map(o => ({ code: o, label: o }));
     const empty = opts.length === 0;
     if (empty && label == null)
-      return <p className="text-xs text-fg4 italic py-1">{NO_OPTIONS}</p>;
+      return <p className="text-xs text-on-surface-variant italic py-1">{NO_OPTIONS}</p>;
     if (readOnly) {
       // Отключённый список — не то же, что показанный выбор (issue #958): из `disabled`-контрола
       // значение не выделить и не скопировать, а клавиатура его пропускает. Показываем ПОДПИСЬ

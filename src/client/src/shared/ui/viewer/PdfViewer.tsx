@@ -88,7 +88,7 @@ export function ViewerTitleBar({ title, source, onClose }: {
 }) {
   return (
     <div className="shrink-0 h-12 flex items-center gap-2 pl-4 pr-2 border-b border-outline-variant bg-surface">
-      <Icon icon={Description} size={18} className="text-fg3 shrink-0" aria-hidden />
+      <Icon icon={Description} size={18} className="text-on-surface-variant shrink-0" aria-hidden />
       <span className="flex-1 min-w-0 truncate text-sm font-medium text-on-surface">{title}</span>
       {source && (
         <Button size="sm" variant="outlined" icon={<Icon icon={OpenInNew} size={18} />} onClick={() => openInNewTab(source)}>

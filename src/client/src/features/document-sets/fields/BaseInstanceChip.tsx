@@ -50,7 +50,7 @@ export function BaseInstanceChip({
           style={{ boxShadow: 'var(--md-sys-elevation-level3)' }}>
           <DropdownMenu.Item onSelect={() => setPickerOpen(true)}
             className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer select-none outline-none text-on-surface-variant data-[highlighted]:bg-surface-container-low">
-            <Icon icon={ChangeCircle} size={18} className="text-fg4" /> Заменить основу…
+            <Icon icon={ChangeCircle} size={18} className="text-on-surface-variant" /> Заменить основу…
           </DropdownMenu.Item>
           <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
           <DropdownMenu.Item onSelect={onClear}
@@ -66,7 +66,7 @@ export function BaseInstanceChip({
   const missingChip = !selected && missing && (
     <Tooltip content="Базовый экземпляр недоступен (удалён или вне области видимости) — нажмите, чтобы отвязать">
       <button type="button" onClick={editable ? onClear : undefined} disabled={!editable}
-        className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium bg-warning-container text-warning max-w-[16rem]">
+        className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium bg-warning-container text-on-warning-container max-w-[16rem]">
         <Icon icon={Warning} size={18} className="shrink-0" />
         <span className="truncate">Основа недоступна</span>
       </button>

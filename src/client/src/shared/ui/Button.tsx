@@ -132,8 +132,8 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
   ref,
 ) {
   const look = danger
-    ? 'text-fg3 hover:text-error hover:bg-error/10'
-    : 'text-fg3 hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10';
+    ? 'text-on-surface-variant hover:text-error hover:bg-error/10'
+    : 'text-on-surface-variant hover:text-on-surface hover:bg-black/5 dark:hover:bg-white/10';
   // Без своей `title` подсказка лишь повторяет имя — неактивной кнопке её показывать незачем.
   return (
     <Tooltip content={title ?? (rest.disabled ? undefined : label)}>

@@ -89,7 +89,7 @@ export function NomenclaturePicker({
           <button type="button" onClick={() => setOpen(true)}
             className={`min-w-0 flex-1 text-left text-xs px-2 py-1 rounded border truncate
               ${lost ? 'border-error/30 text-error'
-                : chosen ? 'border-outline-variant text-on-surface' : 'border-warning-border text-warning'}`}>
+                : chosen ? 'border-outline-variant text-on-surface' : 'border-outline-variant text-warning'}`}>
             {/* Три состояния, и путать их нельзя: потерю чинит справочник, пустое имя — тоже справочник,
                 но позиция на месте, а «выбрать позицию» — работа человека за формой. */}
             {lost ? lostText ?? LOST.position
@@ -103,7 +103,7 @@ export function NomenclaturePicker({
         {chosen && clearable && (
           <Tooltip content="Снять позицию" name>
             <button type="button" onClick={onClear}
-              className="shrink-0 text-fg4 hover:text-on-surface p-0.5">
+              className="shrink-0 text-on-surface-variant hover:text-on-surface p-0.5">
               <Icon icon={Close} size={18} />
             </button>
           </Tooltip>
@@ -297,7 +297,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
               Завести новую позицию…
             </Button>
           ) : (
-            <p className="text-caption text-fg4">
+            <p className="text-caption text-on-surface-variant">
               Новую позицию заводит тот, кто ведёт справочник номенклатуры. Строку можно сохранить без позиции.
             </p>
           )}
@@ -309,13 +309,13 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
         <div className={`space-y-3 px-6 pt-3 pb-4 ${narrow ? '' : 'overflow-y-auto'}`}>
           {plate}
           <div className="flex items-center gap-2 rounded-md border border-outline px-2.5 h-10">
-            <Icon icon={Search} size={18} className="text-fg4 shrink-0" />
+            <Icon icon={Search} size={18} className="text-on-surface-variant shrink-0" />
             <input ref={focus} value={typed}
               onChange={e => type(e.target.value)} onKeyDown={keys}
               placeholder="наименование или часть наименования" aria-label="Поиск позиции" data-search=""
               role="combobox" aria-expanded={lists !== ''} aria-controls={lists || undefined} aria-autocomplete="list"
               aria-activedescendant={activeOption}
-              className="flex-1 bg-transparent text-sm outline-none text-on-surface placeholder:text-fg4" />
+              className="flex-1 bg-transparent text-sm outline-none text-on-surface placeholder:text-on-surface-variant" />
           </div>
 
           {found.isError && (
@@ -359,14 +359,14 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
           </div>
 
           {head?.more && (
-            <p className="text-xs text-fg4">Ищите по наименованию — справочник большой, весь список здесь не показывается.</p>
+            <p className="text-xs text-on-surface-variant">Ищите по наименованию — справочник большой, весь список здесь не показывается.</p>
           )}
           {whole && head!.items.length === 0 && (
-            <p className="text-xs text-fg4">Справочник номенклатуры пуст.</p>
+            <p className="text-xs text-on-surface-variant">Справочник номенклатуры пуст.</p>
           )}
 
           {searching && fresh && found.isSuccess && !found.isFetching && results.length === 0 && (
-            <p className="text-xs text-fg4">
+            <p className="text-xs text-on-surface-variant">
               {looksLikeArticle(query) && question
                 ? 'Поиск идёт по наименованию; по артикулу подбирает блок «Подходящие» — очистите поле.'
                 : canCreate
@@ -380,7 +380,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
               человек заведёт её заново, а она есть. Действия здесь нет нарочно: вернуть из архива
               отсюда пока нечем. */}
           {!!answered?.inArchive && (
-            <p className="text-xs text-fg3">
+            <p className="text-xs text-on-surface-variant">
               В архиве под этот запрос: {answered.inArchive}. В выборе архивных позиций нет — заводить
               такую же заново не нужно.
             </p>
@@ -394,7 +394,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
             </p>
           )}
           {narrow && rows.length > 0 && (
-            <p className="text-caption text-fg4">Нажмите на позицию, чтобы открыть её карточку.</p>
+            <p className="text-caption text-on-surface-variant">Нажмите на позицию, чтобы открыть её карточку.</p>
           )}
         </div>
 
@@ -440,9 +440,9 @@ function LinePlate({ from, line }: { from: LineWords; line?: PickerLine }) {
   if (!line && !name && !meta) return null;
   return (
     <div className="rounded-lg bg-surface-container px-3 py-2 space-y-0.5">
-      {line && <p className="text-caption text-fg3">{line.where}</p>}
+      {line && <p className="text-caption text-on-surface-variant">{line.where}</p>}
       {name && <p className="text-sm leading-snug text-on-surface line-clamp-2" title={name}>{name}</p>}
-      {meta && <p className="text-xs text-fg3 tabular-nums">{meta}</p>}
+      {meta && <p className="text-xs text-on-surface-variant tabular-nums">{meta}</p>}
     </div>
   );
 }

@@ -24,7 +24,7 @@ export function FileTypeIcon({ mimeType }: { mimeType: string }) {
   if (mimeType === 'application/pdf') return <Icon icon={Description} size={18} className="text-error shrink-0" />;
   if (mimeType.includes('word')) return <Icon icon={Description} size={18} className="text-primary shrink-0" />;
   if (mimeType.includes('sheet') || mimeType.includes('excel')) return <Icon icon={TableChart} size={18} className="text-success shrink-0" />;
-  return <Icon icon={Description} size={18} className="text-fg4 shrink-0" />;
+  return <Icon icon={Description} size={18} className="text-on-surface-variant shrink-0" />;
 }
 
 export function FilePreviewModal({ open, onOpenChange, attachment }: {
@@ -126,7 +126,7 @@ function FilePreviewBody({ attachment }: { attachment: FileAttachment }) {
       {objectUrl && category === 'office' && (
         <div className="flex flex-col items-center gap-4 py-10">
           <Icon icon={TableChart} size={48} className="text-success" />
-          <p className="text-sm text-fg3">Предпросмотр недоступен для этого формата.</p>
+          <p className="text-sm text-on-surface-variant">Предпросмотр недоступен для этого формата.</p>
           <a href={objectUrl} download={attachment.fileName}
             className="inline-flex items-center gap-2 h-9 px-4 bg-primary hover:bg-brand-hover active:bg-brand-pressed text-on-primary text-sm font-medium rounded-full shadow-[var(--md-sys-elevation-level1)] transition-colors">
             <Icon icon={Download} size={18} /> Скачать
@@ -181,7 +181,7 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
     return (
       <div className="flex items-center gap-2 border border-outline-variant rounded-lg px-3 py-2.5">
         <CircularProgress size={18} className="text-primary shrink-0" />
-        <span className="text-sm text-fg3">Загрузка файла...</span>
+        <span className="text-sm text-on-surface-variant">Загрузка файла...</span>
       </div>
     );
   }
@@ -192,17 +192,17 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
         <div className="flex items-center gap-2 border border-outline-variant rounded-lg px-3 py-2 bg-surface-container-low">
           <FileTypeIcon mimeType={attachment.mimeType} />
           <span className="flex-1 text-sm text-on-surface font-medium truncate">{attachment.fileName}</span>
-          <span className="text-xs text-fg4 shrink-0">{formatBytes(attachment.size)}</span>
+          <span className="text-xs text-on-surface-variant shrink-0">{formatBytes(attachment.size)}</span>
           <Tooltip content="Предпросмотр" name>
             <button type="button" onClick={() => setPreviewOpen(true)}
-              className="p-1 text-fg4 hover:text-primary transition-colors shrink-0">
+              className="p-1 text-on-surface-variant hover:text-primary transition-colors shrink-0">
               <Icon icon={Visibility} size={18} />
             </button>
           </Tooltip>
           {!readOnly && (
             <Tooltip content="Удалить" name>
               <button type="button" onClick={() => onChange(null)}
-                className="p-1 text-fg4 hover:text-error transition-colors shrink-0">
+                className="p-1 text-on-surface-variant hover:text-error transition-colors shrink-0">
                 <Icon icon={Delete} size={18} />
               </button>
             </Tooltip>
@@ -217,16 +217,16 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
   if (readOnly)
     return (
       <div className="flex items-center justify-center border border-dashed border-outline-variant rounded-lg py-5">
-        <span className="text-xs text-fg4">Файла нет</span>
+        <span className="text-xs text-on-surface-variant">Файла нет</span>
       </div>
     );
 
   return (
     <>
       <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-outline rounded-lg py-5 cursor-pointer hover:border-primary hover:bg-primary-container transition-colors">
-        <Icon icon={Upload} size={18} className="text-fg4" />
-        <span className="text-sm text-fg3">Нажмите для выбора файла</span>
-        <span className="text-xs text-fg4">PDF, DOCX, XLSX, PNG, JPG (до 50 МБ)</span>
+        <Icon icon={Upload} size={18} className="text-on-surface-variant" />
+        <span className="text-sm text-on-surface-variant">Нажмите для выбора файла</span>
+        <span className="text-xs text-on-surface-variant">PDF, DOCX, XLSX, PNG, JPG (до 50 МБ)</span>
         <input type="file" accept=".pdf,.docx,.xlsx,.xls,.png,.jpg,.jpeg,.gif,.webp"
           className="hidden" onChange={handleFile} />
       </label>

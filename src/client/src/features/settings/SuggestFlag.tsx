@@ -21,7 +21,7 @@ export function SuggestFlag({ field, onChange }: {
   const reason = suggestReason(field);
   if (reason === 'type' || reason === 'computed') return null;
   if (reason !== 'suggested' && reason !== 'manual')
-    return <p className="text-caption text-fg3">{SUGGEST_REFUSAL_TEXT[reason]}</p>;
+    return <p className="text-caption text-on-surface-variant">{SUGGEST_REFUSAL_TEXT[reason]}</p>;
 
   const tags = field.tags ?? [];
   function toggle(on: boolean) {

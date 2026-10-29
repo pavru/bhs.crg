@@ -97,7 +97,7 @@ function PasteDialog({ mode, onClose, onAdd }: {
 
           {table.length > 0 && (
             <>
-              <p className="text-xs text-fg4">
+              <p className="text-xs text-on-surface-variant">
                 Разобрано строк: <b className="text-on-surface-variant">{rows.length}</b>
                 {hasHeader(table) && ' (первая строка принята за шапку и в счёт не пойдёт)'}. Роли
                 колонок ниже — <b>догадка</b>: проверьте их, прежде чем добавлять.
@@ -119,14 +119,14 @@ function PasteDialog({ mode, onClose, onAdd }: {
                     </Select>
                   ),
                   cell: row => (
-                    <span className={`block max-w-56 truncate ${current[column] === 'skip' ? 'text-fg4 line-through' : ''}`}>
+                    <span className={`block max-w-56 truncate ${current[column] === 'skip' ? 'text-on-surface-variant line-through' : ''}`}>
                       {row.cells[column] ?? ''}
                     </span>
                   ),
                 }))} />
 
               {rows.length > 8 && (
-                <p className="text-xs text-fg4">Показаны первые 8 строк из {rows.length} — добавятся все.</p>
+                <p className="text-xs text-on-surface-variant">Показаны первые 8 строк из {rows.length} — добавятся все.</p>
               )}
 
               {offered ? (
@@ -135,7 +135,7 @@ function PasteDialog({ mode, onClose, onAdd }: {
                   description={chosen === 'Included' ? undefined
                     : `${byHeader && onTop === null ? 'В шапке таблицы цены без НДС. ' : ''}Отметка встанет и над строками счёта — для всех его строк.`} />
               ) : mode === 'OnTop' && (
-                <p className="text-xs text-fg4">Цены без НДС, НДС сверху — как отмечено над строками счёта.</p>
+                <p className="text-xs text-on-surface-variant">Цены без НДС, НДС сверху — как отмечено над строками счёта.</p>
               )}
             </>
           )}

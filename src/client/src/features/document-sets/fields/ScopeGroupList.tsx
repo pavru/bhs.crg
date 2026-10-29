@@ -40,11 +40,11 @@ export function ScopeGroupList({
             {/* Заголовок группы = scope-бейдж + счётчик; сворачиваемая секция (a11y-кнопка). */}
             <button type="button" onClick={() => toggle(g.scope)} aria-expanded={expanded}
               className="w-full flex items-center gap-2 px-1 py-1.5 text-left rounded-md hover:bg-surface-container-low transition-colors">
-              {expanded ? <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" /> : <Icon icon={ChevronRight} size={18} className="text-fg4 shrink-0" />}
+              {expanded ? <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={ChevronRight} size={18} className="text-on-surface-variant shrink-0" />}
               <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${SCOPE_COLORS[g.scope]}`}>
                 {SCOPE_LABELS[g.scope]}
               </span>
-              <span className="text-xs text-fg4">{g.entries.length}</span>
+              <span className="text-xs text-on-surface-variant">{g.entries.length}</span>
             </button>
             {expanded && (
               <div className="space-y-0.5 pl-1.5">
@@ -63,7 +63,7 @@ export function ScopeGroupList({
                         {entry.displayName}
                       </span>
                       {hint && (
-                        <span className={`text-caption shrink-0 ml-2 truncate max-w-[45%] ${on ? 'text-on-secondary-container' : 'text-fg4'}`}>
+                        <span className={`text-caption shrink-0 ml-2 truncate max-w-[45%] ${on ? 'text-on-secondary-container' : 'text-on-surface-variant'}`}>
                           {hint}
                         </span>
                       )}

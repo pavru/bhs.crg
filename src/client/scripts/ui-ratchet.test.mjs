@@ -369,9 +369,41 @@ describe('храповик интерфейса: словарь MD3 (sharedui-md
     ].join('\n'), { dir: 'shared', file: 'shared/ui/x.tsx' })).toEqual({ 'legacy-class': 5 });
   });
 
+  it('третий серый в новом файле — legacy-class с советом on-surface-variant (sharedui-md3-04, [UI-63])', () => {
+    expect(countAll('<p className="text-caption text-fg4" />', { dir: 'features', file: 'features/x/New.tsx' }))
+      .toEqual({ 'legacy-class': 1 });
+    const advice = RULES.find(r => r.id === 'legacy-class').instead;
+    expect(advice).toContain('fg3 → on-surface-variant');
+    expect(advice).toContain('fg4 → on-surface-variant');
+  });
+
+  it('снятое имя без псевдонима (warning-border, stroke-subtle) — всё равно старое: класса оно больше не даёт', () => {
+    expect(countAll('<div className="border border-warning-border divide-stroke-subtle" />', { dir: 'features', file: 'features/x/Old.tsx' }))
+      .toEqual({ 'legacy-class': 2 });
+  });
+
   it('имена ролей, общие у обоих словарей, и размер text-base — не старые имена', () => {
     expect(countAll('text-success bg-surface text-tertiary text-base text-base/6 bg-primary text-on-surface-variant on-warning'))
       .toEqual({});
+  });
+});
+
+describe('храповик интерфейса: текст на контейнере (sharedui-md3-04)', () => {
+  const file = { dir: 'features', file: 'features/x/New.tsx' };
+
+  it('цвет роли на её контейнере в одном списке — нарушение, с советом парной роли', () => {
+    expect(countAll('<div className="bg-warning-container text-warning" />', file)).toEqual({ 'container-text': 1 });
+    expect(countAll("<span className={on ? 'bg-error-container text-error' : ''} />", file)).toEqual({ 'container-text': 1 });
+    expect(RULES.find(r => r.id === 'container-text').instead).toContain('text-on-warning-container');
+  });
+
+  it('парная роль, другой вариант, разнесённое и комментарий — не нарушение', () => {
+    expect(countAll([
+      '<div className="bg-warning-container text-on-warning-container" />',
+      '<div className="text-warning hover:bg-warning-container" />',
+      "const box = 'bg-error-container'; const label = 'text-error';",
+      '// "bg-error-container text-error"',
+    ].join('\n'), file)).toEqual({});
   });
 });
 

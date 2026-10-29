@@ -88,15 +88,15 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
             <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-12 h-12 text-base" />
             <div className="min-w-0">
               <div className="text-base font-medium text-on-surface truncate">{name}</div>
-              {roles && <div className="text-xs text-fg3 truncate">{roles}</div>}
-              {user?.displayName && <div className="text-xs text-fg3 truncate">{user.email}</div>}
+              {roles && <div className="text-xs text-on-surface-variant truncate">{roles}</div>}
+              {user?.displayName && <div className="text-xs text-on-surface-variant truncate">{user.email}</div>}
             </div>
           </div>
 
           <div className="px-2 pb-2">
             <DropdownMenu.Item asChild className={item + (here ? ' bg-secondary-container text-on-secondary-container' : '')}>
               <Link to="/profile" onClick={guardedClick('/profile')} aria-current={here ? 'page' : undefined}>
-                <Icon icon={Person} size={20} className="text-fg3 shrink-0" />Профиль и пароль
+                <Icon icon={Person} size={20} className="text-on-surface-variant shrink-0" />Профиль и пароль
               </Link>
             </DropdownMenu.Item>
 
@@ -106,8 +106,8 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
                 Выбор меню не закрывает — новая тема видна сразу, и её можно сменить ещё раз. */}
             <DropdownMenu.Group className="px-3 pt-2 pb-2.5">
               <div className="flex items-baseline gap-2 pb-1.5 text-xs">
-                <DropdownMenu.Label className="flex-1 font-medium text-fg3">Оформление</DropdownMenu.Label>
-                <span className="text-fg4">{autoHint}</span>
+                <DropdownMenu.Label className="flex-1 font-medium text-on-surface-variant">Оформление</DropdownMenu.Label>
+                <span className="text-on-surface-variant">{autoHint}</span>
               </div>
               <DropdownMenu.RadioGroup value={theme} onValueChange={v => setTheme(v as typeof theme)}
                 className="flex rounded-full border border-outline overflow-hidden">
@@ -126,7 +126,7 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
             {/* Постоянная дверь к форме сообщения (issue #834): она нужна и тогда, когда ошибка НЕ
                 показала своего экрана — «работает не так, как ожидал» тоже сообщение. */}
             <DropdownMenu.Item className={item} onSelect={() => bugReport.open({ origin: 'account' })}>
-              <Icon icon={Feedback} size={20} className="text-fg3 shrink-0" />Сообщить о проблеме
+              <Icon icon={Feedback} size={20} className="text-on-surface-variant shrink-0" />Сообщить о проблеме
             </DropdownMenu.Item>
           </div>
 
@@ -136,7 +136,7 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
               <div className="p-2">
                 <DropdownMenu.Item asChild className={item + (inAdmin ? ' bg-secondary-container text-on-secondary-container' : '')}>
                   <Link to={admin.home} onClick={guardedClick(admin.home)} data-testid="account-admin">
-                    <Icon icon={adminIcon} size={20} className="text-fg3 shrink-0" />{admin.def.title}
+                    <Icon icon={adminIcon} size={20} className="text-on-surface-variant shrink-0" />{admin.def.title}
                   </Link>
                 </DropdownMenu.Item>
               </div>
@@ -146,7 +146,7 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
           <DropdownMenu.Separator className="h-px bg-outline-variant" />
           <div className="p-2">
             <DropdownMenu.Item className={item} onSelect={() => guardedLeave(logout)}>
-              <Icon icon={Logout} size={20} className="text-fg3 shrink-0" />Выйти
+              <Icon icon={Logout} size={20} className="text-on-surface-variant shrink-0" />Выйти
             </DropdownMenu.Item>
           </div>
 
@@ -180,7 +180,7 @@ function VersionLine({ version: data, newer }: {
   ].filter(Boolean).join(' · ');
   return (
     <Tooltip content={title}>
-      <div data-testid="app-version" className="px-5 py-2.5 bg-surface-container-low text-caption text-fg3 truncate">
+      <div data-testid="app-version" className="px-5 py-2.5 bg-surface-container-low text-caption text-on-surface-variant truncate">
         Версия {data.version}{data.commit ? ` · ${data.commit}` : ''}
         {newer && <span className="text-primary"> · доступна {newer}</span>}
       </div>

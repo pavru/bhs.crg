@@ -53,7 +53,7 @@ export function InvoicePartyNote({ invoiceId, side, party, chosen, offered, onCh
         </p>
       )}
       {shown && (
-        <p className={`flex items-baseline gap-1 min-w-0 ${shown.tone === 'warning' ? 'text-warning' : 'text-fg3'}`}>
+        <p className={`flex items-baseline gap-1 min-w-0 ${shown.tone === 'warning' ? 'text-warning' : 'text-on-surface-variant'}`}>
           <span className="truncate" title={shown.text}>{shown.text}</span>
           {shown.action === 'take' && party.match && (
             <Act onClick={() => onChoose(party.match!)}>Взять</Act>
@@ -65,7 +65,7 @@ export function InvoicePartyNote({ invoiceId, side, party, chosen, offered, onCh
           )}
         </p>
       )}
-      {read && <Tooltip content={`В файле: ${read}`}><p className="text-fg4 truncate">в файле: {read}</p></Tooltip>}
+      {read && <Tooltip content={`В файле: ${read}`}><p className="text-on-surface-variant truncate">в файле: {read}</p></Tooltip>}
       {creating && (
         <CreateDialog invoiceId={invoiceId} side={side} party={party} onClose={() => setCreating(false)}
           onDone={id => { setCreated(id); onChoose(id); setCreating(false); }} />
@@ -108,8 +108,8 @@ function Details({ party, pick, canCreate, onChoose, onRetry }: {
                       <span className="truncate">{c.name ?? 'запись без названия'}</span>
                       {c.archived && <ArchivedMark words={false} />}
                     </span>
-                    {role && <span className="block text-fg3">{role}</span>}
-                    {c.archived && <span className="block text-fg3">в архиве — в новый счёт не выбирается</span>}
+                    {role && <span className="block text-on-surface-variant">{role}</span>}
+                    {c.archived && <span className="block text-on-surface-variant">в архиве — в новый счёт не выбирается</span>}
                   </>
                 );
                 // Выбирается только действующая и только там, где выбор и есть действие: у `archived`
@@ -129,7 +129,7 @@ function Details({ party, pick, canCreate, onChoose, onRetry }: {
           )}
           {party.unreadable.length > 0 && (
             <div>
-              <p className="text-fg3">ИНН не прочитан у записей:</p>
+              <p className="text-on-surface-variant">ИНН не прочитан у записей:</p>
               <ul className="list-disc pl-4">
                 {party.unreadable.map(u => <li key={u.id}>{u.name ?? 'запись без названия'}</li>)}
               </ul>
@@ -188,11 +188,11 @@ function CreateDialog({ invoiceId, side, party, onClose, onDone }: {
           invalid={tooLong}
           error={tooLong ? `Длиннее ${NAME_LIMIT} знаков (${name.trim().length}) — сократите до названия организации` : undefined} />
         <p className="text-xs text-on-surface-variant">ИНН: <span className="text-on-surface">{party.taxId}</span> — из файла, не правится.</p>
-        <p className="text-xs text-fg3">
+        <p className="text-xs text-on-surface-variant">
           В справочник попадут только название и ИНН. Остальные реквизиты дополните в каталоге.
         </p>
         {refusal && (
-          <div role="alert" className="rounded-lg border border-error/30 bg-error-container px-3 py-2 text-xs text-error">
+          <div role="alert" className="rounded-lg border border-error/30 bg-error-container px-3 py-2 text-xs text-on-error-container">
             <p>Организация не заведена: {refusal}</p>
             <Link to="/common-data" target="_blank" className="underline hover:no-underline">
               Открыть справочник организаций ↗

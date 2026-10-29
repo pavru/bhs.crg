@@ -62,7 +62,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
       {input}
       <span className="min-w-0">
         {label}
-        {description && <span className="block text-xs text-fg3">{description}</span>}
+        {description && <span className="block text-xs text-on-surface-variant">{description}</span>}
       </span>
     </label>
   );

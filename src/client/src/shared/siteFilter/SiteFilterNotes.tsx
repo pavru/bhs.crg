@@ -27,7 +27,7 @@ export function FavoriteStar({ id, onToggled }: { id: string; onToggled?: () => 
         await toggle(id, !on);
         setBusy(false);
       }}>
-      <Icon icon={Star} size={18} className={on ? 'text-primary fill-current' : 'text-fg4'} aria-hidden />
+      <Icon icon={Star} size={18} className={on ? 'text-primary fill-current' : 'text-on-surface-variant'} aria-hidden />
     </IconButton>
   );
 }
@@ -42,7 +42,7 @@ export function NotFavoriteNote({ constructionId }: { constructionId: string }) 
   const toggle = useToggleFavorite();
   if (!filter.active || !constructionId || filter.favorites.has(constructionId)) return null;
   return (
-    <span className="inline-flex items-center gap-1.5 ml-2 text-xs text-fg3" data-testid="not-favorite-note">
+    <span className="inline-flex items-center gap-1.5 ml-2 text-xs text-on-surface-variant" data-testid="not-favorite-note">
       <Icon icon={Star} size={18} aria-hidden />
       <span>Стройка не в избранном — в списках она скрыта.</span>
       <button type="button" className={link} onClick={() => void toggle(constructionId, true)}>Добавить в избранное</button>
@@ -61,7 +61,7 @@ export function FilterHidesAll({ text, action, onShowAll, testId }: {
   text: string; action: string; onShowAll: () => void; testId: string;
 }) {
   return (
-    <div className="px-3 py-2 text-xs text-fg3 space-y-1" data-testid={testId}>
+    <div className="px-3 py-2 text-xs text-on-surface-variant space-y-1" data-testid={testId}>
       <p>{text}</p>
       <button type="button" className={quiet} onClick={onShowAll}>{action}</button>
     </div>
@@ -71,7 +71,7 @@ export function FilterHidesAll({ text, action, onShowAll, testId }: {
 /** Над формой объекта, скрытого в списке слева: без неё форма выглядела бы объектом, которого нет. */
 export function NotInListNotice({ text, onShowAll, testId }: { text: string; onShowAll: () => void; testId: string }) {
   return (
-    <p className="flex items-center gap-1.5 px-4 py-1.5 text-xs text-fg3 border-b border-outline-variant" data-testid={testId}>
+    <p className="flex items-center gap-1.5 px-4 py-1.5 text-xs text-on-surface-variant border-b border-outline-variant" data-testid={testId}>
       <Icon icon={Star} size={18} aria-hidden />
       <span>{text}.</span>
       <button type="button" className={quiet} onClick={onShowAll}>Показать все</button>

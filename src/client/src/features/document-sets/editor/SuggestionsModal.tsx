@@ -30,7 +30,7 @@ export function SuggestionsModal({ suggestions, setSuggestions, suggestSel, setS
         </div>
       }>
       {suggestions && suggestions.length === 0 ? (
-        <p className="text-sm text-fg4 py-4 text-center">
+        <p className="text-sm text-on-surface-variant py-4 text-center">
           Подходящих документов не найдено. Свяжите несколько материалов вручную — дальше похожие предложатся автоматически.
         </p>
       ) : (
@@ -41,9 +41,9 @@ export function SuggestionsModal({ suggestions, setSuggestions, suggestSel, setS
                 onChange={() => setSuggestSel(prev => toggleInSet(prev, s.materialKey))}
                 className="w-4 h-4 rounded border-outline text-primary" />
               <span className="flex-1 truncate text-on-surface">{s.materialName}</span>
-              <span className="text-fg4">→</span>
+              <span className="text-on-surface-variant">→</span>
               <span className="flex-1 truncate text-brand-hover">{s.docDisplayName}</span>
-              <span className="text-xs text-fg4 shrink-0">{Math.round(s.score * 100)}%</span>
+              <span className="text-xs text-on-surface-variant shrink-0">{Math.round(s.score * 100)}%</span>
             </label>
           ))}
         </div>

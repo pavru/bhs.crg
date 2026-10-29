@@ -95,14 +95,14 @@ export function CreateForm({
           <input type="checkbox" checked={isAbstract} onChange={e => setIsAbstract(e.target.checked)}
             className="w-4 h-4 rounded border-outline text-primary" />
           <span className="text-sm font-medium text-on-surface-variant">Абстрактный тип</span>
-          <span className="text-xs text-fg4">(нельзя добавить в комплект напрямую)</span>
+          <span className="text-xs text-on-surface-variant">(нельзя добавить в комплект напрямую)</span>
         </label>
       )}
 
       <Select label="Владелец" value={module} onValueChange={setModule}>
         {owners.map(o => <SelectItem key={o.code} value={o.code}>{o.title}</SelectItem>)}
       </Select>
-      <p className="-mt-3 text-xs text-fg4">
+      <p className="-mt-3 text-xs text-on-surface-variant">
         Типы выключенного модуля не предлагаются в редакторе. Тип, заведённый здесь, принадлежит
         ядру: его не объявлял ни один модуль.
       </p>
@@ -116,26 +116,26 @@ export function CreateForm({
 
       {parentEffectiveFields.length > 0 && (
         <div>
-          <p className="text-xs font-medium text-fg3 mb-2 uppercase tracking-wide">
+          <p className="text-xs font-medium text-on-surface-variant mb-2 uppercase tracking-wide">
             Наследуемые поля от «{parentType?.name}» ({parentEffectiveFields.length})
           </p>
           <div className="border border-outline-variant rounded-lg bg-surface-container-low px-3 py-2 space-y-1">
             {parentEffectiveFields.map(f => (
-              <div key={f.key} className="flex items-center gap-3 text-xs text-fg3">
+              <div key={f.key} className="flex items-center gap-3 text-xs text-on-surface-variant">
                 <span className="font-mono text-on-surface-variant w-36 truncate">{f.key}</span>
                 <span className="flex-1 truncate">{f.title}</span>
-                <span className="text-fg4">
+                <span className="text-on-surface-variant">
                   {f.type === 'complex'
                     ? (compositeTypes.find(c => c.id === f.typeId)?.name ?? 'Составной')
                     : (TYPE_LABELS[f.type] ?? f.type)}
                 </span>
-                <span className={f.required ? 'text-error' : 'text-stroke-strong'}>
+                <span className={f.required ? 'text-error' : 'text-on-surface-variant'}>
                   {f.required ? 'обязат.' : 'опц.'}
                 </span>
               </div>
             ))}
           </div>
-          <p className="text-xs text-fg4 mt-1">
+          <p className="text-xs text-on-surface-variant mt-1">
             Управление унаследованными полями — после создания типа.
           </p>
         </div>
@@ -149,7 +149,7 @@ export function CreateForm({
           {fields.length > 0 && (
             <button type="button" onClick={() => setShowJson(v => !v)}
               className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded ${
-                showJson ? 'bg-on-surface text-surface-container' : 'text-fg3 hover:text-on-surface hover:bg-surface-container'
+                showJson ? 'bg-on-surface text-surface-container' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
               }`}>
               <Icon icon={DataObject} size={18} /> JSON
             </button>

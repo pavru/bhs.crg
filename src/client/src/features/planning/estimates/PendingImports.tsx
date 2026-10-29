@@ -36,11 +36,11 @@ export function PendingImports({ constructionId, enabled, only, onOpen }: {
         const state = i.interrupted ? INTERRUPTED : STATE[i.state as keyof typeof STATE];
         return (
           <li key={i.id} className="flex items-center gap-2 rounded-md bg-surface-container px-3 py-1.5 text-sm text-on-surface-variant">
-            <Icon icon={Upload} size={18} className="shrink-0 text-fg3" aria-hidden />
+            <Icon icon={Upload} size={18} className="shrink-0 text-on-surface-variant" aria-hidden />
             <span className="min-w-0 flex-1">
               Импорт <b className="font-medium text-on-surface break-all">{i.fileName}</b>
               {' · '}{i.target.newEstimate ? `новая смета «${i.target.newEstimate.name}»` : `в смету «${i.target.estimateName ?? '…'}»`}
-              <span className="text-fg3"> · {i.createdBy ? `${i.createdBy}, ` : ''}{formatDate(i.createdAt)}</span>{' '}
+              <span className="text-on-surface-variant"> · {i.createdBy ? `${i.createdBy}, ` : ''}{formatDate(i.createdAt)}</span>{' '}
               <StatusBadge tone={state.tone}>{state.text}</StatusBadge>
             </span>
             <Button variant="text" size="sm" className="shrink-0" onClick={() => onOpen(i.id)}>Открыть</Button>

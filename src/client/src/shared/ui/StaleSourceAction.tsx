@@ -48,7 +48,7 @@ export function StaleSourceAction({ source }: { source: DataSetBindingSource | u
     <>
       <Tooltip content={staleReasonText(source.staleReason)}>
         <span
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-container text-warning shrink-0">
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption font-medium bg-warning-container text-on-warning-container shrink-0">
           <Icon icon={Warning} size={18} /> устарело
         </span>
       </Tooltip>

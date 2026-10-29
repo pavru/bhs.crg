@@ -18,7 +18,7 @@ const DEFAULT_DURATION: Record<ToastVariant, number> = { success: 4000, info: 40
 
 const VARIANT_ICON: Record<ToastVariant, IconDef> = { success: CheckCircle, error: Warning, info: Info };
 const VARIANT_ICON_COLOR: Record<ToastVariant, string> = {
-  success: 'text-success', error: 'text-error', info: 'text-fg3',
+  success: 'text-success', error: 'text-error', info: 'text-on-surface-variant',
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -86,7 +86,7 @@ function ToastCard({ item, onRemove }: { item: ToastItem; onRemove: () => void }
           </button>
         </RT.Action>
       )}
-      <RT.Close aria-label="Закрыть" className="shrink-0 text-fg4 hover:text-on-surface-variant transition-colors">
+      <RT.Close aria-label="Закрыть" className="shrink-0 text-on-surface-variant hover:text-on-surface-variant transition-colors">
         <Icon icon={Close} size={18} />
       </RT.Close>
     </RT.Root>

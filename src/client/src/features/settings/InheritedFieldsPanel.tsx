@@ -33,7 +33,7 @@ export function InheritedFieldsPanel({
   const excludedSet = new Set(excludedFields);
 
   if (parentEffectiveFields.length === 0) {
-    return <p className="text-xs text-fg4 py-1">Родительский тип не содержит полей.</p>;
+    return <p className="text-xs text-on-surface-variant py-1">Родительский тип не содержит полей.</p>;
   }
 
   function fieldTypeLabel(f: SchemaField) {
@@ -48,12 +48,12 @@ export function InheritedFieldsPanel({
   return (
     <div className="space-y-0.5">
       <div className={`${cols} px-2 pb-1`}>
-        <span className="text-xs font-medium text-fg3">Ключ</span>
-        <span className="text-xs font-medium text-fg3">Название</span>
-        <span className="text-xs font-medium text-fg3">Тип</span>
-        <span className="text-xs font-medium text-fg3">Обязательность</span>
-        <span className="text-xs font-medium text-fg3">Дефолт</span>
-        <span className="text-xs font-medium text-fg3 text-center">Вкл.</span>
+        <span className="text-xs font-medium text-on-surface-variant">Ключ</span>
+        <span className="text-xs font-medium text-on-surface-variant">Название</span>
+        <span className="text-xs font-medium text-on-surface-variant">Тип</span>
+        <span className="text-xs font-medium text-on-surface-variant">Обязательность</span>
+        <span className="text-xs font-medium text-on-surface-variant">Дефолт</span>
+        <span className="text-xs font-medium text-on-surface-variant text-center">Вкл.</span>
       </div>
       {parentEffectiveFields.map(field => {
         const isExcluded = excludedSet.has(field.key);
@@ -61,13 +61,13 @@ export function InheritedFieldsPanel({
         return (
           <div key={field.key} className={`${cols} rounded-md px-2 py-2 hover:bg-surface-container/50 transition-colors ${isExcluded ? 'opacity-55' : ''}`}>
             <span className="flex items-center gap-1.5 min-w-0">
-              {isExcluded && <Icon icon={VisibilityOff} size={18} className="text-fg4 shrink-0" />}
-              <span className={`text-sm font-mono truncate ${isExcluded ? 'line-through text-fg4' : 'text-on-surface-variant'}`}>{field.key}</span>
+              {isExcluded && <Icon icon={VisibilityOff} size={18} className="text-on-surface-variant shrink-0" />}
+              <span className={`text-sm font-mono truncate ${isExcluded ? 'line-through text-on-surface-variant' : 'text-on-surface-variant'}`}>{field.key}</span>
             </span>
             <span className="text-sm text-on-surface-variant truncate">{field.title}</span>
-            <span className="text-xs text-fg4 truncate">{fieldTypeLabel(field)}</span>
+            <span className="text-xs text-on-surface-variant truncate">{fieldTypeLabel(field)}</span>
             {isExcluded
-              ? <span className="text-xs text-fg4">—</span>
+              ? <span className="text-xs text-on-surface-variant">—</span>
               : <RequiredChip field={field} override={override}
                   onOverride={r => onOverrideRequired(field.key, r)} onReset={() => onResetOverride(field.key)} />}
             {isExcluded
@@ -100,7 +100,7 @@ function RequiredChip({ field, override, onOverride, onReset }: {
       <DropdownMenu.Trigger asChild>
         <button type="button"
           className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full transition-colors ${
-            overridden ? 'bg-primary-container text-primary font-medium' : 'text-fg3 hover:bg-surface-container'}`}>
+            overridden ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
           {overridden && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
           {overridden ? `${parentLabel} → ${effective ? 'обяз.' : 'опц.'}` : (effective ? 'обяз.' : 'опц.')}
         </button>
@@ -115,7 +115,7 @@ function RequiredChip({ field, override, onOverride, onReset }: {
           {overridden && (
             <>
               <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
-              <ReqItem onSelect={onReset}><Icon icon={RestartAlt} size={18} className="text-fg4" /> Сбросить переопределение</ReqItem>
+              <ReqItem onSelect={onReset}><Icon icon={RestartAlt} size={18} className="text-on-surface-variant" /> Сбросить переопределение</ReqItem>
             </>
           )}
         </DropdownMenu.Content>

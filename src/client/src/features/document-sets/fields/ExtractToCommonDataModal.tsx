@@ -315,7 +315,7 @@ export function ExtractToCommonDataModal({
           <div className="h-10 flex items-center rounded-md border border-outline-variant bg-surface-container-low px-3 text-sm text-on-surface-variant">
             {compositeType.name}
           </div>
-          <p className="text-xs text-fg4 mt-1">Задан полем — выбирать нечего.</p>
+          <p className="text-xs text-on-surface-variant mt-1">Задан полем — выбирать нечего.</p>
         </div>
 
         <TextField label="Наименование" value={name} onChange={e => setName(e.target.value)} required autoFocus />
@@ -337,7 +337,7 @@ export function ExtractToCommonDataModal({
                 {offered.map(s => <SelectItem key={s} value={s}>{SCOPE_LABELS[s]}</SelectItem>)}
               </Select>
               {allowedMax !== 'System' && (
-                <p className="text-xs text-fg4 mt-1">
+                <p className="text-xs text-on-surface-variant mt-1">
                   Шире «{SCOPE_LABELS[allowedMax]}» нельзя: внутри есть ссылка на запись этого уровня —
                   из более широкой записи она развернулась бы в чужом комплекте.
                 </p>
@@ -348,7 +348,7 @@ export function ExtractToCommonDataModal({
 
         <div>
           <label className="block text-sm font-medium text-on-surface-variant mb-1">
-            Псевдонимы <span className="text-xs text-fg4 font-normal">(для поиска при связывании с источниками)</span>
+            Псевдонимы <span className="text-xs text-on-surface-variant font-normal">(для поиска при связывании с источниками)</span>
           </label>
           {aliases.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-1.5">
@@ -357,7 +357,7 @@ export function ExtractToCommonDataModal({
                   <span className="min-w-0 break-words">{a}</span>
                   <Tooltip content="Удалить" name>
                     <button type="button" onClick={() => setAliases(prev => prev.filter(x => x !== a))}
-                      className="text-fg4 hover:text-error transition-colors shrink-0">
+                      className="text-on-surface-variant hover:text-error transition-colors shrink-0">
                       <Icon icon={Close} size={18} />
                     </button>
                   </Tooltip>
@@ -388,7 +388,7 @@ export function ExtractToCommonDataModal({
                 ? ' Скорее всего это тот же объект.'
                 : ' Возможно, это просто тёзка — одноимённые организации встречаются.'}
             </p>
-            <p className="text-xs text-fg4 mb-2">
+            <p className="text-xs text-on-surface-variant mb-2">
               Поиск идёт в выбранном уровне и выше: записи более узкого уровня отсюда не видны.
             </p>
             {!duplicate.match.archived ? (
@@ -401,7 +401,7 @@ export function ExtractToCommonDataModal({
                 Вернуть из архива и связать
               </Button>
             ) : (
-              <p className="text-xs text-fg3">
+              <p className="text-xs text-on-surface-variant">
                 Вернуть запись из архива может тот, кто ведёт общие данные. Связать поле с записью,
                 пока она в архиве, нельзя.
               </p>
@@ -410,11 +410,11 @@ export function ExtractToCommonDataModal({
         )}
 
         <div className="rounded-lg border border-outline-variant bg-surface-container-low/40 px-3 py-2">
-          <div className="text-xs text-fg3 mb-1">
+          <div className="text-xs text-on-surface-variant mb-1">
             Переносится{checking ? ' · проверяем дубликаты…' : ''}
           </div>
           <div className="text-sm text-on-surface-variant break-words">{objectSummary(values, subFields, typeDefs)}</div>
-          <div className="text-xs text-fg4 mt-1">
+          <div className="text-xs text-on-surface-variant mt-1">
             Полей: {Object.keys(values ?? {}).length}
             {nestedRefCount(values) > 0 && `, из них ссылок на каталог: ${nestedRefCount(values)}`}
           </div>
@@ -436,8 +436,8 @@ function Note({ tone, icon, title, children }: {
   tone: 'danger' | 'warning'; icon: React.ReactNode; title: string; children: React.ReactNode;
 }) {
   const cls = tone === 'danger'
-    ? 'border-error/40 bg-error-container text-error'
-    : 'border-warning/40 bg-warning-container text-warning';
+    ? 'border-error/40 bg-error-container text-on-error-container'
+    : 'border-warning/40 bg-warning-container text-on-warning-container';
   return (
     <div className={`rounded-lg border px-3 py-2 text-sm ${cls}`}>
       <div className="flex items-center gap-1.5 font-medium mb-1">{icon}{title}</div>

@@ -4,9 +4,11 @@
     "переводит классы, переменные и var(--color-…) во всех строках src/. Однопроходная: результат замены",
     "повторно не заменяется. Общая для эпика — дети 03–07 дописывают свои строки.",
     "names — имя цвета для любой цветовой утилиты; same: true — «вид не меняется», это сверяет",
-    "md3-migrate.test.mjs в обеих темах. var(--color-<имя>) переводится по той же таблице. lines —",
+    "md3-migrate.test.mjs в обеих темах; без same — вид меняется по решению владельца (sharedui-md3-04:",
+    "обводки по статусу нет, у текста две роли). var(--color-<имя>) переводится по той же таблице. lines —",
     "имя роли текста: утилиты линии (border, ring, outline, divide) не трогать и назвать отчётом с",
-    "этой причиной; переменная var(--color-<имя>) с ним тоже неоднозначна.",
+    "этой причиной; text — имя роли обводки: так же для text, decoration, caret. Переменная",
+    "var(--color-<имя>) с lines или text тоже неоднозначна: утилиты у неё нет.",
     "classes — полный класс (без варианта и прозрачности); перекрывает names. to — замена, skip — не",
     "трогать и назвать отчётом (причина — значение). skip цветового класса делает неоднозначной и",
     "переменную var(--color-<имя>): утилиты у неё нет; notColor: true — пропуск не о цвете, её не задевает.",
@@ -16,12 +18,15 @@
   "names": {
     "fg1": { "to": "on-surface", "same": true },
     "fg2": { "to": "on-surface-variant", "same": true },
+    "fg3": { "to": "on-surface-variant", "same": true, "lines": "обводка цветом текста запрещена [UI-63]: outline или outline-variant — по месту, руками" },
     "fg4": { "to": "on-surface-variant", "same": true, "lines": "обводка цветом текста запрещена [UI-63]: outline или outline-variant — по месту, руками" },
     "base": { "to": "surface-container-low", "same": true },
     "muted": { "to": "surface-container", "same": true },
     "muted-hover": { "to": "surface-container-high", "same": true },
-    "stroke": { "to": "outline-variant", "same": true },
-    "stroke-strong": { "to": "outline", "same": true },
+    "stroke": { "to": "outline-variant", "same": true, "text": "текст цветом обводки запрещён [UI-63]: on-surface или on-surface-variant — по месту, руками" },
+    "stroke-strong": { "to": "outline", "same": true, "text": "текст цветом обводки запрещён [UI-63]: on-surface или on-surface-variant — по месту, руками" },
+    "stroke-subtle": { "to": "outline-variant", "text": "текст цветом обводки запрещён [UI-63]: on-surface или on-surface-variant — по месту, руками" },
+    "warning-border": { "to": "outline-variant", "text": "текст цветом обводки запрещён [UI-63]: on-surface или on-surface-variant — по месту, руками" },
     "brand": { "to": "primary", "same": true },
     "brand-subtle": { "to": "primary-container", "same": true },
     "on-brand": { "to": "on-primary", "same": true },
@@ -38,8 +43,7 @@
   },
   "classes": {
     "text-base": { "skip": "размер текста, а не цвет", "notColor": true },
-    "text-fg4": { "skip": "текст цветом обводки: по MD3 это on-surface-variant, смена вида (sharedui-md3-04)" },
-    "text-stroke-strong": { "skip": "обводка цветом текста: по MD3 текст — on-surface-variant, это смена вида (sharedui-md3-04)" }
+    "text-stroke-strong": { "to": "text-on-surface-variant" }
   },
   "vars": {
     "--f-shadow4": "--md-sys-elevation-level1",

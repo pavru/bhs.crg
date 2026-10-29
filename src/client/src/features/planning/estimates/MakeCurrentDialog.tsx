@@ -60,7 +60,7 @@ function Body({ estimateId, revisionId, make, onDone }: {
   };
 
   if (preview.isError) return <p role="alert" className="text-sm text-error">{apiError(preview.error, 'Расхождения не посчитались')}</p>;
-  if (!preview.data) return <p className="text-sm text-fg4">Считаем, что изменится в плане…</p>;
+  if (!preview.data) return <p className="text-sm text-on-surface-variant">Считаем, что изменится в плане…</p>;
   const data = preview.data;
 
   return (
@@ -80,7 +80,7 @@ function Body({ estimateId, revisionId, make, onDone }: {
       )}
 
       {data.unmatched > 0 && (
-        <p className="rounded-md border border-warning-border bg-warning-container px-3 py-2 text-note text-warning">
+        <p className="rounded-md border border-outline-variant bg-warning-container px-3 py-2 text-note text-on-warning-container">
           В ред. {data.revisionNumber} не сопоставлено строк: {formatCount(data.unmatched)} — в план они не войдут. Действующей её
           можно сделать и сейчас; сопоставленное позже войдёт в план само.
         </p>
@@ -111,7 +111,7 @@ function Changes({ preview }: { preview: CurrentRevisionPreview }) {
   const workTypes = useWorkTypeNames();
   const units = useUnitNames(preview.changes.flatMap(c => (c.unitId ? [c.unitId] : [])));
   if (preview.changes.length === 0)
-    return <p className="text-sm text-fg3">Объёмы плана по видам работ не изменятся.</p>;
+    return <p className="text-sm text-on-surface-variant">Объёмы плана по видам работ не изменятся.</p>;
 
   const lines: ChangeLine[] = preview.changes.map(c => ({
     key: `${c.workTypeId}:${c.unitId ?? ''}`,
@@ -138,5 +138,5 @@ function Delta({ was, becomes }: { was: number; becomes: number }) {
   if (was === 0) return <StatusBadge tone="brand">новый вид</StatusBadge>;
   if (becomes === 0) return <StatusBadge tone="quiet">уходит</StatusBadge>;
   const d = becomes - was;
-  return <span className="text-xs text-fg3 tabular-nums">{d > 0 ? '+' : '−'}{formatQuantity(Math.abs(d))}</span>;
+  return <span className="text-xs text-on-surface-variant tabular-nums">{d > 0 ? '+' : '−'}{formatQuantity(Math.abs(d))}</span>;
 }

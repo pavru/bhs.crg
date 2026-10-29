@@ -52,7 +52,7 @@ export function SaveViewDialog({ heading, action, initial, share, onSave, onClos
             <input type="checkbox" className="mt-0.5" checked={shared} onChange={e => setShared(e.target.checked)} />
             <span>
               Общее
-              <span className="block text-xs text-fg4">Его увидят все, кому открыта таблица.</span>
+              <span className="block text-xs text-on-surface-variant">Его увидят все, кому открыта таблица.</span>
             </span>
           </label>
         )}

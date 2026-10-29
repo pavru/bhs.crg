@@ -96,7 +96,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
       cell: item => (
         <Tooltip content={item.source}>
           <span>
-            <span className="text-fg4">{item.by === 'code' ? 'артикул ' : ''}</span>
+            <span className="text-on-surface-variant">{item.by === 'code' ? 'артикул ' : ''}</span>
             {item.source}
           </span>
         </Tooltip>
@@ -113,26 +113,26 @@ export function SupplierMatchesDialog({ initial, onClose }: {
             line={{ where: supplierMatchWhere(item.supplierName) }}
             onPick={id => void repoint(item, id)} onClear={() => {}} />
           {issueNote(item.issue) && (
-            <p className={`mt-0.5 ${item.issue === 'lost' ? 'text-error' : 'text-fg4'}`}>
+            <p className={`mt-0.5 ${item.issue === 'lost' ? 'text-error' : 'text-on-surface-variant'}`}>
               {issueNote(item.issue)}
             </p>
           )}
         </>
       ) },
     { key: 'updatedAt', label: 'Изменено',
-      cell: item => <span className="text-fg3">{formatDate(item.updatedAt)}{item.updatedBy ? ` · ${item.updatedBy}` : ''}</span> },
+      cell: item => <span className="text-on-surface-variant">{formatDate(item.updatedAt)}{item.updatedBy ? ` · ${item.updatedBy}` : ''}</span> },
     { key: 'forget', label: '', width: 'w-8',
       cell: item => (
         <Tooltip content="Забыть соответствие" name>
           <button type="button" disabled={point.isPending} onClick={() => setForgettingId(item.id)}
-            className="text-fg3 hover:text-error p-1"><Icon icon={Delete} size={18} /></button>
+            className="text-on-surface-variant hover:text-error p-1"><Icon icon={Delete} size={18} /></button>
         </Tooltip>
       ) },
   ];
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Соответствия наименований" wide>
-      <p className="text-xs text-fg3 mb-3">
+      <p className="text-xs text-on-surface-variant mb-3">
         Что система запомнила: какую позицию номенклатуры вы выбирали строке поставщика. Следующий счёт
         того же поставщика получает эту позицию сам. Появляются соответствия сами — при сохранении строк счёта.
       </p>
@@ -150,7 +150,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
           ))}
         </Select>
         <label className="flex flex-1 min-w-[14rem] items-center gap-1 rounded border border-outline-variant bg-surface px-2 py-1">
-          <Icon icon={Search} size={18} className="text-fg4" />
+          <Icon icon={Search} size={18} className="text-on-surface-variant" />
           <input value={typed} placeholder="Артикул или наименование у поставщика"
             aria-label="Поиск по артикулу или наименованию у поставщика" data-search=""
             onChange={e => setTyped(e.target.value)}
@@ -177,17 +177,17 @@ export function SupplierMatchesDialog({ initial, onClose }: {
           <button type="button" className="underline" onClick={() => void list.refetch()}>Повторить</button>
         </div>
       ) : !data ? (
-        <p className="py-6 text-center text-sm text-fg4">Читаем соответствия…</p>
+        <p className="py-6 text-center text-sm text-on-surface-variant">Читаем соответствия…</p>
       ) : data.total === 0 ? (
         filtered ? (
-          <p className="py-6 text-center text-sm text-fg3">
+          <p className="py-6 text-center text-sm text-on-surface-variant">
             По этому отбору соответствий нет.{' '}
             <button type="button" className="text-primary hover:underline" onClick={reset}>
               Сбросить отбор
             </button>
           </p>
         ) : (
-          <p className="py-6 text-center text-sm text-fg3">
+          <p className="py-6 text-center text-sm text-on-surface-variant">
             Соответствий пока нет. Они появляются сами: выберите позицию строке счёта и сохраните строки —
             выбор запомнится за поставщиком.
           </p>
@@ -195,7 +195,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
       ) : (
         <>
           <DataGrid density="compact" className="max-h-[55vh]" columns={columns} rows={data.items} rowKey={item => item.id} />
-          <div className="mt-2 flex items-center gap-3 text-xs text-fg3">
+          <div className="mt-2 flex items-center gap-3 text-xs text-on-surface-variant">
             <span>{shownOf(data.items.length, data.total)}</span>
             {list.hasNextPage && (
               <Button size="sm" variant="text" loading={list.isFetchingNextPage}
@@ -239,7 +239,7 @@ function IssueChip({ active, danger = false, onClick, children }: {
   return (
     <button type="button" onClick={onClick} aria-pressed={active}
       className={`rounded-full border px-2 py-0.5 text-xs
-        ${active ? 'border-primary bg-surface-container text-on-surface' : danger ? 'border-error/30 text-error' : 'border-outline-variant text-fg3'}`}>
+        ${active ? 'border-primary bg-surface-container text-on-surface' : danger ? 'border-error/30 text-error' : 'border-outline-variant text-on-surface-variant'}`}>
       {children}
     </button>
   );

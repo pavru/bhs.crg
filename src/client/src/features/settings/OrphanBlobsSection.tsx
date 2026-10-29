@@ -85,7 +85,7 @@ export function OrphanBlobsSection() {
   return (
     <CollapsibleSection title="Осиротевшие файлы хранилища" storageKey="orphan-blobs" defaultOpen={false}>
       <div className="space-y-3">
-        <p className="text-xs text-fg3">
+        <p className="text-xs text-on-surface-variant">
           Сгенерированные PDF, сканы и вложения, на которые больше не ссылается ни одна запись:
           удаление документа или комплекта убирает записи из базы, но файлы остаются занимать место.
           Считаются только объекты, созданные приложением.
@@ -124,12 +124,12 @@ export function OrphanBlobsSection() {
           <ul className="text-xs text-on-surface-variant space-y-1">
             <li>Всего числится за приложением: {report.registered}, из них используются: {report.referenced}</li>
             {report.heldByModules > 0 && (
-              <li className="text-fg3">
+              <li className="text-on-surface-variant">
                 Из используемых {report.heldByModules} держат только данные модулей (например, сканы
                 счетов) — в том числе выключенных: их файлы остаются на месте.
               </li>
             )}
-            {nothingToDo && <li className="text-fg3">Осиротевших файлов нет.</li>}
+            {nothingToDo && <li className="text-on-surface-variant">Осиротевших файлов нет.</li>}
             {!nothingToDo && (done
               ? <li>Осталось кандидатов: <b>{report.remaining}</b> — нажмите «Удалить» ещё раз</li>
               : <li>Будет удалено: <b>{report.batch}</b>, освободится {formatBytes(report.bytes)}</li>)}
@@ -139,25 +139,25 @@ export function OrphanBlobsSection() {
               </li>
             )}
             {!done && report.remaining > report.batch && (
-              <li className="text-fg3">
+              <li className="text-on-surface-variant">
                 Всего кандидатов: {report.remaining} — за один прогон берётся не больше {report.batch},
                 чтобы уборка не переросла таймаут прокси. Прогонов понадобится несколько.
               </li>
             )}
             {report.missing > 0 && (
-              <li className="text-fg3">
+              <li className="text-on-surface-variant">
                 Из них {report.missing} в хранилище уже нет — уйдёт только запись о них.
               </li>
             )}
             {report.tooYoung > 0 && (
-              <li className="text-fg3">
+              <li className="text-on-surface-variant">
                 Пропущено как слишком свежие: {report.tooYoung} — моложе {report.minAgeHours} ч.
                 Файл попадает в хранилище раньше, чем ссылка на него сохраняется в документ, и
                 только что загруженное вложение от сироты неотличимо.
               </li>
             )}
             {!done && report.sample.length > 0 && (
-              <li className="text-fg3">
+              <li className="text-on-surface-variant">
                 Например: {report.sample.join(', ')}
                 {report.batch > report.sample.length && ' …'}
               </li>

@@ -24,27 +24,27 @@ export function NoAccessPage({ what, missing }: {
   return (
     <div className="flex h-full items-center justify-center p-8">
       <div className="max-w-md space-y-4 text-center">
-        <Icon icon={LockIcon} size={40} className="mx-auto text-fg4" aria-hidden />
+        <Icon icon={LockIcon} size={40} className="mx-auto text-on-surface-variant" aria-hidden />
 
         <h1 className="text-xl font-medium text-on-surface">
           {what === undefined ? 'Нет доступных разделов' : `Раздел «${what}» недоступен`}
         </h1>
 
         {missing?.kind === 'module' && (
-          <p className="text-sm text-fg3">
+          <p className="text-sm text-on-surface-variant">
             Он относится к модулю «{missing.title}», а доступа к этому модулю у вас нет.
             Доступ к модулю даёт любое его право.
           </p>
         )}
 
         {missing?.kind === 'permission' && missing.codes.length === 1 && (
-          <p className="text-sm text-fg3">
+          <p className="text-sm text-on-surface-variant">
             Для него нужно право <Code>{missing.codes[0]}</Code>, и его у вас нет.
           </p>
         )}
 
         {missing?.kind === 'permission' && missing.codes.length > 1 && (
-          <p className="text-sm text-fg3">
+          <p className="text-sm text-on-surface-variant">
             Для него нужно одно из прав:{' '}
             {missing.codes.map((code, i) => (
               <span key={code}>{i > 0 && ', '}<Code>{code}</Code></span>
@@ -56,18 +56,18 @@ export function NoAccessPage({ what, missing }: {
         {/* Причина неизвестна — говорим и это. Придумать правдоподобную причину хуже, чем
             признаться: администратор пойдёт проверять не то. */}
         {what === undefined && (
-          <p className="text-sm text-fg3">
+          <p className="text-sm text-on-surface-variant">
             Вашей учётной записи не выдано прав ни на один раздел системы.
           </p>
         )}
 
         {!missing && what !== undefined && (
-          <p className="text-sm text-fg3">
+          <p className="text-sm text-on-surface-variant">
             Права на него у вас нет. Если доступ нужен — назовите администратору адрес страницы.
           </p>
         )}
 
-        <p className="text-sm text-fg4">
+        <p className="text-sm text-on-surface-variant">
           Права выдаёт администратор системы — обратитесь к нему.
         </p>
       </div>

@@ -67,9 +67,9 @@ export function CompanySection() {
           показать выбранным то, чего не выбирали. */}
       {data && (data.locked ? (
         <div data-testid="currency-locked">
-          <p className="text-xs text-fg3">Валюта учёта</p>
+          <p className="text-xs text-on-surface-variant">Валюта учёта</p>
           <p className="text-sm text-on-surface mt-0.5">{currencyTitle(data, data.currency)}</p>
-          <p className="text-xs text-fg3 mt-1.5 max-w-xl">{data.reason}</p>
+          <p className="text-xs text-on-surface-variant mt-1.5 max-w-xl">{data.reason}</p>
         </div>
       ) : (
         <>
@@ -80,7 +80,7 @@ export function CompanySection() {
                 <SelectItem key={c.code} value={c.code}>{c.title} ({c.code})</SelectItem>
               ))}
             </Select>
-            <p className="text-xs text-fg3 mt-1.5 max-w-xl">
+            <p className="text-xs text-on-surface-variant mt-1.5 max-w-xl">
               В этой валюте ведутся все суммы: счета, накладные, затраты по стройкам. Сменить её
               можно, пока в системе нет ни одного счёта и накладной: суммы при смене не
               пересчитываются.

@@ -22,7 +22,7 @@ export function RecognitionChip({ recognition }: { recognition: InvoiceRecogniti
   return (
     <span className="inline-flex items-center gap-1 text-xs text-on-surface-variant" role="status">
       <CircularProgress size={18} /> Распознаётся…
-      {recognition.progress && <span className="text-fg3">{recognition.progress}</span>}
+      {recognition.progress && <span className="text-on-surface-variant">{recognition.progress}</span>}
     </span>
   );
 }
@@ -113,7 +113,7 @@ export function RecognitionStart({ invoiceId, recognition, explain }: {
   const toast = useToast();
   if (recognition?.state !== 'none') return null;
   if (!recognition.canStart)
-    return explain && recognition.whyNot ? <span className="text-xs text-fg3">Не распознаётся: {recognition.whyNot}</span> : null;
+    return explain && recognition.whyNot ? <span className="text-xs text-on-surface-variant">Не распознаётся: {recognition.whyNot}</span> : null;
   return (
     <Button size="sm" variant="outlined" icon={<Icon icon={DocumentScanner} size={18} />} loading={start.isPending}
       onClick={() => start.mutateAsync(invoiceId).catch(e => toast.apiError(e, 'Распознавание не запущено'))}>
@@ -151,7 +151,7 @@ export function RecognitionNotes({ recognition }: { recognition: InvoiceRecognit
 export function OfferLine({ offer, onTake }: { offer: FieldOffer; onTake: (value: unknown) => void }) {
   return (
     <Tooltip content={offer.title ?? `В файле: ${offer.text}`}>
-      <p className="mt-0.5 flex items-baseline gap-1 text-xs text-fg3 min-w-0">
+      <p className="mt-0.5 flex items-baseline gap-1 text-xs text-on-surface-variant min-w-0">
         <span className="truncate">В файле: {offer.text}</span>
         {offer.take !== undefined
           ? (
@@ -171,8 +171,8 @@ function Strip({ quiet, children }: { quiet: boolean; children: React.ReactNode 
     <div role={quiet ? 'status' : 'alert'}
       className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${quiet
         ? 'border-outline-variant bg-surface-container text-on-surface-variant'
-        : 'border-error/30 bg-error-container text-error'}`}>
-      {quiet ? <Icon icon={DocumentScanner} size={18} className="shrink-0 mt-0.5 text-fg3" /> : <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />}
+        : 'border-error/30 bg-error-container text-on-error-container'}`}>
+      {quiet ? <Icon icon={DocumentScanner} size={18} className="shrink-0 mt-0.5 text-on-surface-variant" /> : <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />}
       {children}
     </div>
   );

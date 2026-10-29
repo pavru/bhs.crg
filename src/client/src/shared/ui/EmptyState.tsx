@@ -21,7 +21,7 @@ export function EmptyState({
       </div>
       <div className="space-y-1">
         <h3 className="text-base font-medium text-on-surface">{title}</h3>
-        {description && <p className="mx-auto max-w-sm text-sm text-fg3">{description}</p>}
+        {description && <p className="mx-auto max-w-sm text-sm text-on-surface-variant">{description}</p>}
       </div>
       {action && <div className="pt-1">{action}</div>}
     </div>

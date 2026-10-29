@@ -168,7 +168,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
     const gone = items.filter(e => e.archived);
     return (
       <>
-        {live.length === 0 && <p className="px-4 py-3 text-sm text-fg4">Действующих записей нет.</p>}
+        {live.length === 0 && <p className="px-4 py-3 text-sm text-on-surface-variant">Действующих записей нет.</p>}
         {live.map((e, idx) => row(e, items, idx > 0))}
         <ArchivedRows count={gone.length} forceOpen={searching || !!batch.picked}>
           {gone.map(e => row(e, items, true))}
@@ -216,11 +216,11 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
       <aside className="w-48 shrink-0 sticky top-0 self-start space-y-0.5">
         {rail.groups.length > TYPE_SEARCH_THRESHOLD && (
           <div className="relative mb-1">
-            <Icon icon={Search} size={18} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
+            <Icon icon={Search} size={18} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
             <input value={typeSearch} onChange={e => setTypeSearch(e.target.value)} placeholder="Тип…" aria-label="Поиск типа"
-              className="w-full h-8 pl-7 pr-6 rounded-md text-xs bg-surface border border-outline-variant text-on-surface outline-none focus-visible:ring-2 focus-visible:ring-primary placeholder:text-fg4" />
+              className="w-full h-8 pl-7 pr-6 rounded-md text-xs bg-surface border border-outline-variant text-on-surface outline-none focus-visible:ring-2 focus-visible:ring-primary placeholder:text-on-surface-variant" />
             {typeSearch && (
-              <button onClick={() => setTypeSearch('')} aria-label="Очистить" className="absolute right-1.5 top-1/2 -translate-y-1/2 text-fg4 hover:text-on-surface-variant">
+              <button onClick={() => setTypeSearch('')} aria-label="Очистить" className="absolute right-1.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface-variant">
                 <Icon icon={Close} size={18} />
               </button>
             )}
@@ -274,22 +274,22 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
         )}
 
         {isLoading ? (
-          <div className="text-center py-12 text-fg4 text-sm">Загрузка...</div>
+          <div className="text-center py-12 text-on-surface-variant text-sm">Загрузка...</div>
         ) : entries.length === 0 ? (
           <EmptyState icon={<Icon icon={Database} size={40} />} title="Каталог пуст"
             description="Добавьте справочные данные (организации, лица, объекты) этого уровня."
             action={<Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setAddOpen(true)}>Добавить запись</Button>} />
         ) : filtered.length === 0 ? (
-          <div className="text-center py-10 text-fg4 text-sm">Ничего не найдено</div>
+          <div className="text-center py-10 text-on-surface-variant text-sm">Ничего не найдено</div>
         ) : filterTypeId ? (
           // Выбран один тип — плоский список без аккордеона (тип уже виден в рейле).
           <div className="border border-outline-variant rounded-xl overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3 bg-surface border-b border-outline-variant">
               <span className="flex-1 text-sm font-medium text-on-surface-variant">{selectedType?.name ?? 'Без типа'}</span>
               {selectedType && isDocType(selectedType.id) && (
-                <span className="text-xs bg-warning-container text-warning border border-warning-border px-1.5 py-0.5 rounded-full">внеш. документ</span>
+                <span className="text-xs bg-warning-container text-on-warning-container border border-outline-variant px-1.5 py-0.5 rounded-full">внеш. документ</span>
               )}
-              <span className="text-xs text-fg4">{filtered.filter(isLive).length}</span>
+              <span className="text-xs text-on-surface-variant">{filtered.filter(isLive).length}</span>
               {batch.menu}
             </div>
             <div>{rows(filtered)}</div>
@@ -303,13 +303,13 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
                 <div key={t.id} className="border border-outline-variant rounded-xl overflow-hidden">
                   <button type="button" onClick={() => toggleType(t.id)} aria-expanded={isOpen}
                     className="w-full flex items-center gap-2 px-4 py-3 bg-surface hover:bg-surface-container-low transition-colors text-left">
-                    {isOpen ? <Icon icon={KeyboardArrowUp} size={18} className="text-fg4 shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" />}
+                    {isOpen ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
                     <span className="flex-1 text-sm font-medium text-on-surface-variant">{t.name}</span>
                     {isDocType(t.id) && (
-                      <span className="text-xs bg-warning-container text-warning border border-warning-border px-1.5 py-0.5 rounded-full">внеш. документ</span>
+                      <span className="text-xs bg-warning-container text-on-warning-container border border-outline-variant px-1.5 py-0.5 rounded-full">внеш. документ</span>
                     )}
-                    <span className="text-xs text-fg4 font-mono">{t.code}</span>
-                    <span className="text-xs text-fg4 ml-1">{items.filter(isLive).length}</span>
+                    <span className="text-xs text-on-surface-variant font-mono">{t.code}</span>
+                    <span className="text-xs text-on-surface-variant ml-1">{items.filter(isLive).length}</span>
                   </button>
                   {isOpen && <div className="border-t border-outline-variant">{rows(items)}</div>}
                 </div>
@@ -321,9 +321,9 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
                 <div className="border border-outline-variant rounded-xl overflow-hidden">
                   <button type="button" onClick={() => toggleType(NO_TYPE)} aria-expanded={isOpen}
                     className="w-full flex items-center gap-2 px-4 py-3 bg-surface hover:bg-surface-container-low transition-colors text-left">
-                    {isOpen ? <Icon icon={KeyboardArrowUp} size={18} className="text-fg4 shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" />}
-                    <span className="flex-1 text-sm font-medium text-fg3 italic">Без типа</span>
-                    <span className="text-xs text-fg4">{noType.filter(isLive).length}</span>
+                    {isOpen ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
+                    <span className="flex-1 text-sm font-medium text-on-surface-variant italic">Без типа</span>
+                    <span className="text-xs text-on-surface-variant">{noType.filter(isLive).length}</span>
                   </button>
                   {isOpen && <div className="border-t border-outline-variant">{rows(noType)}</div>}
                 </div>
@@ -375,9 +375,9 @@ function TypeNavItem({ icon, label, count, active, doc, muted, profile, onClick 
       className={`w-full flex items-center gap-2 px-2.5 h-9 rounded-lg text-left transition-colors ${
         active ? 'bg-primary-container text-brand-hover font-medium'
           : profile ? 'text-brand-hover hover:bg-primary-container' : 'text-on-surface-variant hover:bg-surface-container'}`}>
-      {icon && <span className={`shrink-0 ${active || profile ? 'text-brand-hover' : doc ? 'text-warning' : 'text-fg4'}`}>{icon}</span>}
-      <span className={`flex-1 truncate text-sm ${muted ? 'italic text-fg3' : ''}`}>{label}</span>
-      {count != null && <span className="text-xs text-fg4 tabular-nums shrink-0">{count}</span>}
+      {icon && <span className={`shrink-0 ${active || profile ? 'text-brand-hover' : doc ? 'text-warning' : 'text-on-surface-variant'}`}>{icon}</span>}
+      <span className={`flex-1 truncate text-sm ${muted ? 'italic text-on-surface-variant' : ''}`}>{label}</span>
+      {count != null && <span className="text-xs text-on-surface-variant tabular-nums shrink-0">{count}</span>}
     </button>
   );
 }
@@ -408,7 +408,7 @@ function EditEntryForm({ id, onClose, employee, archiveBusy, onUnarchive, ...res
   // отказ «запись изменили» — хотя одновременной правки не было.
   const { data: entry, isLoading, isFetchedAfterMount } = useCommonDataEntry(id, true);
   if (isLoading || !entry || !isFetchedAfterMount) {
-    return <div className="p-8 text-center text-sm text-fg4">Загрузка записи…</div>;
+    return <div className="p-8 text-center text-sm text-on-surface-variant">Загрузка записи…</div>;
   }
   // Архивную запись править можно; плашка объясняет состояние и даёт вернуть (issue #1185).
   return (
@@ -448,7 +448,7 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
             <h2 className="text-base font-semibold text-on-surface">Данные: {SCOPE_LABELS[scope]}</h2>
             <span className="text-xs bg-primary-container text-brand-hover px-1.5 py-0.5 rounded-full">уровень</span>
           </div>
-          <p className="text-xs text-fg3 mt-0.5">Тип: {type.name} · единственная запись уровня.</p>
+          <p className="text-xs text-on-surface-variant mt-0.5">Тип: {type.name} · единственная запись уровня.</p>
         </div>
         <Button variant="outlined" size="sm" icon={<Icon icon={Edit} size={18} />} onClick={onEdit} disabled={!object}>
           Редактировать
@@ -463,7 +463,7 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
           <code className="text-xs font-mono bg-surface-container text-on-surface px-2 py-1 rounded">data.{key}.*</code>
           <Tooltip content="Скопировать ключ" name>
             <button type="button" onClick={copy}
-              className="text-fg4 hover:text-primary transition-colors">
+              className="text-on-surface-variant hover:text-primary transition-colors">
               {copied ? <Icon icon={Check} size={18} className="text-success" /> : <Icon icon={ContentCopy} size={18} />}
             </button>
           </Tooltip>
@@ -474,13 +474,13 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
         <div className="rounded-lg border border-outline-variant divide-y divide-surface-container">
           {preview.map(([k, v]) => (
             <div key={k} className="flex items-center gap-3 px-3 py-2 text-sm">
-              <span className="text-fg3 min-w-[10rem] shrink-0">{k}</span>
+              <span className="text-on-surface-variant min-w-[10rem] shrink-0">{k}</span>
               <span className="text-on-surface truncate">{String(v)}</span>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-sm text-fg4 px-1 py-4">
+        <p className="text-sm text-on-surface-variant px-1 py-4">
           Профиль пуст. Нажмите «Редактировать», чтобы заполнить данные уровня.
         </p>
       )}

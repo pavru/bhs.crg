@@ -88,7 +88,7 @@ export function PdfSourceDialog(
           </p>
         )}
         {profiles?.length === 0 && (
-          <p className="text-sm text-fg3">
+          <p className="text-sm text-on-surface-variant">
             На этом экземпляре нет ни одного профиля для PDF: модули, которые их читают, выключены.
           </p>
         )}
@@ -103,7 +103,7 @@ export function PdfSourceDialog(
                     className="mt-0.5 shrink-0" />
                   <span>
                     {t.label}
-                    <span className="block text-xs text-fg4">{t.description}</span>
+                    <span className="block text-xs text-on-surface-variant">{t.description}</span>
                   </span>
                 </label>
               ))}
@@ -111,7 +111,7 @@ export function PdfSourceDialog(
           </div>
         )}
 
-        {current && <p className="text-xs text-fg4">{current.summary}</p>}
+        {current && <p className="text-xs text-on-surface-variant">{current.summary}</p>}
 
         {error && <p className="text-sm text-error">{error}</p>}
       </div>

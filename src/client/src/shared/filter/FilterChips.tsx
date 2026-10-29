@@ -72,7 +72,7 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
           <ConditionPopover key={`offer:${name}`} columns={columns} submit="Добавить" requireValue
             initial={offeredCondition(name, columns)}
             onSubmit={cond => onChange(chipAdded(cond))}>
-            <button type="button" className={`${CHIP_CLS} border-dashed border-outline-variant text-fg3 hover:text-on-surface px-2.5 py-1 gap-1`}>
+            <button type="button" className={`${CHIP_CLS} border-dashed border-outline-variant text-on-surface-variant hover:text-on-surface px-2.5 py-1 gap-1`}>
               <Icon icon={Add} size={18} aria-hidden /> {columnLabel(columns.find(c => c.name === name), name)}
             </button>
           </ConditionPopover>
@@ -81,7 +81,7 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
         {view.mode === 'chips' && (
           <ConditionPopover columns={columns} initial={NEW_CONDITION} submit="Добавить"
             onSubmit={cond => onChange(chipAdded(cond))}>
-            <button type="button" className={`${CHIP_CLS} border-dashed border-outline-variant text-fg3 hover:text-on-surface px-2.5 py-1 gap-1`}>
+            <button type="button" className={`${CHIP_CLS} border-dashed border-outline-variant text-on-surface-variant hover:text-on-surface px-2.5 py-1 gap-1`}>
               <Icon icon={Add} size={18} aria-hidden /> условие
             </button>
           </ConditionPopover>
@@ -89,14 +89,14 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
 
         {onAdvanced && view.mode === 'chips' && (
           <button type="button" onClick={onAdvanced}
-            className="inline-flex items-center gap-1 text-xs text-fg3 hover:text-on-surface px-1.5 py-1">
+            className="inline-flex items-center gap-1 text-xs text-on-surface-variant hover:text-on-surface px-1.5 py-1">
             <Icon icon={Tune} size={18} aria-hidden /> Расширенный
           </button>
         )}
 
         {hasAny && (
           <button type="button" onClick={() => onChange(() => null)}
-            className="text-xs text-fg3 hover:text-error px-1.5 py-1">
+            className="text-xs text-on-surface-variant hover:text-error px-1.5 py-1">
             Снять отбор
           </button>
         )}
@@ -203,7 +203,7 @@ function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, ch
             {/* Подсказка, а не запрет — как в диалоге (issue #1137): годно ли условие, решает сервер, а его
                 отказ экран покажет на чипе. Пометка «нет в справочнике» тоже не запирает «Применить». */}
             {waiting
-              ? <p className="mt-1.5 text-xs text-fg4">Введите значение — без него отбор не ставится.</p>
+              ? <p className="mt-1.5 text-xs text-on-surface-variant">Введите значение — без него отбор не ставится.</p>
               : <ConditionHint id={hintId} cond={draft} columns={columns} onChange={setDraft} className="mt-1.5"
                   problemOf={chipProblem} fieldRef={valueRef} />}
             <div className="mt-2.5 flex justify-end">

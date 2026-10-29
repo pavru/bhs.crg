@@ -34,7 +34,7 @@ import { Tooltip } from '@/shared/ui/Tooltip';
 export function BackupSection() {
   return (
     <CollapsibleSection title="Резервное копирование" storageKey="backup" defaultOpen={false}>
-      <p className="text-xs text-fg3">
+      <p className="text-xs text-on-surface-variant">
         <b>Настройка системы</b> — типы документов, шаблоны и их ассеты, справочники, общие данные,
         библиотека Typst, профили распознавания, шаблоны маппинга и рецепты обработки, алиасы
         сверки — входит в копию всегда, вместе с библиотекой документов качества и сканами.
@@ -154,7 +154,7 @@ function BackupFilesPanel() {
       {data && <ScheduleForm status={data.schedule} />}
 
       <div className="flex flex-wrap items-center gap-3 text-sm">
-        <span className="text-fg3 text-xs">Что включать:</span>
+        <span className="text-on-surface-variant text-xs">Что включать:</span>
         {([['Full', 'настройку и проектные данные'], ['Configuration', 'только настройку']] as const)
           .map(([value, label]) => (
             <label key={value} className="flex items-center gap-1.5 text-xs text-on-surface-variant">
@@ -180,7 +180,7 @@ function BackupFilesPanel() {
         </Button>
         <input ref={fileInputRef} type="file" accept=".zip" className="hidden" onChange={handleUpload} />
         {data && (
-          <span className="text-xs text-fg4">
+          <span className="text-xs text-on-surface-variant">
             {files.length} из {data.keepCount}
           </span>
         )}
@@ -202,11 +202,11 @@ function BackupFilesPanel() {
         </p>
       )}
 
-      {isPending && <p className="text-xs text-fg4">Список копий загружается…</p>}
+      {isPending && <p className="text-xs text-on-surface-variant">Список копий загружается…</p>}
       {isError && <p className="text-xs text-error">Не удалось прочитать каталог копий.</p>}
 
       {!isPending && !isError && files.length === 0 && (
-        <p className="text-xs text-fg4">Копий пока нет.</p>
+        <p className="text-xs text-on-surface-variant">Копий пока нет.</p>
       )}
 
       {files.length > 0 && (
@@ -217,7 +217,7 @@ function BackupFilesPanel() {
                 <button
                   type="button"
                   onClick={() => setExpanded(expanded === f.fileName ? null : f.fileName)}
-                  className="p-0.5 text-fg4 hover:text-on-surface-variant"
+                  className="p-0.5 text-on-surface-variant hover:text-on-surface-variant"
                   aria-label={expanded === f.fileName ? 'Свернуть состав' : 'Показать состав'}
                 >
                   {expanded === f.fileName ? <Icon icon={KeyboardArrowDown} size={18} /> : <Icon icon={ChevronRight} size={18} />}
@@ -225,18 +225,18 @@ function BackupFilesPanel() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-on-surface truncate">
                     {f.fileName}
-                    <span className="ml-2 text-caption text-fg4 font-normal">
+                    <span className="ml-2 text-caption text-on-surface-variant font-normal">
                       {f.includesProjectData ? 'полная' : 'настройка'}
                     </span>
                     {scheduled.has(f.fileName) && (
                       <Tooltip content="Снята расписанием — попадает под уборку старых">
-                        <span className="ml-2 text-caption text-fg4 font-normal">
+                        <span className="ml-2 text-caption text-on-surface-variant font-normal">
                           плановая
                         </span>
                       </Tooltip>
                     )}
                   </p>
-                  <p className="text-xs text-fg3">
+                  <p className="text-xs text-on-surface-variant">
                     {formatDateTime(f.createdAt)}
                     {' · '}{formatBytes(f.sizeBytes)}
                     {f.appVersion && <> · v{f.appVersion}</>}
@@ -277,13 +277,13 @@ function BackupFilesPanel() {
                     <div className="grid grid-cols-2 gap-x-6 gap-y-0.5 text-xs sm:grid-cols-3">
                       {f.sections.map(s => (
                         <div key={s.label} className="flex justify-between gap-2">
-                          <span className="text-fg3 truncate">{s.label}</span>
+                          <span className="text-on-surface-variant truncate">{s.label}</span>
                           <span className="text-on-surface-variant font-mono">{s.count}</span>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-fg4">Состав неизвестен: в архиве нет паспорта копии.</p>
+                    <p className="text-xs text-on-surface-variant">Состав неизвестен: в архиве нет паспорта копии.</p>
                   )}
                 </div>
               )}
@@ -293,7 +293,7 @@ function BackupFilesPanel() {
       )}
 
       {data && (
-        <p className="text-xs text-fg4">
+        <p className="text-xs text-on-surface-variant">
           Каталог на сервере: <span className="font-mono">{data.directory}</span>. Копию в несколько
           гигабайт забирают и приносят файлами прямо туда — браузер такую не потянет ни на
           скачивании, ни на загрузке.
@@ -375,7 +375,7 @@ function IconAction({ title, onClick, danger, disabled, children }: {
         onClick={onClick}
         disabled={disabled}
         className={`p-1.5 rounded-md transition-colors disabled:opacity-50 ${
-          danger ? 'text-fg3 hover:text-error hover:bg-error-container' : 'text-fg3 hover:text-on-surface hover:bg-surface-container-low'
+          danger ? 'text-on-surface-variant hover:text-on-error-container hover:bg-error-container' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low'
         }`}
       >
         {children}
@@ -405,7 +405,7 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
     <div className="flex flex-col min-h-0 flex-1">
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
         <div className={`flex items-center gap-3 rounded-lg p-3 ${
-          report.success ? 'bg-success-container text-success' : 'bg-error-container text-error'
+          report.success ? 'bg-success-container text-on-success-container' : 'bg-error-container text-on-error-container'
         }`}>
           {report.success
             ? <Icon icon={CheckCircle} size={20} className="text-success shrink-0" />
@@ -444,7 +444,7 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
               ...(report.projectSections ?? []),
             ]} />
             {report.typstUserLibRestored && (
-              <p className="px-4 py-2 text-xs text-fg3">Библиотека Typst (userlib) восстановлена.</p>
+              <p className="px-4 py-2 text-xs text-on-surface-variant">Библиотека Typst (userlib) восстановлена.</p>
             )}
             {/*
               Семантика восстановления нигде не была объявлена, а она не очевидна: копия ДОБАВЛЯЕТ и
@@ -452,7 +452,7 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
               состоянию не вернётся — он останется. Поведение выбрано намеренно (безопаснее не
               удалять), но оператор вправе знать о нём до того, как удивится.
             */}
-            <p className={`px-4 py-2 text-xs text-fg3 ${report.typstUserLibRestored ? 'border-t border-outline-variant' : ''}`}>
+            <p className={`px-4 py-2 text-xs text-on-surface-variant ${report.typstUserLibRestored ? 'border-t border-outline-variant' : ''}`}>
               Восстановление добавляет и обновляет записи, но <b>не удаляет</b> то, чего в копии нет:
               созданное после снятия копии останется на месте. Кроме библиотеки Typst — её дерево
               файлов замещается целиком.
@@ -461,7 +461,7 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
         )}
 
         {report.warnings.length > 0 && (
-          <div className="rounded-lg border border-warning-border bg-warning-container p-3 space-y-1">
+          <div className="rounded-lg border border-outline-variant bg-warning-container p-3 space-y-1">
             <p className="text-xs font-semibold text-warning uppercase tracking-wide mb-2">
               Предупреждения ({report.warnings.length})
             </p>
@@ -483,7 +483,7 @@ interface Stat { label: string; created: number; updated: number }
 /** Число в отчёте: прочерк вместо нуля — иначе столбец нулей прятал бы немногие ненулевые. */
 const statCell = (n: number, sign: string, tone: string) => n > 0
   ? <span className={`font-mono ${tone}`}>{sign}{n}</span>
-  : <span className="font-mono text-stroke-strong">—</span>;
+  : <span className="font-mono text-on-surface-variant">—</span>;
 
 const STAT_COLUMNS: DataGridColumn<Stat>[] = [
   { key: 'label', label: 'Категория' },

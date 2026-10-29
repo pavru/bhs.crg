@@ -28,7 +28,7 @@ export function ProxyRoleMarker({ entry, siblings, resolvePool, onOpen }: {
   return (
     <Tooltip content="Открыть реальный объект">
       <button type="button" onClick={e => { e.stopPropagation(); onOpen(target); }}
-        className="flex items-center gap-1 text-caption text-fg4 hover:text-primary shrink-0 max-w-[180px] truncate transition-colors">
+        className="flex items-center gap-1 text-caption text-on-surface-variant hover:text-primary shrink-0 max-w-[180px] truncate transition-colors">
         <Icon icon={LinkIcon} size={18} className="shrink-0" />→ {target.displayName}{target.archived && ` · ${ARCHIVED_WORD}`}
       </button>
     </Tooltip>
@@ -85,10 +85,10 @@ export function ObjectRow({
       </span>
       <ProxyRoleMarker entry={entry} siblings={siblings} resolvePool={resolvePool} onOpen={onEdit} />
       {docKind && dense && (
-        <span className="text-xs px-1.5 py-0.5 rounded bg-warning-container text-warning font-medium shrink-0">внеш. документ</span>
+        <span className="text-xs px-1.5 py-0.5 rounded bg-warning-container text-on-warning-container font-medium shrink-0">внеш. документ</span>
       )}
       {showPreview && preview && (
-        <span className="text-xs text-fg4 truncate max-w-xs hidden sm:block">{preview}</span>
+        <span className="text-xs text-on-surface-variant truncate max-w-xs hidden sm:block">{preview}</span>
       )}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
         {onArchive && (

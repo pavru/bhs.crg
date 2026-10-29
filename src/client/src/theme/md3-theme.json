@@ -48,7 +48,6 @@
     "muted-hover": "surface-container-high",
     "stroke": "outline-variant",
     "stroke-strong": "outline",
-    "stroke-subtle": { "legacy": { "light": "#e3e1e6", "dark": "#282a2f" } },
     "brand": "primary",
     "brand-hover": { "legacy": { "light": "#17518f", "dark": "#bcd4ff" } },
     "brand-pressed": { "legacy": { "light": "#124074", "dark": "#8bb3f0" } },
@@ -61,7 +60,6 @@
     "on-tertiary-subtle": "on-tertiary-container",
     "success-subtle": "success-container",
     "warning-subtle": "warning-container",
-    "warning-border": { "legacy": { "light": "#c49500", "dark": "#5a3c00" } },
     "danger": "error",
     "danger-subtle": "error-container",
     "on-danger": "on-error"

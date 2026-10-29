@@ -50,7 +50,7 @@ export function RowPanel({ address, rowKey, filter, grain, link, onClose }: {
         <h2 className="flex-1 text-sm font-medium text-on-surface">Строка: {grain}</h2>
         {link && values && <Link to={link.to} className="text-xs text-primary underline hover:text-on-surface">{link.label}</Link>}
         <button ref={close} type="button" onClick={onClose} aria-label="Закрыть строку"
-          className="p-1 rounded-md text-fg3 hover:text-on-surface hover:bg-surface-container">
+          className="p-1 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container">
           <Icon icon={Close} size={18} aria-hidden />
         </button>
       </header>
@@ -59,7 +59,7 @@ export function RowPanel({ address, rowKey, filter, grain, link, onClose }: {
         {row.isError ? (
           <p role="alert" className="text-sm text-error">{apiError(row.error, 'Строка не открылась')}</p>
         ) : !data ? (
-          <p className="text-sm text-fg4">Строка загружается…</p>
+          <p className="text-sm text-on-surface-variant">Строка загружается…</p>
         ) : !values ? (
           // Три причины, и какая из них — отсюда не узнать; назвать одну значило бы угадать.
           <p className="text-sm text-on-surface-variant">
@@ -73,7 +73,7 @@ export function RowPanel({ address, rowKey, filter, grain, link, onClose }: {
           <dl className="space-y-2.5">
             {data.columns.map(c => (
               <div key={c.key}>
-                <dt className="text-xs text-fg4">{c.note ? `${c.label} (${c.note})` : c.label}</dt>
+                <dt className="text-xs text-on-surface-variant">{c.note ? `${c.label} (${c.note})` : c.label}</dt>
                 <dd className="text-sm text-on-surface break-words min-h-5">
                   <DataGridValue row={values}
                     column={{ key: c.key, label: c.label, unavailable: columnUnavailable(c.unavailable) }}

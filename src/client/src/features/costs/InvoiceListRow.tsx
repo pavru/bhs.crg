@@ -52,12 +52,12 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
           : (
             <Tooltip content="Номера ещё нет — это имя файла счёта">
               <span className="inline-flex items-center gap-1 min-w-0 text-sm text-on-surface-variant">
-                <Icon icon={DocumentScanner} size={18} className="shrink-0 text-fg3" aria-hidden />
+                <Icon icon={DocumentScanner} size={18} className="shrink-0 text-on-surface-variant" aria-hidden />
                 <span className="truncate">{item.scanFileName}</span>
               </span>
             </Tooltip>
           )}
-        {item.issuedOn && <span className="text-xs text-fg3 shrink-0">{formatDate(item.issuedOn)}</span>}
+        {item.issuedOn && <span className="text-xs text-on-surface-variant shrink-0">{formatDate(item.issuedOn)}</span>}
         <div className="flex-1" />
         {item.total != null && <span className="text-xs text-on-surface-variant shrink-0">{formatMoney(item.total)}</span>}
       </div>
@@ -74,7 +74,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
         )}
         {archived > 0 && (
           <Tooltip content={`Записи в архиве — ${placesText(item.references?.archived)}. Счёт верен: запись цела, её лишь убрали из выбора.`}>
-            <span className="inline-flex items-center gap-0.5 text-xs text-fg3 shrink-0"
+            <span className="inline-flex items-center gap-0.5 text-xs text-on-surface-variant shrink-0"
               aria-label={`Записей в архиве: ${archived}`}>
               <Icon icon={Archive} size={18} aria-hidden />{archived}
             </span>
@@ -97,7 +97,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
         {/* Отклонённый назван словом: в реестре он остаётся, и без пометки выглядел бы счётом в работе. */}
         {rejected && (
           <Tooltip content="По счёту не платим">
-            <span className="inline-flex items-center gap-0.5 text-xs text-fg3 shrink-0">
+            <span className="inline-flex items-center gap-0.5 text-xs text-on-surface-variant shrink-0">
               <Icon icon={Block} size={18} aria-hidden />отклонён
             </span>
           </Tooltip>
@@ -106,7 +106,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
             пометки счёт закрытого месяца выглядел бы таким, каким его закрыли. */}
         {item.corrected && (
           <Tooltip content="Менялся после закрытия периода — история в карточке счёта, секция «Исправления»">
-            <span className="inline-flex items-center gap-0.5 text-xs text-fg3 shrink-0">
+            <span className="inline-flex items-center gap-0.5 text-xs text-on-surface-variant shrink-0">
               <Icon icon={HistoryIcon} size={18} aria-hidden />исправлен
             </span>
           </Tooltip>
@@ -123,11 +123,11 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
         )}
       </div>
       {where && (
-        <div className={`mt-0.5 text-xs truncate ${queue === 'lost' ? 'text-error' : 'text-fg3'}`}>{where}</div>
+        <div className={`mt-0.5 text-xs truncate ${queue === 'lost' ? 'text-error' : 'text-on-surface-variant'}`}>{where}</div>
       )}
       {readiness && (
         <Tooltip content={readiness.title}>
-          <div className={`mt-0.5 text-xs truncate ${readiness.ready ? 'text-success' : 'text-fg3'}`} data-testid="row-readiness">
+          <div className={`mt-0.5 text-xs truncate ${readiness.ready ? 'text-success' : 'text-on-surface-variant'}`} data-testid="row-readiness">
             {readiness.text}
           </div>
         </Tooltip>
@@ -142,7 +142,7 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
   );
 }
 
-const SCAN_TONE = { quiet: 'text-fg3', danger: 'text-error', warning: 'text-warning' } as const;
+const SCAN_TONE = { quiet: 'text-on-surface-variant', danger: 'text-error', warning: 'text-warning' } as const;
 const DUE_TONE = SCAN_TONE;
 
 /**
@@ -169,7 +169,7 @@ export function InvoiceLeftRow({ number, onClick, exit, active = true }: {
       <button type="button" onClick={onClick} data-testid={exit ? 'row-exit' : undefined}
         className={`w-full text-left px-3 py-2 border-b border-outline-variant/60 ${active ? 'bg-primary-container' : 'hover:bg-surface-container'}`}>
         <div className="text-sm text-on-surface font-medium truncate">{number || 'без номера'}</div>
-        <div className="mt-0.5 inline-flex items-center gap-1 text-xs text-fg3">
+        <div className="mt-0.5 inline-flex items-center gap-1 text-xs text-on-surface-variant">
           <Icon icon={Check} size={18} aria-hidden /> {exit ? EXIT_WORD[exit] : 'больше не в отборе'}
         </div>
       </button>
@@ -191,13 +191,13 @@ export function InvoiceLeftRow({ number, onClick, exit, active = true }: {
 function SupplierName({ item }: { item: InvoiceListItem }) {
   if (item.supplierName) {
     return (
-      <span className="inline-flex items-center gap-1 min-w-0 text-xs text-fg3">
+      <span className="inline-flex items-center gap-1 min-w-0 text-xs text-on-surface-variant">
         <span className="truncate">{item.supplierName}</span>
         {item.supplierArchived && <ArchivedMark words={false} />}
       </span>
     );
   }
-  if (!item.supplierId) return <span className="text-xs text-fg4 truncate">поставщик не выбран</span>;
+  if (!item.supplierId) return <span className="text-xs text-on-surface-variant truncate">поставщик не выбран</span>;
 
   const lost = item.references?.supplierLost === true;
   return (

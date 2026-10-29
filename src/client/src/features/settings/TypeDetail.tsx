@@ -115,49 +115,49 @@ export function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, 
           <>
             <div className="flex items-center gap-2 flex-wrap">
               <DetailTitle>{docType.name}</DetailTitle>
-              <span className="text-xs text-fg4 font-mono">{docType.code}</span>
+              <span className="text-xs text-on-surface-variant font-mono">{docType.code}</span>
               {parentType && (
                 <Tooltip content="Перейти к родительскому типу">
                   <button type="button" onClick={() => onSelectType(parentType.id)}
-                    className={`${jumpBadge} bg-primary-container text-primary hover:text-brand-hover hover:underline`}>
+                    className={`${jumpBadge} bg-primary-container text-on-primary-container hover:text-brand-hover hover:underline`}>
                     ↑ {parentType.name}
                   </button>
                 </Tooltip>
               )}
-              {docType.isAbstract && <span className={`${badge} bg-warning-container text-warning`}>абстрактный</span>}
-              {docType.allowsProxy && <span className={`${badge} bg-primary-container text-primary`}>роль/прокси</span>}
+              {docType.isAbstract && <span className={`${badge} bg-warning-container text-on-warning-container`}>абстрактный</span>}
+              {docType.allowsProxy && <span className={`${badge} bg-primary-container text-on-primary-container`}>роль/прокси</span>}
             </div>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               {effectiveFields.length > 0 && (
-                <span className={`${badge} bg-surface-container text-fg3`}>
+                <span className={`${badge} bg-surface-container text-on-surface-variant`}>
                   {effectiveFields.length} полей{parentType && ownFieldCount > 0 ? ` · ${ownFieldCount} своих` : ''}
                 </span>
               )}
-              {requiredCount > 0 && <span className={`${badge} bg-surface-container text-fg3`}>{requiredCount} обязательных</span>}
+              {requiredCount > 0 && <span className={`${badge} bg-surface-container text-on-surface-variant`}>{requiredCount} обязательных</span>}
               {complexFields.length > 0 && (
                 <Tooltip content={complexFields.map(getFieldTypeLabel).join(', ')}>
-                  <span className={`${badge} bg-surface-container text-fg3`}>
+                  <span className={`${badge} bg-surface-container text-on-surface-variant`}>
                     {complexFields.length} составных
                   </span>
                 </Tooltip>
               )}
               {referencedBy.length > 0 && (
                 <Tooltip content={`Используется в: ${referencedBy.map(t => t.name).join(', ')}`}>
-                  <span className={`${badge} bg-primary-container text-primary`}>
+                  <span className={`${badge} bg-primary-container text-on-primary-container`}>
                     используется: {referencedBy.length}
                   </span>
                 </Tooltip>
               )}
               {healthLabel.blocking && (
                 <Tooltip content={health.blocking.map(b => `• ${b.text}`).join(String.fromCharCode(10))}>
-                  <span className={`${badge} bg-error-container text-error`}>
+                  <span className={`${badge} bg-error-container text-on-error-container`}>
                     ⚠ {healthLabel.blocking}
                   </span>
                 </Tooltip>
               )}
               {healthLabel.soft && (
                 <Tooltip content={health.soft.map(i => `• ${i.text}`).join(String.fromCharCode(10))}>
-                  <span className={`${badge} bg-warning-container text-warning`}>
+                  <span className={`${badge} bg-warning-container text-on-warning-container`}>
                     {healthLabel.soft}
                   </span>
                 </Tooltip>
@@ -165,7 +165,7 @@ export function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, 
             </div>
             {children.length > 0 && (
               <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                <span className="text-xs text-fg4 shrink-0">наследники:</span>
+                <span className="text-xs text-on-surface-variant shrink-0">наследники:</span>
                 {children.map(c => (
                   <Tooltip key={c.id} content={`Перейти к типу «${c.name}»`}>
                     <button type="button" onClick={() => onSelectType(c.id)}

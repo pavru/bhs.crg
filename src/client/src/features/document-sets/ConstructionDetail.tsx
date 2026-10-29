@@ -66,7 +66,7 @@ export function ConstructionDetail() {
 
   useDocumentTitle(construction ? `Стройка «${construction.name}»` : null);
 
-  if (isLoading) return <div className="p-6 text-sm text-fg4">Загрузка...</div>;
+  if (isLoading) return <div className="p-6 text-sm text-on-surface-variant">Загрузка...</div>;
   if (!construction) return <div className="p-6 text-sm text-error">Стройка не найдена</div>;
 
   const sectionsN = construction.sections.length;
@@ -75,7 +75,7 @@ export function ConstructionDetail() {
 
   const contextCrumbs = (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <Link to="/document-sets" className="text-xs text-fg4 hover:text-on-surface-variant transition-colors">Стройки</Link>
+      <Link to="/document-sets" className="text-xs text-on-surface-variant hover:text-on-surface-variant transition-colors">Стройки</Link>
       {/* Прямая ссылка на неизбранную стройку (#1218): открыта полностью, а крошка ведёт в список,
           где её нет, — строка говорит почему. */}
       <NotFavoriteNote constructionId={constructionId!} />
@@ -86,7 +86,7 @@ export function ConstructionDetail() {
     <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2 space-y-0.5">
       {panels.workNav}
       <NavSection label="Разделы" />
-      {construction.sections.length === 0 && <p className="px-3 py-1.5 text-xs text-fg4">Нет разделов</p>}
+      {construction.sections.length === 0 && <p className="px-3 py-1.5 text-xs text-on-surface-variant">Нет разделов</p>}
       {construction.sections.map(s => {
         const p = problemOf(problems, s.id);
         const done = planOf(plan, s.id);

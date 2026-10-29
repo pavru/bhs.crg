@@ -57,7 +57,7 @@ export function ActivityCenter() {
             // Цвет — в каждой ветке свой, а не общий с перебивкой: из двух `text-*` побеждает тот, что
             // позже в таблице стилей, а не в атрибуте (ревью PR #1450).
             // На телефоне — 44 px: цель касания (#1434).
-            (busy ? 'gap-2 pl-2.5 pr-3 text-on-surface-variant' : 'w-10 max-md:w-11 text-fg3')}>
+            (busy ? 'gap-2 pl-2.5 pr-3 text-on-surface-variant' : 'w-10 max-md:w-11 text-on-surface-variant')}>
           {busy ? (
             <>
               <CircularProgress size={20} className="text-primary" />

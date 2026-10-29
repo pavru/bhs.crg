@@ -111,7 +111,7 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
         </div>
       )}
       {/* Пакет не хранится нигде, кроме этой вкладки: уйти с неё до конца — оставить файлы неотправленными. */}
-      {!done && <p className="text-fg4">Не закрывайте вкладку до конца загрузки.</p>}
+      {!done && <p className="text-on-surface-variant">Не закрывайте вкладку до конца загрузки.</p>}
       {batch.rejected.length > 0 && (
         <ul className="max-h-24 overflow-y-auto space-y-0.5">
           {batch.rejected.map((r, i) => (
@@ -150,7 +150,7 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
         </div>
       )}
       {line && (
-        <p className="text-fg3" data-testid="upload-line">
+        <p className="text-on-surface-variant" data-testid="upload-line">
           {line.text && `${line.text} `}
           <Tooltip content={line.title}>
             <button type="button" className="underline hover:text-on-surface"

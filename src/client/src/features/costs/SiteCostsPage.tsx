@@ -117,7 +117,7 @@ export function SiteCostsPage() {
         {report.isError ? (
           <p role="alert" className="text-sm text-error">{apiError(report.error, 'Отчёт не построился')}</p>
         ) : !data ? (
-          <p className="text-sm text-fg4">Отчёт строится…</p>
+          <p className="text-sm text-on-surface-variant">Отчёт строится…</p>
         ) : (
           <Report data={data} bySections={bySections} onSite={id => set({ site: id })} stale={report.isPlaceholderData}
             asked={closing} onView={view => set({ view: view === 'closing' ? 'closing' : null })} />
@@ -206,9 +206,9 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
       <CostViewsBand data={data} closing={asked} onChange={onView} />
       <ViewPanel shown={!!data.differs} view={asked ? 'closing' : 'corrected'}>
         <section aria-label="Затраты за период">
-          <h2 className="text-xs font-medium uppercase tracking-wide text-fg3">
+          <h2 className="text-xs font-medium uppercase tracking-wide text-on-surface-variant">
             Затраты за {period}
-            <span className="ml-2 normal-case tracking-normal font-normal text-fg4">
+            <span className="ml-2 normal-case tracking-normal font-normal text-on-surface-variant">
               оплаченные счета, по учётному периоду долей{data.withVat ? '' : ' · без НДС'}{closing ? ' · на момент закрытия' : ''}
             </span>
           </h2>
@@ -232,7 +232,7 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
               исправления, и итог открытого месяца его уже включает. Не «из них», а «включая»: корректировка
               бывает и с минусом, и больше итога. */}
           {adjusted && (
-            <p className="mt-1 pl-4 text-sm text-fg3">
+            <p className="mt-1 pl-4 text-sm text-on-surface-variant">
               {correctionsText(adjusted)}
             </p>
           )}
@@ -240,7 +240,7 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
               — признак сегодняшний, и сумма под итогом закрытия смешивала бы два времени. Слова про взгляд —
               кнопка переключения. */}
           {closing && data.unmatchedNow && (
-            <p className="mt-1 pl-4 text-sm text-fg3">
+            <p className="mt-1 pl-4 text-sm text-on-surface-variant">
               Без позиции номенклатуры сейчас: {invoicesText(data.unmatchedNow.invoices)} —{' '}
               <button type="button" onClick={() => onView('corrected')} className="text-primary hover:underline">
                 сумма и список во взгляде «с исправлениями»
@@ -249,7 +249,7 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
           )}
           {/* Не слагаемые итога, а его расшифровка: «из них», с отступом и приглушённо. */}
           {!closing && data.unmatched && (
-            <p className="mt-1 pl-4 text-sm text-fg3">
+            <p className="mt-1 pl-4 text-sm text-on-surface-variant">
               из них без позиции номенклатуры: {invoicesText(data.unmatched.invoices)} на {formatMoney(data.unmatched.amount)} —
               в затраты вошли, в материалы нет{' '}
               {data.unmatchedLinked !== false && (
@@ -258,7 +258,7 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
             </p>
           )}
           {data.vatUnknown && (
-            <p className="mt-1 pl-4 text-sm text-fg3">
+            <p className="mt-1 pl-4 text-sm text-on-surface-variant">
               НДС не указан: {invoicesText(data.vatUnknown.invoices)} на {formatMoney(data.vatUnknown.amount)} — учтены полной суммой
             </p>
           )}
@@ -266,14 +266,14 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
       </ViewPanel>
 
       <section aria-label="Не входит в затраты" className="border-t border-outline-variant pt-3">
-        <h2 className="text-xs font-medium uppercase tracking-wide text-fg3">Не входит в затраты</h2>
+        <h2 className="text-xs font-medium uppercase tracking-wide text-on-surface-variant">Не входит в затраты</h2>
         <DataGrid className="mt-1.5" columns={costColumns('Показатель', undefined, linkNote)} rowKey={l => l.key} rows={[{
           kind: 'figure', key: 'payable', figure: data.payable, label: 'К оплате',
           link: data.payable.invoices > 0 ? siteCostsLinks.payable(data) : undefined,
-          name: <>К оплате <span className="text-fg4">· не оплачено, на сегодня, от периода не зависит</span></>,
+          name: <>К оплате <span className="text-on-surface-variant">· не оплачено, на сегодня, от периода не зависит</span></>,
         }]} />
         {data.payableVatUnknown && (
-          <p className="mt-1 pl-4 text-sm text-fg3">
+          <p className="mt-1 pl-4 text-sm text-on-surface-variant">
             НДС не указан: {invoicesText(data.payableVatUnknown.invoices)} на {formatMoney(data.payableVatUnknown.amount)} — учтены полной суммой
           </p>
         )}
@@ -327,7 +327,7 @@ function sectionOf(line: Line): ReactNode | null {
     <>
       {line.title}
       {line.action && (
-        <button type="button" onClick={line.action.onClick} className="ml-2 font-normal text-fg3 underline hover:text-on-surface">
+        <button type="button" onClick={line.action.onClick} className="ml-2 font-normal text-on-surface-variant underline hover:text-on-surface">
           {line.action.label}
         </button>
       )}
@@ -345,7 +345,7 @@ const NO_LINK = <span className="inline-block w-[22px]" aria-hidden />;
  */
 function CorrectionMark({ corrections }: { corrections: CostCorrections | null }) {
   if (!corrections) return null;
-  if (corrections.whole) return <span className="text-fg4"> · корректировка</span>;
+  if (corrections.whole) return <span className="text-on-surface-variant"> · корректировка</span>;
   return <CorrectionIcon text={correctionsText(corrections)} />;
 }
 
@@ -354,7 +354,7 @@ function CorrectionIcon({ text }: { text: string }) {
   const title = text.charAt(0).toUpperCase() + text.slice(1);
   return (
     <Tooltip content={title}>
-      <span role="img" aria-label={title} className="ml-1.5 inline-flex align-middle text-fg3">
+      <span role="img" aria-label={title} className="ml-1.5 inline-flex align-middle text-on-surface-variant">
         <Icon icon={HistoryIcon} size={18} aria-hidden />
       </span>
     </Tooltip>
@@ -376,13 +376,13 @@ function costColumns(
   return [
     { key: 'name', label: name, rowHeader: true, wrap: true,
       cell: line => line.kind === 'folded' ? (
-        <span data-testid="site-costs-folded" className="pl-4 text-fg3">
+        <span data-testid="site-costs-folded" className="pl-4 text-on-surface-variant">
           {foldedText(line.folded.count)}
           {corrections && line.folded.corrections !== null && <CorrectionIcon text={correctionsText({ amount: line.folded.corrections })} />}
           <button type="button" onClick={line.onUnfold} className="ml-2 text-xs underline hover:text-on-surface">Показать построчно</button>
         </span>
       ) : line.kind === 'figure' ? (
-        <span className={`${line.indent ? 'pl-4' : ''} ${line.muted ? 'text-fg3' : ''}`}>
+        <span className={`${line.indent ? 'pl-4' : ''} ${line.muted ? 'text-on-surface-variant' : ''}`}>
           {line.name}
           <CorrectionMark corrections={marked(line)} />
         </span>
@@ -391,11 +391,11 @@ function costColumns(
       cell: line => line.kind === 'figure' ? <span className="text-on-surface-variant">{formatCount(line.figure.invoices)}</span> : null },
     { key: 'amount', label: 'Сумма', align: 'right', width: 'w-40',
       cell: line => {
-        if (line.kind === 'folded') return <span className="text-fg3">{formatMoney(line.folded.amount)}{NO_LINK}</span>;
+        if (line.kind === 'folded') return <span className="text-on-surface-variant">{formatMoney(line.folded.amount)}{NO_LINK}</span>;
         if (line.kind !== 'figure') return null;
         const text = line.label ?? (typeof line.name === 'string' ? line.name : '');
         return (
-          <span className={line.muted ? 'text-fg3' : ''}>
+          <span className={line.muted ? 'text-on-surface-variant' : ''}>
             {formatMoney(line.figure.amount)}
             {line.link ? <RegistryLink to={line.link} label={`${text} — счета в реестре`} note={linkNote} /> : NO_LINK}
           </span>
@@ -411,7 +411,7 @@ function RegistryLink({ to, label, note }: { to: string; label: string; note?: s
   return (
     <Tooltip content={title}>
       <Link to={to} aria-label={title}
-        className="ml-1.5 inline-flex align-middle rounded-sm text-fg3 hover:text-primary focus-visible:outline-2">
+        className="ml-1.5 inline-flex align-middle rounded-sm text-on-surface-variant hover:text-primary focus-visible:outline-2">
         <Icon icon={ArrowOutward} size={18} aria-hidden />
       </Link>
     </Tooltip>

@@ -36,7 +36,7 @@ export function ConfirmEmailPage() {
   return (
     <AuthCard title="Подтверждение адреса">
       {status === 'pending' && (
-        <p className="flex items-center gap-2 text-sm text-fg3"><CircularProgress size={18} /> Подтверждаем…</p>
+        <p className="flex items-center gap-2 text-sm text-on-surface-variant"><CircularProgress size={18} /> Подтверждаем…</p>
       )}
       {status === 'ok' && (
         <div className="space-y-4">

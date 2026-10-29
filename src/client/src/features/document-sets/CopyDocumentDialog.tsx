@@ -74,7 +74,7 @@ function CopyDocumentDialogBody({ onClose, setId, instance, constructions }: Cop
         onOpenChange={o => { if (!o) { setTarget(null); targetRef.current = null; onClose(); } }}
         title={`Скопировать «${instance.name}» в «${target?.name ?? ''}»?`}
         description={
-          isFetching ? <p className="text-fg4">Проверка ссылок…</p>
+          isFetching ? <p className="text-on-surface-variant">Проверка ссылок…</p>
             : warnings.length === 0
               ? <p>Ссылки в порядке — будет создана полная копия в выбранном комплекте.</p>
               : <><p className="mb-1.5">При копировании в другой комплект:</p><CopyWarnings warnings={warnings} /></>

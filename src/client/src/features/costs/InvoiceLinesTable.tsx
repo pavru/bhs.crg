@@ -316,7 +316,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
         {still
           ? mode === 'OnTop' && <StatusBadge tone="quiet">цены без НДС, НДС сверху</StatusBadge>
           : (
-            <span className={modeMarked ? 'rounded-md ring-1 ring-warning-border px-1.5 py-0.5' : undefined}>
+            <span className={modeMarked ? 'rounded-md ring-1 ring-warning px-1.5 py-0.5' : undefined}>
               <Checkbox ref={modeBox} size="sm" label="Цены без НДС, НДС сверху" checked={mode === 'OnTop'}
                 onChange={on => switchMode(on ? 'OnTop' : 'Included')} />
             </span>
@@ -399,7 +399,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
             не имеет, и фраза «разноска сходится» ниже была бы про него неправдой. */}
         {(!parsed || !view.allocation.allocated) && view.lines.length > 0 && !rejected
           && <AllocationSummary allocation={view.allocation} />}
-        <span className="text-xs text-fg4">
+        <span className="text-xs text-on-surface-variant">
           {rejected
             ? 'Счёт отклонён: по нему не платим, в затраты и «К оплате» он не входит. Строки и разноска сохранены.'
             : parsed
@@ -453,7 +453,7 @@ function ReconciliationStrip({ sums, strip, unsaved, matched, hint, onHint }: {
         <span className="text-warning">ждут позиции: <b>{sums.withoutNomenclature}</b></span>
       )}
 
-      {matched > 0 && <span className="text-fg4">подставлено из запомненного: {matched}</span>}
+      {matched > 0 && <span className="text-on-surface-variant">подставлено из запомненного: {matched}</span>}
 
       {strip.items.map(item => (
         <span key={item.label} className={TONE[item.tone]}>
@@ -475,13 +475,13 @@ function ReconciliationStrip({ sums, strip, unsaved, matched, hint, onHint }: {
       )}
       {strip.agrees && <span className="text-success">сходится с суммой к оплате</span>}
 
-      {unsaved && <span className="text-fg4">(посчитано в форме — строки ещё не сохранены)</span>}
+      {unsaved && <span className="text-on-surface-variant">(посчитано в форме — строки ещё не сохранены)</span>}
     </div>
   );
 }
 
 const TONE: Record<Reconciliation['items'][number]['tone'], string> = {
-  main: 'text-on-surface-variant', quiet: 'text-fg4', warning: 'text-warning',
+  main: 'text-on-surface-variant', quiet: 'text-on-surface-variant', warning: 'text-warning',
 };
 
 /**

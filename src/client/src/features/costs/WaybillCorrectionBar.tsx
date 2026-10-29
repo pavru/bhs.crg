@@ -15,7 +15,7 @@ export function WaybillLockNote({ closed, correctable }: { closed: string; corre
   const can = useCan();
   return (
     <p role="status" className="flex items-start gap-2 text-xs text-on-surface-variant" data-testid="waybill-locked">
-      <Icon icon={LockIcon} size={18} className="shrink-0 mt-0.5 text-fg3" />
+      <Icon icon={LockIcon} size={18} className="shrink-0 mt-0.5 text-on-surface-variant" />
       <span>
         Заперта: {closed}. Вернуть в черновик и править обычным путём нельзя — её материалы вошли в закрытый
         период.
@@ -54,8 +54,8 @@ export function WaybillCorrectionBar({
 }) {
   if (unneeded)
     return (
-      <div role="alert" className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-container
-        px-3 py-2 text-xs text-warning">
+      <div role="alert" className="flex items-start gap-2 rounded-lg border border-outline-variant bg-warning-container
+        px-3 py-2 text-xs text-on-warning-container">
         <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
         <p className="flex-1">
           Исправление больше не нужно: закрытие периода отменили, и накладная не заперта. Её правят обычным путём —
@@ -69,8 +69,8 @@ export function WaybillCorrectionBar({
 
   return (
     <div className="space-y-2" data-testid="waybill-correction-bar">
-      <div role="status" className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-container
-        px-3 py-2 text-xs text-warning">
+      <div role="status" className="flex items-start gap-2 rounded-lg border border-outline-variant bg-warning-container
+        px-3 py-2 text-xs text-on-warning-container">
         <Icon icon={EditNote} size={18} className="shrink-0 mt-0.5" />
         <p className="flex-1">
           Исправление закрытого периода: накладная останется проведённой, прежнее содержимое ляжет в историю.

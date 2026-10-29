@@ -72,7 +72,7 @@ interface PasteMappingModalProps {
  * с её строками. Тело монтируется по открытию (issue #858): каждое открытие начинается с того
  * текста, с которым вставку позвали, и разбирает его до первого рендера — а не эффектом после него.
  */
-const MAP_HEAD = 'bg-surface-container-low px-2 py-1.5 text-fg3 font-medium border-b border-outline-variant';
+const MAP_HEAD = 'bg-surface-container-low px-2 py-1.5 text-on-surface-variant font-medium border-b border-outline-variant';
 const MAP_CELL = 'px-2 py-1.5 border-b border-outline-variant';
 
 export function PasteMappingModal(props: PasteMappingModalProps) {
@@ -339,7 +339,7 @@ function PasteMappingModalBody({
         <div className="space-y-3 text-sm">
           <p className="text-on-surface-variant">Будет вставлено строк: <span className="font-medium text-on-surface">{pending.rows.length}</span>
             {pending.rows.length < importCount && (
-              <span className="text-fg4"> (из {importCount}: остальные не дали ни одного значения)</span>
+              <span className="text-on-surface-variant"> (из {importCount}: остальные не дали ни одного значения)</span>
             )}
           </p>
           {pending.linked + pending.inline > 0 && (
@@ -358,39 +358,39 @@ function PasteMappingModalBody({
               </p>
               <ul className="space-y-0.5 max-h-40 overflow-y-auto">
                 {pending.rejects.slice(0, REJECTS_SHOWN).map((c, i) => (
-                  <li key={i} className="text-xs text-fg3">
+                  <li key={i} className="text-xs text-on-surface-variant">
                     строка {c.line}, «{c.title}»: {c.reason}
                     {' — '}<span className="font-mono text-on-surface">{c.raw}</span>
                   </li>
                 ))}
               </ul>
               {pending.rejects.length > REJECTS_SHOWN && (
-                <p className="text-xs text-fg4">…и ещё {pending.rejects.length - REJECTS_SHOWN}</p>
+                <p className="text-xs text-on-surface-variant">…и ещё {pending.rejects.length - REJECTS_SHOWN}</p>
               )}
-              <p className="text-xs text-fg4">
+              <p className="text-xs text-on-surface-variant">
                 Значение не уложилось в тип поля целиком, и подставлять вместо него догадку нельзя.
                 {keptRejects > 0 && ` Таких ячеек во вставляемых строках: ${keptRejects} — они останутся пустыми, заполните вручную либо исправьте источник.`}
                 {pending.dropped > 0 && ` Строк, где не разобралось ничего: ${pending.dropped} — они не вставятся вовсе.`}
               </p>
               {numberRejected && (
-                <p className="text-xs text-fg4">
-                  Числа разбираются по региональной настройке (<span className="text-fg3">{localeLabel}</span>):
+                <p className="text-xs text-on-surface-variant">
+                  Числа разбираются по региональной настройке (<span className="text-on-surface-variant">{localeLabel}</span>):
                   десятичный разделитель — её, остальные знаки могут быть только разделителями тысяч.
                 </p>
               )}
               {dateRejected && (
-                <p className="text-xs text-fg4">
-                  Даты разбираются в порядке региональной настройки (<span className="text-fg3">{localeLabel}</span>):{' '}
+                <p className="text-xs text-on-surface-variant">
+                  Даты разбираются в порядке региональной настройки (<span className="text-on-surface-variant">{localeLabel}</span>):{' '}
                   {dateHint}. Дата из таблицы с другим порядком дня и месяца читается по настройке, а не угадывается.
                 </p>
               )}
               {(numberRejected || dateRejected) && (
-                <p className="text-xs text-fg4">Настройка — в профиле, раздел «Внешний вид».</p>
+                <p className="text-xs text-on-surface-variant">Настройка — в профиле, раздел «Внешний вид».</p>
               )}
             </div>
           )}
           {pending.inline > 0 && (
-            <p className="text-xs text-fg4">
+            <p className="text-xs text-on-surface-variant">
               Встроенные ячейки — обычные данные в документе (выбран режим «Встроенно» либо совпадение
               в каталоге не найдено). Их можно дозаполнить/связать вручную после вставки.
             </p>
@@ -432,7 +432,7 @@ function PasteMappingModalBody({
               className="w-4 h-4 rounded border-outline text-primary" />
             Первая строка — заголовки
           </label>
-          <span className="text-xs text-fg4">Найдено строк данных: {importCount}</span>
+          <span className="text-xs text-on-surface-variant">Найдено строк данных: {importCount}</span>
         </div>
         {/* Форма, а не таблица данных (#1354): строка — поле, в клетках — выбор. Поэтому сетка
             раскладки, а не таблица: читать здесь нечего, здесь задают. */}

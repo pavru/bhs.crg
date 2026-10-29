@@ -21,7 +21,7 @@ export function SearchInput({
 }) {
   return (
     <div className="relative">
-      <Icon icon={Search} size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
+      <Icon icon={Search} size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
       <input
         value={value}
         onChange={e => onChange(e.target.value)}
@@ -30,14 +30,14 @@ export function SearchInput({
         aria-label={ariaLabel ?? 'Поиск'}
         autoFocus={autoFocus}
         data-search=""
-        className={`w-full h-10 pl-9 pr-9 text-sm bg-surface border border-outline text-on-surface outline-none focus-visible:ring-2 focus-visible:ring-primary placeholder:text-fg4 ${rounded === 'full' ? 'rounded-full' : 'rounded-md'} ${className}`}
+        className={`w-full h-10 pl-9 pr-9 text-sm bg-surface border border-outline text-on-surface outline-none focus-visible:ring-2 focus-visible:ring-primary placeholder:text-on-surface-variant ${rounded === 'full' ? 'rounded-full' : 'rounded-md'} ${className}`}
       />
       {value && (
         <button
           type="button"
           onClick={() => onChange('')}
           aria-label="Очистить поиск"
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-fg4 hover:text-on-surface-variant transition-colors"
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface-variant transition-colors"
         >
           <Icon icon={Close} size={18} />
         </button>

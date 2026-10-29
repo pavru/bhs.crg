@@ -24,16 +24,16 @@ export function PlanProgressBadge({ progress, className = '' }: {
     <Tooltip content={planTitle(progress)}>
       <span className={`inline-flex items-center gap-1.5 text-caption ${className}`}>
         <span className={`px-2 py-0.5 rounded-full tabular-nums ${
-          done ? 'bg-primary-container text-primary' : 'bg-surface-container text-on-surface-variant'}`}>
+          done ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-on-surface-variant'}`}>
           {progress.ready} / {progress.planned} · {progress.percent}%
         </span>
         {/* Неразобранное сверкой держит процент на 99 % — без этой оговорки цифра выглядит
             необъяснимо застрявшей. Само число проблем рисует свой бейдж, здесь только причина. */}
         {progress.needsAttention > 0 && progress.ready >= progress.planned && (
-          <span className="text-fg4">не разобрано: {progress.needsAttention}</span>
+          <span className="text-on-surface-variant">не разобрано: {progress.needsAttention}</span>
         )}
         {progress.setsWithoutPlan > 0 && (
-          <span className="text-fg4">
+          <span className="text-on-surface-variant">
             без плана: {ruCount(progress.setsWithoutPlan, 'комплект', 'комплекта', 'комплектов')}
           </span>
         )}

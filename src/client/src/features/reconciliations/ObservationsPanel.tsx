@@ -19,17 +19,17 @@ import { ObservationReviewDialog, ObservationReferences } from './ObservationRev
  */
 
 const SEVERITY_STYLE: Record<Observation['severity'], string> = {
-  Error: 'bg-error-container text-error',
-  Warning: 'bg-warning-container text-warning',
-  Info: 'bg-surface-container text-fg3',
+  Error: 'bg-error-container text-on-error-container',
+  Warning: 'bg-warning-container text-on-warning-container',
+  Info: 'bg-surface-container text-on-surface-variant',
 };
 
 const STATUS_STYLE: Record<ObservationStatus, string> = {
-  New: 'bg-primary-container text-primary',
+  New: 'bg-primary-container text-on-primary-container',
   Confirmed: 'bg-surface-container text-on-surface-variant',
-  Rejected: 'bg-surface-container text-fg4',
+  Rejected: 'bg-surface-container text-on-surface-variant',
   // Отозвано агентом: не исчезает и не выглядит разобранным — закрывает всё равно человек.
-  Retracted: 'bg-warning-container text-warning',
+  Retracted: 'bg-warning-container text-on-warning-container',
 };
 
 function ObservationRow({ o, setPath, onReview }: {
@@ -44,10 +44,10 @@ function ObservationRow({ o, setPath, onReview }: {
         </span>
         <div className="min-w-0 flex-1">
           <div className="text-sm text-on-surface">{o.title}</div>
-          {o.detail && <p className="text-xs text-fg3 mt-0.5 line-clamp-3">{o.detail}</p>}
+          {o.detail && <p className="text-xs text-on-surface-variant mt-0.5 line-clamp-3">{o.detail}</p>}
           <ObservationReferences o={o} setPath={setPath} />
           {o.reviewNote && (
-            <p className="text-caption text-fg3 mt-1">
+            <p className="text-caption text-on-surface-variant mt-1">
               {OBSERVATION_STATUS_LABELS[o.status]}: {o.reviewNote}
               {o.reviewedBy ? ` (${o.reviewedBy})` : ''}
             </p>
@@ -90,10 +90,10 @@ export function ObservationsPanel() {
     <div className="flex-1 min-w-0 flex flex-col">
       <div className="px-4 py-3 border-b border-outline-variant shrink-0">
         <h2 className="text-base font-semibold text-on-surface flex items-center gap-2">
-          <Icon icon={SmartToy} size={18} className="text-fg3" /> Замечания анализа
+          <Icon icon={SmartToy} size={18} className="text-on-surface-variant" /> Замечания анализа
         </h2>
         {/* Происхождение — не мелкий шрифт ради приличия, а суть: это не результат проверки системы. */}
-        <p className="text-xs text-fg3 mt-0.5">
+        <p className="text-xs text-on-surface-variant mt-0.5">
           Утверждения внешнего ИИ-агента. Система их не проверяла — подтвердите или отклоните.
         </p>
       </div>
@@ -102,15 +102,15 @@ export function ObservationsPanel() {
         <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant text-xs shrink-0">
           <button type="button" onClick={() => setOnlyNew(v => !v)}
             className={`px-2 py-1 rounded-full transition-colors ${
-              onlyNew ? 'bg-primary-container text-primary font-medium' : 'text-fg3 hover:bg-surface-container'}`}>
+              onlyNew ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
             Не разобрано: {unreviewed}
           </button>
-          <span className="text-fg4">всего {items.length}</span>
+          <span className="text-on-surface-variant">всего {items.length}</span>
         </div>
       )}
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {isLoading && <p className="px-4 py-3 text-sm text-fg4">Загрузка…</p>}
+        {isLoading && <p className="px-4 py-3 text-sm text-on-surface-variant">Загрузка…</p>}
         {!isLoading && shown.length === 0 && (
           <div className="p-6">
             <EmptyState icon={<Icon icon={SmartToy} size={40} />}

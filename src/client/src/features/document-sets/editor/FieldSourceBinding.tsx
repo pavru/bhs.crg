@@ -139,7 +139,7 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
           aria-label={locked ? 'Снять привязку к источнику'
             : isBound ? 'Привязка к источнику' : 'Привязать к источнику'}
           className={`inline-flex items-center justify-center rounded transition-colors ${
-            isBound ? 'text-primary hover:text-brand-hover' : 'text-fg4 opacity-0 group-hover:opacity-100 hover:text-on-surface-variant'}`}>
+            isBound ? 'text-primary hover:text-brand-hover' : 'text-on-surface-variant opacity-0 group-hover:opacity-100 hover:text-on-surface-variant'}`}>
           <Icon icon={Database} size={18} />
         </button>
       </Tooltip>
@@ -165,12 +165,12 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
           </div>
         }>
         {locked ? (
-          <p className="text-xs text-fg3 py-2">
+          <p className="text-xs text-on-surface-variant py-2">
             {LOCKED_HINT}. Источник такому полю не назначается — значение вытеснило бы то, что кладёт
             модуль. Привязку, доставшуюся от прежней версии типа, можно только снять.
           </p>
         ) : sources.length === 0 ? (
-          <p className="text-xs text-fg4 py-2">
+          <p className="text-xs text-on-surface-variant py-2">
             Нет подходящих источников. Загрузите набор данных на странице «Наборы данных» или в панели уровня.
           </p>
         ) : (
@@ -200,7 +200,7 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
             {selectedSource && coverTitles.length > 0 && (
               <label className="flex items-start gap-2 text-xs text-on-surface-variant cursor-pointer select-none">
                 <input type="checkbox" checked={coverOn} onChange={e => setCoverOn(e.target.checked)} className="mt-0.5" />
-                <span>Этот источник заполнит также: <span className="text-fg3">{coverTitles.join(', ')}</span></span>
+                <span>Этот источник заполнит также: <span className="text-on-surface-variant">{coverTitles.join(', ')}</span></span>
               </label>
             )}
           </div>

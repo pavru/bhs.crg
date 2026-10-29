@@ -64,18 +64,18 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
     <>
       <Modal open={open} onOpenChange={o => { if (!o) onClose(); }} title={`Аудит документа «${docName}»`} wide>
         {isLoading ? (
-          <div className="flex items-center gap-2 py-8 justify-center text-fg4 text-sm">
+          <div className="flex items-center gap-2 py-8 justify-center text-on-surface-variant text-sm">
             <CircularProgress size={18} /> Проверка…
           </div>
         ) : isError ? (
           <p className="text-sm text-error py-6 text-center">Не удалось выполнить аудит.</p>
         ) : total === 0 ? (
-          <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-success-container text-success">
+          <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-success-container text-on-success-container">
             <Icon icon={CheckCircle} size={18} className="shrink-0" /> Документ соответствует текущей схеме — исправлять нечего.
           </div>
         ) : (
           <div className="space-y-4">
-            <p className="text-xs text-fg4">
+            <p className="text-xs text-on-surface-variant">
               Данные документа расходятся с текущей схемой типа. Их можно почистить, не обращаясь к администратору.
               Удаление необратимо (старое значение вернётся в ответе для ручного отката).
             </p>
@@ -84,7 +84,7 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
                 <div className="flex items-center gap-2 px-3 py-2 bg-surface-container-low text-xs font-medium text-on-surface-variant">
                   <Icon icon={Warning} size={18} className="text-warning shrink-0" />
                   {CATEGORY_LABEL[code] ?? code}
-                  <span className="text-fg4 font-normal">· {items.length}</span>
+                  <span className="text-on-surface-variant font-normal">· {items.length}</span>
                 </div>
                 <div className="divide-y divide-surface-container">
                   {items.map(f => {
@@ -96,11 +96,11 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
                         <div className="flex items-start gap-2">
                           <span className="min-w-0 flex-1">
                             <code className="text-xs text-on-surface-variant break-all">{f.path}</code>
-                            <span className="block text-xs text-fg4">{f.message}</span>
+                            <span className="block text-xs text-on-surface-variant">{f.message}</span>
                           </span>
                         </div>
                         {FIXED_ELSEWHERE.has(f.code) ? (
-                          <p className="pt-1.5 text-xs text-fg4">
+                          <p className="pt-1.5 text-xs text-on-surface-variant">
                             Правится в «Источниках» (кнопка в шапке документа): переключите привязку
                             на поле текущей схемы или удалите её.
                           </p>
@@ -120,7 +120,7 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
                           </Button>
                           {canRename && (
                             <>
-                              <span className="text-fg4 text-xs">или переименовать в</span>
+                              <span className="text-on-surface-variant text-xs">или переименовать в</span>
                               <Select size="sm" className="w-auto min-w-36" aria-label={`Переименовать «${f.path}» в поле схемы`}
                                 value={renameTarget[f.path] ?? ''} disabled={applyFixes.isPending} placeholder="поле схемы…"
                                 onValueChange={k => setRenameTarget(t => ({ ...t, [f.path]: k }))}>

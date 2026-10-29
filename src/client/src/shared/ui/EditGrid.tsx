@@ -209,7 +209,7 @@ export function EditGrid<Row>({
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={span} className={`${dtTdEdit} py-3 text-center text-fg4`}>{empty}</td>
+                <td colSpan={span} className={`${dtTdEdit} py-3 text-center text-on-surface-variant`}>{empty}</td>
               </tr>
             ) : rows.map((row, i) => {
               const chosen = selected?.(row, i) ?? false;
@@ -227,7 +227,7 @@ export function EditGrid<Row>({
                     onDragOver: (e: DragEvent) => drag.onOver(e, i),
                     onDrop: drag.onDrop,
                   } : {})}>
-                  {numbered && <th scope="row" className={`${td} text-left font-normal text-fg4 tabular-nums`}>{i + 1}</th>}
+                  {numbered && <th scope="row" className={`${td} text-left font-normal text-on-surface-variant tabular-nums`}>{i + 1}</th>}
                   {columns.map((c, ci) => {
                     const Cell = c.rowHeader ? 'th' : 'td';
                     return (
@@ -286,7 +286,7 @@ function RemoveButton({ index, label, onClick }: { index: number; label: string;
   return (
     <Tooltip content={label}>
       <button type="button" data-remove={index} onClick={onClick} aria-label={label}
-        className="rounded-sm p-0.5 text-fg4 hover:text-error focus-visible:outline-2">
+        className="rounded-sm p-0.5 text-on-surface-variant hover:text-error focus-visible:outline-2">
         <Icon icon={Delete} size={18} aria-hidden />
       </button>
     </Tooltip>

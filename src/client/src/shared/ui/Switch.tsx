@@ -2,7 +2,7 @@ import { Tooltip } from './Tooltip';
 /**
  * MD3 switch (issue #197): бинарный переключатель на наших токенах. Вкл — трек `brand`, крупный
  * knob цвета `on-brand` справа (не белый: в тёмной теме трек светлый, и белый knob на нём пропадал,
- * issue #1462); выкл — контурный трек `stroke-strong`, мелкий knob слева. Доступен (role=switch).
+ * issue #1462); выкл — контурный трек `outline`, мелкий knob слева. Доступен (role=switch).
  */
 export function Switch({ checked, onChange, disabled, label, title, size = 'md' }: {
   checked: boolean;

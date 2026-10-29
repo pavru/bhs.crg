@@ -6,14 +6,14 @@ export const STATUS_LABELS: Record<string, string> = {
 };
 export const STATUS_COLORS: Record<string, string> = {
   Draft: 'bg-surface-container text-on-surface-variant',
-  Generating: 'bg-warning-container text-warning',
-  Generated: 'bg-success-container text-success',
-  Failed: 'bg-error-container text-error',
+  Generating: 'bg-warning-container text-on-warning-container',
+  Generated: 'bg-success-container text-on-success-container',
+  Failed: 'bg-error-container text-on-error-container',
 };
 export const SCOPE_COLORS: Record<CatalogScope, string> = {
-  Set: 'bg-success-container text-success',
+  Set: 'bg-success-container text-on-success-container',
   Section: 'bg-primary-container text-brand-hover',
-  Construction: 'bg-warning-container text-warning',
+  Construction: 'bg-warning-container text-on-warning-container',
   System: 'bg-surface-container text-on-surface-variant',
 };
 
@@ -22,7 +22,7 @@ export function fieldInputClass(invalid = false, readOnly = false) {
     // Курсор обычный, а не `not-allowed`: поле ДОСТУПНО — в него можно встать, выделить значение и
     // скопировать. `not-allowed` — знак отключённого контрола, и на read-only он просто врёт
     // (issue #958). Отличие от обычного поля несёт фон и приглушённый текст.
-    return 'w-full border rounded-md px-3 py-2 text-sm text-fg3 bg-surface-container border-outline-variant';
+    return 'w-full border rounded-md px-3 py-2 text-sm text-on-surface-variant bg-surface-container border-outline-variant';
   }
   return `w-full border rounded-md px-3 py-2 text-sm text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface ${
     invalid ? 'border-error focus-visible:ring-error' : 'border-outline'

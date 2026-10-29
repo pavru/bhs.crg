@@ -114,7 +114,7 @@ function ResourceList() {
       cell: m => (
         <div className="flex flex-col">
           <span className="text-sm">{m.sourceText}</span>
-          <span className="text-caption text-fg3">{m.kind === 'code' ? 'по коду ресурса' : 'по наименованию'}</span>
+          <span className="text-caption text-on-surface-variant">{m.kind === 'code' ? 'по коду ресурса' : 'по наименованию'}</span>
         </div>
       ),
     },
@@ -154,7 +154,7 @@ function actionsColumn<T>(onPoint: (m: T) => void, onForget: (m: T) => void): Da
 }
 
 function Updated({ at, by }: { at: string; by: string | null }) {
-  return <span className="text-xs text-fg3">{formatDate(at)}{by ? `, ${by}` : ''}</span>;
+  return <span className="text-xs text-on-surface-variant">{formatDate(at)}{by ? `, ${by}` : ''}</span>;
 }
 
 function MatchListBody({ list, query, onQuery, placeholder, empty, grid, children }: {
@@ -175,14 +175,14 @@ function MatchListBody({ list, query, onQuery, placeholder, empty, grid, childre
       {list.isError ? (
         <p role="alert" className="text-sm text-error">{apiError(list.error, 'Список не прочитался')}</p>
       ) : !list.data ? (
-        <p className="text-sm text-fg4">Читаем запомненное…</p>
+        <p className="text-sm text-on-surface-variant">Читаем запомненное…</p>
       ) : total === 0 ? (
-        <p className="text-sm text-fg3">{query.trim() ? 'Под этот отбор ничего не запомнено.' : empty}</p>
+        <p className="text-sm text-on-surface-variant">{query.trim() ? 'Под этот отбор ничего не запомнено.' : empty}</p>
       ) : (
         <>
           {grid}
           {/* Порция — не весь список: без числа она читалась бы как всё запомненное. */}
-          <div className="flex items-center gap-3 text-xs text-fg3">
+          <div className="flex items-center gap-3 text-xs text-on-surface-variant">
             <span>Показано {formatCount(read)} из {formatCount(total)}</span>
             {list.hasNextPage && (
               <Button size="sm" variant="text" loading={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>Показать ещё</Button>

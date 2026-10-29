@@ -74,7 +74,7 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
     return (
       <Tooltip content="Показать предпросмотр" name>
         <button type="button" onClick={() => setOpenPersist(true)}
-          className="hidden xl:flex flex-col items-center gap-2 w-11 shrink-0 border-l border-outline-variant pt-4 text-fg4 hover:text-primary hover:bg-surface-container transition-colors">
+          className="hidden xl:flex flex-col items-center gap-2 w-11 shrink-0 border-l border-outline-variant pt-4 text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors">
           <Icon icon={RightPanelOpen} size={18} />
           <span className="text-xs [writing-mode:vertical-rl] rotate-180 tracking-wide">Предпросмотр</span>
         </button>
@@ -85,10 +85,10 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
   return (
     <div data-testid="document-preview" className="hidden xl:flex flex-col w-[44%] min-w-[380px] shrink-0 border-l border-outline-variant bg-surface-container/40">
       <div className="flex items-center gap-2 shrink-0 px-3 h-11 border-b border-outline-variant bg-surface">
-        <Icon icon={Description} size={18} className="text-fg4 shrink-0" />
+        <Icon icon={Description} size={18} className="text-on-surface-variant shrink-0" />
         <span className="text-sm font-medium text-on-surface flex-1">Предпросмотр документа</span>
         {updatedAt && state.kind === 'pdf' && (
-          <span className="text-xs text-fg4">обновлено {timeAgo(updatedAt)}</span>
+          <span className="text-xs text-on-surface-variant">обновлено {timeAgo(updatedAt)}</span>
         )}
         <IconButton size="sm" label="Обновить" onClick={() => void run()} disabled={state.kind === 'loading'}>
           {busy ? <CircularProgress size={18} /> : <Icon icon={Refresh} size={18} />}
@@ -103,19 +103,19 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
             rememberZoomAs="document-preview" />
         )}
         {state.kind === 'loading' && (
-          <div className="absolute inset-0 flex items-center justify-center text-fg4">
+          <div className="absolute inset-0 flex items-center justify-center text-on-surface-variant">
             <CircularProgress size={24} />
           </div>
         )}
         {state.kind === 'no-template' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 text-fg4">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 text-on-surface-variant">
             <Icon icon={ScanDelete} size={40} />
             <p className="text-sm">Нет шаблона для предпросмотра</p>
             <p className="text-xs">Добавьте шаблон типа документа и отметьте его по умолчанию.</p>
           </div>
         )}
         {state.kind === 'error' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 text-fg4">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 text-on-surface-variant">
             <Icon icon={ScanDelete} size={40} className="text-error" />
             <p className="text-sm text-error">Не удалось построить предпросмотр</p>
             {/* whitespace-pre-line — отказ компилятора шаблона приходит несколькими строками (issue #1047). */}
@@ -124,7 +124,7 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
           </div>
         )}
         {state.kind === 'idle' && (
-          <div className="absolute inset-0 flex items-center justify-center text-fg4 text-sm">Предпросмотр появится здесь</div>
+          <div className="absolute inset-0 flex items-center justify-center text-on-surface-variant text-sm">Предпросмотр появится здесь</div>
         )}
       </div>
     </div>

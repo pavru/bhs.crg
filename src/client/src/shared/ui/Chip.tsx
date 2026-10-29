@@ -45,12 +45,12 @@ const BASE = 'inline-flex items-center gap-1 rounded-full border text-xs bg-surf
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50 disabled:pointer-events-none';
 
 const TONE: Record<NonNullable<ChipProps['tone']>, string> = {
-  neutral: 'border-outline-variant text-fg3 hover:text-on-surface hover:border-outline',
-  warning: 'border-warning-border text-warning hover:bg-warning-container',
+  neutral: 'border-outline-variant text-on-surface-variant hover:text-on-surface hover:border-outline',
+  warning: 'border-outline-variant text-warning hover:bg-warning-container',
   danger: 'border-error text-error hover:bg-error-container',
 };
 
-const SELECTED = 'border-primary text-primary bg-primary-container';
+const SELECTED = 'border-primary text-on-primary-container bg-primary-container';
 
 function chipClass({ selected = false, tone = 'neutral', dashed = false }:
   Pick<ChipProps, 'selected' | 'tone' | 'dashed'> = {}) {

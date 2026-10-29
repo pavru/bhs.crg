@@ -39,12 +39,12 @@ export function ComplexCellPicker({ value, onChange, compositeType, setId, allDo
         className="flex-1 min-w-0 h-full flex items-center gap-1 px-1.5 focus:outline-none focus:bg-primary-container">
         {ref
           ? <><Icon icon={LinkIcon} size={18} className="text-primary shrink-0" /><span className="text-xs truncate text-brand-hover">{ref.displayName}</span><ArchivedRefMark value={ref} words={false} /></>
-          : <span className="text-xs text-fg4">—</span>
+          : <span className="text-xs text-on-surface-variant">—</span>
         }
       </button>
       {ref && (
         <button type="button" onClick={e => { e.stopPropagation(); onChange(undefined); }}
-          className="shrink-0 p-0.5 mr-0.5 text-stroke-strong hover:text-error transition-colors">
+          className="shrink-0 p-0.5 mr-0.5 text-on-surface-variant hover:text-error transition-colors">
           <Icon icon={Close} size={18} />
         </button>
       )}

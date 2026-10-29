@@ -50,11 +50,11 @@ export function SitesChip({ columns, filter, onToggle }: {
         {column.label}: избранные стройки
       </Chip>
       {twins.length > 0 ? (
-        <span className="text-fg3">
+        <span className="text-on-surface-variant">
           Отбор по названию: попадут и другие объекты с тем же названием — {twins.map(n => `«${n}»`).join(', ')}.
         </span>
       ) : articles.isError && (
-        <span className="text-fg3">Отбор по названию: статьи вне строек с тем же названием не проверены.</span>
+        <span className="text-on-surface-variant">Отбор по названию: статьи вне строек с тем же названием не проверены.</span>
       )}
     </div>
   );

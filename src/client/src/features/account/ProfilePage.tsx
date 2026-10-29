@@ -90,7 +90,7 @@ export function ProfilePage() {
   }
 
   if (isLoading || !account) {
-    return <div className="px-6 py-4 text-sm text-fg4">Загрузка…</div>;
+    return <div className="px-6 py-4 text-sm text-on-surface-variant">Загрузка…</div>;
   }
 
   const dirty = displayName.trim() !== account.displayName;
@@ -116,7 +116,7 @@ export function ProfilePage() {
               </Button>
             )}
           </div>
-          <p className="text-xs text-fg4">PNG, JPG. Изображение уменьшится автоматически.</p>
+          <p className="text-xs text-on-surface-variant">PNG, JPG. Изображение уменьшится автоматически.</p>
           {avatarError && <p className="text-xs text-error">{avatarError}</p>}
         </div>
         <input ref={avatarInput} type="file" accept="image/*" className="hidden" onChange={pickAvatar} />
@@ -124,7 +124,7 @@ export function ProfilePage() {
 
       <form onSubmit={save} className="space-y-5">
         <div>
-          <div className="text-xs text-fg4 mb-1">Email</div>
+          <div className="text-xs text-on-surface-variant mb-1">Email</div>
           <div className="flex flex-wrap items-center gap-2 text-sm text-on-surface">
             {account.email}
             {account.emailConfirmed
@@ -136,18 +136,18 @@ export function ProfilePage() {
                   </Button>
                 </>}
           </div>
-          {resendMsg && <p className="mt-1 text-xs text-fg3">{resendMsg}</p>}
+          {resendMsg && <p className="mt-1 text-xs text-on-surface-variant">{resendMsg}</p>}
         </div>
 
         <div>
-          <div className="text-xs text-fg4 mb-1">{account.roles.length === 1 ? 'Роль' : 'Роли'}</div>
+          <div className="text-xs text-on-surface-variant mb-1">{account.roles.length === 1 ? 'Роль' : 'Роли'}</div>
           {/* Все роли, а не первая (issue #984): действующие права — объединение прав всех.
               Пусто — так и сказано словами: прежде здесь подставлялся «Инженер ИД», и профиль
               называл роль, которой нет, ровно тому, у кого нет никакого доступа. */}
           <div className="text-sm text-on-surface">
             {account.roles.length > 0
               ? account.roles.map(r => r.title).join(', ')
-              : <span className="text-fg4">Ролей нет — доступ не выдан</span>}
+              : <span className="text-on-surface-variant">Ролей нет — доступ не выдан</span>}
           </div>
         </div>
 
@@ -171,7 +171,7 @@ export function ProfilePage() {
           «Настройке системы», где язык лежал за административным правом. */}
       <div className="mt-8 pt-6 border-t border-outline-variant">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface mb-4">
-          <Icon icon={Palette} size={18} className="text-fg3" /> Оформление и язык
+          <Icon icon={Palette} size={18} className="text-on-surface-variant" /> Оформление и язык
         </h2>
         <AppearanceSection />
       </div>
@@ -186,9 +186,9 @@ export function ProfilePage() {
           этого раздела», который иначе задают администратору. */}
       <div className="mt-8 pt-6 border-t border-outline-variant">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface mb-1">
-          <Icon icon={VerifiedUser} size={18} className="text-fg3" /> Мои права
+          <Icon icon={VerifiedUser} size={18} className="text-on-surface-variant" /> Мои права
         </h2>
-        <p className="text-xs text-fg4 mb-4">
+        <p className="text-xs text-on-surface-variant mb-4">
           Что открывают выданные вам роли. Изменить их может только администратор.
         </p>
         <MyPermissionsSection />
@@ -196,9 +196,9 @@ export function ProfilePage() {
 
       <div className="mt-8 pt-6 border-t border-outline-variant">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface mb-1">
-          <Icon icon={Mail} size={18} className="text-fg3" /> Сменить email
+          <Icon icon={Mail} size={18} className="text-on-surface-variant" /> Сменить email
         </h2>
-        <p className="text-xs text-fg4 mb-4">
+        <p className="text-xs text-on-surface-variant mb-4">
           Отправим письмо на новый адрес — он станет адресом входа после перехода по ссылке.
         </p>
         <form onSubmit={submitEmail} className="space-y-4">

@@ -70,7 +70,7 @@ export function OrphanObjectsSection() {
   return (
     <CollapsibleSection title="Потерянные объекты" storageKey="orphan-objects" defaultOpen={false}>
       <div className="space-y-3">
-        <p className="text-xs text-fg3">
+        <p className="text-xs text-on-surface-variant">
           Документы и записи общих данных, чей комплект, раздел или стройка удалены. В интерфейсе они
           не видны, но остаются в базе — попадают в поиск, в резервную копию и в проверки ссылок.
         </p>
@@ -94,7 +94,7 @@ export function OrphanObjectsSection() {
 
         {report && (
           nothingToDo
-            ? <p className="text-xs text-fg3">Потерянных объектов нет.</p>
+            ? <p className="text-xs text-on-surface-variant">Потерянных объектов нет.</p>
             : (
               <ul className="text-xs text-on-surface-variant space-y-1">
                 <li>Будет удалено: <b>{report.total}</b></li>
@@ -116,7 +116,7 @@ export function OrphanObjectsSection() {
                   </li>
                 )}
                 {report.referenced > 0 && !report.holdersUnverified && (
-                  <li className="text-fg3">
+                  <li className="text-on-surface-variant">
                     Останутся: {report.referenced} — на них ещё ссылаются живые записи, и ссылки эти
                     работают. Удалить их значило бы своими руками сделать ссылку висячей.
                   </li>

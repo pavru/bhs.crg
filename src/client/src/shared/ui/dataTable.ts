@@ -18,7 +18,7 @@ export const dtCard = 'overflow-auto rounded-xl border border-outline-variant bg
 export const dtTable = 'w-full border-separate border-spacing-0 text-sm [--dt-head:42px]';
 
 const dtThBase =
-  'sticky top-0 z-10 bg-surface-container text-left text-xs font-medium text-fg3 ' +
+  'sticky top-0 z-10 bg-surface-container text-left text-xs font-medium text-on-surface-variant ' +
   'align-middle border-b border-outline-variant whitespace-nowrap';
 
 /** Ячейка шапки: липкая, на surface-container, вторичный текст. */

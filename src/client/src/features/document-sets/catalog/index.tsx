@@ -407,7 +407,7 @@ export function CatalogEntryForm({
                 <PrimitiveInput field={field} value={val} label={field.title}
                   hint={getPrimitiveDef(field)?.name} onChange={() => {}} invalid={false}
                   primitiveTypeDef={getPrimitiveDef(field)} enumTypeDef={getEnumDef(field)} readOnly />
-                <p className="text-caption text-fg4 mt-0.5 flex items-center gap-1">
+                <p className="text-caption text-on-surface-variant mt-0.5 flex items-center gap-1">
                   <LockedFieldIcon />{LOCKED_HINT}
                 </p>
               </div>
@@ -451,7 +451,7 @@ export function CatalogEntryForm({
                     stale={staleBoundKeys.has(field.key)} staleReason={staleReasonOfKey(field.key)} />
                 </label>
                 <div className="w-full border border-outline-variant rounded-md px-3 py-2 text-sm bg-surface-container text-on-surface-variant">
-                  {refId ? <BoundRefValue entryId={refId} /> : (display ?? <em className="text-fg4">нет данных</em>)}
+                  {refId ? <BoundRefValue entryId={refId} /> : (display ?? <em className="text-on-surface-variant">нет данных</em>)}
                 </div>
               </div>
             );
@@ -465,7 +465,7 @@ export function CatalogEntryForm({
             <div key={field.key}>
               {isProxy && (
                 <div className="flex items-center justify-between gap-2 mb-0.5 min-h-[16px]">
-                  <span className="text-caption text-fg4 truncate">
+                  <span className="text-caption text-on-surface-variant truncate">
                     {proxyOverridden ? 'переопределено'
                       : proxyRealHint ? `наследует: ${proxyRealHint}`
                       : 'наследуется от реального'}
@@ -599,7 +599,7 @@ export function CatalogEntryForm({
         <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${SCOPE_COLORS[scope]}`}>
           {SCOPE_LABELS[scope]}
         </span>
-        <span className="text-xs text-fg3">приоритет {SCOPE_PRIORITY[scope]}</span>
+        <span className="text-xs text-on-surface-variant">приоритет {SCOPE_PRIORITY[scope]}</span>
         {/* Основа (базовый экземпляр) — в одной строке с чипом уровня, выровнена вправо. */}
         {canHaveBase && (
           <div className="ml-auto">
@@ -619,7 +619,7 @@ export function CatalogEntryForm({
       {/* Алиасы (issue #74) — доп. имена для поиска записи при связывании с источниками */}
       <div>
         <label className="block text-sm font-medium text-on-surface-variant mb-1">
-          Псевдонимы <span className="text-xs text-fg4 font-normal">(для поиска при связывании с источниками)</span>
+          Псевдонимы <span className="text-xs text-on-surface-variant font-normal">(для поиска при связывании с источниками)</span>
         </label>
         {aliases.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-1.5">
@@ -628,7 +628,7 @@ export function CatalogEntryForm({
                 <span className="min-w-0 break-words">{a}</span>
                 <Tooltip content="Удалить" name>
                   <button type="button" onClick={() => setAliases(prev => prev.filter(x => x !== a))}
-                    className="text-fg4 hover:text-error transition-colors shrink-0">
+                    className="text-on-surface-variant hover:text-error transition-colors shrink-0">
                     <Icon icon={Close} size={18} />
                   </button>
                 </Tooltip>
@@ -648,10 +648,10 @@ export function CatalogEntryForm({
           <label className="block text-sm font-medium text-on-surface-variant mb-1">Тип</label>
           <button type="button" onClick={() => setPickerOpen(true)} aria-label="Тип"
             className="w-full h-10 flex items-center justify-between gap-2 rounded-md border border-outline bg-surface px-3 text-sm text-left transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
-            <span className={typeId ? 'text-on-surface truncate' : 'text-fg4'}>
+            <span className={typeId ? 'text-on-surface truncate' : 'text-on-surface-variant'}>
               {typeId ? (allSelectableTypes.find(c => c.id === typeId)?.name ?? typeId) : 'Выберите тип…'}
             </span>
-            <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" />
+            <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />
           </button>
           <TypePicker
             open={pickerOpen} onOpenChange={setPickerOpen}
@@ -668,7 +668,7 @@ export function CatalogEntryForm({
           />
         </div>
       ) : (
-        <p className="text-sm text-fg3">
+        <p className="text-sm text-on-surface-variant">
           Тип: <span className="font-medium text-on-surface-variant">
             {allSelectableTypes.find(ct => ct.id === entry.compositeTypeId)?.name ?? entry.compositeTypeId}
           </span>
@@ -684,7 +684,7 @@ export function CatalogEntryForm({
             Распознать «{attachment.fileName}»
           </Button>
           {recognizing && (
-            <span className="flex items-center gap-1.5 text-xs text-fg3">
+            <span className="flex items-center gap-1.5 text-xs text-on-surface-variant">
               <CircularProgress size={18} /> Идёт распознавание — дождитесь завершения перед сохранением…
             </span>
           )}
@@ -721,11 +721,11 @@ export function CatalogEntryForm({
           {bindingCheck && <BindingCheckReport items={bindingCheck.items} />}
         </div>
       ) : (
-        <p className="text-xs text-fg4">Сохраните запись, чтобы привязать источники данных.</p>
+        <p className="text-xs text-on-surface-variant">Сохраните запись, чтобы привязать источники данных.</p>
       )}
 
       {isProxy && (
-        <div className="rounded-md bg-primary-container/40 px-3 py-2 text-xs text-fg3 flex items-center justify-between gap-2">
+        <div className="rounded-md bg-primary-container/40 px-3 py-2 text-xs text-on-surface-variant flex items-center justify-between gap-2">
           <span>Роль наследует все поля реального объекта — заполните только переопределяемые, пустые берутся у реального.</span>
           {!showAllProxyFields && (
             <button type="button" onClick={() => setShowAllProxyFields(true)}
@@ -747,14 +747,14 @@ export function CatalogEntryForm({
                 <button type="button" onClick={() => toggleGroup(section.key)}
                   className="w-full flex items-center gap-2 px-3 py-2.5 bg-surface-container-low hover:bg-surface-container transition-colors text-left">
                   {isExpanded
-                    ? <Icon icon={KeyboardArrowUp} size={18} className="text-fg4 shrink-0" />
-                    : <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" />}
+                    ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" />
+                    : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
                   <span className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant flex-1">{section.title}</span>
                   {/* Метка на заголовке: свёрнутая группа иначе прячет причину отказа. */}
                   {section.fields.some(f => Object.keys(constraintErrors).some(k => violationRootKey(k) === f.key)) && (
                     <Tooltip content="Есть ошибка формата"><span className="w-1.5 h-1.5 rounded-full bg-error shrink-0" /></Tooltip>
                   )}
-                  <span className="text-xs text-fg4">{section.fields.length} п.</span>
+                  <span className="text-xs text-on-surface-variant">{section.fields.length} п.</span>
                 </button>
                 {isExpanded && <div className="px-3 py-3">{renderFields(section.fields)}</div>}
               </div>

@@ -48,7 +48,7 @@ function DocumentSearchPanel() {
   return (
     <div className="mb-5">
       <div className="relative">
-        <Icon icon={Search} size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
+        <Icon icon={Search} size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
         <input value={text} onChange={e => setText(e.target.value)}
           placeholder="Найти документ по всем комплектам (имя, тип, реквизиты)…"
           className="w-full pl-9 pr-8 py-2 text-sm border border-outline rounded-md bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
@@ -62,9 +62,9 @@ function DocumentSearchPanel() {
       {active && (
         <div className="mt-2 border border-outline-variant rounded-lg overflow-hidden bg-surface">
           {isFetching && results.length === 0 ? (
-            <div className="px-3 py-3 text-xs text-fg4">Поиск…</div>
+            <div className="px-3 py-3 text-xs text-on-surface-variant">Поиск…</div>
           ) : results.length === 0 ? (
-            <div className="px-3 py-3 text-xs text-fg4">Ничего не найдено по «{q.trim()}»</div>
+            <div className="px-3 py-3 text-xs text-on-surface-variant">Ничего не найдено по «{q.trim()}»</div>
           ) : (
             <ul className="divide-y divide-surface-container max-h-96 overflow-y-auto">
               {results.map(r => (
@@ -73,7 +73,7 @@ function DocumentSearchPanel() {
                     className="w-full text-left px-3 py-2 hover:bg-surface-container-low transition-colors flex items-center gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="text-sm text-on-surface truncate">{r.name || r.typeName}</div>
-                      <div className="text-xs text-fg4 truncate">
+                      <div className="text-xs text-on-surface-variant truncate">
                         {r.constructionName} › {r.sectionName} › {r.setName}
                         {r.name && <span> · {r.typeName}</span>}
                         {filter.active && !filter.favorites.has(r.constructionId) && <span> · ☆ не в избранном</span>}
@@ -171,7 +171,7 @@ export function ConstructionsList() {
       <div className="mb-3 flex"><SitesFilter hidden={constructions.length - shown.length} /></div>
 
       {isLoading || filter.status === 'loading' ? (
-        <div className="text-center py-10 text-fg4 text-sm">Загрузка...</div>
+        <div className="text-center py-10 text-on-surface-variant text-sm">Загрузка...</div>
       ) : constructions.length === 0 ? (
         <EmptyState icon={<Icon icon={Apartment} size={40} />} title="Пока нет строек"
           description="Создайте первую стройку, чтобы начать вести исполнительную документацию по её разделам и комплектам."
@@ -206,7 +206,7 @@ export function ConstructionsList() {
                     </IconButton>
                   </div>}
                 </div>
-                <div className="flex items-center gap-4 text-xs text-fg4">
+                <div className="flex items-center gap-4 text-xs text-on-surface-variant">
                   <span>{ruCount(c.sections.length, 'раздел', 'раздела', 'разделов')}</span>
                   {/* Комплекты — модуль ИД (issue #1128): без него счётчика нет, а не «0 комплектов». */}
                   {idOn && <span>{ruCount(setsCount, 'комплект', 'комплекта', 'комплектов')}</span>}
@@ -219,7 +219,7 @@ export function ConstructionsList() {
                     <span className="tabular-nums">
                       готовность: {planOf(plans, c.id)!.percent}%
                       {(planOf(plans, c.id)!.setsWithoutPlan > 0) && (
-                        <span className="text-fg4">
+                        <span className="text-on-surface-variant">
                           {' '}(без плана: {ruCount(planOf(plans, c.id)!.setsWithoutPlan, 'комплект', 'комплекта', 'комплектов')})
                         </span>
                       )}
@@ -234,10 +234,10 @@ export function ConstructionsList() {
                 {c.sections.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {c.sections.slice(0, 4).map(s => (
-                      <span key={s.id} className="text-xs bg-primary-container text-primary px-2 py-0.5 rounded-full">{s.name}</span>
+                      <span key={s.id} className="text-xs bg-primary-container text-on-primary-container px-2 py-0.5 rounded-full">{s.name}</span>
                     ))}
                     {c.sections.length > 4 && (
-                      <span className="text-xs text-fg4">+{c.sections.length - 4} ещё</span>
+                      <span className="text-xs text-on-surface-variant">+{c.sections.length - 4} ещё</span>
                     )}
                   </div>
                 )}

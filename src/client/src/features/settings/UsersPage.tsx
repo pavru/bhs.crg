@@ -54,11 +54,11 @@ export function UsersPage() {
                   одна: «все права» плюс что-то ещё — всё равно все права. */}
               {u.roles.some(ur => roles.find(r => r.name === ur.name)?.allPermissions)
                 ? <Icon icon={VerifiedUser} size={18} className="text-primary shrink-0" />
-                : <Icon icon={Person} size={18} className="text-fg4 shrink-0" />}
+                : <Icon icon={Person} size={18} className="text-on-surface-variant shrink-0" />}
               {u.displayName || u.email}
-              {isSelf && <span className="text-caption text-fg4 font-normal">(вы)</span>}
+              {isSelf && <span className="text-caption text-on-surface-variant font-normal">(вы)</span>}
             </div>
-            {u.displayName && <div className="text-xs text-fg4 mt-0.5">{u.email}</div>}
+            {u.displayName && <div className="text-xs text-on-surface-variant mt-0.5">{u.email}</div>}
             {rowError?.id === u.id && <div className="text-xs text-error mt-1">{rowError.msg}</div>}
           </>
         );
@@ -103,12 +103,12 @@ export function UsersPage() {
         candidates={users.map(u => ({ id: u.id, displayName: u.displayName, email: u.email }))} />
 
       {isLoading ? (
-        <div className="text-center text-fg4 text-sm py-10">Загрузка...</div>
+        <div className="text-center text-on-surface-variant text-sm py-10">Загрузка...</div>
       ) : (
         <DataGrid columns={columns} rows={users} rowKey={u => u.id} />
       )}
 
-      <p className="text-xs text-fg4 mt-3">
+      <p className="text-xs text-on-surface-variant mt-3">
         Ролей у человека может быть несколько: действующие права — объединение прав всех его ролей.
         Что именно даёт каждая и кому её выдавать — на экране «Роли и права»: там же состав
         правится, и правка действует немедленно у всех носителей. Снятые все роли означают
@@ -172,9 +172,9 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
           required minLength={PASSWORD_MIN_LENGTH} className="font-mono"
           hint={`${PASSWORD_HINT} Пользователь сможет сменить его сам.`} />
         <div>
-          <div className="text-xs text-fg4 mb-1">Роли</div>
+          <div className="text-xs text-on-surface-variant mb-1">Роли</div>
           <RolePicker value={chosen} onChange={setChosen} ariaLabel="Роли нового пользователя" />
-          <p className="text-xs text-fg4 mt-1">
+          <p className="text-xs text-on-surface-variant mt-1">
             Можно выбрать несколько: права складываются. Что даёт каждая — на экране «Роли и права».
           </p>
         </div>
@@ -266,7 +266,7 @@ export function ResetPasswordModal({ user, onClose }: { user: AppUser | null; on
           {copied === 'failed' && (
             <p role="alert" className="text-sm text-error">Скопировать не удалось — выделите пароль и скопируйте вручную.</p>
           )}
-          <p className="text-sm text-fg3">
+          <p className="text-sm text-on-surface-variant">
             Сообщите пароль пользователю. После закрытия окна он больше нигде не показывается.
           </p>
         </div>

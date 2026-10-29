@@ -37,20 +37,20 @@ import { useObservations, isUnreviewed } from '@/shared/api/observations';
 function StatusBadge({ f }: { f: Finding }) {
   if (f.resolved) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-primary-container text-primary shrink-0">
+      <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-primary-container text-on-primary-container shrink-0">
         <Icon icon={CheckCircle} size={18} /> Устранено
       </span>
     );
   }
   if (f.status === 'Match') {
-    return <span className="text-xs text-fg4 shrink-0">Совпадает</span>;
+    return <span className="text-xs text-on-surface-variant shrink-0">Совпадает</span>;
   }
   // Решение снимает вопрос, даже если расхождение осталось: в этом и смысл персистентного решения —
   // «давальческое оборудование» не должно всплывать каждый прогон.
   const muted = !!f.decision;
   return (
     <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full shrink-0 ${
-      muted ? 'bg-surface-container text-fg3' : 'bg-error-container text-error'}`}>
+      muted ? 'bg-surface-container text-on-surface-variant' : 'bg-error-container text-on-error-container'}`}>
       {muted ? <Icon icon={Block} size={18} /> : <Icon icon={Warning} size={18} />} {STATUS_LABELS[f.status]}
     </span>
   );
@@ -77,19 +77,19 @@ function FindingRow({ f, onDecide, linkable, checked, onToggle }: {
         <StatusBadge f={f} />
         <span className="flex-1 truncate text-sm text-on-surface" title={f.label}>{f.label}</span>
         <span className="text-sm tabular-nums text-on-surface-variant shrink-0">
-          {num(f.leftValue)} <span className="text-fg4">/</span> {num(f.rightValue)}
+          {num(f.leftValue)} <span className="text-on-surface-variant">/</span> {num(f.rightValue)}
         </span>
         <Button variant="text" size="sm" onClick={() => onDecide(f)}
           className="opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0">
           {f.decision ? 'Изменить' : 'Разобрать'}
         </Button>
       </div>
-      <div className="flex items-center gap-3 mt-0.5 text-caption text-fg4">
+      <div className="flex items-center gap-3 mt-0.5 text-caption text-on-surface-variant">
         {/* Провенанс: без него находку нельзя проверить глазами по документу. */}
         {provenanceSummary(left) && <span>слева: {provenanceSummary(left)}</span>}
         {provenanceSummary(right) && <span>справа: {provenanceSummary(right)}</span>}
         {f.decision && (
-          <span className="text-fg3">
+          <span className="text-on-surface-variant">
             {DECISION_LABELS[f.decision.kind]}
             {f.decision.note ? ` — ${f.decision.note}` : ''}
             {f.decision.decidedBy ? ` (${f.decision.decidedBy})` : ''}
@@ -246,7 +246,7 @@ export function ReconciliationsPage() {
         {filtered.length > 0 && <NavSection label="Сверки" />}
         {filtered.map(reconciliationRow)}
         {filtered.length === 0 && !isLoading && (
-          <p className="px-3 py-2 text-sm text-fg4">
+          <p className="px-3 py-2 text-sm text-on-surface-variant">
             {outsideSearch ? 'Больше ничего не найдено' : 'Сверок нет'}
           </p>
         )}
@@ -276,12 +276,12 @@ export function ReconciliationsPage() {
       <div className="flex items-center gap-2 px-4 py-3 border-b border-outline-variant shrink-0">
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-semibold text-on-surface truncate">{selected.name}</h2>
-          <p className="text-xs text-fg3 mt-0.5">
+          <p className="text-xs text-on-surface-variant mt-0.5">
             {currentRun ? runSummary(currentRun) : 'Прогонов ещё не было'}
           </p>
         </div>
         {runs.length > 1 && (
-          <div className="shrink-0 flex items-center gap-1.5 text-fg4">
+          <div className="shrink-0 flex items-center gap-1.5 text-on-surface-variant">
             <Icon icon={HistoryIcon} size={18} />
             <RunPicker runs={runs} value={runId} onChange={setRunId} />
           </div>
@@ -300,7 +300,7 @@ export function ReconciliationsPage() {
       {/* Неудачный прогон обязан быть виден: пустой список читается как «расхождений нет», и это
           самое опасное недоразумение в подсистеме. */}
       {currentRun?.status === 'Failed' && (
-        <div className="mx-4 mt-3 px-3 py-2 rounded-lg bg-error-container text-error text-sm">
+        <div className="mx-4 mt-3 px-3 py-2 rounded-lg bg-error-container text-on-error-container text-sm">
           <strong>Прогон не выполнен.</strong> {currentRun.error}
         </div>
       )}
@@ -309,10 +309,10 @@ export function ReconciliationsPage() {
         <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant text-xs shrink-0">
           <button type="button" onClick={() => setOnlyAttention(v => !v)}
             className={`px-2 py-1 rounded-full transition-colors ${
-              onlyAttention ? 'bg-primary-container text-primary font-medium' : 'text-fg3 hover:bg-surface-container'}`}>
+              onlyAttention ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container'}`}>
             Требует внимания: {attentionCount}
           </button>
-          <span className="text-fg4">
+          <span className="text-on-surface-variant">
             совпало {currentRun.matchCount} · расхождений {currentRun.mismatchCount} ·
             нет слева {currentRun.missingLeftCount} · нет справа {currentRun.missingRightCount}
           </span>
@@ -344,9 +344,9 @@ export function ReconciliationsPage() {
       )}
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {findingsLoading && <p className="px-4 py-3 text-sm text-fg4">Загрузка…</p>}
+        {findingsLoading && <p className="px-4 py-3 text-sm text-on-surface-variant">Загрузка…</p>}
         {!findingsLoading && shown.length === 0 && (
-          <p className="px-4 py-3 text-sm text-fg4">
+          <p className="px-4 py-3 text-sm text-on-surface-variant">
             {runs.length === 0
               ? 'Нажмите «Прогнать», чтобы сверить источники.'
               : onlyAttention ? 'Всё разобрано.' : 'Находок нет.'}

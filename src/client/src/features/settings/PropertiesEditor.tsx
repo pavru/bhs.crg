@@ -120,7 +120,7 @@ export function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentTy
         confirmDanger={false}
         onConfirm={() => codeWarning?.onConfirm()}
       />
-      <p className="text-xs font-medium text-fg3 uppercase tracking-wide">Параметры типа</p>
+      <p className="text-xs font-medium text-on-surface-variant uppercase tracking-wide">Параметры типа</p>
       <div className="grid grid-cols-2 gap-3">
         <TextField label="Наименование" value={name} onChange={e => handleNameChange(e.target.value)} required />
         <TextField label="Код" value={code} onChange={e => setCode(e.target.value)}
@@ -142,7 +142,7 @@ export function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentTy
           }}>
           {ownerOptions(access ?? NO_ACCESS).map(o => <SelectItem key={o.code} value={o.code}>{o.title}</SelectItem>)}
         </Select>
-        <p className="mt-1 text-xs text-fg4">
+        <p className="mt-1 text-xs text-on-surface-variant">
           {docType.module === CORE_OWNER
             ? 'Тип ядра: остаётся в редакторе при любом наборе модулей.'
             : `Тип модуля «${ownerTitle(docType.module, access ?? NO_ACCESS)}»: при выключенном модуле не предлагается.`}
@@ -157,7 +157,7 @@ export function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentTy
             disabled={proxyMutation.isPending}
             onChange={v => proxyMutation.mutate({ id: docType.id, allowsProxy: v })} />
           <span className="text-sm text-on-surface-variant">Роль/прокси</span>
-          <span className="text-xs text-fg4">— тип может подменять другой при генерации</span>
+          <span className="text-xs text-on-surface-variant">— тип может подменять другой при генерации</span>
         </label>
         {docType.kind === 'Document' && (
           <label className="flex items-center gap-2.5 select-none">
@@ -165,7 +165,7 @@ export function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentTy
               disabled={abstractMutation.isPending}
               onChange={v => abstractMutation.mutate({ id: docType.id, isAbstract: v })} />
             <span className="text-sm text-on-surface-variant">Абстрактный</span>
-            <span className="text-xs text-fg4">— нельзя добавить в комплект напрямую</span>
+            <span className="text-xs text-on-surface-variant">— нельзя добавить в комплект напрямую</span>
           </label>
         )}
       </div>

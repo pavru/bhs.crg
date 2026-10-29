@@ -27,7 +27,7 @@ import {
 function RoleBadge({ role }: { role: AppRole }) {
   if (!role.system) return null;
   return (
-    <span className="shrink-0 inline-flex items-center h-5 px-2 rounded-full text-caption font-medium bg-primary-container text-primary">
+    <span className="shrink-0 inline-flex items-center h-5 px-2 rounded-full text-caption font-medium bg-primary-container text-on-primary-container">
       системная
     </span>
   );
@@ -104,7 +104,7 @@ export function RolesPage() {
         <span className="text-sm text-on-surface truncate">{r.title}</span>
         <RoleBadge role={r} />
       </div>
-      <div className="text-caption text-fg4 mt-0.5 flex items-center gap-2">
+      <div className="text-caption text-on-surface-variant mt-0.5 flex items-center gap-2">
         <span className="inline-flex items-center gap-1"><Icon icon={Group} size={18} />{r.users}</span>
         <span>прав: {r.permissions.length}</span>
       </div>
@@ -128,7 +128,7 @@ export function RolesPage() {
               прокручивает. Без неё растут обе колонки сразу, и панель «Сохранить», приклеенная к
               низу detail, уезжает за край экрана вместе со списком ролей. */}
           <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-3 space-y-0.5">
-            {isLoading ? <div className="px-3 py-2 text-sm text-fg4">Загрузка…</div> : roles.map(row)}
+            {isLoading ? <div className="px-3 py-2 text-sm text-on-surface-variant">Загрузка…</div> : roles.map(row)}
           </div>
         </>
       }
@@ -138,10 +138,10 @@ export function RolesPage() {
           <div className="flex items-start justify-between gap-4 mb-1">
             <div>
               <h2 className="text-lg font-semibold text-on-surface flex items-center gap-2">
-                <Icon icon={VerifiedUser} size={18} className="text-fg3" />
+                <Icon icon={VerifiedUser} size={18} className="text-on-surface-variant" />
                 {selected.title}
               </h2>
-              {selected.summary && <p className="text-sm text-fg3 mt-1">{selected.summary}</p>}
+              {selected.summary && <p className="text-sm text-on-surface-variant mt-1">{selected.summary}</p>}
             </div>
             <div className="flex items-center gap-1 shrink-0">
               {!selected.system && (
@@ -157,7 +157,7 @@ export function RolesPage() {
             </div>
           </div>
 
-          <p className="text-note text-fg4 mb-4">
+          <p className="text-note text-on-surface-variant mb-4">
             Роль носят {selected.users} чел.{' '}
             {locked
               ? 'Состав этой роли задан не здесь — см. ниже.'
@@ -176,7 +176,7 @@ export function RolesPage() {
 
           {groups.map(group => (
             <section key={group.module} className="mb-5">
-              <h2 className="text-caption font-medium uppercase tracking-wide text-fg4 mb-2">{group.title}</h2>
+              <h2 className="text-caption font-medium uppercase tracking-wide text-on-surface-variant mb-2">{group.title}</h2>
               <div className="border border-outline-variant rounded-lg divide-y divide-surface-container bg-surface">
                 {group.permissions.map((p: PermissionInfo) => (
                   <label key={p.code} className={`flex gap-3 px-4 py-2.5 hover:bg-surface-container-low ${
@@ -185,15 +185,15 @@ export function RolesPage() {
                       disabled={locked} onChange={() => toggle(p.code)} />
                     <span className="min-w-0">
                       <span className="block text-sm text-on-surface">{p.gives}</span>
-                      <span className="block text-xs text-fg3">Открывает доступ: {p.opens}</span>
-                      <span className="block text-caption text-fg4 font-mono mt-0.5">{p.code}</span>
+                      <span className="block text-xs text-on-surface-variant">Открывает доступ: {p.opens}</span>
+                      <span className="block text-caption text-on-surface-variant font-mono mt-0.5">{p.code}</span>
                       {p.usuallyWith.length > 0 && (
-                        <span className="block text-caption text-fg4">
+                        <span className="block text-caption text-on-surface-variant">
                           обычно вместе с: {p.usuallyWith.join(', ')}
                         </span>
                       )}
                       {p.readAll && (
-                        <span className="block text-caption text-fg4">входит в право «читать всё»</span>
+                        <span className="block text-caption text-on-surface-variant">входит в право «читать всё»</span>
                       )}
                     </span>
                   </label>

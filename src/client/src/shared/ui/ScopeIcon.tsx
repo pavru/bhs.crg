@@ -35,7 +35,7 @@ export function ScopeIcon({ scope, size = 18, className = '', title }: {
   return (
     <Tooltip content={label}>
       <span aria-label={label} role="img"
-        className={`inline-flex items-center shrink-0 text-fg4 ${className}`}>
+        className={`inline-flex items-center shrink-0 text-on-surface-variant ${className}`}>
         <Icon icon={icon} size={size} />
       </span>
     </Tooltip>

@@ -21,7 +21,7 @@ export function ModuleMappingSignal({ signal }: { signal: Signal }) {
 
   return (
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1" data-mapping-signal>
-      <p className={`text-xs max-w-xl ${complete ? 'text-fg3' : 'text-warning'}`}>
+      <p className={`text-xs max-w-xl ${complete ? 'text-on-surface-variant' : 'text-warning'}`}>
         {complete
           ? `Справочники и их поля: назначены все ${signal.total}.`
           : `Справочники и их поля: не назначено ${signal.unmet} из ${signal.total}. ${signal.notWorking.join(' ')}`}

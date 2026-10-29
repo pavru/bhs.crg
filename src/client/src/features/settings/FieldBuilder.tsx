@@ -142,10 +142,10 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
   return (
     <div className="rounded-md border border-primary/30 bg-primary-container/40 p-2 space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-caption text-fg3 font-medium">Формула (JavaScript)</span>
+        <span className="text-caption text-on-surface-variant font-medium">Формула (JavaScript)</span>
         <div className="flex items-center gap-1.5">
           <button type="button" onClick={() => setTestOpen(o => !o)}
-            className="text-caption px-2 py-0.5 rounded border border-outline text-fg3 hover:bg-surface-container">
+            className="text-caption px-2 py-0.5 rounded border border-outline text-on-surface-variant hover:bg-surface-container">
             Проверить на образце
           </button>
           <div className="relative">
@@ -160,13 +160,13 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
                   className="mx-2 mb-1 w-[calc(100%-1rem)] border border-outline-variant rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary" />
                 <div className="max-h-52 overflow-auto">
                   {filtered.length === 0
-                    ? <p className="px-3 py-2 text-xs text-fg4">Нет полей</p>
+                    ? <p className="px-3 py-2 text-xs text-on-surface-variant">Нет полей</p>
                     : filtered.map(f => (
                       <button key={f.key} type="button" onClick={() => insertRef(f.key)}
                         className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-surface-container-low">
                         <code className="text-caption font-mono text-primary shrink-0 max-w-[45%] truncate">{f.key}</code>
-                        <span className="text-xs text-fg3 truncate flex-1">{f.title || '—'}</span>
-                        <span className="text-caption text-fg4 shrink-0">{f.type}</span>
+                        <span className="text-xs text-on-surface-variant truncate flex-1">{f.title || '—'}</span>
+                        <span className="text-caption text-on-surface-variant shrink-0">{f.type}</span>
                       </button>
                     ))}
                 </div>
@@ -194,10 +194,10 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
       {testOpen && (
         <div className="rounded border border-outline-variant bg-surface p-2 space-y-1.5">
           {testRefs.length === 0
-            ? <p className="text-caption text-fg4">Формула не ссылается на поля.</p>
+            ? <p className="text-caption text-on-surface-variant">Формула не ссылается на поля.</p>
             : testRefs.map(k => (
               <label key={k} className="flex items-center gap-2 text-caption">
-                <code className="font-mono text-fg3 w-28 truncate shrink-0">{k}</code>
+                <code className="font-mono text-on-surface-variant w-28 truncate shrink-0">{k}</code>
                 <input value={sample[k] ?? ''} onChange={e => setSample(s => ({ ...s, [k]: e.target.value }))}
                   placeholder="образцовое значение"
                   className="flex-1 border border-outline-variant rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary" />
@@ -211,7 +211,7 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
         </div>
       )}
 
-      <p className="text-caption text-fg4">
+      <p className="text-caption text-on-surface-variant">
         Читайте поля через <code className="font-mono">get("Ключ")</code>. Значения перечислений видны как отображаемое имя.
       </p>
     </div>
@@ -325,7 +325,7 @@ export function FieldCard({
       {/* Свёрнутая шапка карточки: drag handle + сводка + chip типа + chevron */}
       <div className="flex items-center gap-2 pl-2 pr-3 py-2 hover:bg-surface-container/40 transition-colors"
         draggable onDragStart={onDragStart} onDragEnd={onDragEnd}>
-        <Icon icon={DragIndicator} size={18} className="text-fg4 shrink-0 cursor-grab" />
+        <Icon icon={DragIndicator} size={18} className="text-on-surface-variant shrink-0 cursor-grab" />
         <button type="button" onClick={onToggleOpen}
           className="flex-1 min-w-0 flex items-center gap-2 text-left">
           <span className="min-w-0 flex-1">
@@ -334,13 +334,13 @@ export function FieldCard({
               {field.required && <span className="text-caption text-error shrink-0">обяз.</span>}
               {keyConflict && <span className="text-caption text-error shrink-0">! ключ занят</span>}
             </span>
-            <span className="block text-xs text-fg4 font-mono truncate">{field.key || '—'}</span>
+            <span className="block text-xs text-on-surface-variant font-mono truncate">{field.key || '—'}</span>
           </span>
           <ModuleFieldBadge field={field} /><SuggestOffBadge field={field} />
           {chips.slice(0, 2).map(tc => <FunctionalTagBadge key={tc} registry={tagRegistry} entry={tc} />)}
-          {chips.length > 2 && <span className="text-caption text-fg4 shrink-0">+{chips.length - 2}</span>}
-          <span className="text-xs px-2 py-0.5 rounded-full bg-surface-container text-fg3 shrink-0">{fieldTypeSummary(field, reg)}</span>
-          {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-fg4 shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" />}
+          {chips.length > 2 && <span className="text-caption text-on-surface-variant shrink-0">+{chips.length - 2}</span>}
+          <span className="text-xs px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant shrink-0">{fieldTypeSummary(field, reg)}</span>
+          {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
         </button>
       </div>
       {open && (
@@ -365,7 +365,7 @@ export function FieldCard({
               spellCheck={false}
               className={`w-full border rounded-md pl-3 pr-7 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 ${
                 keyConflict ? 'border-error focus-visible:ring-error' : 'border-outline focus-visible:ring-primary'
-              } ${keyLocked ? 'bg-surface-container/60 text-fg3 cursor-default' : 'bg-surface'}`}
+              } ${keyLocked ? 'bg-surface-container/60 text-on-surface-variant cursor-default' : 'bg-surface'}`}
             />
           </Tooltip>
           {keyConflict ? (
@@ -373,13 +373,13 @@ export function FieldCard({
           ) : keyLocked ? (
             <Tooltip content="Изменить ключ (осторожно: осиротит данные документов)" name>
               <button type="button" onClick={() => setConfirmUnlock(true)}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-fg4 hover:text-on-surface-variant">
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-on-surface-variant hover:text-on-surface-variant">
                 <Icon icon={LockIcon} size={18} />
               </button>
             </Tooltip>
           ) : keyAutoNew ? (
             <Tooltip content="Ключ авто-генерируется из названия">
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none">
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">
                 <Icon icon={LinkIcon} size={18} />
               </span>
             </Tooltip>
@@ -390,7 +390,7 @@ export function FieldCard({
           <button type="button" onClick={() => setPickerOpen(true)}
             className="flex items-center justify-between gap-1 border border-outline rounded-md px-2 py-1.5 text-sm bg-surface hover:bg-surface-container/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <span className="truncate text-left">{fieldTypeSummary(field, reg)}</span>
-            <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" />
+            <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />
           </button>
         </Tooltip>
         {/* Required (у расчётного поля неприменимо — заменяется меткой ƒ) */}
@@ -408,7 +408,7 @@ export function FieldCard({
               onChange={e => onChange({ required: e.target.checked })}
               className="w-4 h-4 rounded border-outline text-primary"
             />
-            <span className="text-xs text-fg3">да</span>
+            <span className="text-xs text-on-surface-variant">да</span>
           </label>
         )}
         {/* Actions */}
@@ -416,7 +416,7 @@ export function FieldCard({
           <MoveButtons onUp={() => onMoveUp?.()} onDown={() => onMoveDown?.()}
             isFirst={!!isFirst} isLast={!!isLast} />
           <button type="button" onClick={onRemove}
-            className="p-1 text-fg4 hover:text-error">
+            className="p-1 text-on-surface-variant hover:text-error">
             <Icon icon={Delete} size={18} />
           </button>
         </div>
@@ -477,7 +477,7 @@ export function FieldCard({
       {!field.computed && field.type !== 'complex' && field.type !== 'array' && field.type !== 'primitive'
         && field.type !== 'doc-ref' && field.type !== 'doc-array' && (
         <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)] flex items-center gap-2">
-          <span className="text-xs text-fg4 shrink-0 w-28">Значение по умолч.:</span>
+          <span className="text-xs text-on-surface-variant shrink-0 w-28">Значение по умолч.:</span>
           {field.type === 'boolean' ? (
             <label className="flex items-center gap-1.5 cursor-pointer">
               <input
@@ -486,7 +486,7 @@ export function FieldCard({
                 onChange={e => onChange({ defaultValue: e.target.checked ? true : undefined })}
                 className="w-3.5 h-3.5 rounded border-outline text-primary"
               />
-              <span className="text-xs text-fg3">{field.defaultValue ? 'true' : 'не задано'}</span>
+              <span className="text-xs text-on-surface-variant">{field.defaultValue ? 'true' : 'не задано'}</span>
             </label>
           ) : field.type === 'enum' ? (
             <Select size="sm" className="flex-1" aria-label="Значение по умолчанию"
@@ -542,7 +542,7 @@ export function FieldCard({
                   const opts = (field.options ?? []).filter((_, j) => j !== oi);
                   onChange({ options: opts });
                 }}
-                className="p-0.5 text-fg4 hover:text-error">
+                className="p-0.5 text-on-surface-variant hover:text-error">
                 <Icon icon={Delete} size={18} />
               </button>
             </div>
@@ -559,13 +559,13 @@ export function FieldCard({
           значило бы оставить поле с невидимой меткой, которая оживёт при включении модуля. */}
       {unknownTags.length > 0 && (
         <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)] flex items-start gap-2">
-          <Icon icon={Memory} size={18} className="mt-1 text-stroke-strong" />
-          <span className="text-xs text-fg4 shrink-0 w-28 mt-1">Тэги модуля:</span>
+          <Icon icon={Memory} size={18} className="mt-1 text-on-surface-variant" />
+          <span className="text-xs text-on-surface-variant shrink-0 w-28 mt-1">Тэги модуля:</span>
           <div className="flex flex-wrap gap-1.5">
             {unknownTags.map(code => (
               <Tooltip key={code} content="Тэг модуля, выключенного на этом экземпляре. Значение остаётся в схеме и заработает, когда модуль включат.">
                 <span
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-outline-variant px-2 py-0.5 text-caption text-fg4">
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-outline-variant px-2 py-0.5 text-caption text-on-surface-variant">
                   <Icon icon={LockIcon} size={18} />{code}
                 </span>
               </Tooltip>
@@ -576,8 +576,8 @@ export function FieldCard({
       {/* Функциональные тэги поля (для primitive — из типа поля, иначе из реестра) */}
       {applicableTags.length > 0 && (
         <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)] flex items-start gap-2">
-          <Icon icon={Memory} size={18} className={`mt-1 ${chips.length ? 'text-tertiary' : 'text-stroke-strong'}`} />
-          <span className="text-xs text-fg4 shrink-0 w-28 mt-1">Функц. тэги:</span>
+          <Icon icon={Memory} size={18} className={`mt-1 ${chips.length ? 'text-tertiary' : 'text-on-surface-variant'}`} />
+          <span className="text-xs text-on-surface-variant shrink-0 w-28 mt-1">Функц. тэги:</span>
           <div className="flex flex-wrap gap-1.5">
             {applicableTags.map(t => {
               return (
@@ -705,7 +705,7 @@ export function DefaultValueCell({ field, override, enumTypes, onOverrideDefault
   onOverrideDefaultValue: (key: string, value: unknown) => void;
 }) {
   const isPrimitive = field.type !== 'complex' && field.type !== 'array' && field.type !== 'primitive';
-  if (!isPrimitive) return <span className="text-xs text-stroke-strong">—</span>;
+  if (!isPrimitive) return <span className="text-xs text-on-surface-variant">—</span>;
 
   const cur = override?.defaultValue;
   const hasDv = cur !== undefined;
@@ -726,7 +726,7 @@ export function DefaultValueCell({ field, override, enumTypes, onOverrideDefault
   }
   if (field.type === 'enum') {
     const enumTypeDef = field.typeId ? enumTypes.find(et => et.id === field.typeId) : undefined;
-    if (field.typeId && !enumTypeDef) return <span className="text-xs text-stroke-strong">—</span>;
+    if (field.typeId && !enumTypeDef) return <span className="text-xs text-on-surface-variant">—</span>;
     return (
       <Select size="sm" className={selectCls} aria-label={`По умолчанию: ${field.title || field.key}`}
         value={hasDv ? String(cur) : ''} onValueChange={v => onOverrideDefaultValue(field.key, v || undefined)}

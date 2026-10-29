@@ -28,7 +28,7 @@ export function BackupSizeLine({ scope }: { scope: BackupScope }) {
     retry: false,
   });
 
-  if (isPending) return <p className="text-xs text-fg4">Размер копии оценивается…</p>;
+  if (isPending) return <p className="text-xs text-on-surface-variant">Размер копии оценивается…</p>;
   // Хранилище отказало (issue #1427) — это не «оценить не удалось», а «копия выйдет без файлов»:
   // самый опасный исход раздела, и выглядеть он обязан предупреждением, а не серой подсказкой.
   // Текст — сервера: он называет, что проверить. Только по 409: у сетевой ошибки текста сервера
@@ -42,14 +42,14 @@ export function BackupSizeLine({ scope }: { scope: BackupScope }) {
     );
   }
   // Молча ничего не показывать нельзя, но и мешать копированию нечем: кнопка работает и без оценки.
-  if (isError || !data) return <p className="text-xs text-fg4">Размер копии оценить не удалось.</p>;
+  if (isError || !data) return <p className="text-xs text-on-surface-variant">Размер копии оценить не удалось.</p>;
 
   const variant = data.variant;
   const exceedsUploadLimit = variant.totalBytes > data.limitBytes;
 
   return (
     <div className="space-y-1">
-      <p className="text-xs text-fg3">
+      <p className="text-xs text-on-surface-variant">
         Размер копии ≈ <b>{formatBytes(variant.totalBytes)}</b>
         {variant.blobCount > 0 && <> · файлов: {variant.blobCount}</>}
       </p>

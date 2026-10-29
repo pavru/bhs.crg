@@ -141,12 +141,12 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
         >
           <Dialog.Title className="sr-only">{title}</Dialog.Title>
           <div className="flex items-center gap-2 border-b border-outline-variant px-4 shrink-0">
-            <Icon icon={Search} size={18} className="shrink-0 text-fg4" />
+            <Icon icon={Search} size={18} className="shrink-0 text-on-surface-variant" />
             {/* Выделение возвращает на первую строку сам ввод, а не эффект (issue #858). */}
             <input ref={input} autoFocus value={query} onChange={e => { setQuery(e.target.value); setActive(0); }} onKeyDown={onKey}
               placeholder="Поиск типа по имени или коду…" aria-label="Поиск типа"
-              className="h-12 flex-1 bg-transparent text-sm text-on-surface outline-none placeholder:text-fg4" />
-            <kbd className="rounded border border-outline-variant px-1 text-caption text-fg4">Esc</kbd>
+              className="h-12 flex-1 bg-transparent text-sm text-on-surface outline-none placeholder:text-on-surface-variant" />
+            <kbd className="rounded border border-outline-variant px-1 text-caption text-on-surface-variant">Esc</kbd>
           </div>
           <ul className="overflow-y-auto p-2" role="listbox" aria-label={title}>
             {noneVisible && (
@@ -154,20 +154,20 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
                 <button type="button" onMouseEnter={() => setActive(0)} onClick={chooseNone}
                   className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                     active === 0 ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface hover:bg-black/5 dark:hover:bg-white/10'}`}>
-                  <Icon icon={Block} size={18} className={active === 0 ? 'text-on-secondary-container' : 'text-fg4'} />
+                  <Icon icon={Block} size={18} className={active === 0 ? 'text-on-secondary-container' : 'text-on-surface-variant'} />
                   <span className="flex-1 truncate" title={noneOption!.label}>{noneOption!.label}</span>
                 </button>
               </li>
             )}
             {/* Пусто, но выход есть — «Ничего не найдено» было бы неправдой: найдено, но в стороне. */}
             {flat.length === 0 ? (
-              !noneVisible && !asideHidden && <li className="px-3 py-6 text-center text-sm text-fg4">Ничего не найдено</li>
+              !noneVisible && !asideHidden && <li className="px-3 py-6 text-center text-sm text-on-surface-variant">Ничего не найдено</li>
             ) : sections.map(g => (
               <li key={g.key}>
                 {g.heading && (
                   <div className="mt-2 border-t border-outline-variant px-3 pt-3 pb-1 text-xs font-medium text-on-surface-variant">{g.heading}</div>
                 )}
-                <div className="px-3 pt-2 pb-1 text-caption font-semibold uppercase tracking-wide text-fg4">{g.label}</div>
+                <div className="px-3 pt-2 pb-1 text-caption font-semibold uppercase tracking-wide text-on-surface-variant">{g.label}</div>
                 <ul>
                   {g.items.map(t => {
                     const i = ++idx;
@@ -179,9 +179,9 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'В�
                         <button type="button" onMouseEnter={() => setActive(i)} onClick={() => choose(t)}
                           className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                             i === active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface hover:bg-black/5 dark:hover:bg-white/10'}`}>
-                          <Icon icon={icon} size={18} className={i === active ? 'text-on-secondary-container' : 'text-fg3'} />
+                          <Icon icon={icon} size={18} className={i === active ? 'text-on-secondary-container' : 'text-on-surface-variant'} />
                           <Tooltip content={showCode ? `${t.name} (${code})` : t.name}><span className="flex-1 truncate">{t.name}</span></Tooltip>
-                          {showCode && <span className={`text-caption font-mono shrink-0 ${i === active ? 'text-on-secondary-container/80' : 'text-fg4'}`}>{code}</span>}
+                          {showCode && <span className={`text-caption font-mono shrink-0 ${i === active ? 'text-on-secondary-container/80' : 'text-on-surface-variant'}`}>{code}</span>}
                         </button>
                       </li>
                     );

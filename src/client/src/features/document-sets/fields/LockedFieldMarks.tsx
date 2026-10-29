@@ -19,7 +19,7 @@ export function LockedFieldIcon({ className = '' }: { className?: string }) {
     // а `aria-label` слышит только вспомогательное средство — глазами подсказку тоже надо получить.
     <Tooltip content={LOCKED_HINT}>
       <span aria-label={LOCKED_HINT} role="img"
-        className={`inline-block shrink-0 text-fg4 ${className}`}>
+        className={`inline-block shrink-0 text-on-surface-variant ${className}`}>
         <Icon icon={LockIcon} size={18} />
       </span>
     </Tooltip>
@@ -41,8 +41,8 @@ export function LockedFieldValue({ value }: { value: unknown }) {
     : typeof value === 'object' ? JSON.stringify(value) : String(value);
   return (
     <Tooltip content={shown ?? undefined}>
-      <div className="w-full border rounded-md px-3 py-2 text-sm text-fg3 bg-surface-container border-outline-variant truncate">
-        {shown ?? <em className="text-fg4">нет значения</em>}
+      <div className="w-full border rounded-md px-3 py-2 text-sm text-on-surface-variant bg-surface-container border-outline-variant truncate">
+        {shown ?? <em className="text-on-surface-variant">нет значения</em>}
       </div>
     </Tooltip>
   );

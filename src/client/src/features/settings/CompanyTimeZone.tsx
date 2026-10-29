@@ -58,7 +58,7 @@ export function CompanyTimeZone({ onDirty }: {
         {zoneChoices(data).map(z => <SelectItem key={z.value} value={z.value}>{z.label}</SelectItem>)}
       </Select>
       {notice && <p role="status" className="text-xs text-warning max-w-xl">{notice}</p>}
-      <p className="text-xs text-fg3 max-w-xl">
+      <p className="text-xs text-on-surface-variant max-w-xl">
         Сейчас у компании: <span data-testid="company-now" className="text-on-surface">{companyNow(data.effectiveNow)}</span>. По этому
         поясу система считает сутки: от него зависят «Осталось дней» и «Просрочен» у счетов, то,
         какое число считается сегодняшним в учёте, и время резервной копии.

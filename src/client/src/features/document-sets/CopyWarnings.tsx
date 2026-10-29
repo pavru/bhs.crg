@@ -31,10 +31,10 @@ function WarningLine({ w }: { w: CopyWarning }) {
             className="text-primary hover:text-brand-hover text-xs">
             {open ? 'скрыть' : 'показать'}
           </button>
-          {open && <div className="text-fg4 mt-0.5">{w.names.join(', ')}</div>}
+          {open && <div className="text-on-surface-variant mt-0.5">{w.names.join(', ')}</div>}
         </>
       ) : (
-        <span className="text-fg4">: {w.names.join(', ')}</span>
+        <span className="text-on-surface-variant">: {w.names.join(', ')}</span>
       ))}
     </li>
   );

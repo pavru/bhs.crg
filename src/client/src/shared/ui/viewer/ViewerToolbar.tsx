@@ -86,7 +86,7 @@ function PageField({ page, numPages, onPage }: { page: number; numPages: number;
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditing(false); setText(String(page)); }
   };
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-fg3 whitespace-nowrap">
+    <span className="inline-flex items-center gap-1 text-xs text-on-surface-variant whitespace-nowrap">
       <input aria-label="Номер страницы" aria-describedby={total} inputMode="numeric" value={editing ? text : String(page)}
         onFocus={e => { setText(String(page)); setEditing(true); e.currentTarget.select(); }} onBlur={commit} onKeyDown={onKeyDown}
         // Набор после Enter или Esc — фокус в поле остался, а onFocus второй раз не придёт: правка
@@ -108,7 +108,7 @@ function ZoomMenu(p: ToolbarProps) {
     <DropdownMenu.Item key={key} className={itemCls} onSelect={onSelect} disabled={opts.disabled}>
       <span className={opts.checked ? 'text-on-surface font-medium' : undefined}>{label}</span>
       {opts.checked ? <Icon icon={Check} size={18} className="text-primary" aria-hidden />
-        : opts.hint && <span className="text-xs text-fg4">{opts.hint}</span>}
+        : opts.hint && <span className="text-xs text-on-surface-variant">{opts.hint}</span>}
     </DropdownMenu.Item>
   );
   return (

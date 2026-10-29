@@ -232,7 +232,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
             {/* Пустой выпадающий список выглядел бы поломкой — когда выбирать не из чего,
                 показываем причину вместо самого поля (issue #606). */}
             {readyCandidates.length === 0 ? (
-              <p className="text-sm text-fg3">
+              <p className="text-sm text-on-surface-variant">
                 {isSystem
                   ? 'Система пока не может ничего консолидировать на этом уровне: либо всё уже добавлено, либо здесь таких данных нет — «Документы комплекта», например, доступны только у набора внутри комплекта.'
                   : pendingTableCount > 0
@@ -273,7 +273,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
                   </Select>
                 </div>
                 {shownCandidates.length === 0 && (
-                  <p className="text-xs text-fg4 mt-1">Под поиск ничего не подходит.</p>
+                  <p className="text-xs text-on-surface-variant mt-1">Под поиск ничего не подходит.</p>
                 )}
               </>
             )}
@@ -283,7 +283,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
               <p className="text-xs text-warning mt-1">{selectedCandidate.warning}</p>
             )}
             {selectedCandidate && selectedCandidate.columns.length > 0 && (
-              <p className="text-xs text-fg4 mt-1">Колонки: {selectedCandidate.columns.join(', ')}</p>
+              <p className="text-xs text-on-surface-variant mt-1">Колонки: {selectedCandidate.columns.join(', ')}</p>
             )}
           </div>
         ) : tabular ? (
@@ -296,14 +296,14 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
                 ))}
               </Select>
               {candidates.length === 0 && (
-                <p className="text-xs text-fg4 mt-1">Листы не обнаружены.</p>
+                <p className="text-xs text-on-surface-variant mt-1">Листы не обнаружены.</p>
               )}
               {selectedCandidate && selectedCandidate.columns.length > 0 && (
-                <p className="text-xs text-fg4 mt-1">Колонки: {selectedCandidate.columns.join(', ')}</p>
+                <p className="text-xs text-on-surface-variant mt-1">Колонки: {selectedCandidate.columns.join(', ')}</p>
               )}
             </div>
           ) : (
-            <p className="text-xs text-fg4">
+            <p className="text-xs text-on-surface-variant">
               Весь файл — колонки определяются автоматически по заголовку
               {candidates[0]?.columns.length ? `: ${candidates[0].columns.join(', ')}` : ''}.
             </p>
@@ -318,7 +318,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
                   {entryOptions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                 </Select>
                 {entryOptions.length === 0 && (
-                  <p className="text-xs text-fg4 mt-1">В архиве не найдено XML-файлов.</p>
+                  <p className="text-xs text-on-surface-variant mt-1">В архиве не найдено XML-файлов.</p>
                 )}
               </div>
             )}
@@ -334,7 +334,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
             <div className="border-t border-outline-variant pt-3">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-medium text-on-surface">
-                  Колонки <span className="text-xs font-normal text-fg4">— относительно узла строки</span>
+                  Колонки <span className="text-xs font-normal text-on-surface-variant">— относительно узла строки</span>
                 </p>
                 <button type="button" onClick={addColumn}
                   className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover">
@@ -342,7 +342,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
                 </button>
               </div>
               {columns.length === 0 && (
-                <p className="text-xs text-fg4 py-1">
+                <p className="text-xs text-on-surface-variant py-1">
                   Колонок нет — будут определены автоматически по дочерним элементам/атрибутам строки.
                 </p>
               )}
@@ -358,7 +358,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
                         preview={v => { const rs = composeRowSelector(sheetOrPath); return rs && v.trim() ? { fileId, rowSelector: rs, expr: v } : null; }} />
                     </div>
                     <button type="button" onClick={() => removeColumn(i)}
-                      className="p-1.5 text-fg4 hover:text-error shrink-0">
+                      className="p-1.5 text-on-surface-variant hover:text-error shrink-0">
                       <Icon icon={Delete} size={18} />
                     </button>
                   </div>

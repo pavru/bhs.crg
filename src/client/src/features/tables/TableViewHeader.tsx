@@ -133,7 +133,7 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
         className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 text-sm text-on-surface">
         <Icon icon={Check} size={18} aria-hidden className={chosen ? 'text-primary shrink-0' : 'invisible shrink-0'} />
         <span className="truncate">{label}</span>
-        {note && <span className="shrink-0 text-xs text-fg4">{note}</span>}
+        {note && <span className="shrink-0 text-xs text-on-surface-variant">{note}</span>}
       </Link>
       {actions.length > 0 && <RowActionsMenu actions={actions} ariaLabel={`Действия с представлением «${label}»`} />}
     </li>
@@ -150,9 +150,9 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
               <Popover.Trigger asChild>
                 <button type="button"
                   className="flex items-center gap-2 rounded-md -mx-1.5 px-1.5 py-0.5 hover:bg-surface-container max-w-[calc(100%+0.75rem)]">
-                  <Icon icon={Table} size={18} className="text-fg3 shrink-0" aria-hidden />
+                  <Icon icon={Table} size={18} className="text-on-surface-variant shrink-0" aria-hidden />
                   <span className="truncate">{title}</span>
-                  <Icon icon={KeyboardArrowDown} size={18} className="text-fg3 shrink-0" aria-hidden />
+                  <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" aria-hidden />
                 </button>
               </Popover.Trigger>
             </Tooltip>
@@ -169,7 +169,7 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
                     lookup.state === 'found' && lookup.preset.code === p.code))}
                 </Group>
                 {!off && savedProblem && <p role="alert" className="mt-2 px-2 text-xs text-error">{savedProblem}</p>}
-                {!off && !savedProblem && !saved && <p className="mt-2 px-2 text-xs text-fg4">Сохранённые представления загружаются…</p>}
+                {!off && !savedProblem && !saved && <p className="mt-2 px-2 text-xs text-on-surface-variant">Сохранённые представления загружаются…</p>}
                 {!off && saved && (
                   <>
                     <Group title="Мои" empty="Настройте таблицу и сохраните её — представление появится здесь.">
@@ -220,8 +220,8 @@ function Group({ title, empty, children }: { title: string; empty: string | null
   if (children.length === 0 && !empty) return null;
   return (
     <section className="mt-2">
-      <h2 className="px-2 text-caption uppercase tracking-wide text-fg4">{title}</h2>
-      {children.length > 0 ? <ul>{children}</ul> : <p className="px-2 py-1 text-xs text-fg4">{empty}</p>}
+      <h2 className="px-2 text-caption uppercase tracking-wide text-on-surface-variant">{title}</h2>
+      {children.length > 0 ? <ul>{children}</ul> : <p className="px-2 py-1 text-xs text-on-surface-variant">{empty}</p>}
     </section>
   );
 }

@@ -14,14 +14,14 @@ export function SystemLibPanel() {
   const { data: content = '', isLoading } = useSystemTypstLib();
 
   if (isLoading) {
-    return <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка...</div>;
+    return <div className="flex-1 flex items-center justify-center text-on-surface-variant text-sm">Загрузка...</div>;
   }
 
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant bg-surface">
-        <Icon icon={LockIcon} size={18} className="text-fg4 shrink-0" />
-        <p className="text-xs text-fg3">
+        <Icon icon={LockIcon} size={18} className="text-on-surface-variant shrink-0" />
+        <p className="text-xs text-on-surface-variant">
           {/* Было «авто-подключается, импортировать не нужно» — неверно: шаблон пишется в tmpDir
               ДОСЛОВНО (issue #353), преамбулу компиляция не подставляет. Импорт живёт в самом
               шаблоне; в новые его кладёт buildBlankTypst, старым и рукописным нужен свой. */}

@@ -28,7 +28,7 @@ export function ThemeToggle({ label }: {
               className={'flex-1 flex items-center justify-center gap-1 text-xs transition-colors ' +
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ' +
                 `${i > 0 ? 'border-l border-outline' : ''} ` +
-                (active ? 'bg-secondary-container text-on-secondary-container' : 'text-fg3 hover:bg-black/5 dark:hover:bg-white/10')}>
+                (active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/10')}>
               {active && <Icon icon={Check} size={18} className="shrink-0" />}
               <Icon icon={icon} size={18} />
             </button>

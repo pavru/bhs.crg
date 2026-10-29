@@ -261,7 +261,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
           <PrimitiveInput field={f} value={v} label={f.title}
             onChange={x => setValue(f.key, x)} invalid={!!constraintErrors[f.key]}
             primitiveTypeDef={primitiveDef(f)} enumTypeDef={enumDef(f)} readOnly={locked} />
-          {locked && <p className="text-caption text-fg4 mt-0.5 flex items-center gap-1"><LockedFieldIcon />{LOCKED_HINT}</p>}
+          {locked && <p className="text-caption text-on-surface-variant mt-0.5 flex items-center gap-1"><LockedFieldIcon />{LOCKED_HINT}</p>}
           {constraintErrors[f.key] && (
             <p className="text-xs text-error mt-0.5">{constraintErrors[f.key]}</p>
           )}
@@ -323,7 +323,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
           onClick={() => scanInputRef.current?.click()}>
           Скан-копия
         </Button>
-        {scan && <span className="text-xs text-fg3 truncate max-w-[180px]" title={scan.fileName}>{scan.fileName}</span>}
+        {scan && <span className="text-xs text-on-surface-variant truncate max-w-[180px]" title={scan.fileName}>{scan.fileName}</span>}
         {scan && (
           <Button variant="text" size="sm" icon={<Icon icon={Visibility} size={18} />}
             onClick={() => void openAttachment(scan.blobPath)}>
@@ -350,7 +350,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
         </Button>
         <Button variant="text" onClick={onCancel}>Отмена</Button>
         {recognizing && (
-          <span className="flex items-center gap-1.5 text-xs text-fg3">
+          <span className="flex items-center gap-1.5 text-xs text-on-surface-variant">
             <CircularProgress size={18} /> Идёт распознавание — дождитесь завершения перед сохранением…
           </span>
         )}

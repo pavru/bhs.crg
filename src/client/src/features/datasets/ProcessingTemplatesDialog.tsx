@@ -49,7 +49,7 @@ function ExtractionFields({
   return (
     <div className="space-y-2 rounded-lg p-3 border border-outline-variant bg-surface-container-low">
       <div>
-        <label className="block text-xs font-medium mb-1 text-fg3">
+        <label className="block text-xs font-medium mb-1 text-on-surface-variant">
           Extraction — row-selector <span className="font-normal">(XPath/JSONPath/имя листа — по формату файла; необязательно)</span>
         </label>
         <input value={sheetOrPath} onChange={e => onSheetOrPathChange(e.target.value)}
@@ -58,12 +58,12 @@ function ExtractionFields({
       </div>
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="block text-xs font-medium text-fg3">Колонки — относительно строки</label>
+          <label className="block text-xs font-medium text-on-surface-variant">Колонки — относительно строки</label>
           <button type="button" onClick={addColumn} className="flex items-center gap-1 text-xs text-primary hover:text-brand-hover">
             <Icon icon={Add} size={18} /> Колонка
           </button>
         </div>
-        {columns.length === 0 && <p className="text-xs text-fg4 py-0.5">Колонки не заданы.</p>}
+        {columns.length === 0 && <p className="text-xs text-on-surface-variant py-0.5">Колонки не заданы.</p>}
         <div className="space-y-1.5">
           {columns.map((col, i) => (
             <div key={i} className="flex items-center gap-1.5">
@@ -71,7 +71,7 @@ function ExtractionFields({
                 placeholder="Название" className={`w-32 shrink-0 text-xs ${FIELD_CLS} px-2 py-1`} />
               <input value={col.expr} onChange={e => updateColumn(i, { expr: e.target.value })}
                 placeholder="Выражение" className={`flex-1 min-w-0 font-mono text-xs ${FIELD_CLS} px-2 py-1`} />
-              <button type="button" onClick={() => removeColumn(i)} className="p-1 text-fg4 hover:text-error shrink-0">
+              <button type="button" onClick={() => removeColumn(i)} className="p-1 text-on-surface-variant hover:text-error shrink-0">
                 <Icon icon={Delete} size={18} />
               </button>
             </div>
@@ -110,7 +110,7 @@ function TemplateForm({
 
   const toggleCls = (active: boolean) =>
     `flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-      active ? 'border-primary text-primary bg-primary-container' : 'border-outline-variant text-fg3 bg-surface-container-low'
+      active ? 'border-primary text-on-primary-container bg-primary-container' : 'border-outline-variant text-on-surface-variant bg-surface-container-low'
     }`;
 
   function handleSave() {
@@ -125,7 +125,7 @@ function TemplateForm({
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-xs font-medium mb-1 text-fg3">Название шаблона</label>
+        <label className="block text-xs font-medium mb-1 text-on-surface-variant">Название шаблона</label>
         <input
           value={name}
           onChange={e => setName(e.target.value)}
@@ -206,27 +206,27 @@ function TemplateRow({ template }: { template: DataSetProcessingTemplate }) {
           <div className="text-sm font-medium text-on-surface">{template.name}</div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             {!template.sheetOrPath && filterCount === 0 && transformCount === 0 && sortCount === 0 && (
-              <span className="text-xs text-fg4">Без обработки</span>
+              <span className="text-xs text-on-surface-variant">Без обработки</span>
             )}
             {template.sheetOrPath && (
               <Tooltip content={template.sheetOrPath}>
-                <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-primary-container text-primary">
+                <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-primary-container text-on-primary-container">
                   <Icon icon={RouteIcon} size={18} /> Extraction
                 </span>
               </Tooltip>
             )}
             {filterCount > 0 && (
-              <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-primary-container text-primary">
+              <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-primary-container text-on-primary-container">
                 <Icon icon={FilterAlt} size={18} /> {filterCount}
               </span>
             )}
             {transformCount > 0 && (
-              <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-primary-container text-primary">
+              <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-primary-container text-on-primary-container">
                 <Icon icon={FunctionIcon} size={18} /> {transformCount}
               </span>
             )}
             {sortCount > 0 && (
-              <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-primary-container text-primary">
+              <span className="flex items-center gap-1 text-caption px-1.5 py-0.5 rounded-full bg-primary-container text-on-primary-container">
                 <Icon icon={SwapVert} size={18} /> {sortCount}
               </span>
             )}
@@ -241,7 +241,7 @@ function TemplateRow({ template }: { template: DataSetProcessingTemplate }) {
           </IconButton>
         ) : (
           <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-fg3">Удалить?</span>
+            <span className="text-on-surface-variant">Удалить?</span>
             <button onClick={() => del.mutateAsync({ id: template.id }).then(() => setConfirming(false))}
               disabled={del.isPending} className="px-2 py-0.5 rounded text-on-error bg-error" style={{ fontSize: '11px' }}>
               Да
@@ -276,7 +276,7 @@ export function ProcessingTemplatesDialog({ onClose }: { onClose: () => void }) 
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Шаблоны обработки" wide>
-      <p className="text-xs mb-4 text-fg4">
+      <p className="text-xs mb-4 text-on-surface-variant">
         Переиспользуемые рецепты источника (Extraction + Filter/Transformation/Sort). Применение
         к источнику копирует значения единожды (не живая ссылка) — дальше источник независим,
         можно свободно скорректировать (см. «применить шаблон» у каждого источника).
@@ -284,9 +284,9 @@ export function ProcessingTemplatesDialog({ onClose }: { onClose: () => void }) 
 
       <div className="rounded-xl overflow-hidden mb-4 border border-outline-variant bg-surface">
         {isLoading ? (
-          <div className="p-6 text-center text-sm text-fg4">Загрузка...</div>
+          <div className="p-6 text-center text-sm text-on-surface-variant">Загрузка...</div>
         ) : templates.length === 0 && !adding ? (
-          <div className="p-6 text-center text-sm text-fg4">Нет шаблонов обработки.</div>
+          <div className="p-6 text-center text-sm text-on-surface-variant">Нет шаблонов обработки.</div>
         ) : (
           templates.map(t => <TemplateRow key={t.id} template={t} />)
         )}
@@ -294,11 +294,11 @@ export function ProcessingTemplatesDialog({ onClose }: { onClose: () => void }) 
 
       {adding ? (
         <div className="rounded-xl p-4 border border-outline-variant bg-surface-container-low">
-          <p className="text-xs font-semibold mb-3 text-fg3">Новый шаблон</p>
+          <p className="text-xs font-semibold mb-3 text-on-surface-variant">Новый шаблон</p>
           <TemplateForm onSave={handleCreate} onCancel={() => setAdding(false)} saving={create.isPending} />
         </div>
       ) : (
-        <button onClick={() => setAdding(true)} className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md text-primary bg-primary-container">
+        <button onClick={() => setAdding(true)} className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-md text-on-primary-container bg-primary-container">
           <Icon icon={Add} size={18} /> Добавить шаблон
         </button>
       )}

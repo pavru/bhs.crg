@@ -37,7 +37,7 @@ export function PaymentPostingTable({ posting, changed, expanded = false }: {
     return (
       <div className="text-note text-on-surface-variant">
         Вся сумма войдёт в затраты {formatDate(posting.paidOn)}.{' '}
-        <button type="button" className="underline decoration-dotted underline-offset-2 text-fg3"
+        <button type="button" className="underline decoration-dotted underline-offset-2 text-on-surface-variant"
           onClick={() => setShown(true)}>
           Показать расклад
         </button>
@@ -47,7 +47,7 @@ export function PaymentPostingTable({ posting, changed, expanded = false }: {
   const columns: DataGridColumn<Line>[] = [
     { key: 'name', label: 'Контур', wrap: true,
       cell: ({ key, row, part }) => {
-        if (part) return <span className="pl-5 text-fg3">{part.label}</span>;
+        if (part) return <span className="pl-5 text-on-surface-variant">{part.label}</span>;
         const expandable = row.parts.length > 0;
         return (
           <>
@@ -63,7 +63,7 @@ export function PaymentPostingTable({ posting, changed, expanded = false }: {
       } },
     { key: 'amount', label: 'Сумма', align: 'right', width: 'w-36',
       cell: ({ row, part }) => part
-        ? <span className="text-fg3">{money(part.amount)}</span>
+        ? <span className="text-on-surface-variant">{money(part.amount)}</span>
         : money(row.amount) },
     { key: 'accountingOn', label: 'Учётная дата', width: 'w-28',
       cell: ({ row, part }) => part ? null : (
@@ -84,7 +84,7 @@ export function PaymentPostingTable({ posting, changed, expanded = false }: {
         rows={lines([...summary.moved, ...calm], open)}
         tone={line => line.part === null && changed?.has(line.key) ? 'warning' : null} />
       {folded.length > 0 && (
-        <button type="button" className="px-2 text-note underline decoration-dotted underline-offset-2 text-fg3"
+        <button type="button" className="px-2 text-note underline decoration-dotted underline-offset-2 text-on-surface-variant"
           onClick={() => setUnfolded(true)}>
           {foldedLabel(folded)}
         </button>

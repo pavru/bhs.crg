@@ -79,9 +79,9 @@ function AddEntryBindingPanel({
   return (
     <div className="rounded-xl p-4 space-y-4 border border-outline-variant bg-surface-container-low">
       <div>
-        <label className="block text-xs font-medium mb-1 text-fg3">Источник данных</label>
+        <label className="block text-xs font-medium mb-1 text-on-surface-variant">Источник данных</label>
         {files.length === 0 ? (
-          <p className="text-xs py-1 text-fg4">
+          <p className="text-xs py-1 text-on-surface-variant">
             Нет загруженных наборов данных. Загрузите файлы на странице «Наборы данных».
           </p>
         ) : (
@@ -173,7 +173,7 @@ function EntryBindingRow({
         <Icon icon={Database} size={18} className="text-primary shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium truncate text-on-surface">{source?.name ?? '—'}</div>
-          <div className="text-xs text-fg4 mt-0.5">
+          <div className="text-xs text-on-surface-variant mt-0.5">
             {file?.name} · {source?.materializeTypeId
               ? `материализация → ${allDocTypes.find(t => t.id === source.materializeTypeId)?.name ?? 'тип'}`
               : `${ruCount(mappedCount, 'поле привязано', 'поля привязано', 'полей привязано')}`}
@@ -213,7 +213,7 @@ function EntryBindingRow({
             <button type="button" onClick={handleSave} disabled={update.isPending} className="px-3 py-1.5 rounded-md text-sm font-medium text-on-primary bg-primary">
               {update.isPending ? 'Сохранение...' : 'Сохранить'}
             </button>
-            <button type="button" onClick={() => setEditing(false)} className="px-3 py-1.5 rounded-md text-sm font-medium text-fg3">
+            <button type="button" onClick={() => setEditing(false)} className="px-3 py-1.5 rounded-md text-sm font-medium text-on-surface-variant">
               Отмена
             </button>
           </div>
@@ -234,7 +234,7 @@ export function EntryDataSetBindings({
 
   return (
     <div className="rounded-lg border border-outline-variant p-3 space-y-2">
-      <p className="text-xs font-semibold text-fg3 uppercase tracking-wide">Наборы данных</p>
+      <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Наборы данных</p>
 
       {bindings.length > 0 && (
         <div className="rounded-xl overflow-hidden border border-outline-variant bg-surface">

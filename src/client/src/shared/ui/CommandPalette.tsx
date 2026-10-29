@@ -143,9 +143,9 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
               ref={input} autoFocus value={query} onKeyDown={onKey} aria-label="Поиск и действия"
               onChange={e => { setQuery(e.target.value); setActive(0); }}
               placeholder="Найти раздел или действие…"
-              className="h-14 flex-1 bg-transparent text-base text-on-surface outline-none placeholder:text-fg4"
+              className="h-14 flex-1 bg-transparent text-base text-on-surface outline-none placeholder:text-on-surface-variant"
             />
-            <kbd className="rounded-md bg-surface-container px-2 py-0.5 font-mono text-caption text-fg3">Esc</kbd>
+            <kbd className="rounded-md bg-surface-container px-2 py-0.5 font-mono text-caption text-on-surface-variant">Esc</kbd>
           </div>
 
           <div role="group" aria-label="Где искать" className="flex flex-wrap gap-2 px-5 pt-3 pb-1">
@@ -160,11 +160,11 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
 
           <ul ref={list} className="max-h-[55vh] overflow-y-auto px-2 pb-3 pt-1">
             {filtered.length === 0 ? (
-              <li className="px-3 py-6 text-center text-sm text-fg4">Ничего не найдено</li>
+              <li className="px-3 py-6 text-center text-sm text-on-surface-variant">Ничего не найдено</li>
             ) : filtered.map((it, i) => (
               <Fragment key={it.id}>
                 {it.group !== filtered[i - 1]?.group && (
-                  <li aria-hidden className="px-3 pb-1 pt-3 text-xs font-medium text-fg3">{it.group}</li>
+                  <li aria-hidden className="px-3 pb-1 pt-3 text-xs font-medium text-on-surface-variant">{it.group}</li>
                 )}
                 <li>
                   <button
@@ -173,7 +173,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
                       i === current ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'}`}
                   >
                     <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${
-                      it.kind === 'action' ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-fg3'}`}>
+                      it.kind === 'action' ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-on-surface-variant'}`}>
                       <Icon icon={it.icon} size={18} aria-hidden />
                     </span>
                     <span className="flex-1">
@@ -195,7 +195,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
             ))}
           </ul>
 
-          <div className="flex flex-wrap gap-x-5 gap-y-1.5 border-t border-outline-variant bg-surface-container-low px-5 py-3 text-caption text-fg3">
+          <div className="flex flex-wrap gap-x-5 gap-y-1.5 border-t border-outline-variant bg-surface-container-low px-5 py-3 text-caption text-on-surface-variant">
             <span><b className="font-medium">↑ ↓</b> выбрать</span>
             <span><b className="font-medium">Enter</b> открыть</span>
             <span className="flex-1" />

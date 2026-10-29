@@ -24,7 +24,7 @@ export function BulkSelectionBar({ selected, setSelected, openPickerForSelected,
           Связать выбранные ({selected.size})
         </Button>
         <button onClick={() => setSelected(new Set())}
-          className="ml-auto text-xs text-fg4 hover:text-on-surface-variant">Снять выбор</button>
+          className="ml-auto text-xs text-on-surface-variant hover:text-on-surface-variant">Снять выбор</button>
       </div>
       {/* Часть выбранных уже связана ШИРЕ, чем выбрано в селекторе, и правка уйдёт на их
           уровень — за пределы этого комплекта. В строке уровень виден значком, но на сотне

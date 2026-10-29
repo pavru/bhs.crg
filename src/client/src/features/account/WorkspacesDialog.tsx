@@ -103,7 +103,7 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Рабочие пространства" wide isDirty={dirty && !saving}>
-      <p className="text-xs text-fg3 mb-3">
+      <p className="text-xs text-on-surface-variant mb-3">
         Пространство сужает меню до выбранных модулей и разделов, которыми они пользуются. Доступ оно не
         меняет: разделы других модулей открываются по ссылке и находятся через Ctrl+K.
       </p>
@@ -115,21 +115,21 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
               <span className="min-w-0 flex-1">
                 <span className="block text-sm text-on-surface truncate">
                   {own.name}
-                  {ws.defaultChoice === `own:${own.id}` && <span className="ml-2 text-xs text-fg3">открывается при входе</span>}
+                  {ws.defaultChoice === `own:${own.id}` && <span className="ml-2 text-xs text-on-surface-variant">открывается при входе</span>}
                 </span>
-                <span className="block text-xs text-fg3 truncate">{compositionLabel(ownToWorkspace(own), access)}</span>
+                <span className="block text-xs text-on-surface-variant truncate">{compositionLabel(ownToWorkspace(own), access)}</span>
               </span>
               {/* Пока черновик изменён, правку другого не начать — карандаш скрыт (ревью PR #1330):
                   иначе набранное заменилось бы молча, хотя закрытие окна те же правки бережёт. */}
               {!dirty && (
                 <Tooltip content="Изменить" name>
-                  <button type="button" onClick={() => edit(own)} className="p-1 text-fg3 hover:text-on-surface">
+                  <button type="button" onClick={() => edit(own)} className="p-1 text-on-surface-variant hover:text-on-surface">
                     <Icon icon={Edit} size={18} />
                   </button>
                 </Tooltip>
               )}
               <Tooltip content="Удалить" name>
-                <button type="button" onClick={() => setRemoving(own)} className="p-1 text-fg3 hover:text-error">
+                <button type="button" onClick={() => setRemoving(own)} className="p-1 text-on-surface-variant hover:text-error">
                   <Icon icon={Delete} size={18} />
                 </button>
               </Tooltip>
@@ -147,7 +147,7 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
             onChange={e => setDraft({ ...draft, name: e.target.value })} />
 
           <fieldset>
-            <legend className="text-xs text-fg3 mb-1">Модули</legend>
+            <legend className="text-xs text-on-surface-variant mb-1">Модули</legend>
             <div className="flex flex-wrap gap-x-4 gap-y-1">
               {offered.map(m => (
                 <label key={m.code} className="flex items-center gap-2 text-sm text-on-surface">
@@ -156,13 +156,13 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
                 </label>
               ))}
               {closed.map(m => (
-                <label key={m.code} className="flex items-center gap-2 text-sm text-fg3">
+                <label key={m.code} className="flex items-center gap-2 text-sm text-on-surface-variant">
                   <input type="checkbox" checked={draft.modules.includes(m.code)} onChange={() => toggle(m.code)} />
                   {m.title} <span className="text-xs">— недоступен</span>
                 </label>
               ))}
             </div>
-            <p className="mt-1 text-xs text-fg3" data-testid="workspace-together">
+            <p className="mt-1 text-xs text-on-surface-variant" data-testid="workspace-together">
               {together.length ? `Вместе с ними: ${together.join(', ')}` : 'Разделов ядра вместе с ними нет'}
             </p>
           </fieldset>
@@ -185,7 +185,7 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
             <Button variant="text" disabled={saving} onClick={() => setDraft(null)}>Отмена</Button>
           </div>
           {/* Заперта — с причиной под кнопкой, а не отказом после нажатия (AUTH-16.5). */}
-          {problem && <p className="text-xs text-fg3" data-testid="workspace-problem">{problem}</p>}
+          {problem && <p className="text-xs text-on-surface-variant" data-testid="workspace-problem">{problem}</p>}
         </div>
       )}
 

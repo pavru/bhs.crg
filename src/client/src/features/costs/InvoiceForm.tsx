@@ -242,14 +242,14 @@ export function InvoiceForm({
           <div className="flex-1" />
           {/* К запертому счёту скан приложить можно, заменить — нельзя: замена удалила бы документ
               закрытого периода. Кнопки замены нет вовсе, а не «есть и откажет». */}
-          {!mayEdit && <span className="text-xs text-fg3">Только чтение: права вводить счета нет</span>}
+          {!mayEdit && <span className="text-xs text-on-surface-variant">Только чтение: права вводить счета нет</span>}
           {canEdit && closed && scan !== null && (
-            <span className="text-xs text-fg3">Файл заменить нельзя: документ закрытого периода</span>
+            <span className="text-xs text-on-surface-variant">Файл заменить нельзя: документ закрытого периода</span>
           )}
           {/* Пока скан читается, заменить его нельзя (сервер откажет): прочитанное легло бы в счёт с
               другой бумагой. Кнопки нет, причина названа. */}
           {canEdit && watch.running && (
-            <span className="text-xs text-fg3">Файл распознаётся — заменить можно после исхода</span>
+            <span className="text-xs text-on-surface-variant">Файл распознаётся — заменить можно после исхода</span>
           )}
           {!quiet && <RecognitionStart invoiceId={view.id} recognition={watch.recognition} explain={view.lines.length === 0} />}
           {canEdit && !correcting && !watch.running && !(closed && scan !== null) && (
@@ -278,7 +278,7 @@ export function InvoiceForm({
 
         {organizationsError != null && (
           <div className="flex items-start gap-2 rounded-lg border border-error/30 bg-error-container
-            px-3 py-2 text-xs text-error">
+            px-3 py-2 text-xs text-on-error-container">
             <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" />
             <span>
               Справочник организаций не прочитан: {apiError(organizationsError, 'сервер отказал')}.
@@ -343,7 +343,7 @@ export function InvoiceForm({
           supplierName={savedSupplierName(view, organizations)}
           headerDirty={dirty} onParsed={onExit && (send => onExit('parsed', send, () => {}))} />
 
-        <p className="text-xs text-fg4">
+        <p className="text-xs text-on-surface-variant">
           Весь счёт на один объект — поле «Объект» в шапке; на несколько — матрица оттуда же, а строку
           по отдельности — колонка «Разноска». Сохранение их не ждёт: черновик уже в реестре.
         </p>
@@ -422,7 +422,7 @@ function Field({ fieldKey, view, edits, organizations, organizationsUnread, valu
 
   // Рамкой предупреждения, а не ошибки: распознанное значение не ошибка, его просто никто пока не
   // подтвердил. Красная рамка звала бы чинить то, что, скорее всего, верно.
-  const frame = marked ? 'rounded-md ring-1 ring-warning-border' : '';
+  const frame = marked ? 'rounded-md ring-1 ring-warning' : '';
 
   if (extra) return <ExtraField field={extra} value={current} set={set} locked={locked} hint={hint} frame={frame} />;
 

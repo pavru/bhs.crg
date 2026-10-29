@@ -111,12 +111,12 @@ export function DataGridValue<Row>({ row, column, renderValue }: {
     // Значение у такой колонки бывает (строки таблицы генерация пишет и вне схемы) — тогда оно
     // видно, но приглушено и с причиной. Нет значения — клетка называет причину, а не пустует.
     if (kind === 'value')
-      return <Tooltip content={hint}><span className="text-fg4">{renderValue ? renderValue(row[column.key]) : String(row[column.key])}</span></Tooltip>;
-    return <Tooltip content={hint}><span className="text-fg4 italic">{state.title}</span></Tooltip>;
+      return <Tooltip content={hint}><span className="text-on-surface-variant">{renderValue ? renderValue(row[column.key]) : String(row[column.key])}</span></Tooltip>;
+    return <Tooltip content={hint}><span className="text-on-surface-variant italic">{state.title}</span></Tooltip>;
   }
   switch (kind) {
     case 'absent':
-      return <Tooltip content={ABSENT_CELL_HINT}><span className="text-fg4" aria-label={ABSENT_CELL_HINT}>—</span></Tooltip>;
+      return <Tooltip content={ABSENT_CELL_HINT}><span className="text-on-surface-variant" aria-label={ABSENT_CELL_HINT}>—</span></Tooltip>;
     // Пустое значение — пустая клетка: так его читает любой, кто видел таблицу. Слово «null» на
     // экране было отладочным выводом, а не ответом.
     case 'empty':
@@ -224,11 +224,11 @@ export function DataGrid<Row extends object>({
     const sorted = order >= 0 ? sort![order] : null;
     const canSort = onSort && (sortable ? sortable(c) : !c.unavailable);
     const label = (
-      <span className={`inline-flex items-center gap-1 ${reason ? 'text-fg4' : ''}`}>
+      <span className={`inline-flex items-center gap-1 ${reason ? 'text-on-surface-variant' : ''}`}>
         {c.unavailable && COLUMN_ICON[c.unavailable]}
         <span className={c.unavailable === 'removed' ? 'line-through' : ''}>{c.header ?? c.label}</span>
         {sorted && (sorted.descending ? <Icon icon={ArrowDownward} size={18} aria-hidden /> : <Icon icon={ArrowUpward} size={18} aria-hidden />)}
-        {sorted && sort!.length > 1 && <span className="text-caption text-fg4">{order + 1}</span>}
+        {sorted && sort!.length > 1 && <span className="text-caption text-on-surface-variant">{order + 1}</span>}
       </span>
     );
     return (
@@ -249,7 +249,7 @@ export function DataGrid<Row extends object>({
             <Tooltip content="Убрать колонку">
             <button type="button" onClick={() => onRemoveColumn(c)}
                 aria-label={`Убрать колонку «${c.label}»`}
-                className="ml-1 align-middle text-fg4 hover:text-error">
+                className="ml-1 align-middle text-on-surface-variant hover:text-error">
                 <Icon icon={Close} size={18} aria-hidden />
               </button>
           </Tooltip>
@@ -292,7 +292,7 @@ export function DataGrid<Row extends object>({
             <tr>
               <td colSpan={Math.max(columns.length, 1)} className={`${td} text-center py-4`}>
                 <div className="text-sm text-on-surface-variant">{empty.title}</div>
-                <div className="text-xs text-fg4">{empty.hint}</div>
+                <div className="text-xs text-on-surface-variant">{empty.hint}</div>
               </td>
             </tr>
           ) : shown.map((row, i) => {
@@ -302,7 +302,7 @@ export function DataGrid<Row extends object>({
               return (
                 <tr key={key}>
                   <th scope="rowgroup" colSpan={Math.max(columns.length, 1)}
-                    className={`${td} pt-3 text-left text-xs font-medium text-fg3`}>
+                    className={`${td} pt-3 text-left text-xs font-medium text-on-surface-variant`}>
                     {heading}
                   </th>
                 </tr>
@@ -355,7 +355,7 @@ export function DataGrid<Row extends object>({
                         <Tooltip content={link.label}>
                           <Link to={link.to} aria-label={link.label}
                             onClick={e => e.stopPropagation()}
-                            className="mr-1.5 inline-flex align-middle rounded-sm text-fg3 hover:text-primary focus-visible:outline-2">
+                            className="mr-1.5 inline-flex align-middle rounded-sm text-on-surface-variant hover:text-primary focus-visible:outline-2">
                             <Icon icon={ArrowOutward} size={18} aria-hidden />
                           </Link>
                         </Tooltip>

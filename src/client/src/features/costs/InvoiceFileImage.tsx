@@ -94,7 +94,7 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant shrink-0">
-        <Icon icon={TableChart} size={18} className="text-fg3 shrink-0" />
+        <Icon icon={TableChart} size={18} className="text-on-surface-variant shrink-0" />
         <span className="text-xs text-on-surface-variant truncate flex-1">{fileName ?? 'Файл счёта'}</span>
         {/* Во вкладке — полный просмотрщик браузера: поиск, печать с настройками (issue #1490). */}
         <Button size="sm" icon={<Icon icon={OpenInNew} size={18} />} disabled={!bytes}
@@ -131,7 +131,7 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
             {lines.map((line, i) => (
               // Не предупреждение: вид не испорчен, он лишь по прежним параметрам.
               <li key={`${i}|${line.text}`} className="flex items-start gap-1.5" data-testid={line.kind}>
-                <Icon icon={Info} size={18} aria-hidden className="shrink-0 mt-0.5 text-fg3" />{line.text}
+                <Icon icon={Info} size={18} aria-hidden className="shrink-0 mt-0.5 text-on-surface-variant" />{line.text}
               </li>
             ))}
           </ul>
@@ -202,7 +202,7 @@ export function RefusedImage({ invoiceId, blobPath, fileName, image, canEdit, re
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant shrink-0">
-        <Icon icon={TableChart} size={18} className="text-fg3 shrink-0" />
+        <Icon icon={TableChart} size={18} className="text-on-surface-variant shrink-0" />
         <span className="text-xs text-on-surface-variant truncate flex-1">{fileName ?? 'Файл счёта'}</span>
         <OriginalButton invoiceId={invoiceId} fileName={fileName} label="Оригинал" />
       </div>
@@ -211,7 +211,7 @@ export function RefusedImage({ invoiceId, blobPath, fileName, image, canEdit, re
           <div className="flex flex-col items-center gap-2 max-w-sm" data-testid="image-refused">
             {image.aboutFile
               ? <Icon icon={ScanDelete} size={20} className="text-warning" />
-              : <Icon icon={CloudOff} size={20} className="text-fg3" />}
+              : <Icon icon={CloudOff} size={20} className="text-on-surface-variant" />}
             <span className="text-sm font-medium text-on-surface">
               {image.aboutFile ? 'Вид для чтения не построен' : 'Вид для чтения пока не построен'}
             </span>
@@ -249,7 +249,7 @@ const NO_PROFILES: PrintProfile[] = [];
 
 /** Сообщение посреди панели. Одно на панель файла и на вид для чтения. */
 export function Centered({ children }: { children: React.ReactNode }) {
-  return <div className="h-full grid place-items-center p-4 text-xs text-fg3 text-center">{children}</div>;
+  return <div className="h-full grid place-items-center p-4 text-xs text-on-surface-variant text-center">{children}</div>;
 }
 
 /** Вид одним чтением — байтами для просмотрщика; перечитывается, когда вид перестроен. */

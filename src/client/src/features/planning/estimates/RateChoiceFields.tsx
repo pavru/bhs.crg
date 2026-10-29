@@ -28,17 +28,17 @@ export function RateChoiceFields({ state, sample }: { state: RateChoiceState; sa
         </Select>
       )}
       <div className="space-y-1">
-        <span className="text-xs text-fg3">Пересчёт единицы</span>
+        <span className="text-xs text-on-surface-variant">Пересчёт единицы</span>
         <div className="flex items-center gap-2 text-sm text-on-surface">
           <span className="tabular-nums">{sourceUnit ?? 'без единицы'}</span>
-          <Icon icon={ArrowForward} size={18} aria-hidden className="text-fg4" />
+          <Icon icon={ArrowForward} size={18} aria-hidden className="text-on-surface-variant" />
           <span>{unit}</span>
-          <span className="text-fg3">×</span>
+          <span className="text-on-surface-variant">×</span>
           <NumberInput value={state.typed} onChange={state.type} label="Коэффициент пересчёта" className="w-24"
             placeholder={suggested !== null ? formatInput(suggested) : '?'} disabled={!chosen} />
         </div>
         {chosen && (
-          <p className="text-xs text-fg3">
+          <p className="text-xs text-on-surface-variant">
             {result !== null && sample
               ? <>например, {sample.label}: {formatQuantity(sample.volume!)} × {formatQuantity(factor!)} = <b className="font-medium text-on-surface">{formatQuantity(result)} {unit}</b></>
               : factor !== null ? `сколько «${unit}» в одной «${sourceUnit ?? 'единице расценки'}»` : null}

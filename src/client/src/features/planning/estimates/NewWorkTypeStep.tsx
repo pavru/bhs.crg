@@ -52,13 +52,13 @@ export function NewWorkTypeStep({ sourceUnit, onBack, onCreated }: {
     <WindowStep title="Новый вид работы" onBack={onBack} busy={create.isPending}
       footer={(
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {missing && <span className="mr-auto text-xs text-fg3">{missing}</span>}
+          {missing && <span className="mr-auto text-xs text-on-surface-variant">{missing}</span>}
           <ModalExit>Назад</ModalExit>
           <Button variant="filled" disabled={missing !== null} loading={create.isPending} onClick={submit}>Завести и выбрать</Button>
         </div>
       )}>
       <div className="space-y-3">
-        <p className="text-sm text-fg3">Вид работы появится в классификаторе для всех смет и учёта работ.</p>
+        <p className="text-sm text-on-surface-variant">Вид работы появится в классификаторе для всех смет и учёта работ.</p>
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
           <TextField label="Код" required value={code} onChange={e => setCode(e.target.value)} />
           <TextField label="Наименование" required value={name} onChange={e => setName(e.target.value)} />

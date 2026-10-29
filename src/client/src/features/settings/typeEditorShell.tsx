@@ -20,11 +20,11 @@ export function SectionCard({ icon, title, count, countClass, open, onToggle, ch
     <div className="border border-outline-variant rounded-lg bg-surface overflow-hidden">
       <button type="button" onClick={onToggle}
         className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container/40 transition-colors">
-        <span className="text-fg4 shrink-0">{icon}</span>
+        <span className="text-on-surface-variant shrink-0">{icon}</span>
         <span className="text-sm font-medium text-on-surface-variant">{title}</span>
         {count != null && count > 0 && <span className={`text-xs ${countClass ?? 'text-primary'}`}>({count})</span>}
         <span className="flex-1" />
-        {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-fg4 shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" />}
+        {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
       </button>
       {open && <div className="px-3 pb-3 pt-1 border-t border-outline-variant">{children}</div>}
     </div>

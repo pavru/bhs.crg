@@ -15,7 +15,7 @@ const PREVIEW_ROWS = 5;
 
 /** Непустое значение клетки: строка как есть, файл (файловый маппинг) — имя и размер. */
 function renderPreviewValue(v: unknown) {
-  if (isFileAttachment(v)) return <>📎 {v.fileName} <span className="text-fg4">({formatBytes(v.size)})</span></>;
+  if (isFileAttachment(v)) return <>📎 {v.fileName} <span className="text-on-surface-variant">({formatBytes(v.size)})</span></>;
   return String(v);
 }
 
@@ -25,7 +25,7 @@ function columnsOf(r: DataSetBindingPreviewResult): DataGridColumn[] {
 
 export function BindingPreviewPanel({ results }: { results: DataSetBindingPreviewResult[] }) {
   if (results.length === 0)
-    return <p className="text-xs py-2 text-fg4">Нет привязок для проверки</p>;
+    return <p className="text-xs py-2 text-on-surface-variant">Нет привязок для проверки</p>;
 
   return (
     <div className="space-y-3">
@@ -41,12 +41,12 @@ export function BindingPreviewPanel({ results }: { results: DataSetBindingPrevie
             }
             <span className="text-xs font-medium flex-1 text-on-surface">
               {r.sourceName}
-              <span className="font-normal ml-1.5 text-fg4">
+              <span className="font-normal ml-1.5 text-on-surface-variant">
                 {r.fileName} · {r.mode === 'scalar' ? 'скалярный' : r.mode === 'tabular' ? `табличный → ${r.targetFieldKey}` : 'ошибка'}
               </span>
             </span>
             {r.mode !== 'error' && (
-              <span className="text-xs text-fg4">{r.totalRows} строк</span>
+              <span className="text-xs text-on-surface-variant">{r.totalRows} строк</span>
             )}
           </div>
 
@@ -75,7 +75,7 @@ function ScalarPreview({ data, columns }: { data: Record<string, unknown>; colum
       <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] text-xs">
         {columns.map(c => (
           <div key={c.key} className="contents [&:not(:last-child)>*]:border-b [&>*]:border-outline-variant">
-            <dt className="py-1 pr-4 font-medium text-fg3">{c.label}</dt>
+            <dt className="py-1 pr-4 font-medium text-on-surface-variant">{c.label}</dt>
             <dd className="py-1 text-on-surface"><DataGridValue row={data} column={c} renderValue={renderPreviewValue} /></dd>
           </div>
         ))}
@@ -96,7 +96,7 @@ function TabularPreview({ rows, columns }: { rows: Record<string, unknown>[]; co
     <div className="bg-surface">
       <DataGrid framed={false} columns={columns} rows={rows.slice(0, PREVIEW_ROWS)} renderValue={renderPreviewValue} />
       {rows.length > PREVIEW_ROWS && (
-        <p className="px-3 py-1.5 text-xs border-t border-outline-variant text-fg4">
+        <p className="px-3 py-1.5 text-xs border-t border-outline-variant text-on-surface-variant">
           +{rows.length - PREVIEW_ROWS} строк не показано
         </p>
       )}

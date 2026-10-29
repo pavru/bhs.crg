@@ -75,14 +75,14 @@ export function InvoiceObject({ view, locked }: {
 
   return (
     <div className="flex items-center gap-2 flex-wrap text-xs" data-readiness="allocation">
-      <span className="text-fg4">Объект</span>
+      <span className="text-on-surface-variant">Объект</span>
       {canEdit && !correcting ? (
         <InvoicePlaceField label="Объект счёта" places={places} current={current}
           disabled={previewing.isPending || replace.isPending} onPick={place => void pick(place)} />
       ) : (
         <span className="text-on-surface">{current.kind === 'one' ? fieldText(current, places).text : '—'}</span>
       )}
-      <span className={calm ? 'text-fg4' : 'text-warning'}>{status}</span>
+      <span className={calm ? 'text-on-surface-variant' : 'text-warning'}>{status}</span>
       {correcting?.allocation && <span className="text-warning">разноска изменена в исправлении — запишется с ним</span>}
       <Button size="sm" variant="text" icon={<Icon icon={GridOn} size={18} />} onClick={() => setMatrix({})}>
         {canEdit && !correcting ? 'на несколько объектов' : 'разноска по объектам'}

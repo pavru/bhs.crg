@@ -43,7 +43,7 @@ export function CollapsibleSection({
         <h2 className="text-sm font-semibold text-on-surface-variant uppercase tracking-wide">{title}</h2>
         <span className="flex items-center gap-2">
           {right}
-          <Icon icon={KeyboardArrowDown} size={18} className={`text-fg3 shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
+          <Icon icon={KeyboardArrowDown} size={18} className={`text-on-surface-variant shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
         </span>
       </button>
       {open && <div className="px-4 pb-4 space-y-4">{children}</div>}

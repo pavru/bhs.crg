@@ -116,20 +116,20 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
         );
       } },
     { key: 'updatedAt', label: 'Изменено',
-      cell: item => <span className="text-fg3">{formatDate(item.updatedAt)}{item.updatedBy ? ` · ${item.updatedBy}` : ''}</span> },
+      cell: item => <span className="text-on-surface-variant">{formatDate(item.updatedAt)}{item.updatedBy ? ` · ${item.updatedBy}` : ''}</span> },
     { key: 'remove', label: '', width: 'w-8',
       cell: item => (
         <Tooltip content="Снять условия" name>
           <button type="button" disabled={saving.has(item.supplierId)}
             onClick={() => setRemovingId(item.supplierId)}
-            className="text-fg3 hover:text-error p-1"><Icon icon={Delete} size={18} /></button>
+            className="text-on-surface-variant hover:text-error p-1"><Icon icon={Delete} size={18} /></button>
         </Tooltip>
       ) },
   ];
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Условия поставщиков" wide isDirty={dirty}>
-      <p className="text-xs text-fg3 mb-3">
+      <p className="text-xs text-on-surface-variant mb-3">
         Отсрочка платежа у поставщика. Её получает счёт, когда в нём выбирают поставщика, и от неё
         считается срок «оплатить до». В уже заведённых счетах правка условий ничего не меняет.
       </p>
@@ -160,9 +160,9 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
           <button type="button" className="underline" onClick={() => void terms.refetch()}>Повторить</button>
         </div>
       ) : !terms.data ? (
-        <p className="py-6 text-center text-sm text-fg4">Читаем условия…</p>
+        <p className="py-6 text-center text-sm text-on-surface-variant">Читаем условия…</p>
       ) : items.length === 0 ? (
-        <p className="py-6 text-center text-sm text-fg3">
+        <p className="py-6 text-center text-sm text-on-surface-variant">
           Условий пока нет. Выберите поставщика и укажите отсрочку — новые счета получат её сами.
         </p>
       ) : (

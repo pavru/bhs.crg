@@ -25,12 +25,12 @@ export function MyPermissionsSection() {
   const { data: groups, isLoading, isError } = useMyPermissions();
   const [open, setOpen] = useState<string | null>(null);
 
-  if (isLoading) return <p className="text-xs text-fg4">Загрузка прав…</p>;
-  if (isError) return <p className="text-xs text-fg4">Права сейчас не показать — повторите позже.</p>;
+  if (isLoading) return <p className="text-xs text-on-surface-variant">Загрузка прав…</p>;
+  if (isError) return <p className="text-xs text-on-surface-variant">Права сейчас не показать — повторите позже.</p>;
 
   // Ноль прав — это ответ, а не пустота: именно он объясняет, почему не открывается ничего.
   if (!groups || groups.length === 0) {
-    return <p className="text-sm text-fg4">Прав нет — разделы не открываются. Права выдаёт администратор.</p>;
+    return <p className="text-sm text-on-surface-variant">Прав нет — разделы не открываются. Права выдаёт администратор.</p>;
   }
 
   // Подпись «входит в „читать всё"» — свойство ПРАВА, одинаковое для всех. Показанная бухгалтеру,
@@ -50,9 +50,9 @@ export function MyPermissionsSection() {
                          transition-colors hover:bg-surface-container-low focus-visible:outline-none
                          focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
               <Icon icon={ChevronRight} size={18}
-                className={`text-fg3 shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+                className={`text-on-surface-variant shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />
               <span className="flex-1">{group.title}</span>
-              <span className="text-xs text-fg4 tabular-nums">{group.permissions.length}</span>
+              <span className="text-xs text-on-surface-variant tabular-nums">{group.permissions.length}</span>
             </button>
 
             {expanded && (
@@ -60,13 +60,13 @@ export function MyPermissionsSection() {
                 {group.permissions.map(p => (
                   <li key={p.code}>
                     <div className="text-sm text-on-surface">{p.gives}</div>
-                    <div className="text-xs text-fg3">{p.opens}</div>
-                    <code className="text-caption text-fg4">{p.code}</code>
+                    <div className="text-xs text-on-surface-variant">{p.opens}</div>
+                    <code className="text-caption text-on-surface-variant">{p.code}</code>
                     {/* У человека с одной ролью «Руководитель» этого права в составе роли нет:
                         оно приходит раскрытием составного. Без подписи список расходился бы с
                         тем, что видит администратор в редакторе ролей. */}
                     {holdsReadAll && p.readAll && (
-                      <div className="text-caption text-fg4">входит в право «читать всё»</div>
+                      <div className="text-caption text-on-surface-variant">входит в право «читать всё»</div>
                     )}
                   </li>
                 ))}

@@ -12,7 +12,7 @@ export function LockedPosition({ draft }: { draft: LineDraft }) {
       {draft.nomenclatureLost ? (draft.nomenclatureMoved ? LOST.movedPosition : LOST.position)
         : draft.nomenclatureName === null ? '—'
         : withArchiveWord(draft.nomenclatureName, !!draft.nomenclatureArchived)}
-      {draft.matchedBy !== null && !draft.nomenclatureLost && <span className="text-fg4"> (запомнено)</span>}
+      {draft.matchedBy !== null && !draft.nomenclatureLost && <span className="text-on-surface-variant"> (запомнено)</span>}
     </span>
   );
 }
@@ -43,6 +43,6 @@ export function Cell({ value, label, numeric, placeholder, onChange, onBlur }: {
     <input value={value} aria-label={label} placeholder={placeholder}
       onChange={e => onChange(e.target.value)} onBlur={onBlur}
       className="w-full rounded border border-outline-variant bg-surface px-1.5 py-1 text-xs text-on-surface
-        outline-none focus:border-primary placeholder:text-fg4" />
+        outline-none focus:border-primary placeholder:text-on-surface-variant" />
   );
 }

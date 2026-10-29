@@ -72,7 +72,7 @@ export function EmailSettingsSection() {
 
   return (
     <CollapsibleSection title="Почта (SMTP)" storageKey="email" defaultOpen={false}>
-      <p className="text-xs text-fg3">
+      <p className="text-xs text-on-surface-variant">
         Настройки исходящей почты для отправки уведомлений и документов подписчикам.
       </p>
 
@@ -121,7 +121,7 @@ export function EmailSettingsSection() {
 
       {/* Тест-отправка */}
       <div className="border-t border-surface-container pt-3 space-y-2">
-        <p className="text-sm font-medium text-on-surface-variant flex items-center gap-1.5"><Icon icon={Send} size={18} className="text-fg4" /> Тест-отправка</p>
+        <p className="text-sm font-medium text-on-surface-variant flex items-center gap-1.5"><Icon icon={Send} size={18} className="text-on-surface-variant" /> Тест-отправка</p>
         <div className="flex items-center gap-2">
           <input className={fieldCls + ' flex-1'} value={testTo} onChange={e => setTestTo(e.target.value)}
             placeholder="Адрес для проверки" />
@@ -138,15 +138,15 @@ export function EmailSettingsSection() {
 
       {/* Проверка email пользователей */}
       <div className="border-t border-surface-container pt-3 space-y-1.5">
-        <p className="text-sm font-medium text-on-surface-variant flex items-center gap-1.5"><Icon icon={Mail} size={18} className="text-fg4" /> Email пользователей</p>
+        <p className="text-sm font-medium text-on-surface-variant flex items-center gap-1.5"><Icon icon={Mail} size={18} className="text-on-surface-variant" /> Email пользователей</p>
         {userStatus.length === 0 ? (
-          <p className="text-xs text-fg4">Нет пользователей</p>
+          <p className="text-xs text-on-surface-variant">Нет пользователей</p>
         ) : (
           <div className="rounded-md border border-outline-variant divide-y divide-surface-container">
             {userStatus.map((u, i) => (
               <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 text-sm">
                 <span className="text-on-surface flex-1 min-w-0 truncate">{u.displayName}</span>
-                <span className="text-xs text-fg4 min-w-0 truncate">{u.email || '—'}</span>
+                <span className="text-xs text-on-surface-variant min-w-0 truncate">{u.email || '—'}</span>
                 {u.valid
                   ? <Icon icon={CheckCircle} size={18} className="text-success shrink-0" />
                   : <Icon icon={Warning} size={18} className="text-warning shrink-0" />}
@@ -154,7 +154,7 @@ export function EmailSettingsSection() {
             ))}
           </div>
         )}
-        <p className="text-caption text-fg4">⚠ — email не задан или невалиден: такой пользователь не получит писем.</p>
+        <p className="text-caption text-on-surface-variant">⚠ — email не задан или невалиден: такой пользователь не получит писем.</p>
       </div>
     </CollapsibleSection>
   );

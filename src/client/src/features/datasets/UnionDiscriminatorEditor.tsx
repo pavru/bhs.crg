@@ -97,22 +97,22 @@ export function UnionDiscriminatorEditor({
                 onClick={() => setOpen(isOpen ? '' : v.key)}
                 className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-surface-container-low transition-colors"
               >
-                {isOpen ? <Icon icon={KeyboardArrowDown} size={18} className="text-fg4 shrink-0" /> : <Icon icon={ChevronRight} size={18} className="text-fg4 shrink-0" />}
-                <span className={`text-xs font-medium ${disabled ? 'text-fg4' : 'text-on-surface-variant'}`}>{v.title}</span>
+                {isOpen ? <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={ChevronRight} size={18} className="text-on-surface-variant shrink-0" />}
+                <span className={`text-xs font-medium ${disabled ? 'text-on-surface-variant' : 'text-on-surface-variant'}`}>{v.title}</span>
                 <span className="flex-1 flex flex-wrap gap-1">
                   {ids.map(id => (
                     <span key={id}
                       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-caption border ${
                         conflicting.has(id)
-                          ? 'bg-error-container text-error border-error/30'
-                          : 'bg-surface-container-low text-fg3 border-outline-variant'}`}>
+                          ? 'bg-error-container text-on-error-container border-error/30'
+                          : 'bg-surface-container-low text-on-surface-variant border-outline-variant'}`}>
                       {typeName(id)}
                       <Icon icon={Close} size={18} className="cursor-pointer hover:text-error"
                         onClick={e => { e.stopPropagation(); setRules(v.key, ids.filter(x => x !== id)); }} />
                     </span>
                   ))}
                 </span>
-                {disabled && <span className="text-caption text-fg4 shrink-0">выключен, строки пропускаются</span>}
+                {disabled && <span className="text-caption text-on-surface-variant shrink-0">выключен, строки пропускаются</span>}
                 {needsMapping && (
                   <span className="text-caption text-error shrink-0 flex items-center gap-1">
                     <Icon icon={Warning} size={18} /> нет маппинга
@@ -123,7 +123,7 @@ export function UnionDiscriminatorEditor({
               {isOpen && (
                 <div className="px-3 pb-3 space-y-2">
                   <div className="flex items-center gap-2">
-                    <Icon icon={Add} size={18} className="text-fg4 shrink-0" />
+                    <Icon icon={Add} size={18} className="text-on-surface-variant shrink-0" />
                     <Select size="sm" className="flex-1" aria-label="Добавить тип документа"
                       value="" placeholder="— добавить тип документа —"
                       onValueChange={id => { if (id) setRules(v.key, [...ids, id]); }}>

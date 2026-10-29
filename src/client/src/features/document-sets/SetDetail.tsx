@@ -111,7 +111,7 @@ export function SetDetail() {
   useDocumentTitle(set ? `Комплект «${set.name}»` : null);
 
   if (docParam) return <Navigate replace to={documentPath(constructionId!, setId!, docParam)} />;
-  if (isLoading) return <div className="p-6 text-sm text-fg4">Загрузка...</div>;
+  if (isLoading) return <div className="p-6 text-sm text-on-surface-variant">Загрузка...</div>;
   if (!set) return <div className="p-6 text-sm text-error">Комплект не найден</div>;
 
   async function handleAssemble() {
@@ -174,16 +174,16 @@ export function SetDetail() {
 
   const contextCrumbs = (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <Link to="/document-sets" className="text-xs text-fg4 hover:text-on-surface-variant transition-colors">Стройки</Link>
+      <Link to="/document-sets" className="text-xs text-on-surface-variant hover:text-on-surface-variant transition-colors">Стройки</Link>
       {construction && (
         <Link to={`/document-sets/${constructionId}`}
-          className="text-caption px-2 py-0.5 rounded-full border border-outline-variant text-fg3 hover:border-outline hover:text-on-surface transition-colors">
+          className="text-caption px-2 py-0.5 rounded-full border border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface transition-colors">
           Стройка: {construction.name}
         </Link>
       )}
       {sectionName && (
         <Link to={`/document-sets/${constructionId}/sections/${set.sectionId}`}
-          className="text-caption px-2 py-0.5 rounded-full border border-outline-variant text-fg3 hover:border-outline hover:text-on-surface transition-colors">
+          className="text-caption px-2 py-0.5 rounded-full border border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface transition-colors">
           Раздел: {sectionName}
         </Link>
       )}
@@ -246,7 +246,7 @@ export function SetDetail() {
           <Tooltip content="Перетащить для изменения порядка">
             <button type="button" draggable
               onDragStart={() => setDragIndex(index)} onDragEnd={endDrag}
-              className="cursor-grab active:cursor-grabbing text-fg4 hover:text-on-surface-variant shrink-0 focus-visible:outline-none focus-visible:text-primary" aria-label={`Переместить документ ${index + 1} перетаскиванием`}>
+              className="cursor-grab active:cursor-grabbing text-on-surface-variant hover:text-on-surface-variant shrink-0 focus-visible:outline-none focus-visible:text-primary" aria-label={`Переместить документ ${index + 1} перетаскиванием`}>
               <Icon icon={DragIndicator} size={18} />
             </button>
           </Tooltip>
@@ -264,7 +264,7 @@ export function SetDetail() {
           <div className="font-medium text-on-surface">
             {inst.name || docTypeMap[inst.documentTypeId]?.name || inst.documentTypeId}
           </div>
-          {inst.name && <div className="text-xs text-fg4 mt-0.5">{docTypeMap[inst.documentTypeId]?.name}</div>}
+          {inst.name && <div className="text-xs text-on-surface-variant mt-0.5">{docTypeMap[inst.documentTypeId]?.name}</div>}
         </>
       ) },
     { key: 'status', label: 'Статус', width: 'w-32',
@@ -324,7 +324,7 @@ export function SetDetail() {
   const documentsContent = (
     <>
       {addError && <p className="text-xs text-error mb-3">{addError}</p>}
-      {!addError && assembleMsg && <p className="text-xs text-fg4 mb-3">{assembleMsg}</p>}
+      {!addError && assembleMsg && <p className="text-xs text-on-surface-variant mb-3">{assembleMsg}</p>}
 
       {set.instances.length === 0 ? (
         <div className="bg-surface border border-outline-variant rounded-xl overflow-hidden">

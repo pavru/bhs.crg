@@ -192,7 +192,7 @@ function ConfirmDialogBody({
           ) : (
             <>
               {description && (
-                <div className="text-xs mb-3 text-fg3 space-y-1">
+                <div className="text-xs mb-3 text-on-surface-variant space-y-1">
                   {description}
                 </div>
               )}

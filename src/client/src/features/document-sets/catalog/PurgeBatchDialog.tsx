@@ -65,14 +65,14 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
           <>
             <button type="button" aria-expanded={shown} onClick={() => setOpen(was => toggleInSet(was, r.id))}
               className="flex items-start gap-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
-              {shown ? <Icon icon={KeyboardArrowDown} size={18} className="mt-0.5 shrink-0 text-fg4" /> : <Icon icon={ChevronRight} size={18} className="mt-0.5 shrink-0 text-fg4" />}
+              {shown ? <Icon icon={KeyboardArrowDown} size={18} className="mt-0.5 shrink-0 text-on-surface-variant" /> : <Icon icon={ChevronRight} size={18} className="mt-0.5 shrink-0 text-on-surface-variant" />}
               <span>{r.name}{r.archived && <ArchivedMark className="ml-1.5" />}</span>
             </button>
             {r.untraceable > 0 && !shown && <div className="pl-[17px] text-warning">{r.untraceable} не покажет никто</div>}
             {shown && r.holders.map((h, i) => (
               <div key={i} className="pl-[17px] text-on-surface-variant">
                 {holderLabel(h)} — {h.rows}
-                {h.documents && <span className="text-fg3"> ({h.documents})</span>}
+                {h.documents && <span className="text-on-surface-variant"> ({h.documents})</span>}
                 {!h.traceable && <div className="text-warning">после удаления эти ссылки не покажет никто</div>}
               </div>
             ))}
@@ -157,7 +157,7 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
   } else if (!preview) {
     body = (
       <>
-        <p className="text-xs text-fg3" role="status">Проверяем записи…</p>
+        <p className="text-xs text-on-surface-variant" role="status">Проверяем записи…</p>
         <div className="flex justify-end mt-4"><Button variant="text" size="sm" onClick={() => onClose(false)}>Отмена</Button></div>
       </>
     );
@@ -180,7 +180,7 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
             <div className="flex justify-between px-2 py-1.5 text-xs font-semibold text-on-surface">
               <span>Всего ссылок</span><span className="tabular-nums">{preview.references}</span>
             </div>
-            {more && <p className="text-xs text-fg3">{more}</p>}
+            {more && <p className="text-xs text-on-surface-variant">{more}</p>}
           </>
         )}
 
@@ -205,7 +205,7 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
                   mismatch ? 'border-error focus-visible:ring-error' : 'border-outline focus-visible:ring-primary'}`} />
               {mismatch
                 ? <p id={errorId} role="alert" className="mt-1 text-xs text-error">Не совпадает с числом в строке «Всего ссылок».</p>
-                : <p id={hintId} className="mt-1 text-xs text-fg3">Введите число из строки «Всего ссылок».</p>}
+                : <p id={hintId} className="mt-1 text-xs text-on-surface-variant">Введите число из строки «Всего ссылок».</p>}
             </div>
             <div className="flex gap-2 justify-end items-start mt-4">
               <Button type="button" variant="text" size="sm" className="shrink-0" disabled={busy} data-modal-exit="" onClick={() => onClose(false)}>Отмена</Button>
@@ -238,8 +238,9 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
 
 function Alert({ tone, children }: { tone: 'danger' | 'warning'; children: ReactNode }) {
   return (
-    <div role="alert" className={`mt-2 flex items-start gap-2.5 rounded-md px-3 py-2.5 text-xs text-on-surface ${tone === 'danger' ? 'bg-error-container' : 'bg-warning-container'}`}>
-      <Icon icon={Warning} size={18} className={`shrink-0 mt-0.5 ${tone === 'danger' ? 'text-error' : 'text-warning'}`} aria-hidden />
+    <div role="alert" className={`mt-2 flex items-start gap-2.5 rounded-md px-3 py-2.5 text-xs ${tone === 'danger'
+      ? 'bg-error-container text-on-error-container' : 'bg-warning-container text-on-warning-container'}`}>
+      <Icon icon={Warning} size={18} className="shrink-0 mt-0.5" aria-hidden />
       <div className="min-w-0 whitespace-pre-line">{children}</div>
     </div>
   );
@@ -268,10 +269,10 @@ function Excluded({ preview, named }: { preview: PurgeBatchPreview; named: boole
         {excludedGroups(preview.excluded).map(g => (
           <li key={g.reason}>
             <div className="text-on-surface">{g.names.join(', ')}</div>
-            <div className="text-fg3">{g.reason}</div>
+            <div className="text-on-surface-variant">{g.reason}</div>
           </li>
         ))}
-        {preview.missing > 0 && <li className="text-fg3">Записей уже нет в справочнике: {preview.missing}.</li>}
+        {preview.missing > 0 && <li className="text-on-surface-variant">Записей уже нет в справочнике: {preview.missing}.</li>}
       </ul>
     </details>
   );
