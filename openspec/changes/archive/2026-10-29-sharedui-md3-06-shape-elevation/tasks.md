@@ -70,9 +70,10 @@
   - рядом с командой D3 — порядок для чужой ветки на шаге радиусов: сначала коммит слияния.
 
   [UI-66]. Проверка — ревью PR; в `docs/UI.md` нет `--f-shadow`, `--f-r-`, 6 px и 10 px.
-- [ ] 4.2 `/design-sync` дизайн-системы «BHS.CRG UI» (D12): README и `conventions.md` без «Fluent 2
+- [x] 4.2 `/design-sync` дизайн-системы «BHS.CRG UI» (D12): README и `conventions.md` без «Fluent 2
   scale», бандл со шкалой. Проверка — README называет `rounded-xs…xl` = 4/8/12/16/28 и
   `shadow-elevation-*`.
+  Сделан владельцем 29.10.2026 на master после слияния #1687.
 
 ## 5. Верификация
 
