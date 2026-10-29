@@ -59,8 +59,9 @@ MD3: тень цвета роли `shadow`, одинаковая в обеих �
 
 ### Requirement: [UI-66] Форма и тень вне шкалы ловит храповик
 Храповик интерфейса SHALL считать по файлам всего `src/` два правила. `legacy-radius` — радиус вне шкалы:
-`rounded` без ступени, `rounded-2xl`, `rounded-3xl`, `rounded-[…]`, `borderRadius` в стиле.
-`legacy-shadow` — тень вне уровней: `shadow-[…]`, `shadow`, `shadow-sm…2xl`, `boxShadow` в стиле.
+`rounded` без ступени, `rounded-2xl`, `rounded-3xl`, `rounded-[…]`, `borderRadius` в стиле и
+`border-radius` числом в файле стилей. `legacy-shadow` — тень вне уровней: `shadow-[…]`, `shadow`,
+`shadow-sm…2xl`, `drop-shadow-*`, `boxShadow` в стиле и `box-shadow` не уровнем в файле стилей.
 Уровень правил MUST только опускаться. Отказ называет выход — ступень шкалы или уровень и раздел
 `docs/UI.md`.
 
@@ -71,6 +72,11 @@ MD3: тень цвета роли `shadow`, одинаковая в обеих �
 #### Scenario: Своя тень
 - **WHEN** в файле появляется `style={{ boxShadow: … }}` или `shadow-lg`
 - **THEN** `npm run ui:ratchet` отказывает, называет правило `legacy-shadow` и уровни `shadow-elevation-*`
+
+#### Scenario: Своё значение в файле стилей
+- **WHEN** в `.css` появляется `box-shadow: 0 8px 24px …` или `border-radius: 6px`
+- **THEN** `npm run ui:ratchet` отказывает по `legacy-shadow` или `legacy-radius`; `box-shadow: none`,
+  `box-shadow: inset …` и переменные ступени и уровня — не нарушение
 
 #### Scenario: Перевод уменьшает уровень
 - **WHEN** экран переведён на ступени шкалы и уровень правила стал меньше записанного
@@ -102,3 +108,14 @@ MD3 — small 8 px (`rounded-sm`), а не только по `rounded-full`. С�
 - **WHEN** ветку, где до перехода добавлен `rounded-md` (6 px), обновляют от master и выполняют перевод
 - **THEN** её строка становится `rounded-sm` (8 px) один раз, а строки master с `rounded-md` (12 px) не
   трогаются
+
+#### Scenario: Имя в коде — не класс
+- **WHEN** в файле до перехода есть идентификатор `rounded` (`return rounded;`, `opts.rounded`) или
+  селектор `.rounded`
+- **THEN** перевод его не трогает: голый `rounded` сдвигается только в строке, шаблоне и после `@apply`
+
+#### Scenario: Забытый перевод в чужой ветке
+- **WHEN** PR из ветки, начатой до перехода, слил master, но `npm run md3:migrate` не запускал
+- **THEN** обязательная проверка Frontend отказывает на шаге «Шкала формы (кодмод)»
+  (`md3:migrate --check` на всей истории); на неполной копии репозитория шаг отказывает сам, а не
+  проходит молча
