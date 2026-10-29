@@ -5,7 +5,7 @@ import { posix } from 'node:path';
 import ts from 'typescript';
 import { containerTextHits, stripComments } from './class-scan.mjs';
 import { isBadge, isChip } from './ui-ratchet-pills.mjs';
-import { isIconButton, isSplitHalf, SPLIT_HALF_COMPONENTS } from './ui-ratchet-buttons.mjs';
+import { buttonComponents, isIconButton, isSplitHalf } from './ui-ratchet-buttons.mjs';
 import { countDarkVariants, countLegacyClasses, countLegacyRadii, countLegacyShadows, countLegacyType, countRawStates, LEGACY_HINT } from './ui-ratchet-md3.mjs';
 
 const COLORS = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
@@ -124,7 +124,7 @@ export const RULES = [
     // Своя половина split-кнопки ([UI-83]): одностороннее скругление у кнопки — нативной <button>, ссылки
     // или Button / IconButton с перекрытой формой. Вид такой половины держится на порядке утилит в
     // собранном CSS, и правка кнопки разъединяет пару молча. Плашки и панели (div, span) не считаются.
-    count: text => countElements(text, isSplitHalf, { components: SPLIT_HALF_COMPONENTS }),
+    count: text => countElements(text, isSplitHalf, { components: buttonComponents }),
     instead: 'действие с вариантами — SplitButton (shared/ui/SplitButton: onClick — основное действие, items — варианты в меню, menuLabel — имя стрелки); без вариантов — обычная Button (docs/UI.md, таблица контролов)',
   },
   {
@@ -570,17 +570,17 @@ function countIconSizes(text, file) {
 }
 
 /**
- * Сколько элементов разметки (тег со строчной буквы) подходят под `match`. `components` — компоненты,
- * которые правило смотрит наравне с разметкой (их имя тегом, как в файле).
+ * Сколько элементов разметки (тег со строчной буквы) подходят под `match`. `components(sf)` — какие
+ * компоненты файла правило смотрит наравне с разметкой: ответ — проверка имени тега, как в файле.
  */
-function countElements(text, match, { components = [] } = {}) {
+function countElements(text, match, { components = () => () => false } = {}) {
   if (!text.includes('<')) return 0;
-  const sf = parse(text);
+  const sf = parse(text), component = components(sf);
   let n = 0;
   const visit = node => {
     if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
       const tag = node.tagName.getText(sf);
-      if (/^[a-z]/.test(tag) || components.includes(tag)) {
+      if (/^[a-z]/.test(tag) || component(tag)) {
         const attrs = new Map(node.attributes.properties.filter(ts.isJsxAttribute)
           .map(p => [p.name.getText(sf), p.initializer?.getText(sf) ?? '']));
         const element = ts.isJsxSelfClosingElement(node) ? node : node.parent;

@@ -2,6 +2,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Icon } from './Icon';
 import { ChevronRight, MoreVert } from './icons';
 import type { ReactNode } from 'react';
+import { MENU_ITEM, MENU_ITEM_OFF, MENU_SURFACE } from './menuClasses';
 
 export interface RowAction {
   key: string;
@@ -19,14 +20,10 @@ export interface RowAction {
   submenu?: RowAction[];
 }
 
-// Подсветка пункта — слоем on-surface ([UI-64]), мышью и стрелкой одинаково (data-highlighted Radix).
-const itemCls =
-  'flex items-center gap-2 px-3 py-1.5 text-body-medium text-on-surface cursor-pointer select-none outline-none ' +
-  'state-layer data-[disabled]:pointer-events-none';
+const itemCls = `flex items-center gap-2 px-3 py-1.5 text-body-medium text-on-surface ${MENU_ITEM}`;
 
 function Row({ action }: { action: RowAction }) {
-  // Отключённое — содержимое on-surface 38 % ([UI-64]): у частей пункта свои цвета, поэтому — здесь.
-  const off = action.disabled ? 'text-on-surface/38' : '';
+  const off = action.disabled ? MENU_ITEM_OFF : '';
   const color = off || (action.danger ? 'text-error' : action.active ? 'text-primary' : 'text-on-surface-variant');
   return (
     <>
@@ -47,7 +44,7 @@ function renderAction(action: RowAction) {
         </DropdownMenu.SubTrigger>
         <DropdownMenu.Portal>
           <DropdownMenu.SubContent
-            className="z-50 min-w-[10rem] max-h-72 overflow-auto rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
+            className={`z-50 min-w-[10rem] max-h-72 overflow-auto ${MENU_SURFACE}`}>
             {action.submenu.length === 0
               ? <div className="px-3 py-1.5 text-body-small text-on-surface-variant">Нет вариантов</div>
               : action.submenu.map(sub => (
@@ -93,7 +90,7 @@ export function RowActionsMenu({ actions, ariaLabel = 'Действия', hasAct
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="end" sideOffset={4} onClick={e => e.stopPropagation()}
-          className="z-50 min-w-[11rem] rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
+          className={`z-50 min-w-[11rem] ${MENU_SURFACE}`}>
           {normal.map(renderAction)}
           {danger.length > 0 && normal.length > 0 && (
             <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />

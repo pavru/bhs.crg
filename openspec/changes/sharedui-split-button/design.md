@@ -113,8 +113,12 @@ split-кнопка — форма MD3, а не наша; зазор 2 px дел�
   чисел нет. Внутренний угол меняют только классы той же стороны (`rounded-l-xs` →
   `active:rounded-l-sm` → `data-[state=open]:rounded-l-full`): одно свойство, а состояние побеждает
   покой по порядку вариантов Tailwind, а не по случаю. Сокращённого `rounded-full` у половин нет вовсе.
-- Переход формы и поворота — токенами движения (`duration-(--md-sys-motion-duration-short3)`: класса `duration-short3` в теме нет; `ease-standard`), «уменьшить
-  движение» гасит их глобально (`docs/UI.md`, «Движение»).
+- Переход формы — добавкой к переходу слоя состояния: `[--_also-transition:border-radius]`, а утилита
+  `state-layer` пишет `transition-property: --_s, var(--_also-transition, --_s)` (уточнено ревью PR #1696:
+  свой класс `transition-[border-radius]` и `state-layer` спорили за одно `transition-property`, и
+  оставался один переход из двух — по порядку утилит). Поворот знака — `transition-transform` у самого
+  знака. Длительность и кривая — токенами движения (`short3`, `standard`), «уменьшить движение» гасит их
+  глобально (`docs/UI.md`, «Движение»).
 - **Тени у половин нет** ни до, ни после `sharedui-md3-10-actions`: filled в MD3 без возвышения, а тень
   на каждой половине отдельно легла бы в зазор 2 px швом. Тень filled `Button` выносится из
   `variantClass` отдельной константой (D1): `Button` добавляет её сам, пока её не снимет `md3-10`,
@@ -193,6 +197,11 @@ interface SplitButtonProps {
 Портал в `body`, `align="end"`, `sideOffset={4}`, вид слоя `RowActionsMenu`. Когда
 `sharedui-md3-13-containers` заведёт общий `Menu`, `SplitButton` переходит на него тем же PR, что и
 `RowActionsMenu` — это одно место в `shared/`, не экран.
+
+Выбранный пункт выполняется в `onCloseAutoFocus` меню, после возврата фокуса на стрелку (ревью PR
+#1696): окно, которое пункт открывает, возвращает фокус туда, где он был при открытии, — иначе это снятый
+пункт меню, и фокус падал в body. `Modal` для того же запоминает открывшего при первой отрисовке, до поля
+с `autoFocus`: Radix запоминал фокус эффектом, уже на этом поле.
 
 Стрелка: `<Tooltip name content={menuLabel}><DropdownMenu.Trigger asChild>` целиком (`docs/UI.md`, таблица
 контролов, «Подсказка»). Radix ставит `aria-haspopup="menu"` и `aria-expanded`, возвращает фокус на

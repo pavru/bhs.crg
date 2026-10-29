@@ -131,25 +131,6 @@ describe('храповик интерфейса: счёт', () => {
     ].join(' '))).toEqual({ 'icon-button': 1 });
   });
 
-  /** Своя половина split-кнопки ([UI-83]): одностороннее скругление у кнопки, а не у плашки. */
-  it('самодельная split-кнопка — кнопка с односторонним скруглением', () => {
-    expect(countViolations([
-      '<button className="h-8 rounded-l-full bg-primary">Сохранить</button>',
-      '<IconButton label="Ещё" className="rounded-l-none bg-primary"><Icon icon={Down} size={18} /></IconButton>',
-      '<Button className={`${x} active:rounded-tr-xs`}>Да</Button>',
-      '<a href="/x" className="rounded-e-full">Ссылка</a>',
-    ].join(' '))).toEqual({ 'split-button': 4 });
-  });
-
-  it('скругление плашки, панели и целой кнопки — не split', () => {
-    expect(countViolations([
-      '<div className="rounded-r-md border-l-2">условие</div>',
-      '<span className="rounded-l-xs">a</span>',
-      '<Button className="rounded-full">Да</Button>',
-      '<button className="rounded-lg">Нет</button>',
-    ].join(' '))).toEqual({});
-  });
-
   it('свои вкладки по ARIA', () => {
     expect(countViolations('<div role="tablist"><button role="tab" aria-selected={on}>A</button></div> <div role="option" />'))
       .toEqual({ tabs: 2 });

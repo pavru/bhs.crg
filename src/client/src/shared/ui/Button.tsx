@@ -3,12 +3,6 @@ import { CircularProgress } from './CircularProgress';
 import { Tooltip } from './Tooltip';
 import { BASE, FILLED_SHADOW, SIZE, variantClass, type ButtonSize, type ButtonVariant } from './buttonClasses';
 
-/**
- * MD3-кнопки (issue #110, фаза 1). Форма — пилюля (rounded-full), label-large (500),
- * слой состояния MD3 на наведение, фокус и нажатие, общее кольцо фокуса. Иерархия: **максимум одна filled
- * на экран/модалку**; заметное вторичное — tonal; обрамлённое — outlined; третичное — text.
- * Плотность компактная (по умолчанию md=36px), spec-высота 40px доступна как lg.
- */
 export type { ButtonVariant, ButtonSize } from './buttonClasses';
 
 // text-вариант живёт без заливки → чуть плотнее по горизонтали.
@@ -53,6 +47,12 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   title?: string;
 }
 
+/**
+ * MD3-кнопки (issue #110, фаза 1). Форма — пилюля (rounded-full), label-large (500),
+ * слой состояния MD3 на наведение, фокус и нажатие, общее кольцо фокуса. Иерархия: **максимум одна filled
+ * на экран/модалку**; заметное вторичное — tonal; обрамлённое — outlined; третичное — text.
+ * Плотность компактная (по умолчанию md=36px), spec-высота 40px доступна как lg.
+ */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = 'text', size = 'md', danger = false, loading = false,
     icon, trailingIcon, fullWidth, multiline = false, className = '', type, disabled, title, children, ...rest },

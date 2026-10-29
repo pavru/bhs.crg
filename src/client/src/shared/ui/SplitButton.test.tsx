@@ -9,6 +9,8 @@ import { variantClass } from './buttonClasses';
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 const MENU = 'Ещё варианты сохранения';
+// Пункт меню выполняется, когда Radix вернул фокус на стрелку, а это он делает тиком после закрытия меню.
+const tick = () => new Promise(r => setTimeout(r, 0));
 
 function setup(props: Partial<SplitButtonProps> = {}) {
   const onClick = vi.fn();
@@ -77,9 +79,26 @@ describe('SplitButton', () => {
     const item = screen.getByRole('menuitem', { name: /Сохранить как новую версию…/ });
     expect(item.textContent).toContain('Создаст v3');
     expect(document.activeElement).toBe(item);
-    await act(async () => { fireEvent.keyDown(item, { key: 'Enter' }); });
+    await act(async () => { fireEvent.keyDown(item, { key: 'Enter' }); }); await act(tick);
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('пункт выполняется, когда фокус уже вернулся на стрелку: окно из пункта вернёт его туда же', async () => {
+    let focused: Element | null = null;
+    const onSelect = vi.fn(() => { focused = document.activeElement; });
+    const arrow = setup({ items: [{ key: 'n', label: 'Как новую', onSelect }] }).arrow();
+    await openWithKeyboard(arrow);
+    await act(async () => { fireEvent.keyDown(screen.getByRole('menuitem'), { key: 'Enter' }); }); await act(tick);
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(focused).toBe(arrow);
+  });
+
+  it('предупреждение о пустом меню — однажды, а не на каждой перерисовке', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const view = render(<SplitButton onClick={() => {}} menuLabel={MENU} items={[]}>А</SplitButton>);
+    view.rerender(<SplitButton onClick={() => {}} menuLabel={MENU} items={[]}>Б</SplitButton>);
+    expect(error).toHaveBeenCalledTimes(1);
   });
 
   it('Esc закрывает меню и возвращает фокус на стрелку', async () => {

@@ -15,10 +15,13 @@ export const BASE =
   'inline-flex items-center justify-center gap-2 font-medium select-none ' +
   'state-layer focus-ring disabled:pointer-events-none';
 
+/** Высота кнопки по размеру — отдельно от полей: стрелке split-кнопки нужна высота без полей. */
+export const HEIGHT: Record<ButtonSize, string> = { sm: 'h-8', md: 'h-9', lg: 'h-10' };
+
 export const SIZE: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-body-small',
-  md: 'h-9 px-4 text-body-medium',
-  lg: 'h-10 px-6 text-body-medium',
+  sm: `${HEIGHT.sm} px-3 text-body-small`,
+  md: `${HEIGHT.md} px-4 text-body-medium`,
+  lg: `${HEIGHT.lg} px-6 text-body-medium`,
 };
 
 /** Тень filled-кнопки. Её ставит только `Button`: у split-кнопки тени нет (design D0). */

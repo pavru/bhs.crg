@@ -336,3 +336,26 @@ describe('типы', () => {
     expect(true).toBe(true);
   });
 });
+
+describe('фокус после закрытия', () => {
+  /** Окно с полем `autoFocus`: Radix запоминал фокус уже на этом поле и после закрытия отдавал его body. */
+  function Opener() {
+    const [open, setOpen] = useState(false);
+    return (<>
+      <button type="button" onClick={() => setOpen(true)}>Открыть</button>
+      <Modal open={open} onOpenChange={setOpen} title="Окно" footer={<ModalExit />}>
+        <input aria-label="поле" autoFocus />
+      </Modal>
+    </>);
+  }
+
+  it('возвращается на открывшую кнопку, даже если поле взяло фокус само', async () => {
+    render(<Opener />);
+    const opener = screen.getByRole('button', { name: 'Открыть' });
+    await act(async () => { opener.focus(); fireEvent.click(opener); });
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'поле' }));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Отмена' })); });
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    expect(document.activeElement).toBe(opener);
+  });
+});

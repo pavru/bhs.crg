@@ -131,6 +131,10 @@ function ModalBody({
   const [touched, setTouched] = useState(false);
   const content = useRef<HTMLDivElement>(null);
   const { host, top, touchTop, stepSlot } = useWindowSteps(content);
+  // Кто открыл окно — запоминается при первой отрисовке, до того как поле с `autoFocus` заберёт фокус.
+  // Radix запоминает его позже, эффектом, и видит уже это поле: оно уходит вместе с окном, и фокус
+  // после закрытия падал в body (ревью PR #1696).
+  const [opener] = useState(() => document.activeElement as HTMLElement | null);
 
   // На шаге окно закрывается по правилам шага, а выход с него — назад, к форме окна.
   const state = top
@@ -243,6 +247,11 @@ function ModalBody({
           onOpenAutoFocus={e => {
             e.preventDefault();
             content.current?.focus();
+          }}
+          onCloseAutoFocus={e => {
+            if (!opener?.isConnected || opener === document.body) return;
+            e.preventDefault();
+            opener.focus();
           }}
           onEscapeKeyDown={e => {
             // Решает диалог сам и ПОЗЖЕ — см. `afterFields`. Radix закрыл бы окно прямо сейчас.

@@ -33,6 +33,8 @@ const renderPanel = (isActive: boolean) =>
   render(<EditorPanel template={template(isActive)} docType={docType} allDocTypes={[docType]} onSaved={vi.fn()} />);
 
 const MENU = 'Ещё варианты сохранения';
+// Пункт меню выполняется, когда Radix вернул фокус на стрелку, а это он делает тиком после закрытия меню.
+const tick = () => new Promise(r => setTimeout(r, 0));
 async function openMenu() {
   const arrow = screen.getByRole('button', { name: MENU });
   await act(async () => { arrow.focus(); fireEvent.keyDown(arrow, { key: 'Enter' }); });
@@ -45,8 +47,17 @@ describe('EditorPanel: «Сохранить»', () => {
     await openMenu();
     const item = screen.getByRole('menuitem', { name: /Сохранить как новую версию…/ });
     expect(item.textContent).toContain('Создаст v3');
-    await act(async () => { fireEvent.keyDown(item, { key: 'Enter' }); });
+    await act(async () => { fireEvent.keyDown(item, { key: 'Enter' }); }); await act(tick);
     expect(screen.getByRole('button', { name: 'Создать v3' })).toBeTruthy();
+  });
+
+  it('окно новой версии закрылось — фокус на стрелке, а не в body', async () => {
+    renderPanel(true);
+    const arrow = await openMenu();
+    await act(async () => { fireEvent.keyDown(screen.getByRole('menuitem'), { key: 'Enter' }); }); await act(tick);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Отмена' })); }); await act(tick);
+    expect(screen.queryByRole('button', { name: 'Создать v3' })).toBeNull();
+    expect(document.activeElement).toBe(arrow);
   });
 
   it('у исторической версии — одна кнопка, стрелки нет', () => {

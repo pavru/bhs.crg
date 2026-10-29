@@ -36,7 +36,10 @@ body {
    частная --_s, цвет — --_state-color (по умолчанию currentColor, т. е. роль on-* элемента). Пункт
    меню Radix подсвечивается data-highlighted и с клавиатуры, и мышью — слой у него тот же, что при
    наведении. Отключённое слоя не несёт. Нажатие — только у самого нажимаемого: :active зажигается и у
-   предков нажатой кнопки, и строка таблицы темнела бы от щелчка по крестику в ней. */
+   предков нажатой кнопки, и строка таблицы темнела бы от щелчка по крестику в ней.
+   Свой переход у элемента со слоем — переменной --_also-transition (`[--_also-transition:border-radius]`),
+   а не классом transition-*: transition-property одно, и второй класс отнял бы его у слоя или слой у
+   него — смотря по порядку утилит в собранном CSS. */
 @property --_s {
   syntax: '<number>';
   inherits: false; /* слой родителя под курсором не зажигает слой вложенного элемента */
@@ -44,7 +47,7 @@ body {
 }
 @utility state-layer {
   background-image: linear-gradient(color-mix(in srgb, var(--_state-color, currentColor) calc(var(--_s) * 100%), transparent) 0 0);
-  transition-property: --_s;
+  transition-property: --_s, var(--_also-transition, --_s);
   transition-duration: var(--md-sys-motion-duration-short3);
   transition-timing-function: var(--md-sys-motion-easing-standard);
   &:hover, &[data-highlighted] { --_s: var(--md-sys-state-hover); }

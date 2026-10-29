@@ -1,9 +1,10 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import type { ReactNode } from 'react';
-import { BASE, SIZE, variantClass } from './buttonClasses';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { BASE, HEIGHT, SIZE, variantClass } from './buttonClasses';
 import { CircularProgress } from './CircularProgress';
 import { Icon } from './Icon';
 import { KeyboardArrowDown } from './icons';
+import { MENU_ITEM, MENU_ITEM_OFF, MENU_SURFACE } from './menuClasses';
 import { Tooltip } from './Tooltip';
 
 export interface SplitButtonItem {
@@ -36,14 +37,10 @@ export interface SplitButtonProps {
   items: SplitButtonItem[];
 }
 
-// Высота — от кнопки по умолчанию, поля стрелке не нужны: её ширина своя (design D0).
-const HEIGHT = SIZE.md.split(' ').find(c => c.startsWith('h-'));
-const MOTION = 'transition-[border-radius] duration-(--md-sys-motion-duration-short3) ease-standard';
-
-// Подсветка пункта — слоем on-surface ([UI-64]), мышью и стрелкой одинаково (data-highlighted Radix).
-const itemCls =
-  'flex items-start gap-2 px-3 py-2 cursor-pointer select-none outline-none ' +
-  'state-layer data-[disabled]:pointer-events-none';
+// Переход формы — добавкой к переходу слоя состояния (`state-layer` в BASE): свой класс transition-*
+// отнял бы transition-property у слоя или слой у него, смотря по порядку утилит (src/index.css).
+const MORPH = '[--_also-transition:border-radius]';
+const itemCls = `flex items-start gap-2 px-3 py-2 ${MENU_ITEM}`;
 
 /**
  * Split-кнопка M3 Expressive ([UI-83]): основная часть делает действие одним нажатием, стрелка
@@ -62,9 +59,14 @@ export function SplitButton({
   children, icon, onClick, title, variant = 'filled', disabled = false, loading = false, menuLabel, items,
 }: SplitButtonProps) {
   const off = disabled || loading;
-  const look = `${BASE} ${variantClass(variant)} ${MOTION}`;
-  if (items.length === 0 && import.meta.env.DEV)
-    console.error('SplitButton без вариантов — это обычная Button.');
+  const look = `${BASE} ${variantClass(variant)} ${MORPH}`;
+  const arrow = useRef<HTMLButtonElement>(null);
+  // Выбранный пункт ждёт, пока меню закроется и фокус вернётся на стрелку: окно, открытое пунктом,
+  // запоминает фокус при открытии и возвращает его туда же — иначе это снятый пункт, и фокус уходит в body.
+  const chosen = useRef<SplitButtonItem | null>(null);
+  useEffect(() => {
+    if (items.length === 0 && import.meta.env.DEV) console.error('SplitButton без вариантов — это обычная Button.');
+  }, [items.length]);
 
   return (
     <div className="inline-flex shrink-0 gap-0.5">
@@ -79,22 +81,28 @@ export function SplitButton({
         <DropdownMenu.Root>
           <Tooltip name content={menuLabel}>
             <DropdownMenu.Trigger asChild disabled={off}>
-              <button type="button"
-                className={`group ${look} ${HEIGHT} w-11 rounded-r-full rounded-l-xs active:rounded-l-sm data-[state=open]:rounded-l-full`}>
+              <button ref={arrow} type="button"
+                className={`group ${look} ${HEIGHT.md} w-11 rounded-r-full rounded-l-xs active:rounded-l-sm data-[state=open]:rounded-l-full`}>
                 <Icon icon={KeyboardArrowDown} size={20}
                   className="transition-transform duration-(--md-sys-motion-duration-short3) ease-standard group-data-[state=open]:rotate-180" />
               </button>
             </DropdownMenu.Trigger>
           </Tooltip>
           <DropdownMenu.Portal>
-            <DropdownMenu.Content align="end" sideOffset={4}
-              className="z-50 min-w-44 max-w-80 rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
+            <DropdownMenu.Content align="end" sideOffset={4} className={`z-50 min-w-44 max-w-80 ${MENU_SURFACE}`}
+              onCloseAutoFocus={e => {
+                const item = chosen.current;
+                if (!item) return;
+                chosen.current = null;
+                e.preventDefault();
+                arrow.current?.focus();
+                item.onSelect();
+              }}>
               {items.map(item => {
-                // Отключённое — содержимое on-surface 38 % ([UI-64]), как в RowActionsMenu.
-                const dim = item.disabled ? 'text-on-surface/38' : '';
+                const dim = item.disabled ? MENU_ITEM_OFF : '';
                 return (
                   <DropdownMenu.Item key={item.key} className={itemCls} disabled={item.disabled}
-                    onSelect={() => item.onSelect()}>
+                    onSelect={() => { chosen.current = item; }}>
                     {item.icon && <span className={`shrink-0 mt-0.5 ${dim || 'text-on-surface-variant'}`}>{item.icon}</span>}
                     <span>
                       <span className={`block text-body-medium ${dim || 'text-on-surface'}`}>{item.label}</span>
