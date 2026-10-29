@@ -56,15 +56,16 @@
   глобального перехода, уменьшенное движение); «Цвет» — без `bg-black/5` и `dark:` как законных; «Кто
   сторожит» — `raw-state`, `dark-variant`; перечень правил в `CLAUDE.md` и `AGENTS.md` одним коммитом
   [UI-64] [UI-65]. Проверка — `dotnet test … --filter AgentRulesCopy` зелёный
-- [ ] 2.5 После слияния — `/design-sync` из основной копии. Проверка — в бандле дизайн-системы нет
-  `brightness-` и `bg-black/5`
+- [x] 2.5 После слияния — `/design-sync` из основной копии. Проверка — в бандле дизайн-системы нет
+  `brightness-` и `bg-black/5`. Сделано владельцем 29.10.2026
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~AgentRulesCopy"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста; `raw-state`,
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~AgentRulesCopy"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный
+- [x] 3.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста; `raw-state`,
   `dark-variant`, `legacy-class` — 0
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 3.5 `cd src/client && npm run -s test:e2e:ci` — весь список живых прогонов зелёный в каждом PR:
-  меняются общие компоненты и оболочка (зонтик, 5.1)
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.5 `cd src/client && npm run -s test:e2e:ci` — весь список живых прогонов зелёный в каждом PR:
+  меняются общие компоненты и оболочка (зонтик, 5.1). Все пять — зелёный CI #1684 и #1685 (Backend,
+  Frontend, живые прогоны) и локальный прогон на итоговом коммите #1685: 3113 тестов, e2e 21/21
