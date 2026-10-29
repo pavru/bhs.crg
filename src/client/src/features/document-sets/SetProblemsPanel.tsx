@@ -250,7 +250,7 @@ export function SetProblemsPanel({ setId, setName, documentNames }: {
 
       {/* ── Арифметика системы ──────────────────────────────────────────────── */}
       <section className="space-y-2">
-        <h3 className="text-body-small font-semibold uppercase tracking-wide text-on-surface-variant">Находки сверки</h3>
+        <h3 className="text-title-small text-on-surface-variant">Находки сверки</h3>
         {problems?.reconciliations.length
           ? problems.reconciliations.map(r => (
               <ReconciliationBlock key={r.id} id={r.id} name={r.name} unresolved={r.unresolvedFindings} />
@@ -265,13 +265,13 @@ export function SetProblemsPanel({ setId, setName, documentNames }: {
 
       {/* ── Утверждения агента ──────────────────────────────────────────────── */}
       <section className="space-y-2">
-        <h3 className="text-body-small font-semibold uppercase tracking-wide text-on-surface-variant flex items-center gap-1.5">
+        <h3 className="text-title-small text-on-surface-variant flex items-center gap-1.5">
           <Icon icon={SmartToy} size={18} /> Замечания анализа
           <span className="flex-1" />
           {/* Журнал агента целиком (и его чистка) — в разделе «Сверка»: удалять записи с вкладки
               комплекта незачем, здесь их разбирают. */}
           <Link to="/reconciliations?view=observations"
-            className="inline-flex items-center gap-1 text-label-small font-normal normal-case tracking-normal text-primary hover:underline">
+            className="inline-flex items-center gap-1 text-label-small font-normal text-primary hover:underline">
             <Icon icon={OpenInNew} size={18} /> Весь журнал
           </Link>
         </h3>

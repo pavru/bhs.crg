@@ -12,4 +12,4 @@ export function panelLink(isActive: boolean, muted = false): string {
 }
 
 /** Микрозаголовок навигации и групп — по docs/UI.md, «Заголовки». Один на подпанель и меню раздела. */
-export const MICRO_HEADING = 'px-3 mb-1 text-label-small font-semibold uppercase tracking-widest select-none text-on-surface-variant';
+export const MICRO_HEADING = 'px-3 mb-1 text-title-small select-none text-on-surface-variant';

@@ -35,7 +35,7 @@ export function PaymentPostingTable({ posting, changed, expanded = false }: {
 
   if (!warning && !shown)
     return (
-      <div className="text-note text-on-surface-variant">
+      <div className="text-body-medium text-on-surface-variant">
         Вся сумма войдёт в затраты {formatDate(posting.paidOn)}.{' '}
         <button type="button" className="underline decoration-dotted underline-offset-2 text-on-surface-variant"
           onClick={() => setShown(true)}>
@@ -76,7 +76,7 @@ export function PaymentPostingTable({ posting, changed, expanded = false }: {
   return (
     <div className="space-y-2">
       {warning && (
-        <p role="note" className="flex items-start gap-1.5 text-note text-warning">
+        <p role="note" className="flex items-start gap-1.5 text-body-medium text-warning">
           <Icon icon={SwapHoriz} size={18} className="shrink-0 mt-0.5" /> {warning}
         </p>
       )}
@@ -84,7 +84,7 @@ export function PaymentPostingTable({ posting, changed, expanded = false }: {
         rows={lines([...summary.moved, ...calm], open)}
         tone={line => line.part === null && changed?.has(line.key) ? 'warning' : null} />
       {folded.length > 0 && (
-        <button type="button" className="px-2 text-note underline decoration-dotted underline-offset-2 text-on-surface-variant"
+        <button type="button" className="px-2 text-body-medium underline decoration-dotted underline-offset-2 text-on-surface-variant"
           onClick={() => setUnfolded(true)}>
           {foldedLabel(folded)}
         </button>

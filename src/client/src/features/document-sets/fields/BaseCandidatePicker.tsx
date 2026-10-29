@@ -81,13 +81,13 @@ function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCan
           <div id="bcp-listbox" role="listbox" aria-label="Кандидаты" className="space-y-3 max-h-72 overflow-y-auto">
             {proxyCands.length > 0 && (
               <div className="space-y-1">
-                <p className="text-label-small font-semibold text-on-surface-variant uppercase tracking-wide px-1">Роль на реальный объект (тот же тип)</p>
+                <p className="text-title-small text-on-surface-variant px-1">Роль на реальный объект (тот же тип)</p>
                 {proxyCands.map((c, i) => row(c, i))}
               </div>
             )}
             {baseCands.length > 0 && (
               <div className="space-y-1">
-                {proxyCands.length > 0 && <p className="text-label-small font-semibold text-on-surface-variant uppercase tracking-wide px-1">Базовый тип</p>}
+                {proxyCands.length > 0 && <p className="text-title-small text-on-surface-variant px-1">Базовый тип</p>}
                 {baseCands.map((c, j) => row(c, proxyCands.length + j))}
               </div>
             )}

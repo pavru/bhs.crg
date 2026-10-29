@@ -14,9 +14,9 @@ export function AuthCard({ title, subtitle, children }: {
       <div className="w-full max-w-sm rounded-xl bg-surface border border-outline-variant p-8 shadow-elevation-2">
         <div className="flex items-center gap-3 mb-6">
           <BrandLogo className="w-11 h-11 rounded-md bg-primary text-on-primary shadow-elevation-1" iconSize={22} />
-          <span className="text-2xl font-semibold text-primary leading-none">{productName}</span>
+          <span className="text-headline-small font-semibold text-primary leading-none">{productName}</span>
         </div>
-        <h1 className="text-xl font-normal text-on-surface">{title}</h1>
+        <h1 className="text-title-large text-on-surface">{title}</h1>
         {subtitle && <p className="mt-1.5 mb-6 text-body-medium text-on-surface-variant">{subtitle}</p>}
         <div className={subtitle ? '' : 'mt-6'}>{children}</div>
       </div>

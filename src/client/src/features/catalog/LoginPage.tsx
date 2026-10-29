@@ -66,16 +66,16 @@ export function LoginPage() {
           {/* Название и логотип экземпляра (ТЗ CORE-25.1, issue #967). */}
           <div className="flex items-center gap-3">
             <BrandLogo className="w-12 h-12 rounded-2xl bg-on-primary/20" iconSize={24} />
-            <span className="text-2xl font-medium tracking-wide">{productName}</span>
+            <span className="text-headline-small font-medium">{productName}</span>
           </div>
           <div>
-            <div className="text-3xl font-normal leading-tight">Исполнительная документация</div>
+            <div className="text-headline-medium">Исполнительная документация</div>
             <p className="mt-4 text-body-large leading-relaxed text-on-primary/70 max-w-[300px]">
               Единая система ведения и согласования исполнительной документации по объекту строительства.
             </p>
           </div>
           <Tooltip content={version?.buildDate ? formatDateTime(version.buildDate) : undefined}>
-            <div className="text-body-small tracking-wide text-on-primary/55">
+            <div className="text-body-small text-on-primary/55">
               {versionLabel || ' '}
             </div>
           </Tooltip>
@@ -86,7 +86,7 @@ export function LoginPage() {
           {/* Компактный бренд для узких экранов (панель скрыта) */}
           <div className="flex md:hidden items-center gap-3 mb-6">
             <BrandLogo className="w-11 h-11 rounded-md bg-primary text-on-primary shadow-elevation-1" iconSize={22} />
-            <span className="text-2xl font-semibold text-primary leading-none">{productName}</span>
+            <span className="text-headline-small font-semibold text-primary leading-none">{productName}</span>
           </div>
 
           {/* Пока не знаем, есть ли в системе пользователи, не рисуем НИЧЕГО. Показать вход и
@@ -134,7 +134,7 @@ function Waiting() {
 function Head({ title, subtitle }: { title: string; subtitle: ReactNode }) {
   return (
     <>
-      <h1 className="text-2xl font-normal text-on-surface">{title}</h1>
+      <h1 className="text-headline-small text-on-surface">{title}</h1>
       <p className="mt-1.5 mb-8 text-body-medium text-on-surface-variant">{subtitle}</p>
     </>
   );

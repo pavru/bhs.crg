@@ -69,7 +69,7 @@ export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, ot
         />
         {filteredCatalog.length > 0 && (
           <div>
-            <p className="text-body-small font-medium text-on-surface-variant uppercase tracking-wide mb-2">Каталог общих данных</p>
+            <p className="text-title-small text-on-surface-variant mb-2">Каталог общих данных</p>
             <ScopeGroupList groups={groups} isExpanded={isExpanded} toggle={toggle}
               onSelect={selectCatalog} maxHeight="max-h-48" />
           </div>
@@ -79,7 +79,7 @@ export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, ot
             {/* Заголовок стоит всегда, а не только рядом с каталогом: тот же раздел в «Из каталога»
                 подписан постоянно, и пропадающая подпись делала два списка неодинаковыми там, где
                 они как раз про одно и то же (issue #751). */}
-            <p className="text-body-small font-medium text-on-surface-variant uppercase tracking-wide mb-2">Документы комплекта</p>
+            <p className="text-title-small text-on-surface-variant mb-2">Документы комплекта</p>
             <div className="space-y-1 max-h-48 overflow-y-auto">
               {filteredInstances.map(inst => {
                 const dt = allDocTypes.find(t => t.id === inst.documentTypeId);

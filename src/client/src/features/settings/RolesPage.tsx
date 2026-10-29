@@ -137,7 +137,7 @@ export function RolesPage() {
         <div className="px-6 py-4 pb-2 max-w-3xl">
           <div className="flex items-start justify-between gap-4 mb-1">
             <div>
-              <h2 className="text-lg font-semibold text-on-surface flex items-center gap-2">
+              <h2 className="text-title-medium text-on-surface flex items-center gap-2">
                 <Icon icon={VerifiedUser} size={18} className="text-on-surface-variant" />
                 {selected.title}
               </h2>
@@ -157,7 +157,7 @@ export function RolesPage() {
             </div>
           </div>
 
-          <p className="text-note text-on-surface-variant mb-4">
+          <p className="text-body-medium text-on-surface-variant mb-4">
             Роль носят {selected.users} чел.{' '}
             {locked
               ? 'Состав этой роли задан не здесь — см. ниже.'
@@ -165,7 +165,7 @@ export function RolesPage() {
           </p>
 
           {locked && (
-            <p className="text-note text-on-surface-variant border border-outline-variant rounded-md bg-surface-container px-4 py-3 mb-4">
+            <p className="text-body-medium text-on-surface-variant border border-outline-variant rounded-md bg-surface-container px-4 py-3 mb-4">
               <span className="font-medium">Состав этой роли не правится.</span> Он не перечислен:
               он равен справочнику прав и пополняется вместе с ним — поэтому право следующего
               обновления достанется ей само. Снятое здесь вернулось бы при ближайшем запуске, а
@@ -176,7 +176,7 @@ export function RolesPage() {
 
           {groups.map(group => (
             <section key={group.module} className="mb-5">
-              <h2 className="text-label-small font-medium uppercase tracking-wide text-on-surface-variant mb-2">{group.title}</h2>
+              <h2 className="text-title-small text-on-surface-variant mb-2">{group.title}</h2>
               <div className="border border-outline-variant rounded-md divide-y divide-surface-container bg-surface">
                 {group.permissions.map((p: PermissionInfo) => (
                   <label key={p.code} className={`flex gap-3 px-4 py-2.5 state-layer ${

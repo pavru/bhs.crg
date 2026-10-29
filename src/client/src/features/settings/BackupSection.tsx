@@ -462,7 +462,7 @@ function RestoreResultModal({ report }: { report: RestoreReport }) {
 
         {report.warnings.length > 0 && (
           <div className="rounded-md border border-outline-variant bg-warning-container p-3 space-y-1">
-            <p className="text-body-small font-semibold text-warning uppercase tracking-wide mb-2">
+            <p className="text-title-small text-warning mb-2">
               Предупреждения ({report.warnings.length})
             </p>
             {report.warnings.map((w, i) => (

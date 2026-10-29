@@ -234,7 +234,7 @@ export function EntryDataSetBindings({
 
   return (
     <div className="rounded-md border border-outline-variant p-3 space-y-2">
-      <p className="text-body-small font-semibold text-on-surface-variant uppercase tracking-wide">Наборы данных</p>
+      <p className="text-title-small text-on-surface-variant">Наборы данных</p>
 
       {bindings.length > 0 && (
         <div className="rounded-lg overflow-hidden border border-outline-variant bg-surface">

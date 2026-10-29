@@ -15,7 +15,7 @@ import { useOpenAttachment } from '@/shared/hooks/useOpenAttachment';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import {
   useListQualityDocs, useDeleteQualityDoc, useListMaterialLinks, useRemoveMaterialLinks, searchQualityDocs,
-  importQualityDocFromUrl, type QualityDocument, type SearchCandidate, type MaterialQualityLink,
+  importQualityDocFromUrl, SEARCH_SOURCE_LABEL, type QualityDocument, type SearchCandidate, type MaterialQualityLink,
 } from '@/shared/api/qualityDocs';
 import { SCOPE_LABELS, type CatalogScope } from '@/shared/api/types';
 import { resolveEffectiveFields, typeHasTag } from '@/shared/api/schema';
@@ -35,7 +35,6 @@ import { Tooltip } from '@/shared/ui/Tooltip';
 
 // Метки областей — только из общего словаря (issue #649). Локальный дубль называл System «Общей»,
 // и на одном экране уровень документа и уровень его связок читались бы разными словами.
-const SOURCE_LABEL: Record<string, string> = { file: 'Файл', fgis: 'ФГИС', manufacturer: 'Произв.', web: 'Веб' };
 
 /** Значение реквизита по функциональному тэгу — общий модуль опознания документа (issue #588):
  *  имена полей не хардкодим, для того тэги и заведены. */
@@ -245,7 +244,7 @@ export function QualityDocsPage() {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           {/* Имени мало: в библиотеке два документа с одинаковым названием и разным содержимым. */}
-          <h2 className="text-lg font-semibold text-on-surface break-words">{current.displayName}</h2>
+          <h2 className="text-title-medium text-on-surface break-words">{current.displayName}</h2>
           <p className="text-body-small text-on-surface-variant mt-0.5">
             {[typeNameOf(current, docTypes),
               byTag(current, docTypes, FUNCTIONAL_TAG.docNumber) && `№ ${byTag(current, docTypes, FUNCTIONAL_TAG.docNumber)}`,
@@ -461,7 +460,7 @@ function WebSearchModal({ open, onClose, docTypes }: {
               {candidates.map(c => (
                 <div key={c.url} className="flex items-start gap-3 px-3 py-2">
                   <span className="text-label-small px-1.5 py-0.5 rounded-xs bg-primary-container text-on-primary-container shrink-0 mt-0.5">
-                    {SOURCE_LABEL[c.source] ?? c.source}
+                    {SEARCH_SOURCE_LABEL[c.source] ?? c.source}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-body-medium text-on-surface truncate">{c.title || c.url}</p>

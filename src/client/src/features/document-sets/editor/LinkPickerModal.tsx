@@ -8,7 +8,7 @@ import { SearchInput } from '@/shared/ui/SearchInput';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
 import type { PickType } from '@/shared/ui/TypePicker';
 import {
-  useListQualityDocs, searchQualityDocs, importQualityDocFromUrl,
+  useListQualityDocs, searchQualityDocs, importQualityDocFromUrl, SEARCH_SOURCE_LABEL,
   type SearchCandidate, type QualityDocument,
 } from '@/shared/api/qualityDocs';
 import type { DocumentType, CatalogScope } from '@/shared/api/types';
@@ -248,7 +248,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
             <div className="max-h-80 overflow-y-auto divide-y divide-surface-container border border-outline-variant rounded-sm">
               {results.map(c => (
                 <div key={c.url} className="flex items-start gap-2 px-3 py-2">
-                  <span className="text-label-small uppercase px-1.5 py-0.5 rounded-xs bg-surface-container-low text-on-surface-variant shrink-0 mt-0.5">{c.source}</span>
+                  <span className="text-label-small px-1.5 py-0.5 rounded-xs bg-surface-container-low text-on-surface-variant shrink-0 mt-0.5">{SEARCH_SOURCE_LABEL[c.source] ?? c.source}</span>
                   <div className="flex-1 min-w-0">
                     <a href={c.url} target="_blank" rel="noreferrer"
                       className="text-body-medium text-primary hover:underline flex items-center gap-1">

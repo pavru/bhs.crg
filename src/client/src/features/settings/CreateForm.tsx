@@ -116,7 +116,7 @@ export function CreateForm({
 
       {parentEffectiveFields.length > 0 && (
         <div>
-          <p className="text-body-small font-medium text-on-surface-variant mb-2 uppercase tracking-wide">
+          <p className="text-title-small text-on-surface-variant mb-2">
             Наследуемые поля от «{parentType?.name}» ({parentEffectiveFields.length})
           </p>
           <div className="border border-outline-variant rounded-md bg-surface-container-low px-3 py-2 space-y-1">

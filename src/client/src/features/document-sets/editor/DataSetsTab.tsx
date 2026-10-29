@@ -755,7 +755,7 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
       {showPreview && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-body-small font-semibold uppercase tracking-wide text-on-surface-variant">
+            <span className="text-title-small text-on-surface-variant">
               Результат проверки
             </span>
             <button

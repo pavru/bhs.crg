@@ -26,7 +26,7 @@ export function NoAccessPage({ what, missing }: {
       <div className="max-w-md space-y-4 text-center">
         <Icon icon={LockIcon} size={40} className="mx-auto text-on-surface-variant" aria-hidden />
 
-        <h1 className="text-xl font-medium text-on-surface">
+        <h1 className="text-title-large font-medium text-on-surface">
           {what === undefined ? 'Нет доступных разделов' : `Раздел «${what}» недоступен`}
         </h1>
 

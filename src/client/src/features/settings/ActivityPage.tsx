@@ -144,7 +144,7 @@ export function ActivityPage() {
           {/* Страницами, а не кнопкой «показать ещё»: журнал копится годами, и растущий запрос
               рано или поздно упёрся бы в потолок страницы на сервере — список перестал бы
               удлиняться молча, и выглядело бы это как «записей больше нет». */}
-          <div className="flex items-center justify-between mt-3 text-note text-on-surface-variant">
+          <div className="flex items-center justify-between mt-3 text-body-medium text-on-surface-variant">
             <span>
               Строки {page * PAGE + 1}–{page * PAGE + records.length} из {total}
             </span>

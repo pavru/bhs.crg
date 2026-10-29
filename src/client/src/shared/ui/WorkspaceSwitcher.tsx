@@ -63,13 +63,13 @@ export function WorkspaceSwitcher() {
         <DropdownMenu.Portal>
           <DropdownMenu.Content align="start" sideOffset={4}
             className="z-50 min-w-64 max-w-96 max-h-[70vh] overflow-auto rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
-            <DropdownMenu.Label className="px-3 pt-1 pb-0.5 text-label-small font-semibold uppercase tracking-widest text-on-surface-variant">
+            <DropdownMenu.Label className="px-3 pt-1 pb-0.5 text-title-small text-on-surface-variant">
               Системные
             </DropdownMenu.Label>
             {system.map(item)}
             {own.length > 0 && <>
               <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
-              <DropdownMenu.Label className="px-3 pt-1 pb-0.5 text-label-small font-semibold uppercase tracking-widest text-on-surface-variant">
+              <DropdownMenu.Label className="px-3 pt-1 pb-0.5 text-title-small text-on-surface-variant">
                 Мои
               </DropdownMenu.Label>
               {own.map(item)}

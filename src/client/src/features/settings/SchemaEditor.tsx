@@ -219,7 +219,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
       {parentType && (
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <p className="text-body-small font-medium text-on-surface-variant uppercase tracking-wide">
+            <p className="text-title-small text-on-surface-variant">
               Унаследовано от «{parentType.name}»
             </p>
             {excludedFields.length > 0 && (
@@ -269,7 +269,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-body-small font-medium text-on-surface-variant uppercase tracking-wide">
+          <p className="text-title-small text-on-surface-variant">
             {parentType ? 'Поля и группировка' : 'Поля'}
           </p>
           {(fields.length > 0 || parentEffectiveFields.length > 0) && (

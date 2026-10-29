@@ -140,7 +140,7 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
       ) : (
         <>
           <div className="border border-outline-variant rounded-lg overflow-hidden">
-            <div className="grid grid-cols-[1fr_7rem_7rem_2.5rem] gap-2 px-3 py-2 bg-surface-container text-label-small uppercase tracking-wide text-on-surface-variant">
+            <div className="grid grid-cols-[1fr_7rem_7rem_2.5rem] gap-2 px-3 py-2 bg-surface-container text-label-medium text-on-surface-variant">
               <span>Тип документа</span>
               <span className="text-right">План</span>
               <span className="text-right">Выпущено</span>

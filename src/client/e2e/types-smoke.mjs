@@ -99,7 +99,8 @@ await check('field-type-picker-has-all-sections', async () => {
   // реестров, что уже загружены переходом на страницу, — ждать сервер здесь нечего.
   await settled(page);
   const t = await page.locator('[role=dialog]').last().innerText();
-  for (const section of ['БАЗОВЫЕ', 'ТИПЫ ПОЛЕЙ (РЕЕСТР)', 'ПЕРЕЧИСЛЕНИЯ', 'СОСТАВНЫЕ ТИПЫ']) {
+  // innerText отдаёт регистр, каким текст НАРИСОВАН: пока заголовки групп были капсом, ждали капс.
+  for (const section of ['Базовые', 'Типы полей (реестр)', 'Перечисления', 'Составные типы']) {
     if (!t.includes(section)) throw new Error(`в пикере нет раздела «${section}»`);
   }
 });

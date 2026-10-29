@@ -55,7 +55,7 @@ export function CompanySection() {
 
   return (
     <CollapsibleSection title="Компания" storageKey="company" defaultOpen={false}
-      right={dirty || zoneDirty ? <span className="text-body-small text-warning normal-case">не сохранено</span> : undefined}>
+      right={dirty || zoneDirty ? <span className="text-body-small text-warning">не сохранено</span> : undefined}>
       {isError && (
         <div className="flex items-center gap-3">
           <span className="text-body-medium text-error">Настройки компании не загрузились.</span>

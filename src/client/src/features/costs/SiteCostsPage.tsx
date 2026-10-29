@@ -206,9 +206,9 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
       <CostViewsBand data={data} closing={asked} onChange={onView} />
       <ViewPanel shown={!!data.differs} view={asked ? 'closing' : 'corrected'}>
         <section aria-label="Затраты за период">
-          <h2 className="text-body-small font-medium uppercase tracking-wide text-on-surface-variant">
+          <h2 className="text-title-small text-on-surface-variant">
             Затраты за {period}
-            <span className="ml-2 normal-case tracking-normal font-normal text-on-surface-variant">
+            <span className="ml-2 text-body-small text-on-surface-variant">
               оплаченные счета, по учётному периоду долей{data.withVat ? '' : ' · без НДС'}{closing ? ' · на момент закрытия' : ''}
             </span>
           </h2>
@@ -266,7 +266,7 @@ function Report({ data, bySections, onSite, stale, asked, onView }: {
       </ViewPanel>
 
       <section aria-label="Не входит в затраты" className="border-t border-outline-variant pt-3">
-        <h2 className="text-body-small font-medium uppercase tracking-wide text-on-surface-variant">Не входит в затраты</h2>
+        <h2 className="text-title-small text-on-surface-variant">Не входит в затраты</h2>
         <DataGrid className="mt-1.5" columns={costColumns('Показатель', undefined, linkNote)} rowKey={l => l.key} rows={[{
           kind: 'figure', key: 'payable', figure: data.payable, label: 'К оплате',
           link: data.payable.invoices > 0 ? siteCostsLinks.payable(data) : undefined,

@@ -749,7 +749,7 @@ export function CatalogEntryForm({
                   {isExpanded
                     ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" />
                     : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
-                  <span className="text-body-small font-semibold uppercase tracking-wide text-on-surface-variant flex-1">{section.title}</span>
+                  <span className="text-title-small text-on-surface-variant flex-1">{section.title}</span>
                   {/* Метка на заголовке: свёрнутая группа иначе прячет причину отказа. */}
                   {section.fields.some(f => Object.keys(constraintErrors).some(k => violationRootKey(k) === f.key)) && (
                     <Tooltip content="Есть ошибка формата"><span className="w-1.5 h-1.5 rounded-full bg-error shrink-0" /></Tooltip>

@@ -405,7 +405,7 @@ export function SourcesPanel({
   return (
     <div>
       <div className="flex items-center justify-between gap-2 mb-2">
-        <span className="text-body-small font-semibold uppercase tracking-wide text-on-surface-variant">
+        <span className="text-title-small text-on-surface-variant">
           Источники{sources.length > 0 ? ` · ${sources.length}` : ''}
         </span>
         {canManageExtraction && !systemDeadEnd && (

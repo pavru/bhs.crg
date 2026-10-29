@@ -70,7 +70,7 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
       </ToolbarButton>
       {open && (
         <div className="absolute top-full left-0 mt-1 z-50 bg-surface border border-outline-variant rounded-md shadow-elevation-2 w-80 max-h-80 overflow-y-auto">
-          <div className="px-3 py-2 border-b border-surface-container text-body-small font-semibold text-on-surface-variant uppercase tracking-wide sticky top-0 bg-surface">
+          <div className="px-3 py-2 border-b border-surface-container text-title-small text-on-surface-variant sticky top-0 bg-surface">
             Реквизиты · {docType.name}
           </div>
           {fields.length === 0 ? (

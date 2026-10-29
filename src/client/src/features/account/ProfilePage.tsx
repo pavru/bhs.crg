@@ -102,7 +102,7 @@ export function ProfilePage() {
       {/* Аватар (issue #245) */}
       <div className="flex items-center gap-4 mb-6">
         <Avatar src={account.avatar} name={account.displayName} email={account.email}
-          className="w-16 h-16 text-xl" />
+          className="w-16 h-16 text-title-large" />
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
             <Button type="button" variant="outlined" size="sm" icon={<Icon icon={Upload} size={18} />}

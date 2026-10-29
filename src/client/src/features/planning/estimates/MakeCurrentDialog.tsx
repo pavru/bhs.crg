@@ -80,13 +80,13 @@ function Body({ estimateId, revisionId, make, onDone }: {
       )}
 
       {data.unmatched > 0 && (
-        <p className="rounded-sm border border-outline-variant bg-warning-container px-3 py-2 text-note text-on-warning-container">
+        <p className="rounded-sm border border-outline-variant bg-warning-container px-3 py-2 text-body-medium text-on-warning-container">
           В ред. {data.revisionNumber} не сопоставлено строк: {formatCount(data.unmatched)} — в план они не войдут. Действующей её
           можно сделать и сейчас; сопоставленное позже войдёт в план само.
         </p>
       )}
 
-      {refusal && <p role="alert" className="text-note text-error">{refusal.text}</p>}
+      {refusal && <p role="alert" className="text-body-medium text-error">{refusal.text}</p>}
 
       <div className="flex justify-end gap-2 pt-1">
         <ModalExit />

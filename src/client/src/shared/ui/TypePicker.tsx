@@ -166,7 +166,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'Ð’Ñ
                 {g.heading && (
                   <div className="mt-2 border-t border-outline-variant px-3 pt-3 pb-1 text-body-small font-medium text-on-surface-variant">{g.heading}</div>
                 )}
-                <div className="px-3 pt-2 pb-1 text-label-small font-semibold uppercase tracking-wide text-on-surface-variant">{g.label}</div>
+                <div className="px-3 pt-2 pb-1 text-title-small text-on-surface-variant">{g.label}</div>
                 <ul>
                   {g.items.map(t => {
                     const i = ++idx;

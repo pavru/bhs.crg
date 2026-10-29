@@ -11,10 +11,7 @@
   --font-mono: 'Roboto Mono', ui-monospace, 'Cascadia Code', Consolas, monospace; /* код, версия */
 
   /* Текст — 15 ролей MD3 ([UI-67]): text-body-medium, text-label-small… приносит слой темы md3-tailwind.css,
-     назначение — docs/UI.md, «Текст». Ступень note (13 px, сообщение формы и строка расклада) — вне шкалы
-     MD3 и доживает до перевода по месту (sharedui-md3-07, PR 2): body-small у поля, body-medium в теле. */
-  --text-note: 13px;
-  --text-note--line-height: 20px;
+     назначение — docs/UI.md, «Текст». Своих ступеней нет. */
 
   /* Скругления и тени — шкала формы и уровни возвышения MD3 ([UI-66]): rounded-xs…xl и
      shadow-elevation-1…5 приносит слой темы md3-tailwind.css. Назначение — docs/UI.md, «Форма и возвышение». */
