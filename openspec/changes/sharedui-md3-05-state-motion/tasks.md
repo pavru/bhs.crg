@@ -29,7 +29,7 @@
   `Calendar`, `Switch`, `Checkbox`; `brightness-*`, `brand-hover/pressed`, `opacity-*` у отключённого в
   `shared/ui` — ноль [UI-64]. Проверка — vitest компонентов, проверяющих классы, переписаны на новую
   модель; `rg "brightness-|brand-hover|brand-pressed|disabled:opacity" src/client/src/shared` пусто
-- [ ] 1.4 Глобальный `transition` на `*` и `.no-transition` удалены; переходы компонентов —
+- [x] 1.4 Глобальный `transition` на `*` и `.no-transition` удалены; переходы компонентов —
   `ease-standard`; правило `prefers-reduced-motion` в базе, индикатор хода — исключение [UI-65]. Проверка —
   живой прогон или vitest: вычисленный `transition` произвольного `div` — `none`; у кнопки — с кривой
   `standard`
@@ -37,8 +37,9 @@
   уровнями по файлам [UI-64]. Проверка — `ui-ratchet.test.mjs`: `hover:bg-black/5`, `bg-white/10`,
   `hover:brightness-95`, `hover:bg-surface-container`, `dark:hover:bg-white/10` считаются; `bg-scrim/32` и
   регулярка со строкой `dark:` — нет
-- [ ] 1.6 Снимки 5–7 ключевых экранов до и после в обеих темах на 1366×768 и 375 px (зонтик, 5.2);
+- [x] 1.6 Снимки 5–7 ключевых экранов до и после в обеих темах на 1366×768 и 375 px (зонтик, 5.2);
   отдельно — наведение, фокус и отключённое на кнопках и в таблице. Проверка — снимки в описании PR
+  Снимки PR 1 (29.10.2026): https://claude.ai/artifact/HNHkivhRLvhKKtCoBzWYke — экраны в покое совпадают
 
 ## 2. Экраны (PR 2)
 
