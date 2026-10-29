@@ -98,7 +98,21 @@ describe('md3:migrate: неоднозначное не трогает, а наз
   });
 
   it('та же пара в другой утилите переводится: border-stroke-strong, bg-fg4', () => {
-    expect(migrated('"border-stroke-strong bg-fg4"')).toBe('"border-outline bg-outline"');
+    expect(migrated('"border-stroke-strong bg-fg4"')).toBe('"border-outline bg-on-surface-variant"');
+  });
+
+  it('роль текста в утилите линии — не переводится: border-fg4, border-l-fg4, ring-fg4, divide-fg4', () => {
+    const source = '"border-fg4 border-l-fg4 hover:ring-fg4/40 divide-fg4 outline-fg4"';
+    expect(migrated(source)).toBe(source);
+    expect(run(source).untouched).toEqual(['border-fg4', 'border-l-fg4', 'ring-fg4', 'divide-fg4', 'outline-fg4']
+      .map(token => ({ line: 1, token, reason: expect.stringContaining('обводка цветом текста запрещена') })));
+  });
+
+  it('lines пары делает неоднозначной и её переменную', () => {
+    const map = { names: { fg9: { to: 'on-surface-variant', lines: 'роль текста' } }, classes: {}, vars: {} };
+    expect(compile(map, ['fg9']).variable('--color-fg9'))
+      .toEqual({ reason: expect.stringContaining('обводка с fg9 — роль текста') });
+    expect(compile(map, ['fg9']).cls('fill-fg9')).toEqual({ to: 'fill-on-surface-variant', pair: 'fg9 → on-surface-variant' });
   });
 
   it('var(--color-fg4) и var(--color-stroke-strong) — неоднозначны: text-fg4 не переводится, а у переменной утилиты нет', () => {
@@ -213,9 +227,9 @@ describe('md3:migrate: пары карты рисуют то же', () => {
   });
 
   it('пара с другим значением краснеет и называет пару и тему', () => {
-    const bad = mismatches({ fg3: { to: 'on-surface-variant', same: true } });
+    const bad = mismatches({ 'brand-hover': { to: 'primary', same: true } });
     expect(bad.length).toBeGreaterThan(0);
-    expect(bad[0]).toMatch(/^bg-fg3 → bg-on-surface-variant \(светлая тема\)/);
+    expect(bad[0]).toMatch(/^bg-brand-hover → bg-primary \(светлая тема\)/);
     expect(bad.some(m => m.includes('(тёмная тема)'))).toBe(true);
   });
 });

@@ -80,6 +80,9 @@ Tailwind (`bg-indigo-50`, `text-purple-700`, `border-red-200`) запрещен�
 переключается с темой: в тёмной теме он остаётся светлым пятном или пропадает на фоне.
 
 Роли — полный набор схемы MD3 и свои `success` / `warning`; источник — `src/client/src/theme/md3-theme.json`.
+Значения ролей обеих тем вписаны не руками: их считает генератор схемы MD3 (`material-color-utilities`) из
+seed `#1d5fb0` по варианту `tonalSpot`, primary светлой темы закреплён равным seed ([UI-62], решение
+владельца 29.10.2026).
 Класс — имя роли с любой цветовой утилитой: `bg-surface-container-high`, `text-on-surface`,
 `border-outline-variant`, `ring-primary`. Ниже — роли, которыми рисует интерфейс, и **старое имя**:
 до финала эпика оно — переходный псевдоним и рисует ровно то же ([UI-58]), но в новом коде не пишется
@@ -88,8 +91,8 @@ Tailwind (`bg-indigo-50`, `text-purple-700`, `border-red-200`) запрещен�
 | Роль MD3 | Старое имя, псевдоним до финала эпика | Для чего |
 |---|---|---|
 | `on-surface` | `fg1` | основной текст |
-| `on-surface-variant` | `fg2` | подпись, второстепенный текст |
-| `outline` | `fg4`, `stroke-strong` | примечание; сильная обводка |
+| `on-surface-variant` | `fg2`, `fg3`, `fg4` | подпись, пояснение, метаданные — у текста две роли ([UI-63]) |
+| `outline` | `stroke-strong` | сильная обводка; текстом не служит |
 | `surface` | — (то же имя) | карточка, панель, всплывающий слой |
 | `surface-container-low` | `base` | фон страницы |
 | `surface-container` | `muted` | заливка поля, спокойная зона |
@@ -108,18 +111,18 @@ Tailwind (`bg-indigo-50`, `text-purple-700`, `border-red-200`) запрещен�
 У роли `shadow` класса нет: цвет тени рисуют уровни (`--md-sys-elevation-*`, «Тени»), а класс роли
 перехватил бы имена утилит тени — `text-shadow` красил бы текст.
 
-**Имена без роли того же цвета** — `fg3`, `fg-disabled`, `brand-hover`, `brand-pressed`,
+**Имена без роли того же цвета** — `fg-disabled`, `brand-hover`, `brand-pressed`,
 `warning-border`, `stroke-subtle` — держат своё значение (переменные `--legacy-*` внутри
 `src/theme/`). Подменить их ближайшей ролью — значит сменить вид, поэтому их снимают дети эпика:
-`fg3`, `warning-border`, `stroke-subtle` — `sharedui-md3-04`; `fg-disabled`, `brand-hover`,
+`warning-border`, `stroke-subtle` — `sharedui-md3-04`; `fg-disabled`, `brand-hover`,
 `brand-pressed` — `sharedui-md3-05`.
 
 **На сплошной заливке роли — только парная роль, не `text-white`** (#1462). В тёмной теме заливки
-светлые (`bg-primary` — `#a7c8ff`), и белое на них даёт 1,7:1 — подпись не прочесть. Пара:
+светлые (`bg-primary` — `#a9c7ff`), и белое на них даёт 1,7:1 — подпись не прочесть. Пара:
 `bg-primary` → `text-on-primary`, `bg-error` → `text-on-error`, `bg-success` → `text-on-success`,
 `bg-warning` → `text-on-warning`. То же для кольца (`ring-on-primary/70`) и точки (`bg-on-primary`). В
-светлой теме пара белая, как и было, кроме `success`: белый на его зелёном — 4,35:1, поэтому пара там
-почти чёрная. Белое на затемнении (`bg-black/40 text-white`) — законно.
+светлой теме пара белая у всех заливок, `success` тоже: его тон считает генератор, и белый на нём —
+6,5:1. Белое на затемнении (`bg-black/40 text-white`) — законно.
 
 - Обводка статусной плашки, у которой своей роли нет, берётся прозрачностью роли:
   `border-error/30`, `border-success/30`, `border-tertiary/50`.
@@ -130,10 +133,15 @@ Tailwind (`bg-indigo-50`, `text-purple-700`, `border-red-200`) запрещен�
   (`legacy-token`). Бывшие токены переводятся так: тени `shadow4/16/28` → `--md-sys-elevation-level1/2/3`,
   бренд → `--md-sys-color-primary`, текст на бренде → `--md-sys-color-on-primary`, половины превью
   значка → `bg-tab-light` / `bg-tab-dark`, остальное — по таблице выше.
-- **Нужного цвета нет** — роль заводится в `src/client/src/theme/md3-theme.json` (значения обеих тем:
-  роль одной темы генератор не примет, как и псевдоним с именем роли), затем `npm run md3:theme` пишет переменные, слой Tailwind и псевдонимы. Сгенерированные файлы
+- **Нужного цвета нет** — своя роль заводится строкой `ext` в `src/client/src/theme/md3-theme.json`
+  (имя и цвет; генератор даёт ей четыре роли в обеих темах: `X`, `on-X`, `X-container`, `on-X-container`),
+  затем `npm run md3:theme` пишет переменные, слой Tailwind и псевдонимы. Сгенерированные файлы
   `src/theme/*.css` руками не правят: тест темы (`scripts/md3-theme.test.mjs`) сравнивает их с генерацией.
   Своих синонимов ролей (`text-on-surface-muted`) не заводят.
+- **Контраст ролей проверяет тест** (`scripts/md3-contrast.mjs`, в `npm test`), обе темы: `on-X` на `X` и
+  `on-X-container` на `X-container` — не ниже 4,5:1, текст на каждой поверхности — 4,5:1, `outline` — 3:1.
+  Отказ называет пару, тему и число; чинится вариантом схемы, `contrast` или своим цветом, а не правкой
+  значения.
 - Класс с именем, которого нет среди ролей и псевдонимов (`bg-surface2`, `text-fg`),
   Tailwind **молча не рисует**: фон пропадает, текст наследует цвет, рамка берёт цвет текста.
   Такие классы не пускает сторож `src/client/scripts/color-classes.test.mjs` (едет в `npm test`):
