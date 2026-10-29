@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Delete } from '@/shared/ui/icons';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
@@ -119,11 +119,13 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
       cell: item => <span className="text-on-surface-variant">{formatDate(item.updatedAt)}{item.updatedBy ? ` · ${item.updatedBy}` : ''}</span> },
     { key: 'remove', label: '', width: 'w-8',
       cell: item => (
-        <Tooltip content="Снять условия" name>
-          <button type="button" disabled={saving.has(item.supplierId)}
-            onClick={() => setRemovingId(item.supplierId)}
-            className="text-on-surface-variant hover:text-error p-1"><Icon icon={Delete} size={18} /></button>
-        </Tooltip>
+        <IconButton label="Снять условия"
+          size="sm"
+          danger
+          disabled={saving.has(item.supplierId)}
+          onClick={() => setRemovingId(item.supplierId)}>
+          <Icon icon={Delete} size={18} />
+        </IconButton>
       ) },
   ];
 

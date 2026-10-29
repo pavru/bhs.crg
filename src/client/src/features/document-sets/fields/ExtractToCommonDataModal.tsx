@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Close, LinkIcon, Unarchive, Warning } from '@/shared/ui/icons';
 import { ModalExit } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
 import { useToast } from '@/shared/ui/Toast';
@@ -23,7 +23,6 @@ import {
   suggestEntryName, scalarFieldsFor, findBlockingRefs, maxAllowedScope, offeredScopes,
   hasScopelessCatalogRef,
 } from './extractToCommonData';
-import { Tooltip } from '@/shared/ui/Tooltip';
 
 /** Найденный дубликат: по составному ключу — сильное совпадение, по имени — тёзка. */
 interface Duplicate {
@@ -355,12 +354,12 @@ export function ExtractToCommonDataModal({
               {aliases.map(a => (
                 <span key={a} className="inline-flex items-center gap-1 text-body-small bg-surface-container text-on-surface-variant rounded-2xl pl-2.5 pr-1 py-0.5 max-w-full">
                   <span className="min-w-0 break-words">{a}</span>
-                  <Tooltip content="Удалить" name>
-                    <button type="button" onClick={() => setAliases(prev => prev.filter(x => x !== a))}
-                      className="text-on-surface-variant hover:text-error transition-colors shrink-0">
-                      <Icon icon={Close} size={18} />
-                    </button>
-                  </Tooltip>
+                  <IconButton label={`Удалить «${a}»`}
+                    size="sm"
+                    danger className="-my-1.5"
+                    onClick={() => setAliases(prev => prev.filter(x => x !== a))}>
+                    <Icon icon={Close} size={18} />
+                  </IconButton>
                 </span>
               ))}
             </div>

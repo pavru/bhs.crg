@@ -9,7 +9,7 @@ import {
 import { resolveEffectiveFields, isScalarField, type SchemaField } from '@/shared/api/schema';
 import type { DataSetBindingTemplate, DocumentType } from '@/shared/api/types';
 import { Select, SelectItem } from '@/shared/ui/Select';
-import { Tooltip } from '@/shared/ui/Tooltip';
+import { IconButton } from '@/shared/ui/Button';
 
 // Shared input styling.
 const FIELD_CLS = 'border border-outline-variant rounded-sm px-3 py-1.5 text-body-medium bg-surface text-on-surface';
@@ -202,23 +202,13 @@ function TemplateRow({
             </span>
           </div>
         </div>
-        <Tooltip content="Редактировать" name>
-          <button
-            onClick={() => setEditing(e => !e)}
-            className="p-1.5 rounded-xs text-on-surface-variant"
-          >
-            <Icon icon={Edit} size={18} />
-          </button>
-        </Tooltip>
+        <IconButton label="Редактировать" size="sm" onClick={() => setEditing(e => !e)}>
+          <Icon icon={Edit} size={18} />
+        </IconButton>
         {!confirming ? (
-          <Tooltip content="Удалить" name>
-            <button
-              onClick={() => setConfirming(true)}
-              className="p-1.5 rounded-xs text-on-surface-variant hover:text-error transition-colors"
-            >
-              <Icon icon={Delete} size={18} />
-            </button>
-          </Tooltip>
+          <IconButton label="Удалить" size="sm" danger onClick={() => setConfirming(true)}>
+            <Icon icon={Delete} size={18} />
+          </IconButton>
         ) : (
           <div className="flex items-center gap-1.5 text-body-small">
             <span className="text-on-surface-variant">Удалить?</span>

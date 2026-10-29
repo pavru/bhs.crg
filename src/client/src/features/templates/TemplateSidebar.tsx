@@ -12,6 +12,7 @@ import { ruCount } from '@/shared/utils/pluralize';
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import type { TemplateGroup } from './groupTemplates';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { IconButton } from '@/shared/ui/Button';
 
 /** Карта использования версий (templateId → usage); пустой объект, пока не загружено. */
 export type TemplateUsageMap = Record<string, TemplateUsage>;
@@ -212,11 +213,9 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
     <aside className="w-64 border-r border-outline-variant bg-surface flex flex-col">
       <div className="px-4 py-3 border-b border-surface-container flex items-center justify-between">
         <span className="text-body-medium font-medium text-on-surface-variant">Шаблоны</span>
-        <Tooltip content="Новый шаблон" name>
-          <button onClick={onNew} className="text-primary state-layer">
-            <Icon icon={Add} size={18} />
-          </button>
-        </Tooltip>
+        <IconButton label="Новый шаблон" size="sm" onClick={onNew}>
+          <Icon icon={Add} size={18} className="text-primary" />
+        </IconButton>
       </div>
       <TemplateAssetsPanel
         key={`assets-${documentTypeId}`}
@@ -253,22 +252,19 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                     <Icon icon={Warning} size={18} className="text-warning shrink-0" />
                   )}
                 </button>
-                <Tooltip content="Дублировать шаблон" name>
-                  <button
-                    onClick={() => onDuplicate(group)}
-                    className="px-2 py-2.5 text-on-surface-variant hover:text-primary opacity-0 group-hover/grp:opacity-100 transition-all shrink-0"
-                  >
-                    <Icon icon={ContentCopy} size={18} />
-                  </button>
-                </Tooltip>
-                <Tooltip content="Удалить шаблон со всеми версиями" name>
-                  <button
-                    onClick={() => onDeleteGroup(group)}
-                    className="px-2 py-2.5 text-on-surface-variant hover:text-error opacity-0 group-hover/grp:opacity-100 transition-all shrink-0"
-                  >
-                    <Icon icon={Delete} size={18} />
-                  </button>
-                </Tooltip>
+                <IconButton label="Дублировать шаблон"
+                  size="sm"
+                  className="opacity-0 group-hover/grp:opacity-100 focus-visible:opacity-100"
+                  onClick={() => onDuplicate(group)}>
+                  <Icon icon={ContentCopy} size={18} />
+                </IconButton>
+                <IconButton label="Удалить шаблон со всеми версиями"
+                  size="sm"
+                  danger
+                  className="opacity-0 group-hover/grp:opacity-100 focus-visible:opacity-100"
+                  onClick={() => onDeleteGroup(group)}>
+                  <Icon icon={Delete} size={18} />
+                </IconButton>
               </div>
 
               {isExpanded && (

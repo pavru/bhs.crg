@@ -17,7 +17,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
 import { useOwnWindow } from '@/shared/ui/modalControl';
 import { SubfieldLabel } from './SubfieldLabel';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { isFieldRef, type CatalogScope, type DocumentInstance, type DocumentType, type EnumTypeDef, type FieldRef, type PrimitiveTypeDef } from '@/shared/api/types';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
@@ -263,16 +263,19 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         <input type="checkbox" checked={selected.has(i)} onChange={() => toggleSelect(i)}
           aria-label={`Выбрать строку ${i + 1}`}
           className="shrink-0 w-3.5 h-3.5 accent-primary cursor-pointer" />
-        <Tooltip content="Перетащить для изменения порядка (или стрелки ↑↓)">
-          <button type="button" draggable data-grip={i}
-            // Груз — страховка по спецификации, свой тип вместо text/plain (см. ROW_DRAG_MIME).
-            onDragStart={e => {
+        <IconButton label={`Переместить строку ${i + 1}: стрелки вверх и вниз`}
+          title="Перетащить для изменения порядка (или стрелки ↑↓)"
+          size="sm"
+          className="cursor-grab active:cursor-grabbing"
+          draggable
+          data-grip={i}
+          onDragStart={e => {
               setDragIdx(i);
               e.dataTransfer.effectAllowed = 'move';
               e.dataTransfer.setData(ROW_DRAG_MIME, String(i));
             }}
-            onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
-            onKeyDown={e => {
+          onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
+          onKeyDown={e => {
               const to = e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowDown' ? i + 1 : null;
               if (to === null) return;
               // Стрелку гасим и на краю: иначе последнее нажатие в «довести строку до низа»
@@ -282,12 +285,9 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               if (to < 0 || to >= allItems.length) return;
               moveItem(i, to);
               focusRow.current = to;
-            }}
-            aria-label={`Переместить строку ${i + 1}: стрелки вверх и вниз`}
-            className="shrink-0 cursor-grab active:cursor-grabbing text-on-surface-variant hover:text-on-surface-variant focus-visible:outline-none focus-visible:text-primary">
-            <Icon icon={DragIndicator} size={18} />
-          </button>
-        </Tooltip>
+            }}>
+          <Icon icon={DragIndicator} size={18} />
+        </IconButton>
         <span className={`text-body-small font-mono w-5 text-right shrink-0 ${danger ? 'text-error' : 'text-on-surface-variant'}`}>
           {i + 1}
         </span>
@@ -400,8 +400,9 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                       {rowChrome(i, true)}
                       <Icon icon={LinkIcon} size={18} className="text-error shrink-0" />
                       <span className={`flex-1 text-body-medium truncate ${BROKEN_LABEL}`}>{item.displayName}</span>
-                      <button type="button" onClick={() => removeItem(i)}
-                        className="p-1 text-error hover:text-on-surface shrink-0"><Icon icon={Delete} size={18} /></button>
+                      <IconButton label={`Удалить строку ${i + 1}`} size="sm" danger onClick={() => removeItem(i)}>
+                        <Icon icon={Delete} size={18} className="text-error" />
+                      </IconButton>
                     </div>
                     <BrokenRefNote compact />
                   </div>
@@ -414,10 +415,9 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   <Icon icon={LinkIcon} size={18} className="text-warning shrink-0" />
                   <span className="flex-1 text-body-medium text-warning truncate">{item.displayName}</span>
                   <ArchivedRefMark value={item} />
-                  <button type="button" onClick={() => removeItem(i)}
-                    className="p-1 text-on-surface-variant hover:text-error shrink-0">
+                  <IconButton label={`Удалить строку ${i + 1}`} size="sm" danger onClick={() => removeItem(i)}>
                     <Icon icon={Delete} size={18} />
-                  </button>
+                  </IconButton>
                 </div>
               );
             }
@@ -447,16 +447,12 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   <ArchivedRefMark value={wrapped.ref} />
                   <span className="text-label-small text-on-surface-variant shrink-0 truncate max-w-[40%]">{wrapped.label}</span>
                   {/* ✎ оставлен: это единственный вход сменить вариант и снять ссылку. */}
-                  <Tooltip content="Редактировать" name>
-                    <button type="button" onClick={() => setRowModal(i)}
-                      className="p-1 text-on-surface-variant hover:text-on-surface-variant shrink-0">
-                      <Icon icon={Edit} size={18} />
-                    </button>
-                  </Tooltip>
-                  <button type="button" onClick={() => removeItem(i)}
-                    className="p-1 text-on-surface-variant hover:text-error shrink-0">
+                  <IconButton label="Редактировать" size="sm" onClick={() => setRowModal(i)}>
+                    <Icon icon={Edit} size={18} />
+                  </IconButton>
+                  <IconButton label={`Удалить строку ${i + 1}`} size="sm" danger onClick={() => removeItem(i)}>
                     <Icon icon={Delete} size={18} />
-                  </button>
+                  </IconButton>
                 </div>
                 {wrappedBroken && <BrokenRefNote compact />}
                 </div>
@@ -485,16 +481,12 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                     </span>
                   </Tooltip>
                 )}
-                <Tooltip content="Редактировать" name>
-                  <button type="button" onClick={() => setRowModal(i)}
-                    className="p-1 text-on-surface-variant hover:text-on-surface-variant shrink-0">
-                    <Icon icon={Edit} size={18} />
-                  </button>
-                </Tooltip>
-                <button type="button" onClick={() => removeItem(i)}
-                  className="p-1 text-on-surface-variant hover:text-error shrink-0">
+                <IconButton label="Редактировать" size="sm" onClick={() => setRowModal(i)}>
+                  <Icon icon={Edit} size={18} />
+                </IconButton>
+                <IconButton label={`Удалить строку ${i + 1}`} size="sm" danger onClick={() => removeItem(i)}>
                   <Icon icon={Delete} size={18} />
-                </button>
+                </IconButton>
               </div>
             );
           })}
@@ -701,18 +693,12 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
           <div className={`flex items-center gap-1.5 rounded-md pl-3 pr-1.5 py-1.5 ${BROKEN_PLATE}`}>
             <Icon icon={LinkIcon} size={18} className="text-error shrink-0" />
             <span className={`flex-1 text-body-medium font-medium truncate ${BROKEN_LABEL}`}>{value.displayName}</span>
-            <Tooltip content="Заменить ссылку" name>
-              <button type="button" onClick={() => setPickerOpen(true)}
-                className="p-1.5 rounded-full text-error hover:text-on-surface state-layer shrink-0">
-                <Icon icon={Refresh} size={18} />
-              </button>
-            </Tooltip>
-            <Tooltip content="Снять ссылку" name>
-              <button type="button" onClick={() => onChange({})}
-                className="p-1.5 rounded-full text-error hover:text-on-surface state-layer shrink-0">
-                <Icon icon={LinkOff} size={18} />
-              </button>
-            </Tooltip>
+            <IconButton label="Заменить ссылку" size="sm" onClick={() => setPickerOpen(true)}>
+              <Icon icon={Refresh} size={18} className="text-error" />
+            </IconButton>
+            <IconButton label="Снять ссылку" size="sm" danger onClick={() => onChange({})}>
+              <Icon icon={LinkOff} size={18} className="text-error" />
+            </IconButton>
           </div>
           <BrokenRefNote />
           {picker}
@@ -783,12 +769,9 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
             className="flex items-center gap-1 text-body-small text-primary px-2 py-0.5 rounded-xs hover:bg-primary-container transition-colors shrink-0">
             <Icon icon={LinkIcon} size={18} /> Из каталога
           </button>
-          <Tooltip content="Редактировать" name>
-            <button type="button" onClick={() => setModalOpen(true)}
-              className="p-1 text-on-surface-variant hover:text-on-surface-variant transition-colors shrink-0">
-              <Icon icon={Edit} size={18} />
-            </button>
-          </Tooltip>
+          <IconButton label="Редактировать" size="sm" onClick={() => setModalOpen(true)}>
+            <Icon icon={Edit} size={18} />
+          </IconButton>
         </div>
         <Modal open={modalOpen} onOpenChange={setModalOpen} wide
           title={compositeType ? `${compositeType.name}${field.title !== compositeType.name ? ` — ${field.title}` : ''}` : field.title}
@@ -1018,10 +1001,9 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
               </span>
             </Tooltip>
           )}
-          <Tooltip content="Редактировать" name>
-            <button type="button" onClick={() => setModalOpen(true)}
-              className="p-1 text-on-surface-variant hover:text-on-surface-variant transition-colors shrink-0"><Icon icon={Edit} size={18} /></button>
-          </Tooltip>
+          <IconButton label="Редактировать" size="sm" onClick={() => setModalOpen(true)}>
+            <Icon icon={Edit} size={18} />
+          </IconButton>
         </div>
         <Modal open={modalOpen} onOpenChange={setModalOpen} wide title={field.title}
           footer={<div className="flex justify-end"><Button variant="filled" onClick={() => setModalOpen(false)}>Готово</Button></div>}>

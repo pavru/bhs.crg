@@ -3,11 +3,10 @@ import { ModuleFieldBadge } from './ModuleFieldBadge';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Delete, DragIndicator, Layers, LockIcon } from '@/shared/ui/icons';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { FIELD_UID, withFieldUid, type SchemaField, type FieldGroup } from '@/shared/api/schema';
 import { FieldCard } from './FieldBuilder';
 import { fieldTypeSummary, type FieldRegistries } from './fieldTypeOptions';
-import { Tooltip } from '@/shared/ui/Tooltip';
 
 /**
  * Группированный редактор собственных полей (issue #197 Фаза C): группы = карточки-контейнеры,
@@ -285,13 +284,15 @@ export function GroupedFieldsEditor({
               onDrop={() => { if (dragGroupKey && !draggingThis) { moveGroupTo(dragGroupKey, group.key); endGroupDrag(); } }}>
             {/* Шапка группы */}
             <div className="flex items-center gap-2 px-3 py-2 bg-surface border-b border-outline-variant">
-              <Tooltip content="Перетащить для изменения порядка групп">
-                <button type="button" draggable
-                  onDragStart={() => setDragGroupKey(group.key)} onDragEnd={endGroupDrag}
-                  className="cursor-grab active:cursor-grabbing text-on-surface-variant hover:text-on-surface-variant shrink-0 focus-visible:outline-none focus-visible:text-primary" aria-label={`Переместить группу «${group.title || group.key}» перетаскиванием`}>
-                  <Icon icon={DragIndicator} size={18} />
-                </button>
-              </Tooltip>
+              <IconButton label={`Переместить группу «${group.title || group.key}» перетаскиванием`}
+                title="Перетащить для изменения порядка групп"
+                size="sm"
+                className="cursor-grab active:cursor-grabbing"
+                draggable
+                onDragStart={() => setDragGroupKey(group.key)}
+                onDragEnd={endGroupDrag}>
+                <Icon icon={DragIndicator} size={18} />
+              </IconButton>
               <Icon icon={Layers} size={18} className="text-on-surface-variant shrink-0" />
               <input
                 value={group.title}
@@ -303,10 +304,12 @@ export function GroupedFieldsEditor({
               <div className="flex items-center gap-0.5 shrink-0">
                 <MoveButtons onUp={() => moveGroup(group.key, -1)} onDown={() => moveGroup(group.key, 1)}
                   isFirst={gi === 0} isLast={gi === groups.length - 1} />
-                <Tooltip content="Удалить группу (поля → «Без группы»)" name>
-                  <button type="button" onClick={() => deleteGroup(group.key)}
-                    className="p-1 text-on-surface-variant hover:text-error"><Icon icon={Delete} size={18} /></button>
-                </Tooltip>
+                <IconButton label="Удалить группу (поля → «Без группы»)"
+                  size="sm"
+                  danger
+                  onClick={() => deleteGroup(group.key)}>
+                  <Icon icon={Delete} size={18} />
+                </IconButton>
               </div>
             </div>
             {/* Тело группы (drop-зона) */}

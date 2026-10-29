@@ -8,6 +8,7 @@ import type { MaterialQualityLink, QualityDocument } from '@/shared/api/qualityD
 import { SCOPE_LABELS, type CatalogScope } from '@/shared/api/types';
 import type { MaterialRow } from './materialRow';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { IconButton } from '@/shared/ui/Button';
 
 /**
  * Действие в строке материала (issue #680).
@@ -124,14 +125,15 @@ export function MaterialsTable({
                 {/* Починка неверной связки — перепривязкой, а не разрывом: разрыв меняет
                     одну ошибку («не тот документ») на другую («документа нет»). До этого
                     единственный путь починки шёл через destructive-действие. */}
-                <Tooltip content="Перепривязать к другому документу" name>
-                  <button onClick={() => openPickerFor(m)}
-                    className="p-0.5 text-on-surface-variant hover:text-primary"><Icon icon={ChangeCircle} size={18} /></button>
-                </Tooltip>
-                <Tooltip content="Снять связь" name>
-                  <button onClick={() => setBreaking({ link, label: m.label })}
-                    className="p-0.5 text-on-surface-variant hover:text-error"><Icon icon={LinkOff} size={18} /></button>
-                </Tooltip>
+                <IconButton label="Перепривязать к другому документу" size="sm" onClick={() => openPickerFor(m)}>
+                  <Icon icon={ChangeCircle} size={18} />
+                </IconButton>
+                <IconButton label="Снять связь"
+                  size="sm"
+                  danger
+                  onClick={() => setBreaking({ link, label: m.label })}>
+                  <Icon icon={LinkOff} size={18} />
+                </IconButton>
               </span>
             ) : suggestion ? (
               <span className="flex items-center gap-1.5">

@@ -5,27 +5,27 @@
 
 ## 1. Поля документов
 
-- [ ] 1.1 `document-sets/fields/`: `ComplexFields` (11), `DocRefField` (7), `BaseCandidatePicker` (2),
+- [x] 1.1 `document-sets/fields/`: `ComplexFields` (11), `DocRefField` (7), `BaseCandidatePicker` (2),
   `DocRefCatalogPickerField` (2), `FileField` (2), `RefTile` (2), `ArrayTableModal`, `ComplexCells`,
   `ExtractToCommonDataModal` — `size="sm"` в строках [UI-46]. Проверка — живой прогон `fields` зелёный;
   `npm run ui:ratchet` опускает уровень; уровень размера `ComplexFields` — по факту
-- [ ] 1.2 `document-sets/editor/`: `DataSetsTab` (2), ~~`DocumentPreviewPanel` (2)~~ (переведён в `viewer-04-document-preview`), `MaterialsTable` (2),
+- [x] 1.2 `document-sets/editor/`: `DataSetsTab` (2), ~~`DocumentPreviewPanel` (2)~~ (переведён в `viewer-04-document-preview`), `MaterialsTable` (2),
   `ContainerFieldBinding`, `FieldSourceBinding`, `LinkPickerModal`, `index`; `document-sets/`:
   `PlanPanel`, `SetDetail`, `SubscribersResource`, `catalog/CatalogResource`, `catalog/index` [UI-46].
   Проверка — живой прогон `dialogs` зелёный
 
 ## 2. Счета
 
-- [ ] 2.1 `costs/`: `ArticlesDialog` (6), `AllocationMatrix`, `LineMatchChip`, `NomenclaturePicker`,
+- [x] 2.1 `costs/`: `ArticlesDialog` (6), `AllocationMatrix`, `LineMatchChip`, `NomenclaturePicker`,
   `SupplierMatchesDialog`, `SupplierTermsDialog` [UI-46]. Проверка — живые прогоны `costs`,
   `allocation-matrix`, `invoice-candidates` зелёные
 
 ## 3. Наборы данных, таблицы, настройки, шаблоны
 
-- [ ] 3.1 `datasets/`: `ComputedColumnsDialog`, `ProcessingTemplatesDialog`, `RowFilterDialog`,
+- [x] 3.1 `datasets/`: `ComputedColumnsDialog`, `ProcessingTemplatesDialog`, `RowFilterDialog`,
   `SortSpecDialog`, `SourceEditorDialog`, `SourcesExpander`, `xpath/XPathBuilder`; `tables/`:
   `TablePage` (2), `RowPanel` [UI-46]. Проверка — живые прогоны `table-view`, `table-chips` зелёные
-- [ ] 3.2 `settings/`: `BindingTemplatesDialog` (2), `FunctionalTagChip` (2), `GroupedFieldsEditor` (2),
+- [x] 3.2 `settings/`: `BindingTemplatesDialog` (2), `FunctionalTagChip` (2), `GroupedFieldsEditor` (2),
   `EnumTypesSection`, `RecognitionProfilesPage`, `TypstRendersEditor`; `templates/`: `TemplateSidebar`
   (3), `UserLibFileList` (2), `TemplateParamsPanel`; `account/WorkspacesDialog` (2) [UI-46]. Проверка —
   живые прогоны `settings`, `types` зелёные
@@ -40,7 +40,7 @@
 
 ## 5. Верификация
 
-- [ ] 5.1 `cd src/client && npx tsc -b` — без ошибок
-- [ ] 5.2 `cd src/client && npm test` — зелёный
+- [x] 5.1 `cd src/client && npx tsc -b` — без ошибок
+- [x] 5.2 `cd src/client && npm test` — зелёный
 - [ ] 5.3 `cd src/client && npm run ui:ratchet` — без роста, `icon-button` 0
-- [ ] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 5.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный

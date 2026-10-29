@@ -9,7 +9,7 @@ import { markTypeBlockModel } from '@/shared/ui/typstDispatchCompletion';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Code, Delete, ErrorIcon, OpenInFull, Warning } from '@/shared/ui/icons';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import type { DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields, type SchemaField, type TypstRender } from '@/shared/api/schema';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -257,10 +257,9 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
                   className="border border-outline rounded-sm px-2 py-1.5 text-body-medium font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
                 />
               </div>
-              <button type="button" onClick={() => remove(i)}
-                className="p-1 text-on-surface-variant hover:text-error shrink-0">
+              <IconButton label="Удалить вариант" size="sm" danger onClick={() => remove(i)}>
                 <Icon icon={Delete} size={18} />
-              </button>
+              </IconButton>
             </div>
             {/* Код правится только в полноэкранном редакторе (не inline, issue #197 Фаза C) */}
             <button type="button" onClick={() => setEditingIndex(i)}

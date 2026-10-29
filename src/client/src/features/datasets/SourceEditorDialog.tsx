@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Delete } from '@/shared/ui/icons';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
 import { useCreateDataSetSource, useUpdateDataSetSource, useListZipXmlEntries, useSourceCandidates, type SourceCandidate } from '@/shared/api/datasets';
@@ -357,10 +357,9 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
                         placeholder={pathFormat === 'Json' ? 'id или name или info.code' : '@id или Name или Info/Code'}
                         preview={v => { const rs = composeRowSelector(sheetOrPath); return rs && v.trim() ? { fileId, rowSelector: rs, expr: v } : null; }} />
                     </div>
-                    <button type="button" onClick={() => removeColumn(i)}
-                      className="p-1.5 text-on-surface-variant hover:text-error shrink-0">
+                    <IconButton label={`Удалить колонку ${i + 1}`} size="sm" danger onClick={() => removeColumn(i)}>
                       <Icon icon={Delete} size={18} />
-                    </button>
+                    </IconButton>
                   </div>
                 ))}
               </div>

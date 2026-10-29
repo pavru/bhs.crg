@@ -20,6 +20,7 @@ import { ruCount } from '@/shared/utils/pluralize';
 import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
 import { Select, SelectGroup, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { IconButton } from '@/shared/ui/Button';
 /** Совместимость по наследованию: childId == ancestorId либо childId — потомок ancestorId по parentId. */
 function isSameOrDescendant(childId: string, ancestorId: string, allDocTypes: DocumentType[]): boolean {
   let cur: string | null = childId;
@@ -613,23 +614,13 @@ function BindingRow({
           </div>
         </div>
         <StaleSourceAction source={source} />
-        <Tooltip content="Редактировать маппинг" name>
-          <button
-            onClick={() => setEditing(e => !e)}
-            className="p-1.5 rounded-xs text-body-small text-on-surface-variant"
-          >
-            <Icon icon={Edit} size={18} />
-          </button>
-        </Tooltip>
+        <IconButton label="Редактировать маппинг" size="sm" onClick={() => setEditing(e => !e)}>
+          <Icon icon={Edit} size={18} />
+        </IconButton>
         {!confirming ? (
-          <Tooltip content="Удалить" name>
-            <button
-              onClick={() => setConfirming(true)}
-              className="p-1.5 rounded-xs text-on-surface-variant hover:text-error transition-colors"
-            >
-              <Icon icon={Delete} size={18} />
-            </button>
-          </Tooltip>
+          <IconButton label="Удалить" size="sm" danger onClick={() => setConfirming(true)}>
+            <Icon icon={Delete} size={18} />
+          </IconButton>
         ) : (
           <div className="flex items-center gap-1.5 text-body-small">
             <button onClick={handleDelete} disabled={del.isPending}

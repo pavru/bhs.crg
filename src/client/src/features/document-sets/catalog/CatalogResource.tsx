@@ -4,7 +4,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Add, Apartment, Check, Close, ContentCopy, Database, Description, Edit, KeyboardArrowDown, KeyboardArrowUp, Layers, Search } from '@/shared/ui/icons';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog, type RefusalExit } from '@/shared/ui/ConfirmDialog';
@@ -218,11 +218,14 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
           <div className="relative mb-1">
             <Icon icon={Search} size={18} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
             <input value={typeSearch} onChange={e => setTypeSearch(e.target.value)} placeholder="Тип…" aria-label="Поиск типа"
-              className="w-full h-8 pl-7 pr-6 rounded-sm text-body-small bg-surface border border-outline-variant text-on-surface outline-none focus-visible:ring-2 focus-visible:ring-primary placeholder:text-on-surface-variant" />
+              className="w-full h-8 pl-7 pr-9 rounded-sm text-body-small bg-surface border border-outline-variant text-on-surface outline-none focus-visible:ring-2 focus-visible:ring-primary placeholder:text-on-surface-variant" />
             {typeSearch && (
-              <button onClick={() => setTypeSearch('')} aria-label="Очистить" className="absolute right-1.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface-variant">
+              <IconButton label="Очистить"
+                size="sm"
+                className="absolute right-0 top-1/2 -translate-y-1/2"
+                onClick={() => setTypeSearch('')}>
                 <Icon icon={Close} size={18} />
-              </button>
+              </IconButton>
             )}
           </div>
         )}

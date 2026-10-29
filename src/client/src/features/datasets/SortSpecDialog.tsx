@@ -8,7 +8,7 @@ import { rowKey, withRowUid, withRowUids } from '@/shared/utils/rowIdentity';
 import type { SortColumn, SortSpec } from '@/shared/api/types';
 import { useDialogSave } from './useDialogSave';
 import { Select, SelectItem } from '@/shared/ui/Select';
-import { Tooltip } from '@/shared/ui/Tooltip';
+import { IconButton } from '@/shared/ui/Button';
 
 function SortRow({
   level, columns, onChange, onRemove, onMoveUp, onMoveDown, isFirst, isLast,
@@ -51,11 +51,10 @@ function SortRow({
       </div>
       <MoveButtons onUp={onMoveUp} onDown={onMoveDown} isFirst={isFirst} isLast={isLast}
         className="rounded-xs shrink-0" upTitle="Выше приоритетом" downTitle="Ниже приоритетом" />
-      <Tooltip content="Удалить" name>
-        <button type="button" onClick={onRemove} className="p-1 rounded-xs text-on-surface-variant hover:text-error shrink-0">
-          <Icon icon={Delete} size={18} />
-        </button>
-      </Tooltip>
+      <IconButton label={level.column ? `Удалить сортировку по «${level.column}»` : 'Удалить уровень сортировки'}
+        size="sm" danger onClick={onRemove}>
+        <Icon icon={Delete} size={18} />
+      </IconButton>
     </div>
   );
 }

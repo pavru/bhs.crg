@@ -7,6 +7,7 @@ import { useExpressionPreview, type ExpressionPreviewSpec } from '@/shared/api/d
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { IconButton } from '@/shared/ui/Button';
 
 interface XPathBuilderProps {
   value: string;
@@ -152,9 +153,9 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
         <input value={step.name} onChange={e => onChange({ name: e.target.value })}
           placeholder={step.axis === 'attribute' ? 'атрибут' : 'элемент / *'}
           className="w-24 text-body-small font-mono border-b border-transparent hover:border-outline-variant focus:border-primary bg-transparent outline-none" />
-        <button type="button" onClick={onRemove} className="text-on-surface-variant hover:text-error shrink-0">
+        <IconButton label="Удалить шаг" size="sm" danger onClick={onRemove}>
           <Icon icon={Delete} size={18} />
-        </button>
+        </IconButton>
       </div>
       <div className="flex flex-wrap gap-1">
         {step.predicates.map((p, i) => (

@@ -237,11 +237,9 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
         </div>
         <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
           {passiveLabel && <Tooltip content="Заполняется вместе с главным источником той же тройки/пары"><span className="text-on-surface-variant italic">{passiveLabel}</span></Tooltip>}
-          <Tooltip content="Просмотреть результат обработки" name>
-            <button onClick={() => setPreviewing(true)} className="p-1 text-on-surface-variant hover:text-primary">
-              <Icon icon={Visibility} size={18} />
-            </button>
-          </Tooltip>
+          <IconButton label="Просмотреть результат обработки" size="sm" onClick={() => setPreviewing(true)}>
+            <Icon icon={Visibility} size={18} />
+          </IconButton>
           <RowActionsMenu actions={actions} ariaLabel="Действия над источником" hasActive={hasActiveProcessing} />
         </div>
       </div>

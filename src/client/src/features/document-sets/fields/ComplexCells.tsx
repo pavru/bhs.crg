@@ -18,6 +18,7 @@ import { ArchivedRefMark } from './ArchivedRefs';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { SuggestField } from '@/shared/ui/SuggestField';
 import { useSuggestSource } from './suggestContext';
+import { IconButton } from '@/shared/ui/Button';
 
 // ─── Complex cell picker (inline table cell) ──────────────────────────────────
 
@@ -43,10 +44,13 @@ export function ComplexCellPicker({ value, onChange, compositeType, setId, allDo
         }
       </button>
       {ref && (
-        <button type="button" onClick={e => { e.stopPropagation(); onChange(undefined); }}
-          className="shrink-0 p-0.5 mr-0.5 text-on-surface-variant hover:text-error transition-colors">
+        <IconButton label="Очистить"
+          size="sm"
+          danger
+          className="-my-1 mr-0.5"
+          onClick={e => { e.stopPropagation(); onChange(undefined); }}>
           <Icon icon={Close} size={18} />
-        </button>
+        </IconButton>
       )}
       <RefPickerModal open={pickerOpen} onOpenChange={setPickerOpen}
         compositeType={compositeType}
