@@ -63,8 +63,8 @@ export function BugReportsPage() {
   const row = (r: BugReportListItem) => (
     <button key={r.id} type="button" onClick={() => { ld.showDetail(); setPicked(r.id); }}
       aria-current={r.id === selectedId ? 'true' : undefined}
-      className={`w-full text-left px-3 py-2 rounded-xl ${
-        r.id === selectedId ? 'bg-primary-container' : 'state-layer'}`}>
+      className={`state-layer w-full text-left px-3 py-2 rounded-xl ${
+        r.id === selectedId ? 'bg-primary-container' : ''}`}>
       <div className="flex items-start gap-2">
         <span className={`flex-1 min-w-0 text-sm truncate ${r.id === selectedId ? 'text-primary font-medium' : 'text-on-surface'}`}>
           {r.summary}

@@ -108,7 +108,7 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
                   checked={checked}
                   disabled={protected_}
                   onChange={() => toggleVersion(t.id)}
-                  className="w-4 h-4 rounded border-outline text-error disabled-outlined"
+                  className="w-4 h-4 rounded border-outline text-error disabled-content"
                 />
                 <span className="font-mono text-on-surface-variant shrink-0">v{t.version}</span>
                 <span className="flex items-center gap-1.5 flex-1 min-w-0">
@@ -213,7 +213,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
       <div className="px-4 py-3 border-b border-surface-container flex items-center justify-between">
         <span className="text-sm font-medium text-on-surface-variant">Шаблоны</span>
         <Tooltip content="Новый шаблон" name>
-          <button onClick={onNew} className="text-primary transition-colors">
+          <button onClick={onNew} className="text-primary state-layer">
             <Icon icon={Add} size={18} />
           </button>
         </Tooltip>
@@ -236,7 +236,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
 
           return (
             <div key={group.name}>
-              <div className={`flex items-center group/grp ${isGroupSelected ? 'bg-primary-container' : 'state-layer'}`}>
+              <div className={`state-layer flex items-center group/grp ${isGroupSelected ? 'bg-primary-container' : ''}`}>
                 <button
                   onClick={() => handleGroupHeaderClick(group)}
                   className="flex-1 flex items-center gap-1.5 px-3 py-2.5 text-left min-w-0"
@@ -279,8 +279,8 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                     const deleteBlocked = t.isActive || t.isDefault;
                     return (
                     <div key={t.id}
-                      className={`flex items-center group/ver pl-5
-                        ${selectedTemplate?.id === t.id ? 'bg-primary-container' : 'state-layer'}`}>
+                      className={`state-layer flex items-center group/ver pl-5
+                        ${selectedTemplate?.id === t.id ? 'bg-primary-container' : ''}`}>
                       <button
                         onClick={() => onSelect(t)}
                         className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 text-left min-w-0

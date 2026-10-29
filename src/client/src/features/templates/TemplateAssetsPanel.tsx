@@ -135,7 +135,7 @@ function UploadButton({ scope, scopeId }: { scope: TemplateAssetScope; scopeId: 
     <div className="flex items-center gap-2">
       <button type="button" onClick={() => inputRef.current?.click()}
         disabled={uploadMutation.isPending}
-        className="flex items-center gap-1 text-xs text-primary disabled-content">
+        className="flex items-center gap-1 text-xs text-primary state-layer disabled-content">
         <Icon icon={Upload} size={18} /> Добавить ассет
       </button>
       <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleFile} />

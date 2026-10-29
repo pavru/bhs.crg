@@ -251,7 +251,7 @@ export function EntryDataSetBindings({
         />
       ) : (
         <button type="button" onClick={() => setAdding(true)}
-          className="flex items-center gap-1.5 text-sm text-primary transition-colors">
+          className="flex items-center gap-1.5 text-sm text-primary state-layer">
           <Icon icon={Add} size={18} /> Привязать источник данных
         </button>
       )}

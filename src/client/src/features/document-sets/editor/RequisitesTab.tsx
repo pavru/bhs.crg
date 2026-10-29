@@ -690,7 +690,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
         {isFirst && hasBase && !baseRef && (
           <p className="text-xs text-on-surface-variant mb-4">
             Основа не выбрана — все поля заполняются вручную.{' '}
-            <button type="button" onClick={() => setHintPicker(true)} className="text-primary underline underline-offset-2">
+            <button type="button" onClick={() => setHintPicker(true)} className="text-primary state-layer underline underline-offset-2">
               Выбрать основу
             </button>
           </p>
@@ -770,8 +770,8 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
               return (
                 <button key={item.key} type="button" onClick={() => setActiveKey(item.key)}
                   aria-current={isActive ? 'true' : undefined}
-                  className={`w-full flex items-center gap-3 text-left px-3 h-11 rounded-full ${
-                    isActive ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant state-layer hover:text-on-surface'}`}>
+                  className={`state-layer w-full flex items-center gap-3 text-left px-3 h-11 rounded-full ${
+                    isActive ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant hover:text-on-surface'}`}>
                   <Icon icon={icon} size={18} className={`shrink-0 ${iconCls}`} />
                   <span className="flex-1 truncate text-sm">{item.title}</span>
                   <BrokenCountBadge count={broken} className="shrink-0" />

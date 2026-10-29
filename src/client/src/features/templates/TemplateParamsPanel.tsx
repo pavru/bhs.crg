@@ -111,7 +111,7 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
             </div>
           ))}
           <button onClick={() => save([...rows, { id: newLocalId(), p: { name: '', label: '', type: 'string', default: '' } }])}
-            className="flex items-center gap-1 text-xs text-primary">
+            className="flex items-center gap-1 text-xs text-primary state-layer">
             <Icon icon={Add} size={18} /> Добавить параметр
           </button>
         </div>

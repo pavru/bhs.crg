@@ -183,7 +183,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
                 const focused = focusedTemplate?.id === t.id;
                 return (
                   <label key={t.id}
-                    className={`flex items-center gap-2 pr-2.5 text-sm border-l-2 cursor-pointer ${focused ? 'bg-primary-container border-primary' : 'border-transparent state-layer'}`}>
+                    className={`state-layer flex items-center gap-2 pr-2.5 text-sm border-l-2 cursor-pointer ${focused ? 'bg-primary-container border-primary' : 'border-transparent'}`}>
                     <input type="checkbox" checked={selected} disabled={setTemplatesMutation.isPending}
                       onChange={e => { toggleTemplate(t.id, e.target.checked); setChosenFocus(t.id); }}
                       aria-label={`Использовать шаблон «${t.name}» для генерации`}

@@ -121,7 +121,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
   };
   const segBtn = (m: 'ref' | 'inline', label: string) => (
     <button type="button" onClick={() => { setModeOverride(m); onChange(undefined); }}
-      className={`px-2 py-0.5 ${mode === m ? 'bg-primary text-on-primary' : 'text-on-surface-variant state-layer'}`}>{label}</button>
+      className={`state-layer px-2 py-0.5 ${mode === m ? 'bg-primary text-on-primary' : 'text-on-surface-variant'}`}>{label}</button>
   );
 
   return (

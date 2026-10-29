@@ -36,8 +36,8 @@ function FileNavItem({ icon, label, secondary, count, active, recognizing, stale
 }) {
   return (
     <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
-      className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left ${
-        active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant state-layer'}`}>
+      className={`state-layer w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left ${
+        active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}>
       <span className={`shrink-0 ${active ? 'text-primary' : 'text-on-surface-variant'}`}>
         {recognizing ? <CircularProgress size={18} className="text-primary" /> : icon}
       </span>
@@ -128,7 +128,7 @@ function FileDetail({ file, inherited, job }: {
           <span className="flex-1 min-w-0 truncate">{job.progress ?? job.title ?? 'Распознаётся…'}</span>
           {job.status === 'Queued' && (
             <button onClick={() => cancel.mutate(job.id)} disabled={cancel.isPending}
-              className="text-primary shrink-0 disabled-content">Отменить</button>
+              className="text-primary state-layer shrink-0 disabled-content">Отменить</button>
           )}
         </div>
       )}
@@ -419,7 +419,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
               <FileDetail file={selectedFile} inherited={selectedInherited} job={jobForFile(selectedFile)} />
             ) : (
               <div className="text-center py-10 text-on-surface-variant text-sm">
-                Набор не найден. <button className="text-primary" onClick={() => setSelected(ALL)}>Ко всем наборам</button>
+                Набор не найден. <button className="text-primary state-layer" onClick={() => setSelected(ALL)}>Ко всем наборам</button>
               </div>
             )}
           </div>

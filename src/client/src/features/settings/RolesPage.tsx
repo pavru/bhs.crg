@@ -98,8 +98,8 @@ export function RolesPage() {
 
   const row = (r: AppRole) => (
     <button key={r.name} onClick={() => pick(r.name)}
-      className={`w-full text-left px-3 py-2 rounded-lg ${
-        r.name === selected?.name ? 'bg-primary-container' : 'state-layer'}`}>
+      className={`state-layer w-full text-left px-3 py-2 rounded-lg ${
+        r.name === selected?.name ? 'bg-primary-container' : ''}`}>
       <div className="flex items-center gap-2">
         <span className="text-sm text-on-surface truncate">{r.title}</span>
         <RoleBadge role={r} />

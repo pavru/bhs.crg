@@ -99,8 +99,8 @@ function RequiredChip({ field, override, onOverride, onReset }: {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button type="button"
-          className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ${
-            overridden ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant state-layer'}`}>
+          className={`state-layer inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ${
+            overridden ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant'}`}>
           {overridden && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
           {overridden ? `${parentLabel} → ${effective ? 'обяз.' : 'опц.'}` : (effective ? 'обяз.' : 'опц.')}
         </button>

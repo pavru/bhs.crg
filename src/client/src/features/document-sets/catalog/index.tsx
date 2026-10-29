@@ -473,7 +473,7 @@ export function CatalogEntryForm({
                   {proxyOverridden && (
                     <Tooltip content="Вернуть к наследованию от реального объекта">
                       <button type="button" onClick={() => setValue(field.key, undefined)}
-                        className="text-caption text-primary flex items-center gap-0.5 shrink-0">
+                        className="text-caption text-primary state-layer flex items-center gap-0.5 shrink-0">
                         <Icon icon={RestartAlt} size={18} /> наследовать
                       </button>
                     </Tooltip>
@@ -729,7 +729,7 @@ export function CatalogEntryForm({
           <span>Роль наследует все поля реального объекта — заполните только переопределяемые, пустые берутся у реального.</span>
           {!showAllProxyFields && (
             <button type="button" onClick={() => setShowAllProxyFields(true)}
-              className="text-primary font-medium shrink-0">Переопределить ещё…</button>
+              className="text-primary state-layer font-medium shrink-0">Переопределить ещё…</button>
           )}
         </div>
       )}

@@ -20,9 +20,26 @@ describe('md3:migrate: состояния → слой MD3', () => {
     expect(migrated('"state-layer hover:bg-surface-container"')).toBe('"state-layer"');
   });
 
-  it('условная ветка шаблона: слой в ветке, переход снят и в постоянной части', () => {
+  it('выбранное и невыбранное: слой — в постоянной части, у выбранного он тоже есть; переход снят', () => {
     expect(migrated("`px-2 transition-colors ${active ? 'bg-primary-container' : 'hover:bg-surface-container'}`"))
-      .toBe("`px-2 ${active ? 'bg-primary-container' : 'state-layer'}`");
+      .toBe("`state-layer px-2 ${active ? 'bg-primary-container' : ''}`");
+    // Выбранное ещё старым именем: проход состояний идёт до перевода имён.
+    expect(migrated("`${on ? 'bg-brand-subtle' : 'hover:bg-surface-container'}`")).toBe("`state-layer ${on ? 'bg-primary-container' : ''}`");
+    expect(migrated("`flex ${dense ? 'gap-3 hover:bg-black/5' : 'gap-4 hover:bg-black/5'}`")).toBe("`state-layer flex ${dense ? 'gap-3' : 'gap-4'}`");
+  });
+
+  it('условное наведение без пары и ветка со своим наведением — слой остаётся в ветке', () => {
+    expect(migrated("`px-2 ${onClick ? 'cursor-pointer hover:bg-surface-container' : ''}`"))
+      .toBe("`px-2 ${onClick ? 'cursor-pointer state-layer' : ''}`");
+    expect(migrated("`${danger ? 'hover:bg-error-container' : 'hover:bg-surface-container'}`"))
+      .toBe("`${danger ? 'hover:bg-error-container' : 'state-layer'}`");
+    expect(migrated("`${locked ? 'opacity-60 cursor-not-allowed' : on ? 'bg-primary' : 'hover:bg-surface-container'}`"))
+      .toBe("`${locked ? 'opacity-60 cursor-not-allowed' : on ? 'bg-primary' : 'state-layer'}`");
+  });
+
+  it('переход в строке, склеенной +, — тот же список: снят, пробел-разделитель остаётся', () => {
+    expect(migrated("`px-3 transition-colors ` +\n  `${active ? 'bg-primary-container' : 'hover:bg-surface-container'}`"))
+      .toBe("`px-3 ` +\n  `state-layer ${active ? 'bg-primary-container' : ''}`");
   });
 
   it('наведение заливкой выбранного контейнера — не состояние: не трогается', () => {
@@ -44,10 +61,27 @@ describe('md3:migrate: состояния → слой MD3', () => {
       .toBe('"text-primary hover:bg-primary-container disabled-content"');
   });
 
+  it('рамка — по ширине, а не по цвету; прозрачная рамка — не обводка', () => {
+    expect(migrated('"w-4 h-4 rounded border-outline text-error disabled:opacity-40"'))
+      .toBe('"w-4 h-4 rounded border-outline text-error disabled-content"');
+    expect(migrated('"border-b-2 border-transparent disabled:opacity-40"')).toBe('"border-b-2 border-transparent disabled-content"');
+    expect(migrated('"border-2 border-error disabled:opacity-40"')).toBe('"border-2 border-error disabled-outlined"');
+  });
+
+  it('заливка соседней ветки — не заливка этой: вид отключённого по своей ветке и постоянной части', () => {
+    expect(migrated("`px-2 ${on ? 'bg-primary text-on-primary' : 'text-primary disabled:opacity-40'}`"))
+      .toBe("`px-2 ${on ? 'bg-primary text-on-primary' : 'text-primary disabled-content'}`");
+  });
+
   it('затемнение — роль scrim; подложка — поверхность; снятое не оставляет двойных пробелов', () => {
     expect(migrated('"fixed inset-0 bg-black/40"')).toBe('"fixed inset-0 bg-scrim/32"');
     expect(migrated('"rounded-lg bg-black/5 dark:bg-white/5 p-3"')).toBe('"rounded-lg bg-surface-container p-3"');
-    expect(migrated('"text-primary hover:text-brand-hover"')).toBe('"text-primary"');
+  });
+
+  it('смена цвета текста под курсором — слой, если своего наведения у элемента нет', () => {
+    expect(migrated('"text-xs text-primary hover:text-brand-hover transition-colors"')).toBe('"text-xs text-primary state-layer"');
+    expect(migrated('"rounded hover:bg-primary-container hover:text-brand-hover"')).toBe('"rounded hover:bg-primary-container"');
+    expect(migrated('"text-primary hover:text-brand-hover hover:underline"')).toBe('"text-primary hover:underline"');
   });
 
   it('после перевода храповик не видит ни raw-state, ни dark-variant; второй прогон ничего не меняет', () => {

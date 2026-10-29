@@ -111,7 +111,7 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
         );
       })}
       <button type="button" onClick={() => onChange([...fields, withRowUid({ name: '', description: '', type: 'string' })])}
-        className="flex items-center gap-1 text-sm text-primary pt-0.5">
+        className="flex items-center gap-1 text-sm text-primary state-layer pt-0.5">
         <Icon icon={Add} size={18} /> {addLabel}
       </button>
     </div>
@@ -392,8 +392,8 @@ export function RecognitionProfilesPage() {
 
   const row = (p: RecognitionProfile) => (
     <button key={p.id} type="button" onClick={() => { ld.showDetail(); setSelectedId(p.id); }}
-      className={`w-full text-left px-3 py-2 rounded-lg ${
-        selected?.id === p.id ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant state-layer'}`}>
+      className={`state-layer w-full text-left px-3 py-2 rounded-lg ${
+        selected?.id === p.id ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}>
       <span className="flex items-center gap-1.5">
         <span className="text-sm truncate flex-1 min-w-0">{p.name}</span>
         {p.builtInOutdated && <Icon icon={Warning} size={18} className="text-warning shrink-0" aria-label="Заводской профиль обновился" />}

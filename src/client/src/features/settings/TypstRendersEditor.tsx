@@ -291,7 +291,7 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
         );
       })}
       <button type="button" onClick={add}
-        className="flex items-center gap-1.5 text-sm text-primary mt-1">
+        className="flex items-center gap-1.5 text-sm text-primary state-layer mt-1">
         <Icon icon={Add} size={18} /> Добавить вариант
       </button>
 

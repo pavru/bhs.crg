@@ -318,7 +318,7 @@ function Row({ position, why, action, onPick, active = false, onHover }: {
   return (
     <button type="button" onClick={() => onPick(position.id, position.name)}
       onMouseMove={active ? undefined : onHover}
-      className={`w-full text-left px-3 py-1.5 rounded flex items-baseline gap-2 ${active ? 'bg-surface-container' : 'state-layer'}`}>
+      className={`state-layer w-full text-left px-3 py-1.5 rounded flex items-baseline gap-2 ${active ? 'bg-surface-container' : ''}`}>
       {label}<span className="ml-auto text-xs text-primary shrink-0">{action}</span>
     </button>
   );

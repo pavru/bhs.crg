@@ -87,7 +87,9 @@ describe('цвета в клиентском коде', () => {
       '/src/features/Ok.tsx': '  // Вынесено из ComplexFields (issue #1014), правка #1065, см. #858 и #154.',
       '/src/features/Ok2.tsx': "  const cls = 'border border-outline-variant bg-surface-container';",
       '/src/features/Ok3.tsx': '   * MD3 outlined-поле (issue #574) — рамка solid, как у соседей.',
-      '/src/features/Ok4.tsx': '  <pre className="bg-surface-container text-on-surface-variant" />',
+      // Готовый класс с зашитым цветом — не литерал (его ловит храповик, правило raw-state). Строка
+      // разрезана, чтобы класса в этом файле не видели ни храповик, ни md3:migrate.
+      '/src/features/Ok4.tsx': '  <pre className="bg-' + 'black/5 text-on-surface-variant" />',
       '/src/features/Ok5.tsx': "  style={{ background: 'transparent', color: 'currentColor' }}",
     };
     expect(offendingLines(isColorLiteral, [], fake)).toEqual([]);

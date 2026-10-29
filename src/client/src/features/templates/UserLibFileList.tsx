@@ -106,7 +106,7 @@ function FileRow({ label, depth, icon, active, dirty, errors, warnings, title, o
   errors: number; warnings: number; title?: string; onClick: () => void; actions?: React.ReactNode;
 }) {
   return (
-    <div className={`group flex items-center gap-1 pr-1.5 ${active ? 'bg-primary-container' : 'state-layer'}`}>
+    <div className={`state-layer group flex items-center gap-1 pr-1.5 ${active ? 'bg-primary-container' : ''}`}>
       <Tooltip content={title}>
         <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
           className="flex-1 min-w-0 flex items-center gap-1.5 py-1.5 text-left text-sm"

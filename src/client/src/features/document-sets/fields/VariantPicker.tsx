@@ -28,8 +28,8 @@ export function VariantPicker({ options, active, onSelect, layout = 'auto' }: {
           const on = o.key === active;
           return (
             <button key={o.key} type="button" role="radio" aria-checked={on} onClick={() => onSelect(o.key)}
-              className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left ${
-                on ? 'border-primary bg-primary/10 text-on-surface font-medium' : 'border-outline-variant bg-surface text-on-surface-variant state-layer'}`}>
+              className={`state-layer flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left ${
+                on ? 'border-primary bg-primary/10 text-on-surface font-medium' : 'border-outline-variant bg-surface text-on-surface-variant'}`}>
               <span className={`grid place-items-center w-4 h-4 rounded-full border shrink-0 ${on ? 'border-primary' : 'border-outline-variant'}`}>
                 {on && <span className="w-2 h-2 rounded-full bg-primary" />}
               </span>

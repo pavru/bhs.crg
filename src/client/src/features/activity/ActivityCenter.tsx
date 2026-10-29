@@ -51,7 +51,7 @@ export function ActivityCenter() {
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <button type="button" data-testid="activity" aria-label={label}
-          className={'relative shrink-0 flex items-center justify-center rounded-full h-10 max-md:h-11 transition-colors ' +
+          className={'relative shrink-0 flex items-center justify-center rounded-full h-10 max-md:h-11 ' +
             'hover:text-on-surface state-layer data-[state=open]:bg-secondary-container data-[state=open]:text-on-secondary-container ' +
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface ' +
             // Цвет — в каждой ветке свой, а не общий с перебивкой: из двух `text-*` побеждает тот, что

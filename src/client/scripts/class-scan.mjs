@@ -157,20 +157,24 @@ export function classTokens(text) {
   for (const span of scanCode(text).strings)
     for (const [from, to] of span)
       for (const m of text.slice(from, to).matchAll(/\S+/g)) {
-        const parts = [];
-        let depth = 0;
-        let start = 0;
-        const raw = m[0];
-        for (let k = 0; k < raw.length; k++) {
-          if (raw[k] === '[' || raw[k] === '(') depth++;
-          else if (raw[k] === ']' || raw[k] === ')') depth--;
-          else if (raw[k] === ':' && depth === 0) { parts.push(raw.slice(start, k)); start = k + 1; }
-        }
-        const cls = raw.slice(start).replace(/^!|!$/g, '');
-        if (cls) out.push({ cls, variants: parts, at: from + m.index });
+        const { cls, variants } = splitVariants(m[0]);
+        if (cls) out.push({ cls, variants, at: from + m.index });
       }
   lastTokens = { text, out };
   return out;
+}
+
+/** Класс → `{ cls, variants }` (см. `classTokens`): `dark:hover:bg-white/10` → `bg-white/10`, `['dark', 'hover']`. */
+export function splitVariants(raw) {
+  const variants = [];
+  let depth = 0;
+  let start = 0;
+  for (let k = 0; k < raw.length; k++) {
+    if (raw[k] === '[' || raw[k] === '(') depth++;
+    else if (raw[k] === ']' || raw[k] === ')') depth--;
+    else if (raw[k] === ':' && depth === 0) { variants.push(raw.slice(start, k)); start = k + 1; }
+  }
+  return { cls: raw.slice(start).replace(/^!|!$/g, ''), variants };
 }
 
 /** Цветовые утилиты в тексте, где комментарии уже вырезаны (`stripComments`). */

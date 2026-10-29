@@ -126,7 +126,13 @@ function inNegativeExpect(text, index) {
  * Возвращает новый текст, замены (`{ line, from, to, pair, comment }`) и нетронутое (`{ line, token, reason }`).
  */
 export function migrateText(source, { file = '', rules = compile(), states = compileStates() } = {}) {
-  const pre = migrateStates(source, { rules: states, skip: at => isTest(file) && inNegativeExpect(source, at) });
+  // Заливку проход состояний узнаёт по имени после перевода: `bg-brand-subtle` — уже заливка контейнера.
+  const resolve = c => {
+    const slash = c.indexOf('/');
+    const body = slash < 0 ? c : c.slice(0, slash);
+    return (rules.cls(body)?.to ?? body) + (slash < 0 ? '' : c.slice(slash));
+  };
+  const pre = migrateStates(source, { rules: states, resolve, skip: at => isTest(file) && inNegativeExpect(source, at) });
   const text = pre.text;
   const stripped = stripComments(text);
   const replaced = [];

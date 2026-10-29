@@ -398,7 +398,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
         {typeId && (
           <div>
             <button type="button" onClick={() => setShowPreview(v => !v)}
-              className="text-xs text-primary">
+              className="text-xs text-primary state-layer">
               {showPreview ? 'Скрыть предпросмотр' : 'Предпросмотр материализации'}
             </button>
             {showPreview && (

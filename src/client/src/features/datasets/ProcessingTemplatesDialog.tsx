@@ -59,7 +59,7 @@ function ExtractionFields({
       <div>
         <div className="flex items-center justify-between mb-1">
           <label className="block text-xs font-medium text-on-surface-variant">Колонки — относительно строки</label>
-          <button type="button" onClick={addColumn} className="flex items-center gap-1 text-xs text-primary">
+          <button type="button" onClick={addColumn} className="flex items-center gap-1 text-xs text-primary state-layer">
             <Icon icon={Add} size={18} /> Колонка
           </button>
         </div>

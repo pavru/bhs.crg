@@ -76,7 +76,7 @@ export function ObjectRow({
       onClick={() => onEdit(entry)}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit(entry); } }}
       aria-label={`Редактировать «${entry.displayName}»`}
-      className={`group flex items-center cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset ${dense ? 'gap-3 px-3 py-2 state-layer' : 'gap-4 px-4 py-3 state-layer'} ${className}`}>
+      className={`state-layer group flex items-center cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset ${dense ? 'gap-3 px-3 py-2' : 'gap-4 px-4 py-3'} ${className}`}>
       {docKind && dense && <Icon icon={Description} size={18} className="text-warning shrink-0" />}
       {/* Архивная: имя приглушено, но не зачёркнуто — запись цела, её только нет в выборе. */}
       <span className={`flex-1 min-w-[8rem] flex items-center gap-2 text-sm ${entry.archived ? 'text-on-surface-variant' : 'text-on-surface'} ${dense ? '' : 'font-medium'}`}>

@@ -563,8 +563,8 @@ export function PdfGroupingEditor() {
         actions={<>
           {suspiciousPageCount > 0 && (
             <button onClick={() => setSuspiciousOnly(v => !v)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border ${
-                suspiciousOnly ? 'border-warning bg-warning/10 text-warning' : 'border-outline-variant text-on-surface-variant state-layer'
+              className={`state-layer flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border ${
+                suspiciousOnly ? 'border-warning bg-warning/10 text-warning' : 'border-outline-variant text-on-surface-variant'
               }`}>
               <Icon icon={Warning} size={18} /> {suspiciousOnly ? 'Показать все' : `⚠ ${suspiciousPageCount} подозрительных`}
             </button>

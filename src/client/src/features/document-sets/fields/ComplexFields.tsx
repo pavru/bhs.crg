@@ -409,7 +409,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               }
               return (
                 <div key={i} {...dropTarget(i)}
-                  className={`flex items-center gap-2 px-3 py-2 ${selected.has(i) ? 'bg-primary-container' : 'state-layer'}`}>
+                  className={`state-layer flex items-center gap-2 px-3 py-2 ${selected.has(i) ? 'bg-primary-container' : ''}`}>
                   {rowChrome(i)}
                   <Icon icon={LinkIcon} size={18} className="text-warning shrink-0" />
                   <span className="flex-1 text-sm text-warning truncate">{item.displayName}</span>
@@ -472,7 +472,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
             // issue #102: строка — компактная сводка + ✎ (модалка), без инлайн-раскрытия (источник «портянки»).
             return (
               <div key={i} {...dropTarget(i)}
-                className={`flex items-center gap-2 px-3 py-2 ${selected.has(i) ? 'bg-primary-container' : 'state-layer'}`}>
+                className={`state-layer flex items-center gap-2 px-3 py-2 ${selected.has(i) ? 'bg-primary-container' : ''}`}>
                 {rowChrome(i)}
                 <button type="button" onClick={() => setRowModal(i)}
                   className="flex-1 text-left text-sm text-on-surface-variant hover:text-on-surface truncate">

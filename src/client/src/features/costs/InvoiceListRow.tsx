@@ -43,8 +43,8 @@ export function InvoiceListRow({ item, active, queue, onClick }: {
 
   return (
     <button ref={row} type="button" onClick={onClick} data-testid="invoice-row"
-      className={`w-full text-left px-3 py-2 border-b border-outline-variant/60 transition-colors ` +
-        `${active ? 'bg-primary-container' : 'state-layer'}`}>
+      className={`w-full text-left px-3 py-2 border-b border-outline-variant/60 ` +
+        `state-layer ${active ? 'bg-primary-container' : ''}`}>
       <div className="flex items-center gap-2">
         {/* Номера нет, скан есть — имя файла: три черновика из скана подряд иначе неразличимы. */}
         {item.number || !item.scanFileName
@@ -167,7 +167,7 @@ export function InvoiceLeftRow({ number, onClick, exit, active = true }: {
         ? `Счёт ${EXIT_WORD[exit]} и из очереди ушёл. Строка остаётся, чтобы к нему можно было вернуться`
         : 'Счёт под этот отбор больше не попадает. Строка остаётся, пока он открыт'}>
       <button type="button" onClick={onClick} data-testid={exit ? 'row-exit' : undefined}
-        className={`w-full text-left px-3 py-2 border-b border-outline-variant/60 ${active ? 'bg-primary-container' : 'state-layer'}`}>
+        className={`state-layer w-full text-left px-3 py-2 border-b border-outline-variant/60 ${active ? 'bg-primary-container' : ''}`}>
         <div className="text-sm text-on-surface font-medium truncate">{number || 'без номера'}</div>
         <div className="mt-0.5 inline-flex items-center gap-1 text-xs text-on-surface-variant">
           <Icon icon={Check} size={18} aria-hidden /> {exit ? EXIT_WORD[exit] : 'больше не в отборе'}

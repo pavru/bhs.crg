@@ -232,8 +232,8 @@ export function WaybillsPage() {
 function ListRow({ item, active, onClick }: { item: WaybillListItem; active: boolean; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick}
-      className={`w-full text-left px-3 py-2 border-b border-outline-variant/60 transition-colors ` +
-        `${active ? 'bg-primary-container' : 'state-layer'}`}>
+      className={`w-full text-left px-3 py-2 border-b border-outline-variant/60 ` +
+        `state-layer ${active ? 'bg-primary-container' : ''}`}>
       <div className="flex items-center gap-2">
         <span className="text-sm text-on-surface font-medium truncate">{item.number ?? 'без номера'}</span>
         {item.issuedOn && <span className="text-xs text-on-surface-variant shrink-0">{formatDate(item.issuedOn)}</span>}

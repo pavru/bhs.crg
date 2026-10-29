@@ -29,7 +29,7 @@ function ToolbarButton({
   return (
     <Tooltip content={title}>
       <button type="button" onClick={onClick}
-        className={`px-2 py-1 text-sm rounded ${active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant state-layer'}`}>
+        className={`state-layer px-2 py-1 text-sm rounded ${active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}>
         {children}
       </button>
     </Tooltip>

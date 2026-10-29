@@ -68,7 +68,7 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
       ))}
       <button type="button"
         onClick={() => onChange([...values, withRowUid({ code: '', label: '' })])}
-        className="flex items-center gap-1 text-sm text-primary pt-0.5">
+        className="flex items-center gap-1 text-sm text-primary state-layer pt-0.5">
         <Icon icon={Add} size={18} /> Добавить вариант
       </button>
     </div>

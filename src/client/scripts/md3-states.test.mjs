@@ -94,9 +94,8 @@ describe('кольцо фокуса', () => {
 });
 
 describe('отключённое', () => {
-  // !important — отключённое сильнее наведения элемента: hover:text-… стоит в CSS позже и весит столько же.
-  const content = 'color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent) !important;';
-  const container = 'background-color: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent) !important;';
+  const content = 'color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);';
+  const container = 'background-color: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);';
 
   const off = cls => rule(css(cls), '&:disabled, &[aria-disabled=true], &[data-disabled]');
 
@@ -105,15 +104,23 @@ describe('отключённое', () => {
   });
 
   it('рамку красит только disabled-outlined: у прозрачной рамки серой не появится', () => {
-    expect(off('disabled-outlined')).toContain('border-color: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent) !important;');
+    expect(off('disabled-outlined')).toContain('border-color: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);');
     expect(off('disabled-content')).not.toContain('border-color');
   });
 
   it('у контейнера — on-surface 12 % и без тени, у содержимого — без заливки', () => {
     const filled = rule(css('disabled-container'), '&:disabled, &[aria-disabled=true], &[data-disabled]');
     expect(filled).toContain(container);
-    expect(filled).toContain('box-shadow: none !important;');
+    expect(filled).toContain('box-shadow: none;');
     expect(rule(css('disabled-content'), '&:disabled, &[aria-disabled=true], &[data-disabled]')).not.toContain('background-color');
+  });
+
+  // hover:-класс стоит в CSS позже утилиты отключённого и весит столько же: у отключённого он не действует
+  // вовсе, вес селектора — прежний (:where), только на устройствах с наведением — как у Tailwind.
+  it.each(['hover:text-on-surface', 'group-hover:opacity-100'])('%s у отключённого не действует', cls => {
+    const out = css(cls);
+    expect(out).toContain(':where(:not(:disabled, [aria-disabled=true], [data-disabled]))');
+    expect(out).toContain('@media (hover: hover)');
   });
 });
 

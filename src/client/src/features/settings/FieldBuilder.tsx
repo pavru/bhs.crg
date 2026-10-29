@@ -549,7 +549,7 @@ export function FieldCard({
           ))}
           <button type="button"
             onClick={() => onChange({ options: [...(field.options ?? []), ''] })}
-            className="flex items-center gap-1 text-xs text-primary">
+            className="flex items-center gap-1 text-xs text-primary state-layer">
             <Icon icon={Add} size={18} /> Добавить вариант
           </button>
         </div>

@@ -116,7 +116,7 @@ function StepsEditor({ model, onChange }: { model: XPathModel; onChange: (m: XPa
           onChange={patch => updateStep(i, patch)} onRemove={() => removeStep(i)} />
       ))}
       <button type="button" onClick={addStep}
-        className="text-xs text-primary flex items-center gap-1 px-1.5 py-1 shrink-0">
+        className="text-xs text-primary state-layer flex items-center gap-1 px-1.5 py-1 shrink-0">
         <Icon icon={Add} size={18} /> Шаг
       </button>
     </div>
@@ -161,7 +161,7 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
           <PredicateEditor key={i} predicate={p}
             onChange={next => updatePredicate(i, next)} onRemove={() => removePredicate(i)} />
         ))}
-        <button type="button" onClick={addPredicate} className="text-caption text-primary shrink-0">
+        <button type="button" onClick={addPredicate} className="text-caption text-primary state-layer shrink-0">
           + условие
         </button>
       </div>

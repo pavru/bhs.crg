@@ -6,6 +6,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { COLOR_UTILITIES } from './class-scan.mjs';
 import { loadDeclarations } from './color-classes-lib.mjs';
 import { clientRoot, compile, formatReport, migrateFiles, migrateText, sourceFiles } from './md3-migrate.mjs';
+import { countLegacyClasses } from './ui-ratchet-md3.mjs';
 import classMap from './md3-class-map.json' with { type: 'json' };
 
 // Кодмод перевода старых имён (эпик sharedui-md3, [UI-58]): почему команда, а не sed, — в md3-migrate.mjs.
@@ -94,6 +95,11 @@ describe('md3:migrate: неоднозначное не трогает, а наз
     expect(migrated('"text-brand-hover bg-primary hover:bg-brand-hover active:bg-brand-pressed"'))
       .toBe('"text-primary bg-primary state-layer"');
     expect(migrated('"bg-primary-container text-brand-pressed"')).toBe('"bg-primary-container text-on-primary-container"');
+  });
+
+  it('fg-disabled снят из темы (sharedui-md3-05), но пара у него есть: класса из старой ветки не теряем', () => {
+    expect(migrated('"text-fg-disabled"')).toBe('"text-on-surface/38"');
+    expect(countLegacyClasses('<i className="text-fg-disabled" />')).toBe(1);
   });
 
   it('у текста две роли (sharedui-md3-04): fg3, fg4 и text-stroke-strong → on-surface-variant', () => {

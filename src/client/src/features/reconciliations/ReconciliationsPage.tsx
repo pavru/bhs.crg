@@ -308,8 +308,8 @@ export function ReconciliationsPage() {
       {currentRun?.status === 'Completed' && (
         <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant text-xs shrink-0">
           <button type="button" onClick={() => setOnlyAttention(v => !v)}
-            className={`px-2 py-1 rounded-full ${
-              onlyAttention ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant state-layer'}`}>
+            className={`state-layer px-2 py-1 rounded-full ${
+              onlyAttention ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant'}`}>
             Требует внимания: {attentionCount}
           </button>
           <span className="text-on-surface-variant">
