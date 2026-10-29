@@ -354,8 +354,9 @@ cd src/client && npm run md3:migrate && npm run ui:ratchet && git commit -am "md
 | `text-label-medium` | 12/16, 0,5, 500 | подпись чипа, мелкой кнопки |
 | `text-label-small` | 11/16, 0,5, 500 | пометка, счётчик, мелкая подпись |
 
-- **Вес рядом с ролью** — только `font-medium`, когда внутри текста нужен акцент. Явное `font-*` берёт
-  верх над начертанием роли. `font-semibold` (600 не загружен и рисуется 700) и `font-bold` — вне шкалы,
+- **Вес рядом с ролью** — `font-medium`, когда внутри текста нужен акцент, и `font-normal`, когда надо
+  снять жирность, которую браузер даёт сам (`<th>`, `<b>` в подписи). Явное `font-*` берёт верх над
+  начертанием роли. `font-semibold` (600 не загружен и рисуется 700) и `font-bold` — вне шкалы,
   их держит уровень `legacy-type` до ребёнка эпика 17.
 - **Интервал — роли, везде одинаковый**, в клетках таблиц тоже (решение владельца В10 от 29.10.2026).
   Своего `tracking-*` нет.
@@ -815,7 +816,7 @@ import { Delete } from '@/shared/ui/icons';
   нажимаемая пилюля (`rounded-full` с `px-…`) или `aria-pressed`; `badge` (#1416) — `span`/`div` с
   `rounded-full` и фоном или рамкой, кроме кругов заданного размера (аватар, точка, полоса). Обе узнают
   и форму чипа MD3, `rounded-sm` ([UI-66]): чип — с `px-…` и рамкой, не во всю ширину; пометку — с мелким
-  текстом (`text-body-small`, `text-label-small`, `text-label-medium` и прежние ступени), `px-…` и полями не выше `py-0.5`. Плашки, панели, самодельные кнопки
+  текстом (`text-body-small`, `text-label-small`, `text-label-medium`), `px-…` и полями не выше `py-0.5`. Плашки, панели, самодельные кнопки
   и пункты списка с 8 px — не чипы и не пометки (замер — design `sharedui-md3-06`); `tabs`
   (#1416) — `role="tab"` / `tablist` / `tabpanel`, уровень — ноль; `icon-button` (#1417) — `<button>`,
   единственный ребёнок которого — компонент-значок. Накопленное стоит в уровне. Вкладки, нарисованные
@@ -896,7 +897,9 @@ import { Delete } from '@/shared/ui/icons';
   `features/` стоит в уровне до ребёнка 17. Ступени и уровни сверяет тест темы
   `src/client/scripts/md3-theme.test.mjs`: число в нём — договор, а не копия описания.
 - Текст вне ролей MD3 — правило `legacy-type` ([UI-67]): ступени Tailwind `text-xs…9xl`, свои `caption` и
-  `note`, `font-semibold` и крупнее, `uppercase`, `tracking-*` кроме `tracking-normal`. Весь `src/`, классы
+  `note`, `font-semibold` и крупнее, `uppercase`, `tracking-*` кроме `tracking-normal` — и те же свойства
+  обходом: вес числом (`font-[600]`), свойство в скобках (`[letter-spacing:…]`, кроме `[font-weight:inherit]`),
+  стиль объектом (`fontWeight`, `letterSpacing`, `textTransform`, `fontSize` строкой). Весь `src/`, классы
   в строках кода; накопленное стоит в уровне — `font-semibold` и `font-bold` до ребёнка 17, `text-xl` в
   `PageHeader` и `DetailTitle` до ребёнка 15. Подсказки `legacy-type` и `text-size` называют роли. Значения ролей сверяет
   тест темы `md3-theme.test.mjs` числами шкалы MD3.

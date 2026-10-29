@@ -118,7 +118,10 @@ MD3, а не наш выбор.
 ### Правило `legacy-type`
 
 - `everywhere: true`, по файлам. Ловит ступени Tailwind (`text-(xs|sm|base|lg|xl|[2-9]xl)`), `caption`,
-  `note`, `font-(semibold|bold|extrabold|black)`, `uppercase`, `tracking-(?!normal)`.
+  `note`, `font-(semibold|bold|extrabold|black)`, `uppercase`, `tracking-(?!normal)` — и те же свойства
+  обходом (ревью PR 1): вес числом `font-[600]`, свойство в скобках `[letter-spacing:…]` (кроме
+  `[font-weight:inherit]` у клетки-заголовка), стиль объектом `fontWeight` / `letterSpacing` /
+  `textTransform` / `fontSize` строкой (число — настройка Monaco).
 - Цвет `text-<роль цвета>` правило не путает с размером: ловит только имена ступеней.
 - Уровень — после PR 1, опускается в PR 2; в ноль — в 17 (D11).
 

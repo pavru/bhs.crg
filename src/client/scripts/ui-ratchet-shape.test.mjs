@@ -22,16 +22,14 @@ describe('храповик интерфейса: форма чипа MD3 у chip
   });
 
   it('своя пометка в форме чипа — rounded-sm с мелким текстом и полями по бокам; плашка и рамка — нет', () => {
-    expect(others('<span className="text-xs px-2 py-0.5 rounded-sm bg-surface-container">черновик</span>'))
-      .toEqual({ badge: 1 });
-    // Мелкий текст ролью MD3 (sharedui-md3-07): после перевода пометка пишется так, и правило обязано её видеть.
+    // Мелкий текст — ролью MD3 (sharedui-md3-07): пометка пишется так, и правило обязано её видеть.
     for (const role of ['text-body-small', 'text-label-small', 'text-label-medium'])
       expect(others(`<span className="${role} px-2 py-0.5 rounded-sm bg-surface-container">черновик</span>`))
         .toEqual({ badge: 1 });
     expect(others('<span className="text-body-medium px-2 py-0.5 rounded-sm bg-surface-container">строка</span>')).toEqual({});
     expect(others([
-      '<div className="rounded-sm bg-warning-container px-3 py-2 text-xs">Сообщение</div>',
-      '<div className="rounded-sm border border-outline-variant overflow-hidden text-xs">строки</div>',
+      '<div className="rounded-sm bg-warning-container px-3 py-2 text-body-small">Сообщение</div>',
+      '<div className="rounded-sm border border-outline-variant overflow-hidden text-body-small">строки</div>',
     ].join(' '))).toEqual({});
   });
 });
