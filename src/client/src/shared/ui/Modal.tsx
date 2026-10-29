@@ -9,6 +9,7 @@ import {
 } from './modalControl';
 import { DISMISSAL, modalState, pointAtExit } from './modalDismissal';
 import { useHistoryLayer } from './historyLayers';
+import { focusFromLayer } from './layerFocus';
 
 interface ModalBaseProps {
   open: boolean;
@@ -251,7 +252,7 @@ function ModalBody({
           onCloseAutoFocus={e => {
             if (!opener?.isConnected || opener === document.body) return;
             e.preventDefault();
-            opener.focus();
+            focusFromLayer(opener);
           }}
           onEscapeKeyDown={e => {
             // Решает диалог сам и ПОЗЖЕ — см. `afterFields`. Radix закрыл бы окно прямо сейчас.

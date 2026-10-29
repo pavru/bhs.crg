@@ -6,6 +6,7 @@ import { Icon } from './Icon';
 import { KeyboardArrowDown } from './icons';
 import { MENU_ITEM, MENU_ITEM_OFF, MENU_SURFACE } from './menuClasses';
 import { Tooltip } from './Tooltip';
+import { focusFromLayer } from './layerFocus';
 
 export interface SplitButtonItem {
   key: string;
@@ -95,7 +96,7 @@ export function SplitButton({
                 if (!item) return;
                 chosen.current = null;
                 e.preventDefault();
-                arrow.current?.focus();
+                if (arrow.current) focusFromLayer(arrow.current);
                 item.onSelect();
               }}>
               {items.map(item => {
