@@ -11,7 +11,7 @@ import { useHiddenRecognitionProfiles, useListRecognitionProfiles } from '@/shar
 import { isHiddenBound, withBoundOption, type HiddenRecognitionProfile, type ProfileOption } from '@/shared/api/recognitionProfileGroups';
 import type { GostGroupingGroup, GostGroupKind } from '@/shared/api/types';
 import { Modal } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { ruCount } from '@/shared/utils/pluralize';
 import { RecognitionBlockedDialog } from './RecognitionBlockedDialog';
 import { GroupingSaveError, MissingPartsNotice } from './PdfGroupingNotices';
@@ -118,32 +118,32 @@ function PageTile({
   onView: (pageIndex: number) => void;
 }) {
   return (
-    <Tooltip content={noAnswer
-        ? `Страница ${pageIndex + 1} — модель не ответила по этому листу, поля пусты`
-        : `Страница ${pageIndex + 1}`}>
-      <div
-        onClick={e => onToggle(pageIndex, e)}
-        className={`group/tile relative rounded-sm p-1 border-2 transition-colors text-left cursor-pointer ${
-          selected ? 'border-primary bg-primary-container' : 'border-transparent hover:border-outline-variant'
-        }`}>
-        <PageThumbnail fileId={fileId} pageIndex={pageIndex} />
-        <Tooltip content="Просмотреть лист крупно" name>
-        <button
-            onClick={e => { e.stopPropagation(); onView(pageIndex); }}
-            className="absolute top-1.5 right-1.5 p-1 rounded-xs bg-surface/90 border border-outline-variant text-on-surface-variant opacity-70 hover:text-primary hover:opacity-100 transition-opacity">
-            <Icon icon={ZoomIn} size={18} />
-          </button>
-      </Tooltip>
-        <div className="flex items-center justify-between mt-1 px-0.5">
-          <span className="text-label-small text-on-surface-variant">{pageIndex + 1}</span>
-          {/* Лист без ответа виден отдельно от «подозрительной» группы: у первого поля пусты потому,
-              что их неоткуда взять, у второй — потому что распозналось не то. Лечится это по-разному. */}
-          {noAnswer
-            ? <Icon icon={ErrorIcon} size={18} className="text-error" />
-            : suspicious && <Icon icon={Warning} size={18} className="text-warning" />}
+    <div onClick={e => onToggle(pageIndex, e)}
+      className={`group/tile relative rounded-sm p-1 border-2 transition-colors text-left cursor-pointer ${
+        selected ? 'border-primary bg-primary-container' : 'border-transparent hover:border-outline-variant'
+      }`}>
+      {/* Подсказка листа — на миниатюре с подписью, а лупа ей соседка, не потомок: у лупы своя
+          подсказка, и под курсором над ней должна открываться одна, а не обе. */}
+      <Tooltip content={noAnswer
+          ? `Страница ${pageIndex + 1} — модель не ответила по этому листу, поля пусты`
+          : `Страница ${pageIndex + 1}`}>
+        <div>
+          <PageThumbnail fileId={fileId} pageIndex={pageIndex} />
+          <div className="flex items-center justify-between mt-1 px-0.5">
+            <span className="text-label-small text-on-surface-variant">{pageIndex + 1}</span>
+            {/* Лист без ответа виден отдельно от «подозрительной» группы: у первого поля пусты потому,
+                что их неоткуда взять, у второй — потому что распозналось не то. Лечится это по-разному. */}
+            {noAnswer ? <Icon icon={ErrorIcon} size={18} className="text-error" />
+              : suspicious && <Icon icon={Warning} size={18} className="text-warning" />}
+          </div>
         </div>
-      </div>
-    </Tooltip>
+      </Tooltip>
+      <IconButton label="Просмотреть лист крупно" size="sm"
+        className="absolute top-1.5 right-1.5 bg-surface/90 border border-outline-variant opacity-70 hover:opacity-100"
+        onClick={e => { e.stopPropagation(); onView(pageIndex); }}>
+        <Icon icon={ZoomIn} size={18} />
+      </IconButton>
+    </div>
   );
 }
 
@@ -312,12 +312,11 @@ function GroupSection({
         )}
         <span className="text-body-small text-on-surface-variant shrink-0">{group.pageIndices.length} л.</span>
         {!isSpecial && (
-          <Tooltip content="Расформировать (страницы станут без группы)" name>
-            <button onClick={() => onDisband(group.id)}
-              className="p-1 text-on-surface-variant hover:text-error shrink-0">
-              <Icon icon={Delete} size={18} />
-            </button>
-          </Tooltip>
+          <IconButton label={`Расформировать группу ${group.code}${group.name ? ` «${group.name}»` : ''}`}
+            title="Расформировать (страницы станут без группы)"
+            size="sm" danger onClick={() => onDisband(group.id)}>
+            <Icon icon={Delete} size={18} />
+          </IconButton>
         )}
       </div>
 
@@ -537,12 +536,9 @@ export function PdfGroupingEditor() {
     <div className="p-6 flex flex-col h-full">
       <PageHeader className="mb-4 shrink-0"
         icon={
-          <Tooltip content="Назад">
-            <button onClick={() => navigate(-1)} aria-label="Назад"
-              className="p-1.5 text-on-surface-variant hover:text-on-surface rounded-xs transition-colors">
-              <Icon icon={ArrowBack} size={18} />
-            </button>
-          </Tooltip>
+          <IconButton label="Назад" size="lg" className="min-h-11 min-w-11" onClick={() => navigate(-1)}>
+            <Icon icon={ArrowBack} size={20} />
+          </IconButton>
         }
         title={`Разбиение${location.state?.sourceName ? ` — ${location.state.sourceName}` : ''}`}
         subtitle={<>
