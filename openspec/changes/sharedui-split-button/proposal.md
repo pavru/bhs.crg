@@ -25,8 +25,10 @@
     `sharedui-md3-10-actions` переходит в `SplitButton` сама;
   - меню — Radix `DropdownMenu` с порталом; пункт с подписью и пояснением второй строкой;
   - подсказки у обеих половин, имя стрелки для скринридера, `disabled` и `loading` на обе половины.
-- **`EditorPanel`** — «Сохранить» и «Сохранить как новую» становятся `SplitButton`. Свой `mousedown`,
-  `saveMenuRef` и `saveMenuOpen` уходят. Ctrl+S не меняется.
+- **`EditorPanel`** — у активной версии «Сохранить» становится `SplitButton`. У исторической вариантов
+  нет (единственный пункт меню вёл бы в то же окно, что и кнопка), и там остаётся одна filled `Button`
+  «Сохранить как новую» без стрелки. Свой `mousedown`, `saveMenuRef` и `saveMenuOpen` уходят. Ctrl+S не
+  меняется.
 - **Храповик** — правило `split-button`, уровень ноль: одностороннее скругление (`rounded-l-*`,
   `rounded-r-*`, `rounded-s-*`, `rounded-e-*`) у кнопки разметки, `Button` или `IconButton` в
   `features/`. Подсказка называет `SplitButton`.
@@ -47,7 +49,8 @@
 
 - **Клиент:**
   - новый `shared/ui/SplitButton.tsx` и его тест;
-  - `shared/ui/Button.tsx` — экспорт общих констант вида (без изменения поведения `Button`);
+  - `shared/ui/Button.tsx` — форма (`rounded-full`) и тень filled выносятся из общих констант в
+    `Button`, константы экспортируются; вид `Button` и `IconButton` не меняется;
   - `features/templates/EditorPanel.tsx`;
   - `scripts/ui-ratchet-lib.mjs` (правило), `ui-baseline.json`, тест правила.
 - **Соседние change:**
