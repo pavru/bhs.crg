@@ -5,7 +5,7 @@ import { useAssetCompletion } from '@/shared/ui/typstAssetCompletion';
 import Editor from '@/shared/ui/CodeEditor';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { markTemplateModel } from '@/shared/ui/typstDispatchCompletion';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { useToast } from '@/shared/ui/Toast';
@@ -369,12 +369,13 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
                 </button>
               </Tooltip>
             )}
-            <Tooltip content="Ещё варианты сохранения" name>
-              <button type="button" onClick={() => setSaveMenuOpen(v => !v)} disabled={saving}
-                className="inline-flex items-center h-8 px-1.5 rounded-r-full border-l border-on-primary/25 bg-primary text-on-primary shadow-elevation-1 state-layer disabled-container">
-                <Icon icon={KeyboardArrowDown} size={18} />
-              </button>
-            </Tooltip>
+            <IconButton label="Ещё варианты сохранения"
+              size="sm"
+              className="rounded-l-none border-l border-on-primary/25 bg-primary shadow-elevation-1 disabled-container [--_state-color:var(--color-on-primary)]"
+              onClick={() => setSaveMenuOpen(v => !v)}
+              disabled={saving}>
+              <Icon icon={KeyboardArrowDown} size={18} className={saving ? undefined : 'text-on-primary'} />
+            </IconButton>
             {saveMenuOpen && (
               <div className="absolute top-full right-0 mt-1 z-50 w-72 bg-surface border border-outline-variant rounded-md shadow-elevation-2 py-1">
                 <button type="button"
