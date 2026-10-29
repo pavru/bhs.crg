@@ -6,7 +6,8 @@
 Текст интерфейса SHALL задаваться одной из 15 ролей MD3 — display, headline, title, body, label, каждая
 large, medium и small. Роль задаёт размер, высоту строки, межбуквенный интервал и начертание одним
 классом `text-<роль>` (`text-body-medium`, `text-label-small`). Значения ролей MUST совпадать с базовой
-шкалой MD3. Явно заданное начертание рядом с ролью MUST брать верх над начертанием роли.
+шкалой MD3. Явно заданное начертание рядом с ролью MUST брать верх над начертанием роли. Заголовок
+выбранного объекта или раздела MUST NOT быть крупнее заголовка страницы.
 
 #### Scenario: Основной текст
 - **WHEN** элемент несёт `text-body-medium`
@@ -24,12 +25,19 @@ large, medium и small. Роль задаёт размер, высоту стр�
 - **WHEN** элемент несёт `text-body-small font-medium`
 - **THEN** размер и строка — от роли, начертание — 500
 
+#### Scenario: Выбранный объект рядом со списком
+- **WHEN** страница с шапкой 20 px показывает заголовок выбранной роли или документа
+- **THEN** он `text-title-medium` (16/24/500), а не `text-title-large` (22 px)
+
 ### Requirement: [UI-67] Только роль — без ступеней, капса и начертаний вне MD3
 В интерфейсе MUST NOT быть:
 - ступеней размера `text-xs`, `text-sm`, `text-base`, `text-lg` и крупнее, `text-caption`, `text-note`;
 - произвольного размера `text-[…]`;
 - начертаний `font-semibold` и `font-bold`;
-- `uppercase` и своего `tracking-*`.
+- `uppercase` и своего `tracking-*`;
+- тех же свойств обходом: веса числом (`font-[600]`), свойства в скобках (`[letter-spacing:…]`; кроме
+  `[font-weight:inherit]`, которым клетка-заголовок снимает жирность браузера), стиля объектом
+  (`fontWeight`, `letterSpacing`, `textTransform`, `fontSize` строкой).
 
 Их считает правило храповика `legacy-type` по файлам всего `src/`, уровень MUST только опускаться.
 Отказ называет выход — роль MD3 и раздел «Текст» `docs/UI.md`.
@@ -38,6 +46,10 @@ large, medium и small. Роль задаёт размер, высоту стр�
 - **WHEN** в файле появляется `text-xs` или `font-semibold`
 - **THEN** `npm run ui:ratchet` отказывает по правилу `legacy-type` и называет роли (`text-body-small`,
   `text-label-medium`, `text-title-small`)
+
+#### Scenario: Обход именем
+- **WHEN** в файле появляется `font-[600]`, `[text-transform:uppercase]` или `style={{ fontWeight: 600 }}`
+- **THEN** `npm run ui:ratchet` отказывает по правилу `legacy-type`
 
 #### Scenario: Произвольный размер
 - **WHEN** в файле появляется `text-[13px]`
