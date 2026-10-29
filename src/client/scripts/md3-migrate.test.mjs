@@ -134,10 +134,13 @@ describe('md3:migrate: неоднозначное не трогает, а наз
     expect(migrated('[color:var(--color-base)]')).toBe('[color:var(--color-surface-container-low)]');
   });
 
-  it('переменные: var(--color-fg3) — по паре имени, --f-fg3 без строки в vars — не трогается', () => {
+  it('переменные: var(--color-fg3) — роль текста бывает и обводкой, --f-fg3 без строки в vars — не трогаются', () => {
     const source = 'border-l-[var(--color-fg3)] [color:var(--f-fg3)]';
-    expect(migrated(source)).toBe('border-l-[var(--color-on-surface-variant)] [color:var(--f-fg3)]');
-    expect(untouched(source)).toEqual(['--f-fg3']);
+    expect(migrated(source)).toBe(source);
+    expect(run(source).untouched).toEqual([
+      { line: 1, token: '--color-fg3', reason: expect.stringContaining('обводка цветом текста запрещена') },
+      { line: 1, token: '--f-fg3', reason: expect.stringContaining('нет строки в vars') },
+    ]);
   });
 
   it('отрицательное ожидание теста — не трогается, называется', () => {
