@@ -363,7 +363,7 @@ export function FieldCard({
               readOnly={keyLocked}
               placeholder="КлючПоля"
               spellCheck={false}
-              className={`w-full border rounded-sm pl-3 pr-7 py-1.5 text-body-medium font-mono focus:outline-none focus-visible:ring-2 ${
+              className={`w-full border rounded-sm pl-3 pr-9 py-1.5 text-body-medium font-mono focus:outline-none focus-visible:ring-2 ${
                 keyConflict ? 'border-error focus-visible:ring-error' : 'border-outline focus-visible:ring-primary'
               } ${keyLocked ? 'bg-surface-container/60 text-on-surface-variant cursor-default' : 'bg-surface'}`}
             />
@@ -373,7 +373,7 @@ export function FieldCard({
           ) : keyLocked ? (
             <IconButton label="Изменить ключ (осторожно: осиротит данные документов)"
               size="sm"
-              className="absolute right-1.5 top-1/2 -translate-y-1/2"
+              className="absolute right-0 top-1/2 -translate-y-1/2"
               onClick={() => setConfirmUnlock(true)}>
               <Icon icon={LockIcon} size={18} />
             </IconButton>
@@ -415,7 +415,7 @@ export function FieldCard({
         <div className="flex items-center justify-end gap-0.5">
           <MoveButtons onUp={() => onMoveUp?.()} onDown={() => onMoveDown?.()}
             isFirst={!!isFirst} isLast={!!isLast} />
-          <IconButton label="Удалить поле" size="sm" danger onClick={onRemove}>
+          <IconButton label={`Удалить поле «${field.title || field.key || 'без названия'}»`} size="sm" danger onClick={onRemove}>
             <Icon icon={Delete} size={18} />
           </IconButton>
         </div>
@@ -536,7 +536,7 @@ export function FieldCard({
                 placeholder={`Вариант ${oi + 1}`}
                 className="flex-1 border border-outline rounded-xs px-2 py-1 text-body-small focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface"
               />
-              <IconButton label="Удалить вариант"
+              <IconButton label={`Удалить вариант ${oi + 1}`}
                 size="sm"
                 danger
                 onClick={() => {
