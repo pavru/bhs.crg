@@ -48,14 +48,14 @@
 - [x] 2.4 `docs/UI.md` «Цвет»: палитра из seed (`md3-theme.json`, `npm run md3:theme`), тест контраста,
   две роли текста, текст на контейнере — `on-*-container`, обводки по статусу нет (или как решено)
   [UI-62] [UI-63]. Проверка — в «Цвет» нет `fg3`, `fg4`, `warning-border` вне колонки псевдонимов
-- [ ] 2.5 После слияния — `/design-sync` из основной копии. Проверка — токены бандла дизайн-системы равны
+- [x] 2.5 После слияния — `/design-sync` из основной копии. Проверка — токены бандла дизайн-системы равны
   `md3-tokens.css`
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Branding"` — зелёный
-- [ ] 3.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный (дрейф, контраст, сервер)
-- [ ] 3.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
-- [ ] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
-- [ ] 3.5 `cd src/client && npm run -s test:e2e:ci` — весь список живых прогонов зелёный в каждом PR:
+- [x] 3.1 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FullyQualifiedName~Branding"` — зелёный
+- [x] 3.2 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный (дрейф, контраст, сервер)
+- [x] 3.3 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста
+- [x] 3.4 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` — зелёный
+- [x] 3.5 `cd src/client && npm run -s test:e2e:ci` — весь список живых прогонов зелёный в каждом PR:
   палитра общая для всех экранов (зонтик, 5.1)
