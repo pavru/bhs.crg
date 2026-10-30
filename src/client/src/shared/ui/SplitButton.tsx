@@ -1,6 +1,6 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useEffect, useRef, type ReactNode } from 'react';
-import { BASE, HEIGHT, SIZE, variantClass } from './buttonClasses';
+import { BASE, HEIGHT, LABEL, padding, variantClass } from './buttonClasses';
 import { CircularProgress } from './CircularProgress';
 import { Icon } from './Icon';
 import { KeyboardArrowDown } from './icons';
@@ -41,6 +41,9 @@ export interface SplitButtonProps {
 // Переход формы — добавкой к переходу слоя состояния (`state-layer` в BASE): свой класс transition-*
 // отнял бы transition-property у слоя или слой у него, смотря по порядку утилит (src/index.css).
 const MORPH = '[--_also-transition:border-radius]';
+// Цель касания половин — только по вертикали: зазор 2 px, и расширение вбок отняло бы у соседней
+// половины её видимый край ([UI-68]).
+const TOUCH = 'touch-target [--_touch-inset:-4px_0]';
 const itemCls = `flex items-start gap-2 px-3 py-2 ${MENU_ITEM}`;
 
 /**
@@ -50,7 +53,8 @@ const itemCls = `flex items-start gap-2 px-3 py-2 ${MENU_ITEM}`;
  *
  * <p>Вид половин — из общих с `Button` констант (`buttonClasses`), а не перекрытием классов `Button` или
  * `IconButton`: у половины нет двух классов одного свойства, и правка кнопки переходит сюда сама. Тени
- * нет — на каждой половине она легла бы швом в зазор.</p>
+ * нет и при наведении — на каждой половине она легла бы швом в зазор; у `Button` filled она при
+ * наведении есть, и это не забытая асимметрия.</p>
  *
  * <p>Стрелка — триггер Radix `DropdownMenu`: имя, «меню», «развёрнуто», клавиатура, Esc и возврат фокуса
  * — его. Недоступная стрелка остаётся настоящим `disabled` (меню не открыть ни мышью, ни клавиатурой) и
@@ -60,7 +64,7 @@ export function SplitButton({
   children, icon, onClick, title, variant = 'filled', disabled = false, loading = false, menuLabel, items,
 }: SplitButtonProps) {
   const off = disabled || loading;
-  const look = `${BASE} ${variantClass(variant)} ${MORPH}`;
+  const look = `${BASE} ${TOUCH} ${variantClass(variant)} ${MORPH}`;
   const arrow = useRef<HTMLButtonElement>(null);
   // Выбранный пункт ждёт, пока меню закроется и фокус вернётся на стрелку: окно, открытое пунктом,
   // запоминает фокус при открытии и возвращает его туда же — иначе это снятый пункт, и фокус уходит в body.
@@ -73,7 +77,7 @@ export function SplitButton({
     <div className="inline-flex shrink-0 gap-0.5">
       <Tooltip content={title}>
         <button type="button" onClick={onClick} disabled={off}
-          className={`${look} ${SIZE.md} whitespace-nowrap rounded-l-full rounded-r-xs active:rounded-r-sm`}>
+          className={`${look} ${HEIGHT} ${LABEL} ${padding(variant, { leading: loading || !!icon })} whitespace-nowrap rounded-l-full rounded-r-xs active:rounded-r-sm`}>
           {loading ? <CircularProgress size={18} className="shrink-0" /> : icon}
           {children}
         </button>
@@ -83,7 +87,7 @@ export function SplitButton({
           <Tooltip name content={menuLabel}>
             <DropdownMenu.Trigger asChild disabled={off}>
               <button ref={arrow} type="button"
-                className={`group ${look} ${HEIGHT.md} w-11 rounded-r-full rounded-l-xs active:rounded-l-sm data-[state=open]:rounded-l-full`}>
+                className={`group ${look} ${HEIGHT} w-11 rounded-r-full rounded-l-xs active:rounded-l-sm data-[state=open]:rounded-l-full`}>
                 <Icon icon={KeyboardArrowDown} size={20}
                   className="transition-transform duration-(--md-sys-motion-duration-short3) ease-standard group-data-[state=open]:rotate-180" />
               </button>

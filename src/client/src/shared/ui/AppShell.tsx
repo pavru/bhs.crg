@@ -245,10 +245,7 @@ function EmailConfirmBanner() {
         {' · '}
         <Link to="/profile" onClick={guardedClick('/profile')} className="font-medium underline hover:no-underline">Профиль</Link>
       </span>
-      <button type="button" onClick={() => setDismissed(true)} aria-label="Скрыть"
-        className="shrink-0 p-1 rounded-xs hover:bg-warning/10">
-        <Icon icon={Close} size={18} />
-      </button>
+      <IconButton label="Скрыть" icon={Close} onClick={() => setDismissed(true)} />
     </div>
   );
 }

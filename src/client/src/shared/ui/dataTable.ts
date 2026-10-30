@@ -24,8 +24,18 @@ const dtThBase =
 /** Ячейка шапки: липкая, на surface-container, вторичный текст. */
 export const dtTh = `${dtThBase} px-3 h-(--dt-head)`;
 
+/**
+ * Размер кнопки-иконки в клетке ([UI-68], выбор владельца В7 = Б, 31.10.2026): при мыши — XS шкалы M3
+ * Expressive, 32 со знаком 20, при касании — 40 со знаком 24 (у 32 цель нажатия вышла бы 40, а не 48).
+ * Задаёт место, а не кнопка: переменную читает только `IconButton`, а порталы окон и меню лежат в body
+ * и её не наследуют. Имя — только здесь и в `Button.tsx` (правило храповика `dense-scope`).
+ */
+const ICON_BUTTON_XS =
+  '[--md-comp-icon-button-size:32px] [--md-comp-icon-button-icon:20px] '
+  + 'pointer-coarse:[--md-comp-icon-button-size:40px] pointer-coarse:[--md-comp-icon-button-icon:24px]';
+
 /** Ячейка тела: тонкая нижняя граница, средняя плотность. */
-export const dtTd = 'px-3 py-2 border-b border-outline-variant align-middle';
+export const dtTd = `px-3 py-2 border-b border-outline-variant align-middle ${ICON_BUTTON_XS}`;
 
 /**
  * Плотная сетка — диалоги и боковые панели (#1354): там сетка одна из нескольких частей, и шапка
@@ -33,19 +43,19 @@ export const dtTd = 'px-3 py-2 border-b border-outline-variant align-middle';
  */
 export const dtTableCompact = 'w-full border-separate border-spacing-0 text-body-small [--dt-head:2rem]';
 export const dtThCompact = `${dtThBase} px-2 h-(--dt-head)`;
-export const dtTdCompact = 'px-2 py-1 border-b border-outline-variant align-middle';
+export const dtTdCompact = `px-2 py-1 border-b border-outline-variant align-middle ${ICON_BUTTON_XS}`;
 
 /**
  * Клетка сетки правки (EditGrid): плотная, но прижата к верху — рядом с полем стоит то, что
  * растёт вниз (поле с пометкой, сумма с примечанием), и поля строки обязаны стоять на одной линии.
  */
-export const dtTdEdit = 'px-2 py-1 border-b border-outline-variant align-top';
+export const dtTdEdit = `px-2 py-1 border-b border-outline-variant align-top ${ICON_BUTTON_XS}`;
 
 /**
  * Сетка правки «листом» (EditGrid, `sheet`): поле во всю клетку без отступов и линии между колонками —
  * как в электронной таблице. Клетка с фокусом подсвечена: у поля без рамки другого признака нет.
  */
-export const dtTdSheet = 'p-0 h-7 border-b border-r border-outline-variant align-middle focus-within:bg-primary-container';
+export const dtTdSheet = `p-0 h-7 border-b border-r border-outline-variant align-middle focus-within:bg-primary-container ${ICON_BUTTON_XS}`;
 
 /**
  * Ширина таблицы с ширинами колонок, заданными числом (EditGrid, `size`): таблица шириной по сумме
