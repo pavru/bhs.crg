@@ -15,7 +15,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/types-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled, placedBox } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, placedBox, focusLandsOn } from './harness.mjs';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1100 } });
@@ -293,8 +293,7 @@ await check('insert-field-list-is-a-layer-over-the-window', async () => {
   await page.keyboard.press('Escape');
   await list.waitFor({ state: 'hidden', timeout: 5_000 });
   if (!(await dialog.isVisible())) throw new Error('Esc в списке закрыл окно нового типа');
-  if (!(await trigger.evaluate(el => el === document.activeElement)))
-    throw new Error('после Esc фокус не вернулся на «+ Вставить поле»');
+  await focusLandsOn(trigger, 'после Esc фокус не вернулся на «+ Вставить поле»');
   // Tab с последнего пункта — дальше по форме, в формулу: слой в конце body, вне порядка Tab окна.
   await trigger.click();
   await list.waitFor({ timeout: 5_000 });
@@ -319,8 +318,7 @@ await check('insert-field-list-is-a-layer-over-the-window', async () => {
     await list.waitFor({ state: 'detached', timeout: 5_000 }).catch(() => {
       throw new Error('кнопку прокрутили из вида, а список только спрятан: фокус и набор — в невидимом фильтре');
     });
-    if (!(await trigger.evaluate(el => el === document.activeElement)))
-      throw new Error('список закрылся прокруткой, но фокус не на «+ Вставить поле»');
+    await focusLandsOn(trigger, 'список закрылся прокруткой, но фокус не на «+ Вставить поле»');
   } finally {
     await page.setViewportSize(viewport);
   }

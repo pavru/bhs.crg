@@ -417,6 +417,20 @@ export async function placedBox(locator, what = 'слой') {
 }
 
 /**
+ * Фокус дошёл до элемента — ждём, а не снимаем мгновенно: закрытый слой Radix возвращает фокус якорю
+ * таймером, и мгновенный снимок на медленной машине CI видел промежуточное состояние (body). Не дошёл
+ * — отказ `why` с тем, где фокус остался.
+ */
+export async function focusLandsOn(locator, why) {
+  const el = await locator.elementHandle();
+  const landed = await locator.page().waitForFunction(e => e === document.activeElement, el, { timeout: 3_000 })
+    .then(() => true, () => false);
+  if (landed) return;
+  const at = await locator.page().evaluate(() => document.activeElement?.outerHTML.slice(0, 160) ?? 'нигде');
+  throw new Error(`${why} — фокус: ${at}`);
+}
+
+/**
  * Запрос к приложению ТЕМ ЖЕ токеном, что у открытой страницы. Отказ не бросается — возвращается
  * кодом: прогону под ролью бывает нужен именно он. Общий помощник заведён с `costs-smoke` (issue
  * #1102); в старших наборах ещё живут свои копии — переносить их сюда по мере правок.

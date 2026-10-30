@@ -38,7 +38,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/invoice-payment-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled, placedBox } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, placedBox, focusLandsOn } from './harness.mjs';
 
 
 const browser = await launchBrowser();
@@ -234,15 +234,7 @@ await check('payment-date-calendar-tab-goes-to-next-field', async () => {
   await placedBox(grid, 'календарь');
   for (let i = 0; i < 6 && await grid.isVisible(); i++) await page.keyboard.press('Tab');
   if (await grid.isVisible()) throw new Error('шесть нажатий Tab не вывели фокус из календаря');
-  // Фокус ждём, а не снимаем мгновенно: закрытие слоя — несколько кадров, и мгновенный снимок на
-  // медленной машине CI видел промежуточное состояние (body).
-  const next = await dialog.getByLabel('Платёжный документ').elementHandle();
-  const onNext = await page.waitForFunction(el => el === document.activeElement, next, { timeout: 3_000 })
-    .then(() => true, () => false);
-  if (!onNext) {
-    const at = await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 160) ?? 'нигде');
-    throw new Error(`Tab из календаря не дошёл до «Платёжного документа» — фокус: ${at}`);
-  }
+  await focusLandsOn(dialog.getByLabel('Платёжный документ'), 'Tab из календаря не дошёл до «Платёжного документа»');
   await leavePayment(dialog);
 });
 
