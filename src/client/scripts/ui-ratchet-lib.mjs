@@ -6,6 +6,7 @@ import ts from 'typescript';
 import { containerTextHits, stripComments } from './class-scan.mjs';
 import { isBadge, isChip } from './ui-ratchet-pills.mjs';
 import { buttonComponents, isIconButton, isSplitHalf } from './ui-ratchet-buttons.mjs';
+import { isManualDropdown, portalContainersIn } from './ui-ratchet-layers.mjs';
 import { countDarkVariants, countLegacyClasses, countLegacyRadii, countLegacyShadows, countLegacyType, countRawStates, LEGACY_HINT } from './ui-ratchet-md3.mjs';
 
 const COLORS = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
@@ -161,6 +162,18 @@ export const RULES = [
     count: countPortalContainers,
     dirs: ['features', 'shared'],
     instead: 'всплывающий слой (календарь, Select, меню, подсказка) — портал в body без container: над окном и затемнением, краем окна не обрезается; фокус и Esc внутри окна держит дерево React (docs/UI.md, «Слои над окном»)',
+  },
+  {
+    id: 'manual-dropdown',
+    // Ручной выпадающий список (#1537): `{xxxOpen && <div className="absolute …">}` без портала. Его режет
+    // любой контейнер с overflow (окно — ещё и transform), а Esc закрывает не список, а окно под ним.
+    // По синтаксическому дереву: элемент с `absolute` — правая часть `&&`, левая — `open` или `…Open`
+    // (ui-ratchet-layers.mjs). Смотрит и shared/: меню и поля там — первые, с кого ошибка расходится.
+    // ⚠️ Не видит список, открытый условием с другим именем (`showList &&`) или тернарником, и слой
+    // во фрагменте или компоненте. Такие ловит ревью.
+    count: text => countElements(text, isManualDropdown),
+    dirs: ['features', 'shared'],
+    instead: 'выпадающий список — Radix Popover (если в нём поле ввода: фильтр, поиск) или DropdownMenu (пункты-действия), портал в body без container; Esc и щелчок мимо закрывают слой, а не окно (docs/UI.md, «Слои над окном»)',
   },
   {
     id: 'native-date',
@@ -381,21 +394,7 @@ function countWhiteOnFill(text) {
 
 /** `<….Portal container=…>` и `createPortal(узел, контейнер)` — см. правило `portal-container`. */
 function countPortalContainers(text) {
-  if (!text.includes('Portal')) return 0;
-  const sf = parse(text);
-  let n = 0;
-  const visit = node => {
-    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))
-      && /(?:^|\.)Portal$/.test(node.tagName.getText(sf))
-      && node.attributes.properties.some(p => ts.isJsxAttribute(p) && p.name.getText(sf) === 'container'))
-      n++;
-    if (ts.isCallExpression(node) && node.arguments.length >= 2
-      && /(?:^|\.)createPortal$/.test(node.expression.getText(sf)))
-      n++;
-    ts.forEachChild(node, visit);
-  };
-  visit(sf);
-  return n;
+  return text.includes('Portal') ? portalContainersIn(parse(text)) : 0;
 }
 
 const NATIVE_DATE = new Set(['date', 'month', 'time', 'datetime-local', 'week']);

@@ -85,6 +85,10 @@
   "portal-container": {
     "shared/ui/WindowStep.tsx": 2
   },
+  "manual-dropdown": {
+    "features/datasets/PdfGroupingEditor.tsx": 1,
+    "features/templates/EditorPanel.tsx": 1
+  },
   "native-date": {},
   "date-frame": {},
   "native-pdf-frame": {},

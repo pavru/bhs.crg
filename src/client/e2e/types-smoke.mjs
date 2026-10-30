@@ -250,6 +250,65 @@ await check('template-params-parsed-from-declaration', async () => {
  * Запрос к API ИЗ СТРАНИЦЫ, её же токеном. Из Node это делать нельзя: адрес API у дев-сервера и у
  * собранного клиента в CI разный, а страница в обоих случаях ходит по одному и тому же `/api`.
  */
+// ── «+ Вставить поле» в окне нового типа — слой над окном (#1537, [UI-49]) ─────
+/**
+ * Рамка элемента, когда он встал на место: слой Radix сначала рисуется в (0,0) и потом едет к якорю,
+ * а рамка в пути показала бы ложную точку.
+ */
+async function placedBox(locator) {
+  let prev = null;
+  for (let i = 0; i < 50; i++) {
+    const box = await locator.boundingBox();
+    if (box && box.y >= 0 && prev && box.x === prev.x && box.y === prev.y) return box;
+    prev = box;
+    await page.waitForTimeout(50);
+  }
+  throw new Error(`список не встал на место за 2,5 с: последняя рамка ${JSON.stringify(prev)}`);
+}
+
+/**
+ * Список полей у формулы был `absolute` внутри окна: прокручиваемое тело и `overflow-hidden` окна его
+ * срезали, а Esc закрывал не список, а всё окно. Проверяем точкой, как календарь в окне оплаты:
+ * `elementFromPoint` в центре последнего пункта обязан попасть в сам список. Полей больше, чем
+ * помещается в окне, — расчётное последнее, и список открывается у нижнего края тела окна.
+ * Ничего не сохраняет: окно закрывается «Отменой».
+ */
+await check('insert-field-list-is-a-layer-over-the-window', async () => {
+  await page.goto(`${BASE}/document-types`, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Добавить тип документа' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Новый тип документа' });
+  await dialog.waitFor({ timeout: 10_000 });
+  // Фокус после «Добавить поле» — в «Название» новой карточки (#526): ключ выводится из него.
+  for (const title of ['Количество', 'Цена', 'Масса', 'Длина', 'Ширина', 'Сумма']) {
+    await dialog.getByRole('button', { name: 'Добавить поле' }).click();
+    await page.keyboard.type(title);
+  }
+  await dialog.getByText('Вычисляемое (формула)').last().click();
+  const trigger = dialog.getByRole('button', { name: '+ Вставить поле' });
+  // Кнопка — у нижнего края видимой части тела окна: список под ней обязан свисать за край. Без этого
+  // он мог поместиться и в прокручиваемом теле — и проверка не отличила бы слой от `absolute`.
+  await trigger.evaluate(el => el.scrollIntoView({ block: 'end' }));
+  await trigger.click();
+  const list = page.getByRole('dialog', { name: 'Вставить поле' });
+  await list.waitFor({ timeout: 5_000 });
+  const last = list.getByRole('button').last();
+  const box = await placedBox(last);
+  // Точка — в самом списке, а не «в каком-нибудь слое Radix»: так проверка ловит обрезку, а не способ.
+  const covered = await list.evaluate((el, [x, y]) => {
+    const hit = document.elementFromPoint(x, y);
+    return hit && el.contains(hit) ? null : (hit?.outerHTML.slice(0, 160) ?? 'за экраном');
+  }, [box.x + box.width / 2, box.y + box.height / 2]);
+  if (covered) throw new Error(`последний пункт списка не виден — в его точке: ${covered}`);
+
+  await page.keyboard.press('Escape');
+  await list.waitFor({ state: 'hidden', timeout: 5_000 });
+  if (!(await dialog.isVisible())) throw new Error('Esc в списке закрыл окно нового типа');
+  if (!(await trigger.evaluate(el => el === document.activeElement)))
+    throw new Error('после Esc фокус не вернулся на «+ Вставить поле»');
+  await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
+  await dialog.waitFor({ state: 'hidden', timeout: 5_000 });
+});
+
 async function api(method, path, body) {
   return page.evaluate(async ([m, p, b]) => {
     const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
