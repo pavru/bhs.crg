@@ -46,6 +46,7 @@ import {
   isRowEmpty, filledVariants, overfilledNote, isVariantFilled, unionSummary,
 } from './complexFieldHelpers';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 /** Модульная пустышка для дефолта пропа: инлайновый `= []` — новый массив на каждый рендер. */
 const EMPTY_ENUM_TYPES: EnumTypeDef[] = [];
@@ -260,9 +261,8 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   function rowChrome(i: number, danger = false) {
     return (
       <>
-        <input type="checkbox" checked={selected.has(i)} onChange={() => toggleSelect(i)}
-          aria-label={`Выбрать строку ${i + 1}`}
-          className="shrink-0 w-3.5 h-3.5 accent-primary cursor-pointer" />
+        <Checkbox size="sm" checked={selected.has(i)} onChange={() => toggleSelect(i)}
+          aria-label={`Выбрать строку ${i + 1}`} />
         <IconButton label={`Переместить строку ${i + 1}: стрелки вверх и вниз`}
           title="Перетащить для изменения порядка (или стрелки ↑↓)"
           size="sm"

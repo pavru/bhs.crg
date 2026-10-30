@@ -36,6 +36,24 @@ describe('Checkbox', () => {
     fireEvent.click(screen.getByText('Нельзя'));
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it('две подписи подряд — два блока, и каждая переключает свой флажок [UI-41]', () => {
+    const onEncrypt = vi.fn();
+    const onProxy = vi.fn();
+    render(<div>
+      <Checkbox checked={false} onChange={onEncrypt} label="Шифрование" />
+      <Checkbox checked={false} onChange={onProxy} label="Через прокси" />
+    </div>);
+    // jsdom раскладки не считает: строку делят строчные блоки, блочный flex стоит своей строкой.
+    for (const text of ['Шифрование', 'Через прокси']) {
+      const label = screen.getByText(text).closest('label')!;
+      expect(label.className).toMatch(/(^|\s)flex(\s|$)/);
+      expect(label.className).not.toMatch(/inline-flex/);
+    }
+    fireEvent.click(screen.getByText('Через прокси'));
+    expect(onProxy).toHaveBeenCalledWith(true);
+    expect(onEncrypt).not.toHaveBeenCalled();
+  });
 });
 
 describe('Chip', () => {

@@ -14,6 +14,7 @@ import { DocumentTemplateParams } from './DocumentTemplateParams';
 import { Button } from '@/shared/ui/Button';
 import { containsRef } from './brokenRefs';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 // ── Вкладка «Генерация» ─────────────────────────────────────────────────────────
 // Выделено из editor/index.tsx (#490): файл на 1220 строк был оболочкой вкладок и двумя
@@ -184,10 +185,10 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
                 return (
                   <label key={t.id}
                     className={`state-layer flex items-center gap-2 pr-2.5 text-body-medium border-l-2 cursor-pointer ${focused ? 'bg-primary-container border-primary' : 'border-transparent'}`}>
-                    <input type="checkbox" checked={selected} disabled={setTemplatesMutation.isPending}
-                      onChange={e => { toggleTemplate(t.id, e.target.checked); setChosenFocus(t.id); }}
+                    <Checkbox size="sm" checked={selected} disabled={setTemplatesMutation.isPending}
+                      onChange={v => { toggleTemplate(t.id, v); setChosenFocus(t.id); }}
                       aria-label={`Использовать шаблон «${t.name}» для генерации`}
-                      className="ml-2.5 shrink-0" />
+                      className="ml-2.5" />
                     <span className="flex-1 min-w-0 py-1.5">
                       <span className={`truncate ${focused ? 'text-primary font-medium' : 'text-on-surface'}`}>
                         {t.isDefault ? '★ ' : ''}{t.name} <span className="text-on-surface-variant font-normal">(v{t.version})</span>

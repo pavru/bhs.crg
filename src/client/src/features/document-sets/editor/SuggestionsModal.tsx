@@ -1,5 +1,6 @@
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { Checkbox } from '@/shared/ui/Checkbox';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import type { LinkSuggestion } from '@/shared/api/qualityDocs';
 
@@ -37,9 +38,8 @@ export function SuggestionsModal({ suggestions, setSuggestions, suggestSel, setS
         <div className="divide-y divide-surface-container border border-outline-variant rounded-sm max-h-[55vh] overflow-y-auto">
           {(suggestions ?? []).map(s => (
             <label key={s.materialKey} className="flex items-center gap-3 px-3 py-2 text-body-medium cursor-pointer state-layer">
-              <input type="checkbox" checked={suggestSel.has(s.materialKey)}
-                onChange={() => setSuggestSel(prev => toggleInSet(prev, s.materialKey))}
-                className="w-4 h-4 rounded-xs border-outline text-primary" />
+              <Checkbox size="sm" checked={suggestSel.has(s.materialKey)}
+                onChange={() => setSuggestSel(prev => toggleInSet(prev, s.materialKey))} />
               <span className="flex-1 truncate text-on-surface">{s.materialName}</span>
               <span className="text-on-surface-variant">→</span>
               <span className="flex-1 truncate text-primary">{s.docDisplayName}</span>

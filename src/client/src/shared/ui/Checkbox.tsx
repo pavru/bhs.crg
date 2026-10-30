@@ -9,7 +9,9 @@ import { forwardRef, useEffect, useRef, type InputHTMLAttributes, type ReactNode
  * только свойством элемента; диктор читает его как «частично отмечен».
  *
  * С подписью флажок оборачивается в `<label>`: щелчок по тексту переключает его, и имя у флажка
- * появляется само. Без подписи имя обязан дать `aria-label`.
+ * появляется само. Без подписи имя обязан дать `aria-label`. Подпись — блок по ширине содержимого
+ * ([UI-41]): два флажка подряд стоят двумя строками, как прежние блочные `<label>` экранов, а щелчок
+ * в пустоте строки справа от текста флажок не переключает.
  */
 export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'onChange' | 'size'> {
   checked: boolean;
@@ -58,7 +60,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
 
   return (
     // Отключённое — подпись on-surface 38 % ([UI-64]), а не прозрачность всей строки.
-    <label className={`inline-flex items-start gap-2 text-body-medium select-none ` +
+    <label className={`flex w-fit items-start gap-2 text-body-medium select-none ` +
       `${disabled ? 'text-on-surface/38 cursor-not-allowed' : 'text-on-surface cursor-pointer'} ${className}`}>
       {input}
       <span className="min-w-0">

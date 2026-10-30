@@ -14,6 +14,7 @@ import {
   DEFAULT_KEY, NAME_MAX, availableModules, compositionLabel, coreSectionsWith, membership, newWorkspaceId,
   ownProblem, ownToWorkspace, type OwnWorkspace,
 } from '@/shared/ui/workspaces';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 interface Draft {
   /** null — новое пространство. */
@@ -146,13 +147,13 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
             <div className="flex flex-wrap gap-x-4 gap-y-1">
               {offered.map(m => (
                 <label key={m.code} className="flex items-center gap-2 text-body-medium text-on-surface">
-                  <input type="checkbox" checked={draft.modules.includes(m.code)} onChange={() => toggle(m.code)} />
+                  <Checkbox checked={draft.modules.includes(m.code)} onChange={() => toggle(m.code)} />
                   {m.title}
                 </label>
               ))}
               {closed.map(m => (
                 <label key={m.code} className="flex items-center gap-2 text-body-medium text-on-surface-variant">
-                  <input type="checkbox" checked={draft.modules.includes(m.code)} onChange={() => toggle(m.code)} />
+                  <Checkbox checked={draft.modules.includes(m.code)} onChange={() => toggle(m.code)} />
                   {m.title} <span className="text-body-small">— недоступен</span>
                 </label>
               ))}
@@ -168,10 +169,8 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
             </p>
           )}
 
-          <label className="flex items-center gap-2 text-body-medium text-on-surface">
-            <input type="checkbox" checked={draft.opensAtLogin} onChange={e => setDraft({ ...draft, opensAtLogin: e.target.checked })} />
-            Открывать при входе
-          </label>
+          <Checkbox checked={draft.opensAtLogin} onChange={v => setDraft({ ...draft, opensAtLogin: v })}
+            label="Открывать при входе" />
 
           <div className="flex items-center gap-2">
             <Button variant="filled" loading={saving} disabled={problem !== null} onClick={() => void save()}>

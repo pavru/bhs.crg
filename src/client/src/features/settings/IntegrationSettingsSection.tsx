@@ -19,6 +19,7 @@ import {
 import { CollapsibleSection } from './CollapsibleSection';
 import { ProxyToggle } from './ProxyToggle';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 // ─── Метаданные движков (порядок отображения, подписи, какие поля показывать) ────
 
@@ -161,12 +162,7 @@ function EngineCard({
       blind ? 'border-error bg-surface' : form.enabled ? 'border-outline-variant bg-surface' : 'border-outline-variant bg-surface-container-low'}`}>
       <div className="flex items-start gap-2">
         <label className="flex items-center gap-2 flex-1 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={form.enabled}
-            onChange={e => onChange({ ...form, enabled: e.target.checked })}
-            className="accent-primary"
-          />
+          <Checkbox checked={form.enabled} onChange={enabled => onChange({ ...form, enabled })} />
           <span className="text-body-medium font-medium text-on-surface">{meta.label}</span>
         </label>
         {/* Один сигнал, не три: слепота > «модель не обслуживается» > «не участвует». Слепой движок

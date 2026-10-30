@@ -16,6 +16,7 @@ import {
 import { LinkPickerModal } from '@/features/document-sets/editor/LinkPickerModal';
 import type { CatalogScope, DocumentType } from '@/shared/api/types';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 /**
  * Связки материалов документа качества — правая часть экрана контроля (issue #555).
@@ -148,8 +149,8 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
       )}
       {shown.map(link => (
         <div key={link.id} className="group flex items-start gap-3 rounded-sm px-3 py-2 state-layer">
-          <input type="checkbox" checked={selected.has(link.id)} onChange={() => toggle(link.id)}
-            aria-label={`Выбрать ${nameOf(link)}`} className="mt-1 shrink-0" />
+          <Checkbox size="sm" checked={selected.has(link.id)} onChange={() => toggle(link.id)}
+            aria-label={`Выбрать ${nameOf(link)}`} className="mt-1" />
           {/* Уровень связи (issue #649): до этого он не показывался вовсе, хотя управляет и
               перепривязкой (она идёт по группам областей), и тем, какая связка победит в PDF. */}
           <ScopeIcon scope={link.scope as CatalogScope} className="mt-1" />

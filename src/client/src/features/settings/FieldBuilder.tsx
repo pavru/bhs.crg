@@ -21,6 +21,7 @@ import { evalComputed, validateComputed, findComputedCycles, referencedKeys } fr
 import { moveItem } from '@/shared/utils/moveItem';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Checkbox } from '@/shared/ui/Checkbox';
 // ─── JSON preview ──────────────────────────────────────────────────────────────
 
 export function JsonPreview({
@@ -402,12 +403,7 @@ export function FieldCard({
           </Tooltip>
         ) : (
           <label className="flex items-center justify-center gap-1.5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={field.required}
-              onChange={e => onChange({ required: e.target.checked })}
-              className="w-4 h-4 rounded-xs border-outline text-primary"
-            />
+            <Checkbox size="sm" checked={field.required} onChange={required => onChange({ required })} />
             <span className="text-body-small text-on-surface-variant">да</span>
           </label>
         )}
@@ -454,13 +450,10 @@ export function FieldCard({
       {SchemaFieldKinds_isComputable(field.type) && (
         <>
           <label className="flex items-center gap-2 cursor-pointer w-fit">
-            <input type="checkbox"
-              checked={!!field.computed}
-              onChange={e => onChange(e.target.checked
+            <Checkbox size="sm" checked={!!field.computed}
+              onChange={on => onChange(on
                 ? { computed: true, required: false, defaultValue: undefined }
-                : { computed: undefined, expression: undefined })}
-              className="w-4 h-4 rounded-xs border-outline text-primary"
-            />
+                : { computed: undefined, expression: undefined })} />
             <span className="text-body-small text-on-surface-variant flex items-center gap-1">
               <Icon icon={FunctionIcon} size={18} className="text-primary" /> Вычисляемое (формула)
             </span>
@@ -479,12 +472,8 @@ export function FieldCard({
           <span className="text-body-small text-on-surface-variant shrink-0 w-28">Значение по умолч.:</span>
           {field.type === 'boolean' ? (
             <label className="flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={!!field.defaultValue}
-                onChange={e => onChange({ defaultValue: e.target.checked ? true : undefined })}
-                className="w-3.5 h-3.5 rounded-xs border-outline text-primary"
-              />
+              <Checkbox size="sm" checked={!!field.defaultValue}
+                onChange={on => onChange({ defaultValue: on ? true : undefined })} />
               <span className="text-body-small text-on-surface-variant">{field.defaultValue ? 'true' : 'не задано'}</span>
             </label>
           ) : field.type === 'enum' ? (

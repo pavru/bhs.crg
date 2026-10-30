@@ -17,6 +17,7 @@ import { useReturnManyFromArchive } from '@/shared/api/commonData';
 import { useCan } from '@/shared/api/access';
 import { useToast } from '@/shared/ui/Toast';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { Checkbox } from '@/shared/ui/Checkbox';
 // ─── Paste mapping modal ──────────────────────────────────────────────────────
 
 /** Сколько неразобранных ячеек перечислять поимённо: остальные — числом «и ещё N». */
@@ -420,18 +421,13 @@ function PasteMappingModalBody({
       }>
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-body-medium text-on-surface-variant cursor-pointer">
-            <input type="checkbox" checked={skipHeader}
-              onChange={e => {
-                const checked = e.target.checked;
-                setSkipHeader(checked);
-                setFieldCol(checked ? mapByHeader(allRows[0] ?? [], maxCols) : {});
-                setMatchFields({});
-                clearPending();
-              }}
-              className="w-4 h-4 rounded-xs border-outline text-primary" />
-            Первая строка — заголовки
-          </label>
+          <Checkbox checked={skipHeader} label="Первая строка — заголовки"
+            onChange={checked => {
+              setSkipHeader(checked);
+              setFieldCol(checked ? mapByHeader(allRows[0] ?? [], maxCols) : {});
+              setMatchFields({});
+              clearPending();
+            }} />
           <span className="text-body-small text-on-surface-variant">Найдено строк данных: {importCount}</span>
         </div>
         {/* Форма, а не таблица данных (#1354): строка — поле, в клетках — выбор. Поэтому сетка

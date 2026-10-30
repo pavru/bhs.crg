@@ -19,6 +19,7 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 import { SuggestField } from '@/shared/ui/SuggestField';
 import { useSuggestSource } from './suggestContext';
 import { IconButton } from '@/shared/ui/Button';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 // ─── Complex cell picker (inline table cell) ──────────────────────────────────
 
@@ -87,9 +88,7 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
   if (field.type === 'boolean') {
     return (
       <div className="flex items-center justify-center w-full h-full">
-        <input type="checkbox" checked={!!value}
-          onChange={e => onChange(e.target.checked)}
-          className="w-3.5 h-3.5 rounded-xs border-outline text-primary" />
+        <Checkbox size="sm" aria-label={field.title} checked={!!value} onChange={onChange} />
       </div>
     );
   }
