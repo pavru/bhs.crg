@@ -208,9 +208,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
     <aside className="w-64 border-r border-outline-variant bg-surface flex flex-col">
       <div className="px-4 py-3 border-b border-surface-container flex items-center justify-between">
         <span className="text-body-medium font-medium text-on-surface-variant">Шаблоны</span>
-        <IconButton label="Новый шаблон" size="sm" onClick={onNew}>
-          <Icon icon={Add} size={18} className="text-primary" />
-        </IconButton>
+        <IconButton label="Новый шаблон" onClick={onNew} icon={Add} iconClassName="text-primary" />
       </div>
       <TemplateAssetsPanel
         key={`assets-${documentTypeId}`}
@@ -248,18 +246,12 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                   )}
                 </button>
                 <IconButton label="Дублировать шаблон"
-                  size="sm"
                   className="opacity-0 group-hover/grp:opacity-100 focus-visible:opacity-100"
-                  onClick={() => onDuplicate(group)}>
-                  <Icon icon={ContentCopy} size={18} />
-                </IconButton>
+                  onClick={() => onDuplicate(group)} icon={ContentCopy} />
                 <IconButton label="Удалить шаблон со всеми версиями"
-                  size="sm"
                   danger
                   className="opacity-0 group-hover/grp:opacity-100 focus-visible:opacity-100"
-                  onClick={() => onDeleteGroup(group)}>
-                  <Icon icon={Delete} size={18} />
-                </IconButton>
+                  onClick={() => onDeleteGroup(group)} icon={Delete} />
               </div>
 
               {isExpanded && (

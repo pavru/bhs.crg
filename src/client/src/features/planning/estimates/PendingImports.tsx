@@ -43,7 +43,7 @@ export function PendingImports({ constructionId, enabled, only, onOpen }: {
               <span className="text-on-surface-variant"> · {i.createdBy ? `${i.createdBy}, ` : ''}{formatDate(i.createdAt)}</span>{' '}
               <StatusBadge tone={state.tone}>{state.text}</StatusBadge>
             </span>
-            <Button variant="text" size="sm" className="shrink-0" onClick={() => onOpen(i.id)}>Открыть</Button>
+            <Button variant="text" className="shrink-0" onClick={() => onOpen(i.id)}>Открыть</Button>
           </li>
         );
       })}

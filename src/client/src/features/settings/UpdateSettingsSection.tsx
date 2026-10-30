@@ -82,7 +82,7 @@ export function UpdateSettingsSection() {
         onChange={v => void toggleProxy(v)} />
 
       <div className="flex items-center gap-3 flex-wrap">
-        <Button type="button" variant="outlined" size="sm" icon={<Icon icon={Refresh} size={18} />}
+        <Button type="button" variant="outlined" icon={<Icon icon={Refresh} size={18} />}
           loading={check.isPending} disabled={!enabled}
           onClick={() => check.mutate()}>
           Проверить сейчас

@@ -1,5 +1,4 @@
 import { useState, type DragEvent, type ReactNode } from 'react';
-import { Icon } from '@/shared/ui/Icon';
 import { Close } from '@/shared/ui/icons';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { carriesFiles, droppedFiles, useFileDragActive } from '@/shared/ui/fileDrop';
@@ -102,8 +101,8 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
     <div className="px-3 py-2 border-y border-outline-variant bg-surface text-body-small space-y-1.5" role="status">
       <div className="flex items-start gap-2">
         <p className={`flex-1 ${bad ? 'text-error' : 'text-on-surface-variant'}`}>{batchTitle(batch)}</p>
-        {batch.phase === 'running' && <Button size="sm" onClick={stopBatch}>Остановить</Button>}
-        {done && <IconButton label="Закрыть" size="sm" onClick={dismissBatch}><Icon icon={Close} size={18} /></IconButton>}
+        {batch.phase === 'running' && <Button onClick={stopBatch}>Остановить</Button>}
+        {done && <IconButton label="Закрыть" onClick={dismissBatch} icon={Close} />}
       </div>
       {!done && (
         <div className="h-1 rounded-xs bg-surface-container overflow-hidden" aria-hidden>
@@ -122,7 +121,7 @@ export function InvoiceScanBatchBar({ batch, only, found, alive, onOnly, onShowA
         </ul>
       )}
       {done && again > 0 && (
-        <Button variant="outlined" size="sm" onClick={onRetry}>Повторить непринятые ({again})</Button>
+        <Button variant="outlined" onClick={onRetry}>Повторить непринятые ({again})</Button>
       )}
       {/* Повторы (issue #1295) — своим списком, а не среди непринятых: черновик заведён. Удаления
           здесь нет: ему нужны версия счёта и диалог с перечнем уходящего — они на форме, в одном щелчке. */}

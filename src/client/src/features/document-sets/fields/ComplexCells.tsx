@@ -46,12 +46,9 @@ export function ComplexCellPicker({ value, onChange, compositeType, setId, allDo
       </button>
       {ref && (
         <IconButton label="Очистить"
-          size="sm"
           danger
           className="-my-1 mr-0.5"
-          onClick={e => { e.stopPropagation(); onChange(undefined); }}>
-          <Icon icon={Close} size={18} />
-        </IconButton>
+          onClick={e => { e.stopPropagation(); onChange(undefined); }} icon={Close} />
       )}
       <RefPickerModal open={pickerOpen} onOpenChange={setPickerOpen}
         compositeType={compositeType}

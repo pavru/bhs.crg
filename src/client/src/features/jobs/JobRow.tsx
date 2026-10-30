@@ -62,9 +62,7 @@ export function JobRow({ job }: { job: ActiveJob }) {
       {/* Отмена — только пока задача в очереди; выполняемые добегают до конца. */}
       {queued && (
         <IconButton label="Отменить задачу" title="Отменить (задача ещё в очереди)" danger
-          onClick={() => cancel.mutate(job.id)} disabled={cancel.isPending}>
-          <Icon icon={Close} size={18} />
-        </IconButton>
+          onClick={() => cancel.mutate(job.id)} disabled={cancel.isPending} icon={Close} />
       )}
     </div>
   );

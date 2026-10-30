@@ -27,7 +27,7 @@ export function ModuleMappingSignal({ signal }: { signal: Signal }) {
           : `Справочники и их поля: не назначено ${signal.unmet} из ${signal.total}. ${signal.notWorking.join(' ')}`}
       </p>
       {can.permission('core.types.edit') && (
-        <Button variant="text" size="sm" onClick={() => go('/field-mapping')}>Сопоставление полей</Button>
+        <Button variant="text" onClick={() => go('/field-mapping')}>Сопоставление полей</Button>
       )}
     </div>
   );

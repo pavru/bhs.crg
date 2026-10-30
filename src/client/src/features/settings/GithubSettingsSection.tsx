@@ -103,7 +103,7 @@ export function GithubSettingsSection() {
       )}
 
       <div className="flex items-center gap-3 flex-wrap">
-        <Button type="button" variant="outlined" size="sm" loading={save.isPending}
+        <Button type="button" variant="outlined" loading={save.isPending}
           disabled={isLoading || !repositoryValue.trim()}
           onClick={() => void submit()}>
           Сохранить

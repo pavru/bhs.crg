@@ -218,17 +218,17 @@ export function SetDetail() {
       {activePanel === 'documents' && (
         <>
           {output && (
-            <Button variant="outlined" size="sm" icon={<Icon icon={Download} size={18} />} onClick={() => downloadSetOutput(set.id, set.name)}
+            <Button variant="outlined" icon={<Icon icon={Download} size={18} />} onClick={() => downloadSetOutput(set.id, set.name)}
               title={`Собран ${formatDateTime(output.generatedAt)}`}>Скачать</Button>
           )}
           {canSend && output && (
-            <Button variant="outlined" size="sm" icon={<Icon icon={Mail} size={18} />} onClick={() => setEmailKitOpen(true)}
+            <Button variant="outlined" icon={<Icon icon={Mail} size={18} />} onClick={() => setEmailKitOpen(true)}
               title="Отправить собранный комплект по почте">Почта</Button>
           )}
-          <Button variant="tonal" size="sm" icon={<Icon icon={Layers} size={18} />} loading={assembleMutation.isPending || watching}
+          <Button variant="tonal" icon={<Icon icon={Layers} size={18} />} loading={assembleMutation.isPending || watching}
             disabled={assembleMutation.isPending || watching || set.instances.length === 0} onClick={handleAssemble}
             title="Собрать все документы комплекта в один PDF">Собрать</Button>
-          <Button variant="filled" size="sm" icon={<Icon icon={Add} size={18} />} onClick={() => setAddDocOpen(true)}>Добавить документ</Button>
+          <Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setAddDocOpen(true)}>Добавить документ</Button>
         </>
       )}
       <RowActionsMenu ariaLabel="Действия комплекта" actions={[
@@ -245,13 +245,10 @@ export function SetDetail() {
         <div className="flex items-center gap-1">
           <IconButton label={`Переместить документ ${index + 1} перетаскиванием`}
             title="Перетащить для изменения порядка"
-            size="sm"
             className="cursor-grab active:cursor-grabbing"
             draggable
             onDragStart={() => setDragIndex(index)}
-            onDragEnd={endDrag}>
-            <Icon icon={DragIndicator} size={18} />
-          </IconButton>
+            onDragEnd={endDrag} icon={DragIndicator} />
           <div className="flex flex-col items-center -my-1">
             <MoveButtons onUp={() => moveDoc(index, -1)} onDown={() => moveDoc(index, 1)}
               isFirst={index === 0} isLast={index === lastIndex}
@@ -287,10 +284,8 @@ export function SetDetail() {
                     <Icon icon={Visibility} size={18} /> PDF
                   </button>
                 </Tooltip>
-                <IconButton label="Скачать PDF" size="sm"
-                  onClick={() => downloadGeneratedFile(inst.id, pdfFiles[0].templateId)}>
-                  <Icon icon={Download} size={18} />
-                </IconButton>
+                <IconButton label="Скачать PDF"
+                  onClick={() => downloadGeneratedFile(inst.id, pdfFiles[0].templateId)} icon={Download} />
               </>
             )}
             {pdfFiles.length > 1 && (

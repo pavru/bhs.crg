@@ -106,11 +106,8 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
                 <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
                   isFirst={i === 0} isLast={i === rows.length - 1} />
                 <IconButton label="Удалить параметр"
-                  size="sm"
                   danger
-                  onClick={() => save(rows.filter((_, idx) => idx !== i))}>
-                  <Icon icon={Delete} size={18} />
-                </IconButton>
+                  onClick={() => save(rows.filter((_, idx) => idx !== i))} icon={Delete} />
               </span>
             </div>
           ))}

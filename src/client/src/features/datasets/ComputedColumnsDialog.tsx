@@ -36,9 +36,7 @@ function ColumnRow({
             className="w-full border border-outline-variant rounded-xs px-2 py-1.5 text-body-small font-mono bg-surface text-on-surface"
           />
         </div>
-        <IconButton label={`Удалить колонку ${index + 1}`} size="sm" danger className="mt-4" onClick={onRemove}>
-          <Icon icon={Delete} size={18} />
-        </IconButton>
+        <IconButton label={`Удалить колонку ${index + 1}`} danger className="mt-4" onClick={onRemove} icon={Delete} />
       </div>
       <div className="space-y-1">
         <label className="block text-label-medium text-on-surface-variant">

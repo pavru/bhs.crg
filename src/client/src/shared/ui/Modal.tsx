@@ -346,10 +346,10 @@ function ModalBody({
                 <div className="flex gap-2 justify-end">
                   {/* Фокус — на безопасном ответе: Enter, которым человек пришёл сюда с «Отмены»,
                       повторным нажатием ничего не теряет. До «Закрыть» — один Tab. */}
-                  <Button variant="text" size="sm" autoFocus onClick={() => setConfirmClose(false)}>
+                  <Button variant="text" autoFocus onClick={() => setConfirmClose(false)}>
                     Продолжить редактирование
                   </Button>
-                  <Button variant="filled" danger size="sm"
+                  <Button variant="filled" danger
                     onClick={() => { setConfirmClose(false); leave(); }}>
                     Закрыть
                   </Button>

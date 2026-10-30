@@ -178,7 +178,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                     : queryTokens.length > 0 ? 'По материалу в библиотеке ничего не найдено.'
                     : 'Нет подходящих (непросроченных) документов.'}
                 </p>
-                <Button variant="filled" size="sm" onClick={enterSearch} icon={<Icon icon={Language} size={18} />}>
+                <Button variant="filled" onClick={enterSearch} icon={<Icon icon={Language} size={18} />}>
                   Искать в интернете
                 </Button>
               </div>
@@ -207,10 +207,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                     </button>
                     {d.scanBlobPath && (
                       <IconButton label="Просмотр скана (в новой вкладке)"
-                        size="sm"
-                        onClick={() => void openAttachment(d.scanBlobPath!)}>
-                        <Icon icon={Visibility} size={18} />
-                      </IconButton>
+                        onClick={() => void openAttachment(d.scanBlobPath!)} icon={Visibility} />
                     )}
                   </div>
                 ))}
@@ -237,7 +234,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                 onKeyDown={e => { if (e.key === 'Enter') void runSearch(); }}
                 placeholder="строка поиска" className="flex-1 py-2 text-body-medium bg-transparent focus:outline-none" />
             </div>
-            <Button variant="filled" size="sm" onClick={() => runSearch()} loading={searching}
+            <Button variant="filled" onClick={() => runSearch()} loading={searching}
               disabled={!query.trim()} icon={<Icon icon={Search} size={18} />}>
               Найти
             </Button>
@@ -256,7 +253,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                     </a>
                     {c.snippet && <p className="text-body-small text-on-surface-variant line-clamp-2">{c.snippet}</p>}
                   </div>
-                  <Button variant="filled" size="sm" onClick={() => importAndLink(c)}
+                  <Button variant="filled" onClick={() => importAndLink(c)}
                     loading={importingUrl === c.url} disabled={importingUrl !== null}
                     icon={<Icon icon={Download} size={18} />} className="shrink-0">
                     В библиотеку

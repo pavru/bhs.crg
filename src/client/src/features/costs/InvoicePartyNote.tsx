@@ -135,7 +135,7 @@ function Details({ party, pick, canCreate, onChoose, onRetry }: {
             </div>
           )}
           {party.state === 'unavailable' && (
-            <Button size="sm" variant="outlined" onClick={() => { onRetry(); setOpen(false); }}>Повторить</Button>
+            <Button variant="outlined" onClick={() => { onRetry(); setOpen(false); }}>Повторить</Button>
           )}
         </Popover.Content>
       </Popover.Portal>

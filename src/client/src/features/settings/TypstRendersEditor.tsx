@@ -257,9 +257,7 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typ
                   className="border border-outline rounded-sm px-2 py-1.5 text-body-medium font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface"
                 />
               </div>
-              <IconButton label="Удалить вариант" size="sm" danger onClick={() => remove(i)}>
-                <Icon icon={Delete} size={18} />
-              </IconButton>
+              <IconButton label="Удалить вариант" danger onClick={() => remove(i)} icon={Delete} />
             </div>
             {/* Код правится только в полноэкранном редакторе (не inline, issue #197 Фаза C) */}
             <button type="button" onClick={() => setEditingIndex(i)}

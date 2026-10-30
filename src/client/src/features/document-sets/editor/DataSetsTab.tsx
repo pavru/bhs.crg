@@ -614,13 +614,9 @@ function BindingRow({
           </div>
         </div>
         <StaleSourceAction source={source} />
-        <IconButton label="Редактировать маппинг" size="sm" onClick={() => setEditing(e => !e)}>
-          <Icon icon={Edit} size={18} />
-        </IconButton>
+        <IconButton label="Редактировать маппинг" onClick={() => setEditing(e => !e)} icon={Edit} />
         {!confirming ? (
-          <IconButton label="Удалить" size="sm" danger onClick={() => setConfirming(true)}>
-            <Icon icon={Delete} size={18} />
-          </IconButton>
+          <IconButton label="Удалить" danger onClick={() => setConfirming(true)} icon={Delete} />
         ) : (
           <div className="flex items-center gap-1.5 text-body-small">
             <button onClick={handleDelete} disabled={del.isPending}

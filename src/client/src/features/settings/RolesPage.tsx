@@ -146,14 +146,10 @@ export function RolesPage() {
             </div>
             <div className="flex items-center gap-1 shrink-0">
               {!selected.system && (
-                <IconButton label="Переименовать" size="sm" onClick={() => setRenameTarget(selected)}>
-                  <Icon icon={Edit} size={18} />
-                </IconButton>
+                <IconButton label="Переименовать" onClick={() => setRenameTarget(selected)} icon={Edit} />
               )}
               {!selected.system && (
-                <IconButton label="Удалить роль" size="sm" danger onClick={() => setDeleteTarget(selected)}>
-                  <Icon icon={Delete} size={18} />
-                </IconButton>
+                <IconButton label="Удалить роль" danger onClick={() => setDeleteTarget(selected)} icon={Delete} />
               )}
             </div>
           </div>

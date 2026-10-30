@@ -53,7 +53,7 @@ export function InvoiceScanPanel({ invoiceId, blobPath, fileName }: {
         <div className="flex flex-col items-center gap-2">
           <span>Чем показать файл, выяснить не удалось: сервер не ответил. Файл приложен — дело в связи, а не в нём.</span>
           <div className="flex gap-2">
-            <Button size="sm" variant="outlined" loading={image.isFetching} icon={<Icon icon={RotateRight} size={18} />}
+            <Button variant="outlined" loading={image.isFetching} icon={<Icon icon={RotateRight} size={18} />}
               onClick={() => void image.refetch()}>
               Повторить
             </Button>
@@ -123,12 +123,12 @@ function OriginalFile({ invoiceId, blobPath, fileName }: {
           ? (
             // Выход в полный просмотрщик браузера (поиск, печать с настройками), а не «крупнее»: крупнее
             // делает масштаб в панели (issue #1491, [UI-20]).
-            <Button size="sm" icon={<Icon icon={OpenInNew} size={18} />} onClick={() => void openInNewTab(blob)}>
+            <Button icon={<Icon icon={OpenInNew} size={18} />} onClick={() => void openInNewTab(blob)}>
               Открыть во вкладке
             </Button>
           )
           : (
-            <Button size="sm" icon={<Icon icon={Download} size={18} />}
+            <Button icon={<Icon icon={Download} size={18} />}
               onClick={() => saveScan(blob, fileName, mimeType, kinds.data)}>
               Скачать
             </Button>
@@ -155,7 +155,7 @@ function OriginalFile({ invoiceId, blobPath, fileName }: {
                 Файл загружен, но чем его показать, выяснить не удалось: список видов файлов с сервера
                 не пришёл. Дело в связи, а не в файле — повторите или скачайте его кнопкой выше.
               </span>
-              <Button size="sm" variant="text" className="mt-2" loading={kinds.isFetching}
+              <Button variant="text" className="mt-2" loading={kinds.isFetching}
                 icon={<Icon icon={RotateRight} size={18} />} onClick={() => void kinds.refetch()}>
                 Повторить
               </Button>
@@ -257,7 +257,7 @@ export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
         {(built || refused) && (
           <div className="flex gap-2 mt-1">
             {built && (
-              <Button size="sm" variant="text" icon={<Icon icon={OpenInFull} size={18} />} onClick={openReading}>
+              <Button variant="text" icon={<Icon icon={OpenInFull} size={18} />} onClick={openReading}>
                 Открыть вид для чтения
               </Button>
             )}
@@ -265,7 +265,7 @@ export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
           </div>
         )}
         {!built && !refused && (
-          <Button size="sm" variant="text" loading={busy || kinds.isLoading || image.isLoading} icon={<Icon icon={OpenInFull} size={18} />}
+          <Button variant="text" loading={busy || kinds.isLoading || image.isLoading} icon={<Icon icon={OpenInFull} size={18} />}
             onClick={() => void openFile()}>
             Открыть файл
           </Button>
@@ -296,7 +296,7 @@ export function ScanUploadButton({ hasScan, busy, onPick }: {
 
   return (
     <>
-      <Button size="sm" variant="outlined" loading={busy} icon={<Icon icon={UploadFile} size={18} />}
+      <Button variant="outlined" loading={busy} icon={<Icon icon={UploadFile} size={18} />}
         onClick={() => input.current?.click()}>
         {hasScan ? 'Заменить файл' : 'Приложить файл'}
       </Button>

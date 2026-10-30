@@ -126,7 +126,7 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
                 <div className="max-h-40 overflow-y-auto whitespace-pre-line min-w-0">{refused}</div>
               </div>
               <div className="flex justify-end mt-4">
-                <Button variant="tonal" size="sm" onClick={onClose}>Понятно</Button>
+                <Button variant="tonal" onClick={onClose}>Понятно</Button>
               </div>
             </>
           ) : (
@@ -168,8 +168,8 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
               </div>
 
               <div className="flex gap-2 justify-end items-start mt-4">
-                <Button type="button" variant="text" size="sm" className="shrink-0" disabled={pending} data-modal-exit="" onClick={onClose}>Отмена</Button>
-                <Button type="submit" variant="filled" danger size="sm" multiline className="min-w-0"
+                <Button type="button" variant="text" className="shrink-0" disabled={pending} data-modal-exit="" onClick={onClose}>Отмена</Button>
+                <Button type="submit" variant="filled" danger multiline className="min-w-0"
                   disabled={!matches} loading={pending}>
                   {subject.submit}
                 </Button>

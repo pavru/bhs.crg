@@ -146,13 +146,13 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
                                 {/* Приведение (issue #643) идёт ПЕРВЫМ и без подтверждения: для
                                     расхождения с типом это исправление, а удаление — потеря. */}
                                 {canCoerce && (
-                                  <Button variant="text" size="sm" icon={<Icon icon={WandStars} size={18} />}
+                                  <Button variant="text" icon={<Icon icon={WandStars} size={18} />}
                                     disabled={applyFixes.isPending}
                                     onClick={() => apply(row, 'coerce')}>
                                     Привести во всех ({row.instances.length})
                                   </Button>
                                 )}
-                                <Button variant="text" size="sm" danger icon={<Icon icon={Delete} size={18} />}
+                                <Button variant="text" danger icon={<Icon icon={Delete} size={18} />}
                                   disabled={applyFixes.isPending}
                                   onClick={() => setConfirmRow(row)}>
                                   Удалить во всех ({row.instances.length})
@@ -165,7 +165,7 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
                                       onValueChange={v => setRenameTarget(t => ({ ...t, [k]: v }))}>
                                       {schemaFieldKeys.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
                                     </Select>
-                                    <Button variant="text" size="sm" disabled={!renameTarget[k] || applyFixes.isPending}
+                                    <Button variant="text" disabled={!renameTarget[k] || applyFixes.isPending}
                                       onClick={() => apply(row, 'rename', renameTarget[k])}>
                                       Переименовать
                                     </Button>

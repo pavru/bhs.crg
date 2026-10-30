@@ -124,7 +124,7 @@ export function SectionDetail() {
 
   const headerAction = (
     <>
-      {canAddSet && <Button variant="filled" size="sm" icon={<Icon icon={Add} size={18} />} onClick={() => setAddSetOpen(true)}>Добавить комплект</Button>}
+      {canAddSet && <Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setAddSetOpen(true)}>Добавить комплект</Button>}
       {canEdit && (
         <RowActionsMenu ariaLabel="Действия раздела" actions={[
           { key: 'rename', label: 'Переименовать', icon: <Icon icon={Edit} size={18} />, onSelect: () => { setRenameVal(section.name); setRenameOpen(true); } },

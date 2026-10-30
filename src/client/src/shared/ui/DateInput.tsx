@@ -144,9 +144,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
 
   // Крестик поля формы — один на обе ветки: у «не даты» и у сегментов (макет #1463, вариант В).
   const clearButton = !compact && size !== 'sm' && clearable && (
-    <IconButton label="Очистить дату" size="sm" onClick={clear} className={`-my-1.5 ${CLEAR_REVEAL}`}>
-      <Icon icon={Close} size={18} />
-    </IconButton>
+    <IconButton label="Очистить дату" onClick={clear} className={`-my-1.5 ${CLEAR_REVEAL}`} icon={Close} />
   );
 
   const segments = foreign ? (

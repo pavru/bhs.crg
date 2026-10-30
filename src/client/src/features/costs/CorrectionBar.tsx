@@ -126,7 +126,7 @@ export function CorrectionBar({ view, draft, edits, onResetHeader }: {
           Исправление больше не нужно — правьте как обычно: счёт больше не заперт. Набранное в шапке и строках
           останется несохранённым — сохраните его обычными кнопками; разноску из исправления наберите заново.
         </p>
-        <Button size="sm" variant="outlined" icon={<Icon icon={Logout} size={18} />} onClick={draft.release}>
+        <Button variant="outlined" icon={<Icon icon={Logout} size={18} />} onClick={draft.release}>
           Выйти из исправления
         </Button>
       </div>

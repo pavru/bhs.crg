@@ -35,7 +35,7 @@ export function RereadFailedNotice({ what, error, retrying, onRetry }: {
         {what}: {apiError(error, 'сервер не ответил')}. На экране — прежнее состояние: его могли тем
         временем изменить. Набранное не пропало.
       </p>
-      <Button size="sm" variant="outlined" icon={<Icon icon={Refresh} size={18} />} loading={retrying} onClick={onRetry}>
+      <Button variant="outlined" icon={<Icon icon={Refresh} size={18} />} loading={retrying} onClick={onRetry}>
         Повторить
       </Button>
     </div>

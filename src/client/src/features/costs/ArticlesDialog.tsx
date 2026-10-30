@@ -92,42 +92,26 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
             onChange={e => setEditing({ ...editing, name: e.target.value })}
             onKeyDown={e => { if (e.key === 'Enter') void rename(); if (e.key === 'Escape') { e.stopPropagation(); setEditing(null); } }}
             className={FIELD} />
-          <IconButton label="Сохранить название" size="sm" onClick={() => void rename()}>
-            <Icon icon={Check} size={18} />
-          </IconButton>
-          <IconButton label="Отменить" size="sm" onClick={() => setEditing(null)}>
-            <Icon icon={Close} size={18} />
-          </IconButton>
+          <IconButton label="Сохранить название" onClick={() => void rename()} icon={Check} />
+          <IconButton label="Отменить" onClick={() => setEditing(null)} icon={Close} />
         </>
       ) : (
         <>
           <span className={`flex-1 ${article.archived ? 'text-on-surface-variant' : ''}`}>{article.name}</span>
           <IconButton label={`Переименовать «${article.name}»`}
-            size="sm"
-            onClick={() => setEditing({ id: article.id, name: article.name })}>
-            <Icon icon={Edit} size={18} />
-          </IconButton>
+            onClick={() => setEditing({ id: article.id, name: article.name })} icon={Edit} />
           {article.archived ? (
             <IconButton label={`Вернуть «${article.name}» из архива`}
-              size="sm"
               disabled={archive.isPending}
-              onClick={() => void setArchived(article, false)}>
-              <Icon icon={Unarchive} size={18} />
-            </IconButton>
+              onClick={() => void setArchived(article, false)} icon={Unarchive} />
           ) : (
             <IconButton label={`В архив «${article.name}»`}
-              size="sm"
               disabled={archive.isPending}
-              onClick={() => void setArchived(article, true)}>
-              <Icon icon={Archive} size={18} />
-            </IconButton>
+              onClick={() => void setArchived(article, true)} icon={Archive} />
           )}
           <IconButton label={`Удалить «${article.name}»`}
-            size="sm"
             danger
-            onClick={() => setDeleting(article)}>
-            <Icon icon={Delete} size={18} />
-          </IconButton>
+            onClick={() => setDeleting(article)} icon={Delete} />
         </>
       )}
     </li>
@@ -158,7 +142,7 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
         <input value={name} placeholder="Например, «Склад»" aria-label="Новая статья"
           onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void add(); }}
           className={FIELD} />
-        <Button size="sm" variant="outlined" icon={<Icon icon={Add} size={18} />} disabled={!name.trim()}
+        <Button variant="outlined" icon={<Icon icon={Add} size={18} />} disabled={!name.trim()}
           loading={save.isPending && !editing} onClick={() => void add()}>
           Добавить
         </Button>

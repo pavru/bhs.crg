@@ -98,7 +98,7 @@ export function BrandingSection() {
       {isError && !data && (
         <div className="flex items-center gap-3" data-testid="branding-load-failed">
           <span className="text-body-medium text-error">Название и логотип не загрузились.</span>
-          <Button variant="outlined" size="sm" onClick={() => void refetch()}>Повторить</Button>
+          <Button variant="outlined" onClick={() => void refetch()}>Повторить</Button>
         </div>
       )}
 

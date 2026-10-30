@@ -120,12 +120,9 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
     { key: 'remove', label: '', width: 'w-8',
       cell: item => (
         <IconButton label="Снять условия"
-          size="sm"
           danger
           disabled={saving.has(item.supplierId)}
-          onClick={() => setRemovingId(item.supplierId)}>
-          <Icon icon={Delete} size={18} />
-        </IconButton>
+          onClick={() => setRemovingId(item.supplierId)} icon={Delete} />
       ) },
   ];
 

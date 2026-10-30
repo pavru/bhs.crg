@@ -117,12 +117,12 @@ export function PeriodsPage() {
           cell: state => (
             <div className="flex items-center justify-end gap-1">
               {state.reopenable && (
-                <Button size="sm" icon={<Icon icon={Undo} size={18} />}
+                <Button icon={<Icon icon={Undo} size={18} />}
                   onClick={() => setDialog({ kind: 'reopen', constructionId: state.constructionId })}>
                   Отменить закрытие
                 </Button>
               )}
-              <Button size="sm" variant="tonal" icon={<Icon icon={LockIcon} size={18} />}
+              <Button variant="tonal" icon={<Icon icon={LockIcon} size={18} />}
                 onClick={() => setDialog({ kind: 'close', constructionId: state.constructionId })}>
                 Закрыть период
               </Button>

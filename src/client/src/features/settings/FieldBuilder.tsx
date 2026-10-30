@@ -244,11 +244,8 @@ export function FieldCard({
             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-body-small text-error">!</span>
           ) : keyLocked ? (
             <IconButton label="Изменить ключ (осторожно: осиротит данные документов)"
-              size="sm"
               className="absolute right-0 top-1/2 -translate-y-1/2"
-              onClick={() => setConfirmUnlock(true)}>
-              <Icon icon={LockIcon} size={18} />
-            </IconButton>
+              onClick={() => setConfirmUnlock(true)} icon={LockIcon} />
           ) : keyAutoNew ? (
             <Tooltip content="Ключ авто-генерируется из названия">
               <span className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">
@@ -282,9 +279,7 @@ export function FieldCard({
         <div className="flex items-center justify-end gap-0.5">
           <MoveButtons onUp={() => onMoveUp?.()} onDown={() => onMoveDown?.()}
             isFirst={!!isFirst} isLast={!!isLast} />
-          <IconButton label={`Удалить поле «${field.title || field.key || 'без названия'}»`} size="sm" danger onClick={onRemove}>
-            <Icon icon={Delete} size={18} />
-          </IconButton>
+          <IconButton label={`Удалить поле «${field.title || field.key || 'без названия'}»`} danger onClick={onRemove} icon={Delete} />
         </div>
       </div>
       {/* Предупреждение о дрейфе данных при изменённом ключе существующего поля (issue #355). */}
@@ -397,14 +392,11 @@ export function FieldCard({
                 className="flex-1 border border-outline rounded-xs px-2 py-1 text-body-small focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface"
               />
               <IconButton label={`Удалить вариант ${oi + 1}`}
-                size="sm"
                 danger
                 onClick={() => {
                   const opts = (field.options ?? []).filter((_, j) => j !== oi);
                   onChange({ options: opts });
-                }}>
-                <Icon icon={Delete} size={18} />
-              </IconButton>
+                }} icon={Delete} />
             </div>
           ))}
           <button type="button"

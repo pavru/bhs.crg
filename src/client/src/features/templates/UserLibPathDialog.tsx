@@ -72,8 +72,8 @@ export function UserLibPathDialog({
         )}
 
         <div className="flex justify-end gap-2 pt-1">
-          <Button variant="text" size="sm" onClick={onCancel}>Отмена</Button>
-          <Button variant="filled" size="sm" disabled={!!error}
+          <Button variant="text" onClick={onCancel}>Отмена</Button>
+          <Button variant="filled" disabled={!!error}
             onClick={() => onSubmit(path.trim().replace(/\\/g, '/'))}>
             {mode === 'create' ? 'Создать' : 'Изменить'}
           </Button>

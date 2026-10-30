@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { Icon } from '@/shared/ui/Icon';
 import { ChevronLeft, ChevronRight } from '@/shared/ui/icons';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
@@ -340,18 +339,12 @@ function Pager({ view, data, onChange }: {
       {(pages > 1 || view.page > 1) && (
         <div className="flex items-center gap-1">
           <IconButton label="Предыдущая страница"
-            size="sm"
             disabled={view.page <= 1}
-            onClick={() => onChange(v => withPageStep(v, view, -1))}>
-            <Icon icon={ChevronLeft} size={18} aria-hidden />
-          </IconButton>
+            onClick={() => onChange(v => withPageStep(v, view, -1))} icon={ChevronLeft} />
           <span>Страница {view.page} из {pages}</span>
           <IconButton label="Следующая страница"
-            size="sm"
             disabled={view.page >= pages}
-            onClick={() => onChange(v => withPageStep(v, view, 1))}>
-            <Icon icon={ChevronRight} size={18} aria-hidden />
-          </IconButton>
+            onClick={() => onChange(v => withPageStep(v, view, 1))} icon={ChevronRight} />
         </div>
       )}
     </div>

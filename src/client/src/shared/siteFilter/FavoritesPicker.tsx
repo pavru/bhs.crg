@@ -86,7 +86,7 @@ export function FavoritesPicker({ maxHeight = 'max-h-72' }: { maxHeight?: string
             : `Отмечено: ${filter.favorites.size} из ${filter.sites.length}`}
         </span>
         {filter.favorites.size > 0 && (
-          <Button variant="text" size="sm" disabled={busy} onClick={() => run(() => filter.setFavorites([]))}>
+          <Button variant="text" disabled={busy} onClick={() => run(() => filter.setFavorites([]))}>
             Снять все
           </Button>
         )}

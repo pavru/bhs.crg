@@ -125,12 +125,9 @@ export function SupplierMatchesDialog({ initial, onClose }: {
     { key: 'forget', label: '', width: 'w-8',
       cell: item => (
         <IconButton label="Забыть соответствие"
-          size="sm"
           danger
           disabled={point.isPending}
-          onClick={() => setForgettingId(item.id)}>
-          <Icon icon={Delete} size={18} />
-        </IconButton>
+          onClick={() => setForgettingId(item.id)} icon={Delete} />
       ) },
   ];
 
@@ -202,7 +199,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
           <div className="mt-2 flex items-center gap-3 text-body-small text-on-surface-variant">
             <span>{shownOf(data.items.length, data.total)}</span>
             {list.hasNextPage && (
-              <Button size="sm" variant="text" loading={list.isFetchingNextPage}
+              <Button variant="text" loading={list.isFetchingNextPage}
                 onClick={() => void list.fetchNextPage()}>
                 Показать ещё
               </Button>

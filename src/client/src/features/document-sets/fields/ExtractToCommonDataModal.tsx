@@ -355,11 +355,8 @@ export function ExtractToCommonDataModal({
                 <span key={a} className="inline-flex items-center gap-1 text-body-small bg-surface-container text-on-surface-variant rounded-2xl pl-2.5 pr-1 py-0.5 max-w-full">
                   <span className="min-w-0 break-words">{a}</span>
                   <IconButton label={`Удалить «${a}»`}
-                    size="sm"
                     danger className="-my-1.5"
-                    onClick={() => setAliases(prev => prev.filter(x => x !== a))}>
-                    <Icon icon={Close} size={18} />
-                  </IconButton>
+                    onClick={() => setAliases(prev => prev.filter(x => x !== a))} icon={Close} />
                 </span>
               ))}
             </div>
@@ -391,11 +388,11 @@ export function ExtractToCommonDataModal({
               Поиск идёт в выбранном уровне и выше: записи более узкого уровня отсюда не видны.
             </p>
             {!duplicate.match.archived ? (
-              <Button variant="tonal" size="sm" icon={<Icon icon={LinkIcon} size={18} />} onClick={() => void linkExisting()}>
+              <Button variant="tonal" icon={<Icon icon={LinkIcon} size={18} />} onClick={() => void linkExisting()}>
                 Связать с существующей
               </Button>
             ) : canReturn ? (
-              <Button variant="tonal" size="sm" icon={<Icon icon={Unarchive} size={18} />}
+              <Button variant="tonal" icon={<Icon icon={Unarchive} size={18} />}
                 loading={unarchive.isPending} disabled={unarchive.isPending} onClick={() => void linkExisting()}>
                 Вернуть из архива и связать
               </Button>

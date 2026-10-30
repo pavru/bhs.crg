@@ -264,24 +264,24 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
           {!mayEdit && <span className="text-body-small text-on-surface-variant">Только чтение: права вводить накладные нет</span>}
           {canEdit && !posted && (
             <>
-              <Button size="sm" variant="outlined" icon={<Icon icon={Save} size={18} />} disabled={!dirty || busy}
+              <Button variant="outlined" icon={<Icon icon={Save} size={18} />} disabled={!dirty || busy}
                 loading={save.isPending} onClick={() => void saveDraft()}>
                 Сохранить
               </Button>
-              <Button size="sm" variant="filled" icon={<Icon icon={CheckCircle} size={18} />} disabled={busy}
+              <Button variant="filled" icon={<Icon icon={CheckCircle} size={18} />} disabled={busy}
                 loading={state.isPending} onClick={() => void post()}>
                 Провести
               </Button>
             </>
           )}
           {correctable && !correcting && (
-            <Button size="sm" variant="outlined" icon={<Icon icon={EditNote} size={18} />} disabled={busy}
+            <Button variant="outlined" icon={<Icon icon={EditNote} size={18} />} disabled={busy}
               onClick={() => setCorrecting(true)}>
               Исправить
             </Button>
           )}
           {canEdit && posted && !closed && (
-            <Button size="sm" variant="outlined" icon={<Icon icon={Undo} size={18} />} disabled={busy}
+            <Button variant="outlined" icon={<Icon icon={Undo} size={18} />} disabled={busy}
               loading={state.isPending} onClick={() => void backToDraft()}>
               Вернуть в черновик
             </Button>
@@ -297,7 +297,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
               Этой накладной больше нет — её удалили, пока она была открыта у вас. Набранное осталось на
               экране: перенесите нужное себе. Сохранить его уже некуда.
             </p>
-            <Button size="sm" variant="outlined" onClick={onClose}>Закрыть накладную</Button>
+            <Button variant="outlined" onClick={onClose}>Закрыть накладную</Button>
           </div>
         )}
         {outdated && !gone && (
@@ -308,7 +308,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
               Накладную тем временем изменили. Ваши правки на экране целы, но сохранить их поверх нельзя —
               сервер откажет. Перечитайте накладную и внесите правки заново.
             </span>
-            <Button size="sm" variant="outlined" icon={<Icon icon={Refresh} size={18} />} onClick={() => adopt(fresh)}>
+            <Button variant="outlined" icon={<Icon icon={Refresh} size={18} />} onClick={() => adopt(fresh)}>
               Перечитать, отбросив правки
             </Button>
           </div>

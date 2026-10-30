@@ -83,9 +83,7 @@ export function PageHeader({ title, subtitle, icon, badge, breadcrumb, actions, 
               <SectionMenu value={section}>
                 {/* Свой значок: у заголовка-контрола уже есть «▾», и второй такой же рядом читался бы
                     повтором той же стрелки (ревью PR #1488). */}
-                <IconButton label={`Другие страницы раздела «${section.def.title}»`} size="lg" className="min-h-11 min-w-11" data-testid="section-menu-trigger">
-                  <Icon icon={ViewList} size={20} />
-                </IconButton>
+                <IconButton label={`Другие страницы раздела «${section.def.title}»`} className="min-h-11 min-w-11" data-testid="section-menu-trigger" icon={ViewList} />
               </SectionMenu>
             )}
             {badge && <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">{badge}</div>}

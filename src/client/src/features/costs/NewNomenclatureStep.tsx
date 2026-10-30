@@ -184,7 +184,7 @@ export function NewNomenclatureStep({ from, plate, narrow, onBack, onPick }: {
           <Similar body={body !== null} settled={settled} similar={similar} onPick={onPick}
             hover={selection.hover} leave={selection.leave} active={shownId}
             create={(
-              <Button size="sm" disabled={missing.length > 0 || create.isPending} onClick={() => void submit()}
+              <Button disabled={missing.length > 0 || create.isPending} onClick={() => void submit()}
                 variant={similar.data?.similar.length ? 'outlined' : 'filled'}
                 title={missing.length > 0 ? `Не заполнено: ${missing.join(', ')}` : undefined}>
                 {similar.data?.similar.length ? 'Завести новую — похожие не подходят' : 'Завести позицию'}

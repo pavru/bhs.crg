@@ -32,7 +32,7 @@ export function ModuleSettingsSections() {
     return (
       <div className="border border-outline-variant rounded-lg p-4 flex items-center gap-3">
         <span className="text-body-medium text-error">Настройки модулей не загрузились.</span>
-        <Button variant="outlined" size="sm" onClick={() => void refetch()}>Повторить</Button>
+        <Button variant="outlined" onClick={() => void refetch()}>Повторить</Button>
       </div>
     );
 
@@ -153,7 +153,7 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
             {stale && <p className="text-body-small text-warning mt-1 max-w-xl">{stale}</p>}
             {/* «Вернуть» — только когда есть что возвращать: у несохранённой настройки умолчание и так действует. */}
             {(setting.stored !== null || setting.stale !== null) && !reset && (
-              <Button variant="text" size="sm" className="mt-1 -ml-2" onClick={() => edit(setting.key, null)}>
+              <Button variant="text" className="mt-1 -ml-2" onClick={() => edit(setting.key, null)}>
                 Вернуть значение по умолчанию
               </Button>
             )}

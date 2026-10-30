@@ -91,13 +91,11 @@ export function ViewerTitleBar({ title, source, onClose }: {
       <Icon icon={Description} size={18} className="text-on-surface-variant shrink-0" aria-hidden />
       <span className="flex-1 min-w-0 truncate text-body-medium font-medium text-on-surface">{title}</span>
       {source && (
-        <Button size="sm" variant="outlined" icon={<Icon icon={OpenInNew} size={18} />} onClick={() => openInNewTab(source)}>
+        <Button variant="outlined" icon={<Icon icon={OpenInNew} size={18} />} onClick={() => openInNewTab(source)}>
           Открыть во вкладке
         </Button>
       )}
-      <IconButton label="Закрыть" data-modal-exit onClick={onClose}>
-        <Icon icon={Close} size={18} />
-      </IconButton>
+      <IconButton label="Закрыть" data-modal-exit onClick={onClose} icon={Close} />
     </div>
   );
 }

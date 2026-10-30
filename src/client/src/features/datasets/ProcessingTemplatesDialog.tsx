@@ -71,9 +71,7 @@ function ExtractionFields({
                 placeholder="Название" className={`w-32 shrink-0 text-body-small ${FIELD_CLS} px-2 py-1`} />
               <input value={col.expr} onChange={e => updateColumn(i, { expr: e.target.value })}
                 placeholder="Выражение" className={`flex-1 min-w-0 font-mono text-body-small ${FIELD_CLS} px-2 py-1`} />
-              <IconButton label={`Удалить колонку ${i + 1}`} size="sm" danger onClick={() => removeColumn(i)}>
-                <Icon icon={Delete} size={18} />
-              </IconButton>
+              <IconButton label={`Удалить колонку ${i + 1}`} danger onClick={() => removeColumn(i)} icon={Delete} />
             </div>
           ))}
         </div>
@@ -222,13 +220,9 @@ function TemplateRow({ template }: { template: DataSetProcessingTemplate }) {
             )}
           </div>
         </div>
-        <IconButton label="Редактировать" size="sm" onClick={() => setEditing(e => !e)}>
-          <Icon icon={Edit} size={18} />
-        </IconButton>
+        <IconButton label="Редактировать" onClick={() => setEditing(e => !e)} icon={Edit} />
         {!confirming ? (
-          <IconButton label="Удалить" size="sm" danger onClick={() => setConfirming(true)}>
-            <Icon icon={Delete} size={18} />
-          </IconButton>
+          <IconButton label="Удалить" danger onClick={() => setConfirming(true)} icon={Delete} />
         ) : (
           <div className="flex items-center gap-1.5 text-body-small">
             <span className="text-on-surface-variant">Удалить?</span>

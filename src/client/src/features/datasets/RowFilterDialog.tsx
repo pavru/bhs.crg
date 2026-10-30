@@ -69,12 +69,9 @@ function FilterConditionRow({
 
         {/* Remove */}
         <IconButton label="Удалить условие"
-          size="sm"
           danger
           className="opacity-0 group-hover/cond:opacity-100 focus-visible:opacity-100"
-          onClick={onRemove}>
-          <Icon icon={Delete} size={18} />
-        </IconButton>
+          onClick={onRemove} icon={Delete} />
       </div>
       {/* Подсказка, а не запрет (issue #1137): годен ли отбор, решает сервер при сохранении. Здесь —
           то, что видно сразу и без запроса; ошибись эта копия правил, она не запрёт годный отбор. */}

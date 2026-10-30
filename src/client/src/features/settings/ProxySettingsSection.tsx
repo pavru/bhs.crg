@@ -136,7 +136,7 @@ export function ProxySettingsSection() {
       </p>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" variant="outlined" size="sm" loading={save.isPending}
+        <Button type="button" variant="outlined" loading={save.isPending}
           disabled={isLoading} onClick={() => void submit()}>
           Сохранить
         </Button>
@@ -147,7 +147,7 @@ export function ProxySettingsSection() {
             {checkable.map(c => <SelectItem key={c.service} value={c.service}>{c.name}</SelectItem>)}
           </Select>
         )}
-        <Button type="button" variant="outlined" size="sm" loading={test.isPending}
+        <Button type="button" variant="outlined" loading={test.isPending}
           disabled={isLoading || !urlValue.trim()} onClick={() => void check()}>
           Проверить через прокси
         </Button>

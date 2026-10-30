@@ -56,7 +56,7 @@ export function LayoutChooser({ image, notice, profiles, rebuilding, onRebuild }
           <div className="flex items-center justify-between mb-1">
             <h2 id={heading} className="text-body-medium font-semibold text-on-surface">Раскладка вида</h2>
             <Popover.Close asChild>
-              <IconButton label="Закрыть" size="sm"><Icon icon={Close} size={18} /></IconButton>
+              <IconButton label="Закрыть" icon={Close} />
             </Popover.Close>
           </div>
           {state && <p className="text-body-small text-on-surface-variant mb-2" data-testid="layout-notice">{state}</p>}
@@ -68,8 +68,8 @@ export function LayoutChooser({ image, notice, profiles, rebuilding, onRebuild }
           </p>
           <Choices profiles={profiles} shown={image.profile?.id} value={chosen} onPick={setChosen} />
           <div className="flex justify-end gap-2 mt-3">
-            <Popover.Close asChild><Button variant="text" size="sm">Закрыть</Button></Popover.Close>
-            <Button variant="filled" size="sm" loading={rebuilding} disabled={!chosen}
+            <Popover.Close asChild><Button variant="text">Закрыть</Button></Popover.Close>
+            <Button variant="filled" loading={rebuilding} disabled={!chosen}
               onClick={async () => { if (chosen && await onRebuild(chosen)) setOpen(false); }}>
               Перестроить по выбранному
             </Button>

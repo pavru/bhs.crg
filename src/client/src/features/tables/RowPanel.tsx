@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
-import { Icon } from '@/shared/ui/Icon';
 import { Close } from '@/shared/ui/icons';
 import { DataGridValue } from '@/shared/ui/DataGrid';
 import { columnUnavailable } from '@/shared/ui/dataGridStates';
@@ -50,9 +49,7 @@ export function RowPanel({ address, rowKey, filter, grain, link, onClose }: {
       <header className="h-11 shrink-0 flex items-center gap-2 px-4 border-b border-outline-variant">
         <h2 className="flex-1 text-body-medium font-medium text-on-surface">Строка: {grain}</h2>
         {link && values && <Link to={link.to} className="text-body-small text-primary underline hover:text-on-surface">{link.label}</Link>}
-        <IconButton label="Закрыть строку" size="md" ref={close} onClick={onClose}>
-          <Icon icon={Close} size={18} aria-hidden />
-        </IconButton>
+        <IconButton label="Закрыть строку" ref={close} onClick={onClose} icon={Close} />
       </header>
 
       <div className="flex-1 min-h-0 overflow-auto px-4 py-3">

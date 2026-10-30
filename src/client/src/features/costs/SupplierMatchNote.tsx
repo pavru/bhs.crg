@@ -51,7 +51,7 @@ export function SupplierMatchNote({ hasSupplier, waiting, ready, blocked, failed
             У этого поставщика запомнено для {ready} из {waiting}{' '}
             {ruPlural(waiting, 'строки', 'строк', 'строк')} без позиции.
           </span>
-          <Button size="sm" variant="outlined" onClick={onApply}>Подставить запомненное ({ready})</Button>
+          <Button variant="outlined" onClick={onApply}>Подставить запомненное ({ready})</Button>
         </>
       )}
       {blocked > 0 && (

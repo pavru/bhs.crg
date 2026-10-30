@@ -172,7 +172,7 @@ function ReportBody({ report, githubConfigured }: {
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {closed ? (
-            <Button variant="outlined" size="sm" onClick={() => reopen.mutate(report.id)}>
+            <Button variant="outlined" onClick={() => reopen.mutate(report.id)}>
               <Icon icon={Undo} size={18} /> Вернуть в разбор
             </Button>
           ) : (
@@ -181,7 +181,7 @@ function ReportBody({ report, githubConfigured }: {
                   администратора гадать, куда делась передача. Уже переданное не показываем: второй
                   issue о том же убирают руками. */}
               {report.githubIssueNumber === null && (
-                <Button variant="outlined" size="sm"
+                <Button variant="outlined"
                   onClick={() => {
                     setForwardError(null);
                     setIssueTitle(prev => prev || defaultIssueTitle(report.message));
@@ -190,10 +190,10 @@ function ReportBody({ report, githubConfigured }: {
                   <Icon icon={Send} size={18} /> Отправить в GitHub
                 </Button>
               )}
-              <Button variant="outlined" size="sm" onClick={() => setRejectOpen(true)}>
+              <Button variant="outlined" onClick={() => setRejectOpen(true)}>
                 <Icon icon={Close} size={18} /> Отклонить
               </Button>
-              <Button variant="filled" size="sm"
+              <Button variant="filled"
                 onClick={() => { setVersion(''); setFixError(null); setFixOpen(true); }}>
                 <Icon icon={Check} size={18} /> Исправлено…
               </Button>
@@ -212,7 +212,7 @@ function ReportBody({ report, githubConfigured }: {
         {report.screenshotBlobPath && (
           <section className="space-y-1.5">
             <h3 className="text-title-small text-on-surface-variant">Снимок экрана</h3>
-            <Button variant="outlined" size="sm"
+            <Button variant="outlined"
               onClick={() => { void openAttachment(report.screenshotBlobPath!); }}>
               <Icon icon={OpenInNew} size={18} /> Открыть снимок
             </Button>
@@ -237,13 +237,13 @@ function ReportBody({ report, githubConfigured }: {
             </h3>
             <div className="flex items-center gap-1.5">
               {dirty && (
-                <Button variant="text" size="sm" onClick={() => setDraft(report.issueDraft)}>Отмена</Button>
+                <Button variant="text" onClick={() => setDraft(report.issueDraft)}>Отмена</Button>
               )}
-              <Button variant="outlined" size="sm" disabled={!dirty} loading={saveDraft.isPending}
+              <Button variant="outlined" disabled={!dirty} loading={saveDraft.isPending}
                 onClick={() => saveDraft.mutate({ id: report.id, text: draft })}>
                 Сохранить
               </Button>
-              <Button variant="text" size="sm" onClick={() => { void copyDraft(); }}>
+              <Button variant="text" onClick={() => { void copyDraft(); }}>
                 <Icon icon={ContentCopy} size={18} /> Скопировать
               </Button>
             </div>

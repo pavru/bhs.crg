@@ -101,9 +101,7 @@ export function NomenclaturePicker({
             вообще никакого выхода (ревью PR #1117). */}
         {mark}
         {chosen && clearable && (
-          <IconButton label="Снять позицию" size="sm" onClick={onClear}>
-            <Icon icon={Close} size={18} />
-          </IconButton>
+          <IconButton label="Снять позицию" onClick={onClear} icon={Close} />
         )}
       </div>
 
@@ -290,7 +288,7 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
           {/* Кнопка — всегда, а не только при пустом поиске: двадцать пять неподходящих находок —
               такой же повод завести позицию, как ни одной. */}
           {canCreate ? (
-            <Button size="sm" variant={nothing ? 'outlined' : 'text'} onClick={() => setCreating(true)}>
+            <Button variant={nothing ? 'outlined' : 'text'} onClick={() => setCreating(true)}>
               Завести новую позицию…
             </Button>
           ) : (

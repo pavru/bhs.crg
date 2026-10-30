@@ -18,7 +18,7 @@ export function FavoriteStar({ id, onToggled }: { id: string; onToggled?: () => 
   if (filter.status !== 'ready') return null;
   const on = filter.favorites.has(id);
   return (
-    <IconButton size="sm" label={on ? 'Убрать из избранного' : 'Добавить в избранное'}
+    <IconButton label={on ? 'Убрать из избранного' : 'Добавить в избранное'}
       aria-pressed={on} disabled={busy} data-testid="favorite-star" className="-ml-1"
       onClick={async e => {
         e.stopPropagation();
@@ -26,9 +26,7 @@ export function FavoriteStar({ id, onToggled }: { id: string; onToggled?: () => 
         setBusy(true);
         await toggle(id, !on);
         setBusy(false);
-      }}>
-      <Icon icon={Star} size={18} className={on ? 'text-primary fill-current' : 'text-on-surface-variant'} aria-hidden />
-    </IconButton>
+      }} icon={Star} iconClassName={on ? 'text-primary fill-current' : 'text-on-surface-variant'} />
   );
 }
 

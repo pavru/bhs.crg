@@ -153,9 +153,7 @@ function Shell() {
           <ActivityCenter />
           {/* Видимый вход в справку: клавишу «?» знает только тот, кто её уже нашёл. На телефоне
               справки по клавишам нет — клавиатуры там нет, а место в строке нужно аватару. */}
-          <IconButton label="Справка и горячие клавиши" size="lg" className="max-md:hidden" onClick={() => setHelpOpen(true)}>
-            <Icon icon={Help} size={20} />
-          </IconButton>
+          <IconButton label="Справка и горячие клавиши" className="max-md:hidden" onClick={() => setHelpOpen(true)} icon={Help} />
           <span className="pl-1"><AccountMenu admin={admin} /></span>
         </header>
         <OutsideBanner items={allWork} inside={work} />

@@ -185,9 +185,9 @@ export function DetailHeader({ heading, dirty, saving, onSaveAll, onRevert, acti
         <div className="flex items-center gap-1.5 shrink-0">
           {dirty && <span className="text-body-small px-2 py-0.5 rounded-full font-medium bg-warning-container text-on-warning-container">есть изменения</span>}
           {onRevert && (
-            <Button variant="text" size="sm" disabled={!dirty || saving} onClick={onRevert}>Отмена</Button>
+            <Button variant="text" disabled={!dirty || saving} onClick={onRevert}>Отмена</Button>
           )}
-          <Button variant="filled" size="sm" disabled={!dirty} loading={saving}
+          <Button variant="filled" disabled={!dirty} loading={saving}
             onClick={() => { onSaveAll().catch(() => { /* ошибки показаны в формах */ }); }}>
             Сохранить
           </Button>

@@ -265,7 +265,6 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
           aria-label={`Выбрать строку ${i + 1}`} />
         <IconButton label={`Переместить строку ${i + 1}: стрелки вверх и вниз`}
           title="Перетащить для изменения порядка (или стрелки ↑↓)"
-          size="sm"
           className="cursor-grab active:cursor-grabbing"
           draggable
           data-grip={i}
@@ -285,9 +284,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               if (to < 0 || to >= allItems.length) return;
               moveItem(i, to);
               focusRow.current = to;
-            }}>
-          <Icon icon={DragIndicator} size={18} />
-        </IconButton>
+            }} icon={DragIndicator} />
         <span className={`text-body-small font-mono w-5 text-right shrink-0 ${danger ? 'text-error' : 'text-on-surface-variant'}`}>
           {i + 1}
         </span>
@@ -400,9 +397,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                       {rowChrome(i, true)}
                       <Icon icon={LinkIcon} size={18} className="text-error shrink-0" />
                       <span className={`flex-1 text-body-medium truncate ${BROKEN_LABEL}`}>{item.displayName}</span>
-                      <IconButton label={`Удалить строку ${i + 1}`} size="sm" danger onClick={() => removeItem(i)}>
-                        <Icon icon={Delete} size={18} className="text-error" />
-                      </IconButton>
+                      <IconButton label={`Удалить строку ${i + 1}`} danger onClick={() => removeItem(i)} icon={Delete} iconClassName="text-error" />
                     </div>
                     <BrokenRefNote compact />
                   </div>
@@ -415,9 +410,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   <Icon icon={LinkIcon} size={18} className="text-warning shrink-0" />
                   <span className="flex-1 text-body-medium text-warning truncate">{item.displayName}</span>
                   <ArchivedRefMark value={item} />
-                  <IconButton label={`Удалить строку ${i + 1}`} size="sm" danger onClick={() => removeItem(i)}>
-                    <Icon icon={Delete} size={18} />
-                  </IconButton>
+                  <IconButton label={`Удалить строку ${i + 1}`} danger onClick={() => removeItem(i)} icon={Delete} />
                 </div>
               );
             }
@@ -447,12 +440,8 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   <ArchivedRefMark value={wrapped.ref} />
                   <span className="text-label-small text-on-surface-variant shrink-0 truncate max-w-[40%]">{wrapped.label}</span>
                   {/* ✎ оставлен: это единственный вход сменить вариант и снять ссылку. */}
-                  <IconButton label="Редактировать" size="sm" onClick={() => setRowModal(i)}>
-                    <Icon icon={Edit} size={18} />
-                  </IconButton>
-                  <IconButton label={`Удалить строку ${i + 1}`} size="sm" danger onClick={() => removeItem(i)}>
-                    <Icon icon={Delete} size={18} />
-                  </IconButton>
+                  <IconButton label="Редактировать" onClick={() => setRowModal(i)} icon={Edit} />
+                  <IconButton label={`Удалить строку ${i + 1}`} danger onClick={() => removeItem(i)} icon={Delete} />
                 </div>
                 {wrappedBroken && <BrokenRefNote compact />}
                 </div>
@@ -481,12 +470,8 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                     </span>
                   </Tooltip>
                 )}
-                <IconButton label="Редактировать" size="sm" onClick={() => setRowModal(i)}>
-                  <Icon icon={Edit} size={18} />
-                </IconButton>
-                <IconButton label={`Удалить строку ${i + 1}`} size="sm" danger onClick={() => removeItem(i)}>
-                  <Icon icon={Delete} size={18} />
-                </IconButton>
+                <IconButton label="Редактировать" onClick={() => setRowModal(i)} icon={Edit} />
+                <IconButton label={`Удалить строку ${i + 1}`} danger onClick={() => removeItem(i)} icon={Delete} />
               </div>
             );
           })}
@@ -507,7 +492,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               {/* Вынос строки в переиспользуемую запись (issue #663) — по одной: массовый вынос
                   отдельной задачей, у него свой selection-state. */}
               {canExtract ? (
-                <Button variant="text" size="sm" icon={<Icon icon={Share} size={18} />}
+                <Button variant="text" icon={<Icon icon={Share} size={18} />}
                   // Строка-ссылка выносу не подлежит: получилась бы запись, всё содержимое которой —
                   // ссылка на другую запись, то есть лишнее звено в цепочке (у неё есть предел, #723).
                   // ComplexFieldGroup такую ветку до выноса не доводит вовсе; у массива защиты не было.
@@ -693,12 +678,8 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
           <div className={`flex items-center gap-1.5 rounded-md pl-3 pr-1.5 py-1.5 ${BROKEN_PLATE}`}>
             <Icon icon={LinkIcon} size={18} className="text-error shrink-0" />
             <span className={`flex-1 text-body-medium font-medium truncate ${BROKEN_LABEL}`}>{value.displayName}</span>
-            <IconButton label="Заменить ссылку" size="sm" onClick={() => setPickerOpen(true)}>
-              <Icon icon={Refresh} size={18} className="text-error" />
-            </IconButton>
-            <IconButton label="Снять ссылку" size="sm" danger onClick={() => onChange({})}>
-              <Icon icon={LinkOff} size={18} className="text-error" />
-            </IconButton>
+            <IconButton label="Заменить ссылку" onClick={() => setPickerOpen(true)} icon={Refresh} iconClassName="text-error" />
+            <IconButton label="Снять ссылку" danger onClick={() => onChange({})} icon={LinkOff} iconClassName="text-error" />
           </div>
           <BrokenRefNote />
           {picker}
@@ -769,9 +750,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
             className="flex items-center gap-1 text-body-small text-primary px-2 py-0.5 rounded-xs hover:bg-primary-container transition-colors shrink-0">
             <Icon icon={LinkIcon} size={18} /> Из каталога
           </button>
-          <IconButton label="Редактировать" size="sm" onClick={() => setModalOpen(true)}>
-            <Icon icon={Edit} size={18} />
-          </IconButton>
+          <IconButton label="Редактировать" onClick={() => setModalOpen(true)} icon={Edit} />
         </div>
         <Modal open={modalOpen} onOpenChange={setModalOpen} wide
           title={compositeType ? `${compositeType.name}${field.title !== compositeType.name ? ` — ${field.title}` : ''}` : field.title}
@@ -780,7 +759,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
               {/* Команда идёт в футер уже существующей модалки, а не четвёртой иконкой в ряд поля
                   (issue #663): ряд и так несёт три действия. */}
               {canExtract ? (
-                <Button variant="text" size="sm" icon={<Icon icon={Share} size={18} />} disabled={isEmpty}
+                <Button variant="text" icon={<Icon icon={Share} size={18} />} disabled={isEmpty}
                   title={isEmpty ? 'Нечего выносить — объект пуст' : undefined}
                   onClick={() => setExtractOpen(true)}>
                   Вынести в общие данные…
@@ -804,10 +783,10 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
       <div className="border border-dashed border-outline-variant rounded-md px-3 py-3 bg-surface-container-low/40">
         <div className="text-body-medium text-on-surface-variant mb-2">{compositeType ? compositeType.name : 'Составной тип'}</div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="tonal" size="sm" icon={<Icon icon={LinkIcon} size={18} />} onClick={() => setPickerOpen(true)}>
+          <Button variant="tonal" icon={<Icon icon={LinkIcon} size={18} />} onClick={() => setPickerOpen(true)}>
             Выбрать из каталога
           </Button>
-          <Button variant="text" size="sm" icon={<Icon icon={Edit} size={18} />} onClick={() => setCollapsed(false)}>
+          <Button variant="text" icon={<Icon icon={Edit} size={18} />} onClick={() => setCollapsed(false)}>
             Заполнить вручную
           </Button>
         </div>
@@ -1001,9 +980,7 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
               </span>
             </Tooltip>
           )}
-          <IconButton label="Редактировать" size="sm" onClick={() => setModalOpen(true)}>
-            <Icon icon={Edit} size={18} />
-          </IconButton>
+          <IconButton label="Редактировать" onClick={() => setModalOpen(true)} icon={Edit} />
         </div>
         <Modal open={modalOpen} onOpenChange={setModalOpen} wide title={field.title}
           footer={<div className="flex justify-end"><Button variant="filled" onClick={() => setModalOpen(false)}>Готово</Button></div>}>

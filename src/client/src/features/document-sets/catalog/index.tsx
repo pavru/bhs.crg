@@ -627,11 +627,8 @@ export function CatalogEntryForm({
               <span key={a} className="inline-flex items-center gap-1 text-body-small bg-surface-container text-on-surface-variant rounded-2xl pl-2.5 pr-1 py-0.5 max-w-full">
                 <span className="min-w-0 break-words">{a}</span>
                 <IconButton label={`Удалить «${a}»`}
-                  size="sm"
                   danger className="-my-1.5"
-                  onClick={() => setAliases(prev => prev.filter(x => x !== a))}>
-                  <Icon icon={Close} size={18} />
-                </IconButton>
+                  onClick={() => setAliases(prev => prev.filter(x => x !== a))} icon={Close} />
               </span>
             ))}
           </div>
@@ -678,7 +675,7 @@ export function CatalogEntryForm({
 
       {attachment && (
         <div className="flex items-center gap-2">
-          <Button type="button" variant="tonal" size="sm" onClick={handleRecognize}
+          <Button type="button" variant="tonal" onClick={handleRecognize}
             loading={recognizing} icon={<Icon icon={VerifiedUser} size={18} />}
             title="Заполнит простые поля по штампу/реквизитам файла — ссылочные и составные поля не тронет">
             Распознать «{attachment.fileName}»
@@ -707,12 +704,12 @@ export function CatalogEntryForm({
               {/* Оговорка при устаревшем источнике (issue #815): кнопка подтянет ИМЕННО СТАРЫЕ
                   значения, а человек будет уверен, что обновился до актуальных. Молчать здесь —
                   худший вариант из трёх: обновление выглядит удавшимся. */}
-              <Button type="button" variant="outlined" size="sm" onClick={handleRefreshFromSource}
+              <Button type="button" variant="outlined" onClick={handleRefreshFromSource}
                 loading={refreshingFromSource} icon={<Icon icon={Refresh} size={18} />}
                 title={staleRefreshHint}>
                 Обновить из источника
               </Button>
-              <Button type="button" variant="outlined" size="sm" onClick={() => runBindingCheck()}
+              <Button type="button" variant="outlined" onClick={() => runBindingCheck()}
                 loading={checkingBindings} icon={<Icon icon={VerifiedUser} size={18} />}>
                 Проверить связки
               </Button>

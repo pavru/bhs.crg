@@ -54,9 +54,7 @@ export function UserLibFileList({
 
       <div className="flex items-center justify-between pr-2">
         <NavSection label="Файлы библиотеки" />
-        <IconButton label="Создать файл" size="sm" className="-my-1" onClick={() => onCreate()}>
-          <Icon icon={Add} size={18} />
-        </IconButton>
+        <IconButton label="Создать файл" className="-my-1" onClick={() => onCreate()} icon={Add} />
       </div>
 
       {files.length === 0 ? (
@@ -72,11 +70,8 @@ export function UserLibFileList({
           <Icon icon={Folder} size={18} className="shrink-0" />
           <span className="truncate flex-1">{row.label}</span>
           <IconButton label={`Создать файл в «${row.path}»`}
-            size="sm"
             className="-my-1.5 opacity-0 group-hover/dir:opacity-100 focus-visible:opacity-100"
-            onClick={() => onCreate(row.path)}>
-            <Icon icon={Add} size={18} />
-          </IconButton>
+            onClick={() => onCreate(row.path)} icon={Add} />
         </div>
       ) : (
         <FileRow

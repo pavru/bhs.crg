@@ -36,7 +36,7 @@ export function OriginalButton({ invoiceId, fileName, label }: {
   const kinds = useFileKinds();
   const toast = useToast();
   return (
-    <Button size="sm" loading={busy} icon={<Icon icon={Download} size={18} />}
+    <Button loading={busy} icon={<Icon icon={Download} size={18} />}
       title={fileName ? `Скачать оригинал: ${fileName}` : 'Скачать оригинал'}
       onClick={async () => {
         setBusy(true);
@@ -97,7 +97,7 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
         <Icon icon={TableChart} size={18} className="text-on-surface-variant shrink-0" />
         <span className="text-body-small text-on-surface-variant truncate flex-1">{fileName ?? 'Файл счёта'}</span>
         {/* Во вкладке — полный просмотрщик браузера: поиск, печать с настройками (issue #1490). */}
-        <Button size="sm" icon={<Icon icon={OpenInNew} size={18} />} disabled={!bytes}
+        <Button icon={<Icon icon={OpenInNew} size={18} />} disabled={!bytes}
           onClick={() => { if (bytes) void openInNewTab(bytes); }}>
           Открыть во вкладке
         </Button>
@@ -118,7 +118,7 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
                 <LayoutChooser image={image} notice={notice} profiles={profiles} rebuilding={rebuild.isPending}
                   onRebuild={rebuildWith} />
               )}
-              <Button size="sm" variant="text" loading={rebuild.isPending} icon={<Icon icon={RotateRight} size={18} />}
+              <Button variant="text" loading={rebuild.isPending} icon={<Icon icon={RotateRight} size={18} />}
                 className="shrink-0" title="Построить вид заново. Сам файл и распознанное остаются как были."
                 onClick={() => void rebuildWith()}>
                 {rebuild.isPending ? 'Перестраиваем…' : 'Перестроить'}
@@ -222,13 +222,13 @@ export function RefusedImage({ invoiceId, blobPath, fileName, image, canEdit, re
             </span>
             <div className="flex gap-2 mt-1">
               {!image.aboutFile && (
-                <Button size="sm" variant="outlined" loading={retrying} icon={<Icon icon={RotateRight} size={18} />} onClick={onRetry}>
+                <Button variant="outlined" loading={retrying} icon={<Icon icon={RotateRight} size={18} />} onClick={onRetry}>
                   Повторить
                 </Button>
               )}
               {/* Запомненный отказ сам не пройдёт — а конвертер мог споткнуться и разово. */}
               {image.aboutFile && canEdit && (
-                <Button size="sm" variant="outlined" loading={rebuild.isPending} icon={<Icon icon={RotateRight} size={18} />}
+                <Button variant="outlined" loading={rebuild.isPending} icon={<Icon icon={RotateRight} size={18} />}
                   onClick={() => rebuild.mutateAsync()
                     .then(next => { if (next.state === 'refused') toast.info(`Вид снова не построен. ${next.reason ?? ''}`); })
                     .catch(e => toast.apiError(e, 'Вид не построен'))}>

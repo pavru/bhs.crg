@@ -357,9 +357,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
                         placeholder={pathFormat === 'Json' ? 'id или name или info.code' : '@id или Name или Info/Code'}
                         preview={v => { const rs = composeRowSelector(sheetOrPath); return rs && v.trim() ? { fileId, rowSelector: rs, expr: v } : null; }} />
                     </div>
-                    <IconButton label={`Удалить колонку ${i + 1}`} size="sm" danger onClick={() => removeColumn(i)}>
-                      <Icon icon={Delete} size={18} />
-                    </IconButton>
+                    <IconButton label={`Удалить колонку ${i + 1}`} danger onClick={() => removeColumn(i)} icon={Delete} />
                   </div>
                 ))}
               </div>

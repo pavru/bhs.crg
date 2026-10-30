@@ -75,14 +75,10 @@ export function UsersPage() {
         const isSelf = u.id === me?.sub;
         return (
           <div className="flex items-center justify-end gap-1 opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 transition-opacity">
-            <IconButton label="Сбросить пароль" size="sm" onClick={() => setResetFor(u)}>
-              <Icon icon={Key} size={18} />
-            </IconButton>
-            <IconButton label="Удалить" size="sm" danger onClick={() => setDeleteTarget(u)}
+            <IconButton label="Сбросить пароль" onClick={() => setResetFor(u)} icon={Key} />
+            <IconButton label="Удалить" danger onClick={() => setDeleteTarget(u)}
               disabled={isSelf || del.isPending}
-              title={isSelf ? 'Нельзя удалить себя' : 'Удалить'}>
-              <Icon icon={Delete} size={18} />
-            </IconButton>
+              title={isSelf ? 'Нельзя удалить себя' : 'Удалить'} icon={Delete} />
           </div>
         );
       } },

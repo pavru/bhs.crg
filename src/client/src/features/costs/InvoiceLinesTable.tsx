@@ -326,7 +326,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
           <>
             <InvoiceLinesPaste mode={mode} onAdd={add} />
             {!correcting && (
-              <Button size="sm" variant="filled" icon={<Icon icon={Save} size={18} />} disabled={!dirty}
+              <Button variant="filled" icon={<Icon icon={Save} size={18} />} disabled={!dirty}
                 loading={replace.isPending} onClick={save}>
                 Сохранить строки
               </Button>
@@ -344,7 +344,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
             {modeProof(view.totals, view.requisites[K.vat],
               view.requisites[K.total], formatMoney)}
           </span>
-          <Button size="sm" variant="text" loading={confirm.isPending} onClick={confirmMode}>Верно</Button>
+          <Button variant="text" loading={confirm.isPending} onClick={confirmMode}>Верно</Button>
         </div>
       )}
 
@@ -383,14 +383,14 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
         {/* У отклонённого — тоже возврат: «Разобран» ему сервер откажет словами «верните в черновик». */}
         {still || correcting ? null : parsed || rejected
           ? (
-            <Button size="sm" variant="outlined" icon={<Icon icon={Undo} size={18} />} loading={state.isPending}
+            <Button variant="outlined" icon={<Icon icon={Undo} size={18} />} loading={state.isPending}
               onClick={() => move('draft')}>
               Вернуть в черновик
             </Button>
           )
           : (
             // Перечень пуст — «Разобран» становится главным действием: условия выполнены, осталось решение.
-            <Button size="sm" variant={settled ? 'filled' : 'outlined'} icon={<Icon icon={CheckCircle} size={18} />}
+            <Button variant={settled ? 'filled' : 'outlined'} icon={<Icon icon={CheckCircle} size={18} />}
               loading={state.isPending} onClick={() => move('parsed')}>
               Разобран
             </Button>
@@ -470,7 +470,7 @@ function ReconciliationStrip({ sums, strip, unsaved, matched, hint, onHint }: {
       {offer && (
         <span className="inline-flex flex-wrap items-center gap-x-2 text-on-surface-variant">
           {offer.text}
-          <Button size="sm" variant="text" onClick={() => onHint(offer.to)}>{offer.action}</Button>
+          <Button variant="text" onClick={() => onHint(offer.to)}>{offer.action}</Button>
         </span>
       )}
       {strip.agrees && <span className="text-success">сходится с суммой к оплате</span>}

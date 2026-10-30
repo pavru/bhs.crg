@@ -309,7 +309,7 @@ function FilePick({ file, onFile }: { file: File | null; onFile: (file: File) =>
           : <p className="text-on-surface-variant">Перетащите сюда файл сметы из ГРАНД-Сметы (.gsfx или .xml)</p>}
         {several && <p className="text-body-small text-error">Одна загрузка — один файл: перетащите их по одному.</p>}
       </div>
-      <Button variant="outlined" size="sm" onClick={() => input.current?.click()}>{file ? 'Другой файл' : 'Выбрать файл'}</Button>
+      <Button variant="outlined" onClick={() => input.current?.click()}>{file ? 'Другой файл' : 'Выбрать файл'}</Button>
       <input ref={input} type="file" className="hidden" accept={ACCEPT} aria-label="Файл сметы"
         onChange={e => {
           const picked = e.target.files?.[0];

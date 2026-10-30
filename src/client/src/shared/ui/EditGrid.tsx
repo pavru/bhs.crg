@@ -268,7 +268,7 @@ export function EditGrid<Row>({
         </table>
       </div>
       {add && (
-        <Button ref={addButton} size="sm" variant="outlined" icon={<Icon icon={Add} size={18} />}
+        <Button ref={addButton} variant="outlined" icon={<Icon icon={Add} size={18} />}
           onClick={() => {
             pendingFocus.current = { kind: 'added' };
             add.onAdd();

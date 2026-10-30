@@ -57,7 +57,7 @@ function ObservationRow({ o, setPath, onReview }: {
         <span className={`text-label-small px-1.5 py-0.5 rounded-full shrink-0 ${STATUS_STYLE[o.status]}`}>
           {OBSERVATION_STATUS_LABELS[o.status]}
         </span>
-        <Button variant="text" size="sm" onClick={() => onReview(o)}
+        <Button variant="text" onClick={() => onReview(o)}
           className="opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0">
           Разобрать
         </Button>

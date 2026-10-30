@@ -270,7 +270,7 @@ function RowMatch({ row, match, revision, seen, setVersion, busy, onClose }: Com
           <span className="text-on-surface-variant">Сейчас: <b className="font-medium text-on-surface">{current}</b>
             {row.volume !== null && <span className="text-on-surface-variant tabular-nums"> · {formatQuantity(row.volume)}</span>}</span>
           {remembered && <StatusBadge tone="quiet" title={remembered.text}>запомнено</StatusBadge>}
-          <Button size="sm" variant="text" disabled={busy} onClick={clear}>
+          <Button variant="text" disabled={busy} onClick={clear}>
             {remembered ? 'Отменить подстановку' : 'Снять сопоставление'}
           </Button>
         </div>
@@ -300,7 +300,7 @@ function Footer({ canCreate, onNew, hint, children }: {
   return (
     <div className="flex flex-wrap items-center justify-end gap-2 border-t border-outline-variant pt-3">
       {canCreate && (
-        <Button size="sm" variant="text" icon={<Icon icon={Add} size={18} />} className="mr-auto" onClick={onNew}>Новый вид работы</Button>
+        <Button variant="text" icon={<Icon icon={Add} size={18} />} className="mr-auto" onClick={onNew}>Новый вид работы</Button>
       )}
       {hint && <span className={`text-body-small text-on-surface-variant ${canCreate ? '' : 'mr-auto'}`}>{hint}</span>}
       <ModalExit />

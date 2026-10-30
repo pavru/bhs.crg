@@ -84,7 +84,7 @@ export function InvoiceObject({ view, locked }: {
       )}
       <span className={calm ? 'text-on-surface-variant' : 'text-warning'}>{status}</span>
       {correcting?.allocation && <span className="text-warning">разноска изменена в исправлении — запишется с ним</span>}
-      <Button size="sm" variant="text" icon={<Icon icon={GridOn} size={18} />} onClick={() => setMatrix({})}>
+      <Button variant="text" icon={<Icon icon={GridOn} size={18} />} onClick={() => setMatrix({})}>
         {canEdit && !correcting ? 'на несколько объектов' : 'разноска по объектам'}
       </Button>
 

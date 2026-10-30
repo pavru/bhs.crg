@@ -62,9 +62,7 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
           <span className="flex items-center gap-0.5">
             <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
               isFirst={i === 0} isLast={i === values.length - 1} />
-            <IconButton label={`Удалить значение ${i + 1}`} size="sm" danger onClick={() => remove(i)}>
-              <Icon icon={Delete} size={18} />
-            </IconButton>
+            <IconButton label={`Удалить значение ${i + 1}`} danger onClick={() => remove(i)} icon={Delete} />
           </span>
         </div>
       ))}

@@ -26,7 +26,7 @@ export function StaleInvoiceNotice({ what, onReread }: {
         не сохранятся. Набранное остаётся здесь: перенесите нужное себе, затем перечитайте счёт —
         несохранённые правки заменятся сохранёнными.
       </p>
-      <Button size="sm" variant="outlined" icon={<Icon icon={Refresh} size={18} />} onClick={onReread}>
+      <Button variant="outlined" icon={<Icon icon={Refresh} size={18} />} onClick={onReread}>
         Перечитать счёт
       </Button>
     </div>

@@ -59,7 +59,7 @@ export function CompanySection() {
       {isError && (
         <div className="flex items-center gap-3">
           <span className="text-body-medium text-error">Настройки компании не загрузились.</span>
-          <Button variant="outlined" size="sm" onClick={() => void refetch()}>Повторить</Button>
+          <Button variant="outlined" onClick={() => void refetch()}>Повторить</Button>
         </div>
       )}
 
@@ -103,7 +103,7 @@ export function CompanySection() {
             В базе сохранено «{data.stale}» — такой валюты в списке нет, действует{' '}
             {currencyTitle(data, data.currency)}.
           </p>
-          <Button variant="text" size="sm" className="mt-1 -ml-2" onClick={() => void cleanUp()}
+          <Button variant="text" className="mt-1 -ml-2" onClick={() => void cleanUp()}
             disabled={save.isPending}>
             Записать «{currencyTitle(data, data.currency)}»
           </Button>

@@ -90,12 +90,8 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
         {updatedAt && state.kind === 'pdf' && (
           <span className="text-body-small text-on-surface-variant">обновлено {timeAgo(updatedAt)}</span>
         )}
-        <IconButton size="sm" label="Обновить" onClick={() => void run()} disabled={state.kind === 'loading'}>
-          {busy ? <CircularProgress size={18} /> : <Icon icon={Refresh} size={18} />}
-        </IconButton>
-        <IconButton size="sm" label="Скрыть предпросмотр" onClick={() => setOpenPersist(false)}>
-          <Icon icon={RightPanelClose} size={18} />
-        </IconButton>
+        <IconButton label="Обновить" onClick={() => void run()} disabled={state.kind === 'loading'} loading={busy} icon={Refresh} />
+        <IconButton label="Скрыть предпросмотр" onClick={() => setOpenPersist(false)} icon={RightPanelClose} />
       </div>
       <div className="flex-1 min-h-0 relative">
         {state.kind === 'pdf' && (
@@ -120,7 +116,7 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
             <p className="text-body-medium text-error">Не удалось построить предпросмотр</p>
             {/* whitespace-pre-line — отказ компилятора шаблона приходит несколькими строками (issue #1047). */}
             <p className="text-body-small break-words max-w-full whitespace-pre-line">{state.message}</p>
-            <Button size="sm" variant="text" onClick={() => void run()} className="mt-1">Повторить</Button>
+            <Button variant="text" onClick={() => void run()} className="mt-1">Повторить</Button>
           </div>
         )}
         {state.kind === 'idle' && (

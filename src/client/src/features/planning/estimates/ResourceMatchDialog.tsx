@@ -197,7 +197,7 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
 
       <div className="flex flex-wrap items-center justify-end gap-2 border-t border-outline-variant pt-3">
         {canCreate && (
-          <Button size="sm" variant="text" icon={<Icon icon={Add} size={18} />} className="mr-auto" onClick={() => setCreating(true)}>Новая позиция…</Button>
+          <Button variant="text" icon={<Icon icon={Add} size={18} />} className="mr-auto" onClick={() => setCreating(true)}>Новая позиция…</Button>
         )}
         <ModalExit>Закрыть</ModalExit>
         <Button variant="text" disabled={match.isPending} onClick={onDone}>Пропустить</Button>

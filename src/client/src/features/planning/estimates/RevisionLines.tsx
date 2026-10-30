@@ -90,7 +90,7 @@ export function RevisionLines({ revision, initialQueue = 'all' }: {
           <Chip selected={queue === 'remembered'} count={formatCount(remembered)} onClick={() => pick('remembered')}>Запомнено</Chip>
         )}
         {editable && noNomenclature > 0 && (
-          <Button size="sm" variant="text" className="ml-auto" onClick={() => setMaterials(true)}>Сопоставить материалы…</Button>
+          <Button variant="text" className="ml-auto" onClick={() => setMaterials(true)}>Сопоставить материалы…</Button>
         )}
       </div>
 
@@ -246,7 +246,7 @@ function SectionHeading({ section, open, shown, filtering, onToggle, onMatch }: 
         <StatusBadge tone="neutral">без номенклатуры: {formatCount(section.materialsUnmatched)}</StatusBadge>
       )}
       {onMatch && (
-        <Button size="sm" variant="text" className="ml-auto" onClick={onMatch}>
+        <Button variant="text" className="ml-auto" onClick={onMatch}>
           {section.code === null ? 'Сопоставить строки' : 'Сопоставить раздел'}
         </Button>
       )}

@@ -57,8 +57,8 @@ function SourceNameDialog({ title, hint, defaultName, takenNames, isPending, err
       busy={isPending}
       footer={
         <div className="flex gap-2 justify-end">
-          <ModalExit size="sm" />
-          <Button type="button" variant="filled" size="sm" onClick={() => canSave && onSubmit(trimmed)}
+          <ModalExit />
+          <Button type="button" variant="filled" onClick={() => canSave && onSubmit(trimmed)}
             disabled={!canSave} loading={isPending}>
             {isPending ? 'Сохранение…' : confirmLabel}
           </Button>
@@ -237,9 +237,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
         </div>
         <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
           {passiveLabel && <Tooltip content="Заполняется вместе с главным источником той же тройки/пары"><span className="text-on-surface-variant italic">{passiveLabel}</span></Tooltip>}
-          <IconButton label="Просмотреть результат обработки" size="sm" onClick={() => setPreviewing(true)}>
-            <Icon icon={Visibility} size={18} />
-          </IconButton>
+          <IconButton label="Просмотреть результат обработки" onClick={() => setPreviewing(true)} icon={Visibility} />
           <RowActionsMenu actions={actions} ariaLabel="Действия над источником" hasActive={hasActiveProcessing} />
         </div>
       </div>
@@ -329,21 +327,15 @@ export function FileRecognizeActions({ file }: { file: DataSetFile }) {
 
   return (
     <>
-      <IconButton label={profile ? 'Распознать заново' : 'Распознать'} size="sm"
-        onClick={() => handleRecognizeDataset()} disabled={recognizeFile.isPending || recognizing}>
-        {recognizing ? <CircularProgress size={18} /> : <Icon icon={DocumentScanner} size={18} />}
-      </IconButton>
+      <IconButton label={profile ? 'Распознать заново' : 'Распознать'}
+        onClick={() => handleRecognizeDataset()} disabled={recognizeFile.isPending || recognizing} loading={recognizing} icon={DocumentScanner} />
       {isGostDataset && (
-        <IconButton label="Разбиение — перенос страниц, типы таблиц, распознавание таблицы" size="sm"
-          onClick={() => navigate(`/datasets/files/${file.id}/grouping`, { state: { sourceName: file.name } })}>
-          <Icon icon={ContentCut} size={18} />
-        </IconButton>
+        <IconButton label="Разбиение — перенос страниц, типы таблиц, распознавание таблицы"
+          onClick={() => navigate(`/datasets/files/${file.id}/grouping`, { state: { sourceName: file.name } })} icon={ContentCut} />
       )}
       {/* Профили распознавания набора (issue #412) — параметры к промптам штампа/обложки/счёта. */}
-      <IconButton label="Профили распознавания набора — какими параметрами читать штамп, обложку, счёт" size="sm"
-        onClick={() => setFileProfilesDialog(true)}>
-        <Icon icon={Tune} size={18} />
-      </IconButton>
+      <IconButton label="Профили распознавания набора — какими параметрами читать штамп, обложку, счёт"
+        onClick={() => setFileProfilesDialog(true)} icon={Tune} />
       {profileDialog && (
         <PdfSourceDialog fileId={file.id} onClose={() => setProfileDialog(false)}
           onRecognizeError={handleRecognizeError} />
@@ -407,7 +399,7 @@ export function SourcesPanel({
           Источники{sources.length > 0 ? ` · ${sources.length}` : ''}
         </span>
         {canManageExtraction && !systemDeadEnd && (
-          <Button variant="outlined" size="sm" icon={<Icon icon={Add} size={18} />} onClick={() => setEditing('new')}>
+          <Button variant="outlined" icon={<Icon icon={Add} size={18} />} onClick={() => setEditing('new')}>
             Добавить источник
           </Button>
         )}
