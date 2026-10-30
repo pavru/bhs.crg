@@ -81,6 +81,11 @@
 - **D5. Редактор формулы — свой файл.** `ComputedFieldEditor` переезжает из `FieldBuilder.tsx` в
   `features/settings/ComputedFieldEditor.tsx` как есть, с поповером; `FieldBuilder` худеет, и уровень
   размера опускается по факту. Тест компонента — `ComputedFieldEditor.test.tsx`.
+- **D6. Клавиатура и прокрутка слоя (ревью PR #1700).** Tab с края списка уводит дальше по форме, как
+  у календаря даты: помощники `tabStops` / `nextTabStop` вынесены из `DateInput` в `shared/ui/tabStops.ts`.
+  Кнопку прокрутили из видимой части тела окна — список закрывается (`IntersectionObserver`), фокус —
+  на кнопку без прокрутки: спрятанный `hideWhenDetached` список ронял фокус в body. Живой прогон `types`
+  проверяет оба; `placedBox` — общий в `e2e/harness.mjs`.
 - **Сторож.**
   - `ui-ratchet.test.mjs`: формы сегодняшних мест и прежнего меню сохранения считаются (в том числе
     без `top-full`), как и цепочка `a && xxxOpen &&`, тернарник и `fixed`; `dragOver && <div

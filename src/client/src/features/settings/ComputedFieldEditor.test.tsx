@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { SchemaField } from '@/shared/api/schema';
 import { Modal } from '@/shared/ui/Modal';
@@ -9,7 +9,10 @@ import { ComputedFieldEditor } from './ComputedFieldEditor';
 
 /** «+ Вставить поле» у расчётного поля — слой над окном ([UI-49], #1537). */
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+// Окно решает про Esc таймером (`afterFields` в Modal): проверять «окно не закрылось» — только после него.
+const pause = () => act(() => new Promise(r => setTimeout(r, 0)));
 
 const SIBLINGS = [
   { key: 'Количество', title: 'Количество', type: 'number' },
@@ -53,8 +56,14 @@ describe('ComputedFieldEditor: «+ Вставить поле»', () => {
     expect(layer()).not.toBeNull();
     await user.keyboard('{Escape}');
     await waitFor(() => expect(layer()).toBeNull());
+    await pause();
     expect(onOpenChange).not.toHaveBeenCalled();
     await waitFor(() => expect(document.activeElement).toBe(trigger()));
+    // Контроль паузы: второй Esc — уже окна, и он до `onOpenChange` доходит. Без этого «не звали»
+    // выше доказывало бы только, что таймер окна ещё не сработал.
+    await user.keyboard('{Escape}');
+    await pause();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it('щелчок в формулу закрывает список, окно остаётся', async () => {
@@ -64,6 +73,7 @@ describe('ComputedFieldEditor: «+ Вставить поле»', () => {
     expect(layer()).not.toBeNull();
     await user.click(formula());
     await waitFor(() => expect(layer()).toBeNull());
+    await pause();
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
@@ -77,6 +87,30 @@ describe('ComputedFieldEditor: «+ Вставить поле»', () => {
     expect(formula().value).toBe('get("Количество") * get("Цена")');
     await waitFor(() => expect(layer()).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(formula()));
+    await pause();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Tab с края списка — дальше по форме (docs/UI.md, «Слои над окном»). В jsdom у элементов нет рамок, и
+   * `tabStops` считал бы все остановки невидимыми — рамка подставляется.
+   */
+  it('Tab с последнего пункта — в формулу, Shift+Tab с фильтра — на кнопку; список закрыт', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([new DOMRect(0, 0, 10, 10)] as unknown as DOMRectList);
+    const user = userEvent.setup();
+    const { trigger, layer, formula, onOpenChange } = setup();
+    await user.click(trigger());
+    screen.getByText('Цена за единицу').closest('button')!.focus();
+    await user.keyboard('{Tab}');
+    await waitFor(() => expect(layer()).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(formula()));
+
+    await user.click(trigger());
+    expect(document.activeElement).toBe(screen.getByPlaceholderText('Фильтр…'));
+    await user.keyboard('{Shift>}{Tab}{/Shift}');
+    await waitFor(() => expect(layer()).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(trigger()));
+    await pause();
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 });

@@ -245,6 +245,9 @@ describe('храповик интерфейса: счёт', () => {
       '{open && <Panel className="absolute top-full" />}',
       '{open && <div className="relative top-full" />}',
       '{open || <div className="absolute" />}',
+      // возможность, а не состояние: под ней значок или кнопка, а не список
+      '{canOpen && <span className="absolute right-1 top-1" />}',
+      '{shouldOpen && <div className="absolute" />}',
     ].join('\n'), { dir: 'shared' })).toEqual({});
   });
 

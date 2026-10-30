@@ -26,13 +26,18 @@ export function portalContainersIn(sf) {
  * `fixed` — первый обход запрета: в окне с `transform` он ведёт себя как `absolute` и режется так же.
  */
 const LAYERED = /(?<![\w:/-])(?:absolute|fixed)(?![\w-])/;
-/** Условие «открыт»: `open`, `pickOpen`, `menuOpen`. */
+/**
+ * Условие «открыт»: `open`, `pickOpen`, `menuOpen`. Возможность — не состояние: `canOpen`, `shouldOpen`
+ * говорят, что открыть МОЖНО, и под ними рисуют кнопку или значок, а не список (`canOpen &&` — в
+ * InvoiceScanPanel).
+ */
 const OPEN = /^(?:open|\w+Open)$/;
+const ABILITY = /^(?:can|could|may|might|should|will|allow|allows)[A-Z]/;
 
 /** Открывает ли условие слой: `open`, `xxxOpen` или цепочка `a && …`, которая оканчивается им. */
 function opensOn(node) {
   while (ts.isParenthesizedExpression(node)) node = node.expression;
-  if (ts.isIdentifier(node)) return OPEN.test(node.text);
+  if (ts.isIdentifier(node)) return OPEN.test(node.text) && !ABILITY.test(node.text);
   return ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
     && opensOn(node.right);
 }

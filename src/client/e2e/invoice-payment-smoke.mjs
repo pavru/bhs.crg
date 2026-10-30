@@ -38,7 +38,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/invoice-payment-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, placedBox } from './harness.mjs';
 
 
 const browser = await launchBrowser();
@@ -165,23 +165,6 @@ function dateField(scope, name) {
   return { group, d: part('день'), m: part('месяц'), y: part('год') };
 }
 
-/**
- * Рамка элемента календаря, когда календарь встал на место. До первого замера Radix держит обёртку
- * поппера за экраном (`translate(0, -200%)`), и Playwright считает её видимой: рамка, снятая сразу
- * после `waitFor`, на медленной машине указывала бы выше экрана (ревью PR #1526). Ждём, пока рамка
- * окажется на экране и два замера подряд совпадут.
- */
-async function placedBox(locator) {
-  let prev = null;
-  for (let i = 0; i < 50; i++) {
-    const box = await locator.boundingBox();
-    if (box && box.y >= 0 && prev && box.x === prev.x && box.y === prev.y) return box;
-    prev = box;
-    await page.waitForTimeout(50);
-  }
-  throw new Error(`календарь не встал на место за 2,5 с: последняя рамка ${JSON.stringify(prev)}`);
-}
-
 /** Окно оплаты счёта прогона и в нём — открытый календарь «Даты платежа». */
 async function openPaymentCalendar() {
   await open(calendarNumber);
@@ -218,7 +201,7 @@ async function leavePayment(dialog) {
 async function lastDayIsReachable() {
   const { dialog, grid } = await openPaymentCalendar();
   const last = grid.getByRole('gridcell').locator('button').last();
-  const box = await placedBox(last);
+  const box = await placedBox(last, 'календарь');
   const covered = await page.evaluate(([x, y]) => {
     const hit = document.elementFromPoint(x, y);
     return hit?.closest('[data-radix-popper-content-wrapper]') ? null : (hit?.outerHTML.slice(0, 160) ?? 'за экраном');
@@ -248,7 +231,7 @@ await check('payment-date-calendar-fits-phone', async () => {
 // (ревью PR #1526). Tab обязан закрыть календарь и встать на следующее поле — «Платёжный документ».
 await check('payment-date-calendar-tab-goes-to-next-field', async () => {
   const { dialog, grid } = await openPaymentCalendar();
-  await placedBox(grid);
+  await placedBox(grid, 'календарь');
   for (let i = 0; i < 6 && await grid.isVisible(); i++) await page.keyboard.press('Tab');
   if (await grid.isVisible()) throw new Error('шесть нажатий Tab не вывели фокус из календаря');
   // Фокус ждём, а не снимаем мгновенно: закрытие слоя — несколько кадров, и мгновенный снимок на

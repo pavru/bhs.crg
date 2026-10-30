@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import type { SchemaField } from '@/shared/api/schema';
+import { nextTabStop, tabStops } from '@/shared/ui/tabStops';
 import { evalComputed, validateComputed, findComputedCycles, referencedKeys } from '@/shared/utils/computedExpression';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
@@ -12,7 +13,9 @@ export function ComputedFieldEditor({ field, siblingFields, onChange }: {
   onChange: (patch: Partial<SchemaField>) => void;
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
-  const picked = useRef(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  /** Фокус уже перенесён (в формулу, Tab'ом дальше, на кнопку без прокрутки) — Radix его не возвращает. */
+  const focusMoved = useRef(false);
   const [pickOpen, setPickOpen] = useState(false);
   const [pickFilter, setPickFilter] = useState('');
   const [testOpen, setTestOpen] = useState(false);
@@ -41,10 +44,42 @@ export function ComputedFieldEditor({ field, siblingFields, onChange }: {
     const end = ta.selectionEnd ?? cur.length;
     onChange({ expression: cur.slice(0, start) + snippet + cur.slice(end) });
     // Фокус уходит в формулу: возврат Radix на кнопку списка отменяется, иначе он перебил бы курсор.
-    picked.current = true;
+    focusMoved.current = true;
     setPickOpen(false); setPickFilter('');
     requestAnimationFrame(() => { ta.focus(); const p = start + snippet.length; ta.setSelectionRange(p, p); });
   }
+
+  /**
+   * Tab с края списка — дальше по форме, как у календаря даты (docs/UI.md, «Слои над окном»): список
+   * лежит в конце body, вне порядка Tab формы. С последней остановки вперёд — следующее поле после
+   * кнопки (формула), с фильтра назад — сама кнопка; список закрывается. Фокус переносится сразу, в
+   * обработчике: возврат Radix идёт таймером, и до него фокус лежал бы на body.
+   */
+  function onListTab(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== 'Tab') return;
+    const stops = tabStops(e.currentTarget);
+    if (document.activeElement !== (e.shiftKey ? stops[0] : stops.at(-1))) return;
+    e.preventDefault();
+    const trigger = triggerRef.current;
+    focusMoved.current = true;
+    ((!e.shiftKey && trigger && nextTabStop(trigger)) || trigger)?.focus();
+    setPickOpen(false);
+  }
+
+  // Кнопку прокрутили из видимой части тела окна — список закрывается. `hideWhenDetached` только прятал
+  // бы его: фокус и набор оставались бы в невидимом фильтре. Фокус — на кнопку, без прокрутки к ней.
+  useEffect(() => {
+    const trigger = triggerRef.current;
+    if (!pickOpen || !trigger || typeof IntersectionObserver === 'undefined') return;
+    const watch = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting) return;
+      focusMoved.current = true;
+      trigger.focus({ preventScroll: true });
+      setPickOpen(false);
+    });
+    watch.observe(trigger);
+    return () => watch.disconnect();
+  }, [pickOpen]);
 
   // «Проверить на образце»: образцовые значения ссылок → результат/ошибка (число если парсится).
   const testRefs = referencedKeys(expr);
@@ -73,14 +108,16 @@ export function ComputedFieldEditor({ field, siblingFields, onChange }: {
               открытии — в фильтр (первое поле слоя), при закрытии — на кнопку, после выбора — в формулу. */}
           <Popover.Root open={pickOpen} onOpenChange={o => { setPickOpen(o); setPickFilter(''); }}>
             <Popover.Trigger asChild>
-              <button type="button"
+              <button ref={triggerRef} type="button"
                 className="text-label-small px-2 py-0.5 rounded-xs border border-outline text-primary hover:bg-primary/10">
                 + Вставить поле
               </button>
             </Popover.Trigger>
             <Popover.Portal>
               <Popover.Content align="end" sideOffset={4} collisionPadding={8} hideWhenDetached aria-label="Вставить поле"
-                onCloseAutoFocus={e => { if (picked.current) { picked.current = false; e.preventDefault(); } }}
+                onKeyDown={onListTab}
+                onOpenAutoFocus={() => { focusMoved.current = false; }}
+                onCloseAutoFocus={e => { if (focusMoved.current) { focusMoved.current = false; e.preventDefault(); } }}
                 className="z-50 w-64 max-w-(--radix-popover-content-available-width) bg-surface border border-outline-variant rounded-md shadow-elevation-2 py-1 focus:outline-none">
                 <input value={pickFilter} onChange={e => setPickFilter(e.target.value)}
                   placeholder="Фильтр…" aria-label="Фильтр полей" spellCheck={false}

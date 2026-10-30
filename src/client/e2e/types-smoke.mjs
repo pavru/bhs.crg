@@ -15,7 +15,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/types-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, placedBox } from './harness.mjs';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1100 } });
@@ -252,21 +252,6 @@ await check('template-params-parsed-from-declaration', async () => {
  */
 // ── «+ Вставить поле» в окне нового типа — слой над окном (#1537, [UI-49]) ─────
 /**
- * Рамка элемента, когда он встал на место: слой Radix сначала рисуется в (0,0) и потом едет к якорю,
- * а рамка в пути показала бы ложную точку.
- */
-async function placedBox(locator) {
-  let prev = null;
-  for (let i = 0; i < 50; i++) {
-    const box = await locator.boundingBox();
-    if (box && box.y >= 0 && prev && box.x === prev.x && box.y === prev.y) return box;
-    prev = box;
-    await page.waitForTimeout(50);
-  }
-  throw new Error(`список не встал на место за 2,5 с: последняя рамка ${JSON.stringify(prev)}`);
-}
-
-/**
  * Список полей у формулы был `absolute` внутри окна: прокручиваемое тело и `overflow-hidden` окна его
  * срезали, а Esc закрывал не список, а всё окно. Проверяем точкой, как календарь в окне оплаты:
  * `elementFromPoint` в центре последнего пункта обязан попасть в сам список. Полей больше, чем
@@ -278,10 +263,15 @@ await check('insert-field-list-is-a-layer-over-the-window', async () => {
   await page.getByRole('button', { name: 'Добавить тип документа' }).click();
   const dialog = page.getByRole('dialog', { name: 'Новый тип документа' });
   await dialog.waitFor({ timeout: 10_000 });
-  // Фокус после «Добавить поле» — в «Название» новой карточки (#526): ключ выводится из него.
+  // Фокус после «Добавить поле» — в «Название» новой карточки (#526): ключ выводится из него. Печатаем,
+  // только когда фокус туда встал: до этого он на кнопке, знаки пропали бы, поле осталось без ключа и
+  // выпало бы из списка — и отказ ниже винил бы слой, а не набор.
   for (const title of ['Количество', 'Цена', 'Масса', 'Длина', 'Ширина', 'Сумма']) {
     await dialog.getByRole('button', { name: 'Добавить поле' }).click();
+    await page.waitForFunction(() => document.activeElement?.tagName === 'INPUT', null, { timeout: 5_000 });
     await page.keyboard.type(title);
+    const typed = await page.evaluate(() => document.activeElement?.value);
+    if (typed !== title) throw new Error(`название поля не набралось: «${typed}» вместо «${title}»`);
   }
   await dialog.getByText('Вычисляемое (формула)').last().click();
   const trigger = dialog.getByRole('button', { name: '+ Вставить поле' });
@@ -292,7 +282,7 @@ await check('insert-field-list-is-a-layer-over-the-window', async () => {
   const list = page.getByRole('dialog', { name: 'Вставить поле' });
   await list.waitFor({ timeout: 5_000 });
   const last = list.getByRole('button').last();
-  const box = await placedBox(last);
+  const box = await placedBox(last, 'список «Вставить поле»');
   // Точка — в самом списке, а не «в каком-нибудь слое Radix»: так проверка ловит обрезку, а не способ.
   const covered = await list.evaluate((el, [x, y]) => {
     const hit = document.elementFromPoint(x, y);
@@ -305,6 +295,35 @@ await check('insert-field-list-is-a-layer-over-the-window', async () => {
   if (!(await dialog.isVisible())) throw new Error('Esc в списке закрыл окно нового типа');
   if (!(await trigger.evaluate(el => el === document.activeElement)))
     throw new Error('после Esc фокус не вернулся на «+ Вставить поле»');
+  // Tab с последнего пункта — дальше по форме, в формулу: слой в конце body, вне порядка Tab окна.
+  await trigger.click();
+  await list.waitFor({ timeout: 5_000 });
+  await last.focus();
+  await page.keyboard.press('Tab');
+  await list.waitFor({ state: 'hidden', timeout: 5_000 });
+  if (!(await page.evaluate(() => document.activeElement?.tagName === 'TEXTAREA')))
+    throw new Error('Tab с последнего пункта не увёл фокус в формулу');
+  // Кнопку прокрутили из видимой части тела окна — список закрывается, а не прячется с фокусом в
+  // невидимом фильтре; фокус — на кнопке. Окно браузера ниже: при высоте 1100 тело окна прокручивается
+  // всего на треть экрана, и кнопку из вида не унести ни в одну сторону.
+  const viewport = page.viewportSize();
+  await page.setViewportSize({ width: viewport.width, height: 700 });
+  try {
+    await trigger.evaluate(el => el.scrollIntoView({ block: 'end' }));
+    await trigger.click();
+    await list.waitFor({ timeout: 5_000 });
+    const frame = await dialog.boundingBox();
+    await page.mouse.move(frame.x + 40, frame.y + frame.height / 2);
+    await page.mouse.wheel(0, -3000);
+    // Ждём закрытия, а не невидимости: спрятанный `hideWhenDetached` слой Playwright тоже считает hidden.
+    await list.waitFor({ state: 'detached', timeout: 5_000 }).catch(() => {
+      throw new Error('кнопку прокрутили из вида, а список только спрятан: фокус и набор — в невидимом фильтре');
+    });
+    if (!(await trigger.evaluate(el => el === document.activeElement)))
+      throw new Error('список закрылся прокруткой, но фокус не на «+ Вставить поле»');
+  } finally {
+    await page.setViewportSize(viewport);
+  }
   await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
   await dialog.waitFor({ state: 'hidden', timeout: 5_000 });
 });

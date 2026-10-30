@@ -9,6 +9,7 @@ import { readSegments } from './dateSegments';
 import { dateSegmentModel } from './dateSegmentModel';
 import { SegmentProblemMark } from './SegmentProblemMark';
 import { useSegmentField } from './useSegmentField';
+import { nextTabStop, tabStops } from './tabStops';
 import { dateMask } from '@/shared/format/dateMask';
 import { resolveLocale, useLocale } from '@/shared/hooks/useLocale';
 
@@ -272,7 +273,6 @@ const COMPACT_TRIGGER = '-mr-1.5';
 const SM_TRIGGER = "relative h-6 w-6 before:absolute before:-inset-1 before:content-['']";
 /** Высота и отступы рамки обвязки — те же, что у `Select` md / sm; справа место держит кнопка календаря. */
 const FRAME = { md: 'h-9 pl-3 pr-0.5 text-body-medium', sm: 'h-7 pl-2 pr-0.5 text-body-small' } as const;
-const STOP = 'button, input, select, textarea, a[href], [tabindex]';
 /**
  * Крестик поля формы — ускоритель (issue #1463, вариант В): виден при наведении на поле и при фокусе в
  * нём, а где наведения нет — всегда. Прозрачный он не ловит нажатий (`pointer-events-none`), иначе
@@ -283,20 +283,3 @@ const CLEAR_REVEAL = 'opacity-0 pointer-events-none transition-opacity ease-stan
   + 'group-hover:opacity-100 group-hover:pointer-events-auto '
   + 'group-focus-within:opacity-100 group-focus-within:pointer-events-auto '
   + '[@media(pointer:coarse)]:opacity-100 [@media(pointer:coarse)]:pointer-events-auto';
-
-/** Остановки Tab внутри `root` в порядке документа: видимые, доступные, без `tabindex="-1"`. */
-function tabStops(root: ParentNode): HTMLElement[] {
-  return [...root.querySelectorAll<HTMLElement>(STOP)]
-    .filter(el => el.tabIndex >= 0 && !el.matches(':disabled') && !el.closest('[hidden], [inert]')
-      && el.getClientRects().length > 0);
-}
-
-/**
- * Следующая остановка Tab после `from` — в пределах его окна (`[role="dialog"]`: окно или поповер,
- * где стоит поле) или страницы. Только для фокуса: где рисовать календарь, это место не решает.
- */
-function nextTabStop(from: HTMLElement): HTMLElement | undefined {
-  const stops = tabStops(from.closest<HTMLElement>('[role="dialog"]') ?? document.body);
-  const at = stops.indexOf(from);
-  return at < 0 ? undefined : stops[at + 1];
-}
