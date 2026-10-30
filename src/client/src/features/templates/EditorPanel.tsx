@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useTheme } from '@/shared/ui/themeContext';
 import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
 import { useAssetCompletion } from '@/shared/ui/typstAssetCompletion';
@@ -21,21 +22,7 @@ import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import { flattenFields } from './templateBlank';
 import type * as monacoEditor from 'monaco-editor';
 import { Tooltip } from '@/shared/ui/Tooltip';
-
-// ─── Toolbar button ───────────────────────────────────────────────────────────
-
-function ToolbarButton({
-  active, onClick, children, title,
-}: { active?: boolean; onClick: () => void; children: React.ReactNode; title?: string }) {
-  return (
-    <Tooltip content={title}>
-      <button type="button" onClick={onClick}
-        className={`state-layer px-2 py-1 text-body-medium rounded-xs ${active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}>
-        {children}
-      </button>
-    </Tooltip>
-  );
-}
+import { MENU_ITEM, MENU_SURFACE } from '@/shared/ui/menuClasses';
 
 // ─── Requisite picker ─────────────────────────────────────────────────────────
 
@@ -43,57 +30,62 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
   docType: DocumentType; allDocTypes: DocumentType[];
   onInsert: (snippet: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
   const topFields = resolveEffectiveFields(docType, allDocTypes);
   const fields = flattenFields(topFields, allDocTypes);
-
-  useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [open]);
-
-  function insertField(path: string) {
-    onInsert(`#get("${path}")`);
-    setOpen(false);
-  }
+  // Вставка — после закрытия меню: фокус в редактор ставит она, а не Radix на кнопку ([UI-51]).
+  const chosen = useRef<string | null>(null);
 
   return (
-    <div className="relative" ref={ref}>
-      <ToolbarButton active={open} onClick={() => setOpen(v => !v)} title="Вставить реквизит">
-        <span className="flex items-center gap-1 text-body-small font-mono">
-          <Icon icon={MenuBook} size={18} /> Реквизит
-        </span>
-      </ToolbarButton>
-      {open && (
-        <div className="absolute top-full left-0 mt-1 z-50 bg-surface border border-outline-variant rounded-md shadow-elevation-2 w-80 max-h-80 overflow-y-auto">
-          <div className="px-3 py-2 border-b border-surface-container text-title-small text-on-surface-variant sticky top-0 bg-surface">
+    <DropdownMenu.Root>
+      <Tooltip content="Вставить реквизит">
+        <DropdownMenu.Trigger asChild>
+          <button type="button"
+            className="state-layer px-2 py-1 text-body-medium rounded-xs text-on-surface-variant data-[state=open]:bg-primary-container data-[state=open]:text-on-primary-container">
+            <span className="flex items-center gap-1 text-body-small font-mono">
+              <Icon icon={MenuBook} size={18} /> Реквизит
+            </span>
+          </button>
+        </DropdownMenu.Trigger>
+      </Tooltip>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content align="start" sideOffset={4} collisionPadding={8}
+          className={`z-50 w-80 max-h-[min(20rem,var(--radix-dropdown-menu-content-available-height))] flex flex-col ${MENU_SURFACE}`}
+          onCloseAutoFocus={e => {
+            const path = chosen.current;
+            if (path == null) return;
+            chosen.current = null;
+            e.preventDefault();
+            onInsert(`#get("${path}")`);
+          }}>
+          <DropdownMenu.Label className="px-3 pt-1 pb-2 border-b border-surface-container text-title-small text-on-surface-variant">
             Реквизиты · {docType.name}
-          </div>
+          </DropdownMenu.Label>
           {fields.length === 0 ? (
             <p className="px-3 py-4 text-body-small text-on-surface-variant text-center">Нет реквизитов</p>
           ) : (
-            <div className="py-1">
-              {fields.map(f => (
-                <button key={f.path} onClick={() => insertField(f.path)}
-                  className={`w-full flex items-center gap-2 py-1.5 hover:bg-primary-container transition-colors text-left group ${f.type === 'complex' ? 'opacity-60 cursor-default pointer-events-none' : ''}`}
-                  style={{ paddingLeft: `${0.75 + f.depth * 1}rem` }}>
-                  <code className="text-body-small font-mono text-on-primary-container bg-primary-container group-hover:bg-primary-container px-1.5 py-0.5 rounded-xs shrink-0 max-w-[160px] truncate">
-                    {f.path}
-                  </code>
-                  <span className="text-body-small text-on-surface-variant truncate flex-1">{f.title}</span>
-                  <span className="text-body-small text-on-surface-variant shrink-0 pr-2">{f.type}</span>
-                </button>
-              ))}
+            <div className="py-1 overflow-y-auto">
+              {fields.map(f => {
+                const pad = { paddingLeft: `${0.75 + f.depth * 1}rem` };
+                const row = (
+                  <>
+                    <code className="text-body-small font-mono text-on-primary-container bg-primary-container px-1.5 py-0.5 rounded-xs shrink-0 max-w-[160px] truncate">
+                      {f.path}
+                    </code>
+                    <span className="text-body-small text-on-surface-variant truncate flex-1">{f.title}</span>
+                    <span className="text-body-small text-on-surface-variant shrink-0 pr-2">{f.type}</span>
+                  </>
+                );
+                // Составное поле — заголовок группы: выбрать его нечего, стрелки его перешагивают.
+                return f.type === 'complex'
+                  ? <DropdownMenu.Label key={f.path} className="flex items-center gap-2 py-1.5 opacity-60" style={pad}>{row}</DropdownMenu.Label>
+                  : <DropdownMenu.Item key={f.path} onSelect={() => { chosen.current = f.path; }}
+                      className={`flex items-center gap-2 py-1.5 ${MENU_ITEM}`} style={pad}>{row}</DropdownMenu.Item>;
+              })}
             </div>
           )}
-        </div>
-      )}
-    </div>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }
 

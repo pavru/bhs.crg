@@ -1,4 +1,4 @@
-# Proposal: три ручных меню на страницах — на Radix
+# Proposal: ручные меню на страницах — на Radix
 
 Самостоятельный change общих компонентов интерфейса (домен `sharedui`). Идёт после
 `sharedui-dropdown-layer-guard` (#1537): правило храповика `manual-dropdown` заводит он, этот опускает
@@ -6,13 +6,13 @@
 
 ## Why
 
-Issue #1538 (три ручных меню на страницах — на Radix: редактор шаблона, разбиение PDF). Три меню
+Issue #1538 (три ручных меню на страницах — на Radix: редактор шаблона, разбиение PDF). Меню были
 сделаны вручную — `absolute` + `z-*`, без портала и без клавиатуры меню:
 
 | Где | Что |
 |---|---|
 | `features/templates/EditorPanel.tsx:71` | «Реквизит»: поля типа для вставки `#get(…)` |
-| `features/templates/EditorPanel.tsx:378` | стрелка у «Сохранить»: «Сохранить как новую версию…» |
+| ~~`features/templates/EditorPanel.tsx:378`~~ | стрелка у «Сохранить» — **уже сделано**: `SplitButton` (#1696) |
 | `features/datasets/PdfGroupingEditor.tsx:214` | «Перенести в группу» в полосе выделенных страниц |
 
 В окнах они не стоят, но обрезка грозит и им: редактор шаблона лежит в `flex-1 overflow-hidden`, и
@@ -23,12 +23,14 @@ Issue #1538 (три ручных меню на страницах — на Radix
 
 ## What Changes
 
-- «Сохранить как новую версию…» и «Перенести в группу» → Radix `DropdownMenu`, как `RowActionsMenu`.
+- «Перенести в группу» → Radix `DropdownMenu`, как `RowActionsMenu`. Меню «Сохранить» здесь уже нет —
+  его закрыл `SplitButton` (#1696, сверка 30.10.2026).
 - «Реквизит» → Radix `DropdownMenu`: дерево полей с отступом по глубине; составные строки — заголовки
   групп, а не пункты (сегодня — `pointer-events-none`).
-- Портал в body, вид слоя `bg-surface` / `border-stroke` / `shadow16` (`docs/UI.md`, «Слои над окном»);
+- Портал в body, вид слоя `MENU_SURFACE` (`bg-surface` / `border-outline-variant` / `shadow-elevation-2`,
+  `docs/UI.md`, «Слои над окном»);
   Esc и щелчок мимо закрывают меню, стрелки ходят по пунктам.
-- Свои слушатели `mousedown` на `document` в `EditorPanel` уходят — закрытие по щелчку мимо делает Radix.
+- Свой слушатель `mousedown` на `document` в `RequisitePicker` уходит — закрытие по щелчку мимо делает Radix.
 - Уровень правила `manual-dropdown` — ноль.
 
 ## Capabilities
