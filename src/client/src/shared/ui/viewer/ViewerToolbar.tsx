@@ -33,8 +33,9 @@ export interface ToolbarProps {
 
 export function ViewerToolbar(p: ToolbarProps) {
   return (
+    // Высота 48: кнопки-иконки — 40 ([UI-68]), и при h-10 с border-t им осталось бы 39 px.
     <div role="group" aria-label="Просмотр файла" data-testid="viewer-toolbar"
-      className="shrink-0 h-10 flex items-center gap-1 px-2 border-t border-outline-variant bg-surface">
+      className="shrink-0 h-12 flex items-center gap-1 px-2 border-t border-outline-variant bg-surface">
       {p.numPages > 1 && (
         <>
           <IconButton label="Предыдущая страница" disabled={p.page <= 1} onClick={() => p.onPage(p.page - 1)} icon={ChevronLeft} />

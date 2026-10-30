@@ -190,7 +190,6 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
       <div className="shrink-0 bg-surface">
         <div className="flex items-center gap-3 h-16 px-3 sm:px-4">
           <IconButton label="К комплекту"
-            className="min-h-11 min-w-11"
             onClick={() => guardedLeave(onClose)} icon={ArrowBack} />
           <div className="flex-1 min-w-0">
             <InstanceNameEditor instance={instance} setId={setId} docType={docType} />

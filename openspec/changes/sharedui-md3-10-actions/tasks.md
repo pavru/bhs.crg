@@ -55,9 +55,9 @@
 
 ## 1. PR 1 — кнопки, кнопки-иконки, FAB
 
-- [ ] 1.1 Раздел «Отступления» в `docs/UI.md` заведён — до 1.11: на него ссылаются D8, [UI-66], [UI-68].
+- [x] 1.1 Раздел «Отступления» в `docs/UI.md` заведён — до 1.11: на него ссылаются D8, [UI-66], [UI-68].
   Проверка — заголовок есть, ссылки из `openspec/specs/sharedui/spec.md` ведут в него.
-- [ ] 1.2 `Button`: 40 px, `label-large`, четыре вида по MD3, filled без тени (уровень 1 при
+- [x] 1.2 `Button`: 40 px, `label-large`, четыре вида по MD3, filled без тени (уровень 1 при
   наведении), знак 18, отступы 24/16/12. `size` удалён из типа. `danger` и `multiline` — отступления
   [UI-68]. `buttonClasses.ts` — единственное место высоты: `HEIGHT`, `MIN_HEIGHT`, `LABEL`, `padding()`,
   `FILLED_HOVER_SHADOW`; свои таблицы `Button.tsx` и `ButtonSize` удалены. `SplitButton` зовёт те же
@@ -66,33 +66,35 @@
   - у filled нет `shadow-elevation-*` без наведения;
   - `danger` filled — на `error`;
   - обе половины `SplitButton` — тот же класс высоты, что у `Button`.
-- [ ] 1.3 Кодмод `md3-size-migrate.mjs` на синтаксическом дереве снимает `size=` у `Button`, `IconButton`,
+- [x] 1.3 Кодмод `md3-size-migrate.mjs` на синтаксическом дереве снимает `size=` у `Button`, `IconButton`,
   `ModalExit` и `PrimaryActionButton` с разрешением импортов (384 места на `b32abb6c`; три — за
   `ModalExit`). Подключён проходом, как `md3-states-migrate`; отчёт — файл:строка и что снято. В PR —
   отдельным коммитом. Команда — в «Перевод: как обновить ветку» `docs/UI.md` [UI-68]. Проверка:
   - `npx tsc -b` без ошибок;
   - тест кодмода на образцах (атрибут на своей строке, после `icon={<Icon … />}`, за `ModalExit`).
-- [ ] 1.4 `IconButton`: 40×40, знак 24, `variant` (standard, filled, tonal, outlined), `selected` →
+- [x] 1.4 `IconButton`: 40×40, знак 24, `variant` (standard, filled, tonal, outlined), `selected` →
   `aria-pressed` и `filled` у знака; `danger` — отступление [UI-68]. Знак — свойство `icon: IconDef`,
-  `children` удалён; `selected` типом требует `FilledIconDef`. Генератор значков даёт заливку `Star` и
-  `PushPin`. Кодмод тем же модулем переводит детей `<Icon>` в `icon` (139 мест), прочие — в отчёт и руками.
+  `children` удалён; `selected` типом требует `FilledIconDef`; `loading` и `iconClassName` (цвет знака
+  ролью). Генератор значков даёт заливку `Star` (`PushPin` потребителя не имеет). Кодмод тем же модулем
+  переводит детей `<Icon>` в `icon` (131 место), прочие — в отчёт и руками.
   Проверка — vitest:
   - `selected` ставит `aria-pressed` и заливку знака;
   - без `selected` атрибута нет;
   - `label` — имя кнопки;
   - `npx tsc -b` без ошибок, у `<IconButton` нет детей.
-- [ ] 1.5 Размер в клетке (В7 = Б): `dtTd` и `dtTdEdit` в `dataTable.ts` ставят
+- [x] 1.5 Размер в клетке (В7 = Б): `dtTd` и `dtTdEdit` в `dataTable.ts` ставят
   `--md-comp-icon-button-size` 32, под `pointer-coarse` — 40; `IconButton` читает её и
   `--md-comp-icon-button-icon` (20/24). Правило храповика `dense-scope` (весь `src/`, уровень 0) [UI-68].
   Проверка — vitest:
   - класс клетки `DataGrid` и `EditGrid` содержит переменную;
   - кнопка-иконка в окне, открытом из клетки, — 40;
   - `ui-ratchet.test.mjs` — правило срабатывает вне `dataTable.ts` и `Button.tsx`.
-- [ ] 1.6 Самодельные кнопки `shared/ui` → `IconButton`: триггер `RowActionsMenu`, `RemoveButton` в
+- [x] 1.6 Самодельные кнопки `shared/ui` → `IconButton`: триггер `RowActionsMenu`, `RemoveButton` в
   `EditGrid`, `MoveButtons`, кнопка `AppShell`. Область правила `icon-button` — `features/` и `shared/` без
-  `Button.tsx`, уровень 0 [UI-46] [UI-68]. Проверка — `npm run ui:ratchet` без роста, vitest
-  `RowActionsMenu`: триггер — кнопка с именем.
-- [ ] 1.7 Правило храповика: `h-*`, `w-*`, `size-*`, `min-h-*` в `className` у `Button` и `IconButton`,
+  `Button.tsx`, `Chip.tsx` и `SplitButton.tsx`; уровень в `features/` 0, в `shared/ui` — семь накопленных
+  с названными детьми эпика (design) [UI-46] [UI-68]. Проверка — `npm run ui:ratchet` без роста, vitest
+  `dataTable.test.tsx`: крестик удаления строки — `IconButton` в клетке.
+- [x] 1.7 Правило храповика: `h-*`, `w-*`, `size-*`, `min-h-*` в `className` у `Button` и `IconButton`,
   уровень 0. Проверка — `ui-ratchet.test.mjs`; места сегодня (`min-h-11` у трёх `IconButton` и по ширине)
   сняты или переведены.
 - [ ] 1.8 Цель нажатия 48 px под `pointer: coarse` — утилита `touch-target` (`:where` для `relative`,
@@ -110,7 +112,7 @@
   `table-view-smoke`, `site-costs-smoke` (свёрнутая строка выше сгиба 768). Перепроверены ширины:
   перенос шапки `InvoicesPage` при 1366, порог 420 px просмотрщика, `ViewerToolbar` (`h-10` с `border-t`).
   Проверка — каждое ожидание названо в PR, весь список зелёный.
-- [ ] 1.11 `docs/UI.md` [UI-68]:
+- [x] 1.11 `docs/UI.md` [UI-68]:
   - строка «Кнопка» таблицы контролов — 40, четыре вида, одна filled, `IconButton` с видами,
     переключением и 32 в клетках таблиц;
   - строка «`IconButton` (не меньше 32 px)» и совет `Button variant="outlined"` (`size="sm"`) переписаны;

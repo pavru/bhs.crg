@@ -417,6 +417,20 @@ export async function placedBox(locator, what = 'слой') {
 }
 
 /**
+ * Касание вместо мыши ([UI-68], sharedui-md3-10): Chromium по CDP включает эмуляцию касания, и
+ * `pointer: coarse` начинает совпадать — без неё цель 48 px (`touch-target`) не включается, и проверка
+ * цели зеленела бы впустую. Поэтому первым делом — само совпадение, иначе отказ с причиной. Узкий
+ * экран (`setViewportSize`) касания не даёт: это ширина, а не указатель. `on: false` — вернуть мышь.
+ */
+export async function emulateTouch(page, on = true) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: on, maxTouchPoints: on ? 5 : 1 });
+  await cdp.detach();
+  const coarse = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
+  if (coarse !== on) throw new Error(`эмуляция касания ${on ? 'не включилась' : 'не снялась'}: pointer: coarse — ${coarse}`);
+}
+
+/**
  * Фокус дошёл до элемента — ждём, а не снимаем мгновенно: закрытый слой Radix возвращает фокус якорю
  * таймером, и мгновенный снимок на медленной машине CI видел промежуточное состояние (body). Не дошёл
  * — отказ `why` с тем, где фокус остался.

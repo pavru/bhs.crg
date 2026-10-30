@@ -52,7 +52,7 @@ export function WorkspaceSwitcher() {
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
           <button type="button" data-testid="workspace-switcher" aria-label={`Рабочее пространство: ${ws.current.name}`}
-            className="flex items-center gap-1.5 min-w-0 max-w-60 h-9 max-md:h-11 pl-3 pr-2 rounded-full text-on-surface state-layer focus-ring">
+            className="flex items-center gap-1.5 min-w-0 max-w-60 h-9 touch-target [--_touch-inset:-6px] pl-3 pr-2 rounded-full text-on-surface state-layer focus-ring">
             <Icon icon={GridView} size={18} className="shrink-0 text-on-surface-variant" />
             <Tooltip content={composition(ws.current) ?? ws.current.name}>
               <span className="min-w-0 truncate text-body-medium font-medium text-on-surface">{ws.current.name}</span>

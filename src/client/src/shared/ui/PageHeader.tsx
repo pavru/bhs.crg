@@ -55,7 +55,7 @@ export function PageHeader({ title, subtitle, icon, badge, breadcrumb, actions, 
     <h1 className="text-xl font-semibold text-on-surface min-w-0">
       <SectionMenu value={section}>
         <button type="button" data-testid="section-menu-trigger" aria-describedby={hint}
-          className="flex items-center gap-1 max-w-[calc(100%+0.5rem)] min-h-11 -ml-2 px-2 rounded-lg text-left state-layer focus-ring data-[state=open]:bg-secondary-container data-[state=open]:text-on-secondary-container">
+          className="flex items-center gap-1 max-w-[calc(100%+0.5rem)] min-h-11 touch-target [--_touch-inset:-2px] -ml-2 px-2 rounded-lg text-left state-layer focus-ring data-[state=open]:bg-secondary-container data-[state=open]:text-on-secondary-container">
           <span className="truncate">{title}</span>
           <Icon icon={KeyboardArrowDown} size={20} className="shrink-0 text-on-surface-variant" aria-hidden />
         </button>
@@ -83,7 +83,7 @@ export function PageHeader({ title, subtitle, icon, badge, breadcrumb, actions, 
               <SectionMenu value={section}>
                 {/* Свой значок: у заголовка-контрола уже есть «▾», и второй такой же рядом читался бы
                     повтором той же стрелки (ревью PR #1488). */}
-                <IconButton label={`Другие страницы раздела «${section.def.title}»`} className="min-h-11 min-w-11" data-testid="section-menu-trigger" icon={ViewList} />
+                <IconButton label={`Другие страницы раздела «${section.def.title}»`} data-testid="section-menu-trigger" icon={ViewList} />
               </SectionMenu>
             )}
             {badge && <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">{badge}</div>}

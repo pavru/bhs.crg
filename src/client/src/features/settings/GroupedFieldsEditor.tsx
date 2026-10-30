@@ -262,7 +262,7 @@ export function GroupedFieldsEditor({
                   ? renderOwn(m.own, null, ungroupedMemberKeys, i)
                   : renderInherited(m.inh!, null))}
               {zone.appendLine && ungroupedMembers.length > 0 && <DropLine />}
-              <Button type="button" variant="tonal" onClick={addField} icon={<Icon icon={Add} size={18} />} className="w-full justify-center">
+              <Button type="button" variant="tonal" onClick={addField} icon={<Icon icon={Add} size={18} />} fullWidth>
                 Добавить поле
               </Button>
             </div>

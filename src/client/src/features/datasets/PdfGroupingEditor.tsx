@@ -531,7 +531,7 @@ export function PdfGroupingEditor() {
     <div className="p-6 flex flex-col h-full">
       <PageHeader className="mb-4 shrink-0"
         icon={
-          <IconButton label="Назад" className="min-h-11 min-w-11" onClick={() => navigate(-1)} icon={ArrowBack} />
+          <IconButton label="Назад" onClick={() => navigate(-1)} icon={ArrowBack} />
         }
         title={`Разбиение${location.state?.sourceName ? ` — ${location.state.sourceName}` : ''}`}
         subtitle={<>

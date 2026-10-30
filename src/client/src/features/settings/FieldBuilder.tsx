@@ -538,7 +538,7 @@ export function FieldBuilder({ fields, onChange, disabledKeys, persistedKeys, co
           onDrop={dragIndex !== null ? () => { move(dragIndex, i); setDragIndex(null); } : undefined}
         />
       ))}
-      <Button type="button" variant="tonal" onClick={add} icon={<Icon icon={Add} size={18} />} className="w-full justify-center">
+      <Button type="button" variant="tonal" onClick={add} icon={<Icon icon={Add} size={18} />} fullWidth>
         Добавить поле
       </Button>
     </div>

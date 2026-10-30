@@ -8,7 +8,7 @@
 // подпанель прятала бы страницы разделов, и чужие локаторы по тексту меню упали бы. Поэтому
 // настройка сбрасывается и до проверок, и после — в finally, адресом, а не через экран.
 
-import { BASE, settled, callApi, until, railSection, accountAction } from './harness.mjs';
+import { BASE, settled, callApi, until, railSection, accountAction, emulateTouch } from './harness.mjs';
 
 const RESET = { rail: null };
 
@@ -96,12 +96,26 @@ export async function railChecks(page, check) {
 
 const sideScroll = page => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
-/** Цели касания телефона меньше 44 px — нижняя навигация, шапка, заголовок-меню (issue #1434). */
+/**
+ * Цели касания меньше 48 px — нижняя навигация, шапка, заголовок-меню (issue #1434, [UI-68]). Цель — рамка
+ * вместе с `::after` утилиты `touch-target`: видимая кнопка 40, а нажимается 48. Мерить — при касании
+ * (`emulateTouch`): без него утилита не включена, и замер видел бы рамку.
+ */
 const smallTargets = page => page.evaluate(() =>
   [...document.querySelectorAll('#app-bottom-nav a, main > header button, [data-testid=section-menu-trigger]')]
-    .map(el => ({ el, box: el.getBoundingClientRect() }))
-    .filter(({ box }) => box.width > 0 && (box.width < 44 || box.height < 44))
-    .map(({ el, box }) => `«${(el.getAttribute('aria-label') ?? el.textContent ?? '').slice(0, 30)}» ${Math.round(box.width)}×${Math.round(box.height)}`));
+    .map(el => {
+      const box = el.getBoundingClientRect();
+      const after = getComputedStyle(el, '::after');
+      const px = v => parseFloat(v) || 0;
+      const grown = after.content !== 'none' && after.position === 'absolute';
+      return {
+        el,
+        width: grown ? box.width - px(after.left) - px(after.right) : box.width,
+        height: grown ? box.height - px(after.top) - px(after.bottom) : box.height,
+      };
+    })
+    .filter(({ width, height }) => width > 0 && (width < 48 || height < 48))
+    .map(({ el, width, height }) => `«${(el.getAttribute('aria-label') ?? el.textContent ?? '').slice(0, 30)}» ${Math.round(width)}×${Math.round(height)}`));
 
 /**
  * Узкий экран (issue #1355, #1434): 390 и 375 px — ширины обычных телефонов. Размер окна
@@ -132,8 +146,13 @@ async function narrowChecks(page, check) {
         await page.setViewportSize({ width, height: 844 });
         const extra = await sideScroll(page);
         if (extra > 0) throw new Error(`на ${width} px каркас шире экрана на ${extra}px — страница едет вбок`);
-        const small = await smallTargets(page);
-        if (small.length) throw new Error(`на ${width} px цели касания меньше 44 px: ${small.join(', ')}`);
+        await emulateTouch(page);
+        try {
+          const small = await smallTargets(page);
+          if (small.length) throw new Error(`на ${width} px цели касания меньше 48 px: ${small.join(', ')}`);
+        } finally {
+          await emulateTouch(page, false);
+        }
       }
       await page.setViewportSize({ width: 390, height: 844 });
     });
@@ -144,6 +163,15 @@ async function narrowChecks(page, check) {
       const fab = page.getByTestId('primary-fab');
       const label = (await fab.innerText()).trim();
       if (label !== 'Новая стройка') throw new Error(`плавающая кнопка строек — «${label}»`);
+      // Extended FAB MD3 ([UI-68]): 56 px на primary-container, вид — классами компонента, без своего style.
+      const look = await fab.evaluate(el => ({
+        height: Math.round(el.getBoundingClientRect().height),
+        style: el.getAttribute('style'),
+        container: el.classList.contains('bg-primary-container'),
+      }));
+      if (look.height !== 56) throw new Error(`плавающая кнопка высотой ${look.height}px, а не 56`);
+      if (look.style) throw new Error(`у плавающей кнопки свой style: ${look.style}`);
+      if (!look.container) throw new Error('плавающая кнопка не на primary-container');
       if (await page.locator('main header').getByRole('button', { name: 'Новая стройка', exact: true }).isVisible())
         throw new Error('кнопка «Новая стройка» в шапке осталась рядом с плавающей');
       await fab.click();
