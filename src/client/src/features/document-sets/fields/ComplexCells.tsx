@@ -19,6 +19,7 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 import { SuggestField } from '@/shared/ui/SuggestField';
 import { useSuggestSource } from './suggestContext';
 import { IconButton } from '@/shared/ui/Button';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 // ─── Complex cell picker (inline table cell) ──────────────────────────────────
 
@@ -64,8 +65,10 @@ export function ComplexCellPicker({ value, onChange, compositeType, setId, allDo
 // ─── Table cell ───────────────────────────────────────────────────────────────
 
 export function TableCell({ field, value, onChange, compositeType, setId, allDocTypes, scope, scopeId,
-  primitiveTypeDef, enumTypeDef }: {
+  primitiveTypeDef, enumTypeDef, row }: {
   field: SchemaField; value: unknown; onChange: (v: unknown) => void;
+  /** Номер строки с нуля: флажку клетки он нужен в имени — подписи над клеткой нет, а колонка у всех одна. */
+  row?: number;
   compositeType: DocumentType | null;
   setId?: string; allDocTypes: DocumentType[];
   scope?: CatalogScope; scopeId?: string | null;
@@ -87,9 +90,8 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
   if (field.type === 'boolean') {
     return (
       <div className="flex items-center justify-center w-full h-full">
-        <input type="checkbox" checked={!!value}
-          onChange={e => onChange(e.target.checked)}
-          className="w-3.5 h-3.5 rounded-xs border-outline text-primary" />
+        <Checkbox size="sm" aria-label={row == null ? field.title : `${field.title}, строка ${row + 1}`}
+          checked={!!value} onChange={onChange} />
       </div>
     );
   }

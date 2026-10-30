@@ -24,6 +24,7 @@ import { recognizeAndUpdate } from '@/features/quality-docs/recognizeImported';
 import { useOpenAttachment } from '@/shared/hooks/useOpenAttachment';
 import { getValidUntil, isExpired } from './qualityValidity';
 import type { MaterialRow } from './materialRow';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 interface LinkPickerModalProps {
   open: boolean; onClose: () => void; allDocTypes: DocumentType[];
@@ -166,8 +167,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
         <div className="space-y-2">
           <SearchInput value={query} onChange={setQuery} placeholder="Поиск по материалу / названию..." />
           <label className="flex items-center gap-1.5 text-body-small text-on-surface-variant cursor-pointer">
-            <input type="checkbox" checked={includeExpired} onChange={e => setIncludeExpired(e.target.checked)}
-              className="w-3.5 h-3.5 rounded-xs border-outline text-primary" />
+            <Checkbox size="sm" checked={includeExpired} onChange={setIncludeExpired} />
             Показать просроченные{expiredCount > 0 ? ` (${expiredCount})` : ''}
           </label>
           {isLoading ? <p className="text-body-medium text-on-surface-variant py-3 text-center">Загрузка...</p>

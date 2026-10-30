@@ -9,7 +9,9 @@ import { forwardRef, useEffect, useRef, type InputHTMLAttributes, type ReactNode
  * только свойством элемента; диктор читает его как «частично отмечен».
  *
  * С подписью флажок оборачивается в `<label>`: щелчок по тексту переключает его, и имя у флажка
- * появляется само. Без подписи имя обязан дать `aria-label`.
+ * появляется само. Без подписи имя обязан дать `aria-label`. Подпись — блок по ширине содержимого
+ * ([UI-41]): два флажка подряд стоят двумя строками, как прежние блочные `<label>` экранов, а щелчок
+ * в пустоте строки справа от текста флажок не переключает.
  */
 export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'onChange' | 'size'> {
   checked: boolean;
@@ -20,8 +22,15 @@ export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement
   label?: ReactNode;
   /** Пояснение под подписью. */
   description?: ReactNode;
-  /** `sm` — 16 px, для строк таблиц и плотных списков. */
+  /** `sm` — 16 px, для строк таблиц и плотных списков. Размер подписи он не меняет. */
   size?: 'md' | 'sm';
+  /**
+   * Классы самого квадратика — с подписью и без: выравнивание по строке, прозрачность. С подписью они
+   * заменяют её собственный отступ сверху. `className` же ложится на внешний элемент — на строку
+   * `<label>`, если подпись есть, иначе на квадратик; отступ, заданный им, при появлении подписи молча
+   * переехал бы со флажка на всю строку.
+   */
+  boxClassName?: string;
 }
 
 const BOX: Record<NonNullable<CheckboxProps['size']>, string> = {
@@ -30,7 +39,8 @@ const BOX: Record<NonNullable<CheckboxProps['size']>, string> = {
 };
 
 export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox(
-  { checked, onChange, indeterminate = false, label, description, size = 'md', disabled, className = '', ...rest },
+  { checked, onChange, indeterminate = false, label, description, size = 'md', disabled, className = '', boxClassName,
+    ...rest },
   ref,
 ) {
   const inner = useRef<HTMLInputElement | null>(null);
@@ -51,14 +61,14 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
       disabled={disabled}
       onChange={e => onChange(e.target.checked)}
       className={`${BOX[size]} shrink-0 accent-primary ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'} ` +
-        `focus-ring ${label ? (size === 'md' ? 'mt-px' : 'mt-0.5') : className}`}
+        `focus-ring ${boxClassName ?? (label ? (size === 'md' ? 'mt-px' : 'mt-0.5') : '')} ${label ? '' : className}`}
     />
   );
   if (!label) return input;
 
   return (
     // Отключённое — подпись on-surface 38 % ([UI-64]), а не прозрачность всей строки.
-    <label className={`inline-flex items-start gap-2 text-body-medium select-none ` +
+    <label className={`flex w-fit items-start gap-2 text-body-medium select-none ` +
       `${disabled ? 'text-on-surface/38 cursor-not-allowed' : 'text-on-surface cursor-pointer'} ${className}`}>
       {input}
       <span className="min-w-0">

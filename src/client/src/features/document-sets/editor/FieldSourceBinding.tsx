@@ -14,6 +14,7 @@ import { SCOPE_LABELS } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
 import { isLockedField, bindableFields, LOCKED_HINT } from '../fields';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { Checkbox } from '@/shared/ui/Checkbox';
 
 type FlatSource = DataSetSource & { fileName: string; fileScope: CatalogScope };
 
@@ -190,7 +191,7 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
 
             {selectedSource && coverTitles.length > 0 && (
               <label className="flex items-start gap-2 text-body-small text-on-surface-variant cursor-pointer select-none">
-                <input type="checkbox" checked={coverOn} onChange={e => setCoverOn(e.target.checked)} className="mt-0.5" />
+                <Checkbox size="sm" checked={coverOn} onChange={setCoverOn} boxClassName="mt-0.5" />
                 <span>Этот источник заполнит также: <span className="text-on-surface-variant">{coverTitles.join(', ')}</span></span>
               </label>
             )}
