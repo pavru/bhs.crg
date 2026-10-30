@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
@@ -169,6 +170,34 @@ describe('Button и IconButton', () => {
     expect(tip()?.textContent).toBe('Закрыть');
     await focus(screen.getByRole('button', { name: 'Ещё' }));
     expect(tip()?.textContent).toBe('Действия строки');
+  });
+
+  it('фокус, который окно вернуло открывшей кнопке после Esc, подсказку не открывает', async () => {
+    function Opener() {
+      const [open, setOpen] = useState(false);
+      return (<>
+        <Button title="Справка и горячие клавиши" onClick={() => setOpen(true)}>?</Button>
+        <Modal open={open} onOpenChange={setOpen} title="Окно" nothingToLose>
+          <input aria-label="поле" autoFocus />
+        </Modal>
+      </>);
+    }
+    render(<Opener />);
+    const opener = screen.getByRole('button', { name: '?' });
+    await act(async () => { opener.focus(); fireEvent.click(opener); });
+    // Закрывают с клавиатуры: фокус, который окно вернёт, Chrome считает видимым (так и упал живой
+    // прогон keyboard). Тестовый DOM этого правила браузера не повторяет — оно здесь подставлено.
+    const matches = Element.prototype.matches;
+    vi.spyOn(Element.prototype, 'matches').mockImplementation(function (this: Element, sel: string) {
+      return sel === ':focus-visible' ? true : matches.call(this, sel);
+    });
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    // Окно снимается одним заходом, фокус Radix возвращает следующим (таймером после снятия).
+    for (let i = 0; i < 2; i++) await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(opener);
+    expect(tip()).toBeNull();
+    vi.restoreAllMocks();
   });
 
   it('в окне Esc закрывает подсказку, а не окно', async () => {

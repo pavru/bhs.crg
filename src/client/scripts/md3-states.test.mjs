@@ -59,7 +59,9 @@ describe('state-layer', () => {
 
   it('появляется переходом с кривой standard', () => {
     const text = css('state-layer');
-    expect(text).toContain('transition-property: --_s;');
+    // Свой переход элемента (форма половины SplitButton) — переменной: второй класс transition-*
+    // отнял бы transition-property у слоя или слой у него ([UI-83]).
+    expect(text).toContain('transition-property: --_s, var(--_also-transition, --_s);');
     expect(text).toContain('transition-timing-function: var(--md-sys-motion-easing-standard);');
   });
 

@@ -6,6 +6,7 @@ import {
   useEffect, useRef, useState,
   type ElementType, type FocusEvent, type MouseEvent, type PointerEvent, type ReactElement, type ReactNode, type Ref, type RefObject,
 } from 'react';
+import { isLayerFocus, markLayerFocus } from './layerFocus';
 
 /**
  * Всплывающая подсказка в нашем стиле вместо нативного `title` (issue #1394, docs/UI.md).
@@ -39,15 +40,11 @@ const justClosed = () => Date.now() - lastClosed < SKIP;
  *
  * Слой объявляет свой автофокус событием `focusScope.autoFocusOnMount` и сразу, в том же заходе,
  * ставит фокус, синхронно. Событие не всплывает, но перехват на документе его видит — отметка живёт
- * до ближайшей микрозадачи, то есть ровно этот синхронный шаг.
+ * до ближайшей микрозадачи, то есть ровно этот синхронный шаг. Закрываясь, слой Radix шлёт событие уже
+ * снятому контейнеру — документ его не видит: фокус, возвращённый открывшему, помечает тот, кто его
+ * возвращает (`focusFromLayer` у `Modal` и `SplitButton`).
  */
-let layerAutoFocus = false;
-if (typeof document !== 'undefined') {
-  document.addEventListener('focusScope.autoFocusOnMount', () => {
-    layerAutoFocus = true;
-    queueMicrotask(() => { layerAutoFocus = false; });
-  }, true);
-}
+if (typeof document !== 'undefined') document.addEventListener('focusScope.autoFocusOnMount', markLayerFocus, true);
 
 /** Виден ли фокус. Движок без `:focus-visible` (старый браузер, тестовый DOM) — считаем видимым. */
 function focusVisible(el: Element): boolean {
@@ -152,10 +149,10 @@ export function Tooltip({ content, children, name = false, side = 'top' }: Toolt
     onPointerDown: (e: PointerEvent<HTMLElement>) => { own.onPointerDown?.(e); hide(); },
     // Фокус открывает подсказку, только когда он виден — пришёл с клавиатуры. Фокус, который вернуло
     // окно (выход с шага к открывшей его кнопке), иначе открыл бы её сам — и первый Esc достался бы
-    // подсказке, а не окну. Фокус, поставленный открывшимся слоем, — тоже не зов (см. `layerAutoFocus`).
+    // подсказке, а не окну. Фокус, поставленный открывшимся слоем, — тоже не зов (см. `layerFocus.ts`).
     onFocus: (e: FocusEvent<HTMLElement>) => {
       own.onFocus?.(e);
-      if (!layerAutoFocus && focusVisible(e.currentTarget)) show(true);
+      if (!isLayerFocus() && focusVisible(e.currentTarget)) show(true);
     },
     onBlur: (e: FocusEvent<HTMLElement>) => { own.onBlur?.(e); hide(); },
   };
