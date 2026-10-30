@@ -166,8 +166,10 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
       {tab === 'pick' && (
         <div className="space-y-2">
           <SearchInput value={query} onChange={setQuery} placeholder="Поиск по материалу / названию..." />
-          <Checkbox size="sm" checked={includeExpired} onChange={setIncludeExpired}
-            label={`Показать просроченные${expiredCount > 0 ? ` (${expiredCount})` : ''}`} />
+          <label className="flex items-center gap-1.5 text-body-small text-on-surface-variant cursor-pointer">
+            <Checkbox size="sm" checked={includeExpired} onChange={setIncludeExpired} />
+            Показать просроченные{expiredCount > 0 ? ` (${expiredCount})` : ''}
+          </label>
           {isLoading ? <p className="text-body-medium text-on-surface-variant py-3 text-center">Загрузка...</p>
             : visible.length === 0 ? (
               <div className="text-center py-5 space-y-2">

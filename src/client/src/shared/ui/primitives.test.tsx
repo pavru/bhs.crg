@@ -44,7 +44,9 @@ describe('Checkbox', () => {
       <Checkbox checked={false} onChange={onEncrypt} label="Шифрование" />
       <Checkbox checked={false} onChange={onProxy} label="Через прокси" />
     </div>);
-    // jsdom раскладки не считает: строку делят строчные блоки, блочный flex стоит своей строкой.
+    // jsdom раскладки не считает, поэтому здесь сторожится только класс подписи: строку делят строчные
+    // блоки, блочный flex стоит своей строкой. Что две подписи на экране и правда стоят друг под другом,
+    // видит живой прогон `settings` (настройки почты).
     for (const text of ['Шифрование', 'Через прокси']) {
       const label = screen.getByText(text).closest('label')!;
       expect(label.className).toMatch(/(^|\s)flex(\s|$)/);
@@ -53,6 +55,18 @@ describe('Checkbox', () => {
     fireEvent.click(screen.getByText('Через прокси'));
     expect(onProxy).toHaveBeenCalledWith(true);
     expect(onEncrypt).not.toHaveBeenCalled();
+  });
+
+  it('boxClassName остаётся на квадратике и с подписью, className — на внешнем элементе', () => {
+    const { rerender } = render(<Checkbox checked={false} onChange={() => {}} aria-label="Право" boxClassName="mt-1" className="opacity-70" />);
+    let box = screen.getByRole('checkbox', { name: 'Право' });
+    expect(box.className).toMatch(/(^|\s)mt-1(\s|$)/);
+    expect(box.className).toMatch(/opacity-70/);
+    rerender(<Checkbox checked={false} onChange={() => {}} label="Право" boxClassName="mt-1" className="opacity-70" />);
+    box = screen.getByRole('checkbox', { name: 'Право' });
+    expect(box.className).toMatch(/(^|\s)mt-1(\s|$)/);
+    expect(box.className).not.toMatch(/opacity-70/);
+    expect(box.closest('label')!.className).toMatch(/opacity-70/);
   });
 });
 

@@ -182,7 +182,7 @@ export function RolesPage() {
                 {group.permissions.map((p: PermissionInfo) => (
                   <label key={p.code} className={`flex gap-3 px-4 py-2.5 state-layer ${
                     locked ? 'cursor-default' : 'cursor-pointer'}`}>
-                    <Checkbox className="mt-px" checked={checked.has(p.code)}
+                    <Checkbox boxClassName="mt-px" checked={checked.has(p.code)}
                       disabled={locked} onChange={() => toggle(p.code)} />
                     <span className="min-w-0">
                       <span className="block text-body-medium text-on-surface">{p.gives}</span>

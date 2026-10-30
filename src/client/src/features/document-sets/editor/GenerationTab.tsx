@@ -188,7 +188,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
                     <Checkbox size="sm" checked={selected} disabled={setTemplatesMutation.isPending}
                       onChange={v => { toggleTemplate(t.id, v); setChosenFocus(t.id); }}
                       aria-label={`Использовать шаблон «${t.name}» для генерации`}
-                      className="ml-2.5" />
+                      boxClassName="ml-2.5" />
                     <span className="flex-1 min-w-0 py-1.5">
                       <span className={`truncate ${focused ? 'text-primary font-medium' : 'text-on-surface'}`}>
                         {t.isDefault ? '★ ' : ''}{t.name} <span className="text-on-surface-variant font-normal">(v{t.version})</span>

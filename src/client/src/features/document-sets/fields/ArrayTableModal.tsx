@@ -240,7 +240,7 @@ function ArrayTableModalBody({
         const compositeForField = f.type === 'complex'
           ? allDocTypes.find(dt => dt.id === f.typeId) ?? null : null;
         return (
-          <TableCell field={f} value={row[f.key]} onChange={v => updateCell(i, f.key, v)}
+          <TableCell field={f} value={row[f.key]} row={i} onChange={v => updateCell(i, f.key, v)}
             compositeType={compositeForField} setId={setId} allDocTypes={allDocTypes}
             scope={scope} scopeId={scopeId} primitiveTypeDef={primDef(f)} enumTypeDef={enumDef(f)} />
         );

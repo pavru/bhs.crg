@@ -22,8 +22,15 @@ export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement
   label?: ReactNode;
   /** Пояснение под подписью. */
   description?: ReactNode;
-  /** `sm` — 16 px, для строк таблиц и плотных списков. */
+  /** `sm` — 16 px, для строк таблиц и плотных списков. Размер подписи он не меняет. */
   size?: 'md' | 'sm';
+  /**
+   * Классы самого квадратика — с подписью и без: выравнивание по строке, прозрачность. С подписью они
+   * заменяют её собственный отступ сверху. `className` же ложится на внешний элемент — на строку
+   * `<label>`, если подпись есть, иначе на квадратик; отступ, заданный им, при появлении подписи молча
+   * переехал бы со флажка на всю строку.
+   */
+  boxClassName?: string;
 }
 
 const BOX: Record<NonNullable<CheckboxProps['size']>, string> = {
@@ -32,7 +39,8 @@ const BOX: Record<NonNullable<CheckboxProps['size']>, string> = {
 };
 
 export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox(
-  { checked, onChange, indeterminate = false, label, description, size = 'md', disabled, className = '', ...rest },
+  { checked, onChange, indeterminate = false, label, description, size = 'md', disabled, className = '', boxClassName,
+    ...rest },
   ref,
 ) {
   const inner = useRef<HTMLInputElement | null>(null);
@@ -53,7 +61,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
       disabled={disabled}
       onChange={e => onChange(e.target.checked)}
       className={`${BOX[size]} shrink-0 accent-primary ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'} ` +
-        `focus-ring ${label ? (size === 'md' ? 'mt-px' : 'mt-0.5') : className}`}
+        `focus-ring ${boxClassName ?? (label ? (size === 'md' ? 'mt-px' : 'mt-0.5') : '')} ${label ? '' : className}`}
     />
   );
   if (!label) return input;
