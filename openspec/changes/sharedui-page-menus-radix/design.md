@@ -1,4 +1,4 @@
-# Design: три ручных меню на страницах — на Radix
+# Design: ручные меню на страницах — на Radix
 
 ## Context
 
@@ -13,6 +13,14 @@
   с `menuOpen`, меню `absolute z-10 mt-1 w-52 … shadow-lg` (`:214`) — группы и «+ Новый документ».
   Лента групп — `flex-1 overflow-auto` (`:586`).
 - Образец — `shared/ui/RowActionsMenu.tsx` (Radix `DropdownMenu`, портал, вид слоя).
+
+### Что выяснилось сверкой (30.10.2026)
+
+- Меню стрелки «Сохранить» уже на Radix: `SplitButton` (#1696). Из этого change оно уходит — D5 снят,
+  задача 1.2 тоже. Осталось два меню: «Реквизит» и «Перенести в группу»; уровень `manual-dropdown` —
+  по 1 у `EditorPanel` и `PdfGroupingEditor`.
+- Вид слоя с перехода на MD3 — `MENU_SURFACE` из `shared/ui/menuClasses.ts` (`border-outline-variant`,
+  `shadow-elevation-2`), пункт — `MENU_ITEM`; старые `border-stroke` / `shadow16` ниже читать так.
 
 ### Что выяснилось сверкой (22.10.2026)
 
@@ -44,12 +52,12 @@
 - **D4. Фокус после вставки — в редактор.** Radix возвращает фокус на триггер при закрытии; после
   выбора реквизита это отменяется (`onCloseAutoFocus` с `preventDefault`) и фокус ставится в Monaco,
   иначе курсор вставки терялся бы. После Esc — фокус на триггере, как положено.
-- **D5. Сплит-кнопка.** `<Tooltip name><DropdownMenu.Trigger asChild>` вокруг стрелки целиком
+- **D5. Сплит-кнопка — снято (30.10.2026):** сделано `SplitButton` в #1696. `<Tooltip name><DropdownMenu.Trigger asChild>` вокруг стрелки целиком
   (`docs/UI.md`, таблица контролов, «Подсказка»). Стрелка — нативный `<button>` со значком; станет ли
   она `IconButton` — решает `sharedui-icon-button-screens` (её сплит-форма с заливкой `bg-brand` не
   круглая, вероятно останется кнопкой со своим видом и в уровне `icon-button`).
-- **D6. Вид слоя** — как у `RowActionsMenu`: `bg-surface`, `border-stroke`, `shadow16`, портал в body без
-  `container`; `z-10` и `shadow-lg` уходят.
+- **D6. Вид слоя** — как у `RowActionsMenu`: `MENU_SURFACE` и `MENU_ITEM` (`menuClasses.ts`), портал в
+  body без `container`; `z-10` уходит.
 - **D7. Макетов нет:** вид и место меню не меняются, меняются слой и клавиатура по принятому правилу
   «Слои над окном».
 - **Сторож.** Правило `manual-dropdown` с уровнем ноль; тесты компонентов `RequisitePicker`

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useNavigate, useParams, useLocation } from 'react-router';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
@@ -19,6 +20,7 @@ import { newLocalId } from '@/shared/utils/localId';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { MENU_ITEM, MENU_SURFACE } from '@/shared/ui/menuClasses';
 
 const DEFAULT_CODE = '(без шифра)';
 /** Тэги типа таблицы документа (спецификация / кабельный журнал) — распознаются и выгружаются. */
@@ -191,15 +193,21 @@ function PageViewer({ fileId, pageIndex, onClose }: { fileId: string; pageIndex:
 
 // ─── Панель действий над выделением (перенести в группу / отделить) ────────────────────────────
 
-function SelectionActionBar({
+const selectionItemCls = `block px-3 py-1.5 text-body-small truncate ${MENU_ITEM}`;
+
+/**
+ * Панель действий над выделенными страницами редактора разбиения: отделить в новый документ или
+ * перенести в группу. «Перенести в группу» — меню Radix с порталом в body ([UI-51]): лента групп
+ * прокручивается, и меню у нижней группы прежде раздвигало её, а не свисало поверх.
+ */
+export function SelectionActionBar({
   count, candidateGroups, onMoveSelected, onSplitSelected,
 }: {
   count: number;
-  candidateGroups: EditableGroup[];
+  candidateGroups: { id: string; label: string }[];
   onMoveSelected: (targetGroupId: string | 'new') => void;
   onSplitSelected: () => void;
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div className="flex items-center gap-2 mt-2 pt-2 border-t border-outline-variant">
       <span className="text-body-small text-on-surface-variant">Выделено страниц: {count}</span>
@@ -207,29 +215,26 @@ function SelectionActionBar({
         className="px-2 py-1 text-body-small rounded-sm border border-outline-variant text-on-surface-variant state-layer">
         Отделить в новый документ
       </button>
-      <div className="relative">
-        <button onClick={() => setMenuOpen(o => !o)}
-          className="flex items-center gap-1 px-2 py-1 text-body-small rounded-sm border border-outline-variant text-on-surface-variant state-layer">
-          Перенести в группу <Icon icon={KeyboardArrowDown} size={18} />
-        </button>
-        {menuOpen && (
-          <div className="absolute z-10 mt-1 w-52 rounded-sm border border-outline-variant bg-surface shadow-elevation-2 py-1">
-            {candidateGroups.length === 0 && (
-              <p className="px-3 py-1.5 text-body-small text-on-surface-variant">Нет других групп</p>
-            )}
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <button type="button"
+            className="flex items-center gap-1 px-2 py-1 text-body-small rounded-sm border border-outline-variant text-on-surface-variant state-layer">
+            Перенести в группу <Icon icon={KeyboardArrowDown} size={18} />
+          </button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content align="start" sideOffset={4} collisionPadding={8}
+            className={`z-50 w-52 max-h-(--radix-dropdown-menu-content-available-height) overflow-y-auto ${MENU_SURFACE}`}>
+            {candidateGroups.length === 0 && <p className="px-3 py-1.5 text-body-small text-on-surface-variant">Нет других групп</p>}
             {candidateGroups.map(g => (
-              <button key={g.id} onClick={() => { onMoveSelected(g.id); setMenuOpen(false); }}
-                className="block w-full text-left px-3 py-1.5 text-body-small state-layer truncate">
-                {groupLabel(g)}
-              </button>
+              <DropdownMenu.Item key={g.id} className={`${selectionItemCls} text-on-surface`}
+                onSelect={() => onMoveSelected(g.id)}>{g.label}</DropdownMenu.Item>
             ))}
-            <button onClick={() => { onMoveSelected('new'); setMenuOpen(false); }}
-              className="block w-full text-left px-3 py-1.5 text-body-small state-layer text-primary">
-              + Новый документ
-            </button>
-          </div>
-        )}
-      </div>
+            <DropdownMenu.Item className={`${selectionItemCls} text-primary`}
+              onSelect={() => onMoveSelected('new')}>+ Новый документ</DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
     </div>
   );
 }
@@ -371,7 +376,7 @@ function GroupSection({
       {hasSelectionHere && (
         <SelectionActionBar
           count={[...selected].filter(p => group.pageIndices.includes(p)).length}
-          candidateGroups={otherGroups}
+          candidateGroups={otherGroups.map(g => ({ id: g.id, label: groupLabel(g) }))}
           onMoveSelected={onMoveSelected}
           onSplitSelected={onSplitSelected}
         />
@@ -615,7 +620,7 @@ export function PdfGroupingEditor() {
             {unassignedPages.some(p => selected.has(p)) && (
               <SelectionActionBar
                 count={[...selected].filter(p => unassignedPages.includes(p)).length}
-                candidateGroups={groups}
+                candidateGroups={groups.map(g => ({ id: g.id, label: groupLabel(g) }))}
                 onMoveSelected={handleMoveSelected}
                 onSplitSelected={() => handleMoveSelected('new')}
               />
