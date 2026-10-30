@@ -1,5 +1,5 @@
 {
-  "//": "Таблица lucide → Material Symbols для кодмода значков (scripts/md3-icons-migrate.mjs, sharedui-md3-03, [UI-60]). Ключ — имя lucide; symbol — имя файла в @material-symbols/svg-400/outlined, export — имя в shared/ui/icons, fill — у значка есть вариант с заливкой (только разделы навигации); spinner — индикатор хода, переходит в CircularProgress; type — тип LucideIcon, переходит в IconDef; files — другой значок в названном файле (путь от src/), когда у одного значка lucide разные смыслы. Смысловые решения — design.md change sharedui-md3-03-icons.",
+  "//": "Таблица lucide → Material Symbols для кодмода значков (scripts/md3-icons-migrate.mjs, sharedui-md3-03, [UI-60]). Ключ — имя lucide; symbol — имя файла в @material-symbols/svg-400/outlined, export — имя в shared/ui/icons, fill — у значка есть вариант с заливкой (разделы навигации и переключатель кнопки-иконки); spinner — индикатор хода, переходит в CircularProgress; type — тип LucideIcon, переходит в IconDef; files — другой значок в названном файле (путь от src/), когда у одного значка lucide разные смыслы. Смысловые решения — design.md change sharedui-md3-03-icons.",
   "icons": {
     "Trash2": {
       "symbol": "delete",
@@ -123,7 +123,8 @@
     },
     "Star": {
       "symbol": "star",
-      "export": "Star"
+      "export": "Star",
+      "fill": true
     },
     "Eye": {
       "symbol": "visibility",

@@ -252,8 +252,7 @@ export function SetDetail() {
           <div className="flex flex-col items-center -my-1">
             <MoveButtons onUp={() => moveDoc(index, -1)} onDown={() => moveDoc(index, 1)}
               isFirst={index === 0} isLast={index === lastIndex}
-              busy={reorderMutation.isPending}
-              className="hover:text-primary transition-colors" />
+              busy={reorderMutation.isPending} />
           </div>
         </div>
       ) },

@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import * as Popover from '@radix-ui/react-popover';
 import { IconButton } from './Button';
+import { Close } from './icons';
 
 /**
  * Подсказка и фокус, который слой Radix ставит сам, открываясь (ревью PR #1450).
@@ -32,8 +33,8 @@ describe('подсказка и автофокус слоя', () => {
         <Popover.Trigger asChild><button type="button">Открыть</button></Popover.Trigger>
         <Popover.Portal>
           <Popover.Content aria-label="Слой">
-            <IconButton label="Отметить все прочитанными"><span /></IconButton>
-            <IconButton label="Очистить все"><span /></IconButton>
+            <IconButton label="Отметить все прочитанными" icon={Close} />
+            <IconButton label="Очистить все" icon={Close} />
           </Popover.Content>
         </Popover.Portal>
       </Popover.Root>,
@@ -55,8 +56,8 @@ describe('подсказка и автофокус слоя', () => {
       <Popover.Root defaultOpen>
         <Popover.Portal>
           <Popover.Content>
-            <IconButton label="Отметить все прочитанными"><span /></IconButton>
-            <IconButton label="Очистить все"><span /></IconButton>
+            <IconButton label="Отметить все прочитанными" icon={Close} />
+            <IconButton label="Очистить все" icon={Close} />
           </Popover.Content>
         </Popover.Portal>
       </Popover.Root>,

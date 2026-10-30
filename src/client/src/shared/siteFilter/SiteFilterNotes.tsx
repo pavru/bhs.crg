@@ -19,14 +19,14 @@ export function FavoriteStar({ id, onToggled }: { id: string; onToggled?: () => 
   const on = filter.favorites.has(id);
   return (
     <IconButton label={on ? 'Убрать из избранного' : 'Добавить в избранное'}
-      aria-pressed={on} disabled={busy} data-testid="favorite-star" className="-ml-1"
+      selected={on} disabled={busy} data-testid="favorite-star" className="-ml-1"
       onClick={async e => {
         e.stopPropagation();
         onToggled?.();
         setBusy(true);
         await toggle(id, !on);
         setBusy(false);
-      }} icon={Star} iconClassName={on ? 'text-primary fill-current' : 'text-on-surface-variant'} />
+      }} icon={Star} />
   );
 }
 

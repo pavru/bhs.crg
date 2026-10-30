@@ -108,7 +108,7 @@ function FileDetail({ file, inherited, job }: {
             <>
               <input ref={updateInputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleReplace} />
               <FileRecognizeActions file={file} />
-              <IconButton label="Скачать оригинальный файл" onClick={handleDownload} disabled={downloading} icon={Download} iconClassName={downloading ? 'opacity-50' : ''} />
+              <IconButton label="Скачать оригинальный файл" onClick={handleDownload} disabled={downloading} icon={Download} />
               <IconButton label="Обновить файл (привязки сохранятся)"
                 onClick={() => updateInputRef.current?.click()} disabled={update.isPending} loading={update.isPending} icon={Refresh} />
             </>
