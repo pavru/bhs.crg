@@ -58,7 +58,7 @@
     на MD3 — решается макетами 12.
   - **В17** (10) кнопка-иконка в строке таблицы: 40 по MD3 или 32, как в макете Г (отступление).
     Решается вариантом (Б) макетов 10.
-- [ ] 0.2 Предусловия визуальной фазы (`design.md`, D9). До детей 10–16 слиты и заархивированы:
+- [x] 0.2 Предусловия визуальной фазы (`design.md`, D9). До детей 10–16 слиты и заархивированы:
   - `sharedui-icon-button-screens`;
   - `sharedui-chip-badge-tabs-screens`;
   - `sharedui-checkbox-screens`;
@@ -66,6 +66,9 @@
 
   Проверка — уровни `icon-button`, `badge`, `chip`, `native-checkbox` в `ui-baseline.json` равны нулю
   или названы исключением.
+  Сделано 31.10.2026: все пять в архиве (последний — `sharedui-chip-badge-tabs-screens`, #1704). Уровни
+  `icon-button`, `chip`, `native-checkbox` — 0; `badge` — 1, `FunctionalTagChip` (#630), исключение
+  названо в `docs/UI.md`.
 - [x] 0.3 `/opsx:update sharedui-chip-badge-tabs-screens` до его реализации: дельты [UI-42]…[UI-46]
   переписаны под D8 — пометка состояния `StatusText`, чип 8 px, без `rounded-full` у пометок. Проверка
   — `openspec validate sharedui-chip-badge-tabs-screens --strict`, в дельтах нет `rounded-full` у пометок.
