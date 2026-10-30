@@ -66,9 +66,12 @@
 
   Проверка — уровни `icon-button`, `badge`, `chip`, `native-checkbox` в `ui-baseline.json` равны нулю
   или названы исключением.
-- [ ] 0.3 `/opsx:update sharedui-chip-badge-tabs-screens` до его реализации: дельты [UI-42]…[UI-46]
+- [x] 0.3 `/opsx:update sharedui-chip-badge-tabs-screens` до его реализации: дельты [UI-42]…[UI-46]
   переписаны под D8 — пометка состояния `StatusText`, чип 8 px, без `rounded-full` у пометок. Проверка
   — `openspec validate sharedui-chip-badge-tabs-screens --strict`, в дельтах нет `rounded-full` у пометок.
+  Сделано 31.10.2026: дельты [UI-42]…[UI-45] формы не называют — пометка общая (`StatusBadge`, с 12 —
+  `StatusText`), экран передаёт тон и подпись; форма чипа — у компонента (8 px, вид — 10). [UI-46] в
+  этом change нет: он пришёл с `sharedui-icon-button-screens` и `rounded-full` не утверждает.
 - [ ] 0.4 Память и правила: `feedback_fluent2_theme`, `project_md3_token_names` и `project_md3_restyle`
   переписаны под это решение (основной сессией, вне репозитория). Проверка — заметки не советуют Fluent
   и «тихую неделю».

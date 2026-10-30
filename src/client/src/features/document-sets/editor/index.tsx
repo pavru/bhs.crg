@@ -7,7 +7,7 @@ import { useListDataSetBindings } from '@/shared/api/datasets';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import type { DocumentInstance, DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields, compositeFieldHasTag } from '@/shared/api/schema';
-import { STATUS_LABELS, STATUS_COLORS, BaseInstanceChip, ArchivedRefsProvider, type BaseCandidate } from '../fields';
+import { BaseInstanceChip, ArchivedRefsProvider, type BaseCandidate, DocumentStatusBadge } from '../fields';
 import { ruCount } from '@/shared/utils/pluralize';
 import { DataSetsTab } from './DataSetsTab';
 import { QualityLinksTab } from './QualityLinksTab';
@@ -210,9 +210,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
               onSelect={c => baseControlRef.current?.select(c)}
               onClear={() => baseControlRef.current?.clear()} />
           )}
-          <span className={`text-body-small px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_COLORS[instance.status] ?? 'bg-primary-container text-on-primary-container'}`}>
-            {STATUS_LABELS[instance.status] ?? instance.status}
-          </span>
+          <DocumentStatusBadge status={instance.status} />
           {/* Замечания внешнего анализа, упоминающие ЭТОТ документ (issue #456). Находок сверки
               здесь нет: их связь с документом слабее, чем выглядит. */}
           <DocumentObservationsChip setId={instance.documentSetId} documentId={instance.id} />

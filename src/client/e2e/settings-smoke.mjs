@@ -322,7 +322,8 @@ await check('appearance-and-language-live-in-the-profile', async () => {
   // и проходила даже с убранным из профиля переключателем (ревью PR #1000).
   if ((await page.getByRole('group', { name: 'Тема оформления, личная настройка' }).count()) < 1)
     throw new Error('в профиле нет своего выбора темы');
-  if ((await page.getByRole('button', { name: /Русский \(Россия\)/ }).count()) < 1)
+  // Язык — радиогруппа ([UI-44], #1416), а не ряд кнопок с aria-pressed.
+  if ((await page.getByRole('radio', { name: /Русский \(Россия\)/ }).count()) < 1)
     throw new Error('в профиле нет выбора языка');
 
   await page.goto(`${BASE}/settings`);

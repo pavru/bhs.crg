@@ -10,6 +10,7 @@ import {
   type Observation, type ObservationStatus,
 } from '@/shared/api/observations';
 import { ObservationReviewDialog, ObservationReferences } from './ObservationReviewDialog';
+import { Chip } from '@/shared/ui/Chip';
 
 /**
  * Журнал замечаний внешнего анализа (issue #442).
@@ -100,11 +101,7 @@ export function ObservationsPanel() {
 
       {items.length > 0 && (
         <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant text-body-small shrink-0">
-          <button type="button" onClick={() => setOnlyNew(v => !v)}
-            className={`state-layer px-2 py-1 rounded-full ${
-              onlyNew ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant'}`}>
-            Не разобрано: {unreviewed}
-          </button>
+          <Chip selected={onlyNew} count={unreviewed} onClick={() => setOnlyNew(v => !v)}>Не разобрано</Chip>
           <span className="text-on-surface-variant">всего {items.length}</span>
         </div>
       )}

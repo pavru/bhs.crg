@@ -14,6 +14,7 @@ import {
   type ComparisonOperator, type Reconciliation, type ReconciliationSide, type SideSource,
   type ToleranceKind,
 } from '@/shared/api/reconciliations';
+import { Chip } from '@/shared/ui/Chip';
 
 /**
  * Редактор определения сверки (issue #436).
@@ -97,11 +98,7 @@ function PartEditor({ part, onChange, onRemove, sources, index }: {
               {columns.map(c => {
                 const on = part.keyColumns.includes(c);
                 return (
-                  <button key={c} type="button" onClick={() => toggleKey(c)}
-                    className={`text-body-small px-2 py-1 rounded-full transition-colors ${
-                      on ? 'bg-primary-container text-on-primary-container font-medium' : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface'}`}>
-                    {c}
-                  </button>
+                  <Chip key={c} selected={on} onClick={() => toggleKey(c)}>{c}</Chip>
                 );
               })}
             </div>

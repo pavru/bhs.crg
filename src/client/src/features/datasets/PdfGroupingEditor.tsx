@@ -21,6 +21,7 @@ import { PageHeader } from '@/shared/ui/PageHeader';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { MENU_ITEM, MENU_SURFACE } from '@/shared/ui/menuClasses';
+import { Chip } from '@/shared/ui/Chip';
 
 const DEFAULT_CODE = '(без шифра)';
 /** Тэги типа таблицы документа (спецификация / кабельный журнал) — распознаются и выгружаются. */
@@ -211,16 +212,12 @@ export function SelectionActionBar({
   return (
     <div className="flex items-center gap-2 mt-2 pt-2 border-t border-outline-variant">
       <span className="text-body-small text-on-surface-variant">Выделено страниц: {count}</span>
-      <button onClick={onSplitSelected}
-        className="px-2 py-1 text-body-small rounded-sm border border-outline-variant text-on-surface-variant state-layer">
-        Отделить в новый документ
-      </button>
+      <Button variant="outlined" size="sm" onClick={onSplitSelected}>Отделить в новый документ</Button>
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
-          <button type="button"
-            className="flex items-center gap-1 px-2 py-1 text-body-small rounded-sm border border-outline-variant text-on-surface-variant state-layer">
-            Перенести в группу <Icon icon={KeyboardArrowDown} size={18} />
-          </button>
+          <Button variant="outlined" size="sm" trailingIcon={<Icon icon={KeyboardArrowDown} size={18} aria-hidden />}>
+            Перенести в группу
+          </Button>
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content align="start" sideOffset={4} collisionPadding={8}
@@ -343,21 +340,19 @@ function GroupSection({
             {withBoundOption(tableProfiles, group.profileId, hiddenProfiles).map(p => <SelectItem key={p.id} value={p.id} disabled={p.disabled}>{p.name}</SelectItem>)}
           </Select>
           {(currentTag || group.profileId) && (
-            <Tooltip content={dirty ? 'Сначала сохраните разбиение' : isHiddenBound(group.profileId, hiddenProfiles) ? 'Профиль группы принадлежит выключенному модулю — выберите другой' : 'Распознать таблицу этого документа как отдельный источник данных'}>
-              <button onClick={() => onRecognizeTable(firstPage)} disabled={dirty || tableBusyPage === firstPage || isHiddenBound(group.profileId, hiddenProfiles)}
-                className="flex items-center gap-1 px-2 py-1 text-body-small rounded-sm border border-outline-variant text-on-surface-variant state-layer disabled-outlined">
-                {tableBusyPage === firstPage ? <CircularProgress size={18} /> : <Icon icon={Table} size={18} />}
-                Таблица
-              </button>
-            </Tooltip>
+            // Подсказка — `title` самой кнопки: у неактивной она и говорит, почему нельзя (ревью #1704).
+            <Button variant="outlined" size="sm" onClick={() => onRecognizeTable(firstPage)}
+              title={dirty ? 'Сначала сохраните разбиение' : isHiddenBound(group.profileId, hiddenProfiles) ? 'Профиль группы принадлежит выключенному модулю — выберите другой' : 'Распознать таблицу этого документа как отдельный источник данных'}
+              disabled={dirty || isHiddenBound(group.profileId, hiddenProfiles)} loading={tableBusyPage === firstPage}
+              icon={<Icon icon={Table} size={18} />}>
+              Таблица
+            </Button>
           )}
-          <Tooltip content={dirty ? 'Сначала сохраните разбиение' : 'Перераспознать только этот документ (не весь набор)'}>
-            <button onClick={() => onRecognizeDoc(firstPage)} disabled={dirty || docBusyPage === firstPage}
-              className="flex items-center gap-1 px-2 py-1 text-body-small rounded-sm border border-outline-variant text-on-surface-variant state-layer disabled-outlined">
-              {docBusyPage === firstPage ? <CircularProgress size={18} /> : <Icon icon={Refresh} size={18} />}
-              Перераспознать
-            </button>
-          </Tooltip>
+          <Button variant="outlined" size="sm" onClick={() => onRecognizeDoc(firstPage)} disabled={dirty}
+            title={dirty ? 'Сначала сохраните разбиение' : 'Перераспознать только этот документ (не весь набор)'}
+            loading={docBusyPage === firstPage} icon={<Icon icon={Refresh} size={18} />}>
+            Перераспознать
+          </Button>
         </div>
       )}
 
@@ -563,12 +558,11 @@ export function PdfGroupingEditor() {
         </>}
         actions={<>
           {suspiciousPageCount > 0 && (
-            <button onClick={() => setSuspiciousOnly(v => !v)}
-              className={`state-layer flex items-center gap-1.5 px-2.5 py-1.5 text-body-small rounded-sm border ${
-                suspiciousOnly ? 'border-warning bg-warning/10 text-warning' : 'border-outline-variant text-on-surface-variant'
-              }`}>
-              <Icon icon={Warning} size={18} /> {suspiciousOnly ? 'Показать все' : `⚠ ${suspiciousPageCount} подозрительных`}
-            </button>
+            /* Отбор страниц — `Chip` ([UI-42], #1416): нажатый — отбор стоит, число — сколько под ним. */
+            <Chip selected={suspiciousOnly} tone="warning" icon={Warning} count={suspiciousPageCount}
+              onClick={() => setSuspiciousOnly(v => !v)}>
+              Подозрительные
+            </Chip>
           )}
           <Button variant="filled" onClick={handleSave} disabled={!dirty} loading={applyMutation.isPending}
             icon={<Icon icon={Save} size={18} />}>

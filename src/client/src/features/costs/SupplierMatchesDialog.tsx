@@ -19,6 +19,7 @@ import { supplierMatchWhere } from './pickerLine';
 import { forgetAllQuestion, forgetQuestion, issueNote, shownOf, supplierLabel } from './supplierMatchList';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Chip } from '@/shared/ui/Chip';
 
 /** Сколько ждать после последней буквы, прежде чем искать: запрос на каждое нажатие — это десяток запросов на слово. */
 const TYPING_PAUSE = 300;
@@ -161,16 +162,16 @@ export function SupplierMatchesDialog({ initial, onClose }: {
         </label>
         {/* Нули не рисуются: чип без записей — дверь в пустой список. Нажатый остаётся, чтобы его снять. */}
         {((data?.counts.lost ?? 0) > 0 || filter.issue === 'lost') && (
-          <IssueChip active={filter.issue === 'lost'} danger
+          <Chip selected={filter.issue === 'lost'} tone="danger"
             onClick={() => narrow({ issue: filter.issue === 'lost' ? null : 'lost' })}>
             Позиция удалена{data ? ` ${data.counts.lost}` : ''}
-          </IssueChip>
+          </Chip>
         )}
         {((data?.counts.archived ?? 0) > 0 || filter.issue === 'archived') && (
-          <IssueChip active={filter.issue === 'archived'}
+          <Chip selected={filter.issue === 'archived'}
             onClick={() => narrow({ issue: filter.issue === 'archived' ? null : 'archived' })}>
             Позиция в архиве{data ? ` ${data.counts.archived}` : ''}
-          </IssueChip>
+          </Chip>
         )}
       </div>
 
@@ -233,17 +234,5 @@ export function SupplierMatchesDialog({ initial, onClose }: {
           toast.success(`Забыто соответствий: ${done.forgotten}.`);
         }} />
     </Modal>
-  );
-}
-
-function IssueChip({ active, danger = false, onClick, children }: {
-  active: boolean; danger?: boolean; onClick: () => void; children: React.ReactNode;
-}) {
-  return (
-    <button type="button" onClick={onClick} aria-pressed={active}
-      className={`rounded-full border px-2 py-0.5 text-body-small
-        ${active ? 'border-primary bg-surface-container text-on-surface' : danger ? 'border-error/30 text-error' : 'border-outline-variant text-on-surface-variant'}`}>
-      {children}
-    </button>
   );
 }

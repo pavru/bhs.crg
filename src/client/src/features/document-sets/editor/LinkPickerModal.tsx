@@ -25,12 +25,15 @@ import { useOpenAttachment } from '@/shared/hooks/useOpenAttachment';
 import { getValidUntil, isExpired } from './qualityValidity';
 import type { MaterialRow } from './materialRow';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { TabPanel, Tabs } from '@/shared/ui/Tabs';
 
 interface LinkPickerModalProps {
   open: boolean; onClose: () => void; allDocTypes: DocumentType[];
   scope: CatalogScope; scopeId: string | null; materials: MaterialRow[];
   onPick: (doc: QualityDocument) => void;
 }
+
+const TABS_ID = 'link-picker';
 
 /** Выбор/создание документа качества для набора материалов. Переиспользуется экраном контроля
  *  связок (issue #555) — там материал приходит из самой связки, а не из набора данных.
@@ -154,17 +157,14 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title={title} wide>
-      <div className="flex gap-1 mb-3 bg-surface-container rounded-md p-0.5 w-fit">
-        {(['pick', 'search', 'create'] as const).map(t => (
-          <button key={t} onClick={() => { if (t === 'search') enterSearch(); else setTab(t); }}
-            className={`px-3 py-1.5 text-body-medium rounded-sm ${tab === t ? 'bg-surface text-on-surface font-medium shadow-elevation-1' : 'text-on-surface-variant'}`}>
-            {tabLabel[t]}
-          </button>
-        ))}
-      </div>
+      {/* Вкладки с ролями и клавиатурой ([UI-44]): прежде ряд кнопок, и диктор не знал, что это вкладки.
+          Переход на «Найти» по-прежнему через enterSearch — он подставляет строку поиска. */}
+      <Tabs id={TABS_ID} variant="segmented" aria-label="Откуда взять документ" className="mb-3" value={tab}
+        items={(['pick', 'search', 'create'] as const).map(t => ({ value: t, label: tabLabel[t] }))}
+        onChange={t => { if (t === 'search') enterSearch(); else setTab(t); }} />
 
       {tab === 'pick' && (
-        <div className="space-y-2">
+        <TabPanel id={TABS_ID} value="pick" className="space-y-2">
           <SearchInput value={query} onChange={setQuery} placeholder="Поиск по материалу / названию..." />
           <label className="flex items-center gap-1.5 text-body-small text-on-surface-variant cursor-pointer">
             <Checkbox size="sm" checked={includeExpired} onChange={setIncludeExpired} />
@@ -216,11 +216,11 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
                 ))}
               </div>
             )}
-        </div>
+        </TabPanel>
       )}
 
       {tab === 'search' && (
-        <div className="space-y-2">
+        <TabPanel id={TABS_ID} value="search" className="space-y-2">
           <div className="flex items-center gap-2">
             {/* w-64, а не w-52 (issue #668): «Сертификат соответствия» — типичное значение, и в
                 208 px оно обрезалось многоточием почти сразу даже без кода типа. */}
@@ -265,12 +265,14 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
               ))}
             </div>
           )}
-        </div>
+        </TabPanel>
       )}
 
       {tab === 'create' && (
-        <QualityDocForm allDocTypes={allDocTypes} scope={scope} scopeId={scopeId}
-          onSaved={doc => onPick(doc)} onCancel={() => setTab('pick')} />
+        <TabPanel id={TABS_ID} value="create">
+          <QualityDocForm allDocTypes={allDocTypes} scope={scope} scopeId={scopeId}
+            onSaved={doc => onPick(doc)} onCancel={() => setTab('pick')} />
+        </TabPanel>
       )}
 
     </Modal>

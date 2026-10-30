@@ -1,21 +1,22 @@
 import type { BindingCheckItem } from '@/shared/api/commonData';
+import { StatusBadge, type StatusTone } from '@/shared/ui/StatusBadge';
 
-// Отчёт «Проверить связки» (issue #99): статус каждого @@ref-поля.
-const CHECK_STATUS: Record<string, { label: string; cls: string }> = {
-  matched: { label: 'связано', cls: 'bg-success-container text-on-success-container border-success/30' },
-  'not-found': { label: 'не найдено', cls: 'bg-warning-container text-on-warning-container border-outline-variant' },
-  dangling: { label: 'запись удалена', cls: 'bg-error-container text-on-error-container border-error/30' },
-  drift: { label: 'устарело', cls: 'bg-warning-container text-on-warning-container border-outline-variant' },
-  stale: { label: 'пересохранить', cls: 'bg-warning-container text-on-warning-container border-outline-variant' },
+// Отчёт «Проверить связки» (issue #99): статус каждого @@ref-поля — тон пометки по смыслу ([UI-43]).
+const CHECK_STATUS: Record<string, { label: string; tone: StatusTone }> = {
+  matched: { label: 'связано', tone: 'success' },
+  'not-found': { label: 'не найдено', tone: 'warning' },
+  dangling: { label: 'запись удалена', tone: 'danger' },
+  drift: { label: 'устарело', tone: 'warning' },
+  stale: { label: 'пересохранить', tone: 'warning' },
   // Цель в архиве (issue #1185) — не потеря и не «не найдено», поэтому не красным и не жёлтым:
   // стоящая связка работает, а чинить нечего, пока запись не понадобится выбрать заново.
-  archived: { label: 'в архиве', cls: 'bg-surface-container text-on-surface-variant border-outline-variant' },
+  archived: { label: 'в архиве', tone: 'neutral' },
   // А это уже есть что чинить (ревью PR #1228): источник называет архивную запись, которой в поле
   // не было, — ссылка не подставлена, и поле не заполняется. Серым оно выглядело бы исправным.
-  'archived-skipped': { label: 'в архиве — не подставлено', cls: 'bg-warning-container text-on-warning-container border-outline-variant' },
+  'archived-skipped': { label: 'в архиве — не подставлено', tone: 'warning' },
   // Резолв не состоялся вовсе (issue #715): поле не заполняется, и молчать об этом на экране
   // проверки нельзя — раньше такие случаи отсеивались вместе со всем уровнем Error.
-  error: { label: 'не разрешилось', cls: 'bg-error-container text-on-error-container border-error/30' },
+  error: { label: 'не разрешилось', tone: 'danger' },
 };
 
 export function BindingCheckReport({ items }: { items: BindingCheckItem[] }) {
@@ -24,7 +25,7 @@ export function BindingCheckReport({ items }: { items: BindingCheckItem[] }) {
   return (
     <div className="rounded-md border border-outline-variant divide-y divide-surface-container">
       {items.map(it => {
-        const s = CHECK_STATUS[it.status] ?? { label: it.status, cls: 'bg-surface-container text-on-surface-variant border-outline-variant' };
+        const s = CHECK_STATUS[it.status] ?? { label: it.status, tone: 'neutral' };
         return (
           <div key={it.fieldKey} className="flex items-start gap-2 px-3 py-2 text-body-medium">
             <span className="flex-1 min-w-0">
@@ -32,7 +33,7 @@ export function BindingCheckReport({ items }: { items: BindingCheckItem[] }) {
               {it.linkedName && <span className="text-on-surface-variant"> → {it.linkedName}</span>}
               {it.detail && <span className="block text-label-small text-on-surface-variant">{it.detail}</span>}
             </span>
-            <span className={`shrink-0 text-label-small px-1.5 py-0.5 rounded-full border font-medium ${s.cls}`}>{s.label}</span>
+            <StatusBadge tone={s.tone} bordered>{s.label}</StatusBadge>
           </div>
         );
       })}

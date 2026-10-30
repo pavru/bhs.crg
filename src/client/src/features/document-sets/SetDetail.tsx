@@ -32,7 +32,7 @@ import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useListConstructions, useGetConstruction, useRenameDocumentSet, useDeleteDocumentSet } from '@/shared/api/constructions';
 import { useGetDocumentSet, useAddDocumentToSet, useDeleteDocumentInstance, useDuplicateDocumentInstance, useReorderInstances, useAssembleSet, useDocumentSetOutput, downloadSetOutput, downloadGeneratedFile, previewGeneratedFile } from '@/shared/api/documentSets';
 import type { DocumentInstance } from '@/shared/api/types';
-import { STATUS_LABELS, STATUS_COLORS } from './fields';
+import { DocumentStatusBadge } from './fields';
 import { documentPath, FROM_SET } from './documentPath';
 import { EmailSendDialog } from './EmailSendDialog';
 import { useEmailSet } from '@/shared/api/documentSets';
@@ -271,9 +271,7 @@ export function SetDetail() {
       ) },
     { key: 'status', label: 'Статус', width: 'w-32',
       cell: inst => (
-        <span className={`text-body-small px-2 py-0.5 rounded-xs font-medium ${STATUS_COLORS[inst.status] ?? 'bg-surface-container text-on-surface-variant'}`}>
-          {STATUS_LABELS[inst.status] ?? inst.status}
-        </span>
+        <DocumentStatusBadge status={inst.status} />
       ) },
     { key: 'pdf', label: '', width: 'w-36', interactive: true,
       cell: inst => {

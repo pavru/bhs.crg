@@ -22,6 +22,7 @@ import { moveItem } from '@/shared/utils/moveItem';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
 // ─── JSON preview ──────────────────────────────────────────────────────────────
 
 export function JsonPreview({
@@ -210,7 +211,7 @@ export function FieldCard({
           <ModuleFieldBadge field={field} /><SuggestOffBadge field={field} />
           {chips.slice(0, 2).map(tc => <FunctionalTagBadge key={tc} registry={tagRegistry} entry={tc} />)}
           {chips.length > 2 && <span className="text-label-small text-on-surface-variant shrink-0">+{chips.length - 2}</span>}
-          <span className="text-body-small px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant shrink-0">{fieldTypeSummary(field, reg)}</span>
+          <StatusBadge>{fieldTypeSummary(field, reg)}</StatusBadge>
           {open ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
         </button>
       </div>
@@ -259,7 +260,7 @@ export function FieldCard({
         {/* Type — открывает searchable TypePicker (issue #197) */}
         <Tooltip content="Выбрать тип поля">
           <button type="button" onClick={() => setPickerOpen(true)}
-            className="flex items-center justify-between gap-1 border border-outline rounded-sm px-2 py-1.5 text-body-medium bg-surface state-layer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            className="w-full flex items-center justify-between gap-1 border border-outline rounded-sm px-2 py-1.5 text-body-medium bg-surface state-layer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <span className="truncate text-left">{fieldTypeSummary(field, reg)}</span>
             <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />
           </button>
@@ -422,12 +423,10 @@ export function FieldCard({
           <span className="text-body-small text-on-surface-variant shrink-0 w-28 mt-1">Тэги модуля:</span>
           <div className="flex flex-wrap gap-1.5">
             {unknownTags.map(code => (
-              <Tooltip key={code} content="Тэг модуля, выключенного на этом экземпляре. Значение остаётся в схеме и заработает, когда модуль включат.">
-                <span
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-outline-variant px-2 py-0.5 text-label-small text-on-surface-variant">
-                  <Icon icon={LockIcon} size={18} />{code}
-                </span>
-              </Tooltip>
+              <StatusBadge key={code} tone="quiet" icon={LockIcon}
+                title="Тэг модуля, выключенного на этом экземпляре. Значение остаётся в схеме и заработает, когда модуль включат.">
+                {code}
+              </StatusBadge>
             ))}
           </div>
         </div>

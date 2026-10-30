@@ -17,6 +17,9 @@ import { Tooltip } from './Tooltip';
  * `bordered` добавляет контур в тон — для пометок, стоящих рядом с такими же на цветном фоне
  * (отчёт проверки связок). Значок — по смыслу, не для красоты: у отчёта сверки он различает
  * состояния без цвета.
+ *
+ * `count` — счётчик (решение владельца 22.10.2026, [UI-45]): число рядом с подписью кнопки, вкладки или
+ * строки списка. Поля плотнее, цифры одной ширины — соседние счётчики не пляшут; тон тот же, по смыслу.
  */
 export type StatusTone = 'neutral' | 'brand' | 'success' | 'warning' | 'danger' | 'quiet';
 
@@ -29,10 +32,11 @@ const TONE: Record<StatusTone, { fill: string; border: string }> = {
   quiet: { fill: 'text-on-surface-variant', border: 'border-outline-variant' },
 };
 
-export function StatusBadge({ tone = 'neutral', icon, bordered = false, title, className = '', children }: {
+export function StatusBadge({ tone = 'neutral', icon, bordered = false, count = false, title, className = '', children }: {
   tone?: StatusTone;
   icon?: IconDef;
   bordered?: boolean;
+  count?: boolean;
   title?: string;
   className?: string;
   children: ReactNode;
@@ -42,7 +46,7 @@ export function StatusBadge({ tone = 'neutral', icon, bordered = false, title, c
   return (
     <Tooltip content={title}>
       <span
-        className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-small font-medium whitespace-nowrap ` +
+        className={`shrink-0 inline-flex items-center gap-1 ${count ? 'px-1.5 tabular-nums' : 'px-2'} py-0.5 rounded-full text-label-small font-medium whitespace-nowrap ` +
           `${t.fill} ${outlined ? `border ${t.border}` : ''} ${className}`}>
         {icon && <Icon icon={icon} size={18} aria-hidden className="shrink-0" />}
         {children}

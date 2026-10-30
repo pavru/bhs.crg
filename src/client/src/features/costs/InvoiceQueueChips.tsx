@@ -1,5 +1,5 @@
-import { Icon } from '@/shared/ui/Icon';
-import { Archive, Check, Checklist, DocumentScanner, Warning, type IconDef } from '@/shared/ui/icons';
+import { Chip } from '@/shared/ui/Chip';
+import { Archive, Checklist, DocumentScanner, Warning } from '@/shared/ui/icons';
 import type { ReactNode } from 'react';
 import type { InvoiceQueue } from '@/shared/api/invoices';
 import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
@@ -37,33 +37,39 @@ export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, on
       {/* «Разобрать» (ТЗ COST-6.2, issue #1292) — рабочая очередь: все недоведённые счета, то есть
           черновики. Отбирает и считает СЕРВЕР. Чип стоит всегда; числа нет, пока оно не пришло либо
           равно нулю, — «не посчитано» нулём не рисуем. */}
-      <Chip active={queue === 'parsing'} icon={Checklist} label={QUEUE_LABEL.parsing}
-        count={parsing ? String(parsing) : undefined}
+      <Chip selected={queue === 'parsing'} icon={Checklist} count={parsing ? String(parsing) : undefined}
         title={'Черновики — счета, не доведённые до «Разобран». Чего не хватает каждому, видно в его строке.'
           + (parsing == null ? ' Сколько их — не посчитано.' : ` Сейчас их: ${parsing}.`)}
-        tone="quiet" onClick={() => toggle('parsing')}
-        ariaLabel={parsing ? `${QUEUE_LABEL.parsing}, счетов: ${parsing}` : undefined} />
+        onClick={() => toggle('parsing')}
+        aria-label={parsing ? `${QUEUE_LABEL.parsing}, счетов: ${parsing}` : undefined}>
+        {QUEUE_LABEL.parsing}
+      </Chip>
       {/* «Не распознано» (issue #1077): черновики со сканом, в которых ещё нет строк. Ноль не рисуем,
           нажатый чип остаётся — иначе отбор нечем снять. */}
       {/* Числа не пришли — чип остаётся, без числа: адрес чисел падает вместе с опросом ссылок ядра,
           к распознаванию не относящимся, а сам отбор при этом работает. */}
       {(queue === 'unrecognized' || failed || (queues?.unrecognized ?? 0) > 0) && (
-        <Chip active={queue === 'unrecognized'} icon={DocumentScanner} label={QUEUE_LABEL.unrecognized}
-          count={queues && queues.unrecognized > 0 ? String(queues.unrecognized) : undefined}
+        <Chip selected={queue === 'unrecognized'} icon={DocumentScanner} count={queues && queues.unrecognized > 0 ? String(queues.unrecognized) : undefined}
           title={'Черновики с файлом, в которых нет строк: файл не распознан, прочитан без строк или не распознавался.'
             + (queues ? '' : ' Сколько их — не посчитано.')}
-          tone="doubt" onClick={() => toggle('unrecognized')}
-          ariaLabel={`${QUEUE_LABEL.unrecognized}, счетов: ${queues?.unrecognized || 'нет'}`} />
+          tone="warning" onClick={() => toggle('unrecognized')}
+          aria-label={`${QUEUE_LABEL.unrecognized}, счетов: ${queues?.unrecognized || 'нет'}`}>
+          {QUEUE_LABEL.unrecognized}
+        </Chip>
       )}
       {lost && (
-        <Chip active={queue === 'lost'} icon={Warning} label={QUEUE_LABEL.lost} count={lost.count}
-          title={lost.title} tone={lost.doubt ? 'doubt' : 'danger'} onClick={() => toggle('lost')}
-          ariaLabel={`${QUEUE_LABEL.lost}, счетов: ${lost.count || 'нет'}`} />
+        <Chip selected={queue === 'lost'} icon={Warning} count={lost.count}
+          title={lost.title} tone={lost.doubt ? 'warning' : 'danger'} onClick={() => toggle('lost')}
+          aria-label={`${QUEUE_LABEL.lost}, счетов: ${lost.count || 'нет'}`}>
+          {QUEUE_LABEL.lost}
+        </Chip>
       )}
       {archived && (
-        <Chip active={queue === 'archived'} icon={Archive} label={QUEUE_LABEL.archived} count={archived.count}
-          title={archived.title} tone="quiet" onClick={() => toggle('archived')}
-          ariaLabel={`${QUEUE_LABEL.archived}, счетов: ${archived.count || 'нет'}`} />
+        <Chip selected={queue === 'archived'} icon={Archive} count={archived.count}
+          title={archived.title} onClick={() => toggle('archived')}
+          aria-label={`${QUEUE_LABEL.archived}, счетов: ${archived.count || 'нет'}`}>
+          {QUEUE_LABEL.archived}
+        </Chip>
       )}
       {failed && (
         <Tooltip content="Сколько счетов не распознано, с удалёнными и с архивными записями — не посчитано. Это не «ноль». Нажмите, чтобы повторить">
@@ -74,33 +80,5 @@ export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, on
       )}
       {sites}
     </div>
-  );
-}
-
-function Chip({ active, icon, label, count, title, tone, onClick, ariaLabel }: {
-  active: boolean;
-  icon: IconDef;
-  label: string;
-  count?: string;
-  title: string;
-  /** Архив и «Разобрать» — тихо: счёт верен. Потеря — красным, сомнение — предупреждением. */
-  tone: 'quiet' | 'danger' | 'doubt';
-  onClick: () => void;
-  ariaLabel?: string;
-}) {
-  const look = active ? 'border-primary text-on-primary-container bg-primary-container'
-    : tone === 'danger' ? 'border-error text-error hover:bg-error-container'
-    : tone === 'doubt' ? 'border-warning text-warning state-layer'
-    : 'border-outline-variant text-on-surface-variant hover:text-on-surface';
-  const shown = active ? Check : icon;
-  return (
-    <Tooltip content={title}>
-      <button type="button" aria-pressed={active} aria-label={ariaLabel} onClick={onClick}
-        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 bg-surface ${look}`}>
-        <Icon icon={shown} size={18} aria-hidden />
-        {label}
-        {count && <span className="font-medium">{count}</span>}
-      </button>
-    </Tooltip>
   );
 }

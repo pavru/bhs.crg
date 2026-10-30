@@ -13,7 +13,7 @@ import { RowFilterDialog } from './RowFilterDialog';
 import { ComputedColumnsDialog } from './ComputedColumnsDialog';
 import { SortSpecDialog } from './SortSpecDialog';
 import type { ColumnExprDef, ComputedColumn, DataSetProcessingTemplate, RowFilterDef, SortSpec } from '@/shared/api/types';
-import { Tooltip } from '@/shared/ui/Tooltip';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
 
 const FIELD_CLS = 'border border-outline-variant rounded-sm px-3 py-1.5 text-body-medium bg-surface text-on-surface';
 
@@ -140,15 +140,15 @@ function TemplateForm({
       <div className="flex gap-2 flex-wrap">
         <button type="button" onClick={() => setFilterOpen(true)} className={toggleCls(filterCount > 0)}>
           <Icon icon={FilterAlt} size={18} /> Фильтрация
-          {filterCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-on-primary text-label-small bg-primary">{filterCount}</span>}
+          {filterCount > 0 && <StatusBadge count tone="brand" className="ml-1">{filterCount}</StatusBadge>}
         </button>
         <button type="button" onClick={() => setTransformsOpen(true)} className={toggleCls(transformCount > 0)}>
           <Icon icon={FunctionIcon} size={18} /> Преобразования
-          {transformCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-on-primary text-label-small bg-primary">{transformCount}</span>}
+          {transformCount > 0 && <StatusBadge count tone="brand" className="ml-1">{transformCount}</StatusBadge>}
         </button>
         <button type="button" onClick={() => setSortOpen(true)} className={toggleCls(sortCount > 0)}>
           <Icon icon={SwapVert} size={18} /> Сортировка
-          {sortCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-on-primary text-label-small bg-primary">{sortCount}</span>}
+          {sortCount > 0 && <StatusBadge count tone="brand" className="ml-1">{sortCount}</StatusBadge>}
         </button>
       </div>
 
@@ -209,26 +209,16 @@ function TemplateRow({ template }: { template: DataSetProcessingTemplate }) {
               <span className="text-body-small text-on-surface-variant">Без обработки</span>
             )}
             {template.sheetOrPath && (
-              <Tooltip content={template.sheetOrPath}>
-                <span className="flex items-center gap-1 text-label-small px-1.5 py-0.5 rounded-full bg-primary-container text-on-primary-container">
-                  <Icon icon={RouteIcon} size={18} /> Extraction
-                </span>
-              </Tooltip>
+              <StatusBadge tone="brand" icon={RouteIcon} title={template.sheetOrPath}>Extraction</StatusBadge>
             )}
             {filterCount > 0 && (
-              <span className="flex items-center gap-1 text-label-small px-1.5 py-0.5 rounded-full bg-primary-container text-on-primary-container">
-                <Icon icon={FilterAlt} size={18} /> {filterCount}
-              </span>
+              <StatusBadge tone="brand" icon={FilterAlt}>{filterCount}</StatusBadge>
             )}
             {transformCount > 0 && (
-              <span className="flex items-center gap-1 text-label-small px-1.5 py-0.5 rounded-full bg-primary-container text-on-primary-container">
-                <Icon icon={FunctionIcon} size={18} /> {transformCount}
-              </span>
+              <StatusBadge tone="brand" icon={FunctionIcon}>{transformCount}</StatusBadge>
             )}
             {sortCount > 0 && (
-              <span className="flex items-center gap-1 text-label-small px-1.5 py-0.5 rounded-full bg-primary-container text-on-primary-container">
-                <Icon icon={SwapVert} size={18} /> {sortCount}
-              </span>
+              <StatusBadge tone="brand" icon={SwapVert}>{sortCount}</StatusBadge>
             )}
           </div>
         </div>

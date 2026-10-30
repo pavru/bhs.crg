@@ -5,9 +5,9 @@ import { Modal } from '@/shared/ui/Modal';
 import { useCommonDataForSet } from '@/shared/api/commonData';
 import type { CommonDataEntry, DocumentInstance, DocumentType, FieldRef } from '@/shared/api/types';
 import { isSubtypeOf, type SchemaField } from '@/shared/api/schema';
-import { STATUS_COLORS, STATUS_LABELS } from './constants';
 import { useScopeGroups } from './catalogGroups';
 import { ScopeGroupList } from './ScopeGroupList';
+import { DocumentStatusBadge } from './DocumentStatusBadge';
 
 export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, otherInstances, setId, onSelect }: {
   open: boolean;
@@ -95,9 +95,7 @@ export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, ot
                         <span className="block text-body-small text-on-surface-variant truncate">{dt?.name}</span>
                       )}
                     </span>
-                    <span className={`text-body-small px-1.5 py-0.5 rounded-xs font-medium shrink-0 ${STATUS_COLORS[inst.status]}`}>
-                      {STATUS_LABELS[inst.status]}
-                    </span>
+                    <DocumentStatusBadge status={inst.status} />
                   </button>
                 );
               })}

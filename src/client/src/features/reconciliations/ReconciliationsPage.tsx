@@ -27,6 +27,8 @@ import { DecisionDialog } from './DecisionDialog';
 import { ObservationsPanel } from './ObservationsPanel';
 import { AliasesPanel } from './AliasesPanel';
 import { useObservations, isUnreviewed } from '@/shared/api/observations';
+import { Chip } from '@/shared/ui/Chip';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
 
 /**
  * Сверка на непротиворечивость (issue #414, фаза Ф1 — экран находок #436).
@@ -35,14 +37,9 @@ import { useObservations, isUnreviewed } from '@/shared/api/observations';
  * прогонами не копилась, отчёт не с чем было сравнить. Здесь они становятся объектом системы.
  */
 
-function StatusBadge({ f }: { f: Finding }) {
-  if (f.resolved) {
-    return (
-      <span className="inline-flex items-center gap-1 text-body-small px-1.5 py-0.5 rounded-full bg-primary-container text-on-primary-container shrink-0">
-        <Icon icon={CheckCircle} size={18} /> Устранено
-      </span>
-    );
-  }
+/** Состояние находки — общая пометка с тоном по смыслу ([UI-43]); значок различает состояния без цвета. */
+function FindingStatus({ f }: { f: Finding }) {
+  if (f.resolved) return <StatusBadge tone="success" icon={CheckCircle}>Устранено</StatusBadge>;
   if (f.status === 'Match') {
     return <span className="text-body-small text-on-surface-variant shrink-0">Совпадает</span>;
   }
@@ -50,10 +47,7 @@ function StatusBadge({ f }: { f: Finding }) {
   // «давальческое оборудование» не должно всплывать каждый прогон.
   const muted = !!f.decision;
   return (
-    <span className={`inline-flex items-center gap-1 text-body-small px-1.5 py-0.5 rounded-full shrink-0 ${
-      muted ? 'bg-surface-container text-on-surface-variant' : 'bg-error-container text-on-error-container'}`}>
-      {muted ? <Icon icon={Block} size={18} /> : <Icon icon={Warning} size={18} />} {STATUS_LABELS[f.status]}
-    </span>
+    <StatusBadge tone={muted ? 'quiet' : 'danger'} icon={muted ? Block : Warning}>{STATUS_LABELS[f.status]}</StatusBadge>
   );
 }
 
@@ -75,7 +69,7 @@ function FindingRow({ f, onDecide, linkable, checked, onToggle }: {
           <Checkbox size="sm" checked={checked} onChange={onToggle}
             aria-label={`Выбрать «${f.label}» для связывания`} />
         )}
-        <StatusBadge f={f} />
+        <FindingStatus f={f} />
         <span className="flex-1 truncate text-body-medium text-on-surface" title={f.label}>{f.label}</span>
         <span className="text-body-medium tabular-nums text-on-surface-variant shrink-0">
           {num(f.leftValue)} <span className="text-on-surface-variant">/</span> {num(f.rightValue)}
@@ -308,11 +302,9 @@ export function ReconciliationsPage() {
 
       {currentRun?.status === 'Completed' && (
         <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant text-body-small shrink-0">
-          <button type="button" onClick={() => setOnlyAttention(v => !v)}
-            className={`state-layer px-2 py-1 rounded-full ${
-              onlyAttention ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant'}`}>
-            Требует внимания: {attentionCount}
-          </button>
+          <Chip selected={onlyAttention} count={attentionCount} onClick={() => setOnlyAttention(v => !v)}>
+            Требует внимания
+          </Chip>
           <span className="text-on-surface-variant">
             совпало {currentRun.matchCount} · расхождений {currentRun.mismatchCount} ·
             нет слева {currentRun.missingLeftCount} · нет справа {currentRun.missingRightCount}

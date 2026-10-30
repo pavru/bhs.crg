@@ -196,7 +196,7 @@ await check('every-section-arrow-equals-the-registry-total', async () => {
   const bySuppliers = await row('Итого затраты').amount();
 
   // Переключатель — на экране, а не только параметром адреса: им человек и пользуется.
-  await report.getByRole('button', { name: 'по разделам' }).click();
+  await report.getByRole('tab', { name: 'по разделам' }).click();
   await page.waitForURL(/by=sections/);
   if (Math.abs(await row('Итого затраты').amount() - bySuppliers) > 0.005)
     throw new Error('итог стройки по разделам не равен итогу по контрагентам');
@@ -301,7 +301,7 @@ await check('period-month-field-keeps-the-address-and-pulls-from', async () => {
     await page.keyboard.type(`${prev.slice(5)}${prev.slice(0, 4)}`);
     // Уход щелчком по «без НДС» — фиксация: «по» раньше «с», и «с» подтягивается к ней. Тот же щелчок
     // пишет в адрес свой параметр — поправка периода не должна им затереться (гонка записи адреса).
-    await page.getByRole('button', { name: 'без НДС' }).click();
+    await page.getByRole('tab', { name: 'без НДС' }).click();
     // Адрес меняется заменой записи истории, без навигации — waitForURL ждал бы загрузки, которой нет.
     await page.waitForFunction(p => location.search.includes(`from=${p}&to=${p}`) && location.search.includes('vat=without'),
       prev, { timeout: 5_000 })

@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { ChangeCircle, Check, LinkIcon, LinkOff, VerifiedUser, Warning } from '@/shared/ui/icons';
 import { ScopeIcon } from '@/shared/ui/ScopeIcon';
@@ -9,33 +8,7 @@ import { SCOPE_LABELS, type CatalogScope } from '@/shared/api/types';
 import type { MaterialRow } from './materialRow';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { IconButton } from '@/shared/ui/Button';
-
-/**
- * Действие в строке материала (issue #680).
- *
- * Своя пилюля, а не `Button size="sm"`: у кнопки высота 32 px, а строк на живом реестре 130 — это
- * лишний экран прокрутки в таблице, которая и так скроллится внутри себя. Размер взят у пилюли
- * «привязать», которая в строке уже стояла, поэтому вертикальная цена нулевая.
- *
- * Тон говорит о роли: `brand` — согласие с догадкой машины (главное действие подсказки),
- * `tonal` — «сделаю выбор сам».
- */
-function RowPill({ onClick, title, tone = 'tonal', children }: {
-  onClick: () => void; title: string; tone?: 'brand' | 'tonal'; children: ReactNode;
-}) {
-  return (
-    <Tooltip content={title}>
-      <button type="button" onClick={onClick}
-        className={'flex items-center gap-1 px-1.5 py-0.5 text-body-small rounded-full shrink-0 '
-          + 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary '
-          + (tone === 'brand'
-            ? 'bg-primary state-layer text-on-primary'
-            : 'bg-secondary-container text-on-secondary-container state-layer')}>
-        {children}
-      </button>
-    </Tooltip>
-  );
-}
+import { Chip } from '@/shared/ui/Chip';
 
 // ─── Таблица материалов ─────────────────────────────────────────────
 
@@ -144,16 +117,19 @@ export function MaterialsTable({
                     {suggestion.doc.displayName}
                   </button>
                 </Tooltip>
-                <RowPill tone="brand" onClick={() => void acceptSuggestion(m, suggestion.doc.id)}
-                  title="Привязать предложенный документ">
-                  <Icon icon={Check} size={18} /> привязать
-                </RowPill>
+                {/* Действие в строке (issue #680) — `Chip` без нажатия, assist chip MD3 ([UI-42]). Не
+                    `Button size="sm"`: у кнопки 32 px, а строк на живом реестре 130 — лишний экран
+                    прокрутки. Согласие с догадкой отличает галочка и место первым в паре. */}
+                <Chip icon={Check} className="shrink-0" title="Привязать предложенный документ"
+                  onClick={() => void acceptSuggestion(m, suggestion.doc.id)}>
+                  привязать
+                </Chip>
                 {/* Подсказка — это согласие с догадкой машины, а не вход в выбор (issue
                     #680). Промахнулась догадка — до этой кнопки уйти из строки было
                     некуда, кроме как через чекбокс и кнопку под таблицей. */}
-                <RowPill onClick={() => openPickerFor(m)} title="Выбрать другой документ качества">
+                <Chip className="shrink-0" title="Выбрать другой документ качества" onClick={() => openPickerFor(m)}>
                   другой
-                </RowPill>
+                </Chip>
               </span>
             ) : (
               <span className="flex items-center gap-1.5">
@@ -161,9 +137,10 @@ export function MaterialsTable({
                 {/* Кнопка ВИДИМАЯ, не по hover: необнаруживаемость одиночного пути и есть
                     предмет жалобы, а мерцающая колонка на 130 строках недоступна ни с
                     клавиатуры, ни с тача. */}
-                <RowPill onClick={() => openPickerFor(m)} title="Выбрать документ качества для этого материала">
-                  <Icon icon={LinkIcon} size={18} /> Связать
-                </RowPill>
+                <Chip icon={LinkIcon} className="shrink-0" title="Выбрать документ качества для этого материала"
+                  onClick={() => openPickerFor(m)}>
+                  Связать
+                </Chip>
               </span>
             )}
           </>

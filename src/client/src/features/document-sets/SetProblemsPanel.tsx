@@ -18,6 +18,8 @@ import {
 } from '@/shared/api/observations';
 import { DecisionDialog } from '@/features/reconciliations/DecisionDialog';
 import { ObservationReviewDialog } from '@/features/reconciliations/ObservationReviewDialog';
+import { Chip } from '@/shared/ui/Chip';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
 
 /**
  * Проблемы комплекта (issue #452) — дом подсистемы сверки в иерархии.
@@ -51,10 +53,9 @@ function FindingLine({ f, onDecide }: { f: Finding; onDecide: (f: Finding) => vo
   return (
     <div className={`px-3 py-2 border-b border-outline-variant text-body-medium ${open ? '' : 'opacity-60'}`}>
       <div className="flex items-center gap-2">
-        <span className={`text-label-small px-1.5 py-0.5 rounded-full shrink-0 ${
-          f.status === 'Match' ? 'text-on-surface-variant' : open ? 'bg-error-container text-on-error-container' : 'bg-surface-container text-on-surface-variant'}`}>
+        <StatusBadge tone={f.status === 'Match' ? 'quiet' : open ? 'danger' : 'neutral'}>
           {f.resolved ? 'Устранено' : STATUS_LABELS[f.status]}
-        </span>
+        </StatusBadge>
         <span className="flex-1 truncate text-on-surface" title={f.label}>{f.label}</span>
         <span className="tabular-nums text-on-surface-variant shrink-0">
           {num(f.leftValue)} <span className="text-on-surface-variant">/</span> {num(f.rightValue)}
@@ -116,11 +117,9 @@ function ReconciliationBlock({ id, name, unresolved }: {
           className="inline-flex items-center gap-1 text-label-small text-primary hover:underline shrink-0">
           <Icon icon={OpenInNew} size={18} /> Открыть в «Сверке»
         </Link>
-        <button type="button" onClick={() => setOnlyOpen(v => !v)}
-          className={`state-layer text-label-small px-2 py-0.5 rounded-full ${
-            onlyOpen ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant'}`}>
-          не разобрано: {unresolved}
-        </button>
+        <Chip selected={onlyOpen} count={unresolved} onClick={() => setOnlyOpen(v => !v)} className="shrink-0">
+          не разобрано
+        </Chip>
         <Button variant="text" size="sm" loading={run.isPending}
           onClick={async () => {
             const r = await run.mutateAsync(id);
@@ -174,10 +173,9 @@ function ObservationCard({ o, documentNames, onReview }: {
   return (
     <div className={`px-3 py-2 border border-outline-variant rounded-md ${isUnreviewed(o) ? '' : 'opacity-60'}`}>
       <div className="flex items-start gap-2">
-        <span className={`text-label-small px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${
-          o.severity === 'Error' ? 'bg-warning-container text-on-warning-container' : 'bg-surface-container text-on-surface-variant'}`}>
+        <StatusBadge tone={o.severity === 'Error' ? 'warning' : 'neutral'} className="mt-0.5">
           {SEVERITY_LABELS[o.severity]}
-        </span>
+        </StatusBadge>
         <div className="min-w-0 flex-1">
           <div className="text-body-medium text-on-surface">{o.title}</div>
           {o.detail && <p className="text-body-small text-on-surface-variant mt-0.5 line-clamp-2">{o.detail}</p>}

@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { Check, VerifiedUser } from '@/shared/ui/icons';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal } from '@/shared/ui/Modal';
@@ -34,6 +33,7 @@ import { BreakLinkDialog } from './BreakLinkDialog';
 import { ScopeToolbar } from './ScopeToolbar';
 import { BulkSelectionBar } from './BulkSelectionBar';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Button } from '@/shared/ui/Button';
 
 // ─── Вкладка «Документы качества» ───────────────────────────────────────────────
 
@@ -408,13 +408,10 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
             <Icon icon={Check} size={18} /> Предложения из библиотеки ({suggestCount})
           </button>
         </Tooltip>
-        <Tooltip content="Предложить связи по истории привязок (для строк, где нет подсказки из библиотеки)">
-          <button onClick={handleSuggest} disabled={suggesting || materials.length === 0}
-            className="flex items-center gap-2 px-4 py-2 text-body-medium border border-outline-variant rounded-sm state-layer disabled-outlined">
-            {suggesting ? <CircularProgress size={18} /> : <Icon icon={VerifiedUser} size={18} className="text-on-surface-variant" />}
-            Предложить по истории
-          </button>
-        </Tooltip>
+        <Button title="Предложить связи по истории привязок (для строк, где нет подсказки из библиотеки)" variant="outlined" onClick={handleSuggest} disabled={materials.length === 0} loading={suggesting}
+          icon={<Icon icon={VerifiedUser} size={18} />}>
+          Предложить по истории
+        </Button>
       </div>
 
       <p className="text-body-small text-on-surface-variant">

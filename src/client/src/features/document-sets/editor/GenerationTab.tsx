@@ -250,12 +250,9 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
           <div className="flex items-center justify-between">
             <p className="text-body-small font-medium text-on-surface-variant">Сгенерированные файлы</p>
             {canSend && (
-              <Tooltip content="Отправить сгенерированные PDF документа по почте (подписчикам и/или на внешние адреса)">
-                <button onClick={() => setEmailOpen(true)}
-                  className="flex items-center gap-1.5 text-body-small px-2.5 py-1.5 border border-outline-variant rounded-sm state-layer">
-                  <Icon icon={Mail} size={18} className="text-primary" /> Отправить по почте
-                </button>
-              </Tooltip>
+              <Button title="Отправить сгенерированные PDF документа по почте (подписчикам и/или на внешние адреса)" variant="outlined" size="sm" onClick={() => setEmailOpen(true)} icon={<Icon icon={Mail} size={18} />}>
+                Отправить по почте
+              </Button>
             )}
           </div>
           <div className="space-y-1.5">
@@ -268,14 +265,14 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
                       не открыть неактуальную/заменяемую версию (ссылка ведёт на старое состояние).
                       Отказ из открытия доходит один — вкладку не дали открыть: об отказе загрузки
                       говорит сама вкладка. */}
-                  <button onClick={() => { setError(''); previewGeneratedFile(instance.id, f.templateId).catch((e: Error) => setError(e.message)); }} disabled={busy}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-body-small border border-outline-variant rounded-sm state-layer disabled-outlined disabled:pointer-events-none">
-                    <Icon icon={Visibility} size={18} className="text-primary" /> Открыть
-                  </button>
-                  <button onClick={() => downloadGeneratedFile(instance.id, f.templateId)} disabled={busy}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-body-small border border-outline-variant rounded-sm state-layer disabled-outlined disabled:pointer-events-none">
-                    <Icon icon={Download} size={18} className="text-primary" /> Скачать
-                  </button>
+                  <Button variant="outlined" size="sm" disabled={busy} icon={<Icon icon={Visibility} size={18} />}
+                    onClick={() => { setError(''); previewGeneratedFile(instance.id, f.templateId).catch((e: Error) => setError(e.message)); }}>
+                    Открыть
+                  </Button>
+                  <Button variant="outlined" size="sm" disabled={busy} icon={<Icon icon={Download} size={18} />}
+                    onClick={() => downloadGeneratedFile(instance.id, f.templateId)}>
+                    Скачать
+                  </Button>
                 </div>
               );
             })}

@@ -2,7 +2,6 @@ import { formatDate } from '@/shared/format/format';
 import { useState, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Icon } from '@/shared/ui/Icon';
-import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { Add, Block, Delete, Description, Download, Edit, Language, LinkIcon, LinkOff, OpenInNew, Schedule, Search, VerifiedUser, Warning, type IconDef } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -31,7 +30,6 @@ import { matchesLink } from './qualityLinkSearch';
 import { ScopeReachNote } from './ScopeReachNote';
 import { docState, EXPIRING_SOON_DAYS, type DocState } from './docState';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
-import { Tooltip } from '@/shared/ui/Tooltip';
 
 // Метки областей — только из общего словаря (issue #649). Локальный дубль называл System «Общей»,
 // и на одном экране уровень документа и уровень его связок читались бы разными словами.
@@ -470,12 +468,10 @@ function WebSearchModal({ open, onClose, docTypes }: {
                       <Icon icon={OpenInNew} size={18} /> Открыть
                     </a>
                   </div>
-                  <Tooltip content="Скачать файл по ссылке и добавить в библиотеку (если это прямой PDF/скан)">
-                    <button onClick={() => importOne(c)} disabled={importingUrl === c.url}
-                      className="flex items-center gap-1.5 text-body-small px-2 py-1 rounded-sm border border-outline-variant state-layer disabled-outlined shrink-0">
-                      {importingUrl === c.url ? <CircularProgress size={18} /> : <Icon icon={Download} size={18} />} В библиотеку
-                    </button>
-                  </Tooltip>
+                  <Button title="Скачать файл по ссылке и добавить в библиотеку (если это прямой PDF/скан)" variant="outlined" size="sm" className="shrink-0" onClick={() => importOne(c)}
+                    loading={importingUrl === c.url} icon={<Icon icon={Download} size={18} />}>
+                    В библиотеку
+                  </Button>
                 </div>
               ))}
             </div>

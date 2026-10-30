@@ -10,13 +10,13 @@ import {
   resolveEffectiveFields, isSubtypeOf, isUnionType, placeInUnion,
   type SchemaField, type UnionPlacement, type UnionSource,
 } from '@/shared/api/schema';
-import { STATUS_COLORS, STATUS_LABELS } from './constants';
 import { VariantPicker } from './VariantPicker';
 import { useScopeGroups } from './catalogGroups';
 import { ScopeGroupList } from './ScopeGroupList';
 import { useIsArchivedRef } from './archivedRefIds';
 import { RefPickerArchive, RefPickerCurrentArchived } from './RefPickerArchive';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { DocumentStatusBadge } from './DocumentStatusBadge';
 
 /**
  * Подпись источника-поля: «имя документа → поле», с откатом на имя типа.
@@ -445,9 +445,7 @@ function RefPickerModalBody({
                         {hint}
                       </span>
                     )}
-                    <span className={`text-body-small px-1.5 py-0.5 rounded-xs font-medium shrink-0 ${STATUS_COLORS[inst.status]}`}>
-                      {STATUS_LABELS[inst.status]}
-                    </span>
+                    <DocumentStatusBadge status={inst.status} />
                   </button>
                 );
               })}

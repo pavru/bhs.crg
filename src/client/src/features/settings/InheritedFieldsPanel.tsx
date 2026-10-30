@@ -12,6 +12,7 @@ import type { DocumentType, EnumTypeDef } from '@/shared/api/types';
 import { type SchemaField } from '@/shared/api/schema';
 import { TYPE_LABELS } from './schemaConstants';
 import { DefaultValueCell } from './FieldBuilder';
+import { Chip } from '@/shared/ui/Chip';
 
 // Реестр редакторов / диалог-гард / карточка-секция — общие для list-detail страниц (см. typeEditorShell).
 
@@ -98,12 +99,10 @@ function RequiredChip({ field, override, onOverride, onReset }: {
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
-        <button type="button"
-          className={`state-layer inline-flex items-center gap-1.5 text-body-small px-2 py-1 rounded-full ${
-            overridden ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant'}`}>
-          {overridden && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
+        {/* Выбор из меню — `Chip menu` ([UI-42]): переопределённое отмечено цветом выбранного чипа. */}
+        <Chip menu selected={overridden}>
           {overridden ? `${parentLabel} → ${effective ? 'обяз.' : 'опц.'}` : (effective ? 'обяз.' : 'опц.')}
-        </button>
+        </Chip>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="start" sideOffset={4}

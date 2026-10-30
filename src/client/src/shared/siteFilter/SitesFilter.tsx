@@ -1,7 +1,8 @@
 import * as Popover from '@radix-ui/react-popover';
 import { Icon } from '@/shared/ui/Icon';
 import { Apartment, Check, Close, Star } from '@/shared/ui/icons';
-import { useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useId, useState } from 'react';
+import { useRadioGroup } from '@/shared/ui/useRadioGroup';
 import { IconButton } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -97,27 +98,20 @@ export function SitesFilter({ hidden, partial = false }: { hidden?: number; part
 function Choices({ on, onPick, onDone, favorites, all }: {
   on: boolean; onPick: (on: boolean) => void; onDone: () => void; favorites: string; all: string;
 }) {
-  const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const items = [
     { value: true, label: 'Избранные стройки', note: favorites },
     { value: false, label: 'Все стройки', note: all },
   ];
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
-    e.preventDefault();
-    // Положений два: любая стрелка ведёт к другому.
-    const next = items.findIndex(i => i.value !== on);
-    onPick(items[next].value);
-    refs.current[next]?.focus();
-  };
+  // Положений два: любая стрелка ведёт к другому.
+  const radios = useRadioGroup(items.map(i => i.value), on, onPick);
   return (
-    <div role="radiogroup" aria-label="Какие стройки показывать" onKeyDown={onKeyDown}
+    <div role="radiogroup" aria-label="Какие стройки показывать" onKeyDown={radios.onKeyDown}
       className="-mx-2 mb-3 pb-3 border-b border-outline-variant">
       {items.map((item, i) => {
         const checked = item.value === on;
         return (
-          <button key={item.label} ref={el => { refs.current[i] = el; }} type="button" role="radio"
-            aria-checked={checked} tabIndex={checked ? 0 : -1}
+          <button key={item.label} {...radios.item(i)} type="button" role="radio"
+            aria-checked={checked}
             onClick={() => { if (!checked) onPick(item.value); onDone(); }}
             className="w-full flex items-center gap-2 h-9 px-2 rounded-sm text-left text-body-medium text-on-surface state-layer focus-ring">
             <Icon icon={Check} size={18} aria-hidden className={`shrink-0 ${checked ? 'text-primary' : 'invisible'}`} />

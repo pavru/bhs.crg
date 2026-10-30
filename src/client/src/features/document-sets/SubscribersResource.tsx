@@ -10,6 +10,7 @@ import {
 import { SendMessageDialog } from '@/shared/ui/SendMessageDialog';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { IconButton } from '@/shared/ui/Button';
+import { Button } from '@/shared/ui/Button';
 
 /**
  * Содержимое «Подписчики» для ЛЮБОГО scope (issue #210, ось видимости): тулбар «Сообщение» +
@@ -102,10 +103,10 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
             placeholder="Добавить подписчика…" aria-label="Подписчик" className="flex-1">
             {available.map(u => <SelectItem key={u.id} value={u.id}>{u.displayName || u.email}</SelectItem>)}
           </Select>
-          <button onClick={handleAdd} disabled={!addUserId || add.isPending}
-            className="flex items-center gap-1 text-body-medium px-3 py-1.5 border border-outline rounded-sm state-layer disabled-outlined">
-            <Icon icon={Add} size={18} /> Добавить
-          </button>
+          <Button variant="outlined" onClick={handleAdd} disabled={!addUserId} loading={add.isPending}
+            icon={<Icon icon={Add} size={18} />}>
+            Добавить
+          </Button>
         </div>
       )}
 
