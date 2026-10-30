@@ -15,7 +15,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/types-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, placedBox, focusLandsOn } from './harness.mjs';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1100 } });
@@ -250,6 +250,82 @@ await check('template-params-parsed-from-declaration', async () => {
  * Запрос к API ИЗ СТРАНИЦЫ, её же токеном. Из Node это делать нельзя: адрес API у дев-сервера и у
  * собранного клиента в CI разный, а страница в обоих случаях ходит по одному и тому же `/api`.
  */
+// ── «+ Вставить поле» в окне нового типа — слой над окном (#1537, [UI-49]) ─────
+/**
+ * Список полей у формулы был `absolute` внутри окна: прокручиваемое тело и `overflow-hidden` окна его
+ * срезали, а Esc закрывал не список, а всё окно. Проверяем точкой, как календарь в окне оплаты:
+ * `elementFromPoint` в центре последнего пункта обязан попасть в сам список. Полей больше, чем
+ * помещается в окне, — расчётное последнее, и список открывается у нижнего края тела окна.
+ * Ничего не сохраняет: окно закрывается «Отменой».
+ */
+await check('insert-field-list-is-a-layer-over-the-window', async () => {
+  await page.goto(`${BASE}/document-types`, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Добавить тип документа' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Новый тип документа' });
+  await dialog.waitFor({ timeout: 10_000 });
+  // Фокус после «Добавить поле» — в «Название» новой карточки (#526): ключ выводится из него. Печатаем,
+  // только когда фокус туда встал: до этого он на кнопке, знаки пропали бы, поле осталось без ключа и
+  // выпало бы из списка — и отказ ниже винил бы слой, а не набор.
+  for (const title of ['Количество', 'Цена', 'Масса', 'Длина', 'Ширина', 'Сумма']) {
+    await dialog.getByRole('button', { name: 'Добавить поле' }).click();
+    await page.waitForFunction(() => document.activeElement?.tagName === 'INPUT', null, { timeout: 5_000 });
+    await page.keyboard.type(title);
+    const typed = await page.evaluate(() => document.activeElement?.value);
+    if (typed !== title) throw new Error(`название поля не набралось: «${typed}» вместо «${title}»`);
+  }
+  await dialog.getByText('Вычисляемое (формула)').last().click();
+  const trigger = dialog.getByRole('button', { name: '+ Вставить поле' });
+  // Кнопка — у нижнего края видимой части тела окна: список под ней обязан свисать за край. Без этого
+  // он мог поместиться и в прокручиваемом теле — и проверка не отличила бы слой от `absolute`.
+  await trigger.evaluate(el => el.scrollIntoView({ block: 'end' }));
+  await trigger.click();
+  const list = page.getByRole('dialog', { name: 'Вставить поле' });
+  await list.waitFor({ timeout: 5_000 });
+  const last = list.getByRole('button').last();
+  const box = await placedBox(last, 'список «Вставить поле»');
+  // Точка — в самом списке, а не «в каком-нибудь слое Radix»: так проверка ловит обрезку, а не способ.
+  const covered = await list.evaluate((el, [x, y]) => {
+    const hit = document.elementFromPoint(x, y);
+    return hit && el.contains(hit) ? null : (hit?.outerHTML.slice(0, 160) ?? 'за экраном');
+  }, [box.x + box.width / 2, box.y + box.height / 2]);
+  if (covered) throw new Error(`последний пункт списка не виден — в его точке: ${covered}`);
+
+  await page.keyboard.press('Escape');
+  await list.waitFor({ state: 'hidden', timeout: 5_000 });
+  if (!(await dialog.isVisible())) throw new Error('Esc в списке закрыл окно нового типа');
+  await focusLandsOn(trigger, 'после Esc фокус не вернулся на «+ Вставить поле»');
+  // Tab с последнего пункта — дальше по форме, в формулу: слой в конце body, вне порядка Tab окна.
+  await trigger.click();
+  await list.waitFor({ timeout: 5_000 });
+  await last.focus();
+  await page.keyboard.press('Tab');
+  await list.waitFor({ state: 'hidden', timeout: 5_000 });
+  if (!(await page.evaluate(() => document.activeElement?.tagName === 'TEXTAREA')))
+    throw new Error('Tab с последнего пункта не увёл фокус в формулу');
+  // Кнопку прокрутили из видимой части тела окна — список закрывается, а не прячется с фокусом в
+  // невидимом фильтре; фокус — на кнопке. Окно браузера ниже: при высоте 1100 тело окна прокручивается
+  // всего на треть экрана, и кнопку из вида не унести ни в одну сторону.
+  const viewport = page.viewportSize();
+  await page.setViewportSize({ width: viewport.width, height: 700 });
+  try {
+    await trigger.evaluate(el => el.scrollIntoView({ block: 'end' }));
+    await trigger.click();
+    await list.waitFor({ timeout: 5_000 });
+    const frame = await dialog.boundingBox();
+    await page.mouse.move(frame.x + 40, frame.y + frame.height / 2);
+    await page.mouse.wheel(0, -3000);
+    // Ждём закрытия, а не невидимости: спрятанный `hideWhenDetached` слой Playwright тоже считает hidden.
+    await list.waitFor({ state: 'detached', timeout: 5_000 }).catch(() => {
+      throw new Error('кнопку прокрутили из вида, а список только спрятан: фокус и набор — в невидимом фильтре');
+    });
+    await focusLandsOn(trigger, 'список закрылся прокруткой, но фокус не на «+ Вставить поле»');
+  } finally {
+    await page.setViewportSize(viewport);
+  }
+  await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
+  await dialog.waitFor({ state: 'hidden', timeout: 5_000 });
+});
+
 async function api(method, path, body) {
   return page.evaluate(async ([m, p, b]) => {
     const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');

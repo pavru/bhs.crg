@@ -217,6 +217,40 @@ describe('храповик интерфейса: счёт', () => {
     ].join('\n'), { dir: 'shared' })).toEqual({});
   });
 
+  it('ручной выпадающий список: формы сегодняшних мест, в том числе без top-full (#1537)', () => {
+    const text = [
+      // «+ Вставить поле» (FieldBuilder) и «Реквизит» (EditorPanel)
+      '{pickOpen && (\n  <div className="absolute right-0 top-full mt-1 z-50 w-64 bg-surface">x</div>\n)}',
+      '{open && (<div className="absolute top-full left-0 mt-1 z-50 w-80">x</div>)}',
+      // «Сохранить как новую версию…» до SplitButton (#1696) и «Перенести в группу» — без top-full
+      '{saveMenuOpen && <div className="absolute top-full right-0 mt-1 z-50 w-72">x</div>}',
+      '{menuOpen && (\n  <div className="absolute z-10 mt-1 w-52 rounded-sm">x</div>\n)}',
+      // цепочка, оканчивающаяся условием «открыт», тернарник и обход через fixed
+      '{canEdit && listOpen && <ul className="absolute top-full" />}',
+      '{open ? <div className={`absolute ${side}`}>x</div> : null}',
+      '{menuOpen && <div style={pos} className="fixed z-50">x</div>}',
+    ].join('\n');
+    expect(countViolations(text)).toEqual({ 'manual-dropdown': 7 });
+    expect(countViolations(text, { dir: 'shared' })).toEqual({ 'manual-dropdown': 7 });
+  });
+
+  it('наложения, вопрос окна и слой не по условию «открыт» выпадающим списком не считаются', () => {
+    expect(countViolations([
+      '{dragOver && <div className="absolute inset-0 z-10 bg-primary/10" />}',
+      '{dragging && (<div className="absolute inset-0" />)}',
+      '{asking && <div className="absolute inset-0 z-10" />}',
+      '{keyConflict ? <span className="absolute right-2" /> : null}',
+      '{open ? null : <div className="absolute top-full" />}',
+      '{open && <div className="md:absolute top-full" />}',
+      '{open && <Panel className="absolute top-full" />}',
+      '{open && <div className="relative top-full" />}',
+      '{open || <div className="absolute" />}',
+      // возможность, а не состояние: под ней значок или кнопка, а не список
+      '{canOpen && <span className="absolute right-1 top-1" />}',
+      '{shouldOpen && <div className="absolute" />}',
+    ].join('\n'), { dir: 'shared' })).toEqual({});
+  });
+
   it('нативное поле даты: литерал, выражение и TextField — по одному на поле', () => {
     const text = [
       '<input type="date" /> <input\n  onChange={e => go(e)}\n  type="month">',

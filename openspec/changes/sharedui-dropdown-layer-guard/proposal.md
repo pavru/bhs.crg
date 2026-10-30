@@ -17,12 +17,13 @@ Issue #1537 (список «+ Вставить поле» в окне новог
 ## What Changes
 
 - **«+ Вставить поле»** → Radix `Popover` (в нём поле фильтра — это поповер, а не меню): портал в body
-  без `container`, вид слоя `bg-surface` / `border-stroke` / `shadow16`, Esc и щелчок мимо закрывают
+  без `container`, вид слоя `bg-surface` / `border-outline-variant` / `shadow-elevation-2`, Esc и щелчок мимо закрывают
   список, а не окно, фокус возвращается на кнопку (`docs/UI.md`, «Слои над окном»).
 - **Правило храповика `manual-dropdown`** — ручной выпадающий список: элемент с `absolute` в
   `className`, который рисуется по условию «открыт» (`open && …`, `xxxOpen && …`). По синтаксическому
   дереву, как `portal-container`; область — `features/` и `shared/`. Правило обязано сработать на
-  сегодняшних четырёх местах; уровень после этой задачи — три места из #1538.
+  сегодняшних местах (их три: меню сохранения в #1696 ушло на `SplitButton`); уровень после этой
+  задачи — два места из #1538.
 - **Живой прогон:** в окне «Новый тип документа» добавить расчётное поле, открыть «+ Вставить поле» —
   центр последнего пункта попадает в список (`elementFromPoint`); Esc закрывает список, окно остаётся.
 - `docs/UI.md`, «Кто сторожит» — строка о правиле; `CLAUDE.md` и `AGENTS.md` — пункт в перечень
@@ -39,9 +40,10 @@ Issue #1537 (список «+ Вставить поле» в окне новог
 
 ## Impact
 
-- **Клиент:** `features/settings/FieldBuilder.tsx` (в уровне размера, 654 строки — только худеет).
+- **Клиент:** `features/settings/FieldBuilder.tsx` (в уровне размера — худеет: редактор формулы уходит в
+  `ComputedFieldEditor.tsx`).
 - **Храповик:** `src/client/scripts/ui-ratchet-lib.mjs`, `ui-ratchet.mjs`, `ui-ratchet.test.mjs`,
-  `src/client/ui-baseline.json` (`manual-dropdown`: `EditorPanel` — 2, `PdfGroupingEditor` — 1).
+  `src/client/ui-baseline.json` (`manual-dropdown`: `EditorPanel` — 1, `PdfGroupingEditor` — 1); предикат — `ui-ratchet-layers.mjs`.
 - **Живые прогоны:** `types` — новая проверка окна нового типа.
 - **Документы:** `docs/UI.md`, `CLAUDE.md`, `AGENTS.md`.
 - **Сервер:** не меняется.
