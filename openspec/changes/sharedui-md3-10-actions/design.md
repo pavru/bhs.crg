@@ -12,30 +12,38 @@
 
 ## Context
 
-Сверено по master `1e81da2e`; вне тестов.
+Сверено по master `b32abb6c` (31.10.2026, после архива всех предусловий 0.2 зонтика); вне тестов.
 
-**`Button`** (`shared/ui/Button.tsx`):
-- `size` `sm`/`md`/`lg` — `h-8`/`h-9`/`h-10`, у `sm` подпись `text-xs`;
-- `danger` (filled — `brightness-*`), `multiline`, `loading` (`Loader2`);
-- filled несёт `shadow4`;
-- 420 мест в 156 файлах, `size="sm"` — у ≥ 242.
+**`Button`** (`shared/ui/Button.tsx`, общие классы — `buttonClasses.ts`):
+- `size` `sm`/`md`/`lg` — `h-8`/`h-9`/`h-10`, у `sm` подпись `text-body-small`;
+- `danger` (filled — `bg-error`), `multiline` (`min-h-*`), `loading` (`CircularProgress`);
+- filled несёт `shadow-elevation-1` всегда (`FILLED_SHADOW`);
+- 449 мест в 162 файлах; `size=` у `Button` и `IconButton` — 381 место в 156 файлах (`sm` 335, `lg` 8,
+  `md` 1).
 
-**`IconButton`** (тот же файл): `h-8/9/10`, `danger` (`hover:text-danger`). 44 места в 23 файлах, и ещё
-87 самоделок (уровень `icon-button`, до 0.2 зонтика).
+**`IconButton`** (тот же файл): `h-8/9/10`, `danger`. 138 мест в 70 файлах; самоделок нет (уровень
+`icon-button` — 0, `sharedui-icon-button-screens`).
+
+**`SplitButton`** ([UI-83], `sharedui-split-button`): обе половины собраны из `buttonClasses.ts` —
+основная часть `SIZE.md`, стрелка `HEIGHT.md`. Одно место — `EditorPanel`.
 
 **`Chip`** (`Chip.tsx`):
-- `rounded-full border text-xs`;
+- `rounded-full border text-body-small`, выбранный — `primary-container` с контуром `primary`;
 - свойства `selected`, `tone`, `dashed`, `count`, `onRemove`, `menu`, `role="radio"`;
-- 17 мест в 12 файлах;
-- чипы условий — `shared/filter/FilterChips`, 4 места.
+- 43 места в 28 файлах; `tone` или `dashed` — 11 мест в 9 файлах, вместе с `shared/filter/RowFilterValue`
+  и `shared/siteFilter/SitesFilter`;
+- чипы условий — `shared/filter/FilterChips`.
 
-**`Tabs variant="segmented"`** — три места:
-- `TemplatesPage` и `ImportDialog` переключают `TabPanel`;
-- `CostViewsBand` выбирает значение без панели.
+**`Tabs variant="segmented"`** — 8 мест в 6 файлах (`sharedui-chip-badge-tabs-screens` добавил пять):
+- с панелью (`TabPanel`) — `TemplatesPage`, `ImportDialog`, `LinkPickerModal`, `CostViewsBand` (панель
+  затрат ссылается на его идентификатор);
+- без панели (`panels={false}`) — `SiteCostsPage` («Суммы», «Срез») и `PrimitiveTypesPage` («Точность»,
+  «Базовый тип»), по 2–3 варианта.
 
 `Tabs` — APG tablist с ручной активацией. Почему: уход с вкладки может спросить про несохранённое.
 
-**`PrimaryFab`:** `h-14 rounded-2xl bg-tonal`, `boxShadow: var(--f-shadow28)`.
+**`PrimaryFab`:** `h-14 rounded-lg bg-secondary-container shadow-elevation-3` — форма и тень уже по
+шкале (06), контейнер — `secondary-container` вместо `primary-container`.
 
 **Предшественники:**
 - форма и тени — 06;
@@ -57,7 +65,8 @@
 **Non-Goals:**
 - **Поведение** — клавиатура, `aria-*`, договор `Tooltip` у неактивной кнопки — не меняется. Исключение
   одно: выбор значения сегментами становится `radiogroup` (ниже).
-- **Toggle button и split button M3 Expressive** — не заводятся (зонтик, Non-Goals).
+- **Toggle button M3 Expressive** — не заводится (зонтик, Non-Goals). Split-кнопка уже есть ([UI-83]);
+  здесь она только получает высоту 40 и `label-large` через общие классы `buttonClasses.ts`.
 - **Чипы-пометки состояния** — это 12 (`StatusText`). Индикатор состояния счёта — потребитель, экран Г.
 
 ## Decisions
@@ -67,6 +76,10 @@
 Свойство удаляется из типа, и `tsc -b` находит каждое место. Кодмод снимает `size="sm|md|lg"` у
 `Button` и `IconButton`. `IconButton` в `md3-migrate.mjs` — по имени тега, иначе он задел бы `size`
 у `Checkbox`.
+
+`ButtonSize`, `HEIGHT` и `SIZE` в `buttonClasses.ts` сводятся к одной высоте. `SplitButton` берёт их
+оттуда же и получает 40 px без своей правки: требование [UI-83] «одной высоты с кнопкой того же
+варианта» держится общими классами, а не числом в двух местах.
 
 **Отвергнуто — оставить `size` и рисовать все размеры по 40.** Мёртвое свойство обещает плотность,
 которой нет, и следующий экран попросит «маленькую кнопку».
@@ -101,11 +114,15 @@
 
 **Отвергнуто — `min-h-12` на телефоне.** Строки и панели выросли бы на 8 px.
 
+**Отвергнуто — условие по ширине экрана (`< 768 px`).** Цель нужна пальцу, а не узкому окну: планшет с
+касанием шире 768 px, а узкое окно с мышью её не требует. Живой прогон на пресете `mobile` эмулирует
+касание, так что проверка 1.4 видит `pointer: coarse`.
+
 ### `Chip`: три вида вместо тонов
 
 - **`kind`.** `filter` — по умолчанию; при `selected` — переключатель. `input` — при `onRemove`.
   `assist` — новый, вместо `dashed`.
-- **`tone`** удаляется. Его 12 мест переходят на `icon` со знаком цвета роли: `iconTone: 'error' |
+- **`tone`** удаляется. Его 11 мест (с `dashed`, 9 файлов) переходят на `icon` со знаком цвета роли: `iconTone: 'error' |
   'warning'`. Это не контейнер: цвет у знака, а не у чипа.
 - **`count`** остаётся текстом после подписи. В MD3 счётчика у чипа нет, но число — часть подписи
   отбора, а не badge.
@@ -119,9 +136,12 @@
 
 - **Свойство `panel` (связь с `TabPanel`).** Роли `tablist`/`tab`. Ручная активация — тот же модуль
   клавиатуры, что у `Tabs`, без копии.
-- **Без `panel`.** `radiogroup`/`radio` по APG: стрелки двигают выбор. Сегодня `CostViewsBand` ставит
-  вкладки без панели, что неверно для диктора. Переключение взгляда — лишь запрос, мгновенный выбор
-  стрелкой безопасен.
+- **Без `panel`.** `radiogroup`/`radio` по APG: стрелки двигают выбор. Сегодня четыре места
+  (`SiteCostsPage` ×2, `PrimitiveTypesPage` ×2) ставят вкладки с `panels={false}` — `tab` без панели,
+  что неверно для диктора. Их выбор — запрос отчёта или значение формы, мгновенный выбор стрелкой
+  безопасен.
+- **`CostViewsBand` — с `panel`.** Панель затрат ссылается на его идентификатор, взгляд переключает
+  содержимое: остаётся вкладками с ручной активацией.
 - **`multiple`** — `aria-pressed` у сегментов, на будущее отбора.
 - У `Tabs` вида `segmented` больше нет. Правило храповика `tabs` не меняется: роли у `SegmentedButton` —
   в `shared/`.
@@ -132,7 +152,8 @@
 ### FAB
 
 `PrimaryFab` — `bg-primary-container text-on-primary-container rounded-lg shadow-elevation-3`,
-при наведении — уровень 4. Своего `style` нет (`legacy-shadow`, 06).
+подпись `label-large`, при наведении — уровень 4. Форма и тень уже стоят (06); меняются контейнер
+(`secondary-container` → `primary-container`), подпись и наведение. Своего `style` нет.
 
 ### Сторожа
 
@@ -142,19 +163,19 @@
 
 ## Risks / Trade-offs
 
-- **[Кнопки 32 → 40 у 242 мест: панели и строки выше, колонки действий шире (`fixed-width`)]** → три
+- **[Кнопки 32 → 40 у 335 мест: панели и строки выше, колонки действий шире (`fixed-width`)]** → три
   макета на плотных местах до кода. Живые прогоны с размерами правятся в том же PR, ширины колонок —
   перепроверить.
 - **[Цель 48 у соседних кнопок-иконок перекрывается]** → `inset: -4px` у двух соседних 40 px при зазоре
   0 даёт перекрытие 8 px. Нажатие достаётся верхней. Зазор в рядах кнопок-иконок — не меньше 4 px; так в
   `RowActionsMenu`, проверить в прогоне.
-- **[`radiogroup` меняет клавиатуру одного места]** → названо в спецификации. Живой прогон
-  `CostViewsBand` переписывается тем же PR.
-- **[Отложенный `tone` у 12 файлов]** → их переводит этот же PR 2: тип не даст забыть.
+- **[`radiogroup` меняет клавиатуру четырёх мест]** (`SiteCostsPage`, `PrimitiveTypesPage`) → названо в
+  спецификации ([UI-42], [UI-68]). Живые прогоны затрат по стройке и типов переписываются тем же PR.
+- **[Отложенный `tone` у 9 файлов]** → их переводит этот же PR 2: тип не даст забыть.
 
 ## Migration Plan
 
-- **PR 1:** `Button`, `IconButton`, FAB, кодмод `size`.
-- **PR 2:** `Chip`, `FilterChips`, `SegmentedButton` и три места сегментов.
+- **PR 1:** `Button`, `IconButton`, `buttonClasses.ts` (и с ним `SplitButton`), FAB, кодмод `size`.
+- **PR 2:** `Chip`, `FilterChips`, `SegmentedButton` и восемь мест сегментов.
 
 Каждый — с полным списком живых прогонов. Откат — ревёрт PR. До 20 псевдонимы держат цвет.
