@@ -133,7 +133,30 @@ export function migrateSizes(text, file = 'file.tsx') {
   edits.sort((a, b) => b[0] - a[0]);
   let out = text;
   for (const [from, to, by] of edits) out = out.slice(0, from) + by + out.slice(to);
-  return { text: out, replaced, untouched };
+  return { text: dropUnusedIcon(out, file), replaced, untouched };
+}
+
+/** Знак ушёл в `icon`, и импорт `Icon` мог остаться без употребления — `tsc -b` отказал бы на нём. */
+function dropUnusedIcon(text, file) {
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  for (const st of sf.statements) {
+    const named = ts.isImportDeclaration(st) && st.importClause?.namedBindings;
+    if (!named || !ts.isNamedImports(named) || !/(?:^|\/)Icon$/.test(st.moduleSpecifier.text)) continue;
+    const el = named.elements.find(e => e.name.text === 'Icon' && !e.propertyName);
+    if (!el) continue;
+    const rest = text.slice(0, st.getFullStart()) + text.slice(st.end);
+    if (/\bIcon\b/.test(rest)) return text;
+    if (named.elements.length === 1 && !st.importClause.name) {
+      const end = text[st.end] === '\n' ? st.end + 1 : text.slice(st.end, st.end + 2) === '\r\n' ? st.end + 2 : st.end;
+      return text.slice(0, st.getStart(sf)) + text.slice(end);
+    }
+    const i = named.elements.indexOf(el);
+    const [from, to] = i < named.elements.length - 1
+      ? [el.getStart(sf), named.elements[i + 1].getStart(sf)]
+      : [named.elements[i - 1].end, el.end];
+    return text.slice(0, from) + text.slice(to);
+  }
+  return text;
 }
 
 /** Отчёт текстом: что снято по видам, затем нетронутое с `файл:строка`. */

@@ -5,7 +5,8 @@ import { migrateSizes } from './md3-size-migrate.mjs';
 // в md3-size-migrate.mjs.
 const BUTTON = "import { Button, IconButton } from '@/shared/ui/Button';\nimport { Icon } from '@/shared/ui/Icon';\n";
 const run = body => migrateSizes(BUTTON + body, 'src/x.tsx');
-const out = body => run(body).text.slice(BUTTON.length);
+// Тело без строк импорта: импорт `Icon` проход снимает, когда знак ушёл в `icon`.
+const out = body => run(body).text.replace(/^import .*\n/gm, '');
 
 describe('md3:migrate: размер кнопок', () => {
   it('снимает size у Button на любой позиции атрибута', () => {
@@ -47,8 +48,18 @@ describe('md3:migrate: размер кнопок', () => {
 
   it('ребёнок другого вида — в отчёт, без замены', () => {
     const r = run('<IconButton label="x"><span>×</span></IconButton>');
-    expect(r.text.slice(BUTTON.length)).toBe('<IconButton label="x"><span>×</span></IconButton>');
+    expect(r.text.replace(/^import .*\n/gm, '')).toBe('<IconButton label="x"><span>×</span></IconButton>');
     expect(r.untouched).toHaveLength(1);
+  });
+
+  it('импорт Icon без употребления снимается, с употреблением — остаётся', () => {
+    const gone = migrateSizes(BUTTON + '<IconButton label="x"><Icon icon={A} size={18} /></IconButton>', 'src/x.tsx').text;
+    expect(gone).not.toContain("import { Icon }");
+    const kept = migrateSizes(BUTTON + '<IconButton label="x"><Icon icon={A} size={18} /></IconButton><Icon icon={B} />', 'src/x.tsx').text;
+    expect(kept).toContain("import { Icon }");
+    const shared = migrateSizes("import { Icon, Spinner } from './Icon';\nimport { IconButton } from './Button';\n"
+      + '<IconButton label="x"><Icon icon={A} size={18} /></IconButton>', 'src/x.tsx').text;
+    expect(shared).toContain("import { Spinner } from './Icon';");
   });
 
   it('повторный запуск ничего не меняет', () => {
