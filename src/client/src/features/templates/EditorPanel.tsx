@@ -23,6 +23,7 @@ import { flattenFields } from './templateBlank';
 import type * as monacoEditor from 'monaco-editor';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { MENU_ITEM, MENU_SURFACE } from '@/shared/ui/menuClasses';
+import { markLayerFocus } from '@/shared/ui/layerFocus';
 
 // ─── Requisite picker ─────────────────────────────────────────────────────────
 
@@ -52,7 +53,9 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
           className={`z-50 w-80 max-h-[min(20rem,var(--radix-dropdown-menu-content-available-height))] flex flex-col ${MENU_SURFACE}`}
           onCloseAutoFocus={e => {
             const path = chosen.current;
-            if (path == null) return;
+            // Закрыли без выбора — фокус на «Реквизит» Radix вернёт сам, следом за этим обработчиком.
+            // Помечаем его как фокус слоя: иначе подсказка кнопки откроется сама и первый Esc достанется ей.
+            if (path == null) { markLayerFocus(); return; }
             chosen.current = null;
             e.preventDefault();
             onInsert(`#get("${path}")`);
@@ -63,12 +66,12 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
           {fields.length === 0 ? (
             <p className="px-3 py-4 text-body-small text-on-surface-variant text-center">Нет реквизитов</p>
           ) : (
-            <div className="py-1 overflow-y-auto">
+            <div className="py-1 overflow-y-auto overflow-x-hidden">
               {fields.map(f => {
                 const pad = { paddingLeft: `${0.75 + f.depth * 1}rem` };
                 const row = (
                   <>
-                    <code className="text-body-small font-mono text-on-primary-container bg-primary-container px-1.5 py-0.5 rounded-xs shrink-0 max-w-[160px] truncate">
+                    <code className="text-body-small font-mono text-on-primary-container bg-primary-container px-1.5 py-0.5 rounded-xs min-w-0 max-w-[160px] truncate">
                       {f.path}
                     </code>
                     <span className="text-body-small text-on-surface-variant truncate flex-1">{f.title}</span>

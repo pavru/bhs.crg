@@ -137,12 +137,20 @@ describe('EditorPanel: «Реквизит»', () => {
     expect(document.activeElement).toBe(screen.getByTestId('editor'));
   });
 
-  it('Esc закрывает меню без вставки, фокус — на «Реквизит»', async () => {
-    renderWithFields();
-    const trigger = await openPicker();
-    await act(async () => { fireEvent.keyDown(screen.getAllByRole('menuitem')[0], { key: 'Escape' }); }); await act(tick);
-    expect(screen.queryByRole('menu')).toBeNull();
-    expect(executeEdits).not.toHaveBeenCalled();
-    expect(document.activeElement).toBe(trigger);
+  it('Esc закрывает меню без вставки, фокус — на «Реквизит», и его подсказка не открывается сама', async () => {
+    // В jsdom программный фокус не :focus-visible, а в браузере после Esc — да: без этой подмены
+    // подсказка не открылась бы и без отметки фокуса слоя, и тест молчал бы.
+    const matches = Element.prototype.matches;
+    const spy = vi.spyOn(Element.prototype, 'matches')
+      .mockImplementation(function (this: Element, sel: string) { return sel === ':focus-visible' || matches.call(this, sel); });
+    try {
+      renderWithFields();
+      const trigger = await openPicker();
+      await act(async () => { fireEvent.keyDown(screen.getAllByRole('menuitem')[0], { key: 'Escape' }); }); await act(tick);
+      expect(screen.queryByRole('menu')).toBeNull();
+      expect(executeEdits).not.toHaveBeenCalled();
+      expect(document.activeElement).toBe(trigger);
+      expect(screen.queryByRole('tooltip')).toBeNull();
+    } finally { spy.mockRestore(); }
   });
 });
