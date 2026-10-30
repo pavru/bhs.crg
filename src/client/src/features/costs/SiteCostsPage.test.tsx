@@ -123,7 +123,7 @@ describe('учётный период', () => {
     await screen.findByRole('row', { name: /Итого затраты/ });
     month('по', '08');
     expect(segment('по')).toHaveProperty('value', '08');
-    fireEvent.blur(segment('по'), { relatedTarget: screen.getByRole('button', { name: 'с НДС' }) });
+    fireEvent.blur(segment('по'), { relatedTarget: screen.getByRole('tab', { name: 'с НДС' }) });
     await waitFor(() => expect(asked()).toContain('2026-08|2026-08'));
     expect(asked()).not.toContain('2026-09|2026-08');
     expect(segment('с')).toHaveProperty('value', '08');
@@ -133,13 +133,13 @@ describe('учётный период', () => {
     mount(filterOf([]), 'from=2026-09&to=2026-10');
     await screen.findByRole('row', { name: /Итого затраты/ });
     month('по', '08');
-    const without = screen.getByRole('button', { name: 'без НДС' });
+    const without = screen.getByRole('tab', { name: 'без НДС' });
     // Одним тактом, без отрисовки между: в браузере щелчок приходит раньше, чем адрес перерисован.
     act(() => {
       fireEvent.blur(segment('по'), { relatedTarget: without });
       fireEvent.click(without);
     });
-    await waitFor(() => expect(without).toHaveProperty('ariaPressed', 'true'));
+    await waitFor(() => expect(without.getAttribute('aria-selected')).toBe('true'));
     expect(asked().at(-1)).toBe('2026-08|2026-08');
     expect(segment('с')).toHaveProperty('value', '08');
   });
@@ -165,7 +165,7 @@ describe('учётный период', () => {
     await screen.findByRole('row', { name: /Итого затраты/ });
     const before = asked().length;
     month('с', '');
-    fireEvent.blur(segment('с'), { relatedTarget: screen.getByRole('button', { name: 'с НДС' }) });
+    fireEvent.blur(segment('с'), { relatedTarget: screen.getByRole('tab', { name: 'с НДС' }) });
     expect(asked().slice(before).filter(p => p !== '2026-09|2026-09')).toEqual([]);
     expect(screen.queryByRole('button', { name: 'Очистить дату' })).toBeNull();
   });

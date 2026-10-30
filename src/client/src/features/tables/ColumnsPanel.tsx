@@ -12,6 +12,7 @@ import {
 } from './tableViewState';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { Chip } from '@/shared/ui/Chip';
 
 /**
  * Выбор колонок таблицы (ТЗ CORE-33; задача G1e, issue #1092): какие показаны и в каком порядке,
@@ -55,11 +56,10 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
   return (
     <Popover.Root open={open} onOpenChange={toggle}>
       <Popover.Trigger asChild>
-        <button type="button"
-          className="inline-flex items-center gap-1.5 rounded-sm border border-outline-variant px-2.5 py-1 text-body-small text-on-surface-variant hover:text-on-surface state-layer">
-          <Icon icon={ViewColumn} size={18} aria-hidden />
+        {/* В ряду чипов отбора — `Chip menu` ([UI-42], #1416); свой набор колонок отмечен цветом выбранного. */}
+        <Chip menu selected={!!view.columns} icon={ViewColumn}>
           {view.columns ? `Колонки: ${shown.length} из ${all.length}` : 'Колонки'}
-        </button>
+        </Chip>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="end" sideOffset={6} aria-label="Колонки и итоги"

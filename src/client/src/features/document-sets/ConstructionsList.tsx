@@ -20,7 +20,7 @@ import { usePaletteIntent } from '@/shared/ui/usePaletteIntent';
 import { useIdIndicators } from './useIdIndicators';
 import { HiddenByWorkspace } from '@/shared/ui/WorkspaceNav';
 import type { Construction } from '@/shared/api/types';
-import { STATUS_LABELS, STATUS_COLORS } from './fields';
+import { DocumentStatusBadge } from './fields';
 import { useSiteFilter, useSiteFilterState } from '@/shared/siteFilter/siteFilterContext';
 import { FavoriteStar } from '@/shared/siteFilter/SiteFilterNotes';
 import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
@@ -28,6 +28,7 @@ import { useToast } from '@/shared/ui/Toast';
 import { apiError } from '@/shared/utils/apiError';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { documentPath } from './documentPath';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
 
 // ── Список строек и поиск по документам ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -79,9 +80,7 @@ function DocumentSearchPanel() {
                         {filter.active && !filter.favorites.has(r.constructionId) && <span> · ☆ не в избранном</span>}
                       </div>
                     </div>
-                    <span className={`text-body-small px-2 py-0.5 rounded-xs font-medium shrink-0 ${STATUS_COLORS[r.status] ?? 'bg-surface-container text-on-surface-variant'}`}>
-                      {STATUS_LABELS[r.status] ?? r.status}
-                    </span>
+                    <DocumentStatusBadge status={r.status} />
                   </button>
                 </li>
               ))}
@@ -234,7 +233,7 @@ export function ConstructionsList() {
                 {c.sections.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {c.sections.slice(0, 4).map(s => (
-                      <span key={s.id} className="text-body-small bg-primary-container text-on-primary-container px-2 py-0.5 rounded-full">{s.name}</span>
+                      <StatusBadge key={s.id}>{s.name}</StatusBadge>
                     ))}
                     {c.sections.length > 4 && (
                       <span className="text-body-small text-on-surface-variant">+{c.sections.length - 4} ещё</span>

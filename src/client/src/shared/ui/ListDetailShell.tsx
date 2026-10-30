@@ -5,7 +5,7 @@ import { ArrowBack, ChevronRight } from './icons';
 import { Button } from './Button';
 import { PageHeader, type PageHeaderProps } from './PageHeader';
 import { SearchInput } from './SearchInput';
-import { Tooltip } from './Tooltip';
+import { StatusBadge } from './StatusBadge';
 import { useCoversPrimaryFab } from './primaryFabContext';
 
 
@@ -136,22 +136,14 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
       <span className={`shrink-0 ${highlight ? 'text-on-primary-container' : 'text-on-surface-variant'}`}>{icon}</span>
       <span className="flex-1 truncate text-body-medium">{label}</span>
       {progress != null && (
-        <Tooltip content={progressTitle ?? `Готовность по плану: ${progress}%`}>
-          <span
-            className={`text-label-small px-1.5 py-0.5 rounded-full shrink-0 tabular-nums ${
-              progress === 100 ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-on-surface-variant'}`}>
-            {progress}%
-          </span>
-        </Tooltip>
+        <StatusBadge count tone={progress === 100 ? 'success' : 'neutral'} title={progressTitle ?? `Готовность по плану: ${progress}%`}>
+          {progress}%
+        </StatusBadge>
       )}
       {alert != null && alert > 0 && (
-        <Tooltip content={`Требует разбора: ${alert}`}>
-          <span
-            className={`text-label-small px-1.5 py-0.5 rounded-full shrink-0 ${
-              alertDanger ? 'bg-error-container text-on-error-container' : 'bg-warning-container text-on-warning-container'}`}>
-            {alert > 99 ? '99+' : alert}
-          </span>
-        </Tooltip>
+        <StatusBadge count tone={alertDanger ? 'danger' : 'warning'} title={`Требует разбора: ${alert}`}>
+          {alert > 99 ? '99+' : alert}
+        </StatusBadge>
       )}
       {chevron ? (
         <>
@@ -159,10 +151,11 @@ export function NavItem({ icon, label, count, active, chevron, filter, onClick, 
           <Icon icon={ChevronRight} size={18} className="shrink-0 text-on-surface-variant" />
         </>
       ) : note ? (
-        <span className="text-label-small px-1.5 py-0.5 rounded-full shrink-0 bg-surface-container text-on-surface-variant">{note}</span>
+        <StatusBadge>{note}</StatusBadge>
       ) : (
         count != null && count > 0 && (
-          <span className={`text-label-small px-1.5 py-0.5 rounded-full shrink-0 ${highlight ? 'bg-surface text-primary' : 'bg-primary-container text-on-primary-container'}`}>{count}</span>
+          // На выделенной строке (заливка primary-container) бренд слился бы с фоном — счётчик там тихий.
+          <StatusBadge count tone={highlight ? 'neutral' : 'brand'}>{count}</StatusBadge>
         )
       )}
     </button>

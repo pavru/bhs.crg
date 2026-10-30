@@ -1,3 +1,4 @@
+import { useRef, type KeyboardEvent } from 'react';
 import {
   useLocale, LOCALE_OPTIONS, SYSTEM_LOCALE, resolveLocale,
 } from '@/shared/hooks/useLocale';
@@ -24,6 +25,17 @@ export function AppearanceSection() {
 
   const resolved = resolveLocale(locale);
 
+  const localeRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const onLocaleKey = (e: KeyboardEvent) => {
+    const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    const at = Math.max(0, LOCALE_OPTIONS.findIndex(o => o.value === locale));
+    const next = (at + step + LOCALE_OPTIONS.length) % LOCALE_OPTIONS.length;
+    setLocale(LOCALE_OPTIONS[next].value);
+    localeRefs.current[next]?.focus();
+  };
+
   /**
    * ⚠️ «Сохранено» показывается ПО ОТВЕТУ СЕРВЕРА, а не по нажатию (ревью PR #1000). Прежняя
    * редакция зажигала надпись сразу: при отказе запроса выбор откатывался на глазах, а зелёное
@@ -47,21 +59,26 @@ export function AppearanceSection() {
         <ThemeToggle label="Тема оформления, личная настройка" />
       </div>
 
-      <div className="text-body-small text-on-surface-variant">Язык и формат дат</div>
+      <div className="text-body-small text-on-surface-variant" id="profile-locale-label">Язык и формат дат</div>
       <p className="text-body-small text-on-surface-variant">
         Определяет формат дат и чисел в интерфейсе. Тема и язык хранятся в учётной записи и
         приедут на любой компьютер, где вы войдёте.
       </p>
 
-      <div className="space-y-1">
-        {LOCALE_OPTIONS.map(opt => {
+      {/* Выбор одного из вариантов — радиогруппа по APG ([UI-44], #1416): одна остановка Tab, стрелки
+          переводят выбор. Прежде — кнопки с aria-pressed, и диктор называл пять независимых переключателей. */}
+      <div role="radiogroup" aria-labelledby="profile-locale-label" onKeyDown={onLocaleKey} className="space-y-1">
+        {LOCALE_OPTIONS.map((opt, i) => {
           const isSelected = locale === opt.value;
           return (
             <button
               key={opt.value}
+              ref={el => { localeRefs.current[i] = el; }}
               type="button"
+              role="radio"
+              aria-checked={isSelected}
+              tabIndex={isSelected ? 0 : -1}
               onClick={() => setLocale(opt.value)}
-              aria-pressed={isSelected}
               className={`state-layer w-full flex items-center gap-3 px-3 py-2 rounded-sm text-body-medium text-left ${
                 isSelected
                   ? 'bg-primary-container border border-primary-container text-on-primary-container'

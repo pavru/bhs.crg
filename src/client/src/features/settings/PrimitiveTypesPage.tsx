@@ -43,6 +43,9 @@ import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry } from './typeEditorRegistry';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
+import { Chip } from '@/shared/ui/Chip';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { Tabs } from '@/shared/ui/Tabs';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -183,16 +186,9 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
     <div className="space-y-3">
       <div>
         <label className="block text-body-medium font-medium text-on-surface mb-1">Точность</label>
-        <div className="inline-flex rounded-full border border-outline overflow-hidden">
-          {DATE_PRECISIONS.map(p => (
-            <button key={p.value} type="button"
-              onClick={() => p.value === 'day' ? unset('datePrecision') : set('datePrecision', p.value)}
-              className={`state-layer px-3 py-1.5 text-body-medium ${
-                precision === p.value ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant'}`}>
-              {p.label} ({dateMaskText(p.value)})
-            </button>
-          ))}
-        </div>
+        <Tabs id="date-precision" variant="segmented" aria-label="Точность" value={precision}
+          items={DATE_PRECISIONS.map(p => ({ value: p.value, label: `${p.label} (${dateMaskText(p.value)})` }))}
+          onChange={v => v === 'day' ? unset('datePrecision') : set('datePrecision', v)} />
         <p className="text-body-small text-on-surface-variant mt-1">Управляет форматом ввода/отображения. Значение хранится как полная дата.</p>
       </div>
       {/* Границы — одним периодом (#1464): «по» не раньше «с», и поправку делает поле, а не сохранение. */}
@@ -235,23 +231,13 @@ function ConstraintTester({ def }: { def: PrimitiveTypeDef }) {
 
 // ─── Segmented base-type control ────────────────────────────────────────────────
 
+/** Базовый тип — сегментные вкладки (#1416, [UI-42]); у созданного типа он заперт целиком. */
 function BaseTypeSegmented({ value, onChange, disabled }: {
   value: 'string' | 'number' | 'date'; onChange: (v: 'string' | 'number' | 'date') => void; disabled?: boolean;
 }) {
   return (
-    <div className={`inline-flex rounded-full border border-outline overflow-hidden ${disabled ? 'opacity-60' : ''}`}>
-      {BASE_TYPES.map(bt => {
-        const icon = baseTypeIcon(bt.value);
-        const on = value === bt.value;
-        return (
-          <button key={bt.value} type="button" disabled={disabled} onClick={() => onChange(bt.value)}
-            className={`state-layer flex items-center gap-1.5 px-4 py-1.5 text-body-medium disabled:cursor-not-allowed ${
-              on ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant'}`}>
-            <Icon icon={icon} size={18} className="shrink-0" /> {bt.label}
-          </button>
-        );
-      })}
-    </div>
+    <Tabs id="base-type" variant="segmented" aria-label="Базовый тип" value={value} onChange={onChange}
+      items={BASE_TYPES.map(bt => ({ value: bt.value, label: bt.label, icon: baseTypeIcon(bt.value), disabled }))} />
   );
 }
 
@@ -425,12 +411,10 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
                   const on = allowedTags.includes(t.code);
                   return (
                     <Tooltip key={t.code} content={t.description}>
-                      <button type="button"
-                        onClick={() => setAllowedTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code])}
-                        className={`px-2.5 py-1 rounded-full text-body-small border transition-colors ${
-                          on ? 'bg-tertiary-container border-tertiary/50 text-on-tertiary-container' : 'border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface'}`}>
+                      <Chip selected={on}
+                        onClick={() => setAllowedTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code])}>
                         {t.label}
-                      </button>
+                      </Chip>
                     </Tooltip>
                   );
                 })}
@@ -440,12 +424,10 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
               <div className="flex flex-wrap items-center gap-1.5 pt-1">
                 <span className="text-body-small text-on-surface-variant">Тэги модуля:</span>
                 {unknownAllowed.map(code => (
-                  <Tooltip key={code} content="Тэг модуля, выключенного на этом экземпляре. Разрешение остаётся и заработает, когда модуль включат.">
-                    <span
-                      className="rounded-full border border-dashed border-outline-variant px-2 py-0.5 text-label-small text-on-surface-variant">
-                      {code}
-                    </span>
-                  </Tooltip>
+                  <StatusBadge key={code} tone="quiet"
+                    title="Тэг модуля, выключенного на этом экземпляре. Разрешение остаётся и заработает, когда модуль включат.">
+                    {code}
+                  </StatusBadge>
                 ))}
               </div>
             )}
@@ -577,25 +559,16 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
             {t.preview && <span className="text-body-small truncate min-w-0">{`· ${t.preview}`}</span>}
           </span>
         </span>
-        <span className="text-label-small px-1.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant shrink-0">{t.chip}</span>
+        <StatusBadge>{t.chip}</StatusBadge>
       </button>
     );
   };
 
-  const tab = (m: Mode, label: string) => (
-    <button type="button" onClick={() => onMode(m)}
-      className={`relative flex-1 h-12 text-body-medium transition-colors ${mode === m ? 'text-primary font-medium' : 'text-on-surface-variant hover:text-on-surface-variant'}`}>
-      {label}
-      {mode === m && <span className="absolute left-0 right-0 bottom-0 h-0.5 bg-primary rounded-t-xs" />}
-    </button>
-  );
-
   return (
     <>
-      <div className="flex border-b border-outline-variant shrink-0">
-        {tab('primitive', 'Примитивные')}
-        {tab('enum', 'Перечисления')}
-      </div>
+      {/* Два списка — вкладками с ролями и клавиатурой вкладок ([UI-44]): прежде их рисовало состояние. */}
+      <Tabs id="field-type-lists" aria-label="Списки типов" value={mode} onChange={onMode} className="shrink-0"
+        items={[{ value: 'primitive', label: 'Примитивные' }, { value: 'enum', label: 'Перечисления' }]} />
       <NavSearchInput value={query} onChange={onQuery} placeholder="Поиск типа…" />
       <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5">
         {outside && (

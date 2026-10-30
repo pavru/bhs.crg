@@ -20,6 +20,7 @@ import { COST_VIEWS_ID, CostViewsBand } from './CostViewsBand';
 import { OUTSIDE_SITES } from './places';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { DateRange } from '@/shared/ui/DateRange';
+import { Tabs } from '@/shared/ui/Tabs';
 
 const ALL = 'all';
 
@@ -104,13 +105,16 @@ export function SiteCostsPage() {
 
           <MonthRange from={from} to={to} onChange={(f, t) => set({ from: f, to: t })} />
 
-          <Segmented label="Суммы" value={withVat} options={[['с НДС', true], ['без НДС', false]]}
-            onChange={value => set({ vat: value ? null : 'without' })} />
+          {/* Режим отчёта — сегментные вкладки (#1416, [UI-42]): стрелки ведут фокус, Enter переключает. */}
+          <Tabs id="site-costs-vat" variant="segmented" aria-label="Суммы" value={withVat ? 'with' : 'without'}
+            items={[{ value: 'with', label: 'с НДС' }, { value: 'without', label: 'без НДС' }]}
+            onChange={value => set({ vat: value === 'with' ? null : 'without' })} />
 
           {/* Только у стройки: раздел без стройки ничего не значит, и по всем стройкам среза нет. */}
           {site !== null && (
-            <Segmented label="Срез" value={bySections} options={[['по контрагентам', false], ['по разделам', true]]}
-              onChange={value => set({ by: value ? 'sections' : null })} />
+            <Tabs id="site-costs-by" variant="segmented" aria-label="Срез" value={bySections ? 'sections' : 'contractors'}
+              items={[{ value: 'contractors', label: 'по контрагентам' }, { value: 'sections', label: 'по разделам' }]}
+              onChange={value => set({ by: value === 'sections' ? 'sections' : null })} />
           )}
         </div>
 
@@ -293,22 +297,6 @@ function ViewPanel({ shown, view, children }: { shown: boolean; view: string; ch
     ? { role: 'tabpanel', id: `${COST_VIEWS_ID}-panel-${view}`, 'aria-labelledby': `${COST_VIEWS_ID}-tab-${view}` }
     : {};
   return <div {...panel}>{children}</div>;
-}
-
-/** Переключатель из двух-трёх взаимоисключающих значений — кнопками, выбранная нажата. */
-function Segmented<T>({ label, value, options, onChange }: {
-  label: string; value: T; options: [string, T][]; onChange: (value: T) => void;
-}) {
-  return (
-    <div role="group" aria-label={label} className="inline-flex rounded-sm border border-outline-variant overflow-hidden">
-      {options.map(([text, option]) => (
-        <button key={text} type="button" aria-pressed={value === option} onClick={() => onChange(option)}
-          className={`state-layer h-8 px-3 text-body-medium ${value === option ? 'bg-primary-container text-on-surface font-medium' : 'text-on-surface-variant'}`}>
-          {text}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 /** Строка отчёта: заголовок группы, свёрнутые неизбранные стройки или число. */

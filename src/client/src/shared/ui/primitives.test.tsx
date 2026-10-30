@@ -98,6 +98,15 @@ describe('StatusBadge', () => {
     expect(screen.getByText('оплачен')).toBeTruthy();
     expect(container.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
   });
+
+  // Счётчик — вариант пометки ([UI-45]): число как есть, цифры одной ширины, тон тот же, что у пометки.
+  it('count — число с тоном пометки и цифрами одной ширины', () => {
+    const { container } = render(<StatusBadge count tone="danger">3</StatusBadge>);
+    const badge = container.querySelector('span')!;
+    expect(badge.textContent).toBe('3');
+    expect(badge.className).toContain('tabular-nums');
+    expect(badge.className).toContain('bg-error-container');
+  });
 });
 
 describe('Tabs', () => {

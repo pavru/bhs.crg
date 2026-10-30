@@ -33,6 +33,8 @@ import { useRegisterEditor } from './typeEditorRegistry';
 import { useToast } from '@/shared/ui/Toast';
 import { InheritedFieldsPanel } from './InheritedFieldsPanel';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Chip } from '@/shared/ui/Chip';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
 
 /** Единственное членство (issue #197 Фаза C): каждый ключ поля остаётся только в первой группе,
  *  где встречается. Легаси-схемы могли класть поле в несколько групп — нормализуем при загрузке. */
@@ -310,12 +312,10 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
         <div className="flex flex-wrap items-center gap-1.5 px-1 pt-1">
           <span className="text-body-small text-on-surface-variant">Тэги модуля:</span>
           {unknownTypeTags.map(code => (
-            <Tooltip key={code} content="Тэг модуля, выключенного на этом экземпляре. Пометка остаётся в схеме и заработает, когда модуль включат.">
-              <span
-                className="rounded-full border border-dashed border-outline-variant px-2 py-0.5 text-label-small text-on-surface-variant">
-                {code}
-              </span>
-            </Tooltip>
+            <StatusBadge key={code} tone="quiet"
+              title="Тэг модуля, выключенного на этом экземпляре. Пометка остаётся в схеме и заработает, когда модуль включат.">
+              {code}
+            </StatusBadge>
           ))}
         </div>
       )}
@@ -337,18 +337,10 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
                 <Tooltip key={t.code} content={blocked
                     ? `Тэг уже назначен: ${otherBearers.map(b => `«${b.name}»`).join(', ')}. Допустимо не более ${max}.`
                     : t.description}>
-                  <button
-                    type="button"
-                    disabled={blocked}
-                    onClick={() => { setDocTypeTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code]); setDirty(true); }}
-                    className={`px-2.5 py-1 rounded-full text-body-small border transition-colors ${
-                      blocked ? 'border-outline-variant text-on-surface-variant/50 opacity-60 cursor-not-allowed'
-                        : on ? 'bg-tertiary-container border-tertiary/50 text-on-tertiary-container'
-                          : 'border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface-variant'
-                    }`}
-                  >
+                  <Chip selected={on} disabled={blocked}
+                    onClick={() => { setDocTypeTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code]); setDirty(true); }}>
                     {t.label}
-                  </button>
+                  </Chip>
                 </Tooltip>
               );
             })}

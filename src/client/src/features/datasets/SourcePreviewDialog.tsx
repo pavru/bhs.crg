@@ -9,6 +9,7 @@ import { formatBytes } from '@/shared/api/attachments';
 import { useOpenAttachment } from '@/shared/hooks/useOpenAttachment';
 import type { DataSetPreview, DataSetSource } from '@/shared/api/types';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { Button } from '@/shared/ui/Button';
 
 /**
  * Граница выдачи опубликованного набора (ТЗ CORE-24.3, issue #965).
@@ -73,13 +74,11 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
               </div>
             </div>
             <Tooltip content={path ? 'Открыть PDF в новой вкладке' : 'Файл не выделен — разбиение не удалось при распознавании'}>
-              <button
-                onClick={() => path && handleOpen(i, path)}
-                disabled={!path || opening === i}
-                className="flex items-center gap-1 shrink-0 px-2 py-1 text-body-small rounded-sm border border-outline-variant text-on-surface-variant state-layer disabled-outlined">
-                {opening === i ? <CircularProgress size={18} /> : <Icon icon={OpenInNew} size={18} />}
+              <Button variant="outlined" size="sm" className="shrink-0"
+                onClick={() => path && handleOpen(i, path)} disabled={!path} loading={opening === i}
+                icon={<Icon icon={OpenInNew} size={18} />}>
                 Просмотреть
-              </button>
+              </Button>
             </Tooltip>
           </div>
         );

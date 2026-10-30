@@ -7,6 +7,7 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import {
   useObservations, SEVERITY_LABELS, OBSERVATION_STATUS_LABELS, isUnreviewed,
 } from '@/shared/api/observations';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
 
 /**
  * Замечания, упоминающие этот документ (issue #456).
@@ -36,9 +37,7 @@ export function DocumentObservationsChip({ setId, documentId }: {
         className="shrink-0" title="Замечания внешнего анализа, упоминающие этот документ">
         <span className="hidden sm:inline">Замечания</span>
         {unreviewed > 0 && (
-          <span className="text-label-small px-1.5 py-0.5 rounded-full bg-warning-container text-on-warning-container">
-            {unreviewed}
-          </span>
+          <StatusBadge count tone="warning">{unreviewed}</StatusBadge>
         )}
       </Button>
 
@@ -55,10 +54,9 @@ export function DocumentObservationsChip({ setId, documentId }: {
             <div key={o.id} className={`px-3 py-2 border border-outline-variant rounded-md ${
               isUnreviewed(o) ? '' : 'opacity-60'}`}>
               <div className="flex items-start gap-2">
-                <span className={`text-label-small px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${
-                  o.severity === 'Error' ? 'bg-warning-container text-on-warning-container' : 'bg-surface-container text-on-surface-variant'}`}>
+                <StatusBadge tone={o.severity === 'Error' ? 'warning' : 'neutral'} className="mt-0.5">
                   {SEVERITY_LABELS[o.severity]}
-                </span>
+                </StatusBadge>
                 <div className="min-w-0 flex-1">
                   <div className="text-body-medium text-on-surface">{o.title}</div>
                   {o.detail && <p className="text-body-small text-on-surface-variant mt-0.5 whitespace-pre-wrap">{o.detail}</p>}

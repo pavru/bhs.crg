@@ -622,7 +622,7 @@ const openLinkPicker = async () => {
   await settled(page);
   const dlg = page.locator('[role=dialog]').last();
   if (!/Документ качества/.test(await dlg.innerText())) throw new Error('пикер документа качества не открылся');
-  await dlg.locator('button').filter({ hasText: /^Поиск в интернете$/ }).first().click();
+  await dlg.getByRole('tab', { name: 'Поиск в интернете' }).click();
   await settled(page);
   return dlg;
 };

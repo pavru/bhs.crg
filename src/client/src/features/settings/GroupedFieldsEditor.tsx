@@ -7,6 +7,7 @@ import { Button, IconButton } from '@/shared/ui/Button';
 import { FIELD_UID, withFieldUid, type SchemaField, type FieldGroup } from '@/shared/api/schema';
 import { FieldCard } from './FieldBuilder';
 import { fieldTypeSummary, type FieldRegistries } from './fieldTypeOptions';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
 
 /**
  * Группированный редактор собственных полей (issue #197 Фаза C): группы = карточки-контейнеры,
@@ -377,7 +378,7 @@ function InheritedRow({ field, typeLabel, dragging, onDragStart, onDragEnd, onDr
       </span>
       <ModuleFieldBadge field={field} />
       <span className="text-label-small px-1.5 py-0.5 rounded-xs bg-warning-container text-on-warning-container shrink-0">унаслед.</span>
-      <span className="text-body-small px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant shrink-0">{typeLabel}</span>
+      <StatusBadge>{typeLabel}</StatusBadge>
     </div>
   );
 }

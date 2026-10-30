@@ -4,11 +4,11 @@ import { Add, Delete, Description, LinkOff, Refresh } from '@/shared/ui/icons';
 import type { CatalogScope, DocumentInstance, DocumentType, FieldRef } from '@/shared/api/types';
 import { isFieldRef, isInstanceRef } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
-import { STATUS_COLORS, STATUS_LABELS } from './constants';
 import { applyOrder, dropOrder, appendOrigins, identityOrigins, type PathOrigins } from './arrayRows';
 import { InstancePickerModal } from './InstancePickerModal';
 import { BROKEN_PLATE, BROKEN_LABEL, BrokenRefNote } from './BrokenRef';
 import { IconButton } from '@/shared/ui/Button';
+import { DocumentStatusBadge } from './DocumentStatusBadge';
 
 export function DocRefField({ field, allDocTypes, value, onChange, otherInstances, setId, broken = false }: {
   field: SchemaField; allDocTypes: DocumentType[]; value: unknown;
@@ -82,9 +82,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
           {inst?.name && dt && <span className="block text-body-small text-on-primary-container/70 truncate">{dt.name}</span>}
         </span>
         {inst && (
-          <span className={`text-body-small px-1.5 py-0.5 rounded-xs font-medium shrink-0 ${STATUS_COLORS[inst.status]}`}>
-            {STATUS_LABELS[inst.status]}
-          </span>
+          <DocumentStatusBadge status={inst.status} />
         )}
         {replaceButton('text-on-primary-container/70')}
         <IconButton label="Снять ссылку" size="sm" danger onClick={() => onChange(null)}>
@@ -227,9 +225,7 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
                   ) : null}
                 </span>
                 {inst && (
-                  <span className={`text-body-small px-1.5 py-0.5 rounded-xs font-medium shrink-0 ${STATUS_COLORS[inst.status]}`}>
-                    {STATUS_LABELS[inst.status]}
-                  </span>
+                  <DocumentStatusBadge status={inst.status} />
                 )}
                 <IconButton label={`Удалить ссылку ${i + 1}`} size="sm" danger onClick={() => removeRef(i)}>
                   <Icon icon={Delete} size={18} />

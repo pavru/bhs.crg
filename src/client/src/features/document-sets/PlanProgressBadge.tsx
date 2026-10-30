@@ -1,6 +1,7 @@
 import { planTitle, type PlanProgress } from '@/shared/api/plans';
 import { ruCount } from '@/shared/utils/pluralize';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
 
 /**
  * Готовность по плану — в шапке уровня (issue #796).
@@ -23,10 +24,9 @@ export function PlanProgressBadge({ progress, className = '' }: {
   return (
     <Tooltip content={planTitle(progress)}>
       <span className={`inline-flex items-center gap-1.5 text-label-small ${className}`}>
-        <span className={`px-2 py-0.5 rounded-full tabular-nums ${
-          done ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-on-surface-variant'}`}>
+        <StatusBadge count tone={done ? 'success' : 'neutral'}>
           {progress.ready} / {progress.planned} · {progress.percent}%
-        </span>
+        </StatusBadge>
         {/* Неразобранное сверкой держит процент на 99 % — без этой оговорки цифра выглядит
             необъяснимо застрявшей. Само число проблем рисует свой бейдж, здесь только причина. */}
         {progress.needsAttention > 0 && progress.ready >= progress.planned && (

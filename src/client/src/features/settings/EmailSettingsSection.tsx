@@ -120,10 +120,10 @@ export function EmailSettingsSection() {
         <div className="flex items-center gap-2">
           <input className={fieldCls + ' flex-1'} value={testTo} onChange={e => setTestTo(e.target.value)}
             placeholder="Адрес для проверки" />
-          <button type="button" onClick={handleTest} disabled={testEmail.isPending || !testTo.trim()}
-            className="px-3 py-2 text-body-medium border border-outline state-layer rounded-sm shrink-0 disabled-outlined">
-            {testEmail.isPending ? 'Отправка...' : 'Отправить'}
-          </button>
+          <Button variant="outlined" className="shrink-0" onClick={handleTest} disabled={!testTo.trim()}
+            loading={testEmail.isPending}>
+            Отправить
+          </Button>
         </div>
         {testResult && (testResult.ok
           ? <p className="text-body-small text-success flex items-center gap-1"><Icon icon={CheckCircle} size={18} /> Письмо отправлено</p>
