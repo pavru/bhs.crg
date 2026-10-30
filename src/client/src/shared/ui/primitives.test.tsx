@@ -71,6 +71,18 @@ describe('Checkbox', () => {
 });
 
 describe('Chip', () => {
+  // Подсказка — у самой кнопки: неактивный чип остаётся в Tab как aria-disabled и говорит почему (ревью #1704).
+  it('title неактивного чипа — aria-disabled вместо disabled, причина — описанием', () => {
+    const onClick = vi.fn();
+    render(<Chip selected={false} disabled title="Тэг уже назначен" onClick={onClick}>Дата</Chip>);
+    const chip = screen.getByRole('button', { name: 'Дата' });
+    expect(chip.hasAttribute('disabled')).toBe(false);
+    expect(chip.getAttribute('aria-disabled')).toBe('true');
+    expect(chip.getAttribute('aria-description')).toBe('Тэг уже назначен');
+    fireEvent.click(chip);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
   it('переключатель называет состояние aria-pressed', () => {
     render(<Chip selected={false} icon={Archive}>В архиве</Chip>);
     expect(screen.getByRole('button', { name: 'В архиве' }).getAttribute('aria-pressed')).toBe('false');
@@ -115,6 +127,12 @@ describe('Tabs', () => {
     { value: 'b', label: 'Качество', disabled: true },
     { value: 'c', label: 'Генерация' },
   ];
+
+  // Режим без своей панели не ссылается на панель, которой нет (ревью #1704).
+  it('panels={false} — без aria-controls', () => {
+    render(<Tabs id="t" items={ITEMS} value="a" onChange={() => {}} panels={false} />);
+    expect(screen.getByRole('tab', { name: 'Реквизиты' }).hasAttribute('aria-controls')).toBe(false);
+  });
 
   function Harness({ veto = false }: { veto?: boolean }) {
     const [tab, setTab] = useState<'a' | 'b' | 'c'>('a');

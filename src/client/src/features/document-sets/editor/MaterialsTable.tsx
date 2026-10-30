@@ -1,6 +1,5 @@
-import type { ReactNode } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { ChangeCircle, Check, LinkIcon, LinkOff, VerifiedUser, Warning, type IconDef } from '@/shared/ui/icons';
+import { ChangeCircle, Check, LinkIcon, LinkOff, VerifiedUser, Warning } from '@/shared/ui/icons';
 import { ScopeIcon } from '@/shared/ui/ScopeIcon';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
@@ -10,24 +9,6 @@ import type { MaterialRow } from './materialRow';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { IconButton } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
-
-/**
- * Действие в строке материала (issue #680) — общий `Chip` без нажатия ([UI-42], #1416): по MD3 это
- * assist chip, действие к месту. Не `Button size="sm"`: у кнопки высота 32 px, а строк на живом
- * реестре 130 — это лишний экран прокрутки в таблице, которая и так скроллится внутри себя.
- *
- * Прежде согласие с догадкой машины («привязать») было залито брендом, а «выбрать сам» — тонально.
- * У `Chip` тона действия нет; согласие отличает значок галочки и место первым в паре.
- */
-function RowPill({ onClick, title, icon, children }: {
-  onClick: () => void; title: string; icon?: IconDef; children: ReactNode;
-}) {
-  return (
-    <Tooltip content={title}>
-      <Chip icon={icon} onClick={onClick} className="shrink-0">{children}</Chip>
-    </Tooltip>
-  );
-}
 
 // ─── Таблица материалов ─────────────────────────────────────────────
 
@@ -136,16 +117,19 @@ export function MaterialsTable({
                     {suggestion.doc.displayName}
                   </button>
                 </Tooltip>
-                <RowPill icon={Check} onClick={() => void acceptSuggestion(m, suggestion.doc.id)}
-                  title="Привязать предложенный документ">
+                {/* Действие в строке (issue #680) — `Chip` без нажатия, assist chip MD3 ([UI-42]). Не
+                    `Button size="sm"`: у кнопки 32 px, а строк на живом реестре 130 — лишний экран
+                    прокрутки. Согласие с догадкой отличает галочка и место первым в паре. */}
+                <Chip icon={Check} className="shrink-0" title="Привязать предложенный документ"
+                  onClick={() => void acceptSuggestion(m, suggestion.doc.id)}>
                   привязать
-                </RowPill>
+                </Chip>
                 {/* Подсказка — это согласие с догадкой машины, а не вход в выбор (issue
                     #680). Промахнулась догадка — до этой кнопки уйти из строки было
                     некуда, кроме как через чекбокс и кнопку под таблицей. */}
-                <RowPill onClick={() => openPickerFor(m)} title="Выбрать другой документ качества">
+                <Chip className="shrink-0" title="Выбрать другой документ качества" onClick={() => openPickerFor(m)}>
                   другой
-                </RowPill>
+                </Chip>
               </span>
             ) : (
               <span className="flex items-center gap-1.5">
@@ -153,9 +137,10 @@ export function MaterialsTable({
                 {/* Кнопка ВИДИМАЯ, не по hover: необнаруживаемость одиночного пути и есть
                     предмет жалобы, а мерцающая колонка на 130 строках недоступна ни с
                     клавиатуры, ни с тача. */}
-                <RowPill icon={LinkIcon} onClick={() => openPickerFor(m)} title="Выбрать документ качества для этого материала">
+                <Chip icon={LinkIcon} className="shrink-0" title="Выбрать документ качества для этого материала"
+                  onClick={() => openPickerFor(m)}>
                   Связать
-                </RowPill>
+                </Chip>
               </span>
             )}
           </>

@@ -8,7 +8,6 @@ import { usePreviewDataSetSource } from '@/shared/api/datasets';
 import { formatBytes } from '@/shared/api/attachments';
 import { useOpenAttachment } from '@/shared/hooks/useOpenAttachment';
 import type { DataSetPreview, DataSetSource } from '@/shared/api/types';
-import { Tooltip } from '@/shared/ui/Tooltip';
 import { Button } from '@/shared/ui/Button';
 
 /**
@@ -73,13 +72,11 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
                 {pages ? `${pages} л.` : '—'}{size ? ` · ${size}` : ''}
               </div>
             </div>
-            <Tooltip content={path ? 'Открыть PDF в новой вкладке' : 'Файл не выделен — разбиение не удалось при распознавании'}>
-              <Button variant="outlined" size="sm" className="shrink-0"
-                onClick={() => path && handleOpen(i, path)} disabled={!path} loading={opening === i}
-                icon={<Icon icon={OpenInNew} size={18} />}>
-                Просмотреть
-              </Button>
-            </Tooltip>
+            <Button title={path ? 'Открыть PDF в новой вкладке' : 'Файл не выделен — разбиение не удалось при распознавании'} variant="outlined" size="sm" className="shrink-0"
+              onClick={() => path && handleOpen(i, path)} disabled={!path} loading={opening === i}
+              icon={<Icon icon={OpenInNew} size={18} />}>
+              Просмотреть
+            </Button>
           </div>
         );
       })}

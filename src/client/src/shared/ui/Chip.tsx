@@ -23,6 +23,10 @@ import { Tooltip } from './Tooltip';
  *   переход фокуса — у неё): `aria-checked` вместо `aria-pressed`, иначе диктор назвал бы три
  *   независимых переключателя, а не «один из трёх» (#1455).
  *
+ * - `title` — подсказка нашим `Tooltip` у самой кнопки, как у `Button`: у неактивного чипа она и объясняет,
+ *   почему нельзя. Внешняя обёртка `<Tooltip><Chip disabled>` этого не умеет — `aria-disabled` вместо
+ *   `disabled` подсказка ставит только своей кнопке, и причина пропадала (ревью #1704).
+ *
  * Чипы отбора над таблицей с правкой условия на месте — `shared/filter/FilterChips`: там чип — лицо
  * условия с поповером, а не переключатель.
  */
@@ -62,7 +66,7 @@ function chipClass({ selected = false, tone = 'neutral', dashed = false }:
   return `${BASE} ${selected ? SELECTED : `${TONE[tone]}${dashed ? ' border-dashed' : ''}`}`;
 }
 
-export function Chip({ children, selected, icon, count, tone, dashed, onRemove, removeLabel, menu = false, removeOnly = false, className = '', type = 'button', ...rest }: ChipProps) {
+export function Chip({ children, selected, icon, count, tone, dashed, onRemove, removeLabel, menu = false, removeOnly = false, title, className = '', type = 'button', ...rest }: ChipProps) {
   const toggles = selected !== undefined && !menu && !removeOnly;
   const radio = rest.role === 'radio';
   const state = radio ? { 'aria-checked': !!selected } : { 'aria-pressed': toggles ? selected : undefined };
@@ -78,20 +82,24 @@ export function Chip({ children, selected, icon, count, tone, dashed, onRemove, 
 
   if (!onRemove)
     return (
-      <button {...rest} type={type} {...state}
-        className={`${chipClass({ selected, tone, dashed })} ${PRESS} disabled-outlined px-2.5 py-1 ${className}`}>
-        {body}
-      </button>
+      <Tooltip content={title}>
+        <button {...rest} type={type} {...state}
+          className={`${chipClass({ selected, tone, dashed })} ${PRESS} disabled-outlined px-2.5 py-1 ${className}`}>
+          {body}
+        </button>
+      </Tooltip>
     );
 
   const label = removeOnly
     // Атрибуты данных (`data-*`) — подписи, а не кнопке, которой нет; ref и обработчики жетону не нужны.
     ? <span {...Object.fromEntries(Object.entries(rest).filter(([k]) => k.startsWith('data-')))}
         className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 min-w-0">{body}</span>
-    : <button {...rest} type={type} {...state}
-        className={`inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-l-full min-w-0 ${PRESS}`}>
-        {body}
-      </button>;
+    : <Tooltip content={title}>
+        <button {...rest} type={type} {...state}
+          className={`inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-l-full min-w-0 ${PRESS}`}>
+          {body}
+        </button>
+      </Tooltip>;
 
   return (
     <span className={`${chipClass({ selected, tone, dashed })} ${className}`}>

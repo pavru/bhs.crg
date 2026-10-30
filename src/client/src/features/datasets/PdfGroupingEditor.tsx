@@ -340,20 +340,19 @@ function GroupSection({
             {withBoundOption(tableProfiles, group.profileId, hiddenProfiles).map(p => <SelectItem key={p.id} value={p.id} disabled={p.disabled}>{p.name}</SelectItem>)}
           </Select>
           {(currentTag || group.profileId) && (
-            <Tooltip content={dirty ? 'Сначала сохраните разбиение' : isHiddenBound(group.profileId, hiddenProfiles) ? 'Профиль группы принадлежит выключенному модулю — выберите другой' : 'Распознать таблицу этого документа как отдельный источник данных'}>
-              <Button variant="outlined" size="sm" onClick={() => onRecognizeTable(firstPage)}
-                disabled={dirty || isHiddenBound(group.profileId, hiddenProfiles)} loading={tableBusyPage === firstPage}
-                icon={<Icon icon={Table} size={18} />}>
-                Таблица
-              </Button>
-            </Tooltip>
-          )}
-          <Tooltip content={dirty ? 'Сначала сохраните разбиение' : 'Перераспознать только этот документ (не весь набор)'}>
-            <Button variant="outlined" size="sm" onClick={() => onRecognizeDoc(firstPage)} disabled={dirty}
-              loading={docBusyPage === firstPage} icon={<Icon icon={Refresh} size={18} />}>
-              Перераспознать
+            // Подсказка — `title` самой кнопки: у неактивной она и говорит, почему нельзя (ревью #1704).
+            <Button variant="outlined" size="sm" onClick={() => onRecognizeTable(firstPage)}
+              title={dirty ? 'Сначала сохраните разбиение' : isHiddenBound(group.profileId, hiddenProfiles) ? 'Профиль группы принадлежит выключенному модулю — выберите другой' : 'Распознать таблицу этого документа как отдельный источник данных'}
+              disabled={dirty || isHiddenBound(group.profileId, hiddenProfiles)} loading={tableBusyPage === firstPage}
+              icon={<Icon icon={Table} size={18} />}>
+              Таблица
             </Button>
-          </Tooltip>
+          )}
+          <Button variant="outlined" size="sm" onClick={() => onRecognizeDoc(firstPage)} disabled={dirty}
+            title={dirty ? 'Сначала сохраните разбиение' : 'Перераспознать только этот документ (не весь набор)'}
+            loading={docBusyPage === firstPage} icon={<Icon icon={Refresh} size={18} />}>
+            Перераспознать
+          </Button>
         </div>
       )}
 

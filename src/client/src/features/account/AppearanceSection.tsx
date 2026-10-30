@@ -1,9 +1,9 @@
-import { useRef, type KeyboardEvent } from 'react';
 import {
   useLocale, LOCALE_OPTIONS, SYSTEM_LOCALE, resolveLocale,
 } from '@/shared/hooks/useLocale';
 import { formatDate, formatDateTime, formatMoney, formatNumber } from '@/shared/format/format';
 import { ThemeToggle } from '@/shared/ui/ThemeToggle';
+import { useRadioGroup } from '@/shared/ui/useRadioGroup';
 import { useTheme } from '@/shared/ui/themeContext';
 
 const PREVIEW_DATE = new Date(2025, 11, 31, 14, 5, 0); // 31 дек 2025 14:05
@@ -25,16 +25,7 @@ export function AppearanceSection() {
 
   const resolved = resolveLocale(locale);
 
-  const localeRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const onLocaleKey = (e: KeyboardEvent) => {
-    const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
-    if (!step) return;
-    e.preventDefault();
-    const at = Math.max(0, LOCALE_OPTIONS.findIndex(o => o.value === locale));
-    const next = (at + step + LOCALE_OPTIONS.length) % LOCALE_OPTIONS.length;
-    setLocale(LOCALE_OPTIONS[next].value);
-    localeRefs.current[next]?.focus();
-  };
+  const radios = useRadioGroup(LOCALE_OPTIONS.map(o => o.value), locale, setLocale);
 
   /**
    * ⚠️ «Сохранено» показывается ПО ОТВЕТУ СЕРВЕРА, а не по нажатию (ревью PR #1000). Прежняя
@@ -67,17 +58,16 @@ export function AppearanceSection() {
 
       {/* Выбор одного из вариантов — радиогруппа по APG ([UI-44], #1416): одна остановка Tab, стрелки
           переводят выбор. Прежде — кнопки с aria-pressed, и диктор называл пять независимых переключателей. */}
-      <div role="radiogroup" aria-labelledby="profile-locale-label" onKeyDown={onLocaleKey} className="space-y-1">
+      <div role="radiogroup" aria-labelledby="profile-locale-label" onKeyDown={radios.onKeyDown} className="space-y-1">
         {LOCALE_OPTIONS.map((opt, i) => {
           const isSelected = locale === opt.value;
           return (
             <button
               key={opt.value}
-              ref={el => { localeRefs.current[i] = el; }}
+              {...radios.item(i)}
               type="button"
               role="radio"
               aria-checked={isSelected}
-              tabIndex={isSelected ? 0 : -1}
               onClick={() => setLocale(opt.value)}
               className={`state-layer w-full flex items-center gap-3 px-3 py-2 rounded-sm text-body-medium text-left ${
                 isSelected

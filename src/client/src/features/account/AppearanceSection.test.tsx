@@ -31,6 +31,16 @@ describe('AppearanceSection — выбор языка', () => {
     expect(screen.queryByRole('button', { pressed: true })).toBeNull();
   });
 
+  // Значение вне списка не запирает группу: остановка Tab — первый вариант (ревью #1704).
+  it('язык вне списка — в группу всё равно ведёт Tab', () => {
+    locale = 'fr-FR';
+    render(<AppearanceSection />);
+    const radios = screen.getAllByRole('radio');
+    expect(radios.filter(r => r.tabIndex === 0)).toEqual([radios[0]]);
+    fireEvent.keyDown(radios[0], { key: 'ArrowDown' });
+    expect(setLocale).toHaveBeenCalledWith('system');
+  });
+
   it('стрелка вниз выбирает соседний язык и переводит на него фокус', () => {
     render(<AppearanceSection />);
     const current = screen.getByRole('radio', { name: 'Русский (Россия)' });

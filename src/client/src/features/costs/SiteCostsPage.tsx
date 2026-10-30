@@ -106,13 +106,13 @@ export function SiteCostsPage() {
           <MonthRange from={from} to={to} onChange={(f, t) => set({ from: f, to: t })} />
 
           {/* Режим отчёта — сегментные вкладки (#1416, [UI-42]): стрелки ведут фокус, Enter переключает. */}
-          <Tabs id="site-costs-vat" variant="segmented" aria-label="Суммы" value={withVat ? 'with' : 'without'}
+          <Tabs id="site-costs-vat" variant="segmented" panels={false} aria-label="Суммы" value={withVat ? 'with' : 'without'}
             items={[{ value: 'with', label: 'с НДС' }, { value: 'without', label: 'без НДС' }]}
             onChange={value => set({ vat: value === 'with' ? null : 'without' })} />
 
           {/* Только у стройки: раздел без стройки ничего не значит, и по всем стройкам среза нет. */}
           {site !== null && (
-            <Tabs id="site-costs-by" variant="segmented" aria-label="Срез" value={bySections ? 'sections' : 'contractors'}
+            <Tabs id="site-costs-by" variant="segmented" panels={false} aria-label="Срез" value={bySections ? 'sections' : 'contractors'}
               items={[{ value: 'contractors', label: 'по контрагентам' }, { value: 'sections', label: 'по разделам' }]}
               onChange={value => set({ by: value === 'sections' ? 'sections' : null })} />
           )}

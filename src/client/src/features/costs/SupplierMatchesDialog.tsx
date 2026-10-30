@@ -162,16 +162,16 @@ export function SupplierMatchesDialog({ initial, onClose }: {
         </label>
         {/* Нули не рисуются: чип без записей — дверь в пустой список. Нажатый остаётся, чтобы его снять. */}
         {((data?.counts.lost ?? 0) > 0 || filter.issue === 'lost') && (
-          <IssueChip active={filter.issue === 'lost'} danger
+          <Chip selected={filter.issue === 'lost'} tone="danger"
             onClick={() => narrow({ issue: filter.issue === 'lost' ? null : 'lost' })}>
             Позиция удалена{data ? ` ${data.counts.lost}` : ''}
-          </IssueChip>
+          </Chip>
         )}
         {((data?.counts.archived ?? 0) > 0 || filter.issue === 'archived') && (
-          <IssueChip active={filter.issue === 'archived'}
+          <Chip selected={filter.issue === 'archived'}
             onClick={() => narrow({ issue: filter.issue === 'archived' ? null : 'archived' })}>
             Позиция в архиве{data ? ` ${data.counts.archived}` : ''}
-          </IssueChip>
+          </Chip>
         )}
       </div>
 
@@ -235,11 +235,4 @@ export function SupplierMatchesDialog({ initial, onClose }: {
         }} />
     </Modal>
   );
-}
-
-/** Отбор по беде соответствия — общий `Chip` ([UI-42], #1416). */
-function IssueChip({ active, danger = false, onClick, children }: {
-  active: boolean; danger?: boolean; onClick: () => void; children: React.ReactNode;
-}) {
-  return <Chip selected={active} tone={danger ? 'danger' : 'neutral'} onClick={onClick}>{children}</Chip>;
 }

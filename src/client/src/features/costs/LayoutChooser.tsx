@@ -1,7 +1,8 @@
 import * as Popover from '@radix-ui/react-popover';
 import { Icon } from '@/shared/ui/Icon';
 import { Check, Close, Print } from '@/shared/ui/icons';
-import { useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useId, useState } from 'react';
+import { useRadioGroup } from '@/shared/ui/useRadioGroup';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -87,24 +88,15 @@ function Choices({ profiles, shown, value, onPick }: {
   profiles: readonly PrintProfile[]; shown: string | undefined; value: string | undefined;
   onPick: (id: string) => void;
 }) {
-  const refs = useRef<(HTMLButtonElement | null)[]>([]);
-  const onKeyDown = (e: KeyboardEvent) => {
-    const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
-    if (!step) return;
-    e.preventDefault();
-    const at = Math.max(0, profiles.findIndex(p => p.id === value));
-    const next = (at + step + profiles.length) % profiles.length;
-    onPick(profiles[next].id);
-    refs.current[next]?.focus();
-  };
+  const radios = useRadioGroup(profiles.map(p => p.id), value, onPick);
   return (
-    <div role="radiogroup" aria-label="Профиль печати" onKeyDown={onKeyDown} className="-mx-2 space-y-0.5">
+    <div role="radiogroup" aria-label="Профиль печати" onKeyDown={radios.onKeyDown} className="-mx-2 space-y-0.5">
       {profiles.map((p, i) => {
         const checked = p.id === value;
         const marks = [p.isSystem && 'по умолчанию', p.id === shown && 'сейчас'].filter(Boolean).join(' · ');
         return (
-          <button key={p.id} ref={el => { refs.current[i] = el; }} type="button" role="radio"
-            aria-checked={checked} tabIndex={checked || (!value && i === 0) ? 0 : -1} onClick={() => onPick(p.id)}
+          <button key={p.id} {...radios.item(i)} type="button" role="radio"
+            aria-checked={checked} onClick={() => onPick(p.id)}
             className="w-full flex items-start gap-2 px-2 py-1.5 rounded-sm text-left state-layer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <Icon icon={Check} size={18} aria-hidden className={`shrink-0 mt-0.5 ${checked ? 'text-primary' : 'invisible'}`} />
             <span className="min-w-0 flex-1">

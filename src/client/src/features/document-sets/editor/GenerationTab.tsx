@@ -250,11 +250,9 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
           <div className="flex items-center justify-between">
             <p className="text-body-small font-medium text-on-surface-variant">Сгенерированные файлы</p>
             {canSend && (
-              <Tooltip content="Отправить сгенерированные PDF документа по почте (подписчикам и/или на внешние адреса)">
-                <Button variant="outlined" size="sm" onClick={() => setEmailOpen(true)} icon={<Icon icon={Mail} size={18} />}>
-                  Отправить по почте
-                </Button>
-              </Tooltip>
+              <Button title="Отправить сгенерированные PDF документа по почте (подписчикам и/или на внешние адреса)" variant="outlined" size="sm" onClick={() => setEmailOpen(true)} icon={<Icon icon={Mail} size={18} />}>
+                Отправить по почте
+              </Button>
             )}
           </div>
           <div className="space-y-1.5">

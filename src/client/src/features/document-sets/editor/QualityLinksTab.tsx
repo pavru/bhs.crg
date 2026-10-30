@@ -408,12 +408,10 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
             <Icon icon={Check} size={18} /> Предложения из библиотеки ({suggestCount})
           </button>
         </Tooltip>
-        <Tooltip content="Предложить связи по истории привязок (для строк, где нет подсказки из библиотеки)">
-          <Button variant="outlined" onClick={handleSuggest} disabled={materials.length === 0} loading={suggesting}
-            icon={<Icon icon={VerifiedUser} size={18} />}>
-            Предложить по истории
-          </Button>
-        </Tooltip>
+        <Button title="Предложить связи по истории привязок (для строк, где нет подсказки из библиотеки)" variant="outlined" onClick={handleSuggest} disabled={materials.length === 0} loading={suggesting}
+          icon={<Icon icon={VerifiedUser} size={18} />}>
+          Предложить по истории
+        </Button>
       </div>
 
       <p className="text-body-small text-on-surface-variant">

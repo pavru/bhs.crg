@@ -30,7 +30,6 @@ import { matchesLink } from './qualityLinkSearch';
 import { ScopeReachNote } from './ScopeReachNote';
 import { docState, EXPIRING_SOON_DAYS, type DocState } from './docState';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
-import { Tooltip } from '@/shared/ui/Tooltip';
 
 // Метки областей — только из общего словаря (issue #649). Локальный дубль называл System «Общей»,
 // и на одном экране уровень документа и уровень его связок читались бы разными словами.
@@ -469,12 +468,10 @@ function WebSearchModal({ open, onClose, docTypes }: {
                       <Icon icon={OpenInNew} size={18} /> Открыть
                     </a>
                   </div>
-                  <Tooltip content="Скачать файл по ссылке и добавить в библиотеку (если это прямой PDF/скан)">
-                    <Button variant="outlined" size="sm" className="shrink-0" onClick={() => importOne(c)}
-                      loading={importingUrl === c.url} icon={<Icon icon={Download} size={18} />}>
-                      В библиотеку
-                    </Button>
-                  </Tooltip>
+                  <Button title="Скачать файл по ссылке и добавить в библиотеку (если это прямой PDF/скан)" variant="outlined" size="sm" className="shrink-0" onClick={() => importOne(c)}
+                    loading={importingUrl === c.url} icon={<Icon icon={Download} size={18} />}>
+                    В библиотеку
+                  </Button>
                 </div>
               ))}
             </div>

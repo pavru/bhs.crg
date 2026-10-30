@@ -13,7 +13,8 @@ import { Tooltip } from './Tooltip';
  *
  * Два вида: `underline` — разделы содержимого (редактор документа), `segmented` — переключатель
  * режима внутри панели или окна (шаблоны, выбор ссылки). Панель содержимого связывается с вкладкой
- * через `TabPanel` с тем же `id`.
+ * через `TabPanel` с тем же `id`. Режим без своей панели (суммы с НДС или без, точность даты) —
+ * `panels={false}`: тогда вкладка не ссылается `aria-controls` на панель, которой нет (ревью #1704).
  */
 export interface TabItem<T extends string> {
   value: T;
@@ -48,13 +49,15 @@ const STYLE = {
   },
 } as const;
 
-export function Tabs<T extends string>({ id, items, value, onChange, variant = 'underline', className = '', ...aria }: {
+export function Tabs<T extends string>({ id, items, value, onChange, variant = 'underline', panels = true, className = '', ...aria }: {
   /** Основа идентификаторов вкладок и панелей: `TabPanel` ссылается на неё же. */
   id: string;
   items: TabItem<T>[];
   value: T;
   onChange: (next: T) => void;
   variant?: keyof typeof STYLE;
+  /** Есть ли у вкладок `TabPanel`; без них — `false`, и `aria-controls` не ставится. */
+  panels?: boolean;
   className?: string;
   'aria-label'?: string;
   'aria-labelledby'?: string;
@@ -83,7 +86,7 @@ export function Tabs<T extends string>({ id, items, value, onChange, variant = '
         return (
           <Tooltip key={it.value} content={it.title}>
             <button type="button" role="tab" id={tabId(id, it.value)}
-              aria-selected={on} aria-controls={panelId(id, it.value)} tabIndex={on ? 0 : -1}
+              aria-selected={on} aria-controls={panels ? panelId(id, it.value) : undefined} tabIndex={on ? 0 : -1}
               disabled={it.disabled}
               ref={el => { refs.current[i] = el; }}
               onClick={() => { if (!on) onChange(it.value); }}

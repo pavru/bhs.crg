@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, CalendarMonth, CheckCircle, ContentCopy, Delete, ErrorIcon, List, MatchCase, Numbers, type IconDef } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
@@ -45,7 +45,7 @@ import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { Chip } from '@/shared/ui/Chip';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
-import { Tabs } from '@/shared/ui/Tabs';
+import { TabPanel, Tabs } from '@/shared/ui/Tabs';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -114,6 +114,8 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
   constraints: FieldConstraints;
   onChange: (c: FieldConstraints) => void;
 }) {
+  // Редактор стоит и в карточке типа, и в окне создания поверх неё: id вкладок — свои у каждого.
+  const precisionId = useId();
   function set<K extends keyof FieldConstraints>(key: K, val: FieldConstraints[K]) {
     onChange({ ...constraints, [key]: val });
   }
@@ -186,7 +188,7 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
     <div className="space-y-3">
       <div>
         <label className="block text-body-medium font-medium text-on-surface mb-1">Точность</label>
-        <Tabs id="date-precision" variant="segmented" aria-label="Точность" value={precision}
+        <Tabs id={precisionId} variant="segmented" panels={false} aria-label="Точность" value={precision}
           items={DATE_PRECISIONS.map(p => ({ value: p.value, label: `${p.label} (${dateMaskText(p.value)})` }))}
           onChange={v => v === 'day' ? unset('datePrecision') : set('datePrecision', v)} />
         <p className="text-body-small text-on-surface-variant mt-1">Управляет форматом ввода/отображения. Значение хранится как полная дата.</p>
@@ -231,12 +233,16 @@ function ConstraintTester({ def }: { def: PrimitiveTypeDef }) {
 
 // ─── Segmented base-type control ────────────────────────────────────────────────
 
-/** Базовый тип — сегментные вкладки (#1416, [UI-42]); у созданного типа он заперт целиком. */
+/**
+ * Базовый тип — сегментные вкладки (#1416, [UI-42]); у созданного типа он заперт целиком. Стоит и в
+ * карточке типа, и в окне создания поверх неё — id свои у каждого.
+ */
 function BaseTypeSegmented({ value, onChange, disabled }: {
   value: 'string' | 'number' | 'date'; onChange: (v: 'string' | 'number' | 'date') => void; disabled?: boolean;
 }) {
+  const id = useId();
   return (
-    <Tabs id="base-type" variant="segmented" aria-label="Базовый тип" value={value} onChange={onChange}
+    <Tabs id={id} variant="segmented" panels={false} aria-label="Базовый тип" value={value} onChange={onChange}
       items={BASE_TYPES.map(bt => ({ value: bt.value, label: bt.label, icon: baseTypeIcon(bt.value), disabled }))} />
   );
 }
@@ -410,12 +416,10 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
                 {applicableTags.map(t => {
                   const on = allowedTags.includes(t.code);
                   return (
-                    <Tooltip key={t.code} content={t.description}>
-                      <Chip selected={on}
-                        onClick={() => setAllowedTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code])}>
-                        {t.label}
-                      </Chip>
-                    </Tooltip>
+                    <Chip key={t.code} selected={on} title={t.description}
+                      onClick={() => setAllowedTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code])}>
+                      {t.label}
+                    </Chip>
                   );
                 })}
               </div>
@@ -523,6 +527,7 @@ function EnumTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSaveAll
 // ─── Left panel (tabs + search + list) ───────────────────────────────────────────
 
 type Mode = 'primitive' | 'enum';
+const LISTS_ID = 'field-type-lists';
 
 function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSelect, query, onQuery }: {
   mode: Mode; onMode: (m: Mode) => void;
@@ -567,23 +572,25 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
   return (
     <>
       {/* Два списка — вкладками с ролями и клавиатурой вкладок ([UI-44]): прежде их рисовало состояние. */}
-      <Tabs id="field-type-lists" aria-label="Списки типов" value={mode} onChange={onMode} className="shrink-0"
+      <Tabs id={LISTS_ID} aria-label="Списки типов" value={mode} onChange={onMode} className="shrink-0"
         items={[{ value: 'primitive', label: 'Примитивные' }, { value: 'enum', label: 'Перечисления' }]} />
-      <NavSearchInput value={query} onChange={onQuery} placeholder="Поиск типа…" />
-      <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5">
-        {outside && (
-          <>
-            <NavSection label="Открыт, вне поиска" />
-            {typeRow(outside)}
-          </>
-        )}
-        {items.length === 0 && (
-          <p className="px-3 py-6 text-center text-body-medium text-on-surface-variant">
-            {outside ? 'Больше ничего не найдено' : 'Ничего не найдено'}
-          </p>
-        )}
-        {items.map(typeRow)}
-      </div>
+      <TabPanel id={LISTS_ID} value={mode} className="flex-1 min-h-0 flex flex-col">
+        <NavSearchInput value={query} onChange={onQuery} placeholder="Поиск типа…" />
+        <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5">
+          {outside && (
+            <>
+              <NavSection label="Открыт, вне поиска" />
+              {typeRow(outside)}
+            </>
+          )}
+          {items.length === 0 && (
+            <p className="px-3 py-6 text-center text-body-medium text-on-surface-variant">
+              {outside ? 'Больше ничего не найдено' : 'Ничего не найдено'}
+            </p>
+          )}
+          {items.map(typeRow)}
+        </div>
+      </TabPanel>
     </>
   );
 }

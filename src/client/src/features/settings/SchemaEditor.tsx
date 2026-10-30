@@ -32,7 +32,6 @@ import { SectionCard } from './typeEditorShell';
 import { useRegisterEditor } from './typeEditorRegistry';
 import { useToast } from '@/shared/ui/Toast';
 import { InheritedFieldsPanel } from './InheritedFieldsPanel';
-import { Tooltip } from '@/shared/ui/Tooltip';
 import { Chip } from '@/shared/ui/Chip';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 
@@ -334,14 +333,14 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
                 && (((dt.schema as { tags?: string[] }).tags) ?? []).includes(t.code));
               const blocked = max != null && !on && otherBearers.length >= max;
               return (
-                <Tooltip key={t.code} content={blocked
+                // Подсказка — `title` самого чипа: у неактивного она и говорит, почему нельзя (ревью #1704).
+                <Chip key={t.code} selected={on} disabled={blocked}
+                  title={blocked
                     ? `Тэг уже назначен: ${otherBearers.map(b => `«${b.name}»`).join(', ')}. Допустимо не более ${max}.`
-                    : t.description}>
-                  <Chip selected={on} disabled={blocked}
-                    onClick={() => { setDocTypeTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code]); setDirty(true); }}>
-                    {t.label}
-                  </Chip>
-                </Tooltip>
+                    : t.description}
+                  onClick={() => { setDocTypeTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code]); setDirty(true); }}>
+                  {t.label}
+                </Chip>
               );
             })}
           </div>
