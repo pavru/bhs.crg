@@ -143,7 +143,7 @@ export function DocTypeSelector({ docTypes, selected, onSelect }: {
     .filter(dt => dt.kind === 'Document' && !dt.isAbstract)
     .map<PickType>(dt => ({ id: dt.id, name: dt.name, code: dt.code, section: 'Типы документов' }));
   return (
-    <TypePickerField size="sm" className="w-56" recentKey="doc-type" title="Тип документа"
+    <TypePickerField className="w-56" recentKey="doc-type" title="Тип документа"
       placeholder="Выберите тип документа" aria-label="Тип документа"
       types={nonAbstractDocs} value={selected || undefined} onChange={id => id && onSelect(id)} />
   );

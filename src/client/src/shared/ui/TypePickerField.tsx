@@ -20,16 +20,16 @@ import { Tooltip } from './Tooltip';
  *
  * Два слоя (issue #565), и выбирает между ними наличие `label`:
  *
- * - **слой формы** (`label` задан) — MD3 outlined-оболочка `OutlinedField` высотой `h-14`, подпись
- *   всегда в вырезе рамки. Свой `<label>` в вызывающем коде НЕ пишем: он разъехался на три разные
+ * - **слой формы** (`label` задан) — MD3 outlined-оболочка `OutlinedField`, поле формы 56 или плотное 40
+ *   ([UI-69]), подпись в вырезе рамки. Свой `<label>` в вызывающем коде НЕ пишем: он разъехался на три разные
  *   типографики, пока жил снаружи. Подпись связана через `aria-labelledby`, а не `<label for>` —
  *   у кнопки щелчок по подписи открывал бы модалку;
- * - **слой обвязки** (`label` нет) — компактный триггер `h-8`/`h-9` для шапок и фильтров, там и
- *   живёт плотность.
+ * - **без подписи** — плотное поле 40 на той же оболочке ([UI-69]): имя из `aria-label`, подпись только
+ *   для диктора. Компактных триггеров 32 и 36 больше нет.
  */
 export function TypePickerField({
   types, value, onChange, recentKey, title = 'Выберите тип', placeholder = 'Выберите тип',
-  size = 'md', label, required, clearable, disabled, className = '', 'aria-label': ariaLabel, density = 'form',
+  label, required, clearable, disabled, className = '', 'aria-label': ariaLabel, density = 'form',
 }: {
   types: PickType[];
   value: string | undefined;
@@ -38,12 +38,10 @@ export function TypePickerField({
   recentKey?: string;
   title?: string;
   placeholder?: string;
-  /** Высота компактного триггера: `sm` для шапок, `md` для фильтров. Кода нет ни там, ни там —
-   *  его показывает только слой формы (см. `showCode`, issue #668). */
-  size?: 'sm' | 'md';
-  /** Подпись поля. Задана — контрол переходит в слой формы (outlined-рамка с вырезом). */
+  /** Подпись поля. Задана — контрол переходит в слой формы (outlined-рамка с вырезом). Без неё — плотное
+   *  поле с именем из `aria-label`; кода типа там нет (см. `showCode`, issue #668). */
   label?: string;
-  /** Поле формы 56 (по умолчанию) или плотное 40 без выреза — [UI-69]. Только в слое формы. */
+  /** Поле формы 56 (по умолчанию) или плотное 40 без выреза — [UI-69]. Без подписи — всегда плотное. */
   density?: FieldDensity;
   required?: boolean;
   /** Показать строку «нет значения» в пикере + крестик-сброс на триггере. */
@@ -71,15 +69,11 @@ export function TypePickerField({
   const showCode = framed && !!code && code.toLowerCase() !== selected!.name.trim().toLowerCase();
   const showClear = !!clearable && !!selected && !disabled;
 
-  // В слое формы рамку и фон рисует оболочка — триггер внутри неё прозрачный и без своей границы,
-  // иначе получилась бы рамка в рамке. Кольцо фокуса там тоже не нужно: фокус показывает сама
-  // оболочка (border-2 + подпись цветом бренда), как у `DateField`.
-  const triggerClass = framed
-    ? `w-full ${fieldBox(density)} rounded-xs bg-transparent text-left outline-none ` +
-      `disabled-content disabled:pointer-events-none`
-    : `w-full ${size === 'sm' ? 'h-8' : 'h-9'} px-3 rounded-sm border border-outline bg-surface ` +
-      `text-body-medium text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ` +
-      `data-[state=open]:ring-2 disabled-outlined disabled:pointer-events-none`;
+  // Рамку и фон рисует оболочка — триггер внутри неё прозрачный и без своей границы, иначе получилась бы
+  // рамка в рамке. Кольцо фокуса тоже не нужно: фокус показывает сама оболочка (border-2 + подпись цветом
+  // бренда), как у `DateField`.
+  const triggerClass = `w-full ${fieldBox(framed ? density : 'dense')} rounded-xs bg-transparent text-left outline-none ` +
+    `disabled-content disabled:pointer-events-none`;
 
   // `overflow-hidden` на триггере — страховка впредь (issue #668): её не было, и несжимаемый
   // элемент (код типа) не обрезался, а выходил за рамку поля и наезжал на замыкающую лупу.
@@ -88,8 +82,7 @@ export function TypePickerField({
       ref={triggerRef}
       type="button" disabled={disabled} onClick={() => setOpen(true)}
       aria-haspopup="dialog" aria-expanded={open}
-      aria-label={framed ? undefined : ariaLabel}
-      aria-labelledby={framed ? (required ? `${labelId} ${labelId}-required` : labelId) : undefined}
+      aria-labelledby={required ? `${labelId} ${labelId}-required` : labelId}
       className={`inline-flex items-center gap-2 overflow-hidden ${triggerClass}`}
       data-state={open ? 'open' : 'closed'}
     >
@@ -121,7 +114,7 @@ export function TypePickerField({
     <Tooltip content="Очистить">
       <button type="button" aria-label="Очистить"
         onClick={() => { onChange(null); triggerRef.current?.focus(); }}
-        className={`absolute ${framed ? 'right-10' : 'right-9'} top-1/2 -translate-y-1/2 z-10 text-on-surface-variant ` +
+        className={`absolute right-10 top-1/2 -translate-y-1/2 z-10 text-on-surface-variant ` +
           // Прозрачность НЕ отменяет попадания, а крестик лежит поверх триггера: без
           // pointer-events-none нажатие у правого края на тач-устройстве молча очищало бы значение
           // вместо открытия пикера (в диалоге материализации — вместе со всем маппингом).
@@ -146,20 +139,16 @@ export function TypePickerField({
       {clear}
       {/* Звёздочка у подписи — псевдоэлемент и в имя поля не входит (issue #1291), а у кнопки нет
           `aria-required`: обязательность называем словом, вторым источником имени. */}
-      {framed && required && <span id={`${labelId}-required`} className="sr-only">обязательное</span>}
+      {required && <span id={`${labelId}-required`} className="sr-only">обязательное</span>}
     </div>
   );
 
   return (
     <>
-      {framed ? (
-        <OutlinedField label={label} required={required} raise="always" focused={focused}
-          labelId={labelId} density={density} containerClassName={`group ${className}`}>
-          {body}
-        </OutlinedField>
-      ) : (
-        <div className={`group ${className}`}>{body}</div>
-      )}
+      <OutlinedField label={label ?? ariaLabel ?? ''} required={required} raise="always" focused={focused}
+        labelId={labelId} density={framed ? density : 'dense'} containerClassName={`group ${className}`}>
+        {body}
+      </OutlinedField>
 
       <TypePicker
         open={open} onOpenChange={setOpen} title={title} recentKey={recentKey}

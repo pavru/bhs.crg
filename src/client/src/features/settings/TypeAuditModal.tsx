@@ -160,7 +160,7 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
                                 {canRename && (
                                   <>
                                     <span className="text-on-surface-variant text-body-small">или переименовать в</span>
-                                    <Select size="sm" className="w-auto min-w-36" aria-label={`Переименовать «${k}» в поле схемы`}
+                                    <Select density="dense" className="w-auto min-w-36" aria-label={`Переименовать «${k}» в поле схемы`}
                                       value={renameTarget[k] ?? ''} disabled={applyFixes.isPending} placeholder="поле схемы…"
                                       onValueChange={v => setRenameTarget(t => ({ ...t, [k]: v }))}>
                                       {schemaFieldKeys.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}

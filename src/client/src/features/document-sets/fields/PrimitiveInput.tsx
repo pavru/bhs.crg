@@ -87,16 +87,23 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
         : <input type="text" value={shown} readOnly aria-label={field.title}
             onChange={() => {}} className={cls} />;
     }
+    const items = opts.map(o => <SelectItem key={o.code} value={o.code}>{o.label}</SelectItem>);
+    // Без подписи — плотное поле ([UI-69]): ошибку показывает его же рамка, своей не нужно.
+    if (label == null)
+      return (
+        <Select density="dense" aria-label={field.title} value={strVal || undefined} onValueChange={onChange}
+          placeholder="— выберите —" invalid={invalid}>
+          {items}
+        </Select>
+      );
     return (
       <Select value={strVal || undefined} onValueChange={onChange} disabled={empty}
         placeholder={empty ? '—' : '— выберите —'}
-        label={label} required={label != null ? askRequired : undefined}
+        label={label} required={askRequired}
         // Про отсутствие вариантов сообщаем подписью ПОД полем, а не вместо поля: иначе исчезала бы
         // и подпись, и на форме оставалась висеть фраза без имени поля, к которому она относится.
-        hint={empty ? NO_OPTIONS : hint} invalid={invalid}
-        aria-label={label == null ? field.title : undefined}
-        className={label == null && invalid ? 'border-error' : ''}>
-        {opts.map(o => <SelectItem key={o.code} value={o.code}>{o.label}</SelectItem>)}
+        hint={empty ? NO_OPTIONS : hint} invalid={invalid}>
+        {items}
       </Select>
     );
   }
@@ -107,7 +114,7 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
       return label != null
         ? <DateField label={label} required={askRequired} hint={hint ?? primitiveTypeDef.description}
             invalid={invalid} value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} readOnly={readOnly} min={min} max={max} />
-        : <DateInput label={field.title} value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} size="md" invalid={invalid}
+        : <DateInput label={field.title} value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} density="dense" invalid={invalid}
             className="w-full" readOnly={readOnly} required={askRequired} min={min} max={max} />;
     }
     const step = bt === 'number' && primitiveTypeDef.constraints.integer ? 1 : undefined;
@@ -125,7 +132,7 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
     return label != null
       ? <DateField label={label} required={askRequired} hint={hint} invalid={invalid}
           value={dateForDisplay(strVal)} onChange={v => onChange(v)} readOnly={readOnly} />
-      : <DateInput label={field.title} value={dateForDisplay(strVal)} onChange={v => onChange(v)} size="md" invalid={invalid}
+      : <DateInput label={field.title} value={dateForDisplay(strVal)} onChange={v => onChange(v)} density="dense" invalid={invalid}
           className="w-full" readOnly={readOnly} required={askRequired} />;
   }
   if (source && !readOnly)

@@ -32,7 +32,7 @@ export function ScopeToolbar({ isFetching, refetch, materialsCount, linkedCount,
             «общая» стояла по умолчанию: узкая ошибка обратима (связка не нашлась), широкая тиха
             (чужой сертификат подставился в чужой документ). Уровень без известного id не
             предлагаем — привязку было бы некуда положить. */}
-        <Select value={scope} onValueChange={v => setScope(v as CatalogScope)}
+        <Select density="dense" value={scope} onValueChange={v => setScope(v as CatalogScope)}
           aria-label="Область связи" className="w-56">
           <SelectItem value="Set">Только этот комплект</SelectItem>
           {sectionId && <SelectItem value="Section">Весь раздел</SelectItem>}

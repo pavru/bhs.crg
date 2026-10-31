@@ -96,7 +96,7 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
 
       {canManage && (
         <div className="flex items-center gap-2">
-          <Select value={addUserId || undefined} onValueChange={setAddUserId}
+          <Select density="dense" value={addUserId || undefined} onValueChange={setAddUserId}
             placeholder="Добавить подписчика…" aria-label="Подписчик" className="flex-1">
             {available.map(u => <SelectItem key={u.id} value={u.id}>{u.displayName || u.email}</SelectItem>)}
           </Select>

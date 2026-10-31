@@ -1,6 +1,8 @@
 /**
- * Текстовое поле условия отбора — той же коробкой, что `Select size="sm"` рядом с ним (#1469): высота
- * h-7, радиус, рамка и кольцо фокуса. Своя рамка у поля в строке из трёх давала разную высоту и цвет.
+ * Текстовое поле условия отбора — той же коробкой, что плотный `Select density="dense"` рядом с ним (#1469,
+ * [UI-69]): 40, `body-medium`, рамка формы 4, обводка 2 px при фокусе (второй пиксель — кольцом внутрь, текст
+ * не сдвигается). Своя рамка у поля в строке из трёх давала разную высоту и цвет.
  */
-export const FIELD_CLS = 'h-7 px-2 rounded-sm border border-outline bg-surface text-body-small text-on-surface '
-  + 'placeholder:text-on-surface-variant focus:outline-none focus-visible:ring-2 focus-visible:ring-primary';
+export const FIELD_CLS = 'h-10 px-3 rounded-xs border border-outline bg-transparent text-body-medium text-on-surface '
+  + 'placeholder:text-on-surface-variant outline-none [&:hover:not(:focus)]:border-on-surface '
+  + 'focus:border-primary focus:inset-ring focus:inset-ring-primary';

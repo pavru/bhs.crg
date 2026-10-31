@@ -217,7 +217,7 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
               // Раздел удалён, стройка на месте: значение черновика не совпадёт ни с одним пунктом,
               // и без своего пункта поле показало бы «вся стройка», а уехал бы удалённый раздел.
               return (
-                <Select size="sm" value={draft.sectionId} aria-label={`Раздел, часть ${index + 1}`}
+                <Select density="dense" value={draft.sectionId} aria-label={`Раздел, часть ${index + 1}`}
                   disabled={!canEdit || !site || (site.sections.length === 0 && !draft.sectionId)}
                   onValueChange={sectionId => edit(draft.key, { sectionId })} emptyItem="— вся стройка —">
                   {site && draft.sectionId && !site.sections.some(s => s.id === draft.sectionId) && (

@@ -343,7 +343,7 @@ export function FieldCard({
               <span className="text-body-small text-on-surface-variant">{field.defaultValue ? 'true' : 'не задано'}</span>
             </label>
           ) : field.type === 'enum' ? (
-            <Select size="sm" className="flex-1" aria-label="Значение по умолчанию"
+            <Select density="dense" className="flex-1" aria-label="Значение по умолчанию"
               value={String(field.defaultValue ?? '')}
               onValueChange={v => onChange({ defaultValue: v || undefined })}
               emptyItem="— не задано —">
@@ -357,7 +357,7 @@ export function FieldCard({
             <DateInput label="Значение по умолчанию"
               value={field.defaultValue != null ? String(field.defaultValue) : ''}
               onChange={v => onChange({ defaultValue: v || undefined })}
-              size="sm" className="flex-1"
+              density="dense" className="flex-1"
             />
           ) : (
             <input
@@ -561,14 +561,15 @@ export function DefaultValueCell({ field, override, enumTypes, onOverrideDefault
   const hasDv = cur !== undefined;
   const parentDv = field.defaultValue;
   const inputCls = 'w-full border rounded-xs px-1.5 py-0.5 text-body-small bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary ' + (hasDv ? 'border-primary-container' : 'border-outline-variant');
-  // Своя рамка у переопределённого значения сильнее рамки Select: иначе победил бы порядок правил в CSS.
-  const selectCls = hasDv ? 'border-primary-container!' : '';
+  // Унаследованное значение — словами в пункте «значения нет», а не своей рамкой поверх рамки поля ([UI-69]):
+  // выбранное своё значение и показанное родительское иначе выглядели бы одинаково.
+  const inherited = parentDv !== undefined ? `от родителя: ${String(parentDv)}` : 'не задано';
 
   if (field.type === 'boolean') {
     return (
-      <Select size="sm" className={selectCls} aria-label={`По умолчанию: ${field.title || field.key}`}
+      <Select density="dense" aria-label={`По умолчанию: ${field.title || field.key}`}
         value={hasDv ? String(cur) : ''} onValueChange={v => onOverrideDefaultValue(field.key, v === '' ? undefined : v === 'true')}
-        emptyItem={parentDv !== undefined ? String(parentDv) : 'не задано'}>
+        emptyItem={inherited}>
         <SelectItem value="true">true</SelectItem>
         <SelectItem value="false">false</SelectItem>
       </Select>
@@ -578,9 +579,9 @@ export function DefaultValueCell({ field, override, enumTypes, onOverrideDefault
     const enumTypeDef = field.typeId ? enumTypes.find(et => et.id === field.typeId) : undefined;
     if (field.typeId && !enumTypeDef) return <span className="text-body-small text-on-surface-variant">—</span>;
     return (
-      <Select size="sm" className={selectCls} aria-label={`По умолчанию: ${field.title || field.key}`}
+      <Select density="dense" aria-label={`По умолчанию: ${field.title || field.key}`}
         value={hasDv ? String(cur) : ''} onValueChange={v => onOverrideDefaultValue(field.key, v || undefined)}
-        emptyItem={parentDv !== undefined ? String(parentDv) : 'не задано'}>
+        emptyItem={inherited}>
         {enumTypeDef
           ? enumTypeDef.values.map(v => <SelectItem key={v.code} value={v.code}>{v.label}</SelectItem>)
           : (field.options ?? []).filter(o => o).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
@@ -592,7 +593,7 @@ export function DefaultValueCell({ field, override, enumTypes, onOverrideDefault
       <DateInput label={`По умолчанию: ${field.title || field.key}`}
         value={hasDv ? String(cur) : ''}
         onChange={v => onOverrideDefaultValue(field.key, v || undefined)}
-        size="sm" className={`w-full ${selectCls}`}
+        density="dense" className="w-full"
       />
     );
   }

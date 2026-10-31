@@ -99,7 +99,7 @@ function SourceSelector({
     );
 
   return (
-    <Select aria-label="Источник данных" value={value} placeholder="— выберите источник данных —"
+    <Select density="dense" aria-label="Источник данных" value={value} placeholder="— выберите источник данных —"
       onValueChange={id => {
         const src = allSources.find(s => s.id === id);
         if (src) onChange(id, src);

@@ -289,15 +289,15 @@ describe('храповик интерфейса: счёт', () => {
     expect(countViolations(text)).toEqual({ 'native-date': 1 });
   });
 
-  // #1464: рамку поля даты рисует size, а не экран.
-  it('своя рамка у DateInput — строкой и выражением; size, ширина и пометка border-…! — нет', () => {
+  // #1464: рамку поля даты рисует density, а не экран.
+  it('своя рамка у DateInput — строкой и выражением; density, ширина и пометка border-…! — нет', () => {
     expect(countViolations([
       '<DateInput label="Дата" className="w-full border rounded px-2" />',
       '<DateInput label="Дата"\n  className={`flex-1 ${on ? \'border-primary-container\' : \'border-outline-variant\'}`} />',
     ].join('\n'))).toEqual({ 'date-frame': 2 });
     expect(countViolations([
-      '<DateInput label="Дата" size="sm" className="flex-1" />',
-      "<DateInput label=\"Дата\" size=\"sm\" className={`w-full ${hasDv ? 'border-primary-container!' : ''}`} />",
+      '<DateInput label="Дата" density="dense" className="flex-1" />',
+      "<DateInput label=\"Дата\" density=\"dense\" className={`w-full ${hasDv ? 'border-primary-container!' : ''}`} />",
       '<DateInput label="Дата" compact className="w-full h-full focus-within:bg-primary-container" />',
       '<div className="border rounded" />',
     ].join('\n'))).toEqual({});
@@ -311,7 +311,7 @@ describe('храповик интерфейса: счёт', () => {
     ].join('\n'))).toEqual({ 'date-frame': 2 });
     expect(countViolations([
       "const selectCls = hasDv ? 'border-primary-container!' : '';",
-      '<DateInput label="Дата" size="sm" className={`w-full ${selectCls}`} />',
+      '<DateInput label="Дата" density="dense" className={`w-full ${selectCls}`} />',
     ].join('\n'))).toEqual({});
   });
 

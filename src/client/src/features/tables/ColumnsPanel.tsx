@@ -89,7 +89,7 @@ export function ColumnsPanel({ columns, view, base, baseTitle, gridColumns, onCh
 
           <div className="mt-3 pt-2.5 border-t border-outline-variant flex items-center gap-2 text-body-small text-on-surface-variant">
             <span aria-hidden>Закрепить слева</span>
-            <Select size="sm" className="w-auto" aria-label="Закрепить слева"
+            <Select density="dense" className="w-auto" aria-label="Закрепить слева"
               value={String(Math.min(view.pinned, gridColumns))}
               onValueChange={n => onChange(v => withPinned(v, Number(n)))}>
               <SelectItem value="0">не закреплять</SelectItem>
@@ -142,7 +142,7 @@ function ColumnRow({ column, label, checked, total, onShown, onTotal, move }: {
       </label>
 
       {onTotal && totals.length > 0 && (
-        <Select size="sm" className="w-auto shrink-0" aria-label={`Итог по колонке «${label}»`}
+        <Select density="dense" className="w-auto shrink-0" aria-label={`Итог по колонке «${label}»`}
           value={total ?? ''} onValueChange={v => onTotal(v ? v as Aggregate : null)} emptyItem="без итога">
           {totals.map(a => <SelectItem key={a} value={a}>{AGGREGATES[a].label}</SelectItem>)}
         </Select>

@@ -215,7 +215,7 @@ export function ReconciliationEditor({ existing, onClose }: {
           <div className="text-title-small text-on-surface-variant">Правило</div>
           <div className="flex items-center gap-2 text-body-medium text-on-surface-variant">
             <span>Слева должно быть</span>
-            <Select value={operator} onValueChange={v => setOperator(v as ComparisonOperator)}
+            <Select density="dense" value={operator} onValueChange={v => setOperator(v as ComparisonOperator)}
               aria-label="Оператор" className="w-40">
               {(Object.keys(OPERATOR_LABELS) as ComparisonOperator[]).map(op => (
                 <SelectItem key={op} value={op}>{OPERATOR_LABELS[op]}</SelectItem>
@@ -227,7 +227,7 @@ export function ReconciliationEditor({ existing, onClose }: {
             <TextField label="Допуск" value={tolerance} inputMode="decimal"
               onChange={e => setTolerance(e.target.value)} containerClassName="w-32"
               hint="0 — точное сравнение" />
-            <Select value={toleranceKind} onValueChange={v => setToleranceKind(v as ToleranceKind)}
+            <Select density="dense" value={toleranceKind} onValueChange={v => setToleranceKind(v as ToleranceKind)}
               aria-label="Вид допуска" className="w-40">
               <SelectItem value="Absolute">в единицах</SelectItem>
               <SelectItem value="Percent">в процентах</SelectItem>

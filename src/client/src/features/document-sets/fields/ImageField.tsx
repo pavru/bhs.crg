@@ -190,13 +190,13 @@ export function ImageField({ value, onChange, readOnly = false }: {
           <input value={img.height ?? ''} onChange={e => patch({ height: e.target.value })}
             placeholder="высота"
             className="w-24 border border-outline-variant rounded-xs px-2 py-1 text-body-small bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary" />
-          <Select size="sm" className="w-auto" aria-label="Выравнивание" value={img.align ?? ''}
+          <Select density="dense" className="w-auto" aria-label="Выравнивание" value={img.align ?? ''}
             onValueChange={align => patch({ align: (align || undefined) as ImageValue['align'] })} emptyItem="выравнивание">
             <SelectItem value="left">слева</SelectItem>
             <SelectItem value="center">по центру</SelectItem>
             <SelectItem value="right">справа</SelectItem>
           </Select>
-          <Select size="sm" className="w-auto" aria-label="Вписывание (fit)" value={img.fit ?? ''}
+          <Select density="dense" className="w-auto" aria-label="Вписывание (fit)" value={img.fit ?? ''}
             onValueChange={fit => patch({ fit: (fit || undefined) as ImageValue['fit'] })} emptyItem="fit (вписывание)">
             <SelectItem value="contain">contain</SelectItem>
             <SelectItem value="cover">cover</SelectItem>

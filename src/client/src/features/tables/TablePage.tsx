@@ -331,7 +331,7 @@ function Pager({ view, data, onChange }: {
       <div className="flex-1" />
       <span className="flex items-center gap-1.5">
         <span aria-hidden>Строк на странице</span>
-        <Select size="sm" className="w-auto" aria-label="Строк на странице"
+        <Select variant="inline" aria-label="Строк на странице"
           value={String(view.size)} onValueChange={size => onChange(v => withSize(v, Number(size)))}>
           {PAGE_SIZES.map(size => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}
         </Select>

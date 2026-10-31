@@ -194,7 +194,7 @@ function PredicateEditor({ predicate, onChange, onRemove }: {
 
   return (
     <span className="inline-flex items-center gap-1 bg-primary-container border border-primary-container rounded-xs px-1.5 py-0.5 text-label-small text-on-primary-container">
-      <Select size="inline" aria-label="Вид условия" value={predicateKind(predicate)} onValueChange={kind => setKind(kind as PredicateKind)}>
+      <Select variant="inline" aria-label="Вид условия" value={predicateKind(predicate)} onValueChange={kind => setKind(kind as PredicateKind)}>
         <SelectItem value="exists">путь есть</SelectItem>
         <SelectItem value="equals">путь =</SelectItem>
         <SelectItem value="contains">содержит</SelectItem>
@@ -209,7 +209,7 @@ function PredicateEditor({ predicate, onChange, onRemove }: {
 
       {predicate.kind === 'equals' && (
         <>
-          <Select size="inline" aria-label="Сравнение" value={predicate.op} onValueChange={op => onChange({ ...predicate, op: op as '=' | '!=' })}>
+          <Select variant="inline" aria-label="Сравнение" value={predicate.op} onValueChange={op => onChange({ ...predicate, op: op as '=' | '!=' })}>
             <SelectItem value="=">=</SelectItem>
             <SelectItem value="!=">≠</SelectItem>
           </Select>

@@ -124,7 +124,7 @@ export function UnionDiscriminatorEditor({
                 <div className="px-3 pb-3 space-y-2">
                   <div className="flex items-center gap-2">
                     <Icon icon={Add} size={18} className="text-on-surface-variant shrink-0" />
-                    <Select size="sm" className="flex-1" aria-label="Добавить тип документа"
+                    <Select density="dense" className="flex-1" aria-label="Добавить тип документа"
                       value="" placeholder="— добавить тип документа —"
                       onValueChange={id => { if (id) setRules(v.key, [...ids, id]); }}>
                       {/* Абстрактные типы В СПИСКЕ — и это не оплошность. Правило на тип забирает

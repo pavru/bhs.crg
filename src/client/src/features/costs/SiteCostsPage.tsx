@@ -4,7 +4,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { ArrowOutward, BarChart, HistoryIcon } from '@/shared/ui/icons';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
-import { Select, SelectItem } from '@/shared/ui/Select';
+import { Select } from '@/shared/ui/Select';
 import { RevealItem, SiteSelectItems } from '@/shared/siteFilter/SiteOptions';
 import { REVEAL_CHOICE, useSiteChoices } from '@/shared/siteFilter/siteReveal';
 import { useSiteFilterState } from '@/shared/siteFilter/siteFilterContext';
@@ -21,8 +21,6 @@ import { OUTSIDE_SITES } from './places';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { DateRange } from '@/shared/ui/DateRange';
 import { SegmentedButton } from '@/shared/ui/SegmentedButton';
-
-const ALL = 'all';
 
 /**
  * «Затраты по стройке» (задача G5, issue #1098, ТЗ COST-20).
@@ -85,14 +83,11 @@ export function SiteCostsPage() {
           subtitle="Отчёт построен по счетам на оплату. Расходные накладные в него пока не входят." />
 
         <div className="flex flex-wrap items-end gap-3">
-          {/* Подпись над полем — своя, а не рамочная у Select: рядом период той же высоты, и подпись у него
-              та же — legend `DateRange` размера md. */}
-          <div>
-            <span className="block mb-1 text-body-medium font-medium text-on-surface">Стройка</span>
-            <Select aria-label="Стройка" className="w-64 h-8 rounded-sm border border-outline-variant bg-surface px-2 text-body-medium"
-              value={site ?? ALL} stayOpenOn={REVEAL_CHOICE} onValueChange={value => value === REVEAL_CHOICE ? choices.reveal()
-                : set({ site: value === ALL ? null : value })}>
-              <SelectItem value={ALL}>Все стройки</SelectItem>
+          {/* Отбор отчёта — чип с меню ([UI-69]): «Все стройки» возвращает его в покой. */}
+          <div className="h-10 flex items-center">
+            <Select variant="chip" aria-label="Стройка" emptyItem="Все стройки"
+              value={site ?? ''} stayOpenOn={REVEAL_CHOICE} onValueChange={value => value === REVEAL_CHOICE ? choices.reveal()
+                : set({ site: value || null })}>
               <SiteSelectItems choices={choices} />
               <RevealItem hidden={choices.hidden} />
             </Select>
@@ -417,7 +412,7 @@ function RegistryLink({ to, label, note }: { to: string; label: string; note?: s
  */
 function MonthRange({ from, to, onChange }: { from: string; to: string; onChange: (from: string, to: string) => void }) {
   return (
-    <DateRange label="Учётный период" precision="month" size="md" required ordered className="w-full max-w-96"
+    <DateRange label="Учётный период" precision="month" required ordered className="w-full max-w-96"
       from={monthStart(from)} to={monthStart(to)}
       onChange={(f, t) => {
         if (!f && !t) return;

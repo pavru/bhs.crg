@@ -95,7 +95,7 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
                 className="w-24 text-body-small border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
               <input value={p.label} onChange={e => patch(i, { label: e.target.value })} placeholder="подпись"
                 className="flex-1 min-w-0 text-body-small border border-outline rounded-xs px-1.5 py-1 bg-surface text-on-surface" />
-              <Select size="sm" className="w-auto" aria-label={`Тип параметра ${p.name || i + 1}`} value={p.type}
+              <Select density="dense" className="w-auto" aria-label={`Тип параметра ${p.name || i + 1}`} value={p.type}
                 onValueChange={type => patch(i, { type: type as TemplateParam['type'], default: type === 'boolean' ? false : type === 'number' ? 0 : '' })}>
                 <SelectItem value="string">текст</SelectItem>
                 <SelectItem value="number">число</SelectItem>

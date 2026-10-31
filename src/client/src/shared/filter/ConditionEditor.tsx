@@ -36,7 +36,7 @@ export function ConditionEditor({ cond, columns, onChange, stacked = false, hint
     <div className={stacked ? 'flex flex-col gap-1.5' : 'contents'}>
       {columns.length > 0 ? (
         <Select
-          size="sm"
+          density="dense"
           value={cond.column}
           onValueChange={v => onChange(withColumn(cond, v, columns))}
           emptyItem="— колонка —"
@@ -64,7 +64,7 @@ export function ConditionEditor({ cond, columns, onChange, stacked = false, hint
       )}
 
       <Select
-        size="sm"
+        density="dense"
         value={cond.op}
         // Значение НЕ сбрасываем при смене оператора (issue #401): оно перекладывается туда, где его
         // ждёт сервер, — одно в value, границы и список в values (withOperator).

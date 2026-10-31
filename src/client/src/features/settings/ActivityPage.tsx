@@ -28,7 +28,6 @@ import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
  */
 
 const PAGE = 50;
-const ALL = 'all';
 
 const COLUMNS: DataGridColumn<ActivityRow>[] = [
   { key: 'occurredAt', label: 'Когда', width: 'w-36',
@@ -109,9 +108,9 @@ function Change({ record }: { record: ActivityRecord }) {
 export function ActivityPage() {
   // «Все» — отдельное значение, а не пустая строка: Radix запрещает пустое value у пункта списка,
   // и пункт с ним просто не выбирается — отбор выглядел бы сломанным.
-  const [action, setAction] = useState<string>(ALL);
+  const [action, setAction] = useState('');
   const [page, setPage] = useState(0);
-  const { data, isLoading } = useActivity(page * PAGE, PAGE, action === ALL ? null : action);
+  const { data, isLoading } = useActivity(page * PAGE, PAGE, action || null);
   const { data: actions = [] } = useActivityActions();
 
   const records = data?.items ?? [];
@@ -120,12 +119,11 @@ export function ActivityPage() {
   return (
     <div className="px-6 py-4 max-w-5xl">
       <PageHeader icon={<Icon icon={HistoryIcon} size={18} aria-hidden />} title="Журнал действий" className="mb-4" actions={
-        <div className="w-64">
-          {/* aria-label обязателен: видимой подписи у отбора нет — её заменяет заголовок рядом,
-              а тот читалке отбор не называет, и объявлен он был бы просто «список». */}
-          <Select value={action} onValueChange={v => { setAction(v); setPage(0); }}
-            aria-label="Отбор по действию">
-            <SelectItem value={ALL}>Все действия</SelectItem>
+        <div>
+          {/* Отбор — чип с меню ([UI-69]): «Все действия» возвращает его в покой. aria-label обязателен:
+              видимой подписи у отбора нет — её заменяет заголовок рядом, а тот читалке отбор не называет. */}
+          <Select variant="chip" value={action} onValueChange={v => { setAction(v); setPage(0); }}
+            aria-label="Отбор по действию" emptyItem="Все действия">
             {actions.map(a => <SelectItem key={a.code} value={a.code}>{a.title}</SelectItem>)}
           </Select>
         </div>

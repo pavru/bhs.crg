@@ -141,7 +141,7 @@ export function ProxySettingsSection() {
           Сохранить
         </Button>
         {checkable.length > 1 && (
-          <Select className="w-auto" aria-label="Служба для проверки"
+          <Select density="dense" className="w-auto" aria-label="Служба для проверки"
             value={service ?? checkable[0].service} disabled={test.isPending}
             onValueChange={setService}>
             {checkable.map(c => <SelectItem key={c.service} value={c.service}>{c.name}</SelectItem>)}

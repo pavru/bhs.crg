@@ -85,7 +85,7 @@ function AddEntryBindingPanel({
             Нет загруженных наборов данных. Загрузите файлы на странице «Наборы данных».
           </p>
         ) : (
-          <Select aria-label="Источник данных" value={sourceId} onValueChange={handleSourceChange}
+          <Select density="dense" aria-label="Источник данных" value={sourceId} onValueChange={handleSourceChange}
             placeholder="— выберите источник —">
             {files.map(f => (
               <SelectGroup key={f.id} label={`[${SCOPE_LABELS[f.scope]}] ${f.name} (${DATA_SET_FORMAT_LABELS[f.format]})`}>
