@@ -68,11 +68,18 @@ describe('храповик интерфейса: button-size', () => {
 });
 
 describe('храповик интерфейса: dense-scope и icon-button в shared/', () => {
-  it('переменная размера кнопки-иконки — только в dataTable.ts и Button.tsx', () => {
+  it('переменная размера кнопки-иконки — только в местах XS, buttonClasses.ts и Button.tsx', () => {
     const text = 'const c = "[--md-comp-icon-button-size:32px]";';
     expect(only('dense-scope', text, { dir: 'features', file: 'features/costs/X.tsx' })).toEqual({ 'dense-scope': 1 });
     expect(only('dense-scope', text, { dir: 'shared', file: 'shared/ui/dataTable.ts' })).toEqual({});
     expect(only('dense-scope', text, { dir: 'shared', file: 'shared/ui/Button.tsx' })).toEqual({});
+  });
+
+  it('класс места ICON_BUTTON_XS — только в названных местах', () => {
+    const text = "import { ICON_BUTTON_XS } from '@/shared/ui/buttonClasses';";
+    expect(only('dense-scope', text, { dir: 'features', file: 'features/costs/X.tsx' })).toEqual({ 'dense-scope': 1 });
+    expect(only('dense-scope', text, { dir: 'shared', file: 'shared/ui/DateInput.tsx' })).toEqual({});
+    expect(only('dense-scope', text, { dir: 'features', file: 'features/document-sets/editor/SourceBindingTrigger.tsx' })).toEqual({});
   });
 
   it('своя кнопка-иконка в shared/ui — нарушение; крестик чипа и сам Button.tsx — нет', () => {

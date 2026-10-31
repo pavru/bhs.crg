@@ -93,13 +93,15 @@ export function buttonRules(countElements) {
     },
     {
       id: 'dense-scope',
-      // Переменная размера кнопки-иконки ([UI-68], В7 = Б): её ставит только клетка таблицы (dataTable.ts),
-      // а читает только IconButton. Поставленная экраном, она вернула бы «маленькую кнопку» в шапки и
+      // Переменная размера кнопки-иконки ([UI-68], В7 = Б) и класс места ICON_BUTTON_XS: их ставят только
+      // места XS — клетка таблицы (dataTable.ts) и кнопка внутри поля (DateInput, линза реквизита), — а
+      // читает только IconButton. Поставленные экраном, они вернули бы «маленькую кнопку» в шапки и
       // панели мимо типа и мимо макетов.
-      pattern: /--md-comp-icon-button-/g,
+      pattern: /--md-comp-icon-button-|\bICON_BUTTON_XS\b/g,
       everywhere: true,
-      skip: ['shared/ui/dataTable.ts', 'shared/ui/Button.tsx'],
-      instead: 'размер кнопки-иконки задаёт место, а не экран: 32 — только в клетках DataGrid и EditGrid (shared/ui/dataTable.ts), везде прочее — 40; плотной панели нет — понадобится, отдельным change с компонентом Toolbar (docs/UI.md, таблица контролов)',
+      skip: ['shared/ui/buttonClasses.ts', 'shared/ui/Button.tsx', 'shared/ui/dataTable.ts', 'shared/ui/DateInput.tsx',
+        'features/document-sets/editor/SourceBindingTrigger.tsx'],
+      instead: 'размер кнопки-иконки задаёт место, а не экран: 32 — только в клетках DataGrid и EditGrid (shared/ui/dataTable.ts) и у кнопки внутри поля (DateInput, линза привязки), везде прочее — 40; плотной панели нет — понадобится, отдельным change с компонентом Toolbar (docs/UI.md, таблица контролов)',
     },
     {
       id: 'split-button',

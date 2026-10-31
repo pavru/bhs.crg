@@ -421,11 +421,18 @@ export async function placedBox(locator, what = 'слой') {
  * `pointer: coarse` начинает совпадать — без неё цель 48 px (`touch-target`) не включается, и проверка
  * цели зеленела бы впустую. Поэтому первым делом — само совпадение, иначе отказ с причиной. Узкий
  * экран (`setViewportSize`) касания не даёт: это ширина, а не указатель. `on: false` — вернуть мышь.
+ *
+ * ⚠️ Сессия CDP живёт, пока эмуляция включена: с отсоединением сессии Chromium снимает и её
+ * переопределения — отсоединённая сразу, она возвращала мышь до первого замера (проверено).
  */
+const touchSessions = new WeakMap();
 export async function emulateTouch(page, on = true) {
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: on, maxTouchPoints: on ? 5 : 1 });
-  await cdp.detach();
+  if (on && !touchSessions.has(page)) touchSessions.set(page, await page.context().newCDPSession(page));
+  const cdp = touchSessions.get(page);
+  if (cdp) {
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: on, maxTouchPoints: on ? 5 : 1 });
+    if (!on) { touchSessions.delete(page); await cdp.detach(); }
+  }
   const coarse = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
   if (coarse !== on) throw new Error(`эмуляция касания ${on ? 'не включилась' : 'не снялась'}: pointer: coarse — ${coarse}`);
 }

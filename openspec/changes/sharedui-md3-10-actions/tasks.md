@@ -97,14 +97,15 @@
 - [x] 1.7 Правило храповика: `h-*`, `w-*`, `size-*`, `min-h-*` в `className` у `Button` и `IconButton`,
   уровень 0. Проверка — `ui-ratchet.test.mjs`; места сегодня (`min-h-11` у трёх `IconButton` и по ширине)
   сняты или переведены.
-- [ ] 1.8 Цель нажатия 48 px под `pointer: coarse` — утилита `touch-target` (`:where` для `relative`,
+- [x] 1.8 Цель нажатия 48 px под `pointer: coarse` — утилита `touch-target` (`:where` для `relative`,
   `--_touch-inset` у смежных частей) у `Button`, `IconButton`, половин `SplitButton` [UI-68]. Механизм
-  #1434 снят: `max-md:h-11` и `min-h-11` ради цели убраны, `rail-checks` `smallTargets` мерит цель через
-  `elementFromPoint`. Проверка — живой прогон `shared-ui` в контексте `hasTouch`, `isMobile`, 375×812:
+  #1434 снят: `max-md:h-11` и `min-h-11` ради цели убраны, `rail-checks` `smallTargets` мерит цель — рамку вместе с
+  `::after` (design.md). Проверка — живой прогон `shared-ui` при касании (CDP `Emulation.setTouchEmulationEnabled`;
+  сессия держится, пока эмуляция включена, — с отсоединением Chromium её снимает):
   - первым шагом `matchMedia('(pointer: coarse)').matches`, иначе отказ с причиной;
   - касание в 4 px за краем кнопки-иконки нажимает её;
   - касание в 2 px внутри края основной части `SplitButton` — её, а не стрелку.
-- [ ] 1.9 `PrimaryFab` — extended FAB: `primary-container` (вместо `secondary-container`), форма 16,
+- [x] 1.9 `PrimaryFab` — extended FAB: `primary-container` (вместо `secondary-container`), форма 16,
   уровень 3, подпись `label-large` [UI-68]. Проверка —
   живой прогон оболочки на телефоне находит FAB 56 px; `style` у него нет.
 - [ ] 1.10 Живые прогоны, проверяющие размеры кнопок, правятся тем же PR: `rail-checks`,
@@ -121,6 +122,13 @@
   Проверка — ревью; в `docs/UI.md` нет `size="sm"` у кнопок.
 - [ ] 1.12 `/design-sync` (D12): превью `Button`, `IconButton`, `PrimaryFab` в `.design-sync/previews` и
   README дизайн-системы — по новому виду. Проверка — README и превью без `size="sm"`.
+- [x] 1.13 Кнопка внутри поля — место XS (найдено живым прогоном, выбор владельца 31.10.2026, design.md
+  «Кнопка внутри поля»): класс `ICON_BUTTON_XS` переезжает в `buttonClasses.ts`; его берут `dataTable.ts`,
+  крестик «Очистить дату» в `DateInput` и линза `SourceBindingTrigger`. `dense-scope` считает и класс,
+  места названы в `skip`. Проверка:
+  - vitest — у крестика `DateInput` и у линзы класс места;
+  - `ui-ratchet-buttons.test.mjs` — класс вне мест краснеет;
+  - `shared-ui` `date-calendar-has-today-and-clear-returns-by-esc` зелёный.
 
 ## 2. PR 2 — чипы и сегменты
 

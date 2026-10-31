@@ -100,6 +100,10 @@ const sideScroll = page => page.evaluate(() => document.documentElement.scrollWi
  * Цели касания меньше 48 px — нижняя навигация, шапка, заголовок-меню (issue #1434, [UI-68]). Цель — рамка
  * вместе с `::after` утилиты `touch-target`: видимая кнопка 40, а нажимается 48. Мерить — при касании
  * (`emulateTouch`): без него утилита не включена, и замер видел бы рамку.
+ *
+ * Скрытая кнопка не цель: у неё рамка 0×0, а `::after` всё равно посчитан бы — 8×8. Поиск в шапке —
+ * названное отступление (design.md sharedui-md3-10): `overflow-hidden` срезает `::after`, и он держит
+ * видимые 44 — порог у него 44, а не пропуск: меньше 44 он не станет молча.
  */
 const smallTargets = page => page.evaluate(() =>
   [...document.querySelectorAll('#app-bottom-nav a, main > header button, [data-testid=section-menu-trigger]')]
@@ -110,11 +114,13 @@ const smallTargets = page => page.evaluate(() =>
       const grown = after.content !== 'none' && after.position === 'absolute';
       return {
         el,
+        shown: box.width > 0 && box.height > 0,
+        min: el.hasAttribute('aria-keyshortcuts') ? 44 : 48,
         width: grown ? box.width - px(after.left) - px(after.right) : box.width,
         height: grown ? box.height - px(after.top) - px(after.bottom) : box.height,
       };
     })
-    .filter(({ width, height }) => width > 0 && (width < 48 || height < 48))
+    .filter(({ shown, min, width, height }) => shown && (width < min || height < min))
     .map(({ el, width, height }) => `«${(el.getAttribute('aria-label') ?? el.textContent ?? '').slice(0, 30)}» ${Math.round(width)}×${Math.round(height)}`));
 
 /**

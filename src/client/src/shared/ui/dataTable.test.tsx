@@ -7,6 +7,7 @@ import { IconButton } from './Button';
 import { DataGrid } from './DataGrid';
 import { EditGrid } from './EditGrid';
 import { Close, MoreVert } from './icons';
+import { SourceBindingTrigger } from '@/features/document-sets/editor/SourceBindingTrigger';
 
 // Размер кнопки-иконки задаёт место ([UI-68], В7 = Б): клетка ставит переменную, а слой, открытый из
 // клетки, лежит в body и её не наследует. jsdom не считает CSS — проверяется, что переменная стоит у
@@ -43,5 +44,15 @@ describe('кнопка-иконка в клетке таблицы', () => {
         </Popover.Root>
       ) }]} /></MemoryRouter>);
     expect(screen.getByRole('button', { name: 'Закрыть слой' }).closest('td')).toBeNull();
+  });
+});
+
+// Второе место XS — кнопка внутри поля (design.md «Кнопка внутри поля»): линза в углу поля реквизита при 40
+// накрывала кнопку календаря поля даты. Крестик `DateInput` — в DateInput.clear.test.tsx.
+describe('кнопка-иконка внутри поля', () => {
+  it('линза привязки реквизита — XS, при касании 40', () => {
+    render(<SourceBindingTrigger locked={false} isBound={false} onOpen={() => {}} />);
+    const lens = screen.getByRole('button', { name: 'Привязать к источнику' });
+    expect(lens.className.split(/\s+/)).toEqual(expect.arrayContaining([XS, COARSE]));
   });
 });

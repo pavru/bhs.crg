@@ -38,6 +38,17 @@ export function padding(variant: ButtonVariant, { leading = false, trailing = fa
  *  split-кнопки тени нет и при наведении ([UI-83]). */
 export const FILLED_HOVER_SHADOW = 'hover:shadow-elevation-1';
 
+/**
+ * Место XS кнопки-иконки ([UI-68], выбор владельца В7 = Б, 31.10.2026): при мыши — XS шкалы M3 Expressive,
+ * 32 со знаком 20, при касании — 40 со знаком 24 (у 32 цель нажатия вышла бы 40, а не 48). Задаёт место, а
+ * не кнопка: переменную читает только `IconButton`, а порталы окон и меню лежат в body и её не наследуют.
+ * Мест два — клетка таблицы (`dataTable.ts`) и кнопка внутри поля (`DateInput`, линза привязки реквизита);
+ * других не заводят мимо design.md (правило храповика `dense-scope`).
+ */
+export const ICON_BUTTON_XS =
+  '[--md-comp-icon-button-size:32px] [--md-comp-icon-button-icon:20px] '
+  + 'pointer-coarse:[--md-comp-icon-button-size:40px] pointer-coarse:[--md-comp-icon-button-icon:24px]';
+
 /** Цвет и отключённое варианта — без формы и тени. */
 export function variantClass(variant: ButtonVariant, danger = false): string {
   switch (variant) {

@@ -6,6 +6,7 @@
  * Важно: sticky-шапка требует `border-separate border-spacing-0` на таблице (иначе граница
  * шапки уезжает при скролле) — это уже в `dtTable`.
  */
+import { ICON_BUTTON_XS } from './buttonClasses';
 
 /** Обёртка-карточка со скроллом. */
 export const dtCard = 'overflow-auto rounded-lg border border-outline-variant bg-surface';
@@ -24,15 +25,7 @@ const dtThBase =
 /** Ячейка шапки: липкая, на surface-container, вторичный текст. */
 export const dtTh = `${dtThBase} px-3 h-(--dt-head)`;
 
-/**
- * Размер кнопки-иконки в клетке ([UI-68], выбор владельца В7 = Б, 31.10.2026): при мыши — XS шкалы M3
- * Expressive, 32 со знаком 20, при касании — 40 со знаком 24 (у 32 цель нажатия вышла бы 40, а не 48).
- * Задаёт место, а не кнопка: переменную читает только `IconButton`, а порталы окон и меню лежат в body
- * и её не наследуют. Имя — только здесь и в `Button.tsx` (правило храповика `dense-scope`).
- */
-const ICON_BUTTON_XS =
-  '[--md-comp-icon-button-size:32px] [--md-comp-icon-button-icon:20px] '
-  + 'pointer-coarse:[--md-comp-icon-button-size:40px] pointer-coarse:[--md-comp-icon-button-icon:24px]';
+// Клетка — место XS кнопки-иконки ([UI-68], В7 = Б): класс места — в buttonClasses.ts.
 
 /** Ячейка тела: тонкая нижняя граница, средняя плотность. */
 export const dtTd = `px-3 py-2 border-b border-outline-variant align-middle ${ICON_BUTTON_XS}`;
