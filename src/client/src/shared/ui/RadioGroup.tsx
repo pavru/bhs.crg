@@ -25,8 +25,11 @@ type GroupName =
  * Клавиатура — `useRadioGroup` (APG): одна остановка Tab, стрелки выбирают соседний, Home и End — крайние.
  *
  * Нативный `<input type="radio">` не взят: стрелка у него выбирает всегда, и выбор с подтверждением
- * (`confirm`) открывал бы окно на каждую стрелку. `onChange` зовётся и при нажатии на выбранный вариант —
- * выбор с подтверждением ведёт им дальше.
+ * (`confirm`) открывал бы окно на каждую стрелку. `onChange` зовётся только при смене значения — месту
+ * не нужно сверять его самому; исключение — `confirm`: там нажатие на выбранный вариант тоже ведёт дальше.
+ *
+ * С хвостом (`trailing`) хоть у одного варианта все строки — во всю ширину, хвост — у правого края: пометки
+ * стоят колонкой, а не вразброс за подписями разной длины.
  */
 export function RadioGroup<T extends string>({ items, value, onChange, orientation = 'vertical', confirm = false,
   disabled = false, className = '', label, ...aria }: {
@@ -43,7 +46,9 @@ export function RadioGroup<T extends string>({ items, value, onChange, orientati
 } & GroupName) {
   const nameId = useId();
   const off = (i: number) => disabled || !!items[i].disabled;
-  const radios = useRadioGroup(items.map(it => it.value), value, onChange, { follow: !confirm, disabled: (_, i) => off(i) });
+  const pick = (next: T) => { if (confirm || next !== value) onChange(next); };
+  const radios = useRadioGroup(items.map(it => it.value), value, pick, { follow: !confirm, disabled: (_, i) => off(i) });
+  const wide = items.some(it => it.trailing);
 
   return (
     <div role="radiogroup" aria-labelledby={label != null ? nameId : aria['aria-labelledby']} aria-label={aria['aria-label']}
@@ -54,12 +59,12 @@ export function RadioGroup<T extends string>({ items, value, onChange, orientati
           const on = it.value === value;
           return (
             <button key={it.value} type="button" role="radio" aria-checked={on} {...radios.item(i)} disabled={off(i)}
-              onClick={() => onChange(it.value)}
-              className={`group flex w-fit max-w-full min-h-10 items-center gap-1 text-left text-body-medium focus-visible:outline-none ${
+              onClick={() => pick(it.value)}
+              className={`group flex ${wide ? 'w-full' : 'w-fit max-w-full'} min-h-10 items-center gap-1 text-left text-body-medium focus-visible:outline-none ${
                 off(i) ? 'text-on-surface/38 cursor-default' : 'text-on-surface cursor-pointer'}`}>
               <RadioMark selected={on} disabled={off(i)} />
               {/* Поля 10 px — первая строка подписи по центру круга, длинная подпись переносится под ней. */}
-              <span className="min-w-0 py-2.5">
+              <span className={`min-w-0 py-2.5 ${wide ? 'flex-1' : ''}`}>
                 {it.label}
                 {it.description && <span className={`block text-body-small ${off(i) ? '' : 'text-on-surface-variant'}`}>{it.description}</span>}
               </span>

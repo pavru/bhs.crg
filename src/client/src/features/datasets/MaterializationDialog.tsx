@@ -308,7 +308,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                 документ комплекта (issue #725). Составным типам выбирать не из чего. */}
             {isDocumentType && (
               <RadioGroup label="Документ строки" orientation="horizontal" value={byIdMode ? 'byId' : 'build'}
-                onChange={v => { if ((v === 'byId') !== byIdMode) switchByIdMode(v === 'byId'); }}
+                onChange={v => switchByIdMode(v === 'byId')}
                 items={[{ value: 'build', label: 'собрать из колонок' }, { value: 'byId', label: 'существующий документ по Ид' }]} />
             )}
 
@@ -328,7 +328,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
             <>
               {isUnion && (
                 <RadioGroup label="Как выбрать вариант" orientation="horizontal" value={byRowType ? 'byRow' : 'one'}
-                  onChange={v => { if ((v === 'byRow') !== byRowType) switchMode(v === 'byRow'); }}
+                  onChange={v => switchMode(v === 'byRow')}
                   items={[{ value: 'one', label: 'один вариант на все строки' }, { value: 'byRow', label: 'вариант по типу документа строки' }]} />
               )}
 

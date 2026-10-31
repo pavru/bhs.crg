@@ -10,6 +10,11 @@ import { Check, Remove } from './icons';
  * `on-surface-variant`, у отмеченного и частичного — заливка `primary` со знаком `on-primary`, ошибка — роль
  * `error`. Размер один: 16 px у MD3 нет.
  *
+ * Круг выходит за след на 11 px с каждой стороны и ловит нажатия там же: соседней кнопке нужен зазор
+ * не меньше 11 px (`boxClassName="mr-1"` при `gap-2`), колонке выбора в таблице — ширина 40. В строке со
+ * своим слоем (`<label className="state-layer …">`) круг не загорается: цель там — вся строка, как у
+ * пункта списка MD3 (`state-layer` в index.css).
+ *
  * `indeterminate` — состояние «отмечены не все» у флажка «выбрать всё». Атрибутом HTML его не задать,
  * только свойством элемента; диктор читает его как «частично отмечен».
  *
@@ -61,9 +66,11 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
   const filled = checked || indeterminate;
   const invalid = on(rest['aria-invalid']);
   const readOnly = on(rest['aria-readonly']);
-  // Слой — цветом знака: у отмеченного primary (error у ошибки), у пустого on-surface.
-  const layer = invalid ? '[--_state-color:var(--color-error)]'
-    : filled && !readOnly ? '[--_state-color:var(--color-primary)]' : '[--_state-color:var(--color-on-surface)]';
+  // Слой — цветом знака и в том же порядке, что markClass: только для чтения — on-surface (и с ошибкой:
+  // квадрат у него нейтральный), ошибка — error, отмеченный — primary, пустой — on-surface.
+  const layer = readOnly ? '[--_state-color:var(--color-on-surface)]'
+    : invalid ? '[--_state-color:var(--color-error)]'
+    : filled ? '[--_state-color:var(--color-primary)]' : '[--_state-color:var(--color-on-surface)]';
 
   const box = (
     <span className={`relative inline-flex shrink-0 ${boxClassName ?? (label ? 'mt-px' : '')} ${label ? '' : className}`}>
@@ -79,7 +86,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
         disabled={disabled}
         onChange={e => onChange(e.target.checked)}
         // bg-transparent — у input без своего вида остаётся фон браузера (Canvas), и круг 40 был бы виден в покое.
-        className={`peer -m-[11px] size-10 shrink-0 appearance-none rounded-full bg-transparent state-layer ${layer} focus-ring ` +
+        className={`-m-[11px] size-10 shrink-0 appearance-none rounded-full bg-transparent state-layer ${layer} focus-ring ` +
           `${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
       />
       {/* Форма 2 px — токен флажка MD3, ниже шкалы формы: исключение храповика legacy-radius названо. */}

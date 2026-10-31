@@ -7,9 +7,11 @@ import { Tooltip } from './Tooltip';
  * размер один. Слой состояния — круг 40 px вокруг ручки, загорается от всего трека. В строке с подписью
  * переключатель стоит в конце строки.
  *
- * Обводка — `inset-ring`, а не `border`: рамка сдвинула бы ручку на свою толщину. Отключённое — по MD3:
- * трек on-surface 12 % (`disabled-container`), ручка on-surface 38 %, у включённого — `surface`. Состояние
- * берётся из пропсов, а не `group-disabled:`: под подсказкой кнопка становится `aria-disabled`.
+ * Обводка — свой `span` поверх трека, а не `border` и не `inset-ring`: рамка сдвинула бы ручку на свою
+ * толщину, а `inset-ring` — это `box-shadow`, который `disabled-container` у отключённого снимает целиком.
+ * Отключённое — по MD3: трек on-surface 12 % (`disabled-container`), обводка выключенного on-surface 12 %,
+ * ручка on-surface 38 %, у включённого — `surface`. Состояние берётся из пропсов, а не `group-disabled:`:
+ * под подсказкой кнопка становится `aria-disabled`.
  */
 export function Switch({ checked, onChange, disabled, label, title }: {
   checked: boolean;
@@ -29,9 +31,13 @@ export function Switch({ checked, onChange, disabled, label, title }: {
         type="button" role="switch" aria-checked={checked} aria-label={label} disabled={disabled}
         onClick={() => onChange(!checked)}
         className={`group relative inline-flex h-8 w-13 shrink-0 rounded-full focus-ring disabled-container disabled:cursor-not-allowed ${
-          checked ? 'bg-primary' : 'bg-surface-container-highest inset-ring-2 inset-ring-outline'
+          checked ? 'bg-primary' : 'bg-surface-container-highest'
         }`}
       >
+        {!checked && (
+          <span aria-hidden="true" data-outline
+            className={`pointer-events-none absolute inset-0 rounded-full border-2 ${disabled ? 'border-on-surface/12' : 'border-outline'}`} />
+        )}
         {/* Центр ручки — 16 px от края трека: круг слоя 40 px стоит на −4 px и на 16 px. */}
         <span aria-hidden="true"
           className={`absolute top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full [--_also-transition:left] ${

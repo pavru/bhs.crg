@@ -56,6 +56,25 @@ describe('RadioGroup', () => {
     expect(onPick).toHaveBeenCalledWith('Configuration');
   });
 
+  it('нажатие на выбранный вариант onChange не зовёт; с confirm — зовёт: выбор ведёт дальше', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<RadioGroup aria-label="Вариант" items={ITEMS} value="Full" onChange={onChange} />);
+    fireEvent.click(screen.getAllByRole('radio')[0]);
+    expect(onChange).not.toHaveBeenCalled();
+    rerender(<RadioGroup aria-label="Вариант" items={ITEMS} value="Full" onChange={onChange} confirm />);
+    fireEvent.click(screen.getAllByRole('radio')[0]);
+    expect(onChange).toHaveBeenCalledWith('Full');
+  });
+
+  it('хвост хоть у одного варианта — строки во всю ширину, подпись тянется: хвост у правого края', () => {
+    render(<RadioGroup aria-label="Вариант" value="Full" onChange={() => {}}
+      items={[ITEMS[0], { ...ITEMS[1], trailing: <span>задан</span> }]} />);
+    for (const r of screen.getAllByRole('radio')) {
+      expect(r.className.split(/\s+/)).toContain('w-full');
+      expect((r.children[1] as HTMLElement).className.split(/\s+/)).toContain('flex-1');
+    }
+  });
+
   it('confirm — стрелка двигает только фокус, выбирает нажатие', () => {
     const onChange = vi.fn();
     render(<RadioGroup aria-label="Вариант" items={ITEMS} value="Full" onChange={onChange} confirm />);

@@ -56,6 +56,20 @@ describe('храповик интерфейса: raw-field', () => {
     ].join('\n'))).toEqual({ 'raw-field': 2 });
   });
 
+  it('константа-условие, склейка, цепочка и одно имя в двух функциях — тоже красные', () => {
+    expect(fields([
+      "const cls = invalid ? 'border border-error' : 'border border-outline';",
+      '<input className={cls} />',
+      "const base = 'w-full border border-outline';",
+      "const wide = base + ' px-3';",
+      '<input className={wide} />',
+      "const chained = (`${wide} font-mono`) as const;",
+      '<textarea className={chained} />',
+      "function A() { const c = 'px-2'; return <input className={c} />; }",
+      "function B() { const c = 'border px-2'; return null; }",
+    ].join('\n'))).toEqual({ 'raw-field': 4 });
+  });
+
   it('поле без рамки, снятая рамка, флажок и файл — зелёные; компоненты поля — тоже', () => {
     expect(fields([
       '<input className="w-full bg-transparent outline-none text-body-medium" />',

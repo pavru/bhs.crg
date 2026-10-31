@@ -21,14 +21,18 @@ const NOT_A_FIELD = new Set(['checkbox', 'radio', 'file', 'hidden', 'range', 'co
 
 // Класс поля часто живёт константой файла (`const inputCls = 'border …'`) — её текст подставляется по имени.
 // Константа другого модуля не видна: общая `FIELD_CLS` (shared/filter) — плотная коробка [UI-69], а не самоделка.
+// Константа — строка, шаблон, склейка (`base + ' w-full'`) или условие (`err ? 'border-error' : 'border'`),
+// в скобках и с `as const`; имена в её тексте раскрываются дальше. Одно имя в разных областях видимости —
+// все его тексты: рамка хоть в одном считается.
 const localClasses = new WeakMap();
+const CLASS_EXPR = n => ts.isStringLiteralLike(n) || ts.isTemplateExpression(n) || ts.isBinaryExpression(n)
+  || ts.isConditionalExpression(n) || ts.isParenthesizedExpression(n) || ts.isAsExpression(n);
 function classConstants(sf) {
   if (!localClasses.has(sf)) {
     const map = new Map();
     const visit = node => {
-      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer
-        && (ts.isStringLiteralLike(node.initializer) || ts.isTemplateExpression(node.initializer) || ts.isBinaryExpression(node.initializer)))
-        map.set(node.name.text, node.initializer.getText(sf));
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && CLASS_EXPR(node.initializer))
+        map.set(node.name.text, [...(map.get(node.name.text) ?? []), node.initializer.getText(sf)]);
       ts.forEachChild(node, visit);
     };
     visit(sf);
@@ -37,13 +41,18 @@ function classConstants(sf) {
   return localClasses.get(sf);
 }
 
+/** Есть ли своя рамка в тексте класса — прямо или в константах файла, названных в нём (с раскрытием цепочки). */
+function hasOwnBorder(text, consts, seen = new Set()) {
+  if (OWN_BORDER.test(text)) return true;
+  return [...text.matchAll(/\b[A-Za-z_]\w*\b/g)].some(([id]) => consts.has(id) && !seen.has(id)
+    && (seen.add(id), consts.get(id).some(t => hasOwnBorder(t, consts, seen))));
+}
+
 /** Сырое поле со своей рамкой: `<input>` или `<textarea>` разметки с классом рамки — строкой или константой файла. */
 export function isRawField({ tag, cls, attrs, sf }) {
   if (tag !== 'input' && tag !== 'textarea') return false;
   if (tag === 'input' && NOT_A_FIELD.has(literal(attrs.get('type')))) return false;
-  if (OWN_BORDER.test(cls)) return true;
-  const consts = sf ? classConstants(sf) : new Map();
-  return [...cls.matchAll(/\b[A-Za-z_]\w*\b/g)].some(([id]) => consts.has(id) && OWN_BORDER.test(consts.get(id)));
+  return hasOwnBorder(cls, sf ? classConstants(sf) : new Map());
 }
 
 /**

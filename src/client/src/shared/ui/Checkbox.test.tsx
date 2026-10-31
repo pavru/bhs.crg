@@ -40,6 +40,13 @@ describe('Checkbox MD3', () => {
     expect(cls(mark('Нельзя'))).toContain('border-on-surface/38');
   });
 
+  it('только для чтения с ошибкой — квадрат нейтральный, и слой нейтральный: не error', () => {
+    render(<Checkbox checked onChange={() => {}} aria-label="Заперто" aria-readonly aria-invalid />);
+    expect(cls(mark('Заперто'))).toContain('border-outline-variant');
+    expect(cls(input('Заперто'))).toContain('[--_state-color:var(--color-on-surface)]');
+    expect(cls(input('Заперто'))).not.toContain('peer');
+  });
+
   it('только для чтения — обводка border-outline-variant без заливки, aria-readonly у input; нажатие гасит место', () => {
     // Как PrimitiveInput: клик отменён, onChange место не пропускает.
     const onChange = vi.fn();

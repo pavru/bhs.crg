@@ -7,6 +7,7 @@ import { Switch } from './Switch';
 afterEach(cleanup);
 const sw = (name: string) => screen.getByRole('switch', { name });
 const handle = (name: string) => sw(name).querySelector('[aria-hidden] > span') as HTMLElement;
+const outline = (name: string) => sw(name).querySelector('[data-outline]');
 const cls = (el: Element) => el.className.split(/\s+/);
 
 describe('Switch MD3', () => {
@@ -20,8 +21,20 @@ describe('Switch MD3', () => {
 
   it('трек 52×32; выключенный — surface-container-highest с обводкой outline, ручка 16 outline', () => {
     render(<Switch checked={false} onChange={() => {}} label="Выкл" />);
-    expect(cls(sw('Выкл'))).toEqual(expect.arrayContaining(['h-8', 'w-13', 'rounded-full', 'bg-surface-container-highest', 'inset-ring-2', 'inset-ring-outline']));
+    expect(cls(sw('Выкл'))).toEqual(expect.arrayContaining(['h-8', 'w-13', 'rounded-full', 'bg-surface-container-highest']));
+    expect(cls(outline('Выкл')!)).toEqual(expect.arrayContaining(['absolute', 'inset-0', 'border-2', 'border-outline']));
     expect(cls(handle('Выкл'))).toEqual(expect.arrayContaining(['size-4', 'bg-outline', 'group-active:size-7']));
+  });
+
+  it('отключённый выключенный сохраняет обводку — on-surface 12 %, а не box-shadow, который снимает disabled-container', () => {
+    render(<Switch checked={false} onChange={() => {}} label="Нельзя" disabled />);
+    expect(cls(sw('Нельзя'))).not.toEqual(expect.arrayContaining(['inset-ring-2']));
+    expect(cls(outline('Нельзя')!)).toContain('border-on-surface/12');
+  });
+
+  it('у включённого обводки нет', () => {
+    render(<Switch checked onChange={() => {}} label="Вкл" />);
+    expect(outline('Вкл')).toBeNull();
   });
 
   it('включённый — трек primary, ручка 24 on-primary справа', () => {

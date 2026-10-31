@@ -175,7 +175,7 @@ function ArrayTableModalBody({
 
   const columns: EditGridColumn<Record<string, unknown>>[] = [
     {
-      key: '@select', label: 'Выбор', size: 34,
+      key: '@select', label: 'Выбор', size: 40, // круг флажка 40 ([UI-69]) — в колонке, а не на соседней
       header: (
         <span className="flex items-center justify-center">
           <Checkbox aria-label="Выбрать все строки"
