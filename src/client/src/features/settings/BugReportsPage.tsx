@@ -10,7 +10,7 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { apiError } from '@/shared/utils/apiError';
 import { ListDetailShell, NavSearchInput, NavSection } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { StatusBadge, type StatusTone } from '@/shared/ui/StatusBadge';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { useOpenAttachment } from '@/shared/hooks/useOpenAttachment';
@@ -127,7 +127,7 @@ function ReportDetail({ id, githubConfigured }: { id: string; githubConfigured: 
 function ReportBody({ report, githubConfigured }: {
   report: BugReportDetail; githubConfigured: boolean;
 }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const openAttachment = useOpenAttachment();
   const saveDraft = useSaveBugReportDraft();
   const markFixed = useMarkBugReportFixed();

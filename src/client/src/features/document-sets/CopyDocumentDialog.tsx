@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { TypePicker } from '@/shared/ui/TypePicker';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { usePreviewCopyDocument, useCopyDocument } from '@/shared/api/documentSets';
 import { CopyWarnings } from './CopyWarnings';
 import type { Construction } from '@/shared/api/types';
@@ -31,7 +31,7 @@ export function CopyDocumentDialog(props: CopyDocumentDialogProps) {
 
 function CopyDocumentDialogBody({ onClose, setId, instance, constructions }: CopyDocumentDialogProps) {
   const navigate = useNavigate();
-  const toast = useToast();
+  const toast = useSnackbar();
   const copyMutation = useCopyDocument();
   const [target, setTarget] = useState<TargetSet | null>(null);
   const targetRef = useRef<TargetSet | null>(null);

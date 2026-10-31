@@ -6,7 +6,7 @@ import { WindowStep } from '@/shared/ui/WindowStep';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import type { CatalogScope, DocumentType, FieldRef, PrimitiveTypeDef } from '@/shared/api/types';
 import { SCOPE_LABELS } from '@/shared/api/types';
 import { identityFieldKeys, resolveEffectiveFields } from '@/shared/api/schema';
@@ -61,7 +61,7 @@ export function ExtractToCommonDataModal({
   /** Ссылка на созданную (или найденную) запись — заменяет собой inline-значение. */
   onExtracted: (ref: FieldRef) => void;
 }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const create = useCreateCommonDataEntry();
   const refsOwnerId = useContext(RefsOwnerContext);
   const { data: primitiveTypes = EMPTY_PRIMITIVES } = useListPrimitiveTypes();

@@ -15,7 +15,7 @@ import { useScopePurge } from './useScopePurge';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
 import { NotFavoriteNote } from '@/shared/siteFilter/SiteFilterNotes';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { CopyDocumentDialog } from './CopyDocumentDialog';
 import { MoveDocumentDialog } from './MoveDocumentDialog';
@@ -93,7 +93,7 @@ export function SetDetail() {
   // администратором роли с правом рассылки кнопки не увидит, хотя сервер его пропускает.
   const canSend = hasPermission(access, 'id.document.send');
   const emailSet = useEmailSet();
-  const toast = useToast();
+  const toast = useSnackbar();
 
   useEffect(() => {
     if (watching && output && output.generatedAt !== watchStartRef.current) {

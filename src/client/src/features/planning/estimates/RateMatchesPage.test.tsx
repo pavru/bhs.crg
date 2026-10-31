@@ -9,7 +9,7 @@ import { WORK_TYPES } from './matchFixtures';
 
 vi.mock('@/shared/api/client', () => ({ apiClient: { post: vi.fn(), get: vi.fn(), put: vi.fn(), delete: vi.fn() } }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), apiError: vi.fn() }));
-vi.mock('@/shared/ui/Toast', () => ({ useToast: () => toast }));
+vi.mock('@/shared/ui/Snackbar', () => ({ useSnackbar: () => toast }));
 vi.mock('@/shared/hooks/useMedia', async importOriginal => ({
   ...(await importOriginal<typeof import('@/shared/hooks/useMedia')>()), useMedia: () => true,
 }));

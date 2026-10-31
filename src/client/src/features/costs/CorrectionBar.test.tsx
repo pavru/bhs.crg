@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ToastProvider } from '@/shared/ui/ToastProvider';
+import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
 import { apiClient } from '@/shared/api/client';
 import { QK, useInvoice, type InvoiceView } from '@/shared/api/invoices';
 import type { CorrectionPreview } from '@/shared/api/invoiceCorrection';
@@ -61,7 +61,7 @@ function Form() {
 function mount(initial = view()) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData([QK, 'i1'], initial);
-  render(<QueryClientProvider client={qc}><ToastProvider><Form /></ToastProvider></QueryClientProvider>);
+  render(<QueryClientProvider client={qc}><SnackbarProvider><Form /></SnackbarProvider></QueryClientProvider>);
 }
 
 const check = () => screen.getByRole('button', { name: 'Проверить исправление…' });

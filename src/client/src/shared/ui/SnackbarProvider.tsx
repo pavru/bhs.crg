@@ -5,32 +5,32 @@ import { CheckCircle, Close, Info, Warning, type IconDef } from './icons';
 import { traceIdOf } from '@/shared/api/client';
 import { apiError } from '@/shared/utils/apiError';
 import { openBugReport } from './bugReportBus';
-import { ToastCtx, type ToastApi, type ToastItem, type ToastOptions, type ToastVariant } from './Toast';
+import { SnackbarCtx, type SnackbarApi, type SnackbarItem, type SnackbarOptions, type SnackbarVariant } from './Snackbar';
 
 /**
- * Провайдер тостов и карточка. Отдельным файлом от `useToast` (issue #858): модуль, экспортирующий
- * и компонент, и хук, теряет горячую перезагрузку — правка компонента перезагружает страницу целиком
- * вместо подмены на месте. Хук оставлен на прежнем месте: его зовут два десятка экранов.
+ * Провайдер уведомлений и карточка. Отдельным файлом от `useSnackbar` (issue #858): модуль,
+ * экспортирующий и компонент, и хук, теряет горячую перезагрузку — правка компонента перезагружает
+ * страницу целиком вместо подмены на месте. Хук живёт в `Snackbar.ts`: его зовут почти сто экранов.
  */
 
 const MAX_VISIBLE = 3;
-const DEFAULT_DURATION: Record<ToastVariant, number> = { success: 4000, info: 4000, error: 8000 };
+const DEFAULT_DURATION: Record<SnackbarVariant, number> = { success: 4000, info: 4000, error: 8000 };
 
-const VARIANT_ICON: Record<ToastVariant, IconDef> = { success: CheckCircle, error: Warning, info: Info };
-const VARIANT_ICON_COLOR: Record<ToastVariant, string> = {
+const VARIANT_ICON: Record<SnackbarVariant, IconDef> = { success: CheckCircle, error: Warning, info: Info };
+const VARIANT_ICON_COLOR: Record<SnackbarVariant, string> = {
   success: 'text-success', error: 'text-error', info: 'text-on-surface-variant',
 };
 
-export function ToastProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<ToastItem[]>([]);
+export function SnackbarProvider({ children }: { children: ReactNode }) {
+  const [items, setItems] = useState<SnackbarItem[]>([]);
   const idRef = useRef(0);
 
-  const push = useCallback((o: ToastOptions) => {
+  const push = useCallback((o: SnackbarOptions) => {
     setItems(prev => [...prev, { ...o, id: ++idRef.current }].slice(-MAX_VISIBLE));
   }, []);
   const remove = useCallback((id: number) => setItems(prev => prev.filter(t => t.id !== id)), []);
 
-  const api = useMemo<ToastApi>(() => ({
+  const api = useMemo<SnackbarApi>(() => ({
     toast: push,
     success: (message, o) => push({ ...o, message, variant: 'success' }),
     error: (message, o) => push({ ...o, message, variant: 'error' }),
@@ -41,19 +41,19 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }), [push]);
 
   return (
-    <ToastCtx.Provider value={api}>
+    <SnackbarCtx.Provider value={api}>
       <RT.Provider swipeDirection="right">
         {children}
-        {items.map(t => <ToastCard key={t.id} item={t} onRemove={() => remove(t.id)} />)}
+        {items.map(t => <SnackbarCard key={t.id} item={t} onRemove={() => remove(t.id)} />)}
         {/* На телефоне — над нижней навигацией и плавающей кнопкой (#1434), если они есть: подъём
             ставит оболочка (`--toast-lift`, `phoneLayout.ts`). У края тост закрывал бы разделы. */}
         <RT.Viewport className="fixed bottom-4 max-md:bottom-[calc(1rem+var(--toast-lift,0px))] right-4 z-[100] flex w-[380px] max-w-[calc(100vw-2rem)] flex-col gap-2 outline-none" />
       </RT.Provider>
-    </ToastCtx.Provider>
+    </SnackbarCtx.Provider>
   );
 }
 
-function ToastCard({ item, onRemove }: { item: ToastItem; onRemove: () => void }) {
+function SnackbarCard({ item, onRemove }: { item: SnackbarItem; onRemove: () => void }) {
   const variant = item.variant ?? 'info';
   const icon = VARIANT_ICON[variant];
   const bg = variant === 'error' ? 'bg-error-container' : 'bg-surface';

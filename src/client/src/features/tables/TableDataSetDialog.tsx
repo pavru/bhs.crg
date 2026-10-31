@@ -5,7 +5,7 @@ import { createTableDataSet, type TableColumn, type TableExportBody } from '@/sh
 import { Button } from '@/shared/ui/Button';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
 
 /** Колонки условий отбора — из того же текста, что уходит на сервер. */
@@ -36,7 +36,7 @@ export function TableDataSetDialog({ address, initialName, body, columns, all, o
   all: TableColumn[];
   onClose: () => void;
 }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [name, setName] = useState(initialName);

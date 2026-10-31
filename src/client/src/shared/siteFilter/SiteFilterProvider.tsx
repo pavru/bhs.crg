@@ -5,7 +5,7 @@ import { useAccess, hasPermission } from '@/shared/api/access';
 import { fetchConstructionDirectory, useConstructionDirectory } from '@/shared/api/constructions';
 import { USER_SETTINGS_KEY, fetchUserSettings, useUserSettings, type UserSettings } from '@/shared/api/userSettings';
 import { useAuth } from '@/shared/hooks/useAuth';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { SiteFilterContext, type SiteFilterValue } from './siteFilterContext';
 import {
   FAVORITES_KEY, FILTER_KEY, LIMIT_TEXT, MAX_FAVORITES, filterOn, filterState, isVisible, parseFavorites,
@@ -49,7 +49,7 @@ export function SiteFilterProvider({ children }: { children: ReactNode }) {
   const settings = useUserSettings(!!user);
   const directory = useConstructionDirectory(allowed);
   const queryClient = useQueryClient();
-  const toast = useToast();
+  const toast = useSnackbar();
 
   const sites = useMemo(() => directory.data ?? [], [directory.data]);
   const live = useMemo(() => new Set(sites.map(s => s.id)), [sites]);

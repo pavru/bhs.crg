@@ -7,7 +7,7 @@ import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { DateField } from '@/shared/ui/DateField';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { useCan } from '@/shared/api/access';
@@ -166,7 +166,7 @@ export function CloseDialog({ state, name, today, sites, onDone }: {
   sites?: PeriodSites;
   onDone: () => void;
 }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const close = useClosePeriod();
   const [through, setThrough] = useState(() => suggestThrough(today, state.closedThrough));
   // Начало первого закрытия называет человек; у следующих оно задано границей и не правится.
@@ -297,7 +297,7 @@ export function ReopenDialog({ state, name, nameOf, sites, onDone }: {
   sites?: PeriodSites;
   onDone: () => void;
 }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const reopen = useReopenPeriod();
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);

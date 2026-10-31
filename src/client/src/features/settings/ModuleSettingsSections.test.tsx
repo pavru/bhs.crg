@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ToastProvider } from '@/shared/ui/ToastProvider';
+import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
 import { apiClient } from '@/shared/api/client';
 import type { ModuleSettings } from '@/shared/api/moduleSettings';
 import { ModuleSettingsSections } from './ModuleSettingsSections';
@@ -37,7 +37,7 @@ async function confirming(preview: () => Promise<unknown>, module: ModuleSetting
   vi.mocked(apiClient.post).mockImplementation(preview as never);
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
-      <ToastProvider><ModuleSettingsSections /></ToastProvider>
+      <SnackbarProvider><ModuleSettingsSections /></SnackbarProvider>
     </QueryClientProvider>,
   );
   fireEvent.change(await screen.findByLabelText('Допуск расхождения сумм'), { target: { value: '0,50' } });

@@ -7,7 +7,7 @@ import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { DateField } from '@/shared/ui/DateField';
 import { TextField } from '@/shared/ui/TextField';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError, isConflict } from '@/shared/utils/apiError';
 import { useCan } from '@/shared/api/access';
 import type { InvoiceView } from '@/shared/api/invoices';
@@ -124,7 +124,7 @@ export function InvoicePayment({ view, dirty }: {
 /** «Оплачен … · платёжный документ: …» с правкой документа на месте — своей кнопкой, не общим сохранением. */
 function PaidDocument({ view, editable }: { view: InvoiceView; editable: boolean }) {
   const describe = useDescribePayment();
-  const toast = useToast();
+  const toast = useSnackbar();
   const [draft, setDraft] = useState<string | null>(null);
   const payment = view.payment;
 
@@ -171,7 +171,7 @@ function PaidDocument({ view, editable }: { view: InvoiceView; editable: boolean
  * но отказ после нажатия хуже кнопки, которая честно ждёт.</p>
  */
 export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const preview = usePaymentPreview();
   const pay = usePayInvoice();
   // Первый вопрос — без даты: «сегодня» называет сервер. Пока ответ не пришёл, поле даты пустое — а
@@ -304,7 +304,7 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
 
 /** Отмена ошибочной отметки — с причиной: версий оплата не создаёт, и другого следа не остаётся. */
 export function CancelDialog({ view, onDone }: { view: InvoiceView; onDone: () => void }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const cancel = useCancelPayment();
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);

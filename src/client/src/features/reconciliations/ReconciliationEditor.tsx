@@ -3,7 +3,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { Select, SelectItem } from '@/shared/ui/Select';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useListDataSetFiles } from '@/shared/api/datasets';
 import type { DataSetSource } from '@/shared/api/types';
 import { Icon } from '@/shared/ui/Icon';
@@ -148,7 +148,7 @@ export function ReconciliationEditor({ existing, onClose }: {
   existing: Reconciliation | null;
   onClose: () => void;
 }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const create = useCreateReconciliation();
   const update = useUpdateReconciliation();
 

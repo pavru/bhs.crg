@@ -6,7 +6,7 @@ import { Button, IconButton } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { workNav } from '@/shared/ui/navConfig';
 import { visibleNav } from '@/shared/ui/navAccess';
 import { useWorkspace } from '@/shared/ui/workspaceContext';
@@ -36,7 +36,7 @@ interface Draft {
 export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
   const ws = useWorkspace();
   const { data: access = NO_ACCESS } = useAccess();
-  const toast = useToast();
+  const toast = useSnackbar();
   const [draft, setDraft] = useState<Draft | null>(() => (ws.own.length === 0 ? blank() : null));
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState<OwnWorkspace | null>(null);

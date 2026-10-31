@@ -5,7 +5,7 @@ import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { EditGrid } from '@/shared/ui/EditGrid';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import {
   useConfirmInvoiceFields, useInvoiceState, useReplaceInvoiceLines, type InvoiceView, type VatMode,
 } from '@/shared/api/invoices';
@@ -128,7 +128,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
   const replace = useReplaceInvoiceLines();
   const state = useInvoiceState();
   const confirm = useConfirmInvoiceFields();
-  const toast = useToast();
+  const toast = useSnackbar();
 
   // Режим поставило распознавание (issue #1501): флажок в рамке, рядом — числа и «Верно». Переключил
   // человек — метка гаснет сразу, как у поля шапки, не дожидаясь сохранения.

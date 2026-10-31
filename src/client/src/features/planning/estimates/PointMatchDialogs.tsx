@@ -7,7 +7,7 @@ import {
 } from '@/shared/api/planningMatches';
 import { Button } from '@/shared/ui/Button';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
 import { PickerOption } from '@/features/costs/PickerRows';
 import { foundRows } from '@/features/costs/pickerCandidates';
@@ -22,7 +22,7 @@ import { useRateChoice } from './useRateChoice';
  */
 export function PointRateDialog({ item, onClose }: { item: RateMatch; onClose: () => void }) {
   const point = usePointRateMatch();
-  const toast = useToast();
+  const toast = useSnackbar();
   const state = useRateChoice(item.sourceUnit, { workTypeId: item.workTypeId, factor: item.factor });
   const [refusal, setRefusal] = useState<PlanRefusal | null>(null);
   // Версия — из перечитанного списка: строку окна держит вызывающий, и после отказа она уже новая.
@@ -55,7 +55,7 @@ export function PointRateDialog({ item, onClose }: { item: RateMatch; onClose: (
 /** Перенацелить запомненный ресурс: поиск позиции номенклатуры — тем же поиском ядра, что окно материала. */
 export function PointResourceDialog({ item, onClose }: { item: ResourceMatch; onClose: () => void }) {
   const point = usePointResourceMatch();
-  const toast = useToast();
+  const toast = useSnackbar();
   const [typed, setTyped] = useState(item.sourceText);
   const [query, setQuery] = useState(item.sourceText.trim());
   const timer = useRef<number | null>(null);

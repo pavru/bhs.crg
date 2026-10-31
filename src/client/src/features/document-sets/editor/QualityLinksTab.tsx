@@ -22,7 +22,7 @@ import {
   type BulkLinkAssessment,
 } from './qualityMatch';
 import { QualityDocForm } from '@/features/quality-docs/QualityDocForm';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { isExpired } from './qualityValidity';
 import type { MaterialRow } from './materialRow';
 import { LinkPickerModal } from './LinkPickerModal';
@@ -106,7 +106,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   const { data: docsSection = [] } = useListQualityDocs(
     { scope: 'Section', scopeId: sectionId ?? undefined, enabled: !!sectionId });
   const { data: docsSet = [] } = useListQualityDocs({ scope: 'Set', scopeId: setId });
-  const linksToast = useToast();
+  const linksToast = useSnackbar();
   const setLinks = useSetMaterialLinks();
   const removeLink = useRemoveMaterialLink();
 

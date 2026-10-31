@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ToastProvider } from '@/shared/ui/ToastProvider';
+import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
 import { apiClient } from '@/shared/api/client';
 import type { InvoiceImage } from '@/shared/api/invoiceImage';
 import type { PrintProfile } from '@/shared/api/printProfiles';
@@ -48,9 +48,9 @@ beforeEach(() => {
 function shown(view: InvoiceImage, canEdit: boolean) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <ToastProvider>
+      <SnackbarProvider>
         <BuiltImage invoiceId="i1" blobPath="files/a.xlsx" fileName="Счёт.xlsx" image={view} canEdit={canEdit} />
-      </ToastProvider>
+      </SnackbarProvider>
     </QueryClientProvider>,
   );
 }

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { CheckCircle, Delete, WandStars, Warning } from '@/shared/ui/icons';
@@ -36,7 +36,7 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
 }) {
   const { data: findings, isLoading, isError } = useAuditInstance(setId, instanceId, open);
   const applyFixes = useApplyInstanceAuditFixes(setId, instanceId);
-  const toast = useToast();
+  const toast = useSnackbar();
   const [confirm, setConfirm] = useState<AuditFinding | null>(null);
   const [renameTarget, setRenameTarget] = useState<Record<string, string>>({});
 

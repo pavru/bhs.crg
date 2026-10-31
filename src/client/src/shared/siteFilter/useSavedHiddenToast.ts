@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 
 /**
  * Тост после СВОЕЙ записи, которая увела открытый документ из списка под «Избранными стройками»
@@ -22,7 +22,7 @@ export function useSavedHiddenToast<V extends { id: string }>(
     selected: string | null; hides: (view: V) => boolean; text: string; showAll: () => void;
   },
 ) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const qc = useQueryClient();
   const now = useRef({ selected, hides, showAll });
   useLayoutEffect(() => { now.current = { selected, hides, showAll }; });

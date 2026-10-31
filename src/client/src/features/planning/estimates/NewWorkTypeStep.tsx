@@ -4,7 +4,7 @@ import { Button } from '@/shared/ui/Button';
 import { ModalExit } from '@/shared/ui/Modal';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { WindowStep } from '@/shared/ui/WindowStep';
 import { apiError } from '@/shared/utils/apiError';
 import { unitWord } from './matchRows';
@@ -24,7 +24,7 @@ export function NewWorkTypeStep({ sourceUnit, onBack, onCreated }: {
 }) {
   const units = useUnitChoices(true);
   const create = useCreateWorkType();
-  const toast = useToast();
+  const toast = useSnackbar();
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [picked, setPicked] = useState<string | null>(null);

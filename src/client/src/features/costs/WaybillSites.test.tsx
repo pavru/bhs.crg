@@ -7,7 +7,7 @@ import { useWaybillState, waybillKey, type WaybillList, type WaybillView } from 
 import { SiteFilterContext, type SiteFilterValue } from '@/shared/siteFilter/siteFilterContext';
 import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
 import { filterState, isVisible } from '@/shared/siteFilter/rule';
-import { ToastProvider } from '@/shared/ui/ToastProvider';
+import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
 import { appliedHidden, useWaybillSites, viewHidden } from './useWaybillSites';
 
 /**
@@ -46,9 +46,9 @@ function mount(filter: SiteFilterValue, { unmatched = false, selected = null, op
   const Writer = writer ?? (() => null);
   const tree = (f: SiteFilterValue, u: boolean) => (
     <QueryClientProvider client={qc}>
-      <ToastProvider>
+      <SnackbarProvider>
         <SiteFilterContext.Provider value={f}><Probe u={u} /><Writer /></SiteFilterContext.Provider>
-      </ToastProvider>
+      </SnackbarProvider>
     </QueryClientProvider>
   );
   const view = render(tree(filter, unmatched));

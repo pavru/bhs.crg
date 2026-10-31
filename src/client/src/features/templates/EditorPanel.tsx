@@ -10,7 +10,7 @@ import { Button } from '@/shared/ui/Button';
 import { SplitButton } from '@/shared/ui/SplitButton';
 import { Modal } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ruCount } from '@/shared/utils/pluralize';
 import { Icon } from '@/shared/ui/Icon';
 import { CallSplit, CheckCircle, HistoryIcon, MenuBook, Save, Star } from '@/shared/ui/icons';
@@ -145,7 +145,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
   const saveContentMutation = useSaveTemplateContent();
   const newVersionMutation = useCreateTemplateVersion();
   const defaultMutation = useSetTemplateDefault();
-  const toast = useToast();
+  const toast = useSnackbar();
 
   // Неблокирующее предупреждение: сколько документов ушло в черновик из-за устаревшего PDF (issue #362).
   function notifyReset(count: number) {

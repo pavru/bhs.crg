@@ -7,11 +7,11 @@ import { createContext, useContext } from 'react';
  * Инвариант: тост — для результата, не видимого на текущем экране, или не-блокирующего сетевого
  * сбоя без своего места.
  */
-export type ToastVariant = 'success' | 'error' | 'info';
+export type SnackbarVariant = 'success' | 'error' | 'info';
 
-export interface ToastOptions {
+export interface SnackbarOptions {
   message: string;
-  variant?: ToastVariant;
+  variant?: SnackbarVariant;
   /** Мс до авто-скрытия. По умолчанию: success/info 4с, error 8с. */
   duration?: number;
   /** Опциональное одиночное действие (текст-кнопка справа) — напр. «Перейти». */
@@ -24,26 +24,26 @@ export interface ToastOptions {
   traceId?: string;
 }
 
-export interface ToastItem extends ToastOptions { id: number }
+export interface SnackbarItem extends SnackbarOptions { id: number }
 
-export interface ToastApi {
-  toast: (o: ToastOptions) => void;
-  success: (message: string, o?: Omit<ToastOptions, 'message' | 'variant'>) => void;
-  error: (message: string, o?: Omit<ToastOptions, 'message' | 'variant'>) => void;
-  info: (message: string, o?: Omit<ToastOptions, 'message' | 'variant'>) => void;
+export interface SnackbarApi {
+  toast: (o: SnackbarOptions) => void;
+  success: (message: string, o?: Omit<SnackbarOptions, 'message' | 'variant'>) => void;
+  error: (message: string, o?: Omit<SnackbarOptions, 'message' | 'variant'>) => void;
+  info: (message: string, o?: Omit<SnackbarOptions, 'message' | 'variant'>) => void;
   /**
    * Ошибка ИЗ ОТВЕТА API: текст берётся из тела, идентификатор запроса — из структурного поля.
    * Отдельный метод, а не разбор внутри `error`, потому что `error` зовут и с придуманной строкой,
    * и подсовывать ей объект ошибки значило бы гадать, что пришло.
    */
-  apiError: (e: unknown, fallback?: string, o?: Omit<ToastOptions, 'message' | 'variant'>) => void;
+  apiError: (e: unknown, fallback?: string, o?: Omit<SnackbarOptions, 'message' | 'variant'>) => void;
 }
 
-export const ToastCtx = createContext<ToastApi | null>(null);
+export const SnackbarCtx = createContext<SnackbarApi | null>(null);
 
-/** Доступ к тостам. Должен вызываться под `ToastProvider` (смонтирован в App). */
-export function useToast(): ToastApi {
-  const ctx = useContext(ToastCtx);
-  if (!ctx) throw new Error('useToast должен использоваться внутри ToastProvider');
+/** Доступ к уведомлениям. Должен вызываться под `SnackbarProvider` (смонтирован в App). */
+export function useSnackbar(): SnackbarApi {
+  const ctx = useContext(SnackbarCtx);
+  if (!ctx) throw new Error('useSnackbar должен использоваться внутри SnackbarProvider');
   return ctx;
 }

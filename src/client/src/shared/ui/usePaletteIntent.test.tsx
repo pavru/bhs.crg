@@ -16,7 +16,7 @@ vi.mock('@/shared/api/access', () => ({
 afterEach(() => { cleanup(); access = undefined; info.mockClear(); });
 
 const info = vi.fn();
-vi.mock('./Toast', () => ({ useToast: () => ({ info }) }));
+vi.mock('./Snackbar', () => ({ useSnackbar: () => ({ info }) }));
 
 /** Экран, принимающий «Новый счёт» из палитры (issue #1433). */
 function Screen({ run, busy }: { run: () => void; busy?: boolean }) {

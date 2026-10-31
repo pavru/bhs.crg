@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import {
   useIntegrationSettings, useSaveProxy, useTestProxy,
   type IntegrationSettingsDto, type ProxyTestResult,
@@ -41,7 +41,7 @@ export function ProxySettingsSection() {
   const { data: updates } = useUpdateStatus(true, true);
   const save = useSaveProxy();
   const test = useTestProxy();
-  const toast = useToast();
+  const toast = useSnackbar();
 
   const saved = data?.proxy;
   const [url, setUrl] = useState<string | null>(null);

@@ -15,7 +15,7 @@ import { coerceScalar, rejectReason, type CoerceContext } from './pasteCoerce';
 import { PasteArchivedNote, type ArchivedCell } from './PasteArchivedNote';
 import { useReturnManyFromArchive } from '@/shared/api/commonData';
 import { useCan } from '@/shared/api/access';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Checkbox } from '@/shared/ui/Checkbox';
 // ─── Paste mapping modal ──────────────────────────────────────────────────────
@@ -131,7 +131,7 @@ function PasteMappingModalBody({
   // «Отмена» закрыла бы окно, в которое вставка всё равно придёт (ревью PR #1228).
   const [applying, setApplying] = useState(false);
   const canReturn = useCan().permission('core.catalog.edit');
-  const toast = useToast();
+  const toast = useSnackbar();
 
   function mapByHeader(headerRow: string[], count: number): Record<string, number> {
     return headerMapping(tableFields, headerRow, count);

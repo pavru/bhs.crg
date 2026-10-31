@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Delete } from '@/shared/ui/icons';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useDeleteWaybill, useFreshWaybill, type WaybillView } from '@/shared/api/waybills';
 import { canDeleteWaybill, deleteWaybill, waybillConfirmLabel, waybillTitle } from './waybillDelete';
 
@@ -30,7 +30,7 @@ export function WaybillDeleteMenu({ view, canEdit, dirty, onDeleted }: {
 }) {
   const remove = useDeleteWaybill();
   const readFresh = useFreshWaybill();
-  const toast = useToast();
+  const toast = useSnackbar();
   // Запоминается ВЕРСИЯ, которую человек видел, открывая диалог: вид под диалогом обновляется сам, и
   // свежая версия под прежним решением удалила бы накладную, изменённую секунду назад, без слова.
   const [seen, setSeen] = useState<string | null>(null);

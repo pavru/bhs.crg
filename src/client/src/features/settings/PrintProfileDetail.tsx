@@ -7,7 +7,7 @@ import { SegmentedButton } from '@/shared/ui/SegmentedButton';
 import { DetailHeader, DetailTitle } from '@/shared/ui/ListDetailShell';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { TextField } from '@/shared/ui/TextField';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useServerForm } from '@/shared/hooks/useServerForm';
 import { refusalIssues } from '@/shared/api/refusals';
 import {
@@ -50,7 +50,7 @@ export function PrintProfileDetail({ profile, otherNames, onDeleted, onEditState
   onEditState: (state: EditState) => void;
   saveRef: MutableRefObject<() => Promise<void>>;
 }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const update = useUpdatePrintProfile();
   const reset = useResetPrintProfile();
   const del = useDeletePrintProfile();

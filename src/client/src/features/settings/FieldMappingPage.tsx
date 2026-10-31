@@ -13,7 +13,7 @@ import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { RereadFailedNotice } from '@/shared/ui/RereadFailedNotice';
 import { useGuardedNavigate, useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { Select, SelectItem } from '@/shared/ui/Select';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
 import {
   NOT_ASSIGNED, changedRows, droppedNotice, fieldLabel, fullSentence, kindsText, listedFields, offeredFields,
@@ -94,7 +94,7 @@ function groupId(module: ModuleCoverage, group: CoverageGroup): string {
 function Mapping({ data, reread: failed }: { data: ModuleCoverage[]; reread: FailedReread | null }) {
   const qc = useQueryClient();
   const update = useUpdateDocumentTypeSchema();
-  const toast = useToast();
+  const toast = useSnackbar();
   const [edits, setEdits] = useState<Record<string, GroupEdit>>({});
   const [saving, setSaving] = useState(false);
   const [leave, setLeave] = useState<(() => void) | null>(null);
@@ -397,7 +397,7 @@ function RowState({ row, selectable }: { row: CoverageRow; selectable: boolean }
 function AssignRole({ group, onDone }: { group: CoverageGroup; onDone: () => Promise<unknown> }) {
   const go = useGuardedNavigate();
   const update = useUpdateDocumentTypeSchema();
-  const toast = useToast();
+  const toast = useSnackbar();
   const [typeId, setTypeId] = useState<string | undefined>(undefined);
   // Выбор действителен, пока тип есть среди предлагаемых: список перечитывается, и тип, только что
   // назначенный другим справочником, из него уходит. Запомненный выбор оставил бы кнопку, которая

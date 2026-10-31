@@ -12,7 +12,7 @@ import { Chip } from '@/shared/ui/Chip';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { formatCount, formatQuantity } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
 import { memoryText, nextWaitingSection, planVolume, sectionRows, waiting, waitingUnits } from './matchRows';
@@ -89,7 +89,7 @@ function SectionMatch({ code, rows, sections, match, onNext, revision, seen, set
   match: ReturnType<typeof useMatchLines>;
   onNext: (code: string | null) => void;
 }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const inSection = sectionRows(rows, code);
   const units = waitingUnits(inSection);
   const [unit, setUnit] = useState<string | null | undefined>(undefined);
@@ -224,7 +224,7 @@ function RowMatch({ row, match, revision, seen, setVersion, busy, onClose }: Com
   row: EstimateRow;
   match: ReturnType<typeof useMatchRow>;
 }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const names = useWorkTypeNames();
   const state = useRateChoice(row.sourceUnit, row.workTypeId ? { workTypeId: row.workTypeId, factor: row.factor } : undefined);
   const [remember, setRemember] = useState(true);

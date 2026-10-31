@@ -7,7 +7,7 @@ import { Button } from '@/shared/ui/Button';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import type { TableDeclaration } from '@/shared/api/tables';
 import { useDeleteTableView, useSaveTableView, type SavedTableView } from '@/shared/api/tableViews';
@@ -53,7 +53,7 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
   const { data: access = NO_ACCESS } = useAccess();
   const navigate = useNavigate();
   const { hash } = useLocation();
-  const toast = useToast();
+  const toast = useSnackbar();
   // «Сохранить» открытого и правки из списка — разными мутациями: иначе «Сделать общим» у соседнего
   // представления крутило бы кнопку «Сохранить», будто сохраняется открытое.
   const save = useSaveTableView(address);

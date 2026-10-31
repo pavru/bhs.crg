@@ -9,7 +9,7 @@ import { useFileKinds } from '@/shared/api/fileKinds';
 import { useCan } from '@/shared/api/access';
 import { usePrintProfiles, type PrintProfile } from '@/shared/api/printProfiles';
 import { formatDateTime } from '@/shared/format/format';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { saveScan } from './scanView';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { canChooseProfile, layoutHint, layoutNotice, rebuiltMessage } from './invoiceImageLayout';
@@ -34,7 +34,7 @@ export function OriginalButton({ invoiceId, fileName, label }: {
 }) {
   const [busy, setBusy] = useState(false);
   const kinds = useFileKinds();
-  const toast = useToast();
+  const toast = useSnackbar();
   return (
     <Button loading={busy} icon={<Icon icon={Download} size={18} />}
       title={fileName ? `Скачать оригинал: ${fileName}` : 'Скачать оригинал'}
@@ -65,7 +65,7 @@ export function BuiltImage({ invoiceId, blobPath, fileName, image, canEdit }: {
   const viewKey = `${blobPath ?? ''}|${image.builtAt ?? ''}`;
   const { bytes, failed } = useImageBytes(invoiceId, viewKey);
   const rebuild = useRebuildInvoiceImage(invoiceId, blobPath);
-  const toast = useToast();
+  const toast = useSnackbar();
   const mayList = useCan().permission('core.files.use');
   const asked = canEdit && mayList && image.layout === 'profile';
   const { data: profiles = NO_PROFILES, isPending: profilesPending } = usePrintProfiles({ enabled: asked });
@@ -197,7 +197,7 @@ export function RefusedImage({ invoiceId, blobPath, fileName, image, canEdit, re
   canEdit: boolean; retrying: boolean; onRetry: () => void;
 }) {
   const rebuild = useRebuildInvoiceImage(invoiceId, blobPath);
-  const toast = useToast();
+  const toast = useSnackbar();
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant shrink-0">

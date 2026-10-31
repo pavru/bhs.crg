@@ -8,7 +8,7 @@ import { useOpenAttachment } from './useOpenAttachment';
 /** Отказ открытия вложения видно на месте ([UI-27], issue #1494): иначе кнопка молча ничего не делает. */
 
 const apiError = vi.fn();
-vi.mock('@/shared/ui/Toast', () => ({ useToast: () => ({ apiError }) }));
+vi.mock('@/shared/ui/Snackbar', () => ({ useSnackbar: () => ({ apiError }) }));
 vi.mock('@/shared/api/attachments', () => ({ openAttachmentInNewTab: vi.fn() }));
 
 afterEach(() => { vi.clearAllMocks(); });

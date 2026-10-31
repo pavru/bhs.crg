@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Close, EditNote, Logout, SearchCheck, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { formatDate } from '@/shared/format/format';
 import { useFreshInvoice, type InvoiceView } from '@/shared/api/invoices';
 import {
@@ -40,7 +40,7 @@ export function CorrectionBar({ view, draft, edits, onResetHeader }: {
   /** Выбросить правки шапки: отмена, запись, «Перечитать счёт». */
   onResetHeader: () => void;
 }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const previewing = usePreviewCorrection();
   const correct = useCorrectInvoice();
   const readFresh = useFreshInvoice();

@@ -5,7 +5,7 @@ import { Button } from '@/shared/ui/Button';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useCan } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
 import {
@@ -156,7 +156,7 @@ function CreateDialog({ invoiceId, side, party, onClose, onDone }: {
   const [name, setName] = useState(party.name ?? '');
   const [refusal, setRefusal] = useState<string | null>(null);
   const create = useCreatePartyOrganization();
-  const toast = useToast();
+  const toast = useSnackbar();
   const tooLong = name.trim().length > NAME_LIMIT;
 
   async function submit() {

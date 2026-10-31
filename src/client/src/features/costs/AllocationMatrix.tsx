@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Add, Calculate, Check, Close, Delete, Equal, Percent, Save } from '@/shared/ui/icons';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import type { InvoiceView } from '@/shared/api/invoices';
 import type { MatrixState } from '@/shared/api/allocationMatrix';
 import {
@@ -61,7 +61,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
   const places = usePlaces();
   const previewing = usePreviewAllocation();
   const replace = useReplaceMatrix();
-  const toast = useToast();
+  const toast = useSnackbar();
 
   const drafting = draft !== undefined;
   const draftLines = draft?.lines ?? null;

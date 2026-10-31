@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { GridView } from '@/shared/ui/icons';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
 import { Select, SelectItem } from '@/shared/ui/Select';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useWorkspace } from '@/shared/ui/workspaceContext';
 import { resolveWorkspace } from '@/shared/ui/workspaces';
 
@@ -21,7 +21,7 @@ const LAST = 'last';
 export function DefaultWorkspaceSection() {
   const ws = useWorkspace();
   const { data: access = NO_ACCESS } = useAccess();
-  const toast = useToast();
+  const toast = useSnackbar();
   const [saving, setSaving] = useState(false);
 
   if (!ws.shown) return null;

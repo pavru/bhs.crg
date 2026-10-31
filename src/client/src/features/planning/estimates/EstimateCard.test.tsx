@@ -12,7 +12,7 @@ let permissions: string[] = [];
 vi.mock('@/shared/api/access', () => ({
   useCan: () => ({ permission: (code: string) => permissions.includes(code), module: () => true }),
 }));
-vi.mock('@/shared/ui/Toast', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn(), apiError: vi.fn() }) }));
+vi.mock('@/shared/ui/Snackbar', () => ({ useSnackbar: () => ({ success: vi.fn(), error: vi.fn(), apiError: vi.fn() }) }));
 
 /**
  * Карточка сметы (plan-09, задача 2.3, ТЗ PLAN-5.2, PLAN-2): без `plan.estimate.cost` колонки стоимости стоят в

@@ -6,7 +6,7 @@ import { Add, BookmarkAdd, ContentCopy, ContentCut, Delete, DocumentScanner, Dow
 import { parseSourceColumnNames, countFilterConditions, nextSourceName, staleReasonText } from '@/shared/api/datasetHelpers';
 import { ruCount } from '@/shared/utils/pluralize';
 import { apiError } from '@/shared/utils/apiError';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useSourceRecognizing } from '@/shared/api/jobs';
 import { FileProfilesDialog } from './FileProfilesDialog';
 import {
@@ -122,7 +122,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
   const [renaming, setRenaming] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
 
-  const toast = useToast();
+  const toast = useSnackbar();
   const applyTemplateMutation = useApplyProcessingTemplate();
   const deleteMutation = useDeleteDataSetSource();
   const duplicateMutation = useDuplicateDataSetSource();

@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Add, Delete, Target, Warning } from '@/shared/ui/icons';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useDocumentSetPlan, useReplaceDocumentSetPlan, type PlanRow } from '@/shared/api/plans';
@@ -66,7 +66,7 @@ function signature(rows: PlanRow[]): string {
 function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
   const { data: allTypes = [] } = useListDocumentTypes();
   const replace = useReplaceDocumentSetPlan();
-  const toast = useToast();
+  const toast = useSnackbar();
 
   const [rows, setRows] = useState<EditRow[]>(() => saved.map(
     r => ({ documentTypeId: r.documentTypeId, typeName: r.typeName, plannedCount: r.plannedCount })));

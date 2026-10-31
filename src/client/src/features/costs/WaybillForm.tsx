@@ -5,7 +5,7 @@ import { CheckCircle, EditNote, Refresh, Save, Undo, Warning } from '@/shared/ui
 import { Button } from '@/shared/ui/Button';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import type { CostsConstruction } from '@/shared/api/invoices';
 import { useCan } from '@/shared/api/access';
 import { useMedia, WIDE } from '@/shared/hooks/useMedia';
@@ -105,7 +105,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
   const match = useMatchWaybillLine();
   const correct = useCorrectWaybill();
   const readFresh = useFreshWaybill();
-  const toast = useToast();
+  const toast = useSnackbar();
   // Очередь сопоставлений: см. matchLine.
   const matching = useRef<{ tail: Promise<string | null>; waiting: number }>({ tail: Promise.resolve(null), waiting: 0 });
 

@@ -7,7 +7,7 @@ import { Button } from '@/shared/ui/Button';
 import { TabPanel, Tabs, type TabItem } from '@/shared/ui/Tabs';
 import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useListTemplates, useCreateTemplate, useDeleteTemplate, useDuplicateTemplate, useTemplatesUsage } from '@/shared/api/templates';
@@ -142,7 +142,7 @@ export function TemplatesPage() {
   const setSelectedTemplate = (t: Template | null) => setChosenTemplate({ typeId: selectedTypeId, template: t });
   const deleteMutation = useDeleteTemplate();
   const duplicateMutation = useDuplicateTemplate();
-  const toast = useToast();
+  const toast = useSnackbar();
 
   const groups = groupTemplates(templates);
 

@@ -9,7 +9,7 @@ import { PdfViewer, PdfViewerOverlay } from '@/shared/ui/viewer/PdfViewer';
 import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
 import { acceptOf, fileShownAs, nameShownAs, recognizedKinds, shownKinds, useFileKinds, wordsOf } from '@/shared/api/fileKinds';
 import { useCan } from '@/shared/api/access';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { BuiltImage, Centered as Note, IMAGE_CAVEAT, OriginalButton, RefusedImage } from './InvoiceFileImage';
 import { saveScan } from './scanView';
 
@@ -187,7 +187,7 @@ export function ScanTooNarrow({ invoiceId, blobPath, fileName, width }: {
   // Что стоит в слое. Держится и после закрытия: иначе закрывающееся окно мигнуло бы «загружается».
   const [shown, setShown] = useState<{ key: string; source: Blob | null; title: string; reading: boolean } | null>(null);
   const kinds = useFileKinds();
-  const toast = useToast();
+  const toast = useSnackbar();
   const image = useInvoiceImage(invoiceId, blobPath);
   const built = image.data?.state === 'built';
   const refused = image.data?.state === 'refused' ? image.data : null;

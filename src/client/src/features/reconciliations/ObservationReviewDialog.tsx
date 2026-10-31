@@ -5,7 +5,7 @@ import { Link } from 'react-router';
 import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import {
   useReviewObservation, type Observation, type ObservationStatus,
 } from '@/shared/api/observations';
@@ -78,7 +78,7 @@ export function ObservationReviewDialog({ observation, setPath, nameOf, onClose 
 }) {
   const [note, setNote] = useState(observation.reviewNote ?? '');
   const review = useReviewObservation();
-  const toast = useToast();
+  const toast = useSnackbar();
 
   async function decide(status: ObservationStatus) {
     try {

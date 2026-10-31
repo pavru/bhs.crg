@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ToastProvider } from '@/shared/ui/ToastProvider';
+import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
 import { apiClient } from '@/shared/api/client';
 import { CloseDialog, ReopenDialog } from './periods/PeriodsPage';
 import { CancelDialog, PayDialog } from './costs/InvoicePayment';
@@ -38,7 +38,7 @@ const operations = () => vi.mocked(apiClient.post).mock.calls.filter(([url]) => 
 
 const shown = (dialog: ReactElement) => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}>
-    <ToastProvider>{dialog}</ToastProvider>
+    <SnackbarProvider>{dialog}</SnackbarProvider>
   </QueryClientProvider>,
 );
 

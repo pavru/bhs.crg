@@ -8,7 +8,7 @@ import { ImportDialog } from './ImportDialog';
 
 vi.mock('@/shared/api/client', () => ({ apiClient: { post: vi.fn(), get: vi.fn(), put: vi.fn(), delete: vi.fn() } }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), apiError: vi.fn() }));
-vi.mock('@/shared/ui/Toast', () => ({ useToast: () => toast }));
+vi.mock('@/shared/ui/Snackbar', () => ({ useSnackbar: () => toast }));
 
 /**
  * Окно загрузки сметы (plan-09, PR 2, задачи 3.1–3.3, ТЗ PLAN-6, PLAN-7): без цели загрузки нет (решение

@@ -5,7 +5,7 @@ import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { DateField } from '@/shared/ui/DateField';
 import { Select, SelectItem } from '@/shared/ui/Select';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { apiError } from '@/shared/utils/apiError';
@@ -98,7 +98,7 @@ export function InvoiceForm({
   const update = useUpdateInvoice();
   const confirm = useConfirmInvoiceFields();
   const attach = useAttachInvoiceScan();
-  const toast = useToast();
+  const toast = useSnackbar();
   const correction = useCorrectionDraft();
 
   const value = (key: string): unknown => (key in edits ? edits[key] : view.requisites[key]);

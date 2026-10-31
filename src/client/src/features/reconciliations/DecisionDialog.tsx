@@ -4,7 +4,7 @@ import { Button } from '@/shared/ui/Button';
 import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import { TextField } from '@/shared/ui/TextField';
 import { Select, SelectItem } from '@/shared/ui/Select';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { DECISION_LABELS, STATUS_LABELS, type DecisionKind, type Finding } from '@/shared/api/reconciliations';
 import { traceIdOf } from '@/shared/api/client';
 
@@ -23,7 +23,7 @@ export function DecisionDialog({ finding, onClose, onSave, onRemove }: {
   const [note, setNote] = useState(finding.decision?.note ?? '');
   const [busy, setBusy] = useState(false);
   const edited = useChangedSince([kind, note]);
-  const toast = useToast();
+  const toast = useSnackbar();
 
   async function run(action: () => Promise<void>) {
     setBusy(true);

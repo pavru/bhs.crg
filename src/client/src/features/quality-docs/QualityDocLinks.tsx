@@ -8,7 +8,7 @@ import { linkAnomaly } from './linkScopes';
 import { ScopeReachNote } from './ScopeReachNote';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { EmptyState } from '@/shared/ui/EmptyState';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { nameOf, matchesLink } from './qualityLinkSearch';
 import {
   useRemoveMaterialLink, useRemoveMaterialLinks, useSetMaterialLinks, type MaterialQualityLink,
@@ -42,7 +42,7 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
   /** Строка поиска — строки фильтруются на клиенте (113 связок фильтруются мгновенно). */
   search: string;
 }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const removeLink = useRemoveMaterialLink();
   const removeLinks = useRemoveMaterialLinks();
   const setLinks = useSetMaterialLinks();

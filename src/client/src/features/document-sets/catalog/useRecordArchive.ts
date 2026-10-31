@@ -1,6 +1,6 @@
 import { ownDoorCode, useSetCommonDataArchive } from '@/shared/api/commonData';
 import type { DocumentType } from '@/shared/api/types';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 
 /** Код типа «Сотрудник» в ядре (зеркало серверного `CoreRecordTypes.EmployeeCode`). */
 const EMPLOYEE_TYPE_CODE = 'Сотрудник';
@@ -16,7 +16,7 @@ type Target = { id: string; displayName: string; compositeTypeId: string; archiv
  */
 export function useRecordArchive(types: DocumentType[]) {
   const mutation = useSetCommonDataArchive();
-  const toast = useToast();
+  const toast = useSnackbar();
 
   const typeOf = (entry: Target) => types.find(t => t.id === entry.compositeTypeId);
 

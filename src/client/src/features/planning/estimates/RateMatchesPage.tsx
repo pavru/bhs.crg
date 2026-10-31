@@ -13,7 +13,7 @@ import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { TabPanel, Tabs } from '@/shared/ui/Tabs';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
 import { formatCount, formatDate, formatQuantity } from '@/shared/format/format';
 import { useMedia, WIDE } from '@/shared/hooks/useMedia';
@@ -206,7 +206,7 @@ function Forget({ kind, item, what, onClose }: {
   onClose: () => void;
 }) {
   const forget = useForgetMatch(kind);
-  const toast = useToast();
+  const toast = useSnackbar();
   return (
     <ConfirmDialog open={item !== null} onOpenChange={o => { if (!o) onClose(); }}
       title="Забыть запомненное?"

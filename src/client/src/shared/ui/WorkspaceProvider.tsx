@@ -3,7 +3,7 @@ import { NO_ACCESS, useAccess } from '@/shared/api/access';
 import { useQueryClient } from '@tanstack/react-query';
 import { USER_SETTINGS_KEY, fetchUserSettings, useSaveUserSettings, useUserSettings } from '@/shared/api/userSettings';
 import { useAuth } from '@/shared/hooks/useAuth';
-import { useToast } from './Toast';
+import { useSnackbar } from './Snackbar';
 import { WorkspaceContext, type WorkspaceContextValue } from './workspaceContext';
 import { readTab, tabKey as tabKeyOf, writeTab } from './workspaceTab';
 import {
@@ -23,7 +23,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   // Сами функции записи, а не объект мутации: он новый на каждой отрисовке и тянул бы за собой
   // значение контекста — а с ним всех, кто его читает.
   const { mutate, mutateAsync } = useSaveUserSettings();
-  const toast = useToast();
+  const toast = useSnackbar();
   const queryClient = useQueryClient();
 
   // Вкладка помнит выбор до конца сессии (`workspaceTab.ts`); новая вкладка, новый вход — умолчание

@@ -8,7 +8,7 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
 import { INVOICE_RECORD } from '@/shared/ui/recordRoutes';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useNavigationGuard } from '@/shared/ui/NavigationGuard';
 import { useCloseGone } from '@/shared/hooks/useCloseGone';
 import { useOpenRecord } from './openRecord';
@@ -104,7 +104,7 @@ export function InvoicesPage() {
   const create = useCreateInvoice();
   const fromScan = useInvoiceFromScan();
   const scanInput = useRef<HTMLInputElement>(null);
-  const toast = useToast();
+  const toast = useSnackbar();
 
   const view = useInvoice(selected ?? undefined);
   // Счёт удалили, пока он был открыт (issue #1282): чтение отвечает «нет такого», а прежний вид ещё в
