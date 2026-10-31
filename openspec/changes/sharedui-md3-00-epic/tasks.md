@@ -154,9 +154,14 @@
   `SegmentedButton` для значения, `Tabs segmented` для панели (на телефоне — `underline`), общий
   `useRoving`; правило `segmented` — 0; снимки до и после — артефакт FbeziiWjdZkp34fRsYHXP4;
   `/design-sync` 31.10.2026.
-- [ ] 3.2 `sharedui-md3-11-inputs` (2) — `TextField`/`OutlinedField` и `Select` по MD3, `Select` обвязки
+- [x] 3.2 `sharedui-md3-11-inputs` (2) — `TextField`/`OutlinedField` и `Select` по MD3, `Select` обвязки
   → чип с меню или плотное поле, нарисованный `Checkbox`, `Radio`, `Switch` 52×32, шкала плотности в
   `docs/UI.md` [UI-69] [UI-70]. Решения В5, В6. Проверка — change заархивирован.
+  Слит #1712 (50a8d22f), #1713 (54c55dae) и #1714 (83f9f468), заархивирован 01.11.2026: В6 = А, В5 = да
+  (макеты d208fc78) — поле формы 56 и плотное 40, текст поля body-large, только для чтения — контур
+  `outline-variant` без подложки; выбор без подписи — три вида по месту; `Checkbox` 18 в круге 40,
+  `RadioGroup` (`useRadioGroup`, `confirm`), `Switch` MD3 без знака на ручке; правила `native-radio` — 2
+  и `raw-field` — текущий; снимки до и после — артефакт DjCc7zGazHiKznKFAQEJYF; `/design-sync` 01.11.2026.
 - [ ] 3.3 `sharedui-md3-12-feedback` (2) — `Snackbar` вместо `Toast`, `Tooltip` plain и rich, `Banner`,
   `StatusText` вместо `StatusBadge`, `Badge`, `LinearProgress`, правило `notice-plaque`
   [UI-71]…[UI-74]. Решение В9. Проверка — change заархивирован.
