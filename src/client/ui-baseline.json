@@ -41,7 +41,16 @@
   "badge": {
     "features/settings/FunctionalTagChip.tsx": 1
   },
-  "icon-button": {},
+  "icon-button": {
+    "shared/ui/Calendar.tsx": 2,
+    "shared/ui/DataGrid.tsx": 1,
+    "shared/ui/DateInput.tsx": 1,
+    "shared/ui/Modal.tsx": 1,
+    "shared/ui/SearchInput.tsx": 1,
+    "shared/ui/TypePickerField.tsx": 1
+  },
+  "button-size": {},
+  "dense-scope": {},
   "split-button": {},
   "tabs": {},
   "white-on-fill": {},

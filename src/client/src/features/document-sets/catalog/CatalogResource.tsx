@@ -222,11 +222,8 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
               className="w-full h-8 pl-7 pr-9 rounded-sm text-body-small bg-surface border border-outline-variant text-on-surface outline-none focus-visible:ring-2 focus-visible:ring-primary placeholder:text-on-surface-variant" />
             {typeSearch && (
               <IconButton label="Очистить"
-                size="sm"
                 className="absolute right-0 top-1/2 -translate-y-1/2"
-                onClick={() => setTypeSearch('')}>
-                <Icon icon={Close} size={18} />
-              </IconButton>
+                onClick={() => setTypeSearch('')} icon={Close} />
             )}
           </div>
         )}
@@ -264,7 +261,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
           {batch.picked ? batch.bar(filtered.map(e => e.id)) : (
             <>
               <span className="flex-1" />
-              <Button variant="filled" size="sm" icon={<Icon icon={Add} size={18} />} onClick={() => setAddOpen(true)}>Добавить запись</Button>
+              <Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setAddOpen(true)}>Добавить запись</Button>
             </>
           )}
         </div>
@@ -454,7 +451,7 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
           </div>
           <p className="text-body-small text-on-surface-variant mt-0.5">Тип: {type.name} · единственная запись уровня.</p>
         </div>
-        <Button variant="outlined" size="sm" icon={<Icon icon={Edit} size={18} />} onClick={onEdit} disabled={!object}>
+        <Button variant="outlined" icon={<Icon icon={Edit} size={18} />} onClick={onEdit} disabled={!object}>
           Редактировать
         </Button>
       </div>

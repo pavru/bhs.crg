@@ -205,20 +205,20 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
         )}
         {canEdit && (
           <div className="flex items-center gap-2 flex-wrap">
-            <Button size="sm" variant="outlined" icon={<Icon icon={Add} size={18} />} disabled={!editable}
+            <Button variant="outlined" icon={<Icon icon={Add} size={18} />} disabled={!editable}
               onClick={() => { setTargets(prev => [...prev, newTarget()]); setDirty(true); }}>
               Добавить объект
             </Button>
-            <Button size="sm" variant="outlined" icon={<Icon icon={Equal} size={18} />} disabled={!editable || splitOff}
+            <Button variant="outlined" icon={<Icon icon={Equal} size={18} />} disabled={!editable || splitOff}
               loading={previewing.isPending} onClick={() => split('equal')}>
               Поровну
             </Button>
-            <Button size="sm" variant="outlined" icon={<Icon icon={Percent} size={18} />} disabled={!editable || splitOff}
+            <Button variant="outlined" icon={<Icon icon={Percent} size={18} />} disabled={!editable || splitOff}
               loading={previewing.isPending} onClick={() => split('percent')}>
               По %
             </Button>
             {pending && (
-              <Button size="sm" variant="outlined" icon={<Icon icon={Calculate} size={18} />} disabled={!editable || splitOff}
+              <Button variant="outlined" icon={<Icon icon={Calculate} size={18} />} disabled={!editable || splitOff}
                 loading={previewing.isPending} onClick={() => split('document')}>
                 Пересчитать по строкам
               </Button>
@@ -318,9 +318,7 @@ function TargetHeader({ target, number, places, onChange, onRemove }: {
       <div className="flex items-center gap-1">
         <PlaceSelect value={target} places={places} label={`Объект ${number}`} placeholder="— объект —"
           onChange={onChange} />
-        <IconButton label={`Убрать объект ${number}`} size="sm" danger onClick={onRemove}>
-          <Icon icon={Delete} size={18} />
-        </IconButton>
+        <IconButton label={`Убрать объект ${number}`} danger onClick={onRemove} icon={Delete} />
       </div>
       <div className="flex items-center gap-1">
         <Select size="sm" value={target.section ?? ''} aria-label={`Раздел, объект ${number}`}

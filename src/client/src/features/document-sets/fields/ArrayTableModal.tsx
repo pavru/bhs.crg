@@ -198,7 +198,6 @@ function ArrayTableModalBody({
         <div className="flex items-center justify-center gap-0.5">
           <IconButton label={`Переместить строку ${i + 1}: стрелки вверх/вниз`}
             title="Перетащить для изменения порядка (или стрелки ↑↓)"
-            size="sm"
             className="cursor-grab active:cursor-grabbing"
             draggable
             onDragStart={e => {
@@ -210,9 +209,7 @@ function ArrayTableModalBody({
             onKeyDown={e => {
                 if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); moveRow(i, i - 1); }
                 else if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); moveRow(i, i + 1); }
-              }}>
-            <Icon icon={DragIndicator} size={18} />
-          </IconButton>
+              }} icon={DragIndicator} />
           <span className="text-body-small text-on-surface-variant font-mono">{i + 1}</span>
         </div>
       ),
@@ -258,12 +255,12 @@ function ArrayTableModalBody({
             {selected.size > 0 ? (
               <>
                 <span className="text-body-medium font-medium text-on-surface-variant px-2">Выбрано: {selected.size}</span>
-                <Button variant="text" size="sm" danger icon={<Icon icon={Delete} size={18} />} onClick={deleteSelected}>Удалить выбранные</Button>
-                <Button variant="text" size="sm" onClick={() => setSelected(new Set())}>Сбросить</Button>
+                <Button variant="text" danger icon={<Icon icon={Delete} size={18} />} onClick={deleteSelected}>Удалить выбранные</Button>
+                <Button variant="text" onClick={() => setSelected(new Set())}>Сбросить</Button>
               </>
             ) : (
               <>
-                <Button variant="text" size="sm" icon={<Icon icon={ContentPaste} size={18} />} onClick={handlePasteClick}>Вставить из Excel</Button>
+                <Button variant="text" icon={<Icon icon={ContentPaste} size={18} />} onClick={handlePasteClick}>Вставить из Excel</Button>
               </>
             )}
           </div>

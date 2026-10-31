@@ -62,7 +62,7 @@ function EstimateList({ constructionId, sectionId, base }: { constructionId: str
           <p className="text-body-small text-on-surface-variant">План {sectionId ? 'раздела' : 'стройки'} считается по действующим редакциям смет</p>
         </div>
         {editable && (
-          <Button variant="filled" size="sm" icon={<Icon icon={Upload} size={18} aria-hidden />} onClick={() => setImporting({})}>Загрузить смету</Button>
+          <Button variant="filled" icon={<Icon icon={Upload} size={18} aria-hidden />} onClick={() => setImporting({})}>Загрузить смету</Button>
         )}
       </div>
       {/* На странице раздела — импорты его смет и новых смет раздела. */}

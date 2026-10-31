@@ -71,7 +71,7 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
       <Refusal>
         Карточка не прочитана: {apiError(card.error, 'сервер отказал')}. Позицию можно выбрать и так — по названию.
       </Refusal>
-      <Button size="sm" variant="text" onClick={() => void card.refetch()}>Повторить</Button>
+      <Button variant="text" onClick={() => void card.refetch()}>Повторить</Button>
     </div>
   );
 
@@ -161,7 +161,7 @@ export function NomenclatureCardPanel({ id, head, compare, pick = 'tonal', onPic
       ) : (pick || link) && (
         <div className="flex flex-wrap items-center gap-3 pt-1">
           {pick && (
-            <Button size="sm" variant={pick} onClick={() => onPick(data.id, data.name)}>Выбрать эту позицию</Button>
+            <Button variant={pick} onClick={() => onPick(data.id, data.name)}>Выбрать эту позицию</Button>
           )}
           {/* Новой вкладкой: окно выбора стоит над несохранёнными строками, уводить страницу нельзя. */}
           {link && (

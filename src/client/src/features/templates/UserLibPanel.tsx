@@ -240,7 +240,7 @@ export function UserLibPanel() {
           Правка недоступна, пока библиотека не прочитана: сохранение заменяет дерево целиком и
           стёрло бы его.
         </p>
-        <Button variant="outlined" size="sm" onClick={() => void refetch()} loading={isFetching}>
+        <Button variant="outlined" onClick={() => void refetch()} loading={isFetching}>
           Повторить
         </Button>
       </div>
@@ -298,7 +298,7 @@ export function UserLibPanel() {
                 («какой путь и чем не годится») в неё не помещается (issue #511). */}
             {error && <span className="text-body-small text-error max-w-xs truncate" title={error}>{error}</span>}
             {isDirty && <span className="text-body-small text-on-surface-variant">Изменено: {dirty.size}</span>}
-            <Button variant="filled" size="sm" onClick={handleSave} loading={saveMutation.isPending}
+            <Button variant="filled" onClick={handleSave} loading={saveMutation.isPending}
               icon={<Icon icon={Save} size={18} />}>
               {saveMutation.isPending ? 'Сохранение…' : 'Сохранить всё'}
             </Button>

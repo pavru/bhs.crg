@@ -45,10 +45,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
   function replaceButton(tone: string) {
     return (
       <IconButton label="Заменить ссылку"
-        size="sm"
-        onClick={() => setPickerOpen(true)}>
-        <Icon icon={Refresh} size={18} className={tone} />
-      </IconButton>
+        onClick={() => setPickerOpen(true)} icon={Refresh} iconClassName={tone} />
     );
   }
 
@@ -65,9 +62,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
             <Icon icon={Description} size={18} className="text-error shrink-0" />
             <span className={`flex-1 min-w-0 text-body-medium font-medium truncate ${BROKEN_LABEL}`}>{iRef.displayName}</span>
             {replaceButton('text-error')}
-            <IconButton label="Снять ссылку" size="sm" danger onClick={() => onChange(null)}>
-              <Icon icon={LinkOff} size={18} className="text-error" />
-            </IconButton>
+            <IconButton label="Снять ссылку" danger onClick={() => onChange(null)} icon={LinkOff} iconClassName="text-error" />
           </div>
           <BrokenRefNote />
           {picker}
@@ -85,9 +80,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
           <DocumentStatusBadge status={inst.status} />
         )}
         {replaceButton('text-on-primary-container/70')}
-        <IconButton label="Снять ссылку" size="sm" danger onClick={() => onChange(null)}>
-          <Icon icon={LinkOff} size={18} className="text-on-primary-container/70" />
-        </IconButton>
+        <IconButton label="Снять ссылку" danger onClick={() => onChange(null)} icon={LinkOff} iconClassName="text-on-primary-container/70" />
         {picker}
       </div>
     );
@@ -101,9 +94,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
             <Icon icon={Description} size={18} className="text-error shrink-0" />
             <span className={`flex-1 min-w-0 text-body-medium font-medium truncate ${BROKEN_LABEL}`}>{cRef.displayName}</span>
             {replaceButton('text-error')}
-            <IconButton label="Снять ссылку" size="sm" danger onClick={() => onChange(null)}>
-              <Icon icon={LinkOff} size={18} className="text-error" />
-            </IconButton>
+            <IconButton label="Снять ссылку" danger onClick={() => onChange(null)} icon={LinkOff} iconClassName="text-error" />
           </div>
           <BrokenRefNote />
           {picker}
@@ -118,9 +109,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
           <span className="block text-body-small text-warning truncate">Общие данные</span>
         </span>
         {replaceButton('text-warning')}
-        <IconButton label="Снять ссылку" size="sm" danger onClick={() => onChange(null)}>
-          <Icon icon={LinkOff} size={18} className="text-warning" />
-        </IconButton>
+        <IconButton label="Снять ссылку" danger onClick={() => onChange(null)} icon={LinkOff} iconClassName="text-warning" />
         {picker}
       </div>
     );
@@ -205,9 +194,7 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
                   <div className={`flex items-center gap-2 px-3 py-2 ${BROKEN_PLATE}`}>
                     <Icon icon={Description} size={18} className="text-error shrink-0" />
                     <span className={`flex-1 min-w-0 text-body-medium truncate ${BROKEN_LABEL}`}>{ref.displayName}</span>
-                    <IconButton label={`Удалить ссылку ${i + 1}`} size="sm" danger onClick={() => removeRef(i)}>
-                      <Icon icon={Delete} size={18} className="text-error" />
-                    </IconButton>
+                    <IconButton label={`Удалить ссылку ${i + 1}`} danger onClick={() => removeRef(i)} icon={Delete} iconClassName="text-error" />
                   </div>
                   <BrokenRefNote compact />
                 </div>
@@ -227,9 +214,7 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
                 {inst && (
                   <DocumentStatusBadge status={inst.status} />
                 )}
-                <IconButton label={`Удалить ссылку ${i + 1}`} size="sm" danger onClick={() => removeRef(i)}>
-                  <Icon icon={Delete} size={18} />
-                </IconButton>
+                <IconButton label={`Удалить ссылку ${i + 1}`} danger onClick={() => removeRef(i)} icon={Delete} />
               </div>
             );
           })}

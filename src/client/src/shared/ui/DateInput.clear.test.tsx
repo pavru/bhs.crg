@@ -60,6 +60,12 @@ describe('DateInput: очистка', () => {
     expect(value()).toBe('2026-11-03');
   });
 
+  it('крестик — кнопка внутри поля, место XS ([UI-68]): 32, как календарь рядом, при касании 40', () => {
+    render(<Form />);
+    expect(clearButton()!.className.split(/\s+/)).toEqual(expect.arrayContaining([
+      '[--md-comp-icon-button-size:32px]', 'pointer-coarse:[--md-comp-icon-button-size:40px]']));
+  });
+
   it('у обязательного и пустого поля крестика нет; у обязательного нет и «Очистить» в календаре', () => {
     render(<Form initial="" />);
     expect(clearButton()).toBeNull();

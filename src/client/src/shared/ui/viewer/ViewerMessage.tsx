@@ -74,12 +74,12 @@ export function ViewerMessage({ state, source, actions, loadingText = 'Файл 
         {t.text && <span className="text-body-small text-on-surface-variant">{t.text}</span>}
         <div className="flex flex-wrap justify-center gap-2 mt-1">
           {(state === 'chunk' || state === 'worker') && (
-            <Button size="sm" variant="tonal" icon={<Icon icon={Refresh} size={18} />} onClick={() => window.location.reload()}>
+            <Button variant="tonal" icon={<Icon icon={Refresh} size={18} />} onClick={() => window.location.reload()}>
               Обновить страницу
             </Button>
           )}
           {t.tab && source && (
-            <Button size="sm" variant="outlined" icon={<Icon icon={OpenInNew} size={18} />} onClick={() => openInNewTab(source)}>
+            <Button variant="outlined" icon={<Icon icon={OpenInNew} size={18} />} onClick={() => openInNewTab(source)}>
               Открыть во вкладке
             </Button>
           )}

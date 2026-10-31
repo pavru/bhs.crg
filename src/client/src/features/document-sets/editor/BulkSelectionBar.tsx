@@ -20,7 +20,7 @@ export function BulkSelectionBar({ selected, setSelected, openPickerForSelected,
     <div className="sticky bottom-0 rounded-sm border border-outline-variant bg-surface px-3 py-2 shadow-elevation-1">
       <div className="flex items-center gap-2">
         <span className="text-body-medium text-on-surface-variant">Выбрано: {selected.size}</span>
-        <Button variant="filled" size="sm" onClick={openPickerForSelected} icon={<Icon icon={LinkIcon} size={18} />}>
+        <Button variant="filled" onClick={openPickerForSelected} icon={<Icon icon={LinkIcon} size={18} />}>
           Связать выбранные ({selected.size})
         </Button>
         <button onClick={() => setSelected(new Set())}

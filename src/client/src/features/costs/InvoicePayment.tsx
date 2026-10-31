@@ -87,7 +87,7 @@ export function InvoicePayment({ view, dirty }: {
 
     return (
       <div className="flex items-center gap-2 flex-wrap text-body-small">
-        <Button size="sm" variant="tonal" icon={<Icon icon={Payments} size={18} />} disabled={dirty}
+        <Button variant="tonal" icon={<Icon icon={Payments} size={18} />} disabled={dirty}
           onClick={() => setDialog('pay')}>
           Отметить оплату
         </Button>
@@ -111,7 +111,7 @@ export function InvoicePayment({ view, dirty }: {
         </button>
       </span>
       {canCancel && (
-        <Button size="sm" variant="text" danger icon={<Icon icon={Undo} size={18} />} onClick={() => setDialog('cancel')}>
+        <Button variant="text" danger icon={<Icon icon={Undo} size={18} />} onClick={() => setDialog('cancel')}>
           Отменить оплату
         </Button>
       )}
@@ -132,7 +132,7 @@ function PaidDocument({ view, editable }: { view: InvoiceView; editable: boolean
     return (
       <span className="inline-flex items-end gap-2">
         <TextField label="Платёжный документ" value={draft} onChange={e => setDraft(e.target.value)} />
-        <Button size="sm" variant="filled" loading={describe.isPending}
+        <Button variant="filled" loading={describe.isPending}
           onClick={async () => {
             try {
               await describe.mutateAsync({ id: view.id, version: view.version, document: draft.trim() || null });
@@ -143,7 +143,7 @@ function PaidDocument({ view, editable }: { view: InvoiceView; editable: boolean
           }}>
           Сохранить
         </Button>
-        <Button size="sm" variant="text" onClick={() => setDraft(null)}>Отмена</Button>
+        <Button variant="text" onClick={() => setDraft(null)}>Отмена</Button>
       </span>
     );
 

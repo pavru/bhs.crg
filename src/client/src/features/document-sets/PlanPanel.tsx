@@ -45,7 +45,7 @@ export function PlanPanel({ setId }: { setId: string }) {
         <EmptyState icon={<Icon icon={Warning} size={24} />} title="План не загрузился"
           description={`Экран не знает, что сейчас в плане, поэтому правка заблокирована: сохранение заменяет план целиком и стёрло бы то, чего не видит. ${
             error instanceof Error ? error.message : ''}`}
-          action={<Button variant="filled" size="sm" onClick={() => void refetch()}>Повторить</Button>} />
+          action={<Button variant="filled" onClick={() => void refetch()}>Повторить</Button>} />
       </div>
     );
   }
@@ -125,10 +125,10 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="text" size="sm" icon={<Icon icon={Add} size={18} />} onClick={() => setPickerOpen(true)}>
+          <Button variant="text" icon={<Icon icon={Add} size={18} />} onClick={() => setPickerOpen(true)}>
             Добавить тип
           </Button>
-          <Button variant="filled" size="sm" disabled={!dirty} loading={replace.isPending} onClick={save}>
+          <Button variant="filled" disabled={!dirty} loading={replace.isPending} onClick={save}>
             Сохранить
           </Button>
         </div>
@@ -166,11 +166,8 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
                   </span>
                 </Tooltip>
                 <IconButton label={`Убрать «${r.typeName}» из плана`}
-                  size="sm"
                   danger
-                  onClick={() => setRows(prev => prev.filter((_, j) => j !== i))}>
-                  <Icon icon={Delete} size={18} />
-                </IconButton>
+                  onClick={() => setRows(prev => prev.filter((_, j) => j !== i))} icon={Delete} />
               </div>
             ))}
           </div>

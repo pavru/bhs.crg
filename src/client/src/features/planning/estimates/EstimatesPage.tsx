@@ -96,7 +96,7 @@ function AllEstimates() {
             onRowOpen={l => { if (l.kind === 'estimate') navigate(`/estimates/${l.estimate.id}`); }}
             rowLink={l => (l.kind === 'estimate' ? { to: `/estimates/${l.estimate.id}`, label: `Открыть смету «${l.estimate.name}»` } : null)} />
           {pages.hasNextPage && (
-            <Button variant="outlined" size="sm" disabled={pages.isFetchingNextPage} onClick={() => void pages.fetchNextPage()}>
+            <Button variant="outlined" disabled={pages.isFetchingNextPage} onClick={() => void pages.fetchNextPage()}>
               {pages.isFetchingNextPage ? 'Читаем…' : 'Показать ещё'}
             </Button>
           )}

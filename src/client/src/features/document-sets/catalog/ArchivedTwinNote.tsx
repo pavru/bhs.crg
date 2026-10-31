@@ -51,12 +51,12 @@ export function ArchivedTwinNote({ twin, busy, onReturned, onCreateAnyway }: {
       </p>
       <div className="flex gap-2">
         {canReturn && (
-          <Button type="button" variant="tonal" size="sm" icon={<Icon icon={Unarchive} size={18} />}
+          <Button type="button" variant="tonal" icon={<Icon icon={Unarchive} size={18} />}
             loading={unarchive.isPending} disabled={pending} onClick={() => void giveBack()}>
             Вернуть из архива
           </Button>
         )}
-        <Button type="button" variant="text" size="sm" disabled={pending} onClick={onCreateAnyway}>
+        <Button type="button" variant="text" disabled={pending} onClick={onCreateAnyway}>
           Создать новую
         </Button>
       </div>

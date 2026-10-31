@@ -60,7 +60,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
         <h2 className="text-body-large font-semibold text-on-surface min-w-0 truncate">{data.name}</h2>
         <StatusBadge tone="neutral">{KIND_LABEL[data.kind]}</StatusBadge>
         {editable && (
-          <Button variant="outlined" size="sm" className="ml-auto" icon={<Icon icon={Upload} size={18} aria-hidden />} onClick={() => setImporting({})}>Новая редакция</Button>
+          <Button variant="outlined" className="ml-auto" icon={<Icon icon={Upload} size={18} aria-hidden />} onClick={() => setImporting({})}>Новая редакция</Button>
         )}
       </div>
       <PendingImports constructionId={data.constructionId} enabled={editable} only={i => i.target.estimateId === data.id}
@@ -163,7 +163,7 @@ function RevisionBand({ estimate, revision }: { estimate: Estimate; revision: Es
       {!closed && revision.cost && <span>итог <span className="font-medium text-on-surface">{formatMoney(revision.cost.total)}</span></span>}
 
       {editable && !revision.current && (
-        <Button variant="tonal" size="sm" className="ml-auto" onClick={() => setAsked({ id: revision.id, number: revision.number })}>
+        <Button variant="tonal" className="ml-auto" onClick={() => setAsked({ id: revision.id, number: revision.number })}>
           Сделать действующей
         </Button>
       )}

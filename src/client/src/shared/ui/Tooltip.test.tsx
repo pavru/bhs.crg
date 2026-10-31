@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as Popover from '@radix-ui/react-popover';
 import { Button, IconButton } from './Button';
+import { Close } from './icons';
 import { Modal } from './Modal';
 import { Tooltip } from './Tooltip';
 
@@ -163,7 +164,7 @@ describe('Button и IconButton', () => {
   });
 
   it('IconButton: подпись — и имя, и подсказка; своя title её заменяет', async () => {
-    render(<><IconButton label="Закрыть"><svg /></IconButton><IconButton label="Ещё" title="Действия строки"><svg /></IconButton></>);
+    render(<><IconButton label="Закрыть" icon={Close} /><IconButton label="Ещё" title="Действия строки" icon={Close} /></>);
     const close = screen.getByRole('button', { name: 'Закрыть' });
     expect(close.hasAttribute('title')).toBe(false);
     await focus(close);
@@ -204,7 +205,7 @@ describe('Button и IconButton', () => {
     const onOpenChange = vi.fn();
     render(
       <Modal open onOpenChange={onOpenChange} title="Окно" nothingToLose>
-        <IconButton label="Обновить"><svg /></IconButton>
+        <IconButton label="Обновить" icon={Close} />
       </Modal>,
     );
     // Человек приходит фокусом позже, своим заходом: автофокус открывшегося окна подсказку не зовёт.

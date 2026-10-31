@@ -182,10 +182,8 @@ function SignInForm() {
         <TextField label="Пароль" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required
           value={password} onChange={e => setPassword(e.target.value)}
           trailing={
-            <IconButton label={showPassword ? 'Скрыть пароль' : 'Показать пароль'} size="sm"
-              onClick={() => setShowPassword(v => !v)}>
-              {showPassword ? <Icon icon={VisibilityOff} size={18} /> : <Icon icon={Visibility} size={18} />}
-            </IconButton>
+            <IconButton label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+              onClick={() => setShowPassword(v => !v)} icon={showPassword ? VisibilityOff : Visibility} />
           } />
 
         <div className="flex justify-end -mt-2">
@@ -198,7 +196,7 @@ function SignInForm() {
         <Checkbox checked={remember} onChange={setRemember} label="Запомнить меня" />
 
         {error && <p className="text-body-medium text-error">{error}</p>}
-        <Button type="submit" variant="filled" size="lg" fullWidth loading={loading} className="mt-1">
+        <Button type="submit" variant="filled" fullWidth loading={loading} className="mt-1">
           {loading ? 'Вход…' : 'Войти'}
         </Button>
       </form>
@@ -275,17 +273,15 @@ function FirstAdminForm() {
           minLength={PASSWORD_MIN_LENGTH} hint={PASSWORD_HINT}
           value={password} onChange={e => setPassword(e.target.value)}
           trailing={
-            <IconButton label={showPassword ? 'Скрыть пароль' : 'Показать пароль'} size="sm"
-              onClick={() => setShowPassword(v => !v)}>
-              {showPassword ? <Icon icon={VisibilityOff} size={18} /> : <Icon icon={Visibility} size={18} />}
-            </IconButton>
+            <IconButton label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+              onClick={() => setShowPassword(v => !v)} icon={showPassword ? VisibilityOff : Visibility} />
           } />
         <TextField label="Подтверждение пароля" type={showPassword ? 'text' : 'password'}
           autoComplete="new-password" required minLength={PASSWORD_MIN_LENGTH}
           value={confirm} onChange={e => setConfirm(e.target.value)} />
 
         {error && <p className="text-body-medium text-error">{error}</p>}
-        <Button type="submit" variant="filled" size="lg" fullWidth loading={busy} className="mt-1">
+        <Button type="submit" variant="filled" fullWidth loading={busy} className="mt-1">
           {busy ? 'Создаём…' : 'Создать администратора и войти'}
         </Button>
       </form>

@@ -94,7 +94,7 @@ function PdfPreviewBody({ attachment, onClose }: { attachment: FileAttachment; o
             // «Скачать» — выход из отказа «не читается как PDF», который велит скачать оригинал.
             <PdfViewer source={blob} documentKey={attachment.blobPath} title={attachment.fileName}
               actions={blob && (
-                <Button size="sm" variant="tonal" icon={<Icon icon={Download} size={18} />}
+                <Button variant="tonal" icon={<Icon icon={Download} size={18} />}
                   onClick={() => saveBlob(blob, attachment.fileName)}>
                   Скачать
                 </Button>
@@ -192,13 +192,9 @@ export function FileField({ value, onChange, printForm, readOnly = false }: {
           <FileTypeIcon mimeType={attachment.mimeType} />
           <span className="flex-1 text-body-medium text-on-surface font-medium truncate">{attachment.fileName}</span>
           <span className="text-body-small text-on-surface-variant shrink-0">{formatBytes(attachment.size)}</span>
-          <IconButton label="Предпросмотр" size="sm" onClick={() => setPreviewOpen(true)}>
-            <Icon icon={Visibility} size={18} />
-          </IconButton>
+          <IconButton label="Предпросмотр" onClick={() => setPreviewOpen(true)} icon={Visibility} />
           {!readOnly && (
-            <IconButton label="Удалить" size="sm" danger onClick={() => onChange(null)}>
-              <Icon icon={Delete} size={18} />
-            </IconButton>
+            <IconButton label="Удалить" danger onClick={() => onChange(null)} icon={Delete} />
           )}
         </div>
         {uploadError && <p className="text-body-small text-error mt-1">{uploadError}</p>}

@@ -39,8 +39,8 @@ function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
       title="Сохранить как шаблон"
       footer={
         <div className="flex gap-2 justify-end">
-          <Button variant="text" size="sm" onClick={onClose} disabled={isPending}>Отмена</Button>
-          <Button variant="filled" size="sm" onClick={submit} disabled={!canSave} loading={isPending}>
+          <Button variant="text" onClick={onClose} disabled={isPending}>Отмена</Button>
+          <Button variant="filled" onClick={submit} disabled={!canSave} loading={isPending}>
             {isPending ? 'Сохранение…' : 'Сохранить'}
           </Button>
         </div>

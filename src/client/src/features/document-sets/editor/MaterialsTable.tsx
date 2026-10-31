@@ -98,15 +98,10 @@ export function MaterialsTable({
                 {/* Починка неверной связки — перепривязкой, а не разрывом: разрыв меняет
                     одну ошибку («не тот документ») на другую («документа нет»). До этого
                     единственный путь починки шёл через destructive-действие. */}
-                <IconButton label="Перепривязать к другому документу" size="sm" onClick={() => openPickerFor(m)}>
-                  <Icon icon={ChangeCircle} size={18} />
-                </IconButton>
+                <IconButton label="Перепривязать к другому документу" onClick={() => openPickerFor(m)} icon={ChangeCircle} />
                 <IconButton label="Снять связь"
-                  size="sm"
                   danger
-                  onClick={() => setBreaking({ link, label: m.label })}>
-                  <Icon icon={LinkOff} size={18} />
-                </IconButton>
+                  onClick={() => setBreaking({ link, label: m.label })} icon={LinkOff} />
               </span>
             ) : suggestion ? (
               <span className="flex items-center gap-1.5">

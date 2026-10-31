@@ -12,7 +12,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/pages-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks, settled, closeDialog } from './harness.mjs';
+import { BASE, launchBrowser, login, createChecks, settled, closeDialog, emulateTouch } from './harness.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
@@ -58,6 +58,24 @@ await check('templates-auto-select-after-type-pick', async () => {
   // Шаблон выбирается сам: без этого справа пусто, а слева список — то есть экран «ничего не открыто».
   if (!/версия|Активн|Черновик|Сохранить/i.test(t))
     throw new Error(`шаблон не выбрался сам: ${t.slice(-300)}`);
+});
+
+// Половины split-кнопки при касании ([UI-68]): зазор 2 px, и цель каждой расширена только по вертикали —
+// касание у самого края основной части достаётся ей, а не стрелке.
+await check('split-button-halves-keep-their-edges-on-touch', async () => {
+  const main = page.getByRole('button', { name: /^Сохранить/ }).first();
+  // Нет кнопки — проверка не сработала, а не прошла: выбранный сам шаблон должен быть активным.
+  if (!(await main.count())) throw new Error('у выбранного шаблона нет split-кнопки «Сохранить» — шаблон не активен?');
+  await emulateTouch(page);
+  try {
+    const ok = await main.evaluate(el => {
+      const box = el.getBoundingClientRect();
+      return document.elementFromPoint(box.right - 2, box.top + box.height / 2)?.closest('button') === el;
+    });
+    if (!ok) throw new Error('касание в 2 px внутри края основной части досталось не ей');
+  } finally {
+    await emulateTouch(page, false);
+  }
 });
 
 /**

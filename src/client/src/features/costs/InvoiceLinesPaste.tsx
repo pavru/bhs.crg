@@ -41,7 +41,7 @@ export function InvoiceLinesPaste({ mode, onAdd }: {
 
   return (
     <>
-      <Button size="sm" variant="outlined" icon={<Icon icon={ContentPaste} size={18} />}
+      <Button variant="outlined" icon={<Icon icon={ContentPaste} size={18} />}
         onClick={() => setOpen(true)}>
         Вставить из буфера
       </Button>
@@ -80,8 +80,8 @@ function PasteDialog({ mode, onClose, onAdd }: {
       isDirty={text.trim() !== ''}
       footer={
         <div className="flex items-center justify-end gap-2">
-          <ModalExit size="sm" />
-          <Button size="sm" variant="filled" disabled={rows.length === 0}
+          <ModalExit />
+          <Button variant="filled" disabled={rows.length === 0}
             onClick={() => onAdd(fromTable(table, current), chosen)}>
             Добавить строк: {rows.length}
           </Button>

@@ -86,16 +86,12 @@ function AssetRow({ asset }: { asset: TemplateAssetDto }) {
         : <Icon icon={Title} size={18} className="text-tertiary shrink-0" />}
       <AssetReference asset={asset} />
       {error && <span className="text-body-small text-error shrink-0">{error}</span>}
-      <IconButton label="Заменить файл" size="sm" onClick={() => replaceInputRef.current?.click()}
+      <IconButton label="Заменить файл" onClick={() => replaceInputRef.current?.click()}
         disabled={replaceMutation.isPending}
-        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0">
-        <Icon icon={Refresh} size={18} />
-      </IconButton>
+        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0" icon={Refresh} />
       <input ref={replaceInputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleReplace} />
-      <IconButton label="Удалить" size="sm" danger onClick={() => setConfirmDelete(true)}
-        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0">
-        <Icon icon={Delete} size={18} />
-      </IconButton>
+      <IconButton label="Удалить" danger onClick={() => setConfirmDelete(true)}
+        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0" icon={Delete} />
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}

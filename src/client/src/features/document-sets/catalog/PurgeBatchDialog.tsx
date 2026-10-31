@@ -139,8 +139,8 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
       <>
         <Alert tone="danger">Ответ сервера не получен. Удалены ли записи — неизвестно: проверьте, прежде чем повторять.</Alert>
         <div className="flex gap-2 justify-end mt-4">
-          <Button variant="text" size="sm" onClick={() => onClose(false)}>Закрыть</Button>
-          <Button variant="tonal" size="sm" onClick={recheck}>Проверить заново</Button>
+          <Button variant="text" onClick={() => onClose(false)}>Закрыть</Button>
+          <Button variant="tonal" onClick={recheck}>Проверить заново</Button>
         </div>
       </>
     );
@@ -149,8 +149,8 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
       <>
         <Alert tone="danger">Не удалось проверить записи. {apiError(asked.error, '')}</Alert>
         <div className="flex gap-2 justify-end mt-4">
-          <Button variant="text" size="sm" onClick={() => onClose(false)}>Закрыть</Button>
-          <Button variant="tonal" size="sm" loading={asked.isFetching} onClick={() => void asked.refetch()}>Повторить</Button>
+          <Button variant="text" onClick={() => onClose(false)}>Закрыть</Button>
+          <Button variant="tonal" loading={asked.isFetching} onClick={() => void asked.refetch()}>Повторить</Button>
         </div>
       </>
     );
@@ -158,7 +158,7 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
     body = (
       <>
         <p className="text-body-small text-on-surface-variant" role="status">Проверяем записи…</p>
-        <div className="flex justify-end mt-4"><Button variant="text" size="sm" onClick={() => onClose(false)}>Отмена</Button></div>
+        <div className="flex justify-end mt-4"><Button variant="text" onClick={() => onClose(false)}>Отмена</Button></div>
       </>
     );
   } else {
@@ -187,7 +187,7 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
         <Excluded preview={preview} named={isNamed(source)} />
 
         {preview.records.length === 0 ? (
-          <div className="flex justify-end mt-4"><Button type="button" variant="tonal" size="sm" onClick={() => onClose(false)}>Понятно</Button></div>
+          <div className="flex justify-end mt-4"><Button type="button" variant="tonal" onClick={() => onClose(false)}>Понятно</Button></div>
         ) : (
           <>
             <ul className="mt-3 text-body-small text-on-surface-variant list-disc pl-4 space-y-1">
@@ -208,8 +208,8 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
                 : <p id={hintId} className="mt-1 text-body-small text-on-surface-variant">Введите число из строки «Всего ссылок».</p>}
             </div>
             <div className="flex gap-2 justify-end items-start mt-4">
-              <Button type="button" variant="text" size="sm" className="shrink-0" disabled={busy} data-modal-exit="" onClick={() => onClose(false)}>Отмена</Button>
-              <Button type="submit" variant="filled" danger size="sm" multiline className="min-w-0" disabled={!matches} loading={busy}>
+              <Button type="button" variant="text" className="shrink-0" disabled={busy} data-modal-exit="" onClick={() => onClose(false)}>Отмена</Button>
+              <Button type="submit" variant="filled" danger multiline className="min-w-0" disabled={!matches} loading={busy}>
                 Удалить записи, потеряв ссылки
               </Button>
             </div>
@@ -249,7 +249,7 @@ function Notice({ tone, text, close }: { tone: 'danger' | 'warning'; text: strin
   return (
     <>
       <Alert tone={tone}>{text}</Alert>
-      <div className="flex justify-end mt-4"><Button variant="tonal" size="sm" onClick={close}>Понятно</Button></div>
+      <div className="flex justify-end mt-4"><Button variant="tonal" onClick={close}>Понятно</Button></div>
     </>
   );
 }

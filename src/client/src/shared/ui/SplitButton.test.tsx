@@ -2,7 +2,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { SplitButton, type SplitButtonProps } from './SplitButton';
-import { variantClass } from './buttonClasses';
+import { Button } from './Button';
+import { HEIGHT, variantClass } from './buttonClasses';
 
 /** Split-кнопка ([UI-83]): основное действие одним нажатием, варианты — из стрелки. */
 
@@ -61,6 +62,14 @@ describe('SplitButton', () => {
       expect(cls.some(c => /^rounded-[lr]-/.test(c))).toBe(true);
       expect(cls.some(c => c.includes('shadow'))).toBe(false);
     }
+  });
+
+  it('обе половины — та же высота, что у Button ([UI-68]: высота одна)', () => {
+    const { main, arrow } = setup();
+    render(<Button>Обычная</Button>);
+    const plain = classes(screen.getByRole('button', { name: 'Обычная' })).filter(c => /^(?:min-)?h-/.test(c));
+    expect(plain).toEqual([HEIGHT]);
+    for (const half of [main(), arrow()]) expect(classes(half).filter(c => /^(?:min-)?h-/.test(c))).toEqual(plain);
   });
 
   it('стрелка — кнопка меню с именем; у открытого — data-state="open"', async () => {

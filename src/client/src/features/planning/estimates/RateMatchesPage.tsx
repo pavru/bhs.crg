@@ -185,7 +185,7 @@ function MatchListBody({ list, query, onQuery, placeholder, empty, grid, childre
           <div className="flex items-center gap-3 text-body-small text-on-surface-variant">
             <span>Показано {formatCount(read)} из {formatCount(total)}</span>
             {list.hasNextPage && (
-              <Button size="sm" variant="text" loading={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>Показать ещё</Button>
+              <Button variant="text" loading={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>Показать ещё</Button>
             )}
           </div>
         </>

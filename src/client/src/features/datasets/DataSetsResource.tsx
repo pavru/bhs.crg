@@ -108,18 +108,12 @@ function FileDetail({ file, inherited, job }: {
             <>
               <input ref={updateInputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleReplace} />
               <FileRecognizeActions file={file} />
-              <IconButton label="Скачать оригинальный файл" size="sm" onClick={handleDownload} disabled={downloading}>
-                <Icon icon={Download} size={18} className={downloading ? 'opacity-50' : ''} />
-              </IconButton>
-              <IconButton label="Обновить файл (привязки сохранятся)" size="sm"
-                onClick={() => updateInputRef.current?.click()} disabled={update.isPending}>
-                {update.isPending ? <CircularProgress size={18} /> : <Icon icon={Refresh} size={18} />}
-              </IconButton>
+              <IconButton label="Скачать оригинальный файл" onClick={handleDownload} disabled={downloading} icon={Download} />
+              <IconButton label="Обновить файл (привязки сохранятся)"
+                onClick={() => updateInputRef.current?.click()} disabled={update.isPending} loading={update.isPending} icon={Refresh} />
             </>
           )}
-          <IconButton label="Удалить набор" size="sm" danger onClick={() => setConfirming(true)}>
-            <Icon icon={Delete} size={18} />
-          </IconButton>
+          <IconButton label="Удалить набор" danger onClick={() => setConfirming(true)} icon={Delete} />
         </div>
       </div>
       {job && (
@@ -186,7 +180,7 @@ function AllFilesOverview({ files, inheritedCount, onOpen }: {
                 {sourcesLabel(f.sources.length)}{names && `: ${names}`}{f.sources.length > 4 ? ' …' : ''}
               </div>
             </div>
-            <Button variant="outlined" size="sm" onClick={() => onOpen(f.id)} icon={<Icon icon={ChevronRight} size={18} />}>Открыть</Button>
+            <Button variant="outlined" onClick={() => onOpen(f.id)} icon={<Icon icon={ChevronRight} size={18} />}>Открыть</Button>
           </div>
         );
       })}
@@ -323,14 +317,14 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
   const uploadBtn = (
     <>
       <input ref={fileInputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleFileInput} />
-      <Button variant="tonal" size="sm" onClick={() => fileInputRef.current?.click()}
+      <Button variant="tonal" onClick={() => fileInputRef.current?.click()}
         loading={uploading} icon={<Icon icon={Upload} size={18} />}>
         {uploading ? 'Загрузка…' : 'Загрузить файл'}
       </Button>
       {/* Набор без файла: сырьё — данные самой системы. На уровень нужен один, поэтому кнопка
           прячется, как только он появился, и не показывается там, где консолидаций нет. */}
       {offerSystemFile && (
-        <Button variant="text" size="sm" onClick={() => { void addSystemFile(); }}
+        <Button variant="text" onClick={() => { void addSystemFile(); }}
           loading={createSystem.isPending} icon={<Icon icon={Database} size={18} />}>
           Данные системы
         </Button>
@@ -359,10 +353,10 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
               + (offerSystemFile ? ' Либо возьмите данные самой системы: например, перечень документов комплекта.' : '')}
             action={
               <div className="flex items-center gap-2">
-                <Button variant="filled" size="sm" onClick={() => fileInputRef.current?.click()}
+                <Button variant="filled" onClick={() => fileInputRef.current?.click()}
                   loading={uploading} icon={<Icon icon={Upload} size={18} />}>Загрузить файл</Button>
                 {offerSystemFile && (
-                  <Button variant="outlined" size="sm" onClick={() => { void addSystemFile(); }}
+                  <Button variant="outlined" onClick={() => { void addSystemFile(); }}
                     loading={createSystem.isPending} icon={<Icon icon={Database} size={18} />}>Данные системы</Button>
                 )}
               </div>

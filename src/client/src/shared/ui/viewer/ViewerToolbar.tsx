@@ -33,35 +33,26 @@ export interface ToolbarProps {
 
 export function ViewerToolbar(p: ToolbarProps) {
   return (
+    // Высота 48: кнопки-иконки — 40 ([UI-68]), и при h-10 с border-t им осталось бы 39 px.
     <div role="group" aria-label="Просмотр файла" data-testid="viewer-toolbar"
-      className="shrink-0 h-10 flex items-center gap-1 px-2 border-t border-outline-variant bg-surface">
+      className="shrink-0 h-12 flex items-center gap-1 px-2 border-t border-outline-variant bg-surface">
       {p.numPages > 1 && (
         <>
-          <IconButton label="Предыдущая страница" size="sm" disabled={p.page <= 1} onClick={() => p.onPage(p.page - 1)}>
-            <Icon icon={ChevronLeft} size={18} />
-          </IconButton>
+          <IconButton label="Предыдущая страница" disabled={p.page <= 1} onClick={() => p.onPage(p.page - 1)} icon={ChevronLeft} />
           <PageField page={p.page} numPages={p.numPages} onPage={p.onPage} />
-          <IconButton label="Следующая страница" size="sm" disabled={p.page >= p.numPages} onClick={() => p.onPage(p.page + 1)}>
-            <Icon icon={ChevronRight} size={18} />
-          </IconButton>
+          <IconButton label="Следующая страница" disabled={p.page >= p.numPages} onClick={() => p.onPage(p.page + 1)} icon={ChevronRight} />
           <span aria-hidden className="w-px h-5 bg-outline-variant mx-1 shrink-0" />
         </>
       )}
       {!p.narrow && (
-        <IconButton label="Уменьшить" title="Уменьшить (Ctrl −)" size="sm" disabled={!p.canZoomOut} onClick={p.onZoomOut}>
-          <Icon icon={Remove} size={18} />
-        </IconButton>
+        <IconButton label="Уменьшить" title="Уменьшить (Ctrl −)" disabled={!p.canZoomOut} onClick={p.onZoomOut} icon={Remove} />
       )}
       <ZoomMenu {...p} />
       {!p.narrow && (
-        <IconButton label="Увеличить" title="Увеличить (Ctrl +)" size="sm" disabled={!p.canZoomIn} onClick={p.onZoomIn}>
-          <Icon icon={Add} size={18} />
-        </IconButton>
+        <IconButton label="Увеличить" title="Увеличить (Ctrl +)" disabled={!p.canZoomIn} onClick={p.onZoomIn} icon={Add} />
       )}
       <span className="flex-1" />
-      <IconButton label="Повернуть по часовой" size="sm" onClick={p.onRotate}>
-        <Icon icon={RotateRight} size={18} />
-      </IconButton>
+      <IconButton label="Повернуть по часовой" onClick={p.onRotate} icon={RotateRight} />
     </div>
   );
 }

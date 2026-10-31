@@ -74,7 +74,7 @@ export function SitesFilter({ hidden, partial = false }: { hidden?: number; part
           <div className="flex items-center justify-between mb-2">
             <h2 id={heading} className="text-body-medium font-semibold text-on-surface">Стройки в списках</h2>
             <Popover.Close asChild>
-              <IconButton label="Закрыть" size="sm"><Icon icon={Close} size={18} /></IconButton>
+              <IconButton label="Закрыть" icon={Close} />
             </Popover.Close>
           </div>
           {/* Выбирать между «избранными» и «всеми» можно, только когда избранное есть: иначе положение

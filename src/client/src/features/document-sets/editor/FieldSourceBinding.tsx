@@ -141,15 +141,15 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
           <div className="flex items-center justify-between gap-2">
             <div>
               {isBound && (
-                <Button variant="text" size="sm" danger onClick={unbind} disabled={busy} icon={<Icon icon={LinkOff} size={18} />}>
+                <Button variant="text" danger onClick={unbind} disabled={busy} icon={<Icon icon={LinkOff} size={18} />}>
                   Отвязать
                 </Button>
               )}
             </div>
             <div className="flex gap-2">
-              <Button variant="text" size="sm" onClick={() => setOpen(false)}>Отмена</Button>
+              <Button variant="text" onClick={() => setOpen(false)}>Отмена</Button>
               {!locked && (
-                <Button variant="filled" size="sm" onClick={bind} disabled={!column || busy} loading={busy}>
+                <Button variant="filled" onClick={bind} disabled={!column || busy} loading={busy}>
                   {isBound ? 'Изменить' : 'Привязать'}
                 </Button>
               )}

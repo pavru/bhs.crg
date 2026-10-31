@@ -18,7 +18,7 @@ export function DataSetsPage() {
       <PageHeader title="Наборы данных" className="mb-4"
         subtitle="Системные наборы доступны во всех комплектах. Наборы уровня стройки, раздела и комплекта управляются на соответствующих страницах."
         actions={
-          <Button variant="tonal" size="sm" icon={<Icon icon={Layers} size={18} />} onClick={() => setTemplatesOpen(true)}>
+          <Button variant="tonal" icon={<Icon icon={Layers} size={18} />} onClick={() => setTemplatesOpen(true)}>
             Шаблоны обработки
           </Button>
         } />

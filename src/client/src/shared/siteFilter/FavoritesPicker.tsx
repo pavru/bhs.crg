@@ -70,7 +70,7 @@ export function FavoritesPicker({ maxHeight = 'max-h-72' }: { maxHeight?: string
                 <label className="flex items-center gap-2 px-1 py-1 rounded-xs state-layer cursor-pointer text-body-medium text-on-surface">
                   <Checkbox size="sm" checked={checked} disabled={busy}
                     onChange={() => run(() => filter.setFavorite(s.id, !checked))} />
-                  <Icon icon={Star} size={18} className={checked ? 'text-primary fill-current' : 'text-on-surface-variant'} aria-hidden />
+                  <Icon icon={Star} size={18} filled={checked} className={checked ? 'text-primary' : 'text-on-surface-variant'} aria-hidden />
                   <span className="truncate">{s.name}</span>
                 </label>
               </li>
@@ -86,7 +86,7 @@ export function FavoritesPicker({ maxHeight = 'max-h-72' }: { maxHeight?: string
             : `Отмечено: ${filter.favorites.size} из ${filter.sites.length}`}
         </span>
         {filter.favorites.size > 0 && (
-          <Button variant="text" size="sm" disabled={busy} onClick={() => run(() => filter.setFavorites([]))}>
+          <Button variant="text" disabled={busy} onClick={() => run(() => filter.setFavorites([]))}>
             Снять все
           </Button>
         )}

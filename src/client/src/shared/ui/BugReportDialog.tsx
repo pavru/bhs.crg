@@ -157,13 +157,13 @@ export function BugReportDialog({ open, prefill, onClose }: {
         {/* ── Снимок экрана ─────────────────────────────────────────────── */}
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outlined" size="sm" onClick={() => fileRef.current?.click()} disabled={sending}>
+            <Button variant="outlined" onClick={() => fileRef.current?.click()} disabled={sending}>
               <Icon icon={AttachFile} size={18} /> Загрузить файл
             </Button>
             {/* Кнопки съёмки нет там, где API недоступно (не secure context — например http://
                 внутри сети). Показать её сломанной значило бы обещать несуществующее. */}
             {canCapture && (
-              <Button variant="outlined" size="sm" onClick={() => void capture()} disabled={sending}>
+              <Button variant="outlined" onClick={() => void capture()} disabled={sending}>
                 <Icon icon={Monitor} size={18} /> Снять экран
               </Button>
             )}
@@ -183,7 +183,7 @@ export function BugReportDialog({ open, prefill, onClose }: {
                   Уйдёт администратору вместе с сообщением. Проверьте, нет ли лишнего.
                   {' '}В GitHub снимок не передаётся.
                 </p>
-                <Button variant="text" size="sm" onClick={removeShot}>
+                <Button variant="text" onClick={removeShot}>
                   <Icon icon={Close} size={18} /> Убрать
                 </Button>
               </div>

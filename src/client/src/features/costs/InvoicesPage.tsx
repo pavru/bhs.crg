@@ -472,7 +472,7 @@ export function InvoicesPage() {
               <p className="text-body-small text-on-surface-variant">
                 Это отказ чтения, а не пустой счёт — сам счёт в списке остался.
               </p>
-              <Button size="sm" variant="outlined" onClick={() => void view.refetch()}>Повторить</Button>
+              <Button variant="outlined" onClick={() => void view.refetch()}>Повторить</Button>
             </div>
           </div>
         ) : (

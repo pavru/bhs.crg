@@ -202,13 +202,9 @@ function TemplateRow({
             </span>
           </div>
         </div>
-        <IconButton label="Редактировать" size="sm" onClick={() => setEditing(e => !e)}>
-          <Icon icon={Edit} size={18} />
-        </IconButton>
+        <IconButton label="Редактировать" onClick={() => setEditing(e => !e)} icon={Edit} />
         {!confirming ? (
-          <IconButton label="Удалить" size="sm" danger onClick={() => setConfirming(true)}>
-            <Icon icon={Delete} size={18} />
-          </IconButton>
+          <IconButton label="Удалить" danger onClick={() => setConfirming(true)} icon={Delete} />
         ) : (
           <div className="flex items-center gap-1.5 text-body-small">
             <span className="text-on-surface-variant">Удалить?</span>

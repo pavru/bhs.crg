@@ -1,4 +1,5 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { IconButton } from './Button';
 import { Icon } from './Icon';
 import { ChevronRight, MoreVert } from './icons';
 import type { ReactNode } from 'react';
@@ -81,13 +82,14 @@ export function RowActionsMenu({ actions, ariaLabel = 'Действия', hasAct
 
   return (
     <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild>
-        <button type="button" aria-label={ariaLabel} onClick={e => e.stopPropagation()}
-          className="relative p-1 rounded-xs text-on-surface-variant state-layer focus-ring">
-          <Icon icon={MoreVert} size={18} />
-          {hasActive && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-primary" />}
-        </button>
-      </DropdownMenu.Trigger>
+      {/* Триггер — `IconButton` ([UI-46]): того же размера, что соседние кнопки-иконки клетки ([UI-68]).
+          Точка — поверх кнопки, а не в ней: знак кнопка рисует сама. */}
+      <span className="relative inline-flex shrink-0">
+        <DropdownMenu.Trigger asChild>
+          <IconButton label={ariaLabel} icon={MoreVert} onClick={e => e.stopPropagation()} />
+        </DropdownMenu.Trigger>
+        {hasActive && <span aria-hidden className="pointer-events-none absolute top-1 right-1 size-1.5 rounded-full bg-primary" />}
+      </span>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="end" sideOffset={4} onClick={e => e.stopPropagation()}
           className={`z-50 min-w-[11rem] ${MENU_SURFACE}`}>

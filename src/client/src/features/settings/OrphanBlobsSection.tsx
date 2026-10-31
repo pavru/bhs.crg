@@ -92,12 +92,12 @@ export function OrphanBlobsSection() {
         </p>
 
         <div className="flex items-center gap-2">
-          <Button variant="outlined" size="sm" onClick={() => void check()} loading={busy}
+          <Button variant="outlined" onClick={() => void check()} loading={busy}
             icon={<Icon icon={Delete} size={18} />}>
             Посчитать
           </Button>
           {report && !nothingToDo && !blocked && (
-            <Button variant="filled" size="sm" danger onClick={() => setConfirmOpen(true)} disabled={busy}>
+            <Button variant="filled" danger onClick={() => setConfirmOpen(true)} disabled={busy}>
               Удалить
             </Button>
           )}

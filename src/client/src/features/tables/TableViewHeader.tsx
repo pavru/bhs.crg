@@ -184,9 +184,9 @@ export function TableViewHeader({ address, decl, lookup, view, base, saved, save
         badge={modified && (
           <>
             <span className="text-body-medium text-warning" role="status">· изменено</span>
-            {can.save && <Button size="sm" variant="tonal" loading={save.isPending} onClick={() => void saveOver()}>Сохранить</Button>}
-            {can.saveAs && <Button size="sm" variant="text" onClick={() => setAsked({ kind: 'create' })}>Сохранить как своё</Button>}
-            <Button size="sm" variant="text" onClick={() => onChange(v => withViewReset(v, base))}>Сбросить</Button>
+            {can.save && <Button variant="tonal" loading={save.isPending} onClick={() => void saveOver()}>Сохранить</Button>}
+            {can.saveAs && <Button variant="text" onClick={() => setAsked({ kind: 'create' })}>Сохранить как своё</Button>}
+            <Button variant="text" onClick={() => onChange(v => withViewReset(v, base))}>Сбросить</Button>
           </>
         )}
         subtitle={`Строка — ${decl.grain}. ${decl.boundary.replace(/\.$/, '')}.`} />

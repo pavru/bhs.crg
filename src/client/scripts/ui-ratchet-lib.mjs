@@ -5,7 +5,7 @@ import { posix } from 'node:path';
 import ts from 'typescript';
 import { containerTextHits, stripComments } from './class-scan.mjs';
 import { isBadge, isChip } from './ui-ratchet-pills.mjs';
-import { buttonComponents, isIconButton, isSplitHalf } from './ui-ratchet-buttons.mjs';
+import { buttonRules } from './ui-ratchet-buttons.mjs';
 import { isManualDropdown, portalContainersIn } from './ui-ratchet-layers.mjs';
 import { countDarkVariants, countLegacyClasses, countLegacyRadii, countLegacyShadows, countLegacyType, countRawStates, LEGACY_HINT } from './ui-ratchet-md3.mjs';
 
@@ -112,22 +112,8 @@ export const RULES = [
     count: text => countElements(text, isBadge),
     instead: 'пометка состояния — StatusBadge (shared/ui/StatusBadge): tone по смыслу — neutral, brand, success, warning, danger, quiet; bordered на заливке (docs/UI.md, «Язык формы»)',
   },
-  {
-    id: 'icon-button',
-    // Своя кнопка из одной иконки (#1417): нативный <button>, единственный ребёнок которого — компонент
-    // (значок: `<Icon icon={…} />`, до перевода — компонент lucide). IconButton даёт ей размер не меньше
-    // 32 px, имя для скринридера и подсказку.
-    count: text => countElements(text, isIconButton),
-    instead: 'кнопка из одной иконки — IconButton (shared/ui/Button: значок ребёнком, label — имя для скринридера, size sm|md|lg — 32/36/40 px, danger); с подписью — Button variant="text"; крестик снятия в пилюле — Chip onRemove (removeLabel), у жетона значения без действия — Chip removeOnly (docs/UI.md, «Узкий экран»: кнопка-иконка не меньше 32 px)',
-  },
-  {
-    id: 'split-button',
-    // Своя половина split-кнопки ([UI-83]): одностороннее скругление у кнопки — нативной <button>, ссылки
-    // или Button / IconButton с перекрытой формой. Вид такой половины держится на порядке утилит в
-    // собранном CSS, и правка кнопки разъединяет пару молча. Плашки и панели (div, span) не считаются.
-    count: text => countElements(text, isSplitHalf, { components: buttonComponents }),
-    instead: 'действие с вариантами — SplitButton (shared/ui/SplitButton: onClick — основное действие, items — варианты в меню, menuLabel — имя стрелки); без вариантов — обычная Button (docs/UI.md, таблица контролов)',
-  },
+  // Кнопки — icon-button, button-size, dense-scope, split-button (ui-ratchet-buttons.mjs).
+  ...buttonRules(countElements),
   {
     id: 'tabs',
     // Свои вкладки по ARIA (#1416): role="tab" / "tablist" / "tabpanel" у элемента разметки. Их клавиатуру

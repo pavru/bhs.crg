@@ -1,6 +1,5 @@
 import * as Popover from '@radix-ui/react-popover';
 import { useState, type ReactNode } from 'react';
-import { Icon } from '@/shared/ui/Icon';
 import { Close } from '@/shared/ui/icons';
 import { formatDate } from '@/shared/format/format';
 import type { LineDraft } from './invoiceLines';
@@ -66,9 +65,7 @@ export function LineMatchChip({ draft, offer, fate, supplierId, onCancel, onRest
               query: draft.match?.source ?? '',
             }} />
         )}
-        <IconButton label="Отменить подстановку" size="sm" onClick={onCancel}>
-          <Icon icon={Close} size={18} />
-        </IconButton>
+        <IconButton label="Отменить подстановку" onClick={onCancel} icon={Close} />
       </span>
     );
   }

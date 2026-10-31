@@ -319,9 +319,9 @@ export function Calendar({ value, onSelect, precision = 'day', onClose, onClear,
       {body}
       {(onClear || showToday) && (
         <div className="flex items-center gap-2 mt-2 pt-2 border-t border-outline-variant">
-          {onClear && <Button variant="text" size="sm" onClick={onClear}>Очистить</Button>}
+          {onClear && <Button variant="text" onClick={onClear}>Очистить</Button>}
           {showToday && (
-            <Button variant="text" size="sm" className="ml-auto" aria-label={`${todayLabel}, ${spokenDate(todayISO, locale, precision)}`}
+            <Button variant="text" className="ml-auto" aria-label={`${todayLabel}, ${spokenDate(todayISO, locale, precision)}`}
               onClick={() => { onSelect(todayPick); onClose?.(); }}>
               {todayLabel}
             </Button>

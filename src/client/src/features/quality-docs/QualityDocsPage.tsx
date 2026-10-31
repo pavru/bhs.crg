@@ -468,7 +468,7 @@ function WebSearchModal({ open, onClose, docTypes }: {
                       <Icon icon={OpenInNew} size={18} /> Открыть
                     </a>
                   </div>
-                  <Button title="Скачать файл по ссылке и добавить в библиотеку (если это прямой PDF/скан)" variant="outlined" size="sm" className="shrink-0" onClick={() => importOne(c)}
+                  <Button title="Скачать файл по ссылке и добавить в библиотеку (если это прямой PDF/скан)" variant="outlined" className="shrink-0" onClick={() => importOne(c)}
                     loading={importingUrl === c.url} icon={<Icon icon={Download} size={18} />}>
                     В библиотеку
                   </Button>

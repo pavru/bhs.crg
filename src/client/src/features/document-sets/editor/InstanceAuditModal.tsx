@@ -109,12 +109,12 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
                           {/* Для расхождения с типом приведение — исправление, а удаление — потеря
                               значения; поэтому оно первое и без подтверждения (issue #643). */}
                           {f.code === 'value-type' && (
-                            <Button variant="text" size="sm" icon={<Icon icon={WandStars} size={18} />}
+                            <Button variant="text" icon={<Icon icon={WandStars} size={18} />}
                               disabled={applyFixes.isPending} onClick={() => apply('coerce', f.path)}>
                               Привести к типу
                             </Button>
                           )}
-                          <Button variant="text" size="sm" danger icon={<Icon icon={Delete} size={18} />}
+                          <Button variant="text" danger icon={<Icon icon={Delete} size={18} />}
                             disabled={applyFixes.isPending} onClick={() => setConfirm(f)}>
                             Удалить
                           </Button>
@@ -126,7 +126,7 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
                                 onValueChange={k => setRenameTarget(t => ({ ...t, [f.path]: k }))}>
                                 {schemaFieldKeys.map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
                               </Select>
-                              <Button variant="text" size="sm" disabled={!renameTarget[f.path] || applyFixes.isPending}
+                              <Button variant="text" disabled={!renameTarget[f.path] || applyFixes.isPending}
                                 onClick={() => apply('rename', f.path, renameTarget[f.path])}>
                                 Переименовать
                               </Button>

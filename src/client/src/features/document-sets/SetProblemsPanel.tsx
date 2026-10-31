@@ -62,7 +62,7 @@ function FindingLine({ f, onDecide }: { f: Finding; onDecide: (f: Finding) => vo
         </span>
         {/* Кнопка видна всегда, а не на hover (#680): скрытое действие на непривычном экране
             просто не находят. */}
-        <Button variant="text" size="sm" className="shrink-0" onClick={() => onDecide(f)}>
+        <Button variant="text" className="shrink-0" onClick={() => onDecide(f)}>
           {f.decision ? 'Изменить' : 'Разобрать'}
         </Button>
       </div>
@@ -120,7 +120,7 @@ function ReconciliationBlock({ id, name, unresolved }: {
         <Chip selected={onlyOpen} count={unresolved} onClick={() => setOnlyOpen(v => !v)} className="shrink-0">
           не разобрано
         </Chip>
-        <Button variant="text" size="sm" loading={run.isPending}
+        <Button variant="text" loading={run.isPending}
           onClick={async () => {
             const r = await run.mutateAsync(id);
             if (r.status === 'Failed') toast.error(r.error ?? 'Прогон не выполнен');
@@ -196,7 +196,7 @@ function ObservationCard({ o, documentNames, onReview }: {
           )}
         </div>
         <span className="text-label-small text-on-surface-variant shrink-0">{OBSERVATION_STATUS_LABELS[o.status]}</span>
-        <Button variant="text" size="sm" className="shrink-0 -mt-1" onClick={() => onReview(o)}>
+        <Button variant="text" className="shrink-0 -mt-1" onClick={() => onReview(o)}>
           {isUnreviewed(o) ? 'Разобрать' : 'Изменить'}
         </Button>
       </div>
@@ -233,7 +233,7 @@ export function SetProblemsPanel({ setId, setName, documentNames }: {
               : 'Всё разобрано.'}
           </p>
         </div>
-        <Button variant="outlined" size="sm" loading={busy}
+        <Button variant="outlined" loading={busy}
           onClick={async () => {
             setBusy(true);
             try {

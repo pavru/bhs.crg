@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react';
+import { ICON_BUTTON_XS } from './buttonClasses';
 
 /**
  * Оболочка MD3 outlined-поля (issue #565): рамка с НАСТОЯЩИМ вырезом под меткой (fieldset+legend),
@@ -61,7 +62,11 @@ export interface OutlinedFieldProps {
    * пишут», а не «сейчас недоступно».
    */
   readOnly?: boolean;
-  /** Правый адорнмент (например «глаз» пароля). */
+  /**
+   * Правый адорнмент (например «глаз» пароля). Хвост — место XS ([UI-68], sharedui-md3-10): кнопка-иконка
+   * в нём 32 при мыши и 40 при касании — класс места ставит обёртка, экран размера не пишет. Отступ текста
+   * под хвост держит само поле (`TextField`: `pr-11`, при касании `pr-13`).
+   */
   trailing?: ReactNode;
   /** Классы внешней обёртки (поле + подпись под ним). */
   containerClassName?: string;
@@ -128,7 +133,7 @@ export function OutlinedField({
         {htmlFor
           ? <label id={labelId} htmlFor={htmlFor} className={labelClass}>{labelContent}</label>
           : <span id={labelId} className={labelClass}>{labelContent}</span>}
-        {trailing && <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10">{trailing}</div>}
+        {trailing && <div className={`absolute right-2 top-1/2 -translate-y-1/2 z-10 flex ${ICON_BUTTON_XS}`}>{trailing}</div>}
       </div>
       {error
         ? <p id={hintId} className="mt-1 px-1 text-body-small text-error">{error}</p>

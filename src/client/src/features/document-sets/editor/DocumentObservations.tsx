@@ -33,7 +33,7 @@ export function DocumentObservationsChip({ setId, documentId }: {
 
   return (
     <>
-      <Button variant="text" size="sm" icon={<Icon icon={SmartToy} size={18} />} onClick={() => setOpen(true)}
+      <Button variant="text" icon={<Icon icon={SmartToy} size={18} />} onClick={() => setOpen(true)}
         className="shrink-0" title="Замечания внешнего анализа, упоминающие этот документ">
         <span className="hidden sm:inline">Замечания</span>
         {unreviewed > 0 && (

@@ -116,10 +116,8 @@ export function SectionPanel({ def, groups, outside, onHide }: {
           <h2 className="text-body-large font-semibold text-on-surface break-words">{def.title}</h2>
           <p className="text-body-small text-on-surface-variant">{def.hint}</p>
         </div>
-        <IconButton label="Скрыть панель раздела" size="lg" onClick={onHide}
-          aria-expanded aria-controls={PANEL_ID}>
-          <Icon icon={LeftPanelClose} size={18} />
-        </IconButton>
+        <IconButton label="Скрыть панель раздела" onClick={onHide}
+          aria-expanded aria-controls={PANEL_ID} icon={LeftPanelClose} />
       </div>
       <PageList groups={groups} />
       {!def.unscoped && <OutsideNav items={outside} />}
@@ -130,8 +128,6 @@ export function SectionPanel({ def, groups, outside, onHide }: {
 /** Кнопка «Показать панель раздела» — над страницей, пока подпанель скрыта. */
 export function ShowPanelButton({ onShow }: { onShow: () => void }) {
   return (
-    <IconButton label="Показать панель раздела" onClick={onShow} aria-expanded={false}>
-      <Icon icon={LeftPanelOpen} size={18} />
-    </IconButton>
+    <IconButton label="Показать панель раздела" onClick={onShow} aria-expanded={false} icon={LeftPanelOpen} />
   );
 }

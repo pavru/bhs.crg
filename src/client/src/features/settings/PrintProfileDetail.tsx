@@ -108,12 +108,12 @@ export function PrintProfileDetail({ profile, otherNames, onDeleted, onEditState
             {/* Сброс — только у правленого профиля по умолчанию; у своего заводских параметров нет.
                 Удалить профиль по умолчанию нельзя — кнопки у него нет вовсе. */}
             {modified && (
-              <Button variant="text" size="sm" icon={<Icon icon={RestartAlt} size={18} />} onClick={() => setConfirmReset(true)}>
+              <Button variant="text" icon={<Icon icon={RestartAlt} size={18} />} onClick={() => setConfirmReset(true)}>
                 Сбросить к заводским
               </Button>
             )}
             {!profile.isSystem && (
-              <Button variant="text" size="sm" icon={<Icon icon={Delete} size={18} />} onClick={() => setConfirmDelete(true)}>
+              <Button variant="text" icon={<Icon icon={Delete} size={18} />} onClick={() => setConfirmDelete(true)}>
                 Удалить
               </Button>
             )}

@@ -48,7 +48,7 @@ export function RecognitionBanner({ invoiceId, recognition, unread, onRetryRead,
     return (
       <Strip quiet>
         <span className="flex-1">Состояние распознавания не пришло — это не «не распознан».</span>
-        <Button size="sm" variant="outlined" icon={<Icon icon={Refresh} size={18} />} onClick={onRetryRead}>Повторить</Button>
+        <Button variant="outlined" icon={<Icon icon={Refresh} size={18} />} onClick={onRetryRead}>Повторить</Button>
       </Strip>
     );
   }
@@ -62,7 +62,7 @@ export function RecognitionBanner({ invoiceId, recognition, unread, onRetryRead,
           {canEdit && !recognition.canStart && recognition.whyNot && ` Распознать ещё раз нельзя: ${recognition.whyNot}.`}
         </span>
         {canEdit && recognition.canStart && (
-          <Button size="sm" variant="outlined" icon={<Icon icon={Refresh} size={18} />} loading={start.isPending}
+          <Button variant="outlined" icon={<Icon icon={Refresh} size={18} />} loading={start.isPending}
             onClick={() => start.mutateAsync(invoiceId).catch(e => toast.apiError(e, 'Распознавание не запущено'))}>
             Распознать ещё раз
           </Button>
@@ -83,13 +83,13 @@ export function RecognitionBanner({ invoiceId, recognition, unread, onRetryRead,
       {/* Короткий путь (issue #1282): в файле не прочитано ничего или сам файл не читается (#1343) —
           чаще всего приложили не тот файл, и черновик из него не нужен. Только там, где удалить можно. */}
       {askDelete && (recognition.reason === 'NoAnswer' || recognition.reason === 'BadFile') && (
-        <Button size="sm" variant="text" onClick={() => askDelete('wrong-file')}>
+        <Button variant="text" onClick={() => askDelete('wrong-file')}>
           Не тот файл — удалить черновик…
         </Button>
       )}
       {/* Сам файл не читается (#1343): повтор на том же файле даст то же самое — путь только другой файл. */}
       {canEdit && recognition.canStart && recognition.reason !== 'BadFile' && (
-        <Button size="sm" variant="outlined" icon={<Icon icon={Refresh} size={18} />} loading={start.isPending}
+        <Button variant="outlined" icon={<Icon icon={Refresh} size={18} />} loading={start.isPending}
           onClick={() => start.mutateAsync(invoiceId).catch(e => toast.apiError(e, 'Распознавание не запущено'))}>
           Распознать ещё раз
         </Button>
@@ -115,7 +115,7 @@ export function RecognitionStart({ invoiceId, recognition, explain }: {
   if (!recognition.canStart)
     return explain && recognition.whyNot ? <span className="text-body-small text-on-surface-variant">Не распознаётся: {recognition.whyNot}</span> : null;
   return (
-    <Button size="sm" variant="outlined" icon={<Icon icon={DocumentScanner} size={18} />} loading={start.isPending}
+    <Button variant="outlined" icon={<Icon icon={DocumentScanner} size={18} />} loading={start.isPending}
       onClick={() => start.mutateAsync(invoiceId).catch(e => toast.apiError(e, 'Распознавание не запущено'))}>
       Распознать файл
     </Button>

@@ -110,7 +110,7 @@ export function ConstructionDetail() {
   const headerAction = (
     <>
       {canEdit && <>
-        <Button variant="filled" size="sm" icon={<Icon icon={Add} size={18} />} onClick={() => setAddSectionOpen(true)}>Добавить раздел</Button>
+        <Button variant="filled" icon={<Icon icon={Add} size={18} />} onClick={() => setAddSectionOpen(true)}>Добавить раздел</Button>
         <RowActionsMenu ariaLabel="Действия стройки" actions={[
           { key: 'rename', label: 'Переименовать', icon: <Icon icon={Edit} size={18} />, onSelect: () => { setRenameVal(construction.name); setRenameOpen(true); } },
           { key: 'delete', label: 'Удалить стройку', icon: <Icon icon={Delete} size={18} />, danger: true, onSelect: () => setDeleteConfirm(true) },

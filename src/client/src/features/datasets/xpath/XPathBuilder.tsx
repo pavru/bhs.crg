@@ -153,9 +153,7 @@ function StepEditor({ step, isLast, onChange, onRemove }: {
         <input value={step.name} onChange={e => onChange({ name: e.target.value })}
           placeholder={step.axis === 'attribute' ? 'атрибут' : 'элемент / *'}
           className="w-24 text-body-small font-mono border-b border-transparent hover:border-outline-variant focus:border-primary bg-transparent outline-none" />
-        <IconButton label="Удалить шаг" size="sm" danger onClick={onRemove}>
-          <Icon icon={Delete} size={18} />
-        </IconButton>
+        <IconButton label="Удалить шаг" danger onClick={onRemove} icon={Delete} />
       </div>
       <div className="flex flex-wrap gap-1">
         {step.predicates.map((p, i) => (

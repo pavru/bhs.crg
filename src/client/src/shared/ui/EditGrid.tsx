@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, type CSSProperties, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { Icon } from './Icon';
 import { Add, Delete } from './icons';
-import { Button } from './Button';
+import { Button, IconButton } from './Button';
 import { dtCard, dtNum, dtRow, dtTableCompact, dtTableSized, dtTdEdit, dtTdSheet, dtThCompact } from './dataTable';
 import type { DataGridDrag } from './DataGrid';
 import { Tooltip } from './Tooltip';
@@ -268,7 +268,7 @@ export function EditGrid<Row>({
         </table>
       </div>
       {add && (
-        <Button ref={addButton} size="sm" variant="outlined" icon={<Icon icon={Add} size={18} />}
+        <Button ref={addButton} variant="outlined" icon={<Icon icon={Add} size={18} />}
           onClick={() => {
             pendingFocus.current = { kind: 'added' };
             add.onAdd();
@@ -284,14 +284,7 @@ export function EditGrid<Row>({
 const FOOT = 'sticky bottom-0 z-10 bg-surface-container border-t border-outline-variant px-2 py-1.5 text-body-small text-on-surface-variant align-top';
 
 function RemoveButton({ index, label, onClick }: { index: number; label: string; onClick: () => void }) {
-  return (
-    <Tooltip content={label}>
-      <button type="button" data-remove={index} onClick={onClick} aria-label={label}
-        className="rounded-xs p-0.5 text-on-surface-variant state-layer [--_state-color:var(--color-error)] focus-ring">
-        <Icon icon={Delete} size={18} aria-hidden />
-      </button>
-    </Tooltip>
-  );
+  return <IconButton label={label} icon={Delete} danger data-remove={index} onClick={onClick} />;
 }
 
 /**

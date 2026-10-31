@@ -85,12 +85,9 @@ export function SubscribersResource({ scope, scopeId }: { scope: SubscriptionSco
               )}
               {canManage && (
                 <IconButton label="Убрать из подписчиков"
-                  size="sm"
                   danger
                   className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
-                  onClick={() => remove.mutate({ id: s.id, scope, scopeId })}>
-                  <Icon icon={Delete} size={18} />
-                </IconButton>
+                  onClick={() => remove.mutate({ id: s.id, scope, scopeId })} icon={Delete} />
               )}
             </div>
           ))}

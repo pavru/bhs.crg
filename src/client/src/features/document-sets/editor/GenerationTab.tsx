@@ -250,7 +250,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
           <div className="flex items-center justify-between">
             <p className="text-body-small font-medium text-on-surface-variant">Сгенерированные файлы</p>
             {canSend && (
-              <Button title="Отправить сгенерированные PDF документа по почте (подписчикам и/или на внешние адреса)" variant="outlined" size="sm" onClick={() => setEmailOpen(true)} icon={<Icon icon={Mail} size={18} />}>
+              <Button title="Отправить сгенерированные PDF документа по почте (подписчикам и/или на внешние адреса)" variant="outlined" onClick={() => setEmailOpen(true)} icon={<Icon icon={Mail} size={18} />}>
                 Отправить по почте
               </Button>
             )}
@@ -265,11 +265,11 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
                       не открыть неактуальную/заменяемую версию (ссылка ведёт на старое состояние).
                       Отказ из открытия доходит один — вкладку не дали открыть: об отказе загрузки
                       говорит сама вкладка. */}
-                  <Button variant="outlined" size="sm" disabled={busy} icon={<Icon icon={Visibility} size={18} />}
+                  <Button variant="outlined" disabled={busy} icon={<Icon icon={Visibility} size={18} />}
                     onClick={() => { setError(''); previewGeneratedFile(instance.id, f.templateId).catch((e: Error) => setError(e.message)); }}>
                     Открыть
                   </Button>
-                  <Button variant="outlined" size="sm" disabled={busy} icon={<Icon icon={Download} size={18} />}
+                  <Button variant="outlined" disabled={busy} icon={<Icon icon={Download} size={18} />}
                     onClick={() => downloadGeneratedFile(instance.id, f.templateId)}>
                     Скачать
                   </Button>

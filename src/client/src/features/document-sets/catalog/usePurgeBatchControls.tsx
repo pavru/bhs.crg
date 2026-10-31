@@ -55,18 +55,18 @@ export function usePurgeBatchControls({ scope, scopeId, type }: {
   const bar = (shown: string[]): ReactNode => picked && type && (
     <div className="flex flex-1 items-center gap-3 flex-wrap justify-end text-body-small text-on-surface-variant">
       <span className="tabular-nums">Выбрано: {picked.size}{hiddenNote(picked, shown)}</span>
-      <Button variant="text" size="sm"
+      <Button variant="text"
         onClick={() => setPicking({ where, ids: new Set([...picked, ...shown]) })}>
         Выбрать все показанные
       </Button>
       {picked.size > limit
         ? <span className="text-warning">За раз — не больше {limit}: снимите лишние.</span>
         : picked.size > 0 && (
-          <Button variant="filled" danger size="sm" onClick={() => setDialog({ ids: [...picked] })}>
+          <Button variant="filled" danger onClick={() => setDialog({ ids: [...picked] })}>
             Удалить, потеряв ссылки…
           </Button>
         )}
-      <Button variant="text" size="sm" onClick={() => setPicking(null)}>Отмена</Button>
+      <Button variant="text" onClick={() => setPicking(null)}>Отмена</Button>
     </div>
   );
 

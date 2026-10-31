@@ -40,7 +40,7 @@ export function MissingPartsNotice({ fileId, missing, dirty }: {
           : 'Вырезать их можно заново из файла набора — по текущему разбиению, оно не изменится.'}
       </p>
       {!dirty && (
-        <Button size="sm" variant="outlined" icon={<Icon icon={ContentCut} size={18} />} loading={recut.isPending}
+        <Button variant="outlined" icon={<Icon icon={ContentCut} size={18} />} loading={recut.isPending}
           onClick={() => recut.mutate(undefined, {
             onSuccess: r => r.missingParts > 0
               ? toast.error(`Вырезаны не все: без файла осталось ${ruCount(r.missingParts, 'документ', 'документа', 'документов')}.`)

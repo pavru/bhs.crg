@@ -190,11 +190,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
       <div className="shrink-0 bg-surface">
         <div className="flex items-center gap-3 h-16 px-3 sm:px-4">
           <IconButton label="К комплекту"
-            size="lg"
-            className="min-h-11 min-w-11"
-            onClick={() => guardedLeave(onClose)}>
-            <Icon icon={ArrowBack} size={20} />
-          </IconButton>
+            onClick={() => guardedLeave(onClose)} icon={ArrowBack} />
           <div className="flex-1 min-w-0">
             <InstanceNameEditor instance={instance} setId={setId} docType={docType} />
             <p className="text-body-small text-on-surface-variant mt-0.5 truncate">
@@ -292,11 +288,11 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           nothingToLose busy={switching}
           footer={
             <div className="flex gap-2 justify-end flex-wrap">
-              <ModalExit size="sm" />
-              <Button variant="text" size="sm" danger onClick={() => switchTo(pendingTab)} disabled={switching}>
+              <ModalExit />
+              <Button variant="text" danger onClick={() => switchTo(pendingTab)} disabled={switching}>
                 Не сохранять
               </Button>
-              <Button variant="filled" size="sm" onClick={saveThenSwitch} loading={switching}>
+              <Button variant="filled" onClick={saveThenSwitch} loading={switching}>
                 {switching ? 'Сохранение...' : 'Сохранить'}
               </Button>
             </div>

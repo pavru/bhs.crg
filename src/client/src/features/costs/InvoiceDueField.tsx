@@ -28,7 +28,7 @@ export function InvoiceDueField({ view, edits, current, set, locked, hint, requi
         value={asInput(current).slice(0, 10)} readOnly={locked}
         onChange={iso => set(K.dueDate, iso ? iso.slice(0, 10) : null)} />
       {offerRule && (
-        <Button variant="text" size="sm" className="mt-0.5 -ml-2" icon={<Icon icon={RestartAlt} size={18} />}
+        <Button variant="text" className="mt-0.5 -ml-2" icon={<Icon icon={RestartAlt} size={18} />}
           loading={byRule.isPending}
           onClick={() => byRule.mutateAsync({ id: view.id, seen: view.version })
             .catch(e => toast.apiError(e, 'Срок не пересчитан'))}>

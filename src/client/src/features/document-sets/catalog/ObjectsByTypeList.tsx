@@ -92,16 +92,12 @@ export function ObjectRow({
       )}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
         {onArchive && (
-          <IconButton label={entry.archived ? 'Вернуть из архива' : 'В архив'} size="sm"
-            onClick={e => { e.stopPropagation(); onArchive(entry); }} disabled={archiveDisabled}>
-            {entry.archived ? <Icon icon={Unarchive} size={18} /> : <Icon icon={Archive} size={18} />}
-          </IconButton>
+          <IconButton label={entry.archived ? 'Вернуть из архива' : 'В архив'}
+            onClick={e => { e.stopPropagation(); onArchive(entry); }} disabled={archiveDisabled} icon={entry.archived ? Unarchive : Archive} />
         )}
         {onDelete && (
-          <IconButton label="Удалить" size="sm" danger
-            onClick={e => { e.stopPropagation(); onDelete(entry); }} disabled={deleteDisabled}>
-            <Icon icon={Delete} size={18} />
-          </IconButton>
+          <IconButton label="Удалить" danger
+            onClick={e => { e.stopPropagation(); onDelete(entry); }} disabled={deleteDisabled} icon={Delete} />
         )}
       </div>
     </div>

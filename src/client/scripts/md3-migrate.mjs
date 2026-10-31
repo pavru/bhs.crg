@@ -14,8 +14,9 @@
 //   npm run md3:migrate -- --check — только проверить: код 1, если есть что менять
 //
 // Первым проходом — самодельные состояния → слой и отключённое MD3 (md3-states-migrate.mjs,
-// sharedui-md3-05): правила о классе с вариантом, до перевода имён. Последним — значки lucide → Material Symbols (md3-icons-migrate.mjs, sharedui-md3-03): по уже
-// переведённому тексту, потому что оба прохода правят className.
+// sharedui-md3-05): правила о классе с вариантом, до перевода имён. Затем — значки lucide → Material Symbols (md3-icons-migrate.mjs, sharedui-md3-03): по уже
+// переведённому тексту, потому что оба прохода правят className. Последним — размер кнопок и знак
+// кнопки-иконки (md3-size-migrate.mjs, sharedui-md3-10): ему нужен уже переведённый `<Icon>`.
 
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
@@ -25,6 +26,7 @@ import { entries, themeDir } from './md3-theme.mjs';
 import theme from '../src/theme/md3-theme.json' with { type: 'json' };
 import classMap from './md3-class-map.json' with { type: 'json' };
 import { formatIconReport, migrateIcons } from './md3-icons-migrate.mjs';
+import { formatSizeReport, migrateSizes } from './md3-size-migrate.mjs';
 import { compileStates, migrateStates } from './md3-states-migrate.mjs';
 import { commitsAfterTransition, compileShape, gitOldLines, hasCommitsBeforeTransition, migrateRadii, migrateShadows } from './md3-shape-migrate.mjs';
 
@@ -220,7 +222,11 @@ export function sourceFiles(root) {
  * шкалу формы (по умолчанию — git blame в репозитории `base`; зовётся только у файла, где есть радиус
  * цепи, и только если в истории есть коммиты чужой ветки до перехода). Возвращает отчёт по файлам.
  */
-export function migrateFiles(files, { write = false, rules = compile(), base = clientRoot, oldLines } = {}) {
+/**
+ * `texts` — общий текст файлов для следующих проходов команды (`путь → текст`): берётся оттуда, если
+ * есть, и туда кладётся результат. Без него — диск.
+ */
+export function migrateFiles(files, { write = false, rules = compile(), base = clientRoot, oldLines, texts } = {}) {
   let after;
   let blame;
   oldLines ??= path => {
@@ -230,10 +236,11 @@ export function migrateFiles(files, { write = false, rules = compile(), base = c
   };
   const report = [];
   for (const path of files) {
-    const text = readFileSync(path, 'utf8');
+    const text = texts?.get(path) ?? readFileSync(path, 'utf8');
     const file = relative(base, path).replaceAll('\\', '/');
     let old;
     const result = migrateText(text, { file, rules, isOld: line => (old ??= oldLines(path))(line) });
+    texts?.set(path, result.text);
     if (!result.replaced.length && !result.untouched.length) continue;
     if (write && result.replaced.length) writeFileSync(path, result.text, 'utf8');
     report.push({ file, replaced: result.replaced, untouched: result.untouched });
@@ -275,9 +282,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const check = args.includes('--check');
   const roots = args.filter(a => !a.startsWith('--'));
   const files = (roots.length ? roots : [join(clientRoot, 'src')]).flatMap(r => sourceFiles(r));
-  const report = migrateFiles(files, { write: !check });
+  // Файл читается с диска один раз: каждый проход берёт текст после предыдущего отсюда — и при --check,
+  // когда на диск ничего не записано.
+  const texts = new Map();
+  const report = migrateFiles(files, { write: !check, texts });
   console.log(formatReport(report, { check }));
-  const icons = migrateIcons(files);
+  const icons = migrateIcons(files, { read: path => texts.get(path) ?? readFileSync(path, 'utf8') });
   if (icons.unknown.length) {
     console.error(`\nЗначки lucide вне таблицы scripts/md3-icon-map.json — значки не записаны:\n${
       icons.unknown.map(u => `  ${u.name}: ${u.where.join(', ')}`).join('\n')}\n`
@@ -290,10 +300,20 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       + "Перепишите на именованный импорт (import { Trash2 } from 'lucide-react') и запустите снова.");
     process.exit(1);
   }
-  if (!check) for (const f of icons.files) if (f.changes) writeFileSync(f.path, f.text, 'utf8');
+  for (const f of icons.files) if (f.changes) {
+    texts.set(f.path, f.text);
+    if (!check) writeFileSync(f.path, f.text, 'utf8');
+  }
   console.log(`\n${formatIconReport(icons, { check })}`);
-  if (check && (report.some(r => r.replaced.length) || icons.files.some(f => f.changes))) {
-    console.error('\nЕсть старые имена с парой в карте или значки lucide — выполните npm run md3:migrate и закоммитьте.');
+  // По тексту после значков — из памяти, поэтому и при --check проход видит значки уже переведёнными.
+  const sizes = files.map(path => {
+    const result = migrateSizes(texts.get(path) ?? readFileSync(path, 'utf8'), path);
+    if (!check && result.replaced.length) writeFileSync(path, result.text, 'utf8');
+    return { file: relative(clientRoot, path).replaceAll('\\', '/'), ...result };
+  }).filter(r => r.replaced.length || r.untouched.length);
+  console.log(`\n${formatSizeReport(sizes, { check })}`);
+  if (check && (report.some(r => r.replaced.length) || icons.files.some(f => f.changes) || sizes.some(r => r.replaced.length))) {
+    console.error('\nЕсть старые имена с парой в карте, значки lucide или размер у кнопки — выполните npm run md3:migrate и закоммитьте.');
     process.exit(1);
   }
 }

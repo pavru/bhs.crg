@@ -44,7 +44,7 @@ export function CompanyTimeZone({ onDirty }: {
   if (isError) return (
     <div className="flex items-center gap-3">
       <span className="text-body-medium text-error">Часовой пояс компании не загрузился.</span>
-      <Button variant="outlined" size="sm" onClick={() => void refetch()}>Повторить</Button>
+      <Button variant="outlined" onClick={() => void refetch()}>Повторить</Button>
     </div>
   );
   // Пока ответа нет, поля нет: нарисовать «Москву» вместо неполученного пояса значило бы показать

@@ -86,6 +86,21 @@ body {
   outline-offset: var(--md-focus-ring-offset);
 }
 
+/* Цель нажатия при касании — 48 px у 40-пиксельного элемента ([UI-68], docs/UI.md «Узкий экран»):
+   ::after выходит за контур на --_touch-inset (по умолчанию 4 px со всех сторон), видимый размер и
+   раскладка не меняются. Только под pointer: coarse — на рабочем столе ни одного нового свойства.
+   Это сознательный отход от приёма слоя состояния (без ::before и position, выше): relative здесь под
+   :where() весит 0, и absolute, fixed, sticky экрана выигрывают — тогда контейнером для ::after служит
+   сама кнопка. Смежные части без зазора (сегменты, половины split-кнопки) расширяются только по
+   вертикали: [--_touch-inset:-4px_0]. Основной указатель гибридного ноутбука — мышь (pointer: fine),
+   и цели у него нет: решение названо в разделе отступлений docs/UI.md. */
+@utility touch-target {
+  @media (pointer: coarse) {
+    :where(&) { position: relative; }
+    &::after { content: ''; position: absolute; inset: var(--_touch-inset, -4px); }
+  }
+}
+
 /* Отключённое по MD3: содержимое on-surface 38 %, контейнер on-surface 12 %, обводка on-surface 12 %.
    Одним видом при disabled, aria-disabled (кнопка с подсказкой «почему нельзя») и data-disabled
    (пункт меню Radix). Утилитой, а не парой disabled:-классов: Tooltip переписывает disabled: в

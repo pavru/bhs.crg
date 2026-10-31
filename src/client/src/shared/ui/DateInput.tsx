@@ -4,6 +4,7 @@ import { Icon } from './Icon';
 import { CalendarMonth, Close } from './icons';
 import type { DatePrecision } from '@/shared/api/types';
 import { IconButton } from './Button';
+import { ICON_BUTTON_XS } from './buttonClasses';
 import { Calendar } from './Calendar';
 import { readSegments } from './dateSegments';
 import { dateSegmentModel } from './dateSegmentModel';
@@ -142,11 +143,10 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
     pickerOpen ? `ring-2 ${markInvalid ? 'ring-error' : 'ring-primary'}` : '',
   ].join(' ');
 
-  // Крестик поля формы — один на обе ветки: у «не даты» и у сегментов (макет #1463, вариант В).
+  // Крестик поля формы — один на обе ветки: у «не даты» и у сегментов (макет #1463, вариант В). Кнопка
+  // внутри поля — место XS ([UI-68]): 32, как календарь рядом, при касании 40.
   const clearButton = !compact && size !== 'sm' && clearable && (
-    <IconButton label="Очистить дату" size="sm" onClick={clear} className={`-my-1.5 ${CLEAR_REVEAL}`}>
-      <Icon icon={Close} size={18} />
-    </IconButton>
+    <IconButton label="Очистить дату" onClick={clear} className={`-my-1.5 ${ICON_BUTTON_XS} ${CLEAR_REVEAL}`} icon={Close} />
   );
 
   const segments = foreign ? (

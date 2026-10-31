@@ -201,7 +201,7 @@ export function WaybillsPage() {
           <div className="flex-1 grid place-items-center p-6" data-testid="waybill-gone">
             <div className="max-w-md text-center space-y-2">
               <p className="text-body-medium text-on-surface-variant">Накладной нет: её удалили или ссылка неверна.</p>
-              <Button size="sm" variant="outlined" onClick={() => closeGone(opened.id)}>Закрыть</Button>
+              <Button variant="outlined" onClick={() => closeGone(opened.id)}>Закрыть</Button>
             </div>
           </div>
         ) : opened.kind === 'unread' ? (
@@ -210,7 +210,7 @@ export function WaybillsPage() {
             <div className="max-w-md text-center space-y-2">
               <p className="text-body-medium text-error">Накладная не открылась: {apiError(opened.error, 'сервер отказал')}</p>
               <p className="text-body-small text-on-surface-variant">Это отказ чтения, а не пустая накладная.</p>
-              <Button size="sm" variant="outlined" onClick={() => void view.refetch()}>Повторить</Button>
+              <Button variant="outlined" onClick={() => void view.refetch()}>Повторить</Button>
             </div>
           </div>
         ) : (

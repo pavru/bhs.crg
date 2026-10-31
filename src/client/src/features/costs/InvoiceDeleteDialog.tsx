@@ -114,7 +114,7 @@ export function InvoiceGoneNotice({ onClose }: { onClose: () => void }) {
         Этого счёта больше нет — его удалили, пока он был открыт у вас. Набранное осталось на экране:
         перенесите нужное себе. Сохранить его уже некуда.
       </p>
-      <Button size="sm" variant="outlined" onClick={onClose}>Закрыть счёт</Button>
+      <Button variant="outlined" onClick={onClose}>Закрыть счёт</Button>
     </div>
   );
 }

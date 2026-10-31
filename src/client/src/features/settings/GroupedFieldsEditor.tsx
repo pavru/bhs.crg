@@ -262,7 +262,7 @@ export function GroupedFieldsEditor({
                   ? renderOwn(m.own, null, ungroupedMemberKeys, i)
                   : renderInherited(m.inh!, null))}
               {zone.appendLine && ungroupedMembers.length > 0 && <DropLine />}
-              <Button type="button" variant="tonal" onClick={addField} icon={<Icon icon={Add} size={18} />} className="w-full justify-center">
+              <Button type="button" variant="tonal" onClick={addField} icon={<Icon icon={Add} size={18} />} fullWidth>
                 Добавить поле
               </Button>
             </div>
@@ -287,13 +287,10 @@ export function GroupedFieldsEditor({
             <div className="flex items-center gap-2 px-3 py-2 bg-surface border-b border-outline-variant">
               <IconButton label={`Переместить группу «${group.title || group.key}» перетаскиванием`}
                 title="Перетащить для изменения порядка групп"
-                size="sm"
                 className="cursor-grab active:cursor-grabbing"
                 draggable
                 onDragStart={() => setDragGroupKey(group.key)}
-                onDragEnd={endGroupDrag}>
-                <Icon icon={DragIndicator} size={18} />
-              </IconButton>
+                onDragEnd={endGroupDrag} icon={DragIndicator} />
               <Icon icon={Layers} size={18} className="text-on-surface-variant shrink-0" />
               <input
                 value={group.title}
@@ -306,11 +303,8 @@ export function GroupedFieldsEditor({
                 <MoveButtons onUp={() => moveGroup(group.key, -1)} onDown={() => moveGroup(group.key, 1)}
                   isFirst={gi === 0} isLast={gi === groups.length - 1} />
                 <IconButton label="Удалить группу (поля → «Без группы»)"
-                  size="sm"
                   danger
-                  onClick={() => deleteGroup(group.key)}>
-                  <Icon icon={Delete} size={18} />
-                </IconButton>
+                  onClick={() => deleteGroup(group.key)} icon={Delete} />
               </div>
             </div>
             {/* Тело группы (drop-зона) */}
@@ -340,7 +334,7 @@ export function GroupedFieldsEditor({
           placeholder="Название новой группы"
           className="flex-1 border border-dashed border-outline rounded-sm px-3 py-2 text-body-medium bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus:border-primary"
         />
-        <Button type="button" variant="outlined" size="sm" onClick={addGroup} disabled={!newGroupTitle.trim()} icon={<Icon icon={Add} size={18} />}>
+        <Button type="button" variant="outlined" onClick={addGroup} disabled={!newGroupTitle.trim()} icon={<Icon icon={Add} size={18} />}>
           Группа
         </Button>
       </div>

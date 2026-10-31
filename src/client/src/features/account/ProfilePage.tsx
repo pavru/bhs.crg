@@ -105,12 +105,12 @@ export function ProfilePage() {
           className="w-16 h-16 text-title-large" />
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
-            <Button type="button" variant="outlined" size="sm" icon={<Icon icon={Upload} size={18} />}
+            <Button type="button" variant="outlined" icon={<Icon icon={Upload} size={18} />}
               loading={updateAvatar.isPending} onClick={() => avatarInput.current?.click()}>
               {account.avatar ? 'Заменить фото' : 'Загрузить фото'}
             </Button>
             {account.avatar && (
-              <Button type="button" variant="text" size="sm" icon={<Icon icon={Delete} size={18} />}
+              <Button type="button" variant="text" icon={<Icon icon={Delete} size={18} />}
                 loading={updateAvatar.isPending} onClick={removeAvatar}>
                 Удалить
               </Button>
@@ -131,7 +131,7 @@ export function ProfilePage() {
               ? <span className="inline-flex items-center gap-1 text-body-small text-success"><Icon icon={CheckCircle} size={18} /> подтверждён</span>
               : <>
                   <span className="inline-flex items-center gap-1 text-body-small text-warning"><Icon icon={ErrorIcon} size={18} /> не подтверждён</span>
-                  <Button type="button" variant="text" size="sm" loading={resend.isPending} onClick={resendConfirmation}>
+                  <Button type="button" variant="text" loading={resend.isPending} onClick={resendConfirmation}>
                     Отправить письмо
                   </Button>
                 </>}

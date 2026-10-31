@@ -72,7 +72,7 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
                 {pages ? `${pages} л.` : '—'}{size ? ` · ${size}` : ''}
               </div>
             </div>
-            <Button title={path ? 'Открыть PDF в новой вкладке' : 'Файл не выделен — разбиение не удалось при распознавании'} variant="outlined" size="sm" className="shrink-0"
+            <Button title={path ? 'Открыть PDF в новой вкладке' : 'Файл не выделен — разбиение не удалось при распознавании'} variant="outlined" className="shrink-0"
               onClick={() => path && handleOpen(i, path)} disabled={!path} loading={opening === i}
               icon={<Icon icon={OpenInNew} size={18} />}>
               Просмотреть

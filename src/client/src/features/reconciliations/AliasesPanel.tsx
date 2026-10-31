@@ -59,7 +59,7 @@ export function AliasesPanel() {
                 {a.aliasLabel} <span className="text-on-surface-variant">→</span> {a.canonicalLabel}
               </span>
               {a.status !== 'Confirmed' && (
-                <Button variant="text" size="sm" className="shrink-0"
+                <Button variant="text" className="shrink-0"
                   onClick={async () => {
                     await review.mutateAsync({ id: a.id, status: 'Confirmed' });
                     toast.success('Применяется. Прогоните сверку, чтобы позиции слились');
@@ -68,7 +68,7 @@ export function AliasesPanel() {
                 </Button>
               )}
               {a.status !== 'Rejected' && (
-                <Button variant="text" size="sm" className="shrink-0 opacity-0 group-hover:opacity-100"
+                <Button variant="text" className="shrink-0 opacity-0 group-hover:opacity-100"
                   onClick={async () => {
                     await review.mutateAsync({ id: a.id, status: 'Rejected' });
                     toast.info('Отклонено');
@@ -76,7 +76,7 @@ export function AliasesPanel() {
                   <Icon icon={Close} size={18} /> Отклонить
                 </Button>
               )}
-              <Button variant="text" size="sm" danger className="shrink-0 opacity-0 group-hover:opacity-100"
+              <Button variant="text" danger className="shrink-0 opacity-0 group-hover:opacity-100"
                 onClick={() => setBreaking(a)}>
                 <Icon icon={LinkOff} size={18} /> Разорвать
               </Button>

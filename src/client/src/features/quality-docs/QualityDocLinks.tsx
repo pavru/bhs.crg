@@ -172,9 +172,9 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
             </Tooltip>
           )}
           <div className="flex items-center gap-1 shrink-0">
-            <Button variant="text" size="sm" icon={<Icon icon={ChangeCircle} size={18} />}
+            <Button variant="text" icon={<Icon icon={ChangeCircle} size={18} />}
               onClick={() => setRelinking(link)}>Перепривязать</Button>
-            <Button variant="text" size="sm" icon={<Icon icon={LinkOff} size={18} />}
+            <Button variant="text" icon={<Icon icon={LinkOff} size={18} />}
               onClick={() => setBreaking(link)}>Разорвать</Button>
           </div>
         </div>
@@ -185,9 +185,9 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
       {chosen.length > 0 && (
         <div className="sticky bottom-0 flex items-center gap-2 rounded-sm border border-outline-variant bg-surface px-3 py-2 shadow-elevation-1">
           <span className="text-body-medium text-on-surface-variant">Выбрано: {chosen.length}</span>
-          <Button variant="filled" size="sm" icon={<Icon icon={ChangeCircle} size={18} />}
+          <Button variant="filled" icon={<Icon icon={ChangeCircle} size={18} />}
             onClick={() => setBulkRelink(true)}>Перепривязать ({chosen.length})</Button>
-          <Button variant="outlined" size="sm" icon={<Icon icon={LinkOff} size={18} />}
+          <Button variant="outlined" icon={<Icon icon={LinkOff} size={18} />}
             onClick={() => setBulkBreak(true)}>Разорвать ({chosen.length})</Button>
           <button type="button" onClick={() => setSelected(new Set())}
             className="ml-auto text-body-small text-on-surface-variant hover:text-on-surface-variant">Снять выбор</button>

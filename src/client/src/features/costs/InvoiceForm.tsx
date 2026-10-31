@@ -259,12 +259,12 @@ export function InvoiceForm({
               }} />
           )}
           {correctable && !correcting && (
-            <Button variant="outlined" size="sm" icon={<Icon icon={EditNote} size={18} />} onClick={correction.start}>
+            <Button variant="outlined" icon={<Icon icon={EditNote} size={18} />} onClick={correction.start}>
               Исправить
             </Button>
           )}
           {!quiet && (
-            <Button variant="filled" size="sm" icon={<Icon icon={Save} size={18} />} disabled={!dirty}
+            <Button variant="filled" icon={<Icon icon={Save} size={18} />} disabled={!dirty}
               loading={update.isPending} onClick={save}>
               Сохранить
             </Button>
@@ -331,7 +331,7 @@ export function InvoiceForm({
               Сверьте их по скану.
             </p>
             {!quiet && (
-              <Button size="sm" variant="outlined" icon={<Icon icon={DoneAll} size={18} />} loading={confirm.isPending}
+              <Button variant="outlined" icon={<Icon icon={DoneAll} size={18} />} loading={confirm.isPending}
                 onClick={() => confirmBlock({ id: 'unshown', title: '', fields: orphanMarks })}>
                 Всё верно ({orphanMarks.length})
               </Button>
@@ -383,7 +383,7 @@ function BlockFields({
           {/* Кнопки нет, когда снимать нечего: пустой перечень сервер отвергает, и предлагать
               действие, которое заведомо откажет, — обман. */}
           {marks.length > 0 && !quiet && (
-            <Button size="sm" variant="outlined" icon={<Icon icon={DoneAll} size={18} />} loading={confirming}
+            <Button variant="outlined" icon={<Icon icon={DoneAll} size={18} />} loading={confirming}
               onClick={() => onConfirm(block)}>
               Всё верно ({marks.length})
             </Button>

@@ -119,7 +119,7 @@ export function CandidatesBlock({ asked, answer, rows, more, current, headingId,
                 Подбор не сработал: {apiError(answer.error, 'сервер отказал')}. Это не «подходящих нет» — найдите
                 позицию поиском.
               </Refusal>
-              <Button size="sm" variant="text" onClick={() => void answer.refetch()}>Повторить</Button>
+              <Button variant="text" onClick={() => void answer.refetch()}>Повторить</Button>
             </div>
           )}
           {children}

@@ -49,7 +49,7 @@ export function FieldMappingPage() {
       <Frame title="Сопоставление полей">
         <div className="flex items-center gap-3">
           <span className="text-body-medium text-error">Сопоставление полей не загрузилось.</span>
-          <Button variant="outlined" size="sm" onClick={() => void refetch()}>Повторить</Button>
+          <Button variant="outlined" onClick={() => void refetch()}>Повторить</Button>
         </div>
       </Frame>
     ) : <div className="px-6 py-10 text-center text-on-surface-variant text-body-medium">Загрузка...</div>;
@@ -251,7 +251,7 @@ function GroupSection({ group, edit, saving, onEdit, onSave, onAssigned }: {
         {group.type && (
           <>
             <span className="text-body-medium text-on-surface-variant">тип «{group.type.name}»</span>
-            <Button variant="text" size="sm" onClick={() => go(`/composite-types?type=${group.type!.id}`)}>
+            <Button variant="text" onClick={() => go(`/composite-types?type=${group.type!.id}`)}>
               Открыть тип
             </Button>
           </>
@@ -268,7 +268,7 @@ function GroupSection({ group, edit, saving, onEdit, onSave, onAssigned }: {
             <b>Нарушено.</b> {fullSentence(group.reason ?? '')} {group.withoutIt}{' '}
             Исправляется в редакторе типов: тэг типа «{group.label}» должен остаться у одного составного типа.
           </p>
-          <Button variant="outlined" size="sm" onClick={() => go('/composite-types')}>Открыть составные типы</Button>
+          <Button variant="outlined" onClick={() => go('/composite-types')}>Открыть составные типы</Button>
         </div>
       )}
 
@@ -289,7 +289,7 @@ function GroupSection({ group, edit, saving, onEdit, onSave, onAssigned }: {
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 max-w-3xl">
           <p className="text-body-medium text-error" role="alert">{refusal}</p>
           {/* Правок нет — «Отменить» скрыта, и убрать прочитанное сообщение было бы нечем. */}
-          {!dirty && <Button variant="text" size="sm" onClick={() => onEdit(UNTOUCHED)}>Понятно</Button>}
+          {!dirty && <Button variant="text" onClick={() => onEdit(UNTOUCHED)}>Понятно</Button>}
         </div>
       )}
 
@@ -427,7 +427,7 @@ function AssignRole({ group, onDone }: { group: CoverageGroup; onDone: () => Pro
       {group.candidates.length === 0 ? (
         <>
           <p className="text-body-medium text-on-surface-variant">Заведите составной тип в разделе «Составные типы» — он появится здесь.</p>
-          <Button variant="outlined" size="sm" onClick={() => go('/composite-types')}>Открыть составные типы</Button>
+          <Button variant="outlined" onClick={() => go('/composite-types')}>Открыть составные типы</Button>
         </>
       ) : (
         <>

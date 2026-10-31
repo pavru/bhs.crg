@@ -115,14 +115,10 @@ function NotificationRow({ n }: { n: NotificationDto }) {
       </div>
       <div className="shrink-0 self-start flex flex-col items-center">
         {!n.isRead && (
-          <IconButton label="Отметить прочитанным" size="sm" onClick={() => markRead.mutate(n.id)}>
-            <Icon icon={Check} size={18} />
-          </IconButton>
+          <IconButton label="Отметить прочитанным" onClick={() => markRead.mutate(n.id)} icon={Check} />
         )}
-        <IconButton label="Удалить" size="sm" danger onClick={() => dismiss.mutate(n.id)}
-          className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity">
-          <Icon icon={Close} size={18} />
-        </IconButton>
+        <IconButton label="Удалить" danger onClick={() => dismiss.mutate(n.id)}
+          className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity" icon={Close} />
       </div>
     </div>
   );
@@ -209,12 +205,8 @@ export function NotificationList({ items, unread, className = '' }: {
     <section aria-labelledby={heading} className={`flex flex-col ${className}`}>
       <div className="shrink-0 flex items-center gap-2 pl-5 pr-2 py-2">
         <h2 id={heading} className="flex-1 text-body-large font-medium text-on-surface">Уведомления</h2>
-        <IconButton label="Отметить все прочитанными" onClick={() => markAll.mutate()} disabled={unread === 0}>
-          <Icon icon={DoneAll} size={18} />
-        </IconButton>
-        <IconButton label="Очистить все" onClick={() => clearAll.mutate()} disabled={items.length === 0}>
-          <Icon icon={Delete} size={18} />
-        </IconButton>
+        <IconButton label="Отметить все прочитанными" onClick={() => markAll.mutate()} disabled={unread === 0} icon={DoneAll} />
+        <IconButton label="Очистить все" onClick={() => clearAll.mutate()} disabled={items.length === 0} icon={Delete} />
       </div>
       <HealthNote />
       {items.length === 0 ? (

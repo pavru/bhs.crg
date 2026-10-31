@@ -180,7 +180,7 @@ function ConfirmDialogBody({
                 <div className="mt-3 pt-3 border-t border-outline-variant text-body-small text-on-surface-variant">
                   <p>{exit.secondary.note}</p>
                   {exit.secondary.action && (
-                    <Button variant="text" danger size="sm" className="mt-1 -ml-3" disabled={busy}
+                    <Button variant="text" danger className="mt-1 -ml-3" disabled={busy}
                       onClick={exit.secondary.action.onClick}>
                       {exit.secondary.action.label}
                     </Button>
@@ -209,8 +209,8 @@ function ConfirmDialogBody({
             {blockedView ? (
               exit?.action ? (
                 <>
-                  <Button variant="text" size="sm" className="shrink-0" disabled={busy} autoFocus data-modal-exit="" onClick={() => onOpenChange(false)}>Понятно</Button>
-                  <Button variant="filled" size="sm" multiline className="min-w-0" loading={busy}
+                  <Button variant="text" className="shrink-0" disabled={busy} autoFocus data-modal-exit="" onClick={() => onOpenChange(false)}>Понятно</Button>
+                  <Button variant="filled" multiline className="min-w-0" loading={busy}
                     onClick={() => handleExit(exit.action!)}>
                     {exit.action.label}
                   </Button>
@@ -218,15 +218,15 @@ function ConfirmDialogBody({
               ) : (
                 // Фокус — на выход: кнопка подтверждения, на которой он стоял, с отказом исчезла, а Esc
                 // здесь больше не закрывает — без фокуса человеку с клавиатурой пришлось бы искать выход.
-                <Button variant="tonal" size="sm" autoFocus data-modal-exit="" onClick={() => onOpenChange(false)}>Понятно</Button>
+                <Button variant="tonal" autoFocus data-modal-exit="" onClick={() => onOpenChange(false)}>Понятно</Button>
               )
             ) : (
               <>
                 <Dialog.Close asChild>
-                  <Button variant="text" size="sm" className="shrink-0" disabled={busy}>{cancelLabel}</Button>
+                  <Button variant="text" className="shrink-0" disabled={busy}>{cancelLabel}</Button>
                 </Dialog.Close>
                 <Button
-                  variant="filled" danger={confirmDanger} size="sm" multiline className="min-w-0"
+                  variant="filled" danger={confirmDanger} multiline className="min-w-0"
                   disabled={!canConfirm} loading={busy}
                   onClick={handleConfirm}
                 >

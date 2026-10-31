@@ -61,7 +61,7 @@ export function WaybillCorrectionBar({
           Исправление больше не нужно: закрытие периода отменили, и накладная не заперта. Её правят обычным путём —
           верните в черновик, поправьте и проведите снова. Набранное здесь не сохранится: перенесите нужное себе.
         </p>
-        <Button size="sm" variant="outlined" icon={<Icon icon={Logout} size={18} />} onClick={onRelease}>
+        <Button variant="outlined" icon={<Icon icon={Logout} size={18} />} onClick={onRelease}>
           Выйти из исправления
         </Button>
       </div>

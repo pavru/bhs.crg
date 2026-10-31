@@ -105,12 +105,9 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
                 isFirst={i === 0} isLast={i === fields.length - 1} />
               <IconButton label="Удалить"
                 title={locked ? 'Обязательное поле — удалить нельзя' : undefined}
-                size="sm"
                 danger
                 onClick={() => remove(i)}
-                disabled={locked}>
-                <Icon icon={Delete} size={18} />
-              </IconButton>
+                disabled={locked} icon={Delete} />
             </span>
           </div>
         );
@@ -212,11 +209,11 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
         actions={
           <>
             {profile.isBuiltIn ? (
-              <Button variant="text" size="sm" icon={<Icon icon={RestartAlt} size={18} />}
+              <Button variant="text" icon={<Icon icon={RestartAlt} size={18} />}
                 disabled={!profile.isModified || reset.isPending}
                 onClick={() => setConfirmReset(true)}>Сбросить к заводским</Button>
             ) : (
-              <Button variant="text" size="sm" icon={<Icon icon={Delete} size={18} />}
+              <Button variant="text" icon={<Icon icon={Delete} size={18} />}
                 onClick={() => setConfirmDelete(true)}>Удалить</Button>
             )}
           </>

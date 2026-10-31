@@ -183,13 +183,9 @@ function EntryBindingRow({
         {/* Тот же признак и то же действие, что в форме документа (issue #815): строки привязок у
             каталога и документа свои, но расходиться им в этом нельзя. */}
         <StaleSourceAction source={source} />
-        <IconButton label="Редактировать маппинг" size="sm" onClick={() => setEditing(e => !e)}>
-          <Icon icon={Edit} size={18} />
-        </IconButton>
+        <IconButton label="Редактировать маппинг" onClick={() => setEditing(e => !e)} icon={Edit} />
         {!confirming ? (
-          <IconButton label="Удалить" size="sm" danger onClick={() => setConfirming(true)}>
-            <Icon icon={Delete} size={18} />
-          </IconButton>
+          <IconButton label="Удалить" danger onClick={() => setConfirming(true)} icon={Delete} />
         ) : (
           <div className="flex items-center gap-1.5 text-body-small">
             <button type="button" onClick={handleDelete} disabled={del.isPending} className="px-2 py-0.5 rounded-xs text-on-error text-body-small bg-error">Да</button>

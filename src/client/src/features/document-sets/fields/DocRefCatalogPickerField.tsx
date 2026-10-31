@@ -23,12 +23,8 @@ export function DocRefCatalogPickerField({ field, allDocTypes, value, onChange, 
           <span className="flex-1 text-body-medium text-warning font-medium">{ref.displayName}</span>
           {/* «Заменить» рядом со «Снять» (issue #749): без неё замена шла в два шага, причём первый
               стирал то, на что смотришь, выбирая второй. Пикер тот же, что и при первом выборе. */}
-          <IconButton label="Заменить ссылку" size="sm" onClick={() => setPickerOpen(true)}>
-            <Icon icon={Refresh} size={18} className="text-warning" />
-          </IconButton>
-          <IconButton label="Снять ссылку" size="sm" danger onClick={() => onChange(null)}>
-            <Icon icon={LinkOff} size={18} className="text-warning" />
-          </IconButton>
+          <IconButton label="Заменить ссылку" onClick={() => setPickerOpen(true)} icon={Refresh} iconClassName="text-warning" />
+          <IconButton label="Снять ссылку" danger onClick={() => onChange(null)} icon={LinkOff} iconClassName="text-warning" />
         </div>
       ) : (
         <button type="button" onClick={() => setPickerOpen(true)}

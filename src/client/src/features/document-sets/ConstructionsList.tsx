@@ -54,10 +54,8 @@ function DocumentSearchPanel() {
           placeholder="Найти документ по всем комплектам (имя, тип, реквизиты)…"
           className="w-full pl-9 pr-8 py-2 text-body-medium border border-outline rounded-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
         {text && (
-          <IconButton label="Очистить" size="sm" onClick={() => setText('')}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2">
-            <Icon icon={Close} size={18} />
-          </IconButton>
+          <IconButton label="Очистить" onClick={() => setText('')}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2" icon={Close} />
         )}
       </div>
       {active && (
@@ -195,14 +193,10 @@ export function ConstructionsList() {
                     <h3 className="text-body-large font-semibold text-on-surface flex-1">{c.name}</h3>
                   )}
                   {canEdit && <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
-                    <IconButton label="Переименовать" size="sm"
-                      onClick={e => { e.stopPropagation(); setEditId(c.id); setEditName(c.name); }}>
-                      <Icon icon={Edit} size={18} />
-                    </IconButton>
-                    <IconButton label="Удалить" size="sm" danger
-                      onClick={e => { e.stopPropagation(); setDeleteTarget(c); }}>
-                      <Icon icon={Delete} size={18} />
-                    </IconButton>
+                    <IconButton label="Переименовать"
+                      onClick={e => { e.stopPropagation(); setEditId(c.id); setEditName(c.name); }} icon={Edit} />
+                    <IconButton label="Удалить" danger
+                      onClick={e => { e.stopPropagation(); setDeleteTarget(c); }} icon={Delete} />
                   </div>}
                 </div>
                 <div className="flex items-center gap-4 text-body-small text-on-surface-variant">

@@ -20,7 +20,7 @@ export function ArchivedBanner({ employee, onReturn, busy }: {
         {employee && ' Архив — не увольнение: дата «Уволен с» задаётся отдельным полем.'}
       </p>
       {onReturn && (
-        <Button variant="tonal" size="sm" icon={<Icon icon={Unarchive} size={18} />} onClick={onReturn} disabled={busy}>
+        <Button variant="tonal" icon={<Icon icon={Unarchive} size={18} />} onClick={onReturn} disabled={busy}>
           Вернуть из архива
         </Button>
       )}

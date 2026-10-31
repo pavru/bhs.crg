@@ -15,7 +15,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/shared-ui-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, submitLogin, clearSession, createChecks, settled, until, accountAction, pickTheme as pickThemeOf } from './harness.mjs';
+import { BASE, launchBrowser, login, submitLogin, clearSession, createChecks, settled, until, accountAction, emulateTouch, pickTheme as pickThemeOf } from './harness.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
@@ -166,6 +166,30 @@ await page.goto(`${BASE}/document-sets`);
 await settled(page);
 
 await pickTheme('Светлая');   // возвращаем окружение в исходное
+
+// ── Цель касания 48 ([UI-68], sharedui-md3-10) ──────────────────────────────────
+// Видимая кнопка-иконка — 40, а касание в 4 px за краем достаётся ей: утилита touch-target под
+// pointer: coarse. Ширина экрана условием не служит, поэтому — рабочий стол с касанием.
+await check('touch-target-reaches-beyond-icon-button', async () => {
+  await emulateTouch(page);
+  try {
+    const help = page.getByRole('button', { name: 'Справка и горячие клавиши' });
+    await help.waitFor();
+    const hit = await help.evaluate(el => {
+      const box = el.getBoundingClientRect();
+      const at = (x, y) => document.elementFromPoint(x, y)?.closest('button') === el;
+      return {
+        size: [Math.round(box.width), Math.round(box.height)],
+        left: at(box.left - 4 + 0.5, box.top + box.height / 2),
+        top: at(box.left + box.width / 2, box.top - 4 + 0.5),
+      };
+    });
+    if (hit.size.join('×') !== '40×40') throw new Error(`видимая кнопка-иконка ${hit.size.join('×')}, а не 40×40`);
+    if (!hit.left || !hit.top) throw new Error(`касание в 4 px за краем не достаётся кнопке: слева ${hit.left}, сверху ${hit.top}`);
+  } finally {
+    await emulateTouch(page, false);
+  }
+});
 
 // ── Поле даты ──────────────────────────────────────────────────────────────────
 await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}`);

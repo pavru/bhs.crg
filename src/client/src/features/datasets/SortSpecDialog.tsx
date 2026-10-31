@@ -50,11 +50,8 @@ function SortRow({
         ))}
       </div>
       <MoveButtons onUp={onMoveUp} onDown={onMoveDown} isFirst={isFirst} isLast={isLast}
-        className="rounded-xs shrink-0" upTitle="Выше приоритетом" downTitle="Ниже приоритетом" />
-      <IconButton label={level.column ? `Удалить сортировку по «${level.column}»` : 'Удалить уровень сортировки'}
-        size="sm" danger onClick={onRemove}>
-        <Icon icon={Delete} size={18} />
-      </IconButton>
+        upTitle="Выше приоритетом" downTitle="Ниже приоритетом" />
+      <IconButton label={level.column ? `Удалить сортировку по «${level.column}»` : 'Удалить уровень сортировки'} danger onClick={onRemove} icon={Delete} />
     </div>
   );
 }

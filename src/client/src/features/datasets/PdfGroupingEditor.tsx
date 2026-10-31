@@ -141,11 +141,9 @@ function PageTile({
           </div>
         </div>
       </Tooltip>
-      <IconButton label="Просмотреть лист крупно" size="sm"
+      <IconButton label="Просмотреть лист крупно"
         className="absolute top-1.5 right-1.5 bg-surface/90 border border-outline-variant opacity-70 hover:opacity-100"
-        onClick={e => { e.stopPropagation(); onView(pageIndex); }}>
-        <Icon icon={ZoomIn} size={18} />
-      </IconButton>
+        onClick={e => { e.stopPropagation(); onView(pageIndex); }} icon={ZoomIn} />
     </div>
   );
 }
@@ -212,10 +210,10 @@ export function SelectionActionBar({
   return (
     <div className="flex items-center gap-2 mt-2 pt-2 border-t border-outline-variant">
       <span className="text-body-small text-on-surface-variant">Выделено страниц: {count}</span>
-      <Button variant="outlined" size="sm" onClick={onSplitSelected}>Отделить в новый документ</Button>
+      <Button variant="outlined" onClick={onSplitSelected}>Отделить в новый документ</Button>
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
-          <Button variant="outlined" size="sm" trailingIcon={<Icon icon={KeyboardArrowDown} size={18} aria-hidden />}>
+          <Button variant="outlined" trailingIcon={<Icon icon={KeyboardArrowDown} size={18} aria-hidden />}>
             Перенести в группу
           </Button>
         </DropdownMenu.Trigger>
@@ -315,10 +313,7 @@ function GroupSection({
         <span className="text-body-small text-on-surface-variant shrink-0">{group.pageIndices.length} л.</span>
         {!isSpecial && (
           <IconButton label={`Расформировать группу ${group.code}${group.name ? ` «${group.name}»` : ''}`}
-            title="Расформировать (страницы станут без группы)"
-            size="sm" danger onClick={() => onDisband(group.id)}>
-            <Icon icon={Delete} size={18} />
-          </IconButton>
+            title="Расформировать (страницы станут без группы)" danger onClick={() => onDisband(group.id)} icon={Delete} />
         )}
       </div>
 
@@ -341,14 +336,14 @@ function GroupSection({
           </Select>
           {(currentTag || group.profileId) && (
             // Подсказка — `title` самой кнопки: у неактивной она и говорит, почему нельзя (ревью #1704).
-            <Button variant="outlined" size="sm" onClick={() => onRecognizeTable(firstPage)}
+            <Button variant="outlined" onClick={() => onRecognizeTable(firstPage)}
               title={dirty ? 'Сначала сохраните разбиение' : isHiddenBound(group.profileId, hiddenProfiles) ? 'Профиль группы принадлежит выключенному модулю — выберите другой' : 'Распознать таблицу этого документа как отдельный источник данных'}
               disabled={dirty || isHiddenBound(group.profileId, hiddenProfiles)} loading={tableBusyPage === firstPage}
               icon={<Icon icon={Table} size={18} />}>
               Таблица
             </Button>
           )}
-          <Button variant="outlined" size="sm" onClick={() => onRecognizeDoc(firstPage)} disabled={dirty}
+          <Button variant="outlined" onClick={() => onRecognizeDoc(firstPage)} disabled={dirty}
             title={dirty ? 'Сначала сохраните разбиение' : 'Перераспознать только этот документ (не весь набор)'}
             loading={docBusyPage === firstPage} icon={<Icon icon={Refresh} size={18} />}>
             Перераспознать
@@ -536,9 +531,7 @@ export function PdfGroupingEditor() {
     <div className="p-6 flex flex-col h-full">
       <PageHeader className="mb-4 shrink-0"
         icon={
-          <IconButton label="Назад" size="lg" className="min-h-11 min-w-11" onClick={() => navigate(-1)}>
-            <Icon icon={ArrowBack} size={20} />
-          </IconButton>
+          <IconButton label="Назад" onClick={() => navigate(-1)} icon={ArrowBack} />
         }
         title={`Разбиение${location.state?.sourceName ? ` — ${location.state.sourceName}` : ''}`}
         subtitle={<>

@@ -397,7 +397,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
           <div className="pt-2 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-body-small text-on-surface-variant">Функции отображения для Typst-шаблонов.</p>
-              <Button variant="text" size="sm" icon={<Icon icon={Refresh} size={18} />}
+              <Button variant="text" icon={<Icon icon={Refresh} size={18} />}
                 loading={blocksCheck.checking} onClick={() => void blocksCheck.run(typstRenders)}>
                 Проверить блоки
               </Button>

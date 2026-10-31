@@ -42,7 +42,7 @@ export function ForgotPasswordPage() {
       <form onSubmit={submit} className="space-y-5">
         <TextField label="Email" type="email" autoComplete="email" required autoFocus
           value={email} onChange={e => setEmail(e.target.value)} />
-        <Button type="submit" variant="filled" size="lg" fullWidth loading={forgot.isPending}>
+        <Button type="submit" variant="filled" fullWidth loading={forgot.isPending}>
           Отправить ссылку
         </Button>
         <Link to="/login" className="block text-center text-body-medium font-medium text-primary hover:underline">

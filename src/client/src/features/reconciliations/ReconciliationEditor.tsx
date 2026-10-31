@@ -76,7 +76,7 @@ function PartEditor({ part, onChange, onRemove, sources, index }: {
           ))}
         </Select>
         {onRemove && (
-          <Button variant="text" size="sm" danger onClick={onRemove} aria-label="Убрать источник">
+          <Button variant="text" danger onClick={onRemove} aria-label="Убрать источник">
             <Icon icon={Delete} size={18} />
           </Button>
         )}
@@ -124,7 +124,7 @@ function SideEditor({ title, parts, onChange, sources }: {
     <div className="space-y-2 rounded-md border border-outline-variant p-3">
       <div className="flex items-center justify-between">
         <span className="text-title-small text-on-surface-variant">{title}</span>
-        <Button variant="text" size="sm" onClick={() => onChange([...parts, EMPTY_PART])}>
+        <Button variant="text" onClick={() => onChange([...parts, EMPTY_PART])}>
           <Icon icon={Add} size={18} /> Источник
         </Button>
       </div>

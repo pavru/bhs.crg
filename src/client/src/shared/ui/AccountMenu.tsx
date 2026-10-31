@@ -68,10 +68,11 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
   return (
     <DropdownMenu.Root open={open} onOpenChange={setOpen}>
       <DropdownMenu.Trigger asChild>
-        {/* На телефоне — поле вокруг аватара: цель касания 44 px, а не 36 (#1434). */}
+        {/* На телефоне — поле вокруг аватара: видимые 44 px, а не 36 (#1434); при касании цель 48 —
+            `touch-target` на 2 px наружу ([UI-68]). */}
         <button type="button" data-testid="account-menu"
           aria-label={`${name} — профиль и оформление${newer ? `; доступна версия ${newer}` : ''}`}
-          className={'relative shrink-0 rounded-full max-md:p-1 focus-ring data-[state=open]:ring-2 data-[state=open]:ring-primary ' +
+          className={'relative shrink-0 rounded-full max-md:p-1 touch-target [--_touch-inset:-2px] focus-ringdata-[state=open]:ring-2 data-[state=open]:ring-primary ' +
             (here || inAdmin ? 'ring-2 ring-primary' : '')}>
           <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} className="w-9 h-9 text-body-medium" />
           {newer && <span data-testid="update-dot" aria-hidden="true"

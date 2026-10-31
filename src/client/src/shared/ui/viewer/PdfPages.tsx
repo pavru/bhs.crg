@@ -130,7 +130,7 @@ function PdfPage({ doc, n, scale, rotation, prepared, baseWidth, baseHeight }: {
         // Отказ листа — на поверхности токеном, а не на белом: в тёмной теме кнопка на белом не читалась бы.
         <div className="absolute inset-0 flex flex-col items-center justify-start gap-2 pt-12 text-center text-body-small text-on-surface-variant bg-surface">
           <span>Страница {n} не отрисовалась.</span>
-          <Button size="sm" variant="outlined" icon={<Icon icon={RotateRight} size={18} />} onClick={() => setAttempt(a => a + 1)}>
+          <Button variant="outlined" icon={<Icon icon={RotateRight} size={18} />} onClick={() => setAttempt(a => a + 1)}>
             Повторить
           </Button>
         </div>

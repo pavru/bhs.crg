@@ -1,4 +1,3 @@
-import { Icon } from '@/shared/ui/Icon';
 import { Add, Remove } from '@/shared/ui/icons';
 import { tagLabelOf, tagOrder, type TagDefinition } from '@/shared/api/tags';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -57,12 +56,9 @@ export function FunctionalTagChip({ tag, entry, onToggle, onOrderChange }: {
             className="flex items-center gap-0.5 border-l border-tertiary/50 pl-1 pr-1"
           >
             <IconButton label={`Уменьшить порядок: ${tag.label}`}
-              size="sm"
               className={arrowClass}
               onClick={() => step(-1)}
-              disabled={(order ?? 0) <= 1}>
-              <Icon icon={Remove} size={18} className="text-tertiary" />
-            </IconButton>
+              disabled={(order ?? 0) <= 1} icon={Remove} iconClassName="text-tertiary" />
             <input
               type="text"
               inputMode="numeric"
@@ -75,12 +71,9 @@ export function FunctionalTagChip({ tag, entry, onToggle, onOrderChange }: {
                          placeholder:text-tertiary/60"
             />
             <IconButton label={`Увеличить порядок: ${tag.label}`}
-              size="sm"
               className={arrowClass}
               onClick={() => step(1)}
-              disabled={(order ?? 0) >= 99}>
-              <Icon icon={Add} size={18} className="text-tertiary" />
-            </IconButton>
+              disabled={(order ?? 0) >= 99} icon={Add} iconClassName="text-tertiary" />
           </span>
         </Tooltip>
       )}

@@ -141,7 +141,8 @@ function Shell() {
             строкой и на телефоне: вторая строка (#1355) была нужна подписи избранного, а оно ушло в
             отбор над списками (#1432). Короткое имя пространства ужимается вместе с поиском.
             Гамбургера на телефоне нет (#1434): разделы — в нижней навигации, страницы раздела — в
-            меню заголовка страницы. Цели касания там — 44 px (`max-md:h-11`). */}
+            меню заголовка страницы. Цель касания — 48 px утилитой `touch-target` под pointer: coarse
+            ([UI-68]); у поиска — видимые 44 (`max-md:h-11`): его `overflow-hidden` срезал бы ::after. */}
         <header className="h-12 shrink-0 border-b border-outline-variant bg-surface flex items-center gap-1 px-2 md:px-4">
           <PhoneBrand />
           {/* Скрытая подпанель возвращается отсюда — с края страницы, где она стояла. */}
@@ -153,9 +154,7 @@ function Shell() {
           <ActivityCenter />
           {/* Видимый вход в справку: клавишу «?» знает только тот, кто её уже нашёл. На телефоне
               справки по клавишам нет — клавиатуры там нет, а место в строке нужно аватару. */}
-          <IconButton label="Справка и горячие клавиши" size="lg" className="max-md:hidden" onClick={() => setHelpOpen(true)}>
-            <Icon icon={Help} size={20} />
-          </IconButton>
+          <IconButton label="Справка и горячие клавиши" className="max-md:hidden" onClick={() => setHelpOpen(true)} icon={Help} />
           <span className="pl-1"><AccountMenu admin={admin} /></span>
         </header>
         <OutsideBanner items={allWork} inside={work} />
@@ -210,7 +209,7 @@ function SearchButton({ onOpen }: { onOpen: () => void }) {
       {/* Узкое место (контекст экрана забрал строку) — по ширине самой кнопки: сначала
           обрезается подпись, потом уходит метка клавиш, потом подпись становится невидимой, и
           остаётся значок поиска. Метка держится дольше подписи: учить клавише — смысл кнопки. */}
-      <button type="button" onClick={onOpen} aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'}
+      <button type="button" onClick={onOpen} aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'} data-testid="header-search"
         className="@container flex-1 min-w-10 max-md:min-w-11 max-w-160 flex items-center gap-2.5 h-10 max-md:h-11 px-2.5 mx-1 md:mx-3 overflow-hidden rounded-full bg-surface-container-low text-body-medium text-on-surface-variant state-layer focus-ring">
         <Icon icon={Search} size={18} className="shrink-0" />
         <span className="flex-1 min-w-0 truncate text-left @max-[8rem]:sr-only">Найти счёт, стройку или действие</span>
@@ -245,10 +244,10 @@ function EmailConfirmBanner() {
         {' · '}
         <Link to="/profile" onClick={guardedClick('/profile')} className="font-medium underline hover:no-underline">Профиль</Link>
       </span>
-      <button type="button" onClick={() => setDismissed(true)} aria-label="Скрыть"
-        className="shrink-0 p-1 rounded-xs hover:bg-warning/10">
-        <Icon icon={Close} size={18} />
-      </button>
+      {/* Знак — парой контейнера (`on-warning-container`), а не `on-surface-variant` кнопки; `-my-2` держит
+          высоту баннера прежней: кнопка 40 иначе раздвинула бы строку на 16 px. */}
+      <IconButton label="Скрыть" icon={Close} iconClassName="text-on-warning-container" className="-my-2"
+        onClick={() => setDismissed(true)} />
     </div>
   );
 }

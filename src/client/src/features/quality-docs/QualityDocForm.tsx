@@ -319,19 +319,19 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
             e.target.value = ''; // иначе повторный выбор того же файла не даёт onChange
             if (f) void handleScan(f);
           }} />
-        <Button variant="outlined" size="sm" icon={<Icon icon={Upload} size={18} />} loading={uploading}
+        <Button variant="outlined" icon={<Icon icon={Upload} size={18} />} loading={uploading}
           onClick={() => scanInputRef.current?.click()}>
           Скан-копия
         </Button>
         {scan && <span className="text-body-small text-on-surface-variant truncate max-w-[180px]" title={scan.fileName}>{scan.fileName}</span>}
         {scan && (
-          <Button variant="text" size="sm" icon={<Icon icon={Visibility} size={18} />}
+          <Button variant="text" icon={<Icon icon={Visibility} size={18} />}
             onClick={() => void openAttachment(scan.blobPath)}>
             Просмотр
           </Button>
         )}
         {scan && (
-          <Button variant="tonal" size="sm" icon={<Icon icon={VerifiedUser} size={18} />} loading={recognizing}
+          <Button variant="tonal" icon={<Icon icon={VerifiedUser} size={18} />} loading={recognizing}
             onClick={handleRecognize}>
             Распознать скан
           </Button>

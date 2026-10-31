@@ -65,7 +65,7 @@ export function ResetPasswordPage() {
         <TextField label="Подтверждение" type="password" autoComplete="new-password" required minLength={PASSWORD_MIN_LENGTH}
           value={confirm} onChange={e => setConfirm(e.target.value)} />
         {error && <p className="text-body-medium text-error">{error}</p>}
-        <Button type="submit" variant="filled" size="lg" fullWidth loading={reset.isPending}>
+        <Button type="submit" variant="filled" fullWidth loading={reset.isPending}>
           Сохранить пароль
         </Button>
         <Link to="/login" className="block text-center text-body-medium font-medium text-primary hover:underline">

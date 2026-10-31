@@ -122,13 +122,9 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
               {/* Пока черновик изменён, правку другого не начать — карандаш скрыт (ревью PR #1330):
                   иначе набранное заменилось бы молча, хотя закрытие окна те же правки бережёт. */}
               {!dirty && (
-                <IconButton label="Изменить" size="sm" onClick={() => edit(own)}>
-                  <Icon icon={Edit} size={18} />
-                </IconButton>
+                <IconButton label="Изменить" onClick={() => edit(own)} icon={Edit} />
               )}
-              <IconButton label="Удалить" size="sm" danger onClick={() => setRemoving(own)}>
-                <Icon icon={Delete} size={18} />
-              </IconButton>
+              <IconButton label="Удалить" danger onClick={() => setRemoving(own)} icon={Delete} />
             </li>
           ))}
         </ul>

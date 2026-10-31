@@ -74,7 +74,7 @@ function FindingRow({ f, onDecide, linkable, checked, onToggle }: {
         <span className="text-body-medium tabular-nums text-on-surface-variant shrink-0">
           {num(f.leftValue)} <span className="text-on-surface-variant">/</span> {num(f.rightValue)}
         </span>
-        <Button variant="text" size="sm" onClick={() => onDecide(f)}
+        <Button variant="text" onClick={() => onDecide(f)}
           className="opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0">
           {f.decision ? 'Изменить' : 'Разобрать'}
         </Button>
@@ -320,8 +320,8 @@ export function ReconciliationsPage() {
               ? 'Выберите вторую позицию, чтобы связать их как одну'
               : findings.filter(f => linking.includes(f.id)).map(f => f.label).join('  →  ')}
           </span>
-          <Button variant="text" size="sm" onClick={() => setLinking([])}>Отмена</Button>
-          <Button variant="filled" size="sm" disabled={linking.length !== 2}
+          <Button variant="text" onClick={() => setLinking([])}>Отмена</Button>
+          <Button variant="filled" disabled={linking.length !== 2}
             onClick={async () => {
               const [a, b] = linking.map(id => findings.find(f => f.id === id)!);
               await createAlias.mutateAsync({

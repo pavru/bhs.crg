@@ -77,7 +77,7 @@ export function RefPickerArchive({ entries, onReturned, selectsAtOnce }: {
             <Icon icon={Archive} size={18} className="text-on-surface-variant shrink-0" />
             <span className="flex-1 text-on-surface-variant truncate">{entry.displayName}</span>
             {canReturn && (
-              <Button variant="tonal" size="sm" icon={<Icon icon={Unarchive} size={18} />}
+              <Button variant="tonal" icon={<Icon icon={Unarchive} size={18} />}
                 loading={unarchive.isPending && unarchive.variables?.id === entry.id}
                 disabled={unarchive.isPending} onClick={() => void giveBack(entry)}>
                 {selectsAtOnce(entry) ? 'Вернуть и выбрать' : 'Вернуть из архива'}

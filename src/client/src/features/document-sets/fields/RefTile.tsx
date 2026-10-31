@@ -29,12 +29,8 @@ export function RefTile({ value, onReplace, onClear, children }: {
           {SCOPE_LABELS[value.scope]}
         </span>
       )}
-      <IconButton label="Заменить ссылку" size="sm" onClick={onReplace}>
-        <Icon icon={Refresh} size={18} />
-      </IconButton>
-      <IconButton label="Снять ссылку" size="sm" danger onClick={onClear}>
-        <Icon icon={LinkOff} size={18} />
-      </IconButton>
+      <IconButton label="Заменить ссылку" onClick={onReplace} icon={Refresh} />
+      <IconButton label="Снять ссылку" danger onClick={onClear} icon={LinkOff} />
       {children}
     </div>
   );
