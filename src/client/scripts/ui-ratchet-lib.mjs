@@ -188,8 +188,8 @@ export const RULES = [
     id: 'date-frame',
     // Своя рамка у поля даты (#1464): `<DateInput className="border …">`. Рамку, высоту и кольцо
     // фокуса рисует сам компонент по `density`, как Select, — свои рамки экранов разъезжались по высоте,
-    // радиусу и цвету ошибки. Считается класс `border` и `border-*` без модификатора; `border-…!` —
-    // пометка поверх рамки компонента, её правило не считает.
+    // радиусу и цвету ошибки. Считается класс `border` и `border-*` без модификатора, с `!` тоже: пометки
+    // поверх рамки компонента больше нет — переопределённое значение FieldBuilder называет словами ([UI-69]).
     count: countDateFrames,
     instead: 'рамку поля даты рисует DateInput density="dense" — плотное поле 40, как у Select ([UI-69]); ошибка — invalid, только чтение — readOnly; className — ширина и место в раскладке (docs/UI.md, «Дата и время»)',
   },
@@ -470,7 +470,7 @@ function countDateFrames(text) {
       if (cls?.initializer) names(cls.initializer);
       const raw = cls?.initializer ? cls.initializer.getText(sf) : '';
       const tokens = [raw, ...named].join(' ').split(/[\s'"`{}()?:]+/);
-      if (tokens.some(t => /^border(?:-[\w/-]+)?$/.test(t))) n++;
+      if (tokens.some(t => /^border(?:-[\w/-]+)?!?$/.test(t))) n++;
     }
     ts.forEachChild(node, visit);
   };

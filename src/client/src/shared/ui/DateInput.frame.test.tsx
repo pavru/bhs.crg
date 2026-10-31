@@ -22,6 +22,11 @@ describe('DateInput: плотное поле', () => {
     expect(screen.queryByRole('button', { name: 'Очистить дату' })).toBeTruthy();
   });
 
+  it('noClear — без крестика в поле: в отборе значение снимает крестик чипа', () => {
+    render(<DateInput label="Дата" value="2026-11-03" onChange={() => {}} density="dense" noClear />);
+    expect(screen.queryByRole('button', { name: 'Очистить дату' })).toBeNull();
+  });
+
   it('invalid — красная рамка и aria-invalid у сегментов; readOnly — обводка border-outline-variant без подложки', () => {
     render(<DateInput label="Дата" value="2026-11-03" onChange={() => {}} density="dense" invalid />);
     expect(classes()).toContain('border-error');
@@ -41,6 +46,15 @@ describe('DateInput: плотное поле', () => {
     fireEvent.click(trigger);
     expect(classes()).toEqual(expect.arrayContaining(['inset-ring', 'inset-ring-error']));
     expect(classes()).not.toContain('inset-ring-primary');
+  });
+
+  it('открытый календарь — рамка primary, и наведение её не перекрашивает', () => {
+    globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
+    render(<DateInput label="Дата" value="2026-11-03" onChange={() => {}} density="dense" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть календарь' }));
+    expect(classes()).toEqual(expect.arrayContaining(['inset-ring', 'border-primary', 'inset-ring-primary']));
+    expect(classes()).not.toContain('border-outline');
+    expect(classes()).not.toContain('[&:hover:not(:focus-within)]:border-on-surface');
   });
 
   it('без density рамки нет — её рисует оболочка или ячейка', () => {

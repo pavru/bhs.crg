@@ -89,7 +89,7 @@ export type SelectProps = SelectBase & (
   | (Below & { label: string; variant?: never; density?: FieldDensity })
   | (NoBelow & { label?: never; variant: 'chip'; emptyItem: ReactNode; density?: never; invalid?: never })
   | (NoBelow & { label?: never; variant: 'inline'; density?: never; invalid?: never })
-  | (NoBelow & { label?: never; variant?: never; density: 'dense' })
+  | (NoBelow & { label?: never; variant?: never; density: 'dense'; 'aria-label': string })
 );
 
 // В слое формы рамку рисует оболочка — триггер внутри неё прозрачный и без своей границы, иначе
@@ -137,7 +137,8 @@ export function Select({
   const labelId = useId();
   const hintId = useId();
   // Плотное поле без подписи — то же поле на оболочке: имя ему даёт `aria-label`, а оболочка у плотного
-  // поля подпись и так прячет от глаз. Ширину тогда задаёт обёртка — рамку рисует она.
+  // поля подпись и так прячет от глаз. Ширину тогда задаёт обёртка — рамку рисует она; без своей `w-…` она
+  // во всю ширину, как прежний триггер: иначе во flex-строке поле сжималось бы до выбранного текста.
   const framed = variant === undefined;
   const bare = label === undefined;
 
@@ -193,7 +194,7 @@ export function Select({
   // время, что человек выбирает значение.
   return (
     <OutlinedField label={label ?? aria['aria-label'] ?? ''} required={required} invalid={invalid} error={error} hint={hint} hintId={hintId}
-      raise="always" focused={focused || open} labelId={labelId} density={bare ? 'dense' : density} containerClassName={bare ? className : containerClassName}
+      raise="always" focused={focused || open} labelId={labelId} density={bare ? 'dense' : density} containerClassName={bare ? `${/(^|\s)w-/.test(className) ? '' : 'w-full '}${className}` : containerClassName}
       trailing={<FieldArrow open={open} disabled={disabled} />}>
       {control}
     </OutlinedField>

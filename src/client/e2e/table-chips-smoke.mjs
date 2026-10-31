@@ -210,9 +210,7 @@ try {
     // Пауза — уход из «с» фиксируется таймером, и набор в «по» не должен его опередить.
     await page.waitForTimeout(300);
     await page.keyboard.type('05102026');
-    // Год → крестик и значок календаря «по» (ещё поле; крестик у плотного поля есть, [UI-69]) →
-    // «Добавить»: поле оставлено.
-    await page.keyboard.press('Tab');
+    // Год → значок календаря «по» (ещё поле) → «Добавить»: поле оставлено.
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
     await page.waitForTimeout(300);

@@ -58,6 +58,11 @@ interface DateInputProps {
    * оболочка (`DateField`) или ячейка (`compact`).
    */
   density?: 'dense';
+  /**
+   * Без крестика в поле (как было у `size="sm"`): в отборе значение снимает крестик его чипа, и второй
+   * в поле — лишняя остановка Tab и 32 px в узкой колонке. «Очистить» в календаре остаётся.
+   */
+  noClear?: boolean;
   /** Значение не прошло проверку формы — рамка обвязки красная, сегменты помечены для скринридера. */
   invalid?: boolean;
   /** id подписи под рамкой (`DateField`) — сегменты описываются ею: см. `useSegmentField`. */
@@ -99,7 +104,7 @@ interface DateInputProps {
 }
 
 export function DateInput({ label, value, onChange, onProblem, onIncomplete, precision = 'day', className = '', disabled = false, readOnly = false, required = false, calendar = true, compact = false,
-  density, invalid = false, hintId, min, max, range, onCommit }: DateInputProps) {
+  density, noClear = false, invalid = false, hintId, min, max, range, onCommit }: DateInputProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   /** Календарь закрыт Tab'ом с края — фокус уже перенесён, возвращать его на значок не нужно. */
@@ -145,7 +150,9 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
     // Только для чтения — обводка outline-variant без подложки, как у оболочки.
     readOnly ? 'text-on-surface border-outline-variant'
       : disabled ? 'text-on-surface/38 border-on-surface/12'
-      : `text-on-surface ${markInvalid ? 'border-error' : 'border-outline [&:hover:not(:focus-within)]:border-on-surface'}`,
+      // Открытый календарь красит рамку сам (`accent` ниже), и наведение её не перекрашивает: фокус тогда в
+      // портале, `:focus-within` молчит, и hover-класс перебил бы primary.
+      : `text-on-surface ${markInvalid ? 'border-error' : pickerOpen ? '' : 'border-outline [&:hover:not(:focus-within)]:border-on-surface'}`,
     readOnly || disabled ? '' : markInvalid
       ? 'focus-within:inset-ring focus-within:inset-ring-error'
       : 'focus-within:inset-ring focus-within:border-primary focus-within:inset-ring-primary',
@@ -154,7 +161,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
 
   // Крестик поля формы — один на обе ветки: у «не даты» и у сегментов (макет #1463, вариант В). Кнопка
   // внутри поля — место XS ([UI-68]): 32, как календарь рядом, при касании 40.
-  const clearButton = !compact && clearable && (
+  const clearButton = !compact && !noClear && clearable && (
     <IconButton label="Очистить дату" onClick={clear} className={`-my-1.5 ${ICON_BUTTON_XS} ${CLEAR_REVEAL}`} icon={Close} />
   );
 

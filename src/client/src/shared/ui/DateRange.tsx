@@ -15,7 +15,7 @@ import { DateInput } from './DateInput';
  * вперёд можно было бы, только начав с «по». Оба календаря рисуют ленту периода.</p>
  */
 export function DateRange({
-  label, labelHidden = false, from, to, onChange, precision = 'day', min, max, disabled, readOnly, required, ordered = false, className = '',
+  label, labelHidden = false, from, to, onChange, precision = 'day', min, max, disabled, readOnly, required, noClear, ordered = false, className = '',
 }: {
   /** Подпись группы — legend над парой; полям она же с «с» / «по» для чтения с экрана. */
   label: string;
@@ -36,6 +36,8 @@ export function DateRange({
   readOnly?: boolean;
   /** Пустой границы не бывает (период отчёта, issue #1466): ни крестика, ни «Очистить» в календаре. */
   required?: boolean;
+  /** Без крестиков в полях — в отборе у чипа свой (`DateInput noClear`). */
+  noClear?: boolean;
   /**
    * Наружу — только упорядоченная пара (issue #1466): «по» раньше «с» держится здесь до фиксации, которая
    * её и поправит. Для приёмника, который пару «наоборот» отвергает, — адрес отчёта, который сервер
@@ -65,7 +67,7 @@ export function DateRange({
 
   const range: [string, string] | undefined = pair.from && pair.to ? [pair.from, pair.to] : undefined;
   const toMin = pair.from && (!min || pair.from > min) ? pair.from : min;
-  const common = { precision, density: 'dense', max, disabled, readOnly, required, range, className: 'w-full' } as const;
+  const common = { precision, density: 'dense', noClear, max, disabled, readOnly, required, range, className: 'w-full' } as const;
   return (
     <fieldset className={`min-w-0 ${className}`}>
       <legend className={labelHidden ? 'sr-only' : 'mb-1 text-body-medium font-medium text-on-surface'}>{label}</legend>

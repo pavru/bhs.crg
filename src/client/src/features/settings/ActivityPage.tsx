@@ -106,8 +106,8 @@ function Change({ record }: { record: ActivityRecord }) {
 }
 
 export function ActivityPage() {
-  // «Все» — отдельное значение, а не пустая строка: Radix запрещает пустое value у пункта списка,
-  // и пункт с ним просто не выбирается — отбор выглядел бы сломанным.
+  // «Все» — пустая строка: пункт «Все действия» — `emptyItem` чипа, его выбор отдаёт ''. Своё непустое значение
+  // пункту, которого требует Radix, `Select` подставляет сам.
   const [action, setAction] = useState('');
   const [page, setPage] = useState(0);
   const { data, isLoading } = useActivity(page * PAGE, PAGE, action || null);

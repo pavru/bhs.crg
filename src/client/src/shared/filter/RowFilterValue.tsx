@@ -76,7 +76,7 @@ function ValueInput({ column, value, onChange, placeholder, onEnter, onAccept, o
     );
 
   if (kind === 'date' && typed)
-    return <DateInput density="dense" label={placeholder} value={value} onChange={change} className="flex-1 min-w-0" />;
+    return <DateInput density="dense" noClear label={placeholder} value={value} onChange={change} className="flex-1 min-w-0" />;
 
   // Enter уступает списку подсказки, когда в нём выбран пункт: «ком» → ↓ → Enter добавляет «Комарова 36»,
   // а не «ком» (как EditGrid в UI-8). Без выбранного пункта Enter добавляет набранное, как всегда.
@@ -180,7 +180,7 @@ function ValueList({ column, values, marked, describedBy, inputRef, onChange }: 
               e.preventDefault();
               if (adds.current !== addsAtEnter.current) refocus.current = true;
             }}>
-            <DateInput density="dense" label="Добавить значение" value={draft} onChange={edit} onCommit={add} className="w-full" />
+            <DateInput density="dense" noClear label="Добавить значение" value={draft} onChange={edit} onCommit={add} className="w-full" />
           </div>
         ) : (
           <ValueInput column={column} value={draft} onChange={edit} placeholder="Добавить значение"
@@ -276,7 +276,7 @@ function Bounds({ column, from, to, onChange }: {
 }) {
   const [period] = useState(() => column?.kind === 'date' && [from, to].every(v => v === '' || valueFits('date', v)));
   if (period)
-    return <DateRange label="Границы" labelHidden from={from} to={to} onChange={onChange} className="flex-1" />;
+    return <DateRange label="Границы" labelHidden noClear from={from} to={to} onChange={onChange} className="flex-1" />;
   return (
     <div className="flex-1 min-w-0 flex items-center gap-1">
       <ValueInput column={column} value={from} placeholder="от" onChange={v => onChange(v, to)} />

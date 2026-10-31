@@ -23,6 +23,7 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { FIELD_CLS } from '@/shared/filter/fieldClass';
 // ─── JSON preview ──────────────────────────────────────────────────────────────
 
 export function JsonPreview({
@@ -560,9 +561,8 @@ export function DefaultValueCell({ field, override, enumTypes, onOverrideDefault
   const cur = override?.defaultValue;
   const hasDv = cur !== undefined;
   const parentDv = field.defaultValue;
-  const inputCls = 'w-full border rounded-xs px-1.5 py-0.5 text-body-small bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary ' + (hasDv ? 'border-primary-container' : 'border-outline-variant');
-  // Унаследованное значение — словами в пункте «значения нет», а не своей рамкой поверх рамки поля ([UI-69]):
-  // выбранное своё значение и показанное родительское иначе выглядели бы одинаково.
+  // Унаследованное значение — словами (пункт «значения нет», подсказка пустого поля), а не своей рамкой поверх
+  // рамки поля ([UI-69]): выбранное своё значение и показанное родительское иначе выглядели бы одинаково.
   const inherited = parentDv !== undefined ? `от родителя: ${String(parentDv)}` : 'не задано';
 
   if (field.type === 'boolean') {
@@ -601,7 +601,7 @@ export function DefaultValueCell({ field, override, enumTypes, onOverrideDefault
     <input
       type={field.type === 'number' ? 'number' : 'text'}
       value={hasDv ? String(cur) : ''}
-      placeholder={parentDv !== undefined ? String(parentDv) : 'от родит.'}
+      placeholder={inherited} aria-label={`По умолчанию: ${field.title || field.key}`}
       onChange={e => {
         const v = e.target.value;
         onOverrideDefaultValue(field.key,
@@ -609,7 +609,8 @@ export function DefaultValueCell({ field, override, enumTypes, onOverrideDefault
           : field.type === 'number' ? Number(v) : v,
         );
       }}
-      className={inputCls}
+      // Коробка плотного поля 40, как у выбора и даты в соседних строках колонки.
+      className={`w-full ${FIELD_CLS}`}
     />
   );
 }

@@ -38,18 +38,18 @@ export function TypePickerField({
   recentKey?: string;
   title?: string;
   placeholder?: string;
-  /** Подпись поля. Задана — контрол переходит в слой формы (outlined-рамка с вырезом). Без неё — плотное
-   *  поле с именем из `aria-label`; кода типа там нет (см. `showCode`, issue #668). */
-  label?: string;
-  /** Поле формы 56 (по умолчанию) или плотное 40 без выреза — [UI-69]. Без подписи — всегда плотное. */
-  density?: FieldDensity;
   required?: boolean;
   /** Показать строку «нет значения» в пикере + крестик-сброс на триггере. */
   clearable?: { label: string };
   disabled?: boolean;
   className?: string;
-  'aria-label'?: string;
-}) {
+} & (
+  /** Подпись поля — слой формы (outlined-рамка с вырезом); поле формы 56 (по умолчанию) или плотное 40 — [UI-69]. */
+  | { label: string; density?: FieldDensity; 'aria-label'?: never }
+  /** Без подписи — плотное поле, и имя ему даёт только `aria-label`: без него кнопка осталась бы безымянной.
+   *  Кода типа там нет (см. `showCode`, issue #668). */
+  | { label?: never; density?: never; 'aria-label': string }
+)) {
   const [open, setOpen] = useState(false);
   const [focused, setFocused] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);

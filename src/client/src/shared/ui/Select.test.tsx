@@ -126,10 +126,28 @@ describe('Select без подписи: вид по месту ([UI-69])', () =>
     expect(container.querySelector('legend')).toBeNull();
   });
 
+  it('плотное поле без подписи во всю ширину, если экран не задал свою w-…: во flex-строке иначе сжалось бы', () => {
+    const wrapper = (className?: string) => {
+      const { container } = render(
+        <Select density="dense" aria-label="Раздел" value="" onValueChange={() => {}} className={className}>
+          <SelectItem value="a">A</SelectItem>
+        </Select>,
+      );
+      const classes = (container.firstElementChild as HTMLElement).className.split(/\s+/);
+      cleanup();
+      return classes;
+    };
+    expect(wrapper()).toContain('w-full');
+    expect(wrapper('flex-1')).toEqual(expect.arrayContaining(['w-full', 'flex-1']));
+    expect(wrapper('w-40')).not.toContain('w-full');
+  });
+
   it('вид обязателен: без подписи, чипа, inline и плотности тип не собирается; чип — без emptyItem', () => {
     // @ts-expect-error — без подписи вид выбирает экран
     void <Select aria-label="Итог" value="" onValueChange={() => {}}><SelectItem value="a">A</SelectItem></Select>;
     // @ts-expect-error — чип отбора без «все» не бывает
     void <Select variant="chip" aria-label="Итог" value="" onValueChange={() => {}}><SelectItem value="a">A</SelectItem></Select>;
+    // @ts-expect-error — плотному полю без подписи имя даёт только aria-label
+    void <Select density="dense" value="" onValueChange={() => {}}><SelectItem value="a">A</SelectItem></Select>;
   });
 });
