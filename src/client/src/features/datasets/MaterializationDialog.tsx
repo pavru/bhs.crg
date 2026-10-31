@@ -23,6 +23,7 @@ import { apiError } from '@/shared/utils/apiError';
 import type { DataSetSource, DocumentType, MaterializeDiscriminator } from '@/shared/api/types';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { RadioGroup } from '@/shared/ui/RadioGroup';
 
 // Пустые значения — модульными константами, а не инлайновыми `[]`: инлайновый литерал даёт новую
 // ссылку каждый рендер и ломает мемоизацию ниже по течению (issue #305, #870).
@@ -306,18 +307,9 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
             {/* Тип-документ можно не собирать, а назвать: строка ссылается на уже существующий
                 документ комплекта (issue #725). Составным типам выбирать не из чего. */}
             {isDocumentType && (
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-body-small">
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="materialize-source-mode" checked={!byIdMode}
-                    onChange={() => switchByIdMode(false)} />
-                  <span className={byIdMode ? 'text-on-surface-variant' : 'text-on-surface'}>собрать из колонок</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="materialize-source-mode" checked={byIdMode}
-                    onChange={() => switchByIdMode(true)} />
-                  <span className={byIdMode ? 'text-on-surface' : 'text-on-surface-variant'}>существующий документ по Ид</span>
-                </label>
-              </div>
+              <RadioGroup label="Документ строки" orientation="horizontal" value={byIdMode ? 'byId' : 'build'}
+                onChange={v => { if ((v === 'byId') !== byIdMode) switchByIdMode(v === 'byId'); }}
+                items={[{ value: 'build', label: 'собрать из колонок' }, { value: 'byId', label: 'существующий документ по Ид' }]} />
             )}
 
             {useByIdMode ? (
@@ -335,16 +327,9 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
             ) : (
             <>
               {isUnion && (
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-body-small">
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input type="radio" name="materialize-mode" checked={!byRowType} onChange={() => switchMode(false)} />
-                    <span className={byRowType ? 'text-on-surface-variant' : 'text-on-surface'}>один вариант на все строки</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input type="radio" name="materialize-mode" checked={byRowType} onChange={() => switchMode(true)} />
-                    <span className={byRowType ? 'text-on-surface' : 'text-on-surface-variant'}>вариант по типу документа строки</span>
-                  </label>
-                </div>
+                <RadioGroup label="Как выбрать вариант" orientation="horizontal" value={byRowType ? 'byRow' : 'one'}
+                  onChange={v => { if ((v === 'byRow') !== byRowType) switchMode(v === 'byRow'); }}
+                  items={[{ value: 'one', label: 'один вариант на все строки' }, { value: 'byRow', label: 'вариант по типу документа строки' }]} />
               )}
 
               {isUnion && !byRowType && (

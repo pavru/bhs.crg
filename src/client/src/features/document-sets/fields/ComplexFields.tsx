@@ -261,7 +261,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   function rowChrome(i: number, danger = false) {
     return (
       <>
-        <Checkbox size="sm" checked={selected.has(i)} onChange={() => toggleSelect(i)}
+        <Checkbox checked={selected.has(i)} onChange={() => toggleSelect(i)}
           aria-label={`Выбрать строку ${i + 1}`} />
         <IconButton label={`Переместить строку ${i + 1}: стрелки вверх и вниз`}
           title="Перетащить для изменения порядка (или стрелки ↑↓)"

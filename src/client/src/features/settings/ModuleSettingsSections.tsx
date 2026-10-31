@@ -128,10 +128,11 @@ function ModuleSection({ module }: { module: ModuleSettings }) {
                 слово, которое сервер примет только одно из двух. */}
             {setting.kind === 'flag' ? (
               <div className="max-w-xl">
-                <label className="flex items-center gap-3 text-body-medium text-on-surface">
+                {/* Переключатель — в конце строки 48, как у MD3 ([UI-69]). */}
+                <label className="flex min-h-12 items-center justify-between gap-4 text-body-medium text-on-surface">
+                  {setting.title}
                   <Switch checked={flagOn(setting, draft)} label={setting.title}
                     onChange={on => edit(setting.key, on ? 'true' : 'false')} />
-                  {setting.title}
                 </label>
                 <p className={`text-body-small mt-1 ${errors[setting.key] ? 'text-error' : 'text-on-surface-variant'}`}>
                   {errors[setting.key] ? sentence(errors[setting.key]) : boundsHint(setting)}

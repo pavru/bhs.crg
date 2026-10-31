@@ -272,7 +272,7 @@ export function FieldCard({
           </Tooltip>
         ) : (
           <label className="flex items-center justify-center gap-1.5 cursor-pointer">
-            <Checkbox size="sm" checked={field.required} onChange={required => onChange({ required })} />
+            <Checkbox checked={field.required} onChange={required => onChange({ required })} />
             <span className="text-body-small text-on-surface-variant">да</span>
           </label>
         )}
@@ -317,7 +317,7 @@ export function FieldCard({
       {SchemaFieldKinds_isComputable(field.type) && (
         <>
           <label className="flex items-center gap-2 cursor-pointer w-fit">
-            <Checkbox size="sm" checked={!!field.computed}
+            <Checkbox checked={!!field.computed}
               onChange={on => onChange(on
                 ? { computed: true, required: false, defaultValue: undefined }
                 : { computed: undefined, expression: undefined })} />
@@ -339,7 +339,7 @@ export function FieldCard({
           <span className="text-body-small text-on-surface-variant shrink-0 w-28">Значение по умолч.:</span>
           {field.type === 'boolean' ? (
             <label className="flex items-center gap-1.5 cursor-pointer">
-              <Checkbox size="sm" checked={!!field.defaultValue}
+              <Checkbox checked={!!field.defaultValue}
                 onChange={on => onChange({ defaultValue: on ? true : undefined })} />
               <span className="text-body-small text-on-surface-variant">{field.defaultValue ? 'true' : 'не задано'}</span>
             </label>

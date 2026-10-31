@@ -56,9 +56,10 @@ await login(page);
 /** Имя типа приходит из окружения и содержит скобки — в регулярное выражение его надо экранировать. */
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// Только группа вариантов (VariantPicker, «Вариант типа «…»»): в окне есть и группа «Как выбрать вариант».
 const checkedVariant = async () => {
   const dlg = page.locator('[role=dialog]').last();
-  const radios = await dlg.getByRole('radio').evaluateAll(els =>
+  const radios = await dlg.getByRole('radiogroup', { name: /^Вариант типа «/ }).getByRole('radio').evaluateAll(els =>
     els.map(e => ({ label: e.innerText.trim(), on: e.getAttribute('aria-checked') === 'true' })));
   return radios.find(r => r.on)?.label ?? null;
 };

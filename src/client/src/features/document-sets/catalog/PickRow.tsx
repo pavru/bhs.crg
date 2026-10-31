@@ -11,7 +11,7 @@ export function PickRow({ entry, checked, onToggle, className = '' }: {
 }) {
   return (
     <label className={`flex items-center gap-3 px-4 py-3 cursor-pointer state-layer ${className}`}>
-      <Checkbox size="sm" checked={checked} onChange={onToggle} />
+      <Checkbox checked={checked} onChange={onToggle} />
       <span className={`flex-1 min-w-0 flex items-center gap-2 text-body-medium font-medium ${entry.archived ? 'text-on-surface-variant' : 'text-on-surface'}`}>
         <span className="truncate">{entry.displayName}</span>
         {entry.archived && <ArchivedMark className="font-normal" />}

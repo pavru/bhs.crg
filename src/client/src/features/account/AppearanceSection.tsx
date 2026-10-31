@@ -3,7 +3,7 @@ import {
 } from '@/shared/hooks/useLocale';
 import { formatDate, formatDateTime, formatMoney, formatNumber } from '@/shared/format/format';
 import { ThemeToggle } from '@/shared/ui/ThemeToggle';
-import { useRadioGroup } from '@/shared/ui/useRadioGroup';
+import { RadioGroup } from '@/shared/ui/RadioGroup';
 import { useTheme } from '@/shared/ui/themeContext';
 
 const PREVIEW_DATE = new Date(2025, 11, 31, 14, 5, 0); // 31 дек 2025 14:05
@@ -24,8 +24,6 @@ export function AppearanceSection() {
   const { saveState: themeSave } = useTheme();
 
   const resolved = resolveLocale(locale);
-
-  const radios = useRadioGroup(LOCALE_OPTIONS.map(o => o.value), locale, setLocale);
 
   /**
    * ⚠️ «Сохранено» показывается ПО ОТВЕТУ СЕРВЕРА, а не по нажатию (ревью PR #1000). Прежняя
@@ -56,38 +54,14 @@ export function AppearanceSection() {
         приедут на любой компьютер, где вы войдёте.
       </p>
 
-      {/* Выбор одного из вариантов — радиогруппа по APG ([UI-44], #1416): одна остановка Tab, стрелки
+      {/* Выбор одного из вариантов — RadioGroup ([UI-69], [UI-44]): одна остановка Tab, стрелки
           переводят выбор. Прежде — кнопки с aria-pressed, и диктор называл пять независимых переключателей. */}
-      <div role="radiogroup" aria-labelledby="profile-locale-label" onKeyDown={radios.onKeyDown} className="space-y-1">
-        {LOCALE_OPTIONS.map((opt, i) => {
-          const isSelected = locale === opt.value;
-          return (
-            <button
-              key={opt.value}
-              {...radios.item(i)}
-              type="button"
-              role="radio"
-              aria-checked={isSelected}
-              onClick={() => setLocale(opt.value)}
-              className={`state-layer w-full flex items-center gap-3 px-3 py-2 rounded-sm text-body-medium text-left ${
-                isSelected
-                  ? 'bg-primary-container border border-primary-container text-on-primary-container'
-                  : 'border border-transparent text-on-surface-variant'
-              }`}
-            >
-              <span className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                isSelected ? 'border-primary' : 'border-outline'
-              }`}>
-                {isSelected && <span className="w-2 h-2 rounded-full bg-primary block" />}
-              </span>
-              <span className="flex-1">{opt.label}</span>
-              {opt.value === SYSTEM_LOCALE && (
-                <span className="text-body-small text-on-surface-variant font-mono">{navigator.language}</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <RadioGroup aria-labelledby="profile-locale-label" value={locale} onChange={setLocale}
+        items={LOCALE_OPTIONS.map(opt => ({
+          value: opt.value, label: opt.label,
+          trailing: opt.value === SYSTEM_LOCALE
+            && <span className="text-body-small text-on-surface-variant font-mono">{navigator.language}</span>,
+        }))} />
 
       {/* Preview */}
       <div className="rounded-md bg-surface-container-low border border-outline-variant p-3 space-y-1.5">

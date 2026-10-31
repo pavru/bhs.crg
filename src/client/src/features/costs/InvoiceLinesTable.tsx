@@ -317,7 +317,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
           ? mode === 'OnTop' && <StatusBadge tone="quiet">цены без НДС, НДС сверху</StatusBadge>
           : (
             <span className={modeMarked ? 'rounded-sm ring-1 ring-warning px-1.5 py-0.5' : undefined}>
-              <Checkbox ref={modeBox} size="sm" label="Цены без НДС, НДС сверху" checked={mode === 'OnTop'}
+              <Checkbox ref={modeBox} label="Цены без НДС, НДС сверху" checked={mode === 'OnTop'}
                 onChange={on => switchMode(on ? 'OnTop' : 'Included')} />
             </span>
           )}

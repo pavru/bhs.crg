@@ -66,7 +66,7 @@ function FindingRow({ f, onDecide, linkable, checked, onToggle }: {
       <div className="flex items-center gap-2">
         {/* Связывать имеет смысл только позиции, не нашедшие пары: у остальных пара уже есть. */}
         {linkable && (
-          <Checkbox size="sm" checked={checked} onChange={onToggle}
+          <Checkbox checked={checked} onChange={onToggle}
             aria-label={`Выбрать «${f.label}» для связывания`} />
         )}
         <FindingStatus f={f} />

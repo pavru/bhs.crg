@@ -127,7 +127,7 @@ function ColumnRow({ column, label, checked, total, onShown, onTotal, move }: {
   return (
     <li className="flex items-center gap-2 rounded-sm px-1.5 py-1 state-layer">
       <label className="flex-1 min-w-0 flex items-center gap-2 text-body-medium text-on-surface cursor-pointer">
-        <Checkbox size="sm" checked={checked} onChange={onShown} />
+        <Checkbox checked={checked} onChange={onShown} />
         <span className={`truncate ${column ? '' : 'line-through text-on-surface-variant'}`}>{label}</span>
         {closed && (
           <span className="shrink-0 inline-flex items-center gap-1 text-body-small text-on-surface-variant">

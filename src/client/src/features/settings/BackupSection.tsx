@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
+import { RadioGroup } from '@/shared/ui/RadioGroup';
 import { Cancel, CheckCircle, ChevronRight, Delete, Download, Info, KeyboardArrowDown, RestartAlt, Upload, Warning } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -153,17 +154,8 @@ function BackupFilesPanel() {
     <div className="space-y-3">
       {data && <ScheduleForm status={data.schedule} />}
 
-      <div className="flex flex-wrap items-center gap-3 text-body-medium">
-        <span className="text-on-surface-variant text-body-small">Что включать:</span>
-        {([['Full', 'настройку и проектные данные'], ['Configuration', 'только настройку']] as const)
-          .map(([value, label]) => (
-            <label key={value} className="flex items-center gap-1.5 text-body-small text-on-surface-variant">
-              <input type="radio" name="backup-scope" checked={scope === value}
-                onChange={() => setScope(value)} disabled={busy} />
-              {label}
-            </label>
-          ))}
-      </div>
+      <RadioGroup label="Что включать" orientation="horizontal" value={scope} onChange={setScope} disabled={busy}
+        items={[{ value: 'Full', label: 'настройку и проектные данные' }, { value: 'Configuration', label: 'только настройку' }]} />
 
       <BackupSizeLine scope={scope} />
 

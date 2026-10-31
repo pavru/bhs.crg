@@ -57,12 +57,12 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
       // Read-only флажок НЕ отключаем (issue #958): `disabled` убирает его из обхода клавиатурой и
       // читается вспомогательными средствами как «сейчас недоступно», хотя значение настоящее и
       // окончательное. У флажка нет своего `readOnly`, поэтому правку гасим сами: клик отменяем,
-      // состояние объявляем через `aria-readonly`.
+      // состояние объявляем через `aria-readonly` — по нему же флажок рисует обводку outline-variant
+      // ([UI-69]), как у поля только для чтения.
       <label className={`flex items-center gap-2 ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}>
         <Checkbox checked={!!value} aria-readonly={readOnly || undefined}
           onChange={v => { if (!readOnly) onChange(v); }}
-          onClick={e => { if (readOnly) e.preventDefault(); }}
-          boxClassName={readOnly ? 'opacity-70' : undefined} />
+          onClick={e => { if (readOnly) e.preventDefault(); }} />
         <span className="text-body-medium text-on-surface-variant">{label ?? field.title}</span>
       </label>
     );

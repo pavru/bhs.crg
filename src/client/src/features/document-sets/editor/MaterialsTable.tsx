@@ -43,7 +43,7 @@ export function MaterialsTable({
   // добраться до неё можно было только горизонтальной прокруткой внутри таблицы (issue #680).
   const columns: DataGridColumn<MaterialRow>[] = [
     { key: 'selected', label: '', width: 'w-10',
-      cell: m => <Checkbox size="sm" checked={selected.has(m.key)} onChange={() => toggle(m.key)} aria-label={`Выбрать «${m.label}»`} /> },
+      cell: m => <Checkbox checked={selected.has(m.key)} onChange={() => toggle(m.key)} aria-label={`Выбрать «${m.label}»`} /> },
     { key: 'label', label: 'Материал',
       cell: m => (
         <span className="flex items-center gap-1.5">

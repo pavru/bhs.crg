@@ -129,7 +129,7 @@ function ParamDefault({ type, value, onChange }: {
     return (
       <span className="w-20 shrink-0 flex justify-center">
         <Tooltip content="Значение по умолчанию">
-          <Checkbox size="sm" aria-label="Значение по умолчанию" checked={value === true} onChange={onChange} />
+          <Checkbox aria-label="Значение по умолчанию" checked={value === true} onChange={onChange} />
         </Tooltip>
       </span>
     );

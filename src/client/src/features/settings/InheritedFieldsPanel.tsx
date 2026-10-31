@@ -75,7 +75,7 @@ export function InheritedFieldsPanel({
               ? <span />
               : <DefaultValueCell field={field} override={override} enumTypes={enumTypes} onOverrideDefaultValue={onOverrideDefaultValue} />}
             <div className="flex justify-center">
-              <Switch size="sm" checked={!isExcluded}
+              <Switch checked={!isExcluded}
                 onChange={on => on ? onInclude(field.key) : onExclude(field.key)}
                 title={isExcluded ? 'Включить поле' : 'Исключить поле'} label={`Поле ${field.key}: включено`} />
             </div>
