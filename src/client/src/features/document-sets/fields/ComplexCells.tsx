@@ -87,7 +87,7 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
   if (field.type === 'boolean') {
     return (
       <div className="flex items-center justify-center w-full h-full">
-        <Checkbox size="sm" aria-label={row == null ? field.title : `${field.title}, строка ${row + 1}`}
+        <Checkbox aria-label={row == null ? field.title : `${field.title}, строка ${row + 1}`}
           checked={!!value} onChange={onChange} />
       </div>
     );

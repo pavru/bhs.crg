@@ -175,10 +175,10 @@ function ArrayTableModalBody({
 
   const columns: EditGridColumn<Record<string, unknown>>[] = [
     {
-      key: '@select', label: 'Выбор', size: 34,
+      key: '@select', label: 'Выбор', size: 40, // круг флажка 40 ([UI-69]) — в колонке, а не на соседней
       header: (
         <span className="flex items-center justify-center">
-          <Checkbox size="sm" aria-label="Выбрать все строки"
+          <Checkbox aria-label="Выбрать все строки"
             checked={rowIds.length > 0 && selected.size === rowIds.length}
             indeterminate={selected.size > 0 && selected.size < rowIds.length}
             onChange={toggleAll} />
@@ -186,7 +186,7 @@ function ArrayTableModalBody({
       ),
       cell: (_, i) => (
         <span className="flex items-center justify-center">
-          <Checkbox size="sm" checked={selected.has(rowIds[i])} onChange={() => toggleSelect(rowIds[i])}
+          <Checkbox checked={selected.has(rowIds[i])} onChange={() => toggleSelect(rowIds[i])}
             aria-label={`Выбрать строку ${i + 1}`} />
         </span>
       ),

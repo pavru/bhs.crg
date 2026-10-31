@@ -56,6 +56,10 @@ body {
   &:focus-visible, &:active:not(:has(:is(button, a, input, select, textarea, label, [role=button], [tabindex]):active)), &[data-state=open] { --_s: var(--md-sys-state-pressed); }
   &[data-dragging] { --_s: var(--md-sys-state-dragged); }
   &:disabled, &[aria-disabled=true], &[data-disabled] { --_s: 0; }
+  /* Флажок в строке со своим слоем от наведения не загорается: цель там — вся строка (пункт списка MD3),
+     и под курсором горели бы два слоя сразу. Фокус с клавиатуры и нажатие у круга остаются — строка от
+     нажатия на вложенный input сама не темнеет (правило выше). */
+  & input[type=checkbox].state-layer:hover:not(:focus-visible, :active) { --_s: 0; }
 }
 /* Добавка к state-layer — состояние берётся у ближайшей .group: плашка значка рейла и нижней навигации
    загорается, когда курсор над всей ссылкой, а не только над плашкой (`state-layer state-layer-group`). */

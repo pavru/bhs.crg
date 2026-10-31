@@ -130,7 +130,7 @@ function PasteDialog({ mode, onClose, onAdd }: {
               )}
 
               {offered ? (
-                <Checkbox size="sm" label="Цены без НДС, НДС сверху" checked={chosen === 'OnTop'}
+                <Checkbox label="Цены без НДС, НДС сверху" checked={chosen === 'OnTop'}
                   onChange={on => setOnTop(on)}
                   description={chosen === 'Included' ? undefined
                     : `${byHeader && onTop === null ? 'В шапке таблицы цены без НДС. ' : ''}Отметка встанет и над строками счёта — для всех его строк.`} />

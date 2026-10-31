@@ -111,7 +111,7 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
             <div className="rounded-sm border border-outline-variant divide-y divide-surface-container max-h-40 overflow-y-auto">
               {recipients.map(r => (
                 <label key={r.userId} className={`flex items-center gap-2 px-2.5 py-1.5 text-body-medium ${r.validEmail ? 'cursor-pointer state-layer' : 'opacity-60'}`}>
-                  <Checkbox size="sm" disabled={!r.validEmail} checked={r.validEmail && !unchecked.has(r.userId)} onChange={() => toggleSub(r.userId)} />
+                  <Checkbox disabled={!r.validEmail} checked={r.validEmail && !unchecked.has(r.userId)} onChange={() => toggleSub(r.userId)} />
                   <span className="text-on-surface flex-1 min-w-0 truncate">{r.displayName}</span>
                   <span className="text-body-small text-on-surface-variant min-w-0 truncate">{r.email || '—'}</span>
                   {!r.validEmail && <Icon icon={Warning} size={18} className="text-warning shrink-0" />}

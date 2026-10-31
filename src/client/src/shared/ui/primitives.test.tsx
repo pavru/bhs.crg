@@ -56,16 +56,17 @@ describe('Checkbox', () => {
     expect(onEncrypt).not.toHaveBeenCalled();
   });
 
-  it('boxClassName остаётся на квадратике и с подписью, className — на внешнем элементе', () => {
-    const { rerender } = render(<Checkbox checked={false} onChange={() => {}} aria-label="Право" boxClassName="mt-1" className="opacity-70" />);
-    let box = screen.getByRole('checkbox', { name: 'Право' });
+  it('boxClassName остаётся на следе флажка и с подписью, className — на внешнем элементе', () => {
+    // След — обёртка input и квадрата ([UI-69]): отступ места двигает обоих.
+    const { rerender } = render(<Checkbox checked={false} onChange={() => {}} aria-label="Право" boxClassName="mt-1" className="ml-2" />);
+    let box = screen.getByRole('checkbox', { name: 'Право' }).parentElement!;
     expect(box.className).toMatch(/(^|\s)mt-1(\s|$)/);
-    expect(box.className).toMatch(/opacity-70/);
-    rerender(<Checkbox checked={false} onChange={() => {}} label="Право" boxClassName="mt-1" className="opacity-70" />);
-    box = screen.getByRole('checkbox', { name: 'Право' });
+    expect(box.className).toMatch(/(^|\s)ml-2(\s|$)/);
+    rerender(<Checkbox checked={false} onChange={() => {}} label="Право" boxClassName="mt-1" className="ml-2" />);
+    box = screen.getByRole('checkbox', { name: 'Право' }).parentElement!;
     expect(box.className).toMatch(/(^|\s)mt-1(\s|$)/);
-    expect(box.className).not.toMatch(/opacity-70/);
-    expect(box.closest('label')!.className).toMatch(/opacity-70/);
+    expect(box.className).not.toMatch(/(^|\s)ml-2(\s|$)/);
+    expect(box.closest('label')!.className).toMatch(/(^|\s)ml-2(\s|$)/);
   });
 });
 

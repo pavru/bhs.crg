@@ -261,7 +261,8 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   function rowChrome(i: number, danger = false) {
     return (
       <>
-        <Checkbox size="sm" checked={selected.has(i)} onChange={() => toggleSelect(i)}
+        {/* mr-1 — круг флажка выходит за квадрат на 11 px: без зазора он ловил бы нажатия ручки рядом. */}
+        <Checkbox checked={selected.has(i)} onChange={() => toggleSelect(i)} boxClassName="mr-1"
           aria-label={`Выбрать строку ${i + 1}`} />
         <IconButton label={`Переместить строку ${i + 1}: стрелки вверх и вниз`}
           title="Перетащить для изменения порядка (или стрелки ↑↓)"

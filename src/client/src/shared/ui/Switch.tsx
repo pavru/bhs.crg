@@ -1,37 +1,49 @@
 import { Tooltip } from './Tooltip';
 /**
- * MD3 switch (issue #197): бинарный переключатель на наших токенах. Вкл — трек `brand`, крупный
- * knob цвета `on-brand` справа (не белый: в тёмной теме трек светлый, и белый knob на нём пропадал,
- * issue #1462); выкл — контурный трек `outline`, мелкий knob слева. Доступен (role=switch).
+ * Переключатель — switch MD3 ([UI-69], issue #197). Трек 52×32, форма full. Выключенный — трек
+ * `surface-container-highest` с обводкой 2 px `outline`, ручка 16 px `outline` слева; включённый — трек
+ * `primary`, ручка 24 px `on-primary` справа (не белая: в тёмной теме трек светлый, и белая ручка на нём
+ * пропадала, issue #1462). При нажатии ручка — 28 px. Знака на ручке нет (решение владельца 31.10.2026),
+ * размер один. Слой состояния — круг 40 px вокруг ручки, загорается от всего трека. В строке с подписью
+ * переключатель стоит в конце строки.
+ *
+ * Обводка — свой `span` поверх трека, а не `border` и не `inset-ring`: рамка сдвинула бы ручку на свою
+ * толщину, а `inset-ring` — это `box-shadow`, который `disabled-container` у отключённого снимает целиком.
+ * Отключённое — по MD3: трек on-surface 12 % (`disabled-container`), обводка выключенного on-surface 12 %,
+ * ручка on-surface 38 %, у включённого — `surface`. Состояние берётся из пропсов, а не `group-disabled:`:
+ * под подсказкой кнопка становится `aria-disabled`.
  */
-export function Switch({ checked, onChange, disabled, label, title, size = 'md' }: {
+export function Switch({ checked, onChange, disabled, label, title }: {
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
   label?: string;
   title?: string;
-  size?: 'sm' | 'md';
 }) {
-  const track = size === 'sm' ? 'w-9 h-5' : 'w-11 h-6';
-  const knobOn = size === 'sm' ? 'w-3.5 h-3.5 right-0.5' : 'w-5 h-5 right-0.5';
-  const knobOff = size === 'sm' ? 'w-2.5 h-2.5 left-[3px]' : 'w-3 h-3 left-1';
+  const handle = disabled
+    ? (checked ? 'size-6 bg-surface' : 'size-4 bg-on-surface/38')
+    : (checked ? 'size-6 bg-on-primary group-active:size-7' : 'size-4 bg-outline group-active:size-7');
+  const layer = disabled ? ''
+    : `state-layer state-layer-group ${checked ? '[--_state-color:var(--color-primary)]' : '[--_state-color:var(--color-on-surface)]'}`;
   return (
     <Tooltip content={title}>
       <button
         type="button" role="switch" aria-checked={checked} aria-label={label} disabled={disabled}
         onClick={() => onChange(!checked)}
-        // Слой — цветом on-surface поверх дорожки любого положения; отключённое — по MD3: дорожка
-        // on-surface 12 %, ползунок on-surface 38 % (у включённого — surface).
-        className={`group relative inline-flex shrink-0 items-center rounded-full state-layer [--_state-color:var(--color-on-surface)] focus-ring disabled-container disabled:cursor-not-allowed ${track} ${
-          checked ? 'bg-primary' : 'bg-surface border-2 border-outline'
+        className={`group relative inline-flex h-8 w-13 shrink-0 rounded-full focus-ring disabled-container disabled:cursor-not-allowed ${
+          checked ? 'bg-primary' : 'bg-surface-container-highest'
         }`}
       >
-        <span
-          aria-hidden="true"
-          className={`absolute rounded-full transition-[width,height] duration-150 ease-standard ${
-            checked ? `bg-on-primary group-disabled:bg-surface ${knobOn}` : `bg-outline group-disabled:bg-on-surface/38 ${knobOff}`
-          }`}
-        />
+        {!checked && (
+          <span aria-hidden="true" data-outline
+            className={`pointer-events-none absolute inset-0 rounded-full border-2 ${disabled ? 'border-on-surface/12' : 'border-outline'}`} />
+        )}
+        {/* Центр ручки — 16 px от края трека: круг слоя 40 px стоит на −4 px и на 16 px. */}
+        <span aria-hidden="true"
+          className={`absolute top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full [--_also-transition:left] ${
+            checked ? 'left-4' : '-left-1'} ${layer}`}>
+          <span className={`rounded-full transition-[width,height,background-color] duration-150 ease-standard ${handle}`} />
+        </span>
       </button>
     </Tooltip>
   );

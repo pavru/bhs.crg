@@ -185,7 +185,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
                 return (
                   <label key={t.id}
                     className={`state-layer flex items-center gap-2 pr-2.5 text-body-medium border-l-2 cursor-pointer ${focused ? 'bg-primary-container border-primary' : 'border-transparent'}`}>
-                    <Checkbox size="sm" checked={selected} disabled={setTemplatesMutation.isPending}
+                    <Checkbox checked={selected} disabled={setTemplatesMutation.isPending}
                       onChange={v => { toggleTemplate(t.id, v); setChosenFocus(t.id); }}
                       aria-label={`Использовать шаблон «${t.name}» для генерации`}
                       boxClassName="ml-2.5" />

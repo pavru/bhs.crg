@@ -190,7 +190,7 @@ function SectionRows({ rows, unit, off, state, onToggle }: {
     {
       key: 'pick', label: 'Выбрать', width: 'w-10',
       cell: r => (pickable(r)
-        ? <Checkbox size="sm" checked={!off.has(r.id)} onChange={on => onToggle(r.id, on)} aria-label={`Строка ${rowNumber(r)}`} />
+        ? <Checkbox checked={!off.has(r.id)} onChange={on => onToggle(r.id, on)} aria-label={`Строка ${rowNumber(r)}`} />
         : null),
     },
     { key: 'number', label: '№', width: 'w-14', cell: r => <span className="tabular-nums text-on-surface-variant">{rowNumber(r)}</span> },

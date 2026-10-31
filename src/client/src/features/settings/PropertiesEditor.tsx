@@ -20,6 +20,9 @@ import { nextAutoKey } from './schemaConstants';
 import { useRegisterEditor } from './typeEditorRegistry';
 import { toParentPickTypes } from './documentTypeHelpers';
 
+/** Строка переключателя: подпись с пояснением слева, переключатель в конце, высота 48 ([UI-69], [UI-70]). */
+const SWITCH_ROW = 'flex min-h-12 max-w-xl items-center justify-between gap-4 select-none';
+
 // ─── Properties editor ─────────────────────────────────────────────────────────
 
 function getDescendantIds(id: string, allDocTypes: DocumentType[]): Set<string> {
@@ -150,22 +153,27 @@ export function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentTy
         {ownerError && <p className="mt-1 text-body-small text-error">{ownerError}</p>}
       </div>
       {/* Прокси/абстрактность — отдельные мгновенные переключатели (не часть формы «Сохранить
-          параметры»): каждый — своя мутация, применяется сразу по щелчку (issue #197 Фаза C). */}
-      <div className="flex flex-col gap-2 pt-1">
-        <label className="flex items-center gap-2.5 select-none">
-          <Switch checked={docType.allowsProxy} size="sm" label="Роль/прокси"
+          параметры»): каждый — своя мутация, применяется сразу по щелчку (issue #197 Фаза C).
+          Строка 48, переключатель — в конце строки, как у MD3 ([UI-69]). */}
+      <div className="flex flex-col pt-1">
+        <label className={SWITCH_ROW}>
+          <span className="min-w-0">
+            <span className="block text-body-medium text-on-surface">Роль/прокси</span>
+            <span className="block text-body-small text-on-surface-variant">Тип может подменять другой при генерации</span>
+          </span>
+          <Switch checked={docType.allowsProxy} label="Роль/прокси"
             disabled={proxyMutation.isPending}
             onChange={v => proxyMutation.mutate({ id: docType.id, allowsProxy: v })} />
-          <span className="text-body-medium text-on-surface-variant">Роль/прокси</span>
-          <span className="text-body-small text-on-surface-variant">— тип может подменять другой при генерации</span>
         </label>
         {docType.kind === 'Document' && (
-          <label className="flex items-center gap-2.5 select-none">
-            <Switch checked={docType.isAbstract} size="sm" label="Абстрактный"
+          <label className={SWITCH_ROW}>
+            <span className="min-w-0">
+              <span className="block text-body-medium text-on-surface">Абстрактный</span>
+              <span className="block text-body-small text-on-surface-variant">Нельзя добавить в комплект напрямую</span>
+            </span>
+            <Switch checked={docType.isAbstract} label="Абстрактный"
               disabled={abstractMutation.isPending}
               onChange={v => abstractMutation.mutate({ id: docType.id, isAbstract: v })} />
-            <span className="text-body-medium text-on-surface-variant">Абстрактный</span>
-            <span className="text-body-small text-on-surface-variant">— нельзя добавить в комплект напрямую</span>
           </label>
         )}
       </div>
