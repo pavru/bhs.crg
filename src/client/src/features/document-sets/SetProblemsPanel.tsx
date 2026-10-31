@@ -5,7 +5,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Balance, OpenInNew, PlayArrow, SmartToy, TableChart, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import {
   useRelatedProblems, useRunReconciliation, useReconciliationRuns, useFindings,
   useSetDecision, useRemoveDecision, downloadDiscrepancyReport,
@@ -88,7 +88,7 @@ function ReconciliationBlock({ id, name, unresolved }: {
   const run = useRunReconciliation();
   const setDecision = useSetDecision();
   const removeDecision = useRemoveDecision();
-  const toast = useToast();
+  const toast = useSnackbar();
   const [onlyOpen, setOnlyOpen] = useState(true);
   const [deciding, setDeciding] = useState<Finding | null>(null);
 
@@ -213,7 +213,7 @@ export function SetProblemsPanel({ setId, setName, documentNames }: {
   const { constructionId } = useParams<{ constructionId: string }>();
   const { data: problems } = useRelatedProblems('Set', setId);
   const { data: observations = [] } = useObservations(setId);
-  const toast = useToast();
+  const toast = useSnackbar();
   const [busy, setBusy] = useState(false);
   const [reviewing, setReviewing] = useState<Observation | null>(null);
 

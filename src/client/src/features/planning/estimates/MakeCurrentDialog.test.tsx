@@ -8,7 +8,7 @@ import { MakeCurrentDialog } from './MakeCurrentDialog';
 
 vi.mock('@/shared/api/client', () => ({ apiClient: { post: vi.fn(), get: vi.fn(), put: vi.fn(), delete: vi.fn() } }));
 const success = vi.fn();
-vi.mock('@/shared/ui/Toast', () => ({ useToast: () => ({ success, error: vi.fn(), apiError: vi.fn() }) }));
+vi.mock('@/shared/ui/Snackbar', () => ({ useSnackbar: () => ({ success, error: vi.fn(), apiError: vi.fn() }) }));
 
 /**
  * «Сделать действующей» (plan-09, задача 2.4, ТЗ PLAN-5.2, решение В-5): расхождения — с сервера; отказ 409

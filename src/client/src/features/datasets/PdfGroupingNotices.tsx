@@ -2,7 +2,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { ContentCut, Warning } from '@/shared/ui/icons';
 import { useRecutGrouping } from '@/shared/api/datasets';
 import { Button } from '@/shared/ui/Button';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ruCount } from '@/shared/utils/pluralize';
 
 /**
@@ -25,7 +25,7 @@ export function MissingPartsNotice({ fileId, missing, dirty }: {
   dirty: boolean;
 }) {
   const recut = useRecutGrouping(fileId);
-  const toast = useToast();
+  const toast = useSnackbar();
   if (missing <= 0) return null;
 
   return (

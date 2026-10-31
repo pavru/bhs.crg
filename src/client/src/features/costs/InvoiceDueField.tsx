@@ -3,7 +3,7 @@ import { RestartAlt } from '@/shared/ui/icons';
 import { useDueByRule, type InvoiceView } from '@/shared/api/invoices';
 import { Button } from '@/shared/ui/Button';
 import { DateField } from '@/shared/ui/DateField';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { asInput, K } from './invoiceFields';
 import { dueState, hints } from './invoiceDue';
 
@@ -18,7 +18,7 @@ export function InvoiceDueField({ view, edits, current, set, locked, hint, requi
   set: (key: string, next: unknown) => void;
   locked: boolean; hint?: string; required: boolean; frame: string;
 }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const byRule = useDueByRule();
   const { note, offerRule } = dueState(view, edits, locked);
 

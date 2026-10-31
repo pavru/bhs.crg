@@ -2,7 +2,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { DocumentScanner, Refresh, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useStartRecognition, type InvoiceRecognition } from '@/shared/api/invoiceRecognition';
 import { useInvoiceDelete } from './invoiceDelete';
 import { failureNote, unusedLinesNote, type FieldOffer } from './recognition';
@@ -41,7 +41,7 @@ export function RecognitionBanner({ invoiceId, recognition, unread, onRetryRead,
   canEdit: boolean;
 }) {
   const start = useStartRecognition();
-  const toast = useToast();
+  const toast = useSnackbar();
   const askDelete = useInvoiceDelete();
 
   if (unread) {
@@ -110,7 +110,7 @@ export function RecognitionStart({ invoiceId, recognition, explain }: {
   explain: boolean;
 }) {
   const start = useStartRecognition();
-  const toast = useToast();
+  const toast = useSnackbar();
   if (recognition?.state !== 'none') return null;
   if (!recognition.canStart)
     return explain && recognition.whyNot ? <span className="text-body-small text-on-surface-variant">Не распознаётся: {recognition.whyNot}</span> : null;

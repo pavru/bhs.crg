@@ -10,7 +10,7 @@ import { moveItem } from '@/shared/utils/moveItem';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
 import { useServerForm } from '@/shared/hooks/useServerForm';
 import { rowKey, withRowUid, withRowUids } from '@/shared/utils/rowIdentity';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ListDetailShell, NavSearchInput, NavSection, DetailHeader, DetailTitle } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
 import {
@@ -141,7 +141,7 @@ function ShapeEditor({ shape, onChange }: { shape: RecognitionTableShape; onChan
 // ─── Детальная панель ──────────────────────────────────────────────────────────
 
 function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const update = useUpdateRecognitionProfile();
   const reset = useResetRecognitionProfile();
   const del = useDeleteRecognitionProfile();

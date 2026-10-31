@@ -8,7 +8,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { formatDate } from '@/shared/format/format';
 import { apiError } from '@/shared/utils/apiError';
 import { useCostsOrganizations } from '@/shared/api/invoices';
@@ -32,7 +32,7 @@ export function SupplierTermsDialog({ onClose }: { onClose: () => void }) {
   const organizations = useCostsOrganizations('choice');
   const save = useSetSupplierTerms();
   const remove = useRemoveSupplierTerms();
-  const toast = useToast();
+  const toast = useSnackbar();
 
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [newDays, setNewDays] = useState('');

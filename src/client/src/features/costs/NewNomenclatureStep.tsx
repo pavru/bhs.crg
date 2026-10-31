@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from '@/shared/ui/Button';
 import { ModalExit } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
 import {
   existingPosition, useCreateNomenclature, useNomenclatureIntake, useSimilarNomenclature,
@@ -44,7 +44,7 @@ export function NewNomenclatureStep({ from, plate, narrow, onBack, onPick }: {
   onBack: () => void;
   onPick: (id: string, name: string | null) => void;
 }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const kinds = useNomenclatureIntake();
   const create = useCreateNomenclature();
   const [chosen, setChosen] = useState<string | null>(null);

@@ -24,7 +24,7 @@ import { DocumentStatusBadge } from './fields';
 import { useSiteFilter, useSiteFilterState } from '@/shared/siteFilter/siteFilterContext';
 import { FavoriteStar } from '@/shared/siteFilter/SiteFilterNotes';
 import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { documentPath } from './documentPath';
@@ -103,7 +103,7 @@ export function ConstructionsList() {
   const { data: constructions = [], isLoading } = useListConstructions();
   // Список строек — первый потребитель избранного (#1218): урезается, и отбор «Стройки» стоит над ним (#1432).
   const filter = useSiteFilter();
-  const toast = useToast();
+  const toast = useSnackbar();
   // Стройки, оставленные на экране после щелчка по звезде: снятая не исчезает из-под курсора, а
   // первая звезда не сжимает список до одной карточки, пока человек не ушёл с экрана (§62.2).
   const [kept, setKept] = useState<ReadonlySet<string>>(() => new Set());

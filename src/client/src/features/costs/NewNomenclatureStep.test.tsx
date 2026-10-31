@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 import type { IntakeKind } from '@/shared/api/nomenclatureIntake';
-import { ToastProvider } from '@/shared/ui/ToastProvider';
+import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
 import { NewNomenclatureStep } from './NewNomenclatureStep';
 
 /**
@@ -39,9 +39,9 @@ const pause = (ms: number) => act(() => new Promise(r => setTimeout(r, ms)));
 function step() {
   return render(
     <QueryClientProvider client={new QueryClient()}>
-      <ToastProvider>
+      <SnackbarProvider>
         <NewNomenclatureStep from={{ name: 'ВВГнг 3х2,5' }} plate={null} narrow onBack={() => {}} onPick={() => {}} />
-      </ToastProvider>
+      </SnackbarProvider>
     </QueryClientProvider>,
   );
 }

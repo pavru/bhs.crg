@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ToastProvider } from '@/shared/ui/ToastProvider';
+import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
 import { apiClient } from '@/shared/api/client';
 import { SiteFilterContext, type SiteFilterValue } from '@/shared/siteFilter/siteFilterContext';
 import { filterState, isVisible } from '@/shared/siteFilter/rule';
@@ -76,9 +76,9 @@ async function shown(filter: Filter = {}, periods: unknown = PERIODS) {
   answer(periods);
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <ToastProvider>
+      <SnackbarProvider>
         <SiteFilterContext.Provider value={filterOf(filter)}><PeriodsPage /></SiteFilterContext.Provider>
-      </ToastProvider>
+      </SnackbarProvider>
     </QueryClientProvider>,
   );
   for (let i = 0; i < 4; i++) await tick();

@@ -5,7 +5,7 @@ import { AttachFile, ChevronRight, Close, KeyboardArrowDown, Monitor, Warning } 
 import { Modal, ModalExit } from './Modal';
 import { Button } from './Button';
 import { TextAreaField } from './TextAreaField';
-import { useToast } from './Toast';
+import { useSnackbar } from './Snackbar';
 import { useAppVersion } from '@/shared/api/version';
 import { uploadAttachment } from '@/shared/api/attachments';
 import { collectBugReportTech, submitBugReport } from '@/shared/api/bugReports';
@@ -37,7 +37,7 @@ export function BugReportDialog({ open, prefill, onClose }: {
   prefill: BugReportPrefill;
   onClose: () => void;
 }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const { data: version } = useAppVersion();
   // Начальное значение — из предзаполнения двери, через которую пришли. Синхронизировать
   // эффектом нечего: провайдер пересоздаёт форму при каждом открытии (ключ = номер открытия).

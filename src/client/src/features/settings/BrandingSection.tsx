@@ -4,7 +4,7 @@ import { Delete, Upload, Warning } from '@/shared/ui/icons';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { brandIconUrl } from '@/shared/ui/brandIcons';
 import { useImageFailure } from '@/shared/ui/useImageFailure';
@@ -40,7 +40,7 @@ export function BrandingSection() {
   const saveName = useSaveProductName();
   const uploadLogo = useUploadLogo();
   const removeLogo = useRemoveLogo();
-  const toast = useToast();
+  const toast = useSnackbar();
   const fileInput = useRef<HTMLInputElement>(null);
 
   // Значение формы = правка пользователя, иначе сохранённое. Эффектом не синхронизируем: ввод

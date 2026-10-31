@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useAccountingCurrency, useSaveAccountingCurrency } from '@/shared/api/accountingCurrency';
 import { currencyTitle } from './companySettings';
@@ -19,7 +19,7 @@ import { CompanyTimeZone } from './CompanyTimeZone';
 export function CompanySection() {
   const { data, isError, refetch } = useAccountingCurrency();
   const save = useSaveAccountingCurrency();
-  const toast = useToast();
+  const toast = useSnackbar();
   // Правка, а не копия ответа: эффектом не синхронизируем — выбор затирался бы ответом сервера.
   const [picked, setPicked] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);

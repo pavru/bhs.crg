@@ -18,7 +18,7 @@ import { typeHealth, healthBadgeLabel } from './typeHealth';
 import { TYPE_LABELS } from './schemaConstants';
 import { DetailHeader, DetailTitle } from '@/shared/ui/ListDetailShell';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { PropertiesEditor } from './PropertiesEditor';
 import { SchemaEditor } from './SchemaEditor';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -38,7 +38,7 @@ export function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, 
 }) {
   const deleteMutation = useDeleteDocumentType();
   const { data: usage } = useDocumentTypeUsage(docType.id);
-  const toast = useToast();
+  const toast = useSnackbar();
   const groupMutation = useSetDocumentTypeGroup();
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);

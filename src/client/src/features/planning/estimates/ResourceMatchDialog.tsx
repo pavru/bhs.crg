@@ -9,7 +9,7 @@ import {
 import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
 import { formatCount, formatQuantity } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
@@ -89,7 +89,7 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
   place: string;
   onDone: () => void;
 }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const [typed, setTyped] = useState('');
   const [query, setQuery] = useState('');
   const timer = useRef<number | null>(null);

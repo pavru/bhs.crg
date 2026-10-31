@@ -15,7 +15,7 @@ import { RevealItem, SiteSelectItems } from '@/shared/siteFilter/SiteOptions';
 import { pickSite, REVEAL_CHOICE, useSiteChoices } from '@/shared/siteFilter/siteReveal';
 import { TabPanel, Tabs } from '@/shared/ui/Tabs';
 import { TextField } from '@/shared/ui/TextField';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { WindowStep } from '@/shared/ui/WindowStep';
 import { formatBytes, formatCount } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
@@ -67,7 +67,7 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
   const [confirming, setConfirming] = useState(false);
   const [refusing, setRefusing] = useState(false);
 
-  const toast = useToast();
+  const toast = useSnackbar();
   const start = useStartImport();
   const commit = useCommitImport();
   const cancel = useCancelImport();

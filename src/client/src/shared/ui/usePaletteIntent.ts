@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useRef } from 'react';
 import { useLocation, useSearchParams } from 'react-router';
 import { hasPermission, useAccess } from '@/shared/api/access';
 import { INTENT_PARAM, type PaletteAction } from './paletteActions';
-import { useToast } from './Toast';
+import { useSnackbar } from './Snackbar';
 
 /**
  * Экран принимает действие командной палитры (issue #1433): адрес пришёл с `?do=<действие>` — экран
@@ -36,7 +36,7 @@ export function usePaletteIntent(action: PaletteAction, run: () => void, { busy 
   const done = useRef<string | null>(null);
   // Принято, но не исполнено: ждёт отрисовки без параметра.
   const pending = useRef(false);
-  const toast = useToast();
+  const toast = useSnackbar();
   const execute = useEffectEvent(() => {
     if (busy) toast.info(`«${action.label}» не выполнено: экран ещё занят предыдущим. Повторите, когда оно закончится.`);
     else run();

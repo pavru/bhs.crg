@@ -23,7 +23,7 @@ vi.mock('@/shared/api/allocationMatrix', () => ({
   usePreviewAllocation: () => ({ mutateAsync: api.preview, isPending: false }),
   useReplaceMatrix: () => ({ mutateAsync: api.replace, isPending: false }),
 }));
-vi.mock('@/shared/ui/Toast', () => ({ useToast: () => ({ apiError: vi.fn() }) }));
+vi.mock('@/shared/ui/Snackbar', () => ({ useSnackbar: () => ({ apiError: vi.fn() }) }));
 vi.mock('./useCorrectionDraft', () => ({ useCorrecting: () => null }));
 vi.mock('./AllocationMatrix', () => ({ AllocationMatrix: () => <div data-testid="matrix" /> }));
 vi.mock('./places', async original => ({ ...await original<typeof import('./places')>(), usePlaces: () => PLACES }));

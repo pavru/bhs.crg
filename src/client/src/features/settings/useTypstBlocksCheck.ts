@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useValidateTypstBlocks, type TypstBlockProblem } from '@/shared/api/documentTypes';
 import type { TypstRender } from '@/shared/api/schema';
 
@@ -13,7 +13,7 @@ import type { TypstRender } from '@/shared/api/schema';
  */
 export function useTypstBlocksCheck(typeId: string, onSelectType: (id: string) => void) {
   const validate = useValidateTypstBlocks();
-  const toast = useToast();
+  const toast = useSnackbar();
   const [problems, setProblems] = useState<TypstBlockProblem[] | null>(null);
 
   async function run(renders: TypstRender[]) {

@@ -3,7 +3,7 @@ import { Archive, Unarchive } from '@/shared/ui/icons';
 import { useSetCommonDataArchive, type ArchivedTwin } from '@/shared/api/commonData';
 import { useCan } from '@/shared/api/access';
 import { Button } from '@/shared/ui/Button';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 
 /**
  * «Такая запись есть в архиве» в форме новой записи (issue #1185). Сервер отказал в создании: ключ
@@ -23,7 +23,7 @@ export function ArchivedTwinNote({ twin, busy, onReturned, onCreateAnyway }: {
 }) {
   const unarchive = useSetCommonDataArchive();
   const canReturn = useCan().permission('core.catalog.edit');
-  const toast = useToast();
+  const toast = useSnackbar();
 
   async function giveBack() {
     try {

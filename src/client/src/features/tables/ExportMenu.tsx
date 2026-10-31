@@ -3,7 +3,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Download } from '@/shared/ui/icons';
 import { exportTable, type TableColumn, type TableExportBody } from '@/shared/api/tables';
 import { formatCount } from '@/shared/format/format';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ruPlural } from '@/shared/utils/pluralize';
 import { TableDataSetDialog } from './TableDataSetDialog';
 import { Chip } from '@/shared/ui/Chip';
@@ -30,7 +30,7 @@ export function ExportMenu({ address, count, body, xlsx: canXlsx, dataset }: {
   /** Мост в наборы доступен: название по умолчанию и колонки экрана. Не назван — пункта нет. */
   dataset?: { name: string; columns: TableColumn[]; all: TableColumn[] };
 }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const [busy, setBusy] = useState(false);
   const [bridging, setBridging] = useState(false);
 

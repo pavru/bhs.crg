@@ -11,7 +11,7 @@ import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ListDetailShell, NavSearchInput } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useCloseGone } from '@/shared/hooks/useCloseGone';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import { apiError } from '@/shared/utils/apiError';
@@ -76,7 +76,7 @@ export function WaybillsPage() {
   const { waybills, stale, hidden } = filter;
   const sites = useCostsConstructions();
   const create = useCreateWaybill();
-  const toast = useToast();
+  const toast = useSnackbar();
   const qc = useQueryClient();
 
   // Накладную удалили, пока она была открыта (issue #1283): чтение отвечает «нет такой», а прежний

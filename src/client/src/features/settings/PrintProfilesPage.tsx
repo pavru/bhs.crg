@@ -5,7 +5,7 @@ import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { Tooltip } from '@/shared/ui/Tooltip';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ListDetailShell } from '@/shared/ui/ListDetailShell';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
@@ -133,7 +133,7 @@ function ProfileRow({ profile, active, onClick }: { profile: PrintProfile; activ
 function CreateForm({ names, base, onCreated, onCancel }: {
   names: string[]; base: PrintProfile | undefined; onCreated: (id: string) => void; onCancel: () => void;
 }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const create = useCreatePrintProfile();
   const [name, setName] = useState('');
   const [error, setError] = useState<string | undefined>();

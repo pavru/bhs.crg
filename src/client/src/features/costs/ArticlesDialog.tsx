@@ -5,7 +5,7 @@ import { ArchivedRows } from '@/shared/ui/ArchivedRows';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { ConfirmDialog, type RefusalExit } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import {
   useCostsArticles, useDeleteArticle, useSaveArticle, useSetArticleArchive, type CostsArticle,
 } from '@/shared/api/articles';
@@ -27,7 +27,7 @@ export function ArticlesDialog({ onClose }: { onClose: () => void }) {
   const save = useSaveArticle();
   const remove = useDeleteArticle();
   const archive = useSetArticleArchive();
-  const toast = useToast();
+  const toast = useSnackbar();
 
   const [name, setName] = useState('');
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);

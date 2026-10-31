@@ -7,7 +7,7 @@ import { Button } from '@/shared/ui/Button';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
 import { formatCount, formatMoney, formatQuantity } from '@/shared/format/format';
 
@@ -43,7 +43,7 @@ function Body({ estimateId, revisionId, make, onDone }: {
   onDone: () => void;
 }) {
   const preview = useCurrentRevisionPreview(estimateId, revisionId);
-  const toast = useToast();
+  const toast = useSnackbar();
   const [refusal, setRefusal] = useState<PlanRefusal | null>(null);
 
   const submit = (seen: CurrentRevisionPreview) => {

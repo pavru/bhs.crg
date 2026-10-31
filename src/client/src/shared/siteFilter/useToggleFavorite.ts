@@ -1,4 +1,4 @@
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useSiteFilterState } from './siteFilterContext';
 
 /**
@@ -7,7 +7,7 @@ import { useSiteFilterState } from './siteFilterContext';
  */
 export function useToggleFavorite() {
   const filter = useSiteFilterState();
-  const toast = useToast();
+  const toast = useSnackbar();
 
   async function toggle(id: string, favorite: boolean): Promise<boolean> {
     const first = favorite && filter.favorites.size === 0;

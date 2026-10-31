@@ -9,7 +9,7 @@ import { REVISION, line } from './matchFixtures';
 
 vi.mock('@/shared/api/client', () => ({ apiClient: { post: vi.fn(), get: vi.fn(), put: vi.fn(), delete: vi.fn() } }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), apiError: vi.fn() }));
-vi.mock('@/shared/ui/Toast', () => ({ useToast: () => toast }));
+vi.mock('@/shared/ui/Snackbar', () => ({ useSnackbar: () => toast }));
 let permissions: string[] = [];
 vi.mock('@/shared/api/access', () => ({
   useCan: () => ({ permission: (code: string) => permissions.includes(code), module: () => true }),

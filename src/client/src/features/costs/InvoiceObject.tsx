@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { GridOn } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import type { InvoiceView } from '@/shared/api/invoices';
 import { usePreviewAllocation, useReplaceMatrix } from '@/shared/api/allocationMatrix';
@@ -40,7 +40,7 @@ export function InvoiceObject({ view, locked }: {
   const places = usePlaces();
   const previewing = usePreviewAllocation();
   const replace = useReplaceMatrix();
-  const toast = useToast();
+  const toast = useSnackbar();
   const [matrix, setMatrix] = useState<null | { initial?: InitialPreview }>(null);
 
   const current = headerObject(view);

@@ -30,7 +30,7 @@ import { JsonPreview } from './FieldBuilder';
 import type { FieldRegistries } from './fieldTypeOptions';
 import { SectionCard } from './typeEditorShell';
 import { useRegisterEditor } from './typeEditorRegistry';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { InheritedFieldsPanel } from './InheritedFieldsPanel';
 import { Chip } from '@/shared/ui/Chip';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
@@ -85,7 +85,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
   // после успешного сохранения схемы предлагаем перенести данные документов старый→новый.
   const renamesRef = useRef<Map<string, string>>(new Map());
   const migrateKey = useMigrateFieldKey(docType.id);
-  const schemaToast = useToast();
+  const schemaToast = useSnackbar();
   const [pendingMigration, setPendingMigration] = useState<{ from: string; to: string }[] | null>(null);
   // Гейт правки полей-идентификаторов (issue #584): держим решение пользователя как промис, потому
   // что спрашивать надо ВНУТРИ save() — до записи схемы, а не после, когда связки уже осиротели.

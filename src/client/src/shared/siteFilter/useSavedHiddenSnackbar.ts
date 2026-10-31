@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 
 /**
- * Тост после СВОЕЙ записи, которая увела открытый документ из списка под «Избранными стройками»
+ * Уведомление после СВОЕЙ записи, которая увела открытый документ из списка под «Избранными стройками»
  * (рейл счетов #1221, накладные #1222). Одна логика на оба экрана (ревью PR #1335).
  *
  * <p>Решение — по прежнему и новому виду документа, а не по списку: список перечитывается позже, и
@@ -14,15 +14,15 @@ import { useToast } from '@/shared/ui/Toast';
  * @param subscribe подписка на свои записи документа (`onInvoiceWritten`, `onWaybillWritten`) — функция
  *     модуля, не замыкание: иначе подписка пересоздавалась бы на каждый кадр
  * @param hides скрыт ли документ с таким видом — читается в момент записи, а не при подписке
- * @returns решение тоста — для проверок
+ * @returns решение об уведомлении — для проверок
  */
-export function useSavedHiddenToast<V extends { id: string }>(
+export function useSavedHiddenSnackbar<V extends { id: string }>(
   subscribe: (qc: QueryClient, listener: (before: V | undefined, after: V) => void) => () => void,
   { selected, hides, text, showAll }: {
     selected: string | null; hides: (view: V) => boolean; text: string; showAll: () => void;
   },
 ) {
-  const toast = useToast();
+  const toast = useSnackbar();
   const qc = useQueryClient();
   const now = useRef({ selected, hides, showAll });
   useLayoutEffect(() => { now.current = { selected, hides, showAll }; });

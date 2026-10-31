@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ToastProvider } from '@/shared/ui/ToastProvider';
+import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
 import { apiClient } from '@/shared/api/client';
 import type { PrintProfile } from '@/shared/api/printProfiles';
 import { PrintProfileDetail } from './PrintProfileDetail';
@@ -34,10 +34,10 @@ const own: PrintProfile = {
 function shown(profile: PrintProfile, otherNames: string[] = []) {
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <ToastProvider>
+      <SnackbarProvider>
         <PrintProfileDetail profile={profile} otherNames={otherNames} onDeleted={() => {}}
           onEditState={() => {}} saveRef={{ current: () => Promise.resolve() }} />
-      </ToastProvider>
+      </SnackbarProvider>
     </QueryClientProvider>,
   );
 }

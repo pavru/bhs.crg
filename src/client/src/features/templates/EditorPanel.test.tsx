@@ -34,7 +34,7 @@ vi.mock('@/shared/ui/CodeEditor', () => ({
 vi.mock('@/shared/ui/themeContext', () => ({ useTheme: () => ({ resolvedTheme: 'light' }) }));
 vi.mock('@/shared/ui/typstUserLibCompletion', () => ({ useUserLibCompletion: () => {} }));
 vi.mock('@/shared/ui/typstAssetCompletion', () => ({ useAssetCompletion: () => {} }));
-vi.mock('@/shared/ui/Toast', () => ({ useToast: () => ({ info: vi.fn(), success: vi.fn(), error: vi.fn() }) }));
+vi.mock('@/shared/ui/Snackbar', () => ({ useSnackbar: () => ({ info: vi.fn(), success: vi.fn(), error: vi.fn() }) }));
 vi.mock('./TemplateParamsPanel', () => ({ TemplateParamsPanel: () => null }));
 vi.mock('./TemplateAssetsPanel', () => ({ TemplateAssetsPanel: () => null }));
 

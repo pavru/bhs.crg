@@ -4,7 +4,7 @@ import { Check, Close, LinkIcon, LinkOff } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import {
   useAliases, useReviewAlias, useDeleteAlias,
   ALIAS_STATUS_LABELS, type ReconciliationAlias,
@@ -27,7 +27,7 @@ export function AliasesPanel() {
   const { data: items = [], isLoading } = useAliases();
   const review = useReviewAlias();
   const remove = useDeleteAlias();
-  const toast = useToast();
+  const toast = useSnackbar();
   const [breaking, setBreaking] = useState<ReconciliationAlias | null>(null);
 
   return (

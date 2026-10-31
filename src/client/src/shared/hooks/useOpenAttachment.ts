@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 
 /**
  * Открыть вложение во вкладке так, чтобы отказ увидели на месте ([UI-27], issue #1494): у вкладки свой
@@ -9,7 +9,7 @@ import { useToast } from '@/shared/ui/Toast';
  * ради «открывается…» на кнопке.
  */
 export function useOpenAttachment(): (blobPath: string) => Promise<void> {
-  const toast = useToast();
+  const toast = useSnackbar();
   return useCallback(
     (blobPath: string) => openAttachmentInNewTab(blobPath).catch((e: unknown) => toast.apiError(e, 'Не удалось открыть файл')),
     [toast],

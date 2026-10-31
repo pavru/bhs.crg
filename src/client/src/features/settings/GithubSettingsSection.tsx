@@ -4,7 +4,7 @@ import { Check, OpenInNew } from '@/shared/ui/icons';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useIntegrationSettings, useSaveGithubSettings } from '@/shared/api/integrationSettings';
 import { ProxyToggle } from './ProxyToggle';
 
@@ -26,7 +26,7 @@ function normalizeRepository(value: string): string {
 export function GithubSettingsSection() {
   const { data, isLoading } = useIntegrationSettings();
   const save = useSaveGithubSettings();
-  const toast = useToast();
+  const toast = useSnackbar();
 
   const [repository, setRepository] = useState<string | null>(null);
   const [token, setToken] = useState('');

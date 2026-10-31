@@ -3,7 +3,7 @@ import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import type { PurgeHolder, PurgeOffer } from '@/shared/api/recordPurge';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { useHistoryLayer } from '@/shared/ui/historyLayers';
@@ -60,7 +60,7 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
   /** После успеха, вместо `onClose`: уровень удалён — со страницы надо уйти. */
   onDone?: () => void;
 }) {
-  const toast = useToast();
+  const toast = useSnackbar();
   // «Назад» на телефоне (issue #1418) — «Отмена»; пока идёт удаление, окно не закрывается ничем.
   useHistoryLayer(true, () => {
     if (pending) return false;

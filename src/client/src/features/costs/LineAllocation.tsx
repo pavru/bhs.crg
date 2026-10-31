@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Save } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import {
   useReplaceAllocation, type AllocationSummaryView, type InvoiceLineView, type InvoiceView,
@@ -136,7 +136,7 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
 
   const places = usePlaces();
   const replace = useReplaceAllocation();
-  const toast = useToast();
+  const toast = useSnackbar();
 
   const byQuantity = mode === 'quantity';
   const unit = line.unit ?? '';

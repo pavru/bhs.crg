@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { ToastProvider } from '@/shared/ui/ToastProvider';
+import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
 import { apiClient } from '@/shared/api/client';
 import type { FileKindsInfo } from '@/shared/api/fileKinds';
 import { preloadPdfViewer } from '@/shared/ui/viewer/viewerGate';
@@ -82,9 +82,9 @@ afterEach(() => {
 function shown(fileName = 'Счёт 417') {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <ToastProvider>
+      <SnackbarProvider>
         <ScanTooNarrow invoiceId="i1" blobPath="files/a" fileName={fileName} width={1100} />
-      </ToastProvider>
+      </SnackbarProvider>
     </QueryClientProvider>,
   );
 }

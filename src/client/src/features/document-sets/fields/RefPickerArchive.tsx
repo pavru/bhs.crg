@@ -4,7 +4,7 @@ import { useSetCommonDataArchive } from '@/shared/api/commonData';
 import { useCan } from '@/shared/api/access';
 import type { CommonDataEntry } from '@/shared/api/types';
 import { Button } from '@/shared/ui/Button';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ARCHIVED_WORD } from '@/shared/ui/archive';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
@@ -50,7 +50,7 @@ export function RefPickerArchive({ entries, onReturned, selectsAtOnce }: {
 }) {
   const unarchive = useSetCommonDataArchive();
   const canReturn = useCan().permission('core.catalog.edit');
-  const toast = useToast();
+  const toast = useSnackbar();
 
   async function giveBack(entry: CommonDataEntry) {
     try {

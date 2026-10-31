@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useCompanyTimeZone, useSaveCompanyTimeZone } from '@/shared/api/companyTimeZone';
 import { SERVER_ZONE, companyNow, zoneChoices, zoneNotice } from './companySettings';
 
@@ -19,7 +19,7 @@ export function CompanyTimeZone({ onDirty }: {
 }) {
   const { data, isError, refetch } = useCompanyTimeZone();
   const save = useSaveCompanyTimeZone();
-  const toast = useToast();
+  const toast = useSnackbar();
   // Правка, а не копия ответа: эффектом не синхронизируем — выбор затирался бы ответом сервера.
   const [picked, setPicked] = useState<string | null>(null);
 

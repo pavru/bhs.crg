@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useDeleteInvoice, useFreshInvoice, type CostsOrganization, type InvoiceView } from '@/shared/api/invoices';
 import { K, duplicateLabel, refEntryId, sameFileLabel } from './invoiceFields';
 import {
@@ -36,7 +36,7 @@ export function InvoiceDeleteProvider({ view, canEdit, dirty, reading, organizat
   children: ReactNode;
 }) {
   const remove = useDeleteInvoice();
-  const toast = useToast();
+  const toast = useSnackbar();
   const readFresh = useFreshInvoice();
   // Вместе с причиной запоминается ВЕРСИЯ, которую человек видел, открывая диалог (ревью PR #1298).
   // Вид под диалогом обновляется сам — файл дочитался, сосед сохранил, — и свежая версия под прежним

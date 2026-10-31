@@ -10,7 +10,7 @@ import { useListConstructions } from '@/shared/api/constructions';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ListDetailShell, NavSearchInput, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
 import { Checkbox } from '@/shared/ui/Checkbox';
@@ -131,7 +131,7 @@ export function ReconciliationsPage() {
   // спрятанная кнопка и не граница вовсе: её обходит запрос к API. Нужна граница — нужно право.
   const { data: access = NO_ACCESS } = useAccess();
   const canEdit = hasPermission(access, 'core.reconciliation.run');
-  const toast = useToast();
+  const toast = useSnackbar();
 
   const [search, setSearch] = useState('');
 

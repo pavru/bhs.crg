@@ -1,6 +1,6 @@
 import { onInvoiceWritten, type InvoiceListItem, type InvoiceView } from '@/shared/api/invoices';
 import { useSiteFilter } from '@/shared/siteFilter/siteFilterContext';
-import { useSavedHiddenToast } from '@/shared/siteFilter/useSavedHiddenToast';
+import { useSavedHiddenSnackbar } from '@/shared/siteFilter/useSavedHiddenSnackbar';
 import { SAVED_HIDDEN, hiddenBySite, viewSites } from './invoiceSites';
 
 /**
@@ -24,7 +24,7 @@ export function useRailSites({ cuts, list, selected, matches }: {
   const open = selected ? all.find(i => i.id === selected) : undefined;
 
   // Своя запись, уведшая открытый счёт из рейла: решает общий хук, по стройкам вида счёта.
-  const onSaved = useSavedHiddenToast<InvoiceView>(onInvoiceWritten, {
+  const onSaved = useSavedHiddenSnackbar<InvoiceView>(onInvoiceWritten, {
     selected,
     hides: view => cuts && hiddenBySite(viewSites(view), favorites),
     text: SAVED_HIDDEN,

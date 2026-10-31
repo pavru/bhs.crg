@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Block, Delete } from '@/shared/ui/icons';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useFreshInvoice, useInvoiceState, type InvoiceView } from '@/shared/api/invoices';
 import { K, REJECTED } from './invoiceFields';
 import { rejectInvoice, type RejectOutcome } from './invoiceReject';
@@ -38,7 +38,7 @@ export function InvoiceMoreMenu({ view, onRejected }: {
 }) {
   const state = useInvoiceState();
   const readFresh = useFreshInvoice();
-  const toast = useToast();
+  const toast = useSnackbar();
   const [asking, setAsking] = useState(false);
   const askDelete = useInvoiceDelete();
 

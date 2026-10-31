@@ -8,7 +8,7 @@ import type { TableColumn, TableDeclaration } from '@/shared/api/tables';
 import type { FilterGroup } from '@/shared/api/types';
 import { SiteFilterContext, type SiteFilterValue } from '@/shared/siteFilter/siteFilterContext';
 import { filterState, isVisible } from '@/shared/siteFilter/rule';
-import { ToastProvider } from '@/shared/ui/ToastProvider';
+import { SnackbarProvider } from '@/shared/ui/SnackbarProvider';
 import { TablePage } from './TablePage';
 import {
   favoriteNames, namesakes, replacesOthers, sitesChipState, sitesColumn, sitesCondition, withSitesChip,
@@ -53,13 +53,13 @@ function mount(filter: SiteFilterValue) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <ToastProvider>
+      <SnackbarProvider>
         <SiteFilterContext.Provider value={filter}>
           <BrowserRouter>
             <Routes><Route path="/tables/:address/:view?" element={<TablePage />} /></Routes>
           </BrowserRouter>
         </SiteFilterContext.Provider>
-      </ToastProvider>
+      </SnackbarProvider>
     </QueryClientProvider>,
   );
 }

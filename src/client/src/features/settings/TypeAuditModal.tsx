@@ -3,7 +3,7 @@ import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { CheckCircle, ChevronRight, Delete, KeyboardArrowDown, WandStars, Warning } from '@/shared/ui/icons';
@@ -42,7 +42,7 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
 }) {
   const { data, isLoading, isError } = useAuditDocumentType(typeId, open);
   const applyFixes = useApplyAuditFixes(typeId);
-  const toast = useToast();
+  const toast = useSnackbar();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [confirmRow, setConfirmRow] = useState<Row | null>(null);
   const [renameTarget, setRenameTarget] = useState<Record<string, string>>({});

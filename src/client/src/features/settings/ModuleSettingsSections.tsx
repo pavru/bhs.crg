@@ -3,7 +3,7 @@ import { CollapsibleSection } from './CollapsibleSection';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { Switch } from '@/shared/ui/Switch';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { LeaveGuardDialog } from '@/shared/ui/LeaveGuardDialog';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
@@ -41,7 +41,7 @@ export function ModuleSettingsSections() {
 
 function ModuleSection({ module }: { module: ModuleSettings }) {
   const save = useSaveModuleSettings();
-  const toast = useToast();
+  const toast = useSnackbar();
   const [draft, setDraft] = useState<SettingsDraft>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState(false);

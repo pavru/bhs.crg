@@ -6,7 +6,7 @@ import { Button, IconButton } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
-import { useToast } from '@/shared/ui/Toast';
+import { useSnackbar } from '@/shared/ui/Snackbar';
 import { formatDate } from '@/shared/format/format';
 import { apiError } from '@/shared/utils/apiError';
 import {
@@ -58,7 +58,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
   const forget = useForgetSupplierMatch();
   const forgetAll = useForgetSupplierMatches();
   const [forgettingAll, setForgettingAll] = useState(false);
-  const toast = useToast();
+  const toast = useSnackbar();
   // Идентификатор, а не снимок строки: версию для «Забыть» берём у строки, КАК ОНА ЛЕЖИТ В СПИСКЕ
   // сейчас, — снимок после смены позиции нёс бы прежнюю и получил бы отказ на собственную правку.
   const [forgettingId, setForgettingId] = useState<string | null>(null);
