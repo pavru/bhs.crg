@@ -1,7 +1,7 @@
 import { onWaybillWritten, useWaybills, type WaybillList, type WaybillView } from '@/shared/api/waybills';
 import { useSiteFilter } from '@/shared/siteFilter/siteFilterContext';
 import { hiddenEmpty as hiddenEmptyOf } from '@/shared/siteFilter/siteFilterTexts';
-import { useSavedHiddenToast } from '@/shared/siteFilter/useSavedHiddenToast';
+import { useSavedHiddenSnackbar } from '@/shared/siteFilter/useSavedHiddenSnackbar';
 
 /**
  * Список накладных под фильтром «Избранные стройки» (issue #1222): запрос списка, что сказать у списка
@@ -35,7 +35,7 @@ export function useWaybillSites({ unmatched, selected, open }: {
   // перечень — тот, что ушёл запросом. Отбор к ответу не применён — не скрыто ничего.
   const hides = (view: WaybillView) => hidden !== null && viewHidden(view, filter.favorites);
 
-  const onSaved = useSavedHiddenToast<WaybillView>(onWaybillWritten, {
+  const onSaved = useSavedHiddenSnackbar<WaybillView>(onWaybillWritten, {
     selected, hides, text: SAVED_HIDDEN, showAll: () => filter.setOn(false),
   });
 
