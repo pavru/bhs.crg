@@ -257,7 +257,11 @@ filled, рейл и нижняя навигация, extended FAB, размер�
 | `dark-variant` | `dark:` | 05 | 05 |
 | `legacy-radius`, `legacy-shadow`, `legacy-type` | старые шкалы | 06, 07 | 17 |
 | `notice-plaque`, `hand-card` | плашка `*-subtle + border + rounded`, карточка руками | 12, 13 | 17 |
-| `native-radio` | `<input type="radio">` в экранах | 11 | 11 |
+| `native-radio` | `<input type="radio">` и свой `role="radio"` вне `shared/ui` | 11 | 13 (после 11 — 2: пункты-галочки `SitesFilter`, `LayoutChooser`) |
+| `raw-field` | сырой `<input>` / `<textarea>` со своей рамкой вне `shared/ui` (69 мест на 31.10.2026) | 11 | 17 |
+
+`native-radio` и `raw-field` живут в отдельном модуле `ui-ratchet-inputs.mjs`: `ui-ratchet-lib.mjs` у
+порога размера (решение владельца 31.10.2026, `sharedui-md3-11-inputs`).
 
 Для меню правила храповика нет: вместо него тест по исходникам (13) — `DropdownMenu.Content` стоит
 только внутри общего `Menu`.
