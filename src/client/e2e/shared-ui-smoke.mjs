@@ -222,6 +222,45 @@ await check('touch-target-segment-keeps-own-edge', async () => {
   }
 });
 
+// ── Место уведомлений ([UI-71], sharedui-md3-12) ─────────────────────────────────
+// Поле уведомлений (список Radix) прижато низом к своему месту и растёт вверх: где его низ и края, там
+// и snackbar. Само уведомление не нужно — меряется поле, и проверка не зависит от того, что и когда
+// сказал экран.
+// Пустое поле нулевой высоты Playwright считает невидимым, и `boundingBox` дал бы null: рамка — из DOM.
+const snackbarField = () => page.locator('[role=region][aria-label^="Notifications"] ol')
+  .evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
+
+await check('snackbar-field-right-of-rail-on-desktop', async () => {
+  await page.goto(`${BASE}/document-sets`);
+  await settled(page);
+  const place = await until(async () => {
+    const [field, rail] = await Promise.all([snackbarField(), page.getByTestId('rail').boundingBox()]);
+    if (!field || !rail) throw new Error('нет поля уведомлений или рейла');
+    if (field.x < rail.x + rail.width + 16 - 0.5)
+      throw new Error(`поле уведомлений с ${Math.round(field.x)} px, а рейл кончается на ${Math.round(rail.x + rail.width)} — уведомление легло бы на рейл`);
+    return field;
+  });
+  if (place.width > 560.5) throw new Error(`поле уведомлений шириной ${Math.round(place.width)} px, а не до 560`);
+});
+
+await check('snackbar-field-above-bottom-nav-on-phone', async () => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  try {
+    await page.goto(`${BASE}/document-sets`);
+    await settled(page);
+    await until(async () => {
+      const [field, nav] = await Promise.all([snackbarField(), page.getByTestId('bottom-nav').boundingBox()]);
+      if (!field || !nav) throw new Error('нет поля уведомлений или нижней навигации');
+      if (field.y + field.height > nav.y + 0.5)
+        throw new Error(`низ поля уведомлений на ${Math.round(field.y + field.height)} px, а навигация начинается с ${Math.round(nav.y)} — уведомление закрыло бы разделы`);
+      if (Math.round(field.x) !== 16 || Math.round(375 - field.x - field.width) !== 16)
+        throw new Error(`поля по бокам ${Math.round(field.x)} и ${Math.round(375 - field.x - field.width)} px, а не по 16`);
+    });
+  } finally {
+    await page.setViewportSize({ width: 1500, height: 950 });
+  }
+});
+
 // ── Поле даты ──────────────────────────────────────────────────────────────────
 await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}`);
 await page.waitForSelector('tbody tr', { timeout: 15000 });

@@ -179,20 +179,24 @@ export function matchTrouble(match: InvoiceLineMatch | null | undefined): string
 }
 
 /**
- * Запомнить не удалось, хотя строки сохранены, — словами; `null` — отказа не было. Молчать нельзя: ноль
- * запомненного читался бы как «запоминать было нечего».
+ * Уведомление после сохранения строк — одно на сохранение ([UI-71]); `null` — ничего не запомнилось, и
+ * говорить не о чем. Отказ запоминания назван, хотя строки сохранены: ноль запомненного без него читался
+ * бы как «запоминать было нечего». Отказ значит, что не записалось ничего, — поэтому он и вытесняет
+ * число запомненного, а не встаёт вторым уведомлением за ним.
  */
-export function memoryFailure(memory: InvoiceMatchMemory | null | undefined): string | null {
-  return memory?.failed
-    ? 'Строки сохранены, но выбор позиций не запомнился — сбой на сервере. Позиции в строках на месте; '
-      + 'следующий счёт этого поставщика их сам не получит.'
-    : null;
-}
-
-/** Слова тоста после сохранения строк; `null` — ничего не запомнилось, и говорить не о чем. */
-export function memoryToast(memory: InvoiceMatchMemory | null | undefined): string | null {
+export function memoryNotice(memory: InvoiceMatchMemory | null | undefined): { variant: 'success' | 'info'; text: string } | null {
+  if (memory?.failed) {
+    return {
+      variant: 'info',
+      text: 'Строки сохранены, но выбор позиций не запомнился — сбой на сервере. Позиции в строках на месте; '
+        + 'следующий счёт этого поставщика их сам не получит.',
+    };
+  }
   if (!memory || memory.remembered === 0) return null;
-  return memory.replaced > 0
-    ? `Строки сохранены. Запомнено соответствий: ${memory.remembered}, из них заменено: ${memory.replaced}.`
-    : `Строки сохранены. Запомнено соответствий: ${memory.remembered}.`;
+  return {
+    variant: 'success',
+    text: memory.replaced > 0
+      ? `Строки сохранены. Запомнено соответствий: ${memory.remembered}, из них заменено: ${memory.replaced}.`
+      : `Строки сохранены. Запомнено соответствий: ${memory.remembered}.`,
+  };
 }

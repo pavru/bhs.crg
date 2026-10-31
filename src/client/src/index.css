@@ -63,6 +63,15 @@ body {
 }
 /* Добавка к state-layer — состояние берётся у ближайшей .group: плашка значка рейла и нижней навигации
    загорается, когда курсор над всей ссылкой, а не только над плашкой (`state-layer state-layer-group`). */
+/* Роли внутри инверсной поверхности (snackbar, [UI-71]): text-кнопка — inverse-primary, кнопка-иконка
+   и вторичный текст — inverse-on-surface, кольцо фокуса — inverse-primary. Общие Button и IconButton
+   берут цвет ролью, поэтому переназначаются роли, а не классы кнопок. */
+@utility inverse-scope {
+  --md-sys-color-primary: var(--md-sys-color-inverse-primary);
+  --md-sys-color-on-surface-variant: var(--md-sys-color-inverse-on-surface);
+  --md-focus-ring: 3px solid var(--md-sys-color-inverse-primary);
+}
+
 @utility state-layer-group {
   &:is(:where(.group):hover *) { --_s: var(--md-sys-state-hover); }
   &:is(:where(.group):focus-visible *, :where(.group):active *) { --_s: var(--md-sys-state-pressed); }
@@ -181,10 +190,13 @@ body {
   }
 }
 
-/* Появление тоста (issue #281) — лёгкий slide-up + fade. */
-@keyframes toast-in {
+/* Snackbar ([UI-71], shared/ui/SnackbarProvider): появление — лёгкий slide-up + fade, уход — fade. */
+@keyframes snackbar-in {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: none; }
+}
+@keyframes snackbar-out {
+  to { opacity: 0; }
 }
 
 /* Круговой индикатор хода MD3 (shared/ui/CircularProgress, [UI-61]): вращение и «дыхание» дуги.
