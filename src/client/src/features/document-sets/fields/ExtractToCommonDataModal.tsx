@@ -331,7 +331,7 @@ export function ExtractToCommonDataModal({
             </Note>
           ) : (
             <>
-              <Select value={effectiveTarget} onValueChange={v => setTarget(v as CatalogScope)}
+              <Select density="dense" value={effectiveTarget} onValueChange={v => setTarget(v as CatalogScope)}
                 aria-label="Уровень записи" className="w-full">
                 {offered.map(s => <SelectItem key={s} value={s}>{SCOPE_LABELS[s]}</SelectItem>)}
               </Select>

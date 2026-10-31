@@ -11,6 +11,9 @@ import { Tooltip } from './Tooltip';
  * - **filter** — задан `selected`: переключатель с `aria-pressed`. Выбранный — `secondary-container` без
  *   контура, ведущий знак сменяется галочкой. С `menu` чип открывает выбор (поповер, меню): стрелка справа,
  *   галочки нет, `selected` только красит — нажатым он не бывает, состояние называет подпись (#1432).
+ *   Открытое меню поворачивает стрелку — по `data-state=open`, который ставит триггер Radix (чип отбора
+ *   `Select variant="chip"`, [UI-69]). Выбранный чип с меню помечен `data-selected`: `aria-pressed` у
+ *   него нет, а роль `combobox` состояния «выбран» не знает.
  * - **input** — задан `onRemove`: крестик снятия отдельной кнопкой внутри чипа, с обязательным
  *   `removeLabel` — десять «Снять» в ряду диктор не различит. Замыкающий знак у input один, крестик:
  *   `menu` запрещён, а что чип открывает окно, говорит `aria-haspopup` от триггера Radix. `selected` только
@@ -83,7 +86,8 @@ export function Chip(props: ChipProps) {
         {...(iconLabel && shown !== Check ? { 'aria-label': iconLabel } : { 'aria-hidden': true })} />}
       <span className="min-w-0 truncate">{children}</span>
       {count !== undefined && <span className="tabular-nums">· {count}</span>}
-      {menu && <Icon icon={KeyboardArrowDown} size={18} aria-hidden className="shrink-0" />}
+      {menu && <Icon icon={KeyboardArrowDown} size={18} aria-hidden
+        className="shrink-0 transition-transform ease-standard group-data-[state=open]/chip:rotate-180" />}
     </>
   );
   // Поля по MD3: 16 px, со стороны знака — 8.
@@ -93,7 +97,8 @@ export function Chip(props: ChipProps) {
     return (
       <Tooltip content={title}>
         <button {...rest} type={type} aria-pressed={toggles ? selected : undefined}
-          className={`${container} ${PRESS} ${TOUCH_WHOLE} gap-2 ${pad} ${className}`}>
+          data-selected={menu && selected ? '' : undefined}
+          className={`group/chip ${container} ${PRESS} ${TOUCH_WHOLE} gap-2 ${pad} ${className}`}>
           {body}
         </button>
       </Tooltip>

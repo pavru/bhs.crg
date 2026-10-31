@@ -321,7 +321,7 @@ function TargetHeader({ target, number, places, onChange, onRemove }: {
         <IconButton label={`Убрать объект ${number}`} danger onClick={onRemove} icon={Delete} />
       </div>
       <div className="flex items-center gap-1">
-        <Select size="sm" value={target.section ?? ''} aria-label={`Раздел, объект ${number}`}
+        <Select density="dense" value={target.section ?? ''} aria-label={`Раздел, объект ${number}`}
           disabled={!site || (site.sections.length === 0 && !target.section)}
           onValueChange={section => onChange({ section: section || null })} emptyItem="— вся стройка —">
           {site && target.section && !site.sections.some(s => s.id === target.section) && (

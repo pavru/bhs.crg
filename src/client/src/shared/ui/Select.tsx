@@ -1,4 +1,5 @@
 import * as RS from '@radix-ui/react-select';
+import { Chip } from './Chip';
 import { Icon } from './Icon';
 import { Check, KeyboardArrowDown } from './icons';
 import { forwardRef, useId, useRef, useState, type ReactNode } from 'react';
@@ -14,14 +15,14 @@ import { fieldBox, fieldDescribedBy, type FieldDensity } from './fieldBox';
  * Два слоя (issue #565, шаг 4 — #574), и выбирает между ними наличие `label`, как у
  * `TypePickerField`:
  *
- * - **слой формы** (`label` задан) — общая MD3-оболочка `OutlinedField` высотой `h-14`, подпись
- *   всегда в вырезе рамки. Свой `<label>` в вызывающем коде НЕ пишем: пока подпись жила снаружи,
+ * - **слой формы** (`label` задан) — общая MD3-оболочка `OutlinedField`, поле формы 56 или плотное 40
+ *   ([UI-69]), подпись в вырезе рамки. Свой `<label>` в вызывающем коде НЕ пишем: пока подпись жила снаружи,
  *   у семи площадок набралось четыре разные типографики (12 px подписью, 14 px основным цветом и подписью,
  *   12 px другим серым) — при том, что соседние `TextField` в тех же формах уже носили
  *   подпись в вырезе. Связываем через `aria-labelledby`, а не `<label for>`: у кнопки-триггера
  *   щелчок по подписи открывал бы список;
- * - **слой обвязки** (`label` нет) — компактный триггер `h-9` со своей рамкой для шапок, фильтров
- *   и ячеек таблиц, там и живёт плотность.
+ * - **без подписи** — вид по месту (`SelectProps`): чип отбора, плотное поле на той же оболочке (подпись —
+ *   из `aria-label`, только для диктора) или `inline` внутри фразы. Компактных триггеров 36 и 28 больше нет.
  *
  * Метка в слое формы поднята ПОСТОЯННО (`raise="always"`): у кнопки-триггера нет состояния «пусто»
  * в смысле CSS — `:placeholder-shown` есть только у `input`, поэтому всплывание по peer-селекторам,
@@ -36,43 +37,29 @@ import { fieldBox, fieldDescribedBy, type FieldDensity } from './fieldBox';
  * продолжал показывать сброшенное, а выбрать тот же пункт заново было нельзя: значение «то же»,
  * событие не приходит. Пустую строку Radix читает как «значения нет» и показывает placeholder.
  */
-export interface SelectProps {
+interface SelectBase {
   value: string | undefined;
   onValueChange: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
-  /** В слое обвязки — участие в нативной валидации формы (скрытый `<select required>` у Radix).
-   *  В слое формы (задан `label`) — только звёздочка при подписи и `aria-required`, см. ниже. */
+  /** У чипа и `inline` — участие в нативной валидации формы (скрытый `<select required>` у Radix). У поля
+   *  (с подписью или плотного) — только звёздочка при подписи и `aria-required`, см. ниже. */
   required?: boolean;
   name?: string;
   /** Класс триггера (например ширина). Своя ширина (`w-…`) заменяет умолчание `w-full`, а не
-   *  спорит с ним: какой из двух классов победит, решал бы порядок правил в CSS, а не в строке. */
+   *  спорит с ним: какой из двух классов победит, решал бы порядок правил в CSS, а не в строке.
+   *  У плотного поля без подписи — класс обёртки поля: рамку рисует она, и ширина — её. */
   className?: string;
-  /** Высота слоя обвязки: `md` — 36 px (шапки, фильтры), `sm` — 28 px и мелкий текст (строки
-   *  плотных таблиц и списков, где рядом стоят поля `text-body-small`), `inline` — без рамки и фона;
-   *  высоту, поля и цвет текста задаёт место — чип-выражение, ячейка редактируемой таблицы.
-   *  В слое формы не действует. */
-  size?: 'md' | 'sm' | 'inline';
   /**
    * Пункт «значения нет» первым в списке: «— не выбрано —», «без итога», «наследуется». Его выбор
    * отдаёт пустую строку. Нужен потому, что Radix не принимает пустую строку значением пункта, а
    * сбросить выбор placeholder не умеет — он лишь показывает, что выбора нет.
    */
   emptyItem?: ReactNode;
-  /** Доступная подпись, если рядом нет <label>. */
+  /** Доступная подпись, если рядом нет <label>. У плотного поля без подписи — его имя. */
   'aria-label'?: string;
-  /** Подпись поля. Задана — контрол переходит в слой формы (outlined-рамка с вырезом). */
-  label?: string;
-  /** Красная рамка без сообщения (сообщение рисует вызывающий код). Только в слое формы. */
+  /** Красная рамка без сообщения (сообщение рисует вызывающий код). У поля — с подписью или плотного. */
   invalid?: boolean;
-  /** Сообщение об ошибке под полем; заодно красит рамку. Только в слое формы. */
-  error?: string;
-  /** Вспомогательный текст под полем. Только в слое формы. */
-  hint?: string;
-  /** Классы внешней обёртки поля (ширина, `col-span`). Только в слое формы. */
-  containerClassName?: string;
-  /** Поле формы 56 (по умолчанию) или плотное 40 без выреза — [UI-69]. Только в слое формы. */
-  density?: FieldDensity;
   /**
    * Значение пункта, после выбора которого список НЕ закрывается: пункт-выход «Показать все стройки»
    * (issue #1219). Его выбор раскрывает список на месте — закрой его Radix, раскрытое пришлось бы
@@ -85,9 +72,25 @@ export interface SelectProps {
   children: ReactNode;
 }
 
-const TRIGGER =
-  'inline-flex items-center justify-between gap-2 rounded-sm border ' +
-  'data-[placeholder]:text-on-surface-variant disabled-content disabled:pointer-events-none';
+/** Только у поля с подписью: сообщение и пояснение под рамкой, обёртка. */
+type Below = { error?: string; hint?: string; containerClassName?: string };
+type NoBelow = { error?: never; hint?: never; containerClassName?: never };
+
+/**
+ * Вид выбора ([UI-69]). С подписью — поле формы (или плотное, `density="dense"`). Без подписи — один из
+ * трёх по месту, и выбрать его обязан экран: размера «по умолчанию» нет, иначе 36 и 28 px вернулись бы
+ * молча.
+ * - `variant="chip"` — отбор в шапке страницы или панели: чип с меню. Требует `emptyItem` («все»): чип
+ *   выбран, когда значение не пусто. Выбор без нейтрального значения — не отбор и не чип.
+ * - `density="dense"` — строка настроек в окне или панели, шапка колонки с вводом: плотное поле 40 с рамкой.
+ * - `variant="inline"` — внутри фразы, названное отступление: без рамки и фона, высоту и цвет даёт место.
+ */
+export type SelectProps = SelectBase & (
+  | (Below & { label: string; variant?: never; density?: FieldDensity })
+  | (NoBelow & { label?: never; variant: 'chip'; emptyItem: ReactNode; density?: never; invalid?: never })
+  | (NoBelow & { label?: never; variant: 'inline'; density?: never; invalid?: never })
+  | (NoBelow & { label?: never; variant?: never; density: 'dense'; 'aria-label': string })
+);
 
 // В слое формы рамку рисует оболочка — триггер внутри неё прозрачный и без своей границы, иначе
 // вышла бы рамка в рамке, а непрозрачный фон затёр бы вырез на не-surface подложке (та же ловушка,
@@ -112,18 +115,11 @@ function FieldArrow({ open, disabled }: { open: boolean; disabled?: boolean }) {
   );
 }
 
-// Рамка, фон и цвет текста — в виде, а не в общей основе: у `inline` их нет вовсе, и класс,
-// переопределяющий основу, снова спорил бы с ней порядком правил в CSS.
-// Рамочный — поле: фокус и открытый список показывает его обводка 2 px primary, а не кольцо ([UI-64]).
-// Строчный — без рамки, в тексте или клетке: у него слой состояния и общее кольцо. Рамку отключённого
-// гасит только рамочный: у прозрачной рамки строчного серой рамки появиться не должно.
-const BOXED = 'border-outline bg-surface text-on-surface focus:outline-none focus-visible:ring-2 ' +
-  'focus-visible:ring-primary data-[state=open]:ring-2 data-[state=open]:ring-primary disabled-outlined';
-const SIZE = {
-  md: `h-9 px-3 text-body-medium ${BOXED}`,
-  sm: `h-7 px-2 gap-1 text-body-small ${BOXED}`,
-  inline: 'gap-0.5 border-transparent bg-transparent text-inherit state-layer focus-ring',
-} as const;
+// Внутри фразы — без рамки и фона ([UI-69], названное отступление): высоту, поля и цвет текста даёт место.
+// Слой состояния и общее кольцо фокуса — свои, рамки, которая их показала бы, нет.
+const INLINE =
+  'inline-flex items-center justify-between gap-0.5 rounded-sm text-inherit state-layer focus-ring ' +
+  'data-[placeholder]:text-on-surface-variant disabled-content disabled:pointer-events-none';
 
 /** Пустая строка — «значения нет» и для Radix (placeholder), и для вызывающего кода; пункту
  *  «значения нет» нужно своё непустое значение, которое наружу не выходит. С управляющим символом:
@@ -131,7 +127,7 @@ const SIZE = {
 const EMPTY = '\u0000∅';
 
 export function Select({
-  value, onValueChange, placeholder, disabled, required, name, className = '', size = 'md', emptyItem,
+  value, onValueChange, placeholder, disabled, required, name, className = '', variant, emptyItem,
   label, invalid, error, hint, containerClassName = '', density = 'form', stayOpenOn, onOpenChange, children, ...aria
 }: SelectProps) {
   const [open, setOpen] = useState(false);
@@ -140,9 +136,13 @@ export function Select({
   const [focused, setFocused] = useState(false);
   const labelId = useId();
   const hintId = useId();
-  const framed = label !== undefined;
+  // Плотное поле без подписи — то же поле на оболочке: имя ему даёт `aria-label`, а оболочка у плотного
+  // поля подпись и так прячет от глаз. Ширину тогда задаёт обёртка — рамку рисует она; без своей `w-…` она
+  // во всю ширину, как прежний триггер: иначе во flex-строке поле сжималось бы до выбранного текста.
+  const framed = variant === undefined;
+  const bare = label === undefined;
 
-  // В слое формы `required` — ТОЛЬКО звёздочка при подписи: в Radix он включает скрытый
+  // У поля (с подписью или плотного) `required` — ТОЛЬКО звёздочка при подписи: в Radix он включает скрытый
   // `<select required>` (1×1 px, `aria-hidden`), и внутри `<form>` браузер молча отказывается
   // отправлять форму, пока значение пусто. Обработчик submit при этом не вызывается — приложение
   // не показывает ни своей ошибки, ни подсказки браузера (её некуда прицепить: контрол невидим).
@@ -158,8 +158,14 @@ export function Select({
         setOpen(next);
         onOpenChange?.(next);
       }}>
-      <RS.Trigger className={framed ? `${FRAMED_TRIGGER} ${fieldBox(density, { trailing: true })} ${className}`
-        : `${TRIGGER} ${SIZE[size]} ${size === 'inline' || /(^|\s)w-/.test(className) ? '' : 'w-full '}${className}`}
+      {variant === 'chip' ? (
+        // Чип отбора ([UI-69]): триггер Radix — сам чип, и роль `combobox`, клавиатура и typeahead остаются.
+        // Выбран, когда значение не пусто: «все» возвращает чип в покой.
+        <RS.Trigger asChild aria-label={aria['aria-label']}>
+          <Chip selected={!!value} menu className={className}><RS.Value placeholder={placeholder} /></Chip>
+        </RS.Trigger>
+      ) : <RS.Trigger className={framed ? `${FRAMED_TRIGGER} ${fieldBox(density, { trailing: true })} ${bare ? '' : className}`
+        : `${INLINE} ${className}`}
         aria-label={framed ? undefined : aria['aria-label']}
         aria-labelledby={framed ? labelId : undefined}
         aria-required={framed && required ? true : undefined}
@@ -169,7 +175,7 @@ export function Select({
             на вторую строку, распирая триггер фиксированной высоты. */}
         <span className="min-w-0 flex-1 truncate text-left"><RS.Value placeholder={placeholder} /></span>
         {!framed && <RS.Icon className="text-on-surface-variant shrink-0"><Icon icon={KeyboardArrowDown} size={18} /></RS.Icon>}
-      </RS.Trigger>
+      </RS.Trigger>}
       <RS.Portal>
         <RS.Content position="popper" sideOffset={4}
           className="z-50 min-w-[var(--radix-select-trigger-width)] max-h-[var(--radix-select-content-available-height)] overflow-hidden rounded-sm border border-outline-variant bg-surface shadow-elevation-2">
@@ -187,8 +193,8 @@ export function Select({
   // Пока список открыт, фокус живёт в нём, а не на триггере — без `open` рамка гасла бы ровно на то
   // время, что человек выбирает значение.
   return (
-    <OutlinedField label={label} required={required} invalid={invalid} error={error} hint={hint} hintId={hintId}
-      raise="always" focused={focused || open} labelId={labelId} density={density} containerClassName={containerClassName}
+    <OutlinedField label={label ?? aria['aria-label'] ?? ''} required={required} invalid={invalid} error={error} hint={hint} hintId={hintId}
+      raise="always" focused={focused || open} labelId={labelId} density={bare ? 'dense' : density} containerClassName={bare ? `${/(^|\s)w-/.test(className) ? '' : 'w-full '}${className}` : containerClassName}
       trailing={<FieldArrow open={open} disabled={disabled} />}>
       {control}
     </OutlinedField>

@@ -99,7 +99,7 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
       ? enumTypeDef.values.map(v => ({ code: v.code, label: v.label }))
       : (field.options ?? []).filter(o => o !== '').map(o => ({ code: o, label: o }));
     return (
-      <Select size="inline" className="w-full h-full px-1.5 text-body-small rounded-none focus:bg-primary-container"
+      <Select variant="inline" className="w-full h-full px-1.5 text-body-small rounded-none focus:bg-primary-container"
         aria-label={field.title} value={strVal} onValueChange={onChange} emptyItem="—">
         {opts.map(o => <SelectItem key={o.code} value={o.code}>{o.label}</SelectItem>)}
       </Select>

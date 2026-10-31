@@ -330,13 +330,16 @@ function Row({ row, typeName, draft, changed, disabled, onPick }: {
         {row.fault === 'DiffersInSubtype' ? (
           <p className="text-body-medium text-on-surface-variant">{listed.find(f => f.tagged)?.title ?? '—'}</p>
         ) : selectable ? (
+          // Рамка поля о состоянии не говорит ([UI-69]): «не назначено» — предупреждение, а у плотного поля
+          // есть только ошибка. Тон держит колонка состояния справа (`RowState`): warning у обязательного без
+          // поля, error у неисправного.
           <Select
+            density="dense"
             aria-label={`Поле для «${row.label}»`}
             value={selectedKey(row, draft)}
             onValueChange={v => onPick(v === NOT_ASSIGNED ? null : v)}
             placeholder={row.fault === 'Several' ? 'Выберите одно' : 'Выберите поле'}
             disabled={disabled}
-            className={row.state !== 'mapped' && row.required && !changed ? 'border-warning' : ''}
           >
             {/* Обязательное можно заменить, но не снять: снять его здесь значило бы остановить модуль
                 одной прокруткой списка. Кому это правда нужно, снимет тэг в редакторе типа. */}
@@ -433,7 +436,7 @@ function AssignRole({ group, onDone }: { group: CoverageGroup; onDone: () => Pro
         <>
           <div className="flex flex-wrap items-center gap-3">
             <div className="w-72">
-              <Select aria-label={`Тип — ${group.label.toLowerCase()}`}
+              <Select density="dense" aria-label={`Тип — ${group.label.toLowerCase()}`}
                 value={typeId} onValueChange={setTypeId} placeholder="Выберите тип" disabled={saving}>
                 {group.candidates.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </Select>

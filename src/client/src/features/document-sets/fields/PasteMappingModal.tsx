@@ -448,7 +448,7 @@ function PasteMappingModalBody({
                     {f.required && <span className="text-error ml-0.5">*</span>}
                   </div>
                   <div className={MAP_CELL}>
-                    <Select size="sm" className={selectCls} aria-label={`Колонка для «${f.title}»`}
+                    <Select density="dense" className={selectCls} aria-label={`Колонка для «${f.title}»`}
                       value={ci == null ? '' : String(ci)} emptyItem="— пропустить —"
                       onValueChange={v => {
                         clearPending();
@@ -465,7 +465,7 @@ function PasteMappingModalBody({
                   </div>
                   <div className={MAP_CELL}>
                     {needsMatch && ci != null && (
-                      <Select size="sm" className={selectCls} aria-label={`Как сопоставлять «${f.title}»`}
+                      <Select density="dense" className={selectCls} aria-label={`Как сопоставлять «${f.title}»`}
                         value={matchFields[f.key] ?? ''} placeholder="— выберите —"
                         onValueChange={m => { clearPending(); setMatchFields(prev => ({ ...prev, [f.key]: m as 'name' | 'key' | 'inline' })); }}>
                         <SelectItem value="name">🔗 Наименование</SelectItem>

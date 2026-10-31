@@ -136,7 +136,7 @@ describe('EditGrid (#1354)', () => {
     render(
       <EditGrid rows={[line(), line()]} rowKey={r => r.key} columns={[{
         key: 'unit', label: 'Ед.', cell: (_, i) => (
-          <Select aria-label={`Ед., строка ${i + 1}`} value="" onValueChange={() => {}} emptyItem="—">
+          <Select variant="inline" aria-label={`Ед., строка ${i + 1}`} value="" onValueChange={() => {}} emptyItem="—">
             <SelectItem value="m">м</SelectItem>
           </Select>
         ),

@@ -25,7 +25,7 @@ function SortRow({
   return (
     <div className="flex items-center gap-1.5">
       {columns && columns.length > 0 ? (
-        <Select size="sm" className="flex-1 min-w-0" aria-label="Колонка сортировки"
+        <Select density="dense" className="flex-1 min-w-0" aria-label="Колонка сортировки"
           value={level.column} onValueChange={column => onChange({ ...level, column })} emptyItem="— колонка —">
           {columns.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
         </Select>

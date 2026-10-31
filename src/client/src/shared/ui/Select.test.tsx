@@ -16,7 +16,7 @@ function Harness({ initial = '' }: { initial?: string }) {
   const [value, setValue] = useState(initial);
   return (
     <>
-      <Select aria-label="Итог" value={value} onValueChange={setValue} emptyItem="без итога">
+      <Select density="dense" aria-label="Итог" value={value} onValueChange={setValue} emptyItem="без итога">
         <SelectItem value="sum">Сумма</SelectItem>
       </Select>
       <output>{JSON.stringify(value)}</output>
@@ -71,5 +71,83 @@ describe('Select с подписью: exposed dropdown ([UI-69])', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Второй' }));
     expect(screen.getByRole('combobox', { name: 'Раздел' }).textContent).toContain('Второй');
     expect(arrow().getAttribute('data-state')).toBe('closed');
+  });
+});
+
+describe('Select без подписи: вид по месту ([UI-69])', () => {
+  function Filter() {
+    const [value, setValue] = useState('');
+    return (
+      <Select variant="chip" aria-label="Отбор по действию" value={value} onValueChange={setValue} emptyItem="Все действия">
+        <SelectItem value="login">Вход</SelectItem>
+      </Select>
+    );
+  }
+  const chip = () => screen.getByRole('combobox', { name: 'Отбор по действию' });
+
+  it('чип отбора — сам триггер с ролью combobox, «все» — в покое', () => {
+    render(<Filter />);
+    expect(chip().tagName).toBe('BUTTON');
+    expect(chip().textContent).toContain('Все действия');
+    expect(chip().hasAttribute('data-selected')).toBe(false);
+    expect(chip().className).toContain('h-8');
+  });
+
+  it('чип выбран, когда значение не пусто, и «все» возвращает его в покой', () => {
+    render(<Filter />);
+    fireEvent.keyDown(chip(), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('option', { name: 'Вход' }));
+    expect(chip().hasAttribute('data-selected')).toBe(true);
+    expect(chip().className).toContain('bg-secondary-container');
+    fireEvent.keyDown(chip(), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('option', { name: 'Все действия' }));
+    expect(chip().hasAttribute('data-selected')).toBe(false);
+  });
+
+  it('стрелка чипа поворачивается у открытого меню', () => {
+    render(<Filter />);
+    // Открытое меню прячет от диктора всё вокруг себя — триггер берём до открытия.
+    const trigger = chip();
+    expect(trigger.querySelector('svg:last-of-type')!.getAttribute('class')).toContain('group-data-[state=open]/chip:rotate-180');
+    expect(trigger.className).toContain('group/chip');
+    fireEvent.keyDown(trigger, { key: 'Enter' });
+    expect(trigger.getAttribute('data-state')).toBe('open');
+  });
+
+  it('плотное поле без подписи — 40 на оболочке, имя из aria-label', () => {
+    const { container } = render(
+      <Select density="dense" aria-label="Колонка" value="" onValueChange={() => {}} emptyItem="— колонка —">
+        <SelectItem value="a">A</SelectItem>
+      </Select>,
+    );
+    const trigger = screen.getByRole('combobox', { name: 'Колонка' });
+    expect(trigger.className.split(/\s+/)).toEqual(expect.arrayContaining(['h-10', 'text-body-medium']));
+    expect(container.querySelector('fieldset')).not.toBeNull();
+    expect(container.querySelector('legend')).toBeNull();
+  });
+
+  it('плотное поле без подписи во всю ширину, если экран не задал свою w-…: во flex-строке иначе сжалось бы', () => {
+    const wrapper = (className?: string) => {
+      const { container } = render(
+        <Select density="dense" aria-label="Раздел" value="" onValueChange={() => {}} className={className}>
+          <SelectItem value="a">A</SelectItem>
+        </Select>,
+      );
+      const classes = (container.firstElementChild as HTMLElement).className.split(/\s+/);
+      cleanup();
+      return classes;
+    };
+    expect(wrapper()).toContain('w-full');
+    expect(wrapper('flex-1')).toEqual(expect.arrayContaining(['w-full', 'flex-1']));
+    expect(wrapper('w-40')).not.toContain('w-full');
+  });
+
+  it('вид обязателен: без подписи, чипа, inline и плотности тип не собирается; чип — без emptyItem', () => {
+    // @ts-expect-error — без подписи вид выбирает экран
+    void <Select aria-label="Итог" value="" onValueChange={() => {}}><SelectItem value="a">A</SelectItem></Select>;
+    // @ts-expect-error — чип отбора без «все» не бывает
+    void <Select variant="chip" aria-label="Итог" value="" onValueChange={() => {}}><SelectItem value="a">A</SelectItem></Select>;
+    // @ts-expect-error — плотному полю без подписи имя даёт только aria-label
+    void <Select density="dense" value="" onValueChange={() => {}}><SelectItem value="a">A</SelectItem></Select>;
   });
 });

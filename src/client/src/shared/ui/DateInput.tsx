@@ -48,16 +48,21 @@ interface DateInputProps {
    */
   precision?: DatePrecision;
   /**
-   * Классы контейнера: ширина и место в раскладке. Рамку поля обвязки рисует `size`, а не экран —
-   * своей рамки здесь не заводят (issue #1464, храповик `date-frame`).
+   * Классы контейнера: ширина и место в раскладке. Рамку поля без оболочки рисует `density`, а не
+   * экран — своей рамки здесь не заводят (issue #1464, храповик `date-frame`).
    */
   className?: string;
   /**
-   * Слой обвязки (issue #1464) — поле со своей рамкой, как `Select`: 'md' — h-9, крестик по наведению
-   * и фокусу, как у поля формы; 'sm' — h-7, без крестика (в отборе у чипа свой ×). Не задан — рамку
-   * рисует оболочка (`DateField`) или ячейка (`compact`).
+   * Поле без оболочки со своей рамкой (issue #1464) — плотное поле 40 ([UI-69]), как `Select
+   * density="dense"`: строка настроек, отбор, диапазон дат. Других высот нет. Не задан — рамку рисует
+   * оболочка (`DateField`) или ячейка (`compact`).
    */
-  size?: 'md' | 'sm';
+  density?: 'dense';
+  /**
+   * Без крестика в поле (как было у `size="sm"`): в отборе значение снимает крестик его чипа, и второй
+   * в поле — лишняя остановка Tab и 32 px в узкой колонке. «Очистить» в календаре остаётся.
+   */
+  noClear?: boolean;
   /** Значение не прошло проверку формы — рамка обвязки красная, сегменты помечены для скринридера. */
   invalid?: boolean;
   /** id подписи под рамкой (`DateField`) — сегменты описываются ею: см. `useSegmentField`. */
@@ -99,7 +104,7 @@ interface DateInputProps {
 }
 
 export function DateInput({ label, value, onChange, onProblem, onIncomplete, precision = 'day', className = '', disabled = false, readOnly = false, required = false, calendar = true, compact = false,
-  size, invalid = false, hintId, min, max, range, onCommit }: DateInputProps) {
+  density, noClear = false, invalid = false, hintId, min, max, range, onCommit }: DateInputProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   /** Календарь закрыт Tab'ом с края — фокус уже перенесён, возвращать его на значок не нужно. */
@@ -136,20 +141,27 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
 
   const problemMark = <SegmentProblemMark id={problemId} problem={problem} showIcon={!onProblem} />;
 
-  // Рамка обвязки (issue #1464) — как у `Select`: кольцо, пока фокус внутри или открыт календарь.
-  const frame = !size ? '' : [
-    FRAME[size], 'rounded-sm border transition-colors ease-standard',
+  // Рамка плотного поля (issue #1464, [UI-69]) — как у оболочки: обводка 2 px, пока фокус внутри или
+  // открыт календарь. Второй пиксель — кольцом внутрь, чтобы обводка не сдвигала цифры.
+  const accent = markInvalid ? 'border-error inset-ring-error' : 'border-primary inset-ring-primary';
+  const frame = !density ? '' : [
+    FRAME, 'rounded-xs border transition-colors ease-standard',
     // Отключённое — по MD3 ([UI-64]): текст on-surface 38 %, рамка on-surface 12 %, а не прозрачность.
-    readOnly ? 'bg-surface-container text-on-surface-variant border-outline-variant'
-      : disabled ? 'bg-surface text-on-surface/38 border-on-surface/12'
-      : `bg-surface text-on-surface ${markInvalid ? 'border-error' : 'border-outline'}`,
-    readOnly || disabled ? '' : `focus-within:ring-2 ${markInvalid ? 'focus-within:ring-error' : 'focus-within:ring-primary'}`,
-    pickerOpen ? `ring-2 ${markInvalid ? 'ring-error' : 'ring-primary'}` : '',
+    // Только для чтения — обводка outline-variant без подложки, как у оболочки.
+    readOnly ? 'text-on-surface border-outline-variant'
+      : disabled ? 'text-on-surface/38 border-on-surface/12'
+      // Открытый календарь красит рамку сам (`accent` ниже), и наведение её не перекрашивает: фокус тогда в
+      // портале, `:focus-within` молчит, и hover-класс перебил бы primary.
+      : `text-on-surface ${markInvalid ? 'border-error' : pickerOpen ? '' : 'border-outline [&:hover:not(:focus-within)]:border-on-surface'}`,
+    readOnly || disabled ? '' : markInvalid
+      ? 'focus-within:inset-ring focus-within:inset-ring-error'
+      : 'focus-within:inset-ring focus-within:border-primary focus-within:inset-ring-primary',
+    pickerOpen ? `inset-ring ${accent}` : '',
   ].join(' ');
 
   // Крестик поля формы — один на обе ветки: у «не даты» и у сегментов (макет #1463, вариант В). Кнопка
   // внутри поля — место XS ([UI-68]): 32, как календарь рядом, при касании 40.
-  const clearButton = !compact && size !== 'sm' && clearable && (
+  const clearButton = !compact && !noClear && clearable && (
     <IconButton label="Очистить дату" onClick={clear} className={`-my-1.5 ${ICON_BUTTON_XS} ${CLEAR_REVEAL}`} icon={Close} />
   );
 
@@ -182,7 +194,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
           <Popover.Trigger asChild>
             <button ref={triggerRef} type="button" disabled={disabled} aria-label="Открыть календарь"
               className={`shrink-0 flex items-center justify-center rounded-full text-on-surface-variant state-layer focus-ring disabled-content ${
-                size === 'sm' ? SM_TRIGGER : '-my-1.5 h-8 w-8'} ${
+                '-my-1.5 h-8 w-8'} ${
                 compact ? `${COMPACT_TRIGGER} opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100` : ''}`}>
               <Icon icon={CalendarMonth} size={18} />
             </button>
@@ -270,14 +282,8 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
  * поле — 140 px — держит `DEFAULT_COL_WIDTHS`.
  */
 const COMPACT_TRIGGER = '-mr-1.5';
-/**
- * Кнопка календаря в рамке sm (h-7): видимый круг 24 px, нажимать — 32 px (docs/UI.md, кнопка-иконка
- * не меньше 32 px; ревью PR #1553). Зона нажатия — псевдоэлемент на 4 px за круг: высоту рамки она
- * не меняет.
- */
-const SM_TRIGGER = "relative h-6 w-6 before:absolute before:-inset-1 before:content-['']";
-/** Высота и отступы рамки обвязки — те же, что у `Select` md / sm; справа место держит кнопка календаря. */
-const FRAME = { md: 'h-9 pl-3 pr-0.5 text-body-medium', sm: 'h-7 pl-2 pr-0.5 text-body-small' } as const;
+/** Высота, отступы и роль текста плотного поля ([UI-69]); справа место держит кнопка календаря. */
+const FRAME = 'h-10 pl-3 pr-1 text-body-medium';
 /**
  * Крестик поля формы — ускоритель (issue #1463, вариант В): виден при наведении на поле и при фокусе в
  * нём, а где наведения нет — всегда. Прозрачный он не ловит нажатий (`pointer-events-none`), иначе

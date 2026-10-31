@@ -110,7 +110,7 @@ function PasteDialog({ mode, onClose, onAdd }: {
                 columns={Array.from({ length: width }, (_, column) => ({
                   key: `c${column}`, label: `Колонка ${column + 1}`,
                   header: (
-                    <Select size="sm" className="w-auto" value={current[column]}
+                    <Select density="dense" className="w-auto" value={current[column]}
                       aria-label={`Колонка ${column + 1}`}
                       onValueChange={role => setRoles(next(current, column, role as PasteRole))}>
                       {PASTE_ROLES.map(role => (

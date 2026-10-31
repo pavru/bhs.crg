@@ -100,7 +100,7 @@ function RunPicker({ runs, value, onChange }: {
 }) {
   if (runs.length === 0) return null;
   return (
-    <Select value={value ?? runs[0]?.id ?? ''} onValueChange={onChange} aria-label="Прогон"
+    <Select density="dense" value={value ?? runs[0]?.id ?? ''} onValueChange={onChange} aria-label="Прогон"
       className="w-56">
       {runs.map((r, i) => (
         <SelectItem key={r.id} value={r.id}>
@@ -367,7 +367,7 @@ export function ReconciliationsPage() {
           <>
             {sets.length > 0 && (
               <>
-                <Select value={reportSetId || sets[0].id} onValueChange={setReportSetId}
+                <Select density="dense" value={reportSetId || sets[0].id} onValueChange={setReportSetId}
                   aria-label="Комплект для отчёта" className="w-72">
                   {sets.map(s => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
                 </Select>

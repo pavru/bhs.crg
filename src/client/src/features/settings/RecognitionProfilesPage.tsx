@@ -96,7 +96,7 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
             <input value={f.description ?? ''} onChange={e => update(i, { description: e.target.value })}
               placeholder="Что это за колонка — своими словами"
               className="border border-outline rounded-xs px-2 py-1.5 text-body-medium focus:outline-none focus-visible:ring-1 focus-visible:ring-primary bg-surface" />
-            <Select value={f.type || 'string'} onValueChange={type => update(i, { type })}
+            <Select density="dense" value={f.type || 'string'} onValueChange={type => update(i, { type })}
               aria-label={`Тип: ${f.name.trim() || `строка ${i + 1}`}`}>
               {FIELD_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
             </Select>

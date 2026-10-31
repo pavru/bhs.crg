@@ -322,13 +322,13 @@ function GroupSection({
           несохранённых правках заблокированы с подсказкой. */}
       {!isSpecial && firstPage !== undefined && (
         <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <Select size="sm" className="w-auto max-w-[170px]" value={currentTag} onValueChange={tag => onSetTag(group.id, tag)}
+          <Select density="dense" className="w-auto max-w-[170px]" value={currentTag} onValueChange={tag => onSetTag(group.id, tag)}
             aria-label="Тип таблицы документа — распознаётся и выгружается (XLSX/CSV)" emptyItem="— тип таблицы">
             {TABLE_TAGS.map(t => <SelectItem key={t.code} value={t.code}>{t.label}</SelectItem>)}
           </Select>
           {/* Профиль распознавания (issue #410): для ПРОИЗВОЛЬНОЙ таблицы, у которой типа/тэга нет.
               Привязка снимает требование тэга — иначе такую таблицу не распознать вовсе. */}
-          <Select size="sm" className="w-auto max-w-[190px]" value={group.profileId ?? ''}
+          <Select density="dense" className="w-auto max-w-[190px]" value={group.profileId ?? ''}
             onValueChange={id => onSetProfile(firstPage, id || null)} disabled={savingProfile}
             aria-label="Профиль распознавания — набор колонок для произвольной таблицы (задаётся в «Профили распознавания»)"
             emptyItem="— профиль таблицы">

@@ -121,7 +121,7 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
                           {canRename && (
                             <>
                               <span className="text-on-surface-variant text-body-small">или переименовать в</span>
-                              <Select size="sm" className="w-auto min-w-36" aria-label={`Переименовать «${f.path}» в поле схемы`}
+                              <Select density="dense" className="w-auto min-w-36" aria-label={`Переименовать «${f.path}» в поле схемы`}
                                 value={renameTarget[f.path] ?? ''} disabled={applyFixes.isPending} placeholder="поле схемы…"
                                 onValueChange={k => setRenameTarget(t => ({ ...t, [f.path]: k }))}>
                                 {schemaFieldKeys.map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}

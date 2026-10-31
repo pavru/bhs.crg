@@ -5,7 +5,7 @@ import { DateInput } from './DateInput';
 
 /**
  * Период из двух дат (issue #1464; макет «Обвязка, границы, диапазон» — вариант А, лента из Б, выбор
- * владельца 21.10.2026): два поля слоя обвязки через «—», подпись группы — над парой. Узкий контейнер
+ * владельца 21.10.2026): два плотных поля 40 ([UI-69]) через «—», подпись группы — над парой. Узкий контейнер
  * (телефон) ставит поля столбиком — по своей ширине, а не по экрану: пара живёт и в узкой колонке.
  *
  * <p>«по» не раньше «с». Побеждает граница, которую правили: поздняя «с» тянет за собой «по», ранняя
@@ -15,7 +15,7 @@ import { DateInput } from './DateInput';
  * вперёд можно было бы, только начав с «по». Оба календаря рисуют ленту периода.</p>
  */
 export function DateRange({
-  label, labelHidden = false, from, to, onChange, precision = 'day', size = 'md', min, max, disabled, readOnly, required, ordered = false, className = '',
+  label, labelHidden = false, from, to, onChange, precision = 'day', min, max, disabled, readOnly, required, noClear, ordered = false, className = '',
 }: {
   /** Подпись группы — legend над парой; полям она же с «с» / «по» для чтения с экрана. */
   label: string;
@@ -29,7 +29,6 @@ export function DateRange({
   to: string;
   onChange: (from: string, to: string) => void;
   precision?: DatePrecision;
-  size?: 'md' | 'sm';
   /** Внешние границы допустимых дат — у обоих полей. */
   min?: string;
   max?: string;
@@ -37,6 +36,8 @@ export function DateRange({
   readOnly?: boolean;
   /** Пустой границы не бывает (период отчёта, issue #1466): ни крестика, ни «Очистить» в календаре. */
   required?: boolean;
+  /** Без крестиков в полях — в отборе у чипа свой (`DateInput noClear`). */
+  noClear?: boolean;
   /**
    * Наружу — только упорядоченная пара (issue #1466): «по» раньше «с» держится здесь до фиксации, которая
    * её и поправит. Для приёмника, который пару «наоборот» отвергает, — адрес отчёта, который сервер
@@ -66,10 +67,10 @@ export function DateRange({
 
   const range: [string, string] | undefined = pair.from && pair.to ? [pair.from, pair.to] : undefined;
   const toMin = pair.from && (!min || pair.from > min) ? pair.from : min;
-  const common = { precision, size, max, disabled, readOnly, required, range, className: 'w-full' } as const;
+  const common = { precision, density: 'dense', noClear, max, disabled, readOnly, required, range, className: 'w-full' } as const;
   return (
     <fieldset className={`min-w-0 ${className}`}>
-      <legend className={labelHidden ? 'sr-only' : size === 'sm' ? 'mb-0.5 text-body-small text-on-surface-variant' : 'mb-1 text-body-medium font-medium text-on-surface'}>{label}</legend>
+      <legend className={labelHidden ? 'sr-only' : 'mb-1 text-body-medium font-medium text-on-surface'}>{label}</legend>
       <div className="@container">
         <div className="grid gap-1.5 items-center @[24rem]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
           <DateInput label={`${label}, с`} value={pair.from} onChange={v => give(v, pair.to)} onCommit={commitFrom}

@@ -41,7 +41,7 @@ export const RULES = [
   {
     id: 'select',
     pattern: /<select\b/g,
-    instead: 'выбор из списка — Select (shared/ui/Select): компактный size="sm" для строк таблиц, emptyItem для «не выбрано» (#1353)',
+    instead: 'выбор из списка — Select (shared/ui/Select): label — поле формы; без подписи — variant="chip" в отборе (с emptyItem «все»), density="dense" в строке настроек и шапке колонки, variant="inline" внутри фразы; emptyItem для «не выбрано» (#1353, [UI-69])',
   },
   {
     id: 'h1',
@@ -182,16 +182,16 @@ export const RULES = [
     // обёртку, которая отдаёт `type` полю под своим именем.
     count: countNativeDates,
     everywhere: true,
-    instead: 'дата — DateField (форма) / DateInput compact (ячейка) / DateInput size="md" | "sm" (отбор и строка настроек); период — DateRange; месяц и год — тот же компонент с precision="month" | "year"; время суток ЧЧ:ММ — TimeField (форма) / TimeInput (docs/UI.md, «Дата и время»)',
+    instead: 'дата — DateField (форма) / DateInput compact (ячейка) / DateInput density="dense" (отбор и строка настроек); период — DateRange; месяц и год — тот же компонент с precision="month" | "year"; время суток ЧЧ:ММ — TimeField (форма) / TimeInput (docs/UI.md, «Дата и время»)',
   },
   {
     id: 'date-frame',
     // Своя рамка у поля даты (#1464): `<DateInput className="border …">`. Рамку, высоту и кольцо
-    // фокуса рисует сам компонент по `size`, как Select, — свои рамки экранов разъезжались по высоте,
-    // радиусу и цвету ошибки. Считается класс `border` и `border-*` без модификатора; `border-…!` —
-    // законная пометка поверх рамки компонента (переопределённое значение в FieldBuilder), как у Select.
+    // фокуса рисует сам компонент по `density`, как Select, — свои рамки экранов разъезжались по высоте,
+    // радиусу и цвету ошибки. Считается класс `border` и `border-*` без модификатора, с `!` тоже: пометки
+    // поверх рамки компонента больше нет — переопределённое значение FieldBuilder называет словами ([UI-69]).
     count: countDateFrames,
-    instead: 'рамку поля даты рисует DateInput size="md" (h-9) | "sm" (h-7) — как у Select; ошибка — invalid, только чтение — readOnly; className — ширина и место в раскладке (docs/UI.md, «Дата и время»)',
+    instead: 'рамку поля даты рисует DateInput density="dense" — плотное поле 40, как у Select ([UI-69]); ошибка — invalid, только чтение — readOnly; className — ширина и место в раскладке (docs/UI.md, «Дата и время»)',
   },
   {
     id: 'native-pdf-frame',
@@ -470,7 +470,7 @@ function countDateFrames(text) {
       if (cls?.initializer) names(cls.initializer);
       const raw = cls?.initializer ? cls.initializer.getText(sf) : '';
       const tokens = [raw, ...named].join(' ').split(/[\s'"`{}()?:]+/);
-      if (tokens.some(t => /^border(?:-[\w/-]+)?$/.test(t))) n++;
+      if (tokens.some(t => /^border(?:-[\w/-]+)?!?$/.test(t))) n++;
     }
     ts.forEachChild(node, visit);
   };

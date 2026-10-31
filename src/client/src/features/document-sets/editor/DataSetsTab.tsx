@@ -137,13 +137,13 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
         <>
           <div className="flex items-center gap-2">
             {refModeVal === 'name' ? (
-              <Select size="sm" className="flex-1" aria-label={`Колонка с именем записи каталога для «${field.title}»`}
+              <Select density="dense" className="flex-1" aria-label={`Колонка с именем записи каталога для «${field.title}»`}
                 value={refMap?.identityColumns ? '' : (refMap?.column ?? '')} onValueChange={setRefName} emptyItem="— не привязано —">
                 {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
               </Select>
             ) : <span className="flex-1" />}
             {identityFields.length > 0 ? (
-              <Select size="sm" className="w-36 shrink-0" aria-label={`Как искать запись каталога для «${field.title}»`}
+              <Select density="dense" className="w-36 shrink-0" aria-label={`Как искать запись каталога для «${field.title}»`}
                 value={refModeVal} onValueChange={m => { setRefModeOverride(m as 'name' | 'identity'); onChange(undefined); }}>
                 <SelectItem value="name">по имени</SelectItem><SelectItem value="identity">по идентификатору</SelectItem>
               </Select>
@@ -154,7 +154,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
               {identityFields.map(idf => (
                 <div key={idf.key} className="flex items-center gap-2">
                   <Tooltip content={idf.key}><span className={`w-40 shrink-0 text-label-small text-on-surface-variant ${MAP_LABEL}`}>{idf.title}</span></Tooltip>
-                  <Select size="sm" className="flex-1" aria-label={`Колонка для identity-поля «${idf.title}»`}
+                  <Select density="dense" className="flex-1" aria-label={`Колонка для identity-поля «${idf.title}»`}
                     value={idCols[idf.key] ?? ''} onValueChange={c => setRefIdentity(idf.key, c)} emptyItem="— колонка —">
                     {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </Select>
@@ -170,7 +170,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
             {scalarSubs.map(sf => (
               <div key={sf.key} className="flex items-center gap-2">
                 <Tooltip content={`${sf.title} (${sf.key})`}><span className={`w-40 shrink-0 text-label-small text-on-surface-variant ${MAP_LABEL}`}>{sf.title}</span></Tooltip>
-                <Select size="sm" className="flex-1" aria-label={`Колонка для под-поля «${sf.title}»`}
+                <Select density="dense" className="flex-1" aria-label={`Колонка для под-поля «${sf.title}»`}
                   value={inlineFields[sf.key] ?? ''} onValueChange={c => setSub(sf.key, c || undefined)} emptyItem="— не привязано —">
                   {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </Select>
@@ -327,7 +327,7 @@ export function MappingEditor({
                   {f.title}
                 </span>
               </Tooltip>
-              <Select size="sm" className="flex-1" aria-label={`Колонка для «${f.title}»`}
+              <Select density="dense" className="flex-1" aria-label={`Колонка для «${f.title}»`}
                 value={mapping[f.key] ?? ''} onValueChange={c => setCol(f.key, c)} emptyItem="— не привязано —">
                 {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
               </Select>
@@ -347,11 +347,11 @@ export function MappingEditor({
                     {f.title} <span className="text-on-surface-variant">📎</span>
                   </span>
                 </Tooltip>
-                <Select size="sm" className="flex-1" aria-label={`Колонка с путём к файлу для «${f.title}»`}
+                <Select density="dense" className="flex-1" aria-label={`Колонка с путём к файлу для «${f.title}»`}
                   value={fileMap?.column ?? ''} onValueChange={c => setFile(f, c, fileMap?.sizeColumn ?? '')} emptyItem="— не привязано —">
                   {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </Select>
-                <Select size="sm" className="w-32" aria-label={`Колонка с размером файла в байтах для «${f.title}» (необязательно)`}
+                <Select density="dense" className="w-32" aria-label={`Колонка с размером файла в байтах для «${f.title}» (необязательно)`}
                   value={fileMap?.sizeColumn ?? ''} onValueChange={c => setFile(f, fileMap?.column ?? '', c)}
                   disabled={!fileMap?.column} emptyItem="без размера">
                   {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -369,7 +369,7 @@ export function MappingEditor({
                     {f.title}
                   </span>
                 </Tooltip>
-                <Select size="sm" className="flex-1" aria-label={`Колонка для «${f.title}»`}
+                <Select density="dense" className="flex-1" aria-label={`Колонка для «${f.title}»`}
                   value={mapping[f.key] ?? ''} onValueChange={c => setCol(f.key, c)} emptyItem="— не привязано —">
                   {columnNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </Select>
@@ -479,7 +479,7 @@ function AddBindingPanel({
             Нет загруженных наборов данных. Загрузите файлы на странице «Наборы данных» или в панели комплекта/раздела/стройки.
           </p>
         ) : (
-          <Select aria-label="Источник данных" value={sourceId} onValueChange={handleSourceChange}
+          <Select density="dense" aria-label="Источник данных" value={sourceId} onValueChange={handleSourceChange}
             placeholder="— выберите источник —">
             {availableFiles.map(f => (
               <SelectGroup key={f.id} label={`[${SCOPE_LABELS[f.scope]}] ${f.name} (${DATA_SET_FORMAT_LABELS[f.format]})`}>
@@ -499,7 +499,7 @@ function AddBindingPanel({
               Источник материализуется в тип <b>{allDocTypes.find(t => t.id === materializeTypeId)?.name ?? '—'}</b>.
               Маппинг задан на источнике — выберите только поле-цель совместимого типа.
             </p>
-            <Select aria-label="Поле-цель" value={targetFieldKey ?? ''} onValueChange={key => setTargetFieldKey(key || null)}
+            <Select density="dense" aria-label="Поле-цель" value={targetFieldKey ?? ''} onValueChange={key => setTargetFieldKey(key || null)}
               emptyItem="— выберите поле —">
               {compatibleFields.map(f => (
                 <SelectItem key={f.key} value={f.key}>{f.title} ({f.key})</SelectItem>

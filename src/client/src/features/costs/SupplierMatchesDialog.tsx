@@ -139,7 +139,7 @@ export function SupplierMatchesDialog({ initial, onClose }: {
       </p>
 
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <Select className="w-auto max-w-[18rem]" value={filter.supplierId ?? ''} aria-label="Поставщик"
+        <Select variant="chip" className="max-w-[18rem]" value={filter.supplierId ?? ''} aria-label="Поставщик"
           onValueChange={id => narrow({ supplierId: id || null })} emptyItem="Все поставщики">
           {chosenMissing && (
             <SelectItem value={filter.supplierId!}>

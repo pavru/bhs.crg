@@ -139,12 +139,10 @@ export function NewNomenclatureStep({ from, plate, narrow, onBack, onPick }: {
       )}
 
       {kinds.data && (
-        <label className="block space-y-1">
-          <span className="text-body-small text-on-surface-variant">Вид</span>
-          <Select aria-label="Вид" value={kind?.typeId ?? ''} onValueChange={pickKind} emptyItem="— выберите вид позиции —">
-            {all.map(k => <SelectItem key={k.typeId} value={k.typeId}>{k.name}</SelectItem>)}
-          </Select>
-        </label>
+        // Выбор с подписью — поле формы, подпись в вырезе ([UI-69]).
+        <Select label="Вид" value={kind?.typeId ?? ''} onValueChange={pickKind} emptyItem="— выберите вид позиции —">
+          {all.map(k => <SelectItem key={k.typeId} value={k.typeId}>{k.name}</SelectItem>)}
+        </Select>
       )}
 
       {kind && !fit && (
@@ -156,22 +154,21 @@ export function NewNomenclatureStep({ from, plate, narrow, onBack, onPick }: {
 
       {kind && fit && (
         <>
-          {kind.fields.map(f => (
+          {kind.fields.map(f => f.options !== null ? (
+            // Выбор с подписью — поле формы ([UI-69]); подпись снаружи осталась у поля подсказки (17).
+            <Select key={f.key} label={f.title} required={f.required} value={draft.refs[f.key] ?? ''} emptyItem="— не выбрано —"
+              onValueChange={id => setEdited({ ...draft, refs: { ...draft.refs, [f.key]: id } })}>
+              {f.options.map(o => <SelectItem key={o.id} value={o.id}>{o.name ?? 'без названия'}</SelectItem>)}
+            </Select>
+          ) : (
             <label key={f.key} className="block space-y-1">
               <span className="text-body-small text-on-surface-variant">{f.title}{f.required ? ' *' : ''}</span>
-              {f.options === null ? (
-                // Подсказка по введённому ранее (issue #1533): производитель, встреченный в прошлом счёте.
-                // Записи номенклатуры — уровня «вся система»; выбранное идёт тем же `type`, что набор,
-                // и так же запускает поиск похожих.
-                <SuggestField compact arrowOpens label={f.title} value={draft.values[f.key] ?? ''} onChange={v => type(f.key, v)}
-                  source={f.suggest === 'suggested' ? { type: kind.typeId, field: f.key, scope: 'System' } : null}
-                  className={field} />
-              ) : (
-                <Select aria-label={f.title} value={draft.refs[f.key] ?? ''} emptyItem="— не выбрано —"
-                  onValueChange={id => setEdited({ ...draft, refs: { ...draft.refs, [f.key]: id } })}>
-                  {f.options.map(o => <SelectItem key={o.id} value={o.id}>{o.name ?? 'без названия'}</SelectItem>)}
-                </Select>
-              )}
+              {/* Подсказка по введённому ранее (issue #1533): производитель, встреченный в прошлом счёте.
+                  Записи номенклатуры — уровня «вся система»; выбранное идёт тем же `type`, что набор,
+                  и так же запускает поиск похожих. */}
+              <SuggestField compact arrowOpens label={f.title} value={draft.values[f.key] ?? ''} onChange={v => type(f.key, v)}
+                source={f.suggest === 'suggested' ? { type: kind.typeId, field: f.key, scope: 'System' } : null}
+                className={field} />
               {prefillHint(kind, f, from) && draft.values[f.key] === prefill(kind, from).values[f.key] && (
                 <span className="block text-label-small text-on-surface-variant">{prefillHint(kind, f, from)}</span>
               )}

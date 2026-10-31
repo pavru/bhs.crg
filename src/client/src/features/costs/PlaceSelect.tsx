@@ -45,7 +45,7 @@ export function PlaceSelect({ value, places, label, placeholder = '— выбе�
       : list.some(item => item.id === id) ? null : placeName({ ...value, section: null }, places);
 
   return (
-    <Select size="sm" value={current} aria-label={label} disabled={disabled} className={className}
+    <Select density="dense" value={current} aria-label={label} disabled={disabled} className={className}
       emptyItem={placeholder} stayOpenOn={REVEAL_CHOICE}
       onValueChange={choice => pickSite(choice, sites.reveal, picked => onChange(fromChoice(picked)))}>
       {orphan !== null && <SelectItem value={current}>{orphan}</SelectItem>}

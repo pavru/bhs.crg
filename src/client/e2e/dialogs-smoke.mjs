@@ -626,23 +626,23 @@ const openLinkPicker = async () => {
   await settled(page);
   return dlg;
 };
-// Поле типа — триггер TypePickerField с aria-label «Тип документа качества»; показанное значение
-// это его первая строка (второй идёт код типа).
-const TYPE_TRIGGER = 'button[aria-label="Тип документа качества"]';
+// Поле типа — триггер TypePickerField по имени «Тип документа качества» (ролью, а не атрибутом: имя
+// плотному полю даёт подпись оболочки, [UI-69]); показанное значение — его первая строка (второй идёт код).
+const typeTrigger = (dlg) => dlg.getByRole('button', { name: 'Тип документа качества' });
 const firstLine = (text) => text.split(/\r?\n/)[0].trim();
-const shownSearchType = async (dlg) => firstLine(await dlg.locator(TYPE_TRIGGER).first().innerText());
+const shownSearchType = async (dlg) => firstLine(await typeTrigger(dlg).first().innerText());
 
 let firstType = '';
 await check('quality-picker-opens-with-default-search-type', async () => {
   const dlg = await openLinkPicker();
-  if (!(await dlg.locator(TYPE_TRIGGER).count())) throw new Error('поля типа для поиска нет');
+  if (!(await typeTrigger(dlg).count())) throw new Error('поля типа для поиска нет');
   firstType = await shownSearchType(dlg);
   if (!firstType) throw new Error('тип для поиска не показан');
 });
 
 await check('quality-picker-keeps-chosen-search-type-across-close', async () => {
   const dlg = page.locator('[role=dialog]').last();
-  await dlg.locator(TYPE_TRIGGER).first().click();
+  await typeTrigger(dlg).first().click();
   await settled(page);
   const picker = page.locator('[role=dialog]').last();
   const options = await picker.locator('button')
