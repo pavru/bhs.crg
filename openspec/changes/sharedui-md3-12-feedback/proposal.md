@@ -22,35 +22,45 @@
 
 Владелец выбрал вариант Г для всего приложения. Snackbar по одному — изменение поведения, его решает В9.
 
+**Выбор 01.11.2026 — макет А «MD3 целиком»** (В9, В16): https://claude.ai/design/p/fbeaec15-de71-4127-8d01-87dbc09b040c.
+Подробности и отвергнутые варианты — `design.md`, «Выбор владельца».
+
 ## What Changes
 
-- **`Snackbar` вместо `Toast`** (рекомендация В9):
+- **`Snackbar` вместо `Toast`** (В9 = А):
   - `inverse-surface` / `inverse-on-surface`, `body-medium`, форма 4, уровень 3;
   - действие — `inverse-primary`;
-  - **по одному**: следующий — после закрытия текущего; ошибка не вытесняется;
+  - **по одному**: следующий — после закрытия текущего; видимое не вытесняется; среди ожидающих ошибки и
+    уведомления со своим действием идут первыми; ожидающие успех и сведение живут 15 с;
   - знаков и красной подложки у ошибки нет;
   - «Сообщить» у ошибки с идентификатором запроса остаётся.
 
-  Хук `useToast` → `useSnackbar` с теми же методами — кодмодом по 93 местам.
+  Хук `useToast` → `useSnackbar` с теми же методами — кодмодом по 93 местам, отдельным PR 0. Пары
+  сообщений от одного действия склеиваются в одно.
 - **`Tooltip`** — простая подсказка MD3: `inverse-surface`, `body-small`, форма 4, без рамки и тени.
   Договор прежний: имя кнопки-иконки, `aria-description`, неактивная кнопка остаётся в Tab, Esc
   закрывает подсказку.
 - **`RichTooltip`** (новый) — богатая подсказка:
   - `surface-container`, форма 12, уровень 2;
   - заголовок `title-small`, текст `body-medium`, до двух text-действий;
-  - с действием не исчезает, пока указатель или фокус внутри.
+  - с действием — немодальный `dialog`, не исчезает, пока указатель или фокус внутри;
+  - первые места — `PdfGroupingEditor`, `WaybillForm`.
 - **`Banner`** (новый, расширение D8) — сообщение во всю ширину вверху своей области:
-  - знак 24 в круге 40 цвета контейнера роли;
+  - знак 24 цвета `on-*-container` в круге 40 цвета контейнера роли;
   - текст `body-medium`, до двух text-действий;
   - разделитель снизу.
 
   Плашки `shared/` переводятся (`RereadFailedNotice`). Правило `notice-plaque` ставит уровень
-  самоделкам `features/` до 17.
+  самоделкам `features/` (около 38) до 17.
 - **`StatusText` вместо `StatusBadge`** (как в варианте Г):
   - `label-medium` цвета роли;
   - ведущий знак 16 с заливкой — у тонов `success`, `warning`, `error` обязателен;
-  - точка «·» между соседними.
-- **`Badge`** (новый) — точка 6 px или счётчик 16 px на знаке, пункте навигации и вкладке.
+  - точка «·» между соседними;
+  - `bordered` и `count` уходят.
+- **`Badge`** (новый) — точка 6 px или счётчик 16 px цвета `error` на знаке, пункте навигации и вкладке.
+- **`CountText`** (новый) — число у подписи кнопки, вкладки, строки: текст `on-surface-variant` (В16 = А;
+  решение [UI-45] от 22.10.2026 о пилюле с тоном отменено). Ручные счётчики переводятся на `Badge` или
+  `CountText`.
 - **`LinearProgress`** (новый):
   - с долей — для хода с известной долей;
   - без доли — для неизвестной.
@@ -73,19 +83,21 @@
 
 - **Клиент:**
   - `shared/ui/Toast.ts` и `ToastProvider.tsx` → `Snackbar`;
-  - `Tooltip.tsx`, новые `RichTooltip`, `Banner`, `Badge`, `LinearProgress`;
+  - `Tooltip.tsx`, новые `RichTooltip`, `Banner`, `Badge`, `CountText`, `LinearProgress`;
   - `StatusBadge.tsx` → `StatusText`, `RereadFailedNotice.tsx`;
   - `useToast` — 93 места в 83 файлах;
-  - `StatusBadge` — 25 мест в 14 файлах;
-  - `Tooltip` — 276 мест, вызовы не меняются;
-  - `ActivityCenter` и счётчики вкладок;
+  - `StatusBadge` — 55 мест в 28 файлах;
+  - `Tooltip` — 191 место, вызовы не меняются;
+  - `ActivityCenter` и ручные счётчики (`BrokenCountBadge`, `ValueIssueBadge`, `VariantPicker`,
+    `SourcesExpander`);
   - `scripts/ui-ratchet-lib.mjs`;
-  - e2e, читающие тост, — по роли и тексту, классов в них нет.
+  - e2e, читающие тост, — по роли и тексту, классов в них нет; ожидания становятся последовательными.
 - **Документы:** `docs/UI.md`, `CLAUDE.md` и `AGENTS.md` (`notice-plaque`, одним коммитом),
   `/design-sync` (D12).
 - **Сервер:** не меняется.
 - **PR:**
-  - PR 1 — `Snackbar`, `Tooltip`, `RichTooltip`;
-  - PR 2 — `Banner`, `StatusText`, `Badge`, `LinearProgress`, `notice-plaque`.
+  - PR 0 — только имена (`useToast` → `useSnackbar`), без метки версии;
+  - PR 1 — `Snackbar` и склейка пар, `Tooltip`, `RichTooltip`;
+  - PR 2 — `Banner`, `StatusText`, `CountText`, `Badge`, `LinearProgress`, `notice-plaque`.
 
-  Оба с меткой `version:minor`.
+  PR 1 и PR 2 — с меткой `version:minor`.
