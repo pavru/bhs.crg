@@ -191,17 +191,17 @@
 - [x] 2.8 `docs/UI.md`: строки «Чип-переключатель» и «Вкладки» — виды чипа, `Tabs segmented` и
   `SegmentedButton`; довод «32 px раздули бы пилюлю» у крестика чипа поправлен. Если выбран цветной
   контейнер индикатора — строка в разделе отступлений [UI-68]. Проверка — ревью.
-- [ ] 2.9 `/design-sync` (D12): превью `Chip`, `SegmentedButton`, `Tabs` и README — по новому виду.
+- [x] 2.9 `/design-sync` (D12): превью `Chip`, `SegmentedButton`, `Tabs` и README — по новому виду.
   Проверка — README и превью без `tone`.
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный (каждый PR).
-- [ ] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста (каждый PR).
-- [ ] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
+- [x] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный (каждый PR).
+- [x] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста (каждый PR).
+- [x] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter FileSizeRatchet` —
   зелёный: `Button.tsx` с видами не перешагнул 500 строк кода, иначе `IconButton` — своим файлом.
-- [ ] 3.4 `npm run -s test:e2e:ci` — весь список, зелёный (каждый PR; зонтик, 5.1).
-- [ ] 3.5 Снимки 5–7 ключевых экранов до и после, обе темы, 1366×768 и 375 px (зонтик, 5.2), среди них
+- [x] 3.4 `npm run -s test:e2e:ci` — весь список, зелёный (каждый PR; зонтик, 5.1).
+- [x] 3.5 Снимки 5–7 ключевых экранов до и после, обе темы, 1366×768 и 375 px (зонтик, 5.2), среди них
   окно подтверждения и ряд условий отбора. Проверка — описание PR.
-- [ ] 3.6 Оба PR с меткой `version:minor`. В описании — макет, выбранный вариант и ссылка
+- [x] 3.6 Оба PR с меткой `version:minor`. В описании — макет, выбранный вариант и ссылка
   (`docs/UI.md`, «Новый экран: порядок», шаг 4).
