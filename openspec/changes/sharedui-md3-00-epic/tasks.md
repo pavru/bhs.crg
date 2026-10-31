@@ -138,9 +138,15 @@
 Все — после 0.2 и 2.3–2.5. Дети 3.1–3.5 между собой параллельны, макеты — очередью к владельцу. 3.6
 — ещё и после 2.1 (значки). 3.7 — после 2.1, 3.1, 3.2 и 3.4.
 
-- [ ] 3.1 `sharedui-md3-10-actions` (2) — `Button` 40, `IconButton` 40 с вариантами и
+- [x] 3.1 `sharedui-md3-10-actions` (2) — `Button` 40, `IconButton` 40 с вариантами и
   переключением, `Chip` (filter, input, assist), segmented button вместо сегментных `Tabs`, FAB
   [UI-68]. Решение В7. Проверка — change заархивирован.
+  Слит #1708 (d955ebc0) и #1709 (5fef46f5), заархивирован 31.10.2026: В7 = Б (макеты d79801d4) —
+  кнопки 40, кнопка-иконка 40 со знаком 24, XS 32 в клетках и полях при мыши; цель касания 48;
+  extended FAB; `Chip` filter / input / assist из свойств, состояние — знак цвета роли вместо тона;
+  `SegmentedButton` для значения, `Tabs segmented` для панели (на телефоне — `underline`), общий
+  `useRoving`; правило `segmented` — 0; снимки до и после — артефакт FbeziiWjdZkp34fRsYHXP4;
+  `/design-sync` 31.10.2026.
 - [ ] 3.2 `sharedui-md3-11-inputs` (2) — `TextField`/`OutlinedField` и `Select` по MD3, `Select` обвязки
   → чип с меню или плотное поле, нарисованный `Checkbox`, `Radio`, `Switch` 52×32, шкала плотности в
   `docs/UI.md` [UI-69] [UI-70]. Решения В5, В6. Проверка — change заархивирован.
