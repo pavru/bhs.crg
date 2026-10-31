@@ -28,28 +28,35 @@
 ## What Changes
 
 - **`OutlinedField`** и поля на нём (`TextField`, `TextAreaField`, `DateField`, `TimeField`,
-  `SuggestField`):
-  - высота 56, форма 4, текст `body-large` 16 (рекомендация В6);
-  - подпись и вспомогательный текст — `body-small` `on-surface-variant`;
+  `TypePickerField`, `SuggestField`):
+  - высота 56, форма 4, текст и подпись в покое — `body-large` 16 (В6, вариант А);
+  - подпись в вырезе и вспомогательный текст — `body-small` `on-surface-variant`;
   - обводка `outline`; при наведении — `on-surface`, в фокусе — 2 px `primary`;
+  - «только для чтения» — обводка `outline-variant` без подложки;
   - ошибка — `error` у обводки, подписи и текста под полем, плюс замыкающий знак ошибки.
-- **Плотное поле 40 px** с текстом `body-medium` 14 — для клеток таблиц и сетки правки. Им же
-  становится `NumberInput` — сегодня у него своя рамка около 24 px.
-- **`Select` формы** — exposed dropdown menu MD3: то же поле, стрелка поворачивается при открытии.
-- **`Select` обвязки.** Размеры `h-9` и `h-7` уходят:
-  - в строке отбора и шапке — чип с меню (`Chip menu`, 10);
-  - в клетке — плотное поле 40.
+- **Плотное поле 40 px** с текстом `body-medium` 14:
+  - вне сетки — с рамкой: строки настроек в окнах и панелях, шапки колонок с вводом;
+  - в клетке сетки — без рамки, видом 14.
 
-  То же — у `DateInput size`. `inline` остаётся названным отступлением.
+  `NumberInput` сегодня рисует свою рамку около 24 px и тоже становится плотным полем.
+- **`Select` формы** — exposed dropdown menu MD3: то же поле, стрелка поворачивается при открытии.
+- **`Select` без подписи.** Размеры `h-9` и `h-7` уходят, вид выбирается по месту:
+  - в строке отбора — чип с меню (`Chip menu`, 10);
+  - в строке настроек и шапке колонки — плотное поле 40;
+  - внутри фразы — `inline`, названное отступление.
+
+  То же — у `DateInput`, `DateRange` и `TypePickerField`.
 - **`Checkbox`** нарисован по MD3: 18 px, обводка 2 px, форма 2 px, слой состояния 40 px, вид ошибки.
   Нативный `input` под ним остаётся — у него форма и диктор. Размер `sm` уходит.
-- **`Radio`** и **`RadioGroup`** (новые) — 20 px, слой 40, клавиатура APG. Нативные `type="radio"`
-  (5 мест в 2 файлах) переводятся, правило храповика `native-radio` — на нуле.
-- **`Switch`** — трек 52×32, ручка 16 → 24 (28 при нажатии), у выключенного — контур 2 px. Размер `sm`
-  уходит.
-- **`docs/UI.md`, «Плотность»** — таблица уровней D7 с высотами. Всё ниже −2 — только отступление в
-  своём разделе [UI-70]. Строки «Поле ввода», «Выбор из списка», «Флажок» таблицы контролов
-  переписываются.
+- **`Radio`** и **`RadioGroup`** (новые) — 20 px, слой 40, клавиатура APG, на готовом `useRadioGroup`. На
+  них переводятся нативные `type="radio"` (5 мест в 2 файлах) и рисованные кружки `AppearanceSection` и
+  `VariantPicker`. Правило храповика `native-radio` следит, чтобы новых не появлялось.
+- **`Switch`** — трек 52×32, ручка 16 → 24 (28 при нажатии), у выключенного — контур 2 px, знака на ручке
+  нет. Размер `sm` уходит.
+- **Самодельные текстовые поля** (69 мест) — под храповиком `raw-field`. Переводит их 17.
+- **`docs/UI.md`, «Плотность»** — таблица уровней D7 с высотами и строкой настроек 48/40 (В5). Ниже — только
+  отступление `inline` [UI-70]. Строки «Поле ввода», «Выбор из списка», «Дата», «Подсказка», «Флажок»,
+  «Радиокнопка» и «Переключатель» таблицы контролов переписываются.
 
 ## Capabilities
 
@@ -57,22 +64,27 @@
 - Нет.
 
 ### Modified Capabilities
-- `sharedui`: поля и выбор по MD3 [UI-69]; шкала плотности [UI-70]. Требования [UI-40] и [UI-41] у
-  `sharedui-checkbox-screens` правятся после его архива (`tasks.md`, 0.5).
+- `sharedui`: поля и выбор по MD3 [UI-69]; шкала плотности [UI-70]. В [UI-40] клетка таблицы получает
+  `Checkbox` 18 px вместо `size="sm"`.
 
 ## Impact
 
 - **Клиент:**
-  - `shared/ui/OutlinedField.tsx`, `TextField.tsx`, `TextAreaField.tsx`, `NumberInput.tsx`,
-    `Select.tsx`, `DateInput.tsx` (слой обвязки), `Checkbox.tsx`, `Switch.tsx`;
+  - `shared/ui/OutlinedField.tsx` (с `fieldBox`), `TextField.tsx`, `TextAreaField.tsx`, `NumberInput.tsx`,
+    `Select.tsx`, `DateInput.tsx`, `DateRange.tsx`, `TypePickerField.tsx`, `DateField.tsx`, `TimeField.tsx`,
+    `Chip.tsx`, `Checkbox.tsx`, `Switch.tsx`;
   - новые `Radio.tsx` и `RadioGroup`;
-  - места `Select size="sm"` (29 в 16 файлах) и `size="md"` в обвязке;
-  - `Checkbox size="sm"`, `Switch size="sm"`;
-  - нативные радиокнопки — `MaterializationDialog`, `BackupSection`;
-  - `ui-ratchet-lib.mjs`;
-  - e2e с размерами: `fields-smoke`, `invoice-layout-checks`, `allocation-matrix-smoke` и другие.
-- **Документы:** `docs/UI.md` («Язык формы», «Плотность», «Кто сторожит»), `CLAUDE.md` и `AGENTS.md`
-  (новое правило — одним коммитом), `/design-sync` (D12).
+  - места `Select` без подписи — 32 `sm` в 18 файлах и 21 `md` в 17; `DateInput`, `DateRange`,
+    `TypePickerField` с `size`; пять мест с высотой через `className`;
+  - `Checkbox size="sm"` (29), `Switch size="sm"` (3);
+  - радиокнопки — `MaterializationDialog`, `BackupSection`, `AppearanceSection`, `VariantPicker`;
+  - новый модуль `scripts/ui-ratchet-inputs.mjs`, подсказки в `ui-ratchet-lib.mjs`;
+  - e2e, чувствительные к раскладке: `site-costs-smoke`, `allocation-matrix-smoke`, `invoice-layout-checks`,
+    `invoice-payment-smoke`, `table-chips-smoke`.
+- **Документы:** `docs/UI.md` («Язык формы», «Плотность», «Отступления от MD3», «Кто сторожит»),
+  `CLAUDE.md` и `AGENTS.md` (новые правила — одним коммитом), `/design-sync` (D12).
 - **Сервер:** не меняется.
-- **PR:** два — (1) поля, `Select`, плотность; (2) `Checkbox`, `Radio`, `Switch`. Оба с меткой
-  `version:minor`.
+- **PR:** три, все с меткой `version:minor`:
+  - (1a) вид оболочки поля;
+  - (1b) выбор без подписи и плотность;
+  - (2) `Checkbox`, `Radio`, `Switch`, сторожа.
