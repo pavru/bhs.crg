@@ -1,6 +1,7 @@
 import { Children, forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { CircularProgress } from './CircularProgress';
 import { Icon } from './Icon';
+import { RichTooltip, type RichTooltipAction } from './RichTooltip';
 import { Tooltip } from './Tooltip';
 import { BASE, FILLED_HOVER_SHADOW, HEIGHT, LABEL, MIN_HEIGHT, padding, variantClass, type ButtonVariant } from './buttonClasses';
 import type { FilledIconDef, IconDef } from './icons/types';
@@ -27,6 +28,13 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
    * кнопки с подписью — постоянное описание для скринридера (`aria-description`).
    */
   title?: string;
+  /**
+   * Богатая подсказка ([UI-72]) вместо `title`: заголовок, пояснение и до двух действий — «Сначала
+   * сохраните разбиение» → «Сохранить». Кнопка, которой её дают, держит её и без заголовка (тогда она
+   * выглядит простой): смена `title` на `rich` пересоздала бы кнопку — и фокус, вернувшийся на неё после
+   * действия, пропал бы.
+   */
+  rich?: { title?: string; text: string; actions?: readonly RichTooltipAction[] };
 }
 
 /**
@@ -37,7 +45,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
  */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = 'text', danger = false, loading = false,
-    icon, trailingIcon, fullWidth, multiline = false, className = '', type, disabled, title, children, ...rest },
+    icon, trailingIcon, fullWidth, multiline = false, className = '', type, disabled, title, rich, children, ...rest },
   ref,
 ) {
   const leading = loading || !!icon;
@@ -46,22 +54,23 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     ? `${MIN_HEIGHT} py-1.5 whitespace-normal`
     : `${HEIGHT} whitespace-nowrap`;
   const labelled = hasLabel(children);
-  return (
-    // Без подписи имя кнопки — её подсказка, с подписью — описание: браузерный `title` давал их сам.
-    <Tooltip content={title} name={!labelled}>
-      <button
-        ref={ref}
-        type={type ?? 'button'}
-        className={`${BASE} touch-target rounded-full ${LABEL} ${sizeCls} ${padding(variant, { leading, trailing: !!trailingIcon })} ${variantClass(variant, danger)}${variant === 'filled' ? ` ${FILLED_HOVER_SHADOW}` : ''} ${fullWidth ? 'w-full' : ''} ${className}`}
-        {...rest}
-        disabled={disabled || loading}
-      >
-        {loading ? <CircularProgress size={18} className="shrink-0" /> : icon}
-        {children}
-        {trailingIcon}
-      </button>
-    </Tooltip>
+  const button = (
+    <button
+      ref={ref}
+      type={type ?? 'button'}
+      className={`${BASE} touch-target rounded-full ${LABEL} ${sizeCls} ${padding(variant, { leading, trailing: !!trailingIcon })} ${variantClass(variant, danger)}${variant === 'filled' ? ` ${FILLED_HOVER_SHADOW}` : ''} ${fullWidth ? 'w-full' : ''} ${className}`}
+      {...rest}
+      disabled={disabled || loading}
+    >
+      {loading ? <CircularProgress size={18} className="shrink-0" /> : icon}
+      {children}
+      {trailingIcon}
+    </button>
   );
+  // Без подписи имя кнопки — её подсказка, с подписью — описание: браузерный `title` давал их сам.
+  return rich
+    ? <RichTooltip {...rich}>{button}</RichTooltip>
+    : <Tooltip content={title} name={!labelled}>{button}</Tooltip>;
 });
 
 export type IconButtonVariant = 'standard' | 'filled' | 'tonal' | 'outlined';
