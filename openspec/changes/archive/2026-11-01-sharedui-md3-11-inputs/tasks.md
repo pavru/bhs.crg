@@ -262,18 +262,24 @@
   - оба правила — в «Кто сторожит».
 
   Проверка — `dotnet test … --filter AgentRulesCopy` зелёный.
-- [ ] 3.7 `/design-sync` (D12): превью `TextField`, `Select`, `Checkbox`, `Switch` и README дизайн-системы —
+- [x] 3.7 `/design-sync` (D12): превью `TextField`, `Select`, `Checkbox`, `Switch` и README дизайн-системы —
   по новому виду. Проверка — README называет два размера поля, три вида выбора без подписи и
   `RadioGroup`.
 
+  Сделано 01.11.2026 из основной копии (master 2.52.0): 53 компонента (+`RadioGroup`), якорь abb3dd09f055.
+
 ## 4. Верификация
 
-- [ ] 4.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный (каждый PR).
-- [ ] 4.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста (каждый PR).
-- [ ] 4.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FileSizeRatchet|AgentRulesCopy"`
+- [x] 4.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный (каждый PR).
+- [x] 4.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста (каждый PR).
+- [x] 4.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FileSizeRatchet|AgentRulesCopy"`
   — зелёный.
-- [ ] 4.4 `npm run -s test:e2e:ci` — весь список, зелёный (каждый PR; зонтик, 5.1).
-- [ ] 4.5 Снимки 5–7 ключевых экранов до и после, обе темы, 1366×768 и 375 px (зонтик, 5.2). Проверка —
+- [x] 4.4 `npm run -s test:e2e:ci` — весь список, зелёный (каждый PR; зонтик, 5.1).
+- [x] 4.5 Снимки 5–7 ключевых экранов до и после, обе темы, 1366×768 и 375 px (зонтик, 5.2). Проверка —
   описание PR.
-- [ ] 4.6 Все три PR — с меткой `version:minor`. В описании — макет, выбранный вариант А и ссылка на проект
+
+  Сделано 01.11.2026: https://claude.ai/artifact/DjCc7zGazHiKznKFAQEJYF — 7 экранов (вход, счёт, окно оплаты,
+  ряд отбора, новый тип поля, профиль, резервное копирование), master c5c0459f против bace09cc; ссылка — в
+  описании #1714.
+- [x] 4.6 Все три PR — с меткой `version:minor`. В описании — макет, выбранный вариант А и ссылка на проект
   макетов.
