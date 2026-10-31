@@ -1,5 +1,5 @@
 import { Chip } from '@/shared/ui/Chip';
-import { Archive, Checklist, DocumentScanner, Warning } from '@/shared/ui/icons';
+import { Archive, Checklist, DocumentScanner, Help, Warning } from '@/shared/ui/icons';
 import type { ReactNode } from 'react';
 import type { InvoiceQueue } from '@/shared/api/invoices';
 import type { InvoiceQueues } from '@/shared/api/invoiceQueues';
@@ -33,7 +33,7 @@ export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, on
   const archived = queueChip('archived', queues, queue === 'archived');
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 px-3 py-1.5 text-body-small" role="group" aria-label="Отбор списка счетов">
+    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 px-3 py-1.5 text-body-small" role="group" aria-label="Отбор списка счетов">
       {/* «Разобрать» (ТЗ COST-6.2, issue #1292) — рабочая очередь: все недоведённые счета, то есть
           черновики. Отбирает и считает СЕРВЕР. Чип стоит всегда; числа нет, пока оно не пришло либо
           равно нулю, — «не посчитано» нулём не рисуем. */}
@@ -52,14 +52,15 @@ export function InvoiceQueueChips({ queue, onChange, queues, parsing, failed, on
         <Chip selected={queue === 'unrecognized'} icon={DocumentScanner} count={queues && queues.unrecognized > 0 ? String(queues.unrecognized) : undefined}
           title={'Черновики с файлом, в которых нет строк: файл не распознан, прочитан без строк или не распознавался.'
             + (queues ? '' : ' Сколько их — не посчитано.')}
-          tone="warning" onClick={() => toggle('unrecognized')}
+          iconTone="warning" onClick={() => toggle('unrecognized')}
           aria-label={`${QUEUE_LABEL.unrecognized}, счетов: ${queues?.unrecognized || 'нет'}`}>
           {QUEUE_LABEL.unrecognized}
         </Chip>
       )}
       {lost && (
-        <Chip selected={queue === 'lost'} icon={Warning} count={lost.count}
-          title={lost.title} tone={lost.doubt ? 'warning' : 'danger'} onClick={() => toggle('lost')}
+        // «Возможно» и «точно потеряно» — разными знаками, а не цветом одного (WCAG 1.4.1, [UI-68]).
+        <Chip selected={queue === 'lost'} icon={lost.doubt ? Help : Warning} iconTone={lost.doubt ? 'warning' : 'error'}
+          count={lost.count} title={lost.title} onClick={() => toggle('lost')}
           aria-label={`${QUEUE_LABEL.lost}, счетов: ${lost.count || 'нет'}`}>
           {QUEUE_LABEL.lost}
         </Chip>

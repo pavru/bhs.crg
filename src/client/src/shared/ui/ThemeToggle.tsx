@@ -1,11 +1,10 @@
-import { Icon } from './Icon';
-import { Check } from './icons';
 import { useTheme } from '@/shared/ui/themeContext';
 import { THEME_OPTIONS } from '@/shared/ui/themeOptions';
-import { Tooltip } from './Tooltip';
+import { SegmentedButton } from './SegmentedButton';
 
 /**
- * Выбор темы — MD3 segmented button (issue #157): выбранный сегмент tonal, с галочкой. Стоит в
+ * Выбор темы — segmented button MD3 (issue #157, [UI-68]): радиогруппа, стрелка выбирает тему сразу,
+ * выбранный сегмент — с галочкой. Сегмент — знак, подпись — имя для диктора и подсказка. Стоит в
  * профиле: тема — личная настройка, и человек ищет её там (ТЗ AUTH-16.6). Второй вход — меню профиля
  * в шапке (#1430), со своей разметкой пунктов меню, но с теми же `THEME_OPTIONS`.
  *
@@ -18,22 +17,9 @@ export function ThemeToggle({ label }: {
 }) {
   const { theme, setTheme } = useTheme();
   return (
-    <div role="group" aria-label={label}
-      className="flex h-10 rounded-full border border-outline overflow-hidden">
-      {THEME_OPTIONS.map(({ value, icon, label: optionLabel, hint }, i) => {
-        const active = theme === value;
-        return (
-          <Tooltip key={value} content={hint ? `${optionLabel} — ${hint}` : optionLabel}>
-            <button type="button" onClick={() => setTheme(value)} aria-label={optionLabel} aria-pressed={active}
-              className={'flex-1 flex items-center justify-center gap-1 text-body-small state-layer focus-ring-inset ' +
-                `${i > 0 ? 'border-l border-outline' : ''} ` +
-                (active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant')}>
-              {active && <Icon icon={Check} size={18} className="shrink-0" />}
-              <Icon icon={icon} size={18} />
-            </button>
-          </Tooltip>
-        );
-      })}
-    </div>
+    <SegmentedButton aria-label={label} value={theme} onChange={setTheme} fullWidth
+      items={THEME_OPTIONS.map(({ value, icon, label: optionLabel, hint }) => ({
+        value, icon, label: optionLabel, hideLabel: true, title: hint ? `${optionLabel} — ${hint}` : optionLabel,
+      }))} />
   );
 }

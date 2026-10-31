@@ -1,5 +1,5 @@
 import { Icon } from '@/shared/ui/Icon';
-import { ChangeCircle, Check, LinkIcon, LinkOff, VerifiedUser, Warning } from '@/shared/ui/icons';
+import { ChangeCircle, Check, LinkIcon, LinkOff, Search, VerifiedUser, Warning } from '@/shared/ui/icons';
 import { ScopeIcon } from '@/shared/ui/ScopeIcon';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
@@ -122,7 +122,7 @@ export function MaterialsTable({
                 {/* Подсказка — это согласие с догадкой машины, а не вход в выбор (issue
                     #680). Промахнулась догадка — до этой кнопки уйти из строки было
                     некуда, кроме как через чекбокс и кнопку под таблицей. */}
-                <Chip className="shrink-0" title="Выбрать другой документ качества" onClick={() => openPickerFor(m)}>
+                <Chip icon={Search} className="shrink-0" title="Выбрать другой документ качества" onClick={() => openPickerFor(m)}>
                   другой
                 </Chip>
               </span>

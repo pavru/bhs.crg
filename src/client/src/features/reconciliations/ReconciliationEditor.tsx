@@ -94,7 +94,7 @@ function PartEditor({ part, onChange, onRemove, sources, index }: {
                 <span className="text-on-surface-variant">— порядок: {part.keyColumns.join(' + ')}</span>
               )}
             </div>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-x-1 gap-y-2">
               {columns.map(c => {
                 const on = part.keyColumns.includes(c);
                 return (

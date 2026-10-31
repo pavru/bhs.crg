@@ -1,6 +1,9 @@
-import { useRef, type KeyboardEvent, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { NARROW, useMedia } from '@/shared/hooks/useMedia';
 import { Icon } from './Icon';
-import type { IconDef } from './icons';
+import { Check, type IconDef } from './icons';
+import { useRoving } from './rovingFocus';
+import { SEGMENT_ROW, segmentClass } from './segmentedClasses';
 import { Tooltip } from './Tooltip';
 
 /**
@@ -11,10 +14,12 @@ import { Tooltip } from './Tooltip';
  * Вкладки управляемые: `onChange` — ПРОСЬБА перейти, а не переход. Экран может отказать (спросить
  * про несохранённое и остаться) — тогда он просто не меняет `value`.
  *
- * Два вида: `underline` — разделы содержимого (редактор документа), `segmented` — переключатель
- * режима внутри панели или окна (шаблоны, выбор ссылки). Панель содержимого связывается с вкладкой
- * через `TabPanel` с тем же `id`. Режим без своей панели (суммы с НДС или без, точность даты) —
- * `panels={false}`: тогда вкладка не ссылается `aria-controls` на панель, которой нет (ревью #1704).
+ * Два вида: `underline` — разделы содержимого и длинные разделы страницы (редактор документа, шаблоны),
+ * `segmented` — переключатель панели внутри окна или полосы (выбор ссылки, взгляд затрат). Вид
+ * `segmented` рисуется как `SegmentedButton` (`segmentedClasses.ts`, [UI-68]), а роли и клавиатура
+ * остаются вкладок; на телефоне (ниже `md`) он становится `underline` — ряд сегментов шире экрана.
+ * Панель содержимого связывается с вкладкой через `TabPanel` с тем же `id`. Выбор
+ * значения без панели (суммы с НДС или без, точность даты) — не вкладки, а `SegmentedButton`.
  */
 export interface TabItem<T extends string> {
   value: T;
@@ -29,69 +34,60 @@ export interface TabItem<T extends string> {
 const tabId = (id: string, value: string) => `${id}-tab-${value}`;
 const panelId = (id: string, value: string) => `${id}-panel-${value}`;
 
-const STYLE = {
-  // Не влезающий ряд прокручивается вбок, а подписи не переносятся (issue #1384): у редактора документа
-  // четыре вкладки, и на телефоне они иначе ломались в две строки и раздвигали страницу. Отсюда и черта
-  // под вкладкой без `-mb-px`: прокручиваемый ряд обрезал бы её, наезжающую на линию ряда.
-  underline: {
-    list: 'flex overflow-x-auto [scrollbar-width:none] border-b border-outline-variant',
-    // Кольцо — внутрь: прокручиваемый ряд срезал бы наружное.
-    tab: 'inline-flex shrink-0 items-center gap-1.5 h-12 px-4 text-body-medium font-medium whitespace-nowrap border-b-2 ' +
-      'state-layer focus-ring-inset',
-    on: 'border-primary text-primary',
-    off: 'border-transparent text-on-surface-variant',
-  },
-  segmented: {
-    list: 'inline-flex bg-surface-container rounded-md p-0.5',
-    tab: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-body-medium rounded-sm state-layer focus-ring',
-    on: 'bg-surface text-on-surface font-medium shadow-elevation-1',
-    off: 'text-on-surface-variant',
-  },
+/**
+ * Вид `underline`; сегменты рисует `segmentClass`. Не влезающий ряд прокручивается вбок, а подписи не
+ * переносятся (issue #1384): у редактора документа четыре вкладки, и на телефоне они иначе ломались в две
+ * строки и раздвигали страницу. Отсюда и черта под вкладкой без `-mb-px`: прокручиваемый ряд обрезал бы
+ * её, наезжающую на линию ряда.
+ */
+const UNDERLINE = {
+  list: 'flex overflow-x-auto [scrollbar-width:none] border-b border-outline-variant',
+  // Кольцо — внутрь: прокручиваемый ряд срезал бы наружное.
+  tab: 'inline-flex shrink-0 items-center gap-1.5 h-12 px-4 text-body-medium font-medium whitespace-nowrap border-b-2 ' +
+    'state-layer focus-ring-inset',
+  on: 'border-primary text-primary',
+  off: 'border-transparent text-on-surface-variant',
 } as const;
 
-export function Tabs<T extends string>({ id, items, value, onChange, variant = 'underline', panels = true, className = '', ...aria }: {
+type Variant = 'underline' | 'segmented';
+
+export function Tabs<T extends string>({ id, items, value, onChange, variant = 'underline', className = '', ...aria }: {
   /** Основа идентификаторов вкладок и панелей: `TabPanel` ссылается на неё же. */
   id: string;
   items: TabItem<T>[];
   value: T;
   onChange: (next: T) => void;
-  variant?: keyof typeof STYLE;
-  /** Есть ли у вкладок `TabPanel`; без них — `false`, и `aria-controls` не ставится. */
-  panels?: boolean;
+  variant?: Variant;
   className?: string;
   'aria-label'?: string;
   'aria-labelledby'?: string;
 }) {
-  const refs = useRef<(HTMLButtonElement | null)[]>([]);
-  const s = STYLE[variant];
-
-  function onKey(e: KeyboardEvent, i: number) {
-    const enabled = items.map((it, k) => (it.disabled ? -1 : k)).filter(k => k >= 0);
-    const at = enabled.indexOf(i);
-    let next: number;
-    if (e.key === 'ArrowRight') next = enabled[(at + 1) % enabled.length];
-    else if (e.key === 'ArrowLeft') next = enabled[(at - 1 + enabled.length) % enabled.length];
-    else if (e.key === 'Home') next = enabled[0];
-    else if (e.key === 'End') next = enabled[enabled.length - 1];
-    else return;
-    e.preventDefault();
-    refs.current[next]?.focus();
-  }
+  // Ручная активация: стрелки, Home и End двигают только фокус ([UI-68], `useRoving`).
+  const roving = useRoving(items.map(it => it.value), {
+    value, disabled: (_, i) => !!items[i].disabled, select: false, axis: 'horizontal',
+  });
+  // На телефоне сегменты — вкладки `underline`: ряд сегментов не прокручивается и шире экрана уже при трёх
+  // подписях («Из библиотеки», «Поиск в интернете», «Создать вручную» — ≈ 430 px, [UI-68]).
+  const narrow = useMedia(NARROW);
+  const segmented = variant === 'segmented' && !narrow;
+  const s = UNDERLINE;
 
   return (
-    <div role="tablist" className={`${s.list} ${className}`} {...aria}>
+    <div role="tablist" className={`${segmented ? SEGMENT_ROW : s.list} ${className}`} {...aria}>
       {items.map((it, i) => {
         const on = it.value === value;
-        const icon = it.icon;
+        // У сегмента выбранный — с галочкой, как у `SegmentedButton`: вид один.
+        const icon = segmented && on ? Check : it.icon;
         return (
           <Tooltip key={it.value} content={it.title}>
             <button type="button" role="tab" id={tabId(id, it.value)}
-              aria-selected={on} aria-controls={panels ? panelId(id, it.value) : undefined} tabIndex={on ? 0 : -1}
+              aria-selected={on} aria-controls={panelId(id, it.value)} {...roving.item(i)}
               disabled={it.disabled}
-              ref={el => { refs.current[i] = el; }}
               onClick={() => { if (!on) onChange(it.value); }}
-              onKeyDown={e => onKey(e, i)}
-              className={`${s.tab} ${on ? s.on : s.off} disabled-content disabled:pointer-events-none`}>
+              onKeyDown={roving.onKeyDown}
+              className={segmented
+                ? segmentClass({ selected: on, first: i === 0, last: i === items.length - 1 })
+                : `${s.tab} ${on ? s.on : s.off} disabled-content disabled:pointer-events-none`}>
               {icon && <Icon icon={icon} size={18} aria-hidden className="shrink-0" />}
               {it.label}
               {it.badge}

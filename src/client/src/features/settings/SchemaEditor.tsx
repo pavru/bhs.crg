@@ -323,7 +323,7 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
         <SectionCard icon={<Icon icon={Memory} size={18} />} title="Функциональные тэги типа"
           count={docTypeTags.length} countClass="text-tertiary"
           open={showTypeTags} onToggle={() => setShowTypeTags(v => !v)}>
-          <div className="flex flex-wrap gap-1.5 pt-2">
+          <div className="flex flex-wrap gap-x-1.5 gap-y-2 pt-2">
             {applicableTypeTags.map(t => {
               const on = docTypeTags.includes(t.code);
               // Ограничение носителей (issue #258): тэг занят другими типами сверх лимита и текущий тип

@@ -29,14 +29,14 @@ export function ShortcutChips({ address, filter, enabled, onToggle }: {
   if (shown.length === 0) return null;
 
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-1.5 text-body-small" role="group" aria-label="Готовые отборы">
+    <div className="mb-2 flex flex-wrap items-center gap-x-1.5 gap-y-2 text-body-small" role="group" aria-label="Готовые отборы">
       <span className="text-on-surface-variant">Навести порядок:</span>
       {shown.map(s => {
         const state = shortcutState(filter, s);
         // Тихий отбор (архив) — без красного: строки под ним верны, их стоит заметить, а не чинить.
         return (
           <Chip key={s.code} selected={state === 'on'} icon={s.quiet ? Archive : Warning}
-            tone={s.quiet ? 'neutral' : 'danger'} count={shortcutCount(s)}
+            iconTone={s.quiet ? undefined : 'error'} count={shortcutCount(s)}
             disabled={state === 'complex' || state === 'broken'}
             title={shortcutTitle(s, state)} onClick={() => onToggle(s)}>
             {s.title}

@@ -51,13 +51,13 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Условия отбора">
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2" role="group" aria-label="Условия отбора">
         {view.mode === 'complex' ? (
           <span className={`${CHIP_CLS} border-outline-variant text-on-surface`}>
-            <span className="pl-2.5 pr-1 py-1">Отбор сложный: условий — {view.count}</span>
+            <span className="pl-4 pr-1">Отбор сложный: условий — {view.count}</span>
             {onAdvanced && (
               <button type="button" onClick={onAdvanced}
-                className="pr-2.5 py-1 text-primary hover:underline">
+                className="pr-4 h-full text-primary hover:underline">
                 изменить
               </button>
             )}
@@ -72,18 +72,15 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
           <ConditionPopover key={`offer:${name}`} columns={columns} submit="Добавить" requireValue
             initial={offeredCondition(name, columns)}
             onSubmit={cond => onChange(chipAdded(cond))}>
-            <button type="button" className={`${CHIP_CLS} border-dashed border-outline-variant text-on-surface-variant state-layer focus-ring px-2.5 py-1 gap-1`}>
-              <Icon icon={Add} size={18} aria-hidden /> {columnLabel(columns.find(c => c.name === name), name)}
-            </button>
+            {/* Место под условие — assist chip со знаком «+», не пунктир ([UI-68]). */}
+            <Chip icon={Add}>{columnLabel(columns.find(c => c.name === name), name)}</Chip>
           </ConditionPopover>
         ))}
 
         {view.mode === 'chips' && (
           <ConditionPopover columns={columns} initial={NEW_CONDITION} submit="Добавить"
             onSubmit={cond => onChange(chipAdded(cond))}>
-            <button type="button" className={`${CHIP_CLS} border-dashed border-outline-variant text-on-surface-variant state-layer focus-ring px-2.5 py-1 gap-1`}>
-              <Icon icon={Add} size={18} aria-hidden /> условие
-            </button>
+            <Chip icon={Add}>условие</Chip>
           </ConditionPopover>
         )}
 
@@ -111,7 +108,8 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
   );
 }
 
-const CHIP_CLS = 'inline-flex items-center rounded-full border text-body-small bg-surface';
+/** Плашка сложного отбора — вид чипа ([UI-68]: 32, форма 8), но не кнопка: нажимается «изменить». */
+const CHIP_CLS = 'inline-flex items-center h-8 rounded-sm border text-label-large bg-surface';
 
 const NEW_CONDITION: FilterCondition = { type: 'condition', column: '', op: 'eq', value: '' };
 
@@ -131,18 +129,16 @@ function ConditionChip({ cond, columns, onChange, onRemove }: {
   const problem = chipProblem(cond, columns);
   const notice = problem ? null : conditionNotice(cond, columns.find(c => c.name === cond.column));
   // Подсказка — у триггера поповера целиком (docs/UI.md, «Подсказка»): `ConditionPopover` отдаёт ему
-  // то, что пришло от `Tooltip`, а `Chip` — своей кнопке-тексту. Годное условие — в цвете бренда
-  // («отбор стоит»), `menu` — чип открывает окошко и нажатым не бывает. Пометка — заливкой поверх
-  // тона (`bg-…!`, как пометка поверх рамки поля): тон `warning` у Chip без заливки, а пометка обязана
-  // читаться целиком, а не одной рамкой.
+  // то, что пришло от `Tooltip`, а `Chip` — своей кнопке-тексту. Условие — input chip ([UI-68]): нажатие
+  // открывает окошко правки, замыкающий знак один — крестик; стрелки нет, окно называет `aria-haspopup`.
+  // Контейнер у всех условий один («отбор стоит»), о беде говорит ведущий знак цвета роли.
+  const lead = problem ? { icon: Warning, iconTone: 'error' as const }
+    : notice ? { icon: SearchOff, iconTone: 'warning' as const, iconLabel: 'нет в справочнике' } : {};
   return (
     <Tooltip content={problem ? `Условие не выполнится: ${problem}` : notice ? noticeText(notice) : undefined}>
       <ConditionPopover columns={columns} initial={cond} submit="Применить" onSubmit={onChange}>
-        <Chip menu selected={!problem && !notice} tone={problem ? 'danger' : notice ? 'warning' : undefined}
-          icon={problem ? Warning : undefined} className={notice ? 'bg-warning-container!' : ''}
-          data-notice={notice ? '' : undefined}
+        <Chip selected {...lead} data-notice={notice ? '' : undefined}
           onRemove={onRemove} removeLabel={`Снять условие «${text}»`}>
-          {notice && <Icon icon={SearchOff} size={18} aria-label="нет в справочнике" className="inline align-[-2px] mr-1" />}
           {text}
         </Chip>
       </ConditionPopover>

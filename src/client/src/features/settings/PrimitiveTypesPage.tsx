@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, CalendarMonth, CheckCircle, ContentCopy, Delete, ErrorIcon, List, MatchCase, Numbers, type IconDef } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
@@ -45,6 +45,8 @@ import { Tooltip } from '@/shared/ui/Tooltip';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { Chip } from '@/shared/ui/Chip';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { SegmentedButton } from '@/shared/ui/SegmentedButton';
+import { constraintsOf } from './primitiveConstraints';
 import { TabPanel, Tabs } from '@/shared/ui/Tabs';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
@@ -114,8 +116,6 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
   constraints: FieldConstraints;
   onChange: (c: FieldConstraints) => void;
 }) {
-  // Редактор стоит и в карточке типа, и в окне создания поверх неё: id вкладок — свои у каждого.
-  const precisionId = useId();
   function set<K extends keyof FieldConstraints>(key: K, val: FieldConstraints[K]) {
     onChange({ ...constraints, [key]: val });
   }
@@ -188,7 +188,8 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
     <div className="space-y-3">
       <div>
         <label className="block text-body-medium font-medium text-on-surface mb-1">Точность</label>
-        <Tabs id={precisionId} variant="segmented" panels={false} aria-label="Точность" value={precision}
+        {/* Выбор значения — радиогруппа; `RadioGroup` (sharedui-md3-11) ещё не слит, переведёт он. */}
+        <SegmentedButton aria-label="Точность" value={precision}
           items={DATE_PRECISIONS.map(p => ({ value: p.value, label: `${p.label} (${dateMaskText(p.value)})` }))}
           onChange={v => v === 'day' ? unset('datePrecision') : set('datePrecision', v)} />
         <p className="text-body-small text-on-surface-variant mt-1">Управляет форматом ввода/отображения. Значение хранится как полная дата.</p>
@@ -231,22 +232,6 @@ function ConstraintTester({ def }: { def: PrimitiveTypeDef }) {
   );
 }
 
-// ─── Segmented base-type control ────────────────────────────────────────────────
-
-/**
- * Базовый тип — сегментные вкладки (#1416, [UI-42]); у созданного типа он заперт целиком. Стоит и в
- * карточке типа, и в окне создания поверх неё — id свои у каждого.
- */
-function BaseTypeSegmented({ value, onChange, disabled }: {
-  value: 'string' | 'number' | 'date'; onChange: (v: 'string' | 'number' | 'date') => void; disabled?: boolean;
-}) {
-  const id = useId();
-  return (
-    <Tabs id={id} variant="segmented" panels={false} aria-label="Базовый тип" value={value} onChange={onChange}
-      items={BASE_TYPES.map(bt => ({ value: bt.value, label: bt.label, icon: baseTypeIcon(bt.value), disabled }))} />
-  );
-}
-
 // ─── Card wrapper ────────────────────────────────────────────────────────────────
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
@@ -275,7 +260,7 @@ function PrimitiveCreateForm({ onSaved, onCancel }: { onSaved: () => void; onCan
     if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(code.trim())) { setError('Код: только латинские буквы, цифры и _'); return; }
     setError('');
     try {
-      await create.mutateAsync(buildPrimitiveTypeDto(name.trim(), code.trim(), baseType, description.trim() || undefined, constraints, []));
+      await create.mutateAsync(buildPrimitiveTypeDto(name.trim(), code.trim(), baseType, description.trim() || undefined, constraintsOf(baseType, constraints), []));
       onSaved();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Ошибка сохранения');
@@ -290,7 +275,9 @@ function PrimitiveCreateForm({ onSaved, onCancel }: { onSaved: () => void; onCan
       </div>
       <div>
         <label className="block text-body-medium font-medium text-on-surface mb-1">Базовый тип</label>
-        <BaseTypeSegmented value={baseType} onChange={bt => { setBaseType(bt); setConstraints({}); }} />
+        {/* Выбор значения ([UI-42], [UI-68]): радиогруппа, стрелка выбирает; у созданного типа — текстом. */}
+        <SegmentedButton aria-label="Базовый тип" value={baseType} onChange={setBaseType}
+          items={BASE_TYPES.map(bt => ({ value: bt.value, label: bt.label, icon: baseTypeIcon(bt.value) }))} />
       </div>
       <TextField label="Описание" value={description} onChange={e => setDescription(e.target.value)} />
       <div className="border-t border-outline-variant pt-3">
@@ -396,7 +383,8 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
             </div>
             <div>
               <label className="block text-body-medium font-medium text-on-surface mb-1">Базовый тип</label>
-              <BaseTypeSegmented value={type.baseType} onChange={() => {}} disabled />
+              <p className="flex items-center gap-2 text-body-medium text-on-surface"><Icon icon={baseTypeIcon(type.baseType)}
+                size={18} aria-hidden className="text-on-surface-variant" />{BASE_TYPE_LABEL[type.baseType]}</p>
               <p className="text-body-small text-on-surface-variant mt-1">Базовый тип нельзя изменить после создания.</p>
             </div>
             <TextField label="Описание" value={description} onChange={e => setDescription(e.target.value)} />
@@ -412,7 +400,7 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
             {applicableTags.length === 0 ? (
               <p className="text-body-small text-on-surface-variant">Для базового типа «{BASE_TYPE_LABEL[type.baseType]}» подходящих тэгов нет.</p>
             ) : (
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-x-1.5 gap-y-2">
                 {applicableTags.map(t => {
                   const on = allowedTags.includes(t.code);
                   return (

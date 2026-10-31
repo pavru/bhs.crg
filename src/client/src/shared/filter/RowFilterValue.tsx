@@ -165,7 +165,7 @@ function ValueList({ column, values, marked, describedBy, inputRef, onChange }: 
   }
 
   return (
-    <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1">
+    <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-1 gap-y-2">
       {values.map(v => (
         <ValueChip key={v} warning={marked?.has(v)} label={shown(v)} onRemove={() => onChange(values.filter(x => x !== v))} />
       ))}
@@ -242,8 +242,8 @@ function OptionList({ options, values, strays, onChange }: {
 
 /**
  * Значение списка жетоном: `Chip removeOnly` (#1469) — нажать в нём нечего, кроме крестика «Убрать «…»»,
- * и текст — подпись, а не кнопка. Значение в списке — бренд, как было; `warning` — значение вне
- * справочника или перечня (UI-56): тон предупреждения с заливкой и значок, а не только цвет.
+ * и текст — подпись, а не кнопка. Контейнер у всех значений один; `warning` — значение вне
+ * справочника или перечня (UI-56): ведущий знак цвета `warning` ([UI-68]), а не заливка.
  */
 function ValueChip({ label, warning = false, stray = false, onRemove }: {
   label: string;
@@ -252,13 +252,12 @@ function ValueChip({ label, warning = false, stray = false, onRemove }: {
   stray?: boolean;
   onRemove: () => void;
 }) {
+  // У значения вне перечня причину называет строка под отметками — значку имя не нужно.
+  const lead = !warning ? {} : stray ? { icon: SearchOff, iconTone: 'warning' as const }
+    : { icon: SearchOff, iconTone: 'warning' as const, iconLabel: 'нет в справочнике' };
   return (
-    <Chip removeOnly selected={!warning} tone={warning ? 'warning' : undefined} className={warning ? 'bg-warning-container!' : ''}
+    <Chip removeOnly selected {...lead}
       data-stray={stray ? '' : undefined} onRemove={onRemove} removeLabel={`Убрать «${label}»`}>
-      {/* У значения вне перечня причину называет строка под отметками — значку имя не нужно. */}
-      {warning && (stray
-        ? <Icon icon={SearchOff} size={18} aria-hidden className="inline align-[-1px] mr-1" />
-        : <Icon icon={SearchOff} size={18} aria-label="нет в справочнике" className="inline align-[-1px] mr-1" />)}
       {label}
     </Chip>
   );

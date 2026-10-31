@@ -4,7 +4,7 @@
 import { posix } from 'node:path';
 import ts from 'typescript';
 import { containerTextHits, stripComments } from './class-scan.mjs';
-import { isBadge, isChip } from './ui-ratchet-pills.mjs';
+import { isBadge, isChip, isSegmentRow } from './ui-ratchet-pills.mjs';
 import { buttonRules } from './ui-ratchet-buttons.mjs';
 import { isManualDropdown, portalContainersIn } from './ui-ratchet-layers.mjs';
 import { countDarkVariants, countLegacyClasses, countLegacyRadii, countLegacyShadows, countLegacyType, countRawStates, LEGACY_HINT } from './ui-ratchet-md3.mjs';
@@ -103,7 +103,16 @@ export const RULES = [
     // нативного элемента. Компоненты (Button, Chip) рисуют пилюлю сами и не считаются: правило
     // смотрит только элементы разметки.
     count: text => countElements(text, isChip),
-    instead: 'чип-переключатель и отбор — Chip (shared/ui/Chip: selected, count, tone, onRemove); режим внутри панели — Tabs variant="segmented" (docs/UI.md, «Язык формы», #1416)',
+    instead: 'чип — Chip (shared/ui/Chip): filter — selected (с menu — выбор из меню), input — onRemove с removeLabel, assist — icon без selected; о состоянии говорит знак Icon с iconTone, а не тон; выбор одного значения из 2–5 — SegmentedButton (shared/ui/SegmentedButton); переключатель панели — Tabs variant="segmented" (docs/UI.md, таблица контролов)',
+  },
+  {
+    id: 'segmented',
+    // Свой ряд сегментов ([UI-68]): группа в рамке со скруглением и кнопками внутри — так прошли мимо
+    // `chip` и `tabs` ThemeToggle и VariantPicker. Вид сегментов — один (segmentedClasses.ts), и его
+    // держат два компонента; смотрит и shared/ui, где жил ThemeToggle.
+    count: text => countElements(text, isSegmentRow),
+    dirs: ['features', 'shared'],
+    instead: 'ряд сегментов — SegmentedButton (shared/ui/SegmentedButton: items, value, onChange — радиогруппа, стрелка выбирает); переключатель панели — Tabs variant="segmented" с TabPanel (docs/UI.md, таблица контролов)',
   },
   {
     id: 'badge',

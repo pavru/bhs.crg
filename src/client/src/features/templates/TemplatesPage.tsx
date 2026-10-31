@@ -269,8 +269,9 @@ export function TemplatesPage() {
         )}
         {/* Режимы страницы. «Блоки типов» — собранный typeblocks.typ (issue #770): рядом с двумя
             другими библиотеками, потому что шаблон видит все три одинаково — импортом. Только
-            чтение, как и системные функции. */}
-        <Tabs id={TABS_ID} variant="segmented" aria-label="Раздел шаблонов" className="max-w-full overflow-x-auto whitespace-nowrap"
+            чтение, как и системные функции. Четыре длинных раздела страницы — вкладки навигации вида
+            `underline` ([UI-68]): сегментами ряд ≈ 800 px прокручивался бы на телефоне. */}
+        <Tabs id={TABS_ID} aria-label="Раздел шаблонов" className="max-w-full"
           value={mode} onChange={setMode} items={MODES} />
       </>} />
 

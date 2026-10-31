@@ -354,7 +354,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                       <Icon icon={Info} size={18} /> выберите вариант — заполняется ровно один
                     </span>
                   </Tooltip>
-                  <VariantPicker
+                  <VariantPicker label={`Вариант типа «${selectedType?.name}»`}
                     options={effectiveFields.map(f => ({ key: f.key, label: f.title, filled: !!mapping[f.key] || !!variantStash[f.key] }))}
                     active={activeVariant}
                     onSelect={switchVariant}

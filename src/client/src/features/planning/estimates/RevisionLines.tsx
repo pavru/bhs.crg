@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { Add, ChevronRight, KeyboardArrowDown } from '@/shared/ui/icons';
+import { Add, ChevronRight, Inventory, KeyboardArrowDown, LinkOff, Straighten } from '@/shared/ui/icons';
 import {
   costHidden, useRevisionRows, useRevisionSections, useUnitNames, useWorkTypeNames,
   type EstimateRevision, type EstimateRow, type HiddenPart, type RevisionSection,
@@ -74,15 +74,15 @@ export function RevisionLines({ revision, initialQueue = 'all' }: {
         <Chip selected={queue === 'all'} count={formatCount(revision.rows)} onClick={() => setQueue('all')}>Все</Chip>
         {/* Чипы «что ждёт» — по счётчикам сервера; пустой чип не показывается: ждать нечего. */}
         {revision.unmatched > 0 && (
-          <Chip tone="warning" selected={queue === 'unmatched'} count={formatCount(revision.unmatched)}
+          <Chip icon={LinkOff} iconTone="warning" selected={queue === 'unmatched'} count={formatCount(revision.unmatched)}
             onClick={() => pick('unmatched')}>Не сопоставлены</Chip>
         )}
         {noNomenclature > 0 && (
-          <Chip tone="warning" selected={queue === 'no-nomenclature'} count={formatCount(noNomenclature)}
+          <Chip icon={Inventory} iconTone="warning" selected={queue === 'no-nomenclature'} count={formatCount(noNomenclature)}
             onClick={() => pick('no-nomenclature')}>Без номенклатуры</Chip>
         )}
         {revision.unitChanged > 0 && (
-          <Chip tone="warning" selected={queue === 'unit-changed'} count={formatCount(revision.unitChanged)}
+          <Chip icon={Straighten} iconTone="warning" selected={queue === 'unit-changed'} count={formatCount(revision.unitChanged)}
             onClick={() => pick('unit-changed')}>Ед. изменилась</Chip>
         )}
         {/* «Запомнено» — чтобы найти неверно запомненное: очередь «что ждёт» его прячет (П1, вариант 3). */}

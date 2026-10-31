@@ -46,17 +46,21 @@ export function SitesFilter({ hidden, partial = false }: { hidden?: number; part
 
   const chip = filter.status === 'error' ? (
     // Не пришло — сказать, а не изображать загрузку: списки при этом полные, отбор не действует.
-    <Chip icon={Apartment} tone="warning" menu data-testid="sites-filter-error">
+    <Chip icon={Apartment} iconTone="warning" menu data-testid="sites-filter-error">
       Все стройки — избранные не загрузились
     </Chip>
   ) : (
-    <Chip icon={filter.active ? Star : Apartment} selected={filter.active} menu count={hiddenText}
+    // Включённый отбор — input chip: крестик снимает его, стрелки нет ([UI-68]); выключенный — filter
+    // chip со стрелкой: он только открывает выбор.
+    <Chip icon={filter.active ? Star : Apartment} count={hiddenText}
+      {...(filter.active
+        ? { selected: true, onRemove: () => filter.setOn(false), removeLabel: 'Показать все стройки' }
+        : { selected: false, menu: true })}
       data-testid="sites-filter"
       // Имя начинается с видимой подписи (WCAG 2.5.3): голосом нажимают то, что видят.
       aria-label={filter.active
         ? `Избранные стройки${hiddenText ? ` · ${hiddenText}` : ''} — ${count} из ${total}`
-        : undefined}
-      onRemove={filter.active ? () => filter.setOn(false) : undefined} removeLabel="Показать все стройки">
+        : undefined}>
       {filter.active ? 'Избранные стройки' : 'Все стройки'}
     </Chip>
   );

@@ -8,6 +8,9 @@ import { useEffect, useState } from 'react';
  */
 export const WIDE = '(min-width: 768px)';
 
+/** Телефон — то, что ниже `WIDE`. */
+export const NARROW = '(max-width: 767.98px)';
+
 /** Совпадает ли медиазапрос — и следит за ним, пока окно меняет размер. */
 export function useMedia(query: string): boolean {
   const [matches, setMatches] = useState(() => window.matchMedia(query).matches);

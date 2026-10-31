@@ -95,9 +95,10 @@ describe('RowFilterValue: значение вне закрытого переч�
       initial={{ type: 'condition', column: 'Состояние', op: 'in', values: ['Оплачен', 'Частично'] }} />);
     const stray = container.querySelector('[data-stray]')!;
     expect(stray.textContent).toContain('Частично');
-    // Тон — у пилюли Chip, обёртки кнопки с текстом (#1469).
-    expect(stray.parentElement!.className).toContain('border-outline-variant');
-    expect(stray.parentElement!.className).toContain('bg-warning-container');
+    // Тона нет ([UI-68]): контейнер — как у прочих значений, о беде говорит знак цвета warning.
+    expect(stray.parentElement!.className).toContain('bg-secondary-container');
+    expect(stray.parentElement!.className).not.toContain('warning');
+    expect(stray.querySelector('svg')!.getAttribute('class')).toContain('text-warning');
     // Жетон — подпись, а не кнопка: нажать в нём нечего, кроме крестика.
     expect(stray.tagName).toBe('SPAN');
     expect(stray.parentElement!.className).not.toContain('text-error');

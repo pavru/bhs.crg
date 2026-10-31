@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { Delete, Search } from '@/shared/ui/icons';
+import { Archive, Delete, Search } from '@/shared/ui/icons';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -159,13 +159,13 @@ export function SupplierMatchesDialog({ initial, onClose }: {
         </label>
         {/* Нули не рисуются: чип без записей — дверь в пустой список. Нажатый остаётся, чтобы его снять. */}
         {((data?.counts.lost ?? 0) > 0 || filter.issue === 'lost') && (
-          <Chip selected={filter.issue === 'lost'} tone="danger"
+          <Chip selected={filter.issue === 'lost'} icon={Delete} iconTone="error"
             onClick={() => narrow({ issue: filter.issue === 'lost' ? null : 'lost' })}>
             Позиция удалена{data ? ` ${data.counts.lost}` : ''}
           </Chip>
         )}
         {((data?.counts.archived ?? 0) > 0 || filter.issue === 'archived') && (
-          <Chip selected={filter.issue === 'archived'}
+          <Chip selected={filter.issue === 'archived'} icon={Archive}
             onClick={() => narrow({ issue: filter.issue === 'archived' ? null : 'archived' })}>
             Позиция в архиве{data ? ` ${data.counts.archived}` : ''}
           </Chip>

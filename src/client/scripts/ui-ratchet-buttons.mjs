@@ -73,7 +73,7 @@ export function buttonRules(countElements) {
       count: text => countElements(text, isIconButton),
       dirs: ['features', 'shared'],
       skip: ['shared/ui/Button.tsx', 'shared/ui/Chip.tsx', 'shared/ui/SplitButton.tsx'],
-      instead: 'кнопка из одной иконки — IconButton (shared/ui/Button: icon — знак, label — имя для скринридера, variant standard|filled|tonal|outlined, selected — переключатель, danger); размер не задаётся — 40, в клетке таблицы его ставит сетка; с подписью — Button variant="text"; крестик снятия в пилюле — Chip onRemove (removeLabel), у жетона значения без действия — Chip removeOnly (docs/UI.md, таблица контролов)',
+      instead: 'кнопка из одной иконки — IconButton (shared/ui/Button: icon — знак Icon из shared/ui/icons, label — имя для скринридера, variant standard|filled|tonal|outlined, selected — переключатель, danger); размер не задаётся — 40, в клетке таблицы его ставит сетка; с подписью — Button variant="text"; крестик снятия в чипе — input chip: Chip onRemove с removeLabel, у жетона значения без действия — Chip removeOnly; переключатель из знаков в ряд — SegmentedButton (docs/UI.md, таблица контролов)',
     },
     {
       id: 'button-size',
