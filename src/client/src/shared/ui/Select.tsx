@@ -3,6 +3,7 @@ import { Icon } from './Icon';
 import { Check, KeyboardArrowDown } from './icons';
 import { forwardRef, useId, useRef, useState, type ReactNode } from 'react';
 import { OutlinedField } from './OutlinedField';
+import { fieldBox, type FieldDensity } from './fieldBox';
 
 /**
  * MD3-Select (issue #110, фаза 2) поверх Radix Select — замена нативному `<select>`
@@ -70,6 +71,8 @@ export interface SelectProps {
   hint?: string;
   /** Классы внешней обёртки поля (ширина, `col-span`). Только в слое формы. */
   containerClassName?: string;
+  /** Поле формы 56 (по умолчанию) или плотное 40 без выреза — [UI-69]. Только в слое формы. */
+  density?: FieldDensity;
   /**
    * Значение пункта, после выбора которого список НЕ закрывается: пункт-выход «Показать все стройки»
    * (issue #1219). Его выбор раскрывает список на месте — закрой его Radix, раскрытое пришлось бы
@@ -90,9 +93,24 @@ const TRIGGER =
 // вышла бы рамка в рамке, а непрозрачный фон затёр бы вырез на не-surface подложке (та же ловушка,
 // что у пикера типа). Кольцо фокуса там тоже лишнее: фокус показывает сама оболочка.
 const FRAMED_TRIGGER =
-  'inline-flex items-center justify-between gap-2 w-full h-14 px-4 rounded-sm bg-transparent ' +
-  'text-body-medium text-on-surface data-[placeholder]:text-on-surface-variant outline-none ' +
+  'inline-flex items-center w-full rounded-xs bg-transparent ' +
+  'text-on-surface data-[placeholder]:text-on-surface-variant outline-none ' +
   'disabled-content disabled:pointer-events-none';
+
+/**
+ * Стрелка поля формы — в слоте хвоста оболочки, а не в триггере ([UI-69]): знак ошибки оболочка ставит
+ * перед хвостом, и стрелка должна быть хвостом. Щелчки она пропускает к триггеру под собой. Открытый
+ * список поворачивает её — exposed dropdown menu MD3.
+ */
+function FieldArrow({ open, disabled }: { open: boolean; disabled?: boolean }) {
+  return (
+    <span aria-hidden data-state={open ? 'open' : 'closed'} data-disabled={disabled ? '' : undefined}
+      className={'pointer-events-none flex size-8 pointer-coarse:size-10 items-center justify-center text-on-surface-variant ' +
+        'transition-transform ease-standard data-[state=open]:rotate-180 disabled-content'}>
+      <Icon icon={KeyboardArrowDown} size={24} />
+    </span>
+  );
+}
 
 // Рамка, фон и цвет текста — в виде, а не в общей основе: у `inline` их нет вовсе, и класс,
 // переопределяющий основу, снова спорил бы с ней порядком правил в CSS.
@@ -114,13 +132,14 @@ const EMPTY = '\u0000∅';
 
 export function Select({
   value, onValueChange, placeholder, disabled, required, name, className = '', size = 'md', emptyItem,
-  label, invalid, error, hint, containerClassName = '', stayOpenOn, onOpenChange, children, ...aria
+  label, invalid, error, hint, containerClassName = '', density = 'form', stayOpenOn, onOpenChange, children, ...aria
 }: SelectProps) {
   const [open, setOpen] = useState(false);
   // Radix сообщает выбор раньше закрытия — так что закрытие после пункта-выхода узнаётся по метке.
   const staying = useRef(false);
   const [focused, setFocused] = useState(false);
   const labelId = useId();
+  const hintId = useId();
   const framed = label !== undefined;
 
   // В слое формы `required` — ТОЛЬКО звёздочка при подписи: в Radix он включает скрытый
@@ -139,16 +158,17 @@ export function Select({
         setOpen(next);
         onOpenChange?.(next);
       }}>
-      <RS.Trigger className={framed ? `${FRAMED_TRIGGER} ${className}`
+      <RS.Trigger className={framed ? `${FRAMED_TRIGGER} ${fieldBox(density, { trailing: true })} ${className}`
         : `${TRIGGER} ${SIZE[size]} ${size === 'inline' || /(^|\s)w-/.test(className) ? '' : 'w-full '}${className}`}
         aria-label={framed ? undefined : aria['aria-label']}
         aria-labelledby={framed ? labelId : undefined}
         aria-required={framed && required ? true : undefined}
+        aria-describedby={framed && (error || hint) ? hintId : undefined}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}>
         {/* min-w-0 + truncate: длинное выбранное значение обрезается многоточием, а не переносится
             на вторую строку, распирая триггер фиксированной высоты. */}
         <span className="min-w-0 flex-1 truncate text-left"><RS.Value placeholder={placeholder} /></span>
-        <RS.Icon className="text-on-surface-variant shrink-0"><Icon icon={KeyboardArrowDown} size={18} /></RS.Icon>
+        {!framed && <RS.Icon className="text-on-surface-variant shrink-0"><Icon icon={KeyboardArrowDown} size={18} /></RS.Icon>}
       </RS.Trigger>
       <RS.Portal>
         <RS.Content position="popper" sideOffset={4}
@@ -167,8 +187,9 @@ export function Select({
   // Пока список открыт, фокус живёт в нём, а не на триггере — без `open` рамка гасла бы ровно на то
   // время, что человек выбирает значение.
   return (
-    <OutlinedField label={label} required={required} invalid={invalid} error={error} hint={hint}
-      raise="always" focused={focused || open} labelId={labelId} containerClassName={containerClassName}>
+    <OutlinedField label={label} required={required} invalid={invalid} error={error} hint={hint} hintId={hintId}
+      raise="always" focused={focused || open} labelId={labelId} density={density} containerClassName={containerClassName}
+      trailing={<FieldArrow open={open} disabled={disabled} />}>
       {control}
     </OutlinedField>
   );

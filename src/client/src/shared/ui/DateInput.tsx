@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { Icon } from './Icon';
 import { CalendarMonth, Close } from './icons';
@@ -95,10 +95,15 @@ interface DateInputProps {
    * очищают её подвалом календаря или Ctrl+A → Delete.
    */
   compact?: boolean;
+  /**
+   * Знак ошибки поля формы (`DateField`, [UI-69]) — встаёт перед хвостом: крестиком и календарём. Хвост
+   * живёт здесь, поэтому знак оболочки ставится тоже здесь, и он у поля один.
+   */
+  mark?: ReactNode;
 }
 
 export function DateInput({ label, value, onChange, onProblem, onIncomplete, precision = 'day', className = '', disabled = false, readOnly = false, required = false, calendar = true, compact = false,
-  size, invalid = false, hintId, min, max, range, onCommit }: DateInputProps) {
+  size, invalid = false, hintId, min, max, range, onCommit, mark }: DateInputProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   /** Календарь закрыт Tab'ом с края — фокус уже перенесён, возвращать его на значок не нужно. */
@@ -162,7 +167,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
           </button>}
       {problemMark}
       {/* «Не дата» тоже стирается крестиком: календаря у неё нет, а выход иначе один — набрать заново. */}
-      {clearButton && <span className="flex items-center shrink-0 ml-auto pl-0.5">{clearButton}</span>}
+      {(mark || clearButton) && <span className="flex items-center gap-1 shrink-0 ml-auto pl-0.5">{mark}{clearButton}</span>}
     </div>
   ) : (
     <div {...groupProps} className={`flex items-center group ${frame} ${className}`}>
@@ -172,6 +177,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
       {/* Хвост поля формы — у правого края, крестик слева от календаря (макет #1463, вариант В):
           появляясь, крестик не сдвигает ни календарь, ни цифры. */}
       <span className={`flex items-center shrink-0 ${compact ? '' : 'ml-auto pl-0.5'}`}>
+        {mark && <span className="mr-1 flex">{mark}</span>}
         {clearButton}
         {showCalendar && (
           <Popover.Trigger asChild>

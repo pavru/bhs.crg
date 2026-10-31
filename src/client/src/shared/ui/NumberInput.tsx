@@ -10,8 +10,12 @@
  * поле на каждый удар по клавише нельзя: курсор прыгнет. Число из базы в текст превращает
  * `formatInput` — тот же форматтер, каким оно показано в таблице.</p>
  *
- * <p>Единица стоит ВНУТРИ рамки поля и не входит в значение: её не выделить и не стереть, и вставка
+ * <p>Единица стоит ВНУТРИ поля и не входит в значение: её не выделить и не стереть, и вставка
  * из Excel не принесёт вторую.</p>
+ *
+ * <p><b>Вид — плотное поле клетки</b> ([UI-69], sharedui-md3-11): 40 px, текст `body-medium`, без рамки —
+ * подчёркивание, у фокуса 2 px `primary`, единица суффиксом. Своей рамки у поля нет: в сетке рамку
+ * рисуют линии строк, и рамка поля была бы рамкой в рамке.</p>
  */
 export function NumberInput({ value, onChange, label, unit, placeholder, disabled, className = 'w-full' }: {
   value: string;
@@ -24,30 +28,24 @@ export function NumberInput({ value, onChange, label, unit, placeholder, disable
   disabled?: boolean;
   className?: string;
 }) {
-  const field = (
-    <input value={value} aria-label={label} placeholder={placeholder} disabled={disabled}
-      inputMode="decimal" onChange={e => onChange(e.target.value)}
-      className={unit ? INNER : `${BARE} ${className}`} />
-  );
-  if (!unit) return field;
-
-  // Обёртка — `label`, а не `span`: щелчок по единице ставит курсор в поле, как и щелчок по рамке.
+  // Обёртка — `label`: щелчок по единице ставит курсор в поле, как и щелчок по самому полю.
   return (
     <label className={`${WRAP} ${className}`}>
-      {field}
-      <span className="shrink-0 text-body-small text-on-surface-variant" aria-hidden="true">{unit}</span>
+      <input value={value} aria-label={label} placeholder={placeholder} disabled={disabled}
+        inputMode="decimal" onChange={e => onChange(e.target.value)} className={INPUT} />
+      {unit && <span className="shrink-0 text-body-medium text-on-surface-variant" aria-hidden="true">{unit}</span>}
     </label>
   );
 }
 
-const BOX = 'rounded-xs border border-outline-variant bg-surface px-1.5 py-1';
-const TEXT = 'text-right text-body-small tabular-nums text-on-surface outline-none placeholder:text-on-surface-variant disabled:text-on-surface-variant';
+/**
+ * Подчёркивание — псевдоэлемент обёртки, а не нижняя граница: граница 2 px у фокуса сдвигала бы текст
+ * на пиксель. Состояние поля обёртка узнаёт через `focus-within` и `has-[:disabled]`.
+ */
+const WRAP = 'relative flex h-10 items-center gap-1 px-2 cursor-text '
+  + "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-outline after:content-[''] "
+  + 'hover:after:bg-on-surface focus-within:after:h-0.5 focus-within:after:bg-primary '
+  + 'has-[:disabled]:cursor-default has-[:disabled]:after:bg-on-surface/38';
 
-/** Поле без единицы: рамка на самом поле. */
-const BARE = `${BOX} ${TEXT} focus:border-primary disabled:bg-surface-container`;
-
-/** Рамка вокруг поля с единицей: состояние поля она узнаёт через `focus-within` и `has-[:disabled]`. */
-const WRAP = `${BOX} flex items-baseline gap-1 focus-within:border-primary has-[:disabled]:bg-surface-container`;
-
-/** Поле внутри рамки с единицей: рамку и отступы держит обёртка. */
-const INNER = `min-w-0 flex-1 bg-transparent ${TEXT}`;
+const INPUT = 'min-w-0 flex-1 bg-transparent text-right text-body-medium tabular-nums text-on-surface outline-none '
+  + 'placeholder:text-on-surface-variant disabled-content';

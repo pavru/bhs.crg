@@ -4,6 +4,7 @@ import { Close, Search, Widgets } from './icons';
 import { TypePicker, type PickType } from './TypePicker';
 import { typeIcon } from './typeIcons';
 import { OutlinedField } from './OutlinedField';
+import { fieldBox, type FieldDensity } from './fieldBox';
 import { Tooltip } from './Tooltip';
 
 /**
@@ -28,7 +29,7 @@ import { Tooltip } from './Tooltip';
  */
 export function TypePickerField({
   types, value, onChange, recentKey, title = 'Выберите тип', placeholder = 'Выберите тип',
-  size = 'md', label, required, clearable, disabled, className = '', 'aria-label': ariaLabel,
+  size = 'md', label, required, clearable, disabled, className = '', 'aria-label': ariaLabel, density = 'form',
 }: {
   types: PickType[];
   value: string | undefined;
@@ -42,6 +43,8 @@ export function TypePickerField({
   size?: 'sm' | 'md';
   /** Подпись поля. Задана — контрол переходит в слой формы (outlined-рамка с вырезом). */
   label?: string;
+  /** Поле формы 56 (по умолчанию) или плотное 40 без выреза — [UI-69]. Только в слое формы. */
+  density?: FieldDensity;
   required?: boolean;
   /** Показать строку «нет значения» в пикере + крестик-сброс на триггере. */
   clearable?: { label: string };
@@ -72,7 +75,7 @@ export function TypePickerField({
   // иначе получилась бы рамка в рамке. Кольцо фокуса там тоже не нужно: фокус показывает сама
   // оболочка (border-2 + подпись цветом бренда), как у `DateField`.
   const triggerClass = framed
-    ? `w-full h-14 px-4 rounded-sm bg-transparent text-body-medium text-left outline-none ` +
+    ? `w-full ${fieldBox(density)} rounded-xs bg-transparent text-left outline-none ` +
       `disabled-content disabled:pointer-events-none`
     : `w-full ${size === 'sm' ? 'h-8' : 'h-9'} px-3 rounded-sm border border-outline bg-surface ` +
       `text-body-medium text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ` +
@@ -151,7 +154,7 @@ export function TypePickerField({
     <>
       {framed ? (
         <OutlinedField label={label} required={required} raise="always" focused={focused}
-          labelId={labelId} containerClassName={`group ${className}`}>
+          labelId={labelId} density={density} containerClassName={`group ${className}`}>
           {body}
         </OutlinedField>
       ) : (

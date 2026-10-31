@@ -27,16 +27,18 @@ export interface TextAreaFieldProps extends TextareaHTMLAttributes<HTMLTextAreaE
 
 export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>(function TextAreaField(
   { label, error, invalid, hint, className = '', containerClassName = '', id, required, rows = 3,
-    onFocus, onBlur, ...rest },
+    onFocus, onBlur, 'aria-describedby': describedBy, ...rest },
   ref,
 ) {
   const [focused, setFocused] = useState(false);
   const autoId = useId();
   const areaId = id ?? autoId;
+  const hintId = `${areaId}-hint`;
+  const described = [describedBy, error || hint ? hintId : undefined].filter(Boolean).join(' ') || undefined;
 
   return (
     <OutlinedField
-      label={label} required={required} invalid={invalid} error={error} hint={hint}
+      label={label} required={required} invalid={invalid} error={error} hint={hint} hintId={hintId}
       raise="always" focused={focused} readOnly={rest.readOnly} htmlFor={areaId} containerClassName={containerClassName}
     >
       {/* Отступ под метку — padding ОБЁРТКИ, а не самого поля и не его margin.
@@ -50,8 +52,8 @@ export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>
           Padding не схлопывается: прокручиваемая область начинается на 16 px ниже верха рамки. */}
       <div className="pt-4">
         <textarea
-          ref={ref} id={areaId} required={required} rows={rows}
-          className={`block w-full rounded-sm bg-transparent px-4 pb-2 text-body-medium text-on-surface ` +
+          ref={ref} id={areaId} required={required} rows={rows} aria-describedby={described}
+          className={`block w-full rounded-xs bg-transparent pl-4 pr-[calc(1rem+var(--field-mark,0px))] pb-2 text-body-large text-on-surface ` +
             `outline-none disabled-content ${className}`}
           onFocus={e => { setFocused(true); onFocus?.(e); }}
           onBlur={e => { setFocused(false); onBlur?.(e); }}

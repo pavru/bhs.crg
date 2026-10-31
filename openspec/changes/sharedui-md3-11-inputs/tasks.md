@@ -69,7 +69,7 @@
 
 ## 1. PR 1a — вид оболочки поля
 
-- [ ] 1.1 `fieldBox(density)` рядом с `OutlinedField` — высота, отступы и роль текста. `TextField`, `Select`
+- [x] 1.1 `fieldBox(density)` рядом с `OutlinedField` — высота, отступы и роль текста. `TextField`, `Select`
   с `label`, `TypePickerField`, `DateField` и `TimeField` берут их отсюда. `OutlinedField`:
   - форма 4 (`rounded-xs`);
   - подпись в покое — `body-large`; в вырезе и текст под полем — `body-small` `on-surface-variant`;
@@ -81,26 +81,31 @@
   - у `form` высота 56 и текст `body-large`;
   - у `dense` — 40, `body-medium`, выреза нет, а `getByLabelText` находит поле;
   - у `readOnly` нет подложки.
-- [ ] 1.2 Знак ошибки ставит оболочка — перед `trailing`, `aria-hidden` [UI-69]:
+- [x] 1.2 Знак ошибки ставит оболочка — перед `trailing`, `aria-hidden` [UI-69]:
   - ширину хвоста оболочка отдаёт переменной CSS, контролы берут из неё отступ;
   - стрелка `Select` переезжает в слот оболочки;
   - у `form` знак 24, текст ошибки — под полем; у `dense` знак 20 с `Tooltip`;
   - текст ошибки — в `aria-describedby`;
   - `SegmentProblemMark` у `DateInput` сведён с этим знаком.
 
+  Сделано так: место знака оболочка отдаёт переменной `--field-mark`. Знак — один компонент
+  `FieldErrorMark`. У `DateField` хвост (крестик, календарь) живёт внутри `DateInput`, поэтому оболочке
+  говорят `markInside`, а знак `DateField` передаёт в хвост `DateInput` (проп `mark`). `SegmentProblemMark`
+  рисует тот же `FieldErrorMark` плотного вида.
+
   Проверка — vitest:
   - при `error` знак есть и стоит перед `trailing`;
   - без `error` знака нет;
   - у поля даты с ошибкой ровно один знак;
   - диктор получает текст через `aria-describedby`.
-- [ ] 1.3 Поля на оболочке — текст `body-large` в `form`, `body-medium` в `dense`.
+- [x] 1.3 Поля на оболочке — текст `body-large` в `form`, `body-medium` в `dense`.
   - `compact` у `SuggestField` и `DateInput` не меняется: вид клетки — у 14.
   - У `DateField` и `TimeField` отключённое — `disabled-content` [UI-64] вместо `opacity-50`.
   - `NumberInput` (7 мест, все в `EditGrid`) — сразу видом клетки 14 [UI-69]: плотное поле 40 без рамки,
     подчёркивание, фокус 2 px `primary`, единица суффиксом.
 
   Проверка — `npx tsc -b`; vitest полей зелёный; в `NumberInput.tsx` нет своей рамки.
-- [ ] 1.4 `Select` с `label` — exposed dropdown: стрелка поворачивается при открытии [UI-69]. Проверка —
+- [x] 1.4 `Select` с `label` — exposed dropdown: стрелка поворачивается при открытии [UI-69]. Проверка —
   `Select.test.tsx`: `data-state=open` поворачивает стрелку; клавиатура выбора прежняя.
 
 ## 2. PR 1b — выбор без подписи и плотность
