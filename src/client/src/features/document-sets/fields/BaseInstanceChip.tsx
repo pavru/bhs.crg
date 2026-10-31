@@ -2,6 +2,7 @@ import { useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Icon } from '@/shared/ui/Icon';
 import { ChangeCircle, Database, Description, KeyboardArrowDown, LinkIcon, LinkOff, Warning } from '@/shared/ui/icons';
+import { Chip } from '@/shared/ui/Chip';
 import { BaseCandidatePicker } from './BaseCandidatePicker';
 import type { BaseCandidate } from './baseCandidates';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -72,15 +73,11 @@ export function BaseInstanceChip({
     </Tooltip>
   );
 
-  // База не выбрана — dashed-chip «Выбрать основу».
+  // База не выбрана — assist chip «Выбрать основу» ([UI-68]: пунктирного чипа нет).
   const emptyChip = !selected && !missing && editable && (
-    <Tooltip content="Предзаполнить поля из базового экземпляра или роли">
-      <button type="button" onClick={() => setPickerOpen(true)}
-        className="flex items-center gap-1.5 h-7 px-2.5 rounded-md text-body-small font-medium border border-dashed border-primary-container text-primary hover:bg-primary-container transition-colors">
-        <Icon icon={LinkIcon} size={18} className="shrink-0" />
-        <span>Выбрать основу</span>
-      </button>
-    </Tooltip>
+    <Chip icon={LinkIcon} title="Предзаполнить поля из базового экземпляра или роли" onClick={() => setPickerOpen(true)}>
+      Выбрать основу
+    </Chip>
   );
 
   return (

@@ -104,7 +104,7 @@ function RevisionTabs({ estimate, selected, onSelect }: {
       {more.length > 0 && (
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
-            <Chip menu className="shrink-0">ещё {formatCount(more.length)}</Chip>
+            <Chip selected={false} menu className="shrink-0">ещё {formatCount(more.length)}</Chip>
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content align="start" sideOffset={4}

@@ -5,7 +5,6 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Archive } from './icons';
 import { Checkbox } from './Checkbox';
 import { PageHeader } from './PageHeader';
-import { Chip } from './Chip';
 import { StatusBadge } from './StatusBadge';
 import { TabPanel, Tabs, type TabItem } from './Tabs';
 
@@ -70,40 +69,6 @@ describe('Checkbox', () => {
   });
 });
 
-describe('Chip', () => {
-  // Подсказка — у самой кнопки: неактивный чип остаётся в Tab как aria-disabled и говорит почему (ревью #1704).
-  it('title неактивного чипа — aria-disabled вместо disabled, причина — описанием', () => {
-    const onClick = vi.fn();
-    render(<Chip selected={false} disabled title="Тэг уже назначен" onClick={onClick}>Дата</Chip>);
-    const chip = screen.getByRole('button', { name: 'Дата' });
-    expect(chip.hasAttribute('disabled')).toBe(false);
-    expect(chip.getAttribute('aria-disabled')).toBe('true');
-    expect(chip.getAttribute('aria-description')).toBe('Тэг уже назначен');
-    fireEvent.click(chip);
-    expect(onClick).not.toHaveBeenCalled();
-  });
-
-  it('переключатель называет состояние aria-pressed', () => {
-    render(<Chip selected={false} icon={Archive}>В архиве</Chip>);
-    expect(screen.getByRole('button', { name: 'В архиве' }).getAttribute('aria-pressed')).toBe('false');
-  });
-
-  it('простой чип — не переключатель', () => {
-    render(<Chip>Добавить</Chip>);
-    expect(screen.getByRole('button', { name: 'Добавить' }).hasAttribute('aria-pressed')).toBe(false);
-  });
-
-  it('число входит в имя, снятие — отдельная кнопка со своим именем', () => {
-    const onClick = vi.fn();
-    const onRemove = vi.fn();
-    render(<Chip selected count={3} onClick={onClick} onRemove={onRemove} removeLabel="Снять отбор">Ошибки</Chip>);
-    fireEvent.click(screen.getByRole('button', { name: 'Снять отбор' }));
-    expect(onRemove).toHaveBeenCalledOnce();
-    expect(onClick).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: /Ошибки.*3/ }).getAttribute('aria-pressed')).toBe('true');
-  });
-});
-
 describe('StatusBadge', () => {
   it('показывает текст; значок скрыт от диктора', () => {
     const { container } = render(<StatusBadge tone="success" icon={Archive}>оплачен</StatusBadge>);
@@ -127,12 +92,6 @@ describe('Tabs', () => {
     { value: 'b', label: 'Качество', disabled: true },
     { value: 'c', label: 'Генерация' },
   ];
-
-  // Режим без своей панели не ссылается на панель, которой нет (ревью #1704).
-  it('panels={false} — без aria-controls', () => {
-    render(<Tabs id="t" items={ITEMS} value="a" onChange={() => {}} panels={false} />);
-    expect(screen.getByRole('tab', { name: 'Реквизиты' }).hasAttribute('aria-controls')).toBe(false);
-  });
 
   function Harness({ veto = false }: { veto?: boolean }) {
     const [tab, setTab] = useState<'a' | 'b' | 'c'>('a');

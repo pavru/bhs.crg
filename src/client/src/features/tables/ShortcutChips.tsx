@@ -36,7 +36,7 @@ export function ShortcutChips({ address, filter, enabled, onToggle }: {
         // Тихий отбор (архив) — без красного: строки под ним верны, их стоит заметить, а не чинить.
         return (
           <Chip key={s.code} selected={state === 'on'} icon={s.quiet ? Archive : Warning}
-            tone={s.quiet ? 'neutral' : 'danger'} count={shortcutCount(s)}
+            iconTone={s.quiet ? undefined : 'error'} count={shortcutCount(s)}
             disabled={state === 'complex' || state === 'broken'}
             title={shortcutTitle(s, state)} onClick={() => onToggle(s)}>
             {s.title}

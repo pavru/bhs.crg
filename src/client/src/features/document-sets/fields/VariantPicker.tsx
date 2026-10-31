@@ -1,3 +1,4 @@
+import { SegmentedButton } from '@/shared/ui/SegmentedButton';
 import { Tooltip } from '@/shared/ui/Tooltip';
 /**
  * Выбор одного варианта union-поля — вынесен из ComplexFields (issue #747).
@@ -48,19 +49,12 @@ export function VariantPicker({ options, active, onSelect, layout = 'auto' }: {
     );
   }
 
+  // Сегмент — `SegmentedButton` ([UI-68]): радиогруппа со стрелками, как у списка, а не свой ряд.
   return (
-    <div role="radiogroup" className="inline-flex rounded-md border border-outline-variant overflow-hidden text-body-medium">
-      {options.map((o, i) => {
-        const on = o.key === active;
-        return (
-          <button key={o.key} type="button" role="radio" aria-checked={on} onClick={() => onSelect(o.key)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 ${i > 0 ? 'border-l border-outline-variant' : ''} ${
-              on ? 'bg-primary text-on-primary font-medium' : 'bg-surface text-on-surface-variant state-layer'}`}>
-            {o.filled && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${on ? 'bg-on-primary' : 'bg-primary'}`} />}
-            <span className="truncate">{o.label}</span>
-          </button>
-        );
-      })}
-    </div>
+    <SegmentedButton value={active} onChange={onSelect}
+      items={options.map(o => ({
+        value: o.key, label: o.label,
+        badge: o.filled && <span aria-hidden className="w-1.5 h-1.5 rounded-full shrink-0 bg-primary" />,
+      }))} />
   );
 }

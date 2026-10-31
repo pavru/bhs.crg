@@ -552,7 +552,7 @@ export function PdfGroupingEditor() {
         actions={<>
           {suspiciousPageCount > 0 && (
             /* Отбор страниц — `Chip` ([UI-42], #1416): нажатый — отбор стоит, число — сколько под ним. */
-            <Chip selected={suspiciousOnly} tone="warning" icon={Warning} count={suspiciousPageCount}
+            <Chip selected={suspiciousOnly} icon={Warning} iconTone="warning" count={suspiciousPageCount}
               onClick={() => setSuspiciousOnly(v => !v)}>
               Подозрительные
             </Chip>

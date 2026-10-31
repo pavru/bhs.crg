@@ -1,9 +1,9 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject } from 'react';
+import { useEffect, useId, useLayoutEffect, useState, type MutableRefObject } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { CropLandscape, CropPortrait, Delete, Info, RestartAlt, type IconDef } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
-import { Chip } from '@/shared/ui/Chip';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { SegmentedButton } from '@/shared/ui/SegmentedButton';
 import { DetailHeader, DetailTitle } from '@/shared/ui/ListDetailShell';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { TextField } from '@/shared/ui/TextField';
@@ -135,7 +135,7 @@ export function PrintProfileDetail({ profile, otherNames, onDeleted, onEditState
 
           <ChoiceRow label="Бумага" error={issues.paper} value={draft.paper}
             options={PAPERS.map(p => ({
-              value: p.value, label: <>{p.value} <span className="text-on-surface-variant">{p.shortMm} × {p.longMm}</span></>,
+              value: p.value, label: `${p.value} · ${p.shortMm} × ${p.longMm}`,
             }))}
             onChange={paper => edit({ paper }, ['paper', ...MARGIN_PATHS])} />
 
@@ -203,37 +203,19 @@ function WhereApplied() {
 }
 
 /**
- * Один выбор из двух-трёх — радиогруппа чипов по APG: одна остановка Tab, стрелки переводят выбор и
- * фокус. Чипы с `aria-pressed` диктор назвал бы независимыми переключателями, а не «одним из трёх».
+ * Один выбор из двух-трёх — `SegmentedButton` ([UI-68]): радиогруппа по APG, одна остановка Tab, стрелки
+ * переводят выбор и фокус. Своей клавиатуры здесь больше нет.
  */
 function ChoiceRow<T extends string>({ label, hint, error, value, options, onChange }: {
   label: string; hint?: string; error?: string; value: T;
-  options: { value: T; label: React.ReactNode; icon?: IconDef }[];
+  options: { value: T; label: string; icon?: IconDef }[];
   onChange: (value: T) => void;
 }) {
-  const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const labelId = useId();
-  const onKeyDown = (e: KeyboardEvent) => {
-    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
-    if (!step) return;
-    e.preventDefault();
-    const at = options.findIndex(o => o.value === value);
-    const next = (at + step + options.length) % options.length;
-    onChange(options[next].value);
-    refs.current[next]?.focus();
-  };
   return (
     <div>
       <div id={labelId} className="text-body-small text-on-surface-variant mb-1.5">{label}</div>
-      <div role="radiogroup" aria-labelledby={labelId} onKeyDown={onKeyDown} className="flex flex-wrap gap-2">
-        {options.map((o, i) => (
-          <Chip key={o.value} ref={el => { refs.current[i] = el; }} role="radio" selected={o.value === value}
-            tabIndex={o.value === value ? 0 : -1} icon={o.icon}
-            onClick={() => { if (o.value !== value) onChange(o.value); }}>
-            {o.label}
-          </Chip>
-        ))}
-      </div>
+      <SegmentedButton aria-labelledby={labelId} value={value} onChange={onChange} items={options} />
       {error
         ? <p className="mt-1 text-body-small text-error">{error}</p>
         : hint && <p className="mt-1 text-body-small text-on-surface-variant">{hint}</p>}

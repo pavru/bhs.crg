@@ -45,7 +45,8 @@ export function SitesChip({ columns, filter, onToggle }: {
 
   return (
     <div className="mb-2 flex flex-wrap items-center gap-1.5 text-body-small" data-testid="sites-chip">
-      <Chip selected={on} icon={Star} dashed disabled={state === 'complex' || state === 'broken'} title={title}
+      {/* Filter chip без пунктира ([UI-68]): это переключатель, а assist нажатым не бывает. */}
+      <Chip selected={on} icon={Star} disabled={state === 'complex' || state === 'broken'} title={title}
         onClick={() => onToggle(column.key, names)}>
         {column.label}: избранные стройки
       </Chip>

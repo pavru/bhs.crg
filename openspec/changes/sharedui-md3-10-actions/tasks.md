@@ -108,7 +108,7 @@
 - [x] 1.9 `PrimaryFab` — extended FAB: `primary-container` (вместо `secondary-container`), форма 16,
   уровень 3, подпись `label-large` [UI-68]. Проверка —
   живой прогон оболочки на телефоне находит FAB 56 px; `style` у него нет.
-- [ ] 1.10 Живые прогоны, проверяющие размеры кнопок, правятся тем же PR: `rail-checks`,
+- [x] 1.10 Живые прогоны, проверяющие размеры кнопок, правятся тем же PR: `rail-checks`,
   `invoice-layout-checks`, `fields-smoke`, `allocation-matrix-smoke`, `invoice-payment-smoke`,
   `table-view-smoke`, `site-costs-smoke` (свёрнутая строка выше сгиба 768). Перепроверены ширины:
   перенос шапки `InvoicesPage` при 1366, порог 420 px просмотрщика, `ViewerToolbar` (`h-10` с `border-t`).
@@ -120,7 +120,7 @@
   - в разделе отступлений — `danger`, многострочная кнопка, цель касания по основному указателю.
 
   Проверка — ревью; в `docs/UI.md` нет `size="sm"` у кнопок.
-- [ ] 1.12 `/design-sync` (D12): превью `Button`, `IconButton`, `PrimaryFab` в `.design-sync/previews` и
+- [x] 1.12 `/design-sync` (D12): превью `Button`, `IconButton`, `PrimaryFab` в `.design-sync/previews` и
   README дизайн-системы — по новому виду. Проверка — README и превью без `size="sm"`.
 - [x] 1.13 Кнопка внутри поля — место XS (найдено живым прогоном, выбор владельца 31.10.2026, design.md
   «Кнопка внутри поля»): класс `ICON_BUTTON_XS` переезжает в `buttonClasses.ts`; его берут `dataTable.ts`,
@@ -143,7 +143,7 @@
 
 ## 2. PR 2 — чипы и сегменты
 
-- [ ] 2.1 `Chip`: 32 px, форма 8, `label-large`. Вид выводится из свойств, тип — объединение без `kind`:
+- [x] 2.1 `Chip`: 32 px, форма 8, `label-large`. Вид выводится из свойств, тип — объединение без `kind`:
   filter (`selected`; выбранный — `secondary-container` с галочкой 18, без контура; `menu` — стрелка без
   галочки), input (`onRemove`, обязательный `removeLabel`, `menu` запрещён), assist (знак обязателен,
   вместо `dashed`). `tone`, `dashed` и `role="radio"` удалены; `iconTone` типом требует `icon`. `count` —
@@ -152,7 +152,7 @@
   - `aria-pressed` у переключателя;
   - у крестика — имя из `removeLabel`;
   - тест типов: `iconTone` без `icon` и `menu` с `onRemove` не собираются.
-- [ ] 2.2 Места `tone` и `dashed` — 12 в 9 файлах — переведены [UI-68]:
+- [x] 2.2 Места `tone` и `dashed` — 12 в 9 файлах — переведены [UI-68]:
   - `iconTone` у ведущего знака; без знака (`RevisionLines` ×3, `SupplierMatchesDialog`) знак добавлен;
   - `FilterChips` и `RowFilterValue` — `bg-warning-container!` снят, `SearchOff` из `children` в `icon`;
   - «Удалённые записи» в `InvoiceQueueChips` — разные знаки (`Help` и `Warning`);
@@ -160,19 +160,19 @@
 
   Проверка — `npx tsc -b` без ошибок; у `<Chip` в `src/client/src` нет `tone=`, `dashed` и `className` с `!`;
   vitest `SitesChip` зелёный.
-- [ ] 2.3 `shared/filter/FilterChips` — input chip без стрелки; правка условия по нажатию — как была
+- [x] 2.3 `shared/filter/FilterChips` — input chip без стрелки; правка условия по нажатию — как была
   [UI-68]. Проверка — живые прогоны `table-chips` и `table-saved-views` зелёные.
-- [ ] 2.4 Модуль клавиатуры `shared/ui/rovingFocus.ts` (`useRoving`): фокус у вкладок, фокус и выбор у
+- [x] 2.4 Модуль клавиатуры `shared/ui/rovingFocus.ts` (`useRoving`): фокус у вкладок, фокус и выбор у
   радио; Home/End и пропуск отключённых у обоих. `Tabs` и `useRadioGroup` переходят на него [UI-68].
   Проверка — vitest модуля: стрелка, Home/End, пропуск отключённого, `select: false` не выбирает.
-- [ ] 2.5 Вид сегментов — `segmentedClasses.ts`: 40, форма full радиусами крайних сегментов без
+- [x] 2.5 Вид сегментов — `segmentedClasses.ts`: 40, форма full радиусами крайних сегментов без
   `overflow-hidden`, контур `outline`, выбранный — `secondary-container` с галочкой. `Tabs` вида
   `segmented` перерисован им. `SegmentedButton` (новый) — только `radiogroup`, без `multiple`; цель касания
   смежных сегментов — `--_touch-inset` по вертикали [UI-68]. Проверка:
   - vitest: у `SegmentedButton` роли `radiogroup` / `radio`, стрелка выбирает;
   - vitest: у `Tabs segmented` стрелка не переключает, Enter переключает;
   - живой прогон `shared-ui` (касание): точка в 2 px внутри края сегмента — его.
-- [ ] 2.6 Места переведены [UI-68] [UI-42] [UI-44]:
+- [x] 2.6 Места переведены [UI-68] [UI-42] [UI-44]:
   - `Tabs segmented` остаются — `ImportDialog`, `LinkPickerModal`, `CostViewsBand`;
   - `TemplatesPage` — `Tabs` вида `underline`;
   - `SegmentedButton` — `SiteCostsPage` («Суммы», «Срез»), «Базовый тип» `PrimitiveTypesPage`,
@@ -185,10 +185,10 @@
   - живые прогоны `costs`, `site-costs`, `types`, `planning-estimates`, `dialogs-smoke` и прогон окна
     выбора ссылки зелёные; ожидания ролей переписаны (`tab` → `radio` там, где нет панели);
   - снимок `LinkPickerModal` на 375 px — ряд помещается или берёт вид `underline`.
-- [ ] 2.7 Подсказки правил `chip` и `icon-button` в `ui-ratchet-lib.mjs` называют `Chip` (filter, input,
+- [x] 2.7 Подсказки правил `chip` и `icon-button` в `ui-ratchet-lib.mjs` называют `Chip` (filter, input,
   assist), `SegmentedButton` и `Icon`; новое правило — самодельный ряд сегментов, уровень 0 [UI-68].
   Проверка — `ui-ratchet.test.mjs` сверяет текст подсказки и срабатывание на образце вида `ThemeToggle`.
-- [ ] 2.8 `docs/UI.md`: строки «Чип-переключатель» и «Вкладки» — виды чипа, `Tabs segmented` и
+- [x] 2.8 `docs/UI.md`: строки «Чип-переключатель» и «Вкладки» — виды чипа, `Tabs segmented` и
   `SegmentedButton`; довод «32 px раздули бы пилюлю» у крестика чипа поправлен. Если выбран цветной
   контейнер индикатора — строка в разделе отступлений [UI-68]. Проверка — ревью.
 - [ ] 2.9 `/design-sync` (D12): превью `Chip`, `SegmentedButton`, `Tabs` и README — по новому виду.

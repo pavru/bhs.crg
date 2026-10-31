@@ -191,6 +191,37 @@ await check('touch-target-reaches-beyond-icon-button', async () => {
   }
 });
 
+// Смежные сегменты без зазора: цель касания у них расширяется только по вертикали, и точка в 2 px внутри
+// края сегмента достаётся ему, а не соседу ([UI-68]). Ряд — выбор темы в профиле (`SegmentedButton`);
+// точки только проверяются, а не нажимаются: тема не меняется.
+await check('touch-target-segment-keeps-own-edge', async () => {
+  await page.goto(`${BASE}/profile`);
+  await settled(page);
+  await emulateTouch(page);
+  try {
+    const group = page.getByRole('radiogroup', { name: 'Тема оформления, личная настройка' });
+    await group.waitFor();
+    const hit = await group.evaluate(row => {
+      const [first, second] = row.querySelectorAll('[role=radio]');
+      const a = first.getBoundingClientRect(), b = second.getBoundingClientRect();
+      const at = (x, y) => document.elementFromPoint(x, y)?.closest('[role=radio]');
+      return {
+        coarse: matchMedia('(pointer: coarse)').matches,
+        height: Math.round(a.height),
+        ownEdge: at(a.right - 2, a.top + a.height / 2) === first,
+        neighbourEdge: at(b.left + 2, b.top + b.height / 2) === second,
+        above: at(a.left + a.width / 2, a.top - 4 + 0.5) === first,
+      };
+    });
+    if (!hit.coarse) throw new Error('эмуляция касания не включила pointer: coarse — проверять нечего');
+    if (hit.height !== 40) throw new Error(`сегмент высотой ${hit.height}, а не 40`);
+    if (!hit.ownEdge || !hit.neighbourEdge) throw new Error(`край сегмента достаётся соседу: свой ${hit.ownEdge}, соседний ${hit.neighbourEdge}`);
+    if (!hit.above) throw new Error('касание в 4 px над сегментом не достаётся ему');
+  } finally {
+    await emulateTouch(page, false);
+  }
+});
+
 // ── Поле даты ──────────────────────────────────────────────────────────────────
 await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}`);
 await page.waitForSelector('tbody tr', { timeout: 15000 });
