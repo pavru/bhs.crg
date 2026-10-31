@@ -165,7 +165,7 @@ function ValueList({ column, values, marked, describedBy, inputRef, onChange }: 
   }
 
   return (
-    <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1">
+    <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-1 gap-y-2">
       {values.map(v => (
         <ValueChip key={v} warning={marked?.has(v)} label={shown(v)} onRemove={() => onChange(values.filter(x => x !== v))} />
       ))}

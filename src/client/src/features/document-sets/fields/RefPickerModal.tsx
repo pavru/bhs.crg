@@ -376,7 +376,7 @@ function RefPickerModalBody({
             <span className="font-medium">{askVariantFor.label}</span> подходит нескольким
             вариантам одинаково: они объявлены на один и тот же тип, и по типу выбрать нельзя.
           </p>
-          <VariantPicker layout="list" options={keys.map(k => ({ key: k, label: variantTitle(k), filled: false }))}
+          <VariantPicker layout="list" confirm label={`Вариант для «${askVariantFor.label}»`} options={keys.map(k => ({ key: k, label: variantTitle(k), filled: false }))}
             active="" onSelect={k => { onSelect(askVariantFor.ref, k); setAskVariantFor(null); onOpenChange(false); }} />
           <button type="button" onClick={() => setAskVariantFor(null)}
             className="text-body-small text-on-surface-variant hover:text-on-surface transition-colors">← Назад к списку</button>

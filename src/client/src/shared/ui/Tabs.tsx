@@ -34,18 +34,19 @@ export interface TabItem<T extends string> {
 const tabId = (id: string, value: string) => `${id}-tab-${value}`;
 const panelId = (id: string, value: string) => `${id}-panel-${value}`;
 
-const STYLE = {
-  // Не влезающий ряд прокручивается вбок, а подписи не переносятся (issue #1384): у редактора документа
-  // четыре вкладки, и на телефоне они иначе ломались в две строки и раздвигали страницу. Отсюда и черта
-  // под вкладкой без `-mb-px`: прокручиваемый ряд обрезал бы её, наезжающую на линию ряда.
-  underline: {
-    list: 'flex overflow-x-auto [scrollbar-width:none] border-b border-outline-variant',
-    // Кольцо — внутрь: прокручиваемый ряд срезал бы наружное.
-    tab: 'inline-flex shrink-0 items-center gap-1.5 h-12 px-4 text-body-medium font-medium whitespace-nowrap border-b-2 ' +
-      'state-layer focus-ring-inset',
-    on: 'border-primary text-primary',
-    off: 'border-transparent text-on-surface-variant',
-  },
+/**
+ * Вид `underline`; сегменты рисует `segmentClass`. Не влезающий ряд прокручивается вбок, а подписи не
+ * переносятся (issue #1384): у редактора документа четыре вкладки, и на телефоне они иначе ломались в две
+ * строки и раздвигали страницу. Отсюда и черта под вкладкой без `-mb-px`: прокручиваемый ряд обрезал бы
+ * её, наезжающую на линию ряда.
+ */
+const UNDERLINE = {
+  list: 'flex overflow-x-auto [scrollbar-width:none] border-b border-outline-variant',
+  // Кольцо — внутрь: прокручиваемый ряд срезал бы наружное.
+  tab: 'inline-flex shrink-0 items-center gap-1.5 h-12 px-4 text-body-medium font-medium whitespace-nowrap border-b-2 ' +
+    'state-layer focus-ring-inset',
+  on: 'border-primary text-primary',
+  off: 'border-transparent text-on-surface-variant',
 } as const;
 
 type Variant = 'underline' | 'segmented';
@@ -69,7 +70,7 @@ export function Tabs<T extends string>({ id, items, value, onChange, variant = '
   // подписях («Из библиотеки», «Поиск в интернете», «Создать вручную» — ≈ 430 px, [UI-68]).
   const narrow = useMedia(NARROW);
   const segmented = variant === 'segmented' && !narrow;
-  const s = STYLE.underline;
+  const s = UNDERLINE;
 
   return (
     <div role="tablist" className={`${segmented ? SEGMENT_ROW : s.list} ${className}`} {...aria}>

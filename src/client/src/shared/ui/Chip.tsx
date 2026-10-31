@@ -28,9 +28,11 @@ import { Tooltip } from './Tooltip';
  *   `disabled` подсказка ставит только своей кнопке, и причина пропадала (ревью #1704).
  *
  * Крестик снятия — своя кнопка, а не `IconButton`: та 40 px и раздула бы чип 32 вдвое по ширине. Цель
- * касания 48 — у каждой кнопки чипа; половины input chip расширяются только по вертикали, чтобы не
- * отбирать друг у друга видимое ([UI-68]). Выбор одного значения из 2–5 вариантов — не ряд чипов, а
- * `SegmentedButton`; условия отбора над таблицей — `shared/filter/FilterChips` (input chips).
+ * касания 48 по высоте — у каждой кнопки чипа; половины input chip расширяются вбок только наружу, чтобы
+ * не отбирать друг у друга видимое ([UI-68]). Цель выходит за чип на 8 px сверху и снизу, поэтому ряд
+ * чипов с переносом — с зазором `gap-2` и больше: при меньшем нижний чип отнимает видимое у верхнего.
+ * Выбор одного значения из 2–5 вариантов — не ряд чипов, а `SegmentedButton`; условия отбора над таблицей
+ * — `shared/filter/FilterChips` (input chips).
  */
 type Common = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & {
   children: ReactNode;
@@ -52,11 +54,12 @@ export type ChipProps = Common & ((Filter & Lead) | (Input & Lead) | (Assist & L
 const BASE = 'inline-flex items-center h-8 rounded-sm border text-label-large';
 /**
  * Состояния — у кнопки, а не у чипа: у input chip их две, и подсвечивается та, что под курсором. Цель
- * касания: чип 32 → 48 (8 px по вертикали, 4 по бокам).
+ * касания: чип 32 → 48 (8 px по вертикали, 4 по бокам); у половин input chip — 4 px только с внешней стороны.
  */
 const PRESS = 'state-layer focus-ring disabled-content disabled:pointer-events-none touch-target';
 const TOUCH_WHOLE = '[--_touch-inset:-8px_-4px]';
-const TOUCH_HALF = '[--_touch-inset:-8px_0]';
+const TOUCH_LABEL = '[--_touch-inset:-8px_0_-8px_-4px]';
+const TOUCH_REMOVE = '[--_touch-inset:-8px_-4px_-8px_0]';
 
 const UNSELECTED = 'border-outline-variant text-on-surface-variant bg-surface';
 const SELECTED = 'border-transparent bg-secondary-container text-on-secondary-container';
@@ -69,9 +72,11 @@ export function Chip(props: ChipProps) {
   } = props;
   const toggles = selected !== undefined && !menu && !onRemove;
   const shown = toggles && selected ? Check : icon;
-  // Ведущий знак — своего цвета: primary у невыбранного (MD3), роль — у знака о состоянии.
-  const leadTone = shown === Check ? '' : iconTone ? TONE[iconTone] : selected ? '' : 'text-primary';
-  const container = `${BASE} ${selected ? SELECTED : UNSELECTED}`;
+  // Ведущий знак — своего цвета: primary у невыбранного (MD3), роль — у знака о состоянии. У отключённого
+  // знак гаснет вместе с подписью: цвет берёт у кнопки.
+  const leadTone = rest.disabled || shown === Check ? '' : iconTone ? TONE[iconTone] : selected ? '' : 'text-primary';
+  // Отключённый по MD3: выбранный — заливка on-surface 12 % без контура, невыбранный — контур 12 %.
+  const container = `${BASE} ${selected ? `${SELECTED} disabled-container` : `${UNSELECTED} disabled-outlined`}`;
   const body = (
     <>
       {shown && <Icon icon={shown} size={18} className={`shrink-0 ${leadTone}`}
@@ -88,7 +93,7 @@ export function Chip(props: ChipProps) {
     return (
       <Tooltip content={title}>
         <button {...rest} type={type} aria-pressed={toggles ? selected : undefined}
-          className={`${container} ${PRESS} ${TOUCH_WHOLE} disabled-outlined gap-2 ${pad} ${className}`}>
+          className={`${container} ${PRESS} ${TOUCH_WHOLE} gap-2 ${pad} ${className}`}>
           {body}
         </button>
       </Tooltip>
@@ -101,18 +106,19 @@ export function Chip(props: ChipProps) {
         className={`inline-flex items-center gap-2 h-full min-w-0 ${labelPad}`}>{body}</span>
     : <Tooltip content={title}>
         <button {...rest} type={type}
-          className={`inline-flex items-center gap-2 h-full min-w-0 rounded-l-sm ${labelPad} ${PRESS} ${TOUCH_HALF}`}>
+          className={`inline-flex items-center gap-2 h-full min-w-0 rounded-l-sm ${labelPad} ${PRESS} ${TOUCH_LABEL}`}>
           {body}
         </button>
       </Tooltip>;
 
   return (
-    <span className={`${container} ${className}`}>
+    // Отключены кнопки, а вид отключённого — у контейнера: data-disabled его включает.
+    <span data-disabled={rest.disabled || undefined} className={`${container} ${className}`}>
       {label}
       <Tooltip content={removeLabel}>
         <button type="button" onClick={onRemove} aria-label={removeLabel}
           disabled={rest.disabled}
-          className={`h-full pl-0.5 pr-2 rounded-r-sm ${PRESS} ${TOUCH_HALF} [--_state-color:var(--color-error)]`}>
+          className={`h-full pl-0.5 pr-2 rounded-r-sm ${PRESS} ${TOUCH_REMOVE} [--_state-color:var(--color-error)]`}>
           <Icon icon={Close} size={18} aria-hidden />
         </button>
       </Tooltip>

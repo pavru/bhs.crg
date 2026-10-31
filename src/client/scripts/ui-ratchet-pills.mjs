@@ -33,13 +33,19 @@ export function isChip({ tag, cls, attrs }) {
   return ROUND_PILL.test(cls) || (OUTLINE.test(cls) && !FULL_WIDTH.test(cls));
 }
 
-/** Есть ли в поддереве элемента кнопка разметки — и в `.map` тоже: стрелочная функция — тоже потомок. */
-function holdsButton(node, sf) {
+/**
+ * Есть ли в поддереве элемента кнопка разметки — и в `.map` тоже: стрелочная функция — тоже потомок.
+ * `test` — условие на текст её className (без атрибута — пустая строка).
+ */
+function holdsButton(node, sf, test = () => true) {
   let found = false;
   const visit = n => {
     if (found) return;
-    if ((ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) && n.tagName.getText(sf) === 'button') found = true;
-    else ts.forEachChild(n, visit);
+    if ((ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) && n.tagName.getText(sf) === 'button') {
+      const cls = n.attributes.properties.find(p => ts.isJsxAttribute(p) && p.name.getText(sf) === 'className');
+      if (test(cls?.initializer?.getText(sf) ?? '')) found = true;
+    }
+    ts.forEachChild(n, visit);
   };
   ts.forEachChild(node, visit);
   return found;
@@ -47,15 +53,20 @@ function holdsButton(node, sf) {
 
 const GROUP_ROLE = /^["'{`]*(?:radio)?group["'}`]*$/;
 const ROUNDED = /(?<![\w-])rounded(?:-|(?=[\s'"`}]))/;
+// Край сегмента у самой кнопки: скругление одной стороны (rounded-l-full, first:rounded-s-…) или нахлёст
+// рамок соседей (-ml-px). Строки списка радио (VariantPicker списком) скруглены целиком — это не сегменты.
+const SEGMENT_EDGE = /(?<![\w-])rounded-[lrse](?:-|(?=[\s'"`}]))|(?<![\w:-])-m[lrsx]-px\b/;
 
 /**
- * Свой ряд сегментов ([UI-68]): группа (`role="group"` / `"radiogroup"`) в рамке и со скруглением, а внутри
- * кнопки — так были нарисованы `ThemeToggle` и `VariantPicker`, и мимо `chip` и `tabs` они прошли: у кнопок
- * сегмента нет ни своих полей пилюли, ни ролей вкладок. Элемент — из `countElements` (ui-ratchet-lib.mjs).
+ * Свой ряд сегментов ([UI-68]): группа (`role="group"` / `"radiogroup"`) с кнопками внутри, а рамка и
+ * скругление — у группы (так были нарисованы `ThemeToggle` и `VariantPicker`) или у самих кнопок, с краем
+ * сегмента (`SEGMENT_EDGE`). Мимо `chip` и `tabs` такие ряды проходили: у кнопок сегмента нет ни своих полей
+ * пилюли, ни ролей вкладок. Элемент — из `countElements` (ui-ratchet-lib.mjs).
  */
 export function isSegmentRow({ tag, cls, attrs, element, sf }) {
   if (!PLAIN.has(tag) || !GROUP_ROLE.test(attrs.get('role') ?? '')) return false;
-  return OUTLINE.test(cls) && ROUNDED.test(cls) && holdsButton(element, sf);
+  if (OUTLINE.test(cls) && ROUNDED.test(cls)) return holdsButton(element, sf);
+  return holdsButton(element, sf, b => OUTLINE.test(b) && SEGMENT_EDGE.test(b));
 }
 
 /** Своя пометка: пилюля с фоном или рамкой, либо форма чипа с мелким текстом. */

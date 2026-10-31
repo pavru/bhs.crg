@@ -11,14 +11,10 @@ export const WIDE = '(min-width: 768px)';
 /** Телефон — то, что ниже `WIDE`. */
 export const NARROW = '(max-width: 767.98px)';
 
-/**
- * Совпадает ли медиазапрос — и следит за ним, пока окно меняет размер. Без `matchMedia` (jsdom в тестах) —
- * не совпадает: общий компонент со своим правилом ширины (`Tabs`) не обязан ронять каждый тест экрана.
- */
+/** Совпадает ли медиазапрос — и следит за ним, пока окно меняет размер. */
 export function useMedia(query: string): boolean {
-  const [matches, setMatches] = useState(() => typeof window.matchMedia === 'function' && window.matchMedia(query).matches);
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
   useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return;
     const list = window.matchMedia(query);
     const onChange = () => setMatches(list.matches);
     list.addEventListener('change', onChange);

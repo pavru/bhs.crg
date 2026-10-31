@@ -51,7 +51,7 @@ export function FilterChips({ columns, filter, onChange, onAdvanced, suggested }
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Условия отбора">
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2" role="group" aria-label="Условия отбора">
         {view.mode === 'complex' ? (
           <span className={`${CHIP_CLS} border-outline-variant text-on-surface`}>
             <span className="pl-4 pr-1">Отбор сложный: условий — {view.count}</span>

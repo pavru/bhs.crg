@@ -17,7 +17,7 @@ export default defineConfig({
   },
   // Язык форматирования у тестов один и назван явно: «системный» дал бы ответ, зависящий от машины
   // (см. src/shared/testing/formatLocale.ts).
-  test: { setupFiles: ['./src/shared/testing/formatLocale.ts'] },
+  test: { setupFiles: ['./src/shared/testing/formatLocale.ts', './src/shared/testing/matchMedia.ts'] },
   // Адрес API — из окружения: в CI живые прогоны поднимают свою копию на другом порту, и
   // прибитый гвоздём :5000 увёл бы их в чужое (или несуществующее) приложение. Умолчание —
   // прежнее, ради `npm run dev` без переменных.

@@ -20,6 +20,16 @@ describe('храповик интерфейса: segmented', () => {
       .toEqual({ segmented: 1 });
   });
 
+  it('рамка и край сегмента у кнопок, а не у группы, — тоже ряд сегментов', () => {
+    const opts = { dir: 'features', file: 'features/x/X.tsx' };
+    const row = edge => `<div role="radiogroup" className="inline-flex">{items.map((o, i) => (
+      <button type="button" role="radio" key={o} className={\`h-10 border border-outline px-3 ${edge}\`}>{o}</button>))}</div>`;
+    expect(only('segmented', row('first:rounded-l-full last:rounded-r-full'), opts)).toEqual({ segmented: 1 });
+    expect(only('segmented', row('-ml-px first:ml-0'), opts)).toEqual({ segmented: 1 });
+    // Список радио строками — кнопки в рамке, но скруглены целиком: не сегменты.
+    expect(only('segmented', row('rounded-md'), opts)).toEqual({});
+  });
+
   it('группа без рамки, рамка без группы и группа без кнопок — не ряд сегментов', () => {
     const opts = { dir: 'features', file: 'features/x/X.tsx' };
     expect(only('segmented', '<div role="group" className="flex gap-2"><button type="button">a</button></div>', opts)).toEqual({});

@@ -400,7 +400,7 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
             {applicableTags.length === 0 ? (
               <p className="text-body-small text-on-surface-variant">Для базового типа «{BASE_TYPE_LABEL[type.baseType]}» подходящих тэгов нет.</p>
             ) : (
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-x-1.5 gap-y-2">
                 {applicableTags.map(t => {
                   const on = allowedTags.includes(t.code);
                   return (

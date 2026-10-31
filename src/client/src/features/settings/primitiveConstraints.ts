@@ -5,12 +5,18 @@ import type { FieldConstraints, PrimitiveTypeDef } from '@/shared/api/types';
  * смена типа введённое не стирает: человек может вернуться. Сохраняются только свои — чужие типу сервер
  * не ждёт.
  */
-const CONSTRAINT_KEYS: Record<PrimitiveTypeDef['baseType'], readonly (keyof FieldConstraints)[]> = {
-  string: ['pattern', 'patternMessage', 'minLength', 'maxLength'],
-  number: ['min', 'max', 'integer'],
-  date: ['minDate', 'maxDate', 'datePrecision'],
+type BaseType = PrimitiveTypeDef['baseType'];
+
+/**
+ * Чей ключ — по каждому ключу `FieldConstraints`, а не списком по типу: новое ограничение без строки здесь
+ * не компилируется, а не выбрасывается молча при создании (ревью PR #1709).
+ */
+const OWNER: { [K in keyof Required<FieldConstraints>]: BaseType } = {
+  pattern: 'string', patternMessage: 'string', minLength: 'string', maxLength: 'string',
+  min: 'number', max: 'number', integer: 'number',
+  minDate: 'date', maxDate: 'date', datePrecision: 'date',
 };
-export function constraintsOf(baseType: PrimitiveTypeDef['baseType'], c: FieldConstraints): FieldConstraints {
+export function constraintsOf(baseType: BaseType, c: FieldConstraints): FieldConstraints {
   return Object.fromEntries(Object.entries(c)
-    .filter(([k]) => CONSTRAINT_KEYS[baseType].includes(k as keyof FieldConstraints))) as FieldConstraints;
+    .filter(([k]) => OWNER[k as keyof FieldConstraints] === baseType)) as FieldConstraints;
 }

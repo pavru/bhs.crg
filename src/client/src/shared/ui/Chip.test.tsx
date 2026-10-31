@@ -71,6 +71,32 @@ describe('Chip', () => {
     expect(icon.getAttribute('class')).toContain('text-warning');
   });
 
+  // Отключённый по MD3 (ревью PR #1709): знак гаснет с подписью, выбранный — заливка 12 % без контура.
+  it('отключённый: знак без своего цвета, выбранный — disabled-container, невыбранный — disabled-outlined', () => {
+    render(<>
+      <Chip selected={false} disabled icon={Warning} iconTone="error">Ошибки</Chip>
+      <Chip icon={Add} disabled>Добавить</Chip>
+      <Chip selected disabled menu>Стройки</Chip>
+    </>);
+    const errors = screen.getByRole('button', { name: /Ошибки/ });
+    expect(errors.querySelector('svg')?.getAttribute('class')).not.toMatch(/text-(error|primary)/);
+    expect(classes(errors)).toContain('disabled-outlined');
+    expect(screen.getByRole('button', { name: /Добавить/ }).querySelector('svg')?.getAttribute('class')).not.toContain('text-primary');
+    const sites = screen.getByRole('button', { name: /Стройки/ });
+    expect(classes(sites)).toContain('disabled-container');
+    expect(classes(sites)).not.toContain('disabled-outlined');
+  });
+
+  it('отключённый input chip: вид отключённого у контейнера, цели касания половин — наружу', () => {
+    render(<Chip selected disabled onRemove={() => {}} removeLabel="Снять поставщика">Поставщик</Chip>);
+    const remove = screen.getByRole('button', { name: 'Снять поставщика' });
+    const box = remove.parentElement!;
+    expect(box.hasAttribute('data-disabled')).toBe(true);
+    expect(classes(box)).toContain('disabled-container');
+    expect(classes(remove)).toContain('[--_touch-inset:-8px_-4px_-8px_0]');
+    expect(classes(screen.getByRole('button', { name: 'Поставщик' }))).toContain('[--_touch-inset:-8px_0_-8px_-4px]');
+  });
+
   it('тип: iconTone без icon, menu с onRemove и assist без знака не собираются', () => {
     // @ts-expect-error цвет без знака — снова тон
     void <Chip selected={false} iconTone="error">a</Chip>;

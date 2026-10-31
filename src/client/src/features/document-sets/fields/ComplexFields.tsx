@@ -957,7 +957,7 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
   const bar = (
     <div className="space-y-1.5">
       {chip}
-      <VariantPicker options={options} active={activeKey} onSelect={switchTo} />
+      <VariantPicker label={`Вариант поля «${field.title}»`} options={options} active={activeKey} onSelect={switchTo} />
     </div>
   );
 
