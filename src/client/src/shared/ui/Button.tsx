@@ -69,7 +69,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   );
   // Без подписи имя кнопки — её подсказка, с подписью — описание: браузерный `title` давал их сам.
   return rich
-    ? <RichTooltip {...rich}>{button}</RichTooltip>
+    ? <RichTooltip {...rich} name={!labelled}>{button}</RichTooltip>
     : <Tooltip content={title} name={!labelled}>{button}</Tooltip>;
 });
 

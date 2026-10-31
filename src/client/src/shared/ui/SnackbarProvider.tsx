@@ -6,7 +6,7 @@ import { traceIdOf } from '@/shared/api/client';
 import { apiError } from '@/shared/utils/apiError';
 import { openBugReport } from './bugReportBus';
 import { SnackbarCtx, type SnackbarApi, type SnackbarOptions, type SnackbarVariant } from './Snackbar';
-import { EMPTY_QUEUE, snackbarKey, snackbarQueue, type SnackbarItem } from './snackbarQueue';
+import { EMPTY_QUEUE, SNACKBAR_EXIT_MS, snackbarKey, snackbarQueue, type SnackbarItem } from './snackbarQueue';
 
 /**
  * Провайдер уведомлений и snackbar. Отдельным файлом от `useSnackbar` (issue #858): модуль,
@@ -15,12 +15,6 @@ import { EMPTY_QUEUE, snackbarKey, snackbarQueue, type SnackbarItem } from './sn
  */
 
 const DEFAULT_DURATION: Record<SnackbarVariant, number> = { success: 4000, info: 4000, error: 8000 };
-
-/**
- * Следующее уведомление монтируется после выхода предыдущего: анимация `snackbar-out` — short3 (150 мс),
- * с запасом. Ждём таймером, а не концом анимации: в jsdom и при «меньше движения» её нет вовсе.
- */
-export const SNACKBAR_EXIT_MS = 200;
 
 export function SnackbarProvider({ children }: { children: ReactNode }) {
   const [queue, dispatch] = useReducer(snackbarQueue, EMPTY_QUEUE);

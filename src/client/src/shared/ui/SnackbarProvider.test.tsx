@@ -4,7 +4,8 @@ import { useEffect } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSnackbar } from './Snackbar';
 import type { SnackbarApi } from './Snackbar';
-import { SNACKBAR_EXIT_MS, SnackbarProvider } from './SnackbarProvider';
+import { SnackbarProvider } from './SnackbarProvider';
+import { SNACKBAR_EXIT_MS } from './snackbarQueue';
 
 const bugReport = vi.hoisted(() => vi.fn());
 vi.mock('./bugReportBus', () => ({ openBugReport: bugReport }));

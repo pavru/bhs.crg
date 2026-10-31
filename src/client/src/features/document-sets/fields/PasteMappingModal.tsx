@@ -11,7 +11,7 @@ import { useLocale, resolveLocale, LOCALE_OPTIONS, SYSTEM_LOCALE } from '@/share
 import { dateMask } from '@/shared/format/dateMask';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
-import { coerceScalar, rejectReason, type CoerceContext } from './pasteCoerce';
+import { coerceScalar, rejectReason, unarchiveNotice, type CoerceContext } from './pasteCoerce';
 import { PasteArchivedNote, type ArchivedCell } from './PasteArchivedNote';
 import { useReturnManyFromArchive } from '@/shared/api/commonData';
 import { useCan } from '@/shared/api/access';
@@ -266,12 +266,8 @@ function PasteMappingModalBody({
         const ids = [...new Set(pending.archived.map(c => c.hit.entryId))];
         const returned = new Set(await unarchive.mutateAsync(ids).catch(() => [] as string[]));
         pending.archived.forEach(c => { if (returned.has(c.hit.entryId)) c.row[c.fieldKey] = refTo(c.hit); });
-        const failed = ids.length - returned.size;
-        // Одна вставка — одно уведомление ([UI-71]): частичный возврат — ошибкой, и в ней же названо
-        // вернувшееся, а не вторым уведомлением за ней.
-        const missed = `Не удалось вернуть из архива: ${failed}. Эти значения вставлены встроенно.`;
-        if (failed > 0) toast.error(returned.size > 0 ? `Возвращено из архива: ${returned.size}. ${missed}` : missed);
-        else if (returned.size > 0) toast.success(`Возвращено из архива: ${returned.size}.`);
+        const notice = unarchiveNotice(returned.size, ids.length - returned.size);
+        if (notice) toast[notice.variant](notice.text);
       }
       onApply(pending.rows);
       onOpenChange(false);

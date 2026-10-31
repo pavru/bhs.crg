@@ -36,6 +36,12 @@ const LEAVE_MS = 300;
 /** Фокусируемое, по которому идёт Tab: следующее за триггером — когда фокус уходит из подсказки вперёд. */
 const TABBABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+/**
+ * Селектор видимости не знает: скрытое (`display: none`, свёрнутая панель) фокус не примет — и он упал
+ * бы в `body`. Движок без `checkVisibility` (тестовый DOM) — считаем видимым.
+ */
+const visible = (el: HTMLElement) => typeof el.checkVisibility !== 'function' || el.checkVisibility({ visibilityProperty: true });
+
 export interface RichTooltipAction {
   label: string;
   onClick: () => void;
@@ -48,10 +54,15 @@ interface RichTooltipProps {
   actions?: readonly RichTooltipAction[];
   /** Один элемент, как у `Tooltip`: неактивная своя кнопка становится `aria-disabled`. */
   children: ReactElement;
+  /**
+   * Подсказка — ещё и ИМЯ элемента, как у `Tooltip`: кнопка из одной иконки иначе осталась бы без имени.
+   * Имя — заголовок (нет его — текст), остальное — описанием.
+   */
+  name?: boolean;
   side?: TooltipSide;
 }
 
-export function RichTooltip({ title, text, actions = [], children, side = 'bottom' }: RichTooltipProps) {
+export function RichTooltip({ title, text, actions = [], children, name = false, side = 'bottom' }: RichTooltipProps) {
   const interactive = actions.length > 0;
   // Ни заголовка, ни действия — это простая подсказка и по виду: так кнопка, которой богатую подсказку
   // дают лишь иногда, не пересоздаётся при смене (`Button rich`).
@@ -62,13 +73,15 @@ export function RichTooltip({ title, text, actions = [], children, side = 'botto
   const cancelLeave = () => clearTimeout(leaving.current);
   useEffect(() => cancelLeave, []);
 
-  const description = title ? `${title}. ${text}` : text;
+  const aria: Record<string, string> = !name ? { 'aria-description': title ? `${title}. ${text}` : text }
+    : title ? { 'aria-label': title, 'aria-description': text } : { 'aria-label': text };
   const { open, hide, anchor, Element, props } = useTooltipTrigger(children, {
     empty: !text,
-    aria: { 'aria-description': description },
+    aria,
     onShow: cancelLeave,
     ...(interactive && {
-      onLeave: () => leaveSoon(),
+      // Ещё не открылась — уход отменяет её сразу: иначе таймер наведения открыл бы её уже без указателя.
+      onLeave: () => { if (open) leaveSoon(); else close(); },
       onBlur: (e: FocusEvent<HTMLElement>) => { if (!inLayer(e.relatedTarget)) close(); },
       onKeyDown: (e: KeyboardEvent<HTMLElement>) => {
         if (e.key !== 'Tab' || e.shiftKey || !open) return;
@@ -102,7 +115,7 @@ export function RichTooltip({ title, text, actions = [], children, side = 'botto
     if (!trigger) return close();
     if (atStart) { trigger.focus(); return; }
     // Вперёд — к следующему за триггером: подсказка закрывается, как закрылась бы, уйди фокус с триггера.
-    const all = [...document.querySelectorAll<HTMLElement>(TABBABLE)].filter(el => !inLayer(el));
+    const all = [...document.querySelectorAll<HTMLElement>(TABBABLE)].filter(el => !inLayer(el) && (el === trigger || visible(el)));
     const next = all[all.indexOf(trigger) + 1];
     close();
     (next ?? trigger).focus();

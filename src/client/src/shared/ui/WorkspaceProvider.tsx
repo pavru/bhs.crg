@@ -44,7 +44,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const shownKey = `${tabKey}:notice`;
     if (readTab(shownKey) === notice) return;
     writeTab(shownKey, notice);
-    toast.info(notice, { duration: 10_000 });
+    // Дольше обычных 4 с — фраза длинная; но не 10: уведомления идут по одному, и сохранение в первые
+    // секунды после входа ждало бы за этим.
+    toast.info(notice, { duration: 6000 });
   }, [notice, tabKey, toast]);
 
   const value = useMemo<WorkspaceContextValue>(() => {

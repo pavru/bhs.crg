@@ -32,6 +32,13 @@ export type SnackbarAction =
 export const PENDING_MAX = 10;
 export const PENDING_TTL_MS = 15_000;
 
+/**
+ * Следующее уведомление монтируется после выхода предыдущего: анимация `snackbar-out` — short3 (150 мс),
+ * с запасом. Ждём таймером, а не концом анимации: в jsdom и при «меньше движения» её нет вовсе. Здесь,
+ * а не у провайдера: модуль компонента, экспортирующий что-то ещё, теряет горячую подмену (#858).
+ */
+export const SNACKBAR_EXIT_MS = 200;
+
 export const EMPTY_QUEUE: SnackbarQueue = { shown: null, leaving: false, pending: [] };
 
 /** Ключ повтора: двойной щелчок даёт то же уведомление, и второе не ставится. */

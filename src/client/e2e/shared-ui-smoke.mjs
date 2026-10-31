@@ -227,8 +227,12 @@ await check('touch-target-segment-keeps-own-edge', async () => {
 // и snackbar. Само уведомление не нужно — меряется поле, и проверка не зависит от того, что и когда
 // сказал экран.
 // Пустое поле нулевой высоты Playwright считает невидимым, и `boundingBox` дал бы null: рамка — из DOM.
+// Ширина пустого поля — 0: предел меряем по `max-width`, а не по рамке — по рамке проверка не упала бы никогда.
 const snackbarField = () => page.locator('[role=region][aria-label^="Notifications"] ol')
-  .evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
+  .evaluate(el => {
+    const r = el.getBoundingClientRect();
+    return { x: r.x, y: r.y, width: r.width, height: r.height, maxWidth: getComputedStyle(el).maxWidth };
+  });
 
 await check('snackbar-field-right-of-rail-on-desktop', async () => {
   await page.goto(`${BASE}/document-sets`);
@@ -240,7 +244,7 @@ await check('snackbar-field-right-of-rail-on-desktop', async () => {
       throw new Error(`поле уведомлений с ${Math.round(field.x)} px, а рейл кончается на ${Math.round(rail.x + rail.width)} — уведомление легло бы на рейл`);
     return field;
   });
-  if (place.width > 560.5) throw new Error(`поле уведомлений шириной ${Math.round(place.width)} px, а не до 560`);
+  if (Math.abs(parseFloat(place.maxWidth) - 560) > 0.5) throw new Error(`поле уведомлений шириной до ${place.maxWidth}, а не до 560px`);
 });
 
 await check('snackbar-field-above-bottom-nav-on-phone', async () => {

@@ -59,6 +59,29 @@ describe('RichTooltip с действием', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  it('указатель, ушедший до открытия, её не открывает', () => {
+    // Часы — вперёд: подсказка, закрытая прошлым тестом «только что», открыла бы эту без задержки.
+    vi.useFakeTimers({ now: Date.now() + 60_000 });
+    render(<Post />);
+    const trigger = screen.getByRole('button', { name: 'Вырезать' });
+    fireEvent.pointerEnter(trigger);
+    act(() => { vi.advanceTimersByTime(200); });
+    fireEvent.pointerLeave(trigger);
+    // Прежде таймер наведения открывал её на 400 мс, а уход закрывал лишь на 500 — она мелькала.
+    act(() => { vi.advanceTimersByTime(250); });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('у кнопки без подписи подсказка — имя: заголовок, текст — описание', () => {
+    render(
+      <RichTooltip title="Сначала сохраните" text="Правки не сохранены." name actions={[{ label: 'Сохранить', onClick: save }]}>
+        <button type="button">✂</button>
+      </RichTooltip>,
+    );
+    const trigger = screen.getByRole('button', { name: 'Сначала сохраните' });
+    expect(trigger.getAttribute('aria-description')).toBe('Правки не сохранены.');
+  });
+
   it('Tab с триггера — на действие, уход фокуса в подсказку её не закрывает; Esc закрывает и возвращает фокус', async () => {
     render(<Post />);
     const trigger = screen.getByRole('button', { name: 'Вырезать' });
