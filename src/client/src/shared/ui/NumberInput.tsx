@@ -41,10 +41,13 @@ export function NumberInput({ value, onChange, label, unit, placeholder, disable
 /**
  * Подчёркивание — псевдоэлемент обёртки, а не нижняя граница: граница 2 px у фокуса сдвигала бы текст
  * на пиксель. Состояние поля обёртка узнаёт через `focus-within` и `has-[:disabled]`.
+ *
+ * Наведение исключает фокус и отключённое в самом селекторе, как у рамки `OutlinedField`: `hover:` идёт в
+ * собранном CSS позже `focus-within:` при равном весе, и наведённое поле в фокусе теряло бы `primary`.
  */
 const WRAP = 'relative flex h-10 items-center gap-1 px-2 cursor-text '
   + "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-outline after:content-[''] "
-  + 'hover:after:bg-on-surface focus-within:after:h-0.5 focus-within:after:bg-primary '
+  + '[&:hover:not(:focus-within):not(:has(:disabled))]:after:bg-on-surface focus-within:after:h-0.5 focus-within:after:bg-primary '
   + 'has-[:disabled]:cursor-default has-[:disabled]:after:bg-on-surface/38';
 
 const INPUT = 'min-w-0 flex-1 bg-transparent text-right text-body-medium tabular-nums text-on-surface outline-none '

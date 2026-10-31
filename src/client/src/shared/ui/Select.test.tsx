@@ -53,7 +53,7 @@ describe('Select с подписью: exposed dropdown ([UI-69])', () => {
       </Select>
     );
   }
-  const arrow = () => document.querySelector('[data-state][aria-hidden="true"].transition-transform')!;
+  const arrow = () => document.querySelector('[data-field-arrow]')!;
 
   it('стрелка — в хвосте оболочки и поворачивается у открытого списка', () => {
     render(<Field />);

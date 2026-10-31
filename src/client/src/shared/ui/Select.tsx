@@ -3,7 +3,7 @@ import { Icon } from './Icon';
 import { Check, KeyboardArrowDown } from './icons';
 import { forwardRef, useId, useRef, useState, type ReactNode } from 'react';
 import { OutlinedField } from './OutlinedField';
-import { fieldBox, type FieldDensity } from './fieldBox';
+import { fieldBox, fieldDescribedBy, type FieldDensity } from './fieldBox';
 
 /**
  * MD3-Select (issue #110, фаза 2) поверх Radix Select — замена нативному `<select>`
@@ -104,7 +104,7 @@ const FRAMED_TRIGGER =
  */
 function FieldArrow({ open, disabled }: { open: boolean; disabled?: boolean }) {
   return (
-    <span aria-hidden data-state={open ? 'open' : 'closed'} data-disabled={disabled ? '' : undefined}
+    <span aria-hidden data-field-arrow data-state={open ? 'open' : 'closed'} data-disabled={disabled ? '' : undefined}
       className={'pointer-events-none flex size-8 pointer-coarse:size-10 items-center justify-center text-on-surface-variant ' +
         'transition-transform ease-standard data-[state=open]:rotate-180 disabled-content'}>
       <Icon icon={KeyboardArrowDown} size={24} />
@@ -163,7 +163,7 @@ export function Select({
         aria-label={framed ? undefined : aria['aria-label']}
         aria-labelledby={framed ? labelId : undefined}
         aria-required={framed && required ? true : undefined}
-        aria-describedby={framed && (error || hint) ? hintId : undefined}
+        aria-describedby={framed ? fieldDescribedBy(hintId, error || hint) : undefined}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}>
         {/* min-w-0 + truncate: длинное выбранное значение обрезается многоточием, а не переносится
             на вторую строку, распирая триггер фиксированной высоты. */}

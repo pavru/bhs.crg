@@ -2,8 +2,15 @@ import { type CSSProperties, type ReactNode } from 'react';
 import { ICON_BUTTON_XS } from './buttonClasses';
 import { Icon } from './Icon';
 import { ErrorIcon } from './icons';
-import { MARK_SPACE, type FieldDensity } from './fieldBox';
+import { FieldMarkContext, MARK_SPACE, type FieldDensity } from './fieldBox';
 import { Tooltip } from './Tooltip';
+
+// Ширина метки в покое (`raise="auto"`) — до текста: левый край 0.75rem и правый отступ текста из `fieldBox`
+// за вычетом её px-1. Всплывшая — до рамки. Строками целиком: Tailwind собирает классы по тексту файла.
+const REST_WIDTH = 'max-w-[calc(100%-1.5rem-var(--field-mark,0px))]';
+const REST_WIDTH_TRAILING = 'max-w-[calc(100%-3.25rem-var(--field-mark,0px))] '
+  + 'pointer-coarse:max-w-[calc(100%-3.75rem-var(--field-mark,0px))]';
+const RAISED_WIDTH = 'peer-focus:max-w-[calc(100%-1.5rem)] peer-[:not(:placeholder-shown)]:max-w-[calc(100%-1.5rem)]';
 
 /**
  * Оболочка MD3 outlined-поля (issue #565): рамка с НАСТОЯЩИМ вырезом под меткой (fieldset+legend),
@@ -45,9 +52,9 @@ import { Tooltip } from './Tooltip';
  * полем; у плотного — 20 с подсказкой, потому что места под полем нет. Для диктора знак скрыт: текст
  * ошибки он читает через `aria-describedby` поля.
  *
- * Ставит его оболочка. Контрол, у которого хвост свой (календарь даты), ставит его сам перед хвостом —
- * этим же компонентом, и оболочке тогда говорят `markInside`: двух знаков у поля не бывает. Им же рисует
- * свой знак ошибка набранного у сегментов без оболочки (`SegmentProblemMark`).
+ * Ставит его оболочка. Контролу, у которого хвост свой (календарь даты), оболочку открывают `markInside`:
+ * тогда знак она отдаёт ему через `FieldMarkContext`, и он ставит его перед хвостом — двух знаков у поля не
+ * бывает. Тем же компонентом рисует свой знак ошибка набранного у сегментов без оболочки (`SegmentProblemMark`).
  */
 export function FieldErrorMark({ density = 'form', message }: { density?: FieldDensity; message?: string | null }) {
   const mark = (
@@ -99,7 +106,7 @@ export interface OutlinedFieldProps {
    * под хвост держит само поле — `fieldBox(density, { trailing: true })`.
    */
   trailing?: ReactNode;
-  /** Хвост живёт внутри контрола (календарь даты): знак ошибки контрол ставит сам — `FieldErrorMark`. */
+  /** Хвост живёт внутри контрола (календарь даты): знак ошибки оболочка отдаёт ему `FieldMarkContext`. */
   markInside?: boolean;
   /** Классы внешней обёртки (поле + подпись под ним). */
   containerClassName?: string;
@@ -143,6 +150,10 @@ export function OutlinedField({
     ? 'top-1/2 -translate-y-1/2 text-body-large peer-focus:top-0 peer-focus:text-body-small '
       + 'peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:text-body-small'
     : 'top-0 -translate-y-1/2 text-body-small';
+  // Метка в покое стоит на месте текста и кончается там же, где он: справа знак ошибки и хвост. Наверху,
+  // в вырезе, ей ничего не мешает — там ограничение одно, рамка.
+  const labelWidth = !auto ? 'max-w-[calc(100%-1.5rem)]'
+    : `${trailing ? REST_WIDTH_TRAILING : REST_WIDTH} ${RAISED_WIDTH}`;
 
   // Звёздочка — знак для глаз, а не часть имени поля (issue #1291): обязательность читалке называет сам
   // контрол (`required` / `aria-required`), а текст подписи «Номер*» ломал бы поиск поля по его имени.
@@ -151,8 +162,10 @@ export function OutlinedField({
   // и `TypePickerField` он не доходил, и обязательность для чтения с экрана пропадала (ревью PR #1301).
   const star = required ? " after:ml-0.5 after:text-error after:content-['*']" : '';
   const labelClass = dense ? 'sr-only'
-    : `absolute left-3 px-1 pointer-events-none transition-all ease-standard block max-w-[calc(100%-1.5rem)] truncate ${labelColor} ${labelPosition}${star}`;
+    : `absolute left-3 px-1 pointer-events-none transition-all ease-standard block ${labelWidth} truncate ${labelColor} ${labelPosition}${star}`;
   const markStyle = markHere ? { '--field-mark': MARK_SPACE[density] } as CSSProperties : undefined;
+  // Знак ошибки для контрола со своим хвостом: условие и размер — здесь, ставит он сам (`FieldMarkContext`).
+  const innerMark = bad && markInside ? <FieldErrorMark density={density} message={error} /> : null;
 
   // У плотного поля текста под ним нет и места нет: ошибку и пояснение диктор читает, глаз видит знак.
   const below = error || hint;
@@ -162,7 +175,7 @@ export function OutlinedField({
   return (
     <div className={containerClassName}>
       <div className={`relative ${hover}`} style={markStyle}>
-        {children}
+        <FieldMarkContext.Provider value={innerMark}>{children}</FieldMarkContext.Provider>
         {/* Рамка с вырезом: fieldset даёт границу, legend прорезает верх под меткой. Ширина legend
             и есть вырез — она же анимируется, когда метка всплывает. У плотного поля выреза нет. */}
         <fieldset aria-hidden
@@ -177,9 +190,11 @@ export function OutlinedField({
           ? <label id={labelId} htmlFor={htmlFor} className={labelClass}>{label}</label>
           : <span id={labelId} className={labelClass}>{label}</span>}
         {/* Слот хвоста: знак ошибки, за ним адорнмент. Сам слот щелчков не ловит — под ним поле, а хвост
-            получает их сам (`contents` не даёт обёртке своего прямоугольника). */}
+            получает их сам (`contents` не даёт обёртке своего прямоугольника). Стоит по первой строке, а не
+            по середине рамки: у поля в одну строку это одно и то же, а у многострочного (`TextAreaField`)
+            середина — посреди текста. */}
         {(markHere || trailing) && (
-          <div className={`pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1 ${ICON_BUTTON_XS}`}>
+          <div className={`pointer-events-none absolute right-2 ${dense ? 'top-5' : 'top-7'} -translate-y-1/2 z-10 flex items-center gap-1 ${ICON_BUTTON_XS}`}>
             {markHere && <FieldErrorMark density={density} message={error} />}
             {trailing && <span className="contents pointer-events-auto">{trailing}</span>}
           </div>

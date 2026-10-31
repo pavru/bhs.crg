@@ -90,8 +90,10 @@
 
   Сделано так: место знака оболочка отдаёт переменной `--field-mark`. Знак — один компонент
   `FieldErrorMark`. У `DateField` хвост (крестик, календарь) живёт внутри `DateInput`, поэтому оболочке
-  говорят `markInside`, а знак `DateField` передаёт в хвост `DateInput` (проп `mark`). `SegmentProblemMark`
-  рисует тот же `FieldErrorMark` плотного вида.
+  говорят `markInside`: знак она отдаёт контролу через `FieldMarkContext`, и `DateInput` ставит его перед
+  хвостом. Когда знак есть и какого он размера, решает только оболочка. `SegmentProblemMark` рисует тот же
+  `FieldErrorMark` плотного вида. Слот знака стоит по первой строке поля (у `TextAreaField` — не посреди
+  текста), подпись в покое кончается до знака и хвоста. `aria-describedby` собирает `fieldDescribedBy`.
 
   Проверка — vitest:
   - при `error` знак есть и стоит перед `trailing`;

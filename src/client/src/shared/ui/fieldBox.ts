@@ -1,3 +1,5 @@
+import { createContext, type ReactNode } from 'react';
+
 /**
  * Размер поля на оболочке `OutlinedField` ([UI-69], sharedui-md3-11): высота, отступы и роль текста — у
  * пяти контролов одни. Отдельным файлом, а не рядом с оболочкой: модуль с компонентами отдаёт только
@@ -34,3 +36,18 @@ export function fieldBox(density: FieldDensity = 'form', { trailing = false }: {
   const box = BOX[density];
   return `${box.box} ${trailing ? END_TRAILING : box.end}`;
 }
+
+/**
+ * `aria-describedby` поля на оболочке: свои описания контрола и подпись под полем — ошибка или пояснение,
+ * если она есть (issue #1468, [UI-69]). Одна сборка на все поля: иначе её копия у каждого контрола.
+ */
+export function fieldDescribedBy(hintId: string, below: string | null | undefined, own?: string) {
+  return [own, below ? hintId : undefined].filter(Boolean).join(' ') || undefined;
+}
+
+/**
+ * Знак ошибки для контрола со своим хвостом (`DateInput`: крестик и календарь). Такой контрол ставит
+ * знак перед хвостом сам, а когда и какой — решает оболочка (`markInside`) и отдаёт его сюда: ни
+ * условия, ни размера знака контрол не повторяет. Вне такой оболочки — `null`.
+ */
+export const FieldMarkContext = createContext<ReactNode>(null);

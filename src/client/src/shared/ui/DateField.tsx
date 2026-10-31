@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import { DateInput } from './DateInput';
-import { FieldErrorMark, OutlinedField } from './OutlinedField';
+import { OutlinedField } from './OutlinedField';
 import { fieldBox, type FieldDensity } from './fieldBox';
 import type { DatePrecision } from '@/shared/api/types';
 
@@ -51,8 +51,7 @@ export function DateField({
         {/* Во всю ширину: хвост поля — крестик и календарь — стоит у правого края рамки (#1463). */}
         <DateInput label={label} value={value} onChange={onChange} onProblem={setProblem} onIncomplete={onIncomplete} precision={precision}
           disabled={disabled} readOnly={readOnly} required={required} className="w-full" min={min} max={max}
-          hintId={hint || problem ? hintId : undefined}
-          mark={error || invalid ? <FieldErrorMark density={density} message={error} /> : undefined} />
+          hintId={hint || problem ? hintId : undefined} />
       </div>
     </OutlinedField>
   );

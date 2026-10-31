@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useContext, useMemo, useRef, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { Icon } from './Icon';
 import { CalendarMonth, Close } from './icons';
@@ -8,6 +8,7 @@ import { ICON_BUTTON_XS } from './buttonClasses';
 import { Calendar } from './Calendar';
 import { readSegments } from './dateSegments';
 import { dateSegmentModel } from './dateSegmentModel';
+import { FieldMarkContext } from './fieldBox';
 import { SegmentProblemMark } from './SegmentProblemMark';
 import { useSegmentField } from './useSegmentField';
 import { nextTabStop, tabStops } from './tabStops';
@@ -95,19 +96,17 @@ interface DateInputProps {
    * очищают её подвалом календаря или Ctrl+A → Delete.
    */
   compact?: boolean;
-  /**
-   * Знак ошибки поля формы (`DateField`, [UI-69]) — встаёт перед хвостом: крестиком и календарём. Хвост
-   * живёт здесь, поэтому знак оболочки ставится тоже здесь, и он у поля один.
-   */
-  mark?: ReactNode;
 }
 
 export function DateInput({ label, value, onChange, onProblem, onIncomplete, precision = 'day', className = '', disabled = false, readOnly = false, required = false, calendar = true, compact = false,
-  size, invalid = false, hintId, min, max, range, onCommit, mark }: DateInputProps) {
+  size, invalid = false, hintId, min, max, range, onCommit }: DateInputProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   /** Календарь закрыт Tab'ом с края — фокус уже перенесён, возвращать его на значок не нужно. */
   const tabbedOut = useRef(false);
+  // Знак ошибки поля формы (`DateField`, [UI-69]) — перед хвостом: крестиком и календарём. Хвост живёт
+  // здесь, поэтому знак оболочки встаёт тоже здесь, и он у поля один; вне оболочки его нет.
+  const mark = useContext(FieldMarkContext);
 
   // Порядок сегментов, разделитель и обозначения — языка пользователя (issue #1461). Хранимое значение
   // от языка не зависит. Полный порядок нужен вставке: дату целиком вставляют и в поле месяца.

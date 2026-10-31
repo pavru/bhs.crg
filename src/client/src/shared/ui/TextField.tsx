@@ -1,6 +1,6 @@
 import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from 'react';
 import { OutlinedField } from './OutlinedField';
-import { fieldBox, type FieldDensity } from './fieldBox';
+import { fieldBox, fieldDescribedBy, type FieldDensity } from './fieldBox';
 
 /**
  * MD3 outlined-текстовое поле (issue #110/#178) с плавающей подписью. Рамку с настоящим вырезом,
@@ -38,7 +38,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
   const inputId = id ?? autoId;
   // Ошибку и пояснение под рамкой диктор читает вместе с полем (issue #1468, [UI-69]).
   const hintId = `${inputId}-hint`;
-  const described = [describedBy, error || hint ? hintId : undefined].filter(Boolean).join(' ') || undefined;
+  const described = fieldDescribedBy(hintId, error || hint, describedBy);
 
   return (
     <OutlinedField

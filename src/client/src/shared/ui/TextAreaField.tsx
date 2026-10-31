@@ -1,5 +1,6 @@
 import { forwardRef, useId, useState, type TextareaHTMLAttributes } from 'react';
 import { OutlinedField } from './OutlinedField';
+import { fieldDescribedBy } from './fieldBox';
 
 /**
  * MD3 outlined-поле для многострочного текста (issue #574) — тот же `OutlinedField`, что у
@@ -34,7 +35,7 @@ export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>
   const autoId = useId();
   const areaId = id ?? autoId;
   const hintId = `${areaId}-hint`;
-  const described = [describedBy, error || hint ? hintId : undefined].filter(Boolean).join(' ') || undefined;
+  const described = fieldDescribedBy(hintId, error || hint, describedBy);
 
   return (
     <OutlinedField

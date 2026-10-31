@@ -4,6 +4,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { DateField } from './DateField';
 import { IconButton } from './Button';
 import { Close } from './icons';
+import { TextAreaField } from './TextAreaField';
 import { TextField } from './TextField';
 
 vi.mock('@/shared/hooks/useLocale', async importOriginal => ({
@@ -74,6 +75,22 @@ describe('OutlinedField: знак ошибки', () => {
   it('диктор получает текст ошибки через aria-describedby', () => {
     render(<TextField label="ИНН" error="Сервер отказал: ИНН не найден" />);
     expect(description(screen.getByLabelText('ИНН'))).toBe('Сервер отказал: ИНН не найден');
+  });
+
+  it('подпись в покое кончается до знака и хвоста, всплывшая — у рамки', () => {
+    const { container } = render(<TextField label="Пароль" error="Слишком короткий"
+      trailing={<IconButton label="Показать пароль" icon={Close} />} />);
+    const label = classes(container.querySelector('label')!);
+    expect(label).toContain('max-w-[calc(100%-3.25rem-var(--field-mark,0px))]');
+    expect(label).toContain('peer-focus:max-w-[calc(100%-1.5rem)]');
+    expect((container.querySelector('fieldset')!.parentElement as HTMLElement).style.getPropertyValue('--field-mark')).toBe('28px');
+  });
+
+  it('слот знака — по первой строке: у многострочного поля не посреди текста', () => {
+    render(<TextAreaField label="Комментарий" rows={6} error="Слишком длинный" />);
+    const slot = marks()[0].parentElement!;
+    expect(classes(slot)).toContain('top-7');
+    expect(classes(slot)).not.toContain('top-1/2');
   });
 
   it('у плотного поля текст ошибки — для диктора, а знак 20', () => {
