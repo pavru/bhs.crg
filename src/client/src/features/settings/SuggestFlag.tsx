@@ -29,7 +29,7 @@ export function SuggestFlag({ field, onChange }: {
     onChange({ tags: next.length ? next : undefined });
   }
   return (
-    <Checkbox size="sm" checked={reason === 'suggested'} onChange={toggle}
+    <Checkbox checked={reason === 'suggested'} onChange={toggle}
       label={<span className="text-body-small text-on-surface-variant">Подсказывать введённое ранее</span>}
       description="Поле предлагает значения, введённые в нём в других записях. Снимите, если значения уникальны" />
   );

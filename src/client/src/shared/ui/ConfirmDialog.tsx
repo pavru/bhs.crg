@@ -198,7 +198,7 @@ function ConfirmDialogBody({
 
               {requireCheckbox && (
                 <label className="flex items-start gap-2 mb-4 text-body-small text-on-surface-variant cursor-pointer select-none">
-                  <Checkbox size="sm" checked={checked} onChange={setChecked} />
+                  <Checkbox checked={checked} onChange={setChecked} />
                   {requireCheckbox}
                 </label>
               )}

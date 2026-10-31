@@ -149,7 +149,7 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
       )}
       {shown.map(link => (
         <div key={link.id} className="group flex items-start gap-3 rounded-sm px-3 py-2 state-layer">
-          <Checkbox size="sm" checked={selected.has(link.id)} onChange={() => toggle(link.id)}
+          <Checkbox checked={selected.has(link.id)} onChange={() => toggle(link.id)}
             aria-label={`Выбрать ${nameOf(link)}`} boxClassName="mt-1" />
           {/* Уровень связи (issue #649): до этого он не показывался вовсе, хотя управляет и
               перепривязкой (она идёт по группам областей), и тем, какая связка победит в PDF. */}

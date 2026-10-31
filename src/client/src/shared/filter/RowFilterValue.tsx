@@ -224,7 +224,7 @@ function OptionList({ options, values, strays, onChange }: {
     <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-3 gap-y-1">
       {options.map(o => (
         <label key={o} className="inline-flex items-center gap-1 text-body-small text-on-surface cursor-pointer">
-          <Checkbox size="sm" checked={values.includes(o)} onChange={() => toggle(o)} />
+          <Checkbox checked={values.includes(o)} onChange={() => toggle(o)} />
           {o}
         </label>
       ))}

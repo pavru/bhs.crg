@@ -38,7 +38,7 @@ export function SuggestionsModal({ suggestions, setSuggestions, suggestSel, setS
         <div className="divide-y divide-surface-container border border-outline-variant rounded-sm max-h-[55vh] overflow-y-auto">
           {(suggestions ?? []).map(s => (
             <label key={s.materialKey} className="flex items-center gap-3 px-3 py-2 text-body-medium cursor-pointer state-layer">
-              <Checkbox size="sm" checked={suggestSel.has(s.materialKey)}
+              <Checkbox checked={suggestSel.has(s.materialKey)}
                 onChange={() => setSuggestSel(prev => toggleInSet(prev, s.materialKey))} />
               <span className="flex-1 truncate text-on-surface">{s.materialName}</span>
               <span className="text-on-surface-variant">→</span>

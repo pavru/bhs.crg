@@ -6,6 +6,7 @@ import ts from 'typescript';
 import { containerTextHits, stripComments } from './class-scan.mjs';
 import { isBadge, isChip, isSegmentRow } from './ui-ratchet-pills.mjs';
 import { buttonRules } from './ui-ratchet-buttons.mjs';
+import { inputRules } from './ui-ratchet-inputs.mjs';
 import { isManualDropdown, portalContainersIn } from './ui-ratchet-layers.mjs';
 import { countDarkVariants, countLegacyClasses, countLegacyRadii, countLegacyShadows, countLegacyType, countRawStates, LEGACY_HINT } from './ui-ratchet-md3.mjs';
 
@@ -92,11 +93,13 @@ export const RULES = [
     // любой строке многострочного тега, а текстом `<input … type="checkbox"` не поймать — перед
     // ним бывают обработчики со стрелкой `=>`. Накопленные стоят в уровне до перевода экранов
     // (перечень — в #1414). Законных исключений нет: Checkbox и есть нативный `<input>` — он
-    // годится и в ячейку таблицы (size="sm"), и под Tooltip (передаёт ref), и флажку только для
+    // годится и в ячейку таблицы (18 px, след слоя не раздвигает), и под Tooltip (передаёт ref), и флажку только для
     // чтения (aria-readonly и onClick уходят во флажок как есть).
     count: countNativeCheckboxes,
-    instead: 'флажок — Checkbox (shared/ui/Checkbox): label и description — подпись и пояснение, size="sm" в строках таблиц и плотных списках, indeterminate — «выбраны не все»; внутри своей разметки строки — Checkbox без label в обёртке <label> или с aria-label (docs/UI.md, таблица контролов)',
+    instead: 'флажок — Checkbox (shared/ui/Checkbox): label и description — подпись и пояснение, размер один (18 px, и в строках таблиц), indeterminate — «выбраны не все»; внутри своей разметки строки — Checkbox без label в обёртке <label> или с aria-label (docs/UI.md, таблица контролов)',
   },
+  // Поля и выбор — native-radio, raw-field (ui-ratchet-inputs.mjs).
+  ...inputRules(countElements),
   {
     id: 'chip',
     // Свой чип (#1416): нажимаемая пилюля — rounded-full или rounded-sm с полями по бокам (px-…) или aria-pressed у

@@ -189,7 +189,7 @@
 
 ## 3. PR 2 — флажок, радиокнопка, переключатель, сторожа
 
-- [ ] 3.1 `Checkbox` [UI-69]:
+- [x] 3.1 `Checkbox` [UI-69]:
   - `input` 40×40: `appearance: none`, `state-layer`, поля `-m-[11px]` — след в раскладке 18;
   - квадрат 18 — соседний `span` по `peer-*`: форма 2, обводка 2 px, `primary` у выбранного и частичного,
     `error`;
@@ -203,7 +203,13 @@
   - `getBoundingClientRect` следа — 18.
 
   `npx tsc -b` находит места `size="sm"`.
-- [ ] 3.2 `Radio` и `RadioGroup` на `useRadioGroup` [UI-69]:
+
+  Сделано: `size` снят в 29 местах. Вид квадрата считается из пропсов (`checked`, `indeterminate`,
+  `aria-invalid`, `aria-readonly`, `disabled`), а не `peer-*`: значения те же, а сравнивать вес вариантов
+  не нужно. След 18 в jsdom сторожится классами (`size-10` и `-m-[11px]`) — раскладки jsdom не считает.
+  Форма 2 px — `rounded-[2px]`, ниже шкалы формы: уровень `legacy-radius` у `shared/ui/Checkbox.tsx` поднят
+  до 1, исключение названо в `docs/UI.md`, «Форма и возвышение».
+- [x] 3.2 `Radio` и `RadioGroup` на `useRadioGroup` [UI-69]:
   - пункт — `button role="radio"` с `RadioMark` 20 и слоем 40;
   - цель нажатия — строка с подписью;
   - группа — `radiogroup` с видимым именем, в строку или столбиком.
@@ -213,14 +219,19 @@
   - Tab входит в группу один раз;
   - у группы есть имя;
   - у пункта есть `aria-checked`.
-- [ ] 3.3 На `RadioGroup` переведены:
+
+  Сделано: пункт — строка `RadioGroup`, отдельного `Radio` наружу нет — потребителя у него нет.
+  `useRadioGroup` получил `follow: false` для выбора с подтверждением.
+- [x] 3.3 На `RadioGroup` переведены:
   - `MaterializationDialog` — у обеих групп появляется видимое имя;
   - `BackupSection`;
   - рисованные кружки `AppearanceSection` и `VariantPicker`. У `VariantPicker` с `confirm` фокус
     движется без выбора.
 
   Проверка — e2e `fields-smoke`, `dialogs-smoke` проходят без правок ожиданий `aria-checked`.
-- [ ] 3.4 Модуль `scripts/ui-ratchet-inputs.mjs` с тестом `ui-ratchet-inputs.test.mjs` [UI-69]:
+
+  Имена групп `MaterializationDialog` — «Документ строки» и «Как выбрать вариант».
+- [x] 3.4 Модуль `scripts/ui-ratchet-inputs.mjs` с тестом `ui-ratchet-inputs.test.mjs` [UI-69]:
   - `native-radio` — `<input type="radio">` и `role="radio"` вне `shared/ui`. Уровень 2: `SitesFilter` и
     `LayoutChooser` — пункты меню, их переводит 13.
   - `raw-field` — сырой `<input>` или `<textarea>` со своей рамкой вне `shared/ui`. Уровень — текущий.
@@ -231,7 +242,11 @@
   - с `RadioGroup` — зелёная;
   - фикстура `raw-field` красная;
   - `npm run ui:ratchet` и `FileSizeRatchet` зелёные.
-- [ ] 3.5 `Switch` [UI-69]:
+
+  Сделано: `native-radio` — 2. `raw-field` видит класс строкой и константой своего файла
+  (`const inputCls = 'border …'`); общую `FIELD_CLS` из `shared/filter` не считает — это плотное поле
+  [UI-69]. Уровень — 81 место в 45 файлах; оценка 69 из design не видела констант файлов.
+- [x] 3.5 `Switch` [UI-69]:
   - 52×32, ручка 16 → 24, при нажатии 28;
   - у выключенного — контур 2 px;
   - знака на ручке нет;
@@ -239,7 +254,9 @@
   - в `PropertiesEditor` и `InheritedFieldsPanel` — в конце строки высотой 48.
 
   Проверка — vitest: `aria-checked`, `role="switch"`, знака на ручке нет; `npx tsc -b`.
-- [ ] 3.6 Перечень правил храповика в `CLAUDE.md` и `AGENTS.md` дополнен новыми `native-radio` и
+
+  В конце строки 48 — и флаг в `ModuleSettingsSections`: требование [UI-69] общее для строки с подписью.
+- [x] 3.6 Перечень правил храповика в `CLAUDE.md` и `AGENTS.md` дополнен новыми `native-radio` и
   `raw-field` — одним коммитом. В `docs/UI.md`:
   - строки «Флажок», «Радиокнопка» (с границей от `SegmentedButton`) и «Переключатель»;
   - оба правила — в «Кто сторожит».

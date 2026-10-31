@@ -143,7 +143,7 @@ export function WaybillsPage() {
           <NavSearchInput value={query} onChange={setQuery} placeholder="Номер, стройка, склад…" />
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-1.5">
             <label className="flex items-center gap-2 text-body-small text-on-surface-variant cursor-pointer">
-              <Checkbox size="sm" checked={unmatched} onChange={setUnmatched} />
+              <Checkbox checked={unmatched} onChange={setUnmatched} />
               <Icon icon={Checklist} size={18} />
               Только «Сопоставить»
             </label>

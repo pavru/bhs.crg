@@ -81,7 +81,7 @@ function ParamValueInput({ type, name, value, onChange }: {
   type: TemplateParam['type']; name: string; value: unknown; onChange: (v: unknown) => void;
 }) {
   if (type === 'boolean')
-    return <Checkbox size="sm" aria-label={name} checked={value === true} onChange={onChange} />;
+    return <Checkbox aria-label={name} checked={value === true} onChange={onChange} />;
   return (
     <input type={type === 'number' ? 'number' : 'text'} aria-label={name} value={value == null ? '' : String(value)}
       onChange={e => onChange(type === 'number' ? Number(e.target.value) : e.target.value)}

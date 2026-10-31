@@ -1,4 +1,4 @@
-import { useRoving } from '@/shared/ui/rovingFocus';
+import { RadioGroup } from '@/shared/ui/RadioGroup';
 import { SegmentedButton } from '@/shared/ui/SegmentedButton';
 import { Tooltip } from '@/shared/ui/Tooltip';
 /**
@@ -29,33 +29,21 @@ export function VariantPicker({ options, active, onSelect, label, layout = 'auto
 }) {
   const useList = layout === 'list'
     || (layout === 'auto' && (options.length > 3 || options.some(o => o.label.length > 18)));
-  const roving = useRoving(options.map(o => o.key), { value: active, select: !confirm && onSelect });
 
   if (useList) {
+    // Строки радиокнопок — RadioGroup ([UI-69]): ЛЕВО — круг выбора, ПРАВО — пометка «задан».
     return (
-      <div role="radiogroup" aria-label={label} onKeyDown={roving.onKeyDown} className="flex flex-col gap-1 text-body-medium">
-        {options.map((o, i) => {
-          const on = o.key === active;
-          return (
-            <button key={o.key} type="button" role="radio" aria-checked={on} onClick={() => onSelect(o.key)}
-              {...roving.item(i)}
-              className={`state-layer flex items-center gap-2.5 rounded-md border px-3 py-2 text-left ${
-                on ? 'border-primary bg-primary/10 text-on-surface font-medium' : 'border-outline-variant bg-surface text-on-surface-variant'}`}>
-              <span className={`grid place-items-center w-4 h-4 rounded-full border shrink-0 ${on ? 'border-primary' : 'border-outline-variant'}`}>
-                {on && <span className="w-2 h-2 rounded-full bg-primary" />}
+      <RadioGroup aria-label={label} value={active} onChange={onSelect} confirm={confirm}
+        items={options.map(o => ({
+          value: o.key, label: o.label,
+          trailing: o.filled && (
+            <Tooltip content="Значение задано">
+              <span className="text-label-small text-primary flex items-center gap-1 shrink-0 ml-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary" /> задан
               </span>
-              <span className="flex-1 min-w-0 truncate">{o.label}</span>
-              {o.filled && (
-                <Tooltip content="Значение задано">
-                  <span className="text-label-small text-primary flex items-center gap-1 shrink-0">
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary" /> задан
-                  </span>
-                </Tooltip>
-              )}
-            </button>
-          );
-        })}
-      </div>
+            </Tooltip>
+          ),
+        }))} />
     );
   }
 
