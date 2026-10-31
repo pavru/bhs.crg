@@ -1,6 +1,9 @@
 import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from 'react';
 import { OutlinedField } from './OutlinedField';
 
+/** Отступ текста под хвост: `right-2` + кнопка места XS (32, при касании 40) + 4 — 44 и 52. */
+const TRAILING_PAD = 'pr-11 pointer-coarse:pr-13';
+
 /**
  * MD3 outlined-текстовое поле (issue #110/#178) с плавающей подписью. Рамку с настоящим вырезом,
  * метку и подпись под полем рисует общая оболочка `OutlinedField` (#565) — здесь остаётся сам
@@ -41,7 +44,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
       <input
         ref={ref} id={inputId} placeholder=" " required={required}
         className={`peer w-full h-14 rounded-sm bg-transparent text-body-medium text-on-surface px-4 ` +
-          `outline-none disabled-content ${trailing ? 'pr-11' : ''} ${className}`}
+          `outline-none disabled-content ${trailing ? TRAILING_PAD : ''} ${className}`}
         {...rest}
       />
       {children}

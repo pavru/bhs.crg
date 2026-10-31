@@ -7,6 +7,7 @@ import { IconButton } from './Button';
 import { DataGrid } from './DataGrid';
 import { EditGrid } from './EditGrid';
 import { Close, MoreVert } from './icons';
+import { TextField } from './TextField';
 import { SourceBindingTrigger } from '@/features/document-sets/editor/SourceBindingTrigger';
 
 // Размер кнопки-иконки задаёт место ([UI-68], В7 = Б): клетка ставит переменную, а слой, открытый из
@@ -54,5 +55,13 @@ describe('кнопка-иконка внутри поля', () => {
     render(<SourceBindingTrigger locked={false} isBound={false} onOpen={() => {}} />);
     const lens = screen.getByRole('button', { name: 'Привязать к источнику' });
     expect(lens.className.split(/\s+/)).toEqual(expect.arrayContaining([XS, COARSE]));
+  });
+
+  // Хвост поля ставит класс места сам (ревью PR 1708): «Показать пароль» при 40 заходила на конец текста.
+  it('хвост TextField — место XS, отступ текста под кнопку при касании шире', () => {
+    render(<TextField label="Пароль" trailing={<IconButton label="Показать пароль" icon={Close} />} />);
+    const holder = screen.getByRole('button', { name: 'Показать пароль' }).parentElement!;
+    expect(holder.className.split(/\s+/)).toEqual(expect.arrayContaining([XS, COARSE]));
+    expect(screen.getByLabelText('Пароль').className.split(/\s+/)).toEqual(expect.arrayContaining(['pr-11', 'pointer-coarse:pr-13']));
   });
 });

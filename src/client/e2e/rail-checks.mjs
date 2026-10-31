@@ -115,7 +115,9 @@ const smallTargets = page => page.evaluate(() =>
       return {
         el,
         shown: box.width > 0 && box.height > 0,
-        min: el.hasAttribute('aria-keyshortcuts') ? 44 : 48,
+        // Отступление названо по имени кнопки, а не по признаку: другая кнопка шапки с горячей
+        // клавишей молча получила бы порог 44.
+        min: el.matches('[data-testid=header-search]') ? 44 : 48,
         width: grown ? box.width - px(after.left) - px(after.right) : box.width,
         height: grown ? box.height - px(after.top) - px(after.bottom) : box.height,
       };

@@ -30,6 +30,11 @@ describe('md3:migrate: размер кнопок', () => {
     const text = "import { Button } from 'other-lib';\nimport { Checkbox } from '@/shared/ui/Checkbox';\n"
       + '<Button size="sm" /><Checkbox size="sm" />';
     expect(migrateSizes(text, 'src/z.tsx').text).toBe(text);
+    // Хвост пути «/Button» у стороннего пакета — тоже чужой; относительный путь к shared/ui — свой.
+    const lib = "import { Button } from '@mui/material/Button';\n<Button size=\"sm\" />";
+    expect(migrateSizes(lib, 'src/z.tsx').text).toBe(lib);
+    const rel = "import { Button } from '../../shared/ui/Button';\n<Button size=\"sm\" />";
+    expect(migrateSizes(rel, 'src/z.tsx').text).toBe("import { Button } from '../../shared/ui/Button';\n<Button />");
   });
 
   it('знак ребёнком кнопки-иконки становится свойством icon', () => {
@@ -42,8 +47,19 @@ describe('md3:migrate: размер кнопок', () => {
       .toBe('<IconButton label="x" icon={Warning} iconClassName="text-error" />');
     expect(out('<IconButton label="x">{on ? <Icon icon={A} size={18} /> : <Icon icon={B} size={18} />}</IconButton>'))
       .toBe('<IconButton label="x" icon={on ? A : B} />');
-    expect(out('<IconButton label="x">{busy ? <CircularProgress size={18} /> : <Icon icon={Refresh} size={18} />}</IconButton>'))
-      .toBe('<IconButton label="x" loading={busy} icon={Refresh} />');
+    expect(out('<IconButton label="x" disabled={busy}>{busy ? <CircularProgress size={18} /> : <Icon icon={Refresh} size={18} />}</IconButton>'))
+      .toBe('<IconButton label="x" disabled={busy} loading={busy} icon={Refresh} />');
+    expect(out('<IconButton label="x" disabled={!ok || (busy)}>{busy ? <CircularProgress /> : <Icon icon={Refresh} />}</IconButton>'))
+      .toBe('<IconButton label="x" disabled={!ok || (busy)} loading={busy} icon={Refresh} />');
+  });
+
+  it('индикатор хода — в отчёт, если disabled кнопки на время хода её не выключает: loading выключил бы', () => {
+    for (const attrs of ['', ' disabled={!ok}', ' disabled={busy && ok}', ' disabled={!busy}']) {
+      const body = `<IconButton label="x"${attrs}>{busy ? <CircularProgress /> : <Icon icon={Refresh} />}</IconButton>`;
+      const r = run(body);
+      expect(r.text.replace(/^import .*\n/gm, '')).toBe(body);
+      expect(r.untouched).toHaveLength(1);
+    }
   });
 
   it('ребёнок другого вида — в отчёт, без замены', () => {
@@ -60,6 +76,11 @@ describe('md3:migrate: размер кнопок', () => {
     const shared = migrateSizes("import { Icon, Spinner } from './Icon';\nimport { IconButton } from './Button';\n"
       + '<IconButton label="x"><Icon icon={A} size={18} /></IconButton>', 'src/x.tsx').text;
     expect(shared).toContain("import { Spinner } from './Icon';");
+  });
+
+  it('слово Icon в комментарии или строке — не употребление: импорт снимается', () => {
+    const text = migrateSizes(BUTTON + '// Icon больше не нужен\nconst s = "Icon";\n<IconButton label="x"><Icon icon={A} size={18} /></IconButton>', 'src/x.tsx').text;
+    expect(text).not.toContain('import { Icon }');
   });
 
   it('повторный запуск ничего не меняет', () => {

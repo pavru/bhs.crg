@@ -129,6 +129,17 @@
   - vitest — у крестика `DateInput` и у линзы класс места;
   - `ui-ratchet-buttons.test.mjs` — класс вне мест краснеет;
   - `shared-ui` `date-calendar-has-today-and-clear-returns-by-esc` зелёный.
+- [x] 1.14 Находки ревью PR 1708:
+  - хвост `OutlinedField` — место XS: класс ставит обёртка хвоста, отступ текста `pr-11
+    pointer-coarse:pr-13` (design.md «Кнопка внутри поля»); `OutlinedField.tsx` — в `skip` `dense-scope`;
+  - крестик баннера неподтверждённой почты — знак `on-warning-container`, высота баннера прежняя;
+  - кодмод: спиннер → `loading` только когда `disabled` кнопки уже покрывает условие хода (иначе отчёт);
+    импорт `Icon` снимается по употреблению в дереве, а не по слову в тексте; `Button`, `Modal`,
+    `PrimaryActionButton` узнаются только из `@/shared/ui` или относительного пути; проход размера
+    берёт текст из памяти, а не с диска;
+  - `rail-checks` — исключение поиска по `data-testid`, а не по горячей клавише;
+  - design.md — `danger` как в коде и `docs/UI.md`; храповик — один разбор импорта кнопок.
+  Проверка: vitest кодмода и храповика, `TextField` — класс места в хвосте; `ui:ratchet`, `tsc -b`.
 
 ## 2. PR 2 — чипы и сегменты
 

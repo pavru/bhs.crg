@@ -19,21 +19,9 @@ const BUTTON_MODULE = /^(?:@\/shared\/ui|\.{1,2}(?:\/[\w.-]+)*)\/Button$/;
 const BUTTON_NAME = /^(?:[A-Z]\w*)?Button$/;
 
 /**
- * Какие компоненты файла — кнопки: `Button` и `IconButton` под любым именем импорта (`as B`) и всё,
- * что зовётся `…Button`. Ответ — для `countElements` (опция `components`).
+ * Только `Button` и `IconButton` под любым именем импорта (`as B`) — без обёрток `…Button`: у тех размер
+ * свой. Ответ — для `countElements` (опция `components`).
  */
-export function buttonComponents(sf) {
-  const names = new Set();
-  for (const st of sf.statements) {
-    const named = ts.isImportDeclaration(st) && BUTTON_MODULE.test(st.moduleSpecifier.text) && st.importClause?.namedBindings;
-    if (named && ts.isNamedImports(named))
-      for (const el of named.elements)
-        if (['Button', 'IconButton'].includes((el.propertyName ?? el.name).text)) names.add(el.name.text);
-  }
-  return tag => names.has(tag) || BUTTON_NAME.test(tag);
-}
-
-/** Только `Button` и `IconButton` под любым именем импорта — без обёрток `…Button`: у тех размер свой. */
 export function importedButtons(sf) {
   const names = new Set();
   for (const st of sf.statements) {
@@ -43,6 +31,12 @@ export function importedButtons(sf) {
         if (['Button', 'IconButton'].includes((el.propertyName ?? el.name).text)) names.add(el.name.text);
   }
   return tag => names.has(tag);
+}
+
+/** Какие компоненты файла — кнопки: `importedButtons` и всё, что зовётся `…Button`. */
+export function buttonComponents(sf) {
+  const imported = importedButtons(sf);
+  return tag => imported(tag) || BUTTON_NAME.test(tag);
 }
 
 /** Класс размера: `h-11`, `min-h-11`, `w-9`, `size-8`, с вариантом (`max-md:h-11`). `…-0` (позволить сжатие),
@@ -94,14 +88,14 @@ export function buttonRules(countElements) {
     {
       id: 'dense-scope',
       // Переменная размера кнопки-иконки ([UI-68], В7 = Б) и класс места ICON_BUTTON_XS: их ставят только
-      // места XS — клетка таблицы (dataTable.ts) и кнопка внутри поля (DateInput, линза реквизита), — а
-      // читает только IconButton. Поставленные экраном, они вернули бы «маленькую кнопку» в шапки и
-      // панели мимо типа и мимо макетов.
+      // места XS — клетка таблицы (dataTable.ts) и кнопка внутри поля (хвост OutlinedField, DateInput,
+      // линза реквизита), — а читает только IconButton. Поставленные экраном, они вернули бы «маленькую
+      // кнопку» в шапки и панели мимо типа и мимо макетов.
       pattern: /--md-comp-icon-button-|\bICON_BUTTON_XS\b/g,
       everywhere: true,
-      skip: ['shared/ui/buttonClasses.ts', 'shared/ui/Button.tsx', 'shared/ui/dataTable.ts', 'shared/ui/DateInput.tsx',
-        'features/document-sets/editor/SourceBindingTrigger.tsx'],
-      instead: 'размер кнопки-иконки задаёт место, а не экран: 32 — только в клетках DataGrid и EditGrid (shared/ui/dataTable.ts) и у кнопки внутри поля (DateInput, линза привязки), везде прочее — 40; плотной панели нет — понадобится, отдельным change с компонентом Toolbar (docs/UI.md, таблица контролов)',
+      skip: ['shared/ui/buttonClasses.ts', 'shared/ui/Button.tsx', 'shared/ui/dataTable.ts', 'shared/ui/OutlinedField.tsx',
+        'shared/ui/DateInput.tsx', 'features/document-sets/editor/SourceBindingTrigger.tsx'],
+      instead: 'размер кнопки-иконки задаёт место, а не экран: 32 — только в клетках DataGrid и EditGrid (shared/ui/dataTable.ts) и у кнопки внутри поля (хвост поля — trailing у TextField, DateInput, линза привязки), везде прочее — 40; плотной панели нет — понадобится, отдельным change с компонентом Toolbar (docs/UI.md, таблица контролов)',
     },
     {
       id: 'split-button',

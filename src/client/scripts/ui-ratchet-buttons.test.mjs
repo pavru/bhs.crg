@@ -79,6 +79,7 @@ describe('храповик интерфейса: dense-scope и icon-button в s
     const text = "import { ICON_BUTTON_XS } from '@/shared/ui/buttonClasses';";
     expect(only('dense-scope', text, { dir: 'features', file: 'features/costs/X.tsx' })).toEqual({ 'dense-scope': 1 });
     expect(only('dense-scope', text, { dir: 'shared', file: 'shared/ui/DateInput.tsx' })).toEqual({});
+    expect(only('dense-scope', text, { dir: 'shared', file: 'shared/ui/OutlinedField.tsx' })).toEqual({});
     expect(only('dense-scope', text, { dir: 'features', file: 'features/document-sets/editor/SourceBindingTrigger.tsx' })).toEqual({});
   });
 

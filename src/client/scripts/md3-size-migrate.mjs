@@ -11,19 +11,23 @@
 //   <Icon … className="text-error" />               → iconClassName="text-error"  (цвет знака ролью)
 //   {c ? <Icon icon={A} … /> : <Icon icon={B} … />}  → icon={c ? A : B}  (если прочие свойства равны)
 //   {busy ? <CircularProgress … /> : <Icon icon={X} />} → loading={busy} icon={X}
+//                                                    (если `disabled` кнопки уже выключает её на время хода:
+//                                                    `loading` выключает сам)
 //
 // Кнопка узнаётся по импорту, а не по имени тега: `Button` из shared/ui/Button, `ModalExit` из
-// shared/ui/Modal, `PrimaryActionButton` из shared/ui/PrimaryActionButton. Чужой `Button` с тем же именем
-// (и `size` у `Checkbox`) не трогается. Ребёнок другого вида — отчёт с файлом и строкой: угаданная замена
+// shared/ui/Modal, `PrimaryActionButton` из shared/ui/PrimaryActionButton — по `@/shared/ui/…` или
+// относительному пути. Чужой `Button` с тем же именем (`some-lib/Button`, и `size` у `Checkbox`) не трогается. Ребёнок другого вида — отчёт с файлом и строкой: угаданная замена
 // хуже отказа, а `tsc -b` такое место назовёт сам.
 
 import ts from 'typescript';
 
-/** Модуль → имена кнопок из него. Путь — хвост спецификатора импорта (`@/shared/ui/Button`, `./Button`). */
+/** Свой модуль `shared/ui`: `@/shared/ui/<имя>` или относительный путь к нему. `some-lib/Button` — чужой. */
+const own = name => new RegExp(`^(?:@/shared/ui|\\.{1,2}(?:/[\\w.-]+)*)/${name}$`);
+/** Модуль → имена кнопок из него. */
 const OWNERS = [
-  [/(?:^|\/)Button$/, ['Button', 'IconButton']],
-  [/(?:^|\/)Modal$/, ['ModalExit']],
-  [/(?:^|\/)PrimaryActionButton$/, ['PrimaryActionButton']],
+  [own('Button'), ['Button', 'IconButton']],
+  [own('Modal'), ['ModalExit']],
+  [own('PrimaryActionButton'), ['PrimaryActionButton']],
 ];
 
 /** Локальные имена кнопок файла: `import { Button as B }` даёт `B → Button`. */
@@ -60,8 +64,27 @@ function iconParts(node, sf) {
   return icon ? { icon, rest } : null;
 }
 
+/**
+ * `disabled` кнопки уже выключает её на время хода: `loading` выключает кнопку сам, и кнопка, доступная
+ * во время хода, молча перестала бы нажиматься. Покрывает само условие хода, `true` или `||` с ним
+ * (`busy || !ok`); `busy && x` — нет.
+ */
+function disabledCovers(open, cond, sf) {
+  const dis = attrOf(open, 'disabled', sf);
+  if (!dis) return false;
+  if (!dis.initializer) return true; // `disabled` без значения — кнопка выключена всегда
+  const covers = expr => {
+    while (expr && ts.isParenthesizedExpression(expr)) expr = expr.expression;
+    if (!expr) return false;
+    if (expr.kind === ts.SyntaxKind.TrueKeyword || expr.getText(sf) === cond) return true;
+    return ts.isBinaryExpression(expr) && expr.operatorToken.kind === ts.SyntaxKind.BarBarToken
+      && (covers(expr.left) || covers(expr.right));
+  };
+  return ts.isJsxExpression(dis.initializer) && covers(dis.initializer.expression);
+}
+
 /** Ребёнок кнопки-иконки → атрибуты, которыми его заменить, или null (отчёт). */
-function glyphAttrs(child, sf) {
+function glyphAttrs(child, sf, open) {
   const direct = iconParts(child, sf);
   if (direct) return [`icon={${direct.icon}}`, ...direct.rest];
   if (!ts.isJsxExpression(child) || !child.expression || !ts.isConditionalExpression(child.expression)) return null;
@@ -71,7 +94,7 @@ function glyphAttrs(child, sf) {
   const b = iconParts(whenFalse, sf);
   if (a && b && a.rest.join(' ') === b.rest.join(' ')) return [`icon={${cond} ? ${a.icon} : ${b.icon}}`, ...a.rest];
   const spinner = n => ts.isJsxSelfClosingElement(n) && n.tagName.getText(sf) === 'CircularProgress';
-  if (spinner(whenTrue) && b) return [`loading={${cond}}`, `icon={${b.icon}}`, ...b.rest];
+  if (spinner(whenTrue) && b && disabledCovers(open, cond, sf)) return [`loading={${cond}}`, `icon={${b.icon}}`, ...b.rest];
   return null;
 }
 
@@ -104,10 +127,11 @@ export function migrateSizes(text, file = 'file.tsx') {
     if (ts.isJsxElement(node) && names.get(node.openingElement.tagName.getText(sf)) === 'IconButton') {
       const open = node.openingElement;
       const kids = node.children.filter(c => !(ts.isJsxText(c) && !c.text.trim()));
-      const glyph = kids.length === 1 ? glyphAttrs(kids[0], sf) : null;
+      const glyph = kids.length === 1 ? glyphAttrs(kids[0], sf, open) : null;
       if (!glyph) {
         untouched.push({ line: line(sf, node.getStart(sf)), token: '<IconButton>…</IconButton>',
-          reason: 'ребёнок кнопки-иконки — не знак `Icon`: перенести в `icon`, `loading` или `iconClassName` руками' });
+          reason: 'ребёнок кнопки-иконки — не знак `Icon` (или индикатор хода, а `disabled` хода не выключает: '
+            + '`loading` выключил бы кнопку): перенести в `icon`, `loading` или `iconClassName` руками' });
       } else {
         const { src, cut } = withoutSize(open);
         const head = src.replace(/\s*>$/, '');
@@ -136,16 +160,23 @@ export function migrateSizes(text, file = 'file.tsx') {
   return { text: dropUnusedIcon(out, file), replaced, untouched };
 }
 
+/** Есть ли идентификатор `name` в файле вне узла `skip`. */
+function usesName(sf, name, skip) {
+  const visit = node => node !== skip && ((ts.isIdentifier(node) && node.text === name) || !!ts.forEachChild(node, visit));
+  return !!ts.forEachChild(sf, visit);
+}
+
 /** Знак ушёл в `icon`, и импорт `Icon` мог остаться без употребления — `tsc -b` отказал бы на нём. */
 function dropUnusedIcon(text, file) {
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   for (const st of sf.statements) {
     const named = ts.isImportDeclaration(st) && st.importClause?.namedBindings;
-    if (!named || !ts.isNamedImports(named) || !/(?:^|\/)Icon$/.test(st.moduleSpecifier.text)) continue;
+    if (!named || !ts.isNamedImports(named) || !own('Icon').test(st.moduleSpecifier.text)) continue;
     const el = named.elements.find(e => e.name.text === 'Icon' && !e.propertyName);
     if (!el) continue;
-    const rest = text.slice(0, st.getFullStart()) + text.slice(st.end);
-    if (/\bIcon\b/.test(rest)) return text;
+    // Употребление — имя в дереве вне импорта, а не слово в тексте: «Icon» в комментарии оставил бы
+    // импорт без употребления, и `tsc -b` отказал бы на нём.
+    if (usesName(sf, 'Icon', st)) return text;
     if (named.elements.length === 1 && !st.importClause.name) {
       const end = text[st.end] === '\n' ? st.end + 1 : text.slice(st.end, st.end + 2) === '\r\n' ? st.end + 2 : st.end;
       return text.slice(0, st.getStart(sf)) + text.slice(end);

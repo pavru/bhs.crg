@@ -222,7 +222,11 @@ export function sourceFiles(root) {
  * шкалу формы (по умолчанию — git blame в репозитории `base`; зовётся только у файла, где есть радиус
  * цепи, и только если в истории есть коммиты чужой ветки до перехода). Возвращает отчёт по файлам.
  */
-export function migrateFiles(files, { write = false, rules = compile(), base = clientRoot, oldLines } = {}) {
+/**
+ * `texts` — общий текст файлов для следующих проходов команды (`путь → текст`): берётся оттуда, если
+ * есть, и туда кладётся результат. Без него — диск.
+ */
+export function migrateFiles(files, { write = false, rules = compile(), base = clientRoot, oldLines, texts } = {}) {
   let after;
   let blame;
   oldLines ??= path => {
@@ -232,10 +236,11 @@ export function migrateFiles(files, { write = false, rules = compile(), base = c
   };
   const report = [];
   for (const path of files) {
-    const text = readFileSync(path, 'utf8');
+    const text = texts?.get(path) ?? readFileSync(path, 'utf8');
     const file = relative(base, path).replaceAll('\\', '/');
     let old;
     const result = migrateText(text, { file, rules, isOld: line => (old ??= oldLines(path))(line) });
+    texts?.set(path, result.text);
     if (!result.replaced.length && !result.untouched.length) continue;
     if (write && result.replaced.length) writeFileSync(path, result.text, 'utf8');
     report.push({ file, replaced: result.replaced, untouched: result.untouched });
@@ -277,9 +282,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const check = args.includes('--check');
   const roots = args.filter(a => !a.startsWith('--'));
   const files = (roots.length ? roots : [join(clientRoot, 'src')]).flatMap(r => sourceFiles(r));
-  const report = migrateFiles(files, { write: !check });
+  // Файл читается с диска один раз: каждый проход берёт текст после предыдущего отсюда — и при --check,
+  // когда на диск ничего не записано.
+  const texts = new Map();
+  const report = migrateFiles(files, { write: !check, texts });
   console.log(formatReport(report, { check }));
-  const icons = migrateIcons(files);
+  const icons = migrateIcons(files, { read: path => texts.get(path) ?? readFileSync(path, 'utf8') });
   if (icons.unknown.length) {
     console.error(`\nЗначки lucide вне таблицы scripts/md3-icon-map.json — значки не записаны:\n${
       icons.unknown.map(u => `  ${u.name}: ${u.where.join(', ')}`).join('\n')}\n`
@@ -292,12 +300,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       + "Перепишите на именованный импорт (import { Trash2 } from 'lucide-react') и запустите снова.");
     process.exit(1);
   }
-  if (!check) for (const f of icons.files) if (f.changes) writeFileSync(f.path, f.text, 'utf8');
+  for (const f of icons.files) if (f.changes) {
+    texts.set(f.path, f.text);
+    if (!check) writeFileSync(f.path, f.text, 'utf8');
+  }
   console.log(`\n${formatIconReport(icons, { check })}`);
-  // По тексту после значков: при --check они не записаны, и проход видит их ещё lucide — тогда он
-  // промолчит о знаках, но команда и так откажет из-за значков.
+  // По тексту после значков — из памяти, поэтому и при --check проход видит значки уже переведёнными.
   const sizes = files.map(path => {
-    const result = migrateSizes(readFileSync(path, 'utf8'), path);
+    const result = migrateSizes(texts.get(path) ?? readFileSync(path, 'utf8'), path);
     if (!check && result.replaced.length) writeFileSync(path, result.text, 'utf8');
     return { file: relative(clientRoot, path).replaceAll('\\', '/'), ...result };
   }).filter(r => r.replaced.length || r.untouched.length);
