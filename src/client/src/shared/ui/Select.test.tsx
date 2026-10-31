@@ -42,3 +42,34 @@ describe('Select: пункт «значения нет» (issue #1353)', () => {
     expect(screen.getByRole('combobox', { name: 'Итог' }).textContent).toContain('без итога');
   });
 });
+
+describe('Select с подписью: exposed dropdown ([UI-69])', () => {
+  function Field() {
+    const [value, setValue] = useState('a');
+    return (
+      <Select label="Раздел" value={value} onValueChange={setValue}>
+        <SelectItem value="a">Первый</SelectItem>
+        <SelectItem value="b">Второй</SelectItem>
+      </Select>
+    );
+  }
+  const arrow = () => document.querySelector('[data-field-arrow]')!;
+
+  it('стрелка — в хвосте оболочки и поворачивается у открытого списка', () => {
+    render(<Field />);
+    const trigger = screen.getByRole('combobox', { name: 'Раздел' });
+    expect(trigger.contains(arrow())).toBe(false);
+    expect(arrow().getAttribute('data-state')).toBe('closed');
+    expect(arrow().className).toContain('data-[state=open]:rotate-180');
+    fireEvent.keyDown(trigger, { key: 'Enter' });
+    expect(arrow().getAttribute('data-state')).toBe('open');
+  });
+
+  it('клавиатура выбора прежняя: Enter открывает, пункт выбирается', () => {
+    render(<Field />);
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Раздел' }), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('option', { name: 'Второй' }));
+    expect(screen.getByRole('combobox', { name: 'Раздел' }).textContent).toContain('Второй');
+    expect(arrow().getAttribute('data-state')).toBe('closed');
+  });
+});

@@ -60,8 +60,11 @@ describe('кнопка-иконка внутри поля', () => {
   // Хвост поля ставит класс места сам (ревью PR 1708): «Показать пароль» при 40 заходила на конец текста.
   it('хвост TextField — место XS, отступ текста под кнопку при касании шире', () => {
     render(<TextField label="Пароль" trailing={<IconButton label="Показать пароль" icon={Close} />} />);
-    const holder = screen.getByRole('button', { name: 'Показать пароль' }).parentElement!;
+    // Между кнопкой и слотом — обёртка `contents`, пропускающая щелчки (sharedui-md3-11): класс места — на слоте.
+    const holder = screen.getByRole('button', { name: 'Показать пароль' }).closest('div')!;
     expect(holder.className.split(/\s+/)).toEqual(expect.arrayContaining([XS, COARSE]));
-    expect(screen.getByLabelText('Пароль').className.split(/\s+/)).toEqual(expect.arrayContaining(['pr-11', 'pointer-coarse:pr-13']));
+    // Отступ — под хвост и место знака ошибки (`--field-mark`, без ошибки ноль): 44 и 52.
+    expect(screen.getByLabelText('Пароль').className.split(/\s+/)).toEqual(expect.arrayContaining([
+      'pr-[calc(2.75rem+var(--field-mark,0px))]', 'pointer-coarse:pr-[calc(3.25rem+var(--field-mark,0px))]']));
   });
 });

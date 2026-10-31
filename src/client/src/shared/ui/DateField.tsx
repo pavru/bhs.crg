@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import { DateInput } from './DateInput';
 import { OutlinedField } from './OutlinedField';
+import { fieldBox, type FieldDensity } from './fieldBox';
 import type { DatePrecision } from '@/shared/api/types';
 
 /**
@@ -11,7 +12,7 @@ import type { DatePrecision } from '@/shared/api/types';
  * подсказкой. Фокус ловим сами: он приходит на любой из сегментов, а не на единственный input.
  */
 export function DateField({
-  label, value, onChange, onIncomplete, precision, required, hint, invalid, disabled, readOnly, min, max,
+  label, value, onChange, onIncomplete, precision, required, hint, invalid, disabled, readOnly, min, max, density = 'form',
 }: {
   label: string;
   value: string;
@@ -24,9 +25,11 @@ export function DateField({
   invalid?: boolean;
   disabled?: boolean;
   /** Значение показано, но не правится (issue #958) — см. `DateInput.readOnly`. Приглушением НЕ
-   *  отмечается: поле не отключено, а отличается фоном и отсутствием календаря, как соседние
-   *  read-only поля формы. */
+   *  отмечается: поле не отключено, а отличается обводкой `outline-variant` и отсутствием календаря,
+   *  как соседние read-only поля формы. */
   readOnly?: boolean;
+  /** Поле формы 56 (по умолчанию) или плотное 40 без выреза — [UI-69]. */
+  density?: FieldDensity;
   /** Границы допустимых дат — календарь не даст выбрать за ними (#1464); ошибку набранного называет форма. */
   min?: string;
   max?: string;
@@ -39,8 +42,10 @@ export function DateField({
   const error = problem ? (hint ? `${problem}. ${hint[0].toUpperCase()}${hint.slice(1)}` : problem) : undefined;
   return (
     <OutlinedField label={label} required={required} invalid={invalid} hint={hint} error={error} hintId={hintId}
-      raise="always" focused={focused} readOnly={readOnly}>
-      <div className={`h-14 rounded-sm px-4 flex items-center text-body-medium text-on-surface ${disabled ? 'opacity-50' : ''}`}
+      raise="always" focused={focused} readOnly={readOnly} density={density} markInside>
+      {/* Отключённое — по MD3 ([UI-64]): текст on-surface 38 %, а не прозрачность всего поля. */}
+      <div data-disabled={disabled ? '' : undefined}
+        className={`rounded-xs flex items-center text-on-surface disabled-content ${fieldBox(density)}`}
         onFocus={() => setFocused(true)}
         onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>
         {/* Во всю ширину: хвост поля — крестик и календарь — стоит у правого края рамки (#1463). */}

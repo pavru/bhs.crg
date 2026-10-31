@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useContext, useMemo, useRef, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { Icon } from './Icon';
 import { CalendarMonth, Close } from './icons';
@@ -8,6 +8,7 @@ import { ICON_BUTTON_XS } from './buttonClasses';
 import { Calendar } from './Calendar';
 import { readSegments } from './dateSegments';
 import { dateSegmentModel } from './dateSegmentModel';
+import { FieldMarkContext } from './fieldBox';
 import { SegmentProblemMark } from './SegmentProblemMark';
 import { useSegmentField } from './useSegmentField';
 import { nextTabStop, tabStops } from './tabStops';
@@ -103,6 +104,9 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
   const triggerRef = useRef<HTMLButtonElement>(null);
   /** Календарь закрыт Tab'ом с края — фокус уже перенесён, возвращать его на значок не нужно. */
   const tabbedOut = useRef(false);
+  // Знак ошибки поля формы (`DateField`, [UI-69]) — перед хвостом: крестиком и календарём. Хвост живёт
+  // здесь, поэтому знак оболочки встаёт тоже здесь, и он у поля один; вне оболочки его нет.
+  const mark = useContext(FieldMarkContext);
 
   // Порядок сегментов, разделитель и обозначения — языка пользователя (issue #1461). Хранимое значение
   // от языка не зависит. Полный порядок нужен вставке: дату целиком вставляют и в поле месяца.
@@ -162,7 +166,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
           </button>}
       {problemMark}
       {/* «Не дата» тоже стирается крестиком: календаря у неё нет, а выход иначе один — набрать заново. */}
-      {clearButton && <span className="flex items-center shrink-0 ml-auto pl-0.5">{clearButton}</span>}
+      {(mark || clearButton) && <span className="flex items-center gap-1 shrink-0 ml-auto pl-0.5">{mark}{clearButton}</span>}
     </div>
   ) : (
     <div {...groupProps} className={`flex items-center group ${frame} ${className}`}>
@@ -172,6 +176,7 @@ export function DateInput({ label, value, onChange, onProblem, onIncomplete, pre
       {/* Хвост поля формы — у правого края, крестик слева от календаря (макет #1463, вариант В):
           появляясь, крестик не сдвигает ни календарь, ни цифры. */}
       <span className={`flex items-center shrink-0 ${compact ? '' : 'ml-auto pl-0.5'}`}>
+        {mark && <span className="mr-1 flex">{mark}</span>}
         {clearButton}
         {showCalendar && (
           <Popover.Trigger asChild>
