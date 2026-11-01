@@ -300,7 +300,7 @@ export function SetDetail() {
       } },
     { key: 'actions', label: '', width: 'w-10', align: 'right', interactive: true,
       cell: inst => (
-        <RowActionsMenu ariaLabel="Действия документа" actions={[
+        <RowActionsMenu dense ariaLabel="Действия документа" actions={[
           { key: 'dup', label: 'Дублировать', icon: ContentCopy,
             disabled: duplicateMutation.isPending,
             onSelect: () => duplicateMutation.mutate({ setId: set.id, instanceId: inst.id },

@@ -53,7 +53,7 @@ export function RolePicker({ value, known = [], onChange, disabled, ariaLabel = 
   }
 
   return (
-    <Menu className="min-w-64" maxHeight="20rem" disabled={disabled} onOpenChange={open => { if (!open) close(); }} trigger={
+    <Menu width="min-w-64" maxHeight="20rem" disabled={disabled} onOpenChange={open => { if (!open) close(); }} trigger={
       <button type="button" aria-label={ariaLabel}
         className={`inline-flex items-center justify-between gap-2 w-full h-9 px-3 rounded-sm border
           border-outline bg-surface text-body-medium text-left transition-colors

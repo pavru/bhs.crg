@@ -39,7 +39,7 @@ export function WorkspaceSwitcher() {
 
   return (
     <>
-      <Menu className="min-w-64" trigger={
+      <Menu width="min-w-64" trigger={
         <button type="button" data-testid="workspace-switcher" aria-label={`Рабочее пространство: ${ws.current.name}`}
           className="flex items-center gap-1.5 min-w-0 max-w-60 h-9 touch-target [--_touch-inset:-6px] pl-3 pr-2 rounded-full text-on-surface state-layer focus-ring">
           <Icon icon={GridView} size={18} className="shrink-0 text-on-surface-variant" />

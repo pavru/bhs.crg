@@ -33,18 +33,41 @@ export function menuLayerOwners(sources) {
 /**
  * Слои поповеров и списка `Select` берут поверхность одной константой `LAYER_SURFACE` (2а.3): фона,
  * рамки и тени своих у них нет. Иначе тёмная тема снова разведёт их с меню, как до этого change.
+ *
+ * Имя пакета в файле берётся из его импорта (`import * as P from '@radix-ui/react-popover'`), а не
+ * угадывается: под другим именем слой иначе прошёл бы мимо. Классы читаются только из открывающего
+ * тега `Content` — без этого проверка уходила бы к `className` следующего элемента.
  */
-const LAYER = /<(?:Popover|RS)\.Content\b[\s\S]*?className=(\{`[^`]*`\}|"[^"]*")/g;
+const LAYER_PACKAGES = /import\s+\*\s+as\s+(\w+)\s+from\s+['"]@radix-ui\/react-(?:popover|select)['"]/g;
 const SHARED = '${LAYER_SURFACE}';
 const OWN_LOOK = /(?:^|[\s`"])(?:bg-surface[\w-]*|border(?:-[\w-]+)?|shadow-[\w-]+)(?=[\s`"]|$)/;
+const CLASS_ATTR = /\bclassName=(\{`[^`]*`\}|"[^"]*")/;
 
-/** Слои без общей поверхности или со своим видом: `файл: классы`. */
-export function strayLayers(sources) {
-  return sources.flatMap(({ path, text }) => [...text.matchAll(LAYER)]
-    .map(m => m[1])
-    .filter(cls => !cls.includes(SHARED) || OWN_LOOK.test(cls.replace(SHARED, '')))
-    .map(cls => `${path}: ${cls}`));
+/** Открывающий тег с позиции `<` до его `>`: `>` внутри фигурных скобок и строк тег не кончает. */
+function openingTag(text, from) {
+  let depth = 0;
+  let quote = null;
+  for (let i = from; i < text.length; i++) {
+    const c = text[i];
+    if (quote) { if (c === quote) quote = null; continue; }
+    if (c === '"' || c === "'" || c === '`') quote = c;
+    else if (c === '{') depth++;
+    else if (c === '}') depth--;
+    else if (c === '>' && depth === 0) return text.slice(from, i + 1);
+  }
+  return text.slice(from);
 }
+
+/** Слои без общей поверхности или со своим видом: `файл: классы` (`файл: <без className>`). */
+export function strayLayers(sources) {
+  return sources.flatMap(({ path, text }) => [...text.matchAll(LAYER_PACKAGES)].flatMap(([, alias]) =>
+    [...text.matchAll(new RegExp(String.raw`<${alias}\.Content\b`, 'g'))]
+      .map(m => openingTag(text, m.index).match(CLASS_ATTR)?.[1] ?? '<без className>')
+      .filter(cls => !cls.includes(SHARED) || OWN_LOOK.test(cls.replace(SHARED, '')))
+      .map(cls => `${path}: ${cls}`)));
+}
+
+const POPOVER = "import * as Popover from '@radix-ui/react-popover';\n";
 
 describe('слой меню — только у общего Menu', () => {
   it('импорт @radix-ui/react-dropdown-menu — только в shared/ui/Menu.tsx', () => {
@@ -57,12 +80,26 @@ describe('слой меню — только у общего Menu', () => {
 
   it('самопроверка слоя: своя рамка или тень краснят, общая константа — нет', () => {
     expect(strayLayers([
-      { path: 'a.tsx', text: '<Popover.Content className="z-50 rounded-md border border-outline-variant bg-surface p-3">' },
-      { path: 'b.tsx', text: '<Popover.Content align="end"\n className={`z-50 rounded-md p-3 ${LAYER_SURFACE}`}>' },
-      { path: 'c.tsx', text: '<RS.Content className={`z-50 shadow-elevation-3 ${LAYER_SURFACE}`}>' },
+      { path: 'a.tsx', text: POPOVER + '<Popover.Content className="z-50 rounded-md border border-outline-variant bg-surface p-3">' },
+      { path: 'b.tsx', text: POPOVER + '<Popover.Content align="end"\n className={`z-50 rounded-md p-3 ${LAYER_SURFACE}`}>' },
+      { path: 'c.tsx', text: "import * as RS from '@radix-ui/react-select';\n<RS.Content className={`z-50 shadow-elevation-3 ${LAYER_SURFACE}`}>" },
     ])).toEqual([
       'a.tsx: "z-50 rounded-md border border-outline-variant bg-surface p-3"',
       'c.tsx: {`z-50 shadow-elevation-3 ${LAYER_SURFACE}`}',
+    ]);
+  });
+
+  it('самопроверка слоя: имя — из импорта, классы — только своего тега', () => {
+    expect(strayLayers([
+      // Пакет под другим именем.
+      { path: 'a.tsx', text: "import * as PP from '@radix-ui/react-popover';\n<PP.Content className=\"border bg-surface\">" },
+      // Своих классов у слоя нет — общая поверхность следующего элемента его не прикрывает.
+      { path: 'b.tsx', text: POPOVER + '<Popover.Content side={x > 1 ? "top" : "bottom"}>\n<div className={`p-3 ${LAYER_SURFACE}`} />' },
+      // Классы слоя в порядке; рамка следующего элемента — не его.
+      { path: 'c.tsx', text: POPOVER + '<Popover.Content className={`p-3 ${LAYER_SURFACE}`}>\n<div className="border-b" />' },
+    ])).toEqual([
+      'a.tsx: "border bg-surface"',
+      'b.tsx: <без className>',
     ]);
   });
 

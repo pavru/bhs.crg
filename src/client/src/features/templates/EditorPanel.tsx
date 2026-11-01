@@ -22,7 +22,6 @@ import { flattenFields } from './templateBlank';
 import type * as monacoEditor from 'monaco-editor';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { Menu, MenuItem, MenuLabel, MenuNote, MenuSeparator } from '@/shared/ui/Menu';
-import { markLayerFocus } from '@/shared/ui/layerFocus';
 
 // ─── Requisite picker ─────────────────────────────────────────────────────────
 
@@ -36,7 +35,7 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
   const chosen = useRef<string | null>(null);
 
   return (
-    <Menu dense tooltip="Вставить реквизит" collisionPadding={8} className="w-80" maxHeight="20rem"
+    <Menu dense tooltip="Вставить реквизит" collisionPadding={8} width="w-80" maxHeight="20rem"
       trigger={
         <button type="button"
           className="state-layer px-2 py-1 text-body-medium rounded-xs text-on-surface-variant data-[state=open]:bg-primary-container data-[state=open]:text-on-primary-container">
@@ -47,9 +46,8 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
       }
       onCloseAutoFocus={e => {
         const path = chosen.current;
-        // Закрыли без выбора — фокус на «Реквизит» Radix вернёт сам, следом за этим обработчиком.
-        // Помечаем его как фокус слоя: иначе подсказка кнопки откроется сама и первый Esc достанется ей.
-        if (path == null) { markLayerFocus(); return; }
+        // Закрыли без выбора — фокус на «Реквизит» Radix вернёт сам (подсказку на нём гасит `Menu`).
+        if (path == null) return;
         chosen.current = null;
         e.preventDefault();
         onInsert(`#get("${path}")`);

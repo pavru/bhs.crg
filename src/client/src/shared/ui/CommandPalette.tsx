@@ -12,6 +12,7 @@ import { useGuardedIntent, useGuardedLeave, useGuardedNavigate } from './Navigat
 import { useHistoryLayer } from './historyLayers';
 import { useWorkspace } from './workspaceContext';
 import { Chip } from './Chip';
+import { LAYER_SURFACE } from './menuClasses';
 import { availableActions, intentHref } from './paletteActions';
 import { highlight, matches, queryWords, ranked } from './paletteSearch';
 
@@ -133,7 +134,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
         <Dialog.Content
           data-modal-state="transient"
           aria-describedby={undefined}
-          className="fixed left-1/2 top-16 z-50 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 overflow-hidden rounded-xl border border-outline-variant bg-surface focus:outline-none shadow-elevation-2"
+          className={`fixed left-1/2 top-16 z-50 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 overflow-hidden rounded-xl focus:outline-none ${LAYER_SURFACE}`}
         >
           <Dialog.Title className="sr-only">Поиск и действия</Dialog.Title>
           <div className="flex items-center gap-3 border-b border-outline-variant pl-5 pr-4">
@@ -144,7 +145,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
               placeholder="Найти раздел или действие…"
               className="h-14 flex-1 bg-transparent text-body-large text-on-surface outline-none placeholder:text-on-surface-variant"
             />
-            <kbd className="rounded-sm bg-surface-container px-2 py-0.5 font-mono text-label-small text-on-surface-variant">Esc</kbd>
+            <kbd className="rounded-sm bg-surface-container-high px-2 py-0.5 font-mono text-label-small text-on-surface-variant">Esc</kbd>
           </div>
 
           <div role="group" aria-label="Где искать" className="flex flex-wrap gap-2 px-5 pt-3 pb-1">
@@ -172,7 +173,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
                       i === current ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'}`}
                   >
                     <span className={`flex size-8 shrink-0 items-center justify-center rounded-md ${
-                      it.kind === 'action' ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-on-surface-variant'}`}>
+                      it.kind === 'action' ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container-high text-on-surface-variant'}`}>
                       <Icon icon={it.icon} size={18} aria-hidden />
                     </span>
                     <span className="flex-1">
@@ -194,7 +195,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
             ))}
           </ul>
 
-          <div className="flex flex-wrap gap-x-5 gap-y-1.5 border-t border-outline-variant bg-surface-container-low px-5 py-3 text-label-small text-on-surface-variant">
+          <div className="flex flex-wrap gap-x-5 gap-y-1.5 border-t border-outline-variant px-5 py-3 text-label-small text-on-surface-variant">
             <span><b className="font-medium">↑ ↓</b> выбрать</span>
             <span><b className="font-medium">Enter</b> открыть</span>
             <span className="flex-1" />

@@ -97,7 +97,7 @@ function ZoomMenu(p: ToolbarProps) {
     <MenuRadioItem key={String(mode)} value={String(mode)} trailing={hint} onSelect={() => p.onMode(mode)}>{label}</MenuRadioItem>
   );
   return (
-    <Menu modal={false} dense side="top" sideOffset={6} className="min-w-48"
+    <Menu modal={false} dense side="top" sideOffset={6} width="min-w-48"
       trigger={<Chip selected={false} menu aria-label={`Масштаб: ${zoomLabel(p.mode)}`} data-testid="viewer-zoom">{zoomLabel(p.mode)}</Chip>}>
       <MenuRadioGroup value={String(p.mode)}>
         {radio('width', 'По ширине', 'Ctrl 0')}

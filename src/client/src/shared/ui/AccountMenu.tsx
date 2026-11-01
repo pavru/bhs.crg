@@ -58,7 +58,7 @@ export function AccountMenu({ admin }: { admin?: RailSection }) {
   const adminIcon = admin?.def.icon;
 
   return (
-    <Menu align="end" sideOffset={8} className="w-80" trigger={
+    <Menu align="end" sideOffset={8} width="w-80" trigger={
       // На телефоне — поле вокруг аватара: видимые 44 px, а не 36 (#1434); при касании цель 48 —
       // `touch-target` на 2 px наружу ([UI-68]).
       <button type="button" data-testid="account-menu"

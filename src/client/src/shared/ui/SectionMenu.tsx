@@ -22,7 +22,7 @@ export function SectionMenu({ value, children }: { value: SectionMenuValue; chil
   const here = ownerItem(pathname, all.flatMap(g => g.items))?.to;
 
   return (
-    <Menu trigger={children} sideOffset={6} className="w-72" data-testid="section-menu">
+    <Menu trigger={children} sideOffset={6} width="w-72" data-testid="section-menu">
       {all.map((group, i) => (
         <Fragment key={group.label ?? i}>
           {i > 0 && <MenuSeparator />}

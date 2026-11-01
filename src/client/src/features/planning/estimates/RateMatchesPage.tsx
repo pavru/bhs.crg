@@ -145,7 +145,7 @@ function actionsColumn<T>(onPoint: (m: T) => void, onForget: (m: T) => void): Da
   return {
     key: 'actions', label: 'Действия', width: 'w-12',
     cell: m => (
-      <RowActionsMenu actions={[
+      <RowActionsMenu dense actions={[
         { key: 'point', label: 'Перенацелить…', icon: MyLocation, onSelect: () => onPoint(m) },
         { key: 'forget', label: 'Забыть…', icon: Delete, danger: true, onSelect: () => onForget(m) },
       ]} />

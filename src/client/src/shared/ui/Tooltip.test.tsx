@@ -199,6 +199,28 @@ describe('Button и IconButton', () => {
     vi.restoreAllMocks();
   });
 
+  it('фокус, который меню вернуло кнопке после Esc, подсказку кнопки не открывает', async () => {
+    render(
+      <Menu tooltip="Другие варианты сохранения" tooltipName trigger={<button type="button">▾</button>}>
+        <MenuItem>Сохранить как…</MenuItem>
+      </Menu>,
+    );
+    const trigger = screen.getByRole('button', { name: 'Другие варианты сохранения' });
+    await act(async () => { trigger.focus(); fireEvent.keyDown(trigger, { key: 'Enter' }); });
+    expect(screen.getByRole('menu')).toBeTruthy();
+    // Фокус, возвращённый с клавиатуры, Chrome считает видимым — как в тесте окна выше.
+    const matches = Element.prototype.matches;
+    vi.spyOn(Element.prototype, 'matches').mockImplementation(function (this: Element, sel: string) {
+      return sel === ':focus-visible' ? true : matches.call(this, sel);
+    });
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    for (let i = 0; i < 2; i++) await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    expect(tip()).toBeNull();
+    vi.restoreAllMocks();
+  });
+
   it('в окне Esc закрывает подсказку, а не окно', async () => {
     const onOpenChange = vi.fn();
     render(

@@ -6,9 +6,16 @@ import { Icon } from './Icon';
 import { Check, ChevronRight } from './icons';
 import type { IconDef } from './icons/types';
 import { useHistoryLayer } from './historyLayers';
+import { markLayerFocus } from './layerFocus';
 import { useGuardedNavClick } from './NavigationGuard';
-import { MENU_ITEM, MENU_SURFACE } from './menuClasses';
+import { LAYER_SURFACE } from './menuClasses';
 import { Tooltip } from './Tooltip';
+
+/** Слой меню и подменю: радиус 4 и отступ 8 сверху и снизу — пункты от края. */
+const MENU_SURFACE = `rounded-xs py-2 ${LAYER_SURFACE}`;
+
+// Подсветка пункта — слоем on-surface ([UI-64]), мышью и стрелкой одинаково (data-highlighted Radix).
+const MENU_ITEM = 'cursor-pointer select-none outline-none state-layer data-[disabled]:pointer-events-none';
 
 /** Плотное меню — пункт 40 (D7): в таблице, тулбаре, просмотрщике. Подменю наследует плотность. */
 const DenseContext = createContext(false);
@@ -32,20 +39,22 @@ export interface MenuProps extends ContentProps {
   tooltipName?: boolean;
   /** Потолок высоты слоя (`20rem`): длинный список прокручивается внутри, а не до края экрана. */
   maxHeight?: string;
+  /** Ширина слоя классом (`w-80`, `min-w-64`); по умолчанию — не уже 208. Потолок 320 — у меню всегда. */
+  width?: string;
 }
 
 /**
  * Меню ([UI-76], sharedui-md3-13): одно на всё приложение — действия строки, меню страницы, раздела и
  * профиля, масштаба, split-кнопки, подменю. Слой — `surface-container`, радиус 4, тень уровня 2, без
- * рамки; экран слой меню не стилизует (сторож — `scripts/menu-layer.test.mjs`). Ширину, место и
- * прочие свойства слоя (`align`, `className`, `data-testid`…) передают сюда же.
+ * рамки; экран слой меню не стилизует (сторож — `scripts/menu-layer.test.mjs`). Ширину (`width`), место
+ * и прочие свойства слоя (`align`, `data-testid`…) передают сюда же.
  *
  * Клавиатура, портал в body, Esc и щелчок мимо — у Radix. «Назад» на телефоне закрывает меню, а не
  * страницу (issue #1418): слой истории — здесь, у каждого меню, а не у тех, кто вспомнил о нём.
  */
 export function Menu({
   trigger, children, open: openProp, onOpenChange, modal, dense = false, disabled, tooltip, tooltipName, maxHeight,
-  className = '', sideOffset = 4, align = 'start', style, ...content
+  width = 'min-w-52', className = '', sideOffset = 4, align = 'start', style, onCloseAutoFocus, ...content
 }: MenuProps) {
   const [own, setOwn] = useState(false);
   const open = openProp ?? own;
@@ -54,9 +63,6 @@ export function Menu({
     onOpenChange?.(next);
   };
   useHistoryLayer(open, () => { setOpen(false); return true; });
-  // Своя ширина (`w-80`, `min-w-64`) вытесняет ширину по умолчанию: два класса одного свойства в одном
-  // слое решались бы порядком утилит в CSS, а не тем, кто написал.
-  const width = /(^|\s)(min-)?w-/.test(className) ? '' : 'min-w-52';
 
   const button = <DropdownMenu.Trigger asChild disabled={disabled}>{trigger}</DropdownMenu.Trigger>;
   return (
@@ -64,7 +70,10 @@ export function Menu({
       {tooltip ? <Tooltip content={tooltip} name={tooltipName}>{button}</Tooltip> : button}
       <DropdownMenu.Portal>
         <DenseContext.Provider value={dense}>
+          {/* Фокус, который Radix вернёт кнопке меню, — фокус слоя (`layerFocus.ts`): иначе подсказка
+              кнопки открывалась сама, и первый Esc доставался ей, а не странице. */}
           <DropdownMenu.Content sideOffset={sideOffset} align={align} {...content}
+            onCloseAutoFocus={e => { markLayerFocus(); onCloseAutoFocus?.(e); }}
             style={{ maxHeight: `min(${maxHeight ?? '100dvh'}, var(--radix-dropdown-menu-content-available-height))`, ...style }}
             className={`z-50 ${width} max-w-80 overflow-y-auto focus:outline-none ${MENU_SURFACE} ${className}`}>
             {children}

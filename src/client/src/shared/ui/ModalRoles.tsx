@@ -87,9 +87,7 @@ export function ModalAction({ children, onClick, danger = false, disabled = fals
     if (setAction && layer) setAction(id, {
       layer, label: children, danger, disabled: off, loading, icon, hint, run: () => run.current(),
     });
-    // Знак — разметка, новая на каждой отрисовке: пункт перерисуется с ним при любой другой перемене.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setAction, layer, id, children, danger, off, loading, hint]);
+  }, [setAction, layer, id, children, danger, off, loading, icon, hint]);
   // Снимается только с уходом кнопки: снятие на каждой правке переставило бы пункт в конец меню.
   useLayoutEffect(() => () => setAction?.(id, null), [setAction, id]);
   if (bar) return null;
