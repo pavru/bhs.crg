@@ -117,8 +117,11 @@
   `shared/ui/modalFooterRoles.test.ts` (дерево разбора TypeScript, с самопроверкой). «Готово» составных
   полей — `ModalExit` при `isDirty={false}`: правка ложится в поле сразу. Места в шапке — портал в своё окно,
   уровень `portal-container` поднят для `ModalRoles.tsx`, как у `WindowStep`
-- [ ] 1б.6 Живые прогоны на 375 px: окно 512 и `fullScreen` открыты как full-screen dialog, главное
+- [x] 1б.6 Живые прогоны на 375 px: окно 512 и `fullScreen` открыты как full-screen dialog, главное
   действие в шапке сохраняет; весь `npm run -s test:e2e:ci` зелёный. Проверка — описание PR
+  Сделано 02.11.2026: новая `phone-dialog-saves-from-header` в `dialogs-smoke` (375 px, «Сохранить» из шапки
+  переименовывает стройку); `fullScreen` на столе — `allocation-matrix-smoke`; поправлены `invoice-payment-smoke`
+  (выход по метке) и `pages-smoke` («Не сохранять» из «⋮»); весь список CI на стенде — 21 из 21
 - [x] 1б.7 `docs/UI.md`: «Окна» — full-screen dialog и граница 768, роли кнопок подвала [UI-75].
   Проверка — ревью PR
 
