@@ -236,8 +236,13 @@ export function SelectionActionBar({
 
 // ─── Группа (документ / обложка / титульный лист) ────────────────────────────────────────────────
 
+/** Распознаётся СОХРАНЁННОЕ разбиение: при правках кнопка неактивна и предлагает их сохранить. На
+ *  телефоне то же «Сохранить» стоит в шапке редактора. */
+const unsaved = (save: () => void) => ({ title: 'Сначала сохраните разбиение',
+  text: 'Распознаётся сохранённое разбиение, а у этого есть правки.', actions: [{ label: 'Сохранить', onClick: save }] });
+
 function GroupSection({
-  fileId, group, otherGroups, selected, suspiciousOnly, dirty, pagesWithoutAnswer,
+  fileId, group, otherGroups, selected, suspiciousOnly, saveFirst, pagesWithoutAnswer,
   onToggle, onRename, onMoveSelected, onSplitSelected, onDisband, onView, onSetTag,
   onSetProfile, tableProfiles, hiddenProfiles, savingProfile,
   onRecognizeTable, onRecognizeDoc, tableBusyPage, docBusyPage,
@@ -249,7 +254,8 @@ function GroupSection({
   /** Листы без ответа — с сервера, один набор на весь редактор (issue #803). */
   pagesWithoutAnswer: Set<number>;
   suspiciousOnly: boolean;
-  dirty: boolean;
+  /** Есть несохранённые правки — их сохранение; `null` — правок нет. */
+  saveFirst: (() => void) | null;
   onToggle: (pageIndex: number, e: React.MouseEvent) => void;
   onRename: (groupId: string, code: string, name: string | null) => void;
   onMoveSelected: (targetGroupId: string | 'new') => void;
@@ -335,16 +341,17 @@ function GroupSection({
             {withBoundOption(tableProfiles, group.profileId, hiddenProfiles).map(p => <SelectItem key={p.id} value={p.id} disabled={p.disabled}>{p.name}</SelectItem>)}
           </Select>
           {(currentTag || group.profileId) && (
-            // Подсказка — `title` самой кнопки: у неактивной она и говорит, почему нельзя (ревью #1704).
+            // Подсказка — самой кнопки: у неактивной она и говорит, почему нельзя (ревью #1704), а при
+            // правках ещё и предлагает их сохранить — богатой подсказкой ([UI-72]).
             <Button variant="outlined" onClick={() => onRecognizeTable(firstPage)}
-              title={dirty ? 'Сначала сохраните разбиение' : isHiddenBound(group.profileId, hiddenProfiles) ? 'Профиль группы принадлежит выключенному модулю — выберите другой' : 'Распознать таблицу этого документа как отдельный источник данных'}
-              disabled={dirty || isHiddenBound(group.profileId, hiddenProfiles)} loading={tableBusyPage === firstPage}
+              rich={saveFirst ? unsaved(saveFirst) : { text: isHiddenBound(group.profileId, hiddenProfiles) ? 'Профиль группы принадлежит выключенному модулю — выберите другой' : 'Распознать таблицу этого документа как отдельный источник данных' }}
+              disabled={!!saveFirst || isHiddenBound(group.profileId, hiddenProfiles)} loading={tableBusyPage === firstPage}
               icon={<Icon icon={Table} size={18} />}>
               Таблица
             </Button>
           )}
-          <Button variant="outlined" onClick={() => onRecognizeDoc(firstPage)} disabled={dirty}
-            title={dirty ? 'Сначала сохраните разбиение' : 'Перераспознать только этот документ (не весь набор)'}
+          <Button variant="outlined" onClick={() => onRecognizeDoc(firstPage)} disabled={!!saveFirst}
+            rich={saveFirst ? unsaved(saveFirst) : { text: 'Перераспознать только этот документ (не весь набор)' }}
             loading={docBusyPage === firstPage} icon={<Icon icon={Refresh} size={18} />}>
             Перераспознать
           </Button>
@@ -530,9 +537,7 @@ export function PdfGroupingEditor() {
   return (
     <div className="p-6 flex flex-col h-full">
       <PageHeader className="mb-4 shrink-0"
-        icon={
-          <IconButton label="Назад" onClick={() => navigate(-1)} icon={ArrowBack} />
-        }
+        icon={<IconButton label="Назад" onClick={() => navigate(-1)} icon={ArrowBack} />}
         title={`Разбиение${location.state?.sourceName ? ` — ${location.state.sourceName}` : ''}`}
         subtitle={<>
           {pageCount} стр. · {documentCount} документ{documentCount === 1 ? '' : 'ов'}
@@ -577,7 +582,7 @@ export function PdfGroupingEditor() {
         {groups.map(g => (
           <GroupSection
             key={g.id} fileId={fileId} group={g} otherGroups={groups.filter(o => o.id !== g.id)}
-            selected={selected} suspiciousOnly={suspiciousOnly} dirty={dirty}
+            selected={selected} suspiciousOnly={suspiciousOnly} saveFirst={dirty ? () => void handleSave() : null}
             pagesWithoutAnswer={pagesWithoutAnswer}
             onToggle={toggle} onRename={handleRename} onMoveSelected={handleMoveSelected}
             onSplitSelected={handleSplitSelected} onDisband={handleDisband} onView={setViewerPage}

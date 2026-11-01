@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, type CSSProperties } from 'react';
+﻿import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { Link, Outlet, useLocation } from 'react-router';
 import { useAccount, useResendConfirmation } from '@/shared/api/account';
 import { useAccess } from '@/shared/api/access';
@@ -21,7 +21,8 @@ import { BrandLogo } from '@/shared/ui/Brand';
 import { useProductName } from '@/shared/api/branding';
 import { PrimaryFab } from '@/shared/ui/PrimaryFab';
 import { PrimaryFabContext, usePrimaryFabState } from '@/shared/ui/primaryFabContext';
-import { FAB_CLEARANCE, toastLift } from '@/shared/ui/phoneLayout';
+import { FAB_CLEARANCE, snackbarLift } from '@/shared/ui/phoneLayout';
+import { useSnackbarPlace } from '@/shared/ui/snackbarPlace';
 import { primaryActionAt } from '@/shared/ui/paletteActions';
 import { SectionPanel, SectionRail, ShowPanelButton } from '@/shared/ui/SectionRail';
 import { useFavoriteSitesGroup, withFavoriteSites } from '@/shared/siteFilter/favoriteSitesGroup';
@@ -83,15 +84,11 @@ function Shell() {
   const { data: access } = useAccess();
   const fabState = usePrimaryFabState();
   const fab = !wide && !fabState.covered && access ? primaryActionAt(pathname, access) : undefined;
-  // Тосты встают над тем, что стоит у нижнего края. Их поле — вне оболочки, поэтому подъём —
-  // переменной на корне документа, и ставит её одно место, которое знает и строку, и кнопку.
-  const lift = toastLift({ bottomNav: bottomNav.length > 0, fab: !!fab });
-  useEffect(() => {
-    if (!lift) return;
-    const root = document.documentElement.style;
-    root.setProperty('--toast-lift', lift);
-    return () => { root.removeProperty('--toast-lift'); };
-  }, [lift]);
+  // Уведомления встают правее рейла и над тем, что стоит у нижнего края. Их поле — вне оболочки,
+  // поэтому место — переменными на корне документа, и ставит их одно место, которое знает и рейл, и
+  // строку, и кнопку.
+  const railRef = useRef<HTMLElement>(null);
+  useSnackbarPlace(railRef, snackbarLift({ bottomNav: bottomNav.length > 0, fab: !!fab }));
 
   // Глобальные шорткаты (issue #107): Ctrl/⌘+K — палитра, «?» — справка (не в полях ввода).
   useEffect(() => {
@@ -123,7 +120,7 @@ function Shell() {
     // и нижняя навигация уходила бы под неё (#1434). Браузеру без `dvh` остаётся 100vh, а не ничего.
     <div className="flex h-screen supports-[height:100dvh]:h-dvh bg-surface-container-low">
       {/* Рейл разделов и подпанель раздела — на рабочем столе (issue #1429). */}
-      <aside data-testid="rail" data-panel={panelShown || undefined}
+      <aside ref={railRef} data-testid="rail" data-panel={panelShown || undefined}
         className="shrink-0 hidden md:flex border-r border-outline-variant">
         <SectionRail sections={sections} active={active} panelHidden={!!panelSection && !panelShown}
           onShowPanel={() => setRail('expanded')} />

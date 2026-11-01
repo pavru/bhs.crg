@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { coerceScalar, parseBooleanCell, parseDateCell, rejectReason, type CoerceContext } from './pasteCoerce';
+import { coerceScalar, parseBooleanCell, parseDateCell, rejectReason, unarchiveNotice, type CoerceContext } from './pasteCoerce';
 import type { SchemaField } from '@/shared/api/schema';
 import type { EnumTypeDef, PrimitiveTypeDef } from '@/shared/api/types';
 
@@ -142,5 +142,26 @@ describe('дата во вставке — в порядке языка поль
     expect(rejectReason(date, us)).toBe('не дата (ожидается MM/DD/YYYY)');
     expect(rejectReason(date, ctx)).toBe('не дата (ожидается ДД.ММ.ГГГГ)');
     expect(rejectReason(field({ type: 'primitive', typeId: 'p-month' }), us)).toBe('не дата (ожидается MM/YYYY)');
+  });
+});
+
+describe('unarchiveNotice — одно уведомление на вставку ([UI-71])', () => {
+  it('всё вернулось — успех с числом', () => {
+    expect(unarchiveNotice(3, 0)).toEqual({ variant: 'success', text: 'Возвращено из архива: 3.' });
+  });
+
+  it('вернулась часть — одна ошибка, и в ней же названо вернувшееся', () => {
+    expect(unarchiveNotice(2, 1)).toEqual({
+      variant: 'error',
+      text: 'Возвращено из архива: 2. Не удалось вернуть из архива: 1. Эти значения вставлены встроенно.',
+    });
+  });
+
+  it('не вернулось ничего — ошибка без числа вернувшихся', () => {
+    expect(unarchiveNotice(0, 2)).toEqual({ variant: 'error', text: 'Не удалось вернуть из архива: 2. Эти значения вставлены встроенно.' });
+  });
+
+  it('возвращать было нечего — молчим', () => {
+    expect(unarchiveNotice(0, 0)).toBeNull();
   });
 });

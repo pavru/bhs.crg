@@ -1,6 +1,6 @@
 /**
  * Размеры того, что на телефоне стоит у нижнего края (issue #1434), — одно место для тех, кто должен
- * их обходить: тосты и конец прокручиваемых списков (ревью PR #1502).
+ * их обходить: уведомления и конец прокручиваемых списков (ревью PR #1502).
  */
 
 /** Нижняя навигация: `h-20` у `BottomNav`. Под ней — безопасная зона (полоска «домой» iPhone). */
@@ -10,10 +10,10 @@ export const BOTTOM_NAV_HEIGHT = 'calc(5rem + env(safe-area-inset-bottom))';
 export const FAB_CLEARANCE = '4.5rem';
 
 /**
- * Насколько поднять тосты над краем: над нижней навигацией и плавающей кнопкой — из тех, что сейчас
- * есть. Ничего нет (вход, рабочий стол) — `null`, и тост у края.
+ * Насколько поднять уведомления над краем: над нижней навигацией и плавающей кнопкой — из тех, что
+ * сейчас есть. Ничего нет (вход, рабочий стол) — `null`, и уведомление у края.
  */
-export function toastLift({ bottomNav, fab }: { bottomNav: boolean; fab: boolean }): string | null {
+export function snackbarLift({ bottomNav, fab }: { bottomNav: boolean; fab: boolean }): string | null {
   const parts = [bottomNav && BOTTOM_NAV_HEIGHT, fab && FAB_CLEARANCE].filter((p): p is string => !!p);
   return parts.length ? `calc(${parts.join(' + ')})` : null;
 }

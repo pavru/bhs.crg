@@ -14,7 +14,7 @@ import { askMatchSuggestions, useLaidMatchSuggestions } from '@/shared/api/suppl
 import { apiError } from '@/shared/utils/apiError';
 import { SupplierMatchNote } from './SupplierMatchNote';
 import {
-  applyOffer, lineKey, memoryFailure, memoryToast, pending, sameKey, usable, type MatchOffer,
+  applyOffer, lineKey, memoryNotice, pending, sameKey, usable, type MatchOffer,
 } from './supplierMatches';
 import { useDraftBase } from './draftBase';
 import { StaleInvoiceNotice } from './StaleInvoiceNotice';
@@ -284,12 +284,10 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
       setDrafts(toDrafts(saved.lines, vatModeOf(saved)));
       setMode(vatModeOf(saved));
       setDirty(false);
-      // Один тост на сохранение, и только когда есть что сказать: запомненное меняет поведение
+      // Одно уведомление на сохранение, и только когда есть что сказать: запомненное меняет поведение
       // следующих счетов этого поставщика — молча это делать нельзя.
-      const remembered = memoryToast(saved.memory);
-      if (remembered) toast.success(remembered);
-      const forgotten = memoryFailure(saved.memory);
-      if (forgotten) toast.info(forgotten);
+      const notice = memoryNotice(saved.memory);
+      if (notice) toast[notice.variant](notice.text);
     } catch (e) {
       toast.apiError(e, 'Строки не сохранены');
     }

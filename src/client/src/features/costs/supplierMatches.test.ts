@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { InvoiceLineView } from '@/shared/api/invoices';
 import { emptyDraft, toDrafts, toPayload, type LineDraft } from './invoiceLines';
 import {
-  applyOffer, cancelMatch, lineKey, matchTrouble, memoryFailure, memoryFate, memoryToast, pending, pickByHand, usable,
+  applyOffer, cancelMatch, lineKey, matchTrouble, memoryFate, memoryNotice, pending, pickByHand, usable,
   type MatchOffer,
 } from './supplierMatches';
 
@@ -134,16 +134,17 @@ describe('что запомнится сохранением', () => {
 });
 
 describe('слова', () => {
-  it('тост называет число запомненного и замены — и молчит, когда запоминать было нечего', () => {
-    expect(memoryToast({ remembered: 3, replaced: 0 })).toBe('Строки сохранены. Запомнено соответствий: 3.');
-    expect(memoryToast({ remembered: 3, replaced: 1 })).toBe('Строки сохранены. Запомнено соответствий: 3, из них заменено: 1.');
-    expect(memoryToast({ remembered: 0, replaced: 0 })).toBeNull();
-    expect(memoryToast(undefined)).toBeNull();
+  it('уведомление называет число запомненного и замены — и молчит, когда запоминать было нечего', () => {
+    expect(memoryNotice({ remembered: 3, replaced: 0 })).toEqual({ variant: 'success', text: 'Строки сохранены. Запомнено соответствий: 3.' });
+    expect(memoryNotice({ remembered: 3, replaced: 1 })?.text).toBe('Строки сохранены. Запомнено соответствий: 3, из них заменено: 1.');
+    expect(memoryNotice({ remembered: 0, replaced: 0 })).toBeNull();
+    expect(memoryNotice(undefined)).toBeNull();
   });
 
-  it('отказ запоминания назван, а не выдан за «запоминать было нечего»', () => {
-    expect(memoryFailure({ remembered: 0, replaced: 0, failed: true })).toContain('не запомнился');
-    expect(memoryFailure({ remembered: 0, replaced: 0 })).toBeNull();
+  it('отказ запоминания назван, а не выдан за «запоминать было нечего», — одним уведомлением [UI-71]', () => {
+    expect(memoryNotice({ remembered: 0, replaced: 0, failed: true })).toEqual({ variant: 'info', text: expect.stringContaining('не запомнился') });
+    // Даже с числом в ответе — одно уведомление, а не «запомнено» и «не запомнилось» друг за другом.
+    expect(memoryNotice({ remembered: 2, replaced: 0, failed: true })?.text).toContain('не запомнился');
   });
 
   it('изменённое, забытое и чужое соответствие названы, а действующее — нет', () => {

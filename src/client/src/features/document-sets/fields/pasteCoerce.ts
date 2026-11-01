@@ -111,3 +111,16 @@ export function rejectReason(field: SchemaField, ctx: CoerceContext): string {
   if (type === 'enum') return 'нет такого варианта в списке';
   return 'не разобрано';
 }
+
+/**
+ * Уведомление после возврата записей из архива при вставке — одно на вставку ([UI-71]); `null` —
+ * возвращать было нечего. Частичный возврат — ошибкой, и в ней же названо вернувшееся, а не вторым
+ * уведомлением за ней.
+ */
+export function unarchiveNotice(returned: number, failed: number): { variant: 'success' | 'error'; text: string } | null {
+  if (failed > 0) {
+    const missed = `Не удалось вернуть из архива: ${failed}. Эти значения вставлены встроенно.`;
+    return { variant: 'error', text: returned > 0 ? `Возвращено из архива: ${returned}. ${missed}` : missed };
+  }
+  return returned > 0 ? { variant: 'success', text: `Возвращено из архива: ${returned}.` } : null;
+}

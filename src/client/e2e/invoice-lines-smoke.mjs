@@ -397,7 +397,9 @@ try {
     const left = from => page.waitForFunction(
       was => { const now = new URLSearchParams(location.search).get('invoice'); return now && now !== was; },
       from, { timeout: 10_000 });
-    const said = text => page.getByText(text).first().waitFor({ timeout: 10_000 }).catch(async () => {
+    // Уведомления идут по одному ([UI-71]): сказанное после перехода ждёт, пока уйдёт прежнее, — до 8 с у
+    // уведомления со своим действием. 15 с — с запасом на него и на ответ.
+    const said = text => page.getByText(text).first().waitFor({ timeout: 15_000 }).catch(async () => {
       throw new Error(`не сказано «${text}»; на экране: `
         + (await page.locator('[role="status"]').allInnerTexts()).join(' | '));
     });
