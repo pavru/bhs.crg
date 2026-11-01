@@ -368,6 +368,17 @@ describe('вид — basic dialog ([UI-75])', () => {
     expect(scrim).toHaveLength(1);
     expect(scrim[0].style.backdropFilter).toBe('');
   });
+
+  it('форма со своим выходом в теле не получает второго — «Закрыть» в подвале', () => {
+    open({ footer: undefined }, <form><input aria-label="поле" /><ModalExit /><button type="submit">Создать</button></form>);
+    expect(cancel()).toBeTruthy();
+    expect(closeButton()).toBeNull();
+  });
+
+  it('окно без действий и без выхода в теле — подвал «Закрыть» ставит само', () => {
+    open({ footer: undefined }, <p>Справка</p>);
+    expect(closeButton()).not.toBeNull();
+  });
 });
 
 describe('черта под шапкой и над подвалом — только при прокрутке ([UI-75])', () => {

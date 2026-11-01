@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, type ButtonProps } from './Button';
 import { ModalControlContext, WindowStepContext, useModalControl } from './modalControl';
 import { DISMISSAL, modalState, pointAtExit } from './modalDismissal';
@@ -142,6 +142,21 @@ function ModalBody({
   // Radix запоминает его позже, эффектом, и видит уже это поле: оно уходит вместе с окном, и фокус
   // после закрытия падал в body (ревью PR #1696).
   const [opener] = useState(() => document.activeElement as HTMLElement | null);
+  // Есть ли у тела свой выход — кнопка с `data-modal-exit`. Смотрится по DOM, а не по объявлению:
+  // форма рисует его сама, и окно о нём иначе не знает. До отрисовки, чтобы лишний подвал не мелькнул.
+  // Тело — состоянием, а не `useRef`: портал Radix рисует содержимое следующим проходом, и эффект
+  // окна застал бы ссылку пустой.
+  const [body, setBody] = useState<HTMLDivElement | null>(null);
+  const [ownExit, setOwnExit] = useState(false);
+  useLayoutEffect(() => {
+    const el = body;
+    if (!el) return;
+    const look = () => setOwnExit(!!el.querySelector('[data-modal-exit]'));
+    look();
+    const watch = new MutationObserver(look);
+    watch.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-modal-exit'] });
+    return () => watch.disconnect();
+  }, [body]);
 
   // На шаге окно закрывается по правилам шага, а выход с него — назад, к форме окна.
   const state = top
@@ -221,8 +236,9 @@ function ModalBody({
   }
 
   // Подвал «Закрыть» — окну, которое своих действий не объявило: пикеры и справки не правятся по
-  // одному. Содержимое `flushBody` и окно без шапки рисуют свой выход сами.
-  const actions = footer ?? (acknowledge || flushBody || headerless ? undefined : <ModalExit>Закрыть</ModalExit>);
+  // одному. Содержимое `flushBody` и окно без шапки рисуют свой выход сами, а форма в теле — своим
+  // `ModalExit` рядом с «Создать»: второй выход в подвале под ней был бы лишним.
+  const actions = footer ?? (acknowledge || flushBody || headerless || ownExit ? undefined : <ModalExit>Закрыть</ModalExit>);
   const shownTitle = top?.title ?? title;
 
   return (
@@ -315,7 +331,7 @@ function ModalBody({
             <div className="overflow-y-auto flex-1 min-h-0 px-6">
               <div ref={edgeStart} />
               <div className={`pt-2 ${actions || acknowledge || top ? 'pb-2' : 'pb-6'}`}>
-                <div className="contents" hidden={!!top}>
+                <div ref={setBody} className="contents" hidden={!!top}>
                   {typeof children === 'function' ? children(requestClose) : children}
                 </div>
                 {stepSlot('body')}
