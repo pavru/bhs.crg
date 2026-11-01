@@ -4,7 +4,7 @@ import { Add, Delete, DocumentScanner, LockIcon, RestartAlt, VisibilityOff, Warn
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { moveItem } from '@/shared/utils/moveItem';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
@@ -287,10 +287,9 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
 
 // ─── Создание профиля ──────────────────────────────────────────────────────────
 
-function CreateProfileForm({ kinds, onSaved, onCancel }: {
+function CreateProfileForm({ kinds, onSaved }: {
   kinds: RecognitionKindInfo[];
   onSaved: (id: string) => void;
-  onCancel: () => void;
 }) {
   const [name, setName] = useState('');
   const [kind, setKind] = useState(kinds[0]?.kind ?? '');
@@ -333,7 +332,7 @@ function CreateProfileForm({ kinds, onSaved, onCancel }: {
       </div>
       {error && <p className="text-body-medium text-error">{error}</p>}
       <div className="flex justify-end gap-2 border-t border-outline-variant pt-3">
-        <Button type="button" variant="text" data-modal-exit="" onClick={onCancel}>Отмена</Button>
+        <ModalExit />
         <Button type="button" variant="filled" onClick={save} loading={create.isPending}>
           {create.isPending ? 'Создание…' : 'Создать'}
         </Button>
@@ -463,8 +462,7 @@ export function RecognitionProfilesPage() {
 
       <Modal open={createOpen} onOpenChange={setCreateOpen} title="Новый профиль распознавания">
         <CreateProfileForm kinds={kinds ?? []}
-          onSaved={id => { setSelectedId(id); setCreateOpen(false); }}
-          onCancel={() => setCreateOpen(false)} />
+          onSaved={id => { setSelectedId(id); setCreateOpen(false); }} />
       </Modal>
     </>
   );

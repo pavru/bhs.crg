@@ -194,11 +194,11 @@ export function ReconciliationEditor({ existing, onClose }: {
   }
 
   return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} wide
+    <Modal open onOpenChange={o => { if (!o) onClose(); }} wide busy={busy}
       title={existing ? 'Изменить сверку' : 'Новая сверка'}
       footer={
         <div className="flex items-center gap-2 justify-end">
-          <ModalExit disabled={busy} />
+          <ModalExit />
           <Button variant="filled" disabled={!valid} loading={busy} onClick={save}>Сохранить</Button>
         </div>
       }>

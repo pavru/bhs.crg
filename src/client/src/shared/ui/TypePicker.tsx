@@ -134,7 +134,7 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'Ð’Ñ
   return (
     <Dialog.Root open onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className={`${DIALOG_SCRIM} z-40`} />
+        <Dialog.Overlay className={DIALOG_SCRIM} />
         <Dialog.Content
           data-modal-state="free"
           className={`fixed left-1/2 top-16 z-50 w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 flex flex-col max-h-[calc(100vh-8rem)] overflow-hidden ${DIALOG_SURFACE} focus:outline-none`}

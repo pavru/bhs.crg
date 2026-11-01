@@ -379,6 +379,33 @@ describe('вид — basic dialog ([UI-75])', () => {
     open({ footer: undefined }, <p>Справка</p>);
     expect(closeButton()).not.toBeNull();
   });
+
+  it('выход ушёл из тела — подвал «Закрыть» вернулся', () => {
+    function Toggle() {
+      const [own, setOwn] = useState(true);
+      return (
+        <Modal open onOpenChange={() => {}} title="Окно">
+          <button type="button" onClick={() => setOwn(false)}>Убрать</button>
+          {own && <ModalExit />}
+        </Modal>
+      );
+    }
+    render(<Toggle />);
+    expect(closeButton()).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Убрать' }));
+    expect(closeButton()).not.toBeNull();
+  });
+
+  it('выход подвала окна, открытого из тела другого, — не выход тела нижнего', () => {
+    render(
+      <Modal open onOpenChange={() => {}} title="Нижнее">
+        <p>Справка</p>
+        <Modal open onOpenChange={() => {}} title="Верхнее" footer={<ModalExit />}><p>тело</p></Modal>
+      </Modal>,
+    );
+    // Своего подвала у нижнего нет, и «Отмена» верхнего его не заменяет.
+    expect(screen.getAllByRole('button', { name: 'Закрыть', hidden: true })).toHaveLength(1);
+  });
 });
 
 describe('черта под шапкой и над подвалом — только при прокрутке ([UI-75])', () => {
@@ -415,6 +442,13 @@ describe('черта под шапкой и над подвалом — толь
     // Вернулись к верху: черты под шапкой нет.
     act(() => intersect(start, true));
     expect(lined(header)).toBe(false);
+  });
+
+  it('тело `flushBody` прокручивает себя само — черта у окна стоит всегда', () => {
+    open({ flushBody: true }, <input aria-label="поле" />);
+    const header = screen.getByText('Окно', { selector: 'span' }).parentElement!;
+    expect(lined(header)).toBe(true);
+    expect(lined(cancel().closest<HTMLElement>('.border-t')!)).toBe(true);
   });
 
   it('часовые — по краям видимого тела: тело шага ложится между ними', () => {

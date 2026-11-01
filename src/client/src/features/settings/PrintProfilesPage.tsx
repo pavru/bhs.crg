@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Print } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { useSnackbar } from '@/shared/ui/Snackbar';
@@ -97,8 +97,7 @@ export function PrintProfilesPage() {
       <Modal open={createOpen} onOpenChange={setCreateOpen} title="Новый профиль печати">
         <CreateForm names={profiles.map(p => p.name)} base={base}
           // Созданный открывается через тот же вопрос: правка в карточке не пропадает и отсюда.
-          onCreated={id => { setCreateOpen(false); open(id); }}
-          onCancel={() => setCreateOpen(false)} />
+          onCreated={id => { setCreateOpen(false); open(id); }} />
       </Modal>
     </>
   );
@@ -130,8 +129,8 @@ function ProfileRow({ profile, active, onClick }: { profile: PrintProfile; activ
  * <p>Профиля по умолчанию в списке нет (сервер его не отдал) — брать параметры неоткуда: «Создать»
  * недоступна, и причина написана, а не молчаливое нажатие без ответа.</p>
  */
-function CreateForm({ names, base, onCreated, onCancel }: {
-  names: string[]; base: PrintProfile | undefined; onCreated: (id: string) => void; onCancel: () => void;
+function CreateForm({ names, base, onCreated }: {
+  names: string[]; base: PrintProfile | undefined; onCreated: (id: string) => void;
 }) {
   const toast = useSnackbar();
   const create = useCreatePrintProfile();
@@ -163,7 +162,7 @@ function CreateForm({ names, base, onCreated, onCancel }: {
         ? <p className="text-body-small text-on-surface-variant">Параметры возьмутся из профиля по умолчанию — поменяете в карточке.</p>
         : <p className="text-body-small text-error">Нет профиля по умолчанию — параметры взять неоткуда. Обновите страницу.</p>}
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="text" data-modal-exit="" onClick={onCancel}>Отмена</Button>
+        <ModalExit />
         <Button type="submit" variant="filled" loading={create.isPending} disabled={!base}>Создать</Button>
       </div>
     </form>

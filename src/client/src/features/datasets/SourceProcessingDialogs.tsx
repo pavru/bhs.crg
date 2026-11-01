@@ -35,11 +35,12 @@ function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
   return (
     <Modal
       open
-      onOpenChange={o => { if (!o && !isPending) onClose(); }}
+      onOpenChange={o => { if (!o) onClose(); }}
       title="Сохранить как шаблон"
+      busy={isPending}
       footer={
         <div className="flex gap-2 justify-end">
-          <ModalExit disabled={isPending} />
+          <ModalExit />
           <Button variant="filled" onClick={submit} disabled={!canSave} loading={isPending}>
             {isPending ? 'Сохранение…' : 'Сохранить'}
           </Button>

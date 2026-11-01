@@ -21,8 +21,8 @@ export function LeaveQuestion({ open, onStay, onLeave }: LeaveQuestionProps) {
   return (
     <Dialog.Root open={open} onOpenChange={o => { if (!o) onStay(); }}>
       <Dialog.Portal>
-        {/* Выше окна: вопрос открывается, когда окно уже лежит над страницей. */}
-        <Dialog.Overlay className={`${DIALOG_SCRIM} z-50`} />
+        {/* Выше окна: вопрос открывается, когда окно уже лежит над страницей, — его портал позже. */}
+        <Dialog.Overlay className={DIALOG_SCRIM} />
         <Dialog.Content
           role="alertdialog"
           // Вопрос держит человека, как и окно под ним, — и он же верхний: кольцо выхода ложится на его

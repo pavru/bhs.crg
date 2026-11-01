@@ -1,18 +1,17 @@
 import type { ReactNode } from 'react';
 import { recordWritePermission } from '@/shared/api/commonData';
 import { useCan } from '@/shared/api/access';
-import { Button } from '@/shared/ui/Button';
+import { ModalExit } from '@/shared/ui/Modal';
 
 /**
- * Подвал формы записи: «Отмена» и — если у человека есть право писать записи этой семьи — кнопка
- * сохранения (WORK-59). Без права кнопки нет, а на её месте сказано почему: вид работы правит тот,
+ * Подвал формы записи: «Отмена» (выход окна — спросит о набранном) и — если у человека есть право
+ * писать записи этой семьи — кнопка сохранения (WORK-59). Без права кнопки нет, а на её месте сказано почему: вид работы правит тот,
  * кто ведёт классификатор, и правка общих данных этого права не даёт. Нажатая, кнопка привела бы
  * к отказу 403 после заполненной формы.
  */
-export function RecordWriteGate({ doorCode, onClose, children }: {
+export function RecordWriteGate({ doorCode, children }: {
   /** Код семьи со своей дверью (`ownDoorCode`); не задан — запись общих данных. */
   doorCode: string | undefined;
-  onClose: () => void;
   /** Кнопка сохранения. */
   children: ReactNode;
 }) {
@@ -24,7 +23,7 @@ export function RecordWriteGate({ doorCode, onClose, children }: {
           Только просмотр: записи этого справочника ведёт тот, у кого есть право на него.
         </p>
       )}
-      <Button type="button" variant="text" data-modal-exit="" onClick={onClose}>Отмена</Button>
+      <ModalExit />
       {allowed && children}
     </>
   );

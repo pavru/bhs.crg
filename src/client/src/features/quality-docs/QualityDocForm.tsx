@@ -3,6 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { Upload, VerifiedUser, Visibility } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
+import { ModalExit } from '@/shared/ui/Modal';
 import { apiError } from '@/shared/utils/apiError';
 import { refusalIssues } from '@/shared/api/refusals';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
@@ -32,7 +33,10 @@ import { Tooltip } from '@/shared/ui/Tooltip';
 export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, onCancel }: {
   allDocTypes: DocumentType[]; scope: CatalogScope; scopeId: string | null;
   initial?: QualityDocument | null;
-  onSaved: (doc: QualityDocument) => void; onCancel: () => void;
+  onSaved: (doc: QualityDocument) => void;
+  /** Своя «Отмена» — шаг назад внутри окна (вкладка «Выбрать» пикера). Не задана — выход окна `ModalExit`:
+   *  спросит о набранном. */
+  onCancel?: () => void;
 }) {
   const openAttachment = useOpenAttachment();
   const isEdit = !!initial;
@@ -348,7 +352,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
           disabled={busy || recognizing || uploading || imageUploading || !typeId} title={imageUploading ? "Дождитесь загрузки изображения" : undefined}>
           {busy ? 'Сохранение…' : isEdit ? 'Сохранить' : 'Создать'}
         </Button>
-        <Button variant="text" data-modal-exit="" onClick={onCancel}>Отмена</Button>
+        {onCancel ? <Button variant="text" onClick={onCancel}>Отмена</Button> : <ModalExit />}
         {recognizing && (
           <span className="flex items-center gap-1.5 text-body-small text-on-surface-variant">
             <CircularProgress size={18} /> Идёт распознавание — дождитесь завершения перед сохранением…

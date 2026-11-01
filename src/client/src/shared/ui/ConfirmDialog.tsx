@@ -145,7 +145,7 @@ function ConfirmDialogBody({
     <Dialog.Root open onOpenChange={o => { if (!busy) onOpenChange(o); }}>
       <Dialog.Portal>
         <Dialog.Overlay
-          className={`${DIALOG_SCRIM} z-40`}
+          className={DIALOG_SCRIM}
         />
         <Dialog.Content
           // Basic dialog 384 ([UI-75]); на телефоне — им же, с отступами 24 от краёв, а не во весь экран.
@@ -176,7 +176,7 @@ function ConfirmDialogBody({
             <>
               <div className="flex items-start gap-2.5 rounded-sm bg-error-container px-3 py-2.5 text-body-small text-on-surface">
                 <Icon icon={Warning} size={18} className="shrink-0 mt-0.5 text-error" />
-                <div className="max-h-40 overflow-y-auto whitespace-pre-line min-w-0">{error ?? blocked}</div>
+                <div className="whitespace-pre-line min-w-0">{error ?? blocked}</div>
               </div>
               {exit?.note && <p className="mt-3 text-body-small text-on-surface-variant">{exit.note}</p>}
               {exit?.secondary && (

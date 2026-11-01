@@ -109,7 +109,7 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
   return (
     <Dialog.Root open onOpenChange={o => { if (!o && !pending) onClose(); }}>
       <Dialog.Portal>
-        <Dialog.Overlay className={`${DIALOG_SCRIM} z-40`} />
+        <Dialog.Overlay className={DIALOG_SCRIM} />
         {/* На узком экране — у верха: по центру клавиатура закрыла бы и поле, и кнопки. */}
         <Dialog.Content
           // Идёт удаление, показан его исход или набрано подтверждение — окно держит человека: поверх

@@ -223,7 +223,7 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
   return (
     <Dialog.Root open onOpenChange={o => { if (!o && !busy) onClose(false); }}>
       <Dialog.Portal>
-        <Dialog.Overlay className={`${DIALOG_SCRIM} z-40`} />
+        <Dialog.Overlay className={DIALOG_SCRIM} />
         <Dialog.Content
           // То же, что у `PurgeDialog`: запрос, исход или набранное подтверждение держат человека.
           data-modal-state={busy ? 'busy' : refused ?? unknown ?? fresh ? 'result' : input ? 'touched' : 'free'}

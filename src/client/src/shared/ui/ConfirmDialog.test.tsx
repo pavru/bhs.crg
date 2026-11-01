@@ -19,6 +19,8 @@ describe('ConfirmDialog — basic dialog', () => {
     expect(screen.getByText('Удалить запись?').className).toContain('text-headline-small');
     const scrim = document.querySelector<HTMLElement>('.bg-scrim\\/32')!;
     expect(scrim.style.backdropFilter).toBe('');
+    // На одном слое с окнами: подтверждение над окном затемняет его, а не ложится под ним.
+    expect(scrim.classList.contains('z-50')).toBe(true);
   });
 
   it('крестика нет: выход — «Отмена», действие справа от неё', () => {

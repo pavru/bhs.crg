@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, CalendarMonth, CheckCircle, ContentCopy, Delete, ErrorIcon, List, MatchCase, Numbers, type IconDef } from '@/shared/ui/icons';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavSearchInput, NavSection, DetailHeader, DetailTitle } from '@/shared/ui/ListDetailShell';
@@ -245,7 +245,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 // ─── Primitive create form (в модалке) ──────────────────────────────────────────
 
-function PrimitiveCreateForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: () => void }) {
+function PrimitiveCreateForm({ onSaved }: { onSaved: () => void }) {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [baseType, setBaseType] = useState<'string' | 'number' | 'date'>('string');
@@ -286,7 +286,7 @@ function PrimitiveCreateForm({ onSaved, onCancel }: { onSaved: () => void; onCan
       </div>
       {error && <p className="text-body-medium text-error">{error}</p>}
       <div className="flex justify-end gap-2 border-t border-outline-variant pt-3">
-        <Button type="button" variant="text" data-modal-exit="" onClick={onCancel}>Отмена</Button>
+        <ModalExit />
         <Button type="button" variant="filled" onClick={handleSave} loading={create.isPending}>
           {create.isPending ? 'Сохранение…' : 'Сохранить'}
         </Button>
@@ -680,8 +680,8 @@ export function PrimitiveTypesPage() {
       <Modal open={createOpen} onOpenChange={setCreateOpen}
         title={mode === 'primitive' ? 'Новый тип поля' : 'Новый тип перечисления'}>
         {createOpen && (mode === 'primitive'
-          ? <PrimitiveCreateForm onSaved={() => setCreateOpen(false)} onCancel={() => setCreateOpen(false)} />
-          : <EnumForm onSaved={() => setCreateOpen(false)} onCancel={() => setCreateOpen(false)} />)}
+          ? <PrimitiveCreateForm onSaved={() => setCreateOpen(false)} />
+          : <EnumForm onSaved={() => setCreateOpen(false)} />)}
       </Modal>
     </>
   );

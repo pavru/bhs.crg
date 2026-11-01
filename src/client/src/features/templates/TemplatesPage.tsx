@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router';
 import { LibraryBooks, LockIcon, Widgets } from '@/shared/ui/icons';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { Button } from '@/shared/ui/Button';
 import { TabPanel, Tabs, type TabItem } from '@/shared/ui/Tabs';
@@ -59,7 +59,7 @@ function NewTemplateForm({ documentTypeId, docType, allDocTypes, onClose, onCrea
         {error && <p className="text-body-medium text-error">{error}</p>}
       </div>
       <div className="shrink-0 px-6 py-3 border-t border-outline-variant flex justify-end gap-2">
-        <Button type="button" variant="text" data-modal-exit="" onClick={onClose}>Отмена</Button>
+        <ModalExit />
         <Button type="submit" variant="filled" loading={mutation.isPending}>
           {mutation.isPending ? 'Создание…' : 'Создать'}
         </Button>

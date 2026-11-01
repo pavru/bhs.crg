@@ -98,7 +98,7 @@ export function ObservationReviewDialog({ observation, setPath, nameOf, onClose 
   }
 
   return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Разбор замечания"
+    <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Разбор замечания" busy={review.isPending}
       footer={
         // Решений три и «Отмена»: в обычное окно (и на телефон) в одну строку не встают — ряд
         // переносится, а не уходит под обрез окна (ревью PR #1386).
@@ -109,7 +109,7 @@ export function ObservationReviewDialog({ observation, setPath, nameOf, onClose 
             </Button>
           )}
           <span className="flex-1" />
-          <ModalExit disabled={review.isPending} />
+          <ModalExit />
           <Button danger disabled={review.isPending} onClick={() => decide('Rejected')}>
             <Icon icon={Close} size={18} /> Отклонить
           </Button>

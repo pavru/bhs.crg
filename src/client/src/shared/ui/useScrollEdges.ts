@@ -9,6 +9,8 @@ export interface ScrollEdges {
   above: boolean;
   /** Под подвалом ещё есть содержимое. */
   below: boolean;
+  /** Часовые стоят и наблюдаются. Нет — о прокрутке неизвестно, а не «прокручивать нечего». */
+  known: boolean;
 }
 
 const NONE = { above: false, below: false };
@@ -22,17 +24,19 @@ const NONE = { above: false, below: false };
 export function useScrollEdges(): ScrollEdges {
   const [start, setStart] = useState<HTMLElement | null>(null);
   const [end, setEnd] = useState<HTMLElement | null>(null);
-  const [edges, setEdges] = useState(NONE);
+  // Чьи это края — запомнено вместе с ними: сменились часовые (снят или открыт шаг), и ответ прежнего
+  // наблюдателя к новому телу не относится, пока новый не ответит сам.
+  const [edges, setEdges] = useState<{ of: HTMLElement | null; above: boolean; below: boolean }>({ of: null, ...NONE });
 
   useEffect(() => {
     if (!start || !end) return;
     const watch = new IntersectionObserver(entries => {
       setEdges(was => {
-        let next = was;
+        let next = was.of === start ? was : { of: start, ...NONE };
         for (const e of entries) {
           next = e.target === start ? { ...next, above: !e.isIntersecting } : { ...next, below: !e.isIntersecting };
         }
-        return next.above === was.above && next.below === was.below ? was : next;
+        return next.of === was.of && next.above === was.above && next.below === was.below ? was : next;
       });
     }, { root: start.parentElement });
     watch.observe(start);
@@ -40,6 +44,7 @@ export function useScrollEdges(): ScrollEdges {
     return () => watch.disconnect();
   }, [start, end]);
 
-  // Часовых нет — черт нет: прошлое наблюдение к снятому телу не относится.
-  return { start: setStart, end: setEnd, ...(start && end ? edges : NONE) };
+  const known = !!start && !!end;
+  const own = known && edges.of === start;
+  return { start: setStart, end: setEnd, above: own && edges.above, below: own && edges.below, known };
 }

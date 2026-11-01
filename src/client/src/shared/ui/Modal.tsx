@@ -1,7 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, type ButtonProps } from './Button';
-import { ModalControlContext, WindowStepContext, useModalControl } from './modalControl';
+import { ModalBodyExitContext, ModalControlContext, WindowStepContext, useModalControl } from './modalControl';
 import { DISMISSAL, modalState, pointAtExit } from './modalDismissal';
 import { useHistoryLayer } from './historyLayers';
 import { focusFromLayer } from './layerFocus';
@@ -112,6 +112,8 @@ export function Modal(props: ModalProps) {
  */
 export function ModalExit({ children = 'Отмена', variant = 'text', disabled, ...rest }: Omit<ButtonProps, 'onClick' | 'type'>) {
   const { requestClose, busy } = useModalControl();
+  const markBodyExit = useContext(ModalBodyExitContext);
+  useLayoutEffect(() => markBodyExit?.(), [markBodyExit]);
   return (
     <Button {...rest} type="button" variant={variant} data-modal-exit="" disabled={disabled}
       aria-disabled={busy || undefined} className={`${rest.className ?? ''} ${busy ? BUSY_EXIT : ''}`}
@@ -137,26 +139,22 @@ function ModalBody({
   const [touched, setTouched] = useState(false);
   const content = useRef<HTMLDivElement>(null);
   const { host, top, touchTop, stepSlot } = useWindowSteps(content);
-  const { start: edgeStart, end: edgeEnd, above, below } = useScrollEdges();
+  const { start: edgeStart, end: edgeEnd, above: bodyAbove, below: bodyBelow, known } = useScrollEdges();
+  // Тело `flushBody` прокручивает себя само, и окну о его прокрутке не узнать: черта у такого окна стоит
+  // всегда, как до перехода, а не пропадает молча.
+  const above = known ? bodyAbove : true;
+  const below = known ? bodyBelow : true;
   // Кто открыл окно — запоминается при первой отрисовке, до того как поле с `autoFocus` заберёт фокус.
   // Radix запоминает его позже, эффектом, и видит уже это поле: оно уходит вместе с окном, и фокус
   // после закрытия падал в body (ревью PR #1696).
   const [opener] = useState(() => document.activeElement as HTMLElement | null);
-  // Есть ли у тела свой выход — кнопка с `data-modal-exit`. Смотрится по DOM, а не по объявлению:
-  // форма рисует его сама, и окно о нём иначе не знает. До отрисовки, чтобы лишний подвал не мелькнул.
-  // Тело — состоянием, а не `useRef`: портал Radix рисует содержимое следующим проходом, и эффект
-  // окна застал бы ссылку пустой.
-  const [body, setBody] = useState<HTMLDivElement | null>(null);
-  const [ownExit, setOwnExit] = useState(false);
-  useLayoutEffect(() => {
-    const el = body;
-    if (!el) return;
-    const look = () => setOwnExit(!!el.querySelector('[data-modal-exit]'));
-    look();
-    const watch = new MutationObserver(look);
-    watch.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-modal-exit'] });
-    return () => watch.disconnect();
-  }, [body]);
+  // Сколько `ModalExit` нарисовано в теле: форма со своим выходом второго, подвала «Закрыть», не получает.
+  // Отмечается сама кнопка (`ModalBodyExitContext`), до отрисовки — лишний подвал не мелькает.
+  const [bodyExits, setBodyExits] = useState(0);
+  const markBodyExit = useCallback(() => {
+    setBodyExits(n => n + 1);
+    return () => setBodyExits(n => n - 1);
+  }, []);
 
   // На шаге окно закрывается по правилам шага, а выход с него — назад, к форме окна.
   const state = top
@@ -238,13 +236,13 @@ function ModalBody({
   // Подвал «Закрыть» — окну, которое своих действий не объявило: пикеры и справки не правятся по
   // одному. Содержимое `flushBody` и окно без шапки рисуют свой выход сами, а форма в теле — своим
   // `ModalExit` рядом с «Создать»: второй выход в подвале под ней был бы лишним.
-  const actions = footer ?? (acknowledge || flushBody || headerless || ownExit ? undefined : <ModalExit>Закрыть</ModalExit>);
+  const actions = footer ?? (acknowledge || flushBody || headerless || bodyExits > 0 ? undefined : <ModalExit>Закрыть</ModalExit>);
   const shownTitle = top?.title ?? title;
 
   return (
     <Dialog.Portal>
         <Dialog.Overlay
-          className={`${DIALOG_SCRIM} z-40`}
+          className={DIALOG_SCRIM}
           // Нажатие на затемнение фокус не забирает: иначе щелчок мимо выносил бы курсор из поля,
           // где человек набирал, — и окно, которое не закрылось, всё равно сбивало бы его с места.
           onMouseDown={e => e.preventDefault()}
@@ -300,6 +298,7 @@ function ModalBody({
           }}
         >
           <ModalControlContext.Provider value={{ requestClose, busy: busy || !!top?.busy }}>
+          <ModalBodyExitContext.Provider value={null}>
           <WindowStepContext.Provider value={host}>
           <Dialog.Title className="sr-only">{shownTitle}</Dialog.Title>
           {/* Под вопросом окно недоступно одной обёрткой: фокус не вернётся в форму мимо вопроса. */}
@@ -331,8 +330,10 @@ function ModalBody({
             <div className="overflow-y-auto flex-1 min-h-0 px-6">
               <div ref={edgeStart} />
               <div className={`pt-2 ${actions || acknowledge || top ? 'pb-2' : 'pb-6'}`}>
-                <div ref={setBody} className="contents" hidden={!!top}>
-                  {typeof children === 'function' ? children(requestClose) : children}
+                <div className="contents" hidden={!!top}>
+                  <ModalBodyExitContext.Provider value={markBodyExit}>
+                    {typeof children === 'function' ? children(requestClose) : children}
+                  </ModalBodyExitContext.Provider>
                 </div>
                 {stepSlot('body')}
               </div>
@@ -361,6 +362,7 @@ function ModalBody({
           <LeaveQuestion open={asking} onStay={() => setConfirmClose(false)}
             onLeave={() => { setConfirmClose(false); leave(); }} />
           </WindowStepContext.Provider>
+          </ModalBodyExitContext.Provider>
           </ModalControlContext.Provider>
         </Dialog.Content>
     </Dialog.Portal>

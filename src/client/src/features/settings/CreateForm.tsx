@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { DataObject } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
+import { ModalExit } from '@/shared/ui/Modal';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
 import { TextField } from '@/shared/ui/TextField';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -160,7 +161,7 @@ export function CreateForm({
       {error && <p className="text-body-medium text-error">{error}</p>}
       </div>
       <div className="shrink-0 px-6 py-3 border-t border-outline-variant flex justify-end gap-3">
-        <Button type="button" variant="text" data-modal-exit="" onClick={onClose}>Отмена</Button>
+        <ModalExit />
         <Button type="submit" variant="filled" loading={mutation.isPending}>
           {mutation.isPending ? 'Создание…' : 'Создать'}
         </Button>
