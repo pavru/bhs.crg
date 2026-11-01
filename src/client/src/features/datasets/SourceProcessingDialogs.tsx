@@ -4,7 +4,7 @@ import { apiError } from '@/shared/utils/apiError';
 import {
   useSetDataSetSourceProcessing, useSaveSourceAsTemplate, type SourceProcessingPatch,
 } from '@/shared/api/datasetProcessing';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { RowFilterDialog } from './RowFilterDialog';
@@ -35,11 +35,12 @@ function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
   return (
     <Modal
       open
-      onOpenChange={o => { if (!o && !isPending) onClose(); }}
+      onOpenChange={o => { if (!o) onClose(); }}
       title="Сохранить как шаблон"
+      busy={isPending}
       footer={
         <div className="flex gap-2 justify-end">
-          <Button variant="text" onClick={onClose} disabled={isPending}>Отмена</Button>
+          <ModalExit />
           <Button variant="filled" onClick={submit} disabled={!canSave} loading={isPending}>
             {isPending ? 'Сохранение…' : 'Сохранить'}
           </Button>

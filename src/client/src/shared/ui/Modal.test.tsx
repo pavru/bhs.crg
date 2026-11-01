@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Modal, ModalExit, type ModalProps } from './Modal';
+import { WindowStep } from './WindowStep';
+import { intersect } from '@/shared/testing/intersectionObserver';
 import { DISMISSAL, modalState, type ModalState } from './modalDismissal';
 
 /**
@@ -42,7 +44,8 @@ async function escape() {
   fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
   await act(async () => { await new Promise(r => setTimeout(r, 0)); });
 }
-const cross = () => screen.queryByRole('button', { name: 'Закрыть' });
+/** «Закрыть» подвала — её окно ставит само, когда своих действий нет. Крестика у окна нет ([UI-75]). */
+const closeButton = () => screen.queryByRole('button', { name: 'Закрыть' });
 const cancel = () => screen.getByRole('button', { name: 'Отмена' });
 const type = () => fireEvent.change(screen.getByLabelText('поле'), { target: { value: 'набрано' } });
 const asked = () => screen.queryByText('Закрыть без сохранения?') !== null;
@@ -65,7 +68,7 @@ describe('таблица правила', () => {
 });
 
 describe('лёгкий (nothingToLose)', () => {
-  it('закрывают клик мимо, Esc и крестик', async () => {
+  it('закрывают клик мимо, Esc и «Закрыть» подвала', async () => {
     const a = open({ nothingToLose: true, footer: undefined });
     await clickOutside();
     expect(closed(a)).toBe(true);
@@ -77,7 +80,7 @@ describe('лёгкий (nothingToLose)', () => {
     cleanup();
 
     const c = open({ nothingToLose: true, footer: undefined });
-    fireEvent.click(cross()!);
+    fireEvent.click(closeButton()!);
     expect(closed(c)).toBe(true);
   });
 
@@ -99,21 +102,16 @@ describe('обычный, терять нечего', () => {
     expect(document.activeElement).not.toBe(cancel());
   });
 
-  it('без «Отмены» обводится крестик', async () => {
+  it('окну без подвала окно ставит «Закрыть» — её и обводит', async () => {
     open({ footer: undefined });
     await clickOutside();
-    expect(cross()!.hasAttribute('data-modal-hint')).toBe(true);
+    expect(closeButton()!.hasAttribute('data-modal-hint')).toBe(true);
   });
 
-  it('Esc, крестик и «Отмена» закрывают', async () => {
+  it('Esc и «Отмена» закрывают', async () => {
     const a = open();
     await escape();
     expect(closed(a)).toBe(true);
-    cleanup();
-
-    const b = open();
-    fireEvent.click(cross()!);
-    expect(closed(b)).toBe(true);
     cleanup();
 
     const c = open();
@@ -121,9 +119,15 @@ describe('обычный, терять нечего', () => {
     expect(closed(c)).toBe(true);
   });
 
-  it('начальный фокус — не на крестике', () => {
+  it('крестика нет: у окна с подвалом единственный выход — его «Отмена»', () => {
     open();
-    expect(document.activeElement).not.toBe(cross());
+    expect(closeButton()).toBeNull();
+    expect(screen.getAllByRole('button').filter(b => b.hasAttribute('data-modal-exit'))).toEqual([cancel()]);
+  });
+
+  it('начальный фокус — на самом окне, а не на кнопке', () => {
+    open();
+    expect(document.activeElement).not.toBe(closeButton());
     expect(document.activeElement?.getAttribute('role')).toBe('dialog');
   });
 });
@@ -163,22 +167,48 @@ describe('есть несохранённые правки (isDirty)', () => {
     expect(document.activeElement).toBe(cancel());
   });
 
-  it('крестик и «Отмена» подвала спрашивают', async () => {
+  it('«Отмена» подвала спрашивает — отдельным окном над окном', async () => {
     const onOpenChange = open({ isDirty: true });
-    cross()!.focus();   // `fireEvent.click` фокус сам не ставит
-    fireEvent.click(cross()!);
+    const exit = cancel();
+    exit.focus();   // `fireEvent.click` фокус сам не ставит
+    fireEvent.click(cancel());
     expect(asked()).toBe(true);
-    // Вопрос забирает фокус на безопасный ответ, а форма под ним недоступна.
+    // Вопрос — своё окно Radix над окном формы, а не блок внутри неё ([UI-75]).
+    const question = screen.getByRole('alertdialog');
+    expect(question.contains(screen.getByText('Закрыть без сохранения?'))).toBe(true);
+    // Окно под вопросом Radix прячет от чтения с экрана — потому `hidden`.
+    expect(screen.getByRole('dialog', { hidden: true }).contains(question)).toBe(false);
+    // Вопрос забирает фокус на безопасный ответ, а форма под ним недоступна — одной обёрткой.
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Продолжить редактирование' }));
     expect(screen.getByLabelText('поле').closest('[inert]')).not.toBeNull();
-    // Esc во внутреннем вопросе — «Продолжить редактирование», и фокус возвращается на крестик.
+    expect(exit.closest('[inert]')).toBe(screen.getByLabelText('поле').closest('[inert]'));
+    // Esc в вопросе — «Продолжить редактирование», и фокус возвращается на «Отмену».
     await escape();
     expect(asked()).toBe(false);
-    expect(document.activeElement).toBe(cross());
+    expect(document.activeElement).toBe(cancel());
+    expect(screen.getByLabelText('поле').closest('[inert]')).toBeNull();
 
     fireEvent.click(cancel());
     expect(asked()).toBe(true);
     expect(closed(onOpenChange)).toBe(false);
+  });
+
+  it('щелчок мимо вопроса — «Продолжить редактирование»: окно с набранным остаётся', async () => {
+    const onOpenChange = open({ isDirty: true });
+    fireEvent.change(screen.getByLabelText('поле'), { target: { value: 'набрано' } });
+    fireEvent.click(cancel());
+    expect(asked()).toBe(true);
+    await clickOutside();
+    expect(asked()).toBe(false);
+    expect(closed(onOpenChange)).toBe(false);
+    expect((screen.getByLabelText('поле') as HTMLInputElement).value).toBe('набрано');
+  });
+
+  it('«Закрыть» вопроса закрывает окно', () => {
+    const onOpenChange = open({ isDirty: true });
+    fireEvent.click(cancel());
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
+    expect(closed(onOpenChange)).toBe(true);
   });
 
   it('выход, позванный из функции-подвала, идёт той же охраной', () => {
@@ -195,13 +225,15 @@ describe('есть несохранённые правки (isDirty)', () => {
 describe('показан результат (acknowledge)', () => {
   it('выход один, и называет его диалог', async () => {
     const onOpenChange = open({ acknowledge: 'Понятно', footer: undefined });
-    expect(cross()).toBeNull();
+    expect(closeButton()).toBeNull();
     await clickOutside();
     await escape();
     expect(closed(onOpenChange)).toBe(false);
 
     const exit = screen.getByRole('button', { name: 'Понятно' });
     expect(document.activeElement).toBe(exit);
+    // «Понятно» — text, как в `ConfirmDialog` ([UI-75]): у кнопки нет заливки.
+    expect(exit.className).not.toMatch(/\bbg-(primary|secondary-container)\b/);
     fireEvent.click(exit);
     expect(closed(onOpenChange)).toBe(true);
   });
@@ -256,18 +288,16 @@ describe('Esc, которым распорядилось поле', () => {
 });
 
 describe('идёт запрос (busy)', () => {
-  it('мертвы клик мимо, Esc, крестик и выход подвала — и отклика нет', async () => {
+  it('мертвы клик мимо, Esc и выход подвала — и отклика нет', async () => {
     const onOpenChange = open({
       busy: true, isDirty: true,
       footer: requestClose => <><ModalExit /><button type="button" onClick={requestClose}>Выйти</button></>,
     });
     await clickOutside();
     await escape();
-    // Недоступны, но в фокусе остаться могут: `aria-disabled`, а не `disabled`.
-    expect(cross()!.getAttribute('aria-disabled')).toBe('true');
+    // Недоступна, но в фокусе остаться может: `aria-disabled`, а не `disabled`.
     expect(cancel().getAttribute('aria-disabled')).toBe('true');
     expect((cancel() as HTMLButtonElement).disabled).toBe(false);
-    fireEvent.click(cross()!);
     fireEvent.click(cancel());
     // Выход, переданный в подвал своей кнопкой: вызывающий `disabled` не ставил.
     fireEvent.click(screen.getByRole('button', { name: 'Выйти' }));
@@ -285,7 +315,7 @@ describe('ревью PR #1310', () => {
       <Modal open onOpenChange={onOpenChange} title="Окно" isDirty busy={busy}><input aria-label="поле" /></Modal>
     );
     const { rerender } = render(view(false));
-    fireEvent.click(cross()!);
+    fireEvent.click(closeButton()!);
     expect(asked()).toBe(true);
     rerender(view(true));
     expect(asked()).toBe(false);
@@ -301,20 +331,20 @@ describe('ревью PR #1310', () => {
 
   it('кольцо не остаётся на прежней кнопке, когда выход сменился', async () => {
     const onOpenChange = vi.fn();
-    const view = (withCancel: boolean) => (
-      <Modal open onOpenChange={onOpenChange} title="Окно" footer={withCancel ? <ModalExit /> : <span>подвал</span>}>
+    const view = () => (
+      <Modal open onOpenChange={onOpenChange} title="Окно" footer={<><ModalExit /><ModalExit>Закрыть</ModalExit></>}>
         <input aria-label="поле" />
       </Modal>
     );
-    const { rerender } = render(view(true));
+    const { rerender } = render(view());
     await clickOutside();
     const first = cancel();
     expect(first.hasAttribute('data-modal-hint')).toBe(true);
-    // «Отмена» стала недоступна — выходом остался крестик; сама кнопка на месте.
+    // «Отмена» стала недоступна — выходом осталась «Закрыть»; сама кнопка на месте.
     first.setAttribute('disabled', '');
-    rerender(view(true));
+    rerender(view());
     await clickOutside();
-    expect(cross()!.hasAttribute('data-modal-hint')).toBe(true);
+    expect(closeButton()!.hasAttribute('data-modal-hint')).toBe(true);
     expect(first.hasAttribute('data-modal-hint')).toBe(false);
   });
 
@@ -323,6 +353,121 @@ describe('ревью PR #1310', () => {
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape', isComposing: true });
     await act(async () => { await new Promise(r => setTimeout(r, 0)); });
     expect(closed(onOpenChange)).toBe(false);
+  });
+});
+
+describe('вид — basic dialog ([UI-75])', () => {
+  it('поверхность, форма и заголовок ролями MD3, без рамки и размытого затемнения', () => {
+    open();
+    const dialog = screen.getByRole('dialog');
+    const own = dialog.className.split(/\s+/);
+    expect(own).toEqual(expect.arrayContaining(['bg-surface-container-high', 'rounded-xl', 'shadow-elevation-3']));
+    expect(own.some(c => c === 'border' || c.startsWith('border-'))).toBe(false);
+    expect(screen.getByText('Окно', { selector: 'span' }).className).toContain('text-headline-small');
+    const scrim = [...document.querySelectorAll<HTMLElement>('.bg-scrim\\/32')];
+    expect(scrim).toHaveLength(1);
+    expect(scrim[0].style.backdropFilter).toBe('');
+  });
+
+  it('форма со своим выходом в теле не получает второго — «Закрыть» в подвале', () => {
+    open({ footer: undefined }, <form><input aria-label="поле" /><ModalExit /><button type="submit">Создать</button></form>);
+    expect(cancel()).toBeTruthy();
+    expect(closeButton()).toBeNull();
+  });
+
+  it('окно без действий и без выхода в теле — подвал «Закрыть» ставит само', () => {
+    open({ footer: undefined }, <p>Справка</p>);
+    expect(closeButton()).not.toBeNull();
+  });
+
+  it('выход ушёл из тела — подвал «Закрыть» вернулся', () => {
+    function Toggle() {
+      const [own, setOwn] = useState(true);
+      return (
+        <Modal open onOpenChange={() => {}} title="Окно">
+          <button type="button" onClick={() => setOwn(false)}>Убрать</button>
+          {own && <ModalExit />}
+        </Modal>
+      );
+    }
+    render(<Toggle />);
+    expect(closeButton()).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Убрать' }));
+    expect(closeButton()).not.toBeNull();
+  });
+
+  it('выход подвала окна, открытого из тела другого, — не выход тела нижнего', () => {
+    render(
+      <Modal open onOpenChange={() => {}} title="Нижнее">
+        <p>Справка</p>
+        <Modal open onOpenChange={() => {}} title="Верхнее" footer={<ModalExit />}><p>тело</p></Modal>
+      </Modal>,
+    );
+    // Своего подвала у нижнего нет, и «Отмена» верхнего его не заменяет.
+    expect(screen.getAllByRole('button', { name: 'Закрыть', hidden: true })).toHaveLength(1);
+  });
+});
+
+describe('черта под шапкой и над подвалом — только при прокрутке ([UI-75])', () => {
+  /** Шапка, подвал и часовые у краёв прокрутки тела. */
+  function parts() {
+    const dialog = screen.getByRole('dialog');
+    const scroll = dialog.querySelector<HTMLElement>('.overflow-y-auto')!;
+    return {
+      header: screen.getByText('Окно', { selector: 'span' }).parentElement!,
+      footer: cancel().closest<HTMLElement>('.border-t')!,
+      start: scroll.firstElementChild!, end: scroll.lastElementChild!, scroll,
+    };
+  }
+  const lined = (el: HTMLElement) => el.classList.contains('border-outline-variant');
+
+  it('тело помещается — черт нет', () => {
+    open();
+    const { header, footer } = parts();
+    expect(lined(header)).toBe(false);
+    expect(lined(footer)).toBe(false);
+  });
+
+  it('прокрутка: черта у того края, за которым есть содержимое', () => {
+    open();
+    const { header, footer, start, end } = parts();
+    // Середина длинного тела: часовые обоих краёв за пределами видимого.
+    act(() => { intersect(start, false); intersect(end, false); });
+    expect(lined(header)).toBe(true);
+    expect(lined(footer)).toBe(true);
+    // Докрутили до низа: над подвалом черты нет, под шапкой — есть.
+    act(() => intersect(end, true));
+    expect(lined(header)).toBe(true);
+    expect(lined(footer)).toBe(false);
+    // Вернулись к верху: черты под шапкой нет.
+    act(() => intersect(start, true));
+    expect(lined(header)).toBe(false);
+  });
+
+  it('тело `flushBody` прокручивает себя само — черта у окна стоит всегда', () => {
+    open({ flushBody: true }, <input aria-label="поле" />);
+    const header = screen.getByText('Окно', { selector: 'span' }).parentElement!;
+    expect(lined(header)).toBe(true);
+    expect(lined(cancel().closest<HTMLElement>('.border-t')!)).toBe(true);
+  });
+
+  it('часовые — по краям видимого тела: тело шага ложится между ними', () => {
+    function WithStep() {
+      const [step, setStep] = useState(false);
+      return (
+        <Modal open onOpenChange={() => {}} title="Окно" footer={<ModalExit />}>
+          <button type="button" onClick={() => setStep(true)}>Шаг</button>
+          {step && <WindowStep title="Шаг окна" onBack={() => setStep(false)}><p>тело шага</p></WindowStep>}
+        </Modal>
+      );
+    }
+    render(<WithStep />);
+    fireEvent.click(screen.getByRole('button', { name: 'Шаг' }));
+    const scroll = screen.getByRole('dialog').querySelector<HTMLElement>('.overflow-y-auto')!;
+    const body = screen.getByText('тело шага');
+    expect(scroll.contains(body)).toBe(true);
+    expect(scroll.firstElementChild!.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(scroll.lastElementChild!.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
   });
 });
 

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -194,11 +194,11 @@ export function ReconciliationEditor({ existing, onClose }: {
   }
 
   return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} wide
+    <Modal open onOpenChange={o => { if (!o) onClose(); }} wide busy={busy}
       title={existing ? 'Изменить сверку' : 'Новая сверка'}
       footer={
         <div className="flex items-center gap-2 justify-end">
-          <Button disabled={busy} onClick={onClose}>Отмена</Button>
+          <ModalExit />
           <Button variant="filled" disabled={!valid} loading={busy} onClick={save}>Сохранить</Button>
         </div>
       }>

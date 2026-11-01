@@ -295,14 +295,14 @@ export function QualityDocsPage() {
           <Modal open={createOpen} onOpenChange={setCreateOpen} title="Новый документ качества" wide>
             {createOpen && (
               <QualityDocForm allDocTypes={docTypes} scope={'System' as CatalogScope} scopeId={null}
-                onSaved={() => setCreateOpen(false)} onCancel={() => setCreateOpen(false)} />
+                onSaved={() => setCreateOpen(false)} />
             )}
           </Modal>
 
           <Modal open={!!editDoc} onOpenChange={o => { if (!o) setEditDoc(null); }} title="Документ качества" wide>
             {editDoc && (
               <QualityDocForm allDocTypes={docTypes} scope={editDoc.scope} scopeId={editDoc.scopeId ?? null} initial={editDoc}
-                onSaved={() => setEditDoc(null)} onCancel={() => setEditDoc(null)} />
+                onSaved={() => setEditDoc(null)} />
             )}
           </Modal>
 

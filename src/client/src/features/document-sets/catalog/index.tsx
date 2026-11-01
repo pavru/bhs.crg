@@ -766,7 +766,7 @@ export function CatalogEntryForm({
       </div>
       </div>
       <div className="shrink-0 px-6 py-3 border-t border-outline-variant flex justify-end gap-2">
-        <RecordWriteGate doorCode={ownDoorCode(typeId, allDocTypes)} onClose={onClose}>
+        <RecordWriteGate doorCode={ownDoorCode(typeId, allDocTypes)}>
         <Button type="submit" variant="filled" loading={isPending} disabled={isPending || recognizing || uploading}
           title={uploading ? "Дождитесь загрузки изображения" : undefined}>
           {isPending ? 'Сохранение…' : entry ? 'Сохранить' : 'Создать'}

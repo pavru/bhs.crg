@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Delete, Edit, FolderOpen, Layers } from '@/shared/ui/icons';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
@@ -149,7 +149,7 @@ export function SectionDetail() {
       <Modal open={addSetOpen} onOpenChange={setAddSetOpen} title="Новый комплект"
         footer={
           <div className="flex justify-end gap-2">
-            <Button variant="text" onClick={() => setAddSetOpen(false)}>Отмена</Button>
+            <ModalExit />
             <Button type="submit" form="add-set-form" variant="filled" loading={createSet.isPending}>
               {createSet.isPending ? 'Создание…' : 'Создать'}
             </Button>
@@ -167,7 +167,7 @@ export function SectionDetail() {
       <Modal open={renameOpen} onOpenChange={setRenameOpen} title="Переименовать раздел"
         footer={
           <div className="flex justify-end gap-2">
-            <Button variant="text" onClick={() => setRenameOpen(false)}>Отмена</Button>
+            <ModalExit />
             <Button type="submit" form="rename-section-form" variant="filled" loading={renameSection.isPending}>Сохранить</Button>
           </div>
         }>

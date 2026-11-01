@@ -1,4 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
+import { BOTTOM_SHEET_SURFACE, DIALOG_SCRIM, SHEET_TITLE } from '@/shared/ui/dialogSurface';
 import * as Popover from '@radix-ui/react-popover';
 import { Icon } from '@/shared/ui/Icon';
 import { ChevronLeft, ChevronRight, KeyboardArrowDown } from '@/shared/ui/icons';
@@ -80,10 +81,10 @@ export function InvoicePlaceField({ current, places, label, disabled, onPick }: 
     <Dialog.Root open={open} onOpenChange={setOpen}>
       {anchored(<Dialog.Trigger asChild>{trigger}</Dialog.Trigger>)}
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-scrim/32" />
+        <Dialog.Overlay className={DIALOG_SCRIM} />
         <Dialog.Content aria-describedby={undefined} data-modal-state="free"
-          className="fixed inset-x-0 bottom-0 z-50 max-h-[80dvh] flex flex-col overflow-hidden rounded-t-lg border-t border-outline-variant bg-surface p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] focus:outline-none shadow-elevation-2">
-          <Dialog.Title className="px-2 pt-1 pb-2 text-body-medium font-semibold text-on-surface">{label}</Dialog.Title>
+          className={`fixed inset-x-0 bottom-0 z-50 max-h-[80dvh] flex flex-col overflow-hidden ${BOTTOM_SHEET_SURFACE} p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] focus:outline-none`}>
+          <Dialog.Title className={`px-2 pt-1 pb-2 ${SHEET_TITLE}`}>{label}</Dialog.Title>
           {body}
         </Dialog.Content>
       </Dialog.Portal>

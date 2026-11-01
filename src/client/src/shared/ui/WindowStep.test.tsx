@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { Modal, ModalExit } from './Modal';
 import { WindowStep } from './WindowStep';
 import { useOwnWindow } from './modalControl';
@@ -105,7 +105,7 @@ describe('WindowStep', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Вынести' }));
     fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
     expect(screen.getByText('Закрыть без сохранения?')).toBeTruthy();
-    fireEvent.click(screen.getAllByRole('button', { name: 'Закрыть' }).find(b => !b.hasAttribute('data-modal-cross'))!);
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Закрыть' }));
     expect(onClose).not.toHaveBeenCalled();
     expect(title()).toBe('Строка');
   });

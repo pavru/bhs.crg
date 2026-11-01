@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Apartment, Close, Delete, Edit, Search } from '@/shared/ui/icons';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { EmptyState } from '@/shared/ui/EmptyState';
@@ -243,7 +243,7 @@ export function ConstructionsList() {
       <Modal open={createOpen} onOpenChange={setCreateOpen} title="Новая стройка"
         footer={
           <div className="flex justify-end gap-2">
-            <Button variant="text" onClick={() => setCreateOpen(false)}>Отмена</Button>
+            <ModalExit />
             <Button type="submit" form="create-construction-form" variant="filled" loading={createMutation.isPending}>
               {createMutation.isPending ? 'Создание…' : 'Создать'}
             </Button>

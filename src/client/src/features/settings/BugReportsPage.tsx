@@ -5,7 +5,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { BugReport, Check, ChevronRight, Close, ContentCopy, ImageIcon, KeyboardArrowDown, OpenInNew, Send, Undo, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { apiError } from '@/shared/utils/apiError';
 import { ListDetailShell, NavSearchInput, NavSection } from '@/shared/ui/ListDetailShell';
@@ -279,9 +279,9 @@ function ReportBody({ report, githubConfigured }: {
         title={githubConfigured ? 'Отправить в GitHub' : 'Токен GitHub не задан'}
         footer={
           <div className="flex items-center justify-end gap-2">
-            <Button variant="text" onClick={() => setForwardOpen(false)}>
+            <ModalExit>
               {githubConfigured ? 'Отмена' : 'Понятно'}
-            </Button>
+            </ModalExit>
             {githubConfigured && (
               <Button variant="filled" disabled={!issueTitle.trim()} loading={forward.isPending}
                 onClick={async () => {
@@ -359,7 +359,7 @@ function ReportBody({ report, githubConfigured }: {
         title="Исправлено в версии"
         footer={
           <div className="flex items-center justify-end gap-2">
-            <Button variant="text" onClick={() => setFixOpen(false)}>Отмена</Button>
+            <ModalExit />
             <Button variant="filled" disabled={!version.trim()} loading={markFixed.isPending}
               onClick={async () => {
                 setFixError(null);

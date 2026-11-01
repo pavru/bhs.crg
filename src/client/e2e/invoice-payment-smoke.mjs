@@ -183,9 +183,10 @@ async function openPaymentCalendar() {
  */
 async function leavePayment(dialog) {
   await dialog.getByRole('button', { name: 'Отмена' }).click();
-  const question = dialog.getByText('Закрыть без сохранения?');
+  // Вопрос — своё окно над окном оплаты ([UI-75]), а не блок внутри него.
+  const question = dialog.page().getByRole('alertdialog', { name: 'Закрыть без сохранения?' });
   await question.waitFor({ timeout: 2_000 }).then(
-    () => question.locator('xpath=..').getByRole('button', { name: 'Закрыть', exact: true }).click(),
+    () => question.getByRole('button', { name: 'Закрыть', exact: true }).click(),
     () => {});
   await dialog.waitFor({ state: 'hidden', timeout: 5_000 });
 }

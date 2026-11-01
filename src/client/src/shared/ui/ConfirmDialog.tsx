@@ -7,6 +7,7 @@ import { Checkbox } from './Checkbox';
 import { apiError } from '@/shared/utils/apiError';
 import { DISMISSAL, pointAtExit } from './modalDismissal';
 import { useHistoryLayer } from './historyLayers';
+import { COMPACT_DIALOG_PLACE, DIALOG_SCRIM, DIALOG_SURFACE, DIALOG_TITLE } from './dialogSurface';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -144,11 +145,11 @@ function ConfirmDialogBody({
     <Dialog.Root open onOpenChange={o => { if (!busy) onOpenChange(o); }}>
       <Dialog.Portal>
         <Dialog.Overlay
-          className="fixed inset-0 z-40 bg-scrim/32"
-          style={{ backdropFilter: 'blur(2px)' }}
+          className={DIALOG_SCRIM}
         />
         <Dialog.Content
-          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-xl p-6 w-full max-w-sm bg-surface border border-outline-variant focus:outline-none shadow-elevation-3"
+          // Basic dialog 384 ([UI-75]); на телефоне — им же, с отступами 24 от краёв, а не во весь экран.
+          className={`${COMPACT_DIALOG_PLACE} z-50 flex flex-col p-6 ${DIALOG_SURFACE} focus:outline-none`}
           ref={content}
           // Идёт запрос или показан отказ — окно держит человека, см. `DialogHold`.
           data-modal-state={busy ? 'busy' : rule ? 'result' : 'free'}
@@ -165,15 +166,17 @@ function ConfirmDialogBody({
             if (rule.outside === 'hint') pointAtExit(content.current, false);
           }}
         >
-          <Dialog.Title className="text-body-medium font-semibold mb-2 text-on-surface">
+          <Dialog.Title className={`${DIALOG_TITLE} mb-4 shrink-0`}>
             {blockedView ? (exitFailed ?? errorTitle) : title}
           </Dialog.Title>
 
+          {/* Длинный каскад прокручивается в теле: заголовок и кнопки остаются на месте. */}
+          <div className="min-h-0 overflow-y-auto">
           {blockedView ? (
             <>
-              <div className="mt-2 flex items-start gap-2.5 rounded-sm bg-error-container px-3 py-2.5 text-body-small text-on-surface">
+              <div className="flex items-start gap-2.5 rounded-sm bg-error-container px-3 py-2.5 text-body-small text-on-surface">
                 <Icon icon={Warning} size={18} className="shrink-0 mt-0.5 text-error" />
-                <div className="max-h-40 overflow-y-auto whitespace-pre-line min-w-0">{error ?? blocked}</div>
+                <div className="whitespace-pre-line min-w-0">{error ?? blocked}</div>
               </div>
               {exit?.note && <p className="mt-3 text-body-small text-on-surface-variant">{exit.note}</p>}
               {exit?.secondary && (
@@ -191,21 +194,22 @@ function ConfirmDialogBody({
           ) : (
             <>
               {description && (
-                <div className="text-body-small mb-3 text-on-surface-variant space-y-1">
+                <div className="text-body-medium text-on-surface-variant space-y-1">
                   {description}
                 </div>
               )}
 
               {requireCheckbox && (
-                <label className="flex items-start gap-2 mb-4 text-body-small text-on-surface-variant cursor-pointer select-none">
+                <label className={`flex items-start gap-2 ${description ? 'mt-4' : ''} text-body-small text-on-surface-variant cursor-pointer select-none`}>
                   <Checkbox checked={checked} onChange={setChecked} />
                   {requireCheckbox}
                 </label>
               )}
             </>
           )}
+          </div>
 
-          <div className={`flex gap-2 justify-end items-start ${blockedView || !requireCheckbox ? 'mt-4' : ''}`}>
+          <div className="shrink-0 flex gap-2 justify-end items-start pt-6">
             {blockedView ? (
               exit?.action ? (
                 <>
@@ -218,7 +222,7 @@ function ConfirmDialogBody({
               ) : (
                 // Фокус — на выход: кнопка подтверждения, на которой он стоял, с отказом исчезла, а Esc
                 // здесь больше не закрывает — без фокуса человеку с клавиатурой пришлось бы искать выход.
-                <Button variant="tonal" autoFocus data-modal-exit="" onClick={() => onOpenChange(false)}>Понятно</Button>
+                <Button variant="text" autoFocus data-modal-exit="" onClick={() => onOpenChange(false)}>Понятно</Button>
               )
             ) : (
               <>

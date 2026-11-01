@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Check, Close, Description, Layers, Undo } from '@/shared/ui/icons';
 import { Link } from 'react-router';
 import { Button } from '@/shared/ui/Button';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import {
@@ -98,7 +98,7 @@ export function ObservationReviewDialog({ observation, setPath, nameOf, onClose 
   }
 
   return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Разбор замечания"
+    <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Разбор замечания" busy={review.isPending}
       footer={
         // Решений три и «Отмена»: в обычное окно (и на телефон) в одну строку не встают — ряд
         // переносится, а не уходит под обрез окна (ревью PR #1386).
@@ -109,7 +109,7 @@ export function ObservationReviewDialog({ observation, setPath, nameOf, onClose 
             </Button>
           )}
           <span className="flex-1" />
-          <Button disabled={review.isPending} onClick={onClose}>Отмена</Button>
+          <ModalExit />
           <Button danger disabled={review.isPending} onClick={() => decide('Rejected')}>
             <Icon icon={Close} size={18} /> Отклонить
           </Button>

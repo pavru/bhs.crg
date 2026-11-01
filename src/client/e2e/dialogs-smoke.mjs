@@ -13,14 +13,15 @@
 // Требует поднятых фронта (:5173), бэка (:5000) и хранилища (Garage, :3900) — экран разбиения
 // читает страницы PDF из него. Плюс демо-данные, см. e2e/README.md.
 //
-// В CI гоняются 13 проверок из 16: три проверки разбиения PDF требуют РАСПОЗНАННЫХ страниц, то
+// В CI гоняются 16 проверок из 19: три проверки разбиения PDF требуют РАСПОЗНАННЫХ страниц, то
 // есть ИИ-движка, которого там нет (issue #872). Пропуск включается пустым `SMOKE_PDF_FILE_ID` и
-// называется вслух в итоге прогона — молчаливый превратил бы «13 из 16» в «13 из 13».
+// называется вслух в итоге прогона — молчаливый превратил бы «16 из 19» в «16 из 16».
 //
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/dialogs-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
 import { BASE, launchBrowser, login, createChecks, settled, until, closeDialog } from './harness.mjs';
+import { dialogLinesFollowBodyScroll } from './dialog-lines-checks.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
@@ -179,6 +180,9 @@ await check('materialize-dialog-opens', async () => {
   const t = await page.locator('[role=dialog]').last().innerText();
   if (!/Материализация источника/.test(t)) throw new Error(`не тот диалог: ${t.slice(0, 140)}`);
 });
+
+// Черта у окна при прокрутке тела — см. dialog-lines-checks.mjs.
+await check('dialog-lines-follow-body-scroll', () => dialogLinesFollowBodyScroll(page));
 
 await check('materialize-union-shows-variants', async () => {
   const dlg = page.locator('[role=dialog]').last();

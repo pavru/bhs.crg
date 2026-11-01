@@ -504,7 +504,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   Вынести в общие данные…
                 </Button>
               ) : <span />}
-              <Button variant="filled" onClick={() => setRowModal(null)}>Готово</Button>
+              <Button variant="filled" data-modal-exit="" onClick={() => setRowModal(null)}>Готово</Button>
             </div>
           }>
           <SuggestOwner type={field.typeId}><div className="space-y-3">
@@ -766,7 +766,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
                   Вынести в общие данные…
                 </Button>
               ) : <span />}
-              <Button variant="filled" onClick={() => setModalOpen(false)}>Готово</Button>
+              <Button variant="filled" data-modal-exit="" onClick={() => setModalOpen(false)}>Готово</Button>
             </div>
           }>
           {subfieldsBody}
@@ -984,7 +984,7 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
           <IconButton label="Редактировать" onClick={() => setModalOpen(true)} icon={Edit} />
         </div>
         <Modal open={modalOpen} onOpenChange={setModalOpen} wide title={field.title}
-          footer={<div className="flex justify-end"><Button variant="filled" onClick={() => setModalOpen(false)}>Готово</Button></div>}>
+          footer={<div className="flex justify-end"><Button variant="filled" data-modal-exit="" onClick={() => setModalOpen(false)}>Готово</Button></div>}>
           <div className="space-y-3">{bar}{activeEditor}</div>
         </Modal>
       </>

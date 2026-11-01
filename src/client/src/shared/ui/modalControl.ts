@@ -12,6 +12,14 @@ export interface ModalControl {
 
 export const ModalControlContext = createContext<ModalControl | null>(null);
 
+/**
+ * Отметка «у тела окна свой выход» (sharedui-md3-13, [UI-75]): `ModalExit` формы, нарисованной в теле, зовёт
+ * её, пока смонтирован, — и окно не ставит под формой второй выход, подвал «Закрыть». Возвращает снятие
+ * отметки. Подвал окна получает `null`: его `ModalExit` — выход самого подвала, а не тела, в том числе у окна,
+ * открытого из тела другого окна.
+ */
+export const ModalBodyExitContext = createContext<(() => () => void) | null>(null);
+
 export function useModalControl(): ModalControl {
   const control = useContext(ModalControlContext);
   if (!control) throw new Error('ModalExit живёт только внутри Modal');

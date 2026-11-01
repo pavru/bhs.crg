@@ -12,10 +12,16 @@ import { describe, expect, it } from 'vitest';
 
 const sources = import.meta.glob<string>(['/src/**/*.tsx', '!/src/**/*.test.*'], { query: '?raw', import: 'default', eager: true });
 
+/**
+ * Вопрос о несохранённом лежит над окном `Modal` и своего слоя не заводит: «Назад» при вопросе решает окно
+ * под ним — «Продолжить редактирование», как Esc (sharedui-md3-13, [UI-75]).
+ */
+const OVER_WINDOW = ['/src/shared/ui/LeaveQuestion.tsx'];
+
 describe('окна и «Назад» на телефоне', () => {
   it('окно на голом Dialog.Root называет свой выход для «Назад»', () => {
     const missing = Object.entries(sources)
-      .filter(([, text]) => /<Dialog\.Root\b/.test(text) && !text.includes('useHistoryLayer('))
+      .filter(([file, text]) => /<Dialog\.Root\b/.test(text) && !text.includes('useHistoryLayer(') && !OVER_WINDOW.includes(file))
       .map(([file]) => file);
     expect(missing).toEqual([]);
   });

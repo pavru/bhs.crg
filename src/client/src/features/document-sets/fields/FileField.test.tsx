@@ -106,8 +106,8 @@ describe('FilePreviewModal', () => {
     render(<FilePreviewModal open onOpenChange={onOpenChange} attachment={PDF} />);
 
     expect(await screen.findByRole('button', { name: 'Открыть во вкладке' })).toBeTruthy();
-    // Своя шапка окна убрана (её крестика нет): имя и выход — в строке просмотрщика.
-    expect(document.querySelector('[data-modal-cross]')).toBeNull();
+    // Своей шапки у окна нет: имя и выход — в строке просмотрщика, и второго «Закрыть» окно не ставит.
+    expect(screen.getAllByRole('button', { name: 'Закрыть' })).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });

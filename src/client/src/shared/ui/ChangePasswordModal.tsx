@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { useChangeMyPassword } from '@/shared/api/account';
 import { useAuth } from '@/shared/hooks/useAuth';
@@ -58,7 +58,7 @@ export function ChangePasswordModal({ open, onClose }: { open: boolean; onClose:
         {error && <p className="text-body-medium text-error">{error}</p>}
         {done && <p className="text-body-medium text-success">Пароль изменён</p>}
         <div className="flex justify-end gap-2 pt-1">
-          <Button variant="text" onClick={() => { reset(); onClose(); }}>Отмена</Button>
+          <ModalExit />
           <Button type="submit" variant="filled" loading={change.isPending}>
             {change.isPending ? 'Сохранение…' : 'Сменить'}
           </Button>

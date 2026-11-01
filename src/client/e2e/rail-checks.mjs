@@ -269,7 +269,8 @@ async function narrowChecks(page, check) {
       await dialog.waitFor();
       await dialog.getByRole('textbox').first().fill('Набранное');
       await page.goBack();
-      const ask = dialog.getByText('Закрыть без сохранения?');
+      // Вопрос — своё окно над окном ([UI-75]): ищется по странице, а не внутри окна.
+      const ask = page.getByRole('alertdialog', { name: 'Закрыть без сохранения?' });
       await ask.waitFor();
       stayed('окна с вводом');
       await page.goBack();
@@ -278,9 +279,7 @@ async function narrowChecks(page, check) {
       stayed('вопроса');
       await page.goBack();
       await ask.waitFor();
-      // «Закрыть» вопроса, а не крестик окна с тем же именем.
-      await dialog.locator('div', { has: page.getByText('Закрыть без сохранения?') }).last()
-        .getByRole('button', { name: 'Закрыть', exact: true }).click();
+      await ask.getByRole('button', { name: 'Закрыть', exact: true }).click();
       await dialog.waitFor({ state: 'detached' });
       stayed('закрытого окна');
 

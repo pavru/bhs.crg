@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { validatePath } from './userLibTree';
 
@@ -72,7 +72,7 @@ export function UserLibPathDialog({
         )}
 
         <div className="flex justify-end gap-2 pt-1">
-          <Button variant="text" onClick={onCancel}>Отмена</Button>
+          <ModalExit />
           <Button variant="filled" disabled={!!error}
             onClick={() => onSubmit(path.trim().replace(/\\/g, '/'))}>
             {mode === 'create' ? 'Создать' : 'Изменить'}

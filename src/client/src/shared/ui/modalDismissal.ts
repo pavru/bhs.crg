@@ -42,7 +42,7 @@ export interface Dismissal {
   outside: 'close' | 'hint' | 'dead';
   /** Esc: закрыть, перенести фокус на кнопку выхода или не отвечать. */
   escape: 'close' | 'focusExit' | 'dead';
-  /** Крестик и «Отмена»: закрыть, спросить «Закрыть без сохранения?» или не отвечать. */
+  /** Кнопка выхода («Отмена», «Закрыть») и «Назад»: закрыть, спросить «Закрыть без сохранения?» или не отвечать. */
   exit: 'close' | 'ask' | 'dead';
 }
 
@@ -99,7 +99,8 @@ export const paletteShown = () => document.querySelector('[data-modal-state="tra
 const rings = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
 
 /**
- * Показать выход окна: кнопку, помеченную `data-modal-exit`, иначе крестик (`data-modal-cross`).
+ * Показать выход окна — кнопку, помеченную `data-modal-exit`: «Отмена» или «Закрыть» подвала, крестика у
+ * окна нет ([UI-75]).
  * Кольцом, без движения: тишина неотличима от зависшего окна, а встряхивание читается как ошибка.
  *
  * <p>Одна на `Modal` и `ConfirmDialog` (ревью PR #1312): второй гасил Esc и промах в состоянии
@@ -113,12 +114,12 @@ export function pointAtExit(root: HTMLElement | null | undefined, focus: boolean
   // обещанием, которое нельзя исполнить.
   const reachable = (query: string) => [...(root?.querySelectorAll<HTMLElement>(query) ?? [])]
     .find(el => !el.closest('[inert]'));
-  const exit = reachable('[data-modal-exit]:not([disabled])') ?? reachable('[data-modal-cross]');
+  const exit = reachable('[data-modal-exit]:not([disabled])');
   if (!root || !exit) return;
   exit.scrollIntoView?.({ block: 'nearest' });
   if (focus) exit.focus();
   // Кольцо снимается со ВСЕХ кнопок окна, а не с этой: выход между двумя промахами мог смениться
-  // («Отмена» стала недоступна — остался крестик), а таймер на окно один.
+  // («Отмена» стала недоступна — осталась другая), а таймер на окно один.
   clearTimeout(rings.get(root));
   root.querySelectorAll('[data-modal-hint]').forEach(old => old.removeAttribute('data-modal-hint'));
   exit.setAttribute('data-modal-hint', '');

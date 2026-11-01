@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
@@ -65,7 +65,7 @@ export function PdfSourceDialog(
     <Modal open onOpenChange={open => { if (!open) onClose(); }} title="Распознать PDF (профиль)"
       footer={
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
+          <ModalExit />
           <Button type="button" variant="filled" onClick={handleSave} loading={create.isPending}
             disabled={!current}>
             {create.isPending ? 'Создание…' : 'Создать и распознать'}
