@@ -31,9 +31,7 @@ function Row({ action }: { action: RowAction }) {
     <>
       {action.icon && <span className={off || (action.active ? 'text-primary' : action.danger ? 'text-error' : 'text-on-surface-variant')}>{action.icon}</span>}
       <span className={`truncate ${color}`}>{action.label}</span>
-      {action.badge && (off
-        ? <span className={`ml-auto text-label-medium tabular-nums ${off}`}>{action.badge}</span>
-        : <CountText className="ml-auto">{action.badge}</CountText>)}
+      {action.badge && <CountText disabled={action.disabled} className="ml-auto">{action.badge}</CountText>}
     </>
   );
 }

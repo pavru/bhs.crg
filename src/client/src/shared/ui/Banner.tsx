@@ -42,12 +42,18 @@ interface BannerProps {
   icon?: IconDef;
   /** До двух text-действий; больше — не banner, а окно или экран. */
   actions?: readonly BannerAction[];
+  /**
+   * Срочное: текст — `alert`, а не `status`. Banner обычно появляется сразу с текстом, а такую вставку
+   * `status` дикторы пропускают молча — работающий на прежних данных о них не узнал бы. По умолчанию —
+   * у тона `error`.
+   */
+  urgent?: boolean;
   className?: string;
   'data-testid'?: string;
   children: ReactNode;
 }
 
-export function Banner({ tone, icon, actions = [], className = '', 'data-testid': testId, children }: BannerProps) {
+export function Banner({ tone, icon, actions = [], urgent = tone === 'error', className = '', 'data-testid': testId, children }: BannerProps) {
   const t = TONE[tone];
   return (
     <div data-testid={testId} className={`@container shrink-0 bg-surface border-b border-outline-variant ${className}`}>
@@ -56,7 +62,7 @@ export function Banner({ tone, icon, actions = [], className = '', 'data-testid'
           <span className={`shrink-0 grid place-items-center size-10 rounded-full ${t.circle}`}>
             <Icon icon={icon ?? t.icon} size={24} />
           </span>
-          <p role="status" className="flex-1 self-center text-body-medium text-on-surface">{children}</p>
+          <p role={urgent ? 'alert' : 'status'} className="flex-1 self-center text-body-medium text-on-surface">{children}</p>
         </div>
         {actions.length > 0 && (
           <div className="flex shrink-0 justify-end gap-2">

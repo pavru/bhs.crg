@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { Add, Check, Delete, Edit, FilterAlt, FunctionIcon, Layers, RouteIcon, SwapVert } from '@/shared/ui/icons';
+import { Add, Check, Delete, Edit, FilterAlt, FunctionIcon, Layers, RouteIcon, SwapVert, type IconDef } from '@/shared/ui/icons';
 import { Modal } from '@/shared/ui/Modal';
 import { IconButton } from '@/shared/ui/Button';
 import {
@@ -15,6 +15,7 @@ import { SortSpecDialog } from './SortSpecDialog';
 import type { ColumnExprDef, ComputedColumn, DataSetProcessingTemplate, RowFilterDef, SortSpec } from '@/shared/api/types';
 import { CountText } from '@/shared/ui/CountText';
 import { StatusText } from '@/shared/ui/StatusText';
+import { Tooltip } from '@/shared/ui/Tooltip';
 
 const FIELD_CLS = 'border border-outline-variant rounded-sm px-3 py-1.5 text-body-medium bg-surface text-on-surface';
 
@@ -210,15 +211,9 @@ function TemplateRow({ template }: { template: DataSetProcessingTemplate }) {
             {template.sheetOrPath && (
               <StatusText tone="primary" icon={RouteIcon} title={template.sheetOrPath}>Extraction</StatusText>
             )}
-            {filterCount > 0 && (
-              <StatusText tone="primary" icon={FilterAlt}>{filterCount}</StatusText>
-            )}
-            {transformCount > 0 && (
-              <StatusText tone="primary" icon={FunctionIcon}>{transformCount}</StatusText>
-            )}
-            {sortCount > 0 && (
-              <StatusText tone="primary" icon={SwapVert}>{sortCount}</StatusText>
-            )}
+            <StepCount icon={FilterAlt} what="Условий отбора" count={filterCount} />
+            <StepCount icon={FunctionIcon} what="Вычисляемых колонок" count={transformCount} />
+            <StepCount icon={SwapVert} what="Ключей сортировки" count={sortCount} />
           </div>
         </div>
         <IconButton label="Редактировать" onClick={() => setEditing(e => !e)} icon={Edit} />
@@ -288,5 +283,21 @@ export function ProcessingTemplatesDialog({ onClose }: { onClose: () => void }) 
         </button>
       )}
     </Modal>
+  );
+}
+
+/**
+ * Число шагов обработки — знак шага и `CountText` ([UI-45], [UI-74]): счётчик тона не несёт, а что
+ * считается, говорит знак и подсказка.
+ */
+function StepCount({ icon, what, count }: { icon: IconDef; what: string; count: number }) {
+  if (count === 0) return null;
+  return (
+    <Tooltip content={`${what}: ${count}`}>
+      <span className="inline-flex items-center gap-1 text-on-surface-variant">
+        <Icon icon={icon} size={18} className="shrink-0" />
+        <CountText>{count}</CountText>
+      </span>
+    </Tooltip>
   );
 }

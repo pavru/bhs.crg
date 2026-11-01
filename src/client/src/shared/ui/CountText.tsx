@@ -8,14 +8,17 @@ import type { ReactNode } from 'react';
  *
  * <p>Число на знаке, пункте навигации и вкладке — `Badge`.</p>
  */
-export function CountText({ onContainer = false, className = '', children }: {
+export function CountText({ onContainer = false, disabled = false, className = '', children }: {
   /** Строка выделена заливкой контейнера (`primary-container`) — число её цветом текста, иначе сливается. */
   onContainer?: boolean;
+  /** Недоступный пункт — цвет недоступного текста MD3 (`on-surface` 38 %), как у его подписи. */
+  disabled?: boolean;
   className?: string;
   children: ReactNode;
 }) {
+  const color = disabled ? 'text-on-surface/38' : onContainer ? 'text-on-primary-container' : 'text-on-surface-variant';
   return (
-    <span className={`text-label-medium tabular-nums ${onContainer ? 'text-on-primary-container' : 'text-on-surface-variant'} ${className}`}>
+    <span className={`text-label-medium tabular-nums ${color} ${className}`}>
       {children}
     </span>
   );

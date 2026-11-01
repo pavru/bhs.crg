@@ -6,7 +6,9 @@
 // прозрачности (`/N` — подложка строки или выделение, а не сообщение). Имён `*-subtle` в коде больше нет —
 // вернувшиеся ловит `legacy-class`.
 const CONTAINER_FILL = /(?<![\w:/-])bg-(?:error|warning|success|primary|secondary|tertiary)-container(?![\w/-])/;
-const OUTLINE = /(?<![\w:/-])border(?![\w-]*(?:-0|-none|-transparent|-dashed)\b)/;
+// Рамка — с шириной: `border`, `border-2`, `border-b`, `border-x-2`. Один цвет (`border-warning`) рамки в
+// Tailwind v4 не рисует — ширина у элемента 0, и плашкой его это не делает.
+const OUTLINE = /(?<![\w:/-])border(?:-[xytrblse])?(?:-(?:[1-9]\d*|\[[^\]\s]+\]))?(?![\w[/-])/;
 const ROUNDED = /(?<![\w:-])rounded(?!-none\b)(?:-|(?=[\s'"`}]))/;
 // Не плашка: подпись-пометка (`text-label-*` — пилюля, территория `badge`) и пунктир — место для
 // перетаскивания, а не сообщение.

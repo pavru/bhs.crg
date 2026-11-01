@@ -11,7 +11,8 @@ describe('храповик интерфейса: notice-plaque', () => {
       '<div className="bg-warning-container border rounded-md px-3 py-2">Счёт изменили</div>',
       '<p className={`rounded-sm border border-error ${x} bg-error-container`}>Не сохранилось</p>',
       '<section className="bg-primary-container border-b rounded-lg">Идёт исправление</section>',
-    ].join(' '))).toBe(3);
+      '<div className="bg-success-container border-x-2 border-success rounded-md">Готово</div>',
+    ].join(' '))).toBe(4);
     expect(RULES.find(r => r.id === 'notice-plaque').instead).toContain('Banner');
   });
 
@@ -23,6 +24,8 @@ describe('храповик интерфейса: notice-plaque', () => {
       '<div className="bg-primary-container border-2 border-dashed rounded-md">Перетащите файл</div>',
       '<div className="hover:bg-warning-container border rounded-md">строка</div>',
       '<div className="bg-warning-container rounded-md">без рамки</div>',
+      '<div className="bg-warning-container border-warning rounded-md">цвет рамки без ширины</div>',
+      '<div className="bg-warning-container border-0 rounded-md">рамка снята</div>',
       '<Banner tone="warning" actions={[]}>Счёт изменили</Banner>',
     ].join(' '))).toBe(0);
   });

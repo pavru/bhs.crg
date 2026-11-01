@@ -2,10 +2,12 @@
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { Archive } from './icons';
+import { Archive, Save } from './icons';
 import { Checkbox } from './Checkbox';
 import { PageHeader } from './PageHeader';
 import { Badge } from './Badge';
+import { NavItem } from './ListDetailShell';
+import { ValueIssueCount } from './ValueIssue';
 import { CountText } from './CountText';
 import { StatusText } from './StatusText';
 import { TabPanel, Tabs, type TabItem } from './Tabs';
@@ -89,6 +91,34 @@ describe('StatusText', () => {
     expect(container.querySelector('svg')).not.toBeNull();
   });
 
+  it('свой знак залит только у тонов со знаком: quiet с Save — контуром', () => {
+    const glyph = (tone: 'quiet' | 'success') =>
+      render(<StatusText tone={tone} icon={Save}>сохранено</StatusText>).container.querySelector('svg')!.innerHTML;
+    const quiet = glyph('quiet');
+    cleanup();
+    expect(glyph('success')).not.toBe(quiet);
+  });
+
+  it('соседние пометки делит точка; отступ — у точки, отступ места не перебит', () => {
+    const { container } = render(<div>
+      <StatusText tone="error" className="ml-1.5">2</StatusText>
+      <StatusText tone="warning" className="ml-1.5">1</StatusText>
+    </div>);
+    for (const mark of container.querySelectorAll('div > span')) {
+      expect(mark.className).toContain("[&+&]:before:content-['·']");
+      expect(mark.className).not.toMatch(/\[&\+&\]:m[se]-/);
+      expect(mark.className).toContain('ml-1.5');
+    }
+  });
+
+  it('ValueIssueCount — пометка warning с числом; ноль — ничего', () => {
+    const { container, rerender } = render(<ValueIssueCount count={4} />);
+    expect(container.querySelector('span')!.className).toContain('text-warning');
+    expect(container.textContent).toBe('4');
+    rerender(<ValueIssueCount count={0} />);
+    expect(container.innerHTML).toBe('');
+  });
+
   it('neutral — без знака', () => {
     const { container } = render(<StatusText>черновик</StatusText>);
     expect(container.querySelector('svg')).toBeNull();
@@ -112,11 +142,41 @@ describe('CountText и Badge', () => {
     expect(screen.getByRole('button', { name: 'Замечания 1200' })).toBeTruthy();
   });
 
+  it('CountText недоступного пункта — цвет недоступного текста', () => {
+    const { container } = render(<CountText disabled>2</CountText>);
+    expect(container.querySelector('span')!.className).toContain('text-on-surface/38');
+  });
+
   it('Badge без числа — точка, скрытая от диктора; цвет — только error', () => {
     const { container } = render(<Badge />);
     const dot = container.querySelector('span')!;
     expect(dot.getAttribute('aria-hidden')).toBe('true');
     expect(dot.className).toContain('bg-error');
+  });
+});
+
+describe('NavItem: число и отметки', () => {
+  const shownNumber = (props: Partial<Parameters<typeof NavItem>[0]>) =>
+    render(<NavItem icon={null} label="Раздел" onClick={() => {}} {...props} />).container.querySelector('.tabular-nums')!;
+
+  it('count — CountText; у выбранного пункта цветом его контейнера', () => {
+    expect(shownNumber({ count: 5 }).className).toContain('text-on-surface-variant');
+    cleanup();
+    expect(shownNumber({ count: 5, active: true }).className).toContain('text-on-primary-container');
+  });
+
+  it('progress — пометка: 100 % success, иначе neutral', () => {
+    expect(shownNumber({ progress: 100 }).className).toContain('text-success');
+    cleanup();
+    expect(shownNumber({ progress: 40 }).className).toContain('text-on-surface-variant');
+  });
+
+  it('alert — warning, расхождение системы — error; больше 99 — «99+»', () => {
+    expect(shownNumber({ alert: 3 }).className).toContain('text-warning');
+    cleanup();
+    const danger = shownNumber({ alert: 120, alertDanger: true });
+    expect(danger.className).toContain('text-error');
+    expect(danger.textContent).toBe('99+');
   });
 });
 

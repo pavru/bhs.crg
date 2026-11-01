@@ -19,7 +19,8 @@ import { apiError } from '@/shared/utils/apiError';
  * без права правки, проведённая накладная, счёт закрытого периода. Действие называет только сама
  * форма, своей кнопкой, там, где оно есть.</p>
  *
- * <p>Вид — `Banner` ([UI-73]): состояние области, пока оно длится.</p>
+ * <p>Вид — `Banner` ([UI-73]): состояние области, пока оно длится. Срочный (`alert`): полоса встаёт
+ * сразу с текстом, и без этого диктор о прежнем состоянии промолчал бы.</p>
  */
 export function RereadFailedNotice({ what, error, retrying, onRetry }: {
   /** «Счёт не перечитался» / «Накладная не перечиталась». */
@@ -29,7 +30,7 @@ export function RereadFailedNotice({ what, error, retrying, onRetry }: {
   onRetry: () => void;
 }) {
   return (
-    <Banner tone="warning" data-testid="reread-failed"
+    <Banner tone="warning" urgent data-testid="reread-failed"
       actions={[{ label: 'Повторить', icon: Refresh, loading: retrying, onClick: onRetry }]}>
       {what}: {apiError(error, 'сервер не ответил')}. На экране — прежнее состояние: его могли тем
       временем изменить. Набранное не пропало.

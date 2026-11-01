@@ -19,7 +19,7 @@ import { Tooltip } from './Tooltip';
  * <p>У `success`, `warning` и `error` — ведущий залитый знак: состояние не передаётся только цветом.
  * `icon` его заменяет — так разные смыслы одного тона различаются знаком, а не одним словом (отчёт
  * проверки связок). Знак 18 px — ступень шкалы [UI-60] «в тексте и строке». Соседние пометки разделяет «·»
- * — сама пометка, без обёртки.</p>
+ * — сама пометка, без обёртки; отступ — у самой точки, а свой отступ места (`ml-1.5`) ему не мешает.</p>
  *
  * <p>Число у подписи — `CountText`, на знаке — `Badge`: пометка счётчиком не бывает.</p>
  */
@@ -34,9 +34,13 @@ const TONE: Record<StatusTone, { text: string; icon?: FilledIconDef }> = {
   quiet: { text: 'text-on-surface-variant' },
 };
 
-/** Знак залитым, если у него есть заливка в наборе, — иначе контуром. */
-function Mark({ icon }: { icon: IconDef }) {
-  return icon.fill
+/**
+ * Знак залитым — у тонов со своим знаком (`success`, `warning`, `error`), если у знака есть заливка; у
+ * остальных контуром: заливку теперь имеют и общие знаки (`Warning`, `Save`), и пометка `quiet` со знаком
+ * `Warning` выглядела бы предупреждением.
+ */
+function Mark({ icon, filled }: { icon: IconDef; filled: boolean }) {
+  return filled && icon.fill
     ? <Icon icon={icon as FilledIconDef} filled size={18} className="shrink-0" />
     : <Icon icon={icon} size={18} className="shrink-0" />;
 }
@@ -54,8 +58,8 @@ export function StatusText({ tone = 'neutral', icon, title, className = '', chil
     <Tooltip content={title}>
       <span
         className={`shrink-0 inline-flex items-center gap-1 text-label-medium whitespace-nowrap ${t.text} ` +
-          `[&+&]:ms-1 [&+&]:before:content-['·'] [&+&]:before:text-on-surface-variant ${className}`}>
-        {mark && <Mark icon={mark} />}
+          `[&+&]:before:content-['·'] [&+&]:before:pe-1 [&+&]:before:text-on-surface-variant ${className}`}>
+        {mark && <Mark icon={mark} filled={!!t.icon} />}
         {children}
       </span>
     </Tooltip>

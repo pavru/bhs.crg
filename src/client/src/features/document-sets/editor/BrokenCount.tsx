@@ -15,7 +15,7 @@ export function BrokenCount({ count, nav = false, className = '' }: { count: num
   if (!nav) return <StatusText tone="error" title={title} className={`tabular-nums ${className}`}>{count}</StatusText>;
   return (
     <Tooltip content={title}>
-      <span className={className}><Badge count={count} label={title} /></span>
+      <Badge count={count} label={title} className={className} />
     </Tooltip>
   );
 }

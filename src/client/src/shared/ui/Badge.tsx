@@ -1,3 +1,5 @@
+import type { ComponentPropsWithRef } from 'react';
+
 /**
  * Badge MD3 ([UI-74]): точка непрочитанного или число на знаке, пункте навигации и вкладке.
  *
@@ -15,15 +17,16 @@
 /** Больше этого — «999+». */
 const BADGE_MAX = 999;
 
-export function Badge({ count, label, className = '' }: {
+export function Badge({ count, label, className = '', ...rest }: {
   count?: number;
   /** Что читает диктор вместо голого числа («устарели: 3»); по умолчанию — само число. */
   label?: string;
   className?: string;
-}) {
-  if (count === undefined) return <span aria-hidden className={`size-1.5 rounded-full bg-error ${className}`} />;
+} & Omit<ComponentPropsWithRef<'span'>, 'children'>) {
+  // `rest` — ссылка и обработчики подсказки: `<Tooltip><Badge …/></Tooltip>` без обёртки.
+  if (count === undefined) return <span aria-hidden {...rest} className={`size-1.5 rounded-full bg-error ${className}`} />;
   return (
-    <span className={`inline-grid place-items-center h-4 min-w-4 px-1 rounded-full bg-error text-on-error text-label-small tabular-nums ${className}`}>
+    <span {...rest} className={`inline-grid place-items-center h-4 min-w-4 px-1 rounded-full bg-error text-on-error text-label-small tabular-nums ${className}`}>
       <span aria-hidden>{count > BADGE_MAX ? `${BADGE_MAX}+` : count}</span>
       <span className="sr-only">{label ?? count}</span>
     </span>
