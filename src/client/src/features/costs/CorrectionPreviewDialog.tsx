@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Check, ChevronRight, KeyboardArrowDown, Refresh, Warning } from '@/shared/ui/icons';
-import { Button } from '@/shared/ui/Button';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { apiError } from '@/shared/utils/apiError';
 import { formatDate } from '@/shared/format/format';
 import type { CorrectionPreview, CorrectionRecordView } from '@/shared/api/invoiceCorrection';
@@ -42,9 +41,9 @@ export function CorrectionPreviewDialog({ preview, pending, error, reason, note,
         <>
           <ModalExit>Вернуться к правке</ModalExit>
           {shown && (
-            <Button variant="filled" icon={<Icon icon={Check} size={18} />} loading={writing} onClick={() => onWrite(shown)}>
+            <ModalPrimary icon={<Icon icon={Check} size={18} />} loading={writing} onClick={() => onWrite(shown)}>
               Записать исправление
-            </Button>
+            </ModalPrimary>
           )}
         </>
       )}>

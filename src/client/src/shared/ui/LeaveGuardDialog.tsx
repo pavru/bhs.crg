@@ -1,5 +1,4 @@
-import { Modal, ModalExit } from './Modal';
-import { Button } from './Button';
+import { Modal, ModalAction, ModalExit, ModalPrimary } from './Modal';
 
 /**
  * MD3-диалог-гард при уходе с несохранёнными правками: с выбранного элемента (`useDirtyGuard`) либо
@@ -20,14 +19,13 @@ export function LeaveGuardDialog({ open, saving, saveBlocked, onSave, onDiscard,
     // Идущее сохранение сильнее: `busy` гасит и их, и кнопку (issue #1236).
     <Modal open={open} onOpenChange={o => { if (!o) onCancel(); }} title="Несохранённые изменения"
       nothingToLose busy={saving}
-      footer={
-        <div className="flex items-center justify-end gap-2">
-          <ModalExit />
-          <Button variant="tonal" onClick={onDiscard} disabled={saving}>Не сохранять</Button>
-          <Button variant="filled" onClick={onSave} loading={saving} disabled={!!saveBlocked} title={saveBlocked}>
-            Сохранить и перейти
-          </Button>
-        </div>
+      footer={<>
+        <ModalExit />
+        <ModalAction variant="tonal" onClick={onDiscard}>Не сохранять</ModalAction>
+        <ModalPrimary onClick={onSave} loading={saving} disabled={!!saveBlocked} title={saveBlocked}>
+          Сохранить и перейти
+        </ModalPrimary>
+      </>
       }>
       <p className="text-body-medium text-on-surface-variant">
         Есть несохранённые изменения. Сохранить их перед переходом к другому элементу?

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useCreateWorkType, useUnitChoices, type WorkTypeChoice } from '@/shared/api/planningMatches';
-import { Button } from '@/shared/ui/Button';
-import { ModalExit } from '@/shared/ui/Modal';
+import { ModalExit, ModalNote, ModalPrimary } from '@/shared/ui/Modal';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
 import { useSnackbar } from '@/shared/ui/Snackbar';
@@ -50,13 +49,11 @@ export function NewWorkTypeStep({ sourceUnit, onBack, onCreated }: {
 
   return (
     <WindowStep title="Новый вид работы" onBack={onBack} busy={create.isPending}
-      footer={(
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {missing && <span className="mr-auto text-body-small text-on-surface-variant">{missing}</span>}
-          <ModalExit>Назад</ModalExit>
-          <Button variant="filled" disabled={missing !== null} loading={create.isPending} onClick={submit}>Завести и выбрать</Button>
-        </div>
-      )}>
+      footer={<>
+        {missing && <ModalNote>{missing}</ModalNote>}
+        <ModalExit>Назад</ModalExit>
+        <ModalPrimary disabled={missing !== null} loading={create.isPending} onClick={submit}>Завести и выбрать</ModalPrimary>
+      </>}>
       <div className="space-y-3">
         <p className="text-body-medium text-on-surface-variant">Вид работы появится в классификаторе для всех смет и учёта работ.</p>
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">

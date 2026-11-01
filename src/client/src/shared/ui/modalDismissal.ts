@@ -111,9 +111,9 @@ const rings = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
  */
 export function pointAtExit(root: HTMLElement | null | undefined, focus: boolean) {
   // Кнопка под вопросом «Закрыть без сохранения?» недоступна (`inert`) — кольцо на ней было бы
-  // обещанием, которое нельзя исполнить.
+  // обещанием, которое нельзя исполнить. Скрытая — выход формы под шагом или подвала во весь экран — тоже.
   const reachable = (query: string) => [...(root?.querySelectorAll<HTMLElement>(query) ?? [])]
-    .find(el => !el.closest('[inert]'));
+    .find(el => !el.closest('[inert]') && !el.closest('[hidden]'));
   const exit = reachable('[data-modal-exit]:not([disabled])');
   if (!root || !exit) return;
   exit.scrollIntoView?.({ block: 'nearest' });

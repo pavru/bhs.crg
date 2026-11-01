@@ -1,11 +1,12 @@
 import { useContext, useId, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Modal } from './Modal';
-import { WindowStepContext, type WindowStepHost } from './modalControl';
+import { ModalBarContext, WindowStepContext, type WindowStepHost } from './modalControl';
 
 interface WindowStepProps {
   title: string;
-  /** Подвал шага. «Отмена» — `ModalExit`: внутри окна она возвращает к форме, а не закрывает окно. */
+  /** Подвал шага — кнопки с ролью, как у окна (`Modal.footer`). «Отмена» — `ModalExit`: внутри окна она
+   *  возвращает к форме, а не закрывает окно; во весь экран её место — стрелка «Назад». */
   footer?: ReactNode;
   children: ReactNode;
   /** Уйти с шага — к форме окна (или закрыть окно, если шаг сам стал окном). */
@@ -58,7 +59,8 @@ function HostedStep({ host, title, footer, children, onBack, busy = false, isDir
   return (
     <>
       {slot?.body && createPortal(children, slot.body)}
-      {slot?.footer && footer && createPortal(footer, slot.footer)}
+      {slot?.footer && footer && createPortal(
+        <ModalBarContext.Provider value={host.bar?.(id) ?? null}>{footer}</ModalBarContext.Provider>, slot.footer)}
     </>
   );
 }

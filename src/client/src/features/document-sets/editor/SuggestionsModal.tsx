@@ -1,5 +1,4 @@
-import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import type { LinkSuggestion } from '@/shared/api/qualityDocs';
@@ -22,14 +21,13 @@ export function SuggestionsModal({ suggestions, setSuggestions, suggestSel, setS
     <Modal open={suggestions !== null} onOpenChange={o => { if (!o) setSuggestions(null); }}
       title="Предложенные связи" wide
       footer={
-        <div className="flex items-center gap-2">
-          <Button variant="filled" onClick={applySuggestions} loading={applying}
+        <>
+          <ModalPrimary onClick={applySuggestions} loading={applying}
             disabled={suggestSel.size === 0}>
             {applying ? 'Применение...' : `Применить выбранные (${suggestSel.size})`}
-          </Button>
+          </ModalPrimary>
           <ModalExit />
-        </div>
-      }>
+        </>}>
       {suggestions && suggestions.length === 0 ? (
         <p className="text-body-medium text-on-surface-variant py-4 text-center">
           Подходящих документов не найдено. Свяжите несколько материалов вручную — дальше похожие предложатся автоматически.

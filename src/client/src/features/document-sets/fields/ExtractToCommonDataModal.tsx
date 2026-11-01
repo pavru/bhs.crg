@@ -1,7 +1,7 @@
 import { useContext, useState, useEffect, useMemo } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Close, LinkIcon, Unarchive, Warning } from '@/shared/ui/icons';
-import { ModalExit } from '@/shared/ui/Modal';
+import { ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -271,14 +271,13 @@ export function ExtractToCommonDataModal({
     <WindowStep onBack={onClose} busy={busy}
       title={`Вынести в общие данные — ${compositeType.name}`}
       footer={
-        <div className="flex justify-end gap-2">
+        <>
           <ModalExit />
-          <Button variant="filled" onClick={submit} loading={busy}
+          <ModalPrimary onClick={submit} loading={busy}
             disabled={busy || blocked || !name.trim()}>
             {duplicate ? 'Всё равно создать новую' : 'Создать запись'}
-          </Button>
-        </div>
-      }>
+          </ModalPrimary>
+        </>}>
       <div className="space-y-4">
         {blocking.length > 0 && (
           <Note tone="danger" icon={<Icon icon={Warning} size={18} />}

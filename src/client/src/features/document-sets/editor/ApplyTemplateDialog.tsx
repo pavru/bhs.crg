@@ -1,8 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { CheckCircle, ErrorIcon } from '@/shared/ui/icons';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { useListBindingTemplates } from '@/shared/api/bindingTemplates';
 import { useAvailableDataSetFiles, useCreateDataSetBinding } from '@/shared/api/datasets';
 import { parseSourceColumnNames } from '@/shared/api/datasetHelpers';
@@ -164,19 +163,13 @@ export function ApplyTemplateDialog({
       onOpenChange={o => { if (!o) onClose(); }}
       title="Применить шаблон данных"
       wide
-      footer={
-        <div className="flex justify-end gap-2">
-          <ModalExit />
-          <button
-            onClick={handleApply}
-            disabled={!selectedTemplate || !selectedSource || create.isPending}
-            className="flex items-center gap-2 px-4 py-2 rounded-sm text-body-medium font-medium text-on-primary disabled-container bg-primary"
-          >
-            {create.isPending && <CircularProgress size={18} />}
-            Создать привязку
-          </button>
-        </div>
-      }
+      footer={<>
+        <ModalExit />
+        <ModalPrimary onClick={handleApply} disabled={!selectedTemplate || !selectedSource}
+          loading={create.isPending}>
+          Создать привязку
+        </ModalPrimary>
+      </>}
     >
       <div className="space-y-5">
         {/* Выбор шаблона */}

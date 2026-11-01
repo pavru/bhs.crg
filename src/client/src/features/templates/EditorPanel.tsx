@@ -8,7 +8,7 @@ import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { markTemplateModel } from '@/shared/ui/typstDispatchCompletion';
 import { Button } from '@/shared/ui/Button';
 import { SplitButton } from '@/shared/ui/SplitButton';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { ruCount } from '@/shared/utils/pluralize';
@@ -104,14 +104,13 @@ function NewVersionDialog({ nextVersion, saving, onCancel, onConfirm }: {
   return (
     <Modal open onOpenChange={o => { if (!o) onCancel(); }} title="Сохранить как новую версию"
       footer={
-        <div className="flex justify-end gap-2">
+        <>
           <ModalExit />
-          <Button type="button" variant="filled" loading={saving} icon={<Icon icon={CallSplit} size={18} />}
+          <ModalPrimary loading={saving} icon={<Icon icon={CallSplit} size={18} />}
             onClick={() => onConfirm(comment)}>
             {saving ? 'Создание…' : `Создать v${nextVersion}`}
-          </Button>
-        </div>
-      }>
+          </ModalPrimary>
+        </>}>
       <div className="space-y-4 px-1">
         <p className="text-body-medium text-on-surface-variant">
           Будет создана <strong>версия v{nextVersion}</strong>. Текущая версия сохранится в истории.

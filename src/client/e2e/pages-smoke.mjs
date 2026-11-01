@@ -216,7 +216,9 @@ await check('document-page-browser-back-asks-on-phone', async () => {
     await page.waitForTimeout(300);
     if (!(await ask.isVisible())) throw new Error('«Назад» при вопросе ухода убрала вопрос');
     if (new URL(page.url()).pathname !== DOC_PATH) throw new Error(`«Назад» при вопросе увела: ${page.url()}`);
-    await ask.getByRole('button', { name: 'Не сохранять' }).click();
+    // Окно во весь экран: прочие ответы — пунктами «⋮» шапки ([UI-75]).
+    await ask.getByRole('button', { name: 'Другие действия' }).click();
+    await page.getByRole('menuitem', { name: 'Не сохранять' }).click();
     await page.waitForURL(url => url.pathname === `/document-sets/${CONSTRUCTION}/sets/${SET}`, { timeout: 5000 })
       .catch(() => { throw new Error(`«Не сохранять» увело не к комплекту: ${page.url()}`); });
   } finally {

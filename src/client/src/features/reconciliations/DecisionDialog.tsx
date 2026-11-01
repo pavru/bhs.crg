@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Modal, ModalAction, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import { TextField } from '@/shared/ui/TextField';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -43,19 +42,11 @@ export function DecisionDialog({ finding, onClose, onSave, onRemove }: {
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Разбор находки"
       isDirty={edited} busy={busy}
-      footer={
-        <div className="flex items-center gap-2">
-          {onRemove && (
-            <Button danger disabled={busy} onClick={() => run(onRemove)}>Снять решение</Button>
-          )}
-          <span className="flex-1" />
-          <ModalExit />
-          <Button variant="filled" loading={busy}
-            onClick={() => run(() => onSave(kind, note.trim() || null))}>
-            Сохранить
-          </Button>
-        </div>
-      }>
+      footer={<>
+        {onRemove && <ModalAction danger lead onClick={() => run(onRemove)}>Снять решение</ModalAction>}
+        <ModalExit />
+        <ModalPrimary loading={busy} onClick={() => run(() => onSave(kind, note.trim() || null))}>Сохранить</ModalPrimary>
+      </>}>
       <div className="space-y-4">
         <div className="rounded-md bg-surface-container px-3 py-2">
           <div className="text-body-medium font-medium text-on-surface">{finding.label}</div>

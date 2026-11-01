@@ -16,7 +16,7 @@ import {
 } from '@/shared/api/datasets';
 import { useListProcessingTemplates, useApplyProcessingTemplate } from '@/shared/api/datasetProcessing';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
@@ -56,14 +56,13 @@ function SourceNameDialog({ title, hint, defaultName, takenNames, isPending, err
       title={title}
       busy={isPending}
       footer={
-        <div className="flex gap-2 justify-end">
+        <>
           <ModalExit />
-          <Button type="button" variant="filled" onClick={() => canSave && onSubmit(trimmed)}
+          <ModalPrimary onClick={() => canSave && onSubmit(trimmed)}
             disabled={!canSave} loading={isPending}>
             {isPending ? 'Сохранение…' : confirmLabel}
-          </Button>
-        </div>
-      }>
+          </ModalPrimary>
+        </>}>
       {hint && <p className="text-body-small mb-3 text-on-surface-variant">{hint}</p>}
       <TextField label="Название" value={name} onChange={e => setName(e.target.value)} autoFocus
         onKeyDown={e => { if (e.key === 'Enter' && canSave) onSubmit(trimmed); }} />

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Delete, Edit, FolderOpen, Layers } from '@/shared/ui/icons';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
@@ -148,13 +148,12 @@ export function SectionDetail() {
 
       <Modal open={addSetOpen} onOpenChange={setAddSetOpen} title="Новый комплект"
         footer={
-          <div className="flex justify-end gap-2">
+          <>
             <ModalExit />
-            <Button type="submit" form="add-set-form" variant="filled" loading={createSet.isPending}>
+            <ModalPrimary type="submit" form="add-set-form" loading={createSet.isPending}>
               {createSet.isPending ? 'Создание…' : 'Создать'}
-            </Button>
-          </div>
-        }>
+            </ModalPrimary>
+          </>}>
         {addSetOpen && (
           <form id="add-set-form" onSubmit={handleAddSet} className="space-y-4">
             <TextField label="Наименование" value={newSetName} onChange={e => setNewSetName(e.target.value)}
@@ -166,11 +165,10 @@ export function SectionDetail() {
 
       <Modal open={renameOpen} onOpenChange={setRenameOpen} title="Переименовать раздел"
         footer={
-          <div className="flex justify-end gap-2">
+          <>
             <ModalExit />
-            <Button type="submit" form="rename-section-form" variant="filled" loading={renameSection.isPending}>Сохранить</Button>
-          </div>
-        }>
+            <ModalPrimary type="submit" form="rename-section-form" loading={renameSection.isPending}>Сохранить</ModalPrimary>
+          </>}>
         {renameOpen && (
           <form id="rename-section-form" className="space-y-4"
             onSubmit={async e => {

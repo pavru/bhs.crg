@@ -10,9 +10,9 @@ import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { ContentPaste, Delete, DragIndicator } from '@/shared/ui/icons';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
-import { ModalExit } from '@/shared/ui/Modal';
+import { ModalAction, ModalExit, ModalNote, ModalPrimary } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
-import { Button, IconButton } from '@/shared/ui/Button';
+import { IconButton } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { EditGrid, type EditGridColumn } from '@/shared/ui/EditGrid';
 import type { CatalogScope, DocumentType } from '@/shared/api/types';
@@ -249,27 +249,19 @@ function ArrayTableModalBody({
     <WindowStep onBack={() => onOpenChange(false)}
       title={`${compositeType?.name ?? field.title} — таблица`}
       wide isDirty={edited}
-      footer={
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1">
-            {selected.size > 0 ? (
-              <>
-                <span className="text-body-medium font-medium text-on-surface-variant px-2">Выбрано: {selected.size}</span>
-                <Button variant="text" danger icon={<Icon icon={Delete} size={18} />} onClick={deleteSelected}>Удалить выбранные</Button>
-                <Button variant="text" onClick={() => setSelected(new Set())}>Сбросить</Button>
-              </>
-            ) : (
-              <>
-                <Button variant="text" icon={<Icon icon={ContentPaste} size={18} />} onClick={handlePasteClick}>Вставить из Excel</Button>
-              </>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <ModalExit />
-            <Button variant="filled" onClick={handleSave}>Применить</Button>
-          </div>
-        </div>
-      }>
+      footer={<>
+        {selected.size > 0 ? (
+          <>
+            <ModalNote>Выбрано: {selected.size}</ModalNote>
+            <ModalAction danger lead icon={<Icon icon={Delete} size={18} />} onClick={deleteSelected}>Удалить выбранные</ModalAction>
+            <ModalAction lead onClick={() => setSelected(new Set())}>Сбросить</ModalAction>
+          </>
+        ) : (
+          <ModalAction lead icon={<Icon icon={ContentPaste} size={18} />} onClick={handlePasteClick}>Вставить из Excel</ModalAction>
+        )}
+        <ModalExit />
+        <ModalPrimary onClick={handleSave}>Применить</ModalPrimary>
+      </>}>
       {/* Клеткам — тип строки (issue #1533): уровень записи таблица берёт у формы вокруг. */}
       <SuggestOwner type={field.typeId}>
         <EditGrid sheet label={`Строки: ${compositeType?.name ?? field.title}`} rows={rows} rowKey={(_, i) => rowIds[i]}

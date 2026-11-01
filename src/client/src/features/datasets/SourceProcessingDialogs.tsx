@@ -4,8 +4,7 @@ import { apiError } from '@/shared/utils/apiError';
 import {
   useSetDataSetSourceProcessing, useSaveSourceAsTemplate, type SourceProcessingPatch,
 } from '@/shared/api/datasetProcessing';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { RowFilterDialog } from './RowFilterDialog';
 import { filterColumns } from '@/shared/filter/rowFilterModel';
@@ -39,13 +38,12 @@ function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
       title="Сохранить как шаблон"
       busy={isPending}
       footer={
-        <div className="flex gap-2 justify-end">
+        <>
           <ModalExit />
-          <Button variant="filled" onClick={submit} disabled={!canSave} loading={isPending}>
+          <ModalPrimary onClick={submit} disabled={!canSave} loading={isPending}>
             {isPending ? 'Сохранение…' : 'Сохранить'}
-          </Button>
-        </div>
-      }>
+          </ModalPrimary>
+        </>}>
       <p className="text-body-small mb-3 text-on-surface-variant">
         Row-selector/колонки (Extraction) и текущие Filter/Transformation/Sort источника
         станут переиспользуемым шаблоном — копия, не живая ссылка.

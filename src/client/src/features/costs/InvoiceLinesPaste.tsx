@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { ContentPaste } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import type { VatMode } from '@/shared/api/invoices';
 import {
   PASTE_ROLES, fromTable, guessRoles, hasHeader, parseTable, pastedWithoutVat,
@@ -79,14 +79,13 @@ function PasteDialog({ mode, onClose, onAdd }: {
     <Modal open wide onOpenChange={o => { if (!o) onClose(); }} title="Вставка строк из буфера"
       isDirty={text.trim() !== ''}
       footer={
-        <div className="flex items-center justify-end gap-2">
+        <>
           <ModalExit />
-          <Button variant="filled" disabled={rows.length === 0}
+          <ModalPrimary disabled={rows.length === 0}
             onClick={() => onAdd(fromTable(table, current), chosen)}>
             Добавить строк: {rows.length}
-          </Button>
-        </div>
-      }>
+          </ModalPrimary>
+        </>}>
         <div className="space-y-3">
 
           <textarea value={text} onChange={e => setText(e.target.value)} rows={5}

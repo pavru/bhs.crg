@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { ModalExit } from '@/shared/ui/Modal';
+import { ModalAction, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
-import { Button } from '@/shared/ui/Button';
 import type { CatalogScope, DocumentType, FieldRef } from '@/shared/api/types';
 import { resolveObjectsBatch, type ObjectResolveItem, type ObjectResolveResult } from '@/shared/api/objects';
 import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
@@ -297,15 +296,12 @@ function PasteMappingModalBody({
   if (step === 'input') {
     return (
       <WindowStep onBack={() => onOpenChange(false)} title="Вставить из Excel" wide isDirty={pasted}
-        footer={
-          <div className="flex justify-end gap-3">
-            <ModalExit />
-            <Button variant="filled" disabled={!rawText.trim()}
-              onClick={() => { initMapping(rawText); setStep('map'); }}>
-              Далее →
-            </Button>
-          </div>
-        }>
+        footer={<>
+          <ModalExit />
+          <ModalPrimary disabled={!rawText.trim()} onClick={() => { initMapping(rawText); setStep('map'); }}>
+            Далее →
+          </ModalPrimary>
+        </>}>
         <div className="space-y-4">
           <p className="text-body-medium text-on-surface-variant">Скопируйте ячейки в Excel и вставьте сюда (Ctrl+V):</p>
           <textarea autoFocus value={rawText} onChange={e => setRawText(e.target.value)}
@@ -324,18 +320,13 @@ function PasteMappingModalBody({
   if (pending) {
     return (
       <WindowStep onBack={() => onOpenChange(false)} title="Готово к вставке" wide isDirty={pasted} busy={applying}
-        footer={
-          <div className="flex justify-between">
-            <Button variant="text" disabled={applying} onClick={() => setPending(null)}>← Изменить сопоставление</Button>
-            <div className="flex gap-3">
-              <ModalExit />
-              <Button variant="filled" disabled={pending.rows.length === 0 || applying} loading={applying}
-                onClick={() => void applyPending()}>
-                Вставить {pending.rows.length} стр.
-              </Button>
-            </div>
-          </div>
-        }>
+        footer={<>
+          <ModalAction lead onClick={() => setPending(null)}>← Изменить сопоставление</ModalAction>
+          <ModalExit />
+          <ModalPrimary disabled={pending.rows.length === 0} loading={applying} onClick={() => void applyPending()}>
+            Вставить {pending.rows.length} стр.
+          </ModalPrimary>
+        </>}>
         <div className="space-y-3 text-body-medium">
           <p className="text-on-surface-variant">Будет вставлено строк: <span className="font-medium text-on-surface">{pending.rows.length}</span>
             {pending.rows.length < importCount && (
@@ -407,17 +398,13 @@ function PasteMappingModalBody({
   // step === 'map' — строки = ПОЛЯ таблицы, справа выбираем колонку Excel-источник.
   return (
     <WindowStep onBack={() => onOpenChange(false)} title="Сопоставление столбцов" wide isDirty={pasted} busy={resolving}
-      footer={
-        <div className="flex justify-between">
-          <Button variant="text" onClick={() => setStep('input')}>← Назад</Button>
-          <div className="flex gap-3">
-            <ModalExit />
-            <Button variant="filled" onClick={stage} loading={resolving} disabled={importCount === 0 || resolving}>
-              Импортировать {importCount > 0 ? `(${importCount} стр.)` : ''}
-            </Button>
-          </div>
-        </div>
-      }>
+      footer={<>
+        <ModalAction lead onClick={() => setStep('input')}>← Назад</ModalAction>
+        <ModalExit />
+        <ModalPrimary onClick={stage} loading={resolving} disabled={importCount === 0}>
+          Импортировать {importCount > 0 ? `(${importCount} стр.)` : ''}
+        </ModalPrimary>
+      </>}>
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <Checkbox checked={skipHeader} label="Первая строка — заголовки"

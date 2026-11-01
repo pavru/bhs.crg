@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { AccountTree, Add, Delete } from '@/shared/ui/icons';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalAction, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import type { FilterCondition, FilterGroup, RowFilterDef } from '@/shared/api/types';
 import { cleanFilterNode, isEditableFilterRoot } from '@/shared/api/datasetHelpers';
@@ -278,27 +278,11 @@ export function RowFilterDialog({
       onOpenChange={o => { if (!o) close(); }}
       title={words.title}
       wide isDirty={edited} busy={saving}
-      footer={
-        <div className="flex gap-2 items-center">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 rounded-sm text-body-medium font-medium text-on-primary bg-primary disabled-container"
-          >
-            {saving ? words.saving : words.save}
-          </button>
-          <ModalExit variant="tonal" />
-          {hasAny && (
-            <button
-              onClick={handleReset}
-              disabled={saving}
-              className="ml-auto px-4 py-2 rounded-sm text-body-medium font-medium text-error bg-surface-container disabled-container"
-            >
-              {words.reset}
-            </button>
-          )}
-        </div>
-      }
+      footer={<>
+        {hasAny && <ModalAction danger lead onClick={handleReset}>{words.reset}</ModalAction>}
+        <ModalExit />
+        <ModalPrimary onClick={handleSave} loading={saving}>{saving ? words.saving : words.save}</ModalPrimary>
+      </>}
     >
       {unreadable && (
         <p className="text-body-small mb-3 text-error">

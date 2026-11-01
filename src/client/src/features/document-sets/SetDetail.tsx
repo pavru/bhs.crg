@@ -4,7 +4,7 @@ import { Navigate, useNavigate, useParams, useSearchParams, Link } from 'react-r
 import { Icon } from '@/shared/ui/Icon';
 import { Add, ContentCopy, Database, Delete, Description, Download, DragIndicator, DriveFileMove, Edit, FolderCopy, FolderOpen, Group, Layers, Mail, Table, Target, Visibility, Warning } from '@/shared/ui/icons';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
@@ -413,11 +413,10 @@ export function SetDetail() {
 
       <Modal open={renameSetOpen} onOpenChange={setRenameSetOpen} title="Переименовать комплект"
         footer={
-          <div className="flex justify-end gap-2">
+          <>
             <ModalExit />
-            <Button type="submit" form="rename-set-form" variant="filled" loading={renameSet.isPending}>Сохранить</Button>
-          </div>
-        }>
+            <ModalPrimary type="submit" form="rename-set-form" loading={renameSet.isPending}>Сохранить</ModalPrimary>
+          </>}>
         {renameSetOpen && (
           <form id="rename-set-form" className="space-y-4"
             onSubmit={async e => {

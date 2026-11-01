@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Delete } from '@/shared/ui/icons';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalAction, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import { rowKey, withRowUid, withRowUids } from '@/shared/utils/rowIdentity';
 import type { SortColumn, SortSpec } from '@/shared/api/types';
@@ -104,24 +104,13 @@ export function SortSpecDialog({
       onOpenChange={o => { if (!o) close(); }}
       title="Сортировка строк"
       isDirty={edited} busy={saving}
-      footer={
-        <div className="flex gap-2">
-          <button onClick={handleSave} disabled={saving}
-            className="px-4 py-2 rounded-sm text-body-medium font-medium text-on-primary bg-primary disabled-container">
-            {saving ? 'Сохранение…' : 'Сохранить'}
-          </button>
-          <ModalExit variant="tonal" />
-          {levels.length > 0 && (
-            <button
-              onClick={() => void commit(() => onSave(null))}
-              disabled={saving}
-              className="ml-auto px-4 py-2 rounded-sm text-body-medium font-medium text-error bg-surface-container disabled-container"
-            >
-              Сбросить
-            </button>
-          )}
-        </div>
-      }
+      footer={<>
+        {levels.length > 0 && (
+          <ModalAction danger lead onClick={() => void commit(() => onSave(null))}>Сбросить</ModalAction>
+        )}
+        <ModalExit />
+        <ModalPrimary onClick={handleSave} loading={saving}>{saving ? 'Сохранение…' : 'Сохранить'}</ModalPrimary>
+      </>}
     >
       <p className="text-body-small mb-4 text-on-surface-variant">
         Сортировка выполняется после вычисляемых колонок — можно сортировать и по ним.

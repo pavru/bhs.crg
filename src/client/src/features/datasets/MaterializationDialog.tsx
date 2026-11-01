@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Info, Warning } from '@/shared/ui/icons';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import { dtCard } from '@/shared/ui/dataTable';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
@@ -251,14 +250,13 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Материализация источника «${source.name}»`} wide
       isDirty={edited} busy={save.isPending}
       footer={
-        <div className="flex justify-end gap-2">
+        <>
           <ModalExit />
-          <Button type="button" variant="filled" onClick={handleSave} loading={save.isPending}
+          <ModalPrimary onClick={handleSave} loading={save.isPending}
             disabled={!!problem || typesPending}>
             {save.isPending ? 'Сохранение…' : 'Сохранить'}
-          </Button>
-        </div>
-      }>
+          </ModalPrimary>
+        </>}>
       <div className="space-y-4">
         <p className="text-body-small text-on-surface-variant">
           Источник разворачивает каждую строку (после всех обработок) в сущность выбранного типа.

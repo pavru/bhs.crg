@@ -2,8 +2,7 @@ import { useState, useMemo } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { CheckCircle, Warning } from '@/shared/ui/icons';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { useSetEmailRecipients } from '@/shared/api/documentSets';
 import { apiError } from '@/shared/utils/apiError';
@@ -82,14 +81,13 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
       isDirty={!queued && (unchecked.size > 0 || !!external.trim() || !!subject.trim() || !!body.trim())}
       busy={sending}
       footer={
-        <div className="flex justify-end gap-3">
+        <>
           <ModalExit>Закрыть</ModalExit>
-          <Button variant="filled" onClick={handleSend} loading={sending}
+          <ModalPrimary onClick={handleSend} loading={sending}
             disabled={queued || !ready || to.length === 0}>
             Отправить ({to.length})
-          </Button>
-        </div>
-      }>
+          </ModalPrimary>
+        </>}>
       <div className="space-y-4">
         {!ready && (
           <p className="flex items-start gap-2 text-body-medium text-on-warning-container bg-warning-container rounded-sm p-3">

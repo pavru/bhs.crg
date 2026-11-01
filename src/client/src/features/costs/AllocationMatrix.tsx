@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Calculate, Check, Close, Delete, Equal, Percent, Save } from '@/shared/ui/icons';
 import { Button, IconButton } from '@/shared/ui/Button';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalAction, ModalExit, ModalNote, ModalPrimary } from '@/shared/ui/Modal';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import type { InvoiceView } from '@/shared/api/invoices';
 import type { MatrixState } from '@/shared/api/allocationMatrix';
@@ -170,7 +170,7 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
       isDirty={dirty || preview !== null} busy={replace.isPending}
       footer={(
         <>
-          <span className="text-body-small text-on-surface-variant mr-auto">
+          <ModalNote>
             {drafting
               ? 'Разноска войдёт в исправление: запишется вместе с ним, после проверки. «Не разнесено» — оценка.'
               : preview
@@ -178,22 +178,22 @@ export function AllocationMatrix({ view, total, canEdit, initialPreview, draft, 
               : dirty
                 ? '«Не разнесено» — оценка до записи: копейки окончательно считает сервер.'
                 : 'Строка «не разнесено» закреплена справа и видна при любом числе объектов.'}
-          </span>
+          </ModalNote>
           {preview ? (
             <>
-              <Button variant="text" icon={<Icon icon={Close} size={18} />} onClick={() => reset(view)}>Отменить предпросмотр</Button>
-              <Button variant="filled" icon={<Icon icon={Check} size={18} />} loading={replace.isPending} onClick={save}>
+              <ModalAction icon={<Icon icon={Close} size={18} />} onClick={() => reset(view)}>Отменить предпросмотр</ModalAction>
+              <ModalPrimary icon={<Icon icon={Check} size={18} />} loading={replace.isPending} onClick={save}>
                 Применить
-              </Button>
+              </ModalPrimary>
             </>
           ) : (
             <>
               <ModalExit>Закрыть</ModalExit>
               {canEdit && (
-                <Button variant="filled" icon={drafting ? <Icon icon={Check} size={18} /> : <Icon icon={Save} size={18} />} disabled={!dirty}
+                <ModalPrimary icon={drafting ? <Icon icon={Check} size={18} /> : <Icon icon={Save} size={18} />} disabled={!dirty}
                   loading={replace.isPending} onClick={save}>
                   {drafting ? 'Готово' : 'Сохранить разноску'}
-                </Button>
+                </ModalPrimary>
               )}
             </>
           )}

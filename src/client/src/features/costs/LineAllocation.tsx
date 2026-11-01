@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Save } from '@/shared/ui/icons';
-import { Button } from '@/shared/ui/Button';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalExit, ModalNote, ModalPrimary } from '@/shared/ui/Modal';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { NO_ACCESS, hasPermission, useAccess } from '@/shared/api/access';
 import {
@@ -170,18 +169,18 @@ function LineAllocationDialog({ view, line, gone, number, canEdit, onClose }: {
       busy={replace.isPending}
       footer={(
         <>
-          <span className="text-body-small text-on-surface-variant mr-auto">
+          <ModalNote>
             {byQuantity
               ? `В строке ${line.quantity === null ? '' : formatQuantity(line.quantity)} ${unit}`.trim()
                 + (line.amount === null ? '' : ` на ${formatMoney(line.amount)}${gross}`)
                 + '. Делится количество, сумма части считается.'
               : `Количества у строки нет — делится сумма ${formatMoney(line.amount ?? 0)}${gross}.`}
-          </span>
+          </ModalNote>
           <ModalExit>{canEdit ? 'Отмена' : 'Закрыть'}</ModalExit>
           {canEdit && !gone && (
-            <Button variant="filled" icon={<Icon icon={Save} size={18} />} loading={replace.isPending} onClick={save}>
+            <ModalPrimary icon={<Icon icon={Save} size={18} />} loading={replace.isPending} onClick={save}>
               Сохранить разноску
-            </Button>
+            </ModalPrimary>
           )}
         </>
       )}>

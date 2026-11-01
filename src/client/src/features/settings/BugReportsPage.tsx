@@ -5,7 +5,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { BugReport, Check, ChevronRight, Close, ContentCopy, ImageIcon, KeyboardArrowDown, OpenInNew, Send, Undo, Warning } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { apiError } from '@/shared/utils/apiError';
 import { ListDetailShell, NavSearchInput, NavSection } from '@/shared/ui/ListDetailShell';
@@ -278,12 +278,12 @@ function ReportBody({ report, githubConfigured }: {
         onOpenChange={o => { if (!o) setForwardOpen(false); }}
         title={githubConfigured ? 'Отправить в GitHub' : 'Токен GitHub не задан'}
         footer={
-          <div className="flex items-center justify-end gap-2">
+          <>
             <ModalExit>
               {githubConfigured ? 'Отмена' : 'Понятно'}
             </ModalExit>
             {githubConfigured && (
-              <Button variant="filled" disabled={!issueTitle.trim()} loading={forward.isPending}
+              <ModalPrimary disabled={!issueTitle.trim()} loading={forward.isPending}
                 onClick={async () => {
                   setForwardError(null);
                   try {
@@ -296,10 +296,9 @@ function ReportBody({ report, githubConfigured }: {
                   }
                 }}>
                 Создать issue
-              </Button>
+              </ModalPrimary>
             )}
-          </div>
-        }
+          </>}
       >
         {githubConfigured ? (
           <div className="space-y-3">
@@ -358,9 +357,9 @@ function ReportBody({ report, githubConfigured }: {
         onOpenChange={o => { if (!o) setFixOpen(false); }}
         title="Исправлено в версии"
         footer={
-          <div className="flex items-center justify-end gap-2">
+          <>
             <ModalExit />
-            <Button variant="filled" disabled={!version.trim()} loading={markFixed.isPending}
+            <ModalPrimary disabled={!version.trim()} loading={markFixed.isPending}
               onClick={async () => {
                 setFixError(null);
                 try {
@@ -371,9 +370,8 @@ function ReportBody({ report, githubConfigured }: {
                 }
               }}>
               Отметить исправленным
-            </Button>
-          </div>
-        }
+            </ModalPrimary>
+          </>}
       >
         <div className="space-y-3">
           <p className="text-body-medium text-on-surface-variant">

@@ -11,7 +11,7 @@ import { BaseInstanceChip, ArchivedRefsProvider, type BaseCandidate, DocumentSta
 import { ruCount } from '@/shared/utils/pluralize';
 import { DataSetsTab } from './DataSetsTab';
 import { QualityLinksTab } from './QualityLinksTab';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalAction, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TabPanel, Tabs } from '@/shared/ui/Tabs';
 import { containsRef } from './brokenRefs';
@@ -284,17 +284,13 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           title="Документ не сохранён"
           // Вопрос: промах и Esc равны «Отмене» — безопасному ответу. Запрос сильнее.
           nothingToLose busy={switching}
-          footer={
-            <div className="flex gap-2 justify-end flex-wrap">
-              <ModalExit />
-              <Button variant="text" danger onClick={() => switchTo(pendingTab)} disabled={switching}>
-                Не сохранять
-              </Button>
-              <Button variant="filled" onClick={saveThenSwitch} loading={switching}>
-                {switching ? 'Сохранение...' : 'Сохранить'}
-              </Button>
-            </div>
-          }>
+          footer={<>
+            <ModalExit />
+            <ModalAction danger onClick={() => switchTo(pendingTab)}>Не сохранять</ModalAction>
+            <ModalPrimary onClick={saveThenSwitch} loading={switching}>
+              {switching ? 'Сохранение...' : 'Сохранить'}
+            </ModalPrimary>
+          </>}>
           <p className="text-body-small text-on-surface-variant">
             На текущей вкладке есть несохранённые изменения. Сохранить перед переходом?
             Иначе они будут потеряны.

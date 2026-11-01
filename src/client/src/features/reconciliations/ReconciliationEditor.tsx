@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -197,11 +197,10 @@ export function ReconciliationEditor({ existing, onClose }: {
     <Modal open onOpenChange={o => { if (!o) onClose(); }} wide busy={busy}
       title={existing ? 'Изменить сверку' : 'Новая сверка'}
       footer={
-        <div className="flex items-center gap-2 justify-end">
+        <>
           <ModalExit />
-          <Button variant="filled" disabled={!valid} loading={busy} onClick={save}>Сохранить</Button>
-        </div>
-      }>
+          <ModalPrimary disabled={!valid} loading={busy} onClick={save}>Сохранить</ModalPrimary>
+        </>}>
       <div className="space-y-4">
         <TextField label="Название" value={name} onChange={e => setName(e.target.value)}
           hint="Например: Кабель — проложено против реестра материалов" />

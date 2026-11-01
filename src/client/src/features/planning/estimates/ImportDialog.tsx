@@ -9,7 +9,7 @@ import {
 } from '@/shared/api/planningImports';
 import { Button } from '@/shared/ui/Button';
 import { carriesFiles, droppedFiles } from '@/shared/ui/fileDrop';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalAction, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { RevealItem, SiteSelectItems } from '@/shared/siteFilter/SiteOptions';
 import { pickSite, REVEAL_CHOICE, useSiteChoices } from '@/shared/siteFilter/siteReveal';
@@ -128,37 +128,33 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
       onSettled: () => setConfirming(false),
     });
 
-  const footer = (
-    <div className="flex flex-wrap justify-end gap-2">
-      {step === 'pick' ? (
-        <>
-          <ModalExit />
-          <Button variant="filled" disabled={typeof ready === 'string' || busy} title={typeof ready === 'string' ? ready : undefined}
-            loading={start.isPending} onClick={upload}>Загрузить</Button>
-        </>
-      ) : step === 'parsing' ? (
-        <>
-          {data && <Button variant="text" disabled={busy} onClick={() => setRefusing(true)}>Отказаться</Button>}
-          <ModalExit variant="outlined">Закрыть</ModalExit>
-        </>
-      ) : verdict?.kind === 'ready' && data ? (
-        // Закрыть без решения — «Закрыть»: импорт останется полосой «ждёт решения» над сметами.
-        <>
-          <ModalExit>Закрыть</ModalExit>
-          <Button variant="text" disabled={busy} onClick={() => setRefusing(true)}>Отказаться</Button>
-          {verdict.unparsed > 0
-            ? <Button variant="filled" disabled={busy} onClick={() => setConfirming(true)}>{partialCommitLabel(verdict.unparsed)}</Button>
-            : <Button variant="filled" disabled={busy} loading={commit.isPending} onClick={() => create(data, false)}>Создать редакцию</Button>}
-        </>
-      ) : (
-        <>
-          <ModalExit>Закрыть</ModalExit>
-          {data && verdict?.kind !== 'committed' && (
-            <Button variant="tonal" disabled={busy} onClick={() => setRefusing(true)}>Убрать импорт</Button>
-          )}
-        </>
+  const footer = step === 'pick' ? (
+    <>
+      <ModalExit />
+      <ModalPrimary disabled={typeof ready === 'string' || busy} title={typeof ready === 'string' ? ready : undefined}
+        loading={start.isPending} onClick={upload}>Загрузить</ModalPrimary>
+    </>
+  ) : step === 'parsing' ? (
+    <>
+      {data && <ModalAction disabled={busy} onClick={() => setRefusing(true)}>Отказаться</ModalAction>}
+      <ModalExit variant="outlined">Закрыть</ModalExit>
+    </>
+  ) : verdict?.kind === 'ready' && data ? (
+    // Закрыть без решения — «Закрыть»: импорт останется полосой «ждёт решения» над сметами.
+    <>
+      <ModalExit>Закрыть</ModalExit>
+      <ModalAction disabled={busy} onClick={() => setRefusing(true)}>Отказаться</ModalAction>
+      {verdict.unparsed > 0
+        ? <ModalPrimary disabled={busy} onClick={() => setConfirming(true)}>{partialCommitLabel(verdict.unparsed)}</ModalPrimary>
+        : <ModalPrimary disabled={busy} loading={commit.isPending} onClick={() => create(data, false)}>Создать редакцию</ModalPrimary>}
+    </>
+  ) : (
+    <>
+      <ModalExit>Закрыть</ModalExit>
+      {data && verdict?.kind !== 'committed' && (
+        <ModalAction variant="tonal" disabled={busy} onClick={() => setRefusing(true)}>Убрать импорт</ModalAction>
       )}
-    </div>
+    </>
   );
 
   const targetFields = shownMode === 'existing' ? (
@@ -232,10 +228,10 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
       {confirming && data && verdict?.kind === 'ready' && (
         <WindowStep title={`Создать редакцию ${withoutRows(verdict.unparsed)}?`}
           onBack={() => setConfirming(false)} busy={commit.isPending}
-          footer={<div className="flex flex-wrap justify-end gap-2">
+          footer={<>
             <ModalExit>Назад</ModalExit>
-            <Button variant="filled" loading={commit.isPending} onClick={() => create(data, true)}>Создать редакцию</Button>
-          </div>}>
+            <ModalPrimary loading={commit.isPending} onClick={() => create(data, true)}>Создать редакцию</ModalPrimary>
+          </>}>
           <p className="text-body-medium text-on-surface-variant">
             В редакцию войдут {formatCount(data.parsed ?? 0)} из {formatCount(data.inFile ?? 0)} позиций файла.{' '}
             {formatCount(verdict.unparsed)} не {ruPlural(verdict.unparsed, 'разобранная', 'разобранные', 'разобранных')} в неё не{' '}
@@ -246,10 +242,10 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
       )}
       {refusing && data && (
         <WindowStep title={`Отказаться от импорта «${data.fileName}»?`} onBack={() => setRefusing(false)} busy={cancel.isPending}
-          footer={<div className="flex flex-wrap justify-end gap-2">
+          footer={<>
             <ModalExit>Назад</ModalExit>
-            <Button variant="filled" danger loading={cancel.isPending} onClick={() => refuse(data)}>Отказаться от импорта</Button>
-          </div>}>
+            <ModalPrimary danger loading={cancel.isPending} onClick={() => refuse(data)}>Отказаться от импорта</ModalPrimary>
+          </>}>
           <p className="text-body-medium text-on-surface-variant">
             Импорт и загруженный файл удалятся, редакции из него не будет. Вернуться к нему можно только новой загрузкой
             файла.

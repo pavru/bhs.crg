@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Delete } from '@/shared/ui/icons';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { Button, IconButton } from '@/shared/ui/Button';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
+import { IconButton } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
 import { useCreateDataSetSource, useUpdateDataSetSource, useListZipXmlEntries, useSourceCandidates, type SourceCandidate } from '@/shared/api/datasets';
@@ -212,14 +212,13 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
   return (
     <Modal open onOpenChange={open => { if (!open) onClose(); }} title={dialogTitle} wide busy={isPending}
       footer={
-        <div className="flex justify-end gap-2">
+        <>
           <ModalExit />
-          <Button type="button" variant="filled" onClick={handleSave} loading={isPending}
+          <ModalPrimary onClick={handleSave} loading={isPending}
             disabled={nothingToPick}>
             {isPending ? 'Сохранение…' : 'Сохранить'}
-          </Button>
-        </div>
-      }>
+          </ModalPrimary>
+        </>}>
       <div className="space-y-4">
         {!nothingToPick && (
           <TextField label="Название" value={name}
