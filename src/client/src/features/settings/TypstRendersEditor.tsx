@@ -8,8 +8,8 @@ import { useAssetCompletion } from '@/shared/ui/typstAssetCompletion';
 import { markTypeBlockModel } from '@/shared/ui/typstDispatchCompletion';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Code, Delete, ErrorIcon, OpenInFull, Warning } from '@/shared/ui/icons';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { Button, IconButton } from '@/shared/ui/Button';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
+import { IconButton } from '@/shared/ui/Button';
 import type { DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields, type SchemaField, type TypstRender } from '@/shared/api/schema';
 import { Tooltip } from '@/shared/ui/Tooltip';
@@ -123,11 +123,10 @@ function TypstBlockDialog({ render, typeCode, onSave, onClose }: {
       flushBody
       isDirty={isDirty}
       footer={
-        <div className="flex justify-end gap-2">
+        <>
           <ModalExit />
-          <Button variant="filled" onClick={() => { onSave(draft); onClose(); }}>Применить</Button>
-        </div>
-      }
+          <ModalPrimary onClick={() => { onSave(draft); onClose(); }}>Применить</ModalPrimary>
+        </>}
     >
       <div className="flex-1 min-h-0 flex flex-col gap-3 px-6 pt-2 pb-4">
         <div className="grid grid-cols-2 gap-3 shrink-0">

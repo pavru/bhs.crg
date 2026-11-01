@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, CalendarMonth, CheckCircle, ContentCopy, Delete, ErrorIcon, List, MatchCase, Numbers, type IconDef } from '@/shared/ui/icons';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavSearchInput, NavSection, DetailHeader, DetailTitle } from '@/shared/ui/ListDetailShell';
@@ -285,12 +285,12 @@ function PrimitiveCreateForm({ onSaved }: { onSaved: () => void }) {
         <ConstraintEditor baseType={baseType} constraints={constraints} onChange={setConstraints} />
       </div>
       {error && <p className="text-body-medium text-error">{error}</p>}
-      <div className="flex justify-end gap-2 border-t border-outline-variant pt-3">
+      <ModalButtons className="border-t border-outline-variant pt-3">
         <ModalExit />
-        <Button type="button" variant="filled" onClick={handleSave} loading={create.isPending}>
+        <ModalPrimary onClick={handleSave} loading={create.isPending}>
           {create.isPending ? 'Сохранение…' : 'Сохранить'}
-        </Button>
-      </div>
+        </ModalPrimary>
+      </ModalButtons>
     </div>
   );
 }

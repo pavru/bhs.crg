@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Apartment, Delete, Edit, Layers } from '@/shared/ui/icons';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
@@ -133,13 +133,12 @@ export function ConstructionDetail() {
 
       <Modal open={addSectionOpen} onOpenChange={setAddSectionOpen} title="Новый раздел"
         footer={
-          <div className="flex justify-end gap-2">
+          <>
             <ModalExit />
-            <Button type="submit" form="add-section-form" variant="filled" loading={createSection.isPending}>
+            <ModalPrimary type="submit" form="add-section-form" loading={createSection.isPending}>
               {createSection.isPending ? 'Создание…' : 'Создать'}
-            </Button>
-          </div>
-        }>
+            </ModalPrimary>
+          </>}>
         {addSectionOpen && (
           <form id="add-section-form" onSubmit={handleAddSection} className="space-y-4">
             <TextField label="Название раздела (дисциплина)" value={newSectionName}
@@ -152,11 +151,10 @@ export function ConstructionDetail() {
 
       <Modal open={renameOpen} onOpenChange={setRenameOpen} title="Переименовать стройку"
         footer={
-          <div className="flex justify-end gap-2">
+          <>
             <ModalExit />
-            <Button type="submit" form="rename-construction-form" variant="filled" loading={renameConstruction.isPending}>Сохранить</Button>
-          </div>
-        }>
+            <ModalPrimary type="submit" form="rename-construction-form" loading={renameConstruction.isPending}>Сохранить</ModalPrimary>
+          </>}>
         {renameOpen && (
           <form id="rename-construction-form" className="space-y-4"
             onSubmit={async e => {

@@ -4,7 +4,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { CalendarCheck, ChevronRight, KeyboardArrowDown, LockIcon, Undo } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { useChangedSince } from '@/shared/hooks/useChangedSince';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalExit, ModalNote, ModalPrimary } from '@/shared/ui/Modal';
 import { DateField } from '@/shared/ui/DateField';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
 import { useSnackbar } from '@/shared/ui/Snackbar';
@@ -204,40 +204,36 @@ export function CloseDialog({ state, name, today, sites, onDone }: {
   return (
     <Modal open onOpenChange={o => { if (!o) onDone(); }} title={`Закрыть период: ${name}`}
       isDirty={edited} busy={close.isPending}
-      footer={
-        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
-          {unfinished && (
-            <span className="mr-auto text-body-medium text-on-surface-variant">
-              Не завершено: <span className="font-medium text-on-surface">{unfinished}</span>
-            </span>
-          )}
-          <ModalExit />
-          <Button variant="filled" disabled={!ready} loading={close.isPending}
-            onClick={async () => {
-              setError(null);
-              const shown = seen!;
-              // Под «не удалось закрыть» — только само закрытие. Сбой после него (уведомление, закрытие
-              // диалога) отказом закрытия не является, и называть его так нельзя: период уже закрыт.
-              try {
-                await close.mutateAsync({ state, from, through, report: shown.stamp });
-              } catch (e) {
-                // 409 — границу или данные тем временем изменили: перечень перечитывается, и новому есть
-                // с чем сравниться.
-                if ((e as { response?: { status?: number } })?.response?.status === 409)
-                  setRefused({ dates, sections: shown.sections });
-                setError(apiError(e, 'Не удалось закрыть период.'));
-                return;
-              }
-              // Сначала закрыть диалог: период закрыт, и сбой уведомления не должен оставить его открытым
-              // и молчащим.
-              onDone();
-              const left = unfinishedSummary(shown.sections);
-              toast.success(`${name}: период закрыт по ${ruDate(through)}.${left ? ` Не завершено: ${left}.` : ''}`);
-            }}>
-            Закрыть период
-          </Button>
-        </div>
-      }>
+      footer={<>
+        {unfinished && (
+          <ModalNote>Не завершено: <span className="font-medium text-on-surface">{unfinished}</span></ModalNote>
+        )}
+        <ModalExit />
+        <ModalPrimary disabled={!ready} loading={close.isPending}
+          onClick={async () => {
+            setError(null);
+            const shown = seen!;
+            // Под «не удалось закрыть» — только само закрытие. Сбой после него (уведомление, закрытие
+            // диалога) отказом закрытия не является, и называть его так нельзя: период уже закрыт.
+            try {
+              await close.mutateAsync({ state, from, through, report: shown.stamp });
+            } catch (e) {
+              // 409 — границу или данные тем временем изменили: перечень перечитывается, и новому есть
+              // с чем сравниться.
+              if ((e as { response?: { status?: number } })?.response?.status === 409)
+                setRefused({ dates, sections: shown.sections });
+              setError(apiError(e, 'Не удалось закрыть период.'));
+              return;
+            }
+            // Сначала закрыть диалог: период закрыт, и сбой уведомления не должен оставить его открытым
+            // и молчащим.
+            onDone();
+            const left = unfinishedSummary(shown.sections);
+            toast.success(`${name}: период закрыт по ${ruDate(through)}.${left ? ` Не завершено: ${left}.` : ''}`);
+          }}>
+          Закрыть период
+        </ModalPrimary>
+      </>}>
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           {state.expectedFrom ? (
@@ -309,9 +305,9 @@ export function ReopenDialog({ state, name, nameOf, sites, onDone }: {
     <Modal open onOpenChange={o => { if (!o) onDone(); }} title={`Отменить закрытие: ${name}`}
       busy={reopen.isPending}
       footer={
-        <div className="flex items-center justify-end gap-2">
+        <>
           <ModalExit>Не отменять</ModalExit>
-          <Button variant="filled" danger disabled={!reason.trim()} loading={reopen.isPending}
+          <ModalPrimary danger disabled={!reason.trim()} loading={reopen.isPending}
             onClick={async () => {
               setError(null);
               try {
@@ -323,9 +319,8 @@ export function ReopenDialog({ state, name, nameOf, sites, onDone }: {
               }
             }}>
             Отменить закрытие
-          </Button>
-        </div>
-      }>
+          </ModalPrimary>
+        </>}>
       <div className="space-y-4">
         <p className="text-body-medium text-on-surface-variant">
           Отменяется последнее закрытие — с {ruDate(target.from)} по {ruDate(target.through)}. Эти

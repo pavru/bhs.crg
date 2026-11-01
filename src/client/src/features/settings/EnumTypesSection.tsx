@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Delete, DragIndicator } from '@/shared/ui/icons';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
-import { Button, IconButton } from '@/shared/ui/Button';
-import { ModalExit } from '@/shared/ui/Modal';
+import { IconButton } from '@/shared/ui/Button';
+import { ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { useCreateEnumType, buildEnumTypeDto } from '@/shared/api/enumTypes';
 import { moveItem } from '@/shared/utils/moveItem';
@@ -122,12 +122,12 @@ export function EnumForm({ onSaved }: { onSaved: () => void }) {
         <ValuesEditor values={values} onChange={setValues} />
       </div>
       {error && <p className="text-body-medium text-error">{error}</p>}
-      <div className="flex justify-end gap-2 border-t border-outline-variant pt-3">
+      <ModalButtons className="border-t border-outline-variant pt-3">
         <ModalExit />
-        <Button type="button" variant="filled" onClick={handleSave} loading={create.isPending}>
+        <ModalPrimary onClick={handleSave} loading={create.isPending}>
           {create.isPending ? 'Сохранение…' : 'Сохранить'}
-        </Button>
-      </div>
+        </ModalPrimary>
+      </ModalButtons>
     </div>
   );
 }

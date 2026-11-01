@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { useState } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { Modal, ModalExit } from './Modal';
+import { Modal, ModalExit, ModalPrimary } from './Modal';
 import { WindowStep } from './WindowStep';
 import { useOwnWindow } from './modalControl';
 
@@ -164,5 +164,47 @@ describe('useOwnWindow', () => {
     cleanup();
     render(<Modal open onOpenChange={() => {}} title="Окно" nothingToLose><Probe /></Modal>);
     expect(screen.getByText('на месте')).toBeTruthy();
+  });
+});
+
+describe('шаг на узком экране ([UI-75])', () => {
+  const realMatchMedia = window.matchMedia;
+  // Экран уже 768 ([UI-75]): «уже» отвечает да, «шире» — нет.
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockImplementation((q: string) => ({
+      matches: q.includes('max-width'), addEventListener() {}, removeEventListener() {},
+    })) as unknown as typeof window.matchMedia;
+  });
+  afterEach(() => { window.matchMedia = realMatchMedia; });
+  const tick = () => act(async () => { await new Promise(r => setTimeout(r, 0)); });
+
+  function WithStep() {
+    const [step, setStep] = useState(false);
+    return (
+      <Modal open onOpenChange={() => {}} title="Строка счёта"
+        footer={<><ModalExit /><ModalPrimary onClick={() => setStep(true)}>Новая позиция</ModalPrimary></>}>
+        <p>Форма окна</p>
+        {step && (
+          <WindowStep title="Новая позиция номенклатуры" onBack={() => setStep(false)}
+            footer={<><ModalExit>К поиску</ModalExit><ModalPrimary>Завести</ModalPrimary></>}>
+            <p>Форма шага</p>
+          </WindowStep>
+        )}
+      </Modal>
+    );
+  }
+
+  it('у ведущего края — стрелка «Назад», она возвращает к форме окна; в шапке — главное шага', async () => {
+    render(<WithStep />);
+    fireEvent.click(screen.getByRole('button', { name: 'Новая позиция' }));
+    await tick();
+    expect(screen.getByText('Форма шага')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Завести' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Новая позиция' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    await tick();
+    expect(screen.queryByText('Форма шага')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Закрыть' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Новая позиция' })).toBeTruthy();
   });
 });

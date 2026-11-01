@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Apartment, Close, Delete, Edit, Search } from '@/shared/ui/icons';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { Button, IconButton } from '@/shared/ui/Button';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
+import { IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
@@ -242,13 +242,12 @@ export function ConstructionsList() {
 
       <Modal open={createOpen} onOpenChange={setCreateOpen} title="Новая стройка"
         footer={
-          <div className="flex justify-end gap-2">
+          <>
             <ModalExit />
-            <Button type="submit" form="create-construction-form" variant="filled" loading={createMutation.isPending}>
+            <ModalPrimary type="submit" form="create-construction-form" loading={createMutation.isPending}>
               {createMutation.isPending ? 'Создание…' : 'Создать'}
-            </Button>
-          </div>
-        }>
+            </ModalPrimary>
+          </>}>
         {createOpen && (
           <form id="create-construction-form" onSubmit={handleCreate} className="space-y-4">
             <TextField label="Название стройки" value={newName} onChange={e => setNewName(e.target.value)}

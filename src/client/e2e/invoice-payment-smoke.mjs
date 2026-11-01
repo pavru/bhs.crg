@@ -182,7 +182,8 @@ async function openPaymentCalendar() {
  * когда выбранный день и есть сегодняшний.
  */
 async function leavePayment(dialog) {
-  await dialog.getByRole('button', { name: 'Отмена' }).click();
+  // Выход окна — по метке, а не по подписи: на телефоне это крестик шапки, а не «Отмена» ([UI-75]).
+  await dialog.locator('[data-modal-exit]').first().click();
   // Вопрос — своё окно над окном оплаты ([UI-75]), а не блок внутри него.
   const question = dialog.page().getByRole('alertdialog', { name: 'Закрыть без сохранения?' });
   await question.waitFor({ timeout: 2_000 }).then(

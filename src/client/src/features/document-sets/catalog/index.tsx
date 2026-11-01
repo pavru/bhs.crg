@@ -10,6 +10,7 @@ import {
   useListCommonData, useCommonDataForSet, useCreateCommonDataEntry,
   useUpdateCommonDataEntry, useCheckBindings, archivedTwinOf, ownDoorCode, type ArchivedTwin,
 } from '@/shared/api/commonData';
+import { ModalPrimary } from '@/shared/ui/Modal';
 import { RecordWriteGate } from './RecordWriteGate';
 import type { CommonDataEntry, CatalogScope, DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
 import { SCOPE_LABELS, SCOPE_PRIORITY } from '@/shared/api/types';
@@ -765,14 +766,12 @@ export function CatalogEntryForm({
       </div>
       </div>
       </div>
-      <div className="shrink-0 px-6 py-3 border-t border-outline-variant flex justify-end gap-2">
-        <RecordWriteGate doorCode={ownDoorCode(typeId, allDocTypes)}>
-        <Button type="submit" variant="filled" loading={isPending} disabled={isPending || recognizing || uploading}
+      <RecordWriteGate doorCode={ownDoorCode(typeId, allDocTypes)} className="shrink-0 px-6 py-3 border-t border-outline-variant">
+        <ModalPrimary type="submit" loading={isPending} disabled={isPending || recognizing || uploading}
           title={uploading ? "Дождитесь загрузки изображения" : undefined}>
           {isPending ? 'Сохранение…' : entry ? 'Сохранить' : 'Создать'}
-        </Button>
-        </RecordWriteGate>
-      </div>
+        </ModalPrimary>
+      </RecordWriteGate>
       <ConfirmDialog
         open={!!pendingBase}
         onOpenChange={o => { if (!o) setPendingBase(null); }}

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Delete } from '@/shared/ui/icons';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalAction, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { useChangedSince } from '@/shared/hooks/useChangedSince';
 import type { ComputedColumn } from '@/shared/api/types';
 import { columnAccessor } from './computedColumnAccess';
@@ -121,27 +121,13 @@ export function ComputedColumnsDialog({
       onOpenChange={o => { if (!o) close(); }}
       title="Вычисляемые колонки"
       wide isDirty={edited} busy={saving}
-      footer={
-        <div className="flex gap-2">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 rounded-sm text-body-medium font-medium text-on-primary bg-primary disabled-container"
-          >
-            {saving ? 'Сохранение…' : 'Сохранить'}
-          </button>
-          <ModalExit variant="tonal" />
-          {columns.length > 0 && (
-            <button
-              onClick={() => void commit(() => onSave(null))}
-              disabled={saving}
-              className="ml-auto px-4 py-2 rounded-sm text-body-medium font-medium text-error bg-surface-container disabled-container"
-            >
-              Сбросить
-            </button>
-          )}
-        </div>
-      }
+      footer={<>
+        {columns.length > 0 && (
+          <ModalAction danger lead onClick={() => void commit(() => onSave(null))}>Сбросить</ModalAction>
+        )}
+        <ModalExit />
+        <ModalPrimary onClick={handleSave} loading={saving}>{saving ? 'Сохранение…' : 'Сохранить'}</ModalPrimary>
+      </>}
     >
       <div className="rounded-md p-3 mb-4 text-body-small space-y-1 bg-surface-container-low border border-outline-variant">
         <p className="font-semibold text-on-surface-variant">Синтаксис JavaScript</p>

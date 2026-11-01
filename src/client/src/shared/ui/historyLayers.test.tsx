@@ -20,7 +20,10 @@ const settle = () => act(() => new Promise(r => setTimeout(r, 30)));
 const state = () => window.history.state as { idx?: number; layer?: string; depth?: number } | null;
 
 function mockWidth(wide: boolean) {
-  window.matchMedia = vi.fn().mockImplementation(() => ({ matches: wide })) as unknown as typeof window.matchMedia;
+  // Ширину спрашивают двумя вопросами — «шире 768» (WIDE) и «уже 768» (NARROW), — и ответ у них обратный.
+  window.matchMedia = vi.fn().mockImplementation((q: string) => ({
+    matches: q.includes('min-width') ? wide : !wide, addEventListener() {}, removeEventListener() {},
+  })) as unknown as typeof window.matchMedia;
 }
 
 function Layer({ onBack, open = true }: { onBack: () => boolean; open?: boolean }) {

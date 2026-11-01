@@ -122,10 +122,15 @@ await check('paste-detects-header-and-counts-rows', async () => {
   if (!/импортировать\s*\(1 стр/i.test(t)) throw new Error(`строки посчитаны неверно: ${t.slice(-300)}`);
 });
 
-// «Отмена» вставки возвращает к таблице с её строками, а не закрывает окно. Во вставке набирали —
-// выход спрашивает (issue #1235), и «Закрыть» уходит только с шага.
+// Шаги вставки — стопкой: «Назад» с сопоставления возвращает к вставленному тексту, а «Отмена» ввода —
+// к таблице с её строками, а не закрывает окно. Во вставке набирали — выход спрашивает (issue #1235),
+// и «Закрыть» уходит только с шага.
 await check('paste-cancel-returns-to-table', async () => {
   const dlg = page.locator('[role=dialog]').last();
+  await dlg.getByRole('button', { name: 'Назад', exact: true }).click();
+  await settled(page);
+  const text = await dlg.locator('textarea').first().inputValue();
+  if (!/Кабель ВВГнг/.test(text)) throw new Error(`«Назад» с сопоставления — не к вставленному тексту: «${text.slice(0, 60)}»`);
   await dlg.getByRole('button', { name: 'Отмена' }).click();
   // Вопрос — своё окно над окном ([UI-75]); окно под ним от чтения скрыто.
   await page.getByRole('alertdialog').getByRole('button', { name: 'Закрыть', exact: true }).click();

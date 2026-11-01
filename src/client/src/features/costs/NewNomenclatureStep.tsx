@@ -202,7 +202,7 @@ export function NewNomenclatureStep({ from, plate, narrow, onBack, onPick }: {
 
   return (
     <WindowStep title="Новая позиция номенклатуры" onBack={onBack}
-      footer={<div className="flex justify-start"><ModalExit>← К поиску</ModalExit></div>}>
+      footer={<ModalExit>← К поиску</ModalExit>}>
       {narrow || !kind || !fit ? form : (
         <div className="grid grid-cols-[minmax(0,55fr)_minmax(0,45fr)] gap-5">
           {form}

@@ -18,6 +18,8 @@ export interface RowAction {
   active?: boolean;
   /** Опасное действие (удаление) — красный цвет + отделяется сепаратором. */
   danger?: boolean;
+  /** Строка под подписью — почему пункт погашен: подсказки при наведении на телефоне нет. */
+  hint?: string;
   /** Подменю (напр. список шаблонов для применения). */
   submenu?: RowAction[];
 }
@@ -30,7 +32,12 @@ function Row({ action }: { action: RowAction }) {
   return (
     <>
       {action.icon && <span className={off || (action.active ? 'text-primary' : action.danger ? 'text-error' : 'text-on-surface-variant')}>{action.icon}</span>}
-      <span className={`truncate ${color}`}>{action.label}</span>
+      {action.hint ? (
+        <span className="flex flex-col min-w-0">
+          <span className={`truncate ${color}`}>{action.label}</span>
+          <span className="text-body-small text-on-surface-variant">{action.hint}</span>
+        </span>
+      ) : <span className={`truncate ${color}`}>{action.label}</span>}
       {action.badge && <CountText disabled={action.disabled} className="ml-auto">{action.badge}</CountText>}
     </>
   );

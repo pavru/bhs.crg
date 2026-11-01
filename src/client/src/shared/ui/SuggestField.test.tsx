@@ -317,7 +317,9 @@ describe('SuggestField: доступность (UI-6)', () => {
 describe('SuggestField: телефон (UI-7)', () => {
   beforeEach(() => {
     resetHistoryLayers();
-    window.matchMedia = vi.fn().mockImplementation(() => ({ matches: false })) as unknown as typeof window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((q: string) => ({
+      matches: !q.includes('min-width'), addEventListener() {}, removeEventListener() {},
+    })) as unknown as typeof window.matchMedia;
     window.history.replaceState({ idx: 0, key: 'base' }, '');
   });
 

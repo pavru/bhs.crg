@@ -4,7 +4,7 @@ import { Add, Delete, DocumentScanner, LockIcon, RestartAlt, VisibilityOff, Warn
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { moveItem } from '@/shared/utils/moveItem';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
@@ -331,12 +331,12 @@ function CreateProfileForm({ kinds, onSaved }: {
         </p>
       </div>
       {error && <p className="text-body-medium text-error">{error}</p>}
-      <div className="flex justify-end gap-2 border-t border-outline-variant pt-3">
+      <ModalButtons className="border-t border-outline-variant pt-3">
         <ModalExit />
-        <Button type="button" variant="filled" onClick={save} loading={create.isPending}>
+        <ModalPrimary onClick={save} loading={create.isPending}>
           {create.isPending ? 'Создание…' : 'Создать'}
-        </Button>
-      </div>
+        </ModalPrimary>
+      </ModalButtons>
     </div>
   );
 }

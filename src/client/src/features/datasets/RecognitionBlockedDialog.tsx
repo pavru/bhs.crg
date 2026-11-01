@@ -1,6 +1,5 @@
 import { useNavigate } from 'react-router';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { useAccess, NO_ACCESS, hasPermission } from '@/shared/api/access';
 
 /**
@@ -21,19 +20,16 @@ export function RecognitionBlockedDialog(
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Распознавание не запущено"
-      footer={
-        <div className="flex justify-end gap-2">
-          {/* Кнопка ведёт в раздел под AdminRoute: обычному пользователю она дала бы 403 — то есть
-              совет, за которым следует отказ. Ему адресован другой текст, ниже. */}
-          {canConfigure && configurable && (
-            <Button type="button" variant="text"
-              onClick={() => { onClose(); navigate('/settings'); }}>
-              Открыть настройки
-            </Button>
-          )}
-          <ModalExit>Понятно</ModalExit>
-        </div>
-      }>
+      footer={<>
+        {/* Кнопка ведёт в раздел под AdminRoute: обычному пользователю она дала бы 403 — то есть
+            совет, за которым следует отказ. Ему адресован другой текст, ниже. */}
+        {canConfigure && configurable && (
+          <ModalPrimary variant="text" onClick={() => { onClose(); navigate('/settings'); }}>
+            Открыть настройки
+          </ModalPrimary>
+        )}
+        <ModalExit>Понятно</ModalExit>
+      </>}>
       <div className="space-y-3">
         <p className="text-body-medium text-on-surface">{message}</p>
         {/* Совет даём только там, где он лечит: отказ движка на середине или сбой сети в настройках

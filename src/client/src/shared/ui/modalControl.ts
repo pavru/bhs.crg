@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 
 /**
  * Что диалог даёт своему содержимому (issue #1235): охраняемый выход и признак «идёт запрос».
@@ -49,6 +49,8 @@ export interface WindowStepHost {
   update: (id: string, state: WindowStepState) => void;
   pop: (id: string) => void;
   slots: Record<string, WindowStepSlots>;
+  /** Места шага во весь экран — см. `ModalBar`; на столе `null`. */
+  bar?: (id: string) => ModalBar | null;
 }
 
 export const WindowStepContext = createContext<WindowStepHost | null>(null);
@@ -57,3 +59,34 @@ export const WindowStepContext = createContext<WindowStepHost | null>(null);
 export function useOwnWindow(wanted: boolean): boolean {
   return useContext(WindowStepContext) === null && wanted;
 }
+
+/** Действие окна, перенесённое во весь экран в меню «⋮» шапки ([UI-75]). */
+export interface BarAction {
+  /** Чьё: `form` — формы окна, иначе id шага. В «⋮» — только действия видимого. */
+  layer: string;
+  label: string;
+  danger: boolean;
+  disabled: boolean;
+  /** Идёт запрос действия: пункт погашен и вместо знака — кольцо хода. */
+  loading: boolean;
+  icon?: ReactNode;
+  /** Почему пункт погашен — строкой под подписью: подсказки при наведении на телефоне нет. */
+  hint?: string;
+  run: () => void;
+}
+
+/**
+ * Окно во весь экран (sharedui-md3-13, [UI-75]): куда кнопки подвала с ролью переносят себя. Подвала у
+ * такого окна нет — `ModalPrimary` рисует себя в шапке, `ModalNote` — строкой под ней, `ModalAction`
+ * встаёт пунктом «⋮», `ModalExit` уступает место крестику. `null` — окно на столе: роли рисуют подвал на
+ * месте. У слоя, который сейчас не виден (форма под шагом), мест нет — его роли молчат.
+ */
+export interface ModalBar {
+  layer: string;
+  primary: HTMLElement | null;
+  note: HTMLElement | null;
+  /** Поставить, обновить (`action`) или снять (`null`) пункт «⋮». Ссылка стабильная. */
+  setAction: (id: string, action: BarAction | null) => void;
+}
+
+export const ModalBarContext = createContext<ModalBar | null>(null);

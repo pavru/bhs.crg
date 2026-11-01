@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { ModalExit } from '@/shared/ui/Modal';
+import { ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
-import { Button } from '@/shared/ui/Button';
 import type { CatalogScope, DocumentType, FieldRef } from '@/shared/api/types';
 import { resolveObjectsBatch, type ObjectResolveItem, type ObjectResolveResult } from '@/shared/api/objects';
 import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
@@ -94,8 +93,8 @@ function PasteMappingModalBody({
   const coerceCtx: CoerceContext = { locale, primitiveTypes, enumTypes };
   const [step, setStep] = useState<'input' | 'map'>(initialText.trim() ? 'map' : 'input');
   const [rawText, setRawText] = useState(initialText);
-  // Три шага, и набранное жалко на каждом: вставленный текст и есть правка. Сопоставление
-  // колонок выбирают списками, которых окно не замечает, — поэтому признак явный, один на все шаги.
+  // Вставленный текст и есть правка: его теряет выход с первого шага. Сопоставление колонок выбирают
+  // списками, которых окно не замечает, — поэтому признак явный.
   const pasted = rawText.trim() !== '';
   const [skipHeader, setSkipHeader] = useState(initial.skipHeader);
   // Сопоставление: ПОЛЕ таблицы → индекс колонки Excel-данных (источник). '' = пропустить.
@@ -294,130 +293,115 @@ function PasteMappingModalBody({
 
   const selectCls = 'w-full min-w-[140px]';
 
-  if (step === 'input') {
-    return (
-      <WindowStep onBack={() => onOpenChange(false)} title="Вставить из Excel" wide isDirty={pasted}
-        footer={
-          <div className="flex justify-end gap-3">
-            <ModalExit />
-            <Button variant="filled" disabled={!rawText.trim()}
-              onClick={() => { initMapping(rawText); setStep('map'); }}>
-              Далее →
-            </Button>
-          </div>
-        }>
-        <div className="space-y-4">
-          <p className="text-body-medium text-on-surface-variant">Скопируйте ячейки в Excel и вставьте сюда (Ctrl+V):</p>
-          <textarea autoFocus value={rawText} onChange={e => setRawText(e.target.value)}
-            onPaste={e => {
-              const text = e.clipboardData.getData('text/plain');
-              if (text.trim()) { e.preventDefault(); setRawText(text); initMapping(text); setStep('map'); }
-            }}
-            placeholder="Вставьте данные из Excel..." rows={7}
-            className="w-full border border-outline rounded-sm px-3 py-2 text-body-small font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface resize-none" />
-        </div>
-      </WindowStep>
-    );
-  }
+  // Шаги — стопкой шагов окна (`WindowStep`): следующий ложится на предыдущий, и выход с него — «Назад» к
+  // предыдущему, со стрелкой в шапке на телефоне. Окно закрывает выход с первого шага — только он и теряет
+  // вставленное; выход с остальных возвращает на шаг, где всё набранное на месте.
+  const inputStep = (
+    <WindowStep onBack={() => onOpenChange(false)} title="Вставить из Excel" wide isDirty={pasted}
+      footer={<>
+        <ModalExit />
+        <ModalPrimary disabled={!rawText.trim()} onClick={() => { initMapping(rawText); setStep('map'); }}>
+          Далее →
+        </ModalPrimary>
+      </>}>
+      <div className="space-y-4">
+        <p className="text-body-medium text-on-surface-variant">Скопируйте ячейки в Excel и вставьте сюда (Ctrl+V):</p>
+        <textarea autoFocus value={rawText} onChange={e => setRawText(e.target.value)}
+          onPaste={e => {
+            const text = e.clipboardData.getData('text/plain');
+            if (text.trim()) { e.preventDefault(); setRawText(text); initMapping(text); setStep('map'); }
+          }}
+          placeholder="Вставьте данные из Excel..." rows={7}
+          className="w-full border border-outline rounded-sm px-3 py-2 text-body-small font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface resize-none" />
+      </div>
+    </WindowStep>
+  );
 
   // step === 'map', промежуточная сводка перед вставкой (есть несопоставленные строки).
-  if (pending) {
-    return (
-      <WindowStep onBack={() => onOpenChange(false)} title="Готово к вставке" wide isDirty={pasted} busy={applying}
-        footer={
-          <div className="flex justify-between">
-            <Button variant="text" disabled={applying} onClick={() => setPending(null)}>← Изменить сопоставление</Button>
-            <div className="flex gap-3">
-              <ModalExit />
-              <Button variant="filled" disabled={pending.rows.length === 0 || applying} loading={applying}
-                onClick={() => void applyPending()}>
-                Вставить {pending.rows.length} стр.
-              </Button>
-            </div>
-          </div>
-        }>
-        <div className="space-y-3 text-body-medium">
-          <p className="text-on-surface-variant">Будет вставлено строк: <span className="font-medium text-on-surface">{pending.rows.length}</span>
-            {pending.rows.length < importCount && (
-              <span className="text-on-surface-variant"> (из {importCount}: остальные не дали ни одного значения)</span>
-            )}
-          </p>
-          {pending.linked + pending.inline > 0 && (
-            <ul className="space-y-1.5">
-              <li className="text-on-surface-variant">🔗 Связано с каталогом: <span className="font-medium text-on-surface">{pending.linked}</span></li>
-              <li className="text-on-surface-variant">
-                📝 Встроенные данные (без связи с каталогом): <span className="font-medium text-on-surface">{pending.inline}</span>
-              </li>
-            </ul>
+  const pendingStep = pending && (
+    <WindowStep onBack={() => setPending(null)} title="Готово к вставке" wide isDirty={false} busy={applying}
+      footer={<>
+        <ModalExit>Назад</ModalExit>
+        <ModalPrimary disabled={pending.rows.length === 0} loading={applying} onClick={() => void applyPending()}>
+          Вставить {pending.rows.length} стр.
+        </ModalPrimary>
+      </>}>
+      <div className="space-y-3 text-body-medium">
+        <p className="text-on-surface-variant">Будет вставлено строк: <span className="font-medium text-on-surface">{pending.rows.length}</span>
+          {pending.rows.length < importCount && (
+            <span className="text-on-surface-variant"> (из {importCount}: остальные не дали ни одного значения)</span>
           )}
-          {pending.rejects.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-on-surface-variant">
-                ⚠️ Не разобрано: <span className="font-medium text-on-surface">{pending.rejects.length}</span>
-                {' '}{ruPlural(pending.rejects.length, 'ячейка', 'ячейки', 'ячеек')}
-              </p>
-              <ul className="space-y-0.5 max-h-40 overflow-y-auto">
-                {pending.rejects.slice(0, REJECTS_SHOWN).map((c, i) => (
-                  <li key={i} className="text-body-small text-on-surface-variant">
-                    строка {c.line}, «{c.title}»: {c.reason}
-                    {' — '}<span className="font-mono text-on-surface">{c.raw}</span>
-                  </li>
-                ))}
-              </ul>
-              {pending.rejects.length > REJECTS_SHOWN && (
-                <p className="text-body-small text-on-surface-variant">…и ещё {pending.rejects.length - REJECTS_SHOWN}</p>
-              )}
-              <p className="text-body-small text-on-surface-variant">
-                Значение не уложилось в тип поля целиком, и подставлять вместо него догадку нельзя.
-                {keptRejects > 0 && ` Таких ячеек во вставляемых строках: ${keptRejects} — они останутся пустыми, заполните вручную либо исправьте источник.`}
-                {pending.dropped > 0 && ` Строк, где не разобралось ничего: ${pending.dropped} — они не вставятся вовсе.`}
-              </p>
-              {numberRejected && (
-                <p className="text-body-small text-on-surface-variant">
-                  Числа разбираются по региональной настройке (<span className="text-on-surface-variant">{localeLabel}</span>):
-                  десятичный разделитель — её, остальные знаки могут быть только разделителями тысяч.
-                </p>
-              )}
-              {dateRejected && (
-                <p className="text-body-small text-on-surface-variant">
-                  Даты разбираются в порядке региональной настройки (<span className="text-on-surface-variant">{localeLabel}</span>):{' '}
-                  {dateHint}. Дата из таблицы с другим порядком дня и месяца читается по настройке, а не угадывается.
-                </p>
-              )}
-              {(numberRejected || dateRejected) && (
-                <p className="text-body-small text-on-surface-variant">Настройка — в профиле, раздел «Внешний вид».</p>
-              )}
-            </div>
-          )}
-          {pending.inline > 0 && (
-            <p className="text-body-small text-on-surface-variant">
-              Встроенные ячейки — обычные данные в документе (выбран режим «Встроенно» либо совпадение
-              в каталоге не найдено). Их можно дозаполнить/связать вручную после вставки.
+        </p>
+        {pending.linked + pending.inline > 0 && (
+          <ul className="space-y-1.5">
+            <li className="text-on-surface-variant">🔗 Связано с каталогом: <span className="font-medium text-on-surface">{pending.linked}</span></li>
+            <li className="text-on-surface-variant">
+              📝 Встроенные данные (без связи с каталогом): <span className="font-medium text-on-surface">{pending.inline}</span>
+            </li>
+          </ul>
+        )}
+        {pending.rejects.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-on-surface-variant">
+              ⚠️ Не разобрано: <span className="font-medium text-on-surface">{pending.rejects.length}</span>
+              {' '}{ruPlural(pending.rejects.length, 'ячейка', 'ячейки', 'ячеек')}
             </p>
-          )}
-          {pending.archived.length > 0 && (
-            <PasteArchivedNote cells={pending.archived} canReturn={canReturn}
-              checked={returnArchived} onChange={setReturnArchived} />
-          )}
-        </div>
-      </WindowStep>
-    );
-  }
+            <ul className="space-y-0.5 max-h-40 overflow-y-auto">
+              {pending.rejects.slice(0, REJECTS_SHOWN).map((c, i) => (
+                <li key={i} className="text-body-small text-on-surface-variant">
+                  строка {c.line}, «{c.title}»: {c.reason}
+                  {' — '}<span className="font-mono text-on-surface">{c.raw}</span>
+                </li>
+              ))}
+            </ul>
+            {pending.rejects.length > REJECTS_SHOWN && (
+              <p className="text-body-small text-on-surface-variant">…и ещё {pending.rejects.length - REJECTS_SHOWN}</p>
+            )}
+            <p className="text-body-small text-on-surface-variant">
+              Значение не уложилось в тип поля целиком, и подставлять вместо него догадку нельзя.
+              {keptRejects > 0 && ` Таких ячеек во вставляемых строках: ${keptRejects} — они останутся пустыми, заполните вручную либо исправьте источник.`}
+              {pending.dropped > 0 && ` Строк, где не разобралось ничего: ${pending.dropped} — они не вставятся вовсе.`}
+            </p>
+            {numberRejected && (
+              <p className="text-body-small text-on-surface-variant">
+                Числа разбираются по региональной настройке (<span className="text-on-surface-variant">{localeLabel}</span>):
+                десятичный разделитель — её, остальные знаки могут быть только разделителями тысяч.
+              </p>
+            )}
+            {dateRejected && (
+              <p className="text-body-small text-on-surface-variant">
+                Даты разбираются в порядке региональной настройки (<span className="text-on-surface-variant">{localeLabel}</span>):{' '}
+                {dateHint}. Дата из таблицы с другим порядком дня и месяца читается по настройке, а не угадывается.
+              </p>
+            )}
+            {(numberRejected || dateRejected) && (
+              <p className="text-body-small text-on-surface-variant">Настройка — в профиле, раздел «Внешний вид».</p>
+            )}
+          </div>
+        )}
+        {pending.inline > 0 && (
+          <p className="text-body-small text-on-surface-variant">
+            Встроенные ячейки — обычные данные в документе (выбран режим «Встроенно» либо совпадение
+            в каталоге не найдено). Их можно дозаполнить/связать вручную после вставки.
+          </p>
+        )}
+        {pending.archived.length > 0 && (
+          <PasteArchivedNote cells={pending.archived} canReturn={canReturn}
+            checked={returnArchived} onChange={setReturnArchived} />
+        )}
+      </div>
+    </WindowStep>
+  );
 
   // step === 'map' — строки = ПОЛЯ таблицы, справа выбираем колонку Excel-источник.
-  return (
-    <WindowStep onBack={() => onOpenChange(false)} title="Сопоставление столбцов" wide isDirty={pasted} busy={resolving}
-      footer={
-        <div className="flex justify-between">
-          <Button variant="text" onClick={() => setStep('input')}>← Назад</Button>
-          <div className="flex gap-3">
-            <ModalExit />
-            <Button variant="filled" onClick={stage} loading={resolving} disabled={importCount === 0 || resolving}>
-              Импортировать {importCount > 0 ? `(${importCount} стр.)` : ''}
-            </Button>
-          </div>
-        </div>
-      }>
+  const mapStep = (
+    <WindowStep onBack={() => setStep('input')} title="Сопоставление столбцов" wide isDirty={false} busy={resolving}
+      footer={<>
+        <ModalExit>Назад</ModalExit>
+        <ModalPrimary onClick={stage} loading={resolving} disabled={importCount === 0}>
+          Импортировать {importCount > 0 ? `(${importCount} стр.)` : ''}
+        </ModalPrimary>
+      </>}>
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <Checkbox checked={skipHeader} label="Первая строка — заголовки"
@@ -480,5 +464,15 @@ function PasteMappingModalBody({
         </div>
       </div>
     </WindowStep>
+  );
+
+  // Порядок сестёр — порядок стопки: шаги, смонтированные разом (вставка сразу на сопоставление), встают
+  // в неё сверху вниз.
+  return (
+    <>
+      {inputStep}
+      {step === 'map' && mapStep}
+      {step === 'map' && pendingStep}
+    </>
   );
 }

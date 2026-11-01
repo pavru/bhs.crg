@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { Upload, VerifiedUser, Visibility } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
-import { ModalExit } from '@/shared/ui/Modal';
+import { ModalAction, ModalButtons, ModalExit, ModalNote, ModalPrimary } from '@/shared/ui/Modal';
 import { apiError } from '@/shared/utils/apiError';
 import { refusalIssues } from '@/shared/api/refusals';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
@@ -347,18 +347,20 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
       <div className="border-t border-surface-container pt-3">{renderFields(fields)}</div>
 
       {error && <p className="text-body-medium text-error">{error}</p>}
-      <div className="flex items-center gap-2 pt-1">
-        <Button variant="filled" onClick={handleSave} loading={busy}
+      <ModalButtons className="pt-1">
+        {recognizing && (
+          <ModalNote>
+            <span className="inline-flex items-center gap-1.5">
+              <CircularProgress size={18} /> Идёт распознавание — дождитесь завершения перед сохранением…
+            </span>
+          </ModalNote>
+        )}
+        {onCancel ? <ModalAction onClick={onCancel}>Отмена</ModalAction> : <ModalExit />}
+        <ModalPrimary onClick={handleSave} loading={busy}
           disabled={busy || recognizing || uploading || imageUploading || !typeId} title={imageUploading ? "Дождитесь загрузки изображения" : undefined}>
           {busy ? 'Сохранение…' : isEdit ? 'Сохранить' : 'Создать'}
-        </Button>
-        {onCancel ? <Button variant="text" onClick={onCancel}>Отмена</Button> : <ModalExit />}
-        {recognizing && (
-          <span className="flex items-center gap-1.5 text-body-small text-on-surface-variant">
-            <CircularProgress size={18} /> Идёт распознавание — дождитесь завершения перед сохранением…
-          </span>
-        )}
-      </div>
+        </ModalPrimary>
+      </ModalButtons>
     </div>
   );
 }

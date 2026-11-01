@@ -22,6 +22,7 @@
 
 import { BASE, launchBrowser, login, createChecks, settled, until, closeDialog } from './harness.mjs';
 import { dialogLinesFollowBodyScroll } from './dialog-lines-checks.mjs';
+import { phoneDialogSavesFromHeader } from './dialog-phone-checks.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
@@ -667,6 +668,9 @@ await check('quality-picker-keeps-chosen-search-type-across-close', async () => 
   await page.keyboard.press('Escape');
   await settled(page);
 });
+
+// Окно на телефоне — во весь экран, главное действие в шапке: см. dialog-phone-checks.mjs.
+await check('phone-dialog-saves-from-header', () => phoneDialogSavesFromHeader(page, CONSTRUCTION));
 
 // ── Архив записи справочника (issue #1185) ───────────────────────────────────────────────────
 // Занятую запись удалить нельзя, и раньше отказ на этом кончался: «освободите запись» — совет

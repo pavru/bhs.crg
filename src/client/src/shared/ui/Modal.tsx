@@ -1,7 +1,12 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { NARROW, useMedia } from '@/shared/hooks/useMedia';
 import { Button, type ButtonProps } from './Button';
-import { ModalBodyExitContext, ModalControlContext, WindowStepContext, useModalControl } from './modalControl';
+import {
+  ModalBarContext, ModalBodyExitContext, ModalControlContext, WindowStepContext, useModalControl,
+  type BarAction, type ModalBar, type WindowStepHost,
+} from './modalControl';
+import { ModalAppBar } from './ModalAppBar';
 import { DISMISSAL, modalState, pointAtExit } from './modalDismissal';
 import { useHistoryLayer } from './historyLayers';
 import { focusFromLayer } from './layerFocus';
@@ -9,6 +14,10 @@ import { DIALOG_SCRIM, DIALOG_SURFACE, DIALOG_TITLE } from './dialogSurface';
 import { LeaveQuestion } from './LeaveQuestion';
 import { useScrollEdges } from './useScrollEdges';
 import { useWindowSteps } from './windowSteps';
+
+import { FOOTER_ROW } from './ModalRoles';
+
+export { ModalAction, ModalButtons, ModalNote, ModalPrimary } from './ModalRoles';
 
 interface ModalBaseProps {
   open: boolean;
@@ -25,9 +34,16 @@ interface ModalBaseProps {
    * храповик интерфейса.
    */
   wide?: boolean;
-  /** Полноэкранный диалог-оверлей (на весь вьюпорт) — для крупных форм. Рендерится НАД
-   *  текущей страницей (она остаётся смонтированной): закрытие возвращает в прежний контекст. */
+  /** Full-screen dialog ([UI-75]) — для крупных форм: шапка с крестиком и главным действием, подвала
+   *  нет. Таким же любое окно открывается на экране уже 768. Рендерится НАД текущей страницей (она
+   *  остаётся смонтированной): закрытие возвращает в прежний контекст. */
   fullScreen?: boolean;
+  /**
+   * Вопрос с несколькими ответами («Сохранить» / «Не сохранять» / «Отмена»): basic dialog и на узком
+   * экране, как `ConfirmDialog`. Во весь экран ответ «Не сохранять» ушёл бы в «⋮», а у вопроса все ответы
+   * равноправны и видны сразу ([UI-75]).
+   */
+  question?: boolean;
   /** Не рисовать заголовок по умолчанию (содержимое рисует собственный top app bar). Свою кнопку
    *  выхода такое содержимое помечает `data-modal-exit` — иначе Esc и клик мимо её не покажут. */
   headerless?: boolean;
@@ -36,12 +52,13 @@ interface ModalBaseProps {
    *  ставит само — `ModalExit`: подвала «Закрыть» окно ему не добавляет. */
   flushBody?: boolean;
   /**
-   * Зафиксированная нижняя область (кнопки действий). Заголовок сверху и футер снизу
-   * не скроллятся; прокручивается только тело между ними. Не передан — окно ставит подвал с «Закрыть»
-   * само: крестика у окна нет ([UI-75]), и выход должен быть виден.
+   * Действия окна — только кнопки с ролью: `ModalExit`, `ModalPrimary`, `ModalAction`, `ModalNote`
+   * ([UI-75], сторож `modalFooterRoles.test.ts`). На столе они — подвал, который не прокручивается; во
+   * весь экран переносят себя в шапку. Не передан — окно ставит подвал с «Закрыть» само: крестика у
+   * basic dialog нет, и выход должен быть виден.
    *
-   * <p>«Отмену» ставят `ModalExit` или зовут из функции-формы `requestClose`: выход, позванный
-   * мимо, не спросит о правках и останется живым при идущем запросе.</p>
+   * <p>«Отмену» ставит `ModalExit`: выход, позванный мимо, не спросит о правках и останется живым при
+   * идущем запросе.</p>
    */
   footer?: ReactNode | ((requestClose: () => void) => ReactNode);
   /**
@@ -78,14 +95,6 @@ type ModalDismissalProps =
 
 export type ModalProps = ModalBaseProps & ModalDismissalProps;
 
-/**
- * На узком экране (< 640 px) окно любого размера — во весь экран (issue #1355, docs/UI.md «Узкий
- * экран»): плавающая карточка там оставляла бы по краям полосы в полтора пальца и резала бы поля.
- * Классами `max-sm:`, а не отдельной веткой: окно одно и то же, меняется только раскладка.
- */
-const NARROW_FULL = 'max-sm:inset-0 max-sm:translate-x-0 max-sm:translate-y-0 max-sm:w-full max-sm:max-w-none ' +
-  'max-sm:max-h-none max-sm:rounded-none';
-
 /** Черта под шапкой и над подвалом — только когда содержимое ушло под них ([UI-75]). Цвет, а не сама
  *  черта: появляясь, она не сдвигает тело на пиксель. */
 const edge = (shown: boolean) => shown ? 'border-outline-variant' : 'border-transparent';
@@ -113,7 +122,10 @@ export function Modal(props: ModalProps) {
 export function ModalExit({ children = 'Отмена', variant = 'text', disabled, ...rest }: Omit<ButtonProps, 'onClick' | 'type'>) {
   const { requestClose, busy } = useModalControl();
   const markBodyExit = useContext(ModalBodyExitContext);
+  const bar = useContext(ModalBarContext);
   useLayoutEffect(() => markBodyExit?.(), [markBodyExit]);
+  // Во весь экран выход подвала — крестик шапки ([UI-75]).
+  if (bar) return null;
   return (
     <Button {...rest} type="button" variant={variant} data-modal-exit="" disabled={disabled}
       aria-disabled={busy || undefined} className={`${rest.className ?? ''} ${busy ? BUSY_EXIT : ''}`}
@@ -132,7 +144,7 @@ export function ModalExit({ children = 'Отмена', variant = 'text', disable
 const BUSY_EXIT = 'pointer-events-none';
 
 function ModalBody({
-  onOpenChange, title, children, wide, fullScreen, headerless, isDirty, flushBody, footer,
+  onOpenChange, title, children, wide, fullScreen, question, headerless, isDirty, flushBody, footer,
   busy = false, nothingToLose, acknowledge,
 }: ModalProps) {
   const [confirmClose, setConfirmClose] = useState(false);
@@ -155,12 +167,41 @@ function ModalBody({
     setBodyExits(n => n + 1);
     return () => setBodyExits(n => n - 1);
   }, []);
+  // Во весь экран ([UI-75]): `fullScreen` всегда, любое окно — на экране уже 768. Решает JS, а не классы
+  // `max-sm:`: от узости зависит, где стоят действия, а не только ширина.
+  const narrow = useMedia(NARROW);
+  const full = !!fullScreen || (narrow && !question);
+  const [primarySlot, setPrimarySlot] = useState<HTMLElement | null>(null);
+  const [noteSlot, setNoteSlot] = useState<HTMLElement | null>(null);
+  const [barActions, setBarActions] = useState<Record<string, BarAction>>({});
+  const setAction = useCallback((id: string, action: BarAction | null) => setBarActions(s => {
+    if (!action) {
+      if (!(id in s)) return s;
+      const rest = { ...s };
+      delete rest[id];
+      return rest;
+    }
+    const was = s[id];
+    return was && was.layer === action.layer && was.label === action.label && was.danger === action.danger
+      && was.disabled === action.disabled ? s : { ...s, [id]: action };
+  }), []);
 
   // На шаге окно закрывается по правилам шага, а выход с него — назад, к форме окна.
   const state = top
     ? modalState({ busy: busy || top.busy, isDirty: top.isDirty, touched: top.touched })
     : modalState({ busy, acknowledge, isDirty, touched, nothingToLose });
   const leave = top ? top.back : () => onOpenChange(false);
+  // Кнопкам с ролью есть куда встать, только когда шапку рисует окно: у окна без шапки её рисует
+  // содержимое, и роли остаются подвалом на месте — иначе пропали бы молча.
+  const bar = full && (!headerless || !!top);
+  // Места во весь экран — у видимого слоя: форма под шагом в шапку не пишет.
+  const placeOf = useCallback((layer: string, live: boolean): ModalBar | null => bar
+    ? { layer, primary: live ? primarySlot : null, note: live ? noteSlot : null, setAction }
+    : null, [bar, primarySlot, noteSlot, setAction]);
+  const topId = top?.id;
+  const formBar = useMemo(() => placeOf('form', !topId), [placeOf, topId]);
+  const stepBar = useCallback((id: string) => placeOf(id, id === topId), [placeOf, topId]);
+  const stepHost = useMemo<WindowStepHost>(() => ({ ...host, bar: stepBar }), [host, stepBar]);
   const rule = DISMISSAL[state];
   // Вопрос «Закрыть без сохранения?» живёт, только пока выход вообще возможен: начавшийся запрос
   // снимает его вместе с кнопкой «Закрыть» — иначе она закрыла бы окно мимо `busy`. А пока вопрос
@@ -251,13 +292,17 @@ function ModalBody({
           ref={content}
           // Окно, которое Esc сейчас не закрывает, держит человека — см. `DialogHold`.
           data-modal-state={rule.escape === 'close' ? 'free' : state}
-          className={fullScreen
-            ? 'fixed inset-0 z-50 flex flex-col overflow-hidden focus:outline-none bg-surface-container-low'
+          className={full
+            // Full-screen dialog: поверхность `surface`, без радиуса и тени ([UI-75]). У окна без шапки
+            // фон прежний: свою верхнюю строку содержимое (просмотрщик PDF) подбирало под него.
+            ? `fixed inset-0 z-50 flex flex-col overflow-hidden focus:outline-none ${
+              bar ? 'bg-surface' : 'bg-surface-container-low'}`
             : `fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 max-h-[90vh] flex flex-col overflow-hidden focus:outline-none ${DIALOG_SURFACE} ${
-              // У широкого — зазор по краям: между телефоном и 896 px (планшет, 768) иначе окно
-              // ложилось бы в край экрана, скруглёнными углами вплотную (ревью PR #1386).
-              wide ? 'w-[calc(100%-2rem)] max-w-4xl' : 'w-full max-w-lg'
-            } ${NARROW_FULL}`}
+              // У широкого — зазор по краям: между 768 и 896 px иначе окно ложилось бы в край экрана,
+              // скруглёнными углами вплотную (ревью PR #1386).
+              // Вопрос на телефоне — с отступами 24 от краёв, как `ConfirmDialog`.
+              wide ? 'w-[calc(100%-2rem)] max-w-4xl' : question ? 'w-[calc(100%-3rem)] max-w-lg' : 'w-full max-w-lg'
+            }`}
           // «Тронуто»: первый же ввод внутри содержимого.
           // ⚠️ НЕ `onInputCapture`. React исполняет перехват `input` отдельным заходом, ДО того как
           // дойдёт до `onChange` поля, и сразу перерисовывает: управляемое поле получает прежнее
@@ -299,11 +344,16 @@ function ModalBody({
         >
           <ModalControlContext.Provider value={{ requestClose, busy: busy || !!top?.busy }}>
           <ModalBodyExitContext.Provider value={null}>
-          <WindowStepContext.Provider value={host}>
+          <ModalBarContext.Provider value={null}>
+          <WindowStepContext.Provider value={stepHost}>
           <Dialog.Title className="sr-only">{shownTitle}</Dialog.Title>
           {/* Под вопросом окно недоступно одной обёрткой: фокус не вернётся в форму мимо вопроса. */}
           <div className="contents" inert={asking}>
-          {(!headerless || top) && (
+          {bar ? (
+            <ModalAppBar title={shownTitle} back={!!top} busy={busy || !!top?.busy} onExit={requestClose}
+              primaryRef={setPrimarySlot} noteRef={setNoteSlot} edge={edge(above)}
+              actions={Object.values(barActions).filter(a => a.layer === (topId ?? 'form'))} />
+          ) : (!headerless || top) && (
             <div className={`shrink-0 px-6 pt-6 pb-2 border-b ${edge(above)}`}>
               {/* Заголовком бывает имя объекта (материал в пикере документа качества доходит до сотни
                   знаков) — две строки, дальше обрезка. */}
@@ -316,7 +366,9 @@ function ModalBody({
           {flushBody ? (
             <>
               <div className="flex-1 min-h-0 flex flex-col" hidden={!!top}>
-                {typeof children === 'function' ? children(requestClose) : children}
+                <ModalBarContext.Provider value={formBar}>
+                  {typeof children === 'function' ? children(requestClose) : children}
+                </ModalBarContext.Provider>
               </div>
               {top && (
                 <div className="overflow-y-auto flex-1 min-h-0 px-6">
@@ -329,10 +381,13 @@ function ModalBody({
           ) : (
             <div className="overflow-y-auto flex-1 min-h-0 px-6">
               <div ref={edgeStart} />
-              <div className={`pt-2 ${actions || acknowledge || top ? 'pb-2' : 'pb-6'}`}>
+              <div className={`pt-2 ${(actions || acknowledge || top) && !bar ? 'pb-2' : 'pb-6'}`}>
                 <div className="contents" hidden={!!top}>
+                  {/* Ряд кнопок формы в теле (`ModalButtons`) переносит себя в шапку так же, как подвал. */}
                   <ModalBodyExitContext.Provider value={markBodyExit}>
+                  <ModalBarContext.Provider value={formBar}>
                     {typeof children === 'function' ? children(requestClose) : children}
+                  </ModalBarContext.Provider>
                   </ModalBodyExitContext.Provider>
                 </div>
                 {stepSlot('body')}
@@ -341,19 +396,16 @@ function ModalBody({
             </div>
           )}
 
+          {/* Во весь экран подвала нет, но кнопки с ролью смонтированы и тут: из подвала они переносят себя
+              в шапку. */}
           {(actions || acknowledge || top) && (
-            <div className={`shrink-0 px-6 pt-4 pb-6 border-t ${edge(below)}`}>
-              {acknowledge ? (
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 min-w-0">{typeof footer === 'function' ? footer(requestClose) : footer}</div>
-                  <ModalExit>{acknowledge}</ModalExit>
-                </div>
-              ) : (
+            <div className={`shrink-0 px-6 pt-4 pb-6 border-t ${edge(below)} ${FOOTER_ROW}`} hidden={bar}>
+              <ModalBarContext.Provider value={formBar}>
                 <div className="contents" hidden={!!top}>
-                  {typeof actions === 'function' ? actions(requestClose)
-                    : footer ? actions : <div className="flex justify-end">{actions}</div>}
+                  {typeof actions === 'function' ? actions(requestClose) : actions}
+                  {acknowledge && <ModalExit>{acknowledge}</ModalExit>}
                 </div>
-              )}
+              </ModalBarContext.Provider>
               {stepSlot('footer')}
             </div>
           )}
@@ -362,6 +414,7 @@ function ModalBody({
           <LeaveQuestion open={asking} onStay={() => setConfirmClose(false)}
             onLeave={() => { setConfirmClose(false); leave(); }} />
           </WindowStepContext.Provider>
+          </ModalBarContext.Provider>
           </ModalBodyExitContext.Provider>
           </ModalControlContext.Provider>
         </Dialog.Content>

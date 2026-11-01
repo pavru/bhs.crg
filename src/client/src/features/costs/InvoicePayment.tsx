@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { LockIcon, Payments, Undo } from '@/shared/ui/icons';
 import { Link } from 'react-router';
 import { Button } from '@/shared/ui/Button';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { DateField } from '@/shared/ui/DateField';
 import { TextField } from '@/shared/ui/TextField';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
@@ -248,13 +248,12 @@ export function PayDialog({ view, onDone }: { view: InvoiceView; onDone: () => v
     <Modal open wide onOpenChange={o => { if (!o) onDone(); }} title={`Оплата: ${invoiceTitle(view)}`}
       isDirty={edited} busy={pay.isPending}
       footer={
-        <div className="flex items-center justify-end gap-2">
+        <>
           <ModalExit />
-          <Button variant="filled" disabled={!payable} loading={pay.isPending} onClick={submit}>
+          <ModalPrimary disabled={!payable} loading={pay.isPending} onClick={submit}>
             {posting && payable ? payLabel(posting.rows) : 'Отметить оплату'}
-          </Button>
-        </div>
-      }>
+          </ModalPrimary>
+        </>}>
       <div className="space-y-4">
         {error && (
           <p role="alert" className="text-body-medium text-error">
@@ -313,9 +312,9 @@ export function CancelDialog({ view, onDone }: { view: InvoiceView; onDone: () =
     <Modal open onOpenChange={o => { if (!o) onDone(); }} title={`Отменить оплату: ${invoiceTitle(view)}`}
       busy={cancel.isPending}
       footer={
-        <div className="flex items-center justify-end gap-2">
+        <>
           <ModalExit>Не отменять</ModalExit>
-          <Button variant="filled" danger disabled={!reason.trim()} loading={cancel.isPending}
+          <ModalPrimary danger disabled={!reason.trim()} loading={cancel.isPending}
             onClick={async () => {
               setError(null);
               try {
@@ -327,9 +326,8 @@ export function CancelDialog({ view, onDone }: { view: InvoiceView; onDone: () =
               }
             }}>
             Отменить оплату
-          </Button>
-        </div>
-      }>
+          </ModalPrimary>
+        </>}>
       <div className="space-y-4">
         <p className="text-body-medium text-on-surface-variant">
           Счёт вернётся в «не оплачен», учётные даты долей сотрутся. Запись об оплате в журнале действий
@@ -356,7 +354,7 @@ function PostedDialog({ view, onDone }: { view: InvoiceView; onDone: () => void 
 
   return (
     <Modal open wide nothingToLose onOpenChange={o => { if (!o) onDone(); }} title={`Расклад оплаты: ${invoiceTitle(view)}`}
-      footer={<div className="flex justify-end"><ModalExit>Закрыть</ModalExit></div>}>
+      footer={<ModalExit>Закрыть</ModalExit>}>
       {isLoading ? <p className="text-body-medium text-on-surface-variant">Читаем расклад…</p>
         : error || !data ? <p role="alert" className="text-body-medium text-error">Расклад не получен: {apiError(error, 'сервер не ответил')}</p>
           : <PaymentPostingTable posting={data} expanded />}

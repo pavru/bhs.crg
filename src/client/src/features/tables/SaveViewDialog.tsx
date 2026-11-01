@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Button } from '@/shared/ui/Button';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { apiError } from '@/shared/utils/apiError';
@@ -52,10 +51,10 @@ export function SaveViewDialog({ heading, action, initial, share, onSave, onClos
           <Checkbox checked={shared} onChange={setShared}
             label="Общее" description="Его увидят все, кому открыта таблица." />
         )}
-        <div className="flex justify-end gap-2 pt-1">
+        <ModalButtons className="pt-1">
           <ModalExit />
-          <Button type="submit" variant="filled" loading={busy} disabled={!title.trim()}>{action}</Button>
-        </div>
+          <ModalPrimary type="submit" loading={busy} disabled={!title.trim()}>{action}</ModalPrimary>
+        </ModalButtons>
       </form>
     </Modal>
   );

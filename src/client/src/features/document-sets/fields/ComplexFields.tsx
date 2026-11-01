@@ -13,7 +13,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Delete, DragIndicator, Edit, Info, KeyboardArrowDown, KeyboardArrowUp, LinkIcon, LinkOff, Refresh, Share, TableChart, Warning } from '@/shared/ui/icons';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalAction, ModalExit } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
 import { useOwnWindow } from '@/shared/ui/modalControl';
 import { SubfieldLabel } from './SubfieldLabel';
@@ -486,27 +486,26 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         confirmLabel={`Удалить (${chosen.length})`}
         onConfirm={deleteSelected} />
       {rowModal !== null && allItems[rowModal] != null && !isFieldRef(allItems[rowModal]) && (
-        <WindowStep onBack={() => { setRowModal(null); setExtractRow(null); }} wide
+        // Правка строки ложится в поле сразу: уйти со строки — ничего не потерять, вопроса нет.
+        <WindowStep onBack={() => { setRowModal(null); setExtractRow(null); }} wide isDirty={false}
           title={`${compositeType?.name ?? field.title} — строка ${rowModal + 1}`}
-          footer={
-            <div className="flex items-center justify-between gap-2">
-              {/* Вынос строки в переиспользуемую запись (issue #663) — по одной: массовый вынос
-                  отдельной задачей, у него свой selection-state. */}
-              {canExtract ? (
-                <Button variant="text" icon={<Icon icon={Share} size={18} />}
-                  // Строка-ссылка выносу не подлежит: получилась бы запись, всё содержимое которой —
-                  // ссылка на другую запись, то есть лишнее звено в цепочке (у неё есть предел, #723).
-                  // ComplexFieldGroup такую ветку до выноса не доводит вовсе; у массива защиты не было.
-                  disabled={isRowEmpty(allItems[rowModal] as Record<string, unknown>, subFields)
-                    || !!unionRef(allItems[rowModal] as Record<string, unknown>)}
-                  title="Создать запись общих данных из этой строки"
-                  onClick={() => setExtractRow(rowModal)}>
-                  Вынести в общие данные…
-                </Button>
-              ) : <span />}
-              <Button variant="filled" data-modal-exit="" onClick={() => setRowModal(null)}>Готово</Button>
-            </div>
-          }>
+          footer={<>
+            {/* Вынос строки в переиспользуемую запись (issue #663) — по одной: массовый вынос
+                отдельной задачей, у него свой selection-state. */}
+            {canExtract && (
+              <ModalAction lead icon={<Icon icon={Share} size={18} />}
+                // Строка-ссылка выносу не подлежит: получилась бы запись, всё содержимое которой —
+                // ссылка на другую запись, то есть лишнее звено в цепочке (у неё есть предел, #723).
+                // ComplexFieldGroup такую ветку до выноса не доводит вовсе; у массива защиты не было.
+                disabled={isRowEmpty(allItems[rowModal] as Record<string, unknown>, subFields)
+                  || !!unionRef(allItems[rowModal] as Record<string, unknown>)}
+                title="Создать запись общих данных из этой строки"
+                onClick={() => setExtractRow(rowModal)}>
+                Вынести в общие данные…
+              </ModalAction>
+            )}
+            <ModalExit variant="filled">Готово</ModalExit>
+          </>}>
           <SuggestOwner type={field.typeId}><div className="space-y-3">
             {isUnionComposite ? (
               <UnionFieldGroup field={field} allDocTypes={allDocTypes}
@@ -753,22 +752,21 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
           </button>
           <IconButton label="Редактировать" onClick={() => setModalOpen(true)} icon={Edit} />
         </div>
-        <Modal open={modalOpen} onOpenChange={setModalOpen} wide
+        {/* Правка объекта ложится в поле сразу: закрыть окно — ничего не потерять. */}
+        <Modal open={modalOpen} onOpenChange={setModalOpen} wide isDirty={false}
           title={compositeType ? `${compositeType.name}${field.title !== compositeType.name ? ` — ${field.title}` : ''}` : field.title}
-          footer={
-            <div className="flex items-center justify-between gap-2">
-              {/* Команда идёт в футер уже существующей модалки, а не четвёртой иконкой в ряд поля
-                  (issue #663): ряд и так несёт три действия. */}
-              {canExtract ? (
-                <Button variant="text" icon={<Icon icon={Share} size={18} />} disabled={isEmpty}
-                  title={isEmpty ? 'Нечего выносить — объект пуст' : undefined}
-                  onClick={() => setExtractOpen(true)}>
-                  Вынести в общие данные…
-                </Button>
-              ) : <span />}
-              <Button variant="filled" data-modal-exit="" onClick={() => setModalOpen(false)}>Готово</Button>
-            </div>
-          }>
+          footer={<>
+            {/* Команда идёт в футер уже существующей модалки, а не четвёртой иконкой в ряд поля
+                (issue #663): ряд и так несёт три действия. */}
+            {canExtract && (
+              <ModalAction lead icon={<Icon icon={Share} size={18} />} disabled={isEmpty}
+                title={isEmpty ? 'Нечего выносить — объект пуст' : undefined}
+                onClick={() => setExtractOpen(true)}>
+                Вынести в общие данные…
+              </ModalAction>
+            )}
+            <ModalExit variant="filled">Готово</ModalExit>
+          </>}>
           {subfieldsBody}
           {extractModal /* шаг этого окна (issue #1384) */}
         </Modal>
@@ -983,8 +981,8 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
           )}
           <IconButton label="Редактировать" onClick={() => setModalOpen(true)} icon={Edit} />
         </div>
-        <Modal open={modalOpen} onOpenChange={setModalOpen} wide title={field.title}
-          footer={<div className="flex justify-end"><Button variant="filled" data-modal-exit="" onClick={() => setModalOpen(false)}>Готово</Button></div>}>
+        <Modal open={modalOpen} onOpenChange={setModalOpen} wide title={field.title} isDirty={false}
+          footer={<ModalExit variant="filled">Готово</ModalExit>}>
           <div className="space-y-3">{bar}{activeEditor}</div>
         </Modal>
       </>

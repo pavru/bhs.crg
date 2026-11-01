@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { useSetFileRecognitionProfiles } from '@/shared/api/datasets';
 import {
   useHiddenRecognitionProfiles, useListRecognitionProfiles, useRecognitionKinds,
@@ -58,13 +57,12 @@ export function FileProfilesDialog({ file, onClose }: { file: DataSetFile; onClo
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Профили распознавания набора"
       footer={
-        <div className="flex justify-end gap-2">
+        <>
           <ModalExit />
-          <Button type="button" variant="filled" onClick={handleSave} disabled={!dirty} loading={save.isPending}>
+          <ModalPrimary onClick={handleSave} disabled={!dirty} loading={save.isPending}>
             {save.isPending ? 'Сохранение…' : 'Сохранить'}
-          </Button>
-        </div>
-      }>
+          </ModalPrimary>
+        </>}>
       <div className="space-y-4">
         <p className="text-body-small text-on-surface-variant">
           Промпты распознавания задаём мы — здесь выбирается, с какими параметрами (набором полей) они

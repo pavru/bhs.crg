@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Modal, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
 import { Checkbox } from '@/shared/ui/Checkbox';
@@ -64,14 +63,13 @@ export function PdfSourceDialog(
   return (
     <Modal open onOpenChange={open => { if (!open) onClose(); }} title="Распознать PDF (профиль)"
       footer={
-        <div className="flex justify-end gap-2">
+        <>
           <ModalExit />
-          <Button type="button" variant="filled" onClick={handleSave} loading={create.isPending}
+          <ModalPrimary onClick={handleSave} loading={create.isPending}
             disabled={!current}>
             {create.isPending ? 'Создание…' : 'Создать и распознать'}
-          </Button>
-        </div>
-      }>
+          </ModalPrimary>
+        </>}>
       <div className="space-y-4">
         <TextField label="Название" value={name} onChange={e => setName(e.target.value)} autoFocus
           hint={current ? `Например: ${current.nameHint}` : undefined} />

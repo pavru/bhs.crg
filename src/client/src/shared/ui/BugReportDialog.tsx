@@ -2,7 +2,7 @@
 import { Icon } from './Icon';
 import { CircularProgress } from './CircularProgress';
 import { AttachFile, ChevronRight, Close, KeyboardArrowDown, Monitor, Warning } from './icons';
-import { Modal, ModalExit } from './Modal';
+import { Modal, ModalExit, ModalPrimary } from './Modal';
 import { Button } from './Button';
 import { TextAreaField } from './TextAreaField';
 import { useSnackbar } from './Snackbar';
@@ -134,13 +134,12 @@ export function BugReportDialog({ open, prefill, onClose }: {
       isDirty={message.trim().length > 0}
       busy={sending}
       footer={
-        <div className="flex items-center justify-end gap-2">
+        <>
           <ModalExit />
-          <Button variant="filled" onClick={() => void send()} disabled={sending}>
+          <ModalPrimary onClick={() => void send()} disabled={sending}>
             {sending && <CircularProgress size={18} />} Отправить
-          </Button>
-        </div>
-      }
+          </ModalPrimary>
+        </>}
     >
       <div className="space-y-4">
         <TextAreaField

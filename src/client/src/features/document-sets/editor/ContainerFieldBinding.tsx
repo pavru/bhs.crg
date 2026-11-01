@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { LinkOff } from '@/shared/ui/icons';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Modal, ModalAction, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { SourceBindingTrigger } from './SourceBindingTrigger';
 import { MappingEditor } from './DataSetsTab';
 import {
@@ -142,25 +141,19 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
       <SourceBindingTrigger locked={locked} isBound={isBound} onOpen={() => onOpenChange(true)} />
 
       <Modal open={open} onOpenChange={onOpenChange} title={`Привязка «${field.title}» к источнику`} wide
-        footer={
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              {isBound && (
-                <Button variant="text" danger onClick={unbind} disabled={busy} icon={<Icon icon={LinkOff} size={18} />}>
-                  Отвязать
-                </Button>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <ModalExit />
-              {!locked && (
-                <Button variant="filled" onClick={save} disabled={saveDisabled} loading={busy}>
-                  {isBound ? 'Изменить' : 'Привязать'}
-                </Button>
-              )}
-            </div>
-          </div>
-        }>
+        footer={<>
+          {isBound && (
+            <ModalAction danger lead onClick={unbind} disabled={busy} icon={<Icon icon={LinkOff} size={18} />}>
+              Отвязать
+            </ModalAction>
+          )}
+          <ModalExit />
+          {!locked && (
+          <ModalPrimary onClick={save} disabled={saveDisabled} loading={busy}>
+            {isBound ? 'Изменить' : 'Привязать'}
+          </ModalPrimary>
+          )}
+        </>}>
         <div className="space-y-4">
           {sources.length === 0 ? (
             <p className="text-body-small text-on-surface-variant py-2">

@@ -6,9 +6,8 @@ import { planRefusal, type EstimateRevision, type EstimateRow, type PlanRefusal 
 import {
   useMatchMaterialGroup, usePlanNomenclature, useResourceCandidates, useRevisionMaterials, type MaterialGroup,
 } from '@/shared/api/planningMatches';
-import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalAction, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
 import { formatCount, formatQuantity } from '@/shared/format/format';
@@ -64,7 +63,7 @@ export function ResourceMatchDialog({ revision, rows, onClose }: {
           <p className="text-body-medium text-on-surface-variant">
             {queue.length === 0 ? 'Материалов без номенклатуры в редакции нет.' : 'Пройдены все материалы без номенклатуры.'}
           </p>
-          <div className="flex justify-end"><ModalExit variant="filled">Готово</ModalExit></div>
+          <ModalButtons><ModalExit variant="filled">Готово</ModalExit></ModalButtons>
         </div>
       )}
     </Modal>
@@ -195,16 +194,16 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
           onBack={() => setCreating(false)} onPick={(id, name) => { setCreating(false); choose(id, name); }} />
       )}
 
-      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-outline-variant pt-3">
+      <ModalButtons className="border-t border-outline-variant pt-3">
         {canCreate && (
-          <Button variant="text" icon={<Icon icon={Add} size={18} />} className="mr-auto" onClick={() => setCreating(true)}>Новая позиция…</Button>
+          <ModalAction lead icon={<Icon icon={Add} size={18} />} onClick={() => setCreating(true)}>Новая позиция…</ModalAction>
         )}
         <ModalExit>Закрыть</ModalExit>
-        <Button variant="text" disabled={match.isPending} onClick={onDone}>Пропустить</Button>
-        <Button variant="filled" disabled={!active} loading={match.isPending} onClick={() => active && choose(active.id, active.name)}>
+        <ModalAction disabled={match.isPending} onClick={onDone}>Пропустить</ModalAction>
+        <ModalPrimary disabled={!active} loading={match.isPending} onClick={() => active && choose(active.id, active.name)}>
           Выбрать и к следующему
-        </Button>
-      </div>
+        </ModalPrimary>
+      </ModalButtons>
     </div>
   );
 }

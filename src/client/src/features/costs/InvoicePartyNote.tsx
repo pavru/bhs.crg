@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import * as Popover from '@radix-ui/react-popover';
 import { Button } from '@/shared/ui/Button';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { ArchivedMark } from '@/shared/ui/ArchivedMark';
 import { useSnackbar } from '@/shared/ui/Snackbar';
@@ -198,12 +198,12 @@ function CreateDialog({ invoiceId, side, party, onClose, onDone }: {
             </Link>
           </div>
         )}
-        <div className="flex justify-end gap-2">
+        <ModalButtons>
           <ModalExit />
-          <Button variant="filled" loading={create.isPending} disabled={tooLong || !name.trim()} onClick={() => void submit()}>
+          <ModalPrimary loading={create.isPending} disabled={tooLong || !name.trim()} onClick={() => void submit()}>
             Завести
-          </Button>
-        </div>
+          </ModalPrimary>
+        </ModalButtons>
       </div>
     </Modal>
   );

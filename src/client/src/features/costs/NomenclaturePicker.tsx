@@ -3,8 +3,8 @@ import { ARCHIVED_HINT, withArchiveWord } from '@/shared/ui/archive';
 import { useCallback, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Close, Search, Warning } from '@/shared/ui/icons';
-import { Button, IconButton } from '@/shared/ui/Button';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { IconButton } from '@/shared/ui/Button';
+import { Modal, ModalExit, ModalNote, ModalPrimary } from '@/shared/ui/Modal';
 import { WindowStep } from '@/shared/ui/WindowStep';
 import { apiError } from '@/shared/utils/apiError';
 import { isNotFound, useNomenclature } from '@/shared/api/invoices';
@@ -284,20 +284,21 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Позиция номенклатуры" wide flushBody nothingToLose
       footer={(
-        <div className="flex items-center justify-between gap-3">
+        <>
           {/* Кнопка — всегда, а не только при пустом поиске: двадцать пять неподходящих находок —
-              такой же повод завести позицию, как ни одной. */}
+              такой же повод завести позицию, как ни одной. Главное действие пикера — она: выбор
+              делается в списке, — и на телефоне она в шапке. */}
           {canCreate ? (
-            <Button variant={nothing ? 'outlined' : 'text'} onClick={() => setCreating(true)}>
+            <ModalPrimary variant={nothing ? 'outlined' : 'text'} data-lead="" onClick={() => setCreating(true)}>
               Завести новую позицию…
-            </Button>
+            </ModalPrimary>
           ) : (
-            <p className="text-label-small text-on-surface-variant">
+            <ModalNote>
               Новую позицию заводит тот, кто ведёт справочник номенклатуры. Строку можно сохранить без позиции.
-            </p>
+            </ModalNote>
           )}
           <ModalExit>Закрыть</ModalExit>
-        </div>
+        </>
       )}>
       <div ref={ref} className={narrow ? 'flex-1 min-h-0 overflow-y-auto'
         : 'flex-1 min-h-0 grid grid-cols-[minmax(0,55fr)_minmax(0,45fr)] border-t border-outline-variant'}>
@@ -405,16 +406,12 @@ function PickerDialog({ from, line, current, supplierId, neighbours, onClose, on
 
       {opened && (
         <WindowStep title="Карточка позиции" onBack={() => setOpened(null)}
-          footer={(
-            <div className="flex items-center gap-2">
-              <ModalExit>К списку</ModalExit>
-              {openedPickable && (
-                <Button variant="filled" className="flex-1" onClick={() => onPick(opened.id, opened.name)}>
-                  Выбрать эту позицию
-                </Button>
-              )}
-            </div>
-          )}>
+          footer={<>
+            <ModalExit>К списку</ModalExit>
+            {openedPickable && (
+              <ModalPrimary onClick={() => onPick(opened.id, opened.name)}>Выбрать эту позицию</ModalPrimary>
+            )}
+          </>}>
           <NomenclatureCardPanel id={opened.id} head={{ name: opened.name, type: opened.type, why: opened.why }}
             compare={compare(opened.matched)} pick={null} onPick={onPick} />
         </WindowStep>

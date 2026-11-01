@@ -1,8 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Icon } from './Icon';
 import { Cancel, CheckCircle, Warning } from './icons';
-import { Modal, ModalExit } from './Modal';
-import { Button } from './Button';
+import { Modal, ModalExit, ModalPrimary } from './Modal';
 import { Checkbox } from './Checkbox';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { useSendEmail } from '@/shared/api/users';
@@ -47,13 +46,12 @@ export function SendMessageDialog({ open, onClose, candidates, title = 'Отпр
   return (
     <Modal open={open} onOpenChange={o => { if (!o) { onClose(); setResult(null); } }} title={title}
       footer={
-        <div className="flex justify-end gap-2">
+        <>
           <ModalExit>Закрыть</ModalExit>
-          <Button variant="filled" onClick={handleSend} disabled={!canSend} loading={sendEmail.isPending}>
+          <ModalPrimary onClick={handleSend} disabled={!canSend} loading={sendEmail.isPending}>
             {sendEmail.isPending ? 'Отправка…' : `Отправить (${selected.size})`}
-          </Button>
-        </div>
-      }>
+          </ModalPrimary>
+        </>}>
       <div className="space-y-4">
         {/* Получатели */}
         <div>

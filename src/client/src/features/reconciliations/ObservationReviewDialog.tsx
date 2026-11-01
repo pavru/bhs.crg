@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Check, Close, Description, Layers, Undo } from '@/shared/ui/icons';
 import { Link } from 'react-router';
-import { Button } from '@/shared/ui/Button';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalAction, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import {
@@ -99,25 +98,18 @@ export function ObservationReviewDialog({ observation, setPath, nameOf, onClose 
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Разбор замечания" busy={review.isPending}
-      footer={
-        // Решений три и «Отмена»: в обычное окно (и на телефон) в одну строку не встают — ряд
-        // переносится, а не уходит под обрез окна (ревью PR #1386).
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {observation.status !== 'New' && (
-            <Button disabled={review.isPending} onClick={() => decide('New')}>
-              <Icon icon={Undo} size={18} /> Вернуть в работу
-            </Button>
-          )}
-          <span className="flex-1" />
-          <ModalExit />
-          <Button danger disabled={review.isPending} onClick={() => decide('Rejected')}>
-            <Icon icon={Close} size={18} /> Отклонить
-          </Button>
-          <Button variant="filled" loading={review.isPending} onClick={() => decide('Confirmed')}>
-            <Icon icon={Check} size={18} /> Подтвердить
-          </Button>
-        </div>
-      }>
+      // Решений три и «Отмена»: в обычное окно в одну строку не встают — подвал переносит ряд, а не
+      // уводит его под обрез окна (ревью PR #1386).
+      footer={<>
+        {observation.status !== 'New' && (
+          <ModalAction lead icon={<Icon icon={Undo} size={18} />} onClick={() => decide('New')}>Вернуть в работу</ModalAction>
+        )}
+        <ModalExit />
+        <ModalAction danger icon={<Icon icon={Close} size={18} />} onClick={() => decide('Rejected')}>Отклонить</ModalAction>
+        <ModalPrimary icon={<Icon icon={Check} size={18} />} loading={review.isPending} onClick={() => decide('Confirmed')}>
+          Подтвердить
+        </ModalPrimary>
+      </>}>
       <div className="space-y-4">
         <div>
           <div className="text-body-medium font-medium text-on-surface">{observation.title}</div>

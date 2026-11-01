@@ -132,6 +132,7 @@
   "tabs": {},
   "white-on-fill": {},
   "portal-container": {
+    "shared/ui/ModalRoles.tsx": 2,
     "shared/ui/WindowStep.tsx": 2
   },
   "manual-dropdown": {},
