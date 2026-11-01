@@ -2,8 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { createTableDataSet, type TableColumn, type TableExportBody } from '@/shared/api/tables';
-import { Button } from '@/shared/ui/Button';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
@@ -104,10 +103,10 @@ export function TableDataSetDialog({ address, initialName, body, columns, all, o
             системы.
           </p>
         </div>
-        <div className="flex justify-end gap-2 pt-1">
+        <ModalButtons className="pt-1">
           <ModalExit />
-          <Button type="submit" variant="filled" loading={busy} disabled={!name.trim()}>Создать источник</Button>
-        </div>
+          <ModalPrimary type="submit" loading={busy} disabled={!name.trim()}>Создать источник</ModalPrimary>
+        </ModalButtons>
       </form>
     </Modal>
   );

@@ -18,7 +18,7 @@ export function LeaveGuardDialog({ open, saving, saveBlocked, onSave, onDiscard,
     // Вопрос ведёт себя как `ConfirmDialog`: промах и Esc равны «Отмене» — безопасному ответу.
     // Идущее сохранение сильнее: `busy` гасит и их, и кнопку (issue #1236).
     <Modal open={open} onOpenChange={o => { if (!o) onCancel(); }} title="Несохранённые изменения"
-      nothingToLose busy={saving}
+      question nothingToLose busy={saving}
       footer={<>
         <ModalExit />
         <ModalAction variant="tonal" onClick={onDiscard}>Не сохранять</ModalAction>

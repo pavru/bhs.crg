@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Add, Delete, Edit, Group, VerifiedUser } from '@/shared/ui/icons';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { ListDetailShell, NavSection } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
@@ -268,10 +268,10 @@ function CreateRoleModal(
         <TextField label="Для чего роль" value={summary} onChange={e => setSummary(e.target.value)}
           hint="Показывается рядом с названием — чтобы через полгода было понятно, кому её выдавать." />
         {error && <p className="text-body-medium text-error">{error}</p>}
-        <div className="flex justify-end gap-2 pt-1">
+        <ModalButtons className="pt-1">
           <ModalExit />
-          <Button type="submit" variant="filled" loading={create.isPending}>Создать</Button>
-        </div>
+          <ModalPrimary type="submit" loading={create.isPending}>Создать</ModalPrimary>
+        </ModalButtons>
       </form>
     </Modal>
   );
@@ -298,10 +298,10 @@ function RenameRoleModal({ role, onClose }: { role: AppRole; onClose: () => void
         <TextField label="Название" value={title} onChange={e => setTitle(e.target.value)} required autoFocus />
         <TextField label="Для чего роль" value={summary} onChange={e => setSummary(e.target.value)} />
         {error && <p className="text-body-medium text-error">{error}</p>}
-        <div className="flex justify-end gap-2 pt-1">
+        <ModalButtons className="pt-1">
           <ModalExit />
-          <Button type="submit" variant="filled" loading={rename.isPending}>Сохранить</Button>
-        </div>
+          <ModalPrimary type="submit" loading={rename.isPending}>Сохранить</ModalPrimary>
+        </ModalButtons>
       </form>
     </Modal>
   );

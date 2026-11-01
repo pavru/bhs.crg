@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Delete, Key, Mail, Person, VerifiedUser } from '@/shared/ui/icons';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { PASSWORD_MIN_LENGTH, PASSWORD_HINT } from '@/shared/auth/passwordPolicy';
@@ -175,12 +175,12 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
           </p>
         </div>
         {error && <p className="text-body-medium text-error">{error}</p>}
-        <div className="flex justify-end gap-2 pt-1">
+        <ModalButtons className="pt-1">
           <ModalExit />
-          <Button type="submit" variant="filled" loading={create.isPending} disabled={chosen.length === 0}>
+          <ModalPrimary type="submit" loading={create.isPending} disabled={chosen.length === 0}>
             {create.isPending ? 'Создание…' : 'Создать'}
-          </Button>
-        </div>
+          </ModalPrimary>
+        </ModalButtons>
       </form>
     </Modal>
   );
@@ -239,12 +239,12 @@ export function ResetPasswordModal({ user, onClose }: { user: AppUser | null; on
             required minLength={PASSWORD_MIN_LENGTH} autoFocus className="font-mono"
             hint={`${PASSWORD_HINT} После сброса пароль останется на экране — его можно будет скопировать.`} />
           {error && <p role="alert" className="text-body-medium text-error">{error}</p>}
-          <div className="flex justify-end gap-2 pt-1">
+          <ModalButtons className="pt-1">
             <ModalExit />
-            <Button type="submit" variant="filled" loading={reset.isPending}>
+            <ModalPrimary type="submit" loading={reset.isPending}>
               {reset.isPending ? 'Сохранение…' : 'Сбросить пароль'}
-            </Button>
-          </div>
+            </ModalPrimary>
+          </ModalButtons>
         </form>
       ) : (
         <div className="space-y-3">

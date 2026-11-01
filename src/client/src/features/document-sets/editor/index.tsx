@@ -283,7 +283,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           onOpenChange={o => { if (!o) setPendingTab(null); }}
           title="Документ не сохранён"
           // Вопрос: промах и Esc равны «Отмене» — безопасному ответу. Запрос сильнее.
-          nothingToLose busy={switching}
+          question nothingToLose busy={switching}
           footer={<>
             <ModalExit />
             <ModalAction danger onClick={() => switchTo(pendingTab)}>Не сохранять</ModalAction>

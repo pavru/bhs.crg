@@ -1,4 +1,5 @@
 import { IconButton } from './Button';
+import { CircularProgress } from './CircularProgress';
 import { ArrowBack, Close } from './icons';
 import type { BarAction } from './modalControl';
 import { RowActionsMenu } from './RowActionsMenu';
@@ -31,7 +32,8 @@ export function ModalAppBar({ title, back, busy, onExit, primaryRef, noteRef, ac
         <div ref={primaryRef} className="flex items-center empty:hidden" />
         {actions.length > 0 && (
           <RowActionsMenu ariaLabel="Другие действия" actions={actions.map((a, i) => ({
-            key: String(i), label: a.label, danger: a.danger, disabled: a.disabled, onSelect: a.run,
+            key: String(i), label: a.label, danger: a.danger, disabled: a.disabled, hint: a.hint, onSelect: a.run,
+            icon: a.loading ? <CircularProgress size={18} /> : a.icon,
           }))} />
         )}
       </div>

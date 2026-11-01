@@ -3,9 +3,8 @@ import {
   planRefusal, useCurrentRevisionPreview, useMakeCurrentRevision, useUnitNames, useWorkTypeNames,
   type CurrentRevisionPreview, type PlanRefusal,
 } from '@/shared/api/planningEstimates';
-import { Button } from '@/shared/ui/Button';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { StatusText } from '@/shared/ui/StatusText';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
@@ -88,12 +87,12 @@ function Body({ estimateId, revisionId, make, onDone }: {
 
       {refusal && <p role="alert" className="text-body-medium text-error">{refusal.text}</p>}
 
-      <div className="flex justify-end gap-2 pt-1">
+      <ModalButtons className="pt-1">
         <ModalExit />
-        <Button variant="filled" disabled={make.isPending || preview.isFetching} onClick={() => submit(data)}>
+        <ModalPrimary disabled={make.isPending || preview.isFetching} onClick={() => submit(data)}>
           {make.isPending ? 'Меняем…' : 'Сделать действующей'}
-        </Button>
-      </div>
+        </ModalPrimary>
+      </ModalButtons>
     </div>
   );
 }

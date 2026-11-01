@@ -10,7 +10,7 @@ import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { Chip } from '@/shared/ui/Chip';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalAction, ModalButtons, ModalExit, ModalNote, ModalPrimary } from '@/shared/ui/Modal';
 import { StatusText } from '@/shared/ui/StatusText';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { formatCount, formatQuantity } from '@/shared/format/format';
@@ -165,11 +165,11 @@ function SectionMatch({ code, rows, sections, match, onNext, revision, seen, set
 
       <Footer canCreate={canCreate} onNew={() => setCreating(true)} hint={hint}>
         {next && (
-          <Button variant="outlined" disabled={!ready || busy} onClick={() => submit('next')}>Сопоставить и к следующему</Button>
+          <ModalAction variant="outlined" disabled={!ready || busy} onClick={() => submit('next')}>Сопоставить и к следующему</ModalAction>
         )}
-        <Button variant="filled" disabled={!ready} loading={busy} onClick={() => submit('close')}>
+        <ModalPrimary disabled={!ready} loading={busy} onClick={() => submit('close')}>
           Сопоставить {picked.length ? rowsWord(picked.length) : ''}
-        </Button>
+        </ModalPrimary>
       </Footer>
     </div>
   );
@@ -287,24 +287,25 @@ function RowMatch({ row, match, revision, seen, setVersion, busy, onClose }: Com
       )}
 
       <Footer canCreate={canCreate} onNew={() => setCreating(true)} hint={state.missing}>
-        <Button variant="filled" disabled={state.choice === null} loading={busy} onClick={submit}>Сопоставить</Button>
+        <ModalPrimary disabled={state.choice === null} loading={busy} onClick={submit}>Сопоставить</ModalPrimary>
       </Footer>
     </div>
   );
 }
 
-/** Подвал тела: «Новый вид работы» слева — только с правом; без права его нет в разметке вовсе. */
+/**
+ * Подвал тела: «Новый вид работы» слева — только с правом; без права его нет в разметке вовсе. Остальные
+ * кнопки (`children`) — с ролью, как весь ряд.
+ */
 function Footer({ canCreate, onNew, hint, children }: {
   canCreate: boolean; onNew: () => void; hint: string | null; children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2 border-t border-outline-variant pt-3">
-      {canCreate && (
-        <Button variant="text" icon={<Icon icon={Add} size={18} />} className="mr-auto" onClick={onNew}>Новый вид работы</Button>
-      )}
-      {hint && <span className={`text-body-small text-on-surface-variant ${canCreate ? '' : 'mr-auto'}`}>{hint}</span>}
+    <ModalButtons className="border-t border-outline-variant pt-3">
+      {canCreate && <ModalAction lead icon={<Icon icon={Add} size={18} />} onClick={onNew}>Новый вид работы</ModalAction>}
+      {hint && <ModalNote>{hint}</ModalNote>}
       <ModalExit />
       {children}
-    </div>
+    </ModalButtons>
   );
 }

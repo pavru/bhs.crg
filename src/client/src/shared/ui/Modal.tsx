@@ -15,7 +15,9 @@ import { LeaveQuestion } from './LeaveQuestion';
 import { useScrollEdges } from './useScrollEdges';
 import { useWindowSteps } from './windowSteps';
 
-export { ModalAction, ModalNote, ModalPrimary } from './ModalRoles';
+import { FOOTER_ROW } from './ModalRoles';
+
+export { ModalAction, ModalButtons, ModalNote, ModalPrimary } from './ModalRoles';
 
 interface ModalBaseProps {
   open: boolean;
@@ -36,6 +38,12 @@ interface ModalBaseProps {
    *  нет. Таким же любое окно открывается на экране уже 768. Рендерится НАД текущей страницей (она
    *  остаётся смонтированной): закрытие возвращает в прежний контекст. */
   fullScreen?: boolean;
+  /**
+   * Вопрос с несколькими ответами («Сохранить» / «Не сохранять» / «Отмена»): basic dialog и на узком
+   * экране, как `ConfirmDialog`. Во весь экран ответ «Не сохранять» ушёл бы в «⋮», а у вопроса все ответы
+   * равноправны и видны сразу ([UI-75]).
+   */
+  question?: boolean;
   /** Не рисовать заголовок по умолчанию (содержимое рисует собственный top app bar). Свою кнопку
    *  выхода такое содержимое помечает `data-modal-exit` — иначе Esc и клик мимо её не покажут. */
   headerless?: boolean;
@@ -87,12 +95,6 @@ type ModalDismissalProps =
 
 export type ModalProps = ModalBaseProps & ModalDismissalProps;
 
-/**
- * Подвал на столе: кнопки с ролью в объявленном порядке у замыкающего края, а помеченные `data-lead`
- * (пояснение, редкое действие) — у ведущего. Последний из ведущих отодвигает остальное вправо.
- */
-const FOOTER_ROW = 'flex flex-wrap items-center justify-end gap-2 [&_[data-lead]:not(:has(~[data-lead]))]:mr-auto';
-
 /** Черта под шапкой и над подвалом — только когда содержимое ушло под них ([UI-75]). Цвет, а не сама
  *  черта: появляясь, она не сдвигает тело на пиксель. */
 const edge = (shown: boolean) => shown ? 'border-outline-variant' : 'border-transparent';
@@ -142,7 +144,7 @@ export function ModalExit({ children = 'Отмена', variant = 'text', disable
 const BUSY_EXIT = 'pointer-events-none';
 
 function ModalBody({
-  onOpenChange, title, children, wide, fullScreen, headerless, isDirty, flushBody, footer,
+  onOpenChange, title, children, wide, fullScreen, question, headerless, isDirty, flushBody, footer,
   busy = false, nothingToLose, acknowledge,
 }: ModalProps) {
   const [confirmClose, setConfirmClose] = useState(false);
@@ -168,7 +170,7 @@ function ModalBody({
   // Во весь экран ([UI-75]): `fullScreen` всегда, любое окно — на экране уже 768. Решает JS, а не классы
   // `max-sm:`: от узости зависит, где стоят действия, а не только ширина.
   const narrow = useMedia(NARROW);
-  const full = !!fullScreen || narrow;
+  const full = !!fullScreen || (narrow && !question);
   const [primarySlot, setPrimarySlot] = useState<HTMLElement | null>(null);
   const [noteSlot, setNoteSlot] = useState<HTMLElement | null>(null);
   const [barActions, setBarActions] = useState<Record<string, BarAction>>({});
@@ -189,14 +191,17 @@ function ModalBody({
     ? modalState({ busy: busy || top.busy, isDirty: top.isDirty, touched: top.touched })
     : modalState({ busy, acknowledge, isDirty, touched, nothingToLose });
   const leave = top ? top.back : () => onOpenChange(false);
+  // Кнопкам с ролью есть куда встать, только когда шапку рисует окно: у окна без шапки её рисует
+  // содержимое, и роли остаются подвалом на месте — иначе пропали бы молча.
+  const bar = full && (!headerless || !!top);
   // Места во весь экран — у видимого слоя: форма под шагом в шапку не пишет.
-  const placeOf = useCallback((layer: string, live: boolean): ModalBar | null => full
+  const placeOf = useCallback((layer: string, live: boolean): ModalBar | null => bar
     ? { layer, primary: live ? primarySlot : null, note: live ? noteSlot : null, setAction }
-    : null, [full, primarySlot, noteSlot, setAction]);
+    : null, [bar, primarySlot, noteSlot, setAction]);
   const topId = top?.id;
   const formBar = useMemo(() => placeOf('form', !topId), [placeOf, topId]);
-  const stepHost = useMemo<WindowStepHost>(() => ({ ...host, bar: id => placeOf(id, id === topId) }),
-    [host, placeOf, topId]);
+  const stepBar = useCallback((id: string) => placeOf(id, id === topId), [placeOf, topId]);
+  const stepHost = useMemo<WindowStepHost>(() => ({ ...host, bar: stepBar }), [host, stepBar]);
   const rule = DISMISSAL[state];
   // Вопрос «Закрыть без сохранения?» живёт, только пока выход вообще возможен: начавшийся запрос
   // снимает его вместе с кнопкой «Закрыть» — иначе она закрыла бы окно мимо `busy`. А пока вопрос
@@ -288,12 +293,15 @@ function ModalBody({
           // Окно, которое Esc сейчас не закрывает, держит человека — см. `DialogHold`.
           data-modal-state={rule.escape === 'close' ? 'free' : state}
           className={full
-            // Full-screen dialog: поверхность `surface`, без радиуса и тени ([UI-75]).
-            ? 'fixed inset-0 z-50 flex flex-col overflow-hidden focus:outline-none bg-surface'
+            // Full-screen dialog: поверхность `surface`, без радиуса и тени ([UI-75]). У окна без шапки
+            // фон прежний: свою верхнюю строку содержимое (просмотрщик PDF) подбирало под него.
+            ? `fixed inset-0 z-50 flex flex-col overflow-hidden focus:outline-none ${
+              bar ? 'bg-surface' : 'bg-surface-container-low'}`
             : `fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 max-h-[90vh] flex flex-col overflow-hidden focus:outline-none ${DIALOG_SURFACE} ${
               // У широкого — зазор по краям: между 768 и 896 px иначе окно ложилось бы в край экрана,
               // скруглёнными углами вплотную (ревью PR #1386).
-              wide ? 'w-[calc(100%-2rem)] max-w-4xl' : 'w-full max-w-lg'
+              // Вопрос на телефоне — с отступами 24 от краёв, как `ConfirmDialog`.
+              wide ? 'w-[calc(100%-2rem)] max-w-4xl' : question ? 'w-[calc(100%-3rem)] max-w-lg' : 'w-full max-w-lg'
             }`}
           // «Тронуто»: первый же ввод внутри содержимого.
           // ⚠️ НЕ `onInputCapture`. React исполняет перехват `input` отдельным заходом, ДО того как
@@ -341,7 +349,7 @@ function ModalBody({
           <Dialog.Title className="sr-only">{shownTitle}</Dialog.Title>
           {/* Под вопросом окно недоступно одной обёрткой: фокус не вернётся в форму мимо вопроса. */}
           <div className="contents" inert={asking}>
-          {full && (!headerless || top) ? (
+          {bar ? (
             <ModalAppBar title={shownTitle} back={!!top} busy={busy || !!top?.busy} onExit={requestClose}
               primaryRef={setPrimarySlot} noteRef={setNoteSlot} edge={edge(above)}
               actions={Object.values(barActions).filter(a => a.layer === (topId ?? 'form'))} />
@@ -358,7 +366,9 @@ function ModalBody({
           {flushBody ? (
             <>
               <div className="flex-1 min-h-0 flex flex-col" hidden={!!top}>
-                {typeof children === 'function' ? children(requestClose) : children}
+                <ModalBarContext.Provider value={formBar}>
+                  {typeof children === 'function' ? children(requestClose) : children}
+                </ModalBarContext.Provider>
               </div>
               {top && (
                 <div className="overflow-y-auto flex-1 min-h-0 px-6">
@@ -371,10 +381,13 @@ function ModalBody({
           ) : (
             <div className="overflow-y-auto flex-1 min-h-0 px-6">
               <div ref={edgeStart} />
-              <div className={`pt-2 ${(actions || acknowledge || top) && !full ? 'pb-2' : 'pb-6'}`}>
+              <div className={`pt-2 ${(actions || acknowledge || top) && !bar ? 'pb-2' : 'pb-6'}`}>
                 <div className="contents" hidden={!!top}>
+                  {/* Ряд кнопок формы в теле (`ModalButtons`) переносит себя в шапку так же, как подвал. */}
                   <ModalBodyExitContext.Provider value={markBodyExit}>
+                  <ModalBarContext.Provider value={formBar}>
                     {typeof children === 'function' ? children(requestClose) : children}
+                  </ModalBarContext.Provider>
                   </ModalBodyExitContext.Provider>
                 </div>
                 {stepSlot('body')}
@@ -386,7 +399,7 @@ function ModalBody({
           {/* Во весь экран подвала нет, но кнопки с ролью смонтированы и тут: из подвала они переносят себя
               в шапку. */}
           {(actions || acknowledge || top) && (
-            <div className={`shrink-0 px-6 pt-4 pb-6 border-t ${edge(below)} ${FOOTER_ROW}`} hidden={full}>
+            <div className={`shrink-0 px-6 pt-4 pb-6 border-t ${edge(below)} ${FOOTER_ROW}`} hidden={bar}>
               <ModalBarContext.Provider value={formBar}>
                 <div className="contents" hidden={!!top}>
                   {typeof actions === 'function' ? actions(requestClose) : actions}

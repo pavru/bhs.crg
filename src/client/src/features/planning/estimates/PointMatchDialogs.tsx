@@ -5,8 +5,7 @@ import { planRefusal, type PlanRefusal } from '@/shared/api/planningEstimates';
 import {
   usePlanNomenclature, usePointRateMatch, usePointResourceMatch, type RateMatch, type ResourceMatch,
 } from '@/shared/api/planningMatches';
-import { Button } from '@/shared/ui/Button';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalButtons, ModalExit, ModalNote, ModalPrimary } from '@/shared/ui/Modal';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
 import { PickerOption } from '@/features/costs/PickerRows';
@@ -42,11 +41,11 @@ export function PointRateDialog({ item, onClose }: { item: RateMatch; onClose: (
         </p>
         <RateChoiceFields state={state} />
         {refusal && <p role="alert" className="text-body-medium text-error">{refusal.text}</p>}
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-outline-variant pt-3">
-          {state.missing && <span className="mr-auto text-body-small text-on-surface-variant">{state.missing}</span>}
+        <ModalButtons className="border-t border-outline-variant pt-3">
+          {state.missing && <ModalNote>{state.missing}</ModalNote>}
           <ModalExit />
-          <Button variant="filled" disabled={!state.choice} loading={point.isPending} onClick={submit}>Перенацелить</Button>
-        </div>
+          <ModalPrimary disabled={!state.choice} loading={point.isPending} onClick={submit}>Перенацелить</ModalPrimary>
+        </ModalButtons>
       </div>
     </Modal>
   );
@@ -101,7 +100,7 @@ export function PointResourceDialog({ item, onClose }: { item: ResourceMatch; on
         {found.data && rows.length === 0 && <p className="text-body-small text-on-surface-variant">По этому запросу других позиций нет.</p>}
         {found.data?.more && <p className="text-body-small text-warning">Показаны первые {rows.length} — подходящих больше. Уточните запрос.</p>}
         {refusal && <p role="alert" className="text-body-medium text-error">{refusal.text}</p>}
-        <div className="flex justify-end border-t border-outline-variant pt-3"><ModalExit /></div>
+        <ModalButtons className="border-t border-outline-variant pt-3"><ModalExit /></ModalButtons>
       </div>
     </Modal>
   );

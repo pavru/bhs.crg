@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Print } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
-import { Modal, ModalExit } from '@/shared/ui/Modal';
+import { Modal, ModalButtons, ModalExit, ModalPrimary } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { useSnackbar } from '@/shared/ui/Snackbar';
@@ -161,10 +161,10 @@ function CreateForm({ names, base, onCreated }: {
       {base
         ? <p className="text-body-small text-on-surface-variant">Параметры возьмутся из профиля по умолчанию — поменяете в карточке.</p>
         : <p className="text-body-small text-error">Нет профиля по умолчанию — параметры взять неоткуда. Обновите страницу.</p>}
-      <div className="flex justify-end gap-2">
+      <ModalButtons>
         <ModalExit />
-        <Button type="submit" variant="filled" loading={create.isPending} disabled={!base}>Создать</Button>
-      </div>
+        <ModalPrimary type="submit" loading={create.isPending} disabled={!base}>Создать</ModalPrimary>
+      </ModalButtons>
     </form>
   );
 }

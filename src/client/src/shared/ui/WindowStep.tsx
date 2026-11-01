@@ -1,4 +1,4 @@
-import { useContext, useId, useLayoutEffect, useRef, type ReactNode } from 'react';
+import { useContext, useId, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Modal } from './Modal';
 import { ModalBarContext, WindowStepContext, type WindowStepHost } from './modalControl';
@@ -55,12 +55,16 @@ function HostedStep({ host, title, footer, children, onBack, busy = false, isDir
   }, [push, pop, id]);
   useLayoutEffect(() => { update(id, { title, busy, isDirty }); }, [update, id, title, busy, isDirty]);
 
+  // Места шага во весь экран — и подвалу, и ряду кнопок формы в теле шага (`ModalButtons`). Одним объектом
+  // на перемену мест, а не новым на каждую отрисовку: иначе с каждым вводом перерисовывались бы все кнопки.
+  const { bar: barOf } = host;
+  const bar = useMemo(() => barOf?.(id) ?? null, [barOf, id]);
   const slot = host.slots[id];
   return (
     <>
-      {slot?.body && createPortal(children, slot.body)}
-      {slot?.footer && footer && createPortal(
-        <ModalBarContext.Provider value={host.bar?.(id) ?? null}>{footer}</ModalBarContext.Provider>, slot.footer)}
+      {slot?.body && createPortal(<ModalBarContext.Provider value={bar}>{children}</ModalBarContext.Provider>, slot.body)}
+      {slot?.footer && footer && createPortal(<ModalBarContext.Provider value={bar}>{footer}</ModalBarContext.Provider>,
+        slot.footer)}
     </>
   );
 }

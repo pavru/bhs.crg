@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 
 /**
  * Что диалог даёт своему содержимому (issue #1235): охраняемый выход и признак «идёт запрос».
@@ -67,6 +67,11 @@ export interface BarAction {
   label: string;
   danger: boolean;
   disabled: boolean;
+  /** Идёт запрос действия: пункт погашен и вместо знака — кольцо хода. */
+  loading: boolean;
+  icon?: ReactNode;
+  /** Почему пункт погашен — строкой под подписью: подсказки при наведении на телефоне нет. */
+  hint?: string;
   run: () => void;
 }
 

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { Modal, ModalAction, ModalExit, ModalNote, ModalPrimary } from './Modal';
+import { Modal, ModalAction, ModalButtons, ModalExit, ModalNote, ModalPrimary } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 
 /**
@@ -113,6 +113,79 @@ describe('во весь экран: шапка вместо подвала', () 
     expect(screen.getByRole('button', { name: 'Закрыть' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Отмена' })).toBeNull();
     expect(screen.getByRole('dialog').className).toContain('inset-0');
+  });
+});
+
+describe('во весь экран: ряд в теле, окно без шапки, вопрос', () => {
+  beforeEach(() => screenWidth(true));
+
+  function FormWindow({ onSubmit }: { onSubmit: () => void }) {
+    return (
+      <Modal open onOpenChange={() => {}} title="Новая роль">
+        <form onSubmit={e => { e.preventDefault(); onSubmit(); }}>
+          <input aria-label="Название" />
+          <ModalButtons>
+            <ModalExit />
+            <ModalPrimary type="submit">Создать</ModalPrimary>
+          </ModalButtons>
+        </form>
+      </Modal>
+    );
+  }
+
+  it('ряд кнопок формы в теле уходит в шапку, и «Создать» оттуда отправляет форму', () => {
+    const onSubmit = vi.fn();
+    render(<FormWindow onSubmit={onSubmit} />);
+    expect(screen.queryByRole('button', { name: 'Отмена' })).toBeNull();
+    const create = screen.getByRole('button', { name: 'Создать' });
+    expect(create.closest('form')).toBeNull();
+    fireEvent.click(create);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('на столе тот же ряд — на месте, в форме', () => {
+    screenWidth(false);
+    render(<FormWindow onSubmit={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Создать' }).closest('form')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Отмена' })).toBeTruthy();
+  });
+
+  it('окно без шапки оставляет подвал на месте: шапки, куда перенестись, у него нет', () => {
+    render(
+      <Modal open onOpenChange={() => {}} title="Файл" headerless fullScreen
+        footer={<><ModalExit /><ModalPrimary>Скачать</ModalPrimary></>}>
+        <p>просмотр</p>
+      </Modal>);
+    expect(screen.getByRole('button', { name: 'Отмена' }).closest('[hidden]')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Скачать' }).closest('[hidden]')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Закрыть' })).toBeNull();
+  });
+
+  it('вопрос остаётся basic dialog: все ответы кнопками, с отступами от краёв', () => {
+    render(
+      <Modal open onOpenChange={() => {}} title="Несохранённые изменения" question nothingToLose
+        footer={<><ModalExit /><ModalAction onClick={() => {}}>Не сохранять</ModalAction><ModalPrimary>Сохранить</ModalPrimary></>}>
+        <p>Сохранить?</p>
+      </Modal>);
+    expect(screen.getByRole('dialog').className).not.toContain('inset-0');
+    expect(screen.getByRole('dialog').className).toContain('w-[calc(100%-3rem)]');
+    expect(screen.getByRole('button', { name: 'Не сохранять' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Другие действия' })).toBeNull();
+  });
+
+  it('погашенный пункт «⋮» говорит почему, идущий — кольцом хода', async () => {
+    render(
+      <Modal open onOpenChange={() => {}} title="Объект"
+        footer={<>
+          <ModalAction disabled title="Нечего выносить — объект пуст" onClick={() => {}}>Вынести</ModalAction>
+          <ModalAction loading onClick={() => {}}>Отказаться</ModalAction>
+        </>}>
+        <p>поля</p>
+      </Modal>);
+    const more = screen.getByRole('button', { name: 'Другие действия' });
+    await act(async () => { more.focus(); fireEvent.keyDown(more, { key: 'Enter' }); });
+    expect(screen.getByRole('menuitem', { name: /Вынести/ }).textContent).toContain('Нечего выносить — объект пуст');
+    expect(screen.getByRole('menuitem', { name: /Отказаться/ }).querySelector('.md-progress')).toBeTruthy();
   });
 });
 
