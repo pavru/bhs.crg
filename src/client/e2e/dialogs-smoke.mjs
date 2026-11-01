@@ -185,9 +185,12 @@ await check('materialize-dialog-opens', async () => {
 // прокручивается.
 await check('dialog-lines-follow-body-scroll', async () => {
   const size = page.viewportSize();
-  await page.setViewportSize({ width: size.width, height: 480 });
+  const dlg = page.locator('[role=dialog]').last();
+  // Высота экрана — из размеров окна, а не числом: на посеве CI тело этого окна короткое (~120),
+  // и при высоте 480 оно помещалось целиком. Окно не выше 90vh; от тела оставляем видимыми 60.
+  const chrome = await dlg.evaluate(d => d.getBoundingClientRect().height - d.querySelector('.overflow-y-auto').clientHeight);
+  await page.setViewportSize({ width: size.width, height: Math.ceil((chrome + 60) / 0.9) });
   try {
-    const dlg = page.locator('[role=dialog]').last();
     const lines = () => dlg.evaluate(d => {
       const body = d.querySelector('.overflow-y-auto');
       const seen = (el, side) => !!el && getComputedStyle(el)[side] !== 'rgba(0, 0, 0, 0)';
@@ -207,7 +210,7 @@ await check('dialog-lines-follow-body-scroll', async () => {
         throw new Error(`${label}: черта под шапкой ${got.top}, над подвалом ${got.bottom}`);
     });
 
-    if (!(await lines()).scrollable) throw new Error('тело окна при высоте 480 не прокручивается — проверять нечего');
+    if (!(await lines()).scrollable) throw new Error(`тело окна при высоте ${page.viewportSize().height} не прокручивается — проверять нечего`);
     await at('top');
     await expectLines({ top: false, bottom: true }, 'у верха');
     await at('middle');
@@ -218,7 +221,6 @@ await check('dialog-lines-follow-body-scroll', async () => {
     await page.setViewportSize(size);
   }
   // Окно снова высокое: тело помещается — черт нет.
-  const dlg = page.locator('[role=dialog]').last();
   await until(async () => {
     const both = await dlg.evaluate(d => {
       const body = d.querySelector('.overflow-y-auto');
