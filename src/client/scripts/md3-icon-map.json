@@ -7,7 +7,8 @@
     },
     "AlertTriangle": {
       "symbol": "warning",
-      "export": "Warning"
+      "export": "Warning",
+      "fill": true
     },
     "Plus": {
       "symbol": "add",
@@ -38,7 +39,8 @@
     },
     "TriangleAlert": {
       "symbol": "warning",
-      "export": "Warning"
+      "export": "Warning",
+      "fill": true
     },
     "RefreshCw": {
       "symbol": "refresh",
@@ -50,7 +52,8 @@
     },
     "AlertCircle": {
       "symbol": "error",
-      "export": "ErrorIcon"
+      "export": "ErrorIcon",
+      "fill": true
     },
     "Pencil": {
       "symbol": "edit",
@@ -71,7 +74,8 @@
     },
     "CheckCircle2": {
       "symbol": "check_circle",
-      "export": "CheckCircle"
+      "export": "CheckCircle",
+      "fill": true
     },
     "ShieldCheck": {
       "symbol": "verified_user",
@@ -107,7 +111,8 @@
     },
     "Save": {
       "symbol": "save",
-      "export": "Save"
+      "export": "Save",
+      "fill": true
     },
     "FileSpreadsheet": {
       "symbol": "table_chart",
@@ -150,7 +155,8 @@
     },
     "History": {
       "symbol": "history",
-      "export": "HistoryIcon"
+      "export": "HistoryIcon",
+      "fill": true
     },
     "GripVertical": {
       "symbol": "drag_indicator",
@@ -195,7 +201,8 @@
     },
     "CheckCircle": {
       "symbol": "check_circle",
-      "export": "CheckCircle"
+      "export": "CheckCircle",
+      "fill": true
     },
     "FolderOpen": {
       "symbol": "folder_open",
@@ -255,7 +262,8 @@
     },
     "CircleCheck": {
       "symbol": "check_circle",
-      "export": "CheckCircle"
+      "export": "CheckCircle",
+      "fill": true
     },
     "Ban": {
       "symbol": "block",
@@ -307,7 +315,8 @@
     },
     "BookX": {
       "symbol": "search_off",
-      "export": "SearchOff"
+      "export": "SearchOff",
+      "fill": true
     },
     "Monitor": {
       "symbol": "monitor",

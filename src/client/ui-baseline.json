@@ -93,6 +93,33 @@
   "badge": {
     "features/settings/FunctionalTagChip.tsx": 1
   },
+  "notice-plaque": {
+    "features/costs/CorrectionBar.tsx": 2,
+    "features/costs/CorrectionPreviewDialog.tsx": 1,
+    "features/costs/InvoiceDeleteDialog.tsx": 1,
+    "features/costs/InvoiceForm.tsx": 1,
+    "features/costs/InvoicePartyNote.tsx": 1,
+    "features/costs/InvoiceRecognitionNote.tsx": 1,
+    "features/costs/InvoiceTwinNotes.tsx": 2,
+    "features/costs/IssuedMaterialsDialog.tsx": 1,
+    "features/costs/LostReferencesNote.tsx": 1,
+    "features/costs/StaleInvoiceNotice.tsx": 1,
+    "features/costs/WaybillCorrectionBar.tsx": 2,
+    "features/costs/WaybillForm.tsx": 2,
+    "features/datasets/PdfGroupingEditor.tsx": 1,
+    "features/datasets/PdfGroupingNotices.tsx": 1,
+    "features/document-sets/editor/RequisitesTab.tsx": 1,
+    "features/document-sets/fields/BaseCandidatePicker.tsx": 1,
+    "features/document-sets/fields/DocRefCatalogPickerField.tsx": 1,
+    "features/document-sets/fields/DocRefField.tsx": 2,
+    "features/planning/estimates/MakeCurrentDialog.tsx": 1,
+    "features/settings/BackupSection.tsx": 2,
+    "features/settings/BrandingSection.tsx": 1,
+    "features/settings/IntegrationSettingsSection.tsx": 2,
+    "features/settings/RecognitionProfilesPage.tsx": 1,
+    "features/settings/SchemaLevelBanner.tsx": 1,
+    "features/templates/TemplateSidebar.tsx": 1
+  },
   "icon-button": {
     "shared/ui/Calendar.tsx": 2,
     "shared/ui/DataGrid.tsx": 1,

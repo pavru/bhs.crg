@@ -140,7 +140,7 @@
 
 ## 2. PR 2 — banner, пометка, badge, progress
 
-- [ ] 2.1 `Banner`: тона `error`, `warning`, `info`, `success`; знак `on-<тон>-container` в круге
+- [x] 2.1 `Banner`: тона `error`, `warning`, `info`, `success`; знак `on-<тон>-container` в круге
   `<тон>-container`; до двух text-действий; на узком экране — под текстом; разделитель снизу [UI-73].
   Проверка — vitest:
   - без действий нет пустой полосы;
@@ -150,13 +150,15 @@
   `npm run ui:ratchet` — `container-text` не растёт.
 - [ ] 2.2 `RereadFailedNotice` переведён на `Banner` [UI-73]. Проверка — его тесты и живой прогон, где он
   показывается (`invoices`), зелёные.
-- [ ] 2.3 Правило `notice-plaque` своим модулем по образцу `ui-ratchet-pills.mjs`, по синтаксическому
+- [x] 2.3 Правило `notice-plaque` своим модулем по образцу `ui-ratchet-pills.mjs`, по синтаксическому
   дереву, `everywhere: true`: `div`/`p`/`section` с заливкой `*-container`, рамкой и скруглением; не
   срабатывает с `text-label-*`, `/N` у заливки и `border-dashed`; ветки `*-subtle` нет. Уровень — по замеру
   после 2.2 (ожидается около 38) [UI-73]. Проверка — `ui-ratchet.test.mjs`:
   - фикстура `div` с `bg-warning-container border rounded-md` красная;
   - `span` с `bg-error-container border rounded-full text-label-small` — зелёная;
   - `Banner` — зелёная.
+  Сделано 01.11.2026: модуль `ui-ratchet-plaque.mjs`; уровень — 32 в 25 файлах (прототип разбора давал 39:
+  пилюли с `text-label-*` и пунктир правило пропускает, `RereadFailedNotice` переведён).
 - [ ] 2.4 `StatusText` вместо `StatusBadge`: `label-medium`, цвет роли, знак у `success`, `warning`,
   `error`, «·» между соседними; `bordered` и `count` удалены, замены у `bordered` нет [UI-74]. Кодмод:
   имя — по синтаксическому дереву, тона `brand` → `primary` и `danger` → `error` — по диагностикам `tsc`
