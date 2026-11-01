@@ -9,6 +9,7 @@ import { Tooltip } from '@/shared/ui/Tooltip';
 import type { InvoiceImage } from '@/shared/api/invoiceImage';
 import { profileSummary, type PrintProfile } from '@/shared/api/printProfiles';
 import { initialChoice, layoutChipHint, layoutChipParts, layoutState } from './invoiceImageLayout';
+import { LAYER_SURFACE } from '@/shared/ui/menuClasses';
 
 /**
  * Чип «Раскладка: {профиль}» в строке «Вид для чтения» (issue #1456, вариант B): называет, по чему
@@ -52,7 +53,7 @@ export function LayoutChooser({ image, notice, profiles, rebuilding, onRebuild }
       </Tooltip>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6} data-testid="layout-popover" aria-labelledby={heading}
-          className="z-50 w-80 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-md border border-outline-variant bg-surface p-4 shadow-elevation-2">
+          className={`z-50 w-80 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-md p-4 ${LAYER_SURFACE}`}>
           <div className="flex items-center justify-between mb-1">
             <h2 id={heading} className="text-body-medium font-semibold text-on-surface">Раскладка вида</h2>
             <Popover.Close asChild>

@@ -1,9 +1,8 @@
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Icon } from '../Icon';
-import { Add, Check, ChevronLeft, ChevronRight, Remove, RotateRight } from '../icons';
-import { useId, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { Add, ChevronLeft, ChevronRight, Remove, RotateRight } from '../icons';
+import { useId, useState, type KeyboardEvent } from 'react';
 import { IconButton } from '../Button';
 import { Chip } from '../Chip';
+import { Menu, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator } from '../Menu';
 import { normalizePage, ZOOM_PRESETS, zoomLabel, type ZoomMode } from './viewerState';
 
 /**
@@ -89,40 +88,30 @@ function PageField({ page, numPages, onPage }: { page: number; numPages: number;
   );
 }
 
-const itemCls =
-  'flex items-center justify-between gap-3 px-3 py-1.5 text-body-medium text-on-surface-variant cursor-pointer select-none outline-none ' +
-  'state-layer disabled-content data-[disabled]:pointer-events-none';
-
-/** Меню масштаба по образцу `LayoutChooser`: чип с меню, открывается вверх — панель внизу. */
+/**
+ * Меню масштаба по образцу `LayoutChooser`: чип с меню, открывается вверх — панель внизу. Режим —
+ * выбор из вариантов: галочка у текущего ([UI-76]). `modal={false}` — листы под меню прокручиваются.
+ */
 function ZoomMenu(p: ToolbarProps) {
-  const item = (key: string, label: ReactNode, onSelect: () => void, opts: { checked?: boolean; hint?: string; disabled?: boolean } = {}) => (
-    <DropdownMenu.Item key={key} className={itemCls} onSelect={onSelect} disabled={opts.disabled}>
-      <span className={opts.checked ? 'text-on-surface font-medium' : undefined}>{label}</span>
-      {opts.checked ? <Icon icon={Check} size={18} className="text-primary" aria-hidden />
-        : opts.hint && <span className="text-body-small text-on-surface-variant">{opts.hint}</span>}
-    </DropdownMenu.Item>
+  const radio = (mode: ZoomMode, label: string, hint?: string) => (
+    <MenuRadioItem key={String(mode)} value={String(mode)} trailing={hint} onSelect={() => p.onMode(mode)}>{label}</MenuRadioItem>
   );
   return (
-    <DropdownMenu.Root modal={false}>
-      <DropdownMenu.Trigger asChild>
-        <Chip selected={false} menu aria-label={`Масштаб: ${zoomLabel(p.mode)}`} data-testid="viewer-zoom">{zoomLabel(p.mode)}</Chip>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content side="top" align="start" sideOffset={6}
-          className="z-50 min-w-48 rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
-          {item('width', 'По ширине', () => p.onMode('width'), { checked: p.mode === 'width', hint: 'Ctrl 0' })}
-          {item('page', 'Страница целиком', () => p.onMode('page'), { checked: p.mode === 'page' })}
-          <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
-          {ZOOM_PRESETS.map(z => item(String(z), zoomLabel(z), () => p.onMode(z), { checked: p.mode === z }))}
-          {p.narrow && (
-            <>
-              <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
-              {item('out', 'Уменьшить', p.onZoomOut, { hint: 'Ctrl −', disabled: !p.canZoomOut })}
-              {item('in', 'Увеличить', p.onZoomIn, { hint: 'Ctrl +', disabled: !p.canZoomIn })}
-            </>
-          )}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+    <Menu modal={false} dense side="top" sideOffset={6} className="min-w-48"
+      trigger={<Chip selected={false} menu aria-label={`Масштаб: ${zoomLabel(p.mode)}`} data-testid="viewer-zoom">{zoomLabel(p.mode)}</Chip>}>
+      <MenuRadioGroup value={String(p.mode)}>
+        {radio('width', 'По ширине', 'Ctrl 0')}
+        {radio('page', 'Страница целиком')}
+        <MenuSeparator />
+        {ZOOM_PRESETS.map(z => radio(z, zoomLabel(z)))}
+      </MenuRadioGroup>
+      {p.narrow && (
+        <>
+          <MenuSeparator />
+          <MenuItem icon={Remove} trailing="Ctrl −" disabled={!p.canZoomOut} onSelect={p.onZoomOut}>Уменьшить</MenuItem>
+          <MenuItem icon={Add} trailing="Ctrl +" disabled={!p.canZoomIn} onSelect={p.onZoomIn}>Увеличить</MenuItem>
+        </>
+      )}
+    </Menu>
   );
 }

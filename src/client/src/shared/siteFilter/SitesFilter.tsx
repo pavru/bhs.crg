@@ -8,6 +8,7 @@ import { Chip } from '@/shared/ui/Chip';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { FavoritesPicker } from './FavoritesPicker';
 import { useSiteFilterState } from './siteFilterContext';
+import { LAYER_SURFACE } from '@/shared/ui/menuClasses';
 
 /**
  * Отбор «Стройки» в строке фильтров списка (issue #1432) — вместо сегмента «Избранные N / Все N» в шапке.
@@ -74,7 +75,7 @@ export function SitesFilter({ hidden, partial = false }: { hidden?: number; part
       ) : <Popover.Trigger asChild>{chip}</Popover.Trigger>}
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6} data-testid="sites-filter-popover" aria-labelledby={heading}
-          className="z-50 w-80 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-md border border-outline-variant bg-surface p-4 shadow-elevation-2">
+          className={`z-50 w-80 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-md p-4 ${LAYER_SURFACE}`}>
           <div className="flex items-center justify-between mb-2">
             <h2 id={heading} className="text-body-medium font-semibold text-on-surface">Стройки в списках</h2>
             <Popover.Close asChild>

@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from 'react';
-import { Icon } from '@/shared/ui/Icon';
 import { Checklist, SearchCheck } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
@@ -41,11 +40,11 @@ export function usePurgeBatchControls({ scope, scopeId, type }: {
   const menu: ReactNode = offered && type && !picked ? (
     <RowActionsMenu ariaLabel={`Очистка: ${type.name}`} actions={[
       {
-        key: 'find', label: 'Найти занятые выключенными модулями…', icon: <Icon icon={SearchCheck} size={18} />,
+        key: 'find', label: 'Найти занятые выключенными модулями…', icon: SearchCheck,
         onSelect: () => setDialog({ typeId: type.id, scope, scopeId }),
       },
       {
-        key: 'pick', label: 'Выбрать записи для удаления с потерей ссылок', icon: <Icon icon={Checklist} size={18} />,
+        key: 'pick', label: 'Выбрать записи для удаления с потерей ссылок', icon: Checklist,
         onSelect: () => setPicking({ where, ids: new Set() }),
       },
     ]} />

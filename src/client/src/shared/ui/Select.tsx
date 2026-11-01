@@ -5,6 +5,7 @@ import { Check, KeyboardArrowDown } from './icons';
 import { forwardRef, useId, useRef, useState, type ReactNode } from 'react';
 import { OutlinedField } from './OutlinedField';
 import { fieldBox, fieldDescribedBy, type FieldDensity } from './fieldBox';
+import { LAYER_SURFACE } from './menuClasses';
 
 /**
  * MD3-Select (issue #110, фаза 2) поверх Radix Select — замена нативному `<select>`
@@ -178,7 +179,7 @@ export function Select({
       </RS.Trigger>}
       <RS.Portal>
         <RS.Content position="popper" sideOffset={4}
-          className="z-50 min-w-[var(--radix-select-trigger-width)] max-h-[var(--radix-select-content-available-height)] overflow-hidden rounded-sm border border-outline-variant bg-surface shadow-elevation-2">
+          className={`z-50 min-w-[var(--radix-select-trigger-width)] max-h-[var(--radix-select-content-available-height)] overflow-hidden rounded-xs ${LAYER_SURFACE}`}>
           <RS.Viewport className="p-1">
             {emptyItem !== undefined && <SelectItem value={EMPTY}>{emptyItem}</SelectItem>}
             {children}

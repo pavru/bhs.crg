@@ -4,6 +4,7 @@ import { composeRefs } from '@radix-ui/react-compose-refs';
 import { TextField, type TextFieldProps } from './TextField';
 import { matchStart, type SuggestItem } from './suggestMatch';
 import type { SuggestFeed } from './suggestFeeds';
+import { LAYER_SURFACE } from './menuClasses';
 
 /** Пропы поля с подсказкой — общие для обоих источников (`SuggestField`). */
 export interface SuggestFieldBaseProps
@@ -174,7 +175,7 @@ export function SuggestBox({
           onOpenAutoFocus={e => e.preventDefault()} onCloseAutoFocus={e => e.preventDefault()}
           // Щелчок по самому полю — не «мимо»: список закрыл бы и тут же открылся бы вводом.
           onInteractOutside={e => { if (e.target === input.current) e.preventDefault(); }}
-          className="z-50 overflow-hidden rounded-sm border border-outline-variant bg-surface p-1 shadow-elevation-2"
+          className={`z-50 overflow-hidden rounded-xs p-1 ${LAYER_SURFACE}`}
           // Не уже поля; в узкой клетке сетки — не уже 18rem, чтобы марка кабеля не ложилась в столбик.
           style={{ width: 'max(var(--radix-popover-trigger-width), 18rem)', maxWidth: 'min(32rem, calc(100vw - 32px))' }}>
           <SuggestOptions items={items} q={view?.q ?? ''} listId={listId} active={active} onPick={accept} />

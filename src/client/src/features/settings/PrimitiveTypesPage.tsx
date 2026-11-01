@@ -320,8 +320,8 @@ function TypeDetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, 
         <>
           <GroupPicker groups={allGroups} value={group} onChange={onGroup} />
           <RowActionsMenu ariaLabel="Действия типа" actions={[
-            { key: 'dup', label: 'Дублировать', icon: <Icon icon={ContentCopy} size={18} />, onSelect: onDuplicate },
-            { key: 'del', label: 'Удалить', danger: true, icon: <Icon icon={Delete} size={18} />, onSelect: onDelete },
+            { key: 'dup', label: 'Дублировать', icon: ContentCopy, onSelect: onDuplicate },
+            { key: 'del', label: 'Удалить', danger: true, icon: Delete, onSelect: onDelete },
           ]} />
         </>
       } />

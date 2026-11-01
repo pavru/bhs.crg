@@ -33,13 +33,13 @@ describe('SelectionActionBar: «Перенести в группу»', () => {
     expect(screen.getByTestId('lane').contains(screen.getByRole('menu'))).toBe(false);
   });
 
-  it('выбор группы зовёт onMoveSelected с её id, «+ Новый документ» — с new', async () => {
+  it('выбор группы зовёт onMoveSelected с её id, «Новый документ» — с new', async () => {
     const { onMoveSelected } = renderBar();
     await openMenu();
     await act(async () => { fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Акт 1' }), { key: 'Enter' }); });
     expect(onMoveSelected).toHaveBeenCalledWith('g2');
     await openMenu();
-    await act(async () => { fireEvent.keyDown(screen.getByRole('menuitem', { name: '+ Новый документ' }), { key: 'Enter' }); });
+    await act(async () => { fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Новый документ' }), { key: 'Enter' }); });
     expect(onMoveSelected).toHaveBeenLastCalledWith('new');
   });
 

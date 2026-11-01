@@ -13,6 +13,7 @@ import {
 import { columnLabel, type FilterColumn } from './rowFilterModel';
 import { Chip } from '@/shared/ui/Chip';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { LAYER_SURFACE } from '@/shared/ui/menuClasses';
 
 /**
  * Чипы отбора над таблицей (ТЗ CORE-33; задача G1d, issue #1091): каждое условие — чип, который
@@ -192,7 +193,7 @@ function ConditionPopover({ columns, initial, submit, onSubmit, requireValue, ch
       <Popover.Trigger asChild {...trigger}>{children}</Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6}
-          className="z-50 w-72 rounded-md bg-surface border border-outline-variant p-3 focus:outline-none shadow-elevation-2">
+          className={`z-50 w-72 rounded-md p-3 focus:outline-none ${LAYER_SURFACE}`}>
           <form className="group/condition" onSubmit={e => { e.preventDefault(); apply(); }}>
             <ConditionEditor stacked cond={draft} columns={columns} onChange={setDraft} hintId={hintId} valueRef={valueRef} />
             {/* Подсказка, а не запрет — как в диалоге (issue #1137): годно ли условие, решает сервер, а его

@@ -196,7 +196,7 @@ function MaterialPick({ group, rows, revision, match, seen, setVersion, place, o
 
       <ModalButtons className="border-t border-outline-variant pt-3">
         {canCreate && (
-          <ModalAction lead icon={<Icon icon={Add} size={18} />} onClick={() => setCreating(true)}>Новая позиция…</ModalAction>
+          <ModalAction lead icon={Add} onClick={() => setCreating(true)}>Новая позиция…</ModalAction>
         )}
         <ModalExit>Закрыть</ModalExit>
         <ModalAction disabled={match.isPending} onClick={onDone}>Пропустить</ModalAction>

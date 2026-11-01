@@ -13,6 +13,7 @@ import {
 } from '@/shared/api/invoiceRecognition';
 import { inheritsFrom, nameOf, partyLine, partyWhy, pickOrder, scanParty } from './recognition';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { LAYER_SURFACE } from '@/shared/ui/menuClasses';
 
 const NAME_LIMIT = 512;
 
@@ -95,7 +96,7 @@ function Details({ party, pick, canCreate, onChoose, onRetry }: {
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6}
-          className="z-50 w-[360px] max-w-[90vw] rounded-md bg-surface border border-outline-variant p-3 text-body-small text-on-surface-variant space-y-2 focus:outline-none shadow-elevation-2">
+          className={`z-50 w-[360px] max-w-[90vw] rounded-md p-3 text-body-small text-on-surface-variant space-y-2 focus:outline-none ${LAYER_SURFACE}`}>
           <p>{partyWhy(party, canCreate)}</p>
           {candidates.length > 0 && (
             <ul className="space-y-1">

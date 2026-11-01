@@ -1,5 +1,4 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useTheme } from '@/shared/ui/themeContext';
 import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
 import { useAssetCompletion } from '@/shared/ui/typstAssetCompletion';
@@ -22,7 +21,7 @@ import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import { flattenFields } from './templateBlank';
 import type * as monacoEditor from 'monaco-editor';
 import { Tooltip } from '@/shared/ui/Tooltip';
-import { MENU_ITEM, MENU_SURFACE } from '@/shared/ui/menuClasses';
+import { Menu, MenuItem, MenuLabel, MenuNote, MenuSeparator } from '@/shared/ui/Menu';
 import { markLayerFocus } from '@/shared/ui/layerFocus';
 
 // ─── Requisite picker ─────────────────────────────────────────────────────────
@@ -37,58 +36,40 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
   const chosen = useRef<string | null>(null);
 
   return (
-    <DropdownMenu.Root>
-      <Tooltip content="Вставить реквизит">
-        <DropdownMenu.Trigger asChild>
-          <button type="button"
-            className="state-layer px-2 py-1 text-body-medium rounded-xs text-on-surface-variant data-[state=open]:bg-primary-container data-[state=open]:text-on-primary-container">
-            <span className="flex items-center gap-1 text-body-small font-mono">
-              <Icon icon={MenuBook} size={18} /> Реквизит
-            </span>
-          </button>
-        </DropdownMenu.Trigger>
-      </Tooltip>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content align="start" sideOffset={4} collisionPadding={8}
-          className={`z-50 w-80 max-h-[min(20rem,var(--radix-dropdown-menu-content-available-height))] flex flex-col ${MENU_SURFACE}`}
-          onCloseAutoFocus={e => {
-            const path = chosen.current;
-            // Закрыли без выбора — фокус на «Реквизит» Radix вернёт сам, следом за этим обработчиком.
-            // Помечаем его как фокус слоя: иначе подсказка кнопки откроется сама и первый Esc достанется ей.
-            if (path == null) { markLayerFocus(); return; }
-            chosen.current = null;
-            e.preventDefault();
-            onInsert(`#get("${path}")`);
-          }}>
-          <DropdownMenu.Label className="px-3 pt-1 pb-2 border-b border-surface-container text-title-small text-on-surface-variant">
-            Реквизиты · {docType.name}
-          </DropdownMenu.Label>
-          {fields.length === 0 ? (
-            <p className="px-3 py-4 text-body-small text-on-surface-variant text-center">Нет реквизитов</p>
-          ) : (
-            <div className="py-1 overflow-y-auto overflow-x-hidden">
-              {fields.map(f => {
-                const pad = { paddingLeft: `${0.75 + f.depth * 1}rem` };
-                const row = (
-                  <>
-                    <code className="text-body-small font-mono text-on-primary-container bg-primary-container px-1.5 py-0.5 rounded-xs min-w-0 max-w-[160px] truncate">
-                      {f.path}
-                    </code>
-                    <span className="text-body-small text-on-surface-variant truncate flex-1">{f.title}</span>
-                    <span className="text-body-small text-on-surface-variant shrink-0 pr-2">{f.type}</span>
-                  </>
-                );
-                // Составное поле — заголовок группы: выбрать его нечего, стрелки его перешагивают.
-                return f.type === 'complex'
-                  ? <DropdownMenu.Label key={f.path} className="flex items-center gap-2 py-1.5 opacity-60" style={pad}>{row}</DropdownMenu.Label>
-                  : <DropdownMenu.Item key={f.path} onSelect={() => { chosen.current = f.path; }}
-                      className={`flex items-center gap-2 py-1.5 ${MENU_ITEM}`} style={pad}>{row}</DropdownMenu.Item>;
-              })}
-            </div>
-          )}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+    <Menu dense tooltip="Вставить реквизит" collisionPadding={8} className="w-80" maxHeight="20rem"
+      trigger={
+        <button type="button"
+          className="state-layer px-2 py-1 text-body-medium rounded-xs text-on-surface-variant data-[state=open]:bg-primary-container data-[state=open]:text-on-primary-container">
+          <span className="flex items-center gap-1 text-body-small font-mono">
+            <Icon icon={MenuBook} size={18} /> Реквизит
+          </span>
+        </button>
+      }
+      onCloseAutoFocus={e => {
+        const path = chosen.current;
+        // Закрыли без выбора — фокус на «Реквизит» Radix вернёт сам, следом за этим обработчиком.
+        // Помечаем его как фокус слоя: иначе подсказка кнопки откроется сама и первый Esc достанется ей.
+        if (path == null) { markLayerFocus(); return; }
+        chosen.current = null;
+        e.preventDefault();
+        onInsert(`#get("${path}")`);
+      }}>
+      <MenuLabel>Реквизиты · {docType.name}</MenuLabel>
+      <MenuSeparator />
+      {fields.length === 0 ? <MenuNote>Нет реквизитов</MenuNote> : fields.map(f => {
+        const pad = { paddingLeft: `${0.75 + f.depth * 1}rem` };
+        const path = (
+          <code className="text-body-small font-mono text-on-primary-container bg-primary-container px-1.5 py-0.5 rounded-xs">
+            {f.path}
+          </code>
+        );
+        // Составное поле — заголовок группы: выбрать его нечего, стрелки его перешагивают.
+        return f.type === 'complex'
+          ? <MenuLabel key={f.path} style={pad}>{path} {f.title}</MenuLabel>
+          : <MenuItem key={f.path} style={pad} description={f.title} trailing={f.type}
+              onSelect={() => { chosen.current = f.path; }}>{path}</MenuItem>;
+      })}
+    </Menu>
   );
 }
 
@@ -341,7 +322,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
                 key: 'new-version',
                 label: 'Сохранить как новую версию…',
                 description: `Создаст v${template.version + 1}, сохранит историю текущей`,
-                icon: <Icon icon={CallSplit} size={18} />,
+                icon: CallSplit,
                 onSelect: () => setNewVersionOpen(true),
               }]}>
               {saving ? 'Сохранение…' : 'Сохранить'}

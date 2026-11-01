@@ -5,7 +5,8 @@
 // четыре уже проходят под четырьмя существующими прогонами (fields, dialogs, keyboard, routing) —
 // они открывают эти диалоги десятками. Здесь проверяется то, чего те не касаются:
 //   • тема: выбор применяется, переживает перезагрузку и СЛЕДУЕТ ЗА СИСТЕМОЙ (подписка живая);
-//   • поле даты: показывает сохранённое значение и отбрасывает незаконченный ввод при потере фокуса.
+//   • поле даты: показывает сохранённое значение и отбрасывает незаконченный ввод при потере фокуса;
+//   • слой над окном в тёмной теме: список свисает за край окна и отличим без рамки ([UI-76]).
 //
 // Тема пишется в localStorage — прогон возвращает её в исходное состояние. Значения полей
 // не сохраняются: документ закрывается без сохранения.
@@ -15,11 +16,12 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/shared-ui-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, submitLogin, clearSession, createChecks, settled, until, accountAction, emulateTouch, pickTheme as pickThemeOf } from './harness.mjs';
+import { BASE, launchBrowser, login, submitLogin, clearSession, createChecks, settled, until, accountAction, emulateTouch, closeDialog, pickTheme as pickThemeOf } from './harness.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
 const AOSR = '250701.ЭОМ-1.АОСР';
+const WORKS = '250701.ЭОМ-1.1.Реестр работ';   // массив «Работы» — у его таблицы есть вставка из Excel
 // Второй человек — для проверки «настройки уходят вместе с сессией». Значения те же, что у посева
 // (e2e/seed.mjs): отдельного источника заводить незачем, а разойдясь, они дали бы «не вошёл».
 const OTHER_EMAIL = process.env.SMOKE_USER_EMAIL || 'petrov@bhs.local';
@@ -262,6 +264,64 @@ await check('snackbar-field-above-bottom-nav-on-phone', async () => {
     });
   } finally {
     await page.setViewportSize({ width: 1500, height: 950 });
+  }
+});
+
+// ── Слой над окном в тёмной теме ([UI-76], sharedui-md3-13) ──────────────────────
+// Рамки у меню и списка больше нет: от окна их отличает другой контейнер (`surface-container` против
+// `surface-container-high` окна) и тень уровня 2. Место, где без рамки сливалось (#1521), — край окна в
+// тёмной теме: список последнего поля шага сопоставления вставки свисает за нижний край окна.
+await check('layer-over-window-dark-without-border', async () => {
+  await pickTheme('Тёмная');
+  try {
+    await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}`);
+    await page.waitForSelector('tbody tr', { timeout: 15000 });
+    await page.getByText(WORKS, { exact: false }).first().click();
+    const works = page.getByTestId('document-editor');
+    await works.waitFor({ timeout: 15000 });
+    await settled(page);
+    if (!(await works.getByRole('button', { name: /^Таблица$/ }).count())) {
+      await works.getByRole('button', { name: /Работы/ }).first().click();
+      await settled(page);
+    }
+    await works.getByRole('button', { name: /^Таблица$/ }).first().click();
+    await settled(page);
+    const dlg = page.locator('[role=dialog]').last();
+    await dlg.getByRole('button', { name: /вставить из excel/i }).first().click();
+    await settled(page);
+    await dlg.locator('textarea').first().fill('Наименование\tЕдиница\nКабель ВВГнг 3х2.5\tм');
+    await dlg.getByRole('button', { name: /далее/i }).first().click();
+    await settled(page);
+    await dlg.getByRole('combobox').last().click();
+    await page.getByRole('listbox').waitFor({ timeout: 5000 });
+    const seen = await until(() => page.evaluate(() => {
+      const list = document.querySelector('[role=listbox]');
+      const layer = list.closest('[data-radix-popper-content-wrapper]')?.firstElementChild ?? list;
+      const win = [...document.querySelectorAll('[role=dialog]')].pop();
+      const [l, w] = [getComputedStyle(layer), getComputedStyle(win)];
+      return {
+        theme: document.documentElement.getAttribute('data-theme'),
+        overhang: layer.getBoundingClientRect().bottom - win.getBoundingClientRect().bottom,
+        border: l.borderTopWidth, layerBg: l.backgroundColor, windowBg: w.backgroundColor, shadow: l.boxShadow,
+      };
+    }));
+    if (seen.theme !== 'dark') throw new Error(`тема на <html> «${seen.theme}», а не тёмная`);
+    if (seen.overhang <= 0) throw new Error(`список не свисает за окно (низ на ${Math.round(-seen.overhang)} px выше края) — проверять нечего`);
+    if (seen.border !== '0px') throw new Error(`у списка рамка ${seen.border}`);
+    if (seen.layerBg === seen.windowBg) throw new Error(`фон списка и окна один — ${seen.layerBg}: без рамки они сливаются`);
+    if (!/\d+px \d+px/.test(seen.shadow) || !/0px 2px 6px 2px/.test(seen.shadow))
+      throw new Error(`у списка не тень уровня 2: ${seen.shadow}`);
+    // Выход без вставки: список, шаг сопоставления, шаг ввода (во вставке набирали — спросит), таблица.
+    await page.keyboard.press('Escape');
+    await dlg.getByRole('button', { name: 'Назад', exact: true }).click();
+    await dlg.getByRole('button', { name: 'Отмена' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Закрыть', exact: true }).click();
+    await closeDialog(page);
+  } finally {
+    // Перезагрузка снимает окно, если проверка упала посреди: меню профиля под окном не нажать.
+    await page.goto(`${BASE}/document-sets`);
+    await settled(page);
+    await pickTheme('Светлая');
   }
 });
 

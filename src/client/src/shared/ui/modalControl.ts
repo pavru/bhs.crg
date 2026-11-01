@@ -1,4 +1,5 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext } from 'react';
+import type { IconDef } from './icons/types';
 
 /**
  * Что диалог даёт своему содержимому (issue #1235): охраняемый выход и признак «идёт запрос».
@@ -69,7 +70,8 @@ export interface BarAction {
   disabled: boolean;
   /** Идёт запрос действия: пункт погашен и вместо знака — кольцо хода. */
   loading: boolean;
-  icon?: ReactNode;
+  /** Знак пункта — символ: размер ставит меню. */
+  icon?: IconDef;
   /** Почему пункт погашен — строкой под подписью: подсказки при наведении на телефоне нет. */
   hint?: string;
   run: () => void;

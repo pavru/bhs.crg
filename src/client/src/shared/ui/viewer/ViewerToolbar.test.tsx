@@ -54,7 +54,10 @@ describe('панель просмотрщика', () => {
     render(<ViewerToolbar {...p} />);
     expect(screen.getByTestId('viewer-zoom').textContent).toContain('150 %');
     await openZoomMenu();
-    fireEvent.click(screen.getByRole('menuitem', { name: /Страница целиком/ }));
+    // Режим — выбор из вариантов: галочка у текущего ([UI-76]).
+    expect(screen.getByRole('menuitemradio', { name: '150 %' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('menuitemradio', { name: /По ширине/ }).getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Страница целиком/ }));
     expect(p.onMode).toHaveBeenCalledWith('page');
   });
 

@@ -102,10 +102,10 @@ export function ObservationReviewDialog({ observation, setPath, nameOf, onClose 
       // уводит его под обрез окна (ревью PR #1386).
       footer={<>
         {observation.status !== 'New' && (
-          <ModalAction lead icon={<Icon icon={Undo} size={18} />} onClick={() => decide('New')}>Вернуть в работу</ModalAction>
+          <ModalAction lead icon={Undo} onClick={() => decide('New')}>Вернуть в работу</ModalAction>
         )}
         <ModalExit />
-        <ModalAction danger icon={<Icon icon={Close} size={18} />} onClick={() => decide('Rejected')}>Отклонить</ModalAction>
+        <ModalAction danger icon={Close} onClick={() => decide('Rejected')}>Отклонить</ModalAction>
         <ModalPrimary icon={<Icon icon={Check} size={18} />} loading={review.isPending} onClick={() => decide('Confirmed')}>
           Подтвердить
         </ModalPrimary>

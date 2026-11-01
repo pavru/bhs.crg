@@ -4,6 +4,7 @@ import type { SchemaField } from '@/shared/api/schema';
 import { nextTabStop, tabStops } from '@/shared/ui/tabStops';
 import { evalComputed, validateComputed, findComputedCycles, referencedKeys } from '@/shared/utils/computedExpression';
 import { Tooltip } from '@/shared/ui/Tooltip';
+import { LAYER_SURFACE } from '@/shared/ui/menuClasses';
 
 /** Редактор формулы расчётного поля (issue #368): текст выражения (JS) + пикер-typeahead «Вставить поле»,
  *  инлайн-валидация (синтаксис/неизвестное поле/цикл, #309/#311) и «Проверить на образце». */
@@ -118,7 +119,7 @@ export function ComputedFieldEditor({ field, siblingFields, onChange }: {
                 onKeyDown={onListTab}
                 onOpenAutoFocus={() => { focusMoved.current = false; }}
                 onCloseAutoFocus={e => { if (focusMoved.current) { focusMoved.current = false; e.preventDefault(); } }}
-                className="z-50 w-64 max-w-(--radix-popover-content-available-width) bg-surface border border-outline-variant rounded-md shadow-elevation-2 py-1 focus:outline-none">
+                className={`z-50 w-64 max-w-(--radix-popover-content-available-width) rounded-md py-1 focus:outline-none ${LAYER_SURFACE}`}>
                 <input value={pickFilter} onChange={e => setPickFilter(e.target.value)}
                   placeholder="Фильтр…" aria-label="Фильтр полей" spellCheck={false}
                   className="mx-2 mb-1 w-[calc(100%-1rem)] border border-outline-variant rounded-xs px-2 py-1 text-body-small bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-primary" />

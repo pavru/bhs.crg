@@ -1,16 +1,12 @@
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Icon } from './Icon';
-import { Check, GridView, KeyboardArrowDown, Settings } from './icons';
+import { GridView, KeyboardArrowDown, Settings } from './icons';
+import { Menu, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator } from './Menu';
 import { useState } from 'react';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
 import { WorkspacesDialog } from '@/features/account/WorkspacesDialog';
 import { useWorkspace } from './workspaceContext';
 import { compositionLabel, type Workspace } from './workspaces';
 import { Tooltip } from './Tooltip';
-
-const itemCls =
-  'flex items-start gap-2 px-3 py-1.5 text-body-medium text-on-surface cursor-pointer select-none outline-none ' +
-  'state-layer disabled-content data-[disabled]:pointer-events-none';
 
 /**
  * Переключатель рабочего пространства — в шапке слева (ТЗ AUTH-16.1; issue #1001): это контекст
@@ -35,54 +31,37 @@ export function WorkspaceSwitcher() {
   const system = ws.list.filter(w => w.kind !== 'own');
   const own = ws.list.filter(w => w.kind === 'own');
   const item = (w: Workspace) => (
-    <DropdownMenu.Item key={w.key} className={itemCls} onSelect={() => ws.choose(w.key)}
-      data-testid="workspace-option">
-      <Icon icon={Check} size={18} className={`mt-0.5 shrink-0 ${w.key === ws.current.key ? 'text-primary' : 'invisible'}`} />
-      <span className="min-w-0">
-        <span className="block truncate text-on-surface">{w.name}</span>
-        {composition(w) && (
-          <span className="block text-body-small text-on-surface-variant" data-testid="workspace-composition">{composition(w)}</span>
-        )}
-      </span>
-    </DropdownMenu.Item>
+    <MenuRadioItem key={w.key} value={w.key} data-testid="workspace-option"
+      description={composition(w) && <span data-testid="workspace-composition">{composition(w)}</span>}>
+      {w.name}
+    </MenuRadioItem>
   );
 
   return (
     <>
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger asChild>
-          <button type="button" data-testid="workspace-switcher" aria-label={`Рабочее пространство: ${ws.current.name}`}
-            className="flex items-center gap-1.5 min-w-0 max-w-60 h-9 touch-target [--_touch-inset:-6px] pl-3 pr-2 rounded-full text-on-surface state-layer focus-ring">
-            <Icon icon={GridView} size={18} className="shrink-0 text-on-surface-variant" />
-            <Tooltip content={composition(ws.current) ?? ws.current.name}>
-              <span className="min-w-0 truncate text-body-medium font-medium text-on-surface">{ws.current.name}</span>
-            </Tooltip>
-            <Icon icon={KeyboardArrowDown} size={18} className="shrink-0 text-on-surface-variant" />
-          </button>
-        </DropdownMenu.Trigger>
-        <DropdownMenu.Portal>
-          <DropdownMenu.Content align="start" sideOffset={4}
-            className="z-50 min-w-64 max-w-96 max-h-[70vh] overflow-auto rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
-            <DropdownMenu.Label className="px-3 pt-1 pb-0.5 text-title-small text-on-surface-variant">
-              Системные
-            </DropdownMenu.Label>
-            {system.map(item)}
-            {own.length > 0 && <>
-              <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
-              <DropdownMenu.Label className="px-3 pt-1 pb-0.5 text-title-small text-on-surface-variant">
-                Мои
-              </DropdownMenu.Label>
-              {own.map(item)}
-            </>}
-            <DropdownMenu.Separator className="my-1 h-px bg-outline-variant" />
-            {/* Создание — отсюда, последним пунктом (AUTH-16.5): нужда осознаётся при переключении. */}
-            <DropdownMenu.Item className={itemCls} onSelect={() => setSetupOpen(true)}>
-              <Icon icon={Settings} size={18} className="mt-0.5 shrink-0 text-on-surface-variant" />
-              <span className="text-on-surface">Настроить пространства…</span>
-            </DropdownMenu.Item>
-          </DropdownMenu.Content>
-        </DropdownMenu.Portal>
-      </DropdownMenu.Root>
+      <Menu className="min-w-64" trigger={
+        <button type="button" data-testid="workspace-switcher" aria-label={`Рабочее пространство: ${ws.current.name}`}
+          className="flex items-center gap-1.5 min-w-0 max-w-60 h-9 touch-target [--_touch-inset:-6px] pl-3 pr-2 rounded-full text-on-surface state-layer focus-ring">
+          <Icon icon={GridView} size={18} className="shrink-0 text-on-surface-variant" />
+          <Tooltip content={composition(ws.current) ?? ws.current.name}>
+            <span className="min-w-0 truncate text-body-medium font-medium text-on-surface">{ws.current.name}</span>
+          </Tooltip>
+          <Icon icon={KeyboardArrowDown} size={18} className="shrink-0 text-on-surface-variant" />
+        </button>
+      }>
+        <MenuRadioGroup value={ws.current.key} onValueChange={ws.choose}>
+          <MenuLabel>Системные</MenuLabel>
+          {system.map(item)}
+          {own.length > 0 && <>
+            <MenuSeparator />
+            <MenuLabel>Мои</MenuLabel>
+            {own.map(item)}
+          </>}
+        </MenuRadioGroup>
+        <MenuSeparator />
+        {/* Создание — отсюда, последним пунктом (AUTH-16.5): нужда осознаётся при переключении. */}
+        <MenuItem icon={Settings} onSelect={() => setSetupOpen(true)}>Настроить пространства…</MenuItem>
+      </Menu>
       {setupOpen && <WorkspacesDialog onClose={() => setSetupOpen(false)} />}
     </>
   );

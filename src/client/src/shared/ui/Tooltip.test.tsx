@@ -2,11 +2,11 @@
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as Popover from '@radix-ui/react-popover';
 import { Button, IconButton } from './Button';
 import { Close } from './icons';
 import { Modal } from './Modal';
+import { Menu, MenuItem } from './Menu';
 import { Tooltip } from './Tooltip';
 
 /**
@@ -83,11 +83,9 @@ describe('Tooltip', () => {
         </Tooltip>
         <Popover.Portal><Popover.Content>Список</Popover.Content></Popover.Portal>
       </Popover.Root>
-      <DropdownMenu.Root>
-        <Tooltip content="Основа: акт">
-          <DropdownMenu.Trigger asChild disabled><button type="button">Основа</button></DropdownMenu.Trigger>
-        </Tooltip>
-      </DropdownMenu.Root>
+      <Menu disabled tooltip="Основа: акт" trigger={<button type="button">Основа</button>}>
+        <MenuItem>Заменить</MenuItem>
+      </Menu>
     </>);
     expect(screen.getByRole('button', { name: 'Колокол' }).getAttribute('data-state')).toBe('open');
     expect((screen.getByRole('button', { name: 'Основа' }) as HTMLButtonElement).disabled).toBe(true);

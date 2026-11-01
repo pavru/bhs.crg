@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useNavigate, useParams, useLocation } from 'react-router';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
-import { ArrowBack, Delete, Edit, ErrorIcon, KeyboardArrowDown, Refresh, Save, Table, Warning, ZoomIn } from '@/shared/ui/icons';
+import { Add, ArrowBack, Delete, Edit, ErrorIcon, KeyboardArrowDown, Refresh, Save, Table, Warning, ZoomIn } from '@/shared/ui/icons';
 import {
   useFilePages, useApplyGrouping, useRecognizeDocumentTable, useRecognizeDocument, useSetDocumentProfile,
   loadPageThumbnailUrl, loadPageImageUrl, recognitionRefusal, type RecognitionRefusal,
@@ -20,7 +19,7 @@ import { newLocalId } from '@/shared/utils/localId';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { Tooltip } from '@/shared/ui/Tooltip';
-import { MENU_ITEM, MENU_SURFACE } from '@/shared/ui/menuClasses';
+import { Menu, MenuItem, MenuNote, MenuSeparator } from '@/shared/ui/Menu';
 import { Chip } from '@/shared/ui/Chip';
 
 const DEFAULT_CODE = '(без шифра)';
@@ -192,8 +191,6 @@ function PageViewer({ fileId, pageIndex, onClose }: { fileId: string; pageIndex:
 
 // ─── Панель действий над выделением (перенести в группу / отделить) ────────────────────────────
 
-const selectionItemCls = `block px-3 py-1.5 text-body-small truncate ${MENU_ITEM}`;
-
 /**
  * Панель действий над выделенными страницами редактора разбиения: отделить в новый документ или
  * перенести в группу. «Перенести в группу» — меню Radix с порталом в body ([UI-51]): лента групп
@@ -211,25 +208,19 @@ export function SelectionActionBar({
     <div className="flex items-center gap-2 mt-2 pt-2 border-t border-outline-variant">
       <span className="text-body-small text-on-surface-variant">Выделено страниц: {count}</span>
       <Button variant="outlined" onClick={onSplitSelected}>Отделить в новый документ</Button>
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger asChild>
+      <Menu dense collisionPadding={8}
+        trigger={
           <Button variant="outlined" trailingIcon={<Icon icon={KeyboardArrowDown} size={18} aria-hidden />}>
             Перенести в группу
           </Button>
-        </DropdownMenu.Trigger>
-        <DropdownMenu.Portal>
-          <DropdownMenu.Content align="start" sideOffset={4} collisionPadding={8}
-            className={`z-50 w-52 max-h-(--radix-dropdown-menu-content-available-height) overflow-y-auto ${MENU_SURFACE}`}>
-            {candidateGroups.length === 0 && <p className="px-3 py-1.5 text-body-small text-on-surface-variant">Нет других групп</p>}
-            {candidateGroups.map(g => (
-              <DropdownMenu.Item key={g.id} className={`${selectionItemCls} text-on-surface`}
-                onSelect={() => onMoveSelected(g.id)}>{g.label}</DropdownMenu.Item>
-            ))}
-            <DropdownMenu.Item className={`${selectionItemCls} text-primary`}
-              onSelect={() => onMoveSelected('new')}>+ Новый документ</DropdownMenu.Item>
-          </DropdownMenu.Content>
-        </DropdownMenu.Portal>
-      </DropdownMenu.Root>
+        }>
+        {candidateGroups.length === 0 && <MenuNote>Нет других групп</MenuNote>}
+        {candidateGroups.map(g => (
+          <MenuItem key={g.id} onSelect={() => onMoveSelected(g.id)}>{g.label}</MenuItem>
+        ))}
+        <MenuSeparator />
+        <MenuItem icon={Add} onSelect={() => onMoveSelected('new')}>Новый документ</MenuItem>
+      </Menu>
     </div>
   );
 }

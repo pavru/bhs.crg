@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { Menu, MenuItem } from '@/shared/ui/Menu';
 import { Icon } from '@/shared/ui/Icon';
 import { ChevronLeft, LockIcon, Upload } from '@/shared/ui/icons';
 import { costHidden, useEstimate, type Estimate, type EstimateRevision } from '@/shared/api/planningEstimates';
@@ -102,23 +102,13 @@ function RevisionTabs({ estimate, selected, onSelect }: {
       <Tabs id={`estimate-${estimate.id}`} aria-label="Редакции сметы" className="flex-1 min-w-0"
         items={tabs.map(r => ({ value: r.id, label: revisionLabel(r) }))} value={selected} onChange={onSelect} />
       {more.length > 0 && (
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger asChild>
-            <Chip selected={false} menu className="shrink-0">ещё {formatCount(more.length)}</Chip>
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Portal>
-            <DropdownMenu.Content align="start" sideOffset={4}
-              className="z-50 min-w-44 rounded-sm border border-outline-variant bg-surface py-1 shadow-elevation-2">
-              {more.map(r => (
-                <DropdownMenu.Item key={r.id} onSelect={() => onSelect(r.id)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-body-medium text-on-surface-variant cursor-pointer select-none outline-none state-layer">
-                  {revisionLabel(r)}
-                  <span className="ml-auto text-body-small text-on-surface-variant">{formatDate(r.importedAt)}</span>
-                </DropdownMenu.Item>
-              ))}
-            </DropdownMenu.Content>
-          </DropdownMenu.Portal>
-        </DropdownMenu.Root>
+        <Menu trigger={<Chip selected={false} menu className="shrink-0">ещё {formatCount(more.length)}</Chip>}>
+          {more.map(r => (
+            <MenuItem key={r.id} onSelect={() => onSelect(r.id)} trailing={formatDate(r.importedAt)}>
+              {revisionLabel(r)}
+            </MenuItem>
+          ))}
+        </Menu>
       )}
     </div>
   );

@@ -12,6 +12,7 @@ import { ruCount } from '@/shared/utils/pluralize';
 import { headerPlace, type HeaderObject } from './matrix';
 import { fieldText, firstStep, searchStep, sectionStep, type PlaceList, type PlaceRow } from './placeChoices';
 import { LOADING_PLACE, UNREAD_PLACE, samePlace, type Place, type Places } from './places';
+import { LAYER_SURFACE } from '@/shared/ui/menuClasses';
 
 /**
  * Поле «стройка / раздел» в шапке счёта (вариант Б, COST-12.1, решение владельца 25.10.2026): одно поле,
@@ -70,7 +71,7 @@ export function InvoicePlaceField({ current, places, label, disabled, onPick }: 
       {anchored(<Popover.Trigger asChild>{trigger}</Popover.Trigger>)}
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={4} collisionPadding={8}
-          className="z-50 w-80 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) flex flex-col overflow-hidden rounded-sm border border-outline-variant bg-surface p-1 shadow-elevation-2">
+          className={`z-50 w-80 max-w-(--radix-popover-content-available-width) max-h-(--radix-popover-content-available-height) flex flex-col overflow-hidden rounded-sm p-1 ${LAYER_SURFACE}`}>
           {body}
         </Popover.Content>
       </Popover.Portal>

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Icon } from '@/shared/ui/Icon';
 import { Block, Delete } from '@/shared/ui/icons';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
@@ -48,10 +47,10 @@ export function InvoiceMoreMenu({ view, onRejected }: {
 
   const actions: RowAction[] = [];
   if (!rejected && !view.payment.paid)
-    actions.push({ key: 'reject', label: 'Отклонить…', icon: <Icon icon={Block} size={18} />, onSelect: () => setAsking(true) });
+    actions.push({ key: 'reject', label: 'Отклонить…', icon: Block, onSelect: () => setAsking(true) });
   if (askDelete)
     actions.push({
-      key: 'delete', label: 'Удалить счёт…', icon: <Icon icon={Delete} size={18} />, danger: true,
+      key: 'delete', label: 'Удалить счёт…', icon: Delete, danger: true,
       onSelect: () => askDelete('menu'),
     });
 
