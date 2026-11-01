@@ -148,8 +148,11 @@
   - текст доступен как `status`.
 
   `npm run ui:ratchet` — `container-text` не растёт.
-- [ ] 2.2 `RereadFailedNotice` переведён на `Banner` [UI-73]. Проверка — его тесты и живой прогон, где он
+- [x] 2.2 `RereadFailedNotice` переведён на `Banner` [UI-73]. Проверка — его тесты и живой прогон, где он
   показывается (`invoices`), зелёные.
+  Сделано 01.11.2026: живые прогоны #1719 зелёные (`invoices`, `costs`, `field-mapping`). По ревью — срочный
+  (`urgent`, текст `alert`): полоса встаёт сразу с текстом, и `status` диктор пропустил бы; в сопоставлении
+  полей — над полями страницы.
 - [x] 2.3 Правило `notice-plaque` своим модулем по образцу `ui-ratchet-pills.mjs`, по синтаксическому
   дереву, `everywhere: true`: `div`/`p`/`section` с заливкой `*-container`, рамкой и скруглением; не
   срабатывает с `text-label-*`, `/N` у заливки и `border-dashed`; ветки `*-subtle` нет. Уровень — по замеру
@@ -203,18 +206,26 @@
   Перечень правил в `CLAUDE.md` и `AGENTS.md` — одним коммитом [UI-73] [UI-74]. Проверка —
   `dotnet test … --filter AgentRulesCopy` зелёный.
   Сделано 01.11.2026.
-- [ ] 2.8 `/design-sync` (D12): превью `StatusBadge` → `StatusText`, README дизайн-системы — snackbar,
+- [x] 2.8 `/design-sync` (D12): превью `StatusBadge` → `StatusText`, README дизайн-системы — snackbar,
   подсказки, banner. Проверка — README и превью.
+  Сделано 01.11.2026 из основной копии (master 2.54.0): карточки `ToastProvider`, `StatusBadge`, `ValueIssueBadge`
+  переименованы, новые — `RichTooltip`, `Banner`, `Badge`, `CountText`, `LinearProgress`; 58 компонентов.
 
 ## 3. Верификация
 
-- [ ] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный (каждый PR).
-- [ ] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста (каждый PR).
-- [ ] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FileSizeRatchet|AgentRulesCopy"`
+- [x] 3.1 `cd src/client && npx tsc -b` — без ошибок; `npm test` — зелёный (каждый PR).
+- [x] 3.2 `cd src/client && npm run ui:ratchet` и `npm run lint:ratchet` — без роста (каждый PR).
+- [x] 3.3 `cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj --filter "FileSizeRatchet|AgentRulesCopy"`
   — зелёный; `RichTooltip` — своим файлом, `Tooltip.tsx` после выноса общих частей не вырос.
-- [ ] 3.4 `npm run -s test:e2e:ci` — весь список, зелёный (каждый PR; зонтик, 5.1).
-- [ ] 3.5 Снимки 5–7 ключевых экранов до и после, обе темы, 1366×768 и 375 px (зонтик, 5.2); отдельно —
+  3.1–3.4 сделаны 01.11.2026: локально перед каждым PR и в CI #1717, #1718, #1719 — все работы зелёные,
+  включая живые прогоны.
+- [x] 3.4 `npm run -s test:e2e:ci` — весь список, зелёный (каждый PR; зонтик, 5.1).
+- [x] 3.5 Снимки 5–7 ключевых экранов до и после, обе темы, 1366×768 и 375 px (зонтик, 5.2); отдельно —
   snackbar ошибки и подсказка в тёмной теме. Проверка — описание PR.
-- [ ] 3.6 PR 1 и PR 2 — с меткой `version:minor`, PR 0 «только имена» — без неё. В описании каждого —
+  Сделано 01.11.2026: шесть экранов (полоса «не перечитался» со snackbar отказа, подсказка, центр
+  активности, счета, стройки, накладные), master a46fb4cb против 91cc355a —
+  https://claude.ai/artifact/SAEFG9d4ZGfW69XBF7vd32; ссылка — в описаниях #1717, #1718, #1719.
+- [x] 3.6 PR 1 и PR 2 — с меткой `version:minor`, PR 0 «только имена» — без неё. В описании каждого —
   макет, выбранный вариант (А) и ссылка
   https://claude.ai/design/p/fbeaec15-de71-4127-8d01-87dbc09b040c.
+  Сделано 01.11.2026: метки сверены; в описания #1717 и #1718 макет и выбор дописаны после слияния.
