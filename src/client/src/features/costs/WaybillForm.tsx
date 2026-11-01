@@ -32,7 +32,7 @@ import {
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
 import { DateField } from '@/shared/ui/DateField';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 
 const cell = 'w-full rounded-xs border border-outline-variant bg-surface px-1.5 py-1 text-body-small text-on-surface outline-none '
   + 'focus:border-primary placeholder:text-on-surface-variant disabled:bg-surface-container disabled:text-on-surface-variant';
@@ -259,7 +259,7 @@ export function WaybillForm({ view: fresh, sites, sitesFailed, canEdit: mayEdit,
             Накладная № {view.number ?? 'без номера'}
             {view.issuedOn ? ` от ${formatDate(view.issuedOn)}` : ''}
           </h2>
-          <StatusBadge tone={posted ? 'success' : 'neutral'}>{posted ? 'Проведена' : 'Черновик'}</StatusBadge>
+          <StatusText tone={posted ? 'success' : 'neutral'}>{posted ? 'Проведена' : 'Черновик'}</StatusText>
           <div className="flex-1" />
           {!mayEdit && <span className="text-body-small text-on-surface-variant">Только чтение: права вводить накладные нет</span>}
           {canEdit && !posted && (

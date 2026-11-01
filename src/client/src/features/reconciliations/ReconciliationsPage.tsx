@@ -28,7 +28,7 @@ import { ObservationsPanel } from './ObservationsPanel';
 import { AliasesPanel } from './AliasesPanel';
 import { useObservations, isUnreviewed } from '@/shared/api/observations';
 import { Chip } from '@/shared/ui/Chip';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 
 /**
  * Сверка на непротиворечивость (issue #414, фаза Ф1 — экран находок #436).
@@ -39,7 +39,7 @@ import { StatusBadge } from '@/shared/ui/StatusBadge';
 
 /** Состояние находки — общая пометка с тоном по смыслу ([UI-43]); значок различает состояния без цвета. */
 function FindingStatus({ f }: { f: Finding }) {
-  if (f.resolved) return <StatusBadge tone="success" icon={CheckCircle}>Устранено</StatusBadge>;
+  if (f.resolved) return <StatusText tone="success" icon={CheckCircle}>Устранено</StatusText>;
   if (f.status === 'Match') {
     return <span className="text-body-small text-on-surface-variant shrink-0">Совпадает</span>;
   }
@@ -47,7 +47,7 @@ function FindingStatus({ f }: { f: Finding }) {
   // «давальческое оборудование» не должно всплывать каждый прогон.
   const muted = !!f.decision;
   return (
-    <StatusBadge tone={muted ? 'quiet' : 'danger'} icon={muted ? Block : Warning}>{STATUS_LABELS[f.status]}</StatusBadge>
+    <StatusText tone={muted ? 'quiet' : 'error'} icon={muted ? Block : Warning}>{STATUS_LABELS[f.status]}</StatusText>
   );
 }
 

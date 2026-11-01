@@ -30,7 +30,7 @@ import { useRecordArchive } from './useRecordArchive';
 import { groupObjectsByType, entryMatchesQuery } from './objectsByType';
 import { Tooltip } from '@/shared/ui/Tooltip';
 import { CATALOG_RECORD } from '@/shared/ui/recordRoutes';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 
 const NO_TYPE = '__no_type__';
 const PROFILE = '__profile__';
@@ -288,7 +288,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
             <div className="flex items-center gap-2 px-4 py-3 bg-surface border-b border-outline-variant">
               <span className="flex-1 text-body-medium font-medium text-on-surface-variant">{selectedType?.name ?? 'Без типа'}</span>
               {selectedType && isDocType(selectedType.id) && (
-                <StatusBadge>внеш. документ</StatusBadge>
+                <StatusText>внеш. документ</StatusText>
               )}
               <span className="text-body-small text-on-surface-variant">{filtered.filter(isLive).length}</span>
               {batch.menu}
@@ -307,7 +307,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
                     {isOpen ? <Icon icon={KeyboardArrowUp} size={18} className="text-on-surface-variant shrink-0" /> : <Icon icon={KeyboardArrowDown} size={18} className="text-on-surface-variant shrink-0" />}
                     <span className="flex-1 text-body-medium font-medium text-on-surface-variant">{t.name}</span>
                     {isDocType(t.id) && (
-                      <StatusBadge>внеш. документ</StatusBadge>
+                      <StatusText>внеш. документ</StatusText>
                     )}
                     <span className="text-body-small text-on-surface-variant font-mono">{t.code}</span>
                     <span className="text-body-small text-on-surface-variant ml-1">{items.filter(isLive).length}</span>
@@ -447,7 +447,7 @@ function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h2 className="text-body-large font-semibold text-on-surface">Данные: {SCOPE_LABELS[scope]}</h2>
-            <StatusBadge tone="brand">уровень</StatusBadge>
+            <StatusText tone="primary">уровень</StatusText>
           </div>
           <p className="text-body-small text-on-surface-variant mt-0.5">Тип: {type.name} · единственная запись уровня.</p>
         </div>

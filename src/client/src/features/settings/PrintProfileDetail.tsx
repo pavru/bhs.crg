@@ -5,7 +5,7 @@ import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { SegmentedButton } from '@/shared/ui/SegmentedButton';
 import { DetailHeader, DetailTitle } from '@/shared/ui/ListDetailShell';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 import { TextField } from '@/shared/ui/TextField';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { useServerForm } from '@/shared/hooks/useServerForm';
@@ -98,7 +98,7 @@ export function PrintProfileDetail({ profile, otherNames, onDeleted, onEditState
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
             <DetailTitle>{profile.name}</DetailTitle>
             {/* Пометки «по умолчанию» нет: системный профиль так и называется, и пометка повторяла бы имя. */}
-            {modified && <StatusBadge>изменён</StatusBadge>}
+            {modified && <StatusText>изменён</StatusText>}
           </span>
         }
         dirty={dirty} saving={update.isPending} onSaveAll={save}

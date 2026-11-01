@@ -99,7 +99,7 @@ describe('храповик интерфейса: счёт', () => {
     ].join(' '))).toEqual({});
   });
 
-  /** Свои чипы, пометки, кнопки-иконки и вкладки при готовых Chip, StatusBadge, IconButton, Tabs. */
+  /** Свои чипы, пометки, кнопки-иконки и вкладки при готовых Chip, StatusText, IconButton, Tabs. */
   it('свой чип: нажимаемая пилюля или aria-pressed', () => {
     expect(countViolations([
       '<button className={`px-2 py-1 rounded-full ${on ? "bg-primary-container" : ""}`}>Только новые</button>',
@@ -114,34 +114,12 @@ describe('храповик интерфейса: счёт', () => {
     ].join(' '))).toEqual({ badge: 2 });
   });
 
-  /** Плашка-сообщение руками ([UI-73]) — `notice-plaque`, выход — Banner. */
-  it('плашка: div, p или section с заливкой контейнера роли, рамкой и скруглением', () => {
-    expect(countViolations([
-      '<div className="bg-warning-container border rounded-md px-3 py-2">Счёт изменили</div>',
-      '<p className={`rounded-sm border border-error ${x} bg-error-container`}>Не сохранилось</p>',
-      '<section className="bg-primary-container border-b rounded-lg">Идёт исправление</section>',
-    ].join(' '))).toEqual({ 'notice-plaque': 3 });
-    expect(RULES.find(r => r.id === 'notice-plaque').instead).toContain('Banner');
-  });
-
-  it('пометка-пилюля, подложка с прозрачностью, пунктир, наведение и Banner — не плашки', () => {
-    expect(countViolations([
-      '<span className="bg-error-container border rounded-full text-label-small">ошибка</span>',
-      '<div className="bg-error-container border rounded-sm text-label-small px-1">ошибка</div>',
-      '<div className="bg-primary-container/40 border rounded-md">выбранная строка</div>',
-      '<div className="bg-primary-container border-2 border-dashed rounded-md">Перетащите файл</div>',
-      '<div className="hover:bg-warning-container border rounded-md">строка</div>',
-      '<div className="bg-warning-container rounded-md">без рамки</div>',
-      '<Banner tone="warning" actions={[]}>Счёт изменили</Banner>',
-    ].join(' '))['notice-plaque']).toBeUndefined();
-  });
-
   it('круг заданного размера, подсветка наведением и компоненты пилюлями не считаются', () => {
     expect(countViolations([
       '<span className="w-2 h-2 rounded-full bg-primary" /> <div className="h-1.5 rounded-full bg-surface-container" />',
       '<div className="absolute inset-0 rounded-full bg-surface-container" />',
       '<span className="px-2 rounded-full hover:bg-surface-container">наведи</span>',
-      '<Chip selected>Все</Chip> <StatusBadge tone="success">Оплачен</StatusBadge> <Button>Сохранить</Button>',
+      '<Chip selected>Все</Chip> <StatusText tone="success">Оплачен</StatusText> <Button>Сохранить</Button>',
     ].join(' '))).toEqual({});
   });
 

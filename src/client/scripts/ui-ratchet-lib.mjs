@@ -123,7 +123,7 @@ export const RULES = [
     // Своя пометка состояния (#1416): пилюля без нажатия — span или div с rounded-full и фоном или рамкой.
     // Круги заданного размера (аватар, точка, спиннер, полоса загрузки) — не пометки: у них w-/h-/size-.
     count: text => countElements(text, isBadge),
-    instead: 'пометка состояния — StatusBadge (shared/ui/StatusBadge): tone по смыслу — neutral, brand, success, warning, danger, quiet; bordered на заливке (docs/UI.md, «Язык формы»)',
+    instead: 'пометка состояния — StatusText (shared/ui/StatusText): текст роли со знаком, tone по смыслу — neutral, primary, success, warning, error, quiet; icon — свой знак, когда смыслы одного тона рядом; число у подписи — CountText (shared/ui/CountText), на знаке и вкладке — Badge (shared/ui/Badge) (docs/UI.md, «Язык формы»)',
   },
   {
     id: 'notice-plaque',

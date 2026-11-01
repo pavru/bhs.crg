@@ -6,7 +6,7 @@ import {
 import { Button } from '@/shared/ui/Button';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
 import { formatCount, formatMoney, formatQuantity } from '@/shared/format/format';
@@ -135,8 +135,8 @@ function Changes({ preview }: { preview: CurrentRevisionPreview }) {
 }
 
 function Delta({ was, becomes }: { was: number; becomes: number }) {
-  if (was === 0) return <StatusBadge tone="brand">новый вид</StatusBadge>;
-  if (becomes === 0) return <StatusBadge tone="quiet">уходит</StatusBadge>;
+  if (was === 0) return <StatusText tone="primary">новый вид</StatusText>;
+  if (becomes === 0) return <StatusText tone="quiet">уходит</StatusText>;
   const d = becomes - was;
   return <span className="text-body-small text-on-surface-variant tabular-nums">{d > 0 ? '+' : '−'}{formatQuantity(Math.abs(d))}</span>;
 }

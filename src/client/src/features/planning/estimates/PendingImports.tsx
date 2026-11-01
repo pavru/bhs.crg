@@ -2,18 +2,18 @@ import { Icon } from '@/shared/ui/Icon';
 import { Upload } from '@/shared/ui/icons';
 import { useConstructionImports, waitingDecision, type EstimateImportItem } from '@/shared/api/planningImports';
 import { Button } from '@/shared/ui/Button';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 import { formatDate } from '@/shared/format/format';
 
-type Badge = { text: string; tone: 'neutral' | 'warning' | 'danger' };
+type Mark = { text: string; tone: 'neutral' | 'warning' | 'error' };
 
-const STATE: Record<Exclude<EstimateImportItem['state'], 'committed'>, Badge> = {
+const STATE: Record<Exclude<EstimateImportItem['state'], 'committed'>, Mark> = {
   parsing: { text: 'разбирается', tone: 'neutral' },
   parsed: { text: 'ждёт решения', tone: 'warning' },
-  rejected: { text: 'не разобран', tone: 'danger' },
+  rejected: { text: 'не разобран', tone: 'error' },
 };
 /** Прерванный разбор остаётся `parsing`, но исхода не дождаться — не «разбирается», а отказ. */
-const INTERRUPTED: Badge = { text: 'разбор прерван', tone: 'danger' };
+const INTERRUPTED: Mark = { text: 'разбор прерван', tone: 'error' };
 
 /**
  * Импорты, закрытые без решения (макет П1 1а, ответ листа 0): полосой над сметами, «Открыть» открывает окно
@@ -41,7 +41,7 @@ export function PendingImports({ constructionId, enabled, only, onOpen }: {
               Импорт <b className="font-medium text-on-surface break-all">{i.fileName}</b>
               {' · '}{i.target.newEstimate ? `новая смета «${i.target.newEstimate.name}»` : `в смету «${i.target.estimateName ?? '…'}»`}
               <span className="text-on-surface-variant"> · {i.createdBy ? `${i.createdBy}, ` : ''}{formatDate(i.createdAt)}</span>{' '}
-              <StatusBadge tone={state.tone}>{state.text}</StatusBadge>
+              <StatusText tone={state.tone}>{state.text}</StatusText>
             </span>
             <Button variant="text" className="shrink-0" onClick={() => onOpen(i.id)}>Открыть</Button>
           </li>

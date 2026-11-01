@@ -4,7 +4,7 @@ import { CheckCircle, Save, Undo } from '@/shared/ui/icons';
 import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { EditGrid } from '@/shared/ui/EditGrid';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import {
   useConfirmInvoiceFields, useInvoiceState, useReplaceInvoiceLines, type InvoiceView, type VatMode,
@@ -312,7 +312,7 @@ export function InvoiceLinesTable({ view, locked, readOnly = false, onDirty, hea
         {/* Где менять нельзя (заперт без исправления, нет права), флажка нет: «сверху» говорит пометка, «в том
             числе» — обычный случай, о нём молчат заголовки колонок. Исправление режим меняет (#1498). */}
         {still
-          ? mode === 'OnTop' && <StatusBadge tone="quiet">цены без НДС, НДС сверху</StatusBadge>
+          ? mode === 'OnTop' && <StatusText tone="quiet">цены без НДС, НДС сверху</StatusText>
           : (
             <span className={modeMarked ? 'rounded-sm ring-1 ring-warning px-1.5 py-0.5' : undefined}>
               <Checkbox ref={modeBox} label="Цены без НДС, НДС сверху" checked={mode === 'OnTop'}

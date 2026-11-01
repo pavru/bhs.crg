@@ -6,7 +6,7 @@ import { ChevronLeft, LockIcon, Upload } from '@/shared/ui/icons';
 import { costHidden, useEstimate, type Estimate, type EstimateRevision } from '@/shared/api/planningEstimates';
 import { Button } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 import { Tabs } from '@/shared/ui/Tabs';
 import { apiError } from '@/shared/utils/apiError';
 import { formatCount, formatDate, formatMoney } from '@/shared/format/format';
@@ -58,7 +58,7 @@ export function EstimateCard({ estimateId, back }: { estimateId: string; back: {
       <BackLink back={back} />
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-body-large font-semibold text-on-surface min-w-0 truncate">{data.name}</h2>
-        <StatusBadge tone="neutral">{KIND_LABEL[data.kind]}</StatusBadge>
+        <StatusText tone="neutral">{KIND_LABEL[data.kind]}</StatusText>
         {editable && (
           <Button variant="outlined" className="ml-auto" icon={<Icon icon={Upload} size={18} aria-hidden />} onClick={() => setImporting({})}>Новая редакция</Button>
         )}
@@ -143,21 +143,21 @@ function RevisionBand({ estimate, revision }: { estimate: Estimate; revision: Es
         {` · ${formatCount(revision.rows)} строк`}
       </span>
       {revision.current
-        ? <StatusBadge tone="brand">действующая</StatusBadge>
+        ? <StatusText tone="primary">действующая</StatusText>
         : (
-          <StatusBadge tone="neutral" title={current ? `План стройки считается по ред. ${current.number}` : 'Действующей редакции у сметы нет'}>
+          <StatusText tone="neutral" title={current ? `План стройки считается по ред. ${current.number}` : 'Действующей редакции у сметы нет'}>
             не действующая
-          </StatusBadge>
+          </StatusText>
         )}
       {revision.frozen && (
-        <StatusBadge tone="neutral" icon={LockIcon} title={`Зафиксирована ${formatDate(revision.frozen.at)}: из неё сделано «${revision.frozen.label}». Строки не правятся.`}>
+        <StatusText tone="neutral" icon={LockIcon} title={`Зафиксирована ${formatDate(revision.frozen.at)}: из неё сделано «${revision.frozen.label}». Строки не правятся.`}>
           зафиксирована: {revision.frozen.label}
-        </StatusBadge>
+        </StatusText>
       )}
       {revision.partial && (
-        <StatusBadge tone="warning" title="Редакция создана из неполного разбора файла: часть позиций не вошла">
+        <StatusText tone="warning" title="Редакция создана из неполного разбора файла: часть позиций не вошла">
           частично {formatCount(revision.partial.parsed)} из {formatCount(revision.partial.inFile)}
-        </StatusBadge>
+        </StatusText>
       )}
       {/* Итог — только с правом: без него суммы нет вовсе, причину называет колонка стоимости таблицы. */}
       {!closed && revision.cost && <span>итог <span className="font-medium text-on-surface">{formatMoney(revision.cost.total)}</span></span>}

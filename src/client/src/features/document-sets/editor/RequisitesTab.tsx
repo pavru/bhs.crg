@@ -8,7 +8,7 @@ import { useUpdateRequisites, useResolutionDiagnostics, brokenRefPaths, useAudit
 import { valueIssuesByPath, deepIssueCount, issueCountInFields } from '@/shared/api/valueIssues';
 import { refusalIssues } from '@/shared/api/refusals';
 import { apiError } from '@/shared/utils/apiError';
-import { ValueIssueHint, ValueIssueBadge } from '@/shared/ui/ValueIssue';
+import { ValueIssueHint, ValueIssueCount } from '@/shared/ui/ValueIssue';
 import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
 import type { DocumentInstance, DocumentType, PrimitiveTypeDef, EnumTypeDef, CommonDataEntry, DataSetStaleReason } from '@/shared/api/types';
 import { SCOPE_LABELS, isFieldRef } from '@/shared/api/types';
@@ -26,7 +26,7 @@ import { mergeBindingPreviewsIntoValues } from '@/shared/api/datasetHelpers';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { containsRef } from './brokenRefs';
-import { BrokenCountBadge } from './BrokenCountBadge';
+import { BrokenCount } from './BrokenCount';
 import { Tooltip } from '@/shared/ui/Tooltip';
 
 /** Ссылка на сохранение вкладки: оболочка вызывает его, не зная внутренностей формы. */
@@ -500,8 +500,8 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                       {field.required && <span className="ml-0.5 text-error">*</span>}
                       {!field.required && <span className="ml-1 text-label-small text-on-surface-variant font-normal">опц.</span>}
                     </>}
-                    <BrokenCountBadge count={deepBrokenCount(field.key)} className="ml-1.5 align-middle" />
-                    <ValueIssueBadge count={deepIssueCount(valueIssues, field.key)} className="ml-1.5 align-middle" />
+                    <BrokenCount count={deepBrokenCount(field.key)} className="ml-1.5 align-middle" />
+                    <ValueIssueCount count={deepIssueCount(valueIssues, field.key)} className="ml-1.5 align-middle" />
                     {/* Широкие поля (многострочный текст, картинка, файл) подписываются здесь, и
                         признак происхождения им нужен ровно так же: связанное текстовое поле
                         read-only, и узнать, что значение прочитано со скана, иначе неоткуда. */}
@@ -525,8 +525,8 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                       <label className="block text-body-small font-medium text-on-surface-variant pr-5">
                         {field.title}
                         {field.required && <span className="ml-0.5 text-error">*</span>}
-                        <BrokenCountBadge count={deepBrokenCount(field.key)} className="ml-1.5 align-middle" />
-                    <ValueIssueBadge count={deepIssueCount(valueIssues, field.key)} className="ml-1.5 align-middle" />
+                        <BrokenCount count={deepBrokenCount(field.key)} className="ml-1.5 align-middle" />
+                    <ValueIssueCount count={deepIssueCount(valueIssues, field.key)} className="ml-1.5 align-middle" />
                       </label>
                     </div>
                     <ComplexFieldGroup field={field} allDocTypes={allDocTypes} value={raw}
@@ -774,8 +774,8 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     isActive ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant hover:text-on-surface'}`}>
                   <Icon icon={icon} size={18} className={`shrink-0 ${iconCls}`} />
                   <span className="flex-1 truncate text-body-medium">{item.title}</span>
-                  <BrokenCountBadge count={broken} className="shrink-0" />
-                  <ValueIssueBadge count={issueCountInFields(valueIssues, item.fields.map(f => f.key))} className="shrink-0" />
+                  <BrokenCount nav count={broken} className="shrink-0" />
+                  <ValueIssueCount count={issueCountInFields(valueIssues, item.fields.map(f => f.key))} className="shrink-0" />
                   {stats && <span className="text-body-small text-on-surface-variant tabular-nums shrink-0">{stats.filled}/{stats.total}</span>}
                 </button>
               );

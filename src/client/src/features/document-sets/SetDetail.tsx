@@ -32,7 +32,7 @@ import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useListConstructions, useGetConstruction, useRenameDocumentSet, useDeleteDocumentSet } from '@/shared/api/constructions';
 import { useGetDocumentSet, useAddDocumentToSet, useDeleteDocumentInstance, useDuplicateDocumentInstance, useReorderInstances, useAssembleSet, useDocumentSetOutput, downloadSetOutput, downloadGeneratedFile, previewGeneratedFile } from '@/shared/api/documentSets';
 import type { DocumentInstance } from '@/shared/api/types';
-import { DocumentStatusBadge } from './fields';
+import { DocumentStatusText } from './fields';
 import { documentPath, FROM_SET } from './documentPath';
 import { EmailSendDialog } from './EmailSendDialog';
 import { useEmailSet } from '@/shared/api/documentSets';
@@ -267,7 +267,7 @@ export function SetDetail() {
       ) },
     { key: 'status', label: 'Статус', width: 'w-32',
       cell: inst => (
-        <DocumentStatusBadge status={inst.status} />
+        <DocumentStatusText status={inst.status} />
       ) },
     { key: 'pdf', label: '', width: 'w-36', interactive: true,
       cell: inst => {

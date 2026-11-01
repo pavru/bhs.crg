@@ -159,25 +159,41 @@
   - `Banner` — зелёная.
   Сделано 01.11.2026: модуль `ui-ratchet-plaque.mjs`; уровень — 32 в 25 файлах (прототип разбора давал 39:
   пилюли с `text-label-*` и пунктир правило пропускает, `RereadFailedNotice` переведён).
-- [ ] 2.4 `StatusText` вместо `StatusBadge`: `label-medium`, цвет роли, знак у `success`, `warning`,
+- [x] 2.4 `StatusText` вместо `StatusBadge`: `label-medium`, цвет роли, знак у `success`, `warning`,
   `error`, «·» между соседними; `bordered` и `count` удалены, замены у `bordered` нет [UI-74]. Кодмод:
   имя — по синтаксическому дереву, тона `brand` → `primary` и `danger` → `error` — по диагностикам `tsc`
   после смены `StatusTone`. В отчёте проверки связок три `warning` — свои знаки (`search_off`, `history`,
   `save`). Подсказка отказа правила `badge` называет `StatusText` и `CountText`. Проверка:
   - vitest — у `error` есть знак, у `neutral` знака нет;
   - `rg "StatusBadge" src/client/src` — пусто (55 мест в 28 файлах до перевода).
-- [ ] 2.5 `Badge` (small и large, «999+», только `error`) на знаке центра активности, вкладке, пункте
+  Сделано 01.11.2026: имя — по коду, тона — по диагностикам `tsc` (`PendingImports`, `BindingCheckReport`,
+  `DocumentStatus*` и др.). Знак — 18 px: шкала [UI-60] 16 не знает, число в дельте поправлено.
+  `DocumentStatusBadge` переименован в `DocumentStatusText` — иначе проверка `rg` его ловит. Залитые варианты
+  `check_circle`, `warning`, `error`, `search_off`, `history`, `save` добавлены в набор значков.
+- [x] 2.5 `Badge` (small и large, «999+», только `error`) на знаке центра активности, вкладке, пункте
   навигации; `CountText` — число у подписи кнопки, вкладки, строки (7 мест `StatusBadge count`) [UI-74]
   [UI-45]. Ручные счётчики переведены по месту — на знаке badge, у подписи `CountText`:
   `ActivityCenter.Count` (и для непрочитанных без ошибки — `error`), `BrokenCountBadge`,
   `ValueIssueBadge`, `VariantPicker`, `SourcesExpander`. `Chip count` и проценты не трогаются. Проверка:
   - vitest — `999+` при 1200, доступное имя с точным числом; `CountText` без заливки;
   - `ActivityCenter.test.tsx` переписан без классов `bg-danger` и `primary` у счётчика.
-- [ ] 2.6 `LinearProgress` с долей и без, классическая (без зазора и точки). `InvoiceScanDrop` и
+  Сделано 01.11.2026, по месту:
+  - на знаке и пункте навигации — `Badge`: центр активности, вкладки «Реквизиты» (битые ссылки) и
+    «Источники» (устарели; свой счётчик тоже), пункт раздела реквизитов;
+  - у подписи — `CountText`: кнопки обработки, «Замечания», `NavItem count`, число в меню строки
+    (`RowActionsMenu`, ряд `SourcesExpander`);
+  - «требует разбора: N» у подписи (битые ссылки, расхождения, `NavItem alert`) — пометка `StatusText` с
+    числом, тон по смыслу: голое число не скажет, что есть что чинить, а красный badge нарушил бы
+    «красный — за арифметикой» (`alertDanger`);
+  - проценты (`PlanProgressBadge`, `NavItem progress`) — текст пометки;
+  - `VariantPicker`: в списке — `StatusText` «задан»; точка на сегменте остаётся — badge красный, а
+    «задан» не ошибка и не непрочитанное.
+- [x] 2.6 `LinearProgress` с долей и без, классическая (без зазора и точки). `InvoiceScanDrop` и
   `ParseReport` переведены [UI-74]. Проверка:
   - vitest — `role="progressbar"`, `aria-valuenow` только с долей;
   - `rg "h-full bg-primary" src/client/src/features` — пусто (сегодня два места).
-- [ ] 2.7 `docs/UI.md`:
+  Сделано 01.11.2026: бег без доли — класс `md-linear` в `index.css`, при «меньше движения» медленнее.
+- [x] 2.7 `docs/UI.md`:
   - строка «Пометка состояния» — `StatusText`;
   - строка «Счётчик» — `CountText` и `Badge`, решение 01.11.2026 вместо 22.10.2026;
   - новые строки `Banner`, `Badge`, `LinearProgress`;
@@ -186,6 +202,7 @@
 
   Перечень правил в `CLAUDE.md` и `AGENTS.md` — одним коммитом [UI-73] [UI-74]. Проверка —
   `dotnet test … --filter AgentRulesCopy` зелёный.
+  Сделано 01.11.2026.
 - [ ] 2.8 `/design-sync` (D12): превью `StatusBadge` → `StatusText`, README дизайн-системы — snackbar,
   подсказки, banner. Проверка — README и превью.
 

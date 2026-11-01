@@ -5,7 +5,9 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Archive } from './icons';
 import { Checkbox } from './Checkbox';
 import { PageHeader } from './PageHeader';
-import { StatusBadge } from './StatusBadge';
+import { Badge } from './Badge';
+import { CountText } from './CountText';
+import { StatusText } from './StatusText';
 import { TabPanel, Tabs, type TabItem } from './Tabs';
 
 // Примитивы интерфейса (issue #1351, #1352): поведение, которое экраны получают даром, — имя для диктора,
@@ -70,20 +72,51 @@ describe('Checkbox', () => {
   });
 });
 
-describe('StatusBadge', () => {
+describe('StatusText', () => {
   it('показывает текст; значок скрыт от диктора', () => {
-    const { container } = render(<StatusBadge tone="success" icon={Archive}>оплачен</StatusBadge>);
+    const { container } = render(<StatusText tone="success" icon={Archive}>оплачен</StatusText>);
     expect(screen.getByText('оплачен')).toBeTruthy();
     expect(container.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
   });
 
-  // Счётчик — вариант пометки ([UI-45]): число как есть, цифры одной ширины, тон тот же, что у пометки.
-  it('count — число с тоном пометки и цифрами одной ширины', () => {
-    const { container } = render(<StatusBadge count tone="danger">3</StatusBadge>);
-    const badge = container.querySelector('span')!;
-    expect(badge.textContent).toBe('3');
-    expect(badge.className).toContain('tabular-nums');
-    expect(badge.className).toContain('bg-error-container');
+  // Пометка — текст роли без заливки и рамки ([UI-74]); у error, warning и success — знак: не только цветом.
+  it('error — цвет роли и залитый знак, без заливки и рамки', () => {
+    const { container } = render(<StatusText tone="error">не сформирован</StatusText>);
+    const mark = container.querySelector('span')!;
+    expect(mark.className).toContain('text-error');
+    expect(mark.className).toContain('text-label-medium');
+    expect(mark.className).not.toMatch(/(?<![\w:-])(?:bg-|border\b|rounded)/);
+    expect(container.querySelector('svg')).not.toBeNull();
+  });
+
+  it('neutral — без знака', () => {
+    const { container } = render(<StatusText>черновик</StatusText>);
+    expect(container.querySelector('svg')).toBeNull();
+    expect(container.querySelector('span')!.className).toContain('text-on-surface-variant');
+  });
+});
+
+describe('CountText и Badge', () => {
+  it('CountText — число текстом, цифры одной ширины, без заливки', () => {
+    const { container } = render(<CountText>3</CountText>);
+    const count = container.querySelector('span')!;
+    expect(count.textContent).toBe('3');
+    expect(count.className).toContain('tabular-nums');
+    expect(count.className).not.toMatch(/(?<![\w:-])bg-/);
+  });
+
+  // Больше 999 — «999+» на виду, а точное число — в доступном имени того, к чему badge прикреплён ([UI-74]).
+  it('Badge 1200 — «999+», а имя вкладки называет 1200', () => {
+    render(<button type="button">Замечания <Badge count={1200} /></button>);
+    expect(screen.getByText('999+').getAttribute('aria-hidden')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Замечания 1200' })).toBeTruthy();
+  });
+
+  it('Badge без числа — точка, скрытая от диктора; цвет — только error', () => {
+    const { container } = render(<Badge />);
+    const dot = container.querySelector('span')!;
+    expect(dot.getAttribute('aria-hidden')).toBe('true');
+    expect(dot.className).toContain('bg-error');
   });
 });
 

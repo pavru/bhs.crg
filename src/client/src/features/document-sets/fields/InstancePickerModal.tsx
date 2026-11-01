@@ -7,7 +7,7 @@ import type { CommonDataEntry, DocumentInstance, DocumentType, FieldRef } from '
 import { isSubtypeOf, type SchemaField } from '@/shared/api/schema';
 import { useScopeGroups } from './catalogGroups';
 import { ScopeGroupList } from './ScopeGroupList';
-import { DocumentStatusBadge } from './DocumentStatusBadge';
+import { DocumentStatusText } from './DocumentStatusText';
 
 export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, otherInstances, setId, onSelect }: {
   open: boolean;
@@ -95,7 +95,7 @@ export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, ot
                         <span className="block text-body-small text-on-surface-variant truncate">{dt?.name}</span>
                       )}
                     </span>
-                    <DocumentStatusBadge status={inst.status} />
+                    <DocumentStatusText status={inst.status} />
                   </button>
                 );
               })}

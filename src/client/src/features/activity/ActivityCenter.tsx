@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
+import { Badge } from '@/shared/ui/Badge';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { Notifications } from '@/shared/ui/icons';
@@ -63,12 +64,12 @@ export function ActivityCenter() {
               <CircularProgress size={20} className="text-primary" />
               {/* На телефоне — кольцо и число: подпись выдавливала аватар из первой строки шапки (#1430). */}
               <span className="max-sm:hidden max-w-45 truncate text-body-medium font-medium">{doing}</span>
-              {unread > 0 && <Count n={unread} error={hasUnreadError} />}
+              {unread > 0 && <Badge count={unread} />}
             </>
           ) : (
             <>
               <Icon icon={Notifications} size={20} />
-              {unread > 0 && <span className="absolute top-0.5 right-0.5"><Count n={unread} error={hasUnreadError} /></span>}
+              {unread > 0 && <Badge count={unread} className="absolute top-0.5 right-0.5" />}
             </>
           )}
         </button>
@@ -92,19 +93,5 @@ export function ActivityCenter() {
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
-  );
-}
-
-/**
- * Число новых уведомлений. Красное — среди них ошибка. Текст на красном — цвета поверхности, а не
- * белый: в тёмной теме `danger` светло-розовый, и белое число на нём читалось при 1,8:1.
- */
-function Count({ n, error }: { n: number; error: boolean }) {
-  return (
-    <span aria-hidden="true"
-      className={'min-w-4 h-4 px-1 rounded-full text-label-small font-medium flex items-center justify-center ' +
-        (error ? 'bg-error text-surface' : 'bg-primary text-on-primary')}>
-      {n > 99 ? '99+' : n}
-    </span>
   );
 }

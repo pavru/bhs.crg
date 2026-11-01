@@ -33,7 +33,7 @@ import { useRegisterEditor } from './typeEditorRegistry';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { InheritedFieldsPanel } from './InheritedFieldsPanel';
 import { Chip } from '@/shared/ui/Chip';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 
 /** Единственное членство (issue #197 Фаза C): каждый ключ поля остаётся только в первой группе,
  *  где встречается. Легаси-схемы могли класть поле в несколько групп — нормализуем при загрузке. */
@@ -311,10 +311,10 @@ export function SchemaEditor({ docType, allDocTypes, onSelectType }: {
         <div className="flex flex-wrap items-center gap-1.5 px-1 pt-1">
           <span className="text-body-small text-on-surface-variant">Тэги модуля:</span>
           {unknownTypeTags.map(code => (
-            <StatusBadge key={code} tone="quiet"
+            <StatusText key={code} tone="quiet"
               title="Тэг модуля, выключенного на этом экземпляре. Пометка остаётся в схеме и заработает, когда модуль включат.">
               {code}
-            </StatusBadge>
+            </StatusText>
           ))}
         </div>
       )}

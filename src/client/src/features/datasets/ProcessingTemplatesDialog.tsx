@@ -13,7 +13,8 @@ import { RowFilterDialog } from './RowFilterDialog';
 import { ComputedColumnsDialog } from './ComputedColumnsDialog';
 import { SortSpecDialog } from './SortSpecDialog';
 import type { ColumnExprDef, ComputedColumn, DataSetProcessingTemplate, RowFilterDef, SortSpec } from '@/shared/api/types';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { CountText } from '@/shared/ui/CountText';
+import { StatusText } from '@/shared/ui/StatusText';
 
 const FIELD_CLS = 'border border-outline-variant rounded-sm px-3 py-1.5 text-body-medium bg-surface text-on-surface';
 
@@ -138,15 +139,15 @@ function TemplateForm({
       <div className="flex gap-2 flex-wrap">
         <button type="button" onClick={() => setFilterOpen(true)} className={toggleCls(filterCount > 0)}>
           <Icon icon={FilterAlt} size={18} /> Фильтрация
-          {filterCount > 0 && <StatusBadge count tone="brand" className="ml-1">{filterCount}</StatusBadge>}
+          {filterCount > 0 && <CountText onContainer className="ml-1">{filterCount}</CountText>}
         </button>
         <button type="button" onClick={() => setTransformsOpen(true)} className={toggleCls(transformCount > 0)}>
           <Icon icon={FunctionIcon} size={18} /> Преобразования
-          {transformCount > 0 && <StatusBadge count tone="brand" className="ml-1">{transformCount}</StatusBadge>}
+          {transformCount > 0 && <CountText onContainer className="ml-1">{transformCount}</CountText>}
         </button>
         <button type="button" onClick={() => setSortOpen(true)} className={toggleCls(sortCount > 0)}>
           <Icon icon={SwapVert} size={18} /> Сортировка
-          {sortCount > 0 && <StatusBadge count tone="brand" className="ml-1">{sortCount}</StatusBadge>}
+          {sortCount > 0 && <CountText onContainer className="ml-1">{sortCount}</CountText>}
         </button>
       </div>
 
@@ -207,16 +208,16 @@ function TemplateRow({ template }: { template: DataSetProcessingTemplate }) {
               <span className="text-body-small text-on-surface-variant">Без обработки</span>
             )}
             {template.sheetOrPath && (
-              <StatusBadge tone="brand" icon={RouteIcon} title={template.sheetOrPath}>Extraction</StatusBadge>
+              <StatusText tone="primary" icon={RouteIcon} title={template.sheetOrPath}>Extraction</StatusText>
             )}
             {filterCount > 0 && (
-              <StatusBadge tone="brand" icon={FilterAlt}>{filterCount}</StatusBadge>
+              <StatusText tone="primary" icon={FilterAlt}>{filterCount}</StatusText>
             )}
             {transformCount > 0 && (
-              <StatusBadge tone="brand" icon={FunctionIcon}>{transformCount}</StatusBadge>
+              <StatusText tone="primary" icon={FunctionIcon}>{transformCount}</StatusText>
             )}
             {sortCount > 0 && (
-              <StatusBadge tone="brand" icon={SwapVert}>{sortCount}</StatusBadge>
+              <StatusText tone="primary" icon={SwapVert}>{sortCount}</StatusText>
             )}
           </div>
         </div>

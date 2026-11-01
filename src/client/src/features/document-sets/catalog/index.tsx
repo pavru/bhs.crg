@@ -43,7 +43,7 @@ import { apiError } from '@/shared/utils/apiError';
 import { refusalIssues } from '@/shared/api/refusals';
 import { useUploadsInFlight } from '@/shared/ui/uploadsInFlight';
 import { useCommonDataValueIssues, valueIssuesByPath, deepIssueCount } from '@/shared/api/valueIssues';
-import { ValueIssueHint, ValueIssueBadge } from '@/shared/ui/ValueIssue';
+import { ValueIssueHint, ValueIssueCount } from '@/shared/ui/ValueIssue';
 import { BindingCheckReport } from './BindingCheckReport';
 import { ArchivedTwinNote } from './ArchivedTwinNote';
 import { BoundRefValue } from './BoundRefValue';
@@ -485,7 +485,7 @@ export function CatalogEntryForm({
                   <label className="block text-body-medium font-medium text-on-surface-variant mb-1">
                     {field.title}
                     {field.required && <span className="ml-0.5 text-error">*</span>}
-                    <ValueIssueBadge count={deepIssueCount(valueIssues, field.key)} className="ml-1.5 align-middle" />
+                    <ValueIssueCount count={deepIssueCount(valueIssues, field.key)} className="ml-1.5 align-middle" />
                   </label>
                   {field.type === 'array' ? (
                     <ArrayFieldEditor

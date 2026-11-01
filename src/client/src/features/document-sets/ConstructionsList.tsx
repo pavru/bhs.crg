@@ -20,7 +20,7 @@ import { usePaletteIntent } from '@/shared/ui/usePaletteIntent';
 import { useIdIndicators } from './useIdIndicators';
 import { HiddenByWorkspace } from '@/shared/ui/WorkspaceNav';
 import type { Construction } from '@/shared/api/types';
-import { DocumentStatusBadge } from './fields';
+import { DocumentStatusText } from './fields';
 import { useSiteFilter, useSiteFilterState } from '@/shared/siteFilter/siteFilterContext';
 import { FavoriteStar } from '@/shared/siteFilter/SiteFilterNotes';
 import { SitesFilter } from '@/shared/siteFilter/SitesFilter';
@@ -28,7 +28,7 @@ import { useSnackbar } from '@/shared/ui/Snackbar';
 import { apiError } from '@/shared/utils/apiError';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { documentPath } from './documentPath';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 
 // ── Список строек и поиск по документам ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -78,7 +78,7 @@ function DocumentSearchPanel() {
                         {filter.active && !filter.favorites.has(r.constructionId) && <span> · ☆ не в избранном</span>}
                       </div>
                     </div>
-                    <DocumentStatusBadge status={r.status} />
+                    <DocumentStatusText status={r.status} />
                   </button>
                 </li>
               ))}
@@ -227,7 +227,7 @@ export function ConstructionsList() {
                 {c.sections.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {c.sections.slice(0, 4).map(s => (
-                      <StatusBadge key={s.id}>{s.name}</StatusBadge>
+                      <StatusText key={s.id}>{s.name}</StatusText>
                     ))}
                     {c.sections.length > 4 && (
                       <span className="text-body-small text-on-surface-variant">+{c.sections.length - 4} ещё</span>

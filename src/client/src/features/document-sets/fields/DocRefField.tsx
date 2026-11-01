@@ -8,7 +8,7 @@ import { applyOrder, dropOrder, appendOrigins, identityOrigins, type PathOrigins
 import { InstancePickerModal } from './InstancePickerModal';
 import { BROKEN_PLATE, BROKEN_LABEL, BrokenRefNote } from './BrokenRef';
 import { IconButton } from '@/shared/ui/Button';
-import { DocumentStatusBadge } from './DocumentStatusBadge';
+import { DocumentStatusText } from './DocumentStatusText';
 
 export function DocRefField({ field, allDocTypes, value, onChange, otherInstances, setId, broken = false }: {
   field: SchemaField; allDocTypes: DocumentType[]; value: unknown;
@@ -77,7 +77,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
           {inst?.name && dt && <span className="block text-body-small text-on-primary-container/70 truncate">{dt.name}</span>}
         </span>
         {inst && (
-          <DocumentStatusBadge status={inst.status} />
+          <DocumentStatusText status={inst.status} />
         )}
         {replaceButton('text-on-primary-container/70')}
         <IconButton label="Снять ссылку" danger onClick={() => onChange(null)} icon={LinkOff} iconClassName="text-on-primary-container/70" />
@@ -212,7 +212,7 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
                   ) : null}
                 </span>
                 {inst && (
-                  <DocumentStatusBadge status={inst.status} />
+                  <DocumentStatusText status={inst.status} />
                 )}
                 <IconButton label={`Удалить ссылку ${i + 1}`} danger onClick={() => removeRef(i)} icon={Delete} />
               </div>

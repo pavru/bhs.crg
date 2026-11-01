@@ -7,7 +7,7 @@ import { costHidden, useConstructionEstimates, type Estimate } from '@/shared/ap
 import { Button } from '@/shared/ui/Button';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { EmptyState } from '@/shared/ui/EmptyState';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 import { apiError } from '@/shared/utils/apiError';
 import { formatAmount, formatCount } from '@/shared/format/format';
 import { KIND_LABEL, latestRevision } from './estimateRows';
@@ -110,7 +110,7 @@ function listColumns(hidden: Estimate['hidden'], sections: ReadonlyMap<string, s
         return (
           <span className="inline-flex flex-wrap items-center gap-1">
             ред. {current.number}
-            {current.frozen && <StatusBadge tone="neutral">{current.frozen.label}</StatusBadge>}
+            {current.frozen && <StatusText tone="neutral">{current.frozen.label}</StatusText>}
           </span>
         );
       },
@@ -123,7 +123,7 @@ function listColumns(hidden: Estimate['hidden'], sections: ReadonlyMap<string, s
         return (
           <span className="inline-flex flex-wrap items-center gap-1">
             ред. {latest.number}
-            {!latest.current && <StatusBadge tone="neutral">не действующая</StatusBadge>}
+            {!latest.current && <StatusText tone="neutral">не действующая</StatusText>}
           </span>
         );
       },
@@ -137,7 +137,7 @@ function listColumns(hidden: Estimate['hidden'], sections: ReadonlyMap<string, s
       cell: e => {
         const latest = latestRevision(e);
         return latest && latest.unmatched > 0
-          ? <StatusBadge tone="warning" title="Строк последней редакции не сопоставлено — в план они не входят">{formatCount(latest.unmatched)}</StatusBadge>
+          ? <StatusText tone="warning" title="Строк последней редакции не сопоставлено — в план они не входят">{formatCount(latest.unmatched)}</StatusText>
           : <span className="text-on-surface-variant">—</span>;
       },
     },

@@ -11,7 +11,7 @@ import { Checkbox } from '@/shared/ui/Checkbox';
 import { Chip } from '@/shared/ui/Chip';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { Modal, ModalExit } from '@/shared/ui/Modal';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { StatusText } from '@/shared/ui/StatusText';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import { formatCount, formatQuantity } from '@/shared/format/format';
 import { ruPlural } from '@/shared/utils/pluralize';
@@ -205,7 +205,7 @@ function SectionRows({ rows, unit, off, state, onToggle }: {
         if (r.workTypeId) return (
           <span className="text-body-small text-on-surface-variant">
             {names.data?.get(r.workTypeId) ?? '…'}{r.volume !== null ? ` · ${formatQuantity(r.volume)}` : ''}
-            {r.marks.some(m => m.code === 'remembered') && <> <StatusBadge tone="quiet">запомнено</StatusBadge></>}
+            {r.marks.some(m => m.code === 'remembered') && <> <StatusText tone="quiet">запомнено</StatusText></>}
           </span>
         );
         if (!waiting(r)) return null;
@@ -269,7 +269,7 @@ function RowMatch({ row, match, revision, seen, setVersion, busy, onClose }: Com
         <div className="flex flex-wrap items-center gap-2 text-body-medium">
           <span className="text-on-surface-variant">Сейчас: <b className="font-medium text-on-surface">{current}</b>
             {row.volume !== null && <span className="text-on-surface-variant tabular-nums"> · {formatQuantity(row.volume)}</span>}</span>
-          {remembered && <StatusBadge tone="quiet" title={remembered.text}>запомнено</StatusBadge>}
+          {remembered && <StatusText tone="quiet" title={remembered.text}>запомнено</StatusText>}
           <Button variant="text" disabled={busy} onClick={clear}>
             {remembered ? 'Отменить подстановку' : 'Снять сопоставление'}
           </Button>

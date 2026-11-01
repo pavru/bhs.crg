@@ -1,5 +1,5 @@
 export * from './constants';
-export { DocumentStatusBadge } from './DocumentStatusBadge';
+export { DocumentStatusText } from './DocumentStatusText';
 export * from './FileField';
 export * from './ImageField';
 export * from './checkImageResult';

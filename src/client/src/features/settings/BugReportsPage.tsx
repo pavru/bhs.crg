@@ -11,7 +11,7 @@ import { apiError } from '@/shared/utils/apiError';
 import { ListDetailShell, NavSearchInput, NavSection } from '@/shared/ui/ListDetailShell';
 import { useListDetailView } from '@/shared/ui/listDetailView';
 import { useSnackbar } from '@/shared/ui/Snackbar';
-import { StatusBadge, type StatusTone } from '@/shared/ui/StatusBadge';
+import { StatusText, type StatusTone } from '@/shared/ui/StatusText';
 import { DataGrid, type DataGridColumn } from '@/shared/ui/DataGrid';
 import { useOpenAttachment } from '@/shared/hooks/useOpenAttachment';
 import {
@@ -30,14 +30,14 @@ import {
 
 const STATUS: Record<BugReportStatus, { label: string; tone: StatusTone }> = {
   New:       { label: 'новое',      tone: 'warning' },
-  Forwarded: { label: 'передано',   tone: 'brand' },
+  Forwarded: { label: 'передано',   tone: 'primary' },
   Fixed:     { label: 'исправлено', tone: 'success' },
   Rejected:  { label: 'отклонено',  tone: 'quiet' },
 };
 
 function ReportStatus({ status }: { status: BugReportStatus }) {
   const meta = STATUS[status];
-  return <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>;
+  return <StatusText tone={meta.tone}>{meta.label}</StatusText>;
 }
 
 export function BugReportsPage() {

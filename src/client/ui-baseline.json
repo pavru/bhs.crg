@@ -19,7 +19,6 @@
     "features/datasets/PdfGroupingEditor.tsx": 2,
     "features/document-sets/catalog/CatalogResource.tsx": 1,
     "features/document-sets/catalog/ObjectsByTypeList.tsx": 2,
-    "features/document-sets/editor/BrokenCountBadge.tsx": 1,
     "features/document-sets/editor/DocumentPreviewPanel.tsx": 1,
     "features/document-sets/fields/ArrayTableModal.tsx": 1,
     "features/document-sets/fields/BaseInstanceChip.tsx": 3,
@@ -174,7 +173,6 @@
     "features/document-sets/catalog/PurgeBatchDialog.tsx": 2,
     "features/document-sets/catalog/PurgeDialog.tsx": 1,
     "features/document-sets/editor/ApplyTemplateDialog.tsx": 1,
-    "features/document-sets/editor/BrokenCountBadge.tsx": 1,
     "features/document-sets/fields/ArrayTableModal.tsx": 1,
     "features/periods/ClosingSections.tsx": 2,
     "features/periods/PeriodsPage.tsx": 1,
@@ -194,8 +192,7 @@
     "shared/ui/Modal.tsx": 2,
     "shared/ui/PageHeader.tsx": 4,
     "shared/ui/SectionRail.tsx": 3,
-    "shared/ui/SuggestBox.tsx": 1,
-    "shared/ui/ValueIssue.tsx": 1
+    "shared/ui/SuggestBox.tsx": 1
   },
   "lucide-import": {},
   "spinner-icon": {},
