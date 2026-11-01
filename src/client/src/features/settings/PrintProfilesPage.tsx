@@ -163,7 +163,7 @@ function CreateForm({ names, base, onCreated, onCancel }: {
         ? <p className="text-body-small text-on-surface-variant">Параметры возьмутся из профиля по умолчанию — поменяете в карточке.</p>
         : <p className="text-body-small text-error">Нет профиля по умолчанию — параметры взять неоткуда. Обновите страницу.</p>}
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="text" onClick={onCancel}>Отмена</Button>
+        <Button type="button" variant="text" data-modal-exit="" onClick={onCancel}>Отмена</Button>
         <Button type="submit" variant="filled" loading={create.isPending} disabled={!base}>Создать</Button>
       </div>
     </form>

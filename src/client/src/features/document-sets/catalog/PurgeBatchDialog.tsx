@@ -1,4 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
+import { DIALOG_SCRIM, DIALOG_SURFACE, DIALOG_TITLE } from '@/shared/ui/dialogSurface';
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Icon } from '@/shared/ui/Icon';
@@ -222,12 +223,12 @@ export function PurgeBatchDialog({ source: opened, typeName, onClose }: {
   return (
     <Dialog.Root open onOpenChange={o => { if (!o && !busy) onClose(false); }}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-scrim/32" style={{ backdropFilter: 'blur(2px)' }} />
+        <Dialog.Overlay className={`${DIALOG_SCRIM} z-40`} />
         <Dialog.Content
           // То же, что у `PurgeDialog`: запрос, исход или набранное подтверждение держат человека.
           data-modal-state={busy ? 'busy' : refused ?? unknown ?? fresh ? 'result' : input ? 'touched' : 'free'}
-          className="fixed left-1/2 top-4 sm:top-1/2 -translate-x-1/2 sm:-translate-y-1/2 z-50 rounded-xl p-6 w-[calc(100%-2rem)] max-w-xl max-h-[calc(100dvh-2rem)] overflow-y-auto bg-surface border border-outline-variant focus:outline-none shadow-elevation-3">
-          <Dialog.Title className="text-body-medium font-semibold mb-2 text-on-surface">{title}</Dialog.Title>
+          className={`fixed left-1/2 top-4 sm:top-1/2 -translate-x-1/2 sm:-translate-y-1/2 z-50 p-6 w-[calc(100%-2rem)] max-w-xl max-h-[calc(100dvh-2rem)] overflow-y-auto ${DIALOG_SURFACE} focus:outline-none`}>
+          <Dialog.Title className={`${DIALOG_TITLE} mb-4`}>{title}</Dialog.Title>
           {body}
         </Dialog.Content>
       </Dialog.Portal>

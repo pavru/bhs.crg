@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, Apartment, Delete, Edit, Layers } from '@/shared/ui/icons';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
@@ -134,7 +134,7 @@ export function ConstructionDetail() {
       <Modal open={addSectionOpen} onOpenChange={setAddSectionOpen} title="Новый раздел"
         footer={
           <div className="flex justify-end gap-2">
-            <Button variant="text" onClick={() => setAddSectionOpen(false)}>Отмена</Button>
+            <ModalExit />
             <Button type="submit" form="add-section-form" variant="filled" loading={createSection.isPending}>
               {createSection.isPending ? 'Создание…' : 'Создать'}
             </Button>
@@ -153,7 +153,7 @@ export function ConstructionDetail() {
       <Modal open={renameOpen} onOpenChange={setRenameOpen} title="Переименовать стройку"
         footer={
           <div className="flex justify-end gap-2">
-            <Button variant="text" onClick={() => setRenameOpen(false)}>Отмена</Button>
+            <ModalExit />
             <Button type="submit" form="rename-construction-form" variant="filled" loading={renameConstruction.isPending}>Сохранить</Button>
           </div>
         }>

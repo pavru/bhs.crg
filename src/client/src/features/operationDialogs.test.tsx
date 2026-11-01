@@ -44,14 +44,13 @@ const shown = (dialog: ReactElement) => render(
 
 const tick = () => act(async () => { await new Promise(r => setTimeout(r, 0)); });
 
-/** Все выходы подряд: щелчок мимо, Esc, крестик и кнопка отказа от операции. */
+/** Все выходы подряд: щелчок мимо, Esc и кнопка отказа от операции (крестика у окна нет, [UI-75]). */
 async function tryEveryExit(decline: string) {
   await tick();
   fireEvent.pointerDown(document.body);
   fireEvent.click(document.body);
   fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
   await tick();
-  fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
   fireEvent.click(screen.getByRole('button', { name: decline }));
   await tick();
 }

@@ -1,4 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
+import { DIALOG_SCRIM, DIALOG_SURFACE, DIALOG_TITLE } from '@/shared/ui/dialogSurface';
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Warning } from '@/shared/ui/icons';
@@ -108,14 +109,14 @@ export function PurgeDialog<O extends PurgeOffer>({ subject, offer: offered, pen
   return (
     <Dialog.Root open onOpenChange={o => { if (!o && !pending) onClose(); }}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-scrim/32" style={{ backdropFilter: 'blur(2px)' }} />
+        <Dialog.Overlay className={`${DIALOG_SCRIM} z-40`} />
         {/* На узком экране — у верха: по центру клавиатура закрыла бы и поле, и кнопки. */}
         <Dialog.Content
           // Идёт удаление, показан его исход или набрано подтверждение — окно держит человека: поверх
           // него обвязка не открывает палитру и не уводит со страницы (см. `DialogHold`).
           data-modal-state={pending ? 'busy' : refused ?? failed ?? changed ? 'result' : input ? 'touched' : 'free'}
-          className="fixed left-1/2 top-4 sm:top-1/2 -translate-x-1/2 sm:-translate-y-1/2 z-50 rounded-xl p-6 w-[calc(100%-2rem)] max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto bg-surface border border-outline-variant focus:outline-none shadow-elevation-3">
-          <Dialog.Title className="text-body-medium font-semibold mb-2 text-on-surface">
+          className={`fixed left-1/2 top-4 sm:top-1/2 -translate-x-1/2 sm:-translate-y-1/2 z-50 p-6 w-[calc(100%-2rem)] max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto ${DIALOG_SURFACE} focus:outline-none`}>
+          <Dialog.Title className={`${DIALOG_TITLE} mb-4`}>
             {refused ? 'Удаление невозможно' : subject.title}
           </Dialog.Title>
 

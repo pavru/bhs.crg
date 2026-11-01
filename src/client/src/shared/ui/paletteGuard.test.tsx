@@ -149,12 +149,12 @@ describe('окно, которое держит человека', () => {
     expect(document.querySelector('[data-modal-hint]')).toBeNull();
   });
 
-  it('кнопка под вопросом «Закрыть без сохранения?» недоступна — кольцо на неё не ложится', () => {
+  it('при вопросе «Закрыть без сохранения?» кольцо — на его безопасном ответе, а не на кнопке под ним', () => {
     render(<Modal open onOpenChange={() => {}} title="Окно" isDirty footer={<ModalExit />}>текст</Modal>);
     fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
     expect(screen.getByText('Закрыть без сохранения?')).toBeTruthy();
     expect(refusedByDialog()).toBe(true);
-    expect(document.querySelector('[data-modal-hint]')).toBeNull();
+    expect(document.querySelector('[data-modal-hint]')?.textContent).toBe('Продолжить редактирование');
   });
 });
 

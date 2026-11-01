@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { useAccess, NO_ACCESS, hasPermission } from '@/shared/api/access';
 
@@ -31,7 +31,7 @@ export function RecognitionBlockedDialog(
               Открыть настройки
             </Button>
           )}
-          <Button type="button" variant="filled" onClick={onClose}>Понятно</Button>
+          <ModalExit>Понятно</ModalExit>
         </div>
       }>
       <div className="space-y-3">

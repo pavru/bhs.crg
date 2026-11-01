@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { LinkOff } from '@/shared/ui/icons';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { SourceBindingTrigger } from './SourceBindingTrigger';
 import {
@@ -147,7 +147,7 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
               )}
             </div>
             <div className="flex gap-2">
-              <Button variant="text" onClick={() => setOpen(false)}>Отмена</Button>
+              <ModalExit />
               {!locked && (
                 <Button variant="filled" onClick={bind} disabled={!column || busy} loading={busy}>
                   {isBound ? 'Изменить' : 'Привязать'}

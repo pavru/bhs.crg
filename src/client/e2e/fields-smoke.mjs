@@ -127,7 +127,8 @@ await check('paste-detects-header-and-counts-rows', async () => {
 await check('paste-cancel-returns-to-table', async () => {
   const dlg = page.locator('[role=dialog]').last();
   await dlg.getByRole('button', { name: 'Отмена' }).click();
-  await dlg.getByRole('button', { name: 'Закрыть', exact: true }).last().click();
+  // Вопрос — своё окно над окном ([UI-75]); окно под ним от чтения скрыто.
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Закрыть', exact: true }).click();
   await settled(page);
   const t = await dlg.innerText();
   if (!/таблица/i.test(t)) throw new Error(`после отмены вставки — не таблица: ${t.slice(0, 140)}`);

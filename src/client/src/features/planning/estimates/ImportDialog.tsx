@@ -142,8 +142,9 @@ function ImportWindow({ onClose, constructionId, estimateId, sectionId, importId
           <ModalExit variant="outlined">Закрыть</ModalExit>
         </>
       ) : verdict?.kind === 'ready' && data ? (
-        // Закрыть без решения — крестиком: импорт останется полосой «ждёт решения» над сметами.
+        // Закрыть без решения — «Закрыть»: импорт останется полосой «ждёт решения» над сметами.
         <>
+          <ModalExit>Закрыть</ModalExit>
           <Button variant="text" disabled={busy} onClick={() => setRefusing(true)}>Отказаться</Button>
           {verdict.unparsed > 0
             ? <Button variant="filled" disabled={busy} onClick={() => setConfirming(true)}>{partialCommitLabel(verdict.unparsed)}</Button>

@@ -13,9 +13,9 @@
 // Требует поднятых фронта (:5173), бэка (:5000) и хранилища (Garage, :3900) — экран разбиения
 // читает страницы PDF из него. Плюс демо-данные, см. e2e/README.md.
 //
-// В CI гоняются 13 проверок из 16: три проверки разбиения PDF требуют РАСПОЗНАННЫХ страниц, то
+// В CI гоняются 16 проверок из 19: три проверки разбиения PDF требуют РАСПОЗНАННЫХ страниц, то
 // есть ИИ-движка, которого там нет (issue #872). Пропуск включается пустым `SMOKE_PDF_FILE_ID` и
-// называется вслух в итоге прогона — молчаливый превратил бы «13 из 16» в «13 из 13».
+// называется вслух в итоге прогона — молчаливый превратил бы «16 из 19» в «16 из 16».
 //
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/dialogs-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
@@ -178,6 +178,56 @@ await settled(page);
 await check('materialize-dialog-opens', async () => {
   const t = await page.locator('[role=dialog]').last().innerText();
   if (!/Материализация источника/.test(t)) throw new Error(`не тот диалог: ${t.slice(0, 140)}`);
+});
+
+// Черта под шапкой и над подвалом окна — только когда тело ушло под них ([UI-75]). Наблюдатель
+// пересечения в jsdom не работает, поэтому прокрутку проверяет живой браузер: окно низкое, тело
+// прокручивается.
+await check('dialog-lines-follow-body-scroll', async () => {
+  const size = page.viewportSize();
+  await page.setViewportSize({ width: size.width, height: 480 });
+  try {
+    const dlg = page.locator('[role=dialog]').last();
+    const lines = () => dlg.evaluate(d => {
+      const body = d.querySelector('.overflow-y-auto');
+      const seen = (el, side) => !!el && getComputedStyle(el)[side] !== 'rgba(0, 0, 0, 0)';
+      return {
+        scrollable: body.scrollHeight > body.clientHeight + 1,
+        top: seen(body.previousElementSibling, 'borderBottomColor'),
+        bottom: seen(body.nextElementSibling, 'borderTopColor'),
+      };
+    });
+    const at = (where) => dlg.evaluate((d, w) => {
+      const body = d.querySelector('.overflow-y-auto');
+      body.scrollTop = w === 'top' ? 0 : w === 'end' ? body.scrollHeight : (body.scrollHeight - body.clientHeight) / 2;
+    }, where);
+    const expectLines = async (want, label) => until(async () => {
+      const got = await lines();
+      if (got.top !== want.top || got.bottom !== want.bottom)
+        throw new Error(`${label}: черта под шапкой ${got.top}, над подвалом ${got.bottom}`);
+    });
+
+    if (!(await lines()).scrollable) throw new Error('тело окна при высоте 480 не прокручивается — проверять нечего');
+    await at('top');
+    await expectLines({ top: false, bottom: true }, 'у верха');
+    await at('middle');
+    await expectLines({ top: true, bottom: true }, 'в середине');
+    await at('end');
+    await expectLines({ top: true, bottom: false }, 'у низа');
+  } finally {
+    await page.setViewportSize(size);
+  }
+  // Окно снова высокое: тело помещается — черт нет.
+  const dlg = page.locator('[role=dialog]').last();
+  await until(async () => {
+    const both = await dlg.evaluate(d => {
+      const body = d.querySelector('.overflow-y-auto');
+      if (body.scrollHeight > body.clientHeight + 1) return null;
+      const c = (el, side) => getComputedStyle(el)[side];
+      return [c(body.previousElementSibling, 'borderBottomColor'), c(body.nextElementSibling, 'borderTopColor')];
+    });
+    if (both && both.some(c => c !== 'rgba(0, 0, 0, 0)')) throw new Error(`короткое тело с чертой: ${both}`);
+  });
 });
 
 await check('materialize-union-shows-variants', async () => {

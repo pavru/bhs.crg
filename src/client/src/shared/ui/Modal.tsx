@@ -1,22 +1,21 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { Icon } from './Icon';
-import { Close } from './icons';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, type ButtonProps } from './Button';
-import {
-  ModalControlContext, WindowStepContext, useModalControl,
-  type WindowStepHost, type WindowStepSlots, type WindowStepState,
-} from './modalControl';
+import { ModalControlContext, WindowStepContext, useModalControl } from './modalControl';
 import { DISMISSAL, modalState, pointAtExit } from './modalDismissal';
 import { useHistoryLayer } from './historyLayers';
 import { focusFromLayer } from './layerFocus';
+import { DIALOG_SCRIM, DIALOG_SURFACE, DIALOG_TITLE } from './dialogSurface';
+import { LeaveQuestion } from './LeaveQuestion';
+import { useScrollEdges } from './useScrollEdges';
+import { useWindowSteps } from './windowSteps';
 
 interface ModalBaseProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   /** Тело диалога. Функция-форма получает requestClose (охраняемый выход) — содержимое само
-   *  рисует свою шапку/крестик (для full-screen top app bar). */
+   *  рисует свою шапку (для full-screen top app bar). */
   children: ReactNode | ((requestClose: () => void) => ReactNode);
   /**
    * Размер — по содержимому, а не по вкусу (issue #1382, docs/UI.md «Окна»): малая форма, пикер,
@@ -33,18 +32,20 @@ interface ModalBaseProps {
    *  выхода такое содержимое помечает `data-modal-exit` — иначе Esc и клик мимо её не покажут. */
   headerless?: boolean;
   /** Не добавлять собственный скролл и паддинг тела — содержимое само управляет
-   *  раскладкой (фиксированный футер, прокрутка только области полей). */
+   *  раскладкой (фиксированный футер, прокрутка только области полей). Свой выход такое содержимое
+   *  ставит само — `ModalExit`: подвала «Закрыть» окно ему не добавляет. */
   flushBody?: boolean;
   /**
    * Зафиксированная нижняя область (кнопки действий). Заголовок сверху и футер снизу
-   * не скроллятся; прокручивается только тело между ними.
+   * не скроллятся; прокручивается только тело между ними. Не передан — окно ставит подвал с «Закрыть»
+   * само: крестика у окна нет ([UI-75]), и выход должен быть виден.
    *
    * <p>«Отмену» ставят `ModalExit` или зовут из функции-формы `requestClose`: выход, позванный
    * мимо, не спросит о правках и останется живым при идущем запросе.</p>
    */
   footer?: ReactNode | ((requestClose: () => void) => ReactNode);
   /**
-   * Идёт запрос (issue #1235): крестик, `ModalExit`, Esc и клик мимо мертвы, пока он не завершится —
+   * Идёт запрос (issue #1235): `ModalExit`, Esc и клик мимо мертвы, пока он не завершится —
    * закрытое окно спрятало бы исход. Расставлять `disabled` по выходам вызывающему не нужно.
    */
   busy?: boolean;
@@ -69,8 +70,8 @@ type ModalDismissalProps =
       isDirty?: boolean;
       /**
        * Показан результат, который надо прочитать. Значение — подпись единственного выхода
-       * («Понятно», «Готово»): диалог рисует его сам, крестика нет. Именем, а не флажком —
-       * результат без названного выхода оказался бы окном без выхода.
+       * («Понятно», «Готово»): диалог рисует его сам. Именем, а не флажком — результат без названного
+       * выхода оказался бы окном без выхода.
        */
       acknowledge?: string;
     };
@@ -83,7 +84,11 @@ export type ModalProps = ModalBaseProps & ModalDismissalProps;
  * Классами `max-sm:`, а не отдельной веткой: окно одно и то же, меняется только раскладка.
  */
 const NARROW_FULL = 'max-sm:inset-0 max-sm:translate-x-0 max-sm:translate-y-0 max-sm:w-full max-sm:max-w-none ' +
-  'max-sm:max-h-none max-sm:rounded-none max-sm:border-0';
+  'max-sm:max-h-none max-sm:rounded-none';
+
+/** Черта под шапкой и над подвалом — только когда содержимое ушло под них ([UI-75]). Цвет, а не сама
+ *  черта: появляясь, она не сдвигает тело на пиксель. */
+const edge = (shown: boolean) => shown ? 'border-outline-variant' : 'border-transparent';
 
 /**
  * Содержимое живёт ровно пока диалог открыт (issue #858).
@@ -102,8 +107,8 @@ export function Modal(props: ModalProps) {
 }
 
 /**
- * Кнопка выхода из диалога — «Отмена» подвала (issue #1235). Идёт тем же путём, что крестик:
- * спросит о правках, при идущем запросе недоступна. Её же Esc и клик мимо показывают человеку.
+ * Кнопка выхода из диалога — «Отмена» подвала (issue #1235). Крестика у окна нет ([UI-75]): это и есть
+ * выход окна. Спросит о правках, при идущем запросе недоступна. Её же Esc и клик мимо показывают человеку.
  */
 export function ModalExit({ children = 'Отмена', variant = 'text', disabled, ...rest }: Omit<ButtonProps, 'onClick' | 'type'>) {
   const { requestClose, busy } = useModalControl();
@@ -132,6 +137,7 @@ function ModalBody({
   const [touched, setTouched] = useState(false);
   const content = useRef<HTMLDivElement>(null);
   const { host, top, touchTop, stepSlot } = useWindowSteps(content);
+  const { start: edgeStart, end: edgeEnd, above, below } = useScrollEdges();
   // Кто открыл окно — запоминается при первой отрисовке, до того как поле с `autoFocus` заберёт фокус.
   // Radix запоминает его позже, эффектом, и видит уже это поле: оно уходит вместе с окном, и фокус
   // после закрытия падал в body (ревью PR #1696).
@@ -148,8 +154,8 @@ function ModalBody({
   // показан, форма под ним недоступна (`inert`): фокус уходит в вопрос, и Enter не нажмёт
   // «Сохранить» под затемнением.
   const asking = confirmClose && rule.exit !== 'dead';
-  // «Продолжить редактирование» возвращает человека туда, откуда он спросил: кнопка вопроса,
-  // державшая фокус, исчезает, и без возврата он остался бы нигде.
+  // «Продолжить редактирование» возвращает человека туда, откуда он спросил: вопрос ушёл, а с ним и
+  // фокус, и без возврата человек остался бы нигде.
   const askedFrom = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (asking) return;
@@ -169,7 +175,7 @@ function ModalBody({
     return !top;
   }
 
-  // Системная «Назад» на телефоне (issue #1418) — тот же выход, что у крестика: с шага — к форме, с
+  // Системная «Назад» на телефоне (issue #1418) — тот же выход, что у «Отмены»: с шага — к форме, с
   // вводом — вопрос. При показанном вопросе — «Продолжить редактирование», как Esc.
   useHistoryLayer(true, () => {
     if (!asking) return requestClose();
@@ -214,11 +220,15 @@ function ModalBody({
     }, 0);
   }
 
+  // Подвал «Закрыть» — окну, которое своих действий не объявило: пикеры и справки не правятся по
+  // одному. Содержимое `flushBody` и окно без шапки рисуют свой выход сами.
+  const actions = footer ?? (acknowledge || flushBody || headerless ? undefined : <ModalExit>Закрыть</ModalExit>);
+  const shownTitle = top?.title ?? title;
+
   return (
     <Dialog.Portal>
         <Dialog.Overlay
-          className="fixed inset-0 z-40 bg-scrim/32"
-          style={{ backdropFilter: 'blur(2px)' }}
+          className={`${DIALOG_SCRIM} z-40`}
           // Нажатие на затемнение фокус не забирает: иначе щелчок мимо выносил бы курсор из поля,
           // где человек набирал, — и окно, которое не закрылось, всё равно сбивало бы его с места.
           onMouseDown={e => e.preventDefault()}
@@ -229,7 +239,7 @@ function ModalBody({
           data-modal-state={rule.escape === 'close' ? 'free' : state}
           className={fullScreen
             ? 'fixed inset-0 z-50 flex flex-col overflow-hidden focus:outline-none bg-surface-container-low'
-            : `fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-xl max-h-[90vh] flex flex-col overflow-hidden focus:outline-none bg-surface border border-outline-variant shadow-elevation-3 ${
+            : `fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 max-h-[90vh] flex flex-col overflow-hidden focus:outline-none ${DIALOG_SURFACE} ${
               // У широкого — зазор по краям: между телефоном и 896 px (планшет, 768) иначе окно
               // ложилось бы в край экрана, скруглёнными углами вплотную (ревью PR #1386).
               wide ? 'w-[calc(100%-2rem)] max-w-4xl' : 'w-full max-w-lg'
@@ -243,7 +253,7 @@ function ModalBody({
           onChangeCapture={noteInput}
           onInput={noteInput}
           // Начальный фокус — на само окно. Radix ставит его на первый фокусируемый элемент, а это
-          // крестик: Enter сразу после открытия закрывал диалог. Поле с `autoFocus` сюда не доходит —
+          // кнопка: Enter сразу после открытия нажимал бы её. Поле с `autoFocus` сюда не доходит —
           // оно берёт фокус раньше, и Radix события не шлёт.
           onOpenAutoFocus={e => {
             e.preventDefault();
@@ -254,22 +264,17 @@ function ModalBody({
             e.preventDefault();
             focusFromLayer(opener);
           }}
+          // Пока показан вопрос, Esc и щелчок мимо достаются ему — верхнему окну Radix, а не этому.
           onEscapeKeyDown={e => {
             // Решает диалог сам и ПОЗЖЕ — см. `afterFields`. Radix закрыл бы окно прямо сейчас.
             e.preventDefault();
             // Esc, которым отменяют набор в IME, — клавиша метода ввода, а не диалога.
             if (e.isComposing) return;
-            // Esc при показанном подтверждении = «Продолжить редактирование» (закрыть подтверждение,
-            // остаться в редакторе), а не закрыть/no-op.
-            if (asking) {
-              setConfirmClose(false);
-              return;
-            }
             if (rule.escape === 'close') afterFields(leave);
             else if (rule.escape === 'focusExit') afterFields(() => showExit(true));
           }}
           onPointerDownOutside={() => {
-            if (!asking && rule.outside === 'hint') showExit(false);
+            if (rule.outside === 'hint') showExit(false);
           }}
           // Запрет — на `onInteractOutside`, а не на указателе: туда же приходит уход фокуса к
           // тостам и порталам, и закрывать диалог он не должен точно так же.
@@ -280,151 +285,68 @@ function ModalBody({
         >
           <ModalControlContext.Provider value={{ requestClose, busy: busy || !!top?.busy }}>
           <WindowStepContext.Provider value={host}>
-          <Dialog.Title className="sr-only">{top?.title ?? title}</Dialog.Title>
+          <Dialog.Title className="sr-only">{shownTitle}</Dialog.Title>
+          {/* Под вопросом окно недоступно одной обёрткой: фокус не вернётся в форму мимо вопроса. */}
+          <div className="contents" inert={asking}>
           {(!headerless || top) && (
-            <div className="flex items-center justify-between shrink-0 px-6 pt-6 pb-5" inert={asking}>
-              {/* truncate: заголовком бывает имя объекта (материал в пикере документа качества
-                  доходит до сотни знаков) — без обрезки оно выдавливает крестик за край. */}
-              <span className="text-body-large font-semibold text-on-surface truncate" title={top?.title ?? title}>{top?.title ?? title}</span>
-              {/* У результата выход один, и называет его диалог — крестика нет. При запросе крестик
-                  виден, но недоступен: исчезнувший читался бы как поломка вёрстки. */}
-              {!acknowledge && (
-                <button
-                  type="button"
-                  onClick={requestClose}
-                  aria-disabled={busy || undefined}
-                  data-modal-cross=""
-                  aria-label="Закрыть"
-                  className={`flex items-center justify-center w-9 h-9 rounded-full text-on-surface-variant state-layer focus-ring disabled-content ${busy ? BUSY_EXIT : ''}`}
-                >
-                  <Icon icon={Close} size={18} />
-                </button>
-              )}
+            <div className={`shrink-0 px-6 pt-6 pb-2 border-b ${edge(above)}`}>
+              {/* Заголовком бывает имя объекта (материал в пикере документа качества доходит до сотни
+                  знаков) — две строки, дальше обрезка. */}
+              <span className={`${DIALOG_TITLE} line-clamp-2 break-words`} title={shownTitle}>{shownTitle}</span>
             </div>
           )}
           {/* Форма окна под шагом остаётся смонтированной, только скрыта: выход с шага вернёт её
-              такой, какой оставили. Тело и подвал шага ложатся в его места (`WindowStep`). */}
+              такой, какой оставили. Тело и подвал шага ложатся в его места (`WindowStep`). Часовые
+              прокрутки — у краёв видимого тела: черта считается по нему, а не по скрытой форме. */}
           {flushBody ? (
             <>
-              <div className="flex-1 min-h-0 flex flex-col" inert={asking} hidden={!!top}>
+              <div className="flex-1 min-h-0 flex flex-col" hidden={!!top}>
                 {typeof children === 'function' ? children(requestClose) : children}
               </div>
-              {top && <div className="overflow-y-auto flex-1 px-6 pt-2 pb-4" inert={asking}>{stepSlot('body')}</div>}
+              {top && (
+                <div className="overflow-y-auto flex-1 min-h-0 px-6">
+                  <div ref={edgeStart} />
+                  <div className="py-2">{stepSlot('body')}</div>
+                  <div ref={edgeEnd} />
+                </div>
+              )}
             </>
           ) : (
-            <div className={`overflow-y-auto flex-1 px-6 pt-2 ${footer || acknowledge || top ? 'pb-4' : 'pb-6'}`} inert={asking}>
-              <div className="contents" hidden={!!top}>
-                {typeof children === 'function' ? children(requestClose) : children}
+            <div className="overflow-y-auto flex-1 min-h-0 px-6">
+              <div ref={edgeStart} />
+              <div className={`pt-2 ${actions || acknowledge || top ? 'pb-2' : 'pb-6'}`}>
+                <div className="contents" hidden={!!top}>
+                  {typeof children === 'function' ? children(requestClose) : children}
+                </div>
+                {stepSlot('body')}
               </div>
-              {stepSlot('body')}
+              <div ref={edgeEnd} />
             </div>
           )}
 
-          {(footer || acknowledge || top) && (
-            <div className="shrink-0 px-6 py-3 border-t border-outline-variant bg-surface" inert={asking}>
+          {(actions || acknowledge || top) && (
+            <div className={`shrink-0 px-6 pt-4 pb-6 border-t ${edge(below)}`}>
               {acknowledge ? (
                 <div className="flex items-center gap-2">
                   <div className="flex-1 min-w-0">{typeof footer === 'function' ? footer(requestClose) : footer}</div>
-                  <ModalExit variant="filled">{acknowledge}</ModalExit>
+                  <ModalExit>{acknowledge}</ModalExit>
                 </div>
               ) : (
-                <div className="contents" hidden={!!top}>{typeof footer === 'function' ? footer(requestClose) : footer}</div>
+                <div className="contents" hidden={!!top}>
+                  {typeof actions === 'function' ? actions(requestClose)
+                    : footer ? actions : <div className="flex justify-end">{actions}</div>}
+                </div>
               )}
               {stepSlot('footer')}
             </div>
           )}
+          </div>
 
-          {asking && (
-            <div className={`absolute inset-0 z-10 flex items-center justify-center bg-scrim/32 ${fullScreen ? '' : 'rounded-xl'}`}>
-              <div className="rounded-xl p-5 w-80 bg-surface border border-outline-variant shadow-elevation-3">
-                <p className="text-body-medium font-semibold mb-1 text-on-surface">
-                  Закрыть без сохранения?
-                </p>
-                <p className="text-body-small mb-4 text-on-surface-variant">
-                  Несохранённые изменения будут потеряны.
-                </p>
-                <div className="flex gap-2 justify-end">
-                  {/* Фокус — на безопасном ответе: Enter, которым человек пришёл сюда с «Отмены»,
-                      повторным нажатием ничего не теряет. До «Закрыть» — один Tab. */}
-                  <Button variant="text" autoFocus onClick={() => setConfirmClose(false)}>
-                    Продолжить редактирование
-                  </Button>
-                  <Button variant="filled" danger
-                    onClick={() => { setConfirmClose(false); leave(); }}>
-                    Закрыть
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
+          <LeaveQuestion open={asking} onStay={() => setConfirmClose(false)}
+            onLeave={() => { setConfirmClose(false); leave(); }} />
           </WindowStepContext.Provider>
           </ModalControlContext.Provider>
         </Dialog.Content>
     </Dialog.Portal>
   );
-}
-
-type StepEntry = WindowStepState & { id: string; back: () => void; touched: boolean };
-
-/**
- * Стопка шагов окна (issue #1384): верхний шаг виден, нижние и форма окна смонтированы и скрыты.
- * Под каждый шаг окно заводит свои места — тело и подвал, — и шаг рисует туда порталом: так его
- * состояние живёт там, где он отрисован, и шаг на шаге не стирает нижний.
- */
-function useWindowSteps(content: RefObject<HTMLDivElement | null>) {
-  const [steps, setSteps] = useState<StepEntry[]>([]);
-  const [slots, setSlots] = useState<Record<string, WindowStepSlots>>({});
-  // Откуда ушли на шаг — туда фокус и вернётся: кнопка, открывшая шаг, снова видна.
-  const openers = useRef(new Map<string, HTMLElement | null>());
-  const restore = useRef<HTMLElement | null>(null);
-
-  const push = useCallback((id: string, back: () => void) => {
-    openers.current.set(id, document.activeElement as HTMLElement | null);
-    setSteps(s => s.some(x => x.id === id) ? s : [...s, { id, back, title: '', busy: false, touched: false }]);
-  }, []);
-  const update = useCallback((id: string, next: WindowStepState) => {
-    setSteps(s => s.map(x => x.id === id ? { ...x, ...next } : x));
-  }, []);
-  const pop = useCallback((id: string) => {
-    restore.current = openers.current.get(id) ?? null;
-    openers.current.delete(id);
-    setSteps(s => s.filter(x => x.id !== id));
-    setSlots(s => { const rest = { ...s }; delete rest[id]; return rest; });
-  }, []);
-  const host = useMemo<WindowStepHost>(() => ({ push, update, pop, slots }), [push, update, pop, slots]);
-
-  // Стабильные ref-колбэки мест: новый колбэк на каждой отрисовке звал бы setSlots без конца.
-  const refs = useRef(new Map<string, (el: HTMLElement | null) => void>());
-  function slotRef(id: string, kind: keyof WindowStepSlots) {
-    const key = `${id}:${kind}`;
-    let ref = refs.current.get(key);
-    if (!ref) {
-      ref = el => setSlots(s => s[id]?.[kind] === el || (!el && !s[id]) ? s : { ...s, [id]: { ...s[id], [kind]: el } });
-      refs.current.set(key, ref);
-    }
-    return ref;
-  }
-
-  const top = steps.at(-1) ?? null;
-  const topId = top?.id;
-  const touchTop = () => {
-    if (topId && !top?.touched) setSteps(s => s.map(x => x.id === topId ? { ...x, touched: true } : x));
-  };
-  useEffect(() => {
-    // Ушли с шага — к кнопке, которая его открыла: она снова видна, будь она в форме окна или в шаге
-    // под снятым.
-    const back = restore.current;
-    restore.current = null;
-    if (back?.isConnected && !back.closest('[hidden]')) { back.focus(); return; }
-    if (!topId) return;
-    // Кнопка, открывшая шаг, скрылась вместе с формой, но браузер снимет с неё фокус не сразу —
-    // поэтому «вне окна» мало: фокус в скрытом тоже не годится. Окно держит его, пока шаг не взял свой.
-    const active = document.activeElement;
-    if (!content.current?.contains(active) || active?.closest('[hidden]')) content.current?.focus();
-  }, [topId, content]);
-
-  const stepSlot = (kind: keyof WindowStepSlots) => steps.map(s => (
-    <div key={s.id} ref={slotRef(s.id, kind)} className="contents" hidden={s.id !== topId} />
-  ));
-  return { host, top, touchTop, stepSlot };
 }

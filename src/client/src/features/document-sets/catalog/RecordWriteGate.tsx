@@ -24,7 +24,7 @@ export function RecordWriteGate({ doorCode, onClose, children }: {
           Только просмотр: записи этого справочника ведёт тот, у кого есть право на него.
         </p>
       )}
-      <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
+      <Button type="button" variant="text" data-modal-exit="" onClick={onClose}>Отмена</Button>
       {allowed && children}
     </>
   );

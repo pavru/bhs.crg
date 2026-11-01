@@ -1,4 +1,4 @@
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
@@ -27,7 +27,7 @@ export function SuggestionsModal({ suggestions, setSuggestions, suggestSel, setS
             disabled={suggestSel.size === 0}>
             {applying ? 'Применение...' : `Применить выбранные (${suggestSel.size})`}
           </Button>
-          <Button variant="text" onClick={() => setSuggestions(null)}>Отмена</Button>
+          <ModalExit />
         </div>
       }>
       {suggestions && suggestions.length === 0 ? (

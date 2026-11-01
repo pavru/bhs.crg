@@ -160,7 +160,7 @@ export function CreateForm({
       {error && <p className="text-body-medium text-error">{error}</p>}
       </div>
       <div className="shrink-0 px-6 py-3 border-t border-outline-variant flex justify-end gap-3">
-        <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
+        <Button type="button" variant="text" data-modal-exit="" onClick={onClose}>Отмена</Button>
         <Button type="submit" variant="filled" loading={mutation.isPending}>
           {mutation.isPending ? 'Создание…' : 'Создать'}
         </Button>

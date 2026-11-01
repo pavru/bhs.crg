@@ -333,7 +333,7 @@ function CreateProfileForm({ kinds, onSaved, onCancel }: {
       </div>
       {error && <p className="text-body-medium text-error">{error}</p>}
       <div className="flex justify-end gap-2 border-t border-outline-variant pt-3">
-        <Button type="button" variant="text" onClick={onCancel}>Отмена</Button>
+        <Button type="button" variant="text" data-modal-exit="" onClick={onCancel}>Отмена</Button>
         <Button type="button" variant="filled" onClick={save} loading={create.isPending}>
           {create.isPending ? 'Создание…' : 'Создать'}
         </Button>

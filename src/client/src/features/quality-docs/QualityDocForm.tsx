@@ -348,7 +348,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
           disabled={busy || recognizing || uploading || imageUploading || !typeId} title={imageUploading ? "Дождитесь загрузки изображения" : undefined}>
           {busy ? 'Сохранение…' : isEdit ? 'Сохранить' : 'Создать'}
         </Button>
-        <Button variant="text" onClick={onCancel}>Отмена</Button>
+        <Button variant="text" data-modal-exit="" onClick={onCancel}>Отмена</Button>
         {recognizing && (
           <span className="flex items-center gap-1.5 text-body-small text-on-surface-variant">
             <CircularProgress size={18} /> Идёт распознавание — дождитесь завершения перед сохранением…

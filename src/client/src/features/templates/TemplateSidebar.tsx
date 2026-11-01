@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { Add, ContentCopy, Delete, Description, KeyboardArrowDown, KeyboardArrowUp, LockIcon, OpenInNew, Star, Warning } from '@/shared/ui/icons';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import type { PickType } from '@/shared/ui/TypePicker';
@@ -83,7 +83,7 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Очистка старых версий"
       footer={
         <div className="flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-body-medium text-on-surface-variant state-layer rounded-sm">Отмена</button>
+          <ModalExit />
           <button onClick={handleDelete} disabled={deleting || toDelete.length === 0}
             className="px-4 py-2 text-body-medium bg-error hover:bg-error text-on-error rounded-sm disabled-container transition-colors">
             {deleting ? 'Удаление...' : `Удалить ${toDelete.length} вер.`}

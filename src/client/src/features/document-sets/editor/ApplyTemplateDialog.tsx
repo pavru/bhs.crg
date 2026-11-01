@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { CircularProgress } from '@/shared/ui/CircularProgress';
 import { CheckCircle, ErrorIcon } from '@/shared/ui/icons';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { useListBindingTemplates } from '@/shared/api/bindingTemplates';
 import { useAvailableDataSetFiles, useCreateDataSetBinding } from '@/shared/api/datasets';
 import { parseSourceColumnNames } from '@/shared/api/datasetHelpers';
@@ -165,7 +165,8 @@ export function ApplyTemplateDialog({
       title="Применить шаблон данных"
       wide
       footer={
-        <div className="flex gap-2">
+        <div className="flex justify-end gap-2">
+          <ModalExit />
           <button
             onClick={handleApply}
             disabled={!selectedTemplate || !selectedSource || create.isPending}
@@ -173,12 +174,6 @@ export function ApplyTemplateDialog({
           >
             {create.isPending && <CircularProgress size={18} />}
             Создать привязку
-          </button>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-sm text-body-medium font-medium text-on-surface-variant bg-surface-container"
-          >
-            Отмена
           </button>
         </div>
       }

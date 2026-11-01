@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { useSetFileRecognitionProfiles } from '@/shared/api/datasets';
 import {
@@ -59,7 +59,7 @@ export function FileProfilesDialog({ file, onClose }: { file: DataSetFile; onClo
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Профили распознавания набора"
       footer={
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
+          <ModalExit />
           <Button type="button" variant="filled" onClick={handleSave} disabled={!dirty} loading={save.isPending}>
             {save.isPending ? 'Сохранение…' : 'Сохранить'}
           </Button>

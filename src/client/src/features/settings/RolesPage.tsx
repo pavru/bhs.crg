@@ -299,7 +299,7 @@ function RenameRoleModal({ role, onClose }: { role: AppRole; onClose: () => void
         <TextField label="Для чего роль" value={summary} onChange={e => setSummary(e.target.value)} />
         {error && <p className="text-body-medium text-error">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
+          <ModalExit />
           <Button type="submit" variant="filled" loading={rename.isPending}>Сохранить</Button>
         </div>
       </form>

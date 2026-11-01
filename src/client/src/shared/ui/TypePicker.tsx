@@ -1,4 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
+import { DIALOG_SCRIM, DIALOG_SURFACE } from './dialogSurface';
 import { Icon } from './Icon';
 import { Block, Search } from './icons';
 import { typeIcon } from './typeIcons';
@@ -133,10 +134,10 @@ function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'Ð’Ñ
   return (
     <Dialog.Root open onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-scrim/32" style={{ backdropFilter: 'blur(2px)' }} />
+        <Dialog.Overlay className={`${DIALOG_SCRIM} z-40`} />
         <Dialog.Content
           data-modal-state="free"
-          className="fixed left-1/2 top-16 z-50 w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 flex flex-col max-h-[calc(100vh-8rem)] overflow-hidden rounded-lg border border-outline-variant bg-surface focus:outline-none shadow-elevation-2"
+          className={`fixed left-1/2 top-16 z-50 w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 flex flex-col max-h-[calc(100vh-8rem)] overflow-hidden ${DIALOG_SURFACE} focus:outline-none`}
         >
           <Dialog.Title className="sr-only">{title}</Dialog.Title>
           <div className="flex items-center gap-2 border-b border-outline-variant px-4 shrink-0">

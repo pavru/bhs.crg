@@ -3,7 +3,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Check, Close, Description, Layers, Undo } from '@/shared/ui/icons';
 import { Link } from 'react-router';
 import { Button } from '@/shared/ui/Button';
-import { Modal } from '@/shared/ui/Modal';
+import { Modal, ModalExit } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
 import { useSnackbar } from '@/shared/ui/Snackbar';
 import {
@@ -109,7 +109,7 @@ export function ObservationReviewDialog({ observation, setPath, nameOf, onClose 
             </Button>
           )}
           <span className="flex-1" />
-          <Button disabled={review.isPending} onClick={onClose}>Отмена</Button>
+          <ModalExit disabled={review.isPending} />
           <Button danger disabled={review.isPending} onClick={() => decide('Rejected')}>
             <Icon icon={Close} size={18} /> Отклонить
           </Button>
